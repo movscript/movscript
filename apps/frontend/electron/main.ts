@@ -50,14 +50,21 @@ function broadcastBackendStatus(status: BackendStatus): void {
   }
 }
 
-let shutdownStarted = false
+let shutdownCompleted = false
+let shutdownPromise: Promise<void> | null = null
 
 async function shutdownManagedServices(): Promise<void> {
-  if (shutdownStarted) return
-  shutdownStarted = true
-  await stopAgentRuntime()
-  await stopMCPServer()
-  await stopBackend(broadcastBackendStatus)
+  if (shutdownPromise) return shutdownPromise
+  shutdownPromise = (async () => {
+    try {
+      await stopAgentRuntime()
+      await stopMCPServer()
+      await stopBackend(broadcastBackendStatus)
+    } finally {
+      shutdownCompleted = true
+    }
+  })()
+  return shutdownPromise
 }
 
 async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
@@ -109,8 +116,12 @@ app.on('window-all-closed', async () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
-  void shutdownManagedServices()
+app.on('before-quit', (event) => {
+  if (shutdownCompleted) return
+  event.preventDefault()
+  void shutdownManagedServices().finally(() => {
+    app.exit(0)
+  })
 })
 
 process.once('SIGINT', () => {

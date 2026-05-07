@@ -69,7 +69,7 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
       type: a.type ?? 'file',
       ...(a.resourceId !== undefined ? { resourceId: a.resourceId } : {}),
     })) ?? [],
-    memories: memories.map((m) => ({ id: m.id, scope: m.scope, kind: m.kind, content: m.content })),
+    memories: memories.map((m) => ({ id: m.id, projectId: m.projectId, title: m.title, kind: m.kind, content: m.content })),
     labels: ui?.labels ?? [],
     statusDigest: buildStatusDigest(snapshot),
     rawContextHints: buildRawContextHints(snapshot),

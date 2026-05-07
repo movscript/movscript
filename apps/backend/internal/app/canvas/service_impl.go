@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 type nodeData = canvasruntime.NodeData
 type canvasPortValue = canvasruntime.PortValue
 type canvasPortInputMap = canvasruntime.PortInputMap
 
-func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
+func (h *Service) executeTask(user *persistencemodel.User, node *persistencemodel.CanvasNode, task *persistencemodel.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
 	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
@@ -58,7 +58,7 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 			h.failTask(task, node, nd, err.Error())
 			return
 		}
-		resp, err := h.svc.CallTextWithBilling(ctx, user.ID, nd.ModelDbID, textReq, h.billingContextForNode(ctx, node, task))
+		resp, err := h.svc.CallTextWithUsage(ctx, user.ID, nd.ModelDbID, textReq, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -71,11 +71,11 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 			h.failTask(task, node, nd, "no model selected for this node")
 			return
 		}
-		resp, err := h.svc.CallImageWithBilling(ctx, user.ID, nd.ModelDbID, ai.ImageRequest{
+		resp, err := h.svc.CallImageWithUsage(ctx, user.ID, nd.ModelDbID, ai.ImageRequest{
 			Prompt:             nd.Prompt,
 			N:                  1,
 			InputImageDataList: imageData,
-		}, h.billingContextForNode(ctx, node, task))
+		}, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -98,7 +98,7 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 		if len(videoData) > 0 {
 			videoReq.InputVideoData = &videoData[0]
 		}
-		resp, err := h.svc.CallVideoWithBilling(ctx, user.ID, nd.ModelDbID, videoReq, h.billingContextForNode(ctx, node, task))
+		resp, err := h.svc.CallVideoWithUsage(ctx, user.ID, nd.ModelDbID, videoReq, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -136,7 +136,7 @@ func (h *Service) executeTask(user *model.User, node *model.CanvasNode, task *mo
 	h.updateRunStatus(task.CanvasRunID)
 }
 
-func (h *Service) completeInlineTextTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, text string) {
+func (h *Service) completeInlineTextTask(task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, text string) {
 	value := canvasPortValue{Type: "text", Text: text}
 	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.CompleteCanvasTask(task, &nd, nil))
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
@@ -149,21 +149,21 @@ func (h *Service) completeInlineTextTask(task *model.CanvasTask, node *model.Can
 	h.updateRunStatus(task.CanvasRunID)
 }
 
-func (h *Service) billingContextForNode(ctx context.Context, node *model.CanvasNode, task *model.CanvasTask) ai.BillingContext {
-	billing := ai.BillingContext{}
+func (h *Service) usageContextForNode(ctx context.Context, node *persistencemodel.CanvasNode, task *persistencemodel.CanvasTask) ai.UsageContext {
+	usage := ai.UsageContext{}
 	if task != nil {
-		billing.JobID = &task.ID
+		usage.JobID = &task.ID
 	}
 	if node != nil && node.CanvasID != 0 {
-		if orgID, projectID, err := h.canvasRepo().CanvasBillingScope(ctx, node.CanvasID); err == nil {
-			billing.OrgID = orgID
-			billing.ProjectID = projectID
+		if orgID, projectID, err := h.canvasRepo().CanvasUsageScope(ctx, node.CanvasID); err == nil {
+			usage.OrgID = orgID
+			usage.ProjectID = projectID
 		}
 	}
-	return billing
+	return usage
 }
 
-func (h *Service) orgIDForNode(ctx context.Context, node *model.CanvasNode) *uint {
+func (h *Service) orgIDForNode(ctx context.Context, node *persistencemodel.CanvasNode) *uint {
 	if node == nil || node.CanvasID == 0 {
 		return nil
 	}

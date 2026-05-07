@@ -44,7 +44,7 @@ func NewSegment(spec SegmentSpec) Segment {
 		ProductionID:    spec.ProductionID,
 		TextBlockID:     spec.TextBlockID,
 		ParentSegmentID: spec.ParentSegmentID,
-		Kind:            FallbackString(spec.Kind, "section"),
+		Kind:            FallbackString(spec.Kind, "emotional_function"),
 		Order:           spec.Order,
 		Title:           spec.Title,
 		Summary:         spec.Summary,

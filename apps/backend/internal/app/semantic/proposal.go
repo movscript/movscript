@@ -35,20 +35,33 @@ type ProposalSceneMomentNode struct {
 	ContentUnits       []ProposalContentUnitNode `json:"content_units"`
 	CreativeReferences []ProposalCreativeRefNode `json:"creative_references"`
 	AssetSlots         []ProposalAssetSlotNode   `json:"asset_slots"`
+	Keyframes          []ProposalKeyframeNode    `json:"keyframes"`
 }
 
 type ProposalContentUnitNode struct {
-	Action      string  `json:"action"`
-	ID          *uint   `json:"id"`
-	ClientID    string  `json:"client_id"`
-	Title       string  `json:"title"`
-	Kind        string  `json:"kind"`
-	Description string  `json:"description"`
-	ShotSize    string  `json:"shot_size"`
-	CameraAngle string  `json:"camera_angle"`
-	DurationSec float64 `json:"duration_sec"`
-	Order       int     `json:"order"`
-	Status      string  `json:"status"`
+	Action      string                 `json:"action"`
+	ID          *uint                  `json:"id"`
+	ClientID    string                 `json:"client_id"`
+	Title       string                 `json:"title"`
+	Kind        string                 `json:"kind"`
+	Description string                 `json:"description"`
+	ShotSize    string                 `json:"shot_size"`
+	CameraAngle string                 `json:"camera_angle"`
+	DurationSec float64                `json:"duration_sec"`
+	Order       int                    `json:"order"`
+	Status      string                 `json:"status"`
+	Keyframes   []ProposalKeyframeNode `json:"keyframes"`
+}
+
+type ProposalKeyframeNode struct {
+	Action      string `json:"action"`
+	ID          *uint  `json:"id"`
+	ClientID    string `json:"client_id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Prompt      string `json:"prompt"`
+	Order       int    `json:"order"`
+	Status      string `json:"status"`
 }
 
 type ProposalCreativeRefNode struct {
@@ -95,6 +108,7 @@ type ApplyProductionProposalResponse struct {
 	SceneMoments []domainsemantic.SceneMoment `json:"scene_moments"`
 	ContentUnits []domainsemantic.ContentUnit `json:"content_units"`
 	AssetSlots   []domainsemantic.AssetSlot   `json:"asset_slots"`
+	Keyframes    []domainsemantic.Keyframe    `json:"keyframes"`
 }
 
 type ProposalApplyCounts struct {
@@ -102,6 +116,7 @@ type ProposalApplyCounts struct {
 	SceneMomentsCreated       int `json:"scene_moments_created"`
 	ContentUnitsCreated       int `json:"content_units_created"`
 	AssetSlotsCreated         int `json:"asset_slots_created"`
+	KeyframesCreated          int `json:"keyframes_created"`
 	CreativeReferencesCreated int `json:"creative_references_created"`
 	CreativeReferenceUsages   int `json:"creative_reference_usages"`
 }
@@ -298,6 +313,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 				}
 
 				for k, cuNode := range smNode.ContentUnits {
+					var contentUnitID uint
 					switch normalizeProposalAction(cuNode.Action) {
 					case "reuse":
 						if cuNode.ID == nil {
@@ -306,7 +322,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						if err := txSvc.ensureContentUnitInProject(ctx, projectID, *cuNode.ID); err != nil {
 							return err
 						}
-						continue
+						contentUnitID = *cuNode.ID
 					case "update":
 						if cuNode.ID == nil {
 							return missingProposalID("content_unit", cuNode.ClientID, "update")
@@ -314,7 +330,7 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 						smIDPtr := &sceneMomentID
 						prodIDPtr := &req.ProductionID
 						segIDPtr := &segmentID
-						if _, err := txSvc.PatchContentUnit(ctx, projectID, fmt.Sprint(*cuNode.ID), ContentUnitInput{
+						cu, err := txSvc.PatchContentUnit(ctx, projectID, fmt.Sprint(*cuNode.ID), ContentUnitInput{
 							ProductionID:  prodIDPtr,
 							SegmentID:     segIDPtr,
 							SceneMomentID: smIDPtr,
@@ -326,35 +342,42 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 							CameraAngle:   cuNode.CameraAngle,
 							DurationSec:   cuNode.DurationSec,
 							Status:        cuNode.Status,
-						}); err != nil {
+						})
+						if err != nil {
 							return err
 						}
-						continue
+						contentUnitID = cu.ID
 					case "create":
+						smIDPtr := &sceneMomentID
+						prodIDPtr := &req.ProductionID
+						segIDPtr := &segmentID
+						cu, err := txSvc.CreateContentUnit(ctx, projectID, ContentUnitInput{
+							ProductionID:  prodIDPtr,
+							SegmentID:     segIDPtr,
+							SceneMomentID: smIDPtr,
+							Kind:          cuNode.Kind,
+							Order:         fallbackInt(cuNode.Order, k+1),
+							Title:         cuNode.Title,
+							Description:   cuNode.Description,
+							ShotSize:      cuNode.ShotSize,
+							CameraAngle:   cuNode.CameraAngle,
+							DurationSec:   cuNode.DurationSec,
+							Status:        domainsemantic.ProposalDraftStatus(cuNode.Status),
+						})
+						if err != nil {
+							return err
+						}
+						resp.ContentUnits = append(resp.ContentUnits, cu)
+						resp.Counts.ContentUnitsCreated++
+						contentUnitID = cu.ID
 					default:
 						return invalidProposalAction("content_unit", cuNode.ClientID, cuNode.Action)
 					}
-					smIDPtr := &sceneMomentID
-					prodIDPtr := &req.ProductionID
-					segIDPtr := &segmentID
-					cu, err := txSvc.CreateContentUnit(ctx, projectID, ContentUnitInput{
-						ProductionID:  prodIDPtr,
-						SegmentID:     segIDPtr,
-						SceneMomentID: smIDPtr,
-						Kind:          cuNode.Kind,
-						Order:         fallbackInt(cuNode.Order, k+1),
-						Title:         cuNode.Title,
-						Description:   cuNode.Description,
-						ShotSize:      cuNode.ShotSize,
-						CameraAngle:   cuNode.CameraAngle,
-						DurationSec:   cuNode.DurationSec,
-						Status:        domainsemantic.ProposalDraftStatus(cuNode.Status),
-					})
-					if err != nil {
-						return err
+					for l, keyframeNode := range cuNode.Keyframes {
+						if err := txSvc.applyProposalKeyframe(ctx, projectID, req.ProductionID, sceneMomentID, &contentUnitID, keyframeNode, l, resp); err != nil {
+							return err
+						}
 					}
-					resp.ContentUnits = append(resp.ContentUnits, cu)
-					resp.Counts.ContentUnitsCreated++
 				}
 
 				for _, asNode := range smNode.AssetSlots {
@@ -408,6 +431,12 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 					resp.AssetSlots = append(resp.AssetSlots, slot)
 					resp.Counts.AssetSlotsCreated++
 				}
+
+				for l, keyframeNode := range smNode.Keyframes {
+					if err := txSvc.applyProposalKeyframe(ctx, projectID, req.ProductionID, sceneMomentID, nil, keyframeNode, l, resp); err != nil {
+						return err
+					}
+				}
 			}
 		}
 		return nil
@@ -417,6 +446,55 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 	}
 	s.bumpProgressVersion(ctx, projectID)
 	return resp, nil
+}
+
+func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, productionID uint, sceneMomentID uint, contentUnitID *uint, node ProposalKeyframeNode, index int, resp *ApplyProductionProposalResponse) error {
+	prodIDPtr := &productionID
+	sceneMomentIDPtr := &sceneMomentID
+	switch normalizeProposalAction(node.Action) {
+	case "reuse":
+		if node.ID == nil {
+			return missingProposalID("keyframe", node.ClientID, "reuse")
+		}
+		if err := s.ensureKeyframeInProject(ctx, projectID, *node.ID); err != nil {
+			return err
+		}
+		return nil
+	case "update":
+		if node.ID == nil {
+			return missingProposalID("keyframe", node.ClientID, "update")
+		}
+		_, err := s.PatchKeyframe(ctx, projectID, fmt.Sprint(*node.ID), KeyframeInput{
+			ProductionID:  prodIDPtr,
+			SceneMomentID: sceneMomentIDPtr,
+			ContentUnitID: contentUnitID,
+			Title:         node.Title,
+			Description:   node.Description,
+			Prompt:        node.Prompt,
+			Order:         node.Order,
+			Status:        node.Status,
+		})
+		return err
+	case "create":
+		keyframe, err := s.CreateKeyframe(ctx, projectID, KeyframeInput{
+			ProductionID:  prodIDPtr,
+			SceneMomentID: sceneMomentIDPtr,
+			ContentUnitID: contentUnitID,
+			Title:         node.Title,
+			Description:   node.Description,
+			Prompt:        node.Prompt,
+			Order:         fallbackInt(node.Order, index+1),
+			Status:        domainsemantic.ProposalDraftStatus(node.Status),
+		})
+		if err != nil {
+			return err
+		}
+		resp.Keyframes = append(resp.Keyframes, keyframe)
+		resp.Counts.KeyframesCreated++
+		return nil
+	default:
+		return invalidProposalAction("keyframe", node.ClientID, node.Action)
+	}
 }
 
 func normalizeProposalAction(action string) string {

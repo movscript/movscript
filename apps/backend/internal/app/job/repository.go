@@ -6,7 +6,7 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -34,7 +34,7 @@ func newRepository(db *gorm.DB) repository {
 
 func (r *gormRepository) List(ctx context.Context, filter ListFilter) (ListResult, error) {
 	spec := domainjob.BuildListSpec(filter)
-	q := r.db.WithContext(ctx).Model(&model.Job{}).Where("user_id = ?", filter.UserID)
+	q := r.db.WithContext(ctx).Model(&persistencemodel.Job{}).Where("user_id = ?", filter.UserID)
 	q = r.applyOrgScope(ctx, q, filter.OrgID, filter.UserID)
 	if filter.ProjectID != nil {
 		q = q.Where("project_id = ?", *filter.ProjectID)
@@ -55,7 +55,7 @@ func (r *gormRepository) List(ctx context.Context, filter ListFilter) (ListResul
 	if err := q.Count(&total).Error; err != nil {
 		return ListResult{}, err
 	}
-	jobs := make([]model.Job, 0)
+	jobs := make([]persistencemodel.Job, 0)
 	if err := q.Preload("OutputResource").Order("id desc").Limit(spec.Limit).Offset(spec.Offset).Find(&jobs).Error; err != nil {
 		return ListResult{}, err
 	}
@@ -74,7 +74,7 @@ func (r *gormRepository) LoadInputResources(ctx context.Context, ids []uint, use
 	if len(ids) == 0 {
 		return InputResourcesResult{}, nil
 	}
-	resources := make([]model.RawResource, 0)
+	resources := make([]persistencemodel.RawResource, 0)
 	if err := r.db.WithContext(ctx).Where("id IN ?", ids).Find(&resources).Error; err != nil {
 		return InputResourcesResult{}, err
 	}
@@ -97,7 +97,7 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 		CredentialsByID: map[uint]domainjob.AICredential{},
 	}
 	if len(resourceIDs) > 0 {
-		resources := make([]model.RawResource, 0)
+		resources := make([]persistencemodel.RawResource, 0)
 		if err := r.db.WithContext(ctx).Where("id IN ?", resourceIDs).Find(&resources).Error; err != nil {
 			return lookups, err
 		}
@@ -107,7 +107,7 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 	}
 	credentialIDSet := map[uint]bool{}
 	if len(modelConfigIDs) > 0 {
-		configs := make([]model.AIModelConfig, 0)
+		configs := make([]persistencemodel.AIModelConfig, 0)
 		if err := r.db.WithContext(ctx).Where("id IN ?", modelConfigIDs).Find(&configs).Error; err != nil {
 			return lookups, err
 		}
@@ -121,7 +121,7 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 		credentialIDs = append(credentialIDs, id)
 	}
 	if len(credentialIDs) > 0 {
-		creds := make([]model.AICredential, 0)
+		creds := make([]persistencemodel.AICredential, 0)
 		if err := r.db.WithContext(ctx).Where("id IN ?", credentialIDs).Find(&creds).Error; err != nil {
 			return lookups, err
 		}
@@ -133,7 +133,7 @@ func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint
 }
 
 func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainjob.AICredential, error) {
-	var cred model.AICredential
+	var cred persistencemodel.AICredential
 	if err := r.db.WithContext(ctx).First(&cred, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainjob.AICredential{}, ErrNotFound
@@ -235,7 +235,7 @@ func (r *gormRepository) EnsureProjectInOrg(ctx context.Context, projectID *uint
 	if projectID == nil {
 		return nil
 	}
-	var project model.Project
+	var project persistencemodel.Project
 	if err := r.db.WithContext(ctx).Select("id, org_id").First(&project, *projectID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrProjectNotFound
@@ -249,7 +249,7 @@ func (r *gormRepository) EnsureProjectInOrg(ctx context.Context, projectID *uint
 }
 
 func (r *gormRepository) getOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
-	var job model.Job
+	var job persistencemodel.Job
 	if err := r.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainjob.Job{}, ErrNotFound
@@ -266,7 +266,7 @@ func (r *gormRepository) getOwned(ctx context.Context, id uint, userID uint, org
 }
 
 func (r *gormRepository) reload(ctx context.Context, id uint) (domainjob.Job, error) {
-	var job model.Job
+	var job persistencemodel.Job
 	if err := r.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
 		return domainjob.Job{}, err
 	}
@@ -294,7 +294,7 @@ func (r *gormRepository) includeLegacyPersonal(ctx context.Context, orgID *uint)
 	if orgID == nil {
 		return true
 	}
-	var org model.Organization
+	var org persistencemodel.Organization
 	if err := r.db.WithContext(ctx).Select("is_personal").First(&org, *orgID).Error; err != nil {
 		return false
 	}

@@ -1,8 +1,8 @@
 package cloudfileconfig
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func ConfigFromModel(config model.CloudFileConfig) Config {
+func ConfigFromModel(config persistencemodel.CloudFileConfig) Config {
 	return Config{
 		ID:           config.ID,
 		Name:         config.Name,
@@ -16,13 +16,13 @@ func ConfigFromModel(config model.CloudFileConfig) Config {
 	}
 }
 
-func (config Config) ToModel() model.CloudFileConfig {
-	var target model.CloudFileConfig
+func (config Config) ToModel() persistencemodel.CloudFileConfig {
+	var target persistencemodel.CloudFileConfig
 	config.ApplyToModel(&target)
 	return target
 }
 
-func (config Config) ApplyToModel(target *model.CloudFileConfig) {
+func (config Config) ApplyToModel(target *persistencemodel.CloudFileConfig) {
 	target.Model.ID = config.ID
 	target.Model.CreatedAt = config.CreatedAt
 	target.Model.UpdatedAt = config.UpdatedAt

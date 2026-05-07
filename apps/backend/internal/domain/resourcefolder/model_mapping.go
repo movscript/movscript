@@ -1,8 +1,8 @@
 package resourcefolder
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func FolderFromModel(folder model.ResourceFolder) Folder {
+func FolderFromModel(folder persistencemodel.ResourceFolder) Folder {
 	return Folder{
 		ID:             folder.ID,
 		OwnerID:        folder.OwnerID,
@@ -18,13 +18,13 @@ func FolderFromModel(folder model.ResourceFolder) Folder {
 	}
 }
 
-func (folder Folder) ToModel() model.ResourceFolder {
-	var target model.ResourceFolder
+func (folder Folder) ToModel() persistencemodel.ResourceFolder {
+	var target persistencemodel.ResourceFolder
 	folder.ApplyToModel(&target)
 	return target
 }
 
-func (folder Folder) ApplyToModel(target *model.ResourceFolder) {
+func (folder Folder) ApplyToModel(target *persistencemodel.ResourceFolder) {
 	target.Model.ID = folder.ID
 	target.Model.CreatedAt = folder.CreatedAt
 	target.Model.UpdatedAt = folder.UpdatedAt
@@ -37,7 +37,7 @@ func (folder Folder) ApplyToModel(target *model.ResourceFolder) {
 	target.ResourceCount = folder.ResourceCount
 }
 
-func PermissionFromModel(permission model.ResourceFolderPermission) Permission {
+func PermissionFromModel(permission persistencemodel.ResourceFolderPermission) Permission {
 	return Permission{
 		ID:         permission.ID,
 		FolderID:   permission.FolderID,
@@ -49,13 +49,13 @@ func PermissionFromModel(permission model.ResourceFolderPermission) Permission {
 	}
 }
 
-func (permission Permission) ToModel() model.ResourceFolderPermission {
-	var target model.ResourceFolderPermission
+func (permission Permission) ToModel() persistencemodel.ResourceFolderPermission {
+	var target persistencemodel.ResourceFolderPermission
 	permission.ApplyToModel(&target)
 	return target
 }
 
-func (permission Permission) ApplyToModel(target *model.ResourceFolderPermission) {
+func (permission Permission) ApplyToModel(target *persistencemodel.ResourceFolderPermission) {
 	target.Model.ID = permission.ID
 	target.Model.CreatedAt = permission.CreatedAt
 	target.Model.UpdatedAt = permission.UpdatedAt
@@ -64,14 +64,14 @@ func (permission Permission) ApplyToModel(target *model.ResourceFolderPermission
 	target.Permission = permission.Permission
 }
 
-func UserRefFromModelPointer(user *model.User) *UserRef {
+func UserRefFromModelPointer(user *persistencemodel.User) *UserRef {
 	if user == nil {
 		return nil
 	}
 	return UserRefFromModel(*user)
 }
 
-func UserRefFromModel(user model.User) *UserRef {
+func UserRefFromModel(user persistencemodel.User) *UserRef {
 	if user.ID == 0 {
 		return nil
 	}

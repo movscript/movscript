@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Film,
   GitBranch,
+  ImageIcon,
   Loader2,
   PackageCheck,
   Pencil,
@@ -159,7 +160,7 @@ interface AIAnalysisResult {
   content_units: AIContentUnitCandidate[]
 }
 
-// Tree-form proposal types (from propose_production_entities)
+// Tree-form proposal types used by the production_proposal draft.
 interface ProposalContentUnitNode {
   action: 'create' | 'reuse' | 'update'
   id?: number
@@ -170,6 +171,18 @@ interface ProposalContentUnitNode {
   shot_size?: string
   camera_angle?: string
   duration_sec?: number
+  order?: number
+  status?: string
+  before?: Record<string, unknown>
+  keyframes?: ProposalKeyframeNode[]
+}
+interface ProposalKeyframeNode {
+  action: 'create' | 'reuse' | 'update'
+  id?: number
+  client_id?: string
+  title?: string
+  description?: string
+  prompt?: string
   order?: number
   status?: string
   before?: Record<string, unknown>
@@ -209,6 +222,7 @@ interface ProposalSceneMomentNode {
   content_units?: ProposalContentUnitNode[]
   creative_references?: ProposalCreativeRefNode[]
   asset_slots?: ProposalAssetSlotNode[]
+  keyframes?: ProposalKeyframeNode[]
   rationale?: string
   before?: Record<string, unknown>
 }
@@ -242,6 +256,7 @@ interface ProposalSimulationResult {
     scene_moments_created: number
     content_units_created: number
     asset_slots_created: number
+    keyframes_created: number
     creative_references_created: number
     creative_reference_usages: number
   }
@@ -321,10 +336,10 @@ interface ContextOverview {
 
 const filterDefs: { key: EntityFilter; label: string; icon: LucideIcon }[] = [
   { key: 'all', label: '全局结构', icon: LayoutList },
-  { key: 'segments', label: '剧本段落结构', icon: GitBranch },
+  { key: 'segments', label: '编排段结构', icon: GitBranch },
   { key: 'sceneMoments', label: '情景结构', icon: Route },
-  { key: 'creativeReferences', label: '资料梳理', icon: Sparkles },
-  { key: 'assetSlots', label: '素材缺口', icon: PackageCheck },
+  { key: 'creativeReferences', label: '设定资料梳理', icon: Sparkles },
+  { key: 'assetSlots', label: '素材需求缺口', icon: PackageCheck },
   { key: 'contentUnits', label: '制作项', icon: Film },
 ]
 
@@ -344,14 +359,20 @@ const statusTone: Record<string, string> = {
 
 const statusLabel: Record<string, string> = {
   confirmed: '已确认', locked: '已锁定', accepted: '已采纳', active: '进行中',
-  draft: '草稿', candidate: '候选', missing: '缺素材', ignored: '已忽略',
+  draft: '草稿', candidate: '候选', missing: '缺素材需求', ignored: '已忽略',
   rejected: '已拒绝', blocked: '阻塞', in_production: '生产中',
   low: '低', normal: '普通', high: '高', critical: '紧急',
 }
 
 const segmentKindLabel: Record<string, string> = {
-  section: '剧本段落', scene: '场次', montage: '蒙太奇', narration: '旁白',
-  product_showcase: '产品展示', title_card: '标题卡', transition: '转场',
+  emotional_function: '情绪功能',
+  rhythm_shift: '节奏变化',
+  dramatic_function: '戏剧功能',
+  setup: '铺垫',
+  escalation: '升级',
+  release: '释放',
+  reversal: '反转',
+  transition: '转场',
 }
 
 const contentUnitKindLabel: Record<string, string> = {
@@ -406,7 +427,6 @@ export default function ProductionOrchestratePage() {
   const [createType, setCreateType] = useState<EntityFilter | null>(null)
   const [editEntry, setEditEntry] = useState<{ type: EntityFilter; record: SemanticEntityRecord } | null>(null)
   const [candidates, setCandidates] = useState<TrackedCandidates | null>(null)
-  const [aiPanelOpen, setAIPanelOpen] = useState(false)
   const [orchestrationPrompt, setOrchestrationPrompt] = useState('')
   const [proposalPreviewDraft, setProposalPreviewDraft] = useState<ProposalDraftContent | null>(null)
   const [proposalNodeDecisions, setProposalNodeDecisions] = useState<ProposalNodeDecisions>({})
@@ -492,17 +512,17 @@ export default function ProductionOrchestratePage() {
   }
 
   function getSelectedRecordLabel() {
-    if (filter === 'segments') return selectedSegment ? titleOfRecord(selectedSegment) : '未选择剧本段落'
+    if (filter === 'segments') return selectedSegment ? titleOfRecord(selectedSegment) : '未选择编排段'
     if (filter === 'sceneMoments') return selectedSceneMoment ? titleOfRecord(selectedSceneMoment) : '未选择情景'
-    if (filter === 'creativeReferences') return selectedCreativeReference ? titleOfRecord(selectedCreativeReference) : '未选择资料'
-    if (filter === 'assetSlots') return selectedAssetSlot ? titleOfRecord(selectedAssetSlot) : '未选择素材'
+    if (filter === 'creativeReferences') return selectedCreativeReference ? titleOfRecord(selectedCreativeReference) : '未选择设定资料'
+    if (filter === 'assetSlots') return selectedAssetSlot ? titleOfRecord(selectedAssetSlot) : '未选择素材需求'
     if (filter === 'contentUnits') return selectedContentUnit ? titleOfRecord(selectedContentUnit) : '未选择制作项'
-    return filter === 'all' ? '未选择对象，正在查看全分集' : '未选择对象，正在查看分类总览'
+    return filter === 'all' ? '未选择对象，正在查看全制作' : '未选择对象，正在查看分类总览'
   }
 
   function getSelectedRecordSummary() {
     if (!selectedRecord) {
-      if (filter === 'all') return '展示剧本段落、情景、资料、素材和制作项的整体覆盖。'
+      if (filter === 'all') return '展示编排段、情景、设定资料、素材需求和制作项的整体覆盖。'
       return '点选左侧条目后，这里会切换为当前对象的上下文总览。'
     }
     if (filter === 'segments') return String(selectedSegment?.summary ?? selectedSegment?.content ?? '暂无摘要')
@@ -558,7 +578,7 @@ export default function ProductionOrchestratePage() {
         id: moment.ID,
         title: titleOfRecord(moment),
         detail: [moment.time_text, moment.location_text, moment.action_text].filter(Boolean).join(' · ') || '暂无说明',
-        meta: [moment.segment_id ? `剧本段落 #${moment.segment_id}` : ''],
+        meta: [moment.segment_id ? `编排段 #${moment.segment_id}` : ''],
         status: String(moment.status ?? ''),
       }))
     }
@@ -622,7 +642,7 @@ export default function ProductionOrchestratePage() {
       countPending(candidates.content_units)
     : 0
   const contextOverview = buildContextOverview(filter, selectedRecord, {
-    productionName: selectedProduction ? String(selectedProduction.name ?? `分集 #${selectedProduction.ID}`) : '未选择分集',
+    productionName: selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : '未选择制作',
     scriptVersionTitle: selectedScriptVersion?.title ?? lookup.scriptVersionTitle,
     scriptText: lookup.scriptText,
     segments: allSegments,
@@ -704,10 +724,9 @@ export default function ProductionOrchestratePage() {
 
   function handleAnalyzeTarget(target: AnalysisTarget) {
     setOrchestrationPrompt((prev) => {
-      const prefix = target.entityId ? `请重点检查当前选中的结构对象 #${target.entityId}，补齐 AI 可能遗漏的剧本段落、情景、资料、素材或制作项。` : '请重新检查当前分集结构，补齐 AI 可能遗漏的内容。'
+      const prefix = target.entityId ? `请重点检查当前选中的结构对象 #${target.entityId}，补齐 AI 可能遗漏的编排段、情景、设定资料、素材需求或制作项。` : '请重新检查当前制作结构，补齐 AI 可能遗漏的内容。'
       return prev.trim() ? prev : prefix
     })
-    setAIPanelOpen(true)
   }
 
   function handleClearCandidates() {
@@ -715,10 +734,6 @@ export default function ProductionOrchestratePage() {
   }
 
   function handleContextPrimaryAction() {
-    if (pendingCandidateCount > 0) {
-      setAIPanelOpen(true)
-      return
-    }
     if (selectedRecord) {
       const scope: AnalysisScope = filter === 'segments'
         ? 'segmentAnalysis'
@@ -826,7 +841,7 @@ export default function ProductionOrchestratePage() {
       production_id: effectiveProductionId || 0,
       title: data.title,
       summary: data.summary,
-      kind: 'section',
+      kind: 'emotional_function',
       status: 'draft',
       order: data.order,
     }
@@ -834,7 +849,7 @@ export default function ProductionOrchestratePage() {
       ? await updateSemanticEntity(projectId!, semanticEntityConfig('segments'), overwriteId, payload)
       : await createSemanticEntity(projectId!, semanticEntityConfig('segments'), payload)
     handleAcceptCandidate('segments', data.client_id)
-    toast.success(overwriteId ? `剧本段落「${saved.title}」已覆盖更新` : `剧本段落「${saved.title}」已创建`)
+    toast.success(overwriteId ? `编排段「${saved.title}」已覆盖更新` : `编排段「${saved.title}」已创建`)
     refetch()
   }
 
@@ -1069,17 +1084,17 @@ export default function ProductionOrchestratePage() {
               <Boxes size={13} />
               <Link to="/production" className="hover:underline">{project?.name ?? '项目'}</Link>
               <ChevronRight size={12} />
-              <span>分集编排</span>
+              <span>制作编排</span>
             </div>
             {productions.length > 0 && (
               <Select value={String(effectiveProductionId || '')} onValueChange={handleSelectProduction}>
                 <SelectTrigger className="h-7 w-44 text-xs">
-                  <SelectValue placeholder="选择分集" />
+                  <SelectValue placeholder="选择制作" />
                 </SelectTrigger>
                 <SelectContent>
                   {productions.map((p) => (
                     <SelectItem key={p.ID} value={String(p.ID)}>
-                      {String(p.name ?? `分集 #${p.ID}`)}
+                      {String(p.name ?? `制作 #${p.ID}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -1089,17 +1104,9 @@ export default function ProductionOrchestratePage() {
           <div className="flex items-center gap-2">
             {isFetching && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
             {!proposalPreviewDraft && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">UI 预览</Badge>}
-            <Button
-              size="sm"
-              variant={aiPanelOpen ? 'secondary' : 'default'}
-              className="h-7 gap-1.5 text-xs"
-              onClick={() => {
-                if (aiPanelOpen) setAIPanelOpen(false)
-                else handleContextPrimaryAction()
-              }}
-            >
+            <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={handleContextPrimaryAction}>
               <Wand2 size={13} />
-              {aiPanelOpen ? '收起 AI' : '触发 AI'}
+              触发 AI
             </Button>
             <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => refetch()}>
               <RefreshCw size={13} />
@@ -1119,56 +1126,56 @@ export default function ProductionOrchestratePage() {
             </div>
           ) : (
             <ProductionPackageWorkspace
-              productionName={selectedProduction ? String(selectedProduction.name ?? `分集 #${selectedProduction.ID}`) : '未选择分集'}
+              projectId={projectId}
+              productionId={effectiveProductionId}
+              productionName={selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : '未选择制作'}
               scriptVersionTitle={selectedScriptVersion?.title ?? ''}
               scriptTextLength={scriptText.length}
-              proposalDraft={activeProposalDraft}
-              nodeDecisions={proposalNodeDecisions}
-              baseline={{
-                segments: allSegments.length,
-                sceneMoments: allSceneMoments.length,
-                creativeReferences: allCreativeReferences.length,
-                assetSlots: allAssetSlots.length,
-                contentUnits: allContentUnits.length,
-              }}
-              isPreview={!proposalPreviewDraft}
-              onRefresh={() => refetch()}
-            />
-          )}
-        </main>
-
-        <aside className="relative w-[420px] shrink-0 overflow-hidden border-l border-border bg-card">
-          <div className={cn('absolute inset-0 transition-all duration-200', aiPanelOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-full opacity-0')}>
-            <AgentChatSidebar
-              projectId={projectId}
-              production={selectedProduction ? { ...selectedProduction, script_version_id: selectedProduction.script_version_id, name: selectedProduction.name } : undefined}
-              selectedSegment={selectedSegment}
               segments={allSegments}
               sceneMoments={allSceneMoments}
               creativeReferences={allCreativeReferences}
               assetSlots={allAssetSlots}
               contentUnits={allContentUnits}
-              guideCounts={guideCounts}
-              pendingCounts={guidePendingCounts}
-              orchestrationPrompt={orchestrationPrompt}
-              onOrchestrationPromptChange={setOrchestrationPrompt}
-              candidateWorkbench={candidateWorkbench}
-              nodeDecisions={proposalNodeDecisions}
-              onNodeDecisionsChange={setProposalNodeDecisions}
-              onClose={() => setAIPanelOpen(false)}
-              onResult={() => undefined}
-              onProposalDraft={(draft) => setProposalPreviewDraft(draft)}
+              lookup={lookup}
+              queryKey={queryKey}
+              expandedIds={expandedIds}
+              onToggleExpand={(id) => {
+                setExpandedIds((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(id)) next.delete(id)
+                  else next.add(id)
+                  return next
+                })
+              }}
+              onEdit={(type, record) => setEditEntry({ type, record })}
+              onCreateChild={(type) => setCreateType(type)}
+              onAnalyze={handleAnalyzeTarget}
+              candidates={candidates}
+              renderCandidateRow={renderCandidateRow}
             />
-          </div>
-          <div className={cn('absolute inset-0 transition-all duration-200', aiPanelOpen ? 'pointer-events-none -translate-x-full opacity-0' : 'translate-x-0 opacity-100')}>
-            <ProposalReviewSidebar
-              projectId={projectId}
-              proposalDraft={activeProposalDraft}
-              nodeDecisions={proposalNodeDecisions}
-              onNodeDecisionsChange={setProposalNodeDecisions}
-              previewOnly={!proposalPreviewDraft}
-            />
-          </div>
+          )}
+        </main>
+
+        <aside className="relative w-[420px] shrink-0 overflow-hidden border-l border-border bg-card">
+          <AgentChatSidebar
+            projectId={projectId}
+            production={selectedProduction ? { ...selectedProduction, script_version_id: selectedProduction.script_version_id, name: selectedProduction.name } : undefined}
+            selectedSegment={selectedSegment}
+            segments={allSegments}
+            sceneMoments={allSceneMoments}
+            creativeReferences={allCreativeReferences}
+            assetSlots={allAssetSlots}
+            contentUnits={allContentUnits}
+            guideCounts={guideCounts}
+            pendingCounts={guidePendingCounts}
+            orchestrationPrompt={orchestrationPrompt}
+            onOrchestrationPromptChange={setOrchestrationPrompt}
+            candidateWorkbench={candidateWorkbench}
+            nodeDecisions={proposalNodeDecisions}
+            onNodeDecisionsChange={setProposalNodeDecisions}
+            onResult={() => undefined}
+            onProposalDraft={(draft) => setProposalPreviewDraft(draft)}
+          />
         </aside>
       </div>
 
@@ -1244,7 +1251,7 @@ function OrchestrationRail({ filter, items, filterCounts, pendingCandidateCount,
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-1.5">
-          <RailMetric label="剧本段落" value={filterCounts.segments} />
+          <RailMetric label="编排段" value={filterCounts.segments} />
           <RailMetric label="情景" value={filterCounts.sceneMoments} />
           <RailMetric label="单元" value={filterCounts.contentUnits} />
         </div>
@@ -1292,7 +1299,7 @@ function OrchestrationRail({ filter, items, filterCounts, pendingCandidateCount,
             className="flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-border px-3 py-8 text-center text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground"
           >
             <Plus size={18} />
-            {filter === 'all' ? '暂无分集结构' : `新增第一个${activeFilterLabel}`}
+            {filter === 'all' ? '暂无制作结构' : `新增第一个${activeFilterLabel}`}
           </button>
         ) : (
           <div className="space-y-1">
@@ -1327,7 +1334,7 @@ function OrchestrationRail({ filter, items, filterCounts, pendingCandidateCount,
 
       <div className="border-t border-border p-3">
         <div className="space-y-2">
-          <CheckRowTiny ok={filterCounts.segments > 0} label="剧本段落骨架" detail={`${filterCounts.segments} 条`} />
+          <CheckRowTiny ok={filterCounts.segments > 0} label="编排段骨架" detail={`${filterCounts.segments} 条`} />
           <CheckRowTiny ok={filterCounts.sceneMoments > 0} label="情景拆解" detail={`${filterCounts.sceneMoments} 条`} />
           <CheckRowTiny ok={pendingCandidateCount === 0} label="候选审阅" detail={pendingCandidateCount > 0 ? `${pendingCandidateCount} 条待审` : `${totalCount} 条已入库`} />
         </div>
@@ -1346,178 +1353,269 @@ function RailMetric({ label, value }: { label: string; value: number }) {
 }
 
 function ProductionPackageWorkspace({
+  projectId,
+  productionId,
   productionName,
   scriptVersionTitle,
   scriptTextLength,
-  proposalDraft,
-  nodeDecisions,
-  baseline,
-  isPreview,
-  onRefresh,
+  segments,
+  sceneMoments,
+  creativeReferences,
+  assetSlots,
+  contentUnits,
+  lookup,
+  queryKey,
+  expandedIds,
+  onToggleExpand,
+  onEdit,
+  onCreateChild,
+  onAnalyze,
+  candidates,
+  renderCandidateRow,
 }: {
+  projectId?: number
+  productionId: number
   productionName: string
   scriptVersionTitle: string
   scriptTextLength: number
-  proposalDraft: ProposalDraftContent
-  nodeDecisions: ProposalNodeDecisions
-  baseline: {
-    segments: number
-    sceneMoments: number
-    creativeReferences: number
-    assetSlots: number
-    contentUnits: number
-  }
-  isPreview: boolean
-  onRefresh: () => void
+  segments: SegmentRecord[]
+  sceneMoments: SceneMomentRecord[]
+  creativeReferences: CreativeReferenceRecord[]
+  assetSlots: AssetSlotRecord[]
+  contentUnits: ContentUnitRecord[]
+  lookup: OrchestrationLookup
+  queryKey: readonly unknown[]
+  expandedIds: Set<string>
+  onToggleExpand: (id: string) => void
+  onEdit: (type: EntityFilter, record: SemanticEntityRecord) => void
+  onCreateChild: (type: EntityFilter) => void
+  onAnalyze: (target: AnalysisTarget) => void
+  candidates: TrackedCandidates | null
+  renderCandidateRow: (type: EntityFilter, candidate: TrackedCandidate<Record<string, unknown> & { client_id: string }>) => ReactNode
 }) {
-  const segments = proposalDraft.proposal?.segments ?? []
-  const [selectedKey, setSelectedKey] = useState(() => segments[0]?.client_id ?? 'segment-0')
-  const totals = useMemo(() => countProposalTotals(segments), [segments])
-  const decisionSummary = useMemo(() => countProposalDecisionSummary(segments, nodeDecisions), [nodeDecisions, segments])
-  const actionCounts = useMemo(() => countProposalActions(segments), [segments])
-  const selected = findProposalSelection(segments, selectedKey) ?? { kind: 'segment' as const, segment: segments[0], moment: undefined }
-  const selectedSegment = selected.segment
-  const selectedMoment = selected.moment
-  const selectedTitle = selectedMoment?.title || selectedSegment?.title || '未选择结构节点'
-  const selectedDescription = selectedMoment
-    ? selectedMoment.action_text || selectedMoment.description || selectedMoment.rationale || '暂无情景说明。'
-    : selectedSegment?.summary || selectedSegment?.rationale || '暂无段落摘要。'
+  const noop = () => {}
+  const sharedEntityProps = {
+    projectId,
+    productionId,
+    queryKey,
+    expandedIds,
+    onToggleExpand,
+    onEdit,
+    onCreateChild,
+    onAnalyze,
+    candidates,
+    showDiff: false,
+    onAcceptCandidate: noop,
+    onRejectCandidate: noop,
+    lookup,
+  }
+  const pendingSegments = getPendingCandidatesForFilter('segments', candidates)
+  const pendingSceneMoments = getPendingCandidatesForFilter('sceneMoments', candidates)
+  const pendingCreativeReferences = getPendingCandidatesForFilter('creativeReferences', candidates)
+  const pendingAssetSlots = getPendingCandidatesForFilter('assetSlots', candidates)
+  const pendingContentUnits = getPendingCandidatesForFilter('contentUnits', candidates)
+  const contentUnitsByMoment = useMemo(() => {
+    const map = new Map<number, ContentUnitRecord[]>()
+    for (const unit of contentUnits) {
+      if (!unit.scene_moment_id) continue
+      const momentId = Number(unit.scene_moment_id)
+      if (!Number.isFinite(momentId)) continue
+      const list = map.get(momentId) ?? []
+      list.push(unit)
+      map.set(momentId, list)
+    }
+    for (const list of map.values()) list.sort(byOrder)
+    return map
+  }, [contentUnits])
+
+  function renderCandidateStrip(label: string, items: TrackedCandidate<Record<string, unknown> & { client_id: string }>[], type: EntityFilter) {
+    if (items.length === 0) return null
+    return (
+      <div className="border-b border-amber-200/70 bg-amber-50/60 px-4 py-3 dark:border-amber-900/30 dark:bg-amber-950/20">
+        <div className="mb-2 flex items-center gap-2 text-[10px] font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+          <Sparkle size={11} />
+          {label} · {items.length}
+        </div>
+        <div className="space-y-1.5">
+          {items.map((item) => renderCandidateRow(type, item))}
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 p-4">
-      <section className="rounded-lg border border-border bg-card px-4 py-3">
+    <div className="mx-auto flex w-full max-w-7xl flex-col">
+      <section className="border-b border-border/70 px-4 py-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-              <PackageCheck size={12} />
-              分集生产包
-              {isPreview && <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px]">UI 预览</Badge>}
+              <ScrollText size={12} />
+              结构
             </div>
             <h1 className="mt-1 truncate text-lg font-semibold text-foreground">{productionName}</h1>
-            <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-              {proposalDraft.summary || '审阅本次分集结构、复用关系和写入影响，再决定哪些节点进入项目。'}
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
+              先把本集的情绪、节奏和戏剧功能段写稳，再往下补设定资料、情景链和素材需求。
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs" onClick={onRefresh}>
-              <RefreshCw size={13} />
-              刷新基线
-            </Button>
-            <Button size="sm" className="h-8 gap-1.5 text-xs" disabled>
-              <CheckCheck size={13} />
-              {decisionSummary.unresolved > 0 ? `待审 ${decisionSummary.unresolved}` : '审阅完成'}
-            </Button>
+          <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+            <span className="rounded-full border border-border bg-background px-2 py-1">剧本 {scriptVersionTitle || '未绑定'}</span>
+            <span className="rounded-full border border-border bg-background px-2 py-1">文本 {scriptTextLength} 字</span>
+            <span className="rounded-full border border-border bg-background px-2 py-1">编排段 {segments.length}</span>
+            <span className="rounded-full border border-border bg-background px-2 py-1">情景 {sceneMoments.length}</span>
+            <span className="rounded-full border border-border bg-background px-2 py-1">设定资料 {creativeReferences.length}</span>
+            <span className="rounded-full border border-border bg-background px-2 py-1">素材需求 {assetSlots.length}</span>
+            <span className="rounded-full border border-border bg-background px-2 py-1">单元 {contentUnits.length}</span>
           </div>
-        </div>
-
-        <div className="mt-4 grid gap-2 md:grid-cols-4">
-          <PackageStageStep icon={ScrollText} label="剧本输入" active detail={scriptVersionTitle || '未绑定剧本'} />
-          <PackageStageStep icon={Wand2} label="生成提案" active detail={`${segments.length} 个段落建议`} />
-          <PackageStageStep icon={CheckCheck} label="人工审阅" active detail="右侧逐项决策" />
-          <PackageStageStep icon={Target} label="写入项目" detail="按接受结果落库" />
         </div>
       </section>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <DecisionMetric icon={GitBranch} label="提案段落" value={segments.length} />
-        <DecisionMetric icon={Route} label="提案情景" value={totals.sceneMoments} />
-        <DecisionMetric icon={Film} label="制作项" value={totals.contentUnits} />
-        <DecisionMetric icon={PackageCheck} label="素材缺口" value={totals.assetSlots} tone={totals.assetSlots > 0 ? 'warn' : 'muted'} />
-      </div>
-      <div className="grid gap-2 md:grid-cols-3">
-        <DecisionMetric icon={CheckCircle2} label="已接受" value={decisionSummary.accepted} tone={decisionSummary.accepted > 0 ? 'ok' : 'muted'} />
-        <DecisionMetric icon={X} label="已拒绝" value={decisionSummary.rejected} tone={decisionSummary.rejected > 0 ? 'warn' : 'muted'} />
-        <DecisionMetric icon={Info} label="未审" value={decisionSummary.unresolved} tone={decisionSummary.unresolved > 0 ? 'warn' : 'ok'} />
-      </div>
-
-      <div className="grid min-h-[520px] gap-4 xl:grid-cols-[1fr_420px]">
-        <section className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-foreground">分集结构预览</p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">一个分集就是一个生产包；段落、情景、资料、素材和制作项在这里统一审阅。</p>
-            </div>
-            <div className="flex gap-1.5 text-[10px]">
-              <span className="rounded bg-emerald-500/10 px-2 py-1 text-emerald-700 dark:text-emerald-300">新建 {actionCounts.create}</span>
-              <span className="rounded bg-blue-500/10 px-2 py-1 text-blue-700 dark:text-blue-300">复用 {actionCounts.reuse}</span>
-              <span className="rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">更新 {actionCounts.update}</span>
-            </div>
+      <WorkspaceSection
+        icon={GitBranch}
+        title="编排段"
+        detail="本集内部的情绪、节奏和戏剧功能"
+        actions={(
+          <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => onCreateChild('segments')}>
+            <Plus size={12} />
+            新增编排段
+          </Button>
+        )}
+      >
+        {renderCandidateStrip('编排段候选', pendingSegments, 'segments')}
+        {segments.length === 0 ? (
+          <EmptySection text="暂无结构" onAdd={() => onCreateChild('segments')} />
+        ) : (
+          <div className="divide-y divide-border/50">
+            {segments.map((segment) => (
+              <SegmentRow key={segment.ID} segment={segment} sceneMoments={sceneMoments} contentUnits={contentUnits} {...sharedEntityProps} />
+            ))}
           </div>
+        )}
+      </WorkspaceSection>
 
-          <div className="grid min-h-[460px] lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="min-w-0 divide-y divide-border overflow-y-auto">
-              {segments.length === 0 ? (
-                <div className="flex h-40 items-center justify-center text-sm text-muted-foreground">暂无提案结构</div>
-              ) : (
-                segments.map((segment, index) => (
-                  <ProposalStructureSegment
-                    key={segment.client_id ?? `segment-${index}`}
-                    segment={segment}
-                    index={index}
-                    selectedKey={selectedKey}
-                    nodeDecisions={nodeDecisions}
-                    onSelect={setSelectedKey}
-                  />
-                ))
-              )}
-            </div>
-
-            <aside className="border-t border-border bg-muted/20 p-4 lg:border-l lg:border-t-0">
-              <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
-                <Target size={12} />
-                当前选中
-              </div>
-              <h2 className="mt-1 text-base font-semibold text-foreground">{selectedTitle}</h2>
-              <p className="mt-2 text-xs leading-5 text-muted-foreground">{selectedDescription}</p>
-
-              <div className="mt-4 grid gap-2">
-                <PackageDetailLine icon={GitBranch} label="所属段落" value={selectedSegment?.title || '-'} />
-                <PackageDetailLine icon={Route} label="情景数量" value={`${selectedSegment?.scene_moments?.length ?? 0}`} />
-                <PackageDetailLine icon={Film} label="制作项" value={`${selectedMoment?.content_units?.length ?? countSegmentContentUnits(selectedSegment)}`} />
-                <PackageDetailLine icon={Sparkles} label="资料引用" value={`${selectedMoment?.creative_references?.length ?? countSegmentReferences(selectedSegment)}`} />
-                <PackageDetailLine icon={PackageCheck} label="素材需求" value={`${selectedMoment?.asset_slots?.length ?? countSegmentAssetSlots(selectedSegment)}`} />
-              </div>
-
-              {selectedMoment && (
-                <div className="mt-4 rounded-md border border-border bg-background p-3">
-                  <p className="text-[11px] font-semibold text-foreground">情景执行条件</p>
-                  <div className="mt-2 grid gap-1.5 text-[11px] text-muted-foreground">
-                    <span>{[selectedMoment.time_text, selectedMoment.location_text].filter(Boolean).join(' / ') || '未标注时间地点'}</span>
-                    <span>{selectedMoment.mood ? `情绪：${selectedMoment.mood}` : '未标注情绪'}</span>
-                    <span>{selectedMoment.content_units?.length ? '已拆制作项' : '等待拆制作项'}</span>
-                  </div>
-                </div>
-              )}
-            </aside>
-          </div>
-        </section>
-
-        <section className="rounded-lg border border-border bg-card p-4">
+      <WorkspaceSection
+        icon={Sparkles}
+        title="设定资料"
+        detail="人物、地点、道具、品牌和世界规则"
+        actions={(
           <div className="flex items-center gap-2">
-            <Layers3 size={14} className="text-primary" />
-            <p className="text-sm font-semibold text-foreground">基线对比</p>
+            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => onCreateChild('creativeReferences')}>
+              <Plus size={12} />
+              新增设定资料
+            </Button>
           </div>
-          <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-            提案不会直接替换现有结构，复用和更新会在写入前保留明确动作。
-          </p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <PackageCompareMetric label="已有段落" current={baseline.segments} next={segments.length} />
-            <PackageCompareMetric label="已有情景" current={baseline.sceneMoments} next={totals.sceneMoments} />
-            <PackageCompareMetric label="已有资料" current={baseline.creativeReferences} next={totals.creativeReferences} />
-            <PackageCompareMetric label="已有素材" current={baseline.assetSlots} next={totals.assetSlots} />
-            <PackageCompareMetric label="已有制作项" current={baseline.contentUnits} next={totals.contentUnits} />
-            <PackageCompareMetric label="剧本文本" current={scriptTextLength} next={scriptTextLength} suffix="字" />
+        )}
+      >
+        {renderCandidateStrip('设定资料候选', pendingCreativeReferences, 'creativeReferences')}
+        {creativeReferences.length === 0 ? (
+          <EmptySection text="暂无设定资料" onAdd={() => onCreateChild('creativeReferences')} />
+        ) : (
+          <div className="divide-y divide-border/50">
+            {creativeReferences.map((reference) => (
+              <CreativeReferenceRow key={reference.ID} reference={reference} {...sharedEntityProps} />
+            ))}
           </div>
-          <div className="mt-4 rounded-md border border-border bg-background p-3">
-            <p className="text-[11px] font-semibold text-foreground">写入策略</p>
-            <div className="mt-2 space-y-2 text-[11px] leading-4 text-muted-foreground">
-              <p>新建节点进入当前分集；复用节点引用项目级资料或已有素材；更新节点只记录变更意图。</p>
-              <p>右侧审阅完成后，写入动作应只提交被接受的结构节点。</p>
-            </div>
+        )}
+      </WorkspaceSection>
+
+      <WorkspaceSection
+        icon={Route}
+        title="情景链"
+        detail="顺序展开的具体情景与内容单元"
+        actions={(
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => onCreateChild('sceneMoments')}>
+              <Plus size={12} />
+              新增情景
+            </Button>
+            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => onCreateChild('contentUnits')}>
+              <Plus size={12} />
+              新增单元
+            </Button>
           </div>
-        </section>
-      </div>
+        )}
+      >
+        {renderCandidateStrip('情节候选', pendingSceneMoments, 'sceneMoments')}
+        {renderCandidateStrip('单元候选', pendingContentUnits, 'contentUnits')}
+        {sceneMoments.length === 0 ? (
+          <EmptySection text="暂无情节" onAdd={() => onCreateChild('sceneMoments')} />
+        ) : (
+          <div className="divide-y divide-border/50">
+            {sceneMoments.map((moment) => {
+              const units = contentUnitsByMoment.get(moment.ID) ?? []
+              return (
+                <div key={moment.ID}>
+                  <SceneMomentRow key={moment.ID} moment={moment} segments={segments} {...sharedEntityProps} />
+                  {units.length > 0 && (
+                    <div className="ml-6 border-l border-border/50 pl-3">
+                      <div className="space-y-1.5 py-2">
+                        {units.map((unit) => (
+                          <ContentUnitRow key={unit.ID} unit={unit} segments={segments} sceneMoments={sceneMoments} {...sharedEntityProps} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </WorkspaceSection>
+
+      <WorkspaceSection
+        icon={PackageCheck}
+        title="素材需求"
+        detail="情节对应的素材需求"
+        actions={(
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => onCreateChild('assetSlots')}>
+              <Plus size={12} />
+              新增素材需求
+            </Button>
+          </div>
+        )}
+      >
+        {renderCandidateStrip('素材需求候选', pendingAssetSlots, 'assetSlots')}
+        {assetSlots.length === 0 ? (
+          <EmptySection text="暂无素材需求" onAdd={() => onCreateChild('assetSlots')} />
+        ) : (
+          <div className="divide-y divide-border/50">
+            {assetSlots.map((slot) => (
+              <AssetSlotRow key={slot.ID} slot={slot} {...sharedEntityProps} />
+            ))}
+          </div>
+        )}
+      </WorkspaceSection>
     </div>
+  )
+}
+
+function WorkspaceSection({
+  icon: Icon,
+  title,
+  detail,
+  actions,
+  children,
+}: {
+  icon: LucideIcon
+  title: string
+  detail: string
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <section className="border-b border-border/70 px-4 py-5 last:border-b-0">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+            <Icon size={12} />
+            {title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+        </div>
+        {actions}
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
   )
 }
 
@@ -1559,11 +1657,11 @@ function ProposalStructureSegment({
         <ActionBadge action={segment.action} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium text-foreground">{segment.title || `剧本段落 ${index + 1}`}</span>
+            <span className="truncate text-sm font-medium text-foreground">{segment.title || `编排段 ${index + 1}`}</span>
             {decision && <DecisionBadge decision={decision} />}
             <span className="shrink-0 text-[10px] text-muted-foreground">{segment.scene_moments?.length ?? 0} 情景</span>
           </div>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{segment.summary || segment.rationale || '暂无摘要'}</p>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{segment.summary || segment.rationale || '暂无情绪、节奏或戏剧功能说明'}</p>
         </div>
       </button>
       <div className="ml-5 mt-2 space-y-1.5 border-l border-border pl-3">
@@ -1684,8 +1782,8 @@ function WorkspaceHeader({
 }) {
   const filterLabel = filterDefs.find((item) => item.key === filter)?.label ?? '编排'
   const hasSelection = Boolean(selectedRecord)
-  const title = hasSelection ? titleOfRecord(selectedRecord) : filter === 'all' ? '分集总览' : `${filterLabel}总览`
-  const modeLabel = hasSelection ? '当前对象' : filter === 'all' ? '全分集' : '分类总览'
+  const title = hasSelection ? titleOfRecord(selectedRecord) : filter === 'all' ? '制作总览' : `${filterLabel}总览`
+  const modeLabel = hasSelection ? '当前对象' : filter === 'all' ? '全制作' : '分类总览'
   const modeIcon = hasSelection ? Target : filter === 'all' ? Layers3 : LayoutList
   const ModeIcon = modeIcon
   const PrimaryIcon = contextOverview.primaryActionIcon
@@ -1734,7 +1832,7 @@ function WorkspaceHeader({
         {(metrics.length > 0 ? metrics : [
           { icon: LayoutList, label: filter === 'all' ? '全部对象' : '当前列表', value: filter === 'all' ? totalEntityCount : totalCount },
           { icon: Target, label: '当前选择', value: hasSelection ? 1 : 0 },
-          { icon: PackageCheck, label: '素材缺口', value: filterCounts.assetSlots, tone: filterCounts.assetSlots > 0 ? 'warn' as const : 'muted' as const },
+          { icon: PackageCheck, label: '素材需求缺口', value: filterCounts.assetSlots, tone: filterCounts.assetSlots > 0 ? 'warn' as const : 'muted' as const },
         ]).slice(0, 3).map((metric) => (
           <DecisionMetric key={metric.label} icon={metric.icon} label={metric.label} value={metric.value} tone={metric.tone} />
         ))}
@@ -1792,16 +1890,16 @@ function buildOverviewMetrics(
   if (!selectedRecord) {
     if (filter === 'all') {
       return [
-        { icon: GitBranch, label: '剧本段落', value: data.segments.length },
+        { icon: GitBranch, label: '编排段', value: data.segments.length },
         { icon: Route, label: '情景', value: data.sceneMoments.length },
-        { icon: PackageCheck, label: '素材缺口', value: data.assetSlots.length, tone: data.assetSlots.length > 0 ? 'warn' : 'muted' },
+        { icon: PackageCheck, label: '素材需求缺口', value: data.assetSlots.length, tone: data.assetSlots.length > 0 ? 'warn' : 'muted' },
       ]
     }
     if (filter === 'segments') {
       const withMoments = data.segments.filter((segment) => data.sceneMoments.some((moment) => moment.segment_id === segment.ID)).length
       const withUnits = data.segments.filter((segment) => data.contentUnits.some((unit) => unit.segment_id === segment.ID)).length
       return [
-        { icon: GitBranch, label: '剧本段落', value: data.segments.length },
+        { icon: GitBranch, label: '编排段', value: data.segments.length },
         { icon: Route, label: '有情景', value: withMoments, tone: withMoments === data.segments.length && data.segments.length > 0 ? 'ok' : 'muted' },
         { icon: Film, label: '有制作项', value: withUnits, tone: withUnits === data.segments.length && data.segments.length > 0 ? 'ok' : 'muted' },
       ]
@@ -1810,16 +1908,16 @@ function buildOverviewMetrics(
       const linkedUnits = data.contentUnits.filter((unit) => unit.scene_moment_id).length
       return [
         { icon: Route, label: '情景', value: data.sceneMoments.length },
-        { icon: GitBranch, label: '覆盖段落', value: uniqueNumbers(data.sceneMoments.map((moment) => Number(moment.segment_id ?? 0))).length },
+        { icon: GitBranch, label: '覆盖编排段', value: uniqueNumbers(data.sceneMoments.map((moment) => Number(moment.segment_id ?? 0))).length },
         { icon: Film, label: '承接制作项', value: linkedUnits },
       ]
     }
     if (filter === 'creativeReferences') {
       const usedRefs = data.creativeReferences.filter((reference) => (data.lookup.usagesByReferenceId.get(reference.ID)?.length ?? 0) > 0 || (data.lookup.assetSlotsByReferenceId.get(reference.ID)?.length ?? 0) > 0).length
       return [
-        { icon: Sparkles, label: '资料', value: data.creativeReferences.length },
+        { icon: Sparkles, label: '设定资料', value: data.creativeReferences.length },
         { icon: Target, label: '已被使用', value: usedRefs, tone: usedRefs > 0 ? 'ok' : 'muted' },
-        { icon: PackageCheck, label: '关联素材', value: data.lookup.assetSlotsByReferenceId.size },
+        { icon: PackageCheck, label: '关联素材需求', value: data.lookup.assetSlotsByReferenceId.size },
       ]
     }
     if (filter === 'assetSlots') {
@@ -1847,7 +1945,7 @@ function buildOverviewMetrics(
     return [
       { icon: Route, label: '情景', value: moments.length },
       { icon: Film, label: '制作项', value: units.length },
-      { icon: PackageCheck, label: '素材', value: slots.length, tone: slots.some((slot) => String(slot.status ?? '') === 'missing') ? 'warn' : 'muted' },
+      { icon: PackageCheck, label: '素材需求', value: slots.length, tone: slots.some((slot) => String(slot.status ?? '') === 'missing') ? 'warn' : 'muted' },
     ]
   }
   if (filter === 'sceneMoments') {
@@ -1858,23 +1956,23 @@ function buildOverviewMetrics(
       units.some((unit) => slot.owner_type === 'content_unit' && slot.owner_id === unit.ID)
     ))
     return [
-      { icon: GitBranch, label: '所属段落', value: moment.segment_id ? 1 : 0 },
+      { icon: GitBranch, label: '所属编排段', value: moment.segment_id ? 1 : 0 },
       { icon: Film, label: '制作项', value: units.length },
-      { icon: PackageCheck, label: '素材', value: slots.length, tone: slots.some((slot) => String(slot.status ?? '') === 'missing') ? 'warn' : 'muted' },
+      { icon: PackageCheck, label: '素材需求', value: slots.length, tone: slots.some((slot) => String(slot.status ?? '') === 'missing') ? 'warn' : 'muted' },
     ]
   }
   if (filter === 'creativeReferences') {
     const reference = selectedRecord as CreativeReferenceRecord
     return [
-      { icon: Sparkles, label: '资料类型', value: reference.kind ? creativeReferenceKindLabel[String(reference.kind)] ?? String(reference.kind) : '-' },
+      { icon: Sparkles, label: '设定资料类型', value: reference.kind ? creativeReferenceKindLabel[String(reference.kind)] ?? String(reference.kind) : '-' },
       { icon: Target, label: '出现次数', value: (data.lookup.usagesByReferenceId.get(reference.ID)?.length ?? 0) },
-      { icon: PackageCheck, label: '关联素材', value: (data.lookup.assetSlotsByReferenceId.get(reference.ID)?.length ?? 0) },
+      { icon: PackageCheck, label: '关联素材需求', value: (data.lookup.assetSlotsByReferenceId.get(reference.ID)?.length ?? 0) },
     ]
   }
   if (filter === 'assetSlots') {
     const slot = selectedRecord as AssetSlotRecord
     return [
-      { icon: PackageCheck, label: '素材类型', value: slot.kind ? String(slot.kind) : '-' },
+      { icon: PackageCheck, label: '素材需求类型', value: slot.kind ? String(slot.kind) : '-' },
       { icon: Target, label: '优先级', value: slot.priority ? statusLabel[String(slot.priority)] ?? String(slot.priority) : '-' },
       { icon: AlertCircle, label: '状态', value: slot.status ? statusLabel[String(slot.status)] ?? String(slot.status) : '-', tone: String(slot.status ?? '') === 'missing' ? 'warn' : 'muted' },
     ]
@@ -1914,16 +2012,16 @@ function buildContextOverview(
     const momentsWithoutUnits = data.sceneMoments.filter((moment) => !data.contentUnits.some((unit) => unit.scene_moment_id === moment.ID)).length
     const nextStep = [
       pendingLine,
-      segmentWithoutMoments > 0 ? `${segmentWithoutMoments} 个段落还没有情景拆解。` : '',
+      segmentWithoutMoments > 0 ? `${segmentWithoutMoments} 个编排段还没有情景拆解。` : '',
       momentsWithoutUnits > 0 ? `${momentsWithoutUnits} 个情景还没有制作项。` : '',
-      missingSlots.length > 0 ? `${missingSlots.length} 个素材仍是缺口状态。` : '',
+      missingSlots.length > 0 ? `${missingSlots.length} 个素材需求仍是缺口状态。` : '',
       data.segments.length === 0 ? '先从剧本生成第一版结构骨架。' : '',
       data.segments.length > 0 && data.pendingCount === 0 && segmentWithoutMoments === 0 && momentsWithoutUnits === 0 && missingSlots.length === 0 ? '结构已具备继续进入制作项生产的基础。' : '',
     ].filter(Boolean)
     return {
       position: [
-        `分集：${data.productionName}`,
-        filter === 'all' ? '当前查看分集结构树。' : `当前查看${filterDefs.find((item) => item.key === filter)?.label ?? '分类'}。`,
+        `制作：${data.productionName}`,
+        filter === 'all' ? '当前查看制作结构树。' : `当前查看${filterDefs.find((item) => item.key === filter)?.label ?? '分类'}。`,
       ],
       sourceLabel: '来源',
       source: [
@@ -1932,7 +2030,7 @@ function buildContextOverview(
       ],
       relations: [
         `${data.segments.length} 段 / ${data.sceneMoments.length} 情景 / ${data.contentUnits.length} 制作项`,
-        `${data.creativeReferences.length} 资料 / ${data.assetSlots.length} 素材需求`,
+        `${data.creativeReferences.length} 设定资料 / ${data.assetSlots.length} 素材需求`,
       ],
       nextStep,
       ...(primaryFromPending ?? {
@@ -1950,17 +2048,17 @@ function buildContextOverview(
     const missingSlots = slots.filter((slot) => String(slot.status ?? '') === 'missing')
     return {
       position: [
-        `分集：${data.productionName}`,
-        `剧本段落：${titleOfRecord(segment)}`,
+        `制作：${data.productionName}`,
+        `编排段：${titleOfRecord(segment)}`,
         segment.order ? `顺序：第 ${segment.order} 段` : '',
       ].filter(Boolean),
       sourceLabel: '剧本来源',
       source: [
         segment.source_range ? `来源范围：${segment.source_range}` : '',
-        String(segment.summary ?? segment.content ?? '').trim() || '暂无段落摘要。',
+        String(segment.summary ?? segment.content ?? '').trim() || '暂无编排段摘要。',
       ].filter(Boolean),
       relations: [
-        `${moments.length} 个情景承接这个段落。`,
+      `${moments.length} 个情景承接这个编排段。`,
         `${units.length} 个制作项从这里拆出。`,
         `${slots.length} 个素材需求，其中 ${missingSlots.length} 个缺口。`,
       ],
@@ -1968,7 +2066,7 @@ function buildContextOverview(
         pendingLine,
         moments.length === 0 ? '补齐情景拆解。' : '',
         units.length === 0 ? '基于情景生成制作项。' : '',
-        missingSlots.length > 0 ? '优先处理缺失素材。' : '',
+        missingSlots.length > 0 ? '优先处理缺失素材需求。' : '',
         moments.length > 0 && units.length > 0 && missingSlots.length === 0 ? '可继续检查单个情景或制作项。' : '',
       ].filter(Boolean),
       ...(primaryFromPending ?? {
@@ -1990,8 +2088,8 @@ function buildContextOverview(
     const missingSlots = slots.filter((slot) => String(slot.status ?? '') === 'missing')
     return {
       position: [
-        `分集：${data.productionName}`,
-        segment ? `所属段落：${titleOfRecord(segment)}` : '未关联剧本段落。',
+        `制作：${data.productionName}`,
+        segment ? `所属编排段：${titleOfRecord(segment)}` : '未关联编排段。',
         `情景：${titleOfRecord(moment)}`,
       ],
       sourceLabel: '情景信息',
@@ -2000,15 +2098,15 @@ function buildContextOverview(
         String(moment.action_text ?? moment.description ?? '').trim() || '暂无动作描述。',
       ].filter(Boolean),
       relations: [
-        `${refs.length} 个资料在此情景出现。`,
+        `${refs.length} 个设定资料在此情景出现。`,
         `${units.length} 个制作项承接此情景。`,
         `${slots.length} 个素材需求，其中 ${missingSlots.length} 个缺口。`,
       ],
       nextStep: [
         pendingLine,
-        refs.length === 0 ? '确认人物、地点或道具资料。' : '',
+        refs.length === 0 ? '确认人物、地点或道具设定资料。' : '',
         units.length === 0 ? '生成镜头或制作项。' : '',
-        missingSlots.length > 0 ? '补齐此情景下的素材。' : '',
+        missingSlots.length > 0 ? '补齐此情景下的素材需求。' : '',
         refs.length > 0 && units.length > 0 && missingSlots.length === 0 ? '可进入制作项检查镜头参数。' : '',
       ].filter(Boolean),
       ...(primaryFromPending ?? {
@@ -2027,8 +2125,8 @@ function buildContextOverview(
     const missingSlots = slots.filter((slot) => String(slot.status ?? '') === 'missing')
     return {
       position: [
-        `分集：${data.productionName}`,
-        segment ? `所属段落：${titleOfRecord(segment)}` : '',
+        `制作：${data.productionName}`,
+        segment ? `所属编排段：${titleOfRecord(segment)}` : '',
         moment ? `所属情景：${titleOfRecord(moment)}` : '未关联情景。',
       ].filter(Boolean),
       sourceLabel: '制作说明',
@@ -2038,19 +2136,19 @@ function buildContextOverview(
         String(unit.description ?? unit.prompt ?? '').trim() || '暂无制作说明。',
       ].filter(Boolean),
       relations: [
-        `${refs.length} 个资料约束此制作项。`,
+        `${refs.length} 个设定资料约束此制作项。`,
         `${slots.length} 个素材需求，其中 ${missingSlots.length} 个缺口。`,
         unit.duration_sec ? `预计时长 ${unit.duration_sec}s。` : '',
       ].filter(Boolean),
       nextStep: [
         pendingLine,
         !unit.prompt && !unit.description ? '补齐提示词或制作描述。' : '',
-        missingSlots.length > 0 ? '先处理依赖素材。' : '',
+        missingSlots.length > 0 ? '先处理依赖素材需求。' : '',
         slots.length === 0 ? '检查是否需要绑定素材需求。' : '',
         (unit.prompt || unit.description) && missingSlots.length === 0 ? '可进入生产工作台继续生成。' : '',
       ].filter(Boolean),
       ...(primaryFromPending ?? {
-        primaryActionLabel: missingSlots.length > 0 ? '检查素材' : '重新分析',
+        primaryActionLabel: missingSlots.length > 0 ? '检查素材需求' : '重新分析',
         primaryActionIcon: missingSlots.length > 0 ? PackageCheck : Wand2,
       }),
     }
@@ -2063,25 +2161,25 @@ function buildContextOverview(
     const usageLabels = uniqueStrings(usages.map((usage) => formatOwnerLabel(String(usage.owner_type ?? ''), Number(usage.owner_id ?? 0), data.lookup)).filter(Boolean))
     return {
       position: [
-        `项目共享资料：${titleOfRecord(reference)}`,
+        `项目共享设定资料：${titleOfRecord(reference)}`,
         reference.kind ? `类型：${creativeReferenceKindLabel[String(reference.kind)] ?? String(reference.kind)}` : '',
         reference.importance ? `重要性：${statusLabel[String(reference.importance)] ?? String(reference.importance)}` : '',
       ].filter(Boolean),
-      sourceLabel: '资料说明',
+      sourceLabel: '设定资料说明',
       source: [
         reference.alias ? `别名：${reference.alias}` : '',
-        String(reference.description ?? '').trim() || '暂无资料说明。',
+        String(reference.description ?? '').trim() || '暂无设定资料说明。',
       ].filter(Boolean),
       relations: [
-        `${usageLabels.length} 个结构位置引用此资料。`,
-        `${slots.length} 个素材需求与此资料关联。`,
+        `${usageLabels.length} 个结构位置引用此设定资料。`,
+        `${slots.length} 个素材需求与此设定资料关联。`,
         usageLabels[0] ? `示例：${usageLabels[0]}` : '',
       ].filter(Boolean),
       nextStep: [
         pendingLine,
-        usages.length === 0 && slots.length === 0 ? '确认是否需要绑定到段落、情景或素材。' : '',
-        slots.length === 0 ? '如需视觉一致性，可补充参考素材。' : '',
-        usages.length > 0 ? '修改会影响引用它的分集上下文。' : '',
+        usages.length === 0 && slots.length === 0 ? '确认是否需要绑定到段落、情景或素材需求。' : '',
+        slots.length === 0 ? '如需视觉一致性，可补充参考素材需求。' : '',
+        usages.length > 0 ? '修改会影响引用它的制作上下文。' : '',
       ].filter(Boolean),
       ...(primaryFromPending ?? {
         primaryActionLabel: usages.length === 0 ? '绑定上下文' : '重新分析',
@@ -2095,29 +2193,29 @@ function buildContextOverview(
   const reference = slot.creative_reference_id ? data.lookup.creativeReferenceById.get(Number(slot.creative_reference_id)) : null
   return {
     position: [
-      `分集：${data.productionName}`,
+      `制作：${data.productionName}`,
       ownerLabel || '未绑定服务对象。',
-      reference ? `关联资料：${titleOfRecord(reference)}` : '',
+      reference ? `关联设定资料：${titleOfRecord(reference)}` : '',
     ].filter(Boolean),
     sourceLabel: '素材需求',
     source: [
       slot.kind ? `类型：${slot.kind}` : '',
       slot.priority ? `优先级：${statusLabel[String(slot.priority)] ?? String(slot.priority)}` : '',
-      String(slot.description ?? '').trim() || '暂无素材说明。',
+      String(slot.description ?? '').trim() || '暂无素材需求说明。',
     ].filter(Boolean),
     relations: [
-      ownerLabel ? '该素材会影响其服务对象是否可生产。' : '当前素材缺少上下文归属。',
-      reference ? '该素材用于维持资料表现一致性。' : '未关联项目资料。',
+      ownerLabel ? '该素材需求会影响其服务对象是否可生产。' : '当前素材需求缺少上下文归属。',
+      reference ? '该素材需求用于维持设定资料表现一致性。' : '未关联项目设定资料。',
       slot.status ? `当前状态：${statusLabel[String(slot.status)] ?? String(slot.status)}。` : '',
     ].filter(Boolean),
     nextStep: [
       pendingLine,
-      String(slot.status ?? '') === 'missing' ? '补齐、生成或锁定素材。' : '',
+      String(slot.status ?? '') === 'missing' ? '补齐、生成或锁定素材资源。' : '',
       !ownerLabel ? '先绑定到段落、情景或制作项。' : '',
       ownerLabel && String(slot.status ?? '') !== 'missing' ? '可回到服务对象继续检查生产条件。' : '',
     ].filter(Boolean),
     ...(primaryFromPending ?? {
-      primaryActionLabel: String(slot.status ?? '') === 'missing' ? '检查素材' : '重新分析',
+      primaryActionLabel: String(slot.status ?? '') === 'missing' ? '检查素材需求' : '重新分析',
       primaryActionIcon: String(slot.status ?? '') === 'missing' ? PackageCheck : Wand2,
     }),
   }
@@ -2250,10 +2348,10 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
         <div className="flex items-center justify-between gap-3 px-4 py-2.5">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <GitBranch size={13} />
-            剧本段落 · 情景 · 制作项
+            编排段 · 情景 · 制作项
           </div>
           <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={onAddSegment}>
-            <Plus size={11} />新增剧本段落
+            <Plus size={11} />新增编排段
           </button>
         </div>
         {showDiff && candidates && candidates.segments.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').length > 0 && (
@@ -2270,7 +2368,7 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
           </div>
         )}
         {segments.length === 0 ? (
-          <EmptySection text="暂无剧本段落" onAdd={onAddSegment} />
+          <EmptySection text="暂无编排段" onAdd={onAddSegment} />
         ) : (
           <div className="divide-y divide-border/50">
             {segments.map((seg) => (
@@ -2288,7 +2386,7 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
             设定资料
           </div>
           <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={onAddReference}>
-            <Plus size={11} />新增资料
+            <Plus size={11} />新增设定资料
           </button>
         </div>
         {showDiff && candidates && candidates.creative_references.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').length > 0 && (
@@ -2323,7 +2421,7 @@ function AllView({ segments, sceneMoments, creativeReferences, assetSlots, conte
             素材需求
           </div>
           <button type="button" className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" onClick={onAddAsset}>
-            <Plus size={11} />新增素材
+            <Plus size={11} />新增素材需求
           </button>
         </div>
         {showDiff && candidates && candidates.asset_slots.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').length > 0 && (
@@ -2407,10 +2505,10 @@ function CandidateWorkbench({
     icon: LucideIcon
     items: TrackedCandidate<Record<string, unknown> & { client_id: string }>[]
   }[] = [
-    { type: 'segments', key: 'segments', label: '剧本段落', icon: GitBranch, items: (candidates?.segments ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
+    { type: 'segments', key: 'segments', label: '编排段', icon: GitBranch, items: (candidates?.segments ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
     { type: 'sceneMoments', key: 'scene_moments', label: '情景', icon: Route, items: (candidates?.scene_moments ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
-    { type: 'creativeReferences', key: 'creative_references', label: '资料', icon: Sparkles, items: (candidates?.creative_references ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
-    { type: 'assetSlots', key: 'asset_slots', label: '素材', icon: PackageCheck, items: (candidates?.asset_slots ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
+    { type: 'creativeReferences', key: 'creative_references', label: '设定资料', icon: Sparkles, items: (candidates?.creative_references ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
+    { type: 'assetSlots', key: 'asset_slots', label: '素材需求', icon: PackageCheck, items: (candidates?.asset_slots ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
     { type: 'contentUnits', key: 'content_units', label: '制作项', icon: Film, items: (candidates?.content_units ?? []) as TrackedCandidate<Record<string, unknown> & { client_id: string }>[] },
   ]
   const pendingGroups = groups
@@ -2500,7 +2598,7 @@ function SegmentRow({ segment, sceneMoments, contentUnits, projectId, queryKey, 
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteSemanticEntity(projectId!, semanticEntityConfig('segments'), segment.ID),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('剧本段落已删除') },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey }); toast.success('编排段已删除') },
     onError: () => toast.error('删除失败'),
   })
 
@@ -2512,7 +2610,7 @@ function SegmentRow({ segment, sceneMoments, contentUnits, projectId, queryKey, 
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-foreground">{String(segment.title ?? `剧本段落 #${segment.ID}`)}</span>
+            <span className="text-sm font-medium text-foreground">{String(segment.title ?? `编排段 #${segment.ID}`)}</span>
             {segment.kind && <Badge variant="secondary" className="text-[10px]">{segmentKindLabel[String(segment.kind)] ?? String(segment.kind)}</Badge>}
             {segment.status && <Badge variant="secondary" className={cn('text-[10px]', statusTone[String(segment.status)])}>{statusLabel[String(segment.status)] ?? String(segment.status)}</Badge>}
             {childSceneMoments.length > 0 && <span className="text-[10px] text-muted-foreground">{childSceneMoments.length} 情景</span>}
@@ -2527,7 +2625,7 @@ function SegmentRow({ segment, sceneMoments, contentUnits, projectId, queryKey, 
           <button type="button" onClick={() => onEdit('segments', segment)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
             <Pencil size={13} />
           </button>
-          <button type="button" onClick={() => { if (confirm('确定删除这个剧本段落？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
+          <button type="button" onClick={() => { if (confirm('确定删除这个编排段？')) deleteMutation.mutate() }} className="rounded p-1 text-muted-foreground hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30">
             <Trash2 size={13} />
           </button>
         </div>
@@ -2601,7 +2699,7 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-sm text-foreground">{String(moment.title ?? `情景 #${moment.ID}`)}</span>
             {moment.status && <Badge variant="secondary" className={cn('text-[10px]', statusTone[String(moment.status)])}>{statusLabel[String(moment.status)] ?? String(moment.status)}</Badge>}
-            {parentSegment && <span className="text-[10px] text-muted-foreground">剧本段落: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
+            {parentSegment && <span className="text-[10px] text-muted-foreground">编排段: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
           </div>
           <div className="mt-0.5 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
             {moment.time_text && <span>时间: {String(moment.time_text)}</span>}
@@ -2642,7 +2740,7 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
           )}
           {lookup.assetSlotsByOwnerKey.has(ownerKey('scene_moment', moment.ID)) && (
             <RelationBlock
-              label="出现的素材"
+              label="出现的素材需求"
               items={lookup.assetSlotsByOwnerKey.get(ownerKey('scene_moment', moment.ID))?.map((item) => titleOfRecord(item)) ?? []}
             />
           )}
@@ -2671,7 +2769,7 @@ function CreativeReferenceRow({ reference, projectId, queryKey, expandedIds, onT
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm text-foreground">{String(reference.name ?? `资料 #${reference.ID}`)}</span>
+            <span className="text-sm text-foreground">{String(reference.name ?? `设定资料 #${reference.ID}`)}</span>
             {reference.kind && <Badge variant="secondary" className="text-[10px]">{creativeReferenceKindLabel[String(reference.kind)] ?? String(reference.kind)}</Badge>}
             {reference.importance && <Badge variant="secondary" className="text-[10px]">{String(reference.importance) === 'main' ? '主要' : String(reference.importance) === 'supporting' ? '辅助' : '背景'}</Badge>}
             {reference.status && <Badge variant="secondary" className={cn('text-[10px]', statusTone[String(reference.status)])}>{statusLabel[String(reference.status)] ?? String(reference.status)}</Badge>}
@@ -2693,7 +2791,7 @@ function CreativeReferenceRow({ reference, projectId, queryKey, expandedIds, onT
       {expanded && reference.description && (
         <div className="ml-6 border-l border-border/50 pb-2 pl-3">
           <div className="px-2 py-2">
-            <p className="text-[10px] text-muted-foreground">资料文字</p>
+            <p className="text-[10px] text-muted-foreground">设定资料正文</p>
             <p className="mt-0.5 text-xs leading-relaxed text-foreground">{String(reference.description)}</p>
           </div>
           {reference.alias && <div className="px-2 pb-2"><DetailField label="别名" value={String(reference.alias)} /></div>}
@@ -2732,7 +2830,7 @@ function AssetSlotRow({ slot, projectId, queryKey, expandedIds, onToggleExpand, 
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-sm text-foreground">{String(slot.name ?? `素材 #${slot.ID}`)}</span>
+            <span className="text-sm text-foreground">{String(slot.name ?? `素材需求 #${slot.ID}`)}</span>
             {slot.kind && <Badge variant="secondary" className="text-[10px]">{String(slot.kind)}</Badge>}
             {slot.priority && <Badge variant="secondary" className="text-[10px]">{statusLabel[String(slot.priority)] ?? String(slot.priority)}</Badge>}
             {slot.status && <Badge variant="secondary" className={cn('text-[10px]', statusTone[String(slot.status)])}>{statusLabel[String(slot.status)] ?? String(slot.status)}</Badge>}
@@ -2803,7 +2901,7 @@ function ContentUnitRow({ unit, segments, sceneMoments, projectId, queryKey, exp
             {unit.shot_size && <span>景别: {String(unit.shot_size)}</span>}
             {unit.camera_angle && <span>机位: {String(unit.camera_angle)}</span>}
             {unit.camera_motion && <span>运镜: {String(unit.camera_motion)}</span>}
-            {parentSegment && <span>剧本段落: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
+            {parentSegment && <span>编排段: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
             {parentSceneMoment && <span>情景: {String(parentSceneMoment.title ?? `#${parentSceneMoment.ID}`)}</span>}
           </div>
         </div>
@@ -2839,9 +2937,9 @@ function ContentUnitRow({ unit, segments, sceneMoments, projectId, queryKey, exp
             {unit.camera_motion && <DetailField label="运镜方式" value={String(unit.camera_motion)} />}
             {unit.duration_sec && <DetailField label="时长" value={`${unit.duration_sec}s`} />}
           </div>
-          <RelationBlock label="对应剧本段落/情景" items={contentUnitAppearances(unit, lookup)} />
-          <RelationBlock label="相关资料" items={contentUnitReferences(unit, lookup)} />
-          <RelationBlock label="相关素材" items={contentUnitAssetSlots(unit, lookup)} />
+          <RelationBlock label="对应编排段/情景" items={contentUnitAppearances(unit, lookup)} />
+          <RelationBlock label="相关设定资料" items={contentUnitReferences(unit, lookup)} />
+          <RelationBlock label="相关素材需求" items={contentUnitAssetSlots(unit, lookup)} />
         </div>
       )}
     </div>
@@ -3144,10 +3242,10 @@ function CandidateRelationLine({
   units?: string[]
 }) {
   const items = [
-    segments.length > 0 ? `剧本段落 ${segments.join('/')}` : '',
+    segments.length > 0 ? `编排段 ${segments.join('/')}` : '',
     moments.length > 0 ? `情景 ${moments.join('/')}` : '',
-    refs.length > 0 ? `资料 ${refs.join('/')}` : '',
-    assets.length > 0 ? `素材 ${assets.join('/')}` : '',
+    refs.length > 0 ? `设定资料 ${refs.join('/')}` : '',
+    assets.length > 0 ? `素材需求 ${assets.join('/')}` : '',
     units.length > 0 ? `单元 ${units.join('/')}` : '',
   ].filter(Boolean)
   if (items.length === 0) return null
@@ -3269,7 +3367,7 @@ function buildDemoProposalDraft(input: {
   return {
     productionId: input.productionId || 0,
     analysisScope: 'ui-preview',
-    summary: '这是一份用于预览编排审阅体验的示例提案：包含新建情景、复用项目资料、更新既有情景和新增素材缺口。',
+    summary: '这是一份用于预览编排审阅体验的示例提案：包含新建情景、复用项目设定资料、更新既有情景和新增素材需求缺口。',
     proposedAt: new Date().toISOString(),
     proposal: {
       segments: [
@@ -3278,11 +3376,11 @@ function buildDemoProposalDraft(input: {
           id: existingSegment?.ID,
           client_id: 'demo_segment_existing',
           title: existingSegment ? titleOfRecord(existingSegment) : '开场冲突铺垫',
-          kind: String(existingSegment?.kind ?? 'section'),
+          kind: String(existingSegment?.kind ?? 'emotional_function'),
           summary: String(existingSegment?.summary ?? '整理开场信息，把人物、地点和冲突目标绑定到可执行情景。'),
           order: Number(existingSegment?.order ?? 1),
           status: 'draft',
-          rationale: '保留已确认结构，只补充缺失的情景、资料使用和素材需求。',
+          rationale: '保留已确认结构，只补充缺失的情景、设定资料引用和素材需求。',
           before: existingSegment ? { title: existingSegment.title, summary: existingSegment.summary } : undefined,
           scene_moments: [
             {
@@ -3435,11 +3533,11 @@ function buildDemoProposalDraft(input: {
           action: 'create',
           client_id: 'demo_segment_new',
           title: '追查线索',
-          kind: 'section',
-          summary: '新增一个承接开场悬念的行动段落，先作为草稿进入生产包。',
+          kind: 'emotional_function',
+          summary: '新增一个承接开场悬念的编排段，先作为草稿进入生产包。',
           order: Number(existingSegment?.order ?? 1) + 1,
           status: 'draft',
-          rationale: '原结构缺少从悬念到行动的过渡，因此建议补充一个短段落。',
+          rationale: '原结构缺少从悬念到行动的过渡，因此建议补充一个短编排段。',
           scene_moments: [
             {
               action: 'create',
@@ -3495,56 +3593,64 @@ function buildDemoProposalDraft(input: {
 
 function buildOrchestrationAnalysisPrompt(scriptText: string, productionId?: number): string {
   const projectIdNote = productionId
-    ? `当前分集 Production ID：${productionId}。`
+    ? `当前制作 Production ID：${productionId}。`
     : ''
   return [
-    `任务：对以下剧本进行递归、全面的分集编排分析。${projectIdNote}`,
+    `任务：对以下剧本进行递归、全面的制作编排分析。${projectIdNote}`,
     '',
     '执行步骤（必须按顺序，每步都要调用对应工具）：',
     '',
-    '1. 如果当前分集 Production ID 缺失或不确定，先调用 movscript_list_productions 列出当前项目的分集并选择目标分集。',
+    '1. 如果当前制作 Production ID 缺失或不确定，先调用 movscript_list_productions 列出当前项目的制作并选择目标制作。',
     '   - 参数：projectId（从上下文获取）',
-    '   - 目的：避免在错误分集 production 下写入候选',
+    '   - 目的：避免基于错误制作 production 生成 proposal 草稿',
     '',
-    '2. 调用 movscript_read_production_context 读取当前分集已有的实体和剧本文本。',
+    '2. 调用 movscript_read_current_production 读取当前实际 production、已有草稿对比所需实体和剧本文本。',
     '   - 参数：projectId（从上下文获取）、productionId（从上下文获取）、includeScriptText: true',
-    '   - 目的：了解已有剧本段落/情景/资料/素材/制作项，为去重做准备',
+    '   - 目的：了解真实 production 中已有的情节/设定资料/素材需求/制作项/关键帧；这些内容只读，不要直接修改',
     '',
-    '3. 基于剧本文本，按叙事节奏（情绪弧线、时空跳跃、节奏变化）拆分剧本段落。',
-    '   - 剧本段落是剧集级的，不是简单段落分割',
-    '   - 每个剧本段落：client_id（s1/s2...）、order、title、summary、source_range',
+    '3. 调用 movscript_inspect_production_proposal_context 检查当前 production_proposal 草稿；如果没有草稿，调用 movscript_create_production_proposal 创建。',
+    '   - production_proposal 草稿是唯一写入目标',
+    '   - UI 会比较草稿和当前实际 production，并在人工确认后再应用',
     '',
-    '4. 对每个剧本段落，递归分析其内部情景（scene_moments）。',
-    '   - 每个情景必须带 segment_id（指向剧本段落 client_id）',
+    '4. 基于剧本文本，按叙事节奏（情绪弧线、时空跳跃、节奏变化）拆分编排段。',
+    '   - 编排段是剧集级的，不是简单段落分割',
+    '   - 每个编排段：client_id（s1/s2...）、order、title、summary、source_range',
+    '',
+    '5. 对每个编排段，递归分析其内部情景（scene_moments）。',
+    '   - 每个情景必须带 segment_id（指向编排段 client_id）',
     '   - 记录 time_text、location_text、action_text、mood',
+    '   - 写入时使用 movscript_upsert_proposal_scene_moment',
     '',
-    '5. 扫描全文提取设定资料（人物/地点/道具/产品/品牌/风格/世界规则）。',
-    '   - 设定资料是项目级的，必须与已有资料对比去重',
+    '6. 扫描全文提取设定资料（人物/地点/道具/产品/品牌/风格/世界规则）。',
+    '   - 设定资料来自项目上下文和当前 production，只读；草稿节点用 create/reuse/update 表达意图',
     '   - 建立关系：segment_ids、scene_moment_ids、content_unit_ids',
+    '   - 写入时使用 movscript_upsert_proposal_reference',
     '',
-    '6. 基于资料和情景，推断素材需求（asset_slots）。',
-    '   - 素材也是项目级的，必须与已有素材对比去重',
-    '   - 每个素材必须有 owner_type 和对应 owner client_id',
+    '7. 基于设定资料和情景，推断素材需求（asset_slots）。',
+    '   - 素材需求来自项目上下文和当前 production，只读；草稿节点用 create/reuse/update 表达意图',
+    '   - 每个素材需求必须有 owner_type 和对应 owner client_id',
+    '   - 写入时使用 movscript_upsert_proposal_asset',
     '',
-    '7. 对每个情景，递归分析制作项（content_units）。',
+    '8. 对每个情景，递归分析制作项（content_units）。',
     '   - 每个制作项必须带 segment_id 和 scene_moment_id',
     '   - 记录 type、shot_size、camera_angle',
     '   - 关联 creative_reference_ids 和 asset_slot_ids',
+    '   - 写入时使用 movscript_upsert_proposal_content_unit',
     '',
-    '8. 调用 movscript_check_entity_conflicts 检查所有候选的冲突情况。',
-    '   - 传入所有五类候选',
-    '   - 获取每个候选的 conflict_status',
+    '9. 为需要视觉确认的情景或制作项提取关键帧（keyframes）。',
+    '   - 关键帧必须挂在 scene_moment 或 content_unit 下',
+    '   - 写入时使用 movscript_upsert_proposal_keyframe',
     '',
-    '9. 调用 movscript_propose_production_entities 写入最终候选。',
-    '   - 传入带 conflict_status 的完整候选列表',
-    '   - 包含 summary 字段描述分析结果',
+    '10. 写入完成后，调用 movscript_get_production_proposal 或 movscript_list_production_proposal_nodes 复查草稿。',
+    '   - 如一次性输出完整结构更合适，可以调用 movscript_submit_production_proposal 写入最终 production_proposal 草稿',
+    '   - 不要调用任何直接创建、更新、删除后端 project/production 实体的工具',
     '',
     '关系完整性要求：',
     '- scene_moment.segment_id → 必须指向有效的 segment client_id',
     '- content_unit.segment_id + scene_moment_id → 必须指向有效的 client_id',
     '- asset_slot.owner_type + owner_id → 必须指向有效的 client_id',
     '',
-    '剧本文本（如果 read_production_context 已返回剧本文本，以工具返回的为准）：',
+    '剧本文本（如果 read_current_production 已返回剧本文本，以工具返回的为准）：',
     scriptText.length > 6000 ? scriptText.slice(0, 6000) + '\n...[剧本过长，已截断，请以工具读取的完整版本为准]' : scriptText,
   ].join('\n')
 }
@@ -3627,7 +3733,7 @@ function normalizeSegments(value: unknown): AISegmentCandidate[] {
       ...row,
       client_id: toText(row.client_id) || `s${order}`,
       order,
-      title: toText(row.title) || `剧本段落 ${order}`,
+      title: toText(row.title) || `编排段 ${order}`,
       summary: toText(row.summary) || toText(row.content) || toText(row.description) || '',
       ...(toText(row.source_range) ? { source_range: toText(row.source_range) } : {}),
     }
@@ -3857,7 +3963,7 @@ function inferTitle(chunk: { text: string }, index: number): string {
   const explicit = chunk.text.match(/第[一二三四五六七八九十百千万\d]+[集场幕章][：:\s-]*([^\n。！？!?]{2,24})/)
   if (explicit?.[1]) return explicit[1].trim()
   const firstLine = chunk.text.split('\n').map((line) => line.trim()).find(Boolean)
-  return firstLine ? summarizeText(firstLine, 24) : `剧本段落 ${index + 1}`
+  return firstLine ? summarizeText(firstLine, 24) : `编排段 ${index + 1}`
 }
 
 function inferMomentTitle(text: string, index: number): string {
@@ -3957,7 +4063,6 @@ function AgentChatSidebar({
   candidateWorkbench,
   nodeDecisions,
   onNodeDecisionsChange,
-  onClose,
   onResult,
   onProposalDraft,
 }: {
@@ -3976,7 +4081,6 @@ function AgentChatSidebar({
   candidateWorkbench: ReactNode
   nodeDecisions: ProposalNodeDecisions
   onNodeDecisionsChange: Dispatch<SetStateAction<ProposalNodeDecisions>>
-  onClose: () => void
   onResult: (result: AIAnalysisResult) => void
   onProposalDraft: (draft: ProposalDraftContent) => void
 }) {
@@ -4046,7 +4150,7 @@ function AgentChatSidebar({
       productionId,
     )
     const displayMessage = [
-      `请执行分集编排分析：${production?.name ?? `#${productionId}`}`,
+      `请执行制作编排分析：${production?.name ?? `#${productionId}`}`,
       `完整剧本文本已通过运行输入发送（${text.trim().length} 字符），面板仅展示摘要以避免冻结。`,
     ].join('\n')
 
@@ -4090,7 +4194,7 @@ function AgentChatSidebar({
           return
         }
 
-        // Try to read the proposal draft written by the agent via propose_production_entities
+        // Try to read the proposal draft written by the agent via draft-only proposal tools.
         const proposalResult = await tryReadProposalDraft(client, projectId, productionId)
         if (proposalResult.kind === 'tree' && proposalResult.draft) {
           setProposalDraft(proposalResult.draft)
@@ -4127,7 +4231,7 @@ function AgentChatSidebar({
         requestId,
         taskType: 'production_orchestration',
         message: displayMessage,
-        title: `分集编排: ${production?.name ?? `#${productionId}`}`,
+        title: `制作编排: ${production?.name ?? `#${productionId}`}`,
         mode: 'create',
         newConversation: true,
         autoSend: true,
@@ -4139,7 +4243,7 @@ function AgentChatSidebar({
             projectId,
             productionId,
             selection: production?.ID
-              ? { entityType: 'production', entityId: production.ID, label: String(production.name ?? `分集 #${production.ID}`) }
+              ? { entityType: 'production', entityId: production.ID, label: String(production.name ?? `制作 #${production.ID}`) }
               : null,
           },
         }),
@@ -4147,7 +4251,7 @@ function AgentChatSidebar({
         timeoutMs: 300_000,
         renderMode: 'page',
       })
-      toast.info('已打开分集编排会话，请在右侧对话框协作并让 Agent 应用编排结论')
+      toast.info('已打开制作编排会话，请在右侧对话框协作并让 Agent 应用编排结论')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : '分析失败')
       setPhase('error')
@@ -4237,9 +4341,6 @@ function AgentChatSidebar({
           {phase === 'done' && <CheckCircle2 size={12} className="text-emerald-500" />}
           {phase === 'error' && <AlertCircle size={12} className="text-rose-500" />}
         </div>
-        <button type="button" onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted">
-          <X size={14} />
-        </button>
       </div>
 
       {/* Scrollable body */}
@@ -4247,7 +4348,7 @@ function AgentChatSidebar({
         <div className="border-b border-border px-4 py-3">
           <div className="rounded-lg border border-border bg-background p-3">
             <p className="text-xs font-semibold text-foreground">
-              {production ? String(production.name ?? `分集 #${production.ID}`) : '未选择分集'}
+              {production ? String(production.name ?? `制作 #${production.ID}`) : '未选择制作'}
             </p>
             <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
               这里只保留一个编排入口。AI 每次产出同一组候选，用户再决定采纳、忽略、覆盖或并行保留。
@@ -4260,12 +4361,12 @@ function AgentChatSidebar({
             </div>
             <Textarea
               className="mt-2 min-h-24 resize-none text-xs leading-relaxed"
-              placeholder="补充你希望 AI 遵循的要求，例如：重点补齐缺失情景；保留原剧本段落名称；制作项先粗分，不生成镜头细节。"
+              placeholder="补充你希望 AI 遵循的要求，例如：重点补齐缺失情景；保留原编排段名称；制作项先粗分，不生成镜头细节。"
               value={orchestrationPrompt}
               onChange={(event) => onOrchestrationPromptChange(event.target.value)}
             />
             <p className="mt-1 text-[10px] text-muted-foreground">
-              这里用于再次编排时补充约束，不区分剧本段落分析、情景分析、素材分析等子功能。
+              这里用于再次编排时补充约束，不区分编排段分析、情景分析、素材分析等子功能。
             </p>
           </div>
           <div className="mt-3 rounded-lg border border-border bg-background p-3">
@@ -4275,13 +4376,13 @@ function AgentChatSidebar({
             </div>
             <p className="mt-2 text-base font-semibold text-foreground">候选结果</p>
             <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-              所有分析都产出同一组候选：剧本段落、情景、设定资料、素材、制作项；单项分析中不适用的类别会返回 0 条。
+              所有分析都产出同一组候选：编排段、情景、设定资料、素材需求、制作项；单项分析中不适用的类别会返回 0 条。
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
-              <ContextLine icon={GitBranch} label="剧本段落" value={`${outputCounts.segments}`} />
+              <ContextLine icon={GitBranch} label="编排段" value={`${outputCounts.segments}`} />
               <ContextLine icon={Route} label="情景" value={`${outputCounts.sceneMoments}`} />
-              <ContextLine icon={Sparkles} label="资料" value={`${outputCounts.creativeReferences}`} />
-              <ContextLine icon={PackageCheck} label="素材" value={`${outputCounts.assetSlots}`} />
+              <ContextLine icon={Sparkles} label="设定资料" value={`${outputCounts.creativeReferences}`} />
+              <ContextLine icon={PackageCheck} label="素材需求" value={`${outputCounts.assetSlots}`} />
               <ContextLine icon={Film} label="制作项" value={`${outputCounts.contentUnits}`} />
               <ContextLine icon={Sparkle} label="待审候选" value={`${pendingTotal}`} />
             </div>
@@ -4301,7 +4402,7 @@ function AgentChatSidebar({
                 <p className="text-xs font-semibold text-foreground">重新生成候选</p>
               </div>
               <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                可在任意阶段重新整理剧本，生成的新候选会进入待审状态；已采纳的剧本段落、资料、情景、素材和制作项不会被覆盖。
+                可在任意阶段重新整理剧本，生成的新候选会进入待审状态；已采纳的编排段、设定资料、情景、素材需求和制作项不会被覆盖。
               </p>
             </div>
 
@@ -4333,7 +4434,7 @@ function AgentChatSidebar({
                 </p>
                 {scopedLinkedScriptText.scoped && (
                   <p className="mt-2 rounded bg-primary/5 px-2 py-1.5 text-[10px] leading-4 text-primary">
-                    将发送第 {scopedLinkedScriptText.episodeOrder} 集分集文本：{scopedLinkedScriptText.text.length} 字符，原版本 {(linkedVersion.content || linkedVersion.raw_source).length} 字符。
+                    将发送第 {scopedLinkedScriptText.episodeOrder} 集制作文本：{scopedLinkedScriptText.text.length} 字符，原版本 {(linkedVersion.content || linkedVersion.raw_source).length} 字符。
                   </p>
                 )}
                 <button
@@ -4351,7 +4452,7 @@ function AgentChatSidebar({
               <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-center">
                 <ScrollText size={16} className="mx-auto text-muted-foreground" />
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {production ? '当前分集未关联剧本版本' : '未选择分集'}
+                  {production ? '当前制作未关联剧本版本' : '未选择制作'}
                 </p>
                 <button
                   type="button"
@@ -4378,7 +4479,7 @@ function AgentChatSidebar({
                 )}
                 <Textarea
                   className="min-h-[240px] resize-none font-mono text-xs leading-relaxed"
-                  placeholder="粘贴剧本内容，向导会先拆剧本段落，再补设定资料、情景、素材和制作项。"
+                  placeholder="粘贴剧本内容，向导会先拆编排段，再补设定资料、情景、素材需求和制作项。"
                   value={scriptText}
                   onChange={(e) => setScriptText(e.target.value)}
                   autoFocus
@@ -4517,10 +4618,10 @@ function AgentChatSidebar({
                 </div>
                 {outputResult && (
                   <div className="mt-2 grid grid-cols-5 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
-                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">剧本段落 {outputResult.segments.length}</span>
+                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 {outputResult.segments.length}</span>
                     <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 {outputResult.scene_moments.length}</span>
-                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">资料 {outputResult.creative_references.length}</span>
-                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材 {outputResult.asset_slots.length}</span>
+                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 {outputResult.creative_references.length}</span>
+                    <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材需求 {outputResult.asset_slots.length}</span>
                     <span className="rounded bg-emerald-500/10 px-1.5 py-1">单元 {outputResult.content_units.length}</span>
                   </div>
                 )}
@@ -4575,46 +4676,6 @@ function AgentChatSidebar({
   )
 }
 
-function ProposalReviewSidebar({
-  projectId,
-  proposalDraft,
-  nodeDecisions,
-  onNodeDecisionsChange,
-  previewOnly,
-}: {
-  projectId?: number
-  proposalDraft: ProposalDraftContent
-  nodeDecisions: ProposalNodeDecisions
-  onNodeDecisionsChange: Dispatch<SetStateAction<ProposalNodeDecisions>>
-  previewOnly: boolean
-}) {
-  return (
-    <aside className="flex h-full min-h-0 w-[420px] shrink-0 flex-col border-l border-border bg-card">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Eye size={15} className="text-primary" />
-            <span className="text-sm font-semibold text-foreground">分集生产包</span>
-          </div>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">审阅结构、复用关系和写入影响。</p>
-        </div>
-        {previewOnly && <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px]">预览</Badge>}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <ProposalReviewPanel
-          projectId={projectId}
-          proposalDraft={proposalDraft}
-          nodeDecisions={nodeDecisions}
-          onNodeDecisionsChange={onNodeDecisionsChange}
-          previewOnly={previewOnly}
-          onAccepted={() => undefined}
-          onDiscard={() => undefined}
-        />
-      </div>
-    </aside>
-  )
-}
-
 function ProposalReviewPanel({
   projectId,
   proposalDraft,
@@ -4645,6 +4706,9 @@ function ProposalReviewPanel({
     s + (seg.scene_moments ?? []).reduce((ss, sm) => ss + (sm.creative_references?.length ?? 0), 0), 0)
   const totalAssetSlots = segments.reduce((s, seg) =>
     s + (seg.scene_moments ?? []).reduce((ss, sm) => ss + (sm.asset_slots?.length ?? 0), 0), 0)
+  const totalKeyframes = segments.reduce((s, seg) =>
+    s + (seg.scene_moments ?? []).reduce((ss, sm) =>
+      ss + (sm.keyframes?.length ?? 0) + (sm.content_units ?? []).reduce((sss, unit) => sss + (unit.keyframes?.length ?? 0), 0), 0), 0)
   const reviewNodes = useMemo(() => collectProposalReviewNodes(segments), [segments])
   const actionCounts = useMemo(() => countProposalActions(segments), [segments])
   const acceptedCount = reviewNodes.filter((node) => nodeDecisions[node.key] === 'accepted').length
@@ -4699,6 +4763,7 @@ function ProposalReviewPanel({
       scene_moments_created: 0,
       content_units_created: 0,
       asset_slots_created: 0,
+      keyframes_created: 0,
       creative_references_created: 0,
       creative_reference_usages: 0,
     }
@@ -4727,6 +4792,14 @@ function ProposalReviewPanel({
         for (const unit of moment.content_units ?? []) {
           addAction(unit.action)
           if (unit.action === 'create') counts.content_units_created += 1
+          for (const keyframe of unit.keyframes ?? []) {
+            addAction(keyframe.action)
+            if (keyframe.action === 'create') counts.keyframes_created += 1
+          }
+        }
+        for (const keyframe of moment.keyframes ?? []) {
+          addAction(keyframe.action)
+          if (keyframe.action === 'create') counts.keyframes_created += 1
         }
       }
     }
@@ -4782,7 +4855,7 @@ function ProposalReviewPanel({
           </div>
           <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
             {appliedCounts.segments_created > 0 && (
-              <span className="rounded bg-emerald-500/10 px-1.5 py-1">剧本段落 +{appliedCounts.segments_created}</span>
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{appliedCounts.segments_created}</span>
             )}
             {appliedCounts.scene_moments_created > 0 && (
               <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 +{appliedCounts.scene_moments_created}</span>
@@ -4791,10 +4864,13 @@ function ProposalReviewPanel({
               <span className="rounded bg-emerald-500/10 px-1.5 py-1">单元 +{appliedCounts.content_units_created}</span>
             )}
             {appliedCounts.creative_references_created > 0 && (
-              <span className="rounded bg-emerald-500/10 px-1.5 py-1">资料 +{appliedCounts.creative_references_created}</span>
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{appliedCounts.creative_references_created}</span>
             )}
             {appliedCounts.asset_slots_created > 0 && (
-              <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材 +{appliedCounts.asset_slots_created}</span>
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材需求 +{appliedCounts.asset_slots_created}</span>
+            )}
+            {appliedCounts.keyframes_created > 0 && (
+              <span className="rounded bg-emerald-500/10 px-1.5 py-1">关键帧 +{appliedCounts.keyframes_created}</span>
             )}
           </div>
         </div>
@@ -4823,11 +4899,12 @@ function ProposalReviewPanel({
             <span className="rounded bg-muted px-1.5 py-1">创建 {simulationResult.actions.create}</span>
           </div>
           <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">段落 +{simulationResult.counts.segments_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{simulationResult.counts.segments_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 +{simulationResult.counts.scene_moments_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">制作项 +{simulationResult.counts.content_units_created}</span>
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">资料 +{simulationResult.counts.creative_references_created}</span>
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材 +{simulationResult.counts.asset_slots_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{simulationResult.counts.creative_references_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材需求 +{simulationResult.counts.asset_slots_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">关键帧 +{simulationResult.counts.keyframes_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">引用 +{simulationResult.counts.creative_reference_usages}</span>
           </div>
         </div>
@@ -4844,21 +4921,24 @@ function ProposalReviewPanel({
       <div className="rounded-lg border border-border bg-background p-3">
         <div className="flex items-center gap-2">
           <Sparkles size={13} className="text-primary" />
-          <p className="text-xs font-semibold text-foreground">分集提案</p>
+          <p className="text-xs font-semibold text-foreground">制作提案</p>
           {previewOnly && <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px]">示例提案</Badge>}
         </div>
         {proposalDraft.summary && (
           <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">{proposalDraft.summary}</p>
         )}
         <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px]">
-          <span className="rounded bg-muted px-1.5 py-1 text-foreground">剧本段落 {segments.length}</span>
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">编排段 {segments.length}</span>
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">情景 {totalSceneMoments}</span>
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">单元 {totalContentUnits}</span>
           {totalCreativeRefs > 0 && (
-            <span className="rounded bg-muted px-1.5 py-1 text-foreground">资料 {totalCreativeRefs}</span>
+            <span className="rounded bg-muted px-1.5 py-1 text-foreground">设定资料 {totalCreativeRefs}</span>
           )}
           {totalAssetSlots > 0 && (
-            <span className="rounded bg-muted px-1.5 py-1 text-foreground">素材 {totalAssetSlots}</span>
+            <span className="rounded bg-muted px-1.5 py-1 text-foreground">素材需求 {totalAssetSlots}</span>
+          )}
+          {totalKeyframes > 0 && (
+            <span className="rounded bg-muted px-1.5 py-1 text-foreground">关键帧 {totalKeyframes}</span>
           )}
         </div>
       </div>
@@ -4902,7 +4982,7 @@ function ProposalReviewPanel({
           <span className="rounded bg-amber-500/10 px-1.5 py-1 text-amber-700 dark:text-amber-300">更新 {actionCounts.update}</span>
         </div>
         <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-          复用节点引用项目级资料或已有素材；更新节点会进入二次确认语义，避免直接覆盖已确认内容。
+          复用节点引用项目级设定资料或已有素材需求；更新节点会进入二次确认语义，避免直接覆盖已确认内容。
         </p>
       </div>
 
@@ -4929,7 +5009,7 @@ function ProposalReviewPanel({
                 >
                   <ActionBadge action={seg.action} />
                   <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">
-                    {seg.title || `剧本段落 ${i + 1}`}
+                    {seg.title || `编排段 ${i + 1}`}
                   </span>
                   {decision && <DecisionBadge decision={decision} />}
                   <span className="shrink-0 text-[10px] text-muted-foreground">{smCount} 情景</span>
@@ -4962,6 +5042,7 @@ function ProposalReviewPanel({
                       const cuCount = sm.content_units?.length ?? 0
                       const refCount = sm.creative_references?.length ?? 0
                       const slotCount = sm.asset_slots?.length ?? 0
+                      const keyframeCount = (sm.keyframes?.length ?? 0) + (sm.content_units ?? []).reduce((sum, unit) => sum + (unit.keyframes?.length ?? 0), 0)
                       const smDecision = nodeDecisions[nodeDecisionKey('scene_moment', smKey)]
                       return (
                         <div key={smKey} className={cn('border-b border-border/50 px-3 py-2 last:border-b-0', smDecision === 'rejected' && 'opacity-50')}>
@@ -4973,6 +5054,7 @@ function ProposalReviewPanel({
                             </span>
                             {smDecision && <DecisionBadge decision={smDecision} />}
                             {cuCount > 0 && <span className="shrink-0 text-[10px] text-muted-foreground">{cuCount} 单元</span>}
+                            {keyframeCount > 0 && <span className="shrink-0 text-[10px] text-muted-foreground">{keyframeCount} 关键帧</span>}
                           </div>
                           {(sm.time_text || sm.location_text) && (
                             <p className="ml-8 mt-0.5 truncate text-[10px] text-muted-foreground">
@@ -4984,19 +5066,25 @@ function ProposalReviewPanel({
                               原动作：{String(sm.before?.action_text)}
                             </p>
                           )}
-                          {(refCount > 0 || slotCount > 0) && (
+                          {(refCount > 0 || slotCount > 0 || keyframeCount > 0) && (
                             <div className="ml-8 mt-2 flex flex-wrap gap-1.5">
                               {(sm.creative_references ?? []).slice(0, 4).map((ref, index) => (
                                 <span key={`${smKey}-ref-${ref.client_id ?? index}`} className="inline-flex max-w-full items-center gap-1 rounded bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
                                   <ActionBadge action={ref.action} compact />
-                                  <span className="truncate">{ref.name || '资料'}</span>
+                                  <span className="truncate">{ref.name || '设定资料'}</span>
                                   {ref.source_label && <span className="text-blue-600 dark:text-blue-400">{ref.source_label}</span>}
                                 </span>
                               ))}
                               {(sm.asset_slots ?? []).slice(0, 3).map((slot, index) => (
                                 <span key={`${smKey}-slot-${slot.client_id ?? index}`} className="inline-flex max-w-full items-center gap-1 rounded bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
                                   <PackageCheck size={10} />
-                                  <span className="truncate">{slot.name || '素材'}</span>
+                                  <span className="truncate">{slot.name || '素材需求'}</span>
+                                </span>
+                              ))}
+                              {(sm.keyframes ?? []).slice(0, 3).map((keyframe, index) => (
+                                <span key={`${smKey}-keyframe-${keyframe.client_id ?? index}`} className="inline-flex max-w-full items-center gap-1 rounded bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                  <ImageIcon size={10} />
+                                  <span className="truncate">{keyframe.title || '关键帧'}</span>
                                 </span>
                               ))}
                             </div>
@@ -5132,7 +5220,11 @@ function countProposalActions(segments: ProposalSegmentNode[]) {
       add(moment.action)
       for (const reference of moment.creative_references ?? []) add(reference.action)
       for (const slot of moment.asset_slots ?? []) add(slot.action)
-      for (const unit of moment.content_units ?? []) add(unit.action)
+      for (const keyframe of moment.keyframes ?? []) add(keyframe.action)
+      for (const unit of moment.content_units ?? []) {
+        add(unit.action)
+        for (const keyframe of unit.keyframes ?? []) add(keyframe.action)
+      }
     }
   }
   return counts
@@ -5143,41 +5235,47 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
   schema: 'movscript.agent.current',
   id: 'production-orchestrate-analyzer',
   version: '2.0.0',
-  name: '分集编排分析',
-  description: '递归分析剧本，提取五类分集编排候选，去重并建立完整关系图',
-  soul: `你是专业分集编排分析助手，负责对剧本进行递归、全面的分集编排分析。
+  name: '制作编排分析',
+  description: '递归分析剧本，提取五类制作编排候选，去重并建立完整关系图',
+  soul: `你是专业 production proposal 编排助手。你的写入目标只能是当前 production_proposal 草稿，不能直接改正式后端实体。
+
+## 上下文边界
+1. 当前 production_proposal 草稿：唯一可写上下文。
+2. 当前实际 production：只读，用来理解现状和复用已有实体。
+3. 当前项目的设定资料、素材需求：只读，用来复用项目级设定资料/素材需求并避免重复。
 
 ## 分析流程（必须严格按顺序执行）
 
 ### Step 1：读取现有上下文
-如果当前 productionId 缺失或不确定，先调用 movscript_list_productions，列出当前项目的分集，并选择与用户上下文最匹配的 production。
-调用 movscript_read_production_context，获取当前分集已有的剧本段落、情景、设定资料（项目级）、素材（项目级）、制作项，以及关联剧本文本。这是去重的基础，不可跳过。
+如果当前 productionId 缺失或不确定，先调用 movscript_list_productions，列出当前项目的制作，并选择与用户上下文最匹配的 production。
+调用 movscript_read_current_production，获取当前实际 production、情节、设定资料、素材需求、制作项、关键帧，以及关联剧本文本。这是 proposal 对比的基础，不可跳过。
+调用 movscript_inspect_production_proposal_context 检查当前草稿；如果没有草稿，调用 movscript_create_production_proposal 创建本地 review draft。
 
-### Step 2：剧本段落拆分（剧集级）
-把剧本按叙事节奏拆分为剧本段落。剧本段落不是简单的段落分割，而是基于：
+### Step 2：编排段拆分（剧集级）
+把剧本按叙事节奏拆分为编排段。编排段不是简单的段落分割，而是基于：
 - 情绪弧线的起伏（铺垫→冲突→高潮→收尾）
 - 时间/空间的跳跃
 - 叙事视角的切换
 - 节奏的明显变化（快节奏动作段 vs 慢节奏情感段）
-每个剧本段落必须有 order、title、summary、source_range（字符偏移范围）。
+每个编排段必须有 order、title、summary、source_range（字符偏移范围）。
 
-### Step 3：情景分析（递归，每个剧本段落都要分析）
-对每个剧本段落，分析其内部的情景（scene_moments）：
-- 每个情景必须带 segment_id（指向所属剧本段落的 client_id）
+### Step 3：情景分析（递归，每个编排段都要分析）
+对每个编排段，分析其内部的情景（scene_moments）：
+- 每个情景必须带 segment_id（指向所属编排段的 client_id）
 - 记录 time_text、location_text、action_text、mood
-- 情景是剧本段落内的最小叙事单元，一个剧本段落通常有 2-6 个情景
+- 情景是编排段内的最小叙事单元，一个编排段通常有 2-6 个情景
 
 ### Step 4：设定资料分析（项目级，必须去重）
 扫描全文提取所有设定资料（人物/地点/道具/产品/品牌/风格/世界规则）：
 - 设定资料是项目级的，不属于某个制作，所有制作共享
 - 必须与已有 creative_references 对比：名称相同或高度相似的不要重复创建
-- 建立关系：每个资料关联到用到它的 segment_ids、scene_moment_ids、content_unit_ids
+- 建立关系：每个设定资料关联到用到它的 segment_ids、scene_moment_ids、content_unit_ids
 
 ### Step 5：素材需求分析（项目级，必须去重）
-基于设定资料和情景，推断需要哪些素材（asset_slots）：
-- 素材也是项目级的，必须与已有 asset_slots 对比去重
-- 每个素材必须有 owner_type（segment/scene_moment/content_unit）和对应的 owner client_id
-- 关联 creative_reference_id（如果该素材是为某个资料准备的）
+基于设定资料和情景，推断需要哪些素材需求（asset_slots）：
+- 素材需求也是项目级的，必须与已有 asset_slots 对比去重
+- 每个素材需求必须有 owner_type（segment/scene_moment/content_unit）和对应的 owner client_id
+- 关联 creative_reference_id（如果该素材需求是为某个设定资料准备的）
 
 ### Step 6：制作项分析（递归，每个情景都要分析）
 对每个情景，分析其内部的制作项（content_units）：
@@ -5186,11 +5284,20 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 - 记录 shot_size（特写/近景/中景/全景/远景）和 camera_angle
 - 关联 creative_reference_ids 和 asset_slot_ids
 
-### Step 7：冲突检查
-调用 movscript_check_entity_conflicts，传入所有候选，获取每个候选的 conflict_status。
+### Step 7：写入草稿
+只写入 production_proposal 草稿，不直接创建、修改或删除后端正式实体。
+使用以下草稿工具：
+- movscript_upsert_proposal_scene_moment：情节
+- movscript_upsert_proposal_reference：设定资料引用
+- movscript_upsert_proposal_asset：素材需求
+- movscript_upsert_proposal_content_unit：制作项（内容单元）
+- movscript_upsert_proposal_keyframe：关键帧
+- movscript_delete_production_proposal_node：从草稿删除节点
 
-### Step 8：写入候选
-调用 movscript_propose_production_entities，传入带 conflict_status 的完整候选列表和关系图。
+### Step 8：最终 proposal
+调用 movscript_get_production_proposal 或 movscript_list_production_proposal_nodes 校验草稿。
+如一次性输出完整结构更合适，调用 movscript_submit_production_proposal 写入最终 production_proposal 草稿。
+UI 会自行比较 production_proposal 和当前实际 production 的差异，并由人工确认是否应用。
 
 ## 关系完整性要求
 - scene_moment.segment_id → 必须指向有效的 segment client_id
@@ -5201,35 +5308,29 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 ## 去重规则
 - 名称完全相同：标记为 conflict_status: “duplicate”，附上已有实体 ID
 - 名称高度相似（包含关系或词汇重叠 ≥70%）：同上
-- 设定资料和素材是项目级的，去重范围是整个项目，不限于当前分集
-- 剧本段落和情景是分集级的，去重范围是当前分集
+- 设定资料和素材需求是项目级的，去重范围是整个项目，不限于当前制作
+- 编排段和情景是制作级的，去重范围是当前制作
 
 ## 分析深度要求
 - 必须尽可能全面，不要因为”差不多”就省略
-- 每个剧本段落至少分析出 2 个情景
+- 每个编排段至少分析出 2 个情景
 - 每个情景至少分析出 1 个制作项
 - 设定资料要覆盖所有出现的人物、地点、关键道具/产品`,
   permissions: ['project.read', 'draft.read', 'draft.write'],
   tools: [
     { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
-    { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
-    { name: 'movscript_check_entity_conflicts', mode: 'allow', approval: 'never' },
+    { name: 'movscript_read_current_production', mode: 'allow', approval: 'never' },
     { name: 'movscript_create_production_proposal', mode: 'allow', approval: 'never' },
     { name: 'movscript_inspect_production_proposal_context', mode: 'allow', approval: 'never' },
     { name: 'movscript_get_production_proposal', mode: 'allow', approval: 'never' },
     { name: 'movscript_upsert_proposal_scene_moment', mode: 'allow', approval: 'never' },
     { name: 'movscript_upsert_proposal_reference', mode: 'allow', approval: 'never' },
     { name: 'movscript_upsert_proposal_asset', mode: 'allow', approval: 'never' },
+    { name: 'movscript_upsert_proposal_content_unit', mode: 'allow', approval: 'never' },
     { name: 'movscript_upsert_proposal_keyframe', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_shot', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_production_proposal_nodes', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_production_proposal_node', mode: 'allow', approval: 'never' },
     { name: 'movscript_delete_production_proposal_node', mode: 'allow', approval: 'never' },
-    { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
-    { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
-    { name: 'movscript_search_entities', mode: 'allow', approval: 'never' },
-    { name: 'movscript_read_entity', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
+    { name: 'movscript_submit_production_proposal', mode: 'allow', approval: 'never' },
   ],
 }
 
@@ -5351,7 +5452,7 @@ function uniqueNumbers(values: number[]) {
 function createDefaultsForType(type: EntityFilter, productionId: number, segmentId?: number, sceneMomentId?: number): Record<string, string | number | boolean | null> {
   if (type === 'assetSlots') return { status: 'missing', production_id: productionId || 0, owner_type: segmentId ? 'segment' : '', owner_id: segmentId ?? null }
   if (type === 'contentUnits') return { status: 'draft', production_id: productionId || 0, segment_id: segmentId ?? null, scene_moment_id: sceneMomentId ?? null }
-  if (type === 'segments') return { status: 'draft', kind: 'section', production_id: productionId || 0 }
+  if (type === 'segments') return { status: 'draft', kind: 'emotional_function', production_id: productionId || 0 }
   if (type === 'sceneMoments') return { status: 'draft', segment_id: segmentId ?? null }
   if (type === 'creativeReferences') return { status: 'draft', importance: 'main' }
   return {}
@@ -5422,10 +5523,10 @@ function titleOfRecord(record: SemanticEntityRecord | null | undefined) {
 function formatOwnerLabel(ownerType?: string, ownerId?: number, lookup?: OrchestrationLookup) {
   if (!ownerType || !ownerId || !lookup) return ''
   const key = ownerKey(ownerType, ownerId)
-  if (ownerType === 'segment') return lookup.segmentById.get(ownerId) ? `剧本段落 · ${titleOfRecord(lookup.segmentById.get(ownerId))}` : `剧本段落 #${ownerId}`
+  if (ownerType === 'segment') return lookup.segmentById.get(ownerId) ? `编排段 · ${titleOfRecord(lookup.segmentById.get(ownerId))}` : `编排段 #${ownerId}`
   if (ownerType === 'scene_moment') return lookup.sceneMomentById.get(ownerId) ? `情景 · ${titleOfRecord(lookup.sceneMomentById.get(ownerId))}` : `情景 #${ownerId}`
   if (ownerType === 'content_unit') return lookup.contentUnitById.get(ownerId) ? `制作项 · ${titleOfRecord(lookup.contentUnitById.get(ownerId))}` : `制作项 #${ownerId}`
-  if (ownerType === 'creative_reference') return lookup.creativeReferenceById.get(ownerId) ? `资料 · ${titleOfRecord(lookup.creativeReferenceById.get(ownerId))}` : `资料 #${ownerId}`
+  if (ownerType === 'creative_reference') return lookup.creativeReferenceById.get(ownerId) ? `设定资料 · ${titleOfRecord(lookup.creativeReferenceById.get(ownerId))}` : `设定资料 #${ownerId}`
   return `${ownerType} #${ownerId}`
 }
 
@@ -5439,7 +5540,7 @@ function contentUnitAppearances(unit: ContentUnitRecord, lookup: OrchestrationLo
   const items: string[] = []
   const segment = unit.segment_id ? lookup.segmentById.get(Number(unit.segment_id)) : null
   const moment = unit.scene_moment_id ? lookup.sceneMomentById.get(Number(unit.scene_moment_id)) : null
-  if (segment) items.push(`剧本段落 · ${titleOfRecord(segment)}`)
+  if (segment) items.push(`编排段 · ${titleOfRecord(segment)}`)
   if (moment) items.push(`情景 · ${titleOfRecord(moment)}`)
   return items
 }
@@ -5448,7 +5549,7 @@ function contentUnitReferences(unit: ContentUnitRecord, lookup: OrchestrationLoo
   const refs = lookup.usagesByOwnerKey.get(ownerKey('content_unit', unit.ID)) ?? []
   return refs.map((usage) => {
     const reference = usage.creative_reference_id ? lookup.creativeReferenceById.get(Number(usage.creative_reference_id)) : null
-    const ownerLabel = reference ? `资料 · ${titleOfRecord(reference)}` : `资料 #${usage.creative_reference_id ?? ''}`
+    const ownerLabel = reference ? `设定资料 · ${titleOfRecord(reference)}` : `设定资料 #${usage.creative_reference_id ?? ''}`
     return usage.role ? `${ownerLabel} · ${String(usage.role)}` : ownerLabel
   })
 }
@@ -5465,7 +5566,7 @@ function assetSlotAppearances(slot: AssetSlotRecord, lookup: OrchestrationLookup
   }
   if (slot.creative_reference_id) {
     const reference = lookup.creativeReferenceById.get(Number(slot.creative_reference_id))
-    if (reference) items.push(`资料 · ${titleOfRecord(reference)}`)
+    if (reference) items.push(`设定资料 · ${titleOfRecord(reference)}`)
   }
   return items
 }
@@ -5531,13 +5632,13 @@ function getAnalysisText(target: AnalysisTarget, input: {
     const refs = collectReferencesFromUnitsAndMoments(input.creativeReferences, input.assetSlots, moments, units)
     const slots = collectAssetSlotsFromSegment(input.assetSlots, segment.ID, moments, units)
     return [
-      `剧本段落：${titleOfRecord(segment)}`,
+      `编排段：${titleOfRecord(segment)}`,
       segment.summary ? `摘要：${segment.summary}` : '',
       segment.content ? `剧本正文：\n${segment.content}` : '',
       moments.length > 0 ? `情景：\n${moments.map(serializeSceneMoment).join('\n\n')}` : '',
       units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
-      refs.length > 0 ? `相关资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
-      slots.length > 0 ? `相关素材：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
+      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
+      slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
   }
 
@@ -5558,10 +5659,10 @@ function getAnalysisText(target: AnalysisTarget, input: {
       moment.location_text ? `地点：${moment.location_text}` : '',
       moment.action_text ? `动作：${moment.action_text}` : '',
       moment.mood ? `情绪：${moment.mood}` : '',
-      segmentRecord ? `所属剧本段落：${titleOfRecord(segmentRecord)}` : '',
+      segmentRecord ? `所属编排段：${titleOfRecord(segmentRecord)}` : '',
       units.length > 0 ? `制作项：\n${units.map(serializeContentUnit).join('\n\n')}` : '',
-      refs.length > 0 ? `相关资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
-      slots.length > 0 ? `相关素材：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
+      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
+      slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
   }
 
@@ -5583,10 +5684,10 @@ function getAnalysisText(target: AnalysisTarget, input: {
       `设定资料：${titleOfRecord(reference)}`,
       reference.alias ? `别名：${reference.alias}` : '',
       reference.description ? `描述：${reference.description}` : '',
-      reference.content ? `资料正文：\n${reference.content}` : '',
+      reference.content ? `设定资料正文：\n${reference.content}` : '',
       relatedMoments.length > 0 ? `出现情景：${relatedMoments.map((item) => titleOfRecord(item)).join(' / ')}` : '',
       relatedUnits.length > 0 ? `相关制作项：${relatedUnits.map((item) => titleOfRecord(item)).join(' / ')}` : '',
-      slots.length > 0 ? `相关素材：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
+      slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
   }
 
@@ -5607,13 +5708,13 @@ function getAnalysisText(target: AnalysisTarget, input: {
     })
     const reference = slot.creative_reference_id ? input.creativeReferences.find((item) => item.ID === slot.creative_reference_id) ?? null : null
     return [
-      `素材：${titleOfRecord(slot)}`,
+      `素材需求：${titleOfRecord(slot)}`,
       slot.kind ? `类型：${slot.kind}` : '',
       slot.priority ? `优先级：${slot.priority}` : '',
       slot.description ? `说明：${slot.description}` : '',
       slot.prompt_hint ? `生成提示：${slot.prompt_hint}` : '',
       ownerLabel ? `归属：${ownerLabel}` : '',
-      reference ? `关联资料：${titleOfRecord(reference)}` : '',
+      reference ? `关联设定资料：${titleOfRecord(reference)}` : '',
     ].filter(Boolean).join('\n\n')
   }
 
@@ -5632,10 +5733,10 @@ function getAnalysisText(target: AnalysisTarget, input: {
       unit.shot_size ? `景别：${unit.shot_size}` : '',
       unit.camera_angle ? `机位角度：${unit.camera_angle}` : '',
       unit.camera_motion ? `运镜：${unit.camera_motion}` : '',
-      segmentRecord ? `所属剧本段落：${titleOfRecord(segmentRecord)}` : '',
+      segmentRecord ? `所属编排段：${titleOfRecord(segmentRecord)}` : '',
       moment ? `所属情景：${titleOfRecord(moment)}` : '',
-      refs.length > 0 ? `相关资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
-      slots.length > 0 ? `相关素材：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
+      refs.length > 0 ? `相关设定资料：\n${refs.map(serializeCreativeReference).join('\n\n')}` : '',
+      slots.length > 0 ? `相关素材需求：\n${slots.map(serializeAssetSlot).join('\n\n')}` : '',
     ].filter(Boolean).join('\n\n')
   }
 
@@ -5834,7 +5935,7 @@ function TargetPicker({
   if (scope === 'segments' || scope === 'segmentAnalysis') {
     return (
       <Select value={value ? String(value) : ''} onValueChange={(next) => onChange(next ? Number(next) : null)}>
-        <SelectTrigger className={selectClass}><SelectValue placeholder="选择剧本段落" /></SelectTrigger>
+        <SelectTrigger className={selectClass}><SelectValue placeholder="选择编排段" /></SelectTrigger>
         <SelectContent>
           {segments.map((segment) => <SelectItem key={segment.ID} value={String(segment.ID)}>{titleOfRecord(segment)}</SelectItem>)}
         </SelectContent>
@@ -5855,7 +5956,7 @@ function TargetPicker({
   if (scope === 'creativeReferences') {
     return (
       <Select value={value ? String(value) : ''} onValueChange={(next) => onChange(next ? Number(next) : null)}>
-        <SelectTrigger className={selectClass}><SelectValue placeholder="选择资料" /></SelectTrigger>
+        <SelectTrigger className={selectClass}><SelectValue placeholder="选择设定资料" /></SelectTrigger>
         <SelectContent>
           {creativeReferences.map((reference) => <SelectItem key={reference.ID} value={String(reference.ID)}>{titleOfRecord(reference)}</SelectItem>)}
         </SelectContent>
@@ -5865,7 +5966,7 @@ function TargetPicker({
   if (scope === 'assetSlots') {
     return (
       <Select value={value ? String(value) : ''} onValueChange={(next) => onChange(next ? Number(next) : null)}>
-        <SelectTrigger className={selectClass}><SelectValue placeholder="选择素材" /></SelectTrigger>
+        <SelectTrigger className={selectClass}><SelectValue placeholder="选择素材需求" /></SelectTrigger>
         <SelectContent>
           {assetSlots.map((slot) => <SelectItem key={slot.ID} value={String(slot.ID)}>{titleOfRecord(slot)}</SelectItem>)}
         </SelectContent>

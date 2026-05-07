@@ -8,7 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -284,7 +285,7 @@ func TestBuildEntityWriteAuditsCapturesPortContext(t *testing.T) {
 		t.Fatalf("expected two audits, got %d", len(audits))
 	}
 
-	byPort := map[string]model.CanvasEntityWriteAudit{}
+	byPort := map[string]canvasruntime.EntityWriteAudit{}
 	for i := range audits {
 		audit := audits[i]
 		if audit.CanvasID != 1 || audit.CanvasRunID != 2 || audit.CanvasNodeID != "node-a" || audit.UserID != 3 {

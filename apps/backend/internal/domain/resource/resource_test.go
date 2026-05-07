@@ -9,6 +9,9 @@ func TestMimeToTypeUsesMimeThenExtension(t *testing.T) {
 	if got := MimeToType("", "clip.webm"); got != "video" {
 		t.Fatalf("type = %q, want video", got)
 	}
+	if got := MimeToType("", "iphone.heic"); got != "image" {
+		t.Fatalf("type = %q, want image", got)
+	}
 	if got := MimeToType("", "archive.zip"); got != "file" {
 		t.Fatalf("type = %q, want file", got)
 	}

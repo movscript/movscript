@@ -29,8 +29,8 @@ func TestNormalizePlanAndStatus(t *testing.T) {
 	if got := NormalizePlan(""); got != PlanTeam {
 		t.Fatalf("plan = %q, want team", got)
 	}
-	if got := NormalizePlan("enterprise"); got != PlanEnterprise {
-		t.Fatalf("plan = %q, want enterprise", got)
+	if got := NormalizePlan("unknown"); got != PlanTeam {
+		t.Fatalf("plan = %q, want team", got)
 	}
 	if got := NormalizeStatus(""); got != StatusActive {
 		t.Fatalf("status = %q, want active", got)

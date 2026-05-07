@@ -7,11 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 const tokenVersion = "mv1"
@@ -45,7 +44,7 @@ func NewManager(secret string, ttl time.Duration) (*Manager, error) {
 	return &Manager{secret: []byte(secret), ttl: ttl}, nil
 }
 
-func (m *Manager) Issue(user model.User) (string, time.Time, error) {
+func (m *Manager) Issue(user persistencemodel.User) (string, time.Time, error) {
 	now := time.Now().UTC()
 	expiresAt := now.Add(m.ttl)
 	claims := Claims{

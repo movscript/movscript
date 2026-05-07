@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 

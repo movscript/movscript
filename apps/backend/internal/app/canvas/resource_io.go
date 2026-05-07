@@ -18,11 +18,11 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (h *Service) completeResourceSinkTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User, value canvasPortValue) map[string]canvasPortValue {
+func (h *Service) completeResourceSinkTask(ctx context.Context, task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, user *persistencemodel.User, value canvasPortValue) map[string]canvasPortValue {
 	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 	value.Normalize()
 	if value.ResourceID != nil && *value.ResourceID > 0 {
@@ -85,7 +85,7 @@ func canvasPortValueResourcePayload(value canvasPortValue) ([]byte, string, stri
 	}
 }
 
-func canvasResourceSinkName(_ *model.CanvasNode, nd nodeData, taskID uint, ext string) string {
+func canvasResourceSinkName(_ *persistencemodel.CanvasNode, nd nodeData, taskID uint, ext string) string {
 	if ext == "" {
 		ext = "bin"
 	}
@@ -113,7 +113,7 @@ func randomCanvasResourceNameToken(taskID uint) string {
 	return fmt.Sprintf("%d_%d", taskID, time.Now().UnixNano())
 }
 
-func (h *Service) createCanvasResourceFromSource(ctx context.Context, ownerID uint, orgID *uint, name string, source string, mimeType string) (*model.RawResource, error) {
+func (h *Service) createCanvasResourceFromSource(ctx context.Context, ownerID uint, orgID *uint, name string, source string, mimeType string) (*persistencemodel.RawResource, error) {
 	source = strings.TrimSpace(source)
 	if source == "" {
 		return nil, fmt.Errorf("generated result is empty")
@@ -161,7 +161,7 @@ func (h *Service) createCanvasResourceFromSource(ctx context.Context, ownerID ui
 	return h.createCanvasResourceFromBytes(ctx, ownerID, orgID, name, data, mimeType)
 }
 
-func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uint, orgID *uint, name string, data []byte, mimeType string) (*model.RawResource, error) {
+func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uint, orgID *uint, name string, data []byte, mimeType string) (*persistencemodel.RawResource, error) {
 	if h.store == nil {
 		return nil, fmt.Errorf("resource storage is not configured")
 	}

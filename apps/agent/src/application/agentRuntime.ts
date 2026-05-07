@@ -1,6 +1,11 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../types.js'
 import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest, type AgentManifest } from '../manifest/agentManifest.js'
+import {
+  InMemoryAgentCatalogStateStore,
+  type AgentCatalogStateStore,
+} from '../manifest/catalogState.js'
+import { loadAgentPluginCatalog as loadCatalogSnapshot, type AgentPluginBundle } from '../manifest/pluginCatalog.js'
 import { extractAgentContext } from '../context/runtimeContext.js'
 import { resolveAgentCapabilities } from '../runtime/tools/capabilityResolver.js'
 import { MemoryManager } from '../memory/memoryManager.js'
@@ -117,7 +122,7 @@ export type {
   ToolCall,
   ToolCallOutcome,
 } from '../state/types.js'
-export type { AgentMemory, AgentMemoryKind, AgentMemoryScope, MemoryQuery } from '../memory/types.js'
+export type { AgentMemory, AgentMemoryKind, MemoryQuery } from '../memory/types.js'
 export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from '../manifest/agentManifest.js'
 export type {
   AgentUpdateCandidate,
@@ -149,11 +154,19 @@ export {
 export { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../tools/toolRegistry.js'
 export {
   loadAgentPluginCatalog,
+  type AgentPluginBundle,
   resolveAgentSkillsDir,
   resolveAgentToolsDir,
   resolveBuiltinAgentSkillsDir,
   resolveBuiltinAgentToolsDir,
 } from '../manifest/pluginCatalog.js'
+export {
+  FileAgentCatalogStateStore,
+  InMemoryAgentCatalogStateStore,
+  resolveAgentCatalogStatePath,
+  type AgentCatalogState,
+  type AgentCatalogStateStore,
+} from '../manifest/catalogState.js'
 
 export class AgentRuntime {
   private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
@@ -162,12 +175,15 @@ export class AgentRuntime {
   private readonly backendApplyClient: BackendApplyClient
   private readonly memoryStore: AgentMemoryStore
   private readonly memoryManager: MemoryManager
-  private readonly defaultAgentManifest: AgentManifest
-  private readonly skillCatalog: AgentManifest['skills']
-  private readonly toolRegistry: ToolRegistry
+  private defaultAgentManifest: AgentManifest
+  private skillCatalog: AgentManifest['skills']
+  private toolRegistry: ToolRegistry
   private readonly contractResolver: AgentRuntimeContractResolver
-  private readonly pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
-  private readonly pluginWarnings: string[]
+  private pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
+  private pluginWarnings: string[]
+  private pluginBundles: AgentPluginBundle[]
+  private readonly catalogStateStore: AgentCatalogStateStore
+  private readonly pluginCatalogLoader?: NonNullable<AgentRuntimeOptions['pluginCatalogLoader']>
   private readonly updateState?: AgentCapabilitiesResponse['updates']
   private readonly runControllers = new Map<string, AbortController>()
   private readonly runAuth = new Map<string, { backendAuthToken?: string; backendAPIBaseURL?: string }>()
@@ -180,13 +196,37 @@ export class AgentRuntime {
     this.backendApplyClient = options.backendApplyClient ?? new BackendApplyClient()
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
-    this.defaultAgentManifest = options.defaultAgentManifest ?? DEFAULT_AGENT_MANIFEST
-    this.skillCatalog = options.skillCatalog ?? []
-    this.toolRegistry = options.toolRegistry ?? DEFAULT_TOOL_REGISTRY
+    const builtinCatalog = !options.pluginCatalogLoader
+      && !options.defaultAgentManifest
+      && !options.skillCatalog
+      && !options.toolRegistry
+      ? loadCatalogSnapshot()
+      : undefined
+    this.defaultAgentManifest = options.defaultAgentManifest ?? builtinCatalog?.manifest ?? DEFAULT_AGENT_MANIFEST
+    this.skillCatalog = options.skillCatalog ?? builtinCatalog?.skills ?? []
+    this.toolRegistry = options.toolRegistry ?? builtinCatalog?.registry ?? DEFAULT_TOOL_REGISTRY
     this.contractResolver = options.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
-    this.pluginCatalogInfo = options.pluginCatalogInfo
-    this.pluginWarnings = options.pluginWarnings ?? []
+    this.pluginCatalogInfo = options.pluginCatalogInfo ?? (builtinCatalog
+      ? {
+        skillsDir: builtinCatalog.skillsDir,
+        toolsDir: builtinCatalog.toolsDir,
+        builtinSkillsDir: builtinCatalog.builtinSkillsDir,
+        builtinToolsDir: builtinCatalog.builtinToolsDir,
+        bundlesDir: builtinCatalog.bundlesDir,
+        builtinBundlesDir: builtinCatalog.builtinBundlesDir,
+        skillCount: builtinCatalog.skills.length,
+        toolCount: builtinCatalog.registry.list().length,
+        bundleCount: builtinCatalog.bundles.length,
+        activeBundleIds: builtinCatalog.activeBundleIds,
+        availableBundleIds: builtinCatalog.availableBundleIds,
+      }
+      : undefined)
+    this.pluginWarnings = options.pluginWarnings ?? builtinCatalog?.warnings ?? []
+    this.pluginBundles = builtinCatalog?.bundles ?? []
+    this.catalogStateStore = options.catalogStateStore ?? new InMemoryAgentCatalogStateStore()
+    this.pluginCatalogLoader = options.pluginCatalogLoader
     this.updateState = options.updateState
+    if (this.pluginCatalogLoader) this.reloadAgentCatalog()
   }
 
   async getCapabilities(input: { agentManifest?: unknown; currentProjectId?: number; includeResources?: boolean } = {}): Promise<AgentCapabilitiesResponse> {
@@ -213,6 +253,105 @@ export class AgentRuntime {
 
   getDefaultAgentManifest(): AgentManifest {
     return this.defaultAgentManifest
+  }
+
+  listAgentBundles(): JSONValue {
+    const state = this.catalogStateStore.load()
+    return {
+      status: 'ok',
+      bundles: this.pluginBundles.map((bundle) => ({
+        ...bundle,
+        enabled: this.getEffectiveEnabledBundleIds().includes(bundle.id),
+      })),
+      enabledBundleIds: state.enabledBundleIds ?? this.pluginCatalogInfo?.activeBundleIds ?? [],
+      activeBundleIds: this.pluginCatalogInfo?.activeBundleIds ?? [],
+      availableBundleIds: this.pluginCatalogInfo?.availableBundleIds ?? this.pluginBundles.map((bundle) => bundle.id),
+      warnings: this.pluginWarnings,
+    } as unknown as JSONValue
+  }
+
+  inspectAgentBundle(input: { bundleId?: unknown; id?: unknown } = {}): JSONValue {
+    const bundleId = typeof input.bundleId === 'string' && input.bundleId.trim()
+      ? input.bundleId.trim()
+      : typeof input.id === 'string' && input.id.trim()
+        ? input.id.trim()
+        : undefined
+    if (!bundleId) throw new Error('inspect_agent_bundle requires bundleId')
+    const bundle = this.pluginBundles.find((item) => item.id === bundleId)
+    if (!bundle) throw new Error(`agent bundle not found: ${bundleId}`)
+    const skillIds = new Set(bundle.skills)
+    const toolNames = new Set(bundle.tools)
+    return {
+      status: 'ok',
+      bundle,
+      enabled: this.getEffectiveEnabledBundleIds().includes(bundle.id),
+      skills: this.skillCatalog.filter((skill) => skillIds.has(skill.id)),
+      tools: this.toolRegistry.list().filter((tool) => toolNames.has(tool.name)),
+    } as unknown as JSONValue
+  }
+
+  enableAgentBundle(input: { bundleId?: unknown; id?: unknown; replace?: unknown } = {}): JSONValue {
+    const bundleId = typeof input.bundleId === 'string' && input.bundleId.trim()
+      ? input.bundleId.trim()
+      : typeof input.id === 'string' && input.id.trim()
+        ? input.id.trim()
+        : undefined
+    if (!bundleId) throw new Error('enable_agent_bundle requires bundleId')
+    if (!this.pluginCatalogLoader) throw new Error('dynamic agent catalog loading is not configured')
+    if (!this.pluginBundles.some((bundle) => bundle.id === bundleId)) throw new Error(`agent bundle not found: ${bundleId}`)
+    const current = input.replace === true ? [] : this.getEffectiveEnabledBundleIds()
+    const enabledBundleIds = Array.from(new Set([...current, bundleId]))
+    this.catalogStateStore.save({ version: 1, enabledBundleIds, updatedAt: isoNow() })
+    this.reloadAgentCatalog()
+    return {
+      status: 'enabled',
+      bundleId,
+      enabledBundleIds: this.getEffectiveEnabledBundleIds(),
+      activeBundleIds: this.pluginCatalogInfo?.activeBundleIds ?? [],
+      skillCount: this.skillCatalog.length,
+      toolCount: this.toolRegistry.list().length,
+      warnings: this.pluginWarnings,
+    } as unknown as JSONValue
+  }
+
+  reloadAgentCatalog(): JSONValue {
+    if (!this.pluginCatalogLoader) {
+      return {
+        status: 'unchanged',
+        reason: 'dynamic agent catalog loading is not configured',
+        skillCount: this.skillCatalog.length,
+        toolCount: this.toolRegistry.list().length,
+      } as unknown as JSONValue
+    }
+    const state = this.catalogStateStore.load()
+    const catalog = this.pluginCatalogLoader({ enabledBundleIds: state.enabledBundleIds })
+    this.defaultAgentManifest = catalog.manifest
+    this.skillCatalog = catalog.skills
+    this.toolRegistry = catalog.registry
+    this.pluginWarnings = catalog.warnings
+    this.pluginBundles = catalog.bundles
+    this.pluginCatalogInfo = {
+      skillsDir: catalog.skillsDir,
+      toolsDir: catalog.toolsDir,
+      builtinSkillsDir: catalog.builtinSkillsDir,
+      builtinToolsDir: catalog.builtinToolsDir,
+      bundlesDir: catalog.bundlesDir,
+      builtinBundlesDir: catalog.builtinBundlesDir,
+      skillCount: catalog.skills.length,
+      toolCount: catalog.registry.list().length,
+      bundleCount: catalog.bundles.length,
+      activeBundleIds: catalog.activeBundleIds,
+      availableBundleIds: catalog.availableBundleIds,
+    }
+    return {
+      status: 'reloaded',
+      enabledBundleIds: state.enabledBundleIds ?? null,
+      activeBundleIds: catalog.activeBundleIds,
+      availableBundleIds: catalog.availableBundleIds,
+      skillCount: catalog.skills.length,
+      toolCount: catalog.registry.list().length,
+      warnings: catalog.warnings,
+    } as unknown as JSONValue
   }
 
   createThread(input: CreateThreadInput = {}): AgentThread {
@@ -386,7 +525,6 @@ export class AgentRuntime {
     const context = extractAgentContext(contextResult)
     const memories = this.memoryManager.loadRelevantMemories({
       ...(typeof context.currentProjectId === 'number' ? { projectId: context.currentProjectId } : {}),
-      threadId: thread?.id ?? 'preview',
       query: message,
     })
     const skills = resolveAgentSkills(agentManifest, message, this.skillCatalog)
@@ -631,8 +769,16 @@ export class AgentRuntime {
     return run
   }
 
-  listMemories(query: MemoryQuery = {}): AgentMemory[] {
+  listMemories(query: MemoryQuery): AgentMemory[] {
     return this.memoryStore.listMemories(query)
+  }
+
+  listMemorySummaries(query: Parameters<MemoryManager['listMemorySummaries']>[0]): ReturnType<MemoryManager['listMemorySummaries']> {
+    return this.memoryManager.listMemorySummaries(query)
+  }
+
+  getMemory(projectId: number, id: string): AgentMemory | undefined {
+    return this.memoryManager.getMemory({ projectId, id })
   }
 
   listDrafts(query: {
@@ -735,11 +881,11 @@ export class AgentRuntime {
   }
 
   createMemory(input: Parameters<AgentMemoryStore['createMemory']>[0]): AgentMemory {
-    return this.memoryStore.createMemory(input)
+    return this.memoryManager.createMemory(input)
   }
 
-  deleteMemory(id: string): boolean {
-    return this.memoryStore.deleteMemory(id)
+  deleteMemory(projectId: number, id: string): boolean {
+    return this.memoryManager.deleteMemory({ projectId, id })
   }
 
   private startRunExecution(runId: string): void {
@@ -826,7 +972,6 @@ export class AgentRuntime {
       }
       const memories = this.memoryManager.loadRelevantMemories({
         projectId: context.currentProjectId,
-        threadId: thread.id,
         query: lastUser.content,
       })
       this.recordTraceEvent(run, {
@@ -1017,6 +1162,28 @@ export class AgentRuntime {
         registry: this.toolRegistry,
         contractResolver: this.contractResolver,
         memoryManager: this.memoryManager,
+        catalogManager: this,
+        onCatalogRefresh: async () => {
+          const refreshedSkills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
+          const refreshedCapabilities = await resolveAgentCapabilities({
+            mcpClient: this.mcpClient,
+            manifest: this.defaultAgentManifest,
+            currentProjectId: context.currentProjectId,
+            registry: this.toolRegistry,
+            pluginCatalog: this.pluginCatalogInfo,
+            warnings: this.pluginWarnings,
+            updates: this.updateState,
+            activeSkills: refreshedSkills,
+            userMessage: lastUser.content,
+          })
+          return {
+            manifest: this.defaultAgentManifest,
+            capabilities: refreshedCapabilities.resolvedTools,
+            skills: refreshedSkills,
+            registry: this.toolRegistry,
+            warnings: refreshedCapabilities.warnings,
+          }
+        },
         signal,
         ...(runtimeContract?.commandOverride
           ? { command: runtimeContract.commandOverride({ userMessage: lastUser.content, manifest: agentManifest }) }
@@ -1174,13 +1341,16 @@ export class AgentRuntime {
         step.status = 'completed'
         step.result = { messageId: assistant.id }
         step.completedAt = isoNow()
-        this.memoryStore.createMemory({
-          scope: 'thread',
-          threadId: thread.id,
-          kind: 'warning',
-          content: run.error ?? 'run failed',
-          sourceRunId: run.id,
-        })
+        if (typeof thread.projectId === 'number') {
+          this.memoryStore.createMemory({
+            projectId: thread.projectId,
+            title: '警告：运行失败',
+            kind: 'warning',
+            content: run.error ?? 'run failed',
+            sourceThreadId: thread.id,
+            sourceRunId: run.id,
+          })
+        }
         this.store.updateThread(thread)
         this.store.updateRun(run)
       }
@@ -1202,6 +1372,12 @@ export class AgentRuntime {
 
   private getRunAuth(runId: string): { backendAuthToken?: string; backendAPIBaseURL?: string } {
     return this.runAuth.get(runId) ?? {}
+  }
+
+  private getEffectiveEnabledBundleIds(): string[] {
+    const stateEnabled = this.catalogStateStore.load().enabledBundleIds
+    if (stateEnabled) return stateEnabled
+    return this.pluginCatalogInfo?.activeBundleIds ?? []
   }
 
   private createStep(run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string): AgentRunStep {

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
 type repository interface {
-	FindOrganization(ctx context.Context, orgID uint) (model.Organization, error)
+	FindOrganization(ctx context.Context, orgID uint) (persistencemodel.Organization, error)
 }
 
 type gormRepository struct {
@@ -23,8 +23,8 @@ func newRepository(db *gorm.DB) repository {
 	return &gormRepository{db: db}
 }
 
-func (r *gormRepository) FindOrganization(ctx context.Context, orgID uint) (model.Organization, error) {
-	var org model.Organization
+func (r *gormRepository) FindOrganization(ctx context.Context, orgID uint) (persistencemodel.Organization, error) {
+	var org persistencemodel.Organization
 	if err := r.db.WithContext(ctx).Select("id, is_personal, plan, status").First(&org, orgID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return org, ErrNotFound

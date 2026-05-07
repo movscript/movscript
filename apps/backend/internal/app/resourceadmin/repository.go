@@ -3,7 +3,7 @@ package resourceadmin
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +23,7 @@ func (s *gormRepository) StorageStats(ctx context.Context) ([]StorageStat, error
 		TotalSize      int64
 	}
 	rows := make([]row, 0)
-	if err := s.db.WithContext(ctx).Model(&model.RawResource{}).
+	if err := s.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).
 		Select("owner_id as user_id, storage_backend, count(*) as count, sum(size) as total_size").
 		Group("owner_id, storage_backend").
 		Scan(&rows).Error; err != nil {
@@ -61,7 +61,7 @@ func (s *gormRepository) usernames(ctx context.Context, ids map[uint]bool) (map[
 	for id := range ids {
 		values = append(values, id)
 	}
-	users := make([]model.User, 0)
+	users := make([]persistencemodel.User, 0)
 	if err := s.db.WithContext(ctx).Where("id IN ?", values).Find(&users).Error; err != nil {
 		return nil, err
 	}

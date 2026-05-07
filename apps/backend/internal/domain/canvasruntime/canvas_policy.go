@@ -218,7 +218,7 @@ func NewAssetSlotTargetNode(input AssetSlotTargetNodeInput) CanvasNode {
 		"outputPorts": []map[string]any{
 			{"id": "reference", "type": "resource", "label": "参考图"},
 			{"id": "prompt_hint", "type": "text", "label": "参考说明"},
-			{"id": "creative_reference_id", "type": "number", "label": "所属资料"},
+			{"id": "creative_reference_id", "type": "number", "label": "所属设定资料"},
 		},
 	})
 	return CanvasNode{

@@ -3,17 +3,16 @@ package ai
 import (
 	"errors"
 	"fmt"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"gorm.io/gorm"
 	"sync"
 	"sync/atomic"
-
-	"github.com/movscript/movscript/internal/domain/model"
-	"gorm.io/gorm"
 )
 
 var priorityRoundRobinCounters sync.Map
 
-func (s *AIService) loadConfig(modelConfigID uint, requiredCap string) (model.AIModelConfig, Provider, *ModelDef, error) {
-	var cfg model.AIModelConfig
+func (s *AIService) loadConfig(modelConfigID uint, requiredCap string) (persistencemodel.AIModelConfig, Provider, *ModelDef, error) {
+	var cfg persistencemodel.AIModelConfig
 	if err := s.db.First(&cfg, modelConfigID).Error; err != nil {
 		return cfg, nil, nil, fmt.Errorf("model config id=%d not found", modelConfigID)
 	}
@@ -82,14 +81,14 @@ func (s *AIService) resolveRuntimeModelAnyCapability(modelConfigID uint, caps []
 }
 
 type runtimeModelCandidate struct {
-	cfg       model.AIModelConfig
+	cfg       persistencemodel.AIModelConfig
 	logicalID string
 	priority  int
 }
 
 func (s *AIService) runtimeModelCandidates(modelConfigID uint, requiredCap string) ([]runtimeModelCandidate, error) {
 	var base modelConfigWithProvider
-	if err := s.db.Model(&model.AIModelConfig{}).
+	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
 		Where("ai_model_configs.id = ? AND ai_model_configs.deleted_at IS NULL AND ai_credentials.deleted_at IS NULL", modelConfigID).
@@ -112,7 +111,7 @@ func (s *AIService) runtimeModelCandidates(modelConfigID uint, requiredCap strin
 	}
 
 	var rows []modelConfigWithProvider
-	if err := s.db.Model(&model.AIModelConfig{}).
+	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
 		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
@@ -136,7 +135,7 @@ func runtimeModelRoundRobinKey(logicalID, capability string) string {
 }
 
 // resolveModelID returns the effective model ID for an API call.
-func resolveModelID(cfg model.AIModelConfig, def *ModelDef) string {
+func resolveModelID(cfg persistencemodel.AIModelConfig, def *ModelDef) string {
 	if cfg.ModelIDOverride != "" {
 		return cfg.ModelIDOverride
 	}
@@ -144,10 +143,10 @@ func resolveModelID(cfg model.AIModelConfig, def *ModelDef) string {
 }
 
 // resolveDefFromConfig calls ResolveModelDef with all Custom* fields from a model config.
-func resolveDefFromConfig(cfg model.AIModelConfig, adapterType string) *ModelDef {
+func resolveDefFromConfig(cfg persistencemodel.AIModelConfig, adapterType string) *ModelDef {
 	return ResolveModelDef(
 		cfg.ModelDefID, adapterType,
-		cfg.CustomDisplayName, cfg.CustomCapabilities, cfg.CustomBillingMode,
+		cfg.CustomDisplayName, cfg.CustomCapabilities, cfg.CustomPricingMode,
 		cfg.CustomAcceptsImage, cfg.CustomMaxInputImages, cfg.CustomMaxInputVideos,
 		cfg.CustomImageEditField, cfg.CustomSupportedParams,
 	)
@@ -155,19 +154,19 @@ func resolveDefFromConfig(cfg model.AIModelConfig, adapterType string) *ModelDef
 
 // calcCost computes the credit cost for a call.
 // durationSec is used for per_second; imageCount for per_image.
-func calcCost(cfg model.AIModelConfig, def *ModelDef, inputTokens, outputTokens, durationSec, imageCount int) float64 {
-	switch def.BillingMode {
-	case BillingPerToken:
+func calcCost(cfg persistencemodel.AIModelConfig, def *ModelDef, inputTokens, outputTokens, durationSec, imageCount int) float64 {
+	switch def.PricingMode {
+	case PricingPerToken:
 		return float64(inputTokens)/1_000_000*cfg.CreditsInputPer1M +
 			float64(outputTokens)/1_000_000*cfg.CreditsOutputPer1M
-	case BillingPerImage:
+	case PricingPerImage:
 		if imageCount <= 0 {
 			imageCount = 1
 		}
 		return float64(imageCount) * cfg.CreditsPerImage
-	case BillingPerSecond:
+	case PricingPerSecond:
 		return float64(durationSec) * cfg.CreditsPerSecond
-	case BillingPerCall:
+	case PricingPerCall:
 		return cfg.CreditsPerCall
 	default:
 		return 0

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	domainaudit "github.com/movscript/movscript/internal/domain/audit"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -29,7 +29,7 @@ func (r *gormRepository) ListLogs(ctx context.Context, filter ListFilter) (Page,
 		pageSize = 200
 	}
 
-	q := r.db.WithContext(ctx).Model(&model.AuditLog{}).Order("id desc")
+	q := r.db.WithContext(ctx).Model(&persistencemodel.AuditLog{}).Order("id desc")
 	if filter.ActorID != "" {
 		q = q.Where("actor_id = ?", filter.ActorID)
 	}
@@ -56,7 +56,7 @@ func (r *gormRepository) ListLogs(ctx context.Context, filter ListFilter) (Page,
 	if err := q.Count(&total).Error; err != nil {
 		return Page{}, err
 	}
-	logs := make([]model.AuditLog, 0)
+	logs := make([]persistencemodel.AuditLog, 0)
 	if err := q.Offset((page - 1) * pageSize).Limit(pageSize).Find(&logs).Error; err != nil {
 		return Page{}, err
 	}

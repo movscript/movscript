@@ -19,17 +19,17 @@ import (
 )
 
 var (
-	ErrAPIKeyNotFound        = errors.New("gateway api key not found")
-	ErrProjectNotFound       = errors.New("gateway project not found")
-	ErrProjectOutsideOrg     = errors.New("gateway project is outside current org")
-	ErrMonthlyBudgetExceeded = errors.New("gateway monthly budget exceeded")
-	ErrRateLimitExceeded     = errors.New("gateway rate limit exceeded")
-	ErrInsufficientScope     = errors.New("gateway key is not allowed to use requested scope")
-	ErrModelNotAllowed       = errors.New("gateway key is not allowed to use this model")
-	ErrProjectNotAllowed     = errors.New("gateway key is not allowed to use this project scope")
-	ErrModelNotFound         = errors.New("gateway model not found")
-	ErrUnsupportedParameter  = errors.New("unsupported gateway request parameter")
-	ErrModelUnavailable      = errors.New("gateway model unavailable")
+	ErrAPIKeyNotFound            = errors.New("gateway api key not found")
+	ErrProjectNotFound           = errors.New("gateway project not found")
+	ErrProjectOutsideOrg         = errors.New("gateway project is outside current org")
+	ErrEditionUsageLimitExceeded = errors.New("gateway edition usage limit exceeded")
+	ErrEditionRateLimited        = errors.New("gateway edition rate limit exceeded")
+	ErrInsufficientScope         = errors.New("gateway key is not allowed to use requested scope")
+	ErrModelNotAllowed           = errors.New("gateway key is not allowed to use this model")
+	ErrProjectNotAllowed         = errors.New("gateway key is not allowed to use this project scope")
+	ErrModelNotFound             = errors.New("gateway model not found")
+	ErrUnsupportedParameter      = errors.New("unsupported gateway request parameter")
+	ErrModelUnavailable          = errors.New("gateway model unavailable")
 )
 
 type Service struct {
@@ -54,7 +54,7 @@ type CreateAPIKeyInput struct {
 	ProjectID       *uint
 	AllowedModelIDs []uint
 	AllowedScopes   []string
-	Commercial      CommercialAPIKeyCreateInput
+	Edition         APIKeyCreateEditionInput
 }
 
 type UpdateAPIKeyInput struct {
@@ -65,7 +65,7 @@ type UpdateAPIKeyInput struct {
 	AllowedModelIDs []uint
 	AllowedScopes   []string
 	IsEnabled       *bool
-	Commercial      CommercialAPIKeyUpdateInput
+	Edition         APIKeyUpdateEditionInput
 }
 
 type CreateAPIKeyResult struct {
@@ -110,8 +110,8 @@ func (e ModelNotFoundError) Unwrap() error {
 	return ErrModelNotFound
 }
 
-func IsInsufficientQuota(err error) bool {
-	return errors.Is(err, ai.ErrInsufficientQuota)
+func IsUsageLimitExceeded(err error) bool {
+	return errors.Is(err, ai.ErrUsageLimitExceeded)
 }
 
 func (s *Service) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint) ([]domainmodelgateway.APIKey, error) {
@@ -134,7 +134,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		AllowedModelIDs: input.AllowedModelIDs,
 		AllowedScopes:   input.AllowedScopes,
 	})
-	applyAPIKeyCommercialCreateFields(&domainKey, input.Commercial)
+	applyAPIKeyEditionCreateFields(&domainKey, input.Edition)
 	if err := s.repo.CreateAPIKey(ctx, &domainKey); err != nil {
 		return CreateAPIKeyResult{}, err
 	}
@@ -159,7 +159,7 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (do
 	if input.IsEnabled != nil {
 		updates["is_enabled"] = *input.IsEnabled
 	}
-	applyAPIKeyCommercialUpdateFields(updates, input.Commercial)
+	applyAPIKeyEditionUpdateFields(updates, input.Edition)
 	if len(updates) > 0 {
 		if err := s.repo.UpdateAPIKey(ctx, &key, updates); err != nil {
 			return key, err
@@ -215,7 +215,7 @@ func (s *Service) CallChat(ctx context.Context, input ChatInput) (ChatResult, er
 	if err != nil {
 		return ChatResult{}, err
 	}
-	resp, err := s.ai.CallTextWithBilling(ctx, input.Principal.UserID, modelConfigID, textReq, BillingContext(input.Principal.Key, input.ProjectID))
+	resp, err := s.ai.CallTextWithUsage(ctx, input.Principal.UserID, modelConfigID, textReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatResult{}, err
 	}
@@ -227,7 +227,7 @@ func (s *Service) CallChatStream(ctx context.Context, input ChatInput) (ChatStre
 	if err != nil {
 		return ChatStreamResult{}, err
 	}
-	events, err := s.ai.CallTextStreamWithBilling(ctx, input.Principal.UserID, modelConfigID, textReq, BillingContext(input.Principal.Key, input.ProjectID))
+	events, err := s.ai.CallTextStreamWithUsage(ctx, input.Principal.UserID, modelConfigID, textReq, UsageContext(input.Principal.Key, input.ProjectID))
 	if err != nil {
 		return ChatStreamResult{}, err
 	}

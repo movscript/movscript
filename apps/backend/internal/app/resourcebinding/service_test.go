@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

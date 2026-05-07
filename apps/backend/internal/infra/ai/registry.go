@@ -5,14 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/movscript/movscript/internal/infra/crypto"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
-	"github.com/movscript/movscript/internal/infra/crypto"
-	"gorm.io/gorm"
 )
 
 // Registry builds Provider instances from AICredential + resolved ModelDef.
@@ -28,8 +27,8 @@ func NewRegistry(db *gorm.DB, encryptionKey []byte) *Registry {
 // BuildForConfig constructs a Provider for the given AIModelConfig.
 // It loads the AICredential and resolves the model from admin config plus
 // adapter defaults. Presets are never consulted here.
-func (r *Registry) BuildForConfig(cfg model.AIModelConfig) (Provider, *ModelDef, error) {
-	var cred model.AICredential
+func (r *Registry) BuildForConfig(cfg persistencemodel.AIModelConfig) (Provider, *ModelDef, error) {
+	var cred persistencemodel.AICredential
 	if err := r.db.Where("id = ? AND is_enabled = true", cfg.CredentialID).First(&cred).Error; err != nil {
 		return nil, nil, fmt.Errorf("credential id=%d not found or disabled", cfg.CredentialID)
 	}
@@ -44,13 +43,13 @@ func (r *Registry) BuildForConfig(cfg model.AIModelConfig) (Provider, *ModelDef,
 }
 
 // BuildForCredential constructs a Provider for testing connectivity (no model needed).
-func (r *Registry) BuildForCredential(cred model.AICredential) (Provider, error) {
+func (r *Registry) BuildForCredential(cred persistencemodel.AICredential) (Provider, error) {
 	// Use a fake minimal ModelDef that captures the adapter type.
 	fakeDef := &ModelDef{AdapterType: cred.AdapterType}
 	return r.buildProvider(cred, fakeDef)
 }
 
-func (r *Registry) buildProvider(cred model.AICredential, def *ModelDef) (Provider, error) {
+func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelDef) (Provider, error) {
 	apiKey := ""
 	if cred.EncryptedKey != "" && len(r.encryptionKey) > 0 {
 		var err error
@@ -90,8 +89,8 @@ func (r *Registry) buildProvider(cred model.AICredential, def *ModelDef) (Provid
 // GetFileUploader returns a FileUploader configured for the credential associated with a model config.
 // Returns nil if FilesAPIEnabled is not set on the credential.
 // Uses the independent Files API key/URL when configured, falling back to the main credential.
-func (r *Registry) GetFileUploader(cfg model.AIModelConfig) FileUploader {
-	var cred model.AICredential
+func (r *Registry) GetFileUploader(cfg persistencemodel.AIModelConfig) FileUploader {
+	var cred persistencemodel.AICredential
 	if err := r.db.Where("id = ? AND is_enabled = true", cfg.CredentialID).First(&cred).Error; err != nil {
 		return nil
 	}
@@ -139,11 +138,11 @@ func (r *Registry) GetFileUploader(cfg model.AIModelConfig) FileUploader {
 // When multiple configs share the highest priority, one is chosen in round-robin order.
 func (r *Registry) GetAny() (Provider, string, error) {
 	type row struct {
-		model.AIModelConfig
+		persistencemodel.AIModelConfig
 		AdapterType string
 	}
 	var rows []row
-	r.db.Model(&model.AIModelConfig{}).
+	r.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
 		Where("ai_model_configs.is_enabled = true AND ai_credentials.is_enabled = true").
@@ -151,7 +150,7 @@ func (r *Registry) GetAny() (Provider, string, error) {
 		Scan(&rows)
 
 	type candidate struct {
-		cfg      model.AIModelConfig
+		cfg      persistencemodel.AIModelConfig
 		def      *ModelDef
 		priority int
 	}
@@ -232,8 +231,8 @@ func splitKlingKey(key string) [2]string {
 // DebugCall makes the actual API call for a model config and returns raw HTTP details.
 // For text models it sends a minimal generation request; for image it sends a real generation
 // (may incur cost); for video it only validates auth via a list request (no billable task created).
-func (r *Registry) DebugCall(ctx context.Context, cfg model.AIModelConfig) DebugCallResult {
-	var cred model.AICredential
+func (r *Registry) DebugCall(ctx context.Context, cfg persistencemodel.AIModelConfig) DebugCallResult {
+	var cred persistencemodel.AICredential
 	if err := r.db.First(&cred, cfg.CredentialID).Error; err != nil {
 		return DebugCallResult{Error: "credential not found"}
 	}
@@ -299,7 +298,7 @@ func (r *Registry) DebugCall(ctx context.Context, cfg model.AIModelConfig) Debug
 		}, modelID)
 
 	case AdapterVolcen:
-		// For video, validate auth by listing tasks (no billing).
+		// For video, validate auth by listing tasks without recording usage.
 		endpoint := baseURL + "/contents/generations/tasks?page_size=1"
 		return debugHTTPGet(ctx, endpoint, map[string]string{
 			"Authorization": "Bearer " + apiKey,

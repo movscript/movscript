@@ -93,7 +93,7 @@ Project
 - `scene_moment` 是 AI 生成最需要的情境单元，描述时间、地点、人物、动作、情绪和条件。
 - `creative_reference` 是项目级设定本体，包括人物、地点、道具、品牌、风格和规则。
 - `creative_reference_state` 是某个范围内的局部状态，例如服装、情绪、伤痕、持有道具。
-- `creative_relationship` 和 `creative_reference_usage` 连接人物关系、资料使用和连续性。
+- `creative_relationship` 和 `creative_reference_usage` 连接人物关系、设定资料引用和连续性。
 
 创作来源层和故事意图层的输出不是镜头表，而是结构化创作事实：
 

@@ -37,7 +37,7 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
   assert.ok(systemMessages.length > 1)
   assert.match(systemMessages[0].content ?? '', /Current work context/)
   assert.match(systemMessages[0].content ?? '', /Title:/)
-  assert.match(systemMessages[0].content ?? '', /Tool reference:/)
+  assert.match(systemMessages[0].content ?? '', /Business reference:/)
   assert.match(systemMessages[0].content ?? '', /production#4/)
   assert.equal(systemMessages.some((message) => String(message.content).includes('Runtime context JSON')), false)
   assert.ok(systemMessages.some((message) => String(message.content).includes('outputMode: natural')))
@@ -48,7 +48,6 @@ test('buildContext uses runtime contract for tool schemas without forcing JSON a
     {
       id: 'structured-test-contract',
       matches: (manifest) => manifest.id === 'structured-test-agent',
-      structuredContract: 'Return only JSON matching schema movscript.structured_test.v1.',
       toolSchemas: {
         movscript_structured_test_tool: {
           type: 'object',
@@ -57,7 +56,6 @@ test('buildContext uses runtime contract for tool schemas without forcing JSON a
           required: ['query'],
         },
       },
-      requiresStructuredJSON: true,
     },
   ])
   const manifest = {
@@ -106,7 +104,6 @@ test('buildContext uses runtime contract for tool schemas without forcing JSON a
   })
   const chatTools = buildOpenAIChatTools(tools, resolver.find(manifest))
 
-  assert.doesNotMatch(built.systemPrompt, /Runtime structured contract/)
   assert.doesNotMatch(built.systemPrompt, /Return only JSON/)
   assert.ok(chatTools.some((tool) => tool.function.name === 'movscript_structured_test_tool' && !!tool.function.parameters))
 })

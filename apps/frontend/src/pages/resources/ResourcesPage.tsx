@@ -15,6 +15,7 @@ import { Button } from '@movscript/ui'
 import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useTranslation } from 'react-i18next'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio' | 'text'
 type Tab = 'mine' | 'shared'
@@ -763,7 +764,7 @@ export default function ResourcesPage() {
             ref={fileRef}
             type="file"
             className="hidden"
-            accept="image/*,video/*,audio/*,text/*,.txt,.md,.json,.csv,.ts,.tsx,.js,.jsx,.css,.html,.xml,.yaml,.yml"
+            accept={RESOURCE_UPLOAD_ACCEPT}
             multiple
             onChange={e => {
               if (!e.target.files) return

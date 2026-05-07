@@ -3,10 +3,9 @@ package ai
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
+	"strings"
 )
 
 // PublicModel is the user-facing model representation.
@@ -40,7 +39,7 @@ func NewAIService(db *gorm.DB, registry *Registry) *AIService {
 }
 
 type modelConfigWithProvider struct {
-	model.AIModelConfig
+	persistencemodel.AIModelConfig
 	ProviderName string
 	AdapterType  string
 }
@@ -56,27 +55,27 @@ type GenerationPreflightRequest struct {
 }
 
 type GenerationPreflightResult struct {
-	Config           model.AIModelConfig
+	Config           persistencemodel.AIModelConfig
 	Def              *ModelDef
 	NormalizedParams map[string]any
 }
 
 type TextPreflightResult struct {
-	Config *model.AIModelConfig
+	Config *persistencemodel.AIModelConfig
 	Def    *ModelDef
 }
 
 // PreflightGeneration validates model capability, input media limits, and
 // generation params before a caller constructs provider-specific requests.
 func (s *AIService) PreflightGeneration(req GenerationPreflightRequest) (GenerationPreflightResult, error) {
-	var cfg model.AIModelConfig
+	var cfg persistencemodel.AIModelConfig
 	if err := s.db.First(&cfg, req.ModelConfigID).Error; err != nil {
 		return GenerationPreflightResult{}, fmt.Errorf("model config not found")
 	}
 	if !cfg.IsEnabled {
 		return GenerationPreflightResult{}, fmt.Errorf("model config id=%d is disabled", req.ModelConfigID)
 	}
-	var cred model.AICredential
+	var cred persistencemodel.AICredential
 	if err := s.db.First(&cred, cfg.CredentialID).Error; err != nil {
 		return GenerationPreflightResult{}, fmt.Errorf("credential not found")
 	}
@@ -189,7 +188,7 @@ func (s *AIService) GetProviderModelsByCapability(capability string) ([]PublicMo
 
 func (s *AIService) getModelsByCapability(capability string, providerVariants bool) ([]PublicModel, error) {
 	var rows []modelConfigWithProvider
-	if err := s.db.Model(&model.AIModelConfig{}).
+	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
 		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
@@ -259,7 +258,7 @@ func (s *AIService) GetProviderModelsForFeature(featureKey string) ([]PublicMode
 
 func (s *AIService) getModelsForFeature(featureKey string, providerVariants bool) ([]PublicModel, error) {
 	featureKey = NormalizeFeatureKey(featureKey)
-	var cfg model.FeatureConfig
+	var cfg persistencemodel.FeatureConfig
 	if err := s.db.Where("feature_key = ?", featureKey).First(&cfg).Error; err != nil {
 		// Feature not in DB — fall back to catalog so features seeded after initial
 		// migration still work without requiring a DB re-seed.
@@ -321,7 +320,7 @@ func (s *AIService) getModelsForFeature(featureKey string, providerVariants bool
 // When multiple configs share the highest priority, one is chosen in round-robin order.
 func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelID string, err error) {
 	featureKey = NormalizeFeatureKey(featureKey)
-	var fcfg model.FeatureConfig
+	var fcfg persistencemodel.FeatureConfig
 	if err := s.db.Where("feature_key = ?", featureKey).First(&fcfg).Error; err != nil {
 		return s.GetAnyTextModel()
 	}
@@ -331,7 +330,7 @@ func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelI
 	ids := parseIDArray(fcfg.AllowedModelIDs)
 
 	var rows []modelConfigWithProvider
-	base := s.db.Model(&model.AIModelConfig{}).
+	base := s.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
 		Where("ai_model_configs.is_enabled = true AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL")
@@ -362,7 +361,7 @@ func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelI
 }
 
 type featureModelCandidate struct {
-	cfg      model.AIModelConfig
+	cfg      persistencemodel.AIModelConfig
 	def      *ModelDef
 	priority int
 }
@@ -408,7 +407,7 @@ func modelHasCapability(def *ModelDef, capability string) bool {
 	return false
 }
 
-func logicalModelID(cfg model.AIModelConfig, def *ModelDef) string {
+func logicalModelID(cfg persistencemodel.AIModelConfig, def *ModelDef) string {
 	if value := strings.TrimSpace(cfg.ModelIDOverride); value != "" {
 		return value
 	}
@@ -480,7 +479,7 @@ func parseIDArray(s string) []uint {
 // When multiple configs share the highest priority, one is chosen in round-robin order.
 func (s *AIService) GetAnyTextModel() (modelConfigID uint, modelID string, err error) {
 	var rows []modelConfigWithProvider
-	s.db.Model(&model.AIModelConfig{}).
+	s.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
 		Where("ai_model_configs.is_enabled = true AND ai_credentials.is_enabled = true").
@@ -488,7 +487,7 @@ func (s *AIService) GetAnyTextModel() (modelConfigID uint, modelID string, err e
 		Scan(&rows)
 
 	type candidate struct {
-		cfg      model.AIModelConfig
+		cfg      persistencemodel.AIModelConfig
 		def      *ModelDef
 		priority int
 	}

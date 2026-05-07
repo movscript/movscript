@@ -64,8 +64,11 @@ export function matchesQuery(memory: AgentMemory, query: MemoryQuery): boolean {
   if (memory.projectId !== query.projectId) return false
   if (query.kind && memory.kind !== query.kind) return false
   if (query.query) {
-    const needle = query.query.toLowerCase()
-    if (!memory.title.toLowerCase().includes(needle) && !memory.content.toLowerCase().includes(needle)) return false
+    const haystack = `${memory.title}\n${memory.content}`.toLowerCase()
+    const needle = normalizeQueryText(query.query)
+    if (needle && haystack.includes(needle)) return true
+    const terms = tokenizeSearchText(needle || query.query)
+    if (terms.length === 0 || !terms.some((term) => haystack.includes(term))) return false
   }
   return true
 }
@@ -76,4 +79,29 @@ function makeId(prefix: string): string {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
+}
+
+function normalizeQueryText(value: string): string {
+  return value.trim().replace(/^\/\S+\s+/, '').trim().toLowerCase()
+}
+
+function tokenizeSearchText(input: string): string[] {
+  if (!input) return []
+  const terms = input
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}_-]+/u)
+    .filter((term) => term.length >= 2)
+  const cjkTerms = Array.from(input.matchAll(/[\p{Script=Han}]{2,}/gu))
+    .flatMap((match) => cjkNgrams(match[0]))
+  return Array.from(new Set([...terms, ...cjkTerms])).slice(0, 32)
+}
+
+function cjkNgrams(input: string): string[] {
+  const grams: string[] = []
+  for (let size = 2; size <= Math.min(6, input.length); size += 1) {
+    for (let index = 0; index <= input.length - size; index += 1) {
+      grams.push(input.slice(index, index + size))
+    }
+  }
+  return grams
 }

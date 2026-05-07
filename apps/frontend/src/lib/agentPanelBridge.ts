@@ -1,5 +1,6 @@
 import type { AgentRun, AgentThread } from '@/lib/localAgentClient'
 import { useAgentSessionStore, type AgentPageTaskPayload } from '@/store/agentSessionStore'
+import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
 export const AGENT_PANEL_DRAFT_EVENT = 'movscript:agent-panel-draft'
 export const AGENT_PANEL_RUN_SETTLED_EVENT = 'movscript:agent-panel-run-settled'
@@ -10,6 +11,7 @@ export interface AgentPanelRunSettledPayload {
   run?: AgentRun
   thread?: AgentThread
   error?: string
+  artifacts?: AgentTaskArtifactRef[]
 }
 
 export type AgentPanelPageTool = (payload: AgentPanelRunSettledPayload) => void | Promise<void>

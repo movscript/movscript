@@ -4,13 +4,13 @@ import "testing"
 
 func TestNewSegmentAppliesDefaults(t *testing.T) {
 	item := NewSegment(SegmentSpec{ProjectID: 1})
-	if item.Kind != "section" || item.Status != ProposalDraftStatusValue {
+	if item.Kind != "emotional_function" || item.Status != ProposalDraftStatusValue {
 		t.Fatalf("unexpected segment defaults: %+v", item)
 	}
 	modelItem := item.ToModel()
 	modelItem.ID = 9
 	roundTrip := SegmentFromModel(modelItem)
-	if roundTrip.ID != 9 || roundTrip.Kind != "section" {
+	if roundTrip.ID != 9 || roundTrip.Kind != "emotional_function" {
 		t.Fatalf("unexpected segment round-trip: %+v", roundTrip)
 	}
 }

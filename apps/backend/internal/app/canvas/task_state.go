@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (h *Service) failTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, errMsg string) {
+func (h *Service) failTask(task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, errMsg string) {
 	canvasruntime.FailCanvasTask(task, &nd, errMsg)
 	_ = h.canvasRepo().SaveTask(context.Background(), task)
 	if task.CanvasRunID == nil {
@@ -18,7 +18,7 @@ func (h *Service) failTask(task *model.CanvasTask, node *model.CanvasNode, nd no
 	h.updateRunStatus(task.CanvasRunID)
 }
 
-func (h *Service) updateNodeData(node *model.CanvasNode, nd nodeData) {
+func (h *Service) updateNodeData(node *persistencemodel.CanvasNode, nd nodeData) {
 	var existing map[string]any
 	if err := json.Unmarshal([]byte(node.Data), &existing); err != nil || existing == nil {
 		existing = map[string]any{}
@@ -55,6 +55,6 @@ func (h *Service) updateRunStatus(runID *uint) {
 	_ = h.saveCanvasRunWithRelations(&run)
 }
 
-func CanvasRunTaskFailureSummary(tasks []model.CanvasTask) string {
+func CanvasRunTaskFailureSummary(tasks []persistencemodel.CanvasTask) string {
 	return canvasruntime.CanvasRunTaskFailureSummary(tasks)
 }

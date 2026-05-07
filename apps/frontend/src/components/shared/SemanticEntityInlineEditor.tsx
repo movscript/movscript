@@ -465,7 +465,7 @@ function FieldControl({
 }
 
 function formatCreativeReferenceOption(record: SemanticEntityRecord) {
-  return [record.name || record.title || `资料 #${record.ID}`, kindLabel(record.kind), `#${record.ID}`].filter(Boolean).join(' · ')
+  return [record.name || record.title || `设定资料 #${record.ID}`, kindLabel(record.kind), `#${record.ID}`].filter(Boolean).join(' · ')
 }
 
 function formatCreativeReferenceStateOption(record: SemanticEntityRecord, reference?: SemanticEntityRecord) {

@@ -4,6 +4,7 @@ import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from '.
 import { FileAgentDraftStore, resolveAgentDraftPath } from '../runtime/store/draftStore.js'
 import { BackendApplyClient } from '../runtime/store/backendApplyClient.js'
 import { FileAgentMemoryStore } from '../runtime/memory/fileMemoryStore.js'
+import { FileAgentCatalogStateStore, resolveAgentCatalogStatePath } from '../manifest/catalogState.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from '../runtime/modelConfig.js'
 import {
   StaticAgentRuntimeContractResolver,
@@ -24,6 +25,7 @@ export interface AgentServerContext {
     statePath: string
     memoryPath: string
     draftPath: string
+    catalogStatePath: string
     modelConfigPath: string
   }
   updates: ReturnType<typeof buildAgentUpdateState>
@@ -48,8 +50,13 @@ export interface AgentRuntimeCapabilities {
     toolsDir: string
     builtinSkillsDir: string
     builtinToolsDir: string
+    bundlesDir: string
+    builtinBundlesDir: string
     skillCount: number
     toolCount: number
+    bundleCount: number
+    activeBundleIds: string[]
+    availableBundleIds: string[]
     warnings: string[]
   }
   paths: AgentServerContext['paths']
@@ -68,10 +75,12 @@ export function createAgentServerContext(): AgentServerContext {
   const statePath = resolveAgentStatePath()
   const memoryPath = resolveAgentMemoryPath(statePath)
   const draftPath = resolveAgentDraftPath(statePath)
+  const catalogStatePath = resolveAgentCatalogStatePath(statePath)
   const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
   const backendApplyClient = new BackendApplyClient()
   const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
   const pluginCatalog = loadAgentPluginCatalog()
+  const catalogStateStore = new FileAgentCatalogStateStore(catalogStatePath)
   const updateState = buildAgentUpdateState({
     runtimeVersion: '0.1.0',
     manifestVersion: pluginCatalog.manifest.version,
@@ -106,14 +115,21 @@ export function createAgentServerContext(): AgentServerContext {
     defaultAgentManifest: pluginCatalog.manifest,
     skillCatalog: pluginCatalog.skills,
     toolRegistry: pluginCatalog.registry,
+    catalogStateStore,
+    pluginCatalogLoader: (options) => loadAgentPluginCatalog(options),
     contractResolver: runtimeContractResolver,
     pluginCatalogInfo: {
       skillsDir: pluginCatalog.skillsDir,
       toolsDir: pluginCatalog.toolsDir,
       builtinSkillsDir: pluginCatalog.builtinSkillsDir,
       builtinToolsDir: pluginCatalog.builtinToolsDir,
+      bundlesDir: pluginCatalog.bundlesDir,
+      builtinBundlesDir: pluginCatalog.builtinBundlesDir,
       skillCount: pluginCatalog.skills.length,
       toolCount: pluginCatalog.tools.length,
+      bundleCount: pluginCatalog.bundles.length,
+      activeBundleIds: pluginCatalog.activeBundleIds,
+      availableBundleIds: pluginCatalog.availableBundleIds,
     },
     pluginWarnings: pluginCatalog.warnings,
     updateState,
@@ -126,6 +142,7 @@ export function createAgentServerContext(): AgentServerContext {
       statePath,
       memoryPath,
       draftPath,
+      catalogStatePath,
       modelConfigPath,
     },
     updates: updateState,
@@ -151,6 +168,7 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
         'dynamic-update-policy',
         'drafts',
         'memories',
+        'agent-catalog-runtime-tools',
         'run-cancel',
       ],
       endpoints: [
@@ -169,8 +187,13 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
       toolsDir: pluginCatalog.toolsDir,
       builtinSkillsDir: pluginCatalog.builtinSkillsDir,
       builtinToolsDir: pluginCatalog.builtinToolsDir,
+      bundlesDir: pluginCatalog.bundlesDir,
+      builtinBundlesDir: pluginCatalog.builtinBundlesDir,
       skillCount: pluginCatalog.skills.length,
       toolCount: pluginCatalog.tools.length,
+      bundleCount: pluginCatalog.bundles.length,
+      activeBundleIds: pluginCatalog.activeBundleIds,
+      availableBundleIds: pluginCatalog.availableBundleIds,
       warnings: pluginCatalog.warnings,
     },
     paths,
@@ -191,6 +214,7 @@ export function logAgentServerStartup(context: AgentServerContext): void {
   console.info(`[agent] state path ${paths.statePath}`)
   console.info(`[agent] memory path ${paths.memoryPath}`)
   console.info(`[agent] draft path ${paths.draftPath}`)
+  console.info(`[agent] catalog state path ${paths.catalogStatePath}`)
   console.info(`[agent] model config path ${paths.modelConfigPath}`)
   console.info(`[agent] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[agent] update policy ${updates.policy.channel} (${updates.current.policyVersion})`)

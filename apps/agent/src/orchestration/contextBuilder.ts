@@ -72,13 +72,13 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
     'Answer in the same language as the user unless they ask otherwise.',
     'Use the runtime context, tool results, and startup memories when available.',
-    'Startup memories are intentionally small. When older preferences, decisions, warnings, project references, or draft notes may matter, call movscript_search_memories with a focused query instead of assuming all memories are present.',
+    'Startup memories are intentionally small. When older preferences, decisions, warnings, project references, or draft notes may matter, call movscript_list_memories or movscript_search_memories with a focused query instead of assuming all memories are present.',
     'When context is missing or ambiguous and guessing would affect the outcome, call movscript_request_user_input with a clear title, short summary, and 2-4 concrete choices or a free-form question.',
     'When reading context, decide from titles, summaries, labels, descriptions, and user-facing names first. Treat tool references as references for tool calls, not as the primary meaning of the context.',
     'When several independent read tools are needed for the same step, request them in the same model turn so the runtime can execute them concurrently.',
     'Do not claim you changed project data unless a tool result proves it.',
     'When writes are represented as drafts or approval requests, describe them as drafts or pending approvals.',
-    'Think in business terms: project, production, segment, scene beat, creative material, asset need, shot, and review draft. Avoid exposing runtime field names unless a tool result or approval requires them.',
+    'Think in business terms: project, production, episode orchestration segment, scene moment, creative material, asset need, shot, and review draft. Treat segment as an internal emotional, rhythm, or dramatic-function phase of an episode, not as a script paragraph or plot summary. Avoid exposing runtime field names unless a tool result or approval requires them.',
   ]
   if (input.manifest.soul) {
     identityLines.push('', '[Agent-specific output contract]', input.manifest.soul)
@@ -186,16 +186,27 @@ function resolveOpenAIToolParameters(
   contract?: ReturnType<AgentRuntimeContractResolver['find']>,
 ): unknown {
   if (contract?.toolSchemas?.[tool.name] !== undefined) return contract.toolSchemas[tool.name]
+  if (tool.inputSchema !== undefined) return tool.inputSchema
   if (tool.name === 'movscript_search_items') return SEARCH_ITEMS_TOOL_SCHEMA
   if (tool.name === 'movscript_read_item') return READ_ITEM_TOOL_SCHEMA
   if (tool.name === 'movscript_request_user_input') return USER_INPUT_TOOL_SCHEMA
+  if (tool.name === 'movscript_list_memories') return LIST_MEMORIES_TOOL_SCHEMA
   if (tool.name === 'movscript_search_memories') return SEARCH_MEMORIES_TOOL_SCHEMA
+  if (tool.name === 'movscript_get_memory') return MEMORY_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_create_memory') return CREATE_MEMORY_TOOL_SCHEMA
+  if (tool.name === 'movscript_delete_memory') return MEMORY_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_create_draft') return CREATE_DRAFT_TOOL_SCHEMA
+  if (tool.name === 'movscript_submit_script_split_draft') return SCRIPT_SPLIT_SUBMIT_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_get_draft') return DRAFT_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_update_draft') return UPDATE_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_patch_draft') return PATCH_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_validate_draft') return DRAFT_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_list_agent_bundles') return EMPTY_OBJECT_TOOL_SCHEMA
+  if (tool.name === 'movscript_inspect_agent_bundle') return AGENT_BUNDLE_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_enable_agent_bundle') return ENABLE_AGENT_BUNDLE_TOOL_SCHEMA
+  if (tool.name === 'movscript_reload_agent_catalog') return EMPTY_OBJECT_TOOL_SCHEMA
   if (tool.name === 'movscript_list_productions') return LIST_PRODUCTIONS_TOOL_SCHEMA
+  if (tool.name === 'movscript_read_current_production') return READ_CURRENT_PRODUCTION_TOOL_SCHEMA
   if (tool.name === 'movscript_read_production_context') return READ_PRODUCTION_CONTEXT_TOOL_SCHEMA
   if (tool.name === 'movscript_check_proposal_conflicts') return CHECK_PROPOSAL_CONFLICTS_TOOL_SCHEMA
   if (tool.name === 'movscript_create_production_proposal') return CREATE_PRODUCTION_PROPOSAL_TOOL_SCHEMA
@@ -204,15 +215,16 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_upsert_proposal_scene_moment') return UPSERT_PROPOSAL_SCENE_MOMENT_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_reference') return UPSERT_PROPOSAL_REFERENCE_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_asset') return UPSERT_PROPOSAL_ASSET_TOOL_SCHEMA
+  if (tool.name === 'movscript_upsert_proposal_content_unit') return UPSERT_PROPOSAL_CONTENT_UNIT_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_keyframe') return UPSERT_PROPOSAL_KEYFRAME_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_shot') return UPSERT_PROPOSAL_SHOT_TOOL_SCHEMA
   if (tool.name === 'movscript_list_production_proposal_nodes') return LIST_PRODUCTION_PROPOSAL_NODES_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_production_proposal_node') return UPSERT_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA
   if (tool.name === 'movscript_delete_production_proposal_node') return DELETE_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA
+  if (tool.name === 'movscript_submit_production_proposal') return CREATE_PRODUCTION_PROPOSAL_FROM_ITEMS_TOOL_SCHEMA
   if (tool.name === 'movscript_create_production_proposal_from_items') return CREATE_PRODUCTION_PROPOSAL_FROM_ITEMS_TOOL_SCHEMA
   if (tool.name === 'movscript_create_project') return CREATE_PROJECT_TOOL_SCHEMA
   if (tool.name === 'movscript_create_script') return CREATE_SCRIPT_TOOL_SCHEMA
-  if (tool.inputSchema !== undefined) return tool.inputSchema
   return undefined
 }
 
@@ -236,6 +248,40 @@ const SEARCH_ITEMS_TOOL_SCHEMA = {
     },
   },
   required: ['query'],
+} satisfies Record<string, unknown>
+
+const EMPTY_OBJECT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {},
+} satisfies Record<string, unknown>
+
+const AGENT_BUNDLE_ID_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    bundleId: {
+      type: 'string',
+      description: 'Agent capability bundle id.',
+    },
+  },
+  required: ['bundleId'],
+} satisfies Record<string, unknown>
+
+const ENABLE_AGENT_BUNDLE_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    bundleId: {
+      type: 'string',
+      description: 'Agent capability bundle id to enable.',
+    },
+    replace: {
+      type: 'boolean',
+      description: 'When true, replace the active bundle set with only this bundle.',
+    },
+  },
+  required: ['bundleId'],
 } satisfies Record<string, unknown>
 
 const READ_ITEM_TOOL_SCHEMA = {
@@ -273,6 +319,87 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
     source: { type: 'object', additionalProperties: true },
     target: { type: 'object', additionalProperties: true },
     metadata: { type: 'object', additionalProperties: true },
+  },
+} satisfies Record<string, unknown>
+
+const SCRIPT_SPLIT_SOURCE_SCRIPT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title', 'summary', 'sourceType', 'lineCount'],
+  properties: {
+    title: { type: 'string', description: 'Source script title only. Do not include source body text.' },
+    summary: { type: 'string', description: 'Short source-level summary. Do not copy or quote the original script body.' },
+    sourceType: { type: 'string', enum: ['raw'], description: 'Always raw for line-number based splitting.' },
+    lineCount: { type: 'number', minimum: 1, description: 'Total number of numbered source lines. This is the only source-body reference allowed.' },
+  },
+} satisfies Record<string, unknown>
+
+const SCRIPT_SPLIT_GLOBAL_SETTINGS_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['storyWorld', 'coreRules', 'characterRelationships', 'keyCharacters', 'keyLocations', 'keyProps', 'continuityNotes'],
+  properties: {
+    storyWorld: { type: 'string' },
+    coreRules: { type: 'array', items: { type: 'string' } },
+    characterRelationships: { type: 'array', items: { type: 'string' } },
+    keyCharacters: { type: 'array', items: { type: 'string' } },
+    keyLocations: { type: 'array', items: { type: 'string' } },
+    keyProps: { type: 'array', items: { type: 'string' } },
+    continuityNotes: { type: 'array', items: { type: 'string' } },
+  },
+} satisfies Record<string, unknown>
+
+const SCRIPT_SPLIT_GLOBAL_CONTEXT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['storyWorld', 'coreRules', 'characterRelationships', 'keyCharacters', 'keyLocations', 'keyProps', 'continuityNotes', 'episodeRelevance'],
+  properties: {
+    storyWorld: { type: 'string' },
+    coreRules: { type: 'array', items: { type: 'string' } },
+    characterRelationships: { type: 'array', items: { type: 'string' } },
+    keyCharacters: { type: 'array', items: { type: 'string' } },
+    keyLocations: { type: 'array', items: { type: 'string' } },
+    keyProps: { type: 'array', items: { type: 'string' } },
+    continuityNotes: { type: 'array', items: { type: 'string' } },
+    episodeRelevance: { type: 'array', items: { type: 'string' } },
+  },
+} satisfies Record<string, unknown>
+
+const SCRIPT_SPLIT_EPISODE_DRAFT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['order', 'title', 'summary', 'globalContext', 'startLine', 'endLine', 'action', 'existingScriptId'],
+  properties: {
+    order: { type: 'number' },
+    title: { type: 'string' },
+    summary: { type: 'string', description: 'Episode-level summary. Do not copy the original episode body.' },
+    globalContext: SCRIPT_SPLIT_GLOBAL_CONTEXT_TOOL_SCHEMA,
+    startLine: { type: 'number', minimum: 1, description: 'First source line included in this episode. Use line numbers only; do not pass body text.' },
+    endLine: { type: 'number', minimum: 1, description: 'Last source line included in this episode. Use line numbers only; do not pass body text.' },
+    action: { type: 'string', enum: ['create', 'update'] },
+    existingScriptId: { type: ['number', 'null'] },
+  },
+} satisfies Record<string, unknown>
+
+const SCRIPT_SPLIT_SUBMIT_DRAFT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['sourceTitle', 'sourceScript', 'globalSettings', 'episodeDrafts'],
+  properties: {
+    projectId: { type: 'number' },
+    draftTitle: { type: 'string' },
+    sourceTitle: { type: 'string' },
+    sourceSummary: { type: 'string' },
+    sourceScript: SCRIPT_SPLIT_SOURCE_SCRIPT_TOOL_SCHEMA,
+    globalSettings: SCRIPT_SPLIT_GLOBAL_SETTINGS_TOOL_SCHEMA,
+    episodeDrafts: {
+      type: 'array',
+      minItems: 1,
+      items: SCRIPT_SPLIT_EPISODE_DRAFT_TOOL_SCHEMA,
+      description: 'Each episode must reference the source body only by startLine/endLine. Never include content, text, body, or original lines.',
+    },
+    warnings: { type: 'array', items: { type: 'string' } },
+    confidence: { type: 'number' },
   },
 } satisfies Record<string, unknown>
 
@@ -368,6 +495,25 @@ const READ_PRODUCTION_CONTEXT_TOOL_SCHEMA = {
     includeExistingEntities: {
       type: 'boolean',
       description: 'Whether to include existing business items such as segments, scene beats, shots, creative materials, and asset needs. Defaults to true.',
+    },
+  },
+} satisfies Record<string, unknown>
+
+const READ_CURRENT_PRODUCTION_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    projectId: {
+      type: 'number',
+      description: 'Current project reference. The runtime usually fills this from UI context.',
+    },
+    productionId: {
+      type: 'number',
+      description: 'Selected production/episode reference. Defaults to the current UI production when omitted.',
+    },
+    includeScriptText: {
+      type: 'boolean',
+      description: 'Whether to include linked script text when available. Defaults to true.',
     },
   },
 } satisfies Record<string, unknown>
@@ -482,8 +628,8 @@ const PROPOSAL_SEGMENT_SCHEMA = {
     localRef: { type: 'string', description: 'Stable local reference used by scene beats in this proposal.' },
     client_id: { type: 'string', description: 'Compatibility alias for localRef.' },
     title: { type: 'string' },
-    kind: { type: 'string', description: 'section, scene, montage, narration, product_showcase, title_card, transition, or another segment kind.' },
-    summary: { type: 'string' },
+    kind: { type: 'string', description: 'emotional_function, rhythm_shift, dramatic_function, setup, escalation, release, reversal, transition, or another episode orchestration segment kind.' },
+    summary: { type: 'string', description: 'This segment’s emotional/rhythm/dramatic function inside the episode. Do not use it as a script paragraph summary or scene synopsis.' },
     order: { type: 'number' },
     status: { type: 'string' },
     rationale: { type: 'string' },
@@ -631,6 +777,19 @@ const UPSERT_PROPOSAL_ASSET_TOOL_SCHEMA = {
     draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
     sceneMoment: PROPOSAL_PARENT_SCHEMA,
     asset: PROPOSAL_ASSET_SLOT_SCHEMA,
+    position: { type: 'number', minimum: 0 },
+  },
+} satisfies Record<string, unknown>
+
+const UPSERT_PROPOSAL_CONTENT_UNIT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['proposalRef', 'sceneMoment', 'contentUnit'],
+  properties: {
+    proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
+    draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
+    sceneMoment: PROPOSAL_PARENT_SCHEMA,
+    contentUnit: PROPOSAL_CONTENT_UNIT_SCHEMA,
     position: { type: 'number', minimum: 0 },
   },
 } satisfies Record<string, unknown>
@@ -785,31 +944,72 @@ const SEARCH_MEMORIES_TOOL_SCHEMA = {
   properties: {
     query: {
       type: 'string',
-      description: 'Focused keywords or a short phrase to search in memory content.',
-    },
-    scope: {
-      type: 'string',
-      enum: ['global', 'project', 'thread'],
-      description: 'Optional scope filter. Omit to search visible global, current project, and current thread memories.',
+      description: 'Focused keywords or a short phrase to search memory titles and content in the current project.',
     },
     kind: {
       type: 'string',
-      enum: ['preference', 'fact', 'item_ref', 'draft', 'decision', 'warning'],
-      description: 'Optional memory kind filter. Prefer item_ref for remembered project-item references.',
-    },
-    projectId: {
-      type: 'number',
-      description: 'Optional project reference id. Defaults to the current project when available.',
-    },
-    threadId: {
-      type: 'string',
-      description: 'Optional thread reference id. Defaults to the current thread.',
+      enum: ['preference', 'fact', 'item_ref', 'entity_ref', 'draft', 'decision', 'warning'],
+      description: 'Optional memory kind filter.',
     },
     limit: {
       type: 'number',
       minimum: 1,
       maximum: 25,
       description: 'Maximum number of memories to return.',
+    },
+  },
+} satisfies Record<string, unknown>
+
+const LIST_MEMORIES_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    kind: {
+      type: 'string',
+      enum: ['preference', 'fact', 'item_ref', 'entity_ref', 'draft', 'decision', 'warning'],
+      description: 'Optional memory kind filter.',
+    },
+    limit: {
+      type: 'number',
+      minimum: 1,
+      maximum: 100,
+      description: 'Maximum number of memory titles to return.',
+    },
+  },
+} satisfies Record<string, unknown>
+
+const MEMORY_ID_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['id'],
+  properties: {
+    id: {
+      type: 'string',
+      description: 'Memory id returned by list_memories or search_memories.',
+    },
+    memoryId: {
+      type: 'string',
+      description: 'Compatibility alias for id.',
+    },
+  },
+} satisfies Record<string, unknown>
+
+const CREATE_MEMORY_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['title', 'kind', 'content'],
+  properties: {
+    title: {
+      type: 'string',
+      description: 'Short title shown in the memory list.',
+    },
+    kind: {
+      type: 'string',
+      enum: ['preference', 'fact', 'item_ref', 'entity_ref', 'draft', 'decision', 'warning'],
+    },
+    content: {
+      type: 'string',
+      description: 'Full memory body. Keep it concise and factual.',
     },
   },
 } satisfies Record<string, unknown>

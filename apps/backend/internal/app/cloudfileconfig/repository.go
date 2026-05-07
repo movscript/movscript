@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	domaincloudfileconfig "github.com/movscript/movscript/internal/domain/cloudfileconfig"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +22,7 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) ListConfigs(ctx context.Context) ([]domaincloudfileconfig.Config, error) {
-	cfgs := make([]model.CloudFileConfig, 0)
+	cfgs := make([]persistencemodel.CloudFileConfig, 0)
 	if err := r.db.WithContext(ctx).Order("priority asc, id asc").Find(&cfgs).Error; err != nil {
 		return nil, err
 	}
@@ -43,7 +43,7 @@ func (r *gormRepository) CreateConfig(ctx context.Context, cfg *domaincloudfilec
 }
 
 func (r *gormRepository) GetConfig(ctx context.Context, id uint) (domaincloudfileconfig.Config, error) {
-	var cfg model.CloudFileConfig
+	var cfg persistencemodel.CloudFileConfig
 	if err := r.db.WithContext(ctx).First(&cfg, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domaincloudfileconfig.Config{}, ErrNotFound
@@ -63,5 +63,5 @@ func (r *gormRepository) SaveConfig(ctx context.Context, cfg *domaincloudfilecon
 }
 
 func (r *gormRepository) DeleteConfig(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&model.CloudFileConfig{}, id).Error
+	return r.db.WithContext(ctx).Delete(&persistencemodel.CloudFileConfig{}, id).Error
 }

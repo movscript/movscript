@@ -9,6 +9,7 @@ import { generationParamLabel, generationSlotLabel } from '@/lib/paramLabels'
 import type { RawResource, ParamDef } from '@/types'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
+import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 
 // Fetch a media URL for a resource. Backend resource URLs become revocable blob URLs;
 // public direct URLs can be assigned as-is.
@@ -185,7 +186,7 @@ export function GenInputCard({
   const chipObjectUrlsRef = useRef<Set<string>>(new Set())
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
 
-  const accept = inputType === 'video' ? 'video/*' : inputType === 'image' ? 'image/*' : 'image/*,video/*'
+  const accept = inputType === 'video' ? 'video/*' : inputType === 'image' ? IMAGE_UPLOAD_ACCEPT : MEDIA_UPLOAD_ACCEPT
 
   const mentionResources = attachments
     .filter((r) => {

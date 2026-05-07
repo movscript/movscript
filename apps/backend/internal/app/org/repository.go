@@ -6,8 +6,8 @@ import (
 	"time"
 
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -46,13 +46,13 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) List(ctx context.Context, userID uint) ([]OrgWithRole, error) {
-	var members []model.OrganizationMember
+	var members []persistencemodel.OrganizationMember
 	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&members).Error; err != nil {
 		return nil, err
 	}
 	result := make([]OrgWithRole, 0, len(members))
 	for _, member := range members {
-		var org model.Organization
+		var org persistencemodel.Organization
 		if err := r.db.WithContext(ctx).First(&org, member.OrgID).Error; err != nil {
 			continue
 		}
@@ -62,7 +62,7 @@ func (r *gormRepository) List(ctx context.Context, userID uint) ([]OrgWithRole, 
 }
 
 func (r *gormRepository) Create(ctx context.Context, ownerID uint, input CreateInput) (domainorg.Organization, error) {
-	var org model.Organization
+	var org persistencemodel.Organization
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		code, err := generateUniqueJoinCode(tx)
 		if err != nil {
@@ -82,7 +82,7 @@ func (r *gormRepository) Create(ctx context.Context, ownerID uint, input CreateI
 }
 
 func (r *gormRepository) Get(ctx context.Context, orgID uint) (domainorg.Organization, error) {
-	var org model.Organization
+	var org persistencemodel.Organization
 	if err := r.db.WithContext(ctx).First(&org, orgID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainorg.Organization{}, ErrNotFound
@@ -93,7 +93,7 @@ func (r *gormRepository) Get(ctx context.Context, orgID uint) (domainorg.Organiz
 }
 
 func (r *gormRepository) FindUserByID(ctx context.Context, userID uint) (domainorg.User, error) {
-	var user model.User
+	var user persistencemodel.User
 	if err := r.db.WithContext(ctx).First(&user, userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainorg.User{}, ErrNotFound
@@ -104,7 +104,7 @@ func (r *gormRepository) FindUserByID(ctx context.Context, userID uint) (domaino
 }
 
 func (r *gormRepository) ListUserMembers(ctx context.Context, userID uint) ([]domainorg.OrganizationMember, error) {
-	var members []model.OrganizationMember
+	var members []persistencemodel.OrganizationMember
 	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&members).Error; err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (r *gormRepository) ListUserMembers(ctx context.Context, userID uint) ([]do
 }
 
 func (r *gormRepository) FindUserMember(ctx context.Context, orgID uint, userID uint) (domainorg.OrganizationMember, error) {
-	var member model.OrganizationMember
+	var member persistencemodel.OrganizationMember
 	if err := r.db.WithContext(ctx).Where("org_id = ? AND user_id = ?", orgID, userID).First(&member).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainorg.OrganizationMember{}, ErrNotFound
@@ -123,7 +123,7 @@ func (r *gormRepository) FindUserMember(ctx context.Context, orgID uint, userID 
 }
 
 func (r *gormRepository) FindPersonalMember(ctx context.Context, userID uint) (domainorg.OrganizationMember, bool, error) {
-	var member model.OrganizationMember
+	var member persistencemodel.OrganizationMember
 	err := r.db.WithContext(ctx).
 		Joins("JOIN organizations ON organizations.id = organization_members.org_id").
 		Where("organization_members.user_id = ? AND organizations.is_personal = ?", userID, true).
@@ -138,11 +138,11 @@ func (r *gormRepository) FindPersonalMember(ctx context.Context, userID uint) (d
 }
 
 func (r *gormRepository) UpdateName(ctx context.Context, orgID uint, name string) error {
-	return r.db.WithContext(ctx).Model(&model.Organization{}).Where("id = ?", orgID).Update("name", name).Error
+	return r.db.WithContext(ctx).Model(&persistencemodel.Organization{}).Where("id = ?", orgID).Update("name", name).Error
 }
 
 func (r *gormRepository) ListMembers(ctx context.Context, orgID uint) ([]domainorg.OrganizationMember, error) {
-	var members []model.OrganizationMember
+	var members []persistencemodel.OrganizationMember
 	if err := r.db.WithContext(ctx).Preload("User").Where("org_id = ?", orgID).Find(&members).Error; err != nil {
 		return nil, err
 	}
@@ -161,18 +161,18 @@ func (r *gormRepository) CreateMember(ctx context.Context, member domainorg.Orga
 }
 
 func (r *gormRepository) UpdateMemberRole(ctx context.Context, orgID uint, userID uint, role string) error {
-	return r.db.WithContext(ctx).Model(&model.OrganizationMember{}).
+	return r.db.WithContext(ctx).Model(&persistencemodel.OrganizationMember{}).
 		Where("org_id = ? AND user_id = ?", orgID, userID).
 		Update("role", role).Error
 }
 
 func (r *gormRepository) DeleteMember(ctx context.Context, orgID uint, userID uint) error {
 	return r.db.WithContext(ctx).Where("org_id = ? AND user_id = ?", orgID, userID).
-		Delete(&model.OrganizationMember{}).Error
+		Delete(&persistencemodel.OrganizationMember{}).Error
 }
 
 func (r *gormRepository) ListInvitations(ctx context.Context, orgID uint) ([]domainorg.Invitation, error) {
-	var invitations []model.OrgInvitation
+	var invitations []persistencemodel.OrgInvitation
 	if err := r.db.WithContext(ctx).Where("org_id = ?", orgID).Order("id desc").Find(&invitations).Error; err != nil {
 		return nil, err
 	}
@@ -188,11 +188,11 @@ func (r *gormRepository) CreateInvitation(ctx context.Context, inv domainorg.Inv
 }
 
 func (r *gormRepository) DeleteInvitation(ctx context.Context, orgID uint, invID uint) error {
-	return r.db.WithContext(ctx).Where("id = ? AND org_id = ?", invID, orgID).Delete(&model.OrgInvitation{}).Error
+	return r.db.WithContext(ctx).Where("id = ? AND org_id = ?", invID, orgID).Delete(&persistencemodel.OrgInvitation{}).Error
 }
 
 func (r *gormRepository) FindInvitationByToken(ctx context.Context, token string) (domainorg.Invitation, error) {
-	var inv model.OrgInvitation
+	var inv persistencemodel.OrgInvitation
 	if err := r.db.WithContext(ctx).Where("token = ?", token).First(&inv).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainorg.Invitation{}, ErrInviteNotFound
@@ -203,7 +203,7 @@ func (r *gormRepository) FindInvitationByToken(ctx context.Context, token string
 }
 
 func (r *gormRepository) UsernameExists(ctx context.Context, username string) (bool, error) {
-	var existing model.User
+	var existing persistencemodel.User
 	if err := r.db.WithContext(ctx).Where("username = ?", username).First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
@@ -214,7 +214,7 @@ func (r *gormRepository) UsernameExists(ctx context.Context, username string) (b
 }
 
 func (r *gormRepository) FindUserByUsername(ctx context.Context, username string) (domainorg.User, error) {
-	var existing model.User
+	var existing persistencemodel.User
 	if err := r.db.WithContext(ctx).Where("username = ?", username).First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainorg.User{}, ErrNotFound
@@ -235,7 +235,7 @@ func (r *gormRepository) CreateUser(ctx context.Context, user domainauth.Registe
 func (r *gormRepository) AcceptInvitation(ctx context.Context, inv domainorg.Invitation, userID uint) error {
 	row := inv.ToModel()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var existing model.OrganizationMember
+		var existing persistencemodel.OrganizationMember
 		if tx.Where("org_id = ? AND user_id = ?", inv.OrgID, userID).First(&existing).Error == nil {
 			return nil
 		}
@@ -249,7 +249,7 @@ func (r *gormRepository) AcceptInvitation(ctx context.Context, inv domainorg.Inv
 }
 
 func (r *gormRepository) JoinByCode(ctx context.Context, code string, userID uint) (uint, error) {
-	var org model.Organization
+	var org persistencemodel.Organization
 	if err := r.db.WithContext(ctx).Where("join_code = ? AND is_personal = ?", code, false).First(&org).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, ErrInvalidCode
@@ -267,7 +267,7 @@ func (r *gormRepository) JoinByCode(ctx context.Context, code string, userID uin
 }
 
 func (r *gormRepository) ListGroups(ctx context.Context, orgID uint) ([]domainorg.UserGroup, error) {
-	var groups []model.UserGroup
+	var groups []persistencemodel.UserGroup
 	if err := r.db.WithContext(ctx).Preload("Members.User").Where("org_id = ?", orgID).Find(&groups).Error; err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func (r *gormRepository) CreateGroupMember(ctx context.Context, member domainorg
 }
 
 func (r *gormRepository) DeleteGroupMember(ctx context.Context, groupID uint, userID uint) error {
-	return r.db.WithContext(ctx).Where("group_id = ? AND user_id = ?", groupID, userID).Delete(&model.UserGroupMember{}).Error
+	return r.db.WithContext(ctx).Where("group_id = ? AND user_id = ?", groupID, userID).Delete(&persistencemodel.UserGroupMember{}).Error
 }
 
 func (r *gormRepository) GetUsage(ctx context.Context, orgID uint) (UsageResult, error) {

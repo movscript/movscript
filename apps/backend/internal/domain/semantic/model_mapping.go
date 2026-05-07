@@ -1,11 +1,11 @@
 package semantic
 
 import (
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func EntityRelationFromModel(relation model.EntityRelation) EntityRelation {
+func EntityRelationFromModel(relation persistencemodel.EntityRelation) EntityRelation {
 	return EntityRelation{
 		ID:           relation.ID,
 		ProjectID:    relation.ProjectID,
@@ -31,7 +31,7 @@ func EntityRelationFromModel(relation model.EntityRelation) EntityRelation {
 	}
 }
 
-func SegmentFromModel(segment model.Segment) Segment {
+func SegmentFromModel(segment persistencemodel.Segment) Segment {
 	return Segment{
 		ID:              segment.ID,
 		ProjectID:       segment.ProjectID,
@@ -50,13 +50,13 @@ func SegmentFromModel(segment model.Segment) Segment {
 	}
 }
 
-func (segment Segment) ToModel() model.Segment {
-	var target model.Segment
+func (segment Segment) ToModel() persistencemodel.Segment {
+	var target persistencemodel.Segment
 	segment.ApplyToModel(&target)
 	return target
 }
 
-func (segment Segment) ApplyToModel(target *model.Segment) {
+func (segment Segment) ApplyToModel(target *persistencemodel.Segment) {
 	target.Model.ID = segment.ID
 	target.ProjectID = segment.ProjectID
 	target.ProductionID = segment.ProductionID
@@ -73,7 +73,7 @@ func (segment Segment) ApplyToModel(target *model.Segment) {
 	target.UpdatedAt = segment.UpdatedAt
 }
 
-func ProductionTextBlockFromModel(block model.ProductionTextBlock) ProductionTextBlock {
+func ProductionTextBlockFromModel(block persistencemodel.ProductionTextBlock) ProductionTextBlock {
 	return ProductionTextBlock{
 		ID:            block.ID,
 		ProjectID:     block.ProjectID,
@@ -92,13 +92,13 @@ func ProductionTextBlockFromModel(block model.ProductionTextBlock) ProductionTex
 	}
 }
 
-func (block ProductionTextBlock) ToModel() model.ProductionTextBlock {
-	var target model.ProductionTextBlock
+func (block ProductionTextBlock) ToModel() persistencemodel.ProductionTextBlock {
+	var target persistencemodel.ProductionTextBlock
 	block.ApplyToModel(&target)
 	return target
 }
 
-func (block ProductionTextBlock) ApplyToModel(target *model.ProductionTextBlock) {
+func (block ProductionTextBlock) ApplyToModel(target *persistencemodel.ProductionTextBlock) {
 	target.Model.ID = block.ID
 	target.ProjectID = block.ProjectID
 	target.ProductionID = block.ProductionID
@@ -115,7 +115,7 @@ func (block ProductionTextBlock) ApplyToModel(target *model.ProductionTextBlock)
 	target.UpdatedAt = block.UpdatedAt
 }
 
-func SceneMomentFromModel(moment model.SceneMoment) SceneMoment {
+func SceneMomentFromModel(moment persistencemodel.SceneMoment) SceneMoment {
 	return SceneMoment{
 		ID:            moment.ID,
 		ProjectID:     moment.ProjectID,
@@ -135,13 +135,13 @@ func SceneMomentFromModel(moment model.SceneMoment) SceneMoment {
 	}
 }
 
-func (moment SceneMoment) ToModel() model.SceneMoment {
-	var target model.SceneMoment
+func (moment SceneMoment) ToModel() persistencemodel.SceneMoment {
+	var target persistencemodel.SceneMoment
 	moment.ApplyToModel(&target)
 	return target
 }
 
-func (moment SceneMoment) ApplyToModel(target *model.SceneMoment) {
+func (moment SceneMoment) ApplyToModel(target *persistencemodel.SceneMoment) {
 	target.Model.ID = moment.ID
 	target.ProjectID = moment.ProjectID
 	target.SegmentID = moment.SegmentID
@@ -159,7 +159,7 @@ func (moment SceneMoment) ApplyToModel(target *model.SceneMoment) {
 	target.UpdatedAt = moment.UpdatedAt
 }
 
-func ContentUnitFromModel(unit model.ContentUnit) ContentUnit {
+func ContentUnitFromModel(unit persistencemodel.ContentUnit) ContentUnit {
 	return ContentUnit{
 		ID:               unit.ID,
 		ProjectID:        unit.ProjectID,
@@ -193,13 +193,13 @@ func ContentUnitFromModel(unit model.ContentUnit) ContentUnit {
 	}
 }
 
-func (unit ContentUnit) ToModel() model.ContentUnit {
-	var target model.ContentUnit
+func (unit ContentUnit) ToModel() persistencemodel.ContentUnit {
+	var target persistencemodel.ContentUnit
 	unit.ApplyToModel(&target)
 	return target
 }
 
-func (unit ContentUnit) ApplyToModel(target *model.ContentUnit) {
+func (unit ContentUnit) ApplyToModel(target *persistencemodel.ContentUnit) {
 	target.Model.ID = unit.ID
 	target.ProjectID = unit.ProjectID
 	target.ProductionID = unit.ProductionID
@@ -231,7 +231,7 @@ func (unit ContentUnit) ApplyToModel(target *model.ContentUnit) {
 	target.UpdatedAt = unit.UpdatedAt
 }
 
-func PreviewTimelineItemFromModel(item model.PreviewTimelineItem) PreviewTimelineItem {
+func PreviewTimelineItemFromModel(item persistencemodel.PreviewTimelineItem) PreviewTimelineItem {
 	return PreviewTimelineItem{
 		ID:                item.ID,
 		ProjectID:         item.ProjectID,
@@ -252,13 +252,13 @@ func PreviewTimelineItemFromModel(item model.PreviewTimelineItem) PreviewTimelin
 	}
 }
 
-func (item PreviewTimelineItem) ToModel() model.PreviewTimelineItem {
-	var target model.PreviewTimelineItem
+func (item PreviewTimelineItem) ToModel() persistencemodel.PreviewTimelineItem {
+	var target persistencemodel.PreviewTimelineItem
 	item.ApplyToModel(&target)
 	return target
 }
 
-func (item PreviewTimelineItem) ApplyToModel(target *model.PreviewTimelineItem) {
+func (item PreviewTimelineItem) ApplyToModel(target *persistencemodel.PreviewTimelineItem) {
 	target.Model.ID = item.ID
 	target.ProjectID = item.ProjectID
 	target.PreviewTimelineID = item.PreviewTimelineID
@@ -277,7 +277,7 @@ func (item PreviewTimelineItem) ApplyToModel(target *model.PreviewTimelineItem) 
 	target.UpdatedAt = item.UpdatedAt
 }
 
-func AssetSlotFromModel(slot model.AssetSlot) AssetSlot {
+func AssetSlotFromModel(slot persistencemodel.AssetSlot) AssetSlot {
 	return AssetSlot{
 		ID:                       slot.ID,
 		ProjectID:                slot.ProjectID,
@@ -303,13 +303,13 @@ func AssetSlotFromModel(slot model.AssetSlot) AssetSlot {
 	}
 }
 
-func (slot AssetSlot) ToModel() model.AssetSlot {
-	var target model.AssetSlot
+func (slot AssetSlot) ToModel() persistencemodel.AssetSlot {
+	var target persistencemodel.AssetSlot
 	slot.ApplyToModel(&target)
 	return target
 }
 
-func (slot AssetSlot) ApplyToModel(target *model.AssetSlot) {
+func (slot AssetSlot) ApplyToModel(target *persistencemodel.AssetSlot) {
 	target.Model.ID = slot.ID
 	target.ProjectID = slot.ProjectID
 	target.ProductionID = slot.ProductionID
@@ -331,7 +331,7 @@ func (slot AssetSlot) ApplyToModel(target *model.AssetSlot) {
 	target.UpdatedAt = slot.UpdatedAt
 }
 
-func assetSlotFromModelPointer(slot *model.AssetSlot) *AssetSlot {
+func assetSlotFromModelPointer(slot *persistencemodel.AssetSlot) *AssetSlot {
 	if slot == nil {
 		return nil
 	}
@@ -339,7 +339,7 @@ func assetSlotFromModelPointer(slot *model.AssetSlot) *AssetSlot {
 	return &item
 }
 
-func AssetSlotCandidateFromModel(candidate model.AssetSlotCandidate) AssetSlotCandidate {
+func AssetSlotCandidateFromModel(candidate persistencemodel.AssetSlotCandidate) AssetSlotCandidate {
 	return AssetSlotCandidate{
 		ID:                   candidate.ID,
 		ProjectID:            candidate.ProjectID,
@@ -356,13 +356,13 @@ func AssetSlotCandidateFromModel(candidate model.AssetSlotCandidate) AssetSlotCa
 	}
 }
 
-func MarkAssetSlotCandidate(slot *model.AssetSlot) {
+func MarkAssetSlotCandidate(slot *persistencemodel.AssetSlot) {
 	domainSlot := AssetSlotFromModel(*slot)
 	MarkSlotCandidate(&domainSlot)
 	domainSlot.ApplyToModel(slot)
 }
 
-func MarkAssetSlotLockedToCandidate(slot *model.AssetSlot, candidate model.AssetSlotCandidate) {
+func MarkAssetSlotLockedToCandidate(slot *persistencemodel.AssetSlot, candidate persistencemodel.AssetSlotCandidate) {
 	domainSlot := AssetSlotFromModel(*slot)
 	domainCandidate := AssetSlotCandidateFromModel(candidate)
 	var candidateResourceID *uint
@@ -373,31 +373,31 @@ func MarkAssetSlotLockedToCandidate(slot *model.AssetSlot, candidate model.Asset
 	domainSlot.ApplyToModel(slot)
 }
 
-func SelectAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
+func SelectAssetSlotCandidate(candidate *persistencemodel.AssetSlotCandidate) {
 	domainCandidate := AssetSlotCandidateFromModel(*candidate)
 	SelectCandidate(&domainCandidate)
 	domainCandidate.ApplyToModel(candidate)
 }
 
-func RejectAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
+func RejectAssetSlotCandidate(candidate *persistencemodel.AssetSlotCandidate) {
 	domainCandidate := AssetSlotCandidateFromModel(*candidate)
 	RejectCandidate(&domainCandidate)
 	domainCandidate.ApplyToModel(candidate)
 }
 
-func NormalizeAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
+func NormalizeAssetSlotCandidate(candidate *persistencemodel.AssetSlotCandidate) {
 	domainCandidate := AssetSlotCandidateFromModel(*candidate)
 	NormalizeCandidate(&domainCandidate)
 	domainCandidate.ApplyToModel(candidate)
 }
 
-func (candidate AssetSlotCandidate) ToModel() model.AssetSlotCandidate {
-	var target model.AssetSlotCandidate
+func (candidate AssetSlotCandidate) ToModel() persistencemodel.AssetSlotCandidate {
+	var target persistencemodel.AssetSlotCandidate
 	candidate.ApplyToModel(&target)
 	return target
 }
 
-func (candidate AssetSlotCandidate) ApplyToModel(target *model.AssetSlotCandidate) {
+func (candidate AssetSlotCandidate) ApplyToModel(target *persistencemodel.AssetSlotCandidate) {
 	target.Model.ID = candidate.ID
 	target.ProjectID = candidate.ProjectID
 	target.AssetSlotID = candidate.AssetSlotID
@@ -411,7 +411,7 @@ func (candidate AssetSlotCandidate) ApplyToModel(target *model.AssetSlotCandidat
 	target.UpdatedAt = candidate.UpdatedAt
 }
 
-func CandidateDecisionFromModel(decision model.CandidateDecision) CandidateDecision {
+func CandidateDecisionFromModel(decision persistencemodel.CandidateDecision) CandidateDecision {
 	return CandidateDecision{
 		ID:                decision.ID,
 		ProjectID:         decision.ProjectID,
@@ -433,13 +433,13 @@ func CandidateDecisionFromModel(decision model.CandidateDecision) CandidateDecis
 	}
 }
 
-func (decision CandidateDecision) ToModel() model.CandidateDecision {
-	var target model.CandidateDecision
+func (decision CandidateDecision) ToModel() persistencemodel.CandidateDecision {
+	var target persistencemodel.CandidateDecision
 	decision.ApplyToModel(&target)
 	return target
 }
 
-func (decision CandidateDecision) ApplyToModel(target *model.CandidateDecision) {
+func (decision CandidateDecision) ApplyToModel(target *persistencemodel.CandidateDecision) {
 	target.Model.ID = decision.ID
 	target.ProjectID = decision.ProjectID
 	target.CandidateType = decision.CandidateType
@@ -459,7 +459,7 @@ func (decision CandidateDecision) ApplyToModel(target *model.CandidateDecision) 
 	target.UpdatedAt = decision.UpdatedAt
 }
 
-func ReviewEventFromModel(event model.ReviewEvent) ReviewEvent {
+func ReviewEventFromModel(event persistencemodel.ReviewEvent) ReviewEvent {
 	return ReviewEvent{
 		ID:              event.ID,
 		ProjectID:       event.ProjectID,
@@ -479,13 +479,13 @@ func ReviewEventFromModel(event model.ReviewEvent) ReviewEvent {
 	}
 }
 
-func (event ReviewEvent) ToModel() model.ReviewEvent {
-	var target model.ReviewEvent
+func (event ReviewEvent) ToModel() persistencemodel.ReviewEvent {
+	var target persistencemodel.ReviewEvent
 	event.ApplyToModel(&target)
 	return target
 }
 
-func (event ReviewEvent) ApplyToModel(target *model.ReviewEvent) {
+func (event ReviewEvent) ApplyToModel(target *persistencemodel.ReviewEvent) {
 	target.Model.ID = event.ID
 	target.ProjectID = event.ProjectID
 	target.SubjectType = event.SubjectType
@@ -503,7 +503,7 @@ func (event ReviewEvent) ApplyToModel(target *model.ReviewEvent) {
 	target.UpdatedAt = event.UpdatedAt
 }
 
-func ExportRecordFromModel(record model.ExportRecord) ExportRecord {
+func ExportRecordFromModel(record persistencemodel.ExportRecord) ExportRecord {
 	return ExportRecord{
 		ID:                record.ID,
 		ProjectID:         record.ProjectID,
@@ -519,13 +519,13 @@ func ExportRecordFromModel(record model.ExportRecord) ExportRecord {
 	}
 }
 
-func (record ExportRecord) ToModel() model.ExportRecord {
-	var target model.ExportRecord
+func (record ExportRecord) ToModel() persistencemodel.ExportRecord {
+	var target persistencemodel.ExportRecord
 	record.ApplyToModel(&target)
 	return target
 }
 
-func (record ExportRecord) ApplyToModel(target *model.ExportRecord) {
+func (record ExportRecord) ApplyToModel(target *persistencemodel.ExportRecord) {
 	target.Model.ID = record.ID
 	target.ProjectID = record.ProjectID
 	target.DeliveryVersionID = record.DeliveryVersionID
@@ -539,7 +539,7 @@ func (record ExportRecord) ApplyToModel(target *model.ExportRecord) {
 	target.UpdatedAt = record.UpdatedAt
 }
 
-func CanvasOutputFromModel(output model.CanvasOutput) CanvasOutput {
+func CanvasOutputFromModel(output persistencemodel.CanvasOutput) CanvasOutput {
 	return CanvasOutput{
 		ID:           output.ID,
 		ProjectID:    output.ProjectID,
@@ -560,13 +560,13 @@ func CanvasOutputFromModel(output model.CanvasOutput) CanvasOutput {
 	}
 }
 
-func (output CanvasOutput) ToModel() model.CanvasOutput {
-	var target model.CanvasOutput
+func (output CanvasOutput) ToModel() persistencemodel.CanvasOutput {
+	var target persistencemodel.CanvasOutput
 	output.ApplyToModel(&target)
 	return target
 }
 
-func (output CanvasOutput) ApplyToModel(target *model.CanvasOutput) {
+func (output CanvasOutput) ApplyToModel(target *persistencemodel.CanvasOutput) {
 	target.Model.ID = output.ID
 	target.ProjectID = output.ProjectID
 	target.CanvasID = output.CanvasID
@@ -585,7 +585,7 @@ func (output CanvasOutput) ApplyToModel(target *model.CanvasOutput) {
 	target.UpdatedAt = output.UpdatedAt
 }
 
-func WorkReviewFromModel(review model.WorkReview) WorkReview {
+func WorkReviewFromModel(review persistencemodel.WorkReview) WorkReview {
 	return WorkReview{
 		ID:           review.ID,
 		ProjectID:    review.ProjectID,
@@ -600,13 +600,13 @@ func WorkReviewFromModel(review model.WorkReview) WorkReview {
 	}
 }
 
-func (review WorkReview) ToModel() model.WorkReview {
-	var target model.WorkReview
+func (review WorkReview) ToModel() persistencemodel.WorkReview {
+	var target persistencemodel.WorkReview
 	review.ApplyToModel(&target)
 	return target
 }
 
-func (review WorkReview) ApplyToModel(target *model.WorkReview) {
+func (review WorkReview) ApplyToModel(target *persistencemodel.WorkReview) {
 	target.Model.ID = review.ID
 	target.ProjectID = review.ProjectID
 	target.WorkItemID = review.WorkItemID
@@ -618,7 +618,7 @@ func (review WorkReview) ApplyToModel(target *model.WorkReview) {
 	target.UpdatedAt = review.UpdatedAt
 }
 
-func WorkItemFromModel(item model.WorkItem) WorkItem {
+func WorkItemFromModel(item persistencemodel.WorkItem) WorkItem {
 	return WorkItem{
 		ID:             item.ID,
 		ProjectID:      item.ProjectID,
@@ -645,13 +645,13 @@ func WorkItemFromModel(item model.WorkItem) WorkItem {
 	}
 }
 
-func (item WorkItem) ToModel() model.WorkItem {
-	var target model.WorkItem
+func (item WorkItem) ToModel() persistencemodel.WorkItem {
+	var target persistencemodel.WorkItem
 	item.ApplyToModel(&target)
 	return target
 }
 
-func (item WorkItem) ApplyToModel(target *model.WorkItem) {
+func (item WorkItem) ApplyToModel(target *persistencemodel.WorkItem) {
 	target.Model.ID = item.ID
 	target.ProjectID = item.ProjectID
 	target.ProductionID = item.ProductionID
@@ -675,7 +675,7 @@ func (item WorkItem) ApplyToModel(target *model.WorkItem) {
 	target.UpdatedAt = item.UpdatedAt
 }
 
-func WorkDependencyFromModel(dependency model.WorkDependency) WorkDependency {
+func WorkDependencyFromModel(dependency persistencemodel.WorkDependency) WorkDependency {
 	return WorkDependency{
 		ID:                  dependency.ID,
 		ProjectID:           dependency.ProjectID,
@@ -687,13 +687,13 @@ func WorkDependencyFromModel(dependency model.WorkDependency) WorkDependency {
 	}
 }
 
-func (dependency WorkDependency) ToModel() model.WorkDependency {
-	var target model.WorkDependency
+func (dependency WorkDependency) ToModel() persistencemodel.WorkDependency {
+	var target persistencemodel.WorkDependency
 	dependency.ApplyToModel(&target)
 	return target
 }
 
-func (dependency WorkDependency) ApplyToModel(target *model.WorkDependency) {
+func (dependency WorkDependency) ApplyToModel(target *persistencemodel.WorkDependency) {
 	target.Model.ID = dependency.ID
 	target.ProjectID = dependency.ProjectID
 	target.WorkItemID = dependency.WorkItemID
@@ -703,14 +703,14 @@ func (dependency WorkDependency) ApplyToModel(target *model.WorkDependency) {
 	target.UpdatedAt = dependency.UpdatedAt
 }
 
-func UserRefFromModelPointer(user *model.User) *UserRef {
+func UserRefFromModelPointer(user *persistencemodel.User) *UserRef {
 	if user == nil {
 		return nil
 	}
 	return UserRefFromModel(*user)
 }
 
-func UserRefFromModel(user model.User) *UserRef {
+func UserRefFromModel(user persistencemodel.User) *UserRef {
 	return &UserRef{
 		ID:           user.ID,
 		Username:     user.Username,
@@ -724,7 +724,7 @@ func UserRefFromModel(user model.User) *UserRef {
 	}
 }
 
-func CreativeReferenceFromModel(ref model.CreativeReference) CreativeReference {
+func CreativeReferenceFromModel(ref persistencemodel.CreativeReference) CreativeReference {
 	return CreativeReference{
 		ID:               ref.ID,
 		ProjectID:        ref.ProjectID,
@@ -744,13 +744,13 @@ func CreativeReferenceFromModel(ref model.CreativeReference) CreativeReference {
 	}
 }
 
-func (ref CreativeReference) ToModel() model.CreativeReference {
-	var target model.CreativeReference
+func (ref CreativeReference) ToModel() persistencemodel.CreativeReference {
+	var target persistencemodel.CreativeReference
 	ref.ApplyToModel(&target)
 	return target
 }
 
-func (ref CreativeReference) ApplyToModel(target *model.CreativeReference) {
+func (ref CreativeReference) ApplyToModel(target *persistencemodel.CreativeReference) {
 	target.Model.ID = ref.ID
 	target.ProjectID = ref.ProjectID
 	target.SourceScriptID = ref.SourceScriptID
@@ -768,7 +768,7 @@ func (ref CreativeReference) ApplyToModel(target *model.CreativeReference) {
 	target.UpdatedAt = ref.UpdatedAt
 }
 
-func CreativeReferenceStateFromModel(state model.CreativeReferenceState) CreativeReferenceState {
+func CreativeReferenceStateFromModel(state persistencemodel.CreativeReferenceState) CreativeReferenceState {
 	return CreativeReferenceState{
 		ID:                  state.ID,
 		ProjectID:           state.ProjectID,
@@ -789,13 +789,13 @@ func CreativeReferenceStateFromModel(state model.CreativeReferenceState) Creativ
 	}
 }
 
-func (state CreativeReferenceState) ToModel() model.CreativeReferenceState {
-	var target model.CreativeReferenceState
+func (state CreativeReferenceState) ToModel() persistencemodel.CreativeReferenceState {
+	var target persistencemodel.CreativeReferenceState
 	state.ApplyToModel(&target)
 	return target
 }
 
-func (state CreativeReferenceState) ApplyToModel(target *model.CreativeReferenceState) {
+func (state CreativeReferenceState) ApplyToModel(target *persistencemodel.CreativeReferenceState) {
 	target.Model.ID = state.ID
 	target.ProjectID = state.ProjectID
 	target.CreativeReferenceID = state.CreativeReferenceID
@@ -814,7 +814,7 @@ func (state CreativeReferenceState) ApplyToModel(target *model.CreativeReference
 	target.UpdatedAt = state.UpdatedAt
 }
 
-func CreativeReferenceUsageFromModel(usage model.CreativeReferenceUsage) CreativeReferenceUsage {
+func CreativeReferenceUsageFromModel(usage persistencemodel.CreativeReferenceUsage) CreativeReferenceUsage {
 	return CreativeReferenceUsage{
 		ID:                       usage.ID,
 		ProjectID:                usage.ProjectID,
@@ -833,13 +833,13 @@ func CreativeReferenceUsageFromModel(usage model.CreativeReferenceUsage) Creativ
 	}
 }
 
-func (usage CreativeReferenceUsage) ToModel() model.CreativeReferenceUsage {
-	var target model.CreativeReferenceUsage
+func (usage CreativeReferenceUsage) ToModel() persistencemodel.CreativeReferenceUsage {
+	var target persistencemodel.CreativeReferenceUsage
 	usage.ApplyToModel(&target)
 	return target
 }
 
-func (usage CreativeReferenceUsage) ApplyToModel(target *model.CreativeReferenceUsage) {
+func (usage CreativeReferenceUsage) ApplyToModel(target *persistencemodel.CreativeReferenceUsage) {
 	target.Model.ID = usage.ID
 	target.ProjectID = usage.ProjectID
 	target.OwnerType = usage.OwnerType
@@ -856,7 +856,7 @@ func (usage CreativeReferenceUsage) ApplyToModel(target *model.CreativeReference
 	target.UpdatedAt = usage.UpdatedAt
 }
 
-func CreativeRelationshipFromModel(relationship model.CreativeRelationship) CreativeRelationship {
+func CreativeRelationshipFromModel(relationship persistencemodel.CreativeRelationship) CreativeRelationship {
 	return CreativeRelationship{
 		ID:                        relationship.ID,
 		ProjectID:                 relationship.ProjectID,
@@ -877,13 +877,13 @@ func CreativeRelationshipFromModel(relationship model.CreativeRelationship) Crea
 	}
 }
 
-func (relationship CreativeRelationship) ToModel() model.CreativeRelationship {
-	var target model.CreativeRelationship
+func (relationship CreativeRelationship) ToModel() persistencemodel.CreativeRelationship {
+	var target persistencemodel.CreativeRelationship
 	relationship.ApplyToModel(&target)
 	return target
 }
 
-func (relationship CreativeRelationship) ApplyToModel(target *model.CreativeRelationship) {
+func (relationship CreativeRelationship) ApplyToModel(target *persistencemodel.CreativeRelationship) {
 	target.Model.ID = relationship.ID
 	target.ProjectID = relationship.ProjectID
 	target.SourceCreativeReferenceID = relationship.SourceCreativeReferenceID
@@ -902,7 +902,7 @@ func (relationship CreativeRelationship) ApplyToModel(target *model.CreativeRela
 	target.UpdatedAt = relationship.UpdatedAt
 }
 
-func ProductionFromModel(production model.Production) Production {
+func ProductionFromModel(production persistencemodel.Production) Production {
 	return Production{
 		ID:                production.ID,
 		ProjectID:         production.ProjectID,
@@ -920,13 +920,13 @@ func ProductionFromModel(production model.Production) Production {
 	}
 }
 
-func (production Production) ToModel() model.Production {
-	var target model.Production
+func (production Production) ToModel() persistencemodel.Production {
+	var target persistencemodel.Production
 	production.ApplyToModel(&target)
 	return target
 }
 
-func (production Production) ApplyToModel(target *model.Production) {
+func (production Production) ApplyToModel(target *persistencemodel.Production) {
 	target.Model.ID = production.ID
 	target.ProjectID = production.ProjectID
 	target.ScriptVersionID = production.ScriptVersionID
@@ -942,7 +942,7 @@ func (production Production) ApplyToModel(target *model.Production) {
 	target.UpdatedAt = production.UpdatedAt
 }
 
-func KeyframeFromModel(keyframe model.Keyframe) Keyframe {
+func KeyframeFromModel(keyframe persistencemodel.Keyframe) Keyframe {
 	return Keyframe{
 		ID:            keyframe.ID,
 		ProjectID:     keyframe.ProjectID,
@@ -963,13 +963,13 @@ func KeyframeFromModel(keyframe model.Keyframe) Keyframe {
 	}
 }
 
-func (keyframe Keyframe) ToModel() model.Keyframe {
-	var target model.Keyframe
+func (keyframe Keyframe) ToModel() persistencemodel.Keyframe {
+	var target persistencemodel.Keyframe
 	keyframe.ApplyToModel(&target)
 	return target
 }
 
-func (keyframe Keyframe) ApplyToModel(target *model.Keyframe) {
+func (keyframe Keyframe) ApplyToModel(target *persistencemodel.Keyframe) {
 	target.Model.ID = keyframe.ID
 	target.ProjectID = keyframe.ProjectID
 	target.ProductionID = keyframe.ProductionID
@@ -987,7 +987,7 @@ func (keyframe Keyframe) ApplyToModel(target *model.Keyframe) {
 	target.UpdatedAt = keyframe.UpdatedAt
 }
 
-func rawResourceFromModelPointer(resource *model.RawResource) *domainresource.RawResource {
+func rawResourceFromModelPointer(resource *persistencemodel.RawResource) *domainresource.RawResource {
 	if resource == nil {
 		return nil
 	}
@@ -995,7 +995,7 @@ func rawResourceFromModelPointer(resource *model.RawResource) *domainresource.Ra
 	return &item
 }
 
-func PreviewTimelineFromModel(timeline model.PreviewTimeline) PreviewTimeline {
+func PreviewTimelineFromModel(timeline persistencemodel.PreviewTimeline) PreviewTimeline {
 	return PreviewTimeline{
 		ID:              timeline.ID,
 		ProjectID:       timeline.ProjectID,
@@ -1011,13 +1011,13 @@ func PreviewTimelineFromModel(timeline model.PreviewTimeline) PreviewTimeline {
 	}
 }
 
-func (timeline PreviewTimeline) ToModel() model.PreviewTimeline {
-	var target model.PreviewTimeline
+func (timeline PreviewTimeline) ToModel() persistencemodel.PreviewTimeline {
+	var target persistencemodel.PreviewTimeline
 	timeline.ApplyToModel(&target)
 	return target
 }
 
-func (timeline PreviewTimeline) ApplyToModel(target *model.PreviewTimeline) {
+func (timeline PreviewTimeline) ApplyToModel(target *persistencemodel.PreviewTimeline) {
 	target.Model.ID = timeline.ID
 	target.ProjectID = timeline.ProjectID
 	target.ProductionID = timeline.ProductionID
@@ -1031,7 +1031,7 @@ func (timeline PreviewTimeline) ApplyToModel(target *model.PreviewTimeline) {
 	target.UpdatedAt = timeline.UpdatedAt
 }
 
-func DeliveryVersionFromModel(version model.DeliveryVersion) DeliveryVersion {
+func DeliveryVersionFromModel(version persistencemodel.DeliveryVersion) DeliveryVersion {
 	return DeliveryVersion{
 		ID:                version.ID,
 		ProjectID:         version.ProjectID,
@@ -1048,13 +1048,13 @@ func DeliveryVersionFromModel(version model.DeliveryVersion) DeliveryVersion {
 	}
 }
 
-func (version DeliveryVersion) ToModel() model.DeliveryVersion {
-	var target model.DeliveryVersion
+func (version DeliveryVersion) ToModel() persistencemodel.DeliveryVersion {
+	var target persistencemodel.DeliveryVersion
 	version.ApplyToModel(&target)
 	return target
 }
 
-func (version DeliveryVersion) ApplyToModel(target *model.DeliveryVersion) {
+func (version DeliveryVersion) ApplyToModel(target *persistencemodel.DeliveryVersion) {
 	target.Model.ID = version.ID
 	target.ProjectID = version.ProjectID
 	target.ProductionID = version.ProductionID
@@ -1069,7 +1069,7 @@ func (version DeliveryVersion) ApplyToModel(target *model.DeliveryVersion) {
 	target.UpdatedAt = version.UpdatedAt
 }
 
-func DeliveryTimelineItemFromModel(item model.DeliveryTimelineItem) DeliveryTimelineItem {
+func DeliveryTimelineItemFromModel(item persistencemodel.DeliveryTimelineItem) DeliveryTimelineItem {
 	return DeliveryTimelineItem{
 		ID:                item.ID,
 		ProjectID:         item.ProjectID,
@@ -1089,13 +1089,13 @@ func DeliveryTimelineItemFromModel(item model.DeliveryTimelineItem) DeliveryTime
 	}
 }
 
-func (item DeliveryTimelineItem) ToModel() model.DeliveryTimelineItem {
-	var target model.DeliveryTimelineItem
+func (item DeliveryTimelineItem) ToModel() persistencemodel.DeliveryTimelineItem {
+	var target persistencemodel.DeliveryTimelineItem
 	item.ApplyToModel(&target)
 	return target
 }
 
-func (item DeliveryTimelineItem) ApplyToModel(target *model.DeliveryTimelineItem) {
+func (item DeliveryTimelineItem) ApplyToModel(target *persistencemodel.DeliveryTimelineItem) {
 	target.Model.ID = item.ID
 	target.ProjectID = item.ProjectID
 	target.DeliveryVersionID = item.DeliveryVersionID
@@ -1113,7 +1113,7 @@ func (item DeliveryTimelineItem) ApplyToModel(target *model.DeliveryTimelineItem
 	target.UpdatedAt = item.UpdatedAt
 }
 
-func StoryboardScriptFromModel(script model.StoryboardScript) StoryboardScript {
+func StoryboardScriptFromModel(script persistencemodel.StoryboardScript) StoryboardScript {
 	return StoryboardScript{
 		ID:              script.ID,
 		ProjectID:       script.ProjectID,
@@ -1128,13 +1128,13 @@ func StoryboardScriptFromModel(script model.StoryboardScript) StoryboardScript {
 	}
 }
 
-func (script StoryboardScript) ToModel() model.StoryboardScript {
-	var target model.StoryboardScript
+func (script StoryboardScript) ToModel() persistencemodel.StoryboardScript {
+	var target persistencemodel.StoryboardScript
 	script.ApplyToModel(&target)
 	return target
 }
 
-func (script StoryboardScript) ApplyToModel(target *model.StoryboardScript) {
+func (script StoryboardScript) ApplyToModel(target *persistencemodel.StoryboardScript) {
 	target.Model.ID = script.ID
 	target.ProjectID = script.ProjectID
 	target.ScriptVersionID = script.ScriptVersionID
@@ -1147,7 +1147,7 @@ func (script StoryboardScript) ApplyToModel(target *model.StoryboardScript) {
 	target.UpdatedAt = script.UpdatedAt
 }
 
-func StoryboardVersionFromModel(version model.StoryboardVersion) StoryboardVersion {
+func StoryboardVersionFromModel(version persistencemodel.StoryboardVersion) StoryboardVersion {
 	return StoryboardVersion{
 		ID:                 version.ID,
 		ProjectID:          version.ProjectID,
@@ -1164,13 +1164,13 @@ func StoryboardVersionFromModel(version model.StoryboardVersion) StoryboardVersi
 	}
 }
 
-func (version StoryboardVersion) ToModel() model.StoryboardVersion {
-	var target model.StoryboardVersion
+func (version StoryboardVersion) ToModel() persistencemodel.StoryboardVersion {
+	var target persistencemodel.StoryboardVersion
 	version.ApplyToModel(&target)
 	return target
 }
 
-func (version StoryboardVersion) ApplyToModel(target *model.StoryboardVersion) {
+func (version StoryboardVersion) ApplyToModel(target *persistencemodel.StoryboardVersion) {
 	target.Model.ID = version.ID
 	target.ProjectID = version.ProjectID
 	target.StoryboardScriptID = version.StoryboardScriptID
@@ -1185,7 +1185,7 @@ func (version StoryboardVersion) ApplyToModel(target *model.StoryboardVersion) {
 	target.UpdatedAt = version.UpdatedAt
 }
 
-func StoryboardLineFromModel(line model.StoryboardLine) StoryboardLine {
+func StoryboardLineFromModel(line persistencemodel.StoryboardLine) StoryboardLine {
 	return StoryboardLine{
 		ID:                  line.ID,
 		ProjectID:           line.ProjectID,
@@ -1207,13 +1207,13 @@ func StoryboardLineFromModel(line model.StoryboardLine) StoryboardLine {
 	}
 }
 
-func (line StoryboardLine) ToModel() model.StoryboardLine {
-	var target model.StoryboardLine
+func (line StoryboardLine) ToModel() persistencemodel.StoryboardLine {
+	var target persistencemodel.StoryboardLine
 	line.ApplyToModel(&target)
 	return target
 }
 
-func (line StoryboardLine) ApplyToModel(target *model.StoryboardLine) {
+func (line StoryboardLine) ApplyToModel(target *persistencemodel.StoryboardLine) {
 	target.Model.ID = line.ID
 	target.ProjectID = line.ProjectID
 	target.StoryboardScriptID = line.StoryboardScriptID
@@ -1233,7 +1233,7 @@ func (line StoryboardLine) ApplyToModel(target *model.StoryboardLine) {
 	target.UpdatedAt = line.UpdatedAt
 }
 
-func ScriptVersionFromModel(version model.ScriptVersion) ScriptVersion {
+func ScriptVersionFromModel(version persistencemodel.ScriptVersion) ScriptVersion {
 	return ScriptVersion{
 		ID:              version.ID,
 		ProjectID:       version.ProjectID,
@@ -1252,13 +1252,13 @@ func ScriptVersionFromModel(version model.ScriptVersion) ScriptVersion {
 	}
 }
 
-func (version ScriptVersion) ToModel() model.ScriptVersion {
-	var target model.ScriptVersion
+func (version ScriptVersion) ToModel() persistencemodel.ScriptVersion {
+	var target persistencemodel.ScriptVersion
 	version.ApplyToModel(&target)
 	return target
 }
 
-func (version ScriptVersion) ApplyToModel(target *model.ScriptVersion) {
+func (version ScriptVersion) ApplyToModel(target *persistencemodel.ScriptVersion) {
 	target.Model.ID = version.ID
 	target.ProjectID = version.ProjectID
 	target.ScriptID = version.ScriptID

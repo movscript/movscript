@@ -14,7 +14,7 @@ export interface AgentMemory {
 }
 
 export interface MemoryQuery {
-  projectId: number
+  projectId?: number
   kind?: AgentMemoryKind
   query?: string
   limit?: number

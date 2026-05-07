@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
@@ -15,6 +15,8 @@ import {
   SCRIPT_SPLIT_RUNTIME_CONTRACT,
 } from './contracts/scriptSplitContract.js'
 import { StaticAgentRuntimeContractResolver } from './contracts/runtimeContract.js'
+import { InMemoryAgentCatalogStateStore } from './index.js'
+import { loadAgentPluginCatalog } from './pluginCatalog.js'
 
 process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
 
@@ -79,9 +81,6 @@ function installDefaultModelFetch(): void {
     // Decide tool calls based on message
     const callsToMake: Array<{ id: string; name: string; args: Record<string, unknown> }> = []
 
-    if ((/搜索|search/i.test(userMsg) || /主角|资料/i.test(userMsg)) && toolNames.has('movscript_search_entities')) {
-      callsToMake.push({ id: 'call_search_1', name: 'movscript_search_entities', args: { query: userMsg.slice(0, 40), limit: 8, ...(projectId !== undefined ? { projectId } : {}) } })
-    }
     if (/记忆|memory|偏好|默认镜头风格/i.test(userMsg) && toolNames.has('movscript_search_memories')) {
       callsToMake.push({ id: 'call_memory_1', name: 'movscript_search_memories', args: { query: userMsg.slice(0, 40), limit: 8, ...(projectId !== undefined ? { projectId } : {}) } })
     }
@@ -132,7 +131,7 @@ function installDefaultModelFetch(): void {
           inputType: 'choice',
           choices: [
             { id: 'script', label: '剧本', description: '先处理剧本文本和结构。' },
-            { id: 'asset', label: '素材', description: '先检查素材和引用。' },
+            { id: 'asset', label: '素材需求', description: '先检查素材需求和设定资料引用。' },
           ],
           allowCustomAnswer: true,
         },
@@ -152,10 +151,7 @@ function installDefaultModelFetch(): void {
     }
 
     // No tool calls — return a contextual text reply
-    const hasProject = projectId !== undefined
-    const content = !hasProject && /搜索|search|主角|资料/i.test(userMsg)
-      ? '当前没有选中项目，无法执行搜索。'
-      : /记住|remember/i.test(userMsg)
+    const content = /记住|remember/i.test(userMsg)
         ? `已记录您的偏好。已参考 ${memoryCount} 条记忆。`
         : '好的，已完成。'
     return new Response(JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -170,6 +166,8 @@ type ToolCallRecord = {
 
 class FakeMCPClient {
   readonly calls: ToolCallRecord[] = []
+  readonly extraTools: any[] = []
+  readonly toolResults = new Map<string, JSONValue>()
   projectId: number | null = null
   userId: number | null = null
   failTools = new Set<string>()
@@ -186,15 +184,14 @@ class FakeMCPClient {
 
   async listTools(): Promise<any[]> {
     return [
-      { name: 'movscript_search_entities', description: 'Search project entities by keyword.', inputSchema: {} },
       { name: 'movscript_read_entity', description: 'Read a single project entity.', inputSchema: {} },
       { name: 'movscript_read_project_structure', description: 'Read project structure.', inputSchema: {} },
       { name: 'movscript_create_project', description: 'Create a project.', inputSchema: {} },
       { name: 'movscript_list_productions', description: 'List productions.', inputSchema: {} },
-      { name: 'movscript_read_production_context', description: 'Read production context.', inputSchema: {} },
+      { name: 'movscript_read_current_production', description: 'Read current production context.', inputSchema: {} },
       { name: 'movscript_check_entity_conflicts', description: 'Check entity conflicts.', inputSchema: {} },
-      { name: 'movscript_propose_production_entities', description: 'Propose production entities.', inputSchema: {} },
       { name: 'movscript_open_entity', description: 'Open an entity.', inputSchema: {} },
+      ...this.extraTools,
     ]
   }
 
@@ -211,8 +208,8 @@ class FakeMCPClient {
         },
       })
     }
-    if (name === 'movscript_search_entities') {
-      return toolText({ results: [] })
+    if (this.toolResults.has(name)) {
+      return toolText(this.toolResults.get(name))
     }
     if (name === 'movscript_read_project_structure') {
       return toolText({
@@ -279,34 +276,15 @@ function createTestRuntime(options: ConstructorParameters<typeof AgentRuntime>[0
   return new AgentRuntime(options)
 }
 
-test('does not call search_entities when no current project is selected', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = null
-  const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '搜索主角相关内容' }] })
-
-  const run = await createAndWaitForRun(runtime, thread.id)
-  const finalThread = runtime.getThread(thread.id)
-  const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
-
-  assert.equal(run.status, 'completed')
-  assert.equal(client.calls.some((call) => call.name === 'movscript_search_entities'), false)
-  assert.match(assistant?.content ?? '', /当前没有选中项目/)
-})
-
-test('adds current projectId to search and draft tool calls', async () => {
+test('adds current projectId to draft tool calls', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '搜索主角，并帮我写一个草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id)
-  const search = client.calls.find((call) => call.name === 'movscript_search_entities')
-  const draft = client.calls.find((call) => call.name === 'movscript_create_draft')
 
   assert.equal(run.status, 'completed')
-  assert.equal(search?.args.projectId, 42)
-  assert.equal(draft, undefined)
   assert.equal(runtime.listDrafts({ projectId: 42 })[0]?.projectId, 42)
 })
 
@@ -369,34 +347,19 @@ test('runtime builds envelope context from client input without frontend prompt 
   assert.equal(preview.promptPreview?.messages.at(-1)?.content.includes('moment-ref.png'), true)
 })
 
-test('agentic loop records direct tool-call steps without planner or subagent steps', async () => {
+test('agentic loop records direct draft tool-call steps without planner or subagent steps', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我看看主角资料' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id)
-  const search = client.calls.find((call) => call.name === 'movscript_search_entities')
+  const draft = runtime.listDrafts({ projectId: 42 })[0]
 
   assert.equal(run.status, 'completed')
-  assert.ok(run.steps.some((step) => step.type === 'tool_call' && step.toolName === 'movscript_search_entities'))
+  assert.ok(run.steps.some((step) => step.type === 'tool_call' && step.toolName === 'movscript_create_draft'))
   assert.equal(run.steps.some((step: any) => step.type === 'planning' || step.type === 'subagent'), false)
-  assert.match(String(search?.args.query ?? ''), /主角/)
-  assert.equal(search?.args.projectId, 42)
-})
-
-test('agentic loop keeps running when a tool call fails', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  client.failTools.add('movscript_search_entities')
-  const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '搜索主角' }] })
-
-  const run = await createAndWaitForRun(runtime, thread.id)
-
-  assert.equal(run.status, 'completed_with_warnings')
-  assert.match(run.warnings?.join('\n') ?? '', /movscript\.search_entities 未完成/)
-  assert.ok(run.steps.some((step) => step.toolName === 'movscript_search_entities' && step.status === 'failed'))
+  assert.equal(draft?.projectId, 42)
 })
 
 test('capabilities distinguish available and blocked tools', async () => {
@@ -409,12 +372,12 @@ test('capabilities distinguish available and blocked tools', async () => {
     agentManifest: {
       ...DEFAULT_AGENT_MANIFEST,
       permissions: ['project.read'],
-      tools: [{ name: 'movscript_search_entities', mode: 'allow' }],
+      tools: [{ name: 'movscript_list_productions', mode: 'allow' }],
     },
   })
 
   assert.equal(capabilities.mcp.connected, true)
-  assert.ok(capabilities.resolvedTools.available.some((tool) => tool.name === 'movscript_search_entities'))
+  assert.ok(capabilities.resolvedTools.available.some((tool) => tool.name === 'movscript_list_productions'))
   assert.equal(capabilities.resolvedTools.byName['movscript_create_draft']?.unavailableReason, 'not_granted')
 })
 
@@ -432,7 +395,7 @@ test('runtime draft tools are available without MCP tool discovery', async () =>
   assert.equal(capabilities.resolvedTools.byName['movscript_validate_draft']?.available, true)
   assert.equal(capabilities.resolvedTools.byName['movscript_list_drafts']?.available, true)
   assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.source, 'runtime')
-  assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.available, false)
+  assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.available, true)
 })
 
 test('runtime can patch and validate a script split draft without backend writes', async () => {
@@ -449,6 +412,12 @@ test('runtime can patch and validate a script split draft without backend writes
       schema: 'movscript.script_split_analysis.v1',
       source_title: '总稿',
       source_summary: '摘要',
+      source_script: {
+        title: '总稿',
+        summary: '摘要',
+        source_type: 'raw',
+        line_count: 12,
+      },
       global_settings: {
         story_world: '雨夜城市',
         core_rules: [],
@@ -462,7 +431,6 @@ test('runtime can patch and validate a script split draft without backend writes
         order: 1,
         title: '第1集',
         summary: '旧摘要',
-        content: '正文',
         global_context: {
           story_world: '雨夜城市',
           core_rules: [],
@@ -472,10 +440,10 @@ test('runtime can patch and validate a script split draft without backend writes
           key_props: [],
           continuity_notes: [],
           episode_relevance: [],
-        },
-        start: 0,
-        end: 10,
-        action: 'create',
+	        },
+	        start_line: 1,
+	        end_line: 3,
+	        action: 'create',
         existing_script_id: null,
       }],
       warnings: [],
@@ -559,21 +527,18 @@ test('run agentManifest limits tool execution', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '搜索主角，并帮我写一个草稿' }] })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
 
   const run = await createAndWaitForRun(runtime, thread.id, {
     agentManifest: {
       ...DEFAULT_AGENT_MANIFEST,
       permissions: ['project.read'],
-      tools: [{ name: 'movscript_search_entities', mode: 'allow' }],
+      tools: [{ name: 'movscript_list_productions', mode: 'allow', approval: 'never' }],
     },
   })
-  const search = client.calls.find((call) => call.name === 'movscript_search_entities')
-  const draft = client.calls.find((call) => call.name === 'movscript_create_draft')
 
   assert.equal(run.status, 'completed')
-  assert.equal(search?.args.projectId, 42)
-  assert.equal(draft, undefined)
+  assert.equal(runtime.listDrafts({ projectId: 42 }).length, 0)
   assert.deepEqual(run.agentManifest?.permissions, ['project.read'])
 })
 
@@ -857,26 +822,6 @@ test('sandbox mode intercepts write-risk tools without applying drafts', async (
   assert.equal(backendApplyClient.calls.length, 0)
 })
 
-test('returns assistant message and failed step when one tool fails', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  client.failTools.add('movscript_search_entities')
-  const runtime = createTestRuntime({ mcpClient: client })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '搜索主角，并帮我写一个草稿' }] })
-
-  const run = await createAndWaitForRun(runtime, thread.id)
-  const finalThread = runtime.getThread(thread.id)
-  const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
-  const failedSearch = run.steps.find((step) => (
-    step.toolName === 'movscript_search_entities' && step.status === 'failed'
-  ))
-
-  assert.equal(run.status, 'completed_with_warnings')
-  assert.ok(failedSearch)
-  assert.match(assistant?.content ?? '', /movscript\.search_entities 未完成/)
-  assert.ok(runtime.listMemories({ kind: 'warning', threadId: thread.id }).length >= 1)
-})
-
 test('persists threads, messages, runs, and steps across runtime rebuilds', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-state-'))
   try {
@@ -885,7 +830,7 @@ test('persists threads, messages, runs, and steps across runtime rebuilds', asyn
     client.projectId = 42
     const runtime = createTestRuntime({ mcpClient: client, store: new FileAgentStore(statePath) })
     const thread = runtime.createThread({ title: 'Persistent thread' })
-    runtime.addMessage(thread.id, { role: 'user', content: '搜索主角' })
+    runtime.addMessage(thread.id, { role: 'user', content: '帮我写一个草稿' })
     const run = await createAndWaitForRun(runtime, thread.id)
 
     const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(statePath) })
@@ -1006,7 +951,7 @@ test('records backend model gateway HTTP request and response in run trace', asy
     const requestData = requestEvent?.data as any
     const responseData = responseEvent?.data as any
 
-    assert.equal(run.status, 'completed')
+    assert.equal(run.warnings?.join('\n') ?? '', '')
     assert.equal(requestData.request.url, 'http://localhost:8765/api/v1/model-gateway/chat/completions')
     assert.equal(requestData.request.method, 'POST')
     assert.equal(requestData.request.headers.Authorization, undefined)
@@ -1042,7 +987,7 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
 
       if (callCount === 1) {
         assert.equal(Array.isArray(body.tools), true)
-        assert.equal((body.tools as any[]).some((tool) => tool?.function?.name === 'movscript_read_production_context'), true)
+        assert.equal((body.tools as any[]).some((tool) => tool?.function?.name === 'movscript_create_draft'), true)
         return new Response(JSON.stringify({
           id: 'chatcmpl_tool_turn_1',
           choices: [{
@@ -1053,8 +998,8 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
                   id: 'call_read_context',
                   type: 'function',
                   function: {
-                    name: 'movscript_read_production_context',
-                    arguments: JSON.stringify({ production_id: 4, project_id: 1 }),
+                    name: 'movscript_create_draft',
+                    arguments: JSON.stringify({ kind: 'note', title: '分析草稿', content: '请分析这个任务' }),
                   },
                 },
               ],
@@ -1088,22 +1033,22 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
     const client = new FakeMCPClient()
     client.projectId = 42
     const runtime = createTestRuntime({ mcpClient: client })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请分析这个任务' }] })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请做 production proposal 制作编排' }] })
     const run = await createAndWaitForRun(runtime, thread.id, {
       agentManifest: {
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
+          { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
         ],
       },
     })
     const finalThread = runtime.getThread(thread.id)
     const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
 
-    assert.equal(run.status, 'completed')
+    assert.equal(run.warnings?.join('\n') ?? '', '')
     assert.equal(callCount >= 2, true)
-    assert.equal(client.calls.filter((call) => call.name === 'movscript_read_production_context').length, 1)
+    assert.equal(runtime.listDrafts({ projectId: 42 }).length, 1)
     const secondMessages = requests[1]?.messages as any[]
     assert.equal(secondMessages.some((message) => message?.role === 'assistant' && Array.isArray(message.tool_calls)), true)
     assert.equal(secondMessages.some((message) => message?.role === 'tool' && message.tool_call_id === 'call_read_context'), true)
@@ -1148,14 +1093,14 @@ test('context command returns fallback diagnostics when MCP context pack is unav
   assert.equal(run.status, 'completed_with_warnings')
   assert.match(assistant?.content ?? '', /Model gateway messages:/)
   assert.match(assistant?.content ?? '', /Title: Fallback Project/)
-  assert.match(assistant?.content ?? '', /Reference id: project#42/)
+  assert.match(assistant?.content ?? '', /Business reference: project#42/)
   assert.match(assistant?.content ?? '', /Context pack unavailable: mcp offline/)
   assert.throws(() => JSON.parse(assistant?.content ?? ''))
   assert.equal(run.traceEvents?.some((event) => event.title === 'Context pack failed'), true)
   assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
 })
 
-test('script split agent session does not force JSON assistant output', async () => {
+test('script split agent session exposes structured submit tool without forcing JSON assistant output', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-script-split-json-'))
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   const originalFetch = globalThis.fetch
@@ -1171,7 +1116,6 @@ test('script split agent session does not force JSON assistant output', async ()
       const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
       const systemText = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '').join('\n')
       assert.equal(body.response_format, undefined)
-      assert.doesNotMatch(systemText, /Runtime structured contract/)
       assert.doesNotMatch(systemText, /movscript\.script_split_analysis\.v1/)
       return new Response(JSON.stringify({
         choices: [{
@@ -1198,22 +1142,32 @@ test('script split agent session does not force JSON assistant output', async ()
         id: 'script-split-agent',
         name: '剧本拆分 Agent',
         soul: '通过工具或草稿把结构化结果交给 UI；assistant 正文只做简短说明。',
-        permissions: ['project.read'],
+        permissions: ['project.read', 'draft.write'],
         tools: [
           { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
           { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
+          { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
         ],
       },
     })
     const finalThread = runtime.getThread(thread.id)
     const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
 
-    assert.equal(run.status, 'completed')
+    assert.equal(run.warnings?.join('\n') ?? '', '')
     assert.equal(requests.length, 1)
     assert.equal(run.metadata?.runtimeContractId, 'script-split-agent')
-    assert.doesNotThrow(() => {
-      assert.throws(() => JSON.parse(assistant?.content ?? ''))
-    })
+    const tools = requests[0]?.tools as Array<{ function?: { name?: string; parameters?: Record<string, unknown> } }> | undefined
+    assert.equal(requests[0]?.response_format, undefined)
+    const submitTool = tools?.find((tool) => tool.function?.name === 'movscript_submit_script_split_draft')
+    assert.equal(!!submitTool, true)
+    assert.equal(tools?.some((tool) => tool.function?.name === 'movscript_create_draft'), false)
+    const submitParameters = submitTool?.function?.parameters as Record<string, any> | undefined
+    const sourceScriptSchema = submitParameters?.properties?.sourceScript as Record<string, any> | undefined
+    const episodeSchema = submitParameters?.properties?.episodeDrafts?.items as Record<string, any> | undefined
+    assert.equal(submitParameters?.type, 'object')
+    assert.equal('content' in (sourceScriptSchema?.properties ?? {}), false)
+    assert.equal('content' in (episodeSchema?.properties ?? {}), false)
+    assert.equal('startLine' in (episodeSchema?.properties ?? {}), true)
     assert.match(assistant?.content ?? '', /聊天正文不进行 JSON 收口/)
   } finally {
     globalThis.fetch = originalFetch
@@ -1222,13 +1176,175 @@ test('script split agent session does not force JSON assistant output', async ()
   }
 })
 
+test('script split structured submit tool writes a normalized script_split draft', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const draftStore = new InMemoryAgentDraftStore()
+  const runtime = createTestRuntime({
+    mcpClient: client,
+    draftStore,
+  })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '提交结构化剧本拆分草稿' }] })
+
+  const run = runtime.createToolRun({
+    threadId: thread.id,
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['project.read', 'draft.write'],
+      tools: [
+        ...DEFAULT_AGENT_MANIFEST.tools,
+        { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
+      ],
+    },
+      toolCall: {
+      name: 'movscript_submit_script_split_draft',
+      args: {
+        projectId: 42,
+        draftTitle: '剧本拆分草稿 - 总稿',
+        sourceTitle: '总稿',
+        sourceSummary: '两个制作的总稿。',
+        sourceScript: {
+          title: '总稿',
+          summary: '两个制作的总稿。',
+          sourceType: 'raw',
+          lineCount: 4,
+        },
+        globalSettings: {
+          storyWorld: '雨夜城市',
+          coreRules: ['不要编造原文没有的剧情'],
+          characterRelationships: ['林夏和顾言关系紧张'],
+          keyCharacters: ['林夏', '顾言'],
+          keyLocations: ['便利店'],
+          keyProps: ['旧信'],
+          continuityNotes: ['纸条必须前后连贯'],
+        },
+        episodeDrafts: [{
+          order: 1,
+          title: '第1集 雨夜便利店',
+          summary: '开场进入便利店。',
+          globalContext: {
+            storyWorld: '雨夜城市',
+            coreRules: ['不要编造原文没有的剧情'],
+            characterRelationships: ['林夏和顾言关系紧张'],
+            keyCharacters: ['林夏', '顾言'],
+            keyLocations: ['便利店'],
+            keyProps: ['旧信'],
+            continuityNotes: ['纸条必须前后连贯'],
+            episodeRelevance: ['旧信在本集首次出现'],
+          },
+          startLine: 1,
+          endLine: 2,
+          action: 'create',
+          existingScriptId: null,
+        }],
+        warnings: ['需复核'],
+        confidence: 0.82,
+      },
+    },
+  })
+  const completed = await waitForRun(runtime, run.id)
+  const draft = runtime.listDrafts({ projectId: 42, kind: 'script_split' })[0]
+  const parsed = JSON.parse(draft?.content ?? '{}') as {
+    schema?: string
+    source_title?: string
+    source_script?: { line_count?: number }
+    global_settings?: { story_world?: string }
+    episode_drafts?: Array<{ existing_script_id?: number | null; start_line?: number; end_line?: number; content?: string }>
+  }
+
+  assert.equal(completed.status, 'completed')
+  assert.equal(client.calls.some((call) => call.name === 'movscript_submit_script_split_draft'), false)
+  assert.equal(draft?.kind, 'script_split')
+  assert.equal(draft?.title, '剧本拆分草稿 - 总稿')
+  assert.equal(parsed.schema, 'movscript.script_split_analysis.v1')
+  assert.equal(parsed.source_title, '总稿')
+  assert.equal(parsed.global_settings?.story_world, '雨夜城市')
+  assert.equal(parsed.source_script?.line_count, 4)
+  assert.equal(parsed.episode_drafts?.[0]?.existing_script_id, null)
+  assert.equal(parsed.episode_drafts?.[0]?.start_line, 1)
+  assert.equal(parsed.episode_drafts?.[0]?.end_line, 2)
+  assert.equal('content' in (parsed.episode_drafts?.[0] ?? {}), false)
+})
+
+test('script split submit tool rejects script body text in arguments', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const runtime = createTestRuntime({
+    mcpClient: client,
+    draftStore: new InMemoryAgentDraftStore(),
+  })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '提交带正文的错误剧本拆分草稿' }] })
+
+  const run = runtime.createToolRun({
+    threadId: thread.id,
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['project.read', 'draft.write'],
+      tools: [
+        ...DEFAULT_AGENT_MANIFEST.tools,
+        { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
+      ],
+    },
+    toolCall: {
+      name: 'movscript_submit_script_split_draft',
+      args: {
+        projectId: 42,
+        sourceTitle: '总稿',
+        sourceSummary: '两个制作的总稿。',
+        sourceScript: {
+          title: '总稿',
+          summary: '两个制作的总稿。',
+          sourceType: 'raw',
+          lineCount: 4,
+        },
+        globalSettings: {
+          storyWorld: '雨夜城市',
+          coreRules: [],
+          characterRelationships: [],
+          keyCharacters: [],
+          keyLocations: [],
+          keyProps: [],
+          continuityNotes: [],
+        },
+        episodeDrafts: [{
+          order: 1,
+          title: '第1集',
+          summary: '开场。',
+          content: '第1集 雨夜\n便利店相遇。',
+          globalContext: {
+            storyWorld: '雨夜城市',
+            coreRules: [],
+            characterRelationships: [],
+            keyCharacters: [],
+            keyLocations: [],
+            keyProps: [],
+            continuityNotes: [],
+            episodeRelevance: [],
+          },
+          startLine: 1,
+          endLine: 2,
+          action: 'create',
+          existingScriptId: null,
+        }],
+      },
+    },
+  })
+  const completed = await waitForRun(runtime, run.id)
+  const step = completed.steps.find((item) => item.toolName === 'movscript_submit_script_split_draft')
+
+  assert.equal(completed.status, 'completed_with_warnings')
+  assert.equal(step?.status, 'failed')
+  assert.match(step?.error ?? '', /content is not allowed; use lineCount\/startLine\/endLine/)
+  assert.equal(runtime.listDrafts({ projectId: 42, kind: 'script_split' }).length, 0)
+})
+
 test('memory command returns opened memory file refs without content or model gateway call', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const memoryStore = new InMemoryAgentMemoryStore()
   const memory = memoryStore.createMemory({
-    scope: 'project',
     projectId: 42,
+    title: '默认镜头风格',
     kind: 'preference',
     content: '默认镜头风格使用冷色低饱和。',
   })
@@ -1242,7 +1358,6 @@ test('memory command returns opened memory file refs without content or model ga
   assert.equal(run.status, 'completed')
   assert.match(assistant?.content ?? '', /Opened memory files:/)
   assert.match(assistant?.content ?? '', new RegExp(memory.id))
-  assert.doesNotMatch(assistant?.content ?? '', /默认镜头风格/)
   assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
 })
 
@@ -1271,17 +1386,17 @@ test('production orchestrate requests include productionId in runtime context', 
     const client = new FakeMCPClient()
     client.projectId = 42
     const runtime = createTestRuntime({ mcpClient: client })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请分析这个任务' }] })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请做 production proposal 制作编排' }] })
     await createAndWaitForRun(runtime, thread.id, {
       agentManifest: {
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
+          { name: 'movscript_read_current_production', mode: 'allow', approval: 'never' },
         ],
       },
       clientInput: {
-        message: '递归分析剧本，提取片段、情节、创作资料、素材需求和内容单元，去重并建立关系图',
+        message: '递归分析剧本，提取片段、情节、设定资料、素材需求和内容单元，去重并建立关系图',
         uiSnapshot: {
           route: { pathname: '/production-orchestrate', search: '?productionId=4' },
           project: { id: 42, name: 'Test Project' },
@@ -1292,9 +1407,9 @@ test('production orchestrate requests include productionId in runtime context', 
       },
     })
 
-    const contextMessage = (requestBody?.messages as any[]).find((message) => message?.role === 'system' && typeof message.content === 'string' && message.content.includes('Current runtime context'))
+    const contextMessage = (requestBody?.messages as any[]).find((message) => message?.role === 'system' && typeof message.content === 'string' && message.content.includes('## Current context'))
     assert.ok(contextMessage)
-    assert.match(String(contextMessage?.content ?? ''), /Active production reference: production#4/)
+    assert.match(String(contextMessage?.content ?? ''), /Active production business reference: production#4/)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -1308,8 +1423,8 @@ test('agent can search memories before creating a draft', async () => {
   const memoryStore = new InMemoryAgentMemoryStore()
   const runtime = createTestRuntime({ mcpClient: client, memoryStore })
   memoryStore.createMemory({
-    scope: 'project',
     projectId: 42,
+    title: '默认镜头风格',
     kind: 'preference',
     content: '默认镜头风格是手持纪实',
   })
@@ -1406,227 +1521,223 @@ test('runtime list_drafts filters by kind and status locally', async () => {
   assert.equal(client.calls.some((call) => call.name === 'movscript_list_drafts'), false)
 })
 
-test('propose_production_entities writes a local production proposal draft and supersedes the previous one', async () => {
-  const originalFetch = globalThis.fetch
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const oldDraft = draftStore.createDraft({
-    projectId: 42,
-    kind: 'production_proposal',
-    title: '旧编排提案',
-    content: JSON.stringify({ productionId: 4, proposal: { segments: [] } }),
-    source: { entityType: 'production', entityId: 4 },
-  })
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  let callCount = 0
-
+test('runtime can enable a local agent bundle and use its tools in later runs', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-dynamic-catalog-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+  const bundlesDir = join(dir, 'bundles')
+  const catalogStateStore = new InMemoryAgentCatalogStateStore()
   try {
-    globalThis.fetch = (async () => {
-      callCount += 1
-      if (callCount === 1) {
+    writeJSONFile(skillsDir, 'dynamic.json', {
+      skills: [{
+        id: 'studio.dynamic.skill',
+        name: 'Dynamic Skill',
+        description: 'Uses a dynamically enabled MCP tool.',
+        enabled: true,
+        instruction: 'When the user asks for a dynamic check, call studio_dynamic_echo.',
+        appliesWhen: 'dynamic check',
+        toolHints: ['studio_dynamic_echo'],
+      }],
+    })
+    writeJSONFile(toolsDir, 'dynamic.json', {
+      tools: [{
+        name: 'studio_dynamic_echo',
+        description: 'Echo dynamic runtime input.',
+        permission: 'project.read',
+        risk: 'read',
+        source: 'plugin',
+        projectScoped: false,
+        requiresApprovalByDefault: false,
+        defaultGrant: { name: 'studio_dynamic_echo', mode: 'allow', approval: 'never' },
+      }],
+    })
+    writeJSONFile(bundlesDir, 'dynamic.json', {
+      id: 'studio.bundle.dynamic',
+      name: 'Dynamic Bundle',
+      skills: ['studio.dynamic.skill'],
+      tools: ['studio_dynamic_echo'],
+    })
+    const loader = (options?: { enabledBundleIds?: string[] }) => loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      bundlesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+      builtinBundlesDir: bundlesDir,
+      enabledBundleIds: options?.enabledBundleIds ?? [],
+    })
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    client.extraTools.push({ name: 'studio_dynamic_echo', description: 'Echo dynamic runtime input.', inputSchema: {} })
+    client.toolResults.set('studio_dynamic_echo', { ok: true, dynamic: true })
+    const runtime = createTestRuntime({
+      mcpClient: client,
+      catalogStateStore,
+      pluginCatalogLoader: loader,
+    })
+
+    let capabilities = await runtime.getCapabilities({ currentProjectId: 42 })
+    assert.equal(capabilities.resolvedTools.byName.studio_dynamic_echo?.available, undefined)
+
+    const listed = runtime.listAgentBundles() as any
+    assert.equal(listed.bundles[0].id, 'studio.bundle.dynamic')
+    assert.equal(listed.bundles[0].enabled, false)
+
+    const enabled = runtime.enableAgentBundle({ bundleId: 'studio.bundle.dynamic' }) as any
+    assert.equal(enabled.status, 'enabled')
+    assert.deepEqual(catalogStateStore.load().enabledBundleIds, ['studio.bundle.dynamic'])
+
+    capabilities = await runtime.getCapabilities({ currentProjectId: 42 })
+    assert.equal(capabilities.resolvedTools.byName.studio_dynamic_echo?.available, true)
+    assert.equal(runtime.listSkillCatalog().some((skill) => skill.id === 'studio.dynamic.skill'), true)
+
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: 'please do a dynamic check' }] })
+    const originalFetch = globalThis.fetch
+    try {
+      globalThis.fetch = (async (_url, init) => {
+        const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, any>
+        const toolMessages = (body.messages as any[]).filter((message) => message?.role === 'tool')
+        if (toolMessages.length > 0) {
+          return new Response(JSON.stringify({ choices: [{ message: { content: 'dynamic done' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+        }
+        assert.equal((body.tools as any[]).some((tool) => tool.function.name === 'studio_dynamic_echo'), true)
         return new Response(JSON.stringify({
           choices: [{
             message: {
               content: null,
               tool_calls: [{
-                id: 'call_propose_production',
+                id: 'call_dynamic',
                 type: 'function',
-                function: {
-                  name: 'movscript_propose_production_entities',
-                  arguments: JSON.stringify({
-                    project_id: '42',
-                    analysis_scope: 'production',
-                    summary: '测试编排提案',
-                    proposal: {
-                      schema: 'movscript.production_orchestration_analysis.v1',
-                      production_id: '4',
-                      segments: [{
-                        client_id: 'segment-1',
-                        action: 'create',
-                        title: '开场',
-                        scene_moments: [{
-                          client_id: 'scene-moment-1',
-                          action: 'create',
-                          title: '雨夜出场',
-                          creative_references: [{
-                            client_id: 'ref-1',
-                            action: 'reuse',
-                            id: 7,
-                            name: '林夏',
-                          }],
-                          content_units: [{
-                            client_id: 'content-unit-1',
-                            action: 'create',
-                            title: '手机特写',
-                          }],
-                          asset_slots: [{
-                            client_id: 'asset-slot-1',
-                            action: 'create',
-                            name: '林夏角色参考图',
-                          }],
-                        }],
-                      }],
-                    },
-                  }),
-                },
+                function: { name: 'studio_dynamic_echo', arguments: JSON.stringify({ input: 'hello' }) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }) as typeof fetch
+      const run = await createAndWaitForRun(runtime, thread.id)
+      assert.equal(run.status, 'completed')
+      assert.equal(client.calls.some((call) => call.name === 'studio_dynamic_echo'), true)
+      assert.equal(run.steps.some((step) => step.toolName === 'studio_dynamic_echo'), true)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('agent loop refreshes tools after enabling a bundle in the same run', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-same-run-catalog-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+  const bundlesDir = join(dir, 'bundles')
+  const catalogStateStore = new InMemoryAgentCatalogStateStore()
+  const originalFetch = globalThis.fetch
+  try {
+    writeJSONFile(skillsDir, 'dynamic.json', {
+      skills: [{
+        id: 'studio.same_run.skill',
+        name: 'Same Run Dynamic Skill',
+        description: 'Uses a newly enabled MCP tool in the same run.',
+        enabled: true,
+        priority: 100,
+        instruction: 'Use studio_same_run_echo after the bundle is enabled.',
+        appliesWhen: 'same run catalog',
+        toolHints: ['studio_same_run_echo'],
+      }],
+    })
+    writeJSONFile(toolsDir, 'dynamic.json', {
+      tools: [{
+        name: 'studio_same_run_echo',
+        description: 'Echo after same-run catalog refresh.',
+        permission: 'project.read',
+        risk: 'read',
+        source: 'plugin',
+        projectScoped: false,
+        requiresApprovalByDefault: false,
+        defaultGrant: { name: 'studio_same_run_echo', mode: 'allow', approval: 'never' },
+      }],
+    })
+    writeJSONFile(bundlesDir, 'dynamic.json', {
+      id: 'studio.bundle.same-run',
+      name: 'Same Run Bundle',
+      skills: ['studio.same_run.skill'],
+      tools: ['studio_same_run_echo'],
+    })
+    const loader = (options?: { enabledBundleIds?: string[] }) => loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      bundlesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+      builtinBundlesDir: bundlesDir,
+      enabledBundleIds: options?.enabledBundleIds ?? [],
+    })
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    client.extraTools.push({ name: 'studio_same_run_echo', description: 'Echo after same-run catalog refresh.', inputSchema: {} })
+    client.toolResults.set('studio_same_run_echo', { ok: true, sameRun: true })
+    const runtime = createTestRuntime({
+      mcpClient: client,
+      catalogStateStore,
+      pluginCatalogLoader: loader,
+    })
+    let turn = 0
+    globalThis.fetch = (async (_url, init) => {
+      turn += 1
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, any>
+      const toolNames = new Set(((body.tools as any[]) ?? []).map((tool) => tool.function.name))
+      if (turn === 1) {
+        assert.equal(toolNames.has('movscript_enable_agent_bundle'), true)
+        assert.equal(toolNames.has('studio_same_run_echo'), false)
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: 'call_enable_bundle',
+                type: 'function',
+                function: { name: 'movscript_enable_agent_bundle', arguments: JSON.stringify({ bundleId: 'studio.bundle.same-run' }) },
               }],
             },
             finish_reason: 'tool_calls',
           }],
         }), { status: 200, headers: { 'content-type': 'application/json' } })
       }
-
-      return new Response(JSON.stringify({
-        choices: [{ message: { content: 'proposal written' }, finish_reason: 'stop' }],
-      }), { status: 200, headers: { 'content-type': 'application/json' } })
+      if (turn === 2) {
+        assert.equal(toolNames.has('studio_same_run_echo'), true)
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: 'call_same_run_echo',
+                type: 'function',
+                function: { name: 'studio_same_run_echo', arguments: JSON.stringify({ input: 'same run' }) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'same-run catalog done' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
     }) as typeof fetch
 
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '生成分集编排提案' }] })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: 'same run catalog load please' }] })
     const run = await createAndWaitForRun(runtime, thread.id, {
-      agentManifest: {
-        ...DEFAULT_AGENT_MANIFEST,
-        permissions: ['project.read', 'draft.write'],
-        tools: [
-          { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
-        ],
-      },
+      approvedToolNames: ['movscript_enable_agent_bundle'],
     })
-    const activeDraft = runtime.listDrafts({ projectId: 42, kind: 'production_proposal', status: 'draft' })[0]
-    const supersededDraft = runtime.getDraft(oldDraft.id)
-    const content = JSON.parse(activeDraft.content) as Record<string, any>
-    const step = run.steps.find((item) => item.toolName === 'movscript_propose_production_entities')
 
-    assert.equal(run.status, 'completed')
-    assert.ok(activeDraft)
-    assert.notEqual(activeDraft.id, oldDraft.id)
-    assert.equal(activeDraft.createdByRunId, run.id)
-    assert.equal(activeDraft.source?.entityType, 'production')
-    assert.equal(activeDraft.source?.entityId, 4)
-    assert.equal(content.productionId, 4)
-    assert.equal(content.analysisScope, 'production')
-    assert.equal(content.summary, '测试编排提案')
-    assert.equal(content.proposal.segments.length, 1)
-    assert.equal(supersededDraft?.status, 'superseded')
-    assert.deepEqual(activeDraft.metadata?.supersededDraftIds, [oldDraft.id])
-    assert.equal((step?.result as any)?.counts.scene_moments, 1)
-    assert.equal(client.calls.some((call) => call.name === 'movscript_propose_production_entities'), false)
+    assert.equal(run.warnings?.join('\n') ?? '', '')
+    assert.equal(client.calls.some((call) => call.name === 'studio_same_run_echo'), true)
+    assert.equal(run.steps.some((step) => step.toolName === 'movscript_enable_agent_bundle'), true)
+    assert.equal(run.steps.some((step) => step.toolName === 'studio_same_run_echo'), true)
+    assert.equal(run.traceEvents?.some((event) => event.title === 'Agent catalog refreshed'), true)
   } finally {
     globalThis.fetch = originalFetch
+    rmSync(dir, { recursive: true, force: true })
   }
-})
-
-test('production proposal node CRUD tools edit a draft incrementally', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const manifest = {
-    ...DEFAULT_AGENT_MANIFEST,
-    permissions: ['draft.read', 'draft.write'],
-    tools: [
-      { name: 'movscript_create_production_proposal', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'movscript_upsert_production_proposal_node', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'movscript_list_production_proposal_nodes', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'movscript_delete_production_proposal_node', mode: 'allow' as const, approval: 'never' as const },
-    ],
-  }
-
-  const createRun = runtime.createToolRun({
-    toolCall: {
-      name: 'movscript_create_production_proposal',
-      args: {
-        projectId: 42,
-        productionId: 4,
-        summary: '逐步编排',
-      },
-    },
-    agentManifest: manifest,
-  })
-  const createdRun = await waitForRun(runtime, createRun.id)
-  const createdDraftId = (createdRun.steps[0]?.result as any)?.draftId as string
-
-  for (const toolCall of [
-    {
-      name: 'movscript_upsert_production_proposal_node',
-      args: {
-        draftId: createdDraftId,
-        nodeType: 'segment',
-        node: {
-          client_id: 'segment-1',
-          action: 'create',
-          title: '开场段落',
-          summary: '雨夜开场',
-        },
-      },
-    },
-    {
-      name: 'movscript_upsert_production_proposal_node',
-      args: {
-        draftId: createdDraftId,
-        nodeType: 'scene_moment',
-        parent: { client_id: 'segment-1' },
-        node: {
-          client_id: 'scene-1',
-          action: 'create',
-          title: '雨夜相遇',
-          location_text: '巷口',
-        },
-      },
-    },
-    {
-      name: 'movscript_upsert_production_proposal_node',
-      args: {
-        draftId: createdDraftId,
-        nodeType: 'content_unit',
-        parent: { client_id: 'scene-1' },
-        node: {
-          client_id: 'unit-1',
-          action: 'create',
-          title: '手机特写',
-          kind: 'shot',
-        },
-      },
-    },
-  ]) {
-    const run = runtime.createToolRun({ toolCall, agentManifest: manifest })
-    const completed = await waitForRun(runtime, run.id)
-    assert.equal(completed.status, 'completed')
-  }
-
-  const listRun = runtime.createToolRun({
-    toolCall: {
-      name: 'movscript_list_production_proposal_nodes',
-      args: { draftId: createdDraftId },
-    },
-    agentManifest: manifest,
-  })
-  const listedRun = await waitForRun(runtime, listRun.id)
-  const nodes = (listedRun.steps[0]?.result as any)?.nodes as Array<{ nodeType: string; client_id?: string }>
-  assert.deepEqual(nodes.map((node) => `${node.nodeType}:${node.client_id}`), [
-    'segment:segment-1',
-    'scene_moment:scene-1',
-    'content_unit:unit-1',
-  ])
-
-  const deleteRun = runtime.createToolRun({
-    toolCall: {
-      name: 'movscript_delete_production_proposal_node',
-      args: {
-        draftId: createdDraftId,
-        nodeType: 'content_unit',
-        client_id: 'unit-1',
-      },
-    },
-    agentManifest: manifest,
-  })
-  const deletedRun = await waitForRun(runtime, deleteRun.id)
-  const finalContent = JSON.parse(runtime.getDraft(createdDraftId)!.content)
-
-  assert.equal(deletedRun.status, 'completed')
-  assert.equal(finalContent.productionId, 4)
-  assert.equal(finalContent.proposal.segments[0].scene_moments[0].content_units.length, 0)
-  assert.equal(client.calls.some((call) => call.name === 'movscript_create_production_proposal'), false)
 })
 
 test('business production proposal tools upsert scene moments, assets, shots, and keyframes', async () => {
@@ -1647,18 +1758,6 @@ test('business production proposal tools upsert scene moments, assets, shots, an
     source: { entityType: 'production', entityId: 4 },
   })
   const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const manifest = {
-    ...DEFAULT_AGENT_MANIFEST,
-    permissions: ['draft.read', 'draft.write'],
-    tools: [
-      { name: 'movscript_upsert_proposal_scene_moment', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'movscript_upsert_proposal_asset', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'movscript_upsert_proposal_shot', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'movscript_upsert_proposal_keyframe', mode: 'allow' as const, approval: 'never' as const },
-      { name: 'movscript_inspect_production_proposal_context', mode: 'allow' as const, approval: 'never' as const },
-    ],
-  }
-
   const calls = [
     {
       name: 'movscript_upsert_proposal_scene_moment',
@@ -1677,11 +1776,11 @@ test('business production proposal tools upsert scene moments, assets, shots, an
       },
     },
     {
-      name: 'movscript_upsert_proposal_shot',
+      name: 'movscript_upsert_proposal_content_unit',
       args: {
         draftId: draft.id,
         sceneMoment: { client_id: 'scene-1' },
-        shot: { client_id: 'shot-1', action: 'create', title: '推近手机', description: '中景推近到手机屏幕' },
+        contentUnit: { client_id: 'shot-1', action: 'create', title: '推近手机', kind: 'shot', description: '中景推近到手机屏幕' },
       },
     },
     {
@@ -1695,14 +1794,15 @@ test('business production proposal tools upsert scene moments, assets, shots, an
   ]
 
   for (const toolCall of calls) {
-    const run = runtime.createToolRun({ toolCall, agentManifest: manifest })
+    const run = runtime.createToolRun({ message: 'production proposal 制作编排', toolCall })
     const completed = await waitForRun(runtime, run.id)
+    assert.equal(completed.warnings?.join('\n') ?? '', '')
     assert.equal(completed.status, 'completed')
   }
 
   const inspectRun = runtime.createToolRun({
+    message: 'production proposal 制作编排',
     toolCall: { name: 'movscript_inspect_production_proposal_context', args: { draftId: draft.id, includeNodes: true } },
-    agentManifest: manifest,
   })
   const inspected = await waitForRun(runtime, inspectRun.id)
   const inspectResult = inspected.steps[0]?.result as any
@@ -1768,6 +1868,11 @@ function toolText(value: unknown): JSONValue {
       },
     ],
   }
+}
+
+function writeJSONFile(dir: string, filename: string, value: unknown): void {
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, filename), `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }
 
 function runHasTool(run: AgentRun, toolName: string): boolean {

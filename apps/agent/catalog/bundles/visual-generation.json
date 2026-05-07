@@ -7,8 +7,6 @@
     "movscript.intent.visual-generation"
   ],
   "tools": [
-    "movscript_create_generation_job",
-    "movscript_search_entities",
-    "movscript_read_entity"
+    "movscript_create_generation_job"
   ]
 }

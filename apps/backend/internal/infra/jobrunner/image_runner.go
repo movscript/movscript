@@ -3,9 +3,8 @@ package jobrunner
 import (
 	"context"
 	"fmt"
-
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 type providerResult struct {
@@ -13,7 +12,7 @@ type providerResult struct {
 	MimeType string
 }
 
-func (w *Worker) runImageJob(ctx context.Context, job *model.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine) (providerResult, error) {
+func (w *Worker) runImageJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine) (providerResult, error) {
 	cloudFileID := w.prepareImageInputReferences(job, imageData)
 	req := w.buildImageRequest(job, params, imageData, cloudFileID)
 	if len(imageData) > 0 {
@@ -26,7 +25,7 @@ func (w *Worker) runImageJob(ctx context.Context, job *model.Job, params generat
 	}
 	sm.enter(StateCallingProvider, "call image provider")
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
-		return w.aiService.CallImageWithBilling(ctx, job.UserID, job.ModelConfigID, req, w.billingContext(job))
+		return w.aiService.CallImageWithUsage(ctx, job.UserID, job.ModelConfigID, req, w.usageContext(job))
 	})
 	if err != nil {
 		return providerResult{}, fmt.Errorf("image generation: %w", err)
@@ -38,7 +37,7 @@ func (w *Worker) runImageJob(ctx context.Context, job *model.Job, params generat
 	return providerResult{URL: resp.URLs[0], MimeType: "image/png"}, nil
 }
 
-func (w *Worker) runImageEditJob(ctx context.Context, job *model.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine) (providerResult, error) {
+func (w *Worker) runImageEditJob(ctx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, sm *jobStateMachine) (providerResult, error) {
 	if len(imageData) == 0 {
 		return providerResult{}, fmt.Errorf("image_edit job requires an image input but none was found (job #%d)", job.ID)
 	}
@@ -55,7 +54,7 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *model.Job, params gen
 	}
 	sm.enter(StateCallingProvider, "call image edit provider")
 	resp, err := callProviderWithTimeout(ctx, providerCallTimeout, func(ctx context.Context) (ai.ImageResponse, error) {
-		return w.aiService.CallImageWithBilling(ctx, job.UserID, job.ModelConfigID, req, w.billingContext(job))
+		return w.aiService.CallImageWithUsage(ctx, job.UserID, job.ModelConfigID, req, w.usageContext(job))
 	})
 	if err != nil {
 		return providerResult{}, fmt.Errorf("image generation: %w", err)
@@ -67,7 +66,7 @@ func (w *Worker) runImageEditJob(ctx context.Context, job *model.Job, params gen
 	return providerResult{URL: resp.URLs[0], MimeType: "image/png"}, nil
 }
 
-func (w *Worker) buildImageRequest(job *model.Job, params generationParams, imageData []ai.MediaData, cloudFileID string) ai.ImageRequest {
+func (w *Worker) buildImageRequest(job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, cloudFileID string) ai.ImageRequest {
 	return ai.ImageRequest{
 		Prompt:              job.Prompt,
 		N:                   1,

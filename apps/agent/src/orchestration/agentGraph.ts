@@ -12,8 +12,9 @@ import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.
 import type { AgentLoopTraceInput, AgentLoopResult } from '../runtime/loop/agentLoop.js'
 import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
 import { createDefaultRuntimeModelRouter, type RuntimeModelRouter } from '../model/modelRouter.js'
-import { executeTool } from './toolExecutor.js'
+import { executeTool, type AgentCatalogToolManager } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
+import { formatToolNameForDisplay } from '../tools/toolNames.js'
 import { buildApplyDraftPreview } from '../drafts/draftApply.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 
@@ -38,9 +39,17 @@ export interface AgentGraphInput {
   registry: ToolRegistry
   contractResolver?: AgentRuntimeContractResolver
   memoryManager?: MemoryManager
+  catalogManager?: AgentCatalogToolManager
   forcedToolCalls?: ToolCall[]
   approvedToolNames?: string[]
   signal?: AbortSignal
+  onCatalogRefresh?: () => Promise<{
+    manifest: AgentManifest
+    capabilities: ResolvedToolCatalog
+    skills: ResolvedAgentSkill[]
+    registry: ToolRegistry
+    warnings: string[]
+  }>
   onTrace: (input: AgentLoopTraceInput) => void
   onStepCreate: (type: 'tool_call' | 'message', roundIndex: number, roundLabel: string, roundSource: AgentLoopTraceInput['roundSource'], toolName?: string) => string
   onStepComplete: (stepId: string, result?: JSONValue, error?: string, sandboxed?: boolean) => void
@@ -523,6 +532,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         backendApplyClient: input.backendApplyClient,
         registry: input.registry,
         memoryManager: input.memoryManager,
+        catalogManager: input.catalogManager,
         sandboxMode: input.policy.sandboxMode === true,
         signal: input.signal,
       })
@@ -594,6 +604,29 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
     if (result.warning) warnings.push(result.warning)
   }
 
+  if (results.some((result) => isCatalogMutationTool(result.outcome.call.name)) && input.onCatalogRefresh) {
+    const refreshed = await input.onCatalogRefresh()
+    input.manifest = refreshed.manifest
+    input.capabilities = refreshed.capabilities
+    input.skills = refreshed.skills
+    input.registry = refreshed.registry
+    warnings.push(...refreshed.warnings)
+    input.onTrace({
+      kind: 'tool_catalog',
+      title: 'Agent catalog refreshed',
+      summary: `${refreshed.capabilities.available.length} available tool(s) after catalog change.`,
+      status: 'completed',
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: effectiveRoundSource,
+      data: {
+        skillIds: refreshed.skills.map((skill) => skill.id),
+        availableToolNames: refreshed.capabilities.available.map((tool) => tool.name),
+        warningCount: refreshed.warnings.length,
+      },
+    })
+  }
+
   const turnResults: Array<{ toolCall: ToolCall; content: string }> = results.map((result) => result.turnResult)
 
   if (canRunConcurrently) {
@@ -639,6 +672,10 @@ function canExecuteConcurrently(call: ToolCall, registry: ToolRegistry): boolean
   return tool?.risk === 'read'
 }
 
+function isCatalogMutationTool(toolName: string): boolean {
+  return toolName === 'movscript_enable_agent_bundle' || toolName === 'movscript_reload_agent_catalog'
+}
+
 function normalizeToolCall(call: ToolCall): ToolCall {
   return {
     id: call.id ?? makeId('call'),
@@ -664,10 +701,6 @@ function parseArgs(input: string): Record<string, JSONValue> {
   } catch {
     return {}
   }
-}
-
-function formatToolNameForDisplay(name: string): string {
-  return name.startsWith('movscript_') ? `movscript.${name.slice('movscript_'.length)}` : name
 }
 
 function getLastAssistantContent(history: RuntimeModelChatMessage[]): string | undefined {

@@ -422,7 +422,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
 
   function deleteSelected() {
     if (!selectedId) return
-    const label = tab === 'usage' ? '使用关系' : '资料关系'
+    const label = tab === 'usage' ? '使用关系' : '设定资料关系'
     if (!window.confirm(`删除当前${label}？`)) return
     if (tab === 'usage') deleteUsageMutation.mutate(selectedId)
     else deleteRelationshipMutation.mutate(selectedId)
@@ -479,7 +479,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
         </header>
 
         <section className="grid grid-cols-4 gap-3">
-          <Metric icon={Link2} label="关系总数" value={totalRelations} detail="使用关系 + 资料关系" tone="text-sky-600" />
+          <Metric icon={Link2} label="关系总数" value={totalRelations} detail="使用关系 + 设定资料关系" tone="text-sky-600" />
           <Metric icon={Bot} label="AI 添加" value={aiRelations} detail="需要人工抽查和确认" tone="text-violet-600" />
           <Metric icon={UserRoundPen} label="人工修正" value={correctedRelations} detail="AI 关系被修正后的记录" tone="text-emerald-600" />
           <Metric icon={ListFilter} label="待确认" value={pendingRelations} detail="draft 状态关系" tone="text-amber-600" />
@@ -500,14 +500,14 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
         <section className="grid grid-cols-[300px_minmax(0,1fr)_420px] gap-4">
           <aside className="space-y-3">
             <div className="rounded-lg border border-border bg-card p-2">
-              <SegmentButton active={tab === 'usage'} icon={Link2} label="对象使用资料" count={usages.length} onClick={() => switchTab('usage')} />
-              <SegmentButton active={tab === 'relationship'} icon={GitBranch} label="资料之间关系" count={relationships.length} onClick={() => switchTab('relationship')} />
+              <SegmentButton active={tab === 'usage'} icon={Link2} label="对象引用设定资料" count={usages.length} onClick={() => switchTab('usage')} />
+              <SegmentButton active={tab === 'relationship'} icon={GitBranch} label="设定资料之间关系" count={relationships.length} onClick={() => switchTab('relationship')} />
             </div>
 
             <Panel title="筛选">
               <div className="relative">
                 <Search size={14} className="pointer-events-none absolute left-2.5 top-2.5 text-muted-foreground" />
-                <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-8" placeholder="搜索对象、资料、证据" />
+                <Input value={query} onChange={(event) => setQuery(event.target.value)} className="pl-8" placeholder="搜索对象、设定资料、证据" />
               </div>
               <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
                 <option value="all">全部状态</option>
@@ -515,9 +515,9 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
               </select>
             </Panel>
 
-            <Panel title="资料概览">
+            <Panel title="设定资料概览">
               <div className="grid grid-cols-2 gap-2">
-                <MiniStat label="资料" value={references.length} />
+                <MiniStat label="设定资料" value={references.length} />
                 <MiniStat label="状态" value={states.length} />
                 <MiniStat label="使用" value={usages.length} />
                 <MiniStat label="关系" value={relationships.length} />
@@ -528,7 +528,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
           <main className="min-w-0 rounded-lg border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div>
-                <h2 className="text-sm font-semibold text-foreground">{tab === 'usage' ? '对象使用资料' : '资料之间关系'}</h2>
+                <h2 className="text-sm font-semibold text-foreground">{tab === 'usage' ? '对象引用设定资料' : '设定资料之间关系'}</h2>
                 <p className="text-xs text-muted-foreground">{tab === 'usage' ? '描述某个结构对象引用了哪个设定资料和状态' : '描述人物、地点、道具、风格之间的语义关系'}</p>
               </div>
               <Badge variant="outline">{tab === 'usage' ? filteredUsages.length : filteredRelationships.length} 条</Badge>
@@ -631,7 +631,7 @@ function UsageForm({ draft, setDraft, references, states }: {
       <Field label="设定资料">
         <ReferenceSelect value={draft.creative_reference_id} onChange={(value) => setDraft({ ...draft, creative_reference_id: value, creative_reference_state_id: '' })} references={references} />
       </Field>
-      <Field label="资料状态">
+      <Field label="设定资料状态">
         <select value={draft.creative_reference_state_id} onChange={(event) => setDraft({ ...draft, creative_reference_state_id: event.target.value })} className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm">
           <option value="">不指定状态</option>
           {availableStates.map((state) => (
@@ -665,10 +665,10 @@ function RelationshipForm({ draft, setDraft, references }: {
 }) {
   return (
     <div className="space-y-4">
-      <Field label="来源资料">
+      <Field label="来源设定资料">
         <ReferenceSelect value={draft.source_creative_reference_id} onChange={(value) => setDraft({ ...draft, source_creative_reference_id: value })} references={references} />
       </Field>
-      <Field label="目标资料">
+      <Field label="目标设定资料">
         <ReferenceSelect value={draft.target_creative_reference_id} onChange={(value) => setDraft({ ...draft, target_creative_reference_id: value })} references={references} />
       </Field>
       <div className="grid grid-cols-2 gap-3">
@@ -823,7 +823,7 @@ function RelationGraphOverview({
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold text-foreground">引用关系图形全览</h2>
-            <p className="text-xs text-muted-foreground">资料节点、结构对象和关系边的全局分布。</p>
+            <p className="text-xs text-muted-foreground">设定资料节点、结构对象和关系边的全局分布。</p>
           </div>
           <div className="flex items-center gap-2">
             {isDemo && <Badge variant="outline">Demo</Badge>}
@@ -836,7 +836,7 @@ function RelationGraphOverview({
             <div className="flex h-full flex-col items-center justify-center text-center">
               <Network size={28} className="text-muted-foreground" />
               <p className="mt-3 text-sm font-medium text-foreground">暂无可视化关系</p>
-              <p className="mt-1 text-xs text-muted-foreground">先在关系工作台创建使用关系或资料关系。</p>
+              <p className="mt-1 text-xs text-muted-foreground">先在关系工作台创建使用关系或设定资料关系。</p>
             </div>
           ) : (
             <ReactFlowProvider>
@@ -884,26 +884,26 @@ function RelationGraphOverview({
           )}
           <Button type="button" className="w-full gap-2" onClick={() => onOpenWorkspace('usage')}>
             <Link2 size={15} />
-            编辑对象使用资料
+            编辑对象引用设定资料
           </Button>
           <Button type="button" variant="outline" className="w-full gap-2" onClick={() => onOpenWorkspace('relationship')}>
             <GitBranch size={15} />
-            编辑资料之间关系
+            编辑设定资料之间关系
           </Button>
         </Panel>
 
         <Panel title="图例">
-          <LegendItem tone="bg-sky-500" label="设定资料节点" detail="人物、地点、道具、风格等资料" />
-          <LegendItem tone="bg-zinc-500" label="结构对象节点" detail="剧本段落、情景、制作项、关键帧" />
+          <LegendItem tone="bg-sky-500" label="设定资料节点" detail="人物、地点、道具、风格等设定资料" />
+          <LegendItem tone="bg-zinc-500" label="结构对象节点" detail="编排段、情景、制作项、关键帧" />
           <LegendItem tone="bg-blue-500" label="主角/连续性" detail="protagonist 或 continuity" />
           <LegendItem tone="bg-orange-500" label="地点使用" detail="location" />
           <LegendItem tone="bg-violet-500" label="道具/依赖" detail="prop 或 dependency" />
           <LegendItem tone="bg-rose-500" label="风格/冲突" detail="style、style_rule 或 conflict" />
         </Panel>
 
-        <Panel title="高连接资料">
+        <Panel title="高连接设定资料">
           {denseReferences.length === 0 ? (
-            <p className="text-xs text-muted-foreground">暂无已连接资料。</p>
+            <p className="text-xs text-muted-foreground">暂无已连接设定资料。</p>
           ) : (
             <div className="space-y-2">
               {denseReferences.map(({ reference, total, usageCount, relationshipCount }) => (
@@ -1341,7 +1341,7 @@ function RelationReferenceCardNode({ data }: NodeProps<Node<RelationNodeData>>) 
 function creativeReferenceToCardData(reference: CreativeReference, usage: number): CreativeReferenceCardData {
   const kind = normalizeCreativeReferenceKind(reference.kind)
   const title = reference.name || `#${reference.ID}`
-  const summary = String(reference.description ?? reference.content ?? reference.profile_json ?? '暂无资料摘要')
+  const summary = String(reference.description ?? reference.content ?? reference.profile_json ?? '暂无设定资料摘要')
 
   return {
     id: reference.ID,
@@ -1404,7 +1404,7 @@ function splitOwnerKey(key: string) {
 }
 
 function referenceName(reference?: CreativeReference) {
-  if (!reference) return '未选择资料'
+  if (!reference) return '未选择设定资料'
   return `${reference.name} #${reference.ID}`
 }
 

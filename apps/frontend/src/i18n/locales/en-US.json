@@ -63,7 +63,7 @@
     "dependencyExists": "Dependency already exists",
     "directorOrOwnerRequired": "Director or owner permission is required",
     "encryptConfigFailed": "Failed to encrypt configuration: {{detail}}",
-    "episodeNotFound": "Episode not found",
+    "episodeNotFound": "Production not found",
     "failedReadFile": "Failed to read file",
     "failedRetrieveFile": "Failed to retrieve file",
     "failedStoreFile": "Failed to store file",
@@ -99,7 +99,7 @@
     "providerCancellationFailed": "Provider cancellation failed: {{detail}}",
     "runNotFound": "Run not found",
     "runningJobRetry": "Running jobs cannot be retried until they fail or time out",
-    "sceneAlreadyLinked": "This scene is already linked to the episode",
+    "sceneAlreadyLinked": "This scene is already linked to the production",
     "sceneNotFound": "Scene not found",
     "scriptContentEmpty": "Script content cannot be empty",
     "scriptNotFound": "Script not found",
@@ -215,7 +215,7 @@
     "scriptTypes": {
       "main": "Main Script",
       "mainAlt": "Main Script",
-      "episode": "Episode Script",
+      "episode": "Production Script",
       "scene": "Scene Script"
     },
     "shotStatus": {
@@ -250,13 +250,13 @@
   },
   "entities": {
     "scripts": "Scripts",
-    "segments": "Segments",
+    "segments": "Orchestration Segments",
     "assetSlots": "Asset Slots",
     "storyboardLines": "Storyboard Lines",
     "contentUnits": "Content Units",
     "keyframes": "Keyframes",
     "assets": "Assets",
-    "episodes": "Episodes",
+    "episodes": "Productions",
     "scenes": "Scenes",
     "storyboards": "Storyboards",
     "shots": "Shots",
@@ -287,7 +287,7 @@
     "assetVariantType": "View type",
     "customVariantType": "Custom view type",
     "variantName": "View name",
-    "episodeTitle": "Episode title",
+    "episodeTitle": "Production title",
     "sceneTitle": "Scene title",
     "storyboardTitle": "Storyboard title",
     "storyboardDescription": "Storyboard description",
@@ -295,14 +295,14 @@
     "locationOptional": "Location (optional)",
     "shootingLocation": "Shooting location",
     "linkedScriptOptional": "Linked script (optional)",
-    "linkedEpisodeScript": "Linked episode script",
-    "noLinkedEpisodeScript": "No linked episode script",
+    "linkedEpisodeScript": "Linked production script",
+    "noLinkedEpisodeScript": "No linked production script",
     "noScriptDirect": "None (produce directly)",
     "parentSceneOptional": "Parent scene (optional)",
-    "parentEpisodeOptional": "Parent episode (optional)",
-    "parentEpisodeRequired": "Parent episode *",
-    "selectEpisodeFirst": "Select an episode",
-    "createEpisodeBeforeEpisodeScript": "Create an episode entity before creating its episode script.",
+    "parentEpisodeOptional": "Parent production (optional)",
+    "parentEpisodeRequired": "Parent production *",
+    "selectEpisodeFirst": "Select a production",
+    "createEpisodeBeforeEpisodeScript": "Create a production entity before creating its production script.",
     "parentStoryboardOptional": "Parent storyboard (optional)",
     "parentShotOptional": "Parent shot (optional)",
     "unlinked": "Not linked",
@@ -365,9 +365,9 @@
     "coreSettings": "Core Settings",
     "background": "Background",
     "scenes": "Scenes",
-    "episodeSpecific": "Episode Specific",
+    "episodeSpecific": "Production Specific",
     "sceneSpecific": "Scene Specific",
-    "episodeOrder": "Episode Order",
+    "episodeOrder": "Production Order",
     "hook": "Hook",
     "plotSummary": "Plot Outline",
     "scriptSummaryPlaceholder": "Outline the core script content...",
@@ -398,11 +398,11 @@
     "coreSettingsPlaceholder": "One core rule, relationship, or constraint per item...",
     "backgroundPlaceholder": "Describe the period in one short sentence...",
     "scenesPlaceholder": "One detailed scene per item: space, time, mood, visible elements, and blocking...",
-    "episodeHookPlaceholder": "Core hook or highlight of this episode...",
-    "plotSummaryPlaceholder": "Briefly describe this episode's plot direction...",
+    "episodeHookPlaceholder": "Core hook or highlight of this production...",
+    "plotSummaryPlaceholder": "Briefly describe this production's plot direction...",
     "sceneHookPlaceholder": "Core purpose or content of this scene...",
     "scriptBodyPlaceholder": "Enter the script body here...",
-    "episodeBodyWorkspace": "Episode Body Workspace",
+    "episodeBodyWorkspace": "Production Body Workspace",
     "structureSidebar": "Structure Sidebar",
     "generatePoints": "Generate Points",
     "beatPositions": "Beat Positions",
@@ -420,7 +420,7 @@
       "release": "Release",
       "none": "Unmarked"
     },
-    "episodeNumber": "Episode Number",
+    "episodeNumber": "Production Number",
     "episodeSynopsis": "Synopsis",
     "productionStatus": "Production Status",
     "linkedScenes": "Linked Scenes",
@@ -461,7 +461,7 @@
       },
       "metrics": {
         "scripts": "Scripts",
-        "episodes": "Episodes",
+        "episodes": "Productions",
         "assets": "Assets",
         "storyboards": "Storyboards",
         "approvedShots": "Approved Shots",
@@ -794,10 +794,10 @@
       "descriptionPlaceholder": "Briefly describe this project",
       "createProject": "Create Project",
       "empty": "No projects yet",
-      "emptyHint": "Create your first short drama project to start managing scripts, episodes, and assets.",
+      "emptyHint": "Create your first short drama project to start managing scripts, productions, and assets.",
       "createFirst": "Create the first project",
       "templateSteps": {
-        "episodeScript": "Episode Script",
+        "episodeScript": "Production Script",
         "sceneScript": "Scene Script"
       }
     },
@@ -841,10 +841,10 @@
       "createTitle": "New Script"
     },
     "episodes": {
-      "all": "All Episodes",
-      "empty": "No episodes",
+      "all": "All Productions",
+      "empty": "No productions",
       "createOne": "Create one",
-      "createTitle": "New Episode"
+      "createTitle": "New Production"
     },
     "scenes": {
       "list": "Scene List",
@@ -854,9 +854,9 @@
     },
     "storyboards": {
       "byScene": "By Scene",
-      "byEpisode": "By Episode",
+      "byEpisode": "By Production",
       "allScenes": "All Scenes",
-      "allEpisodes": "All Episodes",
+      "allEpisodes": "All Productions",
       "approved": "Approved",
       "empty": "No storyboards",
       "createOne": "Create one",
@@ -864,9 +864,9 @@
     },
     "shots": {
       "byScene": "By Scene",
-      "byEpisode": "By Episode",
+      "byEpisode": "By Production",
       "allScenes": "All Scenes",
-      "allEpisodes": "All Episodes",
+      "allEpisodes": "All Productions",
       "playAll": "Play All",
       "play": "Play",
       "empty": "No shots",
@@ -884,7 +884,7 @@
       "defaultTitle": "Final Video",
       "titlePlaceholder": "Final video title",
       "projectLevel": "Project-level final video",
-      "boundEpisode": "Episode #{{id}}",
+      "boundEpisode": "Production #{{id}}",
       "boundScene": "Scene #{{id}}",
       "boundShot": "Shot #{{id}}",
       "mediaResource": "Media resource",
@@ -893,7 +893,7 @@
       "noMedia": "No media resource",
       "filters": {
         "all": "All",
-        "episode": "Episode",
+        "episode": "Production",
         "scene": "Scene",
         "storyboard": "Storyboard",
         "shot": "Shot"
@@ -1041,6 +1041,7 @@
       "errorMessage": "Error: {{message}}",
       "inputHint": "Enter to send · Shift+Enter for newline · Type @ to pick resources",
       "inputPlaceholder": "Enter message... (Enter to send, type @ to pick resources)",
+      "dropFilesHere": "Drop to upload to the resource library",
       "manageAgent": "Manage Agent",
       "manageMyAgents": "Manage My Agents ->",
       "messagesCount": "{{count}} messages",
@@ -1128,27 +1129,9 @@
   },
   "user": {
     "title": "User Settings",
-    "subtitle": "Account information and Credits usage",
+    "subtitle": "Account information",
     "tabs": {
-      "profile": "Profile",
-      "usage": "Usage"
-    },
-    "usage": {
-      "balance": "Available Balance",
-      "monthCost": "This Month",
-      "monthTokens": "Monthly Tokens",
-      "details": "Usage Details",
-      "time": "Time",
-      "model": "Model",
-      "type": "Type",
-      "empty": "No usage records",
-      "prevPage": "Previous",
-      "nextPage": "Next",
-      "operations": {
-        "text": "Text",
-        "image": "Image",
-        "video": "Video"
-      }
+      "profile": "Profile"
     }
   },
   "work": {
@@ -1216,10 +1199,10 @@
       "style_transfer": "Style Transfer",
       "motion_imitation": "Motion Imitation",
       "video_edit": "Video Edit",
-	      "input": "Input",
-	      "output": "Output",
-	      "resource_sink": "Save Resource",
-	      "approval": "Manual Approval",
+      "input": "Input",
+      "output": "Output",
+      "resource_sink": "Save Resource",
+      "approval": "Manual Approval",
       "text_gen": "AI Text Generation",
       "ai_gen": "AI Generation",
       "group": "Group",
@@ -1232,7 +1215,7 @@
       "assetSlot": "Asset Slot",
       "contentUnit": "Content Unit",
       "asset": "Asset",
-      "episode": "Episode",
+      "episode": "Production",
       "scene": "Scene",
       "storyboard": "Storyboard",
       "shot": "Shot",
@@ -1266,14 +1249,14 @@
           "label": "User Input",
           "description": "Collect text input when running a workflow."
         },
-	    "output": {
-	      "label": "Workflow Output",
-	      "description": "Expose an upstream value as a typed output of this workflow."
-	    },
-	    "resource_sink": {
-	      "label": "Save Resource",
-	      "description": "Persist an upstream value to the resource library."
-	    },
+        "output": {
+          "label": "Workflow Output",
+          "description": "Expose an upstream value as a typed output of this workflow."
+        },
+        "resource_sink": {
+          "label": "Save Resource",
+          "description": "Persist an upstream value to the resource library."
+        },
         "entity_card": {
           "label": "Entity",
           "description": "Reference a project entity and use its fields as workflow inputs or outputs."
@@ -1431,10 +1414,10 @@
     "waitingStart": "Waiting to start...",
     "generating": "Generating...",
     "generationFailed": "Generation failed",
-	    "fillAtRuntime": "Filled at runtime",
-	    "generated": "Generated",
-	    "resourceSaved": "Saved to library",
-	    "waitingUpstream": "Waiting for upstream result",
+    "fillAtRuntime": "Filled at runtime",
+    "generated": "Generated",
+    "resourceSaved": "Saved to library",
+    "waitingUpstream": "Waiting for upstream result",
     "referenceWorkflow": {
       "selectWorkflow": "Select a referenced workflow to show its interface",
       "interfaceSummary": "{{inputs}} inputs · {{outputs}} outputs",
@@ -1462,9 +1445,9 @@
       "inputContent": "Input Content",
       "inputDefaultPlaceholder": "Workflow runs will prompt for this, or you can set a default here...",
       "inputHint": "This node is the workflow entry. The run dialog will ask for this content.",
-	      "outputHint": "This node only defines a workflow output for callers. Use a Save Resource node when the value should be written to the resource library.",
-	      "resourceSinkHint": "This node writes the upstream value to the resource library. Resource inputs are reused; text, JSON, number, and boolean values are saved as files.",
-	      "currentOutput": "Current Output",
+      "outputHint": "This node only defines a workflow output for callers. Use a Save Resource node when the value should be written to the resource library.",
+      "resourceSinkHint": "This node writes the upstream value to the resource library. Resource inputs are reused; text, JSON, number, and boolean values are saved as files.",
+      "currentOutput": "Current Output",
       "approvalHint": "The workflow pauses at this node and waits for manual approval before continuing.",
       "currentStatus": "Current Status",
       "generateText": "Generate Text",
@@ -1491,9 +1474,9 @@
       "randomFileName": "Random file name",
       "paramName": "Parameter Name",
       "paramNamePlaceholder": "Example: prompt",
-	      "paramType": "Parameter Type",
-	      "saveResource": "Save Resource"
-	    },
+      "paramType": "Parameter Type",
+      "saveResource": "Save Resource"
+    },
     "generatedByCanvas": "Generated by canvas",
     "namePlaceholder": "Canvas name",
     "runningCount": "{{count}} running",
@@ -1761,7 +1744,7 @@
       "base_url": "Base URL",
       "secret_key": "Secret Key"
     },
-    "billing": {
+    "pricingMode": {
       "perToken": "Per token",
       "perImage": "Per image",
       "perSecond": "Per second",
@@ -1774,7 +1757,7 @@
       "inputCreditsPer1m": "Input credits / 1M tokens",
       "outputCreditsPer1m": "Output credits / 1M tokens",
       "creditsPerImage": "credits/image",
-      "creditsPerSecond": "credits/second (video duration billing)",
+      "creditsPerSecond": "credits/second (video duration pricing)",
       "creditsPerCall": "credits/call"
     },
     "capabilities": {
@@ -1866,15 +1849,15 @@
       "viewProviders": "Provider Config",
       "viewGateway": "Gateway Strategy",
       "providersHint": "Manage provider credentials, model capabilities, and pricing here. Models with the same priority are distributed in round-robin order.",
-      "gatewayHint": "This view covers commercial gateway policy. Multiple keys at the same priority are rotated across available candidates.",
+      "gatewayHint": "This view covers gateway routing policy. Multiple keys at the same priority are rotated across available candidates.",
       "gatewayRuleTitle": "Rotation rule",
       "gatewayRuleBody": "Models at the same priority are no longer picked randomly. They are distributed in round-robin order so multiple keys can share traffic more evenly.",
       "gatewayPriorityTitle": "Priority still applies",
       "gatewayPriorityBody": "Higher-priority models are still preferred. Only candidates at the same priority enter the rotation pool.",
-      "gatewayBudgetTitle": "Budget and limits",
-      "gatewayBudgetBody": "Each gateway key still respects its own budget and per-minute limits. Rotation only affects same-priority candidate selection.",
-      "gatewayKeyTitle": "Commercial gateway key",
-      "gatewayKeyBody": "This view keeps provider setup. Gateway key creation, enablement, and limits are managed in the commercial gateway area.",
+      "gatewayScopeTitle": "Key scope",
+      "gatewayScopeBody": "Gateway keys can be constrained by project, model, and scope. Rotation only affects same-priority candidate selection.",
+      "gatewayKeyTitle": "Gateway key",
+      "gatewayKeyBody": "This view keeps provider setup. Gateway key creation, enablement, and limits are managed in the gateway area.",
       "gatewayOpenDebug": "Open debug page",
       "collapsePresets": "Collapse presets",
       "pickPreset": "Choose preset",
@@ -1886,7 +1869,7 @@
       "shortName": "Short Name",
       "shortNamePlaceholder": "Optional. Used in model selectors.",
       "capabilitiesLabel": "Capabilities (required, multiple allowed)",
-      "billingMode": "Billing Mode",
+      "pricingMode": "Pricing Mode",
       "acceptsImageInput": "Accepts image input",
       "maxImages": "Max images",
       "maxVideos": "Max videos",
@@ -2230,6 +2213,7 @@
     "titles": {
       "projects": "Projects",
       "projectHome": "Home",
+      "projectWorkspace": "Project Orchestration",
       "projectPlan": "Prep Overview",
       "creation": "Home",
       "workbench": "Script Split Workbench",
@@ -2246,10 +2230,10 @@
       "scripts": "Script Management",
       "assetSlots": "Asset Slots",
       "assets": "Assets",
-      "segments": "Segments",
+      "segments": "Orchestration Segments",
       "sceneMoments": "Plot Beats",
       "contentUnits": "Content Units",
-      "episodes": "Episode Management",
+      "episodes": "Production Management",
       "creativeReferences": "Reference Library",
       "referenceRelations": "Relation Overview",
       "production": "Content Production",
@@ -2299,7 +2283,7 @@
       "scripts": "Script Library",
       "assetSlots": "Asset Slots",
       "assets": "Assets",
-      "episodes": "Episodes",
+      "episodes": "Productions",
       "scenes": "Scenes",
       "storyboards": "Storyboards",
       "shots": "Shots",
@@ -2321,12 +2305,13 @@
       "creation": "Triage Desk",
       "collaboration": "Collaboration",
       "projectHome": "Home",
+      "projectWorkspace": "Project Orchestration",
       "creativeWorkbench": "Creative Workbench",
       "projectProduction": "Production Overview",
       "productionOrchestrate": "Orchestration",
       "contentAreaProduction": "Production Orchestration",
       "script": "Script",
-      "segments": "Segments",
+      "segments": "Orchestration Segments",
       "sceneMoments": "Plot Beats",
       "references": "Creative References",
       "relations": "Reference Relations",
@@ -2370,7 +2355,7 @@
     },
     "progress": {
       "scripts": "Scripts",
-      "episodes": "Episodes",
+      "episodes": "Productions",
       "scenes": "Scenes",
       "storyboards": "Storyboards",
       "finalShots": "Final Shots"

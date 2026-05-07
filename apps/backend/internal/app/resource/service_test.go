@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -19,8 +19,23 @@ func TestMimeToTypeUsesMimeThenExtension(t *testing.T) {
 	if got := MimeToType("", "clip.webm"); got != "video" {
 		t.Fatalf("type = %q, want video", got)
 	}
+	if got := MimeToType("", "iphone.heic"); got != "image" {
+		t.Fatalf("type = %q, want image", got)
+	}
 	if got := MimeToType("", "archive.zip"); got != "file" {
 		t.Fatalf("type = %q, want file", got)
+	}
+}
+
+func TestNormalizeUploadMimeTypeDetectsHEICExtension(t *testing.T) {
+	if got := normalizeUploadMimeType("", "iphone.HEIC"); got != "image/heic" {
+		t.Fatalf("mime = %q, want image/heic", got)
+	}
+	if got := normalizeUploadMimeType("application/octet-stream", "scan.heif"); got != "image/heif" {
+		t.Fatalf("mime = %q, want image/heif", got)
+	}
+	if got := normalizeUploadMimeType("image/heic", "asset.bin"); got != "image/heic" {
+		t.Fatalf("mime = %q, want image/heic", got)
 	}
 }
 

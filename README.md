@@ -1,12 +1,12 @@
 # Movscript
 
-Movscript is an open-source desktop production workspace for short drama and AI-assisted video creation. It combines story planning, production assets, episode and scene breakdowns, storyboards, shots, canvas workflows, generation jobs, model administration, plugins, and a local agent in one local-first application.
+Movscript is an open-source desktop production workspace for short drama and AI-assisted video creation. It combines story planning, production assets, production and scene breakdowns, storyboards, shots, canvas workflows, generation jobs, model administration, plugins, and a local agent in one local-first application.
 
 > The project is still early. APIs, plugin manifests, and agent contracts may change before a stable release.
 
 ## What You Can Build With It
 
-- Organize short-drama projects with scripts, assets, episodes, scenes, storyboards, and shots.
+- Organize short-drama projects with scripts, assets, productions, scenes, storyboards, and shots.
 - Attach media resources to project entities and store files through MinIO/S3-compatible object storage.
 - Configure AI credentials, model capabilities, feature routing, credit pricing, and debug calls from the admin UI.
 - Run text, image, image-edit, video, image-to-video, and video-to-video generation jobs asynchronously.

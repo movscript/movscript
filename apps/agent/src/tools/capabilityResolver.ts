@@ -103,10 +103,12 @@ export function resolveToolCatalog(options: {
     const registeredTool = registry.get(name)
     const grant = findManifestToolGrant(options.manifest, name)
     const approval = grant?.approval ?? defaultApproval(registeredTool)
+    const explicitGrant = findManifestToolGrant(options.manifest, name)
     const unavailableReason = getUnavailableReason({
       name,
       mcpTool,
       registeredTool,
+      explicitGrant: !!explicitGrant && explicitGrant.mode !== 'deny',
       manifest: options.manifest,
       currentProjectId: options.currentProjectId,
       mcpConnected: options.mcpConnected ?? true,
@@ -116,7 +118,7 @@ export function resolveToolCatalog(options: {
     const tool: AgentDebugTool = {
       name,
       ...(registeredTool?.description || mcpTool?.description ? { description: registeredTool?.description ?? mcpTool?.description } : {}),
-      ...(mcpTool?.inputSchema !== undefined ? { inputSchema: mcpTool.inputSchema } : {}),
+      ...(registeredTool?.inputSchema !== undefined || mcpTool?.inputSchema !== undefined ? { inputSchema: registeredTool?.inputSchema ?? mcpTool?.inputSchema } : {}),
       source: mcpTool ? 'mcp' : registeredTool?.source === 'plugin' ? 'plugin' : 'runtime',
       ...(registeredTool?.category ? { category: registeredTool.category } : {}),
       ...(registeredTool?.categories ? { categories: registeredTool.categories } : {}),
@@ -143,6 +145,7 @@ function getUnavailableReason(options: {
   name: string
   mcpTool?: MCPTool
   registeredTool?: RegisteredTool
+  explicitGrant: boolean
   manifest: AgentManifest
   currentProjectId?: number
   mcpConnected: boolean
@@ -151,7 +154,7 @@ function getUnavailableReason(options: {
 }): ToolUnavailableReason | undefined {
   if (!options.registeredTool) return 'unregistered'
   if (!options.mcpTool && options.registeredTool.source !== 'runtime') return 'mcp_unavailable'
-  if (!toolIsActive(options.registeredTool, options.activeSkills, options.userMessage)) return 'inactive'
+  if (!options.explicitGrant && !toolIsActive(options.registeredTool, options.activeSkills, options.userMessage)) return 'inactive'
   const grant = findManifestToolGrant(options.manifest, options.name)
   if (grant?.mode === 'deny') return 'denied'
   if (!grant) return 'not_granted'

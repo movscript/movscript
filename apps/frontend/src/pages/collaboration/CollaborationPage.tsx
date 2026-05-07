@@ -160,7 +160,7 @@ const seededTasks: ProjectTask[] = []
 const targetTypeLabels: Record<WorkTargetType, string> = {
   project: '项目',
   production: '制作',
-  segment: '剧本段落',
+  segment: '编排段',
   scene_moment: '情景',
   content_unit: '制作项',
   asset_slot: '素材需求',
@@ -985,7 +985,7 @@ export default function CollaborationPage() {
     return [
       { key: `project:${projectId}`, type: 'project', id: projectId, label: `项目 · ${project?.name ?? '当前项目'}` },
       ...productions.map((record) => targetOption('production', record, '制作')),
-      ...segments.map((record) => targetOption('segment', record, '剧本段落')),
+      ...segments.map((record) => targetOption('segment', record, '编排段')),
       ...contentUnits.map((record) => targetOption('content_unit', record, '制作项')),
       ...assetSlots.map((record) => targetOption('asset_slot', record, '素材需求')),
       ...keyframes.map((record) => targetOption('keyframe', record, '关键帧')),

@@ -1,8 +1,8 @@
 package feature
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func FeatureConfigFromModel(config model.FeatureConfig) FeatureConfig {
+func FeatureConfigFromModel(config persistencemodel.FeatureConfig) FeatureConfig {
 	return FeatureConfig{
 		ID:                   config.ID,
 		FeatureKey:           config.FeatureKey,
@@ -21,13 +21,13 @@ func FeatureConfigFromModel(config model.FeatureConfig) FeatureConfig {
 	}
 }
 
-func (config FeatureConfig) ToModel() model.FeatureConfig {
-	var target model.FeatureConfig
+func (config FeatureConfig) ToModel() persistencemodel.FeatureConfig {
+	var target persistencemodel.FeatureConfig
 	config.ApplyToModel(&target)
 	return target
 }
 
-func (config FeatureConfig) ApplyToModel(target *model.FeatureConfig) {
+func (config FeatureConfig) ApplyToModel(target *persistencemodel.FeatureConfig) {
 	target.Model.ID = config.ID
 	target.Model.CreatedAt = config.CreatedAt
 	target.Model.UpdatedAt = config.UpdatedAt

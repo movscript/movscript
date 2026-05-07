@@ -60,7 +60,6 @@ func New(deps Dependencies) *gin.Engine {
 			// admin routes — super_admin only
 			admin := protected.Group("/admin", middleware.RequireSystemRole("super_admin"))
 			registerAdminRoutes(admin, h)
-			registerPaymentAdminRoutes(admin, h)
 			registerEditionAdminRoutes(admin, h)
 		}
 	}

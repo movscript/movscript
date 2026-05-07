@@ -3,11 +3,10 @@ package ai
 import (
 	"context"
 	"errors"
-	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"time"
 )
 
 const (
@@ -16,13 +15,13 @@ const (
 	ReservationStatusReleased = "released"
 )
 
-var ErrInsufficientQuota = errors.New("insufficient quota")
+var ErrUsageLimitExceeded = errors.New("usage limit exceeded")
 
 func lockingUpdate() clause.Locking {
 	return clause.Locking{Strength: "UPDATE"}
 }
 
-type BillingContext struct {
+type UsageContext struct {
 	OrgID           *uint
 	ProjectID       *uint
 	GatewayAPIKeyID *uint
@@ -80,18 +79,18 @@ func (s *AIService) EstimateVideoCost(modelConfigID uint, req VideoRequest) (Usa
 	return estimateUsageCost(cfg, def, "video", 0, 0, duration, 1), nil
 }
 
-func (s *AIService) ReserveQuota(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, billing BillingContext) (*model.UsageReservation, error) {
+func (s *AIService) ReserveUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, usage UsageContext) (*persistencemodel.UsageReservation, error) {
 	if estimate.ImageCount <= 0 {
 		estimate.ImageCount = 1
 	}
 	if estimate.Cost <= 0 {
-		reservation := model.UsageReservation{
+		reservation := persistencemodel.UsageReservation{
 			UserID:          userID,
-			OrgID:           billing.OrgID,
+			OrgID:           usage.OrgID,
 			AIModelConfigID: modelConfigID,
-			GatewayAPIKeyID: billing.GatewayAPIKeyID,
-			ProjectID:       billing.ProjectID,
-			JobID:           billing.JobID,
+			GatewayAPIKeyID: usage.GatewayAPIKeyID,
+			ProjectID:       usage.ProjectID,
+			JobID:           usage.JobID,
 			OperationType:   estimate.OperationType,
 			EstimatedCost:   0,
 			Status:          ReservationStatusReserved,
@@ -102,18 +101,18 @@ func (s *AIService) ReserveQuota(ctx context.Context, userID, modelConfigID uint
 		return &reservation, nil
 	}
 
-	var reservation model.UsageReservation
+	var reservation persistencemodel.UsageReservation
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.reserveSpend(tx, userID, billing.OrgID, estimate.Cost, "estimated cost"); err != nil {
+		if err := s.reserveUsageLimit(tx, userID, usage.OrgID, estimate.Cost, "estimated cost"); err != nil {
 			return err
 		}
-		reservation = model.UsageReservation{
+		reservation = persistencemodel.UsageReservation{
 			UserID:          userID,
-			OrgID:           billing.OrgID,
+			OrgID:           usage.OrgID,
 			AIModelConfigID: modelConfigID,
-			GatewayAPIKeyID: billing.GatewayAPIKeyID,
-			ProjectID:       billing.ProjectID,
-			JobID:           billing.JobID,
+			GatewayAPIKeyID: usage.GatewayAPIKeyID,
+			ProjectID:       usage.ProjectID,
+			JobID:           usage.JobID,
 			OperationType:   estimate.OperationType,
 			EstimatedCost:   estimate.Cost,
 			Status:          ReservationStatusReserved,
@@ -127,7 +126,7 @@ func (s *AIService) ReserveQuota(ctx context.Context, userID, modelConfigID uint
 }
 
 func (s *AIService) SetReservationJob(ctx context.Context, reservationID, jobID uint) error {
-	return s.db.WithContext(ctx).Model(&model.UsageReservation{}).
+	return s.db.WithContext(ctx).Model(&persistencemodel.UsageReservation{}).
 		Where("id = ? AND status = ?", reservationID, ReservationStatusReserved).
 		Update("job_id", jobID).Error
 }
@@ -137,7 +136,7 @@ func (s *AIService) ReleaseReservation(ctx context.Context, reservationID uint, 
 		return nil
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var reservation model.UsageReservation
+		var reservation persistencemodel.UsageReservation
 		if err := tx.Clauses(lockingUpdate()).First(&reservation, reservationID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
@@ -147,7 +146,7 @@ func (s *AIService) ReleaseReservation(ctx context.Context, reservationID uint, 
 		if reservation.Status != ReservationStatusReserved {
 			return nil
 		}
-		if err := s.releaseReservedSpend(tx, reservation); err != nil {
+		if err := s.releaseReservedUsageLimit(tx, reservation); err != nil {
 			return err
 		}
 		return tx.Model(&reservation).Updates(map[string]any{
@@ -158,17 +157,17 @@ func (s *AIService) ReleaseReservation(ctx context.Context, reservationID uint, 
 	})
 }
 
-func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, billing BillingContext) error {
+func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, usage UsageContext) error {
 	if estimate.ImageCount <= 0 {
 		estimate.ImageCount = 1
 	}
-	if billing.ReservationID == nil || *billing.ReservationID == 0 {
-		return s.logUsage(ctx, userID, modelConfigID, estimate, billing, nil)
+	if usage.ReservationID == nil || *usage.ReservationID == 0 {
+		return s.logUsage(ctx, userID, modelConfigID, estimate, usage, nil)
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var reservation model.UsageReservation
-		if err := tx.Clauses(lockingUpdate()).First(&reservation, *billing.ReservationID).Error; err != nil {
+		var reservation persistencemodel.UsageReservation
+		if err := tx.Clauses(lockingUpdate()).First(&reservation, *usage.ReservationID).Error; err != nil {
 			return err
 		}
 		if reservation.Status != ReservationStatusReserved {
@@ -176,21 +175,21 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 		}
 		diff := estimate.Cost - reservation.EstimatedCost
 		if diff > 0 {
-			if err := s.reserveSpend(tx, userID, firstUint(billing.OrgID, reservation.OrgID), diff, "additional actual cost"); err != nil {
+			if err := s.reserveUsageLimit(tx, userID, firstUint(usage.OrgID, reservation.OrgID), diff, "additional actual cost"); err != nil {
 				return err
 			}
 		} else if diff < 0 {
-			if err := s.refundSettledSpend(tx, userID, firstUint(billing.OrgID, reservation.OrgID), -diff); err != nil {
+			if err := s.refundUsageLimit(tx, userID, firstUint(usage.OrgID, reservation.OrgID), -diff); err != nil {
 				return err
 			}
 		}
-		entry := model.UsageLog{
+		entry := persistencemodel.UsageLog{
 			UserID:             userID,
-			OrgID:              firstUint(billing.OrgID, reservation.OrgID),
+			OrgID:              firstUint(usage.OrgID, reservation.OrgID),
 			AIModelConfigID:    modelConfigID,
-			UsageReservationID: billing.ReservationID,
-			GatewayAPIKeyID:    billing.GatewayAPIKeyID,
-			ProjectID:          billing.ProjectID,
+			UsageReservationID: usage.ReservationID,
+			GatewayAPIKeyID:    usage.GatewayAPIKeyID,
+			ProjectID:          usage.ProjectID,
 			OperationType:      estimate.OperationType,
 			InputTokens:        estimate.InputTokens,
 			OutputTokens:       estimate.OutputTokens,
@@ -210,14 +209,14 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 	})
 }
 
-func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, billing BillingContext, reservationID *uint) error {
-	entry := model.UsageLog{
+func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, estimate UsageEstimate, usage UsageContext, reservationID *uint) error {
+	entry := persistencemodel.UsageLog{
 		UserID:             userID,
-		OrgID:              billing.OrgID,
+		OrgID:              usage.OrgID,
 		AIModelConfigID:    modelConfigID,
 		UsageReservationID: reservationID,
-		GatewayAPIKeyID:    billing.GatewayAPIKeyID,
-		ProjectID:          billing.ProjectID,
+		GatewayAPIKeyID:    usage.GatewayAPIKeyID,
+		ProjectID:          usage.ProjectID,
 		OperationType:      estimate.OperationType,
 		InputTokens:        estimate.InputTokens,
 		OutputTokens:       estimate.OutputTokens,
@@ -227,7 +226,7 @@ func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, es
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if estimate.Cost > 0 {
-			if err := s.reserveSpend(tx, userID, billing.OrgID, estimate.Cost, "cost"); err != nil {
+			if err := s.reserveUsageLimit(tx, userID, usage.OrgID, estimate.Cost, "cost"); err != nil {
 				return err
 			}
 		}
@@ -235,7 +234,7 @@ func (s *AIService) logUsage(ctx context.Context, userID, modelConfigID uint, es
 	})
 }
 
-func estimateUsageCost(cfg model.AIModelConfig, def *ModelDef, opType string, inputTokens, outputTokens, durationSec, imageCount int) UsageEstimate {
+func estimateUsageCost(cfg persistencemodel.AIModelConfig, def *ModelDef, opType string, inputTokens, outputTokens, durationSec, imageCount int) UsageEstimate {
 	if imageCount <= 0 {
 		imageCount = 1
 	}

@@ -7,6 +7,7 @@ import {
   Image, Video, FileText, Mic, File, Workflow, ShieldCheck,
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
   Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
+  SlidersHorizontal, Wrench, PackagePlus,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getAPIBaseURL, getAPIV1BaseURL } from '@/lib/config'
@@ -14,26 +15,32 @@ import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSet
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import {
   formatLocalAgentAssistantContent,
   LocalAgentWorkflowPanel,
 } from '@/components/agent/localRuntime'
+import { extractAgentTaskArtifacts } from '@/lib/agentArtifacts'
 import {
   canStartLocalAgentFromClient,
   localAgentClient,
+  type AgentCapabilitiesResponse,
   type AgentHealth,
   type AgentClientInput,
+  type AgentDebugTool,
   type AgentDraft,
   type AgentDraftApplyPreview,
   type AgentDraftKind,
   type AgentDraftStatus,
+  type AgentInspectResponse,
   type AgentManifest,
   type AgentMemory,
   type AgentMemoryKind,
   type AgentMemoryScope,
   type AgentRun,
   type AgentRunPreview,
+  type AgentSkillManifest,
   type AgentThread as LocalAgentThread,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
@@ -176,6 +183,7 @@ function attachmentKind(mimeType: string, fallbackName = ''): AgentAttachment['t
   if (mimeType.startsWith('image/')) return 'image'
   if (mimeType.startsWith('video/')) return 'video'
   if (mimeType.startsWith('audio/')) return 'audio'
+  if (/\.(heic|heif)$/i.test(fallbackName)) return 'image'
   if (mimeType.startsWith('text/') || /\.(txt|md|json|csv|srt)$/i.test(fallbackName)) return 'text'
   return 'file'
 }
@@ -190,6 +198,14 @@ function attachmentFromResource(resource: RawResource): AgentAttachment {
     url: resourceUrl(resource),
     resourceId: resource.ID,
   }
+}
+
+function attachmentDisplayUrl(attachment: AgentAttachment) {
+  return attachment.previewUrl ?? attachment.url
+}
+
+function stripAttachmentPreviewUrl(attachment: AgentAttachment): AgentAttachment {
+  return { ...attachment, previewUrl: undefined }
 }
 
 function attachmentFromClientInputRef(attachment: NonNullable<AgentClientInput['attachments']>[number]): AgentAttachment {
@@ -215,7 +231,7 @@ function AttachmentIcon({ type, size = 12 }: { type: AgentAttachment['type']; si
 }
 
 function AttachmentPreview({ attachment, compact = false }: { attachment: AgentAttachment; compact?: boolean }) {
-  const url = attachment.url
+  const url = attachmentDisplayUrl(attachment)
   return (
     <div className={cn(
       'overflow-hidden rounded-md border border-border bg-background/70',
@@ -295,8 +311,13 @@ function resourceMentionAttachments(text: string, byId: Map<number, AgentAttachm
   return parseResourceMentionIds(text).map((resourceId) => byId.get(resourceId) ?? placeholderAttachment(resourceId))
 }
 
+const EMPTY_CONVERSATION_DRAFT: { input: string; attachments: AgentAttachment[] } = {
+  input: '',
+  attachments: [],
+}
+
 function InlineResourceMention({ attachment }: { attachment: AgentAttachment }) {
-  const url = attachment.url
+  const url = attachmentDisplayUrl(attachment)
   const media = attachment.type === 'image' && url ? (
     <AuthedImage src={url} alt={attachment.name} className="h-full w-full object-cover" />
   ) : attachment.type === 'video' && url ? (
@@ -326,7 +347,7 @@ function ComposerAttachmentChip({
   mentioned?: boolean
   onRemove: () => void
 }) {
-  const url = attachment.url
+  const url = attachmentDisplayUrl(attachment)
   const preview = attachment.type === 'image' && url ? (
     <AuthedImage src={url} alt={attachment.name} className="h-full w-full object-cover" />
   ) : attachment.type === 'video' && url ? (
@@ -358,6 +379,36 @@ function ComposerAttachmentChip({
         <X size={10} />
       </button>
     </div>
+  )
+}
+
+function MentionResourceOption({ attachment, onSelect }: { attachment: AgentAttachment; onSelect: () => void }) {
+  const url = attachmentDisplayUrl(attachment)
+  return (
+    <button
+      type="button"
+      onMouseDown={(e) => {
+        e.preventDefault()
+        onSelect()
+      }}
+      className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px] hover:bg-muted/60"
+    >
+      <span className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted">
+        {attachment.type === 'image' && url ? (
+          <AuthedImage src={url} alt={attachment.name} className="h-full w-full object-cover" />
+        ) : attachment.type === 'video' && url ? (
+          <AuthedVideo src={url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+            <AttachmentIcon type={attachment.type} size={10} />
+          </div>
+        )}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-foreground">{attachment.name}</span>
+      <span className="shrink-0 text-[9px] text-muted-foreground">
+        {attachment.resourceId ? `#${attachment.resourceId}` : ''}
+      </span>
+    </button>
   )
 }
 
@@ -632,6 +683,80 @@ function buildAgentClientInput(options: {
     hints: options.projectId ? { projectId: options.projectId } : undefined,
   })
   return input
+}
+
+type AgentToolGrant = AgentManifest['tools'][number]
+type AgentToolApprovalMode = NonNullable<AgentToolGrant['approval']>
+type ConversationContextTool = AgentDebugTool | AgentInspectResponse['registeredTools'][number]
+
+interface ConversationAgentContextConfig {
+  enabled: boolean
+  manifest: AgentManifest | null
+  skillIds: string[]
+  toolNames: string[]
+  approvalOverrides: Record<string, AgentToolApprovalMode>
+}
+
+const EMPTY_AGENT_CONTEXT_CONFIG: ConversationAgentContextConfig = {
+  enabled: false,
+  manifest: null,
+  skillIds: [],
+  toolNames: [],
+  approvalOverrides: {},
+}
+
+function createImportedAgentManifest(input: {
+  base: AgentManifest
+  skills: AgentSkillManifest[]
+  tools: ConversationContextTool[]
+  skillIds: string[]
+  toolNames: string[]
+  approvalOverrides?: Record<string, AgentToolApprovalMode>
+}): AgentManifest {
+  const skillIdSet = new Set(input.skillIds)
+  const toolNameSet = new Set(input.toolNames)
+  const selectedSkills = input.skills
+    .filter((skill) => skillIdSet.has(skill.id))
+    .map((skill, index) => ({
+      ...skill,
+      enabled: true,
+      priority: typeof skill.priority === 'number' ? skill.priority : index,
+    }))
+  const selectedTools = input.tools.filter((tool) => toolNameSet.has(tool.name))
+  const permissions = Array.from(new Set([
+    ...input.base.permissions,
+    ...selectedTools.map((tool) => ('permission' in tool ? tool.permission : undefined)).filter((permission): permission is string => !!permission),
+  ]))
+  const grants = selectedTools.map((tool) => {
+    const fallbackApproval = 'requiresApprovalByDefault' in tool && tool.requiresApprovalByDefault
+      ? 'always'
+      : 'on_write'
+    return {
+      name: tool.name,
+      mode: 'allow' as const,
+      approval: input.approvalOverrides?.[tool.name] ?? fallbackApproval,
+    }
+  })
+  const byName = new Map<string, AgentToolGrant>()
+  for (const grant of input.base.tools ?? []) byName.set(grant.name, grant)
+  for (const grant of grants) byName.set(grant.name, grant)
+
+  return {
+    ...input.base,
+    schema: 'movscript.agent.current',
+    id: `${input.base.id}.conversation-context`,
+    name: `${input.base.name} + Conversation Context`,
+    description: 'Conversation-level imported skills and tools from the current local runtime catalog.',
+    skills: selectedSkills,
+    permissions,
+    tools: Array.from(byName.values()),
+    metadata: {
+      ...(input.base.metadata ?? {}),
+      importedFrom: 'ai-agent-panel',
+      importedSkillIds: input.skillIds,
+      importedToolNames: input.toolNames,
+    },
+  }
 }
 
 function safeJSONStringify(value: unknown) {
@@ -1167,6 +1292,7 @@ function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' |
 }
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
+const AGENT_CATALOG_TOOL_NAMES = new Set(['movscript_enable_agent_bundle', 'movscript_reload_agent_catalog'])
 const CONTEXT_PANE_HEIGHT_KEY = 'ai-panel-context-pane-height'
 const CONTEXT_PANE_DEFAULT_HEIGHT = 220
 const CONTEXT_PANE_MIN_HEIGHT = 96
@@ -1174,6 +1300,12 @@ const CONTEXT_PANE_MAX_HEIGHT = 620
 
 function isStoppableAgentRun(run: AgentRun | null | undefined): run is AgentRun {
   return !!run && STOPPABLE_AGENT_RUN_STATUSES.has(run.status)
+}
+
+function runTouchesAgentCatalog(run: AgentRun | null | undefined): boolean {
+  if (!run) return false
+  return run.steps.some((step) => step.type === 'tool_call' && step.toolName && AGENT_CATALOG_TOOL_NAMES.has(step.toolName))
+    || (run.traceEvents ?? []).some((event) => event.toolName && AGENT_CATALOG_TOOL_NAMES.has(event.toolName))
 }
 
 function clampNumber(value: number, min: number, max: number) {
@@ -1749,6 +1881,245 @@ function MemoryPanel({
   )
 }
 
+function ConversationContextPanel({
+  online,
+  inspect,
+  capabilities,
+  loading,
+  config,
+  onChange,
+  onRefresh,
+}: {
+  online: boolean
+  inspect?: AgentInspectResponse
+  capabilities?: AgentCapabilitiesResponse
+  loading: boolean
+  config: ConversationAgentContextConfig
+  onChange: (next: ConversationAgentContextConfig) => void
+  onRefresh: () => void
+}) {
+  const skills = inspect?.skills ?? []
+  const tools = useMemo<ConversationContextTool[]>(() => capabilities?.resolvedTools.discovered ?? inspect?.registeredTools ?? [], [capabilities?.resolvedTools.discovered, inspect?.registeredTools])
+  const availableToolNames = useMemo(() => new Set(capabilities?.resolvedTools.available.map((tool) => tool.name) ?? []), [capabilities?.resolvedTools.available])
+  const selectedSkillIds = config.skillIds.length > 0
+    ? config.skillIds
+    : (config.manifest?.skills ?? []).map((skill) => skill.id)
+  const selectedToolNames = config.toolNames.length > 0
+    ? config.toolNames
+    : (config.manifest?.tools ?? []).filter((grant) => grant.mode !== 'deny').map((grant) => grant.name)
+  const selectedSkillSet = new Set(selectedSkillIds)
+  const selectedToolSet = new Set(selectedToolNames)
+  const selectedSkills = skills.filter((skill) => selectedSkillSet.has(skill.id))
+  const selectedTools = tools.filter((tool) => selectedToolSet.has(tool.name))
+
+  function updateSelection(patch: Partial<ConversationAgentContextConfig>) {
+    onChange({ ...config, ...patch })
+  }
+
+  function buildAndApply(skillIds: string[], toolNames: string[], enabled = true, approvalOverrides = config.approvalOverrides) {
+    if (!inspect?.defaultAgentManifest) return
+    const manifest = createImportedAgentManifest({
+      base: inspect.defaultAgentManifest,
+      skills,
+      tools,
+      skillIds,
+      toolNames,
+      approvalOverrides,
+    })
+    onChange({
+      enabled,
+      manifest,
+      skillIds,
+      toolNames,
+      approvalOverrides,
+    })
+  }
+
+  function importCurrentCatalog() {
+    const skillIds = skills.filter((skill) => skill.enabled !== false).map((skill) => skill.id)
+    const toolNames = tools.map((tool) => tool.name)
+    buildAndApply(skillIds, toolNames, true, {})
+  }
+
+  function toggleSkill(skillId: string, enabled: boolean) {
+    const next = enabled
+      ? Array.from(new Set([...selectedSkillIds, skillId]))
+      : selectedSkillIds.filter((id) => id !== skillId)
+    buildAndApply(next, selectedToolNames, config.enabled)
+  }
+
+  function toggleTool(toolName: string, enabled: boolean) {
+    const next = enabled
+      ? Array.from(new Set([...selectedToolNames, toolName]))
+      : selectedToolNames.filter((name) => name !== toolName)
+    buildAndApply(selectedSkillIds, next, config.enabled)
+  }
+
+  function setToolApproval(toolName: string, approval: AgentToolApprovalMode) {
+    const nextOverrides = { ...config.approvalOverrides, [toolName]: approval }
+    buildAndApply(selectedSkillIds, selectedToolNames, config.enabled, nextOverrides)
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-background/60 p-2 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-[10px] font-medium text-foreground">
+            <SlidersHorizontal size={11} />
+            Conversation Context
+            {config.enabled && <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">custom</Badge>}
+          </div>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+            查看当前 Runtime 加载的 skills/tools，并把选中的能力导入当前对话。
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          onClick={onRefresh}
+          disabled={loading}
+          className="h-5 px-1 text-[10px] text-muted-foreground"
+        >
+          <RefreshCw size={10} className={loading ? 'animate-spin' : ''} />
+          Refresh
+        </Button>
+      </div>
+
+      {!online ? (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">Start the local runtime to inspect loaded skills and tools.</p>
+      ) : !inspect ? (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{loading ? 'Loading runtime catalog...' : 'Runtime catalog is not loaded yet.'}</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-1.5">
+            <DebugSummaryItem label="Skills" value={String(skills.length)} />
+            <DebugSummaryItem label="Tools" value={String(tools.length)} />
+            <DebugSummaryItem label="Selected" value={`${selectedSkillIds.length}/${selectedToolNames.length}`} />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button type="button" size="xs" variant="secondary" onClick={importCurrentCatalog} className="h-7 px-2 text-[10px]">
+              <PackagePlus size={10} />
+              Import current
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              variant={config.enabled ? 'outline' : 'ghost'}
+              onClick={() => updateSelection({ enabled: !config.enabled })}
+              disabled={!config.manifest}
+              className="h-7 px-2 text-[10px]"
+            >
+              {config.enabled ? 'Use custom context' : 'Use runtime default'}
+            </Button>
+            {config.manifest && (
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                onClick={() => onChange(EMPTY_AGENT_CONTEXT_CONFIG)}
+                className="h-7 px-2 text-[10px] text-muted-foreground"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {config.manifest && (
+            <div className="rounded-md border border-border bg-muted/20 p-2 text-[10px]">
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate font-medium text-foreground">{config.manifest.name}</span>
+                <Badge variant={config.enabled ? 'success' : 'secondary'} className="text-[9px] leading-4 px-1.5 py-0">
+                  {config.enabled ? 'active' : 'saved'}
+                </Badge>
+              </div>
+              <div className="mt-1 text-muted-foreground">
+                {selectedSkills.length} skills / {selectedTools.length} tools will be sent with this conversation.
+              </div>
+            </div>
+          )}
+
+          <details className="rounded-md border border-border bg-background/70" open={config.enabled}>
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+              <span className="inline-flex items-center gap-1.5"><ClipboardCheck size={10} /> Skills</span>
+              <span className="text-[9px] text-muted-foreground">{selectedSkillIds.length}/{skills.length}</span>
+            </summary>
+            <div className="max-h-44 space-y-1 overflow-y-auto border-t border-border p-1.5">
+              {skills.length === 0 ? (
+                <p className="px-1 text-[10px] text-muted-foreground">No skills loaded.</p>
+              ) : skills.map((skill) => (
+                <label key={skill.id} className="flex cursor-pointer items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
+                  <input
+                    type="checkbox"
+                    checked={selectedSkillSet.has(skill.id)}
+                    onChange={(e) => toggleSkill(skill.id, e.target.checked)}
+                    className="mt-0.5 h-3 w-3 shrink-0"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1">
+                      <span className="truncate font-medium text-foreground">{skill.name}</span>
+                      {!skill.enabled && <Badge variant="secondary" className="text-[8px] leading-3 px-1 py-0">disabled</Badge>}
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{skill.description || skill.id}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </details>
+
+          <details className="rounded-md border border-border bg-background/70">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+              <span className="inline-flex items-center gap-1.5"><Wrench size={10} /> Tools</span>
+              <span className="text-[9px] text-muted-foreground">{selectedToolNames.length}/{tools.length}</span>
+            </summary>
+            <div className="max-h-56 space-y-1 overflow-y-auto border-t border-border p-1.5">
+              {tools.length === 0 ? (
+                <p className="px-1 text-[10px] text-muted-foreground">No tools loaded.</p>
+              ) : tools.map((tool) => (
+                <div key={tool.name} className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
+                  <div className="flex items-start gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={selectedToolSet.has(tool.name)}
+                      onChange={(e) => toggleTool(tool.name, e.target.checked)}
+                      className="mt-0.5 h-3 w-3 shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <span className="truncate font-medium text-foreground">{tool.name}</span>
+                        <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{tool.risk}</Badge>
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{tool.description}</p>
+                    </div>
+                  </div>
+                  {selectedToolSet.has(tool.name) && (
+                    <div className="mt-1.5 flex items-center justify-between gap-2 pl-4">
+                      <span className="truncate text-[9px] text-muted-foreground">{tool.permission}</span>
+                      <Select
+                        value={config.approvalOverrides[tool.name] ?? (tool.requiresApprovalByDefault ? 'always' : 'on_write')}
+                        onValueChange={(next) => setToolApproval(tool.name, next as AgentToolApprovalMode)}
+                      >
+                        <SelectTrigger size="sm" className="h-6 w-24 text-[9px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="never">never</SelectItem>
+                          <SelectItem value="on_write">on write</SelectItem>
+                          <SelectItem value="always">always</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
+        </>
+      )}
+    </div>
+  )
+}
+
 const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'production_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 
@@ -2216,10 +2587,12 @@ function ChatView({
     queryKey: ['resources', 'agent-panel'],
     queryFn: () => api.get('/resources', { params: { page: 1, page_size: 24, type: 'image,video,audio,text' } }).then((r) => r.data),
   })
-  const [input, setInput] = useState('')
-  const [attachments, setAttachments] = useState<AgentAttachment[]>([])
+  const draft = useAgentStore((s) => s.convsByUser[userId]?.draftsByConversation?.[conv.id] ?? EMPTY_CONVERSATION_DRAFT)
+  const updateConversationDraft = useAgentStore((s) => s.updateConversationDraft)
+  const clearConversationDraft = useAgentStore((s) => s.clearConversationDraft)
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [draggingFiles, setDraggingFiles] = useState(false)
   const [showContext, setShowContextState] = useState(() => {
     try {
       return localStorage.getItem(AGENT_CONTEXT_VISIBLE_KEY) === 'true'
@@ -2240,9 +2613,11 @@ function ChatView({
   })
   const [buildingSendDraft, setBuildingSendDraft] = useState(false)
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
+  const [agentContextConfigs, setAgentContextConfigs] = useState<Record<string, ConversationAgentContextConfig>>({})
   const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
   const processedExternalTaskRequestIdRef = useRef<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
+  const shouldAutoScrollRef = useRef(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -2260,12 +2635,10 @@ function ChatView({
     refetchInterval: localRuntimeEnabled ? 5000 : false,
   })
 
-  useEffect(() => {
-    const thread = threadRef.current
-    if (!thread) return
-    thread.scrollTo({ top: thread.scrollHeight, behavior: 'smooth' })
-  }, [conv.messages, conversationRuntime?.loading, conversationRuntime?.run])
   useEffect(() => { inputRef.current?.focus() }, [conv.id])
+  useEffect(() => {
+    shouldAutoScrollRef.current = true
+  }, [conv.id])
   // Auto-clear stale modelId
   useEffect(() => {
     if (textModels.length > 0 && settings.modelId !== null) {
@@ -2274,6 +2647,8 @@ function ChatView({
     }
   }, [textModels]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const input = draft.input
+  const attachments = draft.attachments
   const modelId = settings.modelId ?? textModels[0]?.id ?? null
   const systemPrompt = ''
   const recentResources = Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? [])
@@ -2324,8 +2699,16 @@ function ChatView({
   const approvingLocalRun = conversationRuntime?.approving ?? false
   const stoppingLocalRun = conversationRuntime?.stopping ?? false
   const stopRequestedBeforeRun = conversationRuntime?.stopRequested ?? false
+  const agentContextConfig = agentContextConfigs[conv.id] ?? EMPTY_AGENT_CONTEXT_CONFIG
+  const activeConversationManifest = agentContextConfig.enabled ? agentContextConfig.manifest ?? undefined : undefined
+  useEffect(() => {
+    const thread = threadRef.current
+    if (!thread || !shouldAutoScrollRef.current) return
+    thread.scrollTo({ top: thread.scrollHeight, behavior: 'auto' })
+  }, [conv.id, conv.messages.length, loading])
   const contextLabels = [
     'Local Runtime',
+    activeConversationManifest ? 'Custom skills/tools' : null,
     settings.includeProjectContext && currentProject ? currentProject.name : null,
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     composerAttachments.length > 0 ? t('agents.chat.attachmentsCount', { count: composerAttachments.length }) : null,
@@ -2336,6 +2719,26 @@ function ChatView({
   const localAgentErrorMessage = localAgentStartError
     ?? (!localAgentOnline && localAgentHealthError instanceof Error ? localAgentHealthError.message : null)
   const canStopLocalRun = isStoppableAgentRun(activeLocalRun) || loading || buildingSendDraft || stopRequestedBeforeRun
+  const { data: localAgentInspect, isFetching: fetchingLocalAgentInspect, refetch: refetchLocalAgentInspect } = useQuery<AgentInspectResponse>({
+    queryKey: ['local-agent-panel-inspect', localAgentClient.baseURL],
+    queryFn: async () => {
+      await localAgentClient.ensureRunning()
+      return localAgentClient.inspect()
+    },
+    enabled: localRuntimeEnabled && localAgentOnline,
+    retry: false,
+  })
+  const { data: localAgentCapabilities, isFetching: fetchingLocalAgentCapabilities, refetch: refetchLocalAgentCapabilities } = useQuery<AgentCapabilitiesResponse>({
+    queryKey: ['local-agent-panel-capabilities', localAgentClient.baseURL, currentProject?.ID ?? null, agentContextConfig.enabled ? agentContextConfig.manifest?.id ?? 'custom' : 'default'],
+    queryFn: async () => {
+      await localAgentClient.ensureRunning()
+      return localAgentClient.getCapabilities({
+        ...(currentProject ? { projectId: currentProject.ID } : {}),
+      })
+    },
+    enabled: localRuntimeEnabled && localAgentOnline,
+    retry: false,
+  })
   const createProject = useMutation({
     mutationFn: (payload: { name: string; description?: string }) => api.post('/projects', payload).then((r) => r.data as Project),
     onSuccess: (project) => {
@@ -2366,6 +2769,18 @@ function ChatView({
       return resolved
     })
   }
+
+  const updateAgentContextConfig = useCallback((next: ConversationAgentContextConfig) => {
+    setAgentContextConfigs((current) => ({
+      ...current,
+      [conv.id]: next,
+    }))
+  }, [conv.id])
+
+  const refreshAgentCatalogContext = useCallback(() => {
+    void refetchLocalAgentInspect()
+    void refetchLocalAgentCapabilities()
+  }, [refetchLocalAgentCapabilities, refetchLocalAgentInspect])
 
   const startContextPaneResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (!showContext || event.button !== 0) return
@@ -2398,6 +2813,18 @@ function ChatView({
     window.addEventListener('pointercancel', onUp)
   }, [contextPaneHeight, showContext])
 
+  function updateDraft(patch: Partial<typeof EMPTY_CONVERSATION_DRAFT>) {
+    updateConversationDraft(userId, conv.id, patch)
+  }
+
+  function revokeAttachmentPreviewUrls(items: AgentAttachment[]) {
+    for (const attachment of items) {
+      if (attachment.previewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(attachment.previewUrl)
+      }
+    }
+  }
+
   async function startLocalAgent() {
     if (startingLocalAgent) return
     setStartingLocalAgent(true)
@@ -2415,23 +2842,85 @@ function ChatView({
   async function uploadFiles(files: FileList | File[]) {
     const list = Array.from(files)
     if (list.length === 0) return
+    const pending = list.map((file) => {
+      const kind = attachmentKind(file.type, file.name)
+      const previewUrl = (kind === 'image' || kind === 'video') ? URL.createObjectURL(file) : undefined
+      return {
+        id: `upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        name: file.name,
+        type: kind,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+        previewUrl,
+      } satisfies AgentAttachment
+    })
+    const currentAttachments = useAgentStore.getState().getConversationDraft(userId, conv.id).attachments
+    updateDraft({ attachments: [...currentAttachments, ...pending] })
     setUploading(true)
     try {
       const uploaded: AgentAttachment[] = []
-      for (const file of list) {
+      for (const [index, file] of list.entries()) {
         const fd = new FormData()
         fd.append('file', file)
         const { data } = await api.post('/resources/upload', fd)
-        uploaded.push(attachmentFromResource(data as RawResource))
+        uploaded.push({
+          ...attachmentFromResource(data as RawResource),
+          id: pending[index]?.id ?? `res-${(data as RawResource).ID}`,
+          previewUrl: pending[index]?.previewUrl,
+        })
       }
-      setAttachments((cur) => [...cur, ...uploaded])
+      const latestAttachments = useAgentStore.getState().getConversationDraft(userId, conv.id).attachments
+      const uploadedByPendingId = new Map(uploaded.map((attachment) => [attachment.id, attachment]))
+      updateDraft({
+        attachments: latestAttachments.map((attachment) => uploadedByPendingId.get(attachment.id) ?? attachment),
+      })
       setMentionRange(null)
       qc.invalidateQueries({ queryKey: ['resources'] })
       qc.invalidateQueries({ queryKey: ['resources', 'agent-panel'] })
+    } catch (e) {
+      const latestAttachments = useAgentStore.getState().getConversationDraft(userId, conv.id).attachments
+      const pendingIds = new Set(pending.map((attachment) => attachment.id))
+      updateDraft({ attachments: latestAttachments.filter((attachment) => !pendingIds.has(attachment.id)) })
+      revokeAttachmentPreviewUrls(pending)
+      throw e
     } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  function hasFileDrop(event: React.DragEvent) {
+    return Array.from(event.dataTransfer.types).includes('Files') || event.dataTransfer.files.length > 0
+  }
+
+  function handleComposerDragOver(event: React.DragEvent) {
+    if (!hasFileDrop(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setDraggingFiles(true)
+  }
+
+  function handleComposerDragEnter(event: React.DragEvent) {
+    if (!hasFileDrop(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setDraggingFiles(true)
+  }
+
+  function handleComposerDragLeave(event: React.DragEvent) {
+    if (!hasFileDrop(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return
+    setDraggingFiles(false)
+  }
+
+  async function handleComposerDrop(event: React.DragEvent) {
+    if (!hasFileDrop(event)) return
+    event.preventDefault()
+    event.stopPropagation()
+    setDraggingFiles(false)
+    await uploadFiles(event.dataTransfer.files)
   }
 
   function updateMentionState(value: string, caret: number) {
@@ -2456,8 +2945,7 @@ function ChatView({
     const end = mentionRange?.end ?? inputEl?.selectionEnd ?? start
     const token = `${resourceMentionToken(attachment.resourceId)} `
     const next = `${value.slice(0, start)}${token}${value.slice(end)}`
-    setInput(next)
-    setAttachments((cur) => dedupeAttachments([...cur, attachment]))
+    updateDraft({ input: next })
     setMentionRange(null)
     window.requestAnimationFrame(() => {
       inputEl?.focus()
@@ -2471,7 +2959,7 @@ function ChatView({
     const start = inputEl?.selectionStart ?? input.length
     const end = inputEl?.selectionEnd ?? start
     const next = `${input.slice(0, start)}@${input.slice(end)}`
-    setInput(next)
+    updateDraft({ input: next })
     const caret = start + 1
     setMentionRange({ start, end: caret, query: '' })
     window.requestAnimationFrame(() => {
@@ -2481,11 +2969,12 @@ function ChatView({
   }
 
   function removeAttachment(id: string) {
-    setAttachments((cur) => cur.filter((a) => a.id !== id))
     const removed = composerAttachments.find((a) => a.id === id)
+    updateDraft({ attachments: attachments.filter((a) => a.id !== id) })
+    if (removed?.previewUrl?.startsWith('blob:')) URL.revokeObjectURL(removed.previewUrl)
     if (removed?.resourceId !== undefined) {
       const tokenPattern = new RegExp(`\\s*@\\[resource:${removed.resourceId}\\]\\s*`, 'g')
-      setInput((cur) => normalizeInlineSpacing(cur.replace(tokenPattern, ' ')))
+      updateDraft({ input: normalizeInlineSpacing(input.replace(tokenPattern, ' ')) })
     }
     setMentionRange(null)
   }
@@ -2514,6 +3003,7 @@ function ChatView({
           meta: { contextLabels: [`run ${finalRun.status}`], localRunActivity: compactRunActivity(finalRun) },
         })
       }
+      if (runTouchesAgentCatalog(finalRun)) refreshAgentCatalogContext()
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       addMessage(userId, conv.id, {
@@ -2523,7 +3013,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext])
 
   const rejectActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = activeLocalRun
@@ -2540,6 +3030,7 @@ function ChatView({
         content,
         meta: { contextLabels: [`run ${rejectedRun.status}`], localRunActivity: compactRunActivity(rejectedRun) },
       })
+      if (runTouchesAgentCatalog(rejectedRun)) refreshAgentCatalogContext()
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       addMessage(userId, conv.id, {
@@ -2549,7 +3040,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext])
 
   const answerActiveLocalRunInput = useCallback(async (requestId: string, answer: { choiceIds?: string[]; text?: string }) => {
     const run = activeLocalRun
@@ -2574,6 +3065,7 @@ function ChatView({
           meta: { contextLabels: [`run ${finalRun.status}`], localRunActivity: compactRunActivity(finalRun) },
         })
       }
+      if (runTouchesAgentCatalog(finalRun)) refreshAgentCatalogContext()
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       addMessage(userId, conv.id, {
@@ -2583,7 +3075,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext])
 
   const stopActiveLocalRun = useCallback(async () => {
     const run = activeLocalRun
@@ -2641,6 +3133,7 @@ function ChatView({
     const visibleUserContent = visibleText || t('agents.chat.attachmentOnlyMessage')
     const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent, settings.mode)
     const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
+    const requestedManifest = options.agentManifest ?? activeConversationManifest
     const clientInput = options.clientInput ?? buildAgentClientInput({
       message: runtimeMessage,
       attachments: sentAttachments,
@@ -2670,7 +3163,7 @@ function ChatView({
       title: options.title ?? conv.title,
       ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
       clientInput,
-      ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
+      ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
       ...((options.requestId ?? pageToolRequestId) ? { requestId: options.requestId ?? pageToolRequestId } : {}),
       ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
       diagnosticCommand,
@@ -2687,14 +3180,14 @@ function ChatView({
           localRuntime.preview = await localAgentClient.previewRun({
             ...(threadId ? { threadId } : {}),
             clientInput,
-            ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
+            ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
           })
         } catch (e) {
           if (!threadId) throw e
           warnings.push('Saved local thread was not previewable; retried preview as a new thread.')
           localRuntime.preview = await localAgentClient.previewRun({
             clientInput,
-            ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
+            ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
           })
         }
       } catch (e) {
@@ -2767,6 +3260,7 @@ function ChatView({
     contextLabels,
     userId,
     pageToolRequestId,
+    activeConversationManifest,
   ])
 
   const commitSendDraft = useCallback(async (draft: AgentSendDraft) => {
@@ -2780,15 +3274,16 @@ function ChatView({
       return
     }
 
-    setInput('')
-    setAttachments([])
+    const messageAttachments = draft.attachments.map(stripAttachmentPreviewUrl)
+    revokeAttachmentPreviewUrls(useAgentStore.getState().getConversationDraft(userId, conv.id).attachments)
+    clearConversationDraft(userId, conv.id)
     setMentionRange(null)
     setConversationRuntime(conv.id, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
     cancelRequestedRunIdsRef.current.clear()
     addMessage(userId, conv.id, {
       role: 'user',
       content: draft.visibleUserContent,
-      attachments: draft.attachments,
+      attachments: messageAttachments,
       meta: {
         modelId: draft.model.id,
         agentName: 'Local Agent Runtime',
@@ -2822,6 +3317,16 @@ function ChatView({
         ...(draft.localRuntime?.timeoutMs ? { timeoutMs: draft.localRuntime.timeoutMs } : {}),
         pollMs: 120,
         onRunUpdate: (nextRun) => {
+          const artifacts = extractAgentTaskArtifacts(nextRun)
+          if (runTouchesAgentCatalog(nextRun)) refreshAgentCatalogContext()
+          if (draft.localRuntime?.requestId) {
+            setPageTaskRunning(draft.localRuntime.requestId, {
+              conversationId: conv.id,
+              run: nextRun,
+              threadId: nextRun.threadId,
+              ...(artifacts.length > 0 ? { artifacts } : {}),
+            })
+          }
           setConversationRun(conv.id, nextRun, {
             loading: true,
             building: false,
@@ -2846,8 +3351,9 @@ function ChatView({
         },
       })
       const { run, thread } = runResult
+      const artifacts = extractAgentTaskArtifacts(run)
       if (!draft.localRuntime?.diagnosticCommand) setLocalThreadId(conv.id, thread.id)
-      if (draft.localRuntime?.requestId) setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id, run, threadId: thread.id })
+      if (draft.localRuntime?.requestId) setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id, run, threadId: thread.id, artifacts })
       setConversationRun(conv.id, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
       const content = formatLocalAgentAssistantContent(run, thread)
       const generatedAttachments = await generatedAttachmentsFromRun(run)
@@ -2857,11 +3363,13 @@ function ChatView({
         ...withGeneratedAttachments(generatedAttachments),
         meta: { contextLabels: [`run ${run.status}`], localRunActivity: compactRunActivity(run) },
       })
+      if (runTouchesAgentCatalog(run)) refreshAgentCatalogContext()
       notifyAgentPanelRunSettled({
         requestId: draft.localRuntime?.requestId,
         status: run.status === 'cancelled' ? 'cancelled' : 'completed',
         run,
         thread,
+        artifacts,
       })
     } catch (e: any) {
       const message = e instanceof Error ? e.message : String(e)
@@ -2893,6 +3401,8 @@ function ChatView({
     setPageTaskRunning,
     setConversationRun,
     setConversationRuntime,
+    clearConversationDraft,
+    refreshAgentCatalogContext,
   ])
 
   useEffect(() => {
@@ -2903,7 +3413,7 @@ function ChatView({
     if (processedExternalTaskRequestIdRef.current === payload.requestId) return
     processedExternalTaskRequestIdRef.current = payload.requestId ?? null
 
-    setInput(payload.displayMessage ?? payload.message)
+    updateDraft({ input: payload.displayMessage ?? payload.message })
     window.setTimeout(() => inputRef.current?.focus(), 0)
     onExternalDraftConsumed?.()
 
@@ -3021,7 +3531,13 @@ function ChatView({
         </AgentHeader>
 
         <AgentBody>
-          <AgentThread ref={threadRef}>
+          <AgentThread
+            ref={threadRef}
+            onScroll={(event) => {
+              const thread = event.currentTarget
+              shouldAutoScrollRef.current = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48
+            }}
+          >
             {conv.messages.length === 0 && (
               <AgentEmpty className="min-h-0 py-6">
                 <p className="text-sm font-medium text-foreground">
@@ -3036,7 +3552,7 @@ function ChatView({
                   ].map((item) => (
                     <AgentSuggestion
                       key={item.label}
-                      onClick={() => setInput(item.label)}
+                      onClick={() => updateDraft({ input: item.label })}
                       className="justify-start rounded-md text-left text-[11px]"
                     >
                       {item.icon}
@@ -3222,6 +3738,15 @@ function ChatView({
           )}
           {showContext && (
             <div className="ai-agent-panel-context-stack">
+              <ConversationContextPanel
+                online={localAgentOnline}
+                inspect={localAgentInspect}
+                capabilities={localAgentCapabilities}
+                loading={fetchingLocalAgentInspect || fetchingLocalAgentCapabilities}
+                config={agentContextConfig}
+                onChange={updateAgentContextConfig}
+                onRefresh={refreshAgentCatalogContext}
+              />
               <DraftPanel
                 project={currentProject}
                 threadId={localThreadId || undefined}
@@ -3261,7 +3786,11 @@ function ChatView({
           <p className="min-w-0 truncate text-right text-[10px] text-muted-foreground/40">{t('agents.chat.inputHint')}</p>
         </div>
         <AgentComposer
-          className="ai-agent-panel-composer"
+          className={cn('ai-agent-panel-composer', draggingFiles && 'ai-agent-panel-composer--dragging')}
+          onDragEnter={handleComposerDragEnter}
+          onDragOver={handleComposerDragOver}
+          onDragLeave={handleComposerDragLeave}
+          onDrop={handleComposerDrop}
           onSubmit={(e) => {
             e.preventDefault()
             send()
@@ -3271,7 +3800,7 @@ function ChatView({
             ref={fileRef}
             type="file"
             multiple
-            accept="image/*,video/*,audio/*,.txt,.md,.json,.csv,.srt"
+            accept={`${RESOURCE_UPLOAD_ACCEPT},.srt`}
             className="hidden"
             onChange={(e) => e.target.files && uploadFiles(e.target.files)}
           />
@@ -3295,14 +3824,22 @@ function ChatView({
               value={input}
               className="ai-agent-panel-composer-field"
               onChange={(e) => {
-                setInput(e.target.value)
+                updateDraft({ input: e.target.value })
                 updateMentionState(e.target.value, e.target.selectionStart ?? e.target.value.length)
               }}
               onClick={(e) => updateMentionState(e.currentTarget.value, e.currentTarget.selectionStart ?? e.currentTarget.value.length)}
-              onKeyUp={(e) => updateMentionState(e.currentTarget.value, e.currentTarget.selectionStart ?? e.currentTarget.value.length)}
+              onKeyUp={(e) => {
+                if (e.key === 'Escape') return
+                updateMentionState(e.currentTarget.value, e.currentTarget.selectionStart ?? e.currentTarget.value.length)
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
                   setMentionRange(null)
+                  return
+                }
+                if (mentionRange && mentionResults.length > 0 && (e.key === 'Enter' || e.key === 'Tab')) {
+                  e.preventDefault()
+                  insertResourceMention(mentionResults[0])
                   return
                 }
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -3312,6 +3849,11 @@ function ChatView({
               }}
               disabled={loading || buildingSendDraft}
             />
+            {draggingFiles && (
+              <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-md border border-dashed border-primary/40 bg-primary/8 text-[11px] text-primary">
+                {t('agents.chat.dropFilesHere')}
+              </div>
+            )}
             {mentionRange && mentionResults.length > 0 && (
               <div className="absolute bottom-full left-0 z-30 mb-1.5 w-full overflow-hidden rounded-md border border-border bg-background shadow-lg">
                 <div className="border-b border-border px-2 py-1 text-[10px] text-muted-foreground">
@@ -3319,31 +3861,11 @@ function ChatView({
                 </div>
                 <div className="max-h-48 overflow-auto">
                   {mentionResults.map((attachment) => (
-                    <button
+                    <MentionResourceOption
                       key={attachmentKey(attachment)}
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        insertResourceMention(attachment)
-                      }}
-                      className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-[11px] hover:bg-muted/60"
-                    >
-                      <span className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted">
-                        {attachment.type === 'image' && attachment.url ? (
-                          <AuthedImage src={attachment.url} alt={attachment.name} className="h-full w-full object-cover" />
-                        ) : attachment.type === 'video' && attachment.url ? (
-                          <AuthedVideo src={attachment.url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                            <AttachmentIcon type={attachment.type} size={10} />
-                          </div>
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-foreground">{attachment.name}</span>
-                      <span className="shrink-0 text-[9px] text-muted-foreground">
-                        {attachment.resourceId ? `#${attachment.resourceId}` : ''}
-                      </span>
-                    </button>
+                      attachment={attachment}
+                      onSelect={() => insertResourceMention(attachment)}
+                    />
                   ))}
                 </div>
               </div>
@@ -3642,7 +4164,9 @@ export function AIAgentPanel() {
   const [panelWidth, setPanelWidth] = useState(() => readStoredNumber(PANEL_WIDTH_KEY, 420, 320, 760))
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
-  const panelResizeStateRef = React.useRef<{ startX: number; startWidth: number } | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const panelResizeFrameRef = useRef<number | null>(null)
+  const panelResizeStateRef = useRef<{ startX: number; startWidth: number; latestWidth: number; maxWidth: number } | null>(null)
 
   useEffect(() => {
     function handleDraft() {
@@ -3668,20 +4192,33 @@ export function AIAgentPanel() {
     event.stopPropagation()
     const startWidth = panelWidth
     const startX = event.clientX
-    panelResizeStateRef.current = { startX, startWidth }
     const maxWidth = Math.min(760, Math.max(320, window.innerWidth - 280))
+    panelResizeStateRef.current = { startX, startWidth, latestWidth: startWidth, maxWidth }
     document.body.classList.add('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
 
     const onMove = (moveEvent: PointerEvent) => {
       const state = panelResizeStateRef.current
       if (!state) return
       const delta = state.startX - moveEvent.clientX
-      const nextWidth = clampNumber(state.startWidth + delta, 320, maxWidth)
-      setPanelWidth(nextWidth)
-      writeStoredNumber(PANEL_WIDTH_KEY, nextWidth)
+      state.latestWidth = clampNumber(state.startWidth + delta, 320, state.maxWidth)
+      if (panelResizeFrameRef.current !== null) return
+      panelResizeFrameRef.current = window.requestAnimationFrame(() => {
+        panelResizeFrameRef.current = null
+        const latest = panelResizeStateRef.current
+        if (!latest) return
+        panelRef.current?.style.setProperty('--ai-agent-panel-width', `${latest.latestWidth}px`)
+      })
     }
 
     const onUp = () => {
+      const finalWidth = panelResizeStateRef.current?.latestWidth ?? panelWidth
+      if (panelResizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(panelResizeFrameRef.current)
+        panelResizeFrameRef.current = null
+      }
+      panelRef.current?.style.setProperty('--ai-agent-panel-width', `${finalWidth}px`)
+      setPanelWidth(finalWidth)
+      writeStoredNumber(PANEL_WIDTH_KEY, finalWidth)
       panelResizeStateRef.current = null
       document.body.classList.remove('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
       window.removeEventListener('pointermove', onMove)
@@ -3695,7 +4232,7 @@ export function AIAgentPanel() {
   }, [open, panelWidth])
 
   return (
-    <div className={cn(
+    <div ref={panelRef} className={cn(
       'ai-agent-panel relative h-full min-w-0 shrink-0 bg-background flex flex-col overflow-hidden transition-[width] duration-200',
       open ? 'w-[var(--ai-agent-panel-width)]' : 'w-11',
     )} style={{ ['--ai-agent-panel-width' as string]: `${panelWidth}px` }}>

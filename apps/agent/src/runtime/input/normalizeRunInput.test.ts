@@ -36,7 +36,7 @@ test('formatInputAnswerMessage includes selected choices and custom text', () =>
       question: '处理哪一类？',
       choices: [
         { id: 'script', label: '剧本', description: '处理剧本文本。' },
-        { id: 'asset', label: '素材' },
+        { id: 'asset', label: '素材需求' },
       ],
     }),
     ['script'],

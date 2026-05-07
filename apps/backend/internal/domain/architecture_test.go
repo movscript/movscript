@@ -4,12 +4,14 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
 const domainModelImport = "github.com/movscript/movscript/internal/domain/model"
+const persistenceModelImport = "github.com/movscript/movscript/internal/infra/persistence/model"
 const gormImport = "gorm.io/gorm"
 
 func TestDomainPackagesDoNotImportPersistenceModels(t *testing.T) {
@@ -26,6 +28,9 @@ func TestDomainPackagesDoNotImportPersistenceModels(t *testing.T) {
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
+		if isEnterpriseOnlyFile(path) {
+			return nil
+		}
 		if filepath.Base(path) == "model_mapping.go" {
 			return nil
 		}
@@ -35,8 +40,9 @@ func TestDomainPackagesDoNotImportPersistenceModels(t *testing.T) {
 			return err
 		}
 		for _, imp := range file.Imports {
-			if strings.Trim(imp.Path.Value, `"`) == domainModelImport {
-				t.Errorf("%s imports %s outside model_mapping.go", path, domainModelImport)
+			importPath := strings.Trim(imp.Path.Value, `"`)
+			if importPath == domainModelImport || importPath == persistenceModelImport {
+				t.Errorf("%s imports %s outside model_mapping.go", path, importPath)
 			}
 		}
 		return nil
@@ -60,6 +66,9 @@ func TestDomainPackagesDoNotImportGormOutsidePersistenceSchemas(t *testing.T) {
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
+		if isEnterpriseOnlyFile(path) {
+			return nil
+		}
 		if filepath.Base(path) == "model_mapping.go" {
 			return nil
 		}
@@ -78,4 +87,19 @@ func TestDomainPackagesDoNotImportGormOutsidePersistenceSchemas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func isEnterpriseOnlyFile(path string) bool {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		return strings.HasPrefix(line, "//go:build enterprise")
+	}
+	return false
 }

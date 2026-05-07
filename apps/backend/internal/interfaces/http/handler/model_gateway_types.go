@@ -132,7 +132,7 @@ type createGatewayAPIKeyRequest struct {
 	ProjectID       *uint    `json:"project_id"`
 	AllowedModelIDs []uint   `json:"allowed_model_ids"`
 	AllowedScopes   []string `json:"allowed_scopes"`
-	Commercial      gatewayAPIKeyCreateCommercialRequest
+	Edition         gatewayAPIKeyCreateEditionRequest
 }
 
 type updateGatewayAPIKeyRequest struct {
@@ -140,7 +140,7 @@ type updateGatewayAPIKeyRequest struct {
 	AllowedModelIDs []uint   `json:"allowed_model_ids"`
 	AllowedScopes   []string `json:"allowed_scopes"`
 	IsEnabled       *bool    `json:"is_enabled"`
-	Commercial      gatewayAPIKeyUpdateCommercialRequest
+	Edition         gatewayAPIKeyUpdateEditionRequest
 }
 
 type gatewayAPIKeyCreateResponse struct {

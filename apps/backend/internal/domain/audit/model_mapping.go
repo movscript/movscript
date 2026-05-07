@@ -1,8 +1,8 @@
 package audit
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func LogFromModel(log model.AuditLog) Log {
+func LogFromModel(log persistencemodel.AuditLog) Log {
 	domainLog := Log{
 		ID:         log.ID,
 		RequestID:  log.RequestID,
@@ -25,7 +25,7 @@ func LogFromModel(log model.AuditLog) Log {
 	return domainLog
 }
 
-func LogsFromModels(logs []model.AuditLog) []Log {
+func LogsFromModels(logs []persistencemodel.AuditLog) []Log {
 	out := make([]Log, 0, len(logs))
 	for _, log := range logs {
 		out = append(out, LogFromModel(log))

@@ -58,8 +58,8 @@ test('renderLocalDiagnosticCommand renders memory file references without memory
     policy: buildTestPolicy(),
     memories: [{
       id: 'mem_1',
-      scope: 'project',
       projectId: 42,
+      title: '默认镜头风格',
       kind: 'preference',
       content: 'Do not leak this content.',
       createdAt: '2026-05-06T00:00:00.000Z',
@@ -97,7 +97,7 @@ test('renderLocalFinalAssistantContent renders local context command output', ()
 
   assert.match(content, /Command: \/context/)
   assert.match(content, /Model context text:/)
-  assert.match(content, /Reference id: project#42/)
+  assert.match(content, /Business reference: project#42/)
   assert.match(content, /Context pack unavailable: mcp offline/)
   assert.doesNotMatch(content, /model output should not be used/)
 })

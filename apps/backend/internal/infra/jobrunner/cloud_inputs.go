@@ -4,16 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/movscript/movscript/internal/infra/ai"
+	"github.com/movscript/movscript/internal/infra/cloudup"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"log"
 	"strconv"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
-	"github.com/movscript/movscript/internal/infra/ai"
-	"github.com/movscript/movscript/internal/infra/cloudup"
 )
 
-func (w *Worker) prepareImageInputReferences(job *model.Job, mediaList []ai.MediaData) string {
+func (w *Worker) prepareImageInputReferences(job *persistencemodel.Job, mediaList []ai.MediaData) string {
 	if len(mediaList) == 0 {
 		return ""
 	}
@@ -38,7 +37,7 @@ func (w *Worker) prepareImageInputReferences(job *model.Job, mediaList []ai.Medi
 	}
 }
 
-func (w *Worker) preparePublicMediaReferences(job *model.Job, mediaList []ai.MediaData) {
+func (w *Worker) preparePublicMediaReferences(job *persistencemodel.Job, mediaList []ai.MediaData) {
 	for i := range mediaList {
 		if mediaList[i].PresignedURL != "" {
 			continue
@@ -55,7 +54,7 @@ func (w *Worker) modelAdapterType(modelConfigID uint) string {
 	var row struct {
 		AdapterType string
 	}
-	if err := w.db.Model(&model.AIModelConfig{}).
+	if err := w.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
 		Where("ai_model_configs.id = ?", modelConfigID).
@@ -68,7 +67,7 @@ func (w *Worker) modelAdapterType(modelConfigID uint) string {
 // ensureCloudUpload checks the resource's CloudUploads cache; if no valid entry exists,
 // uploads via the provider Files API or configured cloud backends and caches the result.
 // Returns zero-value UploadResult if no uploader is enabled or upload fails.
-func (w *Worker) ensureCloudUpload(job *model.Job, media ai.MediaData, requirePublicURL bool) (cloudup.UploadResult, uint) {
+func (w *Worker) ensureCloudUpload(job *persistencemodel.Job, media ai.MediaData, requirePublicURL bool) (cloudup.UploadResult, uint) {
 	// Find the resource ID for this media data (first input resource).
 	resourceID := media.ResourceID
 	if resourceID == 0 {
@@ -82,7 +81,7 @@ func (w *Worker) ensureCloudUpload(job *model.Job, media ai.MediaData, requirePu
 		resourceID = ids[0]
 	}
 
-	var resource model.RawResource
+	var resource persistencemodel.RawResource
 	if err := w.db.First(&resource, resourceID).Error; err != nil {
 		return cloudup.UploadResult{}, 0
 	}

@@ -9,11 +9,11 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (h *Service) persistWorkflowOutputsToResources(ctx context.Context, user *model.User, cv model.Canvas, runID uint, outputs map[string]canvasPortValue) error {
+func (h *Service) persistWorkflowOutputsToResources(ctx context.Context, user *persistencemodel.User, cv persistencemodel.Canvas, runID uint, outputs map[string]canvasPortValue) error {
 	if h == nil || user == nil || len(outputs) == 0 {
 		return nil
 	}
@@ -62,7 +62,7 @@ func canvasPortValuePersistenceFingerprint(value canvasPortValue) string {
 	return string(raw)
 }
 
-func canvasWorkflowOutputResourceName(cv model.Canvas, runID uint, key string, value canvasPortValue, ext string) string {
+func canvasWorkflowOutputResourceName(cv persistencemodel.Canvas, runID uint, key string, value canvasPortValue, ext string) string {
 	base := canvasruntime.FirstNonEmptyString(cv.Name, "workflow")
 	key = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(key, "_"), "._-")
 	base = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(base, "_"), "._-")
@@ -89,7 +89,7 @@ func canvasWorkflowOutputResourceName(cv model.Canvas, runID uint, key string, v
 	return fmt.Sprintf("%s_run_%d_%s.%s", base, runID, key, ext)
 }
 
-func (h *Service) bindWorkflowOutputResource(ctx context.Context, cv model.Canvas, runID uint, userID uint, key string, value canvasPortValue) {
+func (h *Service) bindWorkflowOutputResource(ctx context.Context, cv persistencemodel.Canvas, runID uint, userID uint, key string, value canvasPortValue) {
 	if h == nil || cv.ProjectID == nil || value.ResourceID == nil || *value.ResourceID == 0 {
 		return
 	}
@@ -116,7 +116,7 @@ func (h *Service) bindWorkflowOutputResource(ctx context.Context, cv model.Canva
 	_ = h.createBinding(ctx, binding)
 }
 
-func (h *Service) attachWorkflowOutputTargets(ctx context.Context, cv model.Canvas, runID uint, userID uint, key string, value canvasPortValue) {
+func (h *Service) attachWorkflowOutputTargets(ctx context.Context, cv persistencemodel.Canvas, runID uint, userID uint, key string, value canvasPortValue) {
 	if h == nil || cv.ProjectID == nil || value.ResourceID == nil || *value.ResourceID == 0 {
 		return
 	}
@@ -159,7 +159,7 @@ func (h *Service) attachWorkflowOutputTargets(ctx context.Context, cv model.Canv
 	}
 }
 
-func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.Canvas, runID uint, userID uint, target model.CanvasOutput, value canvasPortValue) {
+func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv persistencemodel.Canvas, runID uint, userID uint, target persistencemodel.CanvasOutput, value canvasPortValue) {
 	if cv.ProjectID == nil || value.ResourceID == nil || *value.ResourceID == 0 {
 		return
 	}
@@ -180,7 +180,7 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv model.C
 	})
 }
 
-func canvasOutputMetadataJSON(canvasID uint, runID uint, target model.CanvasOutput, value canvasPortValue) string {
+func canvasOutputMetadataJSON(canvasID uint, runID uint, target persistencemodel.CanvasOutput, value canvasPortValue) string {
 	raw, _ := json.Marshal(map[string]any{
 		"canvas_id":        canvasID,
 		"canvas_run_id":    runID,

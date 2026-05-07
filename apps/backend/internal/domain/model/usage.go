@@ -13,8 +13,8 @@ type UsageLog struct {
 	OperationType      string        `gorm:"not null" json:"operation_type"` // text|image|video
 	InputTokens        int           `gorm:"default:0" json:"input_tokens"`
 	OutputTokens       int           `gorm:"default:0" json:"output_tokens"`
-	DurationSec        int           `gorm:"default:0" json:"duration_sec"` // per_second billing
-	ImageCount         int           `gorm:"default:1" json:"image_count"`  // per_image billing
+	DurationSec        int           `gorm:"default:0" json:"duration_sec"` // per-second usage pricing
+	ImageCount         int           `gorm:"default:1" json:"image_count"`  // per-image usage pricing
 	Cost               float64       `gorm:"default:0" json:"cost"`
 	User               User          `gorm:"foreignKey:UserID" json:"user,omitempty"`
 	AIModelConfig      AIModelConfig `gorm:"foreignKey:AIModelConfigID" json:"ai_model_config,omitempty"`

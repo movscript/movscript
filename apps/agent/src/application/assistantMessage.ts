@@ -238,7 +238,8 @@ export function buildAssistantMessages(
       role: 'system' as const,
       content: `Relevant memories JSON:\n${JSON.stringify(memories.map((memory) => ({
         id: memory.id,
-        scope: memory.scope,
+        projectId: memory.projectId,
+        title: memory.title,
         kind: memory.kind,
         content: memory.content,
       })))}`,
@@ -273,7 +274,7 @@ function matchToolOutcomes(
 function formatMemoryBlock(memories: AgentMemory[], limit: number): string {
   return memories
     .slice(0, limit)
-    .map((memory) => `- [${memory.scope}/${memory.kind}] ${memory.content}`)
+    .map((memory) => `- [${memory.kind}] ${memory.title}: ${memory.content}`)
     .join('\n')
 }
 

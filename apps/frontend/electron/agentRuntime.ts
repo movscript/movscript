@@ -11,6 +11,7 @@ let proc: ChildProcess | null = null
 let startPromise: Promise<AgentRuntimeStatus> | null = null
 let backendAPIBaseURL = normalizeBackendAPIBaseURL(process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || '')
 const supportsProcessGroups = process.platform !== 'win32'
+const shouldDetachAgentRuntime = app.isPackaged && supportsProcessGroups
 
 export interface AgentRuntimeStatus {
   ok: boolean
@@ -50,8 +51,7 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}
     }
   }
   if (health.ok && !health.compatible && proc && !proc.killed) {
-    proc.kill()
-    proc = null
+    await stopAgentRuntime()
     await new Promise((resolve) => setTimeout(resolve, 250))
   } else if (health.ok && !health.compatible) {
     return {
@@ -72,9 +72,10 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}
 }
 
 export async function stopAgentRuntime(): Promise<void> {
-  if (!proc) return
-  terminateAgentProcess(proc)
+  const current = proc
+  if (!current) return
   proc = null
+  await terminateAgentProcess(current)
 }
 
 export async function setAgentRuntimeAPIBaseURL(apiBaseURL: string): Promise<void> {
@@ -91,9 +92,9 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
     const launch = resolveAgentRuntimeLaunch()
     const port = resolvePort(baseURL)
     console.info(`[agent] spawning ${launch.command} ${launch.args.join(' ')} cwd=${launch.cwd}`)
-    proc = spawn(launch.command, launch.args, {
+    const child = spawn(launch.command, launch.args, {
       cwd: launch.cwd,
-      detached: supportsProcessGroups,
+      detached: shouldDetachAgentRuntime,
       env: {
         ...process.env,
         ...launch.env,
@@ -103,15 +104,17 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
           MOVSCRIPT_BACKEND_API_BASE_URL: backendAPIBaseURL,
           MOVSCRIPT_API_BASE_URL: backendAPIBaseURL,
         } : {}),
+        MOVSCRIPT_AGENT_PARENT_PID: String(process.pid),
       },
       stdio: app.isPackaged ? 'ignore' : 'inherit',
     })
-    if (supportsProcessGroups) proc.unref()
+    proc = child
+    if (shouldDetachAgentRuntime) child.unref()
 
-    proc.on('error', (err) => console.error('[agent]', err))
-    proc.on('exit', (code, signal) => {
+    child.on('error', (err) => console.error('[agent]', err))
+    child.on('exit', (code, signal) => {
       console.info(`[agent] movscript-agent exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
-      proc = null
+      if (proc === child) proc = null
     })
 
     await waitForAgentRuntime(baseURL, 10_000)
@@ -121,10 +124,10 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
       managed: true,
       started: true,
       baseURL,
-      pid: proc?.pid,
+      pid: child.pid,
     }
   } catch (error) {
-    if (proc && !proc.killed) terminateAgentProcess(proc)
+    if (proc && !proc.killed) await stopAgentRuntime()
     proc = null
     return {
       ok: false,
@@ -137,15 +140,45 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
   }
 }
 
-function terminateAgentProcess(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'): void {
+async function terminateAgentProcess(child: ChildProcess, signal: NodeJS.Signals = 'SIGTERM'): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return
+
+  let exited = false
+  const exitPromise = new Promise<void>((resolve) => {
+    child.once('exit', () => {
+      exited = true
+      resolve()
+    })
+  })
+
   try {
-    if (supportsProcessGroups && child.pid) {
+    if (shouldDetachAgentRuntime && child.pid) {
       process.kill(-child.pid, signal)
-      return
+    } else {
+      child.kill(signal)
     }
-    child.kill(signal)
   } catch {
     // The runtime may already be gone when shutdown races with exit handling.
+    return
+  }
+
+  await Promise.race([
+    exitPromise,
+    new Promise<void>((resolve) => {
+      setTimeout(() => resolve(), 2_000)
+    }),
+  ])
+
+  if (exited) return
+
+  try {
+    if (shouldDetachAgentRuntime && child.pid) {
+      process.kill(-child.pid, 'SIGKILL')
+    } else {
+      child.kill('SIGKILL')
+    }
+  } catch {
+    // If the process disappears between timeout and SIGKILL, shutdown is done.
   }
 }
 
@@ -171,9 +204,10 @@ function resolveAgentRuntimeLaunch(): AgentRuntimeLaunch {
     const packageJSON = join(root, 'package.json')
     if (!app.isPackaged && existsSync(packageJSON)) {
       return {
-        command: process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm',
-        args: ['run', 'dev'],
+        command: process.execPath,
+        args: ['scripts/dev-watch.mjs'],
         cwd: root,
+        env: { ELECTRON_RUN_AS_NODE: '1' },
       }
     }
 

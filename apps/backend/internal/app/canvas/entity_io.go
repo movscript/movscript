@@ -9,12 +9,12 @@ import (
 
 	"github.com/movscript/movscript/internal/app/workflowio"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (h *Service) completeEntityWriteTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, cv model.Canvas, portInputs canvasPortInputMap, user *model.User) map[string]canvasPortValue {
+func (h *Service) completeEntityWriteTask(ctx context.Context, task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, cv persistencemodel.Canvas, portInputs canvasPortInputMap, user *persistencemodel.User) map[string]canvasPortValue {
 	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 	kind, entityID := nd.ResolvedEntity()
 	if kind == "" || entityID == 0 {
@@ -96,7 +96,7 @@ func canvasProductionWritePort(kind string, portID string) bool {
 	return false
 }
 
-func (h *Service) attachGeneratedAssetSlotCandidate(ctx context.Context, cv model.Canvas, runID uint, userID uint, kind string, entityID uint, resourceID uint) {
+func (h *Service) attachGeneratedAssetSlotCandidate(ctx context.Context, cv persistencemodel.Canvas, runID uint, userID uint, kind string, entityID uint, resourceID uint) {
 	if h == nil || cv.ProjectID == nil || kind != domainworkflow.EntityKindAssetSlot || entityID == 0 || resourceID == 0 {
 		return
 	}
@@ -164,7 +164,7 @@ func uintValuesFromPortValues(values []canvasPortValue) []uint {
 	return ids
 }
 
-func (h *Service) resolveEntityNodeOutputs(ctx context.Context, user *model.User, nd nodeData) map[string]canvasPortValue {
+func (h *Service) resolveEntityNodeOutputs(ctx context.Context, user *persistencemodel.User, nd nodeData) map[string]canvasPortValue {
 	kind, entityID := nd.ResolvedEntity()
 	if kind == "" || entityID == 0 {
 		return nil

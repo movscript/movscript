@@ -1,8 +1,8 @@
 package aiadmin
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func CredentialFromModel(credential model.AICredential) Credential {
+func CredentialFromModel(credential persistencemodel.AICredential) Credential {
 	models := make([]ModelConfig, 0, len(credential.Models))
 	for _, config := range credential.Models {
 		models = append(models, ModelConfigFromModel(config))
@@ -26,13 +26,13 @@ func CredentialFromModel(credential model.AICredential) Credential {
 	}
 }
 
-func (credential Credential) ToModel() model.AICredential {
-	var target model.AICredential
+func (credential Credential) ToModel() persistencemodel.AICredential {
+	var target persistencemodel.AICredential
 	credential.ApplyToModel(&target)
 	return target
 }
 
-func (credential Credential) ApplyToModel(target *model.AICredential) {
+func (credential Credential) ApplyToModel(target *persistencemodel.AICredential) {
 	target.Model.ID = credential.ID
 	target.Model.CreatedAt = credential.CreatedAt
 	target.Model.UpdatedAt = credential.UpdatedAt
@@ -43,7 +43,7 @@ func (credential Credential) ApplyToModel(target *model.AICredential) {
 	target.MaskedKey = credential.MaskedKey
 	target.IsEnabled = credential.IsEnabled
 	target.OrgID = credential.OrgID
-	target.Models = make([]model.AIModelConfig, 0, len(credential.Models))
+	target.Models = make([]persistencemodel.AIModelConfig, 0, len(credential.Models))
 	for _, config := range credential.Models {
 		target.Models = append(target.Models, config.ToModel())
 	}
@@ -53,7 +53,7 @@ func (credential Credential) ApplyToModel(target *model.AICredential) {
 	target.FilesAPIMaskedKey = credential.FilesAPIMaskedKey
 }
 
-func ModelConfigFromModel(config model.AIModelConfig) ModelConfig {
+func ModelConfigFromModel(config persistencemodel.AIModelConfig) ModelConfig {
 	return ModelConfig{
 		ID:                    config.ID,
 		CredentialID:          config.CredentialID,
@@ -69,7 +69,7 @@ func ModelConfigFromModel(config model.AIModelConfig) ModelConfig {
 		CustomDisplayName:     config.CustomDisplayName,
 		ShortName:             config.ShortName,
 		CustomCapabilities:    config.CustomCapabilities,
-		CustomBillingMode:     config.CustomBillingMode,
+		CustomPricingMode:     config.CustomPricingMode,
 		CustomAcceptsImage:    config.CustomAcceptsImage,
 		CustomMaxInputImages:  config.CustomMaxInputImages,
 		CustomMaxInputVideos:  config.CustomMaxInputVideos,
@@ -80,13 +80,13 @@ func ModelConfigFromModel(config model.AIModelConfig) ModelConfig {
 	}
 }
 
-func (config ModelConfig) ToModel() model.AIModelConfig {
-	var target model.AIModelConfig
+func (config ModelConfig) ToModel() persistencemodel.AIModelConfig {
+	var target persistencemodel.AIModelConfig
 	config.ApplyToModel(&target)
 	return target
 }
 
-func (config ModelConfig) ApplyToModel(target *model.AIModelConfig) {
+func (config ModelConfig) ApplyToModel(target *persistencemodel.AIModelConfig) {
 	target.Model.ID = config.ID
 	target.Model.CreatedAt = config.CreatedAt
 	target.Model.UpdatedAt = config.UpdatedAt
@@ -103,7 +103,7 @@ func (config ModelConfig) ApplyToModel(target *model.AIModelConfig) {
 	target.CustomDisplayName = config.CustomDisplayName
 	target.ShortName = config.ShortName
 	target.CustomCapabilities = config.CustomCapabilities
-	target.CustomBillingMode = config.CustomBillingMode
+	target.CustomPricingMode = config.CustomPricingMode
 	target.CustomAcceptsImage = config.CustomAcceptsImage
 	target.CustomMaxInputImages = config.CustomMaxInputImages
 	target.CustomMaxInputVideos = config.CustomMaxInputVideos

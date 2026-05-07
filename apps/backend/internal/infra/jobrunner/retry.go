@@ -3,12 +3,11 @@ package jobrunner
 import (
 	"context"
 	"fmt"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
-func effectiveMaxAttempts(job *model.Job) int {
+func effectiveMaxAttempts(job *persistencemodel.Job) int {
 	if job.MaxAttempts > 0 {
 		return job.MaxAttempts
 	}

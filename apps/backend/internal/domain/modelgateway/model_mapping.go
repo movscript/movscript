@@ -1,8 +1,8 @@
 package modelgateway
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func APIKeyFromModel(key model.GatewayAPIKey) APIKey {
+func APIKeyFromModel(key persistencemodel.GatewayAPIKey) APIKey {
 	return APIKey{
 		ID:              key.ID,
 		Name:            key.Name,
@@ -13,8 +13,6 @@ func APIKeyFromModel(key model.GatewayAPIKey) APIKey {
 		ProjectID:       key.ProjectID,
 		AllowedModelIDs: key.AllowedModelIDs,
 		AllowedScopes:   key.AllowedScopes,
-		RateLimitRPM:    key.RateLimitRPM,
-		MonthlyBudget:   key.MonthlyBudget,
 		IsEnabled:       key.IsEnabled,
 		LastUsedAt:      key.LastUsedAt,
 		CreatedAt:       key.CreatedAt,
@@ -22,13 +20,13 @@ func APIKeyFromModel(key model.GatewayAPIKey) APIKey {
 	}
 }
 
-func (key APIKey) ToModel() model.GatewayAPIKey {
-	var target model.GatewayAPIKey
+func (key APIKey) ToModel() persistencemodel.GatewayAPIKey {
+	var target persistencemodel.GatewayAPIKey
 	key.ApplyToModel(&target)
 	return target
 }
 
-func (key APIKey) ApplyToModel(target *model.GatewayAPIKey) {
+func (key APIKey) ApplyToModel(target *persistencemodel.GatewayAPIKey) {
 	target.Model.ID = key.ID
 	target.Name = key.Name
 	target.KeyPrefix = key.KeyPrefix
@@ -38,8 +36,6 @@ func (key APIKey) ApplyToModel(target *model.GatewayAPIKey) {
 	target.ProjectID = key.ProjectID
 	target.AllowedModelIDs = key.AllowedModelIDs
 	target.AllowedScopes = key.AllowedScopes
-	target.RateLimitRPM = key.RateLimitRPM
-	target.MonthlyBudget = key.MonthlyBudget
 	target.IsEnabled = key.IsEnabled
 	target.LastUsedAt = key.LastUsedAt
 	target.CreatedAt = key.CreatedAt

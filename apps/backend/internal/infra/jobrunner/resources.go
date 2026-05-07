@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/media"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (w *Worker) saveDebugInfo(job *model.Job, result *ai.DebugCallResult) {
+func (w *Worker) saveDebugInfo(job *persistencemodel.Job, result *ai.DebugCallResult) {
 	if result == nil {
 		return
 	}
@@ -29,7 +29,7 @@ func (w *Worker) saveDebugInfo(job *model.Job, result *ai.DebugCallResult) {
 }
 
 // saveBytes stores raw bytes directly (used when the adapter downloads auth-gated content).
-func (w *Worker) saveBytes(ctx context.Context, job *model.Job, data []byte, mimeType string) (uint, error) {
+func (w *Worker) saveBytes(ctx context.Context, job *persistencemodel.Job, data []byte, mimeType string) (uint, error) {
 	if normalized, normalizedMime, changed, err := media.NormalizeVideoForBrowser(ctx, data, mimeType); err != nil {
 		log.Printf("[job] video normalization skipped for job #%d: %v", job.ID, err)
 	} else if changed {
@@ -40,7 +40,7 @@ func (w *Worker) saveBytes(ctx context.Context, job *model.Job, data []byte, mim
 	name := fmt.Sprintf("job_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
 	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
 
-	r := model.RawResource{
+	r := persistencemodel.RawResource{
 		OwnerID:        job.UserID,
 		Type:           resType,
 		Name:           name,
@@ -62,7 +62,7 @@ func (w *Worker) saveBytes(ctx context.Context, job *model.Job, data []byte, mim
 }
 
 // saveResult downloads the provider URL (or decodes a data URI), stores it, and creates a RawResource record.
-func (w *Worker) saveResult(ctx context.Context, job *model.Job, providerURL, mimeType string) (uint, error) {
+func (w *Worker) saveResult(ctx context.Context, job *persistencemodel.Job, providerURL, mimeType string) (uint, error) {
 	var data []byte
 	providerURL = strings.TrimSpace(providerURL)
 	if err := validateProviderResultURL(providerURL); err != nil {
@@ -115,7 +115,7 @@ func (w *Worker) saveResult(ctx context.Context, job *model.Job, providerURL, mi
 	name := fmt.Sprintf("job_%d_%s.%s", job.ID, resType, extFromMime(mimeType))
 	key := fmt.Sprintf("gen_%d_%s", job.ID, name)
 
-	r := model.RawResource{
+	r := persistencemodel.RawResource{
 		OwnerID:        job.UserID,
 		Type:           resType,
 		Name:           name,
@@ -139,7 +139,7 @@ func (w *Worker) saveResult(ctx context.Context, job *model.Job, providerURL, mi
 }
 
 func (w *Worker) resourceURL(id *uint) (string, error) {
-	var r model.RawResource
+	var r persistencemodel.RawResource
 	if err := w.db.First(&r, id).Error; err != nil {
 		return "", err
 	}
@@ -156,7 +156,7 @@ func (w *Worker) resourceURL(id *uint) (string, error) {
 
 // loadInputResources reads all input resource bytes from storage, classified by type.
 // It reads both the new InputResourceIDs JSON array and the legacy InputResourceID field.
-func (w *Worker) loadInputResources(job *model.Job) (imageData, videoData []ai.MediaData) {
+func (w *Worker) loadInputResources(job *persistencemodel.Job) (imageData, videoData []ai.MediaData) {
 	ids := parseResourceIDs(job.InputResourceIDs)
 	// Append legacy single ID if not already in the list.
 	if job.InputResourceID != nil {
@@ -175,12 +175,12 @@ func (w *Worker) loadInputResources(job *model.Job) (imageData, videoData []ai.M
 		return nil, nil
 	}
 
-	var resources []model.RawResource
+	var resources []persistencemodel.RawResource
 	if err := w.db.Where("id IN ?", ids).Find(&resources).Error; err != nil {
 		return nil, nil
 	}
 	// Preserve order of ids.
-	byID := make(map[uint]model.RawResource, len(resources))
+	byID := make(map[uint]persistencemodel.RawResource, len(resources))
 	for _, r := range resources {
 		byID[r.ID] = r
 	}
@@ -208,7 +208,7 @@ func (w *Worker) loadInputResources(job *model.Job) (imageData, videoData []ai.M
 // readResourceBytes reads a resource's bytes directly from the internal resource store.
 // The returned URL is intentionally empty: storage DirectURL may point at a private
 // MinIO hostname and must not be passed to external AI providers.
-func (w *Worker) readResourceBytes(r model.RawResource) ([]byte, string, string, error) {
+func (w *Worker) readResourceBytes(r persistencemodel.RawResource) ([]byte, string, string, error) {
 	if r.StorageKey == "" {
 		return nil, "", "", fmt.Errorf("resource #%d has no storage key", r.ID)
 	}

@@ -58,11 +58,20 @@ const productionOrchestrationSystemPrompt = MovScriptSystemPrompt + `
 你现在执行“制作编排”任务：把剧本文本和当前制作上下文拆解为可确认的制作候选。
 
 必须产出五类候选：
-- segments：片段，表达制作结构的大段叙事拆分。
-- scene_moments：情节，表达片段内可执行的时空/动作/情绪节点。
-- creative_references：创作资料，包括人物、地点、道具、产品、品牌、风格、世界规则。
+- segments：编排段，表达本集内部的情绪阶段、节奏变化、戏剧功能和观众预期管理；不要把 segment 写成情节复述、剧本文本段落或场次同义词。
+- scene_moments：情景，表达编排段内具体可执行的时空、条件、动作和局部情绪节点。
+- creative_references：设定资料，包括人物、地点、道具、产品、品牌、风格、世界规则。
 - asset_slots：素材需求，包括图片、视频、音频、文字、参考素材等待补充资产。
 - content_units：内容单元，表达需要生成或制作的镜头、视觉段落、字幕卡、旁白、转场、音乐点等。
+
+字段边界：
+- 顶层 summary 写本集整体编排意图，包括整体情绪走向、节奏策略和戏剧任务。
+- segment.title 写本段的功能名，例如“误会发酵”“冲突爆发”“反转收束”。
+- segment.kind 使用 emotional_function、rhythm_shift、dramatic_function、setup、escalation、release、reversal 或 transition。
+- segment.summary 写该段承担的情绪/节奏/戏剧功能，不复述具体情节。
+- scene_moment.description 写具体发生了什么。
+- scene_moment.action_text 写可执行动作。
+- scene_moment.mood 写该情景的局部情绪。
 
 关系要求：
 - scene_moment.segment_id 必须指向 segments.client_id。
@@ -93,9 +102,9 @@ func BuildProductionOrchestrationPrompt(input ProductionOrchestrationPromptInput
 		"",
 		"输出字段要求",
 		`{
-  "summary": "本次编排摘要",
-  "segments": [{"client_id":"s1","order":1,"title":"片段标题","summary":"摘要","source_range":"来源范围","conflict_status":"new|duplicate|needs_review","conflict_reason":"可选"}],
-  "scene_moments": [{"client_id":"sm1","segment_id":"s1","order":1,"title":"情节标题","description":"情节说明","time_text":"时间","location_text":"地点","action_text":"动作","mood":"氛围","creative_reference_ids":["cr1"],"asset_slot_ids":["as1"],"content_unit_ids":["cu1"]}],
+  "summary": "本集整体编排意图：情绪走向、节奏策略和戏剧任务",
+  "segments": [{"client_id":"s1","order":1,"title":"编排段功能名","kind":"emotional_function|rhythm_shift|dramatic_function|setup|escalation|release|reversal|transition","summary":"本段承担的情绪/节奏/戏剧功能，不复述具体情节","source_range":"来源范围","conflict_status":"new|duplicate|needs_review","conflict_reason":"可选"}],
+  "scene_moments": [{"client_id":"sm1","segment_id":"s1","order":1,"title":"情景标题","description":"具体情节说明","time_text":"时间","location_text":"地点","action_text":"可执行动作","mood":"局部情绪","creative_reference_ids":["cr1"],"asset_slot_ids":["as1"],"content_unit_ids":["cu1"]}],
   "creative_references": [{"client_id":"cr1","name":"名称","type":"person|place|prop|product|brand|style|world_rule","importance":"high|normal|low","description":"描述","segment_ids":["s1"],"scene_moment_ids":["sm1"],"content_unit_ids":["cu1"],"required_asset_slot_ids":["as1"]}],
   "asset_slots": [{"client_id":"as1","owner_type":"segment|scene_moment|content_unit|creative_reference","owner_id":"s1","name":"素材名","type":"image|video|audio|text|brand_pack|reference","description":"用途说明","prompt_hint":"给生成模型的自然语言提示","priority":"critical|high|normal|low"}],
   "content_units": [{"client_id":"cu1","segment_id":"s1","scene_moment_id":"sm1","order":1,"type":"shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat","title":"内容标题","description":"内容目标","prompt":"给生成模型的自然语言提示","shot_size":"景别","camera_angle":"角度","creative_reference_ids":["cr1"],"asset_slot_ids":["as1"]}],

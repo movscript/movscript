@@ -40,34 +40,6 @@
       }
     },
     {
-      "name": "movscript_search_items",
-      "runtimeName": "movscript_search_entities",
-      "description": "Search business items such as scripts, creative materials, scene beats, shot plans, and asset needs in the current or specified project. Use when the user names content without a direct reference.",
-      "permission": "project.read",
-      "risk": "read",
-      "projectScoped": true,
-      "requiresApprovalByDefault": false,
-      "defaultGrant": {
-        "name": "movscript_search_items",
-        "mode": "allow",
-        "approval": "never"
-      }
-    },
-    {
-      "name": "movscript_read_item",
-      "runtimeName": "movscript_read_entity",
-      "description": "Read a single MovScript business item by reference.",
-      "permission": "project.read",
-      "risk": "read",
-      "projectScoped": true,
-      "requiresApprovalByDefault": false,
-      "defaultGrant": {
-        "name": "movscript_read_item",
-        "mode": "allow",
-        "approval": "never"
-      }
-    },
-    {
       "name": "movscript_read_project_structure",
       "description": "Read compact project structure across scripts, creative materials, scene beats, shot plans, asset needs, and pipeline nodes.",
       "permission": "project.read",
@@ -82,11 +54,11 @@
     },
     {
       "name": "movscript_search_memories",
-      "description": "Search local agent memories by query, scope, kind, project, or thread. Use when older preferences, decisions, warnings, item references, or draft notes may matter.",
+      "description": "Search local agent memories in the current project by query and optional kind. Use when older preferences, decisions, warnings, item references, or draft notes may matter.",
       "permission": "memory.read",
       "risk": "read",
       "source": "runtime",
-      "projectScoped": false,
+      "projectScoped": true,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
         "name": "movscript_search_memories",
@@ -95,17 +67,115 @@
       }
     },
     {
-      "name": "movscript_open_item",
-      "runtimeName": "movscript_open_entity",
-      "description": "Navigate the MovScript UI to a project item page.",
-      "permission": "ui.navigate",
-      "risk": "ui",
+      "name": "movscript_list_memories",
+      "description": "List local agent memory titles in the current project.",
+      "permission": "memory.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_list_memories",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_get_memory",
+      "description": "Read one local agent memory by id in the current project.",
+      "permission": "memory.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_get_memory",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_create_memory",
+      "description": "Create a local agent memory in the current project.",
+      "permission": "memory.write",
+      "risk": "draft",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_create_memory",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_delete_memory",
+      "description": "Delete one local agent memory in the current project.",
+      "permission": "memory.write",
+      "risk": "write",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_delete_memory",
+        "mode": "allow",
+        "approval": "always"
+      }
+    },
+    {
+      "name": "movscript_list_agent_bundles",
+      "description": "List locally available agent capability bundles, including their skill and tool references and whether they are enabled.",
+      "permission": "agent.catalog.read",
+      "risk": "read",
+      "source": "runtime",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_open_item",
+        "name": "movscript_list_agent_bundles",
         "mode": "allow",
         "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_inspect_agent_bundle",
+      "description": "Inspect one locally available agent capability bundle before enabling it.",
+      "permission": "agent.catalog.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_inspect_agent_bundle",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_enable_agent_bundle",
+      "description": "Enable one locally available agent capability bundle. The refreshed skills and tools are available to subsequent agent runs.",
+      "permission": "agent.catalog.write",
+      "risk": "write",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_enable_agent_bundle",
+        "mode": "allow",
+        "approval": "always"
+      }
+    },
+    {
+      "name": "movscript_reload_agent_catalog",
+      "description": "Reload local agent skills, tools, and bundles from configured catalog directories.",
+      "permission": "agent.catalog.write",
+      "risk": "write",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": true,
+      "defaultGrant": {
+        "name": "movscript_reload_agent_catalog",
+        "mode": "allow",
+        "approval": "always"
       }
     }
   ]

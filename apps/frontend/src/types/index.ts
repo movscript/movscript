@@ -150,7 +150,7 @@ export interface OrgMembership {
   org_name: string
   org_slug: string
   is_personal: boolean
-  plan?: 'personal' | 'team' | 'enterprise' | string
+  plan?: 'personal' | 'team' | string
   status?: 'active' | 'trialing' | 'past_due' | 'suspended' | string
   role: 'owner' | 'admin' | 'member' | 'viewer'
 }
@@ -220,7 +220,7 @@ export interface AIModelConfig {
   custom_display_name: string
   short_name: string
   custom_capabilities: string    // comma-separated: "text","image","image_edit","video","video_i2v","video_v2v"
-  custom_billing_mode: string    // "per_token"|"per_image"|"per_second"|"per_call"
+  custom_pricing_mode: string    // "per_token"|"per_image"|"per_second"|"per_call"
   custom_accepts_image: boolean
   custom_max_input_images: number
   custom_max_input_videos: number
@@ -262,7 +262,7 @@ export interface ModelPreset {
   model_id: string
   display_name: string
   capabilities: string[]
-  billing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call'
+  pricing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call'
   adapter_type: string
   accepts_image_input: boolean
   max_input_images: number
@@ -357,27 +357,6 @@ export interface FeatureDef {
   OutputSchema: string
   MaxTokens: number
   Temperature: number
-}
-
-export interface UserQuota {
-  balance: number
-  total_cost_this_month: number
-  total_tokens_this_month: number
-}
-
-export interface UsageLog {
-  ID: number
-  user_id: number
-  ai_model_config_id: number
-  operation_type: 'text' | 'image' | 'video'
-  input_tokens: number
-  output_tokens: number
-  duration_sec: number   // per_second billing
-  image_count: number    // per_image billing
-  cost: number
-  CreatedAt: string
-  user?: User
-  ai_model_config?: AIModelConfig
 }
 
 export interface PaginatedResponse<T> {

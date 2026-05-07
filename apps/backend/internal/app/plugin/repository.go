@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainplugin "github.com/movscript/movscript/internal/domain/plugin"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/infra/pluginkit"
 	"gorm.io/gorm"
 )
@@ -25,7 +25,7 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) ListPlugins(ctx context.Context) ([]domainplugin.Plugin, error) {
-	plugins := make([]model.Plugin, 0)
+	plugins := make([]persistencemodel.Plugin, 0)
 	err := r.db.WithContext(ctx).Preload("Tools").Order("id").Find(&plugins).Error
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (r *gormRepository) ImportPlugin(ctx context.Context, req pluginkit.ImportR
 }
 
 func (r *gormRepository) GetPlugin(ctx context.Context, id uint) (domainplugin.Plugin, error) {
-	var plugin model.Plugin
+	var plugin persistencemodel.Plugin
 	if err := r.db.WithContext(ctx).First(&plugin, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainplugin.Plugin{}, ErrNotFound
@@ -56,7 +56,7 @@ func (r *gormRepository) GetPlugin(ctx context.Context, id uint) (domainplugin.P
 }
 
 func (r *gormRepository) SetEnabled(ctx context.Context, plugin domainplugin.Plugin, enabled bool) (domainplugin.Plugin, error) {
-	row := model.Plugin{Model: gorm.Model{ID: plugin.ID}}
+	row := persistencemodel.Plugin{Model: gorm.Model{ID: plugin.ID}}
 	if err := r.db.WithContext(ctx).Model(&row).Update("enabled", enabled).Error; err != nil {
 		return plugin, err
 	}
@@ -65,14 +65,14 @@ func (r *gormRepository) SetEnabled(ctx context.Context, plugin domainplugin.Plu
 }
 
 func (r *gormRepository) DeletePlugin(ctx context.Context, id uint) error {
-	if err := r.db.WithContext(ctx).Where("plugin_id = ?", id).Delete(&model.PluginTool{}).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("plugin_id = ?", id).Delete(&persistencemodel.PluginTool{}).Error; err != nil {
 		return err
 	}
-	return r.db.WithContext(ctx).Delete(&model.Plugin{}, id).Error
+	return r.db.WithContext(ctx).Delete(&persistencemodel.Plugin{}, id).Error
 }
 
 func (r *gormRepository) ToolCatalog(ctx context.Context) ([]domainplugin.PluginTool, error) {
-	tools := make([]model.PluginTool, 0)
+	tools := make([]persistencemodel.PluginTool, 0)
 	err := r.db.WithContext(ctx).Preload("Plugin").Joins("JOIN plugins ON plugins.id = plugin_tools.plugin_id").
 		Where("plugins.enabled = ? AND plugins.deleted_at IS NULL AND plugin_tools.enabled = ?", true, true).
 		Order("plugin_tools.tool_key").Find(&tools).Error
@@ -83,7 +83,7 @@ func (r *gormRepository) ToolCatalog(ctx context.Context) ([]domainplugin.Plugin
 }
 
 func (r *gormRepository) EnabledPlugins(ctx context.Context) ([]domainplugin.Plugin, error) {
-	plugins := make([]model.Plugin, 0)
+	plugins := make([]persistencemodel.Plugin, 0)
 	err := r.db.WithContext(ctx).Where("enabled = ?", true).Order("id").Find(&plugins).Error
 	if err != nil {
 		return nil, err

@@ -1,8 +1,10 @@
 package job
 
-import "github.com/movscript/movscript/internal/domain/model"
+import (
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+)
 
-func JobFromModel(job model.Job) Job {
+func JobFromModel(job persistencemodel.Job) Job {
 	domainJob := Job{
 		ID:                  job.ID,
 		UserID:              job.UserID,
@@ -51,13 +53,13 @@ func JobFromModel(job model.Job) Job {
 	return domainJob
 }
 
-func (job Job) ToModel() model.Job {
-	var target model.Job
+func (job Job) ToModel() persistencemodel.Job {
+	var target persistencemodel.Job
 	job.ApplyToModel(&target)
 	return target
 }
 
-func (job Job) ApplyToModel(target *model.Job) {
+func (job Job) ApplyToModel(target *persistencemodel.Job) {
 	target.Model.ID = job.ID
 	target.UserID = job.UserID
 	target.OrgID = job.OrgID
@@ -103,7 +105,7 @@ func (job Job) ApplyToModel(target *model.Job) {
 	}
 }
 
-func JobsFromModels(jobs []model.Job) []Job {
+func JobsFromModels(jobs []persistencemodel.Job) []Job {
 	out := make([]Job, 0, len(jobs))
 	for _, job := range jobs {
 		out = append(out, JobFromModel(job))
@@ -111,7 +113,7 @@ func JobsFromModels(jobs []model.Job) []Job {
 	return out
 }
 
-func RawResourceFromModel(resource model.RawResource) RawResource {
+func RawResourceFromModel(resource persistencemodel.RawResource) RawResource {
 	domainResource := RawResource{
 		ID:             resource.ID,
 		OwnerID:        resource.OwnerID,
@@ -136,13 +138,13 @@ func RawResourceFromModel(resource model.RawResource) RawResource {
 	return domainResource
 }
 
-func (resource RawResource) ToModel() model.RawResource {
-	var target model.RawResource
+func (resource RawResource) ToModel() persistencemodel.RawResource {
+	var target persistencemodel.RawResource
 	resource.ApplyToModel(&target)
 	return target
 }
 
-func (resource RawResource) ApplyToModel(target *model.RawResource) {
+func (resource RawResource) ApplyToModel(target *persistencemodel.RawResource) {
 	target.Model.ID = resource.ID
 	target.OwnerID = resource.OwnerID
 	target.OrgID = resource.OrgID
@@ -164,7 +166,7 @@ func (resource RawResource) ApplyToModel(target *model.RawResource) {
 	}
 }
 
-func RawResourcesFromModels(resources []model.RawResource) []RawResource {
+func RawResourcesFromModels(resources []persistencemodel.RawResource) []RawResource {
 	out := make([]RawResource, 0, len(resources))
 	for _, resource := range resources {
 		out = append(out, RawResourceFromModel(resource))
@@ -186,7 +188,7 @@ func InputResourcesFromRawResources(resources []RawResource) []InputResource {
 	return out
 }
 
-func AICredentialFromModel(credential model.AICredential) AICredential {
+func AICredentialFromModel(credential persistencemodel.AICredential) AICredential {
 	domainCredential := AICredential{
 		ID:                credential.ID,
 		AdapterType:       credential.AdapterType,
@@ -208,7 +210,7 @@ func AICredentialFromModel(credential model.AICredential) AICredential {
 	return domainCredential
 }
 
-func AIModelConfigFromModel(config model.AIModelConfig) AIModelConfig {
+func AIModelConfigFromModel(config persistencemodel.AIModelConfig) AIModelConfig {
 	domainConfig := AIModelConfig{
 		ID:                    config.ID,
 		CredentialID:          config.CredentialID,
@@ -224,7 +226,7 @@ func AIModelConfigFromModel(config model.AIModelConfig) AIModelConfig {
 		CustomDisplayName:     config.CustomDisplayName,
 		ShortName:             config.ShortName,
 		CustomCapabilities:    config.CustomCapabilities,
-		CustomBillingMode:     config.CustomBillingMode,
+		CustomPricingMode:     config.CustomPricingMode,
 		CustomAcceptsImage:    config.CustomAcceptsImage,
 		CustomMaxInputImages:  config.CustomMaxInputImages,
 		CustomMaxInputVideos:  config.CustomMaxInputVideos,

@@ -3,12 +3,11 @@ package jobrunner
 import (
 	"encoding/json"
 	"fmt"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 func validateProviderResultURL(providerURL string) error {
@@ -162,8 +161,8 @@ func extFromMime(mime string) string {
 	}
 }
 
-func (w *Worker) loadModelConfig(id uint) *model.AIModelConfig {
-	var cfg model.AIModelConfig
+func (w *Worker) loadModelConfig(id uint) *persistencemodel.AIModelConfig {
+	var cfg persistencemodel.AIModelConfig
 	if err := w.db.First(&cfg, id).Error; err != nil {
 		return nil
 	}

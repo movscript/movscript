@@ -2,14 +2,14 @@ package ai
 
 import "encoding/json"
 
-// BillingMode defines how credits are charged per model call.
-type BillingMode string
+// PricingMode defines how credits are charged per model call.
+type PricingMode string
 
 const (
-	BillingPerToken  BillingMode = "per_token"  // credits × (input + output tokens / 1M)
-	BillingPerImage  BillingMode = "per_image"  // credits × image count
-	BillingPerSecond BillingMode = "per_second" // credits × video duration seconds
-	BillingPerCall   BillingMode = "per_call"   // fixed credits per call
+	PricingPerToken  PricingMode = "per_token"  // credits × (input + output tokens / 1M)
+	PricingPerImage  PricingMode = "per_image"  // credits × image count
+	PricingPerSecond PricingMode = "per_second" // credits × video duration seconds
+	PricingPerCall   PricingMode = "per_call"   // fixed credits per call
 )
 
 // Adapter type constants.
@@ -61,7 +61,7 @@ type ModelDef struct {
 	ModelID      string // API model ID sent in requests
 	DisplayName  string
 	Capabilities []string // use Capability* constants: "text", "image", "video", "video_i2v", "video_v2v", "image_edit", "reasoning"
-	BillingMode  BillingMode
+	PricingMode  PricingMode
 	AdapterType  string
 
 	// AllowModelIDOverride lets admins replace the ModelID (e.g. Volcengine ep-xxx endpoints).
@@ -110,7 +110,7 @@ type ModelPreset struct {
 	ModelID           string      `json:"model_id"`
 	DisplayName       string      `json:"display_name"`
 	Capabilities      []string    `json:"capabilities"`
-	BillingMode       BillingMode `json:"billing_mode"`
+	PricingMode       PricingMode `json:"pricing_mode"`
 	AdapterType       string      `json:"adapter_type"`
 	AcceptsImageInput bool        `json:"accepts_image_input"`
 	MaxInputImages    int         `json:"max_input_images"`
@@ -393,7 +393,7 @@ func ModelPresets() []ModelPreset {
 			ModelID:           def.ModelID,
 			DisplayName:       def.DisplayName,
 			Capabilities:      def.Capabilities,
-			BillingMode:       def.BillingMode,
+			PricingMode:       def.PricingMode,
 			AdapterType:       def.AdapterType,
 			AcceptsImageInput: def.AcceptsImageInput,
 			MaxInputImages:    def.MaxInputImages,
@@ -608,7 +608,7 @@ func stringSet(values []string) map[string]bool {
 // Adapter definitions provide default parameter controls; model configs may
 // override those controls by storing CustomSupportedParams, including "[]" to
 // explicitly expose no parameters for a model.
-func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, customBilling string,
+func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, customPricing string,
 	customAcceptsImage bool, customMaxInputImages, customMaxInputVideos int,
 	customImageEditField, customSupportedParams string) *ModelDef {
 
@@ -631,20 +631,20 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, cus
 		def.Capabilities = []string{CapabilityText}
 	}
 
-	if customBilling != "" {
-		def.BillingMode = BillingMode(customBilling)
+	if customPricing != "" {
+		def.PricingMode = PricingMode(customPricing)
 	}
-	if def.BillingMode == "" {
+	if def.PricingMode == "" {
 		for _, c := range def.Capabilities {
 			switch c {
 			case CapabilityImage, CapabilityImageEdit:
-				def.BillingMode = BillingPerImage
+				def.PricingMode = PricingPerImage
 			case CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
-				def.BillingMode = BillingPerSecond
+				def.PricingMode = PricingPerSecond
 			}
 		}
-		if def.BillingMode == "" {
-			def.BillingMode = BillingPerToken
+		if def.PricingMode == "" {
+			def.PricingMode = PricingPerToken
 		}
 	}
 

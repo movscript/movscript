@@ -197,7 +197,7 @@ export default function ProductionFramePage() {
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">制作</h1>
               <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载剧本段落、情景、设定资料、素材需求、制作项和成片。
+                一个项目可以包含多个制作。每个制作承载一次从剧本到成片的完整创作单元，并统一挂载编排段、情景、设定资料、素材需求、制作项和成片。
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
@@ -322,7 +322,7 @@ export default function ProductionFramePage() {
                 </div>
 
                 <div className="mt-5 grid gap-3 md:grid-cols-6">
-                  <StatCard icon={GitBranch} label="剧本段落" value={selected.stats.segments} />
+                  <StatCard icon={GitBranch} label="编排段" value={selected.stats.segments} />
                   <StatCard icon={Route} label="情景" value={selected.stats.sceneMoments} />
                   <StatCard icon={Sparkles} label="设定资料" value={selected.stats.references} />
                   <StatCard icon={PackageCheck} label="素材需求" value={selected.stats.assets} />
@@ -336,7 +336,7 @@ export default function ProductionFramePage() {
                   <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                     <div className="min-w-0">
                       <h2 className="text-sm font-semibold text-foreground">推演对象</h2>
-                      <p className="mt-0.5 text-xs text-muted-foreground">从剧本段落推导出情景、设定资料、素材需求、制作项与成片。</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">从编排段推导出情景、设定资料、素材需求、制作项与成片。</p>
                     </div>
                   </div>
                   <div className="grid gap-3 p-4 md:grid-cols-2">
@@ -357,7 +357,7 @@ export default function ProductionFramePage() {
                   <div className="p-4">
                     <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      预演挂在制作下面，用于追踪剧本段落、关键帧、素材和内容准备情况。
+                      预演挂在制作下面，用于追踪编排段、关键帧、素材和内容准备情况。
                     </p>
                     <Progress value={selected.preview.progress} className="mt-4 h-2" />
                     <div className="mt-4 space-y-1 text-xs text-muted-foreground">
@@ -424,7 +424,7 @@ export default function ProductionFramePage() {
               <div className="space-y-3 p-4">
                 {[
                   ['预演', selected.preview.status === 'done' ? '已有确认记录，可作为制作输入。' : '可继续挂载或更新预演记录。'],
-                  ['剧本段落', `${selected.stats.segments} 个剧本段落已挂在制作下。`],
+                  ['编排段', `${selected.stats.segments} 个编排段已挂在制作下。`],
                   ['素材', `${selected.stats.assets} 个素材需求等待候选或锁定。`],
                   ['成片', selected.stats.finals > 0 ? '已有成片版本进入交付检查。' : '尚未生成成片版本。'],
                 ].map(([label, text]) => (
@@ -688,7 +688,7 @@ function buildProductionRecords(data?: ProductionData): ProductionRecord[] {
       }),
       units,
       blockers: [
-        ...(blockedUnits > 0 ? [`${blockedUnits} 个制作项仍有素材或资料缺口。`] : []),
+        ...(blockedUnits > 0 ? [`${blockedUnits} 个制作项仍有素材需求或设定资料缺口。`] : []),
         ...(units.length === 0 ? ['当前制作还没有制作项。'] : []),
       ],
       nextActions: nextActionsForProduction({ blockedUnits, units: units.length, deliveryVersions: deliveryVersions.length, keyframes: keyframes.length }),
@@ -710,7 +710,7 @@ function buildAreas(input: {
   return [
     {
       key: 'segments',
-      title: '剧本段落',
+      title: '编排段',
       description: '叙事和制作块',
       icon: GitBranch,
       count: input.segmentCount,
@@ -741,7 +741,7 @@ function buildAreas(input: {
     {
       key: 'assets',
       title: '素材需求',
-      description: '从剧本段落和设定资料推演出的素材需求',
+      description: '从编排段和设定资料推演出的素材需求',
       icon: PackageCheck,
       count: input.assetCount,
       progress: input.blockedUnits > 0 ? 38 : input.assetCount > 0 ? 68 : 0,
@@ -939,7 +939,7 @@ function contentUnitStatus(status: unknown, blocked: boolean): UnitStatus {
 
 function nextActionsForProduction(input: { blockedUnits: number; units: number; deliveryVersions: number; keyframes: number }) {
   if (input.units === 0) return ['创建或导入制作项。', '为制作项补充素材需求。', '建立预演时间线或直接开始制作项生成。']
-  if (input.blockedUnits > 0) return ['先补齐阻塞制作项的素材需求。', '锁定关键设定资料和素材。', '再进入内容候选生成与选片。']
+  if (input.blockedUnits > 0) return ['先补齐阻塞制作项的素材需求。', '锁定关键设定资料和素材资源。', '再进入内容候选生成与选片。']
   if (input.deliveryVersions === 0) return ['生成正式内容候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
   return ['复核成片版本。', '归档生成记录和审核意见。', '准备导出或交付。']
 }

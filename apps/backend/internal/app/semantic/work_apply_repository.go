@@ -5,13 +5,13 @@ import (
 	"errors"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
-func applyWorkItemResult(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
-	application, err := domainsemantic.WorkItemResultApplicationFor(domainsemantic.WorkItemFromModel(item))
+func applyWorkItemResult(tx *gorm.DB, projectID uint, item domainsemantic.WorkItem, actorID *uint, appliedAt string) error {
+	application, err := domainsemantic.WorkItemResultApplicationFor(item)
 	if err != nil {
 		return err
 	}
@@ -25,8 +25,8 @@ func applyWorkItemResult(tx *gorm.DB, projectID uint, item model.WorkItem, actor
 	}
 }
 
-func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkItem, application domainsemantic.WorkItemResultApplication, actorID *uint, appliedAt string) error {
-	var candidate model.AssetSlotCandidate
+func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item domainsemantic.WorkItem, application domainsemantic.WorkItemResultApplication, actorID *uint, appliedAt string) error {
+	var candidate persistencemodel.AssetSlotCandidate
 	if err := tx.Preload("CandidateAssetSlot").Where("project_id = ?", projectID).First(&candidate, application.AssetSlotCandidateID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return errors.New("素材候选不存在")
@@ -39,7 +39,7 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 	if candidate.CandidateAssetSlot == nil {
 		return errors.New("素材候选缺少候选素材位")
 	}
-	var targetSlot model.AssetSlot
+	var targetSlot persistencemodel.AssetSlot
 	if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&targetSlot).Error; err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 	if err := saveCoreEntityWithRelations(tx, &targetSlot); err != nil {
 		return err
 	}
-	var rejected []model.AssetSlotCandidate
+	var rejected []persistencemodel.AssetSlotCandidate
 	if err := tx.Where("project_id = ? AND asset_slot_id = ? AND id <> ?", projectID, item.TargetID, candidate.ID).Find(&rejected).Error; err != nil {
 		return err
 	}
@@ -76,22 +76,19 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 		AppliedAt:     appliedAt,
 		MetadataJSON:  workItemApplyMetadata(item.ID),
 	}).ToModel()
-	if err := tx.Create(&decision).Error; err != nil {
-		return err
-	}
-	if err := entityrelation.SyncCoreEntityRelations(tx, &decision); err != nil {
+	if err := createCoreEntityWithRelations(tx, &decision); err != nil {
 		return err
 	}
 	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
 }
 
-func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem, targetType string, status string, actorID *uint, appliedAt string) error {
+func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item domainsemantic.WorkItem, targetType string, status string, actorID *uint, appliedAt string) error {
 	if item.TargetType != targetType {
 		return errors.New("任务结果类型与目标类型不匹配")
 	}
 	switch targetType {
 	case domainsemantic.WorkItemTargetTypeContentUnit:
-		var target model.ContentUnit
+		var target persistencemodel.ContentUnit
 		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err
 		}
@@ -100,7 +97,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 			return err
 		}
 	case domainsemantic.WorkItemTargetTypeKeyframe:
-		var target model.Keyframe
+		var target persistencemodel.Keyframe
 		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err
 		}
@@ -109,7 +106,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 			return err
 		}
 	case domainsemantic.WorkItemTargetTypeAssetSlot:
-		var target model.AssetSlot
+		var target persistencemodel.AssetSlot
 		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err
 		}
@@ -118,7 +115,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 			return err
 		}
 	case domainsemantic.WorkItemTargetTypeDeliveryVersion:
-		var target model.DeliveryVersion
+		var target persistencemodel.DeliveryVersion
 		if err := tx.Where("project_id = ? AND id = ?", projectID, item.TargetID).First(&target).Error; err != nil {
 			return err
 		}
@@ -132,7 +129,7 @@ func applyWorkItemTargetStatus(tx *gorm.DB, projectID uint, item model.WorkItem,
 	return createWorkItemAppliedReviewEvent(tx, projectID, item, actorID, appliedAt)
 }
 
-func createWorkItemAppliedReviewEvent(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
+func createWorkItemAppliedReviewEvent(tx *gorm.DB, projectID uint, item domainsemantic.WorkItem, actorID *uint, appliedAt string) error {
 	subjectID := item.TargetID
 	metadata := workItemApplyMetadata(item.ID)
 	if appliedAt != "" {
@@ -151,19 +148,24 @@ func createWorkItemAppliedReviewEvent(tx *gorm.DB, projectID uint, item model.Wo
 		ActorID:      actorID,
 		MetadataJSON: metadata,
 	}).ToModel()
-	if err := tx.Create(&event).Error; err != nil {
+	return createCoreEntityWithRelations(tx, &event)
+}
+
+func createCoreEntityWithRelations(tx *gorm.DB, item any) error {
+	if err := tx.Create(item).Error; err != nil {
 		return err
 	}
-	if err := entityrelation.SyncCoreEntityRelations(tx, &event); err != nil {
-		return err
-	}
-	return nil
+	return syncCoreEntityRelations(tx, item)
 }
 
 func saveCoreEntityWithRelations(tx *gorm.DB, item any) error {
 	if err := tx.Save(item).Error; err != nil {
 		return err
 	}
+	return syncCoreEntityRelations(tx, item)
+}
+
+func syncCoreEntityRelations(tx *gorm.DB, item any) error {
 	return entityrelation.SyncCoreEntityRelations(tx, item)
 }
 

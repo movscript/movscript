@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func (h *Service) applyPromptPortInputs(ctx context.Context, nd *nodeData, portInputs canvasPortInputMap) {
@@ -80,7 +80,7 @@ func (h *Service) readCanvasTextInputs(ctx context.Context, resourcePtrs []*uint
 	if err != nil {
 		return nil
 	}
-	byID := make(map[uint]model.RawResource, len(resources))
+	byID := make(map[uint]persistencemodel.RawResource, len(resources))
 	for _, r := range resources {
 		byID[r.ID] = r
 	}
@@ -129,7 +129,7 @@ func (h *Service) loadCanvasInputResources(ctx context.Context, nd nodeData, ups
 	if err != nil {
 		return nil, nil
 	}
-	byID := make(map[uint]model.RawResource, len(resources))
+	byID := make(map[uint]persistencemodel.RawResource, len(resources))
 	for _, r := range resources {
 		byID[r.ID] = r
 	}
@@ -153,7 +153,7 @@ func (h *Service) loadCanvasInputResources(ctx context.Context, nd nodeData, ups
 	return imageData, videoData
 }
 
-func (h *Service) readCanvasResourceBytes(ctx context.Context, r model.RawResource) ([]byte, string, error) {
+func (h *Service) readCanvasResourceBytes(ctx context.Context, r persistencemodel.RawResource) ([]byte, string, error) {
 	mimeType := r.MimeType
 	if r.StorageKey != "" && h.store != nil {
 		rc, _, storedMime, err := h.store.GetObject(ctx, r.StorageKey, -1, -1)

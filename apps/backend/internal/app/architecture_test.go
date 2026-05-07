@@ -5,22 +5,39 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
 
 const domainModelImport = "github.com/movscript/movscript/internal/domain/model"
+const persistenceModelImport = "github.com/movscript/movscript/internal/infra/persistence/model"
 
 func TestPublicAppServiceContractsDoNotExposePersistenceModels(t *testing.T) {
 	walkAppFiles(t, func(path string, file *ast.File, modelNames map[string]struct{}) {
+		persistenceNames := importedNames(file, domainModelImport, persistenceModelImport)
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Recv == nil || !fn.Name.IsExported() || !hasServiceReceiver(fn) {
 				continue
 			}
-			if fieldListReferencesNames(fn.Type.Params, modelNames) || fieldListReferencesNames(fn.Type.Results, modelNames) {
-				t.Errorf("%s: exported Service method %s exposes %s", path, fn.Name.Name, domainModelImport)
+			if fieldListReferencesNames(fn.Type.Params, persistenceNames) || fieldListReferencesNames(fn.Type.Results, persistenceNames) {
+				t.Errorf("%s: exported Service method %s exposes persistence models", path, fn.Name.Name)
+			}
+		}
+	})
+}
+
+func TestPublicAppServiceContractsAvoidUntypedAny(t *testing.T) {
+	walkAppFiles(t, func(path string, file *ast.File, _ map[string]struct{}) {
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || !fn.Name.IsExported() || !hasServiceReceiver(fn) {
+				continue
+			}
+			if fieldListReferencesUntypedAny(fn.Type.Params) || fieldListReferencesUntypedAny(fn.Type.Results) {
+				t.Errorf("%s: exported Service method %s exposes untyped any/interface{}", path, fn.Name.Name)
 			}
 		}
 	})
@@ -28,6 +45,7 @@ func TestPublicAppServiceContractsDoNotExposePersistenceModels(t *testing.T) {
 
 func TestExportedAppStructsDoNotExposePersistenceModels(t *testing.T) {
 	walkAppFiles(t, func(path string, file *ast.File, modelNames map[string]struct{}) {
+		persistenceNames := importedNames(file, domainModelImport, persistenceModelImport)
 		for _, decl := range file.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.TYPE {
@@ -39,25 +57,45 @@ func TestExportedAppStructsDoNotExposePersistenceModels(t *testing.T) {
 					continue
 				}
 				structType, ok := typeSpec.Type.(*ast.StructType)
-				if !ok || !fieldListReferencesNames(structType.Fields, modelNames) {
+				if !ok || !fieldListReferencesNames(structType.Fields, persistenceNames) {
 					continue
 				}
-				t.Errorf("%s: exported struct %s exposes %s", path, typeSpec.Name.Name, domainModelImport)
+				t.Errorf("%s: exported struct %s exposes persistence models", path, typeSpec.Name.Name)
 			}
 		}
 	})
 }
 
-func TestAppServicesDoNotImportPersistenceModelsOutsideCanvasExecution(t *testing.T) {
+func TestAppServicesDoNotImportDomainModel(t *testing.T) {
 	walkAppFiles(t, func(path string, file *ast.File, modelNames map[string]struct{}) {
 		if len(modelNames) == 0 || !strings.HasSuffix(filepath.Base(path), "service.go") {
 			return
 		}
-		if strings.HasPrefix(path, "canvas/") {
-			return
-		}
 		t.Errorf("%s imports %s from an app service file", path, domainModelImport)
 	})
+}
+
+func TestAppDoesNotImportDomainModel(t *testing.T) {
+	walkAppFiles(t, func(path string, _ *ast.File, modelNames map[string]struct{}) {
+		if len(modelNames) == 0 {
+			return
+		}
+		t.Errorf("%s imports %s; use internal/infra/persistence/model at persistence boundaries", path, domainModelImport)
+	})
+}
+
+func TestMigratedAppRepositoriesDoNotImportDomainModel(t *testing.T) {
+	migratedRoots := []string{"aiadmin", "artifactref", "audit", "auth", "cloudfileconfig", "debug", "entitlement", "feature", "hub", "job", "modelgateway", "org", "plugin", "preview", "project", "resource", "resourceadmin", "resourcebinding", "resourcefolder", "script", "semantic", "user", "workflowio", "workflowmarket"}
+	for _, root := range migratedRoots {
+		t.Run(root, func(t *testing.T) {
+			walkAppFiles(t, func(path string, _ *ast.File, modelNames map[string]struct{}) {
+				if !strings.HasPrefix(path, root+"/") || len(modelNames) == 0 {
+					return
+				}
+				t.Errorf("%s imports %s after migration to infra persistence model", path, domainModelImport)
+			})
+		})
+	}
 }
 
 func walkAppFiles(t *testing.T, visit func(path string, file *ast.File, modelNames map[string]struct{})) {
@@ -73,14 +111,14 @@ func walkAppFiles(t *testing.T, visit func(path string, file *ast.File, modelNam
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
+		if isEnterpriseOnlyFile(path) {
+			return nil
+		}
 		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			return err
 		}
 		modelNames := importedModelNames(file)
-		if len(modelNames) == 0 {
-			return nil
-		}
 		visit(path, file, modelNames)
 		return nil
 	})
@@ -89,17 +127,39 @@ func walkAppFiles(t *testing.T, visit func(path string, file *ast.File, modelNam
 	}
 }
 
-func importedModelNames(file *ast.File) map[string]struct{} {
-	names := map[string]struct{}{}
-	for _, imp := range file.Imports {
-		if strings.Trim(imp.Path.Value, `"`) != domainModelImport {
+func isEnterpriseOnlyFile(path string) bool {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(content), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
 			continue
 		}
-		name := "model"
-		if imp.Name != nil {
-			name = imp.Name.Name
+		return strings.HasPrefix(line, "//go:build enterprise")
+	}
+	return false
+}
+
+func importedModelNames(file *ast.File) map[string]struct{} {
+	return importedNames(file, domainModelImport)
+}
+
+func importedNames(file *ast.File, importPaths ...string) map[string]struct{} {
+	names := map[string]struct{}{}
+	for _, imp := range file.Imports {
+		importPath := strings.Trim(imp.Path.Value, `"`)
+		for _, wanted := range importPaths {
+			if importPath != wanted {
+				continue
+			}
+			name := "model"
+			if imp.Name != nil {
+				name = imp.Name.Name
+			}
+			names[name] = struct{}{}
 		}
-		names[name] = struct{}{}
 	}
 	return names
 }
@@ -152,4 +212,50 @@ func exprReferencesNames(expr ast.Expr, names map[string]struct{}) bool {
 		return !found
 	})
 	return found
+}
+
+func fieldListReferencesUntypedAny(fields *ast.FieldList) bool {
+	if fields == nil {
+		return false
+	}
+	for _, field := range fields.List {
+		if exprReferencesUntypedAny(field.Type) {
+			return true
+		}
+	}
+	return false
+}
+
+func exprReferencesUntypedAny(expr ast.Expr) bool {
+	found := false
+	ast.Inspect(expr, func(node ast.Node) bool {
+		if found {
+			return false
+		}
+		switch value := node.(type) {
+		case *ast.Ident:
+			found = value.Name == "any"
+		case *ast.InterfaceType:
+			found = value.Methods == nil || len(value.Methods.List) == 0
+		}
+		return !found
+	})
+	return found
+}
+
+func selectorNamesForIdent(file *ast.File, identName string) []string {
+	names := []string{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		selector, ok := node.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		ident, ok := selector.X.(*ast.Ident)
+		if !ok || ident.Name != identName {
+			return true
+		}
+		names = append(names, selector.Sel.Name)
+		return true
+	})
+	return names
 }

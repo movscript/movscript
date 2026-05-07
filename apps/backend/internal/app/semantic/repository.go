@@ -9,9 +9,9 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/app/workflowio"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -19,7 +19,7 @@ type repository interface {
 	WithTx(ctx context.Context, fn func(repository) error) error
 	ListRelations(ctx context.Context, filter RelationFilter) ([]domainsemantic.EntityRelation, error)
 	ListScriptVersions(ctx context.Context, filter ScriptVersionFilter) ([]domainsemantic.ScriptVersion, error)
-	LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (model.Script, error)
+	LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (persistencemodel.Script, error)
 	CreateScriptVersion(ctx context.Context, projectID uint, input CreateScriptVersionInput, createdByID *uint) (domainsemantic.ScriptVersion, error)
 	LoadScriptVersion(ctx context.Context, projectID uint, id string) (domainsemantic.ScriptVersion, error)
 	PatchScriptVersion(ctx context.Context, item domainsemantic.ScriptVersion, updates map[string]any) (domainsemantic.ScriptVersion, error)
@@ -111,7 +111,7 @@ type repository interface {
 	LoadAssetSlotCandidate(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlotCandidate, error)
 	PatchAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate, updates map[string]any) (domainsemantic.AssetSlotCandidate, error)
 	AttachAssetSlotCandidate(ctx context.Context, input workflowio.AttachAssetSlotCandidateInput) (workflowio.AttachAssetSlotCandidateResult, error)
-	ReloadAssetSlotCandidate(ctx context.Context, candidate *model.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error)
+	ReloadAssetSlotCandidate(ctx context.Context, candidate *persistencemodel.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error)
 	ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]domainsemantic.CandidateDecision, error)
 	CreateCandidateDecision(ctx context.Context, item domainsemantic.CandidateDecision) (domainsemantic.CandidateDecision, error)
 	LoadCandidateDecision(ctx context.Context, projectID uint, id string) (domainsemantic.CandidateDecision, error)
@@ -175,7 +175,7 @@ func (r *gormRepository) WithTx(ctx context.Context, fn func(repository) error) 
 }
 
 func (r *gormRepository) ListRelations(ctx context.Context, filter RelationFilter) ([]domainsemantic.EntityRelation, error) {
-	items := make([]model.EntityRelation, 0)
+	items := make([]persistencemodel.EntityRelation, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if category := strings.TrimSpace(filter.Category); category != "" {
 		q = q.Where("category = ?", category)
@@ -207,7 +207,7 @@ func (r *gormRepository) ListRelations(ctx context.Context, filter RelationFilte
 	return entityRelationsFromModels(items), nil
 }
 
-func entityRelationsFromModels(items []model.EntityRelation) []domainsemantic.EntityRelation {
+func entityRelationsFromModels(items []persistencemodel.EntityRelation) []domainsemantic.EntityRelation {
 	result := make([]domainsemantic.EntityRelation, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.EntityRelationFromModel(item))
@@ -216,7 +216,7 @@ func entityRelationsFromModels(items []model.EntityRelation) []domainsemantic.En
 }
 
 func (r *gormRepository) ListScriptVersions(ctx context.Context, filter ScriptVersionFilter) ([]domainsemantic.ScriptVersion, error) {
-	items := make([]model.ScriptVersion, 0)
+	items := make([]persistencemodel.ScriptVersion, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.ScriptID > 0 {
 		q = q.Where("script_id = ?", filter.ScriptID)
@@ -230,7 +230,7 @@ func (r *gormRepository) ListScriptVersions(ctx context.Context, filter ScriptVe
 	return scriptVersionsFromModels(items), nil
 }
 
-func scriptVersionsFromModels(items []model.ScriptVersion) []domainsemantic.ScriptVersion {
+func scriptVersionsFromModels(items []persistencemodel.ScriptVersion) []domainsemantic.ScriptVersion {
 	result := make([]domainsemantic.ScriptVersion, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.ScriptVersionFromModel(item))
@@ -238,8 +238,8 @@ func scriptVersionsFromModels(items []model.ScriptVersion) []domainsemantic.Scri
 	return result
 }
 
-func (r *gormRepository) LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (model.Script, error) {
-	var script model.Script
+func (r *gormRepository) LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (persistencemodel.Script, error) {
+	var script persistencemodel.Script
 	if err := r.db.WithContext(ctx).Select("id, project_id, title, raw_source, content").First(&script, scriptID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return script, ErrScriptNotFound
@@ -273,59 +273,59 @@ func (r *gormRepository) DeleteProjectItemByKind(ctx context.Context, projectID 
 	if err := r.DeleteItem(ctx, item); err != nil {
 		return 0, err
 	}
-	return projectIDOf(item), nil
+	return projectID, nil
 }
 
 func newDeleteItemModel(kind string) (any, error) {
 	switch kind {
 	case domainworkflow.EntityKindScriptVersion:
-		return &model.ScriptVersion{}, nil
+		return &persistencemodel.ScriptVersion{}, nil
 	case domainworkflow.EntityKindSegment:
-		return &model.Segment{}, nil
+		return &persistencemodel.Segment{}, nil
 	case "production_text_block":
-		return &model.ProductionTextBlock{}, nil
+		return &persistencemodel.ProductionTextBlock{}, nil
 	case domainworkflow.EntityKindSceneMoment:
-		return &model.SceneMoment{}, nil
+		return &persistencemodel.SceneMoment{}, nil
 	case "storyboard_script":
-		return &model.StoryboardScript{}, nil
+		return &persistencemodel.StoryboardScript{}, nil
 	case "storyboard_version":
-		return &model.StoryboardVersion{}, nil
+		return &persistencemodel.StoryboardVersion{}, nil
 	case "storyboard_line":
-		return &model.StoryboardLine{}, nil
+		return &persistencemodel.StoryboardLine{}, nil
 	case "production":
-		return &model.Production{}, nil
+		return &persistencemodel.Production{}, nil
 	case domainworkflow.EntityKindContentUnit:
-		return &model.ContentUnit{}, nil
+		return &persistencemodel.ContentUnit{}, nil
 	case domainworkflow.EntityKindKeyframe:
-		return &model.Keyframe{}, nil
+		return &persistencemodel.Keyframe{}, nil
 	case "preview_timeline":
-		return &model.PreviewTimeline{}, nil
+		return &persistencemodel.PreviewTimeline{}, nil
 	case "preview_timeline_item":
-		return &model.PreviewTimelineItem{}, nil
+		return &persistencemodel.PreviewTimelineItem{}, nil
 	case domainworkflow.EntityKindCreativeReference:
-		return &model.CreativeReference{}, nil
+		return &persistencemodel.CreativeReference{}, nil
 	case "creative_reference_state":
-		return &model.CreativeReferenceState{}, nil
+		return &persistencemodel.CreativeReferenceState{}, nil
 	case "creative_reference_usage":
-		return &model.CreativeReferenceUsage{}, nil
+		return &persistencemodel.CreativeReferenceUsage{}, nil
 	case "creative_relationship":
-		return &model.CreativeRelationship{}, nil
+		return &persistencemodel.CreativeRelationship{}, nil
 	case domainworkflow.EntityKindAssetSlot:
-		return &model.AssetSlot{}, nil
+		return &persistencemodel.AssetSlot{}, nil
 	case "asset_slot_candidate":
-		return &model.AssetSlotCandidate{}, nil
+		return &persistencemodel.AssetSlotCandidate{}, nil
 	case "candidate_decision":
-		return &model.CandidateDecision{}, nil
+		return &persistencemodel.CandidateDecision{}, nil
 	case "review_event":
-		return &model.ReviewEvent{}, nil
+		return &persistencemodel.ReviewEvent{}, nil
 	case domainworkflow.EntityKindDeliveryVersion:
-		return &model.DeliveryVersion{}, nil
+		return &persistencemodel.DeliveryVersion{}, nil
 	case "delivery_timeline_item":
-		return &model.DeliveryTimelineItem{}, nil
+		return &persistencemodel.DeliveryTimelineItem{}, nil
 	case "export_record":
-		return &model.ExportRecord{}, nil
+		return &persistencemodel.ExportRecord{}, nil
 	case "canvas_output":
-		return &model.CanvasOutput{}, nil
+		return &persistencemodel.CanvasOutput{}, nil
 	default:
 		return nil, fmt.Errorf("%w: unsupported delete kind %q", ErrOwnerInvalidType, kind)
 	}
@@ -406,7 +406,7 @@ func (r *gormRepository) CreateScriptVersion(ctx context.Context, projectID uint
 }
 
 func (r *gormRepository) LoadScriptVersion(ctx context.Context, projectID uint, id string) (domainsemantic.ScriptVersion, error) {
-	var item model.ScriptVersion
+	var item persistencemodel.ScriptVersion
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ScriptVersion{}, err
 	}
@@ -424,7 +424,7 @@ func (r *gormRepository) PatchScriptVersion(ctx context.Context, item domainsema
 func (r *gormRepository) NextScriptVersionNumber(ctx context.Context, projectID uint, scriptID uint) int {
 	var maxVersion int
 	r.db.WithContext(ctx).
-		Model(&model.ScriptVersion{}).
+		Model(&persistencemodel.ScriptVersion{}).
 		Where("project_id = ? AND script_id = ?", projectID, scriptID).
 		Select("COALESCE(MAX(version_number), 0)").
 		Scan(&maxVersion)
@@ -432,7 +432,7 @@ func (r *gormRepository) NextScriptVersionNumber(ctx context.Context, projectID 
 }
 
 func (r *gormRepository) ListSegments(ctx context.Context, filter SegmentFilter) ([]domainsemantic.Segment, error) {
-	items := make([]model.Segment, 0)
+	items := make([]persistencemodel.Segment, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.ProductionID > 0 {
 		q = q.Where("production_id = ?", filter.ProductionID)
@@ -449,7 +449,7 @@ func (r *gormRepository) ListSegments(ctx context.Context, filter SegmentFilter)
 	return segmentsFromModels(items), nil
 }
 
-func segmentsFromModels(items []model.Segment) []domainsemantic.Segment {
+func segmentsFromModels(items []persistencemodel.Segment) []domainsemantic.Segment {
 	result := make([]domainsemantic.Segment, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.SegmentFromModel(item))
@@ -466,7 +466,7 @@ func (r *gormRepository) CreateSegment(ctx context.Context, item domainsemantic.
 }
 
 func (r *gormRepository) LoadSegment(ctx context.Context, projectID uint, id string) (domainsemantic.Segment, error) {
-	var item model.Segment
+	var item persistencemodel.Segment
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.Segment{}, err
 	}
@@ -482,7 +482,7 @@ func (r *gormRepository) PatchSegment(ctx context.Context, item domainsemantic.S
 }
 
 func (r *gormRepository) ListProductionTextBlocks(ctx context.Context, filter ProductionTextBlockFilter) ([]domainsemantic.ProductionTextBlock, error) {
-	items := make([]model.ProductionTextBlock, 0)
+	items := make([]persistencemodel.ProductionTextBlock, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.ProductionID > 0 {
 		q = q.Where("production_id = ?", filter.ProductionID)
@@ -496,7 +496,7 @@ func (r *gormRepository) ListProductionTextBlocks(ctx context.Context, filter Pr
 	return productionTextBlocksFromModels(items), nil
 }
 
-func productionTextBlocksFromModels(items []model.ProductionTextBlock) []domainsemantic.ProductionTextBlock {
+func productionTextBlocksFromModels(items []persistencemodel.ProductionTextBlock) []domainsemantic.ProductionTextBlock {
 	result := make([]domainsemantic.ProductionTextBlock, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.ProductionTextBlockFromModel(item))
@@ -513,7 +513,7 @@ func (r *gormRepository) CreateProductionTextBlock(ctx context.Context, item dom
 }
 
 func (r *gormRepository) LoadProductionTextBlock(ctx context.Context, projectID uint, id string) (domainsemantic.ProductionTextBlock, error) {
-	var item model.ProductionTextBlock
+	var item persistencemodel.ProductionTextBlock
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ProductionTextBlock{}, err
 	}
@@ -529,7 +529,7 @@ func (r *gormRepository) PatchProductionTextBlock(ctx context.Context, item doma
 }
 
 func (r *gormRepository) ListSceneMoments(ctx context.Context, filter SceneMomentFilter) ([]domainsemantic.SceneMoment, error) {
-	items := make([]model.SceneMoment, 0)
+	items := make([]persistencemodel.SceneMoment, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.SegmentID > 0 {
 		q = q.Where("segment_id = ?", filter.SegmentID)
@@ -540,7 +540,7 @@ func (r *gormRepository) ListSceneMoments(ctx context.Context, filter SceneMomen
 	return sceneMomentsFromModels(items), nil
 }
 
-func sceneMomentsFromModels(items []model.SceneMoment) []domainsemantic.SceneMoment {
+func sceneMomentsFromModels(items []persistencemodel.SceneMoment) []domainsemantic.SceneMoment {
 	result := make([]domainsemantic.SceneMoment, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.SceneMomentFromModel(item))
@@ -557,7 +557,7 @@ func (r *gormRepository) CreateSceneMoment(ctx context.Context, item domainseman
 }
 
 func (r *gormRepository) LoadSceneMoment(ctx context.Context, projectID uint, id string) (domainsemantic.SceneMoment, error) {
-	var item model.SceneMoment
+	var item persistencemodel.SceneMoment
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.SceneMoment{}, err
 	}
@@ -582,7 +582,7 @@ func (r *gormRepository) ResolveSegmentOwners(ctx context.Context, projectID uin
 		return productionID, nil, nil
 	}
 
-	var block model.ProductionTextBlock
+	var block persistencemodel.ProductionTextBlock
 	if err := r.db.WithContext(ctx).Select("id, project_id, production_id").First(&block, *textBlockID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil, ErrTextBlockNotFound
@@ -603,7 +603,7 @@ func (r *gormRepository) EnsureProductionInProject(ctx context.Context, projectI
 	if productionID == 0 {
 		return ErrOwnerNotFound
 	}
-	var production model.Production
+	var production persistencemodel.Production
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&production, productionID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -620,7 +620,7 @@ func (r *gormRepository) EnsureProductionTextBlockInProject(ctx context.Context,
 	if blockID == 0 {
 		return ErrOwnerNotFound
 	}
-	var block model.ProductionTextBlock
+	var block persistencemodel.ProductionTextBlock
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&block, blockID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -637,7 +637,7 @@ func (r *gormRepository) EnsureSegmentInProject(ctx context.Context, projectID u
 	if segmentID == 0 {
 		return ErrOwnerNotFound
 	}
-	var segment model.Segment
+	var segment persistencemodel.Segment
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&segment, segmentID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -654,7 +654,7 @@ func (r *gormRepository) EnsureScriptVersionInProject(ctx context.Context, proje
 	if scriptVersionID == 0 {
 		return ErrOwnerNotFound
 	}
-	var item model.ScriptVersion
+	var item persistencemodel.ScriptVersion
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, scriptVersionID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -671,7 +671,7 @@ func (r *gormRepository) EnsurePreviewTimelineInProject(ctx context.Context, pro
 	if previewTimelineID == 0 {
 		return ErrOwnerNotFound
 	}
-	var item model.PreviewTimeline
+	var item persistencemodel.PreviewTimeline
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, previewTimelineID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -688,7 +688,7 @@ func (r *gormRepository) EnsureSceneMomentInProject(ctx context.Context, project
 	if sceneMomentID == 0 {
 		return ErrOwnerNotFound
 	}
-	var item model.SceneMoment
+	var item persistencemodel.SceneMoment
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, sceneMomentID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -705,7 +705,7 @@ func (r *gormRepository) EnsureContentUnitInProject(ctx context.Context, project
 	if contentUnitID == 0 {
 		return ErrOwnerNotFound
 	}
-	var item model.ContentUnit
+	var item persistencemodel.ContentUnit
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, contentUnitID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -722,7 +722,7 @@ func (r *gormRepository) EnsureCreativeReferenceInProject(ctx context.Context, p
 	if referenceID == 0 {
 		return ErrOwnerNotFound
 	}
-	var item model.CreativeReference
+	var item persistencemodel.CreativeReference
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, referenceID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -739,7 +739,7 @@ func (r *gormRepository) EnsureCreativeReferenceStateInProject(ctx context.Conte
 	if stateID == 0 {
 		return ErrOwnerNotFound
 	}
-	var item model.CreativeReferenceState
+	var item persistencemodel.CreativeReferenceState
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, stateID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -753,7 +753,7 @@ func (r *gormRepository) EnsureCreativeReferenceStateInProject(ctx context.Conte
 }
 
 func (r *gormRepository) EnsureAssetSlotInProject(ctx context.Context, projectID uint, assetSlotID uint) error {
-	return r.EnsureProjectScopedModelInProject(ctx, projectID, assetSlotID, &model.AssetSlot{})
+	return r.EnsureProjectScopedModelInProject(ctx, projectID, assetSlotID, &persistencemodel.AssetSlot{})
 }
 
 func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error {
@@ -762,7 +762,7 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 	}
 	switch strings.TrimSpace(ownerType) {
 	case "project":
-		var item model.Project
+		var item persistencemodel.Project
 		if err := r.db.WithContext(ctx).Select("id").First(&item, ownerID).Error; err != nil {
 			return normalizeOwnerError(err)
 		}
@@ -783,7 +783,7 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 	case "content_unit":
 		return r.EnsureContentUnitInProject(ctx, projectID, ownerID)
 	case "keyframe":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.Keyframe{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.Keyframe{})
 	case "preview_timeline":
 		return r.EnsurePreviewTimelineInProject(ctx, projectID, ownerID)
 	case "creative_reference":
@@ -791,31 +791,31 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 	case "creative_reference_state":
 		return r.EnsureCreativeReferenceStateInProject(ctx, projectID, ownerID)
 	case "storyboard_script":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardScript{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardScript{})
 	case "storyboard_version":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardVersion{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardVersion{})
 	case "storyboard_line":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.StoryboardLine{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardLine{})
 	case "asset_slot":
 		return r.EnsureAssetSlotInProject(ctx, projectID, ownerID)
 	case "asset_slot_candidate":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.AssetSlotCandidate{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.AssetSlotCandidate{})
 	case "candidate_decision":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.CandidateDecision{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.CandidateDecision{})
 	case "review_event":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.ReviewEvent{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.ReviewEvent{})
 	case "work_item":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.WorkItem{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.WorkItem{})
 	case "delivery_version":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.DeliveryVersion{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.DeliveryVersion{})
 	case "canvas_output":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &model.CanvasOutput{})
+		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.CanvasOutput{})
 	case "canvas":
 		return r.EnsureCanvasInProject(ctx, projectID, ownerID)
 	case "canvas_run":
 		return r.EnsureCanvasRunInProject(ctx, projectID, ownerID)
 	case "resource":
-		var item model.RawResource
+		var item persistencemodel.RawResource
 		return normalizeOwnerError(r.db.WithContext(ctx).Select("id").First(&item, ownerID).Error)
 	default:
 		return ErrOwnerInvalidType
@@ -823,7 +823,7 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 }
 
 func (r *gormRepository) EnsureCanvasInProject(ctx context.Context, projectID uint, canvasID uint) error {
-	var item model.Canvas
+	var item persistencemodel.Canvas
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&item, canvasID).Error; err != nil {
 		return normalizeOwnerError(err)
 	}
@@ -834,7 +834,7 @@ func (r *gormRepository) EnsureCanvasInProject(ctx context.Context, projectID ui
 }
 
 func (r *gormRepository) EnsureCanvasRunInProject(ctx context.Context, projectID uint, runID uint) error {
-	var item model.CanvasRun
+	var item persistencemodel.CanvasRun
 	if err := r.db.WithContext(ctx).Select("id, canvas_id").First(&item, runID).Error; err != nil {
 		return normalizeOwnerError(err)
 	}
@@ -859,11 +859,11 @@ func (r *gormRepository) EnsureUserInProject(ctx context.Context, projectID uint
 		return ErrInvalidInput{Err: errors.New("user id is required")}
 	}
 	var count int64
-	r.db.WithContext(ctx).Model(&model.Project{}).Where("id = ? AND owner_id = ?", projectID, userID).Count(&count)
+	r.db.WithContext(ctx).Model(&persistencemodel.Project{}).Where("id = ? AND owner_id = ?", projectID, userID).Count(&count)
 	if count > 0 {
 		return nil
 	}
-	r.db.WithContext(ctx).Model(&model.ProjectMember{}).Where("project_id = ? AND user_id = ?", projectID, userID).Count(&count)
+	r.db.WithContext(ctx).Model(&persistencemodel.ProjectMember{}).Where("project_id = ? AND user_id = ?", projectID, userID).Count(&count)
 	if count == 0 {
 		return ErrInvalidInput{Err: errors.New("执行成员不属于当前项目")}
 	}
@@ -874,7 +874,7 @@ func (r *gormRepository) EnsureJobInProject(ctx context.Context, projectID uint,
 	if jobID == 0 {
 		return ErrInvalidInput{Err: errors.New("source job id is required")}
 	}
-	var job model.Job
+	var job persistencemodel.Job
 	if err := r.db.WithContext(ctx).Select("id, project_id").First(&job, jobID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrOwnerNotFound
@@ -895,7 +895,7 @@ func normalizeOwnerError(err error) error {
 }
 
 func (r *gormRepository) ListProductions(ctx context.Context, filter ProductionFilter) ([]domainsemantic.Production, error) {
-	items := make([]model.Production, 0)
+	items := make([]persistencemodel.Production, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if status := strings.TrimSpace(filter.Status); status != "" {
 		q = q.Where("status = ?", status)
@@ -909,7 +909,7 @@ func (r *gormRepository) ListProductions(ctx context.Context, filter ProductionF
 	return productionsFromModels(items), nil
 }
 
-func productionsFromModels(items []model.Production) []domainsemantic.Production {
+func productionsFromModels(items []persistencemodel.Production) []domainsemantic.Production {
 	result := make([]domainsemantic.Production, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.ProductionFromModel(item))
@@ -926,7 +926,7 @@ func (r *gormRepository) CreateProduction(ctx context.Context, item domainsemant
 }
 
 func (r *gormRepository) LoadProduction(ctx context.Context, projectID uint, id string) (domainsemantic.Production, error) {
-	var item model.Production
+	var item persistencemodel.Production
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.Production{}, err
 	}
@@ -942,7 +942,7 @@ func (r *gormRepository) PatchProduction(ctx context.Context, item domainsemanti
 }
 
 func (r *gormRepository) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error) {
-	items := make([]model.ContentUnit, 0)
+	items := make([]persistencemodel.ContentUnit, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.ProductionID > 0 {
 		q = q.Where("production_id = ?", filter.ProductionID)
@@ -959,7 +959,7 @@ func (r *gormRepository) ListContentUnits(ctx context.Context, filter ContentUni
 	return contentUnitsFromModels(items), nil
 }
 
-func contentUnitsFromModels(items []model.ContentUnit) []domainsemantic.ContentUnit {
+func contentUnitsFromModels(items []persistencemodel.ContentUnit) []domainsemantic.ContentUnit {
 	result := make([]domainsemantic.ContentUnit, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.ContentUnitFromModel(item))
@@ -976,7 +976,7 @@ func (r *gormRepository) CreateContentUnit(ctx context.Context, item domainseman
 }
 
 func (r *gormRepository) LoadContentUnit(ctx context.Context, projectID uint, id string) (domainsemantic.ContentUnit, error) {
-	var item model.ContentUnit
+	var item persistencemodel.ContentUnit
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ContentUnit{}, err
 	}
@@ -992,7 +992,7 @@ func (r *gormRepository) PatchContentUnit(ctx context.Context, item domainsemant
 }
 
 func (r *gormRepository) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error) {
-	items := make([]model.Keyframe, 0)
+	items := make([]persistencemodel.Keyframe, 0)
 	q := r.db.WithContext(ctx).Preload("Resource").Where("project_id = ?", filter.ProjectID)
 	if filter.ProductionID > 0 {
 		q = q.Where("production_id = ?", filter.ProductionID)
@@ -1009,7 +1009,7 @@ func (r *gormRepository) ListKeyframes(ctx context.Context, filter KeyframeFilte
 	return keyframesFromModels(items), nil
 }
 
-func keyframesFromModels(items []model.Keyframe) []domainsemantic.Keyframe {
+func keyframesFromModels(items []persistencemodel.Keyframe) []domainsemantic.Keyframe {
 	result := make([]domainsemantic.Keyframe, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.KeyframeFromModel(item))
@@ -1026,7 +1026,7 @@ func (r *gormRepository) CreateKeyframe(ctx context.Context, item domainsemantic
 }
 
 func (r *gormRepository) LoadKeyframe(ctx context.Context, projectID uint, id string) (domainsemantic.Keyframe, error) {
-	var item model.Keyframe
+	var item persistencemodel.Keyframe
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.Keyframe{}, err
 	}
@@ -1042,7 +1042,7 @@ func (r *gormRepository) PatchKeyframe(ctx context.Context, item domainsemantic.
 }
 
 func (r *gormRepository) ListPreviewTimelines(ctx context.Context, filter PreviewTimelineFilter) ([]domainsemantic.PreviewTimeline, error) {
-	items := make([]model.PreviewTimeline, 0)
+	items := make([]persistencemodel.PreviewTimeline, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.ProductionID > 0 {
 		q = q.Where("production_id = ?", filter.ProductionID)
@@ -1053,7 +1053,7 @@ func (r *gormRepository) ListPreviewTimelines(ctx context.Context, filter Previe
 	return previewTimelinesFromModels(items), nil
 }
 
-func previewTimelinesFromModels(items []model.PreviewTimeline) []domainsemantic.PreviewTimeline {
+func previewTimelinesFromModels(items []persistencemodel.PreviewTimeline) []domainsemantic.PreviewTimeline {
 	result := make([]domainsemantic.PreviewTimeline, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.PreviewTimelineFromModel(item))
@@ -1070,7 +1070,7 @@ func (r *gormRepository) CreatePreviewTimeline(ctx context.Context, item domains
 }
 
 func (r *gormRepository) LoadPreviewTimeline(ctx context.Context, projectID uint, id string) (domainsemantic.PreviewTimeline, error) {
-	var item model.PreviewTimeline
+	var item persistencemodel.PreviewTimeline
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.PreviewTimeline{}, err
 	}
@@ -1086,7 +1086,7 @@ func (r *gormRepository) PatchPreviewTimeline(ctx context.Context, item domainse
 }
 
 func (r *gormRepository) ListPreviewTimelineItems(ctx context.Context, filter PreviewTimelineItemFilter) ([]domainsemantic.PreviewTimelineItem, error) {
-	items := make([]model.PreviewTimelineItem, 0)
+	items := make([]persistencemodel.PreviewTimelineItem, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.PreviewTimelineID > 0 {
 		q = q.Where("preview_timeline_id = ?", filter.PreviewTimelineID)
@@ -1104,7 +1104,7 @@ func (r *gormRepository) ListPreviewTimelineItems(ctx context.Context, filter Pr
 	return previewTimelineItemsFromModels(items), nil
 }
 
-func previewTimelineItemsFromModels(items []model.PreviewTimelineItem) []domainsemantic.PreviewTimelineItem {
+func previewTimelineItemsFromModels(items []persistencemodel.PreviewTimelineItem) []domainsemantic.PreviewTimelineItem {
 	result := make([]domainsemantic.PreviewTimelineItem, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.PreviewTimelineItemFromModel(item))
@@ -1121,7 +1121,7 @@ func (r *gormRepository) CreatePreviewTimelineItem(ctx context.Context, item dom
 }
 
 func (r *gormRepository) LoadPreviewTimelineItem(ctx context.Context, projectID uint, id string) (domainsemantic.PreviewTimelineItem, error) {
-	var item model.PreviewTimelineItem
+	var item persistencemodel.PreviewTimelineItem
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.PreviewTimelineItem{}, err
 	}
@@ -1137,7 +1137,7 @@ func (r *gormRepository) PatchPreviewTimelineItem(ctx context.Context, item doma
 }
 
 func (r *gormRepository) ListStoryboardScripts(ctx context.Context, filter StoryboardScriptFilter) ([]domainsemantic.StoryboardScript, error) {
-	items := make([]model.StoryboardScript, 0)
+	items := make([]persistencemodel.StoryboardScript, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.ScriptVersionID > 0 {
 		q = q.Where("script_version_id = ?", filter.ScriptVersionID)
@@ -1151,7 +1151,7 @@ func (r *gormRepository) ListStoryboardScripts(ctx context.Context, filter Story
 	return storyboardScriptsFromModels(items), nil
 }
 
-func storyboardScriptsFromModels(items []model.StoryboardScript) []domainsemantic.StoryboardScript {
+func storyboardScriptsFromModels(items []persistencemodel.StoryboardScript) []domainsemantic.StoryboardScript {
 	result := make([]domainsemantic.StoryboardScript, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.StoryboardScriptFromModel(item))
@@ -1168,7 +1168,7 @@ func (r *gormRepository) CreateStoryboardScript(ctx context.Context, item domain
 }
 
 func (r *gormRepository) LoadStoryboardScript(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardScript, error) {
-	var item model.StoryboardScript
+	var item persistencemodel.StoryboardScript
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.StoryboardScript{}, err
 	}
@@ -1184,7 +1184,7 @@ func (r *gormRepository) PatchStoryboardScript(ctx context.Context, item domains
 }
 
 func (r *gormRepository) ListStoryboardVersions(ctx context.Context, filter StoryboardVersionFilter) ([]domainsemantic.StoryboardVersion, error) {
-	items := make([]model.StoryboardVersion, 0)
+	items := make([]persistencemodel.StoryboardVersion, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.StoryboardScriptID > 0 {
 		q = q.Where("storyboard_script_id = ?", filter.StoryboardScriptID)
@@ -1198,7 +1198,7 @@ func (r *gormRepository) ListStoryboardVersions(ctx context.Context, filter Stor
 	return storyboardVersionsFromModels(items), nil
 }
 
-func storyboardVersionsFromModels(items []model.StoryboardVersion) []domainsemantic.StoryboardVersion {
+func storyboardVersionsFromModels(items []persistencemodel.StoryboardVersion) []domainsemantic.StoryboardVersion {
 	result := make([]domainsemantic.StoryboardVersion, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.StoryboardVersionFromModel(item))
@@ -1215,7 +1215,7 @@ func (r *gormRepository) CreateStoryboardVersion(ctx context.Context, item domai
 }
 
 func (r *gormRepository) LoadStoryboardVersion(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardVersion, error) {
-	var item model.StoryboardVersion
+	var item persistencemodel.StoryboardVersion
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.StoryboardVersion{}, err
 	}
@@ -1231,7 +1231,7 @@ func (r *gormRepository) PatchStoryboardVersion(ctx context.Context, item domain
 }
 
 func (r *gormRepository) ListStoryboardLines(ctx context.Context, filter StoryboardLineFilter) ([]domainsemantic.StoryboardLine, error) {
-	items := make([]model.StoryboardLine, 0)
+	items := make([]persistencemodel.StoryboardLine, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.StoryboardScriptID > 0 {
 		q = q.Where("storyboard_script_id = ?", filter.StoryboardScriptID)
@@ -1248,7 +1248,7 @@ func (r *gormRepository) ListStoryboardLines(ctx context.Context, filter Storybo
 	return storyboardLinesFromModels(items), nil
 }
 
-func storyboardLinesFromModels(items []model.StoryboardLine) []domainsemantic.StoryboardLine {
+func storyboardLinesFromModels(items []persistencemodel.StoryboardLine) []domainsemantic.StoryboardLine {
 	result := make([]domainsemantic.StoryboardLine, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.StoryboardLineFromModel(item))
@@ -1265,7 +1265,7 @@ func (r *gormRepository) CreateStoryboardLine(ctx context.Context, item domainse
 }
 
 func (r *gormRepository) LoadStoryboardLine(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardLine, error) {
-	var item model.StoryboardLine
+	var item persistencemodel.StoryboardLine
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.StoryboardLine{}, err
 	}
@@ -1283,7 +1283,7 @@ func (r *gormRepository) PatchStoryboardLine(ctx context.Context, item domainsem
 func (r *gormRepository) NextStoryboardVersionNumber(ctx context.Context, projectID uint, storyboardScriptID uint) int {
 	var maxVersion int
 	r.db.WithContext(ctx).
-		Model(&model.StoryboardVersion{}).
+		Model(&persistencemodel.StoryboardVersion{}).
 		Where("project_id = ? AND storyboard_script_id = ?", projectID, storyboardScriptID).
 		Select("COALESCE(MAX(version_number), 0)").
 		Scan(&maxVersion)
@@ -1291,7 +1291,7 @@ func (r *gormRepository) NextStoryboardVersionNumber(ctx context.Context, projec
 }
 
 func (r *gormRepository) ListWorkItems(ctx context.Context, filter WorkItemFilter) ([]domainsemantic.WorkItem, error) {
-	items := make([]model.WorkItem, 0)
+	items := make([]persistencemodel.WorkItem, 0)
 	q := r.db.WithContext(ctx).Preload("Assignee").Where("project_id = ?", filter.ProjectID)
 	if filter.ProductionID > 0 {
 		q = q.Where("production_id = ?", filter.ProductionID)
@@ -1308,7 +1308,7 @@ func (r *gormRepository) ListWorkItems(ctx context.Context, filter WorkItemFilte
 	return workItemsFromModels(items), nil
 }
 
-func workItemsFromModels(items []model.WorkItem) []domainsemantic.WorkItem {
+func workItemsFromModels(items []persistencemodel.WorkItem) []domainsemantic.WorkItem {
 	result := make([]domainsemantic.WorkItem, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.WorkItemFromModel(item))
@@ -1325,7 +1325,7 @@ func (r *gormRepository) CreateWorkItem(ctx context.Context, item domainsemantic
 }
 
 func (r *gormRepository) LoadWorkItem(ctx context.Context, projectID uint, id string) (domainsemantic.WorkItem, error) {
-	var item model.WorkItem
+	var item persistencemodel.WorkItem
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.WorkItem{}, err
 	}
@@ -1346,7 +1346,7 @@ func (r *gormRepository) DeleteWorkItem(ctx context.Context, item domainsemantic
 }
 
 func (r *gormRepository) ListWorkReviews(ctx context.Context, filter WorkReviewFilter) ([]domainsemantic.WorkReview, error) {
-	items := make([]model.WorkReview, 0)
+	items := make([]persistencemodel.WorkReview, 0)
 	q := r.db.WithContext(ctx).Preload("Reviewer").Where("project_id = ?", filter.ProjectID)
 	if filter.WorkItemID > 0 {
 		q = q.Where("work_item_id = ?", filter.WorkItemID)
@@ -1360,7 +1360,7 @@ func (r *gormRepository) ListWorkReviews(ctx context.Context, filter WorkReviewF
 	return workReviewsFromModels(items), nil
 }
 
-func workReviewsFromModels(items []model.WorkReview) []domainsemantic.WorkReview {
+func workReviewsFromModels(items []persistencemodel.WorkReview) []domainsemantic.WorkReview {
 	result := make([]domainsemantic.WorkReview, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.WorkReviewFromModel(item))
@@ -1377,7 +1377,7 @@ func (r *gormRepository) CreateWorkReview(ctx context.Context, item domainsemant
 }
 
 func (r *gormRepository) LoadWorkReview(ctx context.Context, projectID uint, id string) (domainsemantic.WorkReview, error) {
-	var item model.WorkReview
+	var item persistencemodel.WorkReview
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.WorkReview{}, err
 	}
@@ -1398,7 +1398,7 @@ func (r *gormRepository) DeleteWorkReview(ctx context.Context, item domainsemant
 }
 
 func (r *gormRepository) ListWorkDependencies(ctx context.Context, filter WorkDependencyFilter) ([]domainsemantic.WorkDependency, error) {
-	items := make([]model.WorkDependency, 0)
+	items := make([]persistencemodel.WorkDependency, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.WorkItemID > 0 {
 		q = q.Where("work_item_id = ?", filter.WorkItemID)
@@ -1409,7 +1409,7 @@ func (r *gormRepository) ListWorkDependencies(ctx context.Context, filter WorkDe
 	return workDependenciesFromModels(items), nil
 }
 
-func workDependenciesFromModels(items []model.WorkDependency) []domainsemantic.WorkDependency {
+func workDependenciesFromModels(items []persistencemodel.WorkDependency) []domainsemantic.WorkDependency {
 	result := make([]domainsemantic.WorkDependency, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.WorkDependencyFromModel(item))
@@ -1426,7 +1426,7 @@ func (r *gormRepository) CreateWorkDependency(ctx context.Context, item domainse
 }
 
 func (r *gormRepository) LoadWorkDependency(ctx context.Context, projectID uint, id string) (domainsemantic.WorkDependency, error) {
-	var item model.WorkDependency
+	var item persistencemodel.WorkDependency
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.WorkDependency{}, err
 	}
@@ -1463,7 +1463,7 @@ func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, i
 			return err
 		}
 		if next.ResultType != domainsemantic.WorkItemResultNone {
-			applyErr = applyWorkItemResult(tx, projectID, nextModel, actorID, now)
+			applyErr = applyWorkItemResult(tx, projectID, next, actorID, now)
 			if applyErr != nil {
 				return applyErr
 			}
@@ -1496,7 +1496,7 @@ func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, i
 }
 
 func (r *gormRepository) ListDeliveryVersions(ctx context.Context, filter DeliveryVersionFilter) ([]domainsemantic.DeliveryVersion, error) {
-	items := make([]model.DeliveryVersion, 0)
+	items := make([]persistencemodel.DeliveryVersion, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.ProductionID > 0 {
 		q = q.Where("production_id = ?", filter.ProductionID)
@@ -1507,7 +1507,7 @@ func (r *gormRepository) ListDeliveryVersions(ctx context.Context, filter Delive
 	return deliveryVersionsFromModels(items), nil
 }
 
-func deliveryVersionsFromModels(items []model.DeliveryVersion) []domainsemantic.DeliveryVersion {
+func deliveryVersionsFromModels(items []persistencemodel.DeliveryVersion) []domainsemantic.DeliveryVersion {
 	result := make([]domainsemantic.DeliveryVersion, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.DeliveryVersionFromModel(item))
@@ -1524,7 +1524,7 @@ func (r *gormRepository) CreateDeliveryVersion(ctx context.Context, item domains
 }
 
 func (r *gormRepository) LoadDeliveryVersion(ctx context.Context, projectID uint, id string) (domainsemantic.DeliveryVersion, error) {
-	var item model.DeliveryVersion
+	var item persistencemodel.DeliveryVersion
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.DeliveryVersion{}, err
 	}
@@ -1540,7 +1540,7 @@ func (r *gormRepository) PatchDeliveryVersion(ctx context.Context, item domainse
 }
 
 func (r *gormRepository) ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]domainsemantic.DeliveryTimelineItem, error) {
-	items := make([]model.DeliveryTimelineItem, 0)
+	items := make([]persistencemodel.DeliveryTimelineItem, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.DeliveryVersionID > 0 {
 		q = q.Where("delivery_version_id = ?", filter.DeliveryVersionID)
@@ -1554,7 +1554,7 @@ func (r *gormRepository) ListDeliveryTimelineItems(ctx context.Context, filter D
 	return deliveryTimelineItemsFromModels(items), nil
 }
 
-func deliveryTimelineItemsFromModels(items []model.DeliveryTimelineItem) []domainsemantic.DeliveryTimelineItem {
+func deliveryTimelineItemsFromModels(items []persistencemodel.DeliveryTimelineItem) []domainsemantic.DeliveryTimelineItem {
 	result := make([]domainsemantic.DeliveryTimelineItem, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.DeliveryTimelineItemFromModel(item))
@@ -1571,7 +1571,7 @@ func (r *gormRepository) CreateDeliveryTimelineItem(ctx context.Context, item do
 }
 
 func (r *gormRepository) LoadDeliveryTimelineItem(ctx context.Context, projectID uint, id string) (domainsemantic.DeliveryTimelineItem, error) {
-	var item model.DeliveryTimelineItem
+	var item persistencemodel.DeliveryTimelineItem
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.DeliveryTimelineItem{}, err
 	}
@@ -1587,7 +1587,7 @@ func (r *gormRepository) PatchDeliveryTimelineItem(ctx context.Context, item dom
 }
 
 func (r *gormRepository) ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]domainsemantic.ExportRecord, error) {
-	items := make([]model.ExportRecord, 0)
+	items := make([]persistencemodel.ExportRecord, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.DeliveryVersionID > 0 {
 		q = q.Where("delivery_version_id = ?", filter.DeliveryVersionID)
@@ -1601,7 +1601,7 @@ func (r *gormRepository) ListExportRecords(ctx context.Context, filter ExportRec
 	return exportRecordsFromModels(items), nil
 }
 
-func exportRecordsFromModels(items []model.ExportRecord) []domainsemantic.ExportRecord {
+func exportRecordsFromModels(items []persistencemodel.ExportRecord) []domainsemantic.ExportRecord {
 	result := make([]domainsemantic.ExportRecord, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.ExportRecordFromModel(item))
@@ -1618,7 +1618,7 @@ func (r *gormRepository) CreateExportRecord(ctx context.Context, item domainsema
 }
 
 func (r *gormRepository) LoadExportRecord(ctx context.Context, projectID uint, id string) (domainsemantic.ExportRecord, error) {
-	var item model.ExportRecord
+	var item persistencemodel.ExportRecord
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ExportRecord{}, err
 	}
@@ -1634,7 +1634,7 @@ func (r *gormRepository) PatchExportRecord(ctx context.Context, item domainseman
 }
 
 func (r *gormRepository) ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]domainsemantic.CanvasOutput, error) {
-	items := make([]model.CanvasOutput, 0)
+	items := make([]persistencemodel.CanvasOutput, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.CanvasID > 0 {
 		q = q.Where("canvas_id = ?", filter.CanvasID)
@@ -1651,7 +1651,7 @@ func (r *gormRepository) ListCanvasOutputs(ctx context.Context, filter CanvasOut
 	return canvasOutputsFromModels(items), nil
 }
 
-func canvasOutputsFromModels(items []model.CanvasOutput) []domainsemantic.CanvasOutput {
+func canvasOutputsFromModels(items []persistencemodel.CanvasOutput) []domainsemantic.CanvasOutput {
 	result := make([]domainsemantic.CanvasOutput, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.CanvasOutputFromModel(item))
@@ -1668,7 +1668,7 @@ func (r *gormRepository) CreateCanvasOutput(ctx context.Context, item domainsema
 }
 
 func (r *gormRepository) LoadCanvasOutput(ctx context.Context, projectID uint, id string) (domainsemantic.CanvasOutput, error) {
-	var item model.CanvasOutput
+	var item persistencemodel.CanvasOutput
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CanvasOutput{}, err
 	}
@@ -1684,7 +1684,7 @@ func (r *gormRepository) PatchCanvasOutput(ctx context.Context, item domainseman
 }
 
 func (r *gormRepository) ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([]domainsemantic.AssetSlot, error) {
-	items := make([]model.AssetSlot, 0)
+	items := make([]persistencemodel.AssetSlot, 0)
 	q := r.db.WithContext(ctx).Preload("Resource").Preload("LockedAssetSlot.Resource").Where("project_id = ?", filter.ProjectID)
 	if filter.ProductionID > 0 {
 		q = q.Where("production_id = ?", filter.ProductionID)
@@ -1703,7 +1703,7 @@ func (r *gormRepository) ListAssetSlots(ctx context.Context, filter AssetSlotFil
 	return assetSlotsFromModels(items), nil
 }
 
-func assetSlotsFromModels(items []model.AssetSlot) []domainsemantic.AssetSlot {
+func assetSlotsFromModels(items []persistencemodel.AssetSlot) []domainsemantic.AssetSlot {
 	result := make([]domainsemantic.AssetSlot, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.AssetSlotFromModel(item))
@@ -1720,7 +1720,7 @@ func (r *gormRepository) CreateAssetSlot(ctx context.Context, item domainsemanti
 }
 
 func (r *gormRepository) LoadAssetSlot(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlot, error) {
-	var item model.AssetSlot
+	var item persistencemodel.AssetSlot
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.AssetSlot{}, err
 	}
@@ -1739,7 +1739,7 @@ func (r *gormRepository) PatchAssetSlot(ctx context.Context, item domainsemantic
 }
 
 func (r *gormRepository) ListAssetSlotCandidates(ctx context.Context, filter AssetSlotCandidateFilter) ([]domainsemantic.AssetSlotCandidate, error) {
-	items := make([]model.AssetSlotCandidate, 0)
+	items := make([]persistencemodel.AssetSlotCandidate, 0)
 	q := r.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").Where("project_id = ?", filter.ProjectID)
 	if filter.AssetSlotID > 0 {
 		q = q.Where("asset_slot_id = ?", filter.AssetSlotID)
@@ -1753,7 +1753,7 @@ func (r *gormRepository) ListAssetSlotCandidates(ctx context.Context, filter Ass
 	return assetSlotCandidatesFromModels(items), nil
 }
 
-func assetSlotCandidatesFromModels(items []model.AssetSlotCandidate) []domainsemantic.AssetSlotCandidate {
+func assetSlotCandidatesFromModels(items []persistencemodel.AssetSlotCandidate) []domainsemantic.AssetSlotCandidate {
 	result := make([]domainsemantic.AssetSlotCandidate, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.AssetSlotCandidateFromModel(item))
@@ -1770,7 +1770,7 @@ func (r *gormRepository) CreateAssetSlotCandidate(ctx context.Context, item doma
 }
 
 func (r *gormRepository) LoadAssetSlotCandidate(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlotCandidate, error) {
-	var item model.AssetSlotCandidate
+	var item persistencemodel.AssetSlotCandidate
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.AssetSlotCandidate{}, err
 	}
@@ -1792,7 +1792,7 @@ func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input wor
 	return workflowio.NewEntityIOService(r.db).AttachAssetSlotCandidate(ctx, input)
 }
 
-func (r *gormRepository) ReloadAssetSlotCandidate(ctx context.Context, candidate *model.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error) {
+func (r *gormRepository) ReloadAssetSlotCandidate(ctx context.Context, candidate *persistencemodel.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error) {
 	if err := r.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").First(candidate, candidate.ID).Error; err != nil {
 		return domainsemantic.AssetSlotCandidateFromModel(*candidate), err
 	}
@@ -1800,7 +1800,7 @@ func (r *gormRepository) ReloadAssetSlotCandidate(ctx context.Context, candidate
 }
 
 func (r *gormRepository) ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]domainsemantic.CandidateDecision, error) {
-	items := make([]model.CandidateDecision, 0)
+	items := make([]persistencemodel.CandidateDecision, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if candidateType := strings.TrimSpace(filter.CandidateType); candidateType != "" {
 		q = q.Where("candidate_type = ?", candidateType)
@@ -1823,7 +1823,7 @@ func (r *gormRepository) ListCandidateDecisions(ctx context.Context, filter Cand
 	return candidateDecisionsFromModels(items), nil
 }
 
-func candidateDecisionsFromModels(items []model.CandidateDecision) []domainsemantic.CandidateDecision {
+func candidateDecisionsFromModels(items []persistencemodel.CandidateDecision) []domainsemantic.CandidateDecision {
 	result := make([]domainsemantic.CandidateDecision, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.CandidateDecisionFromModel(item))
@@ -1840,7 +1840,7 @@ func (r *gormRepository) CreateCandidateDecision(ctx context.Context, item domai
 }
 
 func (r *gormRepository) LoadCandidateDecision(ctx context.Context, projectID uint, id string) (domainsemantic.CandidateDecision, error) {
-	var item model.CandidateDecision
+	var item persistencemodel.CandidateDecision
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CandidateDecision{}, err
 	}
@@ -1856,7 +1856,7 @@ func (r *gormRepository) PatchCandidateDecision(ctx context.Context, item domain
 }
 
 func (r *gormRepository) ListReviewEvents(ctx context.Context, filter ReviewEventFilter) ([]domainsemantic.ReviewEvent, error) {
-	items := make([]model.ReviewEvent, 0)
+	items := make([]persistencemodel.ReviewEvent, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if subjectType := strings.TrimSpace(filter.SubjectType); subjectType != "" {
 		q = q.Where("subject_type = ?", subjectType)
@@ -1876,7 +1876,7 @@ func (r *gormRepository) ListReviewEvents(ctx context.Context, filter ReviewEven
 	return reviewEventsFromModels(items), nil
 }
 
-func reviewEventsFromModels(items []model.ReviewEvent) []domainsemantic.ReviewEvent {
+func reviewEventsFromModels(items []persistencemodel.ReviewEvent) []domainsemantic.ReviewEvent {
 	result := make([]domainsemantic.ReviewEvent, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.ReviewEventFromModel(item))
@@ -1893,7 +1893,7 @@ func (r *gormRepository) CreateReviewEvent(ctx context.Context, item domainseman
 }
 
 func (r *gormRepository) LoadReviewEvent(ctx context.Context, projectID uint, id string) (domainsemantic.ReviewEvent, error) {
-	var item model.ReviewEvent
+	var item persistencemodel.ReviewEvent
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ReviewEvent{}, err
 	}
@@ -1909,7 +1909,7 @@ func (r *gormRepository) PatchReviewEvent(ctx context.Context, item domainsemant
 }
 
 func (r *gormRepository) ListCreativeReferences(ctx context.Context, filter CreativeReferenceFilter) ([]domainsemantic.CreativeReference, error) {
-	items := make([]model.CreativeReference, 0)
+	items := make([]persistencemodel.CreativeReference, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if kind := strings.TrimSpace(filter.Kind); kind != "" {
 		q = q.Where("kind = ?", kind)
@@ -1920,7 +1920,7 @@ func (r *gormRepository) ListCreativeReferences(ctx context.Context, filter Crea
 	return creativeReferencesFromModels(items), nil
 }
 
-func creativeReferencesFromModels(items []model.CreativeReference) []domainsemantic.CreativeReference {
+func creativeReferencesFromModels(items []persistencemodel.CreativeReference) []domainsemantic.CreativeReference {
 	result := make([]domainsemantic.CreativeReference, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.CreativeReferenceFromModel(item))
@@ -1937,7 +1937,7 @@ func (r *gormRepository) CreateCreativeReference(ctx context.Context, item domai
 }
 
 func (r *gormRepository) LoadCreativeReference(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReference, error) {
-	var item model.CreativeReference
+	var item persistencemodel.CreativeReference
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CreativeReference{}, err
 	}
@@ -1953,7 +1953,7 @@ func (r *gormRepository) PatchCreativeReference(ctx context.Context, item domain
 }
 
 func (r *gormRepository) ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]domainsemantic.CreativeReferenceState, error) {
-	items := make([]model.CreativeReferenceState, 0)
+	items := make([]persistencemodel.CreativeReferenceState, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.CreativeReferenceID > 0 {
 		q = q.Where("creative_reference_id = ?", filter.CreativeReferenceID)
@@ -1964,7 +1964,7 @@ func (r *gormRepository) ListCreativeReferenceStates(ctx context.Context, filter
 	return creativeReferenceStatesFromModels(items), nil
 }
 
-func creativeReferenceStatesFromModels(items []model.CreativeReferenceState) []domainsemantic.CreativeReferenceState {
+func creativeReferenceStatesFromModels(items []persistencemodel.CreativeReferenceState) []domainsemantic.CreativeReferenceState {
 	result := make([]domainsemantic.CreativeReferenceState, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.CreativeReferenceStateFromModel(item))
@@ -1981,7 +1981,7 @@ func (r *gormRepository) CreateCreativeReferenceState(ctx context.Context, item 
 }
 
 func (r *gormRepository) LoadCreativeReferenceState(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReferenceState, error) {
-	var item model.CreativeReferenceState
+	var item persistencemodel.CreativeReferenceState
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CreativeReferenceState{}, err
 	}
@@ -1997,7 +1997,7 @@ func (r *gormRepository) PatchCreativeReferenceState(ctx context.Context, item d
 }
 
 func (r *gormRepository) ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]domainsemantic.CreativeReferenceUsage, error) {
-	items := make([]model.CreativeReferenceUsage, 0)
+	items := make([]persistencemodel.CreativeReferenceUsage, 0)
 	q := r.db.WithContext(ctx).Preload("CreativeReference").Preload("CreativeReferenceState").Where("project_id = ?", filter.ProjectID)
 	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
 		q = q.Where("owner_type = ?", ownerType)
@@ -2017,7 +2017,7 @@ func (r *gormRepository) ListCreativeReferenceUsages(ctx context.Context, filter
 	return creativeReferenceUsagesFromModels(items), nil
 }
 
-func creativeReferenceUsagesFromModels(items []model.CreativeReferenceUsage) []domainsemantic.CreativeReferenceUsage {
+func creativeReferenceUsagesFromModels(items []persistencemodel.CreativeReferenceUsage) []domainsemantic.CreativeReferenceUsage {
 	result := make([]domainsemantic.CreativeReferenceUsage, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.CreativeReferenceUsageFromModel(item))
@@ -2034,7 +2034,7 @@ func (r *gormRepository) CreateCreativeReferenceUsage(ctx context.Context, item 
 }
 
 func (r *gormRepository) LoadCreativeReferenceUsage(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReferenceUsage, error) {
-	var item model.CreativeReferenceUsage
+	var item persistencemodel.CreativeReferenceUsage
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CreativeReferenceUsage{}, err
 	}
@@ -2050,7 +2050,7 @@ func (r *gormRepository) PatchCreativeReferenceUsage(ctx context.Context, item d
 }
 
 func (r *gormRepository) ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]domainsemantic.CreativeRelationship, error) {
-	items := make([]model.CreativeRelationship, 0)
+	items := make([]persistencemodel.CreativeRelationship, 0)
 	q := r.db.WithContext(ctx).Preload("SourceCreativeReference").Preload("TargetCreativeReference").Where("project_id = ?", filter.ProjectID)
 	if filter.CreativeReferenceID > 0 {
 		q = q.Where("source_creative_reference_id = ? OR target_creative_reference_id = ?", filter.CreativeReferenceID, filter.CreativeReferenceID)
@@ -2067,7 +2067,7 @@ func (r *gormRepository) ListCreativeRelationships(ctx context.Context, filter C
 	return creativeRelationshipsFromModels(items), nil
 }
 
-func creativeRelationshipsFromModels(items []model.CreativeRelationship) []domainsemantic.CreativeRelationship {
+func creativeRelationshipsFromModels(items []persistencemodel.CreativeRelationship) []domainsemantic.CreativeRelationship {
 	result := make([]domainsemantic.CreativeRelationship, 0, len(items))
 	for _, item := range items {
 		result = append(result, domainsemantic.CreativeRelationshipFromModel(item))
@@ -2084,7 +2084,7 @@ func (r *gormRepository) CreateCreativeRelationship(ctx context.Context, item do
 }
 
 func (r *gormRepository) LoadCreativeRelationship(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeRelationship, error) {
-	var item model.CreativeRelationship
+	var item persistencemodel.CreativeRelationship
 	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CreativeRelationship{}, err
 	}

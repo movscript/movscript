@@ -31,8 +31,8 @@ type Script struct {
 	Hook                   string `json:"hook"`                                     // 钩子
 	PlotSummary            string `json:"plot_summary"`                             // 剧情推演总结
 	ScriptPoints           string `gorm:"type:text" json:"script_points"`           // JSON array of structured script points
-	PlannedSceneCount      int    `json:"planned_scene_count"`                      // 分集计划场次数
-	PlannedCharacterCount  int    `json:"planned_character_count"`                  // 分集计划人物数
+	PlannedSceneCount      int    `json:"planned_scene_count"`                      // 制作计划场次数
+	PlannedCharacterCount  int    `json:"planned_character_count"`                  // 制作计划人物数
 	TimeText               string `json:"time_text"`                                // 结构化时间/时段
 	LocationText           string `json:"location_text"`                            // 结构化地点
 	StructuredCharacters   string `gorm:"type:text" json:"structured_characters"`   // JSON array of scene/global characters

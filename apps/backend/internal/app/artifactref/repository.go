@@ -3,8 +3,8 @@ package artifactref
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -22,7 +22,7 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) ListScriptVersions(ctx context.Context, projectID uint) ([]scriptVersionProjection, error) {
-	versions := make([]model.ScriptVersion, 0)
+	versions := make([]persistencemodel.ScriptVersion, 0)
 	if err := r.db.WithContext(ctx).Where("project_id = ?", projectID).Order("updated_at desc").Find(&versions).Error; err != nil {
 		return nil, err
 	}
@@ -30,7 +30,7 @@ func (r *gormRepository) ListScriptVersions(ctx context.Context, projectID uint)
 }
 
 func (r *gormRepository) ListAssetSlots(ctx context.Context, projectID uint) ([]assetSlotProjection, error) {
-	slots := make([]model.AssetSlot, 0)
+	slots := make([]persistencemodel.AssetSlot, 0)
 	if err := r.db.WithContext(ctx).Preload("Resource").Where("project_id = ?", projectID).Order("updated_at desc").Find(&slots).Error; err != nil {
 		return nil, err
 	}
@@ -38,7 +38,7 @@ func (r *gormRepository) ListAssetSlots(ctx context.Context, projectID uint) ([]
 }
 
 func (r *gormRepository) ListContentUnits(ctx context.Context, projectID uint) ([]contentUnitProjection, error) {
-	units := make([]model.ContentUnit, 0)
+	units := make([]persistencemodel.ContentUnit, 0)
 	if err := r.db.WithContext(ctx).Where("project_id = ?", projectID).Order("updated_at desc").Find(&units).Error; err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (r *gormRepository) ListContentUnits(ctx context.Context, projectID uint) (
 }
 
 func (r *gormRepository) ListKeyframes(ctx context.Context, projectID uint) ([]keyframeProjection, error) {
-	keyframes := make([]model.Keyframe, 0)
+	keyframes := make([]persistencemodel.Keyframe, 0)
 	if err := r.db.WithContext(ctx).Preload("Resource").Where("project_id = ?", projectID).Order("updated_at desc").Find(&keyframes).Error; err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (r *gormRepository) ListKeyframes(ctx context.Context, projectID uint) ([]k
 }
 
 func (r *gormRepository) ListDeliveryVersions(ctx context.Context, projectID uint) ([]deliveryVersionProjection, error) {
-	versions := make([]model.DeliveryVersion, 0)
+	versions := make([]persistencemodel.DeliveryVersion, 0)
 	if err := r.db.WithContext(ctx).Where("project_id = ?", projectID).Order("updated_at desc").Find(&versions).Error; err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (r *gormRepository) ListDeliveryVersions(ctx context.Context, projectID uin
 }
 
 func (r *gormRepository) FirstBoundResource(ctx context.Context, projectID uint, ownerType string, ownerID uint, roles ...string) (*domainresource.RawResource, error) {
-	var binding model.ResourceBinding
+	var binding persistencemodel.ResourceBinding
 	q := r.db.WithContext(ctx).Preload("Resource").
 		Where("project_id = ? AND owner_type = ? AND owner_id = ?", projectID, ownerType, ownerID).
 		Order("is_primary desc, sort_order, created_at")
@@ -76,7 +76,7 @@ func (r *gormRepository) FirstBoundResource(ctx context.Context, projectID uint,
 	return &resource, nil
 }
 
-func scriptVersionsFromModels(items []model.ScriptVersion) []scriptVersionProjection {
+func scriptVersionsFromModels(items []persistencemodel.ScriptVersion) []scriptVersionProjection {
 	out := make([]scriptVersionProjection, 0, len(items))
 	for _, item := range items {
 		out = append(out, scriptVersionProjection{
@@ -91,7 +91,7 @@ func scriptVersionsFromModels(items []model.ScriptVersion) []scriptVersionProjec
 	return out
 }
 
-func assetSlotsFromModels(items []model.AssetSlot) []assetSlotProjection {
+func assetSlotsFromModels(items []persistencemodel.AssetSlot) []assetSlotProjection {
 	out := make([]assetSlotProjection, 0, len(items))
 	for _, item := range items {
 		out = append(out, assetSlotProjection{
@@ -107,7 +107,7 @@ func assetSlotsFromModels(items []model.AssetSlot) []assetSlotProjection {
 	return out
 }
 
-func contentUnitsFromModels(items []model.ContentUnit) []contentUnitProjection {
+func contentUnitsFromModels(items []persistencemodel.ContentUnit) []contentUnitProjection {
 	out := make([]contentUnitProjection, 0, len(items))
 	for _, item := range items {
 		out = append(out, contentUnitProjection{
@@ -123,7 +123,7 @@ func contentUnitsFromModels(items []model.ContentUnit) []contentUnitProjection {
 	return out
 }
 
-func keyframesFromModels(items []model.Keyframe) []keyframeProjection {
+func keyframesFromModels(items []persistencemodel.Keyframe) []keyframeProjection {
 	out := make([]keyframeProjection, 0, len(items))
 	for _, item := range items {
 		out = append(out, keyframeProjection{
@@ -141,7 +141,7 @@ func keyframesFromModels(items []model.Keyframe) []keyframeProjection {
 	return out
 }
 
-func deliveryVersionsFromModels(items []model.DeliveryVersion) []deliveryVersionProjection {
+func deliveryVersionsFromModels(items []persistencemodel.DeliveryVersion) []deliveryVersionProjection {
 	out := make([]deliveryVersionProjection, 0, len(items))
 	for _, item := range items {
 		out = append(out, deliveryVersionProjection{
@@ -156,7 +156,7 @@ func deliveryVersionsFromModels(items []model.DeliveryVersion) []deliveryVersion
 	return out
 }
 
-func rawResourceFromModelPointer(resource *model.RawResource) *domainresource.RawResource {
+func rawResourceFromModelPointer(resource *persistencemodel.RawResource) *domainresource.RawResource {
 	if resource == nil {
 		return nil
 	}

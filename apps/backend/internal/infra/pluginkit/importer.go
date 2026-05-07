@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -30,8 +30,8 @@ type ImportRequest struct {
 }
 
 type ImportResult struct {
-	Plugin  model.Plugin `json:"plugin"`
-	Created bool         `json:"created"`
+	Plugin  persistencemodel.Plugin `json:"plugin"`
+	Created bool                    `json:"created"`
 }
 
 func LoadManifestFromPath(path string) ([]byte, string, error) {
@@ -113,7 +113,7 @@ func Import(db *gorm.DB, req ImportRequest) (*ImportResult, error) {
 		enabled = *req.Enabled
 	}
 
-	plugin := model.Plugin{
+	plugin := persistencemodel.Plugin{
 		PluginKey:   m.ID,
 		Name:        m.Name,
 		Version:     m.Version,
@@ -127,7 +127,7 @@ func Import(db *gorm.DB, req ImportRequest) (*ImportResult, error) {
 
 	var created bool
 	err = db.Transaction(func(tx *gorm.DB) error {
-		var existing model.Plugin
+		var existing persistencemodel.Plugin
 		if err := tx.Where("plugin_key = ?", m.ID).First(&existing).Error; err == nil {
 			plugin.ID = existing.ID
 			if err := tx.Model(&existing).Updates(map[string]any{
@@ -142,7 +142,7 @@ func Import(db *gorm.DB, req ImportRequest) (*ImportResult, error) {
 			}).Error; err != nil {
 				return err
 			}
-			if err := tx.Where("plugin_id = ?", existing.ID).Delete(&model.PluginTool{}).Error; err != nil {
+			if err := tx.Where("plugin_id = ?", existing.ID).Delete(&persistencemodel.PluginTool{}).Error; err != nil {
 				return err
 			}
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -171,8 +171,8 @@ func Import(db *gorm.DB, req ImportRequest) (*ImportResult, error) {
 	return &ImportResult{Plugin: plugin, Created: created}, nil
 }
 
-func toolRows(pluginID uint, m *Manifest) []model.PluginTool {
-	rows := make([]model.PluginTool, 0, len(m.Contributes.Tools))
+func toolRows(pluginID uint, m *Manifest) []persistencemodel.PluginTool {
+	rows := make([]persistencemodel.PluginTool, 0, len(m.Contributes.Tools))
 	for _, tool := range m.Contributes.Tools {
 		input := string(tool.InputSchema)
 		output := string(tool.OutputSchema)
@@ -183,7 +183,7 @@ func toolRows(pluginID uint, m *Manifest) []model.PluginTool {
 		permsRaw, _ := json.Marshal(perms)
 		rt := effectiveRuntime(m.Runtime, tool.Runtime)
 		rtRaw, _ := json.Marshal(rt)
-		rows = append(rows, model.PluginTool{
+		rows = append(rows, persistencemodel.PluginTool{
 			PluginID:     pluginID,
 			ToolKey:      ToolKey(m.ID, tool.ID),
 			Title:        tool.Title,

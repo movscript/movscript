@@ -3,7 +3,7 @@ package resourcebinding
 import (
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func TestNormalizeOwnerTypeAndRole(t *testing.T) {

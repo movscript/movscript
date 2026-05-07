@@ -3,17 +3,16 @@ package ai
 import (
 	"context"
 	"fmt"
-
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 // CallImage calls an image generation model by AIModelConfig DB ID.
 // It accepts models with either "image" or "image_edit" capability.
 func (s *AIService) CallImage(ctx context.Context, userID, modelConfigID uint, req ImageRequest) (ImageResponse, error) {
-	return s.CallImageWithBilling(ctx, userID, modelConfigID, req, BillingContext{})
+	return s.CallImageWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
 }
 
-func (s *AIService) CallImageWithBilling(ctx context.Context, userID, modelConfigID uint, req ImageRequest, billing BillingContext) (ImageResponse, error) {
+func (s *AIService) CallImageWithUsage(ctx context.Context, userID, modelConfigID uint, req ImageRequest, usage UsageContext) (ImageResponse, error) {
 	cfg, provider, def, err := s.loadConfig(modelConfigID, "image")
 	if err != nil {
 		var err2 error
@@ -31,21 +30,21 @@ func (s *AIService) CallImageWithBilling(ctx context.Context, userID, modelConfi
 	if n <= 0 {
 		n = 1
 	}
-	if billing.ReservationID == nil {
+	if usage.ReservationID == nil {
 		estimate := estimateUsageCost(cfg, def, "image", 0, 0, 0, n)
-		reservation, err := s.ReserveQuota(ctx, userID, modelConfigID, estimate, billing)
+		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
 		if err != nil {
 			return ImageResponse{}, err
 		}
-		billing.ReservationID = &reservation.ID
+		usage.ReservationID = &reservation.ID
 	}
 	resp, err := provider.ImageGenerate(ctx, req)
 	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(billing.ReservationID), err.Error())
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
 		return ImageResponse{}, err
 	}
 	estimate := estimateUsageCost(cfg, def, "image", 0, 0, 0, n)
-	if err := s.settleUsage(ctx, userID, modelConfigID, estimate, billing); err != nil {
+	if err := s.settleUsage(ctx, userID, modelConfigID, estimate, usage); err != nil {
 		return ImageResponse{}, err
 	}
 	return resp, nil
@@ -54,29 +53,29 @@ func (s *AIService) CallImageWithBilling(ctx context.Context, userID, modelConfi
 // CallVideo calls a video generation model by AIModelConfig DB ID.
 // It accepts models with any video capability: "video", "video_i2v", or "video_v2v".
 func (s *AIService) CallVideo(ctx context.Context, userID, modelConfigID uint, req VideoRequest) (VideoResponse, error) {
-	return s.CallVideoWithBilling(ctx, userID, modelConfigID, req, BillingContext{})
+	return s.CallVideoWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
 }
 
-func (s *AIService) CallVideoWithBilling(ctx context.Context, userID, modelConfigID uint, req VideoRequest, billing BillingContext) (VideoResponse, error) {
+func (s *AIService) CallVideoWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
 	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err
 	}
 	prepareVideoRequest(&req, cfg, def)
-	if billing.ReservationID == nil {
+	if usage.ReservationID == nil {
 		estimate := estimateUsageCost(cfg, def, "video", 0, 0, positiveDuration(req.Duration, def), 1)
-		reservation, err := s.ReserveQuota(ctx, userID, modelConfigID, estimate, billing)
+		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
 		if err != nil {
 			return VideoResponse{}, err
 		}
-		billing.ReservationID = &reservation.ID
+		usage.ReservationID = &reservation.ID
 	}
 	resp, err := provider.VideoGenerate(ctx, req)
 	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(billing.ReservationID), err.Error())
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
 		return VideoResponse{}, err
 	}
-	if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, req.Duration, resp.DurationSec, billing); err != nil {
+	if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, req.Duration, resp.DurationSec, usage); err != nil {
 		return VideoResponse{}, err
 	}
 	return resp, nil
@@ -106,10 +105,10 @@ func (s *AIService) SupportsVideoTaskCancellation(modelConfigID uint) bool {
 
 // CallVideoStart submits an async provider video task exactly once.
 func (s *AIService) CallVideoStart(ctx context.Context, userID, modelConfigID uint, req VideoRequest) (VideoResponse, error) {
-	return s.CallVideoStartWithBilling(ctx, userID, modelConfigID, req, BillingContext{})
+	return s.CallVideoStartWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
 }
 
-func (s *AIService) CallVideoStartWithBilling(ctx context.Context, userID, modelConfigID uint, req VideoRequest, billing BillingContext) (VideoResponse, error) {
+func (s *AIService) CallVideoStartWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
 	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err
@@ -119,21 +118,21 @@ func (s *AIService) CallVideoStartWithBilling(ctx context.Context, userID, model
 		return VideoResponse{}, fmt.Errorf("model config id=%d does not support async video task polling", modelConfigID)
 	}
 	prepareVideoRequest(&req, cfg, def)
-	if billing.ReservationID == nil {
+	if usage.ReservationID == nil {
 		estimate := estimateUsageCost(cfg, def, "video", 0, 0, positiveDuration(req.Duration, def), 1)
-		reservation, err := s.ReserveQuota(ctx, userID, modelConfigID, estimate, billing)
+		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
 		if err != nil {
 			return VideoResponse{}, err
 		}
-		billing.ReservationID = &reservation.ID
+		usage.ReservationID = &reservation.ID
 	}
 	resp, err := taskProvider.VideoStart(ctx, req)
 	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(billing.ReservationID), err.Error())
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
 		return VideoResponse{}, err
 	}
 	if resp.URL != "" || len(resp.ContentBytes) > 0 {
-		if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, req.Duration, resp.DurationSec, billing); err != nil {
+		if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, req.Duration, resp.DurationSec, usage); err != nil {
 			return VideoResponse{}, err
 		}
 	}
@@ -143,10 +142,10 @@ func (s *AIService) CallVideoStartWithBilling(ctx context.Context, userID, model
 // CallVideoPoll queries an existing async provider video task without creating a
 // new provider task. Usage is logged only when the poll returns a finished video.
 func (s *AIService) CallVideoPoll(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string, requestedDuration int) (VideoResponse, error) {
-	return s.CallVideoPollWithBilling(ctx, userID, modelConfigID, taskID, taskKind, requestedDuration, BillingContext{})
+	return s.CallVideoPollWithUsage(ctx, userID, modelConfigID, taskID, taskKind, requestedDuration, UsageContext{})
 }
 
-func (s *AIService) CallVideoPollWithBilling(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string, requestedDuration int, billing BillingContext) (VideoResponse, error) {
+func (s *AIService) CallVideoPollWithUsage(ctx context.Context, userID, modelConfigID uint, taskID, taskKind string, requestedDuration int, usage UsageContext) (VideoResponse, error) {
 	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err
@@ -165,7 +164,7 @@ func (s *AIService) CallVideoPollWithBilling(ctx context.Context, userID, modelC
 		return resp, err
 	}
 	if resp.Status == VideoStatusSucceeded && (resp.URL != "" || len(resp.ContentBytes) > 0) {
-		if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, requestedDuration, resp.DurationSec, billing); err != nil {
+		if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, requestedDuration, resp.DurationSec, usage); err != nil {
 			return resp, err
 		}
 	}
@@ -190,18 +189,18 @@ func (s *AIService) CallVideoCancel(ctx context.Context, modelConfigID uint, tas
 	return cancelProvider.VideoCancel(ctx, req)
 }
 
-// GetFileUploader returns the provider-side Files API uploader configured for a model.
+// GetFileUploader returns the provider-side Files API uploader configured for a persistencemodel.
 func (s *AIService) GetFileUploader(modelConfigID uint) FileUploader {
-	var cfg model.AIModelConfig
+	var cfg persistencemodel.AIModelConfig
 	if err := s.db.First(&cfg, modelConfigID).Error; err != nil {
 		return nil
 	}
 	return s.registry.GetFileUploader(cfg)
 }
 
-func (s *AIService) loadVideoConfig(modelConfigID uint) (model.AIModelConfig, Provider, *ModelDef, error) {
+func (s *AIService) loadVideoConfig(modelConfigID uint) (persistencemodel.AIModelConfig, Provider, *ModelDef, error) {
 	videoCaps := []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V}
-	var cfg model.AIModelConfig
+	var cfg persistencemodel.AIModelConfig
 	var provider Provider
 	var def *ModelDef
 	var lastErr error
@@ -216,14 +215,14 @@ func (s *AIService) loadVideoConfig(modelConfigID uint) (model.AIModelConfig, Pr
 	return cfg, provider, def, lastErr
 }
 
-func prepareVideoRequest(req *VideoRequest, cfg model.AIModelConfig, def *ModelDef) {
+func prepareVideoRequest(req *VideoRequest, cfg persistencemodel.AIModelConfig, def *ModelDef) {
 	req.Model = resolveModelID(cfg, def)
 	if req.Duration == 0 && def.DefaultDurSec > 0 {
 		req.Duration = def.DefaultDurSec
 	}
 }
 
-func (s *AIService) logVideoUsage(userID, modelConfigID uint, cfg model.AIModelConfig, def *ModelDef, requestedDuration, actualDuration int) {
+func (s *AIService) logVideoUsage(userID, modelConfigID uint, cfg persistencemodel.AIModelConfig, def *ModelDef, requestedDuration, actualDuration int) {
 	durSec := actualDuration
 	if durSec <= 0 {
 		durSec = requestedDuration
@@ -232,10 +231,10 @@ func (s *AIService) logVideoUsage(userID, modelConfigID uint, cfg model.AIModelC
 		durSec = def.DefaultDurSec
 	}
 	cost := calcCost(cfg, def, 0, 0, durSec, 1)
-	_ = s.logUsage(context.Background(), userID, modelConfigID, UsageEstimate{OperationType: "video", DurationSec: durSec, ImageCount: 1, Cost: cost}, BillingContext{}, nil)
+	_ = s.logUsage(context.Background(), userID, modelConfigID, UsageEstimate{OperationType: "video", DurationSec: durSec, ImageCount: 1, Cost: cost}, UsageContext{}, nil)
 }
 
-func (s *AIService) settleVideoUsage(ctx context.Context, userID, modelConfigID uint, cfg model.AIModelConfig, def *ModelDef, requestedDuration, actualDuration int, billing BillingContext) error {
+func (s *AIService) settleVideoUsage(ctx context.Context, userID, modelConfigID uint, cfg persistencemodel.AIModelConfig, def *ModelDef, requestedDuration, actualDuration int, usage UsageContext) error {
 	durSec := actualDuration
 	if durSec <= 0 {
 		durSec = requestedDuration
@@ -247,5 +246,5 @@ func (s *AIService) settleVideoUsage(ctx context.Context, userID, modelConfigID 
 		durSec = 1
 	}
 	estimate := estimateUsageCost(cfg, def, "video", 0, 0, durSec, 1)
-	return s.settleUsage(ctx, userID, modelConfigID, estimate, billing)
+	return s.settleUsage(ctx, userID, modelConfigID, estimate, usage)
 }

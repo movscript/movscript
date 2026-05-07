@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (h *Service) completeCanvasReferenceTask(ctx context.Context, task *model.CanvasTask, node *model.CanvasNode, nd nodeData, user *model.User, inputs canvasPortInputMap) map[string]canvasPortValue {
+func (h *Service) completeCanvasReferenceTask(ctx context.Context, task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, user *persistencemodel.User, inputs canvasPortInputMap) map[string]canvasPortValue {
 	outputs, primaryOutput, err := h.executeCanvasReferenceOutputs(ctx, nd, user, inputs)
 	if err != nil {
 		h.failTask(task, node, nd, err.Error())
@@ -27,7 +27,7 @@ func (h *Service) completeCanvasReferenceTask(ctx context.Context, task *model.C
 	return outputs
 }
 
-func (h *Service) executeCanvasReferenceOutputs(ctx context.Context, nd nodeData, user *model.User, inputs canvasPortInputMap) (map[string]canvasPortValue, *uint, error) {
+func (h *Service) executeCanvasReferenceOutputs(ctx context.Context, nd nodeData, user *persistencemodel.User, inputs canvasPortInputMap) (map[string]canvasPortValue, *uint, error) {
 	ref, err := h.loadReferencedWorkflowCanvas(nd, user)
 	if err != nil {
 		return nil, nil, err
@@ -44,24 +44,24 @@ func (h *Service) executeCanvasReferenceOutputs(ctx context.Context, nd nodeData
 	return h.outputsForReferencedWorkflowRun(ref, nd, run.ID)
 }
 
-func (h *Service) loadReferencedWorkflowCanvas(nd nodeData, user *model.User) (model.Canvas, error) {
+func (h *Service) loadReferencedWorkflowCanvas(nd nodeData, user *persistencemodel.User) (persistencemodel.Canvas, error) {
 	if nd.ReferencedCanvasID == nil || *nd.ReferencedCanvasID == 0 {
-		return model.Canvas{}, fmt.Errorf("referenced workflow canvas is required")
+		return persistencemodel.Canvas{}, fmt.Errorf("referenced workflow canvas is required")
 	}
 	ref, err := h.canvasRepo().GetCanvas(context.Background(), fmt.Sprint(*nd.ReferencedCanvasID))
 	if err != nil {
-		return model.Canvas{}, fmt.Errorf("referenced canvas not found")
+		return persistencemodel.Canvas{}, fmt.Errorf("referenced canvas not found")
 	}
 	if ref.OwnerID != user.ID && ref.Visibility != "public" {
-		return model.Canvas{}, fmt.Errorf("referenced canvas is not accessible")
+		return persistencemodel.Canvas{}, fmt.Errorf("referenced canvas is not accessible")
 	}
 	if ref.CanvasType != "workflow" {
-		return model.Canvas{}, fmt.Errorf("only workflow canvases can be referenced")
+		return persistencemodel.Canvas{}, fmt.Errorf("only workflow canvases can be referenced")
 	}
 	return ref.ToModel(), nil
 }
 
-func (h *Service) resolveCanvasReferenceOutputs(ref model.Canvas, nd nodeData) (map[string]canvasPortValue, *uint, error) {
+func (h *Service) resolveCanvasReferenceOutputs(ref persistencemodel.Canvas, nd nodeData) (map[string]canvasPortValue, *uint, error) {
 	latestRun, err := h.canvasRepo().LatestCompletedRun(context.Background(), ref.ID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("referenced workflow has no completed run")
@@ -69,19 +69,19 @@ func (h *Service) resolveCanvasReferenceOutputs(ref model.Canvas, nd nodeData) (
 	return h.outputsForReferencedWorkflowRun(ref, nd, latestRun.ID)
 }
 
-func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.User, ref model.Canvas, nd nodeData, inputs canvasPortInputMap) (model.CanvasRun, error) {
+func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *persistencemodel.User, ref persistencemodel.Canvas, nd nodeData, inputs canvasPortInputMap) (persistencemodel.CanvasRun, error) {
 	plan, err := canvasruntime.BuildExecutionPlan(ref)
 	if err != nil {
-		return model.CanvasRun{}, fmt.Errorf("cycle detected in referenced workflow")
+		return persistencemodel.CanvasRun{}, fmt.Errorf("cycle detected in referenced workflow")
 	}
 	inputValues := h.canvasReferenceInputValuesModel(ref, nd, inputs)
 	if err := canvasruntime.ValidateRequiredInputs(ref, inputValues); err != nil {
-		return model.CanvasRun{}, err
+		return persistencemodel.CanvasRun{}, err
 	}
 	now := time.Now()
 	run := canvasruntime.NewCanvasRun(ref, inputValues, now).ToModel()
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
-		return model.CanvasRun{}, err
+		return persistencemodel.CanvasRun{}, err
 	}
 
 	for _, taskPlan := range plan.Tasks {
@@ -112,7 +112,7 @@ func (h *Service) CanvasReferenceInputValues(ref canvasruntime.Canvas, nd nodeDa
 	return h.canvasReferenceInputValuesModel(ref.ToModel(), nd, inputs)
 }
 
-func (h *Service) canvasReferenceInputValuesModel(ref model.Canvas, nd nodeData, inputs canvasPortInputMap) map[string]canvasPortValue {
+func (h *Service) canvasReferenceInputValuesModel(ref persistencemodel.Canvas, nd nodeData, inputs canvasPortInputMap) map[string]canvasPortValue {
 	values := map[string]canvasPortValue{}
 	inputNodeIDs := map[string]bool{}
 	paramNameToNodeID := map[string]string{}
@@ -190,14 +190,14 @@ func firstNonEmptyCanvasPortValue(values []canvasPortValue) (canvasPortValue, bo
 	return canvasPortValue{}, false
 }
 
-func (h *Service) outputsForReferencedWorkflowRun(ref model.Canvas, nd nodeData, runID uint) (map[string]canvasPortValue, *uint, error) {
+func (h *Service) outputsForReferencedWorkflowRun(ref persistencemodel.Canvas, nd nodeData, runID uint) (map[string]canvasPortValue, *uint, error) {
 	if run, ok, err := h.canvasRepo().FindRunInCanvas(context.Background(), ref.ID, runID); err == nil && ok {
 		if outputs, primaryOutput := h.canvasReferenceOutputsFromRun(run, nd); len(outputs) > 0 {
 			return outputs, primaryOutput, nil
 		}
 	}
 
-	var outputNodes []model.CanvasNode
+	var outputNodes []persistencemodel.CanvasNode
 	for _, node := range ref.Nodes {
 		if node.Type == "output" {
 			outputNodes = append(outputNodes, node)
@@ -220,7 +220,7 @@ func (h *Service) outputsForReferencedWorkflowRun(ref model.Canvas, nd nodeData,
 	outputs := map[string]canvasPortValue{}
 	var primaryOutput *uint
 	if len(outputNodes) > 0 {
-		taskByNodeID := make(map[uint]model.CanvasTask, len(refTasks))
+		taskByNodeID := make(map[uint]persistencemodel.CanvasTask, len(refTasks))
 		for _, refTask := range refTasks {
 			taskByNodeID[refTask.CanvasNodeID] = refTask
 		}
@@ -242,7 +242,7 @@ func (h *Service) outputsForReferencedWorkflowRun(ref model.Canvas, nd nodeData,
 			}
 		}
 	} else if len(refTasks) > 0 {
-		value := canvasReferenceTaskOutputValue(refTasks[0], model.CanvasNode{}, nodeData{})
+		value := canvasReferenceTaskOutputValue(refTasks[0], persistencemodel.CanvasNode{}, nodeData{})
 		if !canvasruntime.PortValueEmpty(value) {
 			registerCanvasReferenceOutput(outputs, "result", value)
 			primaryOutput = value.ResourceID
@@ -272,7 +272,7 @@ func (h *Service) outputsForReferencedWorkflowRun(ref model.Canvas, nd nodeData,
 	return outputs, primaryOutput, nil
 }
 
-func (h *Service) canvasReferenceOutputsFromRun(run model.CanvasRun, nd nodeData) (map[string]canvasPortValue, *uint) {
+func (h *Service) canvasReferenceOutputsFromRun(run persistencemodel.CanvasRun, nd nodeData) (map[string]canvasPortValue, *uint) {
 	runOutputs := canvasruntime.DecodePortOutputs(run.OutputValues)
 	if len(runOutputs) == 0 {
 		return nil, nil
@@ -310,7 +310,7 @@ func (h *Service) canvasReferenceOutputsFromRun(run model.CanvasRun, nd nodeData
 	return outputs, primaryOutput
 }
 
-func canvasReferenceTaskOutputValue(task model.CanvasTask, node model.CanvasNode, nd nodeData) canvasPortValue {
+func canvasReferenceTaskOutputValue(task persistencemodel.CanvasTask, node persistencemodel.CanvasNode, nd nodeData) canvasPortValue {
 	outputs := canvasruntime.DecodePortOutputs(task.OutputValues)
 	for _, key := range []string{"", "value", "result", canvasruntime.DefaultSourceHandleForNode(node.Type, nd)} {
 		if value, ok := outputs[key]; ok && !canvasruntime.PortValueEmpty(value) {

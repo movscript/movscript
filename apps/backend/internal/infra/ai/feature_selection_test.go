@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

@@ -1,8 +1,8 @@
 package script
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func ScriptSnapshotFromModel(script model.Script) ScriptSnapshot {
+func ScriptSnapshotFromModel(script persistencemodel.Script) ScriptSnapshot {
 	return ScriptSnapshot{
 		ID:                     script.ID,
 		ProjectID:              script.ProjectID,
@@ -43,13 +43,13 @@ func ScriptSnapshotFromModel(script model.Script) ScriptSnapshot {
 	}
 }
 
-func (script ScriptSnapshot) ToModel() model.Script {
-	var target model.Script
+func (script ScriptSnapshot) ToModel() persistencemodel.Script {
+	var target persistencemodel.Script
 	script.ApplyToModel(&target)
 	return target
 }
 
-func (script ScriptSnapshot) ApplyToModel(target *model.Script) {
+func (script ScriptSnapshot) ApplyToModel(target *persistencemodel.Script) {
 	target.Model.ID = script.ID
 	target.ProjectID = script.ProjectID
 	target.Title = script.Title
@@ -88,7 +88,7 @@ func (script ScriptSnapshot) ApplyToModel(target *model.Script) {
 	target.UpdatedAt = script.UpdatedAt
 }
 
-func ScriptVersionFromModel(version model.ScriptVersion) ScriptVersion {
+func ScriptVersionFromModel(version persistencemodel.ScriptVersion) ScriptVersion {
 	return ScriptVersion{
 		ID:              version.ID,
 		ProjectID:       version.ProjectID,
@@ -107,13 +107,13 @@ func ScriptVersionFromModel(version model.ScriptVersion) ScriptVersion {
 	}
 }
 
-func (version ScriptVersion) ToModel() model.ScriptVersion {
-	var target model.ScriptVersion
+func (version ScriptVersion) ToModel() persistencemodel.ScriptVersion {
+	var target persistencemodel.ScriptVersion
 	version.ApplyToModel(&target)
 	return target
 }
 
-func (version ScriptVersion) ApplyToModel(target *model.ScriptVersion) {
+func (version ScriptVersion) ApplyToModel(target *persistencemodel.ScriptVersion) {
 	target.Model.ID = version.ID
 	target.ProjectID = version.ProjectID
 	target.ScriptID = version.ScriptID

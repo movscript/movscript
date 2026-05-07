@@ -1,8 +1,8 @@
 package plugin
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func PluginFromModel(plugin model.Plugin) Plugin {
+func PluginFromModel(plugin persistencemodel.Plugin) Plugin {
 	return Plugin{
 		ID:          plugin.ID,
 		PluginKey:   plugin.PluginKey,
@@ -20,7 +20,7 @@ func PluginFromModel(plugin model.Plugin) Plugin {
 	}
 }
 
-func PluginsFromModels(plugins []model.Plugin) []Plugin {
+func PluginsFromModels(plugins []persistencemodel.Plugin) []Plugin {
 	result := make([]Plugin, 0, len(plugins))
 	for _, plugin := range plugins {
 		result = append(result, PluginFromModel(plugin))
@@ -28,7 +28,7 @@ func PluginsFromModels(plugins []model.Plugin) []Plugin {
 	return result
 }
 
-func PluginToolFromModel(tool model.PluginTool) PluginTool {
+func PluginToolFromModel(tool persistencemodel.PluginTool) PluginTool {
 	item := PluginTool{
 		ID:           tool.ID,
 		PluginID:     tool.PluginID,
@@ -51,7 +51,7 @@ func PluginToolFromModel(tool model.PluginTool) PluginTool {
 	return item
 }
 
-func PluginToolsFromModels(tools []model.PluginTool) []PluginTool {
+func PluginToolsFromModels(tools []persistencemodel.PluginTool) []PluginTool {
 	result := make([]PluginTool, 0, len(tools))
 	for _, tool := range tools {
 		result = append(result, PluginToolFromModel(tool))

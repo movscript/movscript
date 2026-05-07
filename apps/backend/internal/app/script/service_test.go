@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	dto "github.com/movscript/movscript/internal/app/dto"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )

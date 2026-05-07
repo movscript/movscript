@@ -11,6 +11,7 @@ import { ResourcePanel } from '@/components/shared/ResourcePanel'
 import { Button } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
+import { IMAGE_UPLOAD_ACCEPT, MEDIA_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 
 export interface ToolDef {
   name: string
@@ -40,8 +41,8 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
 
   const isRunning = state.status === 'pending' || state.status === 'running'
   const accept = def.inputType === 'video' ? 'video/*'
-    : def.inputType === 'image' ? 'image/*'
-    : 'image/*,video/*'
+    : def.inputType === 'image' ? IMAGE_UPLOAD_ACCEPT
+    : MEDIA_UPLOAD_ACCEPT
 
   const upload = useMutation({
     mutationFn: (file: File) => {

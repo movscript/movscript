@@ -59,7 +59,7 @@ const DEFAULT_MATERIAL = `故事内核：
 
 关键场景：
 
-分集钩子：
+制作钩子：
 
 后续编排注意：`
 
@@ -458,7 +458,7 @@ export default function CreativeWorkbenchPage() {
               <Textarea
                 value={selected.fixedMaterial}
                 onChange={(event) => updateSelected({ fixedMaterial: event.target.value, status: 'draft' })}
-                placeholder="写下故事内核、类型方向、主角与欲望、核心冲突、关键人物关系、关键场景、分集钩子等内容。"
+                placeholder="写下故事内核、类型方向、主角与欲望、核心冲突、关键人物关系、关键场景、制作钩子等内容。"
                 className="min-h-[420px] flex-1 resize-none text-sm leading-6"
               />
               <p className="text-xs leading-5 text-muted-foreground">

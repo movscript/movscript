@@ -1,7 +1,7 @@
 package router
 
 import (
-	"github.com/movscript/movscript/internal/domain/commercial"
+	"github.com/movscript/movscript/internal/domain/entitlement"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/cache"
@@ -18,6 +18,6 @@ type Dependencies struct {
 	Registry      *ai.Registry
 	AIService     *ai.AIService
 	Cache         cache.Cache
-	Entitlements  commercial.EntitlementService
+	Entitlements  entitlement.EntitlementService
 	EncryptionKey []byte
 }

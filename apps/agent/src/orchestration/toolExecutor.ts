@@ -6,7 +6,7 @@ import type { BackendApplyClient, BackendApplyResult } from '../drafts/backendAp
 import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import { buildApplyDraftPreview, markDraftApplied } from '../drafts/draftApply.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
-import type { AgentMemoryKind, AgentMemoryScope } from '../memory/types.js'
+import type { AgentMemoryKind } from '../memory/types.js'
 import { runtimeToolName } from '../tools/toolNames.js'
 
 export type ToolSource = 'runtime' | 'mcp' | 'sandbox'
@@ -26,12 +26,20 @@ export interface ToolExecutorOptions {
   backendApplyClient: BackendApplyClient
   registry: ToolRegistry
   memoryManager?: MemoryManager
+  catalogManager?: AgentCatalogToolManager
   sandboxMode: boolean
   signal?: AbortSignal
 }
 
+export interface AgentCatalogToolManager {
+  listAgentBundles(): JSONValue
+  inspectAgentBundle(input?: Record<string, JSONValue>): JSONValue
+  enableAgentBundle(input?: Record<string, JSONValue>): JSONValue
+  reloadAgentCatalog(): JSONValue
+}
+
 export async function executeTool(call: ToolCall, options: ToolExecutorOptions): Promise<ToolExecutionResult> {
-  const { run, mcpClient, draftStore, backendApplyClient, registry, memoryManager, sandboxMode } = options
+  const { run, mcpClient, draftStore, backendApplyClient, registry, memoryManager, catalogManager, sandboxMode } = options
   throwIfAborted(options.signal)
   const args = call.args ?? {}
 
@@ -49,7 +57,7 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
   }
 
   // Runtime tools handled locally
-  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, memoryManager, sandboxMode)
+  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, memoryManager, catalogManager, sandboxMode)
   throwIfAborted(options.signal)
   if (runtimeResult !== undefined) {
     return { call, result: runtimeResult, source: 'runtime' }
@@ -71,8 +79,29 @@ async function callRuntimeTool(
   draftStore: AgentDraftStore,
   backendApplyClient: BackendApplyClient,
   memoryManager: MemoryManager | undefined,
+  catalogManager: AgentCatalogToolManager | undefined,
   sandboxMode: boolean,
 ): Promise<JSONValue | undefined> {
+  if (toolName === 'movscript_list_agent_bundles') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.listAgentBundles()
+  }
+
+  if (toolName === 'movscript_inspect_agent_bundle') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.inspectAgentBundle(args)
+  }
+
+  if (toolName === 'movscript_enable_agent_bundle') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.enableAgentBundle(args)
+  }
+
+  if (toolName === 'movscript_reload_agent_catalog') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.reloadAgentCatalog()
+  }
+
   if (toolName === 'movscript_create_draft') {
     return draftStore.createDraft({
       projectId: typeof args.projectId === 'number' ? args.projectId : undefined,
@@ -91,8 +120,12 @@ async function callRuntimeTool(
     }) as unknown as JSONValue
   }
 
+  if (toolName === 'movscript_submit_script_split_draft') {
+    return submitScriptSplitDraft(draftStore, run, args) as unknown as JSONValue
+  }
+
   if (toolName === 'movscript_get_draft') {
-    const draftId = draftRefArg(args)
+    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('get_draft requires draftRef')
     const draft = draftStore.getDraft(draftId)
     if (!draft) throw new Error(`draft not found: ${draftId}`)
@@ -100,7 +133,7 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_update_draft') {
-    const draftId = draftRefArg(args)
+    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('update_draft requires draftRef')
     const status = normalizeDraftStatus(args.status)
     const draft = draftStore.updateDraft(draftId, {
@@ -118,7 +151,7 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_patch_draft') {
-    const draftId = draftRefArg(args)
+    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('patch_draft requires draftRef')
     const result = draftStore.patchDraft(draftId, {
       ops: args.ops,
@@ -133,7 +166,7 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_validate_draft') {
-    const draftId = draftRefArg(args)
+    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
     if (!draftId) throw new Error('validate_draft requires draftRef')
     const draft = draftStore.getDraft(draftId)
     if (!draft) throw new Error(`draft not found: ${draftId}`)
@@ -245,6 +278,10 @@ async function callRuntimeTool(
     return upsertProductionProposalBusinessNode(draftStore, args, 'asset_slot', args.asset, args.sceneMoment ?? args.scene_moment, 'asset_slot') as unknown as JSONValue
   }
 
+  if (toolName === 'movscript_upsert_proposal_content_unit') {
+    return upsertProductionProposalBusinessNode(draftStore, args, 'content_unit', args.contentUnit ?? args.content_unit, args.sceneMoment ?? args.scene_moment, 'content_unit') as unknown as JSONValue
+  }
+
   if (toolName === 'movscript_upsert_proposal_keyframe') {
     const parent = isRecord(args.shot) ? args.shot : args.sceneMoment ?? args.scene_moment
     return upsertProductionProposalBusinessNode(draftStore, args, 'keyframe', args.keyframe, parent, 'keyframe') as unknown as JSONValue
@@ -338,7 +375,7 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_create_production_proposal_from_items' || toolName === 'movscript_propose_production_entities') {
+  if (toolName === 'movscript_create_production_proposal_from_items' || toolName === 'movscript_propose_production_entities' || toolName === 'movscript_submit_production_proposal') {
     const projectId = numberField(args.projectId) ?? numberField(args.project_id)
     const proposalInput = isRecord(args.proposal) ? args.proposal : undefined
     const productionId = numberField(args.productionId)
@@ -466,14 +503,27 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
+  if (toolName === 'movscript_list_memories') {
+    if (!memoryManager) return { memories: [], count: 0 } as unknown as JSONValue
+    const projectId = numberField(args.projectId)
+    if (projectId === undefined) throw new Error('list_memories requires projectId')
+    const memories = memoryManager.listMemorySummaries({
+      projectId,
+      kind: normalizeMemoryKind(args.kind),
+      limit: typeof args.limit === 'number' ? args.limit : undefined,
+    })
+    return {
+      memories,
+      count: memories.length,
+    } as unknown as JSONValue
+  }
+
   if (toolName === 'movscript_search_memories') {
     if (!memoryManager) return { memories: [], count: 0 } as unknown as JSONValue
-    const context = isRecord(run.metadata?.context) ? run.metadata.context as Record<string, JSONValue> : undefined
-    const contextProject = isRecord(context?.project) && typeof context.project.id === 'number' ? context.project.id : undefined
+    const projectId = numberField(args.projectId)
+    if (projectId === undefined) throw new Error('search_memories requires projectId')
     const memories = memoryManager.searchMemories({
-      projectId: typeof args.projectId === 'number' ? args.projectId : contextProject,
-      threadId: typeof args.threadId === 'string' ? args.threadId : run.threadId,
-      scope: normalizeMemoryScope(args.scope),
+      projectId,
       kind: normalizeMemoryKind(args.kind),
       query: typeof args.query === 'string' ? args.query : undefined,
       limit: typeof args.limit === 'number' ? args.limit : undefined,
@@ -481,14 +531,56 @@ async function callRuntimeTool(
     return {
       memories: memories.map((memory) => ({
         id: memory.id,
-        scope: memory.scope,
-        ...(typeof memory.projectId === 'number' ? { projectId: memory.projectId } : {}),
-        ...(memory.threadId ? { threadId: memory.threadId } : {}),
+        projectId: memory.projectId,
+        title: memory.title,
         kind: memory.kind,
-        content: memory.content,
+        excerpt: truncate(memory.content, 180),
         updatedAt: memory.updatedAt,
       })),
       count: memories.length,
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_get_memory') {
+    if (!memoryManager) return null as unknown as JSONValue
+    const projectId = numberField(args.projectId)
+    const id = stringField(args.id) ?? stringField(args.memoryId)
+    if (projectId === undefined) throw new Error('get_memory requires projectId')
+    if (!id) throw new Error('get_memory requires id')
+    const memory = memoryManager.getMemory({ projectId, id })
+    return (memory ?? null) as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_create_memory') {
+    if (!memoryManager) throw new Error('memory manager unavailable')
+    const projectId = numberField(args.projectId)
+    const title = stringField(args.title)
+    const content = stringField(args.content)
+    const kind = normalizeMemoryKind(args.kind)
+    if (projectId === undefined) throw new Error('create_memory requires projectId')
+    if (!title) throw new Error('create_memory requires title')
+    if (!kind) throw new Error('create_memory requires kind')
+    if (!content) throw new Error('create_memory requires content')
+    const memory = memoryManager.createMemory({
+      projectId,
+      title,
+      kind,
+      content,
+      ...(typeof args.sourceThreadId === 'string' ? { sourceThreadId: args.sourceThreadId } : {}),
+      ...(typeof args.sourceRunId === 'string' ? { sourceRunId: args.sourceRunId } : {}),
+      ...(typeof args.sourceMessageId === 'string' ? { sourceMessageId: args.sourceMessageId } : {}),
+    })
+    return memory as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_delete_memory') {
+    if (!memoryManager) throw new Error('memory manager unavailable')
+    const projectId = numberField(args.projectId)
+    const id = stringField(args.id) ?? stringField(args.memoryId)
+    if (projectId === undefined) throw new Error('delete_memory requires projectId')
+    if (!id) throw new Error('delete_memory requires id')
+    return {
+      deleted: memoryManager.deleteMemory({ projectId, id }),
     } as unknown as JSONValue
   }
 
@@ -560,6 +652,156 @@ function normalizeCreateScriptPayload(args: Record<string, JSONValue>): Record<s
   return payload
 }
 
+function submitScriptSplitDraft(
+  draftStore: AgentDraftStore,
+  run: AgentRun,
+  args: Record<string, JSONValue>,
+): JSONValue {
+  const projectId = numberField(args.projectId) ?? numberField(args.project_id)
+  if (projectId === undefined) throw new Error('submit_script_split_draft requires projectId')
+
+  const sourceTitle = stringField(args.sourceTitle) ?? stringField(args.source_title)
+  const sourceSummary = stringField(args.sourceSummary) ?? stringField(args.source_summary)
+  const sourceScript = isRecord(args.sourceScript) ? args.sourceScript : isRecord(args.source_script) ? args.source_script : undefined
+  const globalSettings = isRecord(args.globalSettings) ? args.globalSettings : isRecord(args.global_settings) ? args.global_settings : undefined
+  const episodeDrafts = Array.isArray(args.episodeDrafts) ? args.episodeDrafts : Array.isArray(args.episode_drafts) ? args.episode_drafts : undefined
+  if (!sourceTitle) throw new Error('submit_script_split_draft requires sourceTitle')
+  if (!sourceSummary) throw new Error('submit_script_split_draft requires sourceSummary')
+  if (!sourceScript) throw new Error('submit_script_split_draft requires sourceScript')
+  if (!globalSettings) throw new Error('submit_script_split_draft requires globalSettings')
+  if (!episodeDrafts || episodeDrafts.length === 0) throw new Error('submit_script_split_draft requires episodeDrafts')
+  rejectScriptSplitBodyText(sourceScript, 'sourceScript')
+  episodeDrafts.forEach((episode, index) => rejectScriptSplitBodyText(episode, `episodeDrafts[${index}]`))
+
+  const sourceLineCount = numberField(sourceScript.lineCount)
+    ?? numberField(sourceScript.line_count)
+  if (!sourceLineCount || sourceLineCount <= 0) throw new Error('submit_script_split_draft requires sourceScript.lineCount')
+  const normalizedGlobalSettings = normalizeScriptSplitGlobalSettings(globalSettings)
+  const normalizedEpisodes = episodeDrafts.flatMap((episode, index) => {
+    const normalized = normalizeScriptSplitEpisodeDraft(episode, index, sourceLineCount)
+    return normalized ? [normalized] : []
+  })
+  if (normalizedEpisodes.length === 0) throw new Error('submit_script_split_draft requires at least one valid episodeDraft')
+
+  const content = {
+    schema: 'movscript.script_split_analysis.v1',
+    source_title: sourceTitle,
+    source_summary: sourceSummary,
+    source_script: normalizeScriptSplitSourceScript(sourceScript, sourceTitle, sourceSummary, sourceLineCount),
+    global_settings: normalizedGlobalSettings,
+    episode_drafts: normalizedEpisodes,
+    ...(Array.isArray(args.warnings) ? { warnings: args.warnings.flatMap((warning) => stringField(warning) ? [stringField(warning)!] : []) } : { warnings: [] }),
+    ...(typeof args.confidence === 'number' && Number.isFinite(args.confidence) ? { confidence: args.confidence } : { confidence: 0 }),
+  }
+  const draftTitle = stringField(args.draftTitle) ?? stringField(args.draft_title) ?? `剧本拆分草稿 - ${sourceTitle}`
+  const sourceScriptTitle = stringField(sourceScript.title) ?? sourceTitle
+  const draft = draftStore.createDraft({
+    projectId,
+    kind: 'script_split',
+    title: draftTitle,
+    content: JSON.stringify(content, null, 2),
+    source: {
+      entityType: 'script_split',
+      entityId: sourceScriptTitle,
+      runId: run.id,
+      threadId: run.threadId,
+      sourceType: 'raw',
+    },
+    createdByRunId: run.id,
+    createdByThreadId: run.threadId,
+    metadata: {
+      sourceTitle,
+      sourceSummary,
+      episodeCount: normalizedEpisodes.length,
+    },
+  })
+  return {
+    status: 'created',
+    draftRef: draft.id,
+    draftId: draft.id,
+    draft,
+    validation: validateDraft(draft),
+  } as unknown as JSONValue
+}
+
+function normalizeScriptSplitSourceScript(
+  sourceScript: Record<string, JSONValue>,
+  fallbackTitle: string,
+  fallbackSummary: string,
+  lineCount: number,
+): Record<string, JSONValue> {
+  return {
+    title: stringField(sourceScript.title) ?? fallbackTitle,
+    summary: stringField(sourceScript.summary) ?? fallbackSummary,
+    source_type: normalizeSourceType(sourceScript.sourceType ?? sourceScript.source_type),
+    line_count: Math.max(1, Math.floor(lineCount)),
+  }
+}
+
+function normalizeScriptSplitEpisodeDraft(value: unknown, index: number, sourceLineCount: number): Record<string, JSONValue> | undefined {
+  if (!isRecord(value)) return undefined
+  const title = stringField(value.title)
+  const summary = stringField(value.summary)
+  const globalContext = isRecord(value.globalContext) ? value.globalContext : isRecord(value.global_context) ? value.global_context : undefined
+  if (!title) throw new Error(`submit_script_split_draft episodeDrafts[${index}] requires title`)
+  if (!summary) throw new Error(`submit_script_split_draft episodeDrafts[${index}] requires summary`)
+  if (!globalContext) throw new Error(`submit_script_split_draft episodeDrafts[${index}] requires globalContext`)
+  const action = value.action === 'update' ? 'update' : 'create'
+  const existingScriptId = numberField(value.existingScriptId) ?? numberField(value.existing_script_id) ?? null
+  const startLine = normalizeLineNumber(value.startLine ?? value.start_line ?? value.start) ?? index + 1
+  const endLine = normalizeLineNumber(value.endLine ?? value.end_line ?? value.end)
+  if (!endLine) throw new Error(`submit_script_split_draft episodeDrafts[${index}] requires endLine`)
+  return {
+    order: numberField(value.order) ?? index + 1,
+    title,
+    summary,
+    global_context: normalizeScriptSplitGlobalContext(globalContext),
+    start_line: clampLineNumber(startLine, sourceLineCount),
+    end_line: clampLineNumber(Math.max(startLine, endLine), sourceLineCount),
+    action,
+    existing_script_id: existingScriptId,
+  }
+}
+
+function normalizeScriptSplitGlobalSettings(value: Record<string, JSONValue>): Record<string, JSONValue> {
+  return {
+    story_world: stringField(value.storyWorld) ?? stringField(value.story_world) ?? '',
+    core_rules: stringArrayField(value.coreRules ?? value.core_rules),
+    character_relationships: stringArrayField(value.characterRelationships ?? value.character_relationships),
+    key_characters: stringArrayField(value.keyCharacters ?? value.key_characters),
+    key_locations: stringArrayField(value.keyLocations ?? value.key_locations),
+    key_props: stringArrayField(value.keyProps ?? value.key_props),
+    continuity_notes: stringArrayField(value.continuityNotes ?? value.continuity_notes),
+  }
+}
+
+function normalizeScriptSplitGlobalContext(value: Record<string, JSONValue>): Record<string, JSONValue> {
+  return {
+    ...normalizeScriptSplitGlobalSettings(value),
+    episode_relevance: stringArrayField(value.episodeRelevance ?? value.episode_relevance),
+  }
+}
+
+function rejectScriptSplitBodyText(value: unknown, path: string): void {
+  if (!isRecord(value)) return
+  for (const key of ['content', 'text', 'body', 'rawText', 'raw_text', 'sourceText', 'source_text']) {
+    if (stringField(value[key])) {
+      throw new Error(`submit_script_split_draft ${path}.${key} is not allowed; use lineCount/startLine/endLine instead of passing script text`)
+    }
+  }
+}
+
+function stringArrayField(value: JSONValue | undefined): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      const text = stringField(item)
+      return text ? [text] : []
+    })
+  }
+  const text = stringField(value)
+  return text ? text.split(/\r?\n|[；;]/).map((item) => item.replace(/^[-*]\s*/, '').trim()).filter(Boolean) : []
+}
+
 function copyStringFields(source: Record<string, JSONValue>, target: Record<string, JSONValue>, fields: string[]): void {
   for (const field of fields) {
     const value = stringField(source[field])
@@ -585,6 +827,24 @@ function numberField(value: JSONValue | undefined): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined
   }
   return undefined
+}
+
+function normalizeLineNumber(value: JSONValue | undefined): number | undefined {
+  const parsed = numberField(value)
+  if (parsed === undefined) return undefined
+  const line = Math.floor(parsed)
+  return line > 0 ? line : undefined
+}
+
+function clampLineNumber(value: number, maxLine: number): number {
+  const line = Math.max(1, Math.floor(value))
+  return maxLine > 0 ? Math.min(line, Math.floor(maxLine)) : line
+}
+
+function truncate(value: string, limit: number): string {
+  const text = value.trim()
+  if (text.length <= limit) return text
+  return `${text.slice(0, limit - 1)}…`
 }
 
 function normalizeProductionProposal(proposal: JSONValue | undefined, candidates: JSONValue | undefined): Record<string, JSONValue> {
@@ -617,7 +877,7 @@ function normalizeProposalSegment(value: unknown): Record<string, JSONValue> | u
   const sceneMoments = Array.isArray(value.scene_moments) ? value.scene_moments : []
   return withClientId({
     ...value,
-    kind: stringField(value.kind) ?? 'section',
+    kind: stringField(value.kind) ?? 'emotional_function',
     scene_moments: sceneMoments.flatMap((sceneMoment) => {
       const normalized = normalizeProposalSceneMoment(sceneMoment)
       return normalized ? [normalized] : []
@@ -833,7 +1093,11 @@ function proposalRefArg(args: Record<string, JSONValue>): unknown {
 }
 
 function draftRefArg(args: Record<string, JSONValue>): unknown {
-  return args.draftRef ?? args.draft_ref ?? args.draftId ?? args.draft_id ?? args.id
+  return stringField(args.draftRef)
+    ?? stringField(args.draft_ref)
+    ?? stringField(args.draftId)
+    ?? stringField(args.draft_id)
+    ?? stringField(args.id)
 }
 
 function listProductionProposalNodes(proposal: Record<string, JSONValue>): ProductionProposalNodeSummary[] {
@@ -1160,10 +1424,6 @@ function isDraftStatus(value: JSONValue | undefined): value is AgentDraftStatus 
     || value === 'rejected'
     || value === 'applied'
     || value === 'superseded'
-}
-
-function normalizeMemoryScope(value: JSONValue | undefined): AgentMemoryScope | undefined {
-  return value === 'global' || value === 'project' || value === 'thread' ? value : undefined
 }
 
 function normalizeMemoryKind(value: JSONValue | undefined): AgentMemoryKind | undefined {

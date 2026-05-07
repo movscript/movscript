@@ -353,7 +353,7 @@ export default function CreativeReferencesPage() {
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">设定资料库</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              人物、地点、道具、产品和风格作为可复用资料被情景引用，帮助制作预演、资产准备和内容制作保持连续性。
+              人物、地点、道具、产品和风格作为可复用设定资料被情景引用，帮助制作预演、素材准备和内容制作保持连续性。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -363,16 +363,16 @@ export default function CreativeReferencesPage() {
             </Button>
             <Button className="gap-2" onClick={startCreateReference}>
               <Plus size={15} />
-              新建资料
+              新建设定资料
             </Button>
           </div>
         </header>
       )}
       overview={(
         <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={Database} label="资料总数" value={references.length} detail="覆盖人物、地点、道具、产品、风格" tone="text-sky-600" />
+          <MetricCard icon={Database} label="设定资料总数" value={references.length} detail="覆盖人物、地点、道具、产品、风格" tone="text-sky-600" />
           <MetricCard icon={ShieldCheck} label="已锁定" value={lockedCount} detail="可直接进入预演和生成" tone="text-emerald-600" />
-          <MetricCard icon={AlertTriangle} label="待处理" value={reviewCount + missingCount} detail={`${reviewCount} 个待确认 / ${missingCount} 个缺资料`} tone="text-amber-600" />
+          <MetricCard icon={AlertTriangle} label="待处理" value={reviewCount + missingCount} detail={`${reviewCount} 个待确认 / ${missingCount} 个待补设定`} tone="text-amber-600" />
           <MetricCard icon={Layers3} label="平均完整度" value={`${averageCoverage}%`} detail="按事实、视觉、资产覆盖估算" tone="text-violet-600" />
         </section>
       )}
@@ -380,7 +380,7 @@ export default function CreativeReferencesPage() {
         <ContentFilterBar
           query={query}
           onQueryChange={(value) => setFilter({ q: value })}
-          queryPlaceholder="搜索资料、标签或事实"
+          queryPlaceholder="搜索设定资料、标签或事实"
           filters={[
             {
               id: 'kind',
@@ -389,7 +389,7 @@ export default function CreativeReferencesPage() {
               onChange: (value) => setFilter({ kind: value }),
               options: referenceKinds.map((item) => ({
                 value: item,
-                label: item === 'all' ? '全部资料' : creativeReferenceKindMeta[item].label,
+                label: item === 'all' ? '全部设定资料' : creativeReferenceKindMeta[item].label,
                 count: item === 'all' ? references.length : references.filter((reference) => reference.kind === item).length,
               })),
             },
@@ -402,11 +402,11 @@ export default function CreativeReferencesPage() {
                 { value: 'all', label: '全部状态', count: references.length },
                 { value: 'locked', label: '已锁定', count: lockedCount },
                 { value: 'review', label: '待确认', count: reviewCount },
-                { value: 'missing', label: '缺资料', count: missingCount },
+                { value: 'missing', label: '待补设定', count: missingCount },
               ],
             },
           ]}
-          chips={referenceFilterId ? [{ id: 'reference', label: `资料 ${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) }] : []}
+          chips={referenceFilterId ? [{ id: 'reference', label: `设定资料 ${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) }] : []}
           resultCount={filteredReferences.length}
           totalCount={references.length}
         />
@@ -416,8 +416,8 @@ export default function CreativeReferencesPage() {
           <div className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">资料清单</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">以资料卡为中心管理事实、视觉状态、引用情景和资产覆盖。</p>
+                  <p className="text-sm font-semibold text-foreground">设定资料清单</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">以设定资料卡为中心管理事实、视觉状态、引用情景和素材覆盖。</p>
                 </div>
               </div>
 
@@ -431,7 +431,7 @@ export default function CreativeReferencesPage() {
                   />
                 ))}
                 {filteredReferences.length === 0 && (
-                  <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无资料，点击“新建资料”创建。</p>
+                  <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无设定资料，点击“新建设定资料”创建。</p>
                 )}
               </div>
             </div>
@@ -450,23 +450,23 @@ export default function CreativeReferencesPage() {
                 : undefined}
             queryKey={creatingAssetSlot ? ['semantic-creative-references-page', projectId, 'asset-slots'] : ['semantic-creative-references-page', projectId]}
             title={creatingAssetSlot ? '新增素材需求' : creatingReference ? '新建设定资料' : '卡片内编辑设定资料'}
-            description={creatingAssetSlot ? '为当前资料创建素材需求，资料绑定会自动带入。' : '直接维护资料名称、类型、描述、内容和状态。'}
+            description={creatingAssetSlot ? '为当前设定资料创建素材需求，设定资料绑定会自动带入。' : '直接维护设定资料名称、类型、描述、内容和状态。'}
             hero={selected ? {
               icon: (() => {
                 const Icon = creativeReferenceKindMeta[selected.kind].icon
                 return <Icon size={19} />
               })(),
               eyebrow: creatingAssetSlot ? '素材需求' : creativeReferenceKindMeta[selected.kind].label,
-              title: creatingAssetSlot ? `为 ${selected.title} 新增素材` : creatingReference ? '新建设定资料' : selected.title,
-              subtitle: creatingAssetSlot ? selected.subtitle || `资料 #${selected.id}` : creatingReference ? '项目资料' : selected.subtitle || `资料 #${selected.id}`,
-              summary: creatingAssetSlot ? '创建后会出现在该资料的“所需要的素材”中，并可继续补充候选或锁定资源。' : creatingReference ? '建立人物、地点、道具、产品或风格资料后，可以被情景、制作项和素材需求复用。' : selected.summary,
+              title: creatingAssetSlot ? `为 ${selected.title} 新增素材需求` : creatingReference ? '新建设定资料' : selected.title,
+              subtitle: creatingAssetSlot ? selected.subtitle || `设定资料 #${selected.id}` : creatingReference ? '项目设定资料' : selected.subtitle || `设定资料 #${selected.id}`,
+              summary: creatingAssetSlot ? '创建后会出现在该设定资料的“素材需求”中，并可继续补充候选或锁定资源文件。' : creatingReference ? '建立人物、地点、道具、产品或风格设定资料后，可以被情景、制作项和素材需求复用。' : selected.summary,
               accentClassName: selected.accent,
               status: <Badge variant="secondary" className={cn('text-[10px]', creativeReferenceStatusMeta[creatingReference ? 'draft' : selected.status].className)}>{creativeReferenceStatusMeta[creatingReference ? 'draft' : selected.status].label}</Badge>,
               stats: creatingAssetSlot ? [
-                { label: '绑定资料', value: selected.title },
+                { label: '绑定设定资料', value: selected.title },
                 { label: '默认类型', value: '图片' },
                 { label: '默认状态', value: '缺口' },
-                { label: '已有素材', value: requiredAssets.length },
+                { label: '已有素材需求', value: requiredAssets.length },
               ] : creatingReference ? [
                 { label: '默认类型', value: '人物' },
                 { label: '重要度', value: 'supporting' },
@@ -474,7 +474,7 @@ export default function CreativeReferencesPage() {
                 { label: '完整度', value: '0%' },
               ] : [
                 { label: '引用', value: selected.usage },
-                { label: '素材', value: requiredAssets.length },
+                { label: '素材需求', value: requiredAssets.length },
                 { label: '事实', value: selected.facts.length },
                 { label: '完整度', value: `${selected.coverage}%` },
               ],
@@ -516,10 +516,10 @@ export default function CreativeReferencesPage() {
       downstream={<div />}
       bottom={(
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
-          <RelatedPanel title="被引用的剧本段落" icon={Layers3} records={referencedSegments} empty="当前资料暂无剧本段落引用" />
-          <RelatedPanel title="被引用的情景" icon={Film} records={referencedSceneMoments} empty="当前资料暂无情景引用" />
-          <RelatedPanel title="所需要的素材" icon={PackageCheck} records={requiredAssets} empty="当前资料暂无素材需求" action={selectedReferenceId ? { label: '新增素材', onClick: startCreateAssetSlot } : undefined} />
-          <RelatedPanel title="被引用的制作项" icon={Boxes} records={referencedContentUnits} empty="当前资料暂无制作项引用" />
+          <RelatedPanel title="被引用的编排段" icon={Layers3} records={referencedSegments} empty="当前设定资料暂无编排段引用" />
+          <RelatedPanel title="被引用的情景" icon={Film} records={referencedSceneMoments} empty="当前设定资料暂无情景引用" />
+          <RelatedPanel title="素材需求" icon={PackageCheck} records={requiredAssets} empty="当前设定资料暂无素材需求" action={selectedReferenceId ? { label: '新增素材需求', onClick: startCreateAssetSlot } : undefined} />
+          <RelatedPanel title="被引用的制作项" icon={Boxes} records={referencedContentUnits} empty="当前设定资料暂无制作项引用" />
         </div>
       )}
     />
@@ -546,14 +546,14 @@ function toReferenceViewModel(reference: CreativeReferenceRecord, usageCounts: M
   return {
     id: reference.ID,
     kind,
-    title: reference.name || `资料 #${reference.ID}`,
+    title: reference.name || `设定资料 #${reference.ID}`,
     subtitle: [creativeReferenceKindMeta[kind].label, reference.alias, reference.importance].filter(Boolean).join(' / '),
     status,
     version: `#${reference.ID}`,
-    owner: '项目资料',
+    owner: '项目设定资料',
     usage: usageCounts.get(reference.ID) ?? 0,
     coverage: Math.max(20, Math.round((coverageParts / 4) * 100)),
-    summary: reference.description || reference.content || '暂无资料摘要',
+    summary: reference.description || reference.content || '暂无设定资料摘要',
     visualNotes: profileNotes.length > 0 ? profileNotes : tags.slice(0, 6),
     facts: contentFacts.length > 0 ? contentFacts : tags.slice(0, 5),
     linkedSceneMoments: [],

@@ -30,6 +30,13 @@ test('loads plugin catalog from json files and merges default grants', () => {
         description: 'Create a script outline draft.',
         permission: 'draft.write',
         risk: 'draft',
+        inputSchema: {
+          type: 'object',
+          required: ['title'],
+          properties: {
+            title: { type: 'string' },
+          },
+        },
         projectScoped: true,
         requiresApprovalByDefault: false,
         defaultGrant: { name: 'studio.script_outline', mode: 'allow', approval: 'never' },
@@ -56,6 +63,13 @@ test('loads plugin catalog from json files and merges default grants', () => {
     assert.equal(writerSkill?.id, 'studio.writer')
     assert.equal(outlineTool?.name, 'studio.script_outline')
     assert.equal(outlineTool?.source, 'plugin')
+    assert.deepEqual(outlineTool?.inputSchema, {
+      type: 'object',
+      required: ['title'],
+      properties: {
+        title: { type: 'string' },
+      },
+    })
     assert.ok(catalog.manifest.skills.some((skill) => skill.id === 'studio.writer'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'))
     assert.ok(catalog.registry.get('studio.script_outline'))
@@ -76,17 +90,25 @@ test('loads bundled MovScript platform catalog by default', () => {
     assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
     assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
     assert.ok(catalog.skills.some((skill) => skill.id === 'movscript.platform.concepts'))
-    assert.ok(catalog.skills.some((skill) => skill.id === 'movscript.workflow.safe-drafts'))
+    assert.ok(catalog.skills.some((skill) => skill.id === 'movscript.drafts.safe-drafts'))
+    assert.ok(catalog.skills.some((skill) => skill.id === 'movscript.intent.script-split'))
     assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_get_context_pack'))
     assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_list_productions'))
     assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_create_project'))
     assert.ok(catalog.manifest.skills.some((skill) => skill.id === 'movscript.intent.content-unit-draft-creation'))
+    assert.ok(catalog.manifest.skills.some((skill) => skill.id === 'movscript.intent.script-split'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_get_context_pack'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_list_productions'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_create_project' && grant.approval === 'always'))
     assert.ok(catalog.registry.get('movscript_create_draft'))
     assert.equal(catalog.registry.get('movscript_create_project')?.projectScoped, false)
     assert.ok(catalog.registry.get('movscript_list_productions'))
+    const scriptSplitTool = catalog.registry.get('movscript_submit_script_split_draft')
+    const scriptSplitSchema = scriptSplitTool?.inputSchema as Record<string, any> | undefined
+    assert.equal(scriptSplitTool?.category, 'script_split')
+    assert.ok(scriptSplitSchema)
+    assert.ok(scriptSplitSchema?.required.includes('projectId'))
+    assert.ok(scriptSplitSchema?.required.includes('sourceSummary'))
     assert.deepEqual(catalog.warnings, [])
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -145,6 +167,88 @@ test('loads categorized catalog files recursively and annotates category metadat
     assert.equal(tool?.category, 'production_proposal')
     assert.deepEqual(tool?.categories, ['production_proposal'])
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.read_production'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('can load only explicitly enabled bundles', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-enabled-bundles-'))
+  const bundlesDir = join(dir, 'bundles')
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+
+  try {
+    writePluginFile(skillsDir, 'all.json', {
+      skills: [
+        {
+          id: 'studio.alpha',
+          name: 'Alpha',
+          description: 'Alpha skill',
+          enabled: true,
+          instruction: 'Alpha instruction.',
+        },
+        {
+          id: 'studio.beta',
+          name: 'Beta',
+          description: 'Beta skill',
+          enabled: true,
+          instruction: 'Beta instruction.',
+        },
+      ],
+    })
+    writePluginFile(toolsDir, 'all.json', {
+      tools: [
+        {
+          name: 'studio.alpha_tool',
+          description: 'Alpha tool.',
+          permission: 'project.read',
+          risk: 'read',
+          projectScoped: false,
+          requiresApprovalByDefault: false,
+          defaultGrant: { name: 'studio.alpha_tool', mode: 'allow', approval: 'never' },
+        },
+        {
+          name: 'studio.beta_tool',
+          description: 'Beta tool.',
+          permission: 'project.read',
+          risk: 'read',
+          projectScoped: false,
+          requiresApprovalByDefault: false,
+          defaultGrant: { name: 'studio.beta_tool', mode: 'allow', approval: 'never' },
+        },
+      ],
+    })
+    writePluginFile(bundlesDir, 'alpha.json', {
+      id: 'studio.bundle.alpha',
+      name: 'Alpha Bundle',
+      skills: ['studio.alpha'],
+      tools: ['studio.alpha_tool'],
+    })
+    writePluginFile(bundlesDir, 'beta.json', {
+      id: 'studio.bundle.beta',
+      name: 'Beta Bundle',
+      skills: ['studio.beta'],
+      tools: ['studio.beta_tool'],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      bundlesDir,
+      builtinBundlesDir: bundlesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+      enabledBundleIds: ['studio.bundle.beta'],
+    })
+
+    assert.deepEqual(catalog.availableBundleIds.sort(), ['studio.bundle.alpha', 'studio.bundle.beta'])
+    assert.deepEqual(catalog.activeBundleIds, ['studio.bundle.beta'])
+    assert.equal(catalog.bundles.find((bundle) => bundle.id === 'studio.bundle.alpha')?.name, 'Alpha Bundle')
+    assert.equal(catalog.skills.some((skill) => skill.id === 'studio.alpha'), false)
+    assert.equal(catalog.skills.some((skill) => skill.id === 'studio.beta'), true)
+    assert.equal(Boolean(catalog.registry.get('studio.alpha_tool')), false)
+    assert.equal(Boolean(catalog.registry.get('studio.beta_tool')), true)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

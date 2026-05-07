@@ -3,10 +3,9 @@ package cloudup
 import (
 	"context"
 	"fmt"
-	"sort"
-
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/crypto"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"sort"
 )
 
 type CloudFileConfig struct {
@@ -28,8 +27,8 @@ type Service struct {
 	uploaders []ConfiguredUploader
 }
 
-// NewFromDBConfigs builds a Service from model.CloudFileConfig rows, decrypting each config.
-func NewFromDBConfigs(rows []model.CloudFileConfig, encryptionKey []byte) (*Service, error) {
+// NewFromDBConfigs builds a Service from persistencemodel.CloudFileConfig rows, decrypting each config.
+func NewFromDBConfigs(rows []persistencemodel.CloudFileConfig, encryptionKey []byte) (*Service, error) {
 	cfgs := make([]CloudFileConfig, 0, len(rows))
 	for _, r := range rows {
 		plain := r.ConfigJSON

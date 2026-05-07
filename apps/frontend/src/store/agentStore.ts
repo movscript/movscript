@@ -19,6 +19,11 @@ export interface Conversation {
   updatedAt: number
 }
 
+export interface ConversationDraft {
+  input: string
+  attachments: AgentAttachment[]
+}
+
 export interface AgentSettings {
   modelId: number | null
   mode: AgentWorkMode
@@ -38,6 +43,7 @@ export interface AgentAttachment {
   mimeType: string
   size: number
   url?: string
+  previewUrl?: string
   resourceId?: number
 }
 
@@ -96,6 +102,7 @@ export interface ChatRunActivityEvent {
 interface UserConvState {
   conversations: Conversation[]
   activeConversationId: string | null
+  draftsByConversation: Record<string, ConversationDraft>
 }
 
 interface AgentStore {
@@ -111,6 +118,9 @@ interface AgentStore {
   setActiveConversation: (userId: string, id: string | null) => void
   addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
   updateConversationTitle: (userId: string, id: string, title: string) => void
+  getConversationDraft: (userId: string, conversationId: string) => ConversationDraft
+  updateConversationDraft: (userId: string, conversationId: string, patch: Partial<ConversationDraft>) => void
+  clearConversationDraft: (userId: string, conversationId: string) => void
 
   // Getters scoped to a user
   getConversations: (userId: string) => Conversation[]
@@ -122,11 +132,17 @@ function genId() {
 }
 
 function defaultUserState(): UserConvState {
-  return { conversations: [], activeConversationId: null }
+  return { conversations: [], activeConversationId: null, draftsByConversation: {} }
 }
 
 function getUserState(store: Pick<AgentStore, 'convsByUser'>, userId: string): UserConvState {
-  return store.convsByUser[userId] ?? defaultUserState()
+  const existing = store.convsByUser[userId]
+  if (!existing) return defaultUserState()
+  return {
+    conversations: existing.conversations ?? [],
+    activeConversationId: existing.activeConversationId ?? null,
+    draftsByConversation: existing.draftsByConversation ?? {},
+  }
 }
 
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
@@ -145,9 +161,14 @@ function compactPersistedContent(content: string): string {
   return `${content.slice(0, PERSISTED_MESSAGE_MAX_CHARS)}\n...[truncated ${content.length - PERSISTED_MESSAGE_MAX_CHARS} chars from persisted chat history]`
 }
 
+function stripAttachmentPreviewUrl(attachment: AgentAttachment): AgentAttachment {
+  return { ...attachment, previewUrl: undefined }
+}
+
 function compactPersistedMessage(message: ChatMessage): ChatMessage {
   return {
     ...message,
+    attachments: message.attachments?.map(stripAttachmentPreviewUrl),
     content: compactPersistedContent(message.content),
     meta: message.meta?.localRunActivity
       ? {
@@ -169,19 +190,40 @@ function compactPersistedMessage(message: ChatMessage): ChatMessage {
   }
 }
 
+function compactPersistedConversationDraft(draft: ConversationDraft): ConversationDraft {
+  return {
+    ...draft,
+    attachments: draft.attachments.map(stripAttachmentPreviewUrl),
+  }
+}
+
+function compactPersistedUserState(userState: UserConvState): UserConvState {
+  const conversations = userState.conversations ?? []
+  const draftsByConversation = userState.draftsByConversation ?? {}
+  return {
+    ...userState,
+    conversations: conversations.map((conversation) => ({
+      ...conversation,
+      messages: conversation.messages.map(compactPersistedMessage),
+    })),
+    draftsByConversation: Object.fromEntries(
+      Object.entries(draftsByConversation).map(([conversationId, draft]) => [
+        conversationId,
+        compactPersistedConversationDraft(draft),
+      ]),
+    ),
+  }
+}
+
 function compactPersistedConversations(convsByUser: Record<string, UserConvState>): Record<string, UserConvState> {
   return Object.fromEntries(
-    Object.entries(convsByUser).map(([userId, userState]) => [
-      userId,
-      {
-        ...userState,
-        conversations: userState.conversations.map((conversation) => ({
-          ...conversation,
-          messages: conversation.messages.map(compactPersistedMessage),
-        })),
-      },
-    ]),
+    Object.entries(convsByUser).map(([userId, userState]) => [userId, compactPersistedUserState(userState)]),
   )
+}
+
+const EMPTY_CONVERSATION_DRAFT: ConversationDraft = {
+  input: '',
+  attachments: [],
 }
 
 export const useAgentStore = create<AgentStore>()(
@@ -208,6 +250,7 @@ export const useAgentStore = create<AgentStore>()(
                   ...cur.conversations,
                 ],
                 activeConversationId: id,
+                draftsByConversation: cur.draftsByConversation,
               },
             },
           }
@@ -218,6 +261,8 @@ export const useAgentStore = create<AgentStore>()(
       deleteConversation: (userId, id) => set((state) => {
         const cur = getUserState(state, userId)
         const conversations = cur.conversations.filter((c) => c.id !== id)
+        const draftsByConversation = { ...cur.draftsByConversation }
+        delete draftsByConversation[id]
         return {
           convsByUser: {
             ...state.convsByUser,
@@ -226,6 +271,7 @@ export const useAgentStore = create<AgentStore>()(
               activeConversationId: cur.activeConversationId === id
                 ? (conversations[0]?.id ?? null)
                 : cur.activeConversationId,
+              draftsByConversation,
             },
           },
         }
@@ -263,6 +309,44 @@ export const useAgentStore = create<AgentStore>()(
             [userId]: {
               ...cur,
               conversations: cur.conversations.map((c) => c.id === id ? { ...c, title } : c),
+            },
+          },
+        }
+      }),
+
+      getConversationDraft: (userId, conversationId) => getUserState(get(), userId).draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT,
+
+      updateConversationDraft: (userId, conversationId, patch) => set((state) => {
+        const cur = getUserState(state, userId)
+        const currentDraft = cur.draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT
+        return {
+          convsByUser: {
+            ...state.convsByUser,
+            [userId]: {
+              ...cur,
+              draftsByConversation: {
+                ...cur.draftsByConversation,
+                [conversationId]: {
+                  ...currentDraft,
+                  ...patch,
+                },
+              },
+            },
+          },
+        }
+      }),
+
+      clearConversationDraft: (userId, conversationId) => set((state) => {
+        const cur = getUserState(state, userId)
+        if (!cur.draftsByConversation[conversationId]) return {}
+        const draftsByConversation = { ...cur.draftsByConversation }
+        delete draftsByConversation[conversationId]
+        return {
+          convsByUser: {
+            ...state.convsByUser,
+            [userId]: {
+              ...cur,
+              draftsByConversation,
             },
           },
         }

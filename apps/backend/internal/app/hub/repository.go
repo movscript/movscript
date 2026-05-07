@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	domainhub "github.com/movscript/movscript/internal/domain/hub"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +23,7 @@ type gormRepository struct {
 
 func (r *gormRepository) Seed(ctx context.Context) error {
 	var count int64
-	if err := r.db.WithContext(ctx).Model(&model.HubPackage{}).Count(&count).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&persistencemodel.HubPackage{}).Count(&count).Error; err != nil {
 		return err
 	}
 	if count > 0 {
@@ -39,7 +39,7 @@ func (r *gormRepository) Seed(ctx context.Context) error {
 }
 
 func (r *gormRepository) List(ctx context.Context, admin bool) ([]domainhub.HubPackage, error) {
-	rows := make([]model.HubPackage, 0)
+	rows := make([]persistencemodel.HubPackage, 0)
 	q := r.db.WithContext(ctx).Order("updated_at desc")
 	if !admin {
 		q = q.Where("status = ?", StatusPublished)
@@ -55,7 +55,7 @@ func (r *gormRepository) List(ctx context.Context, admin bool) ([]domainhub.HubP
 }
 
 func (r *gormRepository) Find(ctx context.Context, id string, admin bool) (domainhub.HubPackage, error) {
-	var row model.HubPackage
+	var row persistencemodel.HubPackage
 	q := r.db.WithContext(ctx).Where("package_id = ?", strings.TrimSpace(id))
 	if !admin {
 		q = q.Where("status = ?", StatusPublished)
@@ -70,7 +70,7 @@ func (r *gormRepository) Find(ctx context.Context, id string, admin bool) (domai
 }
 
 func (r *gormRepository) IncrementDownloads(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Model(&model.HubPackage{}).
+	return r.db.WithContext(ctx).Model(&persistencemodel.HubPackage{}).
 		Where("id = ?", id).
 		UpdateColumn("downloads", gorm.Expr("downloads + 1")).
 		Error

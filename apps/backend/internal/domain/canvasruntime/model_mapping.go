@@ -1,13 +1,12 @@
 package canvasruntime
 
 import (
-	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"time"
 )
 
-func CanvasFromModel(canvas model.Canvas) Canvas {
+func CanvasFromModel(canvas persistencemodel.Canvas) Canvas {
 	domainCanvas := Canvas{
 		ID:           canvas.ID,
 		OwnerID:      canvas.OwnerID,
@@ -39,13 +38,13 @@ func CanvasFromModel(canvas model.Canvas) Canvas {
 	return domainCanvas
 }
 
-func (canvas Canvas) ToModel() model.Canvas {
-	var target model.Canvas
+func (canvas Canvas) ToModel() persistencemodel.Canvas {
+	var target persistencemodel.Canvas
 	canvas.ApplyToModel(&target)
 	return target
 }
 
-func (canvas Canvas) ApplyToModel(target *model.Canvas) {
+func (canvas Canvas) ApplyToModel(target *persistencemodel.Canvas) {
 	target.Model.ID = canvas.ID
 	target.OwnerID = canvas.OwnerID
 	target.OrgID = canvas.OrgID
@@ -67,20 +66,20 @@ func (canvas Canvas) ApplyToModel(target *model.Canvas) {
 		target.DeletedAt.Valid = true
 	}
 	if len(canvas.Nodes) > 0 {
-		target.Nodes = make([]model.CanvasNode, 0, len(canvas.Nodes))
+		target.Nodes = make([]persistencemodel.CanvasNode, 0, len(canvas.Nodes))
 		for _, node := range canvas.Nodes {
 			target.Nodes = append(target.Nodes, node.ToModel())
 		}
 	}
 	if len(canvas.Edges) > 0 {
-		target.Edges = make([]model.CanvasEdge, 0, len(canvas.Edges))
+		target.Edges = make([]persistencemodel.CanvasEdge, 0, len(canvas.Edges))
 		for _, edge := range canvas.Edges {
 			target.Edges = append(target.Edges, edge.ToModel())
 		}
 	}
 }
 
-func CanvasNodeFromModel(node model.CanvasNode) CanvasNode {
+func CanvasNodeFromModel(node persistencemodel.CanvasNode) CanvasNode {
 	domainNode := CanvasNode{
 		ID:        node.ID,
 		CanvasID:  node.CanvasID,
@@ -100,13 +99,13 @@ func CanvasNodeFromModel(node model.CanvasNode) CanvasNode {
 	return domainNode
 }
 
-func (node CanvasNode) ToModel() model.CanvasNode {
-	var target model.CanvasNode
+func (node CanvasNode) ToModel() persistencemodel.CanvasNode {
+	var target persistencemodel.CanvasNode
 	node.ApplyToModel(&target)
 	return target
 }
 
-func (node CanvasNode) ApplyToModel(target *model.CanvasNode) {
+func (node CanvasNode) ApplyToModel(target *persistencemodel.CanvasNode) {
 	target.Model.ID = node.ID
 	target.CanvasID = node.CanvasID
 	target.NodeID = node.NodeID
@@ -123,7 +122,7 @@ func (node CanvasNode) ApplyToModel(target *model.CanvasNode) {
 	}
 }
 
-func CanvasEdgeFromModel(edge model.CanvasEdge) CanvasEdge {
+func CanvasEdgeFromModel(edge persistencemodel.CanvasEdge) CanvasEdge {
 	domainEdge := CanvasEdge{
 		ID:           edge.ID,
 		CanvasID:     edge.CanvasID,
@@ -142,13 +141,13 @@ func CanvasEdgeFromModel(edge model.CanvasEdge) CanvasEdge {
 	return domainEdge
 }
 
-func (edge CanvasEdge) ToModel() model.CanvasEdge {
-	var target model.CanvasEdge
+func (edge CanvasEdge) ToModel() persistencemodel.CanvasEdge {
+	var target persistencemodel.CanvasEdge
 	edge.ApplyToModel(&target)
 	return target
 }
 
-func (edge CanvasEdge) ApplyToModel(target *model.CanvasEdge) {
+func (edge CanvasEdge) ApplyToModel(target *persistencemodel.CanvasEdge) {
 	target.Model.ID = edge.ID
 	target.CanvasID = edge.CanvasID
 	target.EdgeID = edge.EdgeID
@@ -164,7 +163,7 @@ func (edge CanvasEdge) ApplyToModel(target *model.CanvasEdge) {
 	}
 }
 
-func EntityWriteAuditFromModel(audit model.CanvasEntityWriteAudit) EntityWriteAudit {
+func EntityWriteAuditFromModel(audit persistencemodel.CanvasEntityWriteAudit) EntityWriteAudit {
 	domainAudit := EntityWriteAudit{
 		ID:                 audit.ID,
 		CanvasID:           audit.CanvasID,
@@ -187,13 +186,13 @@ func EntityWriteAuditFromModel(audit model.CanvasEntityWriteAudit) EntityWriteAu
 	return domainAudit
 }
 
-func (audit EntityWriteAudit) ToModel() model.CanvasEntityWriteAudit {
-	var target model.CanvasEntityWriteAudit
+func (audit EntityWriteAudit) ToModel() persistencemodel.CanvasEntityWriteAudit {
+	var target persistencemodel.CanvasEntityWriteAudit
 	audit.ApplyToModel(&target)
 	return target
 }
 
-func (audit EntityWriteAudit) ApplyToModel(target *model.CanvasEntityWriteAudit) {
+func (audit EntityWriteAudit) ApplyToModel(target *persistencemodel.CanvasEntityWriteAudit) {
 	target.Model.ID = audit.ID
 	target.CanvasID = audit.CanvasID
 	target.CanvasRunID = audit.CanvasRunID
@@ -213,7 +212,7 @@ func (audit EntityWriteAudit) ApplyToModel(target *model.CanvasEntityWriteAudit)
 	}
 }
 
-func CanvasRunFromModel(run model.CanvasRun) CanvasRun {
+func CanvasRunFromModel(run persistencemodel.CanvasRun) CanvasRun {
 	domainRun := CanvasRun{
 		ID:                run.ID,
 		CanvasID:          run.CanvasID,
@@ -240,13 +239,13 @@ func CanvasRunFromModel(run model.CanvasRun) CanvasRun {
 	return domainRun
 }
 
-func (run CanvasRun) ToModel() model.CanvasRun {
-	var target model.CanvasRun
+func (run CanvasRun) ToModel() persistencemodel.CanvasRun {
+	var target persistencemodel.CanvasRun
 	run.ApplyToModel(&target)
 	return target
 }
 
-func (run CanvasRun) ApplyToModel(target *model.CanvasRun) {
+func (run CanvasRun) ApplyToModel(target *persistencemodel.CanvasRun) {
 	target.Model.ID = run.ID
 	target.CanvasID = run.CanvasID
 	target.Status = run.Status
@@ -266,14 +265,14 @@ func (run CanvasRun) ApplyToModel(target *model.CanvasRun) {
 		target.DeletedAt.Valid = true
 	}
 	if len(run.Tasks) > 0 {
-		target.Tasks = make([]model.CanvasTask, 0, len(run.Tasks))
+		target.Tasks = make([]persistencemodel.CanvasTask, 0, len(run.Tasks))
 		for _, task := range run.Tasks {
 			target.Tasks = append(target.Tasks, task.ToModel())
 		}
 	}
 }
 
-func CanvasTaskFromModel(task model.CanvasTask) CanvasTask {
+func CanvasTaskFromModel(task persistencemodel.CanvasTask) CanvasTask {
 	domainTask := CanvasTask{
 		ID:             task.ID,
 		CanvasNodeID:   task.CanvasNodeID,
@@ -301,13 +300,13 @@ func CanvasTaskFromModel(task model.CanvasTask) CanvasTask {
 	return domainTask
 }
 
-func (task CanvasTask) ToModel() model.CanvasTask {
-	var target model.CanvasTask
+func (task CanvasTask) ToModel() persistencemodel.CanvasTask {
+	var target persistencemodel.CanvasTask
 	task.ApplyToModel(&target)
 	return target
 }
 
-func (task CanvasTask) ApplyToModel(target *model.CanvasTask) {
+func (task CanvasTask) ApplyToModel(target *persistencemodel.CanvasTask) {
 	target.Model.ID = task.ID
 	target.CanvasNodeID = task.CanvasNodeID
 	target.CanvasRunID = task.CanvasRunID
@@ -332,7 +331,7 @@ func (task CanvasTask) ApplyToModel(target *model.CanvasTask) {
 	}
 }
 
-func CanvasesFromModels(canvases []model.Canvas) []Canvas {
+func CanvasesFromModels(canvases []persistencemodel.Canvas) []Canvas {
 	out := make([]Canvas, 0, len(canvases))
 	for _, canvas := range canvases {
 		out = append(out, CanvasFromModel(canvas))
@@ -340,7 +339,7 @@ func CanvasesFromModels(canvases []model.Canvas) []Canvas {
 	return out
 }
 
-func CanvasNodesFromModels(nodes []model.CanvasNode) []CanvasNode {
+func CanvasNodesFromModels(nodes []persistencemodel.CanvasNode) []CanvasNode {
 	out := make([]CanvasNode, 0, len(nodes))
 	for _, node := range nodes {
 		out = append(out, CanvasNodeFromModel(node))
@@ -348,7 +347,7 @@ func CanvasNodesFromModels(nodes []model.CanvasNode) []CanvasNode {
 	return out
 }
 
-func CanvasEdgesFromModels(edges []model.CanvasEdge) []CanvasEdge {
+func CanvasEdgesFromModels(edges []persistencemodel.CanvasEdge) []CanvasEdge {
 	out := make([]CanvasEdge, 0, len(edges))
 	for _, edge := range edges {
 		out = append(out, CanvasEdgeFromModel(edge))
@@ -356,7 +355,7 @@ func CanvasEdgesFromModels(edges []model.CanvasEdge) []CanvasEdge {
 	return out
 }
 
-func CanvasRunsFromModels(runs []model.CanvasRun) []CanvasRun {
+func CanvasRunsFromModels(runs []persistencemodel.CanvasRun) []CanvasRun {
 	out := make([]CanvasRun, 0, len(runs))
 	for _, run := range runs {
 		out = append(out, CanvasRunFromModel(run))
@@ -364,7 +363,7 @@ func CanvasRunsFromModels(runs []model.CanvasRun) []CanvasRun {
 	return out
 }
 
-func CanvasTasksFromModels(tasks []model.CanvasTask) []CanvasTask {
+func CanvasTasksFromModels(tasks []persistencemodel.CanvasTask) []CanvasTask {
 	out := make([]CanvasTask, 0, len(tasks))
 	for _, task := range tasks {
 		out = append(out, CanvasTaskFromModel(task))
@@ -372,7 +371,7 @@ func CanvasTasksFromModels(tasks []model.CanvasTask) []CanvasTask {
 	return out
 }
 
-func EntityWriteAuditsFromModels(audits []model.CanvasEntityWriteAudit) []EntityWriteAudit {
+func EntityWriteAuditsFromModels(audits []persistencemodel.CanvasEntityWriteAudit) []EntityWriteAudit {
 	out := make([]EntityWriteAudit, 0, len(audits))
 	for _, audit := range audits {
 		out = append(out, EntityWriteAuditFromModel(audit))
@@ -380,7 +379,7 @@ func EntityWriteAuditsFromModels(audits []model.CanvasEntityWriteAudit) []Entity
 	return out
 }
 
-func CanvasGraphFromModel(cv model.Canvas) CanvasGraph {
+func CanvasGraphFromModel(cv persistencemodel.Canvas) CanvasGraph {
 	nodes := make([]CanvasNode, 0, len(cv.Nodes))
 	for _, node := range cv.Nodes {
 		nodes = append(nodes, CanvasNodeFromModel(node))
@@ -396,20 +395,20 @@ func CanvasGraphFromModel(cv model.Canvas) CanvasGraph {
 	}
 }
 
-func (cv CanvasGraph) ToModel() model.Canvas {
+func (cv CanvasGraph) ToModel() persistencemodel.Canvas {
 	target := cv.Canvas.ToModel()
-	target.Nodes = make([]model.CanvasNode, 0, len(cv.Nodes))
+	target.Nodes = make([]persistencemodel.CanvasNode, 0, len(cv.Nodes))
 	for _, node := range cv.Nodes {
 		target.Nodes = append(target.Nodes, node.ToModel())
 	}
-	target.Edges = make([]model.CanvasEdge, 0, len(cv.Edges))
+	target.Edges = make([]persistencemodel.CanvasEdge, 0, len(cv.Edges))
 	for _, edge := range cv.Edges {
 		target.Edges = append(target.Edges, edge.ToModel())
 	}
 	return target
 }
 
-func CanvasOutputFromModel(output model.CanvasOutput) CanvasOutput {
+func CanvasOutputFromModel(output persistencemodel.CanvasOutput) CanvasOutput {
 	return CanvasOutput{
 		ID:          output.ID,
 		CanvasID:    output.CanvasID,
@@ -420,13 +419,13 @@ func CanvasOutputFromModel(output model.CanvasOutput) CanvasOutput {
 	}
 }
 
-func (output CanvasOutput) ToModel() model.CanvasOutput {
-	var target model.CanvasOutput
+func (output CanvasOutput) ToModel() persistencemodel.CanvasOutput {
+	var target persistencemodel.CanvasOutput
 	output.ApplyToModel(&target)
 	return target
 }
 
-func (output CanvasOutput) ApplyToModel(target *model.CanvasOutput) {
+func (output CanvasOutput) ApplyToModel(target *persistencemodel.CanvasOutput) {
 	target.Model.ID = output.ID
 	target.CanvasID = output.CanvasID
 	target.CanvasRunID = output.CanvasRunID
@@ -435,33 +434,33 @@ func (output CanvasOutput) ApplyToModel(target *model.CanvasOutput) {
 	target.Status = output.Status
 }
 
-func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) CanvasRun {
+func NewCanvasRun(cv persistencemodel.Canvas, inputValues any, startedAt time.Time) CanvasRun {
 	return NewRun(CanvasGraphFromModel(cv), inputValues, startedAt)
 }
 
-func NewCanvasTask(node model.CanvasNode, runID *uint, inputValues string) CanvasTask {
+func NewCanvasTask(node persistencemodel.CanvasNode, runID *uint, inputValues string) CanvasTask {
 	return NewTask(CanvasNodeFromModel(node), runID, inputValues)
 }
 
-func StartCanvasRun(run *model.CanvasRun, startedAt time.Time) {
+func StartCanvasRun(run *persistencemodel.CanvasRun, startedAt time.Time) {
 	domainRun := CanvasRunFromModel(*run)
 	StartRun(&domainRun, startedAt)
 	domainRun.ApplyToModel(run)
 }
 
-func CompleteCanvasRun(run *model.CanvasRun, finishedAt time.Time) {
+func CompleteCanvasRun(run *persistencemodel.CanvasRun, finishedAt time.Time) {
 	domainRun := CanvasRunFromModel(*run)
 	CompleteRun(&domainRun, finishedAt)
 	domainRun.ApplyToModel(run)
 }
 
-func FailCanvasRun(run *model.CanvasRun, errMsg string, finishedAt time.Time) {
+func FailCanvasRun(run *persistencemodel.CanvasRun, errMsg string, finishedAt time.Time) {
 	domainRun := CanvasRunFromModel(*run)
 	FailRun(&domainRun, errMsg, finishedAt)
 	domainRun.ApplyToModel(run)
 }
 
-func ApplyCanvasRunTaskStatus(run *model.CanvasRun, tasks []model.CanvasTask, finishedAt time.Time) bool {
+func ApplyCanvasRunTaskStatus(run *persistencemodel.CanvasRun, tasks []persistencemodel.CanvasTask, finishedAt time.Time) bool {
 	domainRun := CanvasRunFromModel(*run)
 	domainTasks := make([]CanvasTask, 0, len(tasks))
 	for _, task := range tasks {
@@ -472,33 +471,33 @@ func ApplyCanvasRunTaskStatus(run *model.CanvasRun, tasks []model.CanvasTask, fi
 	return ok
 }
 
-func StartCanvasTask(task *model.CanvasTask, nd *NodeData) map[string]any {
+func StartCanvasTask(task *persistencemodel.CanvasTask, nd *NodeData) map[string]any {
 	domainTask := CanvasTaskFromModel(*task)
 	updates := StartTask(&domainTask, nd)
 	domainTask.ApplyToModel(task)
 	return updates
 }
 
-func CompleteCanvasTask(task *model.CanvasTask, nd *NodeData, resourceID *uint) map[string]any {
+func CompleteCanvasTask(task *persistencemodel.CanvasTask, nd *NodeData, resourceID *uint) map[string]any {
 	domainTask := CanvasTaskFromModel(*task)
 	updates := CompleteTask(&domainTask, nd, resourceID)
 	domainTask.ApplyToModel(task)
 	return updates
 }
 
-func FailCanvasTask(task *model.CanvasTask, nd *NodeData, errMsg string) {
+func FailCanvasTask(task *persistencemodel.CanvasTask, nd *NodeData, errMsg string) {
 	domainTask := CanvasTaskFromModel(*task)
 	FailTask(&domainTask, nd, errMsg)
 	domainTask.ApplyToModel(task)
 }
 
-func AttachCanvasOutput(output *model.CanvasOutput, runID uint, resourceID uint, valueJSON string) {
+func AttachCanvasOutput(output *persistencemodel.CanvasOutput, runID uint, resourceID uint, valueJSON string) {
 	domainOutput := CanvasOutputFromModel(*output)
 	AttachOutput(&domainOutput, runID, resourceID, valueJSON)
 	domainOutput.ApplyToModel(output)
 }
 
-func CanvasRunTaskFailureSummary(tasks []model.CanvasTask) string {
+func CanvasRunTaskFailureSummary(tasks []persistencemodel.CanvasTask) string {
 	domainTasks := make([]CanvasTask, 0, len(tasks))
 	for _, task := range tasks {
 		domainTasks = append(domainTasks, CanvasTaskFromModel(task))
@@ -506,23 +505,23 @@ func CanvasRunTaskFailureSummary(tasks []model.CanvasTask) string {
 	return TaskFailureSummary(domainTasks)
 }
 
-func CanvasFromRunSnapshot(canvasID uint, raw string) (model.Canvas, error) {
+func CanvasFromRunSnapshot(canvasID uint, raw string) (persistencemodel.Canvas, error) {
 	graph, err := CanvasGraphFromRunSnapshot(canvasID, raw)
 	if err != nil {
-		return model.Canvas{}, err
+		return persistencemodel.Canvas{}, err
 	}
 	return graph.ToModel(), nil
 }
 
-func BuildExecutionPlan(cv model.Canvas) (ExecutionPlan, error) {
+func BuildExecutionPlan(cv persistencemodel.Canvas) (ExecutionPlan, error) {
 	return BuildGraphExecutionPlan(CanvasGraphFromModel(cv))
 }
 
-func ValidateRequiredInputs(cv model.Canvas, inputValues map[string]PortValue) error {
+func ValidateRequiredInputs(cv persistencemodel.Canvas, inputValues map[string]PortValue) error {
 	return ValidateGraphRequiredInputs(CanvasGraphFromModel(cv), inputValues)
 }
 
-func StaticNodePortValue(node *model.CanvasNode, nd NodeData) PortValue {
+func StaticNodePortValue(node *persistencemodel.CanvasNode, nd NodeData) PortValue {
 	if node == nil {
 		return PortValue{}
 	}

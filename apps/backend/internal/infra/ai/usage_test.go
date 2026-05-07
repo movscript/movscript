@@ -3,7 +3,7 @@ package ai
 import (
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func TestEstimateUsageCostPerToken(t *testing.T) {
@@ -11,7 +11,7 @@ func TestEstimateUsageCostPerToken(t *testing.T) {
 		CreditsInputPer1M:  2,
 		CreditsOutputPer1M: 8,
 	}
-	def := &ModelDef{BillingMode: BillingPerToken}
+	def := &ModelDef{PricingMode: PricingPerToken}
 
 	got := estimateUsageCost(cfg, def, "text", 500_000, 250_000, 0, 1)
 

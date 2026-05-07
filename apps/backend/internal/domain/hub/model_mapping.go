@@ -1,8 +1,8 @@
 package hub
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func HubPackageFromModel(pkg model.HubPackage) HubPackage {
+func HubPackageFromModel(pkg persistencemodel.HubPackage) HubPackage {
 	return HubPackage{
 		ID:              pkg.ID,
 		PackageID:       pkg.PackageID,
@@ -37,13 +37,13 @@ func HubPackageFromModel(pkg model.HubPackage) HubPackage {
 	}
 }
 
-func (pkg HubPackage) ToModel() model.HubPackage {
-	var target model.HubPackage
+func (pkg HubPackage) ToModel() persistencemodel.HubPackage {
+	var target persistencemodel.HubPackage
 	pkg.ApplyToModel(&target)
 	return target
 }
 
-func (pkg HubPackage) ApplyToModel(target *model.HubPackage) {
+func (pkg HubPackage) ApplyToModel(target *persistencemodel.HubPackage) {
 	target.Model.ID = pkg.ID
 	target.Model.CreatedAt = pkg.CreatedAt
 	target.Model.UpdatedAt = pkg.UpdatedAt

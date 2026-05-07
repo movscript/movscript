@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -14,7 +14,7 @@ type repository interface {
 	CreateCredential(ctx context.Context, cred *domainaiadmin.Credential) error
 	SaveCredential(ctx context.Context, cred *domainaiadmin.Credential) error
 	DeleteCredential(ctx context.Context, id string) error
-	GetCredential(ctx context.Context, id any) (domainaiadmin.Credential, error)
+	GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error)
 	ListModelConfigs(ctx context.Context, credentialID string) ([]domainaiadmin.ModelConfig, error)
 	CreateModelConfig(ctx context.Context, cfg *domainaiadmin.ModelConfig) error
 	SaveModelConfig(ctx context.Context, cfg *domainaiadmin.ModelConfig) error
@@ -31,7 +31,7 @@ func newRepository(db *gorm.DB) repository {
 }
 
 func (r *gormRepository) ListCredentials(ctx context.Context) ([]domainaiadmin.Credential, error) {
-	creds := make([]model.AICredential, 0)
+	creds := make([]persistencemodel.AICredential, 0)
 	if err := r.db.WithContext(ctx).Preload("Models").Find(&creds).Error; err != nil {
 		return nil, err
 	}
@@ -61,11 +61,11 @@ func (r *gormRepository) SaveCredential(ctx context.Context, cred *domainaiadmin
 }
 
 func (r *gormRepository) DeleteCredential(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&model.AICredential{}, id).Error
+	return r.db.WithContext(ctx).Delete(&persistencemodel.AICredential{}, id).Error
 }
 
-func (r *gormRepository) GetCredential(ctx context.Context, id any) (domainaiadmin.Credential, error) {
-	var cred model.AICredential
+func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error) {
+	var cred persistencemodel.AICredential
 	if err := r.db.WithContext(ctx).First(&cred, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainaiadmin.Credential{}, ErrNotFound
@@ -76,7 +76,7 @@ func (r *gormRepository) GetCredential(ctx context.Context, id any) (domainaiadm
 }
 
 func (r *gormRepository) ListModelConfigs(ctx context.Context, credentialID string) ([]domainaiadmin.ModelConfig, error) {
-	cfgs := make([]model.AIModelConfig, 0)
+	cfgs := make([]persistencemodel.AIModelConfig, 0)
 	if err := r.db.WithContext(ctx).Where("credential_id = ?", credentialID).Find(&cfgs).Error; err != nil {
 		return nil, err
 	}
@@ -106,11 +106,11 @@ func (r *gormRepository) SaveModelConfig(ctx context.Context, cfg *domainaiadmin
 }
 
 func (r *gormRepository) DeleteModelConfig(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&model.AIModelConfig{}, id).Error
+	return r.db.WithContext(ctx).Delete(&persistencemodel.AIModelConfig{}, id).Error
 }
 
 func (r *gormRepository) GetModelConfig(ctx context.Context, id string) (domainaiadmin.ModelConfig, error) {
-	var cfg model.AIModelConfig
+	var cfg persistencemodel.AIModelConfig
 	if err := r.db.WithContext(ctx).First(&cfg, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainaiadmin.ModelConfig{}, ErrNotFound

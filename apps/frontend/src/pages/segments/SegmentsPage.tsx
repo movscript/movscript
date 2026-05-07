@@ -131,7 +131,7 @@ const statusLabels: Record<string, string> = {
   draft: '草稿',
   candidate: '候选',
   generated: '已生成',
-  missing: '缺素材',
+  missing: '缺素材需求',
   review: '待审',
   ignored: '忽略',
   rejected: '拒绝',
@@ -139,12 +139,13 @@ const statusLabels: Record<string, string> = {
 }
 
 const sectionKinds: Record<string, string> = {
-  section: '剧本段落',
-  scene: '场次',
-  montage: '蒙太奇',
-  narration: '旁白',
-  product_showcase: '产品展示',
-  title_card: '标题卡',
+  emotional_function: '情绪功能',
+  rhythm_shift: '节奏变化',
+  dramatic_function: '戏剧功能',
+  setup: '铺垫',
+  escalation: '升级',
+  release: '释放',
+  reversal: '反转',
   transition: '转场',
 }
 
@@ -391,17 +392,17 @@ export default function SegmentsPage() {
               <ChevronRight size={13} />
               <span>内容区</span>
               <ChevronRight size={13} />
-              <span>剧本段落</span>
+              <span>编排段</span>
             </div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">剧本段落</h1>
+            <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">编排段</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              剧本段落属于一个项目，是内容设计的上层容器；一个剧本段落持有多个情景，并汇总制作项、设定资料、素材需求和关键帧。
+              编排段定义本集内部的情绪、节奏和戏剧功能；一个编排段持有多个情景，并汇总制作项、设定资料、素材需求和关键帧。
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Button className="gap-2" onClick={startCreateSegment}>
               <Plus size={15} />
-              新建剧本段落
+              新建编排段
             </Button>
             <Button variant="outline" className="gap-2" onClick={refreshAll} loading={isFetching}>
               <RefreshCcw size={15} />
@@ -416,8 +417,8 @@ export default function SegmentsPage() {
         )}
         overview={(
           <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={BookOpenText} label="剧本段落" value={segmentWorkspaces.length} detail={`${visibleSegments.length} 个符合当前筛选`} tone="text-cyan-600" />
-          <MetricCard icon={Film} label="情景" value={sceneMoments.length} detail="剧本段落内部的叙事上下文" tone="text-teal-600" />
+          <MetricCard icon={BookOpenText} label="编排段" value={segmentWorkspaces.length} detail={`${visibleSegments.length} 个符合当前筛选`} tone="text-cyan-600" />
+          <MetricCard icon={Film} label="情景" value={sceneMoments.length} detail="编排段内部的具体时空与动作上下文" tone="text-teal-600" />
           <MetricCard icon={ShieldCheck} label="可推进" value={readyCount} detail={`${averageReadiness}% 平均准备度`} tone="text-emerald-600" />
           <MetricCard icon={AlertTriangle} label="待处理" value={attentionCount} detail={`估算总时长 ${formatDuration(totalDuration)}`} tone="text-amber-600" />
           </section>
@@ -426,24 +427,24 @@ export default function SegmentsPage() {
           <ContentFilterBar
             query={query}
             onQueryChange={(value) => setFilter({ q: value })}
-            queryPlaceholder="搜索剧本段落、情景、内容或素材"
+            queryPlaceholder="搜索编排段、情景、内容或素材需求"
             filters={[{
               id: 'status',
               label: '状态',
               value: statusFilter,
               onChange: (value) => setFilter({ status: value }),
               options: [
-                { value: 'all', label: '全部剧本段落', count: segmentWorkspaces.length },
+                { value: 'all', label: '全部编排段', count: segmentWorkspaces.length },
                 { value: 'ready', label: '可推进', count: readyCount },
                 { value: 'attention', label: '待处理', count: attentionCount },
                 { value: 'confirmed', label: '已确认', count: segmentWorkspaces.filter((item) => item.segment.status === 'confirmed').length },
               ],
             }]}
             chips={[
-              selectedSegmentId ? { id: 'segment', label: `剧本段落 #${selectedSegmentId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
+              selectedSegmentId ? { id: 'segment', label: `编排段 #${selectedSegmentId}`, onRemove: () => setFilter({ segment_id: null }) } : null,
               selectedSceneMomentId ? { id: 'scene', label: `情景 #${selectedSceneMomentId}`, onRemove: () => setFilter({ scene_moment_id: null }) } : null,
               selectedContentUnitId ? { id: 'content', label: `内容 #${selectedContentUnitId}`, onRemove: () => setFilter({ content_unit_id: null }) } : null,
-              referenceFilterId ? { id: 'reference', label: `资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
+              referenceFilterId ? { id: 'reference', label: `设定资料 #${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) } : null,
               assetSlotFilterId ? { id: 'asset', label: `素材需求 #${assetSlotFilterId}`, onRemove: () => setFilter({ asset_slot_id: null }) } : null,
             ].filter(Boolean) as Array<{ id: string; label: string; onRemove: () => void }>}
             resultCount={visibleSegments.length}
@@ -454,8 +455,8 @@ export default function SegmentsPage() {
             <section className="rounded-lg border border-border bg-card">
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">剧本段落清单</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">以卡片方式管理项目剧本段落；剧本段落可独立创建，也可选填剧本版本作为来源引用。</p>
+                  <p className="text-sm font-semibold text-foreground">编排段清单</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">以卡片方式管理本集的情绪、节奏和戏剧功能段；可选填剧本版本作为来源引用。</p>
                 </div>
                 <Badge variant="outline" className="text-[10px]">{visibleSegments.length} / {segmentWorkspaces.length}</Badge>
               </div>
@@ -463,11 +464,11 @@ export default function SegmentsPage() {
               <div className="grid grid-cols-1 gap-3 p-4">
                 {isLoading ? (
                   <div>
-                    <EmptyState title="正在加载剧本段落" detail="读取剧本段落和关联对象" compact />
+                    <EmptyState title="正在加载编排段" detail="读取编排段和关联对象" compact />
                   </div>
                 ) : visibleSegments.length === 0 ? (
                   <div>
-                    <EmptyState title="暂无剧本段落" detail="可以直接新建剧本段落，剧本版本只是可选来源引用" compact />
+                    <EmptyState title="暂无编排段" detail="可以直接新建编排段，剧本版本只是可选来源引用" compact />
                   </div>
                 ) : (
                   visibleSegments.map((item) => (
@@ -488,19 +489,19 @@ export default function SegmentsPage() {
               <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">情景与内容设计</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">选择剧本段落后，在这里查看它持有的多个情景，以及每个情景关联的内容设计。</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">选择编排段后，在这里查看它持有的多个情景，以及每个情景关联的内容设计。</p>
                 </div>
                 <Badge variant="outline" className="text-[10px]">{selectedSegment ? `${selectedSegment.sceneMoments.length} 情景 / ${selectedSegment.contentUnits.length} 内容` : '-'}</Badge>
               </div>
 
               {!selectedSegment ? (
-                <EmptyState title="未选择剧本段落" detail="从剧本段落清单选择一个剧本段落查看内容设计" />
+                <EmptyState title="未选择编排段" detail="从编排段清单选择一个编排段查看内容设计" />
               ) : (
                 <div className="grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] gap-4 p-4">
                   <div className="space-y-3">
-                    <SectionTitle icon={Film} title="剧本段落持有的情景" count={selectedSegment.sceneMoments.length} />
+                    <SectionTitle icon={Film} title="编排段持有的情景" count={selectedSegment.sceneMoments.length} />
                     {selectedSegment.sceneMoments.length === 0 ? (
-                      <EmptyState title="暂无情景" detail="剧本段落还没有拆分出情景" compact />
+                      <EmptyState title="暂无情景" detail="编排段还没有拆分出情景" compact />
                     ) : (
                       selectedSegment.sceneMoments.map((sceneMoment) => (
                         <SceneMomentRow
@@ -544,7 +545,7 @@ export default function SegmentsPage() {
               projectId={projectId}
               config={segmentConfig}
               item={creatingSegment ? null : selectedSegment}
-              defaults={creatingSegment ? { order: segmentWorkspaces.length + 1, status: 'draft', kind: 'section' } : undefined}
+              defaults={creatingSegment ? { order: segmentWorkspaces.length + 1, status: 'draft', kind: 'emotional_function' } : undefined}
               queryKey={['semantic-segment-workspace', projectId]}
               onSaved={(record) => {
                 setCreatingSegment(false)
@@ -563,11 +564,11 @@ export default function SegmentsPage() {
         downstream={<div />}
         bottom={(
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
-            <RelatedPanel title="拥有的情景" icon={Film} records={selectedSegment?.sceneMoments ?? []} empty="当前剧本段落暂无情景" />
-            <RelatedPanel title="涉及到的设定资料" icon={Sparkles} records={selectedSegment?.references ?? []} empty="当前剧本段落暂无设定资料引用" />
-            <RelatedPanel title="所需要的素材" icon={PackageCheck} records={selectedSegment?.assetSlots ?? []} empty="当前剧本段落暂无素材需求" />
-            <RelatedPanel title="需要产出的制作项" icon={Boxes} records={selectedSegment?.contentUnits ?? []} empty="当前剧本段落暂无制作项" />
-            <RelatedPanel title="最终的成片" icon={Image} records={[]} empty="当前剧本段落暂无成片引用" />
+            <RelatedPanel title="拥有的情景" icon={Film} records={selectedSegment?.sceneMoments ?? []} empty="当前编排段暂无情景" />
+            <RelatedPanel title="涉及到的设定资料" icon={Sparkles} records={selectedSegment?.references ?? []} empty="当前编排段暂无设定资料引用" />
+            <RelatedPanel title="所需要的素材需求" icon={PackageCheck} records={selectedSegment?.assetSlots ?? []} empty="当前编排段暂无素材需求" />
+            <RelatedPanel title="需要产出的制作项" icon={Boxes} records={selectedSegment?.contentUnits ?? []} empty="当前编排段暂无制作项" />
+            <RelatedPanel title="最终的成片" icon={Image} records={[]} empty="当前编排段暂无成片引用" />
           </div>
         )}
       />
@@ -593,17 +594,17 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-foreground">{titleOf(item.segment)}</p>
-              <p className="truncate text-[11px] text-muted-foreground">{sectionKinds[String(item.segment.kind ?? '')] ?? item.segment.kind ?? '剧本段落'}</p>
+              <p className="truncate text-[11px] text-muted-foreground">{sectionKinds[String(item.segment.kind ?? '')] ?? item.segment.kind ?? '编排段'}</p>
             </div>
           </div>
-          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.segment.summary || item.segment.content || '暂无剧本段落摘要'}</p>
+          <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.segment.summary || item.segment.content || '暂无情绪、节奏或戏剧功能说明'}</p>
         </div>
         <StatusBadge status={item.segment.status ?? 'draft'} />
       </div>
       <div className="mt-3 grid grid-cols-3 gap-2">
         <MiniStat label="情景" value={item.sceneMoments.length} />
         <MiniStat label="内容" value={item.contentUnits.length} />
-        <MiniStat label="素材" value={item.assetSlots.length} />
+        <MiniStat label="素材需求" value={item.assetSlots.length} />
       </div>
       <div className="mt-3 flex items-center gap-2">
         <ProgressBar value={item.readiness} className="h-1.5 flex-1" />
@@ -662,7 +663,7 @@ function SegmentDetailCard({
     onSuccess: (saved) => {
       if (queryKey) queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: [config.kind, projectId] })
-      toast.success('剧本段落已保存')
+      toast.success('编排段已保存')
       setIsEditing(false)
       onSaved?.(saved as SegmentRecord)
     },
@@ -676,7 +677,7 @@ function SegmentDetailCard({
     onSuccess: () => {
       if (queryKey) queryClient.invalidateQueries({ queryKey })
       queryClient.invalidateQueries({ queryKey: [config.kind, projectId] })
-      toast.success('剧本段落已删除')
+      toast.success('编排段已删除')
       if (record) onDeleted?.(record)
     },
   })
@@ -693,19 +694,19 @@ function SegmentDetailCard({
 
   function removeRecord() {
     if (!projectId || !record) return
-    if (!window.confirm('确定删除这个剧本段落吗？')) return
+    if (!window.confirm('确定删除这个编排段吗？')) return
     deleteMutation.mutate()
   }
 
   if (!record && !defaults) {
     return (
       <section className="rounded-lg border border-border bg-card">
-        <EmptyState title="未选择剧本段落" detail="从左侧剧本段落列表选择一个内容容器，或新建剧本段落后直接编辑详情" />
+        <EmptyState title="未选择编排段" detail="从左侧编排段列表选择一个情绪、节奏或戏剧功能段，或新建编排段后直接编辑详情" />
       </section>
     )
   }
 
-  const title = isEditing ? String(form.title ?? '') : record ? titleOf(record as SegmentRecord) : '新建剧本段落'
+  const title = isEditing ? String(form.title ?? '') : record ? titleOf(record as SegmentRecord) : '新建编排段'
   const kind = isEditing ? String(form.kind ?? '') : String(record?.kind ?? '')
   const status = isEditing ? String(form.status ?? 'draft') : String(record?.status ?? 'draft')
   const summary = isEditing ? String(form.summary ?? '') : String(record?.summary || record?.content || '')
@@ -723,7 +724,7 @@ function SegmentDetailCard({
                 <BookOpenText size={19} />
               </span>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{sectionKinds[kind] ?? (kind || '剧本段落')} · {isNew ? '新建剧本段落' : record?.text_block_id ? `文本块 #${record.text_block_id}` : '项目剧本段落'}</p>
+                <p className="text-xs text-muted-foreground">{sectionKinds[kind] ?? (kind || '编排段')} · {isNew ? '新建编排段' : record?.text_block_id ? `文本块 #${record.text_block_id}` : '项目编排段'}</p>
                 {isEditing && fieldByKey.get('title') ? (
                   <SegmentInlineField
                     field={fieldByKey.get('title')!}
@@ -745,10 +746,10 @@ function SegmentDetailCard({
                   value={form.summary}
                   onChange={(value) => updateField('summary', value)}
                   textareaRows={3}
-                  label="摘要"
+                  label="情绪/节奏/戏剧功能"
                 />
               ) : (
-                <p className="text-sm leading-6 text-muted-foreground">{summary || '暂无剧本段落摘要。'}</p>
+                <p className="text-sm leading-6 text-muted-foreground">{summary || '暂无情绪、节奏或戏剧功能说明。'}</p>
               )}
             </div>
           </div>
@@ -830,13 +831,13 @@ function SegmentDetailCard({
           <div className="grid grid-cols-5 gap-3 p-4">
             <HeroStat icon={Film} label="情景" value={item.sceneMoments.length} />
             <HeroStat icon={Boxes} label="内容设计" value={item.contentUnits.length} />
-            <HeroStat icon={Sparkles} label="资料引用" value={item.references.length} />
-            <HeroStat icon={PackageCheck} label="素材缺口" value={item.assetSlots.filter(isAssetGap).length} tone={item.assetSlots.some(isAssetGap) ? 'text-amber-600' : 'text-emerald-600'} />
+            <HeroStat icon={Sparkles} label="设定资料引用" value={item.references.length} />
+            <HeroStat icon={PackageCheck} label="素材需求缺口" value={item.assetSlots.filter(isAssetGap).length} tone={item.assetSlots.some(isAssetGap) ? 'text-amber-600' : 'text-emerald-600'} />
             <HeroStat icon={Clock3} label="估算时长" value={formatDuration(item.totalDuration)} />
           </div>
         ) : (
           <div className="grid grid-cols-3 gap-3 p-4">
-            <HeroStat icon={BookOpenText} label="类型" value={sectionKinds[kind] ?? (kind || '剧本段落')} />
+            <HeroStat icon={BookOpenText} label="类型" value={sectionKinds[kind] ?? (kind || '编排段')} />
             <HeroStat icon={ShieldCheck} label="状态" value={statusLabel(status)} />
             <HeroStat icon={Clock3} label="顺序" value={String(form.order || '-')} />
           </div>
@@ -844,7 +845,7 @@ function SegmentDetailCard({
         {isEditing ? (
           <div className="space-y-4 border-t border-border p-4">
             {fieldByKey.get('content') ? (
-              <SegmentEditSection title="剧本段落正文" description="保留完整剧本段落内容，摘要只承担快速扫描。">
+              <SegmentEditSection title="来源文本或补充说明" description="用于保留可追溯来源；情绪、节奏和戏剧功能应写在上方功能说明中。">
                 <SegmentInlineField field={fieldByKey.get('content')!} value={form.content} onChange={(value) => updateField('content', value)} textareaRows={7} />
               </SegmentEditSection>
             ) : null}
@@ -954,7 +955,7 @@ function ContentUnitRow({
       <div className="mt-3 flex flex-wrap gap-1.5">
         <Badge variant="outline" className="text-[10px]">{item.kind ?? '制作项'}</Badge>
         <Badge variant="outline" className="text-[10px]">情景 {sceneMoment ? titleOf(sceneMoment) : '未绑定'}</Badge>
-        <Badge variant="outline" className="text-[10px]">素材 {assetCount}</Badge>
+        <Badge variant="outline" className="text-[10px]">素材需求 {assetCount}</Badge>
         <Badge variant="outline" className="text-[10px]">关键帧 {keyframeCount}</Badge>
         {item.duration_sec ? <Badge variant="outline" className="text-[10px]">{formatDuration(item.duration_sec)}</Badge> : null}
       </div>
@@ -979,7 +980,7 @@ function SceneMomentDetail({ sceneMoment, segment }: { sceneMoment: SceneMomentR
       <div className="space-y-3 p-3">
         <div>
           <p className="text-sm font-semibold text-foreground">{titleOf(sceneMoment)}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{segment ? `来自 ${titleOf(segment)}` : '未绑定剧本段落'}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{segment ? `来自 ${titleOf(segment)}` : '未绑定编排段'}</p>
         </div>
         <InfoBlock label="描述" value={sceneMoment.description || '暂无描述'} />
         <div className="grid grid-cols-2 gap-2">
@@ -1041,7 +1042,7 @@ function SegmentReadOnlyDetails({ fields, record }: { fields: SemanticEntityFiel
   return (
     <div className="space-y-4 border-t border-border p-4">
       {contentField ? (
-        <SegmentPreviewSection title="剧本段落正文">
+        <SegmentPreviewSection title="编排段正文">
           <SegmentPreviewValue field={contentField} value={record[contentField.key]} prominent />
         </SegmentPreviewSection>
       ) : null}

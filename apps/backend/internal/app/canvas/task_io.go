@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func normalizeCanvasTaskForResponse(dbTask *model.CanvasTask, nodeType string) {
+func normalizeCanvasTaskForResponse(dbTask *persistencemodel.CanvasTask, nodeType string) {
 	if dbTask == nil {
 		return
 	}
@@ -39,7 +39,7 @@ func (h *Service) LazyBackfillCanvasTaskOutputs(task canvasruntime.CanvasTask, n
 	return canvasruntime.CanvasTaskFromModel(row)
 }
 
-func (h *Service) lazyBackfillCanvasTaskOutputs(task *model.CanvasTask, nodeType string) {
+func (h *Service) lazyBackfillCanvasTaskOutputs(task *persistencemodel.CanvasTask, nodeType string) {
 	if task == nil || strings.TrimSpace(task.OutputValues) != "" || task.ResourceID == nil {
 		return
 	}
@@ -49,7 +49,7 @@ func (h *Service) lazyBackfillCanvasTaskOutputs(task *model.CanvasTask, nodeType
 	}
 }
 
-func (h *Service) updateTaskInputValues(task *model.CanvasTask, inputs canvasPortInputMap) {
+func (h *Service) updateTaskInputValues(task *persistencemodel.CanvasTask, inputs canvasPortInputMap) {
 	if task == nil {
 		return
 	}
@@ -59,7 +59,7 @@ func (h *Service) updateTaskInputValues(task *model.CanvasTask, inputs canvasPor
 	}
 }
 
-func (h *Service) updateTaskOutputValues(task *model.CanvasTask, outputs map[string]canvasPortValue) {
+func (h *Service) updateTaskOutputValues(task *persistencemodel.CanvasTask, outputs map[string]canvasPortValue) {
 	if task == nil {
 		return
 	}

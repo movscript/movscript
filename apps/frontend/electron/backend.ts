@@ -72,7 +72,7 @@ async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise
   const dataDir = resolveLocalDataDir()
   const localSecret = resolveLocalSecret(dataDir)
   setBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL, message: 'Starting local backend' }, onStatus)
-  proc = spawn(bin, [], {
+  const child = spawn(bin, [], {
     cwd: resolveBackendCwd(bin),
     detached: app.isPackaged,
     env: {
@@ -90,13 +90,14 @@ async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise
     },
     stdio: app.isPackaged ? 'ignore' : 'inherit',
   })
-  if (app.isPackaged) proc.unref()
-  if (proc.pid) writeBackendPid(proc.pid)
+  proc = child
+  if (app.isPackaged) child.unref()
+  if (child.pid) writeBackendPid(child.pid)
 
-  proc.on('error', (err) => console.error('[backend]', err))
-  proc.on('exit', (code, signal) => {
+  child.on('error', (err) => console.error('[backend]', err))
+  child.on('exit', (code, signal) => {
     console.info(`[backend] exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
-    proc = null
+    if (proc === child) proc = null
     clearBackendPid()
     setBackendStatus({
       state: code === 0 || signal ? 'stopped' : 'error',
@@ -106,12 +107,12 @@ async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise
   })
 
   try {
-    await waitForBackendReady(LOCAL_BACKEND_URL)
-    const status: BackendStatus = { state: 'ready', baseURL: LOCAL_BACKEND_URL, pid: proc.pid }
+    await waitForBackendReady(LOCAL_BACKEND_URL, child.pid)
+    const status: BackendStatus = { state: 'ready', baseURL: LOCAL_BACKEND_URL, pid: child.pid }
     return setBackendStatus(status, onStatus)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Local backend failed to start'
-    const status: BackendStatus = { state: 'error', baseURL: LOCAL_BACKEND_URL, pid: proc.pid, message }
+    const status: BackendStatus = { state: 'error', baseURL: LOCAL_BACKEND_URL, pid: child.pid, message }
     return setBackendStatus(status, onStatus)
   }
 }

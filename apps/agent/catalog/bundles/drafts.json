@@ -1,10 +1,10 @@
 {
-  "id": "movscript.bundle.workflow",
-  "name": "Draft Workflow",
+  "id": "movscript.bundle.drafts",
+  "name": "Drafts",
   "description": "Reusable draft, approval, writing, progress review, and user input capabilities.",
-  "category": "workflow",
+  "category": "drafts",
   "skills": [
-    "movscript.workflow.safe-drafts",
+    "movscript.drafts.safe-drafts",
     "movscript.intent.script-writing",
     "movscript.intent.project-progress",
     "movscript.intent.storyboard-gap-review",

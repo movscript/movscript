@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { AgentWorkMode } from '@/store/agentStore'
 import type { AgentClientInput, AgentManifest, AgentRun, AgentThread } from '@/lib/localAgentClient'
+import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'building' | 'running' | 'completed' | 'cancelled' | 'error'
 export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'
@@ -27,6 +28,7 @@ export interface AgentPageTaskState {
   taskType: string
   status: AgentPageTaskStatus
   payload: AgentPageTaskPayload & { requestId: string; taskType: string }
+  artifacts?: AgentTaskArtifactRef[]
   conversationId?: string
   threadId?: string
   runId?: string
@@ -80,8 +82,8 @@ interface AgentSessionStore {
   enqueuePageTask: (payload: AgentPageTaskPayload) => AgentPageTaskPayload & { requestId: string; taskType: string }
   claimNextQueuedPageTask: () => (AgentPageTaskPayload & { requestId: string; taskType: string }) | null
   attachPageTaskConversation: (requestId: string, conversationId: string) => void
-  setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; run?: AgentRun; threadId?: string }) => void
-  settlePageTask: (payload: { requestId?: string; status: 'completed' | 'error' | 'cancelled'; run?: AgentRun; thread?: AgentThread; error?: string }) => void
+  setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; run?: AgentRun; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
+  settlePageTask: (payload: { requestId?: string; status: 'completed' | 'error' | 'cancelled'; run?: AgentRun; thread?: AgentThread; error?: string; artifacts?: AgentTaskArtifactRef[] }) => void
 
   setConversationRuntime: (conversationId: string, patch: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>) => void
@@ -269,6 +271,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
                 threadId: patch.threadId ?? run?.threadId ?? task.threadId,
                 runId: run?.id ?? task.runId,
                 run,
+                artifacts: patch.artifacts ?? task.artifacts,
                 status: run ? taskStatusFromRun(run) : 'running',
                 updatedAt: Date.now(),
               },
@@ -293,6 +296,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
                 thread: payload.thread ?? task.thread,
                 runId: payload.run?.id ?? task.runId,
                 threadId: payload.thread?.id ?? payload.run?.threadId ?? task.threadId,
+                artifacts: payload.artifacts ?? task.artifacts,
                 error: payload.error,
                 updatedAt: now,
                 settledAt: now,

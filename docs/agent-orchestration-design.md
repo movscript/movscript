@@ -20,12 +20,12 @@
 
 ```
 Production（制作）
-├── Segment（片段）          — 剧本的一个叙事单元
-│   └── SceneMoment（情节）  — 具体的一场戏：时间/地点/人物/动作/情绪
+├── Segment（编排段）        — 本集内部的情绪 / 节奏 / 戏剧功能段
+│   └── SceneMoment（情景）  — 具体时空、条件、动作和局部情绪
 │       ├── ContentUnit（内容片段）— 一个镜头：景别/运动/时长/提示词
 │       └── CreativeReferenceUsage — 这个情节用到哪些人物/场景，各自什么状态
-├── CreativeReference（创作材料）— 项目级：人物/场景/道具/品牌（跨制作共享）
-│   └── CreativeReferenceState（状态）— 某个情节里该材料的具体表现（服装/情绪/道具）
+├── CreativeReference（设定资料）— 项目级：人物/场景/道具/品牌（跨制作共享）
+│   └── CreativeReferenceState（设定状态）— 某个情节里该设定资料的具体表现（服装/情绪/道具）
 └── AssetSlot（素材槽）      — 需要准备的媒体文件（图/视/音），可复用已锁定素材
 ```
 
@@ -167,8 +167,8 @@ agent 分析出"这个情节涉及人物小明"
 这里的 Draft 是 Agent runtime 和客户端之间的审阅协议对象，用来承载 AI 生成的候选结构、上下文引用和生命周期状态。它不是后端正式领域实体；后端写入应由用户确认后的 apply 流程触发。
 
 **`AgentDraftKind` 增加**：
-- `segment` — 片段提案
-- `scene_moment` — 情节提案
+- `segment` — 编排段提案（本集内部的情绪 / 节奏 / 戏剧功能段）
+- `scene_moment` — 情景提案
 - `production_proposal` — 完整编排树提案（包含上述所有层级）
 
 **`BackendApplyClient` 增加批量创建能力**：
@@ -181,7 +181,7 @@ agent 分析出"这个情节涉及人物小明"
 在 `ProductionOrchestratePage` 中增加"Agent 提案"面板：
 
 **展示内容**：
-- 树形结构：片段 → 情节 → 内容片段 + 素材槽
+- 树形结构：编排段 → 情景 → 内容单元 + 素材槽
 - 每个节点标注 `action`（新建/复用/修改）
 - 复用节点标注来源制作
 - 修改节点显示 before/after diff

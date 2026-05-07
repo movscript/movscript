@@ -8,6 +8,7 @@ import { Library, Paperclip, X, Upload } from 'lucide-react'
 import { AuthedImage, AuthedVideo } from './AuthedImage'
 import { useProjectStore } from '@/store/projectStore'
 import { ResourceLibraryPicker, type ResourceTypeFilter } from './ResourceLibraryPicker'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 
 interface Props {
   ownerType: ResourceBindingOwnerType
@@ -34,7 +35,7 @@ export function ResourceAttachments({
   allowLibrarySelect = false,
   libraryType = 'all',
   libraryTypeOptions,
-  accept = 'image/*,video/*,audio/*,text/*',
+  accept = RESOURCE_UPLOAD_ACCEPT,
 }: Props) {
   const { t } = useTranslation()
   const qc = useQueryClient()

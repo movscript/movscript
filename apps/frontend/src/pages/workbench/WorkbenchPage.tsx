@@ -39,10 +39,29 @@ import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelatio
 import { api } from '@/lib/api'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
+import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
+import {
+  buildScriptSplitAgentMessage,
+  buildScriptSplitDraftContent,
+  getScriptTextLineCount,
+  getScriptTextLineEntries,
+  findMatchingScript,
+  findScriptByIdAndType,
+  inferSourceScriptTitle,
+  normalizeScriptType,
+  parseScriptSplitDraftContent,
+  summarizeText,
+  scriptTypeLabel,
+  scriptSplitDraftStatusLabel,
+  scriptSplitDraftStatusVariant,
+  type ScriptSplitDraft,
+  type ScriptSplitResult,
+} from '@/lib/scriptSplitDraft'
 import { localAgentClient, type AgentDraft, type AgentDraftValidationResult, type AgentManifest, type AgentRun } from '@/lib/localAgentClient'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
+import { useAgentSessionStore } from '@/store/agentSessionStore'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import type { Canvas, CanvasStage, Job, PublicModel } from '@/types'
@@ -102,9 +121,9 @@ interface CategoryScenario {
 const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   script: {
     queue: [
-      { id: 's3', title: '旧伞纸条滑落', subtitle: '剧本段落 3 · 建议拆成两个情景', status: 'review', priority: 'high', progress: 62 },
-      { id: 's2', title: '巷口对峙', subtitle: '剧本段落 2 · 人物动机待确认', status: 'review', priority: 'medium', progress: 74 },
-      { id: 's4', title: '顾言停步', subtitle: '剧本段落 4 · 低置信表达', status: 'blocked', priority: 'medium', progress: 35 },
+      { id: 's3', title: '旧伞纸条滑落', subtitle: '编排段 3 · 建议拆成两个情景', status: 'review', priority: 'high', progress: 62 },
+      { id: 's2', title: '巷口对峙', subtitle: '编排段 2 · 人物动机待确认', status: 'review', priority: 'medium', progress: 74 },
+      { id: 's4', title: '顾言停步', subtitle: '编排段 4 · 低置信表达', status: 'blocked', priority: 'medium', progress: 35 },
     ],
     evidenceTitle: '剧本证据',
     evidence: [
@@ -122,16 +141,16 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     outputTitle: '确认后输出',
     outputs: [
       { label: '结构', value: '新增 2 个情景候选' },
-      { label: '下游', value: '生成资料候选和素材缺口' },
+      { label: '下游', value: '生成设定资料候选和素材需求缺口' },
       { label: '状态', value: '可进入预演决策', tone: 'success' },
     ],
-    actions: ['确认为情景', '拆成两个情景', '忽略候选', '生成资料候选'],
+    actions: ['确认为情景', '拆成两个情景', '忽略候选', '生成设定资料候选'],
   },
   preview: {
     queue: [
-      { id: 'p2', title: '林夏雨中半身', subtitle: '剧本段落 02 · 关键帧待选', status: 'running', priority: 'high', progress: 72 },
-      { id: 'p3', title: '纸条特写', subtitle: '剧本段落 03 · 暂无可看的候选', status: 'review', priority: 'high', progress: 38 },
-      { id: 'p5', title: '巷口背影', subtitle: '剧本段落 05 · 已有候选版本', status: 'ready', priority: 'low', progress: 84 },
+      { id: 'p2', title: '林夏雨中半身', subtitle: '编排段 02 · 关键帧待选', status: 'running', priority: 'high', progress: 72 },
+      { id: 'p3', title: '纸条特写', subtitle: '编排段 03 · 暂无可看的候选', status: 'review', priority: 'high', progress: 38 },
+      { id: 'p5', title: '巷口背影', subtitle: '编排段 05 · 已有候选版本', status: 'ready', priority: 'low', progress: 84 },
     ],
     evidenceTitle: '候选依据',
     evidence: [
@@ -143,8 +162,8 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     decisionTitle: '候选状态',
     decisions: [
       { label: '总数', value: '已有 4 个候选' },
-      { label: '未生成', value: '剧本段落 03 还没有候选', tone: 'warning' },
-      { label: '关键帧', value: '剧本段落 02 候选 4 张' },
+      { label: '未生成', value: '编排段 03 还没有候选', tone: 'warning' },
+      { label: '关键帧', value: '编排段 02 候选 4 张' },
       { label: '下一步', value: '先处理已有候选，再补生成缺失候选' },
     ],
     outputTitle: '处理后输出',
@@ -161,13 +180,13 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
       { id: 'c2', title: '破损旧伞', subtitle: '道具 · 影响纸条特写', status: 'blocked', priority: 'high', progress: 28 },
       { id: 'c3', title: '冷雨悬疑风格', subtitle: '风格 · 已可用于提示词', status: 'ready', priority: 'medium', progress: 92 },
     ],
-    evidenceTitle: '资料证据',
+    evidenceTitle: '设定资料证据',
     evidence: [
       '林夏需要保持克制，不是惊慌逃离。',
       '旧伞必须破损，伞骨内侧可以藏纸条。',
       '老城区窄巷需要低照度、潮湿墙面和坏路灯。',
     ],
-    decisionTitle: '资料判断',
+    decisionTitle: '设定资料判断',
     decisions: [
       { label: '人物', value: '林夏状态需锁定', tone: 'warning' },
       { label: '道具', value: '旧伞是剧情证据，不是装饰' },
@@ -176,11 +195,11 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     ],
     outputTitle: '确认后输出',
     outputs: [
-      { label: '资料卡', value: '人物、地点、道具、风格' },
+      { label: '设定资料卡', value: '人物、地点、道具、风格' },
       { label: '约束', value: '进入提示词和审核标准' },
       { label: '状态', value: '可进入素材准备', tone: 'success' },
     ],
-    actions: ['确认资料', '标记缺口', '补充说明', '关联使用位置'],
+    actions: ['确认设定资料', '标记缺口', '补充说明', '关联使用位置'],
   },
   assets: {
     queue: [
@@ -206,7 +225,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   },
   production: {
     queue: [
-      { id: 'variant-b', title: '剧本段落 02 人物停步', subtitle: '版本 B 待审', status: 'review', priority: 'high', progress: 61 },
+      { id: 'variant-b', title: '编排段 02 人物停步', subtitle: '版本 B 待审', status: 'review', priority: 'high', progress: 61 },
       { id: 'v3', title: '纸条特写', subtitle: '缺正式视频', status: 'blocked', priority: 'high', progress: 34 },
       { id: 'v1', title: '雨夜全景', subtitle: '可采用', status: 'ready', priority: 'medium', progress: 86 },
     ],
@@ -221,7 +240,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     ],
     outputTitle: '确认后输出',
     outputs: [
-      { label: '剧本段落', value: '正式段落 02' },
+      { label: '编排段', value: '正式段落 02' },
       { label: '记录', value: '采用版本和返工意见' },
       { label: '状态', value: '可进入交付门禁', tone: 'success' },
     ],
@@ -229,12 +248,12 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   },
   delivery: {
     queue: [
-      { id: 'd3', title: '画面完整性', subtitle: '剧本段落 03 缺正式视频', status: 'blocked', priority: 'high', progress: 52 },
+      { id: 'd3', title: '画面完整性', subtitle: '编排段 03 缺正式视频', status: 'blocked', priority: 'high', progress: 52 },
       { id: 'd2', title: '声音混音', subtitle: '雨声已生成，台词未混音', status: 'review', priority: 'medium', progress: 66 },
       { id: 'd4', title: '版权记录', subtitle: '字体授权待记录', status: 'blocked', priority: 'medium', progress: 40 },
     ],
     evidenceTitle: '交付检查',
-    evidence: ['剧本段落 03 缺正式视频。', '第 2 段字幕未确认。', '台词未混音。', '字体授权待记录。'],
+    evidence: ['编排段 03 缺正式视频。', '第 2 段字幕未确认。', '台词未混音。', '字体授权待记录。'],
     decisionTitle: '放行判断',
     decisions: [
       { label: '完整性', value: '84%' },
@@ -637,7 +656,7 @@ function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGene
 function buildAssetMetrics(rows: AssetPrepViewRow[], data?: AssetPrepData): WorkbenchMetric[] {
   const activeJobs = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
   return [
-    { label: '素材缺口', value: String(rows.length), detail: '来自内容区素材需求', icon: PackageCheck, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
+    { label: '素材需求缺口', value: String(rows.length), detail: '来自内容区素材需求', icon: PackageCheck, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
     { label: '候选素材', value: String(data?.candidates.length ?? 0), detail: 'asset-slot-candidates', icon: SquareStack, status: (data?.candidates.length ?? 0) > 0 ? 'review' : 'blocked' },
     { label: '已锁定', value: String(rows.filter((row) => normalizeAssetSlotStatus(row.slot.status) === 'locked').length), detail: '可进入关键帧或制作项生成', icon: LockKeyhole, status: 'ready' },
     { label: '生成任务', value: String(activeJobs), detail: '当前项目图片任务', icon: RefreshCw, status: activeJobs > 0 ? 'running' : 'ready' },
@@ -649,7 +668,7 @@ function buildProductionMetrics(rows: ContentGenerationViewRow[], data?: Product
   const succeededJobs = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
   return [
     { label: '制作项', value: String(rows.length), detail: 'content-units', icon: Boxes, status: rows.length > 0 ? 'review' : 'blocked' },
-    { label: '可生成', value: String(rows.filter((row) => row.missingSlots.length === 0 && firstText(row.unit.prompt, row.unit.description)).length), detail: '素材和提示已具备', icon: CheckCircle2, status: 'ready' },
+    { label: '可生成', value: String(rows.filter((row) => row.missingSlots.length === 0 && firstText(row.unit.prompt, row.unit.description)).length), detail: '素材需求和提示已具备', icon: CheckCircle2, status: 'ready' },
     { label: '阻塞镜头', value: String(rows.filter((row) => row.status === 'blocked').length), detail: '存在 missing 素材需求', icon: AlertTriangle, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
     { label: '视频任务', value: String(runningJobs || succeededJobs), detail: runningJobs > 0 ? '有任务运行中' : '已完成任务', icon: Film, status: runningJobs > 0 ? 'running' : succeededJobs > 0 ? 'ready' : 'review' },
   ]
@@ -674,7 +693,7 @@ function buildAssetStandards(row: AssetPrepViewRow | null): WorkbenchGate[] {
   const hasCandidate = row.candidates.length > 0 || Boolean(row.lockedSlot || slot.resource_id)
   const isLocked = normalizeAssetSlotStatus(slot.status) === 'locked' || Boolean(row.lockedSlot || slot.resource_id)
   return [
-    { label: '归属明确', detail: hasOwner ? '已绑定内容、情景或资料上下文' : '需要绑定 owner 或设定资料来源', done: hasOwner, tone: hasOwner ? 'success' : 'warning' },
+    { label: '归属明确', detail: hasOwner ? '已绑定内容、情景或设定资料上下文' : '需要绑定 owner 或设定资料来源', done: hasOwner, tone: hasOwner ? 'success' : 'warning' },
     { label: '用途/提示完整', detail: hasBrief ? '已有用途说明或生成提示' : '需要补充 description 或 prompt_hint', done: hasBrief, tone: hasBrief ? 'success' : 'warning' },
     { label: '候选可比较', detail: hasCandidate ? `${row.candidates.length} 个候选 / ${row.lockedSlot || slot.resource_id ? '已有锁定引用' : '待锁定'}` : '需要上传、生成或关联候选素材', done: hasCandidate, tone: hasCandidate ? 'success' : 'warning' },
     { label: '输出可写回', detail: isLocked ? '已具备资源或锁定素材需求' : '采用前仍不能进入下游生成', done: isLocked, tone: isLocked ? 'success' : 'warning' },
@@ -711,8 +730,8 @@ function buildProductionContext(row: ContentGenerationViewRow | null): Workbench
   return [
     { label: '内容目标', value: firstText(unit.description, unit.prompt, titleOfRecord(unit)), icon: Target },
     { label: '关键帧', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个关键帧：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定关键帧', icon: Image },
-    { label: '素材输入', value: `${row.assetSlots.length} 个素材需求，${row.missingSlots.length} 个缺口`, icon: PackageCheck },
-    { label: '生成设置', value: `${unit.kind || '制作项'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `分集 #${unit.production_id}` : '未绑定分集'}`, icon: Settings2 },
+    { label: '素材需求输入', value: `${row.assetSlots.length} 个素材需求，${row.missingSlots.length} 个缺口`, icon: PackageCheck },
+    { label: '生成设置', value: `${unit.kind || '制作项'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `制作 #${unit.production_id}` : '未绑定制作'}`, icon: Settings2 },
   ]
 }
 
@@ -724,7 +743,7 @@ function buildProductionStandards(row: ContentGenerationViewRow | null, jobs: Jo
   const hasJob = jobs.length > 0 || row.unit.status === 'locked'
   return [
     { label: '内容目标明确', detail: hasTarget ? '已有 description 或 prompt' : '需要补充内容目标或生成提示', done: hasTarget, tone: hasTarget ? 'success' : 'warning' },
-    { label: '素材输入可用', detail: assetsReady ? '没有 missing 素材需求' : `${row.missingSlots.length} 个素材缺口阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
+    { label: '素材需求输入可用', detail: assetsReady ? '没有 missing 素材需求' : `${row.missingSlots.length} 个素材需求缺口阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
     { label: '关键帧具备', detail: hasKeyframe ? `${row.keyframes.length} 个关键帧可用` : '建议先生成或绑定关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务或内容已锁定' : '还没有当前项目的视频生成任务', done: hasJob, tone: hasJob ? 'success' : 'warning' },
   ]
@@ -862,14 +881,14 @@ function assetSlotScopeLabel(slot: WorkbenchRecord, data?: AssetPrepData) {
   }
   if (slot.owner_type === 'segment' && slot.owner_id) {
     const segment = data?.segments.find((item) => item.ID === Number(slot.owner_id))
-    return segment ? `剧本段落 · ${titleOfRecord(segment)}` : `剧本段落 #${slot.owner_id}`
+    return segment ? `编排段 · ${titleOfRecord(segment)}` : `编排段 #${slot.owner_id}`
   }
   if (slot.creative_reference_id) {
     const reference = data?.creativeReferences.find((item) => item.ID === Number(slot.creative_reference_id))
     return reference ? `设定资料 · ${titleOfRecord(reference)}` : `设定资料 #${slot.creative_reference_id}`
   }
   if (slot.owner_type && slot.owner_id) return `${slot.owner_type} #${slot.owner_id}`
-  if (slot.production_id) return `分集 #${slot.production_id}`
+  if (slot.production_id) return `制作 #${slot.production_id}`
   return '项目素材需求'
 }
 
@@ -878,7 +897,7 @@ function contentUnitScopeLabel(unit: WorkbenchRecord, keyframes: WorkbenchRecord
     unit.kind || '制作项',
     formatDuration(unit.duration_sec),
     keyframes.length > 0 ? `关键帧 ${keyframes.length}` : '无关键帧',
-    missingSlots.length > 0 ? `缺素材 ${missingSlots.length}` : '素材可用',
+    missingSlots.length > 0 ? `缺素材需求 ${missingSlots.length}` : '素材需求可用',
   ]
   return parts.join(' / ')
 }
@@ -888,6 +907,56 @@ function jobToWorkStatus(job: Job): WorkStatus {
   if (job.status === 'succeeded') return 'ready'
   if (job.status === 'failed' || job.status === 'cancelled') return 'blocked'
   return 'review'
+}
+
+function ScriptLinePreview({
+  lines,
+  highlightStartLine,
+  highlightEndLine,
+}: {
+  lines: Array<{ lineNo: number; text: string }>
+  highlightStartLine?: number
+  highlightEndLine?: number
+}) {
+  if (lines.length === 0) {
+    return (
+      <div className="bg-muted/20 px-3 py-8 text-center text-xs text-muted-foreground">
+        还没有可显示的行号预览
+      </div>
+    )
+  }
+
+  const width = Math.max(2, String(Math.max(lines.length, highlightStartLine ?? 0, highlightEndLine ?? 0)).length)
+
+  return (
+    <div className="max-h-[420px] overflow-auto bg-background font-mono text-xs leading-6">
+      {lines.map((line) => {
+        const highlighted = (
+          highlightStartLine !== undefined &&
+          highlightEndLine !== undefined &&
+          line.lineNo >= highlightStartLine &&
+          line.lineNo <= highlightEndLine
+        )
+        return (
+          <div
+            key={line.lineNo}
+            className={cn(
+              'grid grid-cols-[auto_minmax(0,1fr)] gap-3 border-b border-border/60 px-3 py-1.5 last:border-b-0',
+              highlighted ? 'bg-primary/5 text-foreground' : 'bg-background text-muted-foreground',
+            )}
+          >
+            <span
+              className={cn('select-none text-right tabular-nums', highlighted ? 'text-primary' : 'text-muted-foreground/70')}
+              style={{ width: `${width}ch` }}
+            >
+              {String(line.lineNo).padStart(width, '0')}
+            </span>
+            <span className="whitespace-pre-wrap break-words">{line.text || '\u00A0'}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function SpecializedWorkbenchHeader({
@@ -1141,7 +1210,7 @@ function AssetPreparationWorkbench() {
         category="assets"
         kicker="素材准备"
         title="素材准备工作台"
-        description="从素材缺口出发，把剧本证据、资料约束、参考输入和验收标准放在同一个生产界面里。"
+        description="从素材需求缺口出发，把剧本证据、设定资料约束、参考输入和验收标准放在同一个生产界面里。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         {!projectId ? (
@@ -1278,7 +1347,7 @@ function ContentGenerationWorkbench() {
                   status: row.status,
                   priority: row.priority,
                   progress: row.progress,
-                  need: row.missingSlots.length > 0 ? `${row.missingSlots.length} 个素材缺口` : firstText(row.unit.description, row.unit.prompt, '素材已齐备'),
+                  need: row.missingSlots.length > 0 ? `${row.missingSlots.length} 个素材需求缺口` : firstText(row.unit.description, row.unit.prompt, '素材需求已齐备'),
                 }))}
                 selectedId={selected?.id ?? ''}
                 onSelect={setSelectedId}
@@ -1374,97 +1443,23 @@ interface PreviewWorkTask {
   blocker?: string
 }
 
-interface ScriptSplitDraft {
-  id: string
-  order: number
-  title: string
-  summary: string
-  content: string
-  bodyContent: string
-  globalContextText: string
-  globalContext: ScriptSplitGlobalContext
-  start: number
-  end: number
-  existingScriptId: number | null
-  action: 'create' | 'update'
-}
-
-interface ScriptSplitResult {
-  sourceTitle: string
-  sourceScriptId: number | null
-  createdCount: number
-  updatedCount: number
-  episodeCount: number
-  agentRunId?: string
-  agentDraftId?: string
-  savedScripts?: Script[]
-}
-
-interface ScriptSplitAgentEpisode {
-  order?: unknown
-  title?: unknown
-  summary?: unknown
-  content?: unknown
-  global_context?: unknown
-  globalContext?: unknown
-  start?: unknown
-  end?: unknown
-  action?: unknown
-  existing_script_id?: unknown
-  existingScriptId?: unknown
-}
-
-interface ScriptSplitGlobalContext {
-  storyWorld: string
-  coreRules: string[]
-  characterRelationships: string[]
-  keyCharacters: string[]
-  keyLocations: string[]
-  keyProps: string[]
-  continuityNotes: string[]
-  episodeRelevance: string[]
-}
-
-interface ScriptSplitAgentResult {
-  schema?: unknown
-  source_title?: unknown
-  sourceTitle?: unknown
-  source_summary?: unknown
-  sourceSummary?: unknown
-  source_script?: {
-    title?: unknown
-    summary?: unknown
-    content?: unknown
-  }
-  global_settings?: unknown
-  globalSettings?: unknown
-  episode_drafts?: unknown
-  episodes?: unknown
-  warnings?: unknown
-  confidence?: unknown
-}
-
-interface ParsedEpisodeHeading {
-  order: number
-  title: string
-  seriesTitle?: string
-}
-
 const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
   schema: 'movscript.agent.current',
   id: 'script-split-agent',
   version: '1.0.0',
   name: '剧本拆分 Agent',
-  description: '把多集总稿拆分为可写入 MovScript 的总稿和分集剧本草稿。',
+  description: '把多集总稿拆分为可写入 MovScript 的总稿和制作剧本草稿。',
   soul: [
     '你是 MovScript 的剧本拆分专用 Agent 会话。',
-    '你的任务是把用户提供的一份总稿拆成多个独立分集剧本草稿。',
+    '你的任务是把用户提供的一份总稿拆成多个独立制作剧本草稿。',
     '必须优先依据剧本里的明确集标题、场次边界、叙事段落和上下文；不要编造原文没有的剧情。',
-    '如果文本只有一集或没有明确分集标题，也要返回一个 episode_drafts 项。',
+    '如果文本只有一集或没有明确制作标题，也要返回一个 episode_drafts 项。',
     '必须抽取总稿级 global_settings，并在每一个 episode_drafts 项里重复一份本集可用的 global_context。',
     'global_context 要包含故事世界、核心规则、人物关系、关键人物、关键场景、关键道具和连续性约束，保证后续编排只读取单集也能理解全局设定。',
-    '已有剧本清单只用于判断 action 和 existing_script_id；不要直接调用写入工具。',
-    '必须通过 movscript_create_draft 创建 script_split 本地草稿，把拆分结果放入草稿 content；不要把结构化数据作为 assistant 正文返回。',
+    '已有剧本清单只用于判断 action 和 existing_script_id；不要直接调用正式 Script 写入工具。',
+    '必须调用 movscript_submit_script_split_draft 提交结构化拆分结果；不要把结构化数据作为 assistant 正文返回。',
+    'sourceScript 只保留标题、摘要、来源类型和总行数，不要回传全文。',
+    'episodeDrafts 必须使用 startLine/endLine 表示本集正文覆盖的行号区间；不要返回 content。',
     '如果需要修正已有拆分结果，只调用 movscript_get_draft、movscript_update_draft、movscript_patch_draft、movscript_validate_draft 修改草稿。',
     '不要调用正式写入工具；正式 Script 创建和覆盖由 UI 在用户确认后处理。',
   ].join('\n'),
@@ -1473,7 +1468,7 @@ const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
   tools: [
     { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
-    { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
     { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
@@ -1482,465 +1477,6 @@ const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
   ],
 }
 
-function normalizeScriptType(value?: string) {
-  const type = String(value ?? '').trim().toLowerCase()
-  if (!type || type === 'uncategorized' || type === 'main' || type === 'source' || type === 'raw') return 'main'
-  if (type === 'episode' || type === 'episodes' || type === 'ep') return 'episode'
-  return type
-}
-
-function scriptTypeLabel(value?: string) {
-  const type = normalizeScriptType(value)
-  if (type === 'main') return '总稿'
-  if (type === 'episode') return '分集'
-  return type || '未分类'
-}
-
-function inferSourceScriptTitle(text: string) {
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
-  const episodeHeading = lines.map(parseEpisodeHeading).find(Boolean)
-  if (episodeHeading?.seriesTitle) return `${episodeHeading.seriesTitle} 总稿`
-
-  const firstNonEpisodeLine = lines.find((line) => !parseEpisodeHeading(line))
-  if (!firstNonEpisodeLine) return '剧本总稿'
-
-  const cleaned = firstNonEpisodeLine
-    .replace(/^#{1,6}\s*/, '')
-    .replace(/^《(.+?)》\s*/, '$1 ')
-    .replace(/^【\s*/, '')
-    .replace(/\s*】$/, '')
-    .trim()
-
-  return summarizeText(cleaned || '剧本总稿', 32)
-}
-
-function parseEpisodeHeading(line: string): ParsedEpisodeHeading | null {
-  const normalized = line
-    .trim()
-    .replace(/^#{1,6}\s*/, '')
-    .replace(/^[>*\-•]\s*/, '')
-    .replace(/^【\s*/, '')
-    .replace(/\s*】$/, '')
-    .trim()
-
-  const cnMatch = normalized.match(/^(?:《([^》]+)》\s*)?第\s*([0-9零〇一二三四五六七八九十百千万两]+)\s*[集话回](?:\s*[：:\-—]\s*(.+)|\s+(.+))?$/)
-  if (cnMatch) {
-    const order = parseEpisodeNumber(cnMatch[2])
-    if (!order) return null
-    const subtitle = firstText(cnMatch[3], cnMatch[4])
-    const label = `第${order}集`
-    return {
-      order,
-      title: subtitle ? `${label} ${subtitle}` : label,
-      seriesTitle: cnMatch[1]?.trim(),
-    }
-  }
-
-  const epMatch = normalized.match(/^(?:《([^》]+)》\s*)?(?:EP|E|Episode)\s*0*([0-9]+)(?:\s*[：:\-—]\s*(.+)|\s+(.+))?$/i)
-  if (epMatch) {
-    const order = Number(epMatch[2])
-    if (!Number.isFinite(order) || order <= 0) return null
-    const subtitle = firstText(epMatch[3], epMatch[4])
-    const label = `EP${String(order).padStart(2, '0')}`
-    return {
-      order,
-      title: subtitle ? `${label} ${subtitle}` : label,
-      seriesTitle: epMatch[1]?.trim(),
-    }
-  }
-
-  return null
-}
-
-function parseEpisodeNumber(value: string) {
-  const token = String(value ?? '').trim()
-  if (/^\d+$/.test(token)) return Number(token)
-
-  const digitMap: Record<string, number> = {
-    零: 0,
-    〇: 0,
-    一: 1,
-    二: 2,
-    两: 2,
-    三: 3,
-    四: 4,
-    五: 5,
-    六: 6,
-    七: 7,
-    八: 8,
-    九: 9,
-  }
-  const unitMap: Record<string, number> = { 十: 10, 百: 100, 千: 1000, 万: 10000 }
-  let total = 0
-  let section = 0
-  let number = 0
-
-  for (const char of token) {
-    if (char in digitMap) {
-      number = digitMap[char]
-      continue
-    }
-    const unit = unitMap[char]
-    if (!unit) continue
-    if (unit === 10000) {
-      total += (section + number) * unit
-      section = 0
-      number = 0
-      continue
-    }
-    section += (number || 1) * unit
-    number = 0
-  }
-
-  return total + section + number
-}
-
-function inferEpisodeTitle(content: string, index: number) {
-  const firstLine = content.split(/\r?\n/).map((line) => line.trim()).find(Boolean)
-  const heading = firstLine ? parseEpisodeHeading(firstLine) : null
-  if (heading) return heading.title
-  const fallback = firstLine ? summarizeText(firstLine.replace(/^#{1,6}\s*/, ''), 24) : ''
-  return fallback ? `第${index + 1}集 ${fallback}` : `第${index + 1}集`
-}
-
-function findMatchingScript(scripts: Script[], title: string, scriptType: string, parentScriptId?: number | null) {
-  const titleKey = normalizeScriptTitleKey(title)
-  const type = normalizeScriptType(scriptType)
-  return scripts.find((script) => {
-    if (normalizeScriptTitleKey(script.title) !== titleKey) return false
-    if (normalizeScriptType(script.script_type) !== type) return false
-    if (parentScriptId === undefined) return true
-    return Number(script.parent_script_id ?? 0) === Number(parentScriptId ?? 0)
-  }) ?? null
-}
-
-function findScriptByIdAndType(scripts: Script[], scriptId: number | null | undefined, scriptType: string) {
-  if (!scriptId) return null
-  const type = normalizeScriptType(scriptType)
-  return scripts.find((script) => script.ID === scriptId && normalizeScriptType(script.script_type) === type) ?? null
-}
-
-function normalizeScriptTitleKey(value: string) {
-  return String(value ?? '').replace(/\s+/g, '').trim().toLowerCase()
-}
-
-function summarizeText(text: string, maxLength: number): string {
-  const compact = text.replace(/\s+/g, ' ').trim()
-  if (compact.length <= maxLength) return compact
-  return `${compact.slice(0, Math.max(1, maxLength - 3))}...`
-}
-
-function buildScriptSplitAgentMessage(input: {
-  projectId: number
-  sourceTitle: string
-  sourceText: string
-  scripts: Script[]
-}) {
-  const existingEpisodes = input.scripts
-    .filter((script) => normalizeScriptType(script.script_type) === 'episode')
-    .slice(0, 120)
-    .map((script) => ({
-      id: script.ID,
-      title: script.title,
-      order: script.order,
-      summary: script.summary || script.description || '',
-    }))
-  return [
-    '请把下面这份总稿拆分为 MovScript 分集剧本。',
-    '',
-    '[项目]',
-    `projectId: ${input.projectId}`,
-    '',
-    '[总稿标题]',
-    input.sourceTitle,
-    '',
-    '[已有分集剧本，用于判断 create/update]',
-    JSON.stringify(existingEpisodes, null, 2),
-    '',
-    '[工具要求]',
-    '必须调用 movscript_create_draft 创建本地草稿，而不是把结构化数据写在 assistant 正文。',
-    '草稿 kind 使用 script_split，title 使用“剧本拆分草稿 - <总稿标题>”。',
-    '草稿 content 是 JSON 字符串，schema=movscript.script_split_analysis.v1。',
-    '草稿 content 必须包含 global_settings：story_world、core_rules、character_relationships、key_characters、key_locations、key_props、continuity_notes。',
-    '草稿 content 的 episode_drafts 中每一集必须包含 order、title、summary、content、start、end、action、existing_script_id。',
-    '草稿 content 的 episode_drafts 中每一集还必须包含 global_context，字段同 global_settings，另加 episode_relevance，说明哪些全局设定会影响本集编排。',
-    '每集 content 必须能被单独拿去编排；请在正文开头保留“全局设定上下文”小节，再接该集正文。',
-    'start/end 用原文字符偏移，无法精确时用估算位置。',
-    '如果标题与已有分集高度一致，action=update 并填写 existing_script_id；否则 action=create 且 existing_script_id=null。',
-    '',
-    '[总稿正文]',
-    input.sourceText,
-  ].join('\n')
-}
-
-function parseScriptSplitAgentDocument(content: string): ScriptSplitAgentResult {
-  const parsed = parseJSONFromAssistantContent(content) as ScriptSplitAgentResult | undefined
-  if (!parsed || typeof parsed !== 'object') throw new Error('Agent 没有返回有效 JSON')
-  if (parsed.schema !== 'movscript.script_split_analysis.v1') throw new Error('Agent 返回的 schema 不匹配')
-  return parsed
-}
-
-function parseScriptSplitAgentContent(content: string, scripts: Script[], fallbackText: string): ScriptSplitDraft[] {
-  const parsed = parseScriptSplitAgentDocument(content)
-  const globalSettings = normalizeGlobalContext(parsed.global_settings ?? parsed.globalSettings)
-  const rawEpisodes = Array.isArray(parsed.episode_drafts)
-    ? parsed.episode_drafts
-    : Array.isArray(parsed.episodes)
-      ? parsed.episodes
-      : []
-  const drafts = rawEpisodes.flatMap((episode, index) => normalizeAgentEpisodeDraft(episode as ScriptSplitAgentEpisode, index, scripts, fallbackText, globalSettings))
-  if (drafts.length === 0) throw new Error('Agent 没有返回可写入的分集草稿')
-  return drafts
-}
-
-function findScriptSplitDraftIdFromRun(run: AgentRun): string | undefined {
-  for (const step of run.steps) {
-    if (step.type !== 'tool_call' || step.toolName !== 'movscript_create_draft') continue
-    const result = step.result
-    if (!isRecord(result)) continue
-    const draft = isRecord(result.draft) ? result.draft : undefined
-    const draftId = typeof draft?.id === 'string'
-      ? draft.id
-      : typeof result.id === 'string'
-        ? result.id
-        : undefined
-    if (draftId) return draftId
-  }
-  return undefined
-}
-
-async function parseScriptSplitDraftsFromRun(run: AgentRun, scripts: Script[], fallbackText: string): Promise<{ drafts: ScriptSplitDraft[]; agentDraft?: AgentDraft; draftDocument?: ScriptSplitAgentResult }> {
-  const draftId = findScriptSplitDraftIdFromRun(run)
-  if (draftId) {
-    const agentDraft = await localAgentClient.getDraft(draftId)
-    const draftDocument = parseScriptSplitAgentDocument(agentDraft.content)
-    return {
-      drafts: parseScriptSplitAgentContent(agentDraft.content, scripts, fallbackText),
-      agentDraft,
-      draftDocument,
-    }
-  }
-
-  for (const step of run.steps) {
-    if (step.type !== 'tool_call' || step.toolName !== 'movscript_create_draft') continue
-    const result = step.result
-    if (!isRecord(result)) continue
-    const draft = isRecord(result.draft) ? result.draft : undefined
-    const content = typeof draft?.content === 'string'
-      ? draft.content
-      : typeof result.content === 'string'
-        ? result.content
-        : undefined
-    if (!content) continue
-    try {
-      return {
-        drafts: parseScriptSplitAgentContent(content, scripts, fallbackText),
-        draftDocument: parseScriptSplitAgentDocument(content),
-      }
-    } catch {
-      // Keep scanning; the run may contain unrelated drafts.
-    }
-  }
-  throw new Error('Agent 没有通过工具返回可用的剧本拆分草稿')
-}
-
-function parseJSONFromAssistantContent(content: string): unknown {
-  const trimmed = content.trim()
-  if (!trimmed) return undefined
-  try {
-    return JSON.parse(trimmed)
-  } catch {
-    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i)
-    if (fenced) return JSON.parse(fenced[1])
-    const start = trimmed.indexOf('{')
-    const end = trimmed.lastIndexOf('}')
-    if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1))
-    throw new Error('无法解析 Agent JSON 输出')
-  }
-}
-
-function normalizeAgentEpisodeDraft(
-  episode: ScriptSplitAgentEpisode,
-  index: number,
-  scripts: Script[],
-  fallbackText: string,
-  globalSettings: ScriptSplitGlobalContext,
-): ScriptSplitDraft[] {
-  if (!episode || typeof episode !== 'object') return []
-  const rawContent = stringValue(episode.content).trim()
-  if (!rawContent) return []
-  const globalContext = mergeGlobalContext(globalSettings, normalizeGlobalContext(episode.global_context ?? episode.globalContext))
-  const globalContextText = formatGlobalContextForEpisode(globalContext)
-  const content = withGlobalContextSection(rawContent, globalContextText)
-  const title = stringValue(episode.title).trim() || inferEpisodeTitle(rawContent, index)
-  const existingId = numberValue(episode.existing_script_id ?? episode.existingScriptId)
-  const existing = existingId
-    ? findScriptByIdAndType(scripts, existingId, 'episode') ?? findMatchingScript(scripts, title, 'episode')
-    : findMatchingScript(scripts, title, 'episode')
-  const action = episode.action === 'update' || existing ? 'update' : 'create'
-  return [{
-    id: `agent-episode-${numberValue(episode.order) ?? index + 1}-${index}`,
-    order: numberValue(episode.order) ?? index + 1,
-    title,
-    summary: stringValue(episode.summary).trim() || summarizeText(rawContent, 120),
-    content,
-    bodyContent: rawContent,
-    globalContextText,
-    globalContext,
-    start: numberValue(episode.start) ?? Math.max(1, fallbackText.indexOf(rawContent.slice(0, Math.min(24, rawContent.length))) + 1),
-    end: numberValue(episode.end) ?? Math.max(rawContent.length, fallbackText.indexOf(rawContent.slice(0, Math.min(24, rawContent.length))) + rawContent.length),
-    existingScriptId: existing?.ID ?? null,
-    action,
-  }]
-}
-
-function buildScriptSplitDraftContent(input: {
-  agentDraft?: AgentDraft | null
-  drafts: ScriptSplitDraft[]
-  sourceTitle: string
-  sourceText: string
-}): string {
-  let base: ScriptSplitAgentResult = { schema: 'movscript.script_split_analysis.v1' }
-  if (input.agentDraft?.content) {
-    try {
-      base = parseScriptSplitAgentDocument(input.agentDraft.content)
-    } catch {
-      base = { schema: 'movscript.script_split_analysis.v1' }
-    }
-  }
-  const globalContext = input.drafts.reduce<ScriptSplitGlobalContext | null>((merged, draft) => {
-    if (!merged) return { ...draft.globalContext, episodeRelevance: [] }
-    return { ...mergeGlobalContext(merged, draft.globalContext), episodeRelevance: [] }
-  }, null)
-  const nextDocument = {
-    ...base,
-    schema: 'movscript.script_split_analysis.v1',
-    source_title: stringValue(base.source_title ?? base.sourceTitle).trim() || input.sourceTitle,
-    source_summary: stringValue(base.source_summary ?? base.sourceSummary).trim() || summarizeText(input.sourceText, 160),
-    source_script: {
-      ...(isRecord(base.source_script) ? base.source_script : {}),
-      title: stringValue(base.source_script?.title).trim() || input.sourceTitle,
-      summary: stringValue(base.source_script?.summary).trim() || summarizeText(input.sourceText, 160),
-      content: stringValue(base.source_script?.content).trim() || input.sourceText,
-    },
-    global_settings: isRecord(base.global_settings)
-      ? base.global_settings
-      : serializeGlobalContext(globalContext ?? normalizeGlobalContext(undefined), false),
-    episode_drafts: input.drafts.map(serializeScriptSplitEpisodeDraft),
-  }
-  return JSON.stringify(nextDocument, null, 2)
-}
-
-function serializeScriptSplitEpisodeDraft(draft: ScriptSplitDraft): Record<string, unknown> {
-  return {
-    order: draft.order,
-    title: draft.title,
-    summary: draft.summary,
-    content: draft.bodyContent || draft.content,
-    global_context: serializeGlobalContext(draft.globalContext, true),
-    start: draft.start,
-    end: draft.end,
-    action: draft.action,
-    existing_script_id: draft.existingScriptId,
-  }
-}
-
-function serializeGlobalContext(context: ScriptSplitGlobalContext, includeEpisodeRelevance: boolean): Record<string, unknown> {
-  return {
-    story_world: context.storyWorld,
-    core_rules: context.coreRules,
-    character_relationships: context.characterRelationships,
-    key_characters: context.keyCharacters,
-    key_locations: context.keyLocations,
-    key_props: context.keyProps,
-    continuity_notes: context.continuityNotes,
-    ...(includeEpisodeRelevance ? { episode_relevance: context.episodeRelevance } : {}),
-  }
-}
-
-function scriptSplitDraftStatusLabel(status?: AgentDraft['status']) {
-  if (status === 'draft') return '待确认'
-  if (status === 'accepted') return '已接受'
-  if (status === 'rejected') return '已拒绝'
-  if (status === 'applied') return '已写入'
-  if (status === 'superseded') return '已替换'
-  return '未生成'
-}
-
-function scriptSplitDraftStatusVariant(status?: AgentDraft['status']) {
-  if (status === 'applied') return 'success' as const
-  if (status === 'rejected') return 'danger' as const
-  if (status === 'superseded') return 'secondary' as const
-  if (status === 'accepted') return 'warning' as const
-  if (status === 'draft') return 'outline' as const
-  return 'outline' as const
-}
-
-function normalizeGlobalContext(value: unknown): ScriptSplitGlobalContext {
-  const record = isRecord(value) ? value : {}
-  return {
-    storyWorld: stringValue(record.story_world ?? record.storyWorld).trim(),
-    coreRules: stringArrayValue(record.core_rules ?? record.coreRules),
-    characterRelationships: stringArrayValue(record.character_relationships ?? record.characterRelationships),
-    keyCharacters: stringArrayValue(record.key_characters ?? record.keyCharacters),
-    keyLocations: stringArrayValue(record.key_locations ?? record.keyLocations),
-    keyProps: stringArrayValue(record.key_props ?? record.keyProps),
-    continuityNotes: stringArrayValue(record.continuity_notes ?? record.continuityNotes),
-    episodeRelevance: stringArrayValue(record.episode_relevance ?? record.episodeRelevance),
-  }
-}
-
-function mergeGlobalContext(base: ScriptSplitGlobalContext, episode: ScriptSplitGlobalContext): ScriptSplitGlobalContext {
-  return {
-    storyWorld: episode.storyWorld || base.storyWorld,
-    coreRules: mergeStringArrays(base.coreRules, episode.coreRules),
-    characterRelationships: mergeStringArrays(base.characterRelationships, episode.characterRelationships),
-    keyCharacters: mergeStringArrays(base.keyCharacters, episode.keyCharacters),
-    keyLocations: mergeStringArrays(base.keyLocations, episode.keyLocations),
-    keyProps: mergeStringArrays(base.keyProps, episode.keyProps),
-    continuityNotes: mergeStringArrays(base.continuityNotes, episode.continuityNotes),
-    episodeRelevance: episode.episodeRelevance,
-  }
-}
-
-function mergeStringArrays(...groups: string[][]): string[] {
-  const seen = new Set<string>()
-  const merged: string[] = []
-  for (const group of groups) {
-    for (const item of group) {
-      const key = item.replace(/\s+/g, ' ').trim().toLowerCase()
-      if (!key || seen.has(key)) continue
-      seen.add(key)
-      merged.push(item)
-    }
-  }
-  return merged
-}
-
-function formatGlobalContextForEpisode(context: ScriptSplitGlobalContext): string {
-  const lines: string[] = []
-  const appendList = (label: string, values: string[]) => {
-    if (values.length === 0) return
-    lines.push(`${label}:`)
-    values.forEach((value) => lines.push(`- ${value}`))
-  }
-  if (context.storyWorld) lines.push(`故事世界: ${context.storyWorld}`)
-  appendList('核心规则', context.coreRules)
-  appendList('人物关系', context.characterRelationships)
-  appendList('关键人物', context.keyCharacters)
-  appendList('关键场景', context.keyLocations)
-  appendList('关键道具', context.keyProps)
-  appendList('连续性约束', context.continuityNotes)
-  appendList('本集相关性', context.episodeRelevance)
-  return lines.join('\n').trim()
-}
-
-function withGlobalContextSection(content: string, globalContextText: string): string {
-  const trimmed = content.trim()
-  if (!globalContextText) return trimmed
-  if (/^#{0,6}\s*全局设定上下文\b/m.test(trimmed) || /^【全局设定上下文】/m.test(trimmed)) return trimmed
-  return ['【全局设定上下文】', globalContextText, '', '【本集正文】', trimmed].join('\n')
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -1983,22 +1519,22 @@ interface PreviewRunSignal {
 }
 
 const previewPlanSegments: PreviewPlanSegment[] = [
-  { id: 'seg-01', title: '雨夜巷口进入', subtitle: '剧本段落 01 / 开场环境', status: 'ready', readiness: 86, duration: '12s', moments: 2, units: 4, gaps: 0 },
-  { id: 'seg-02', title: '旧伞纸条滑落', subtitle: '剧本段落 02 / 剧情证据', status: 'attention', readiness: 52, duration: '11s', moments: 2, units: 3, gaps: 2 },
-  { id: 'seg-03', title: '顾言停步对峙', subtitle: '剧本段落 03 / 情绪转折', status: 'ready', readiness: 68, duration: '9s', moments: 1, units: 3, gaps: 1 },
-  { id: 'seg-04', title: '纸条被雨水浸湿', subtitle: '剧本段落 04 / 细节收束', status: 'draft', readiness: 34, duration: '6s', moments: 1, units: 2, gaps: 3 },
+  { id: 'seg-01', title: '雨夜巷口进入', subtitle: '编排段 01 / 开场环境', status: 'ready', readiness: 86, duration: '12s', moments: 2, units: 4, gaps: 0 },
+  { id: 'seg-02', title: '旧伞纸条滑落', subtitle: '编排段 02 / 剧情证据', status: 'attention', readiness: 52, duration: '11s', moments: 2, units: 3, gaps: 2 },
+  { id: 'seg-03', title: '顾言停步对峙', subtitle: '编排段 03 / 情绪转折', status: 'ready', readiness: 68, duration: '9s', moments: 1, units: 3, gaps: 1 },
+  { id: 'seg-04', title: '纸条被雨水浸湿', subtitle: '编排段 04 / 细节收束', status: 'draft', readiness: 34, duration: '6s', moments: 1, units: 2, gaps: 3 },
 ]
 
 const previewTimelineShots: PreviewTimelineShot[] = [
-  { id: 'cu-01', title: '巷口远景建立雨夜空间', source: '剧本段落 01 / 情景 01', duration: '4s', camera: '广角固定', status: 'ready', assets: '已有 2 个候选' },
-  { id: 'cu-02', title: '林夏撑旧伞进入画面', source: '剧本段落 01 / 情景 02', duration: '5s', camera: '中景缓推', status: 'ready', assets: '已有 4 个候选' },
-  { id: 'cu-03', title: '旧伞伞骨内侧露出纸条', source: '剧本段落 02 / 情景 03', duration: '3s', camera: '特写慢推', status: 'attention', assets: '已有候选待处理' },
-  { id: 'cu-04', title: '顾言停步看向纸条', source: '剧本段落 03 / 情景 04', duration: '4s', camera: '中近景静止', status: 'ready', assets: '已有 3 个候选' },
-  { id: 'cu-05', title: '雨水打湿纸条文字', source: '剧本段落 04 / 情景 05', duration: '3s', camera: '微距俯拍', status: 'draft', assets: '暂无候选' },
+  { id: 'cu-01', title: '巷口远景建立雨夜空间', source: '编排段 01 / 情景 01', duration: '4s', camera: '广角固定', status: 'ready', assets: '已有 2 个候选' },
+  { id: 'cu-02', title: '林夏撑旧伞进入画面', source: '编排段 01 / 情景 02', duration: '5s', camera: '中景缓推', status: 'ready', assets: '已有 4 个候选' },
+  { id: 'cu-03', title: '旧伞伞骨内侧露出纸条', source: '编排段 02 / 情景 03', duration: '3s', camera: '特写慢推', status: 'attention', assets: '已有候选待处理' },
+  { id: 'cu-04', title: '顾言停步看向纸条', source: '编排段 03 / 情景 04', duration: '4s', camera: '中近景静止', status: 'ready', assets: '已有 3 个候选' },
+  { id: 'cu-05', title: '雨水打湿纸条文字', source: '编排段 04 / 情景 05', duration: '3s', camera: '微距俯拍', status: 'draft', assets: '暂无候选' },
 ]
 
 const previewGates: PreviewGateRow[] = [
-  { label: '已有候选', detail: '4 个剧本段落里 3 个已有预演候选', done: true },
+  { label: '已有候选', detail: '4 个编排段里 3 个已有预演候选', done: true },
   { label: '候选待处理', detail: '旧伞纸条候选还没有采用或忽略', done: false },
   { label: '暂无候选', detail: '纸条被雨水浸湿还没有候选', done: false },
   { label: '候选记录', detail: '采用、忽略、重生成都在这里留下记录', done: true },
@@ -2008,7 +1544,7 @@ const previewWorkTasks: PreviewWorkTask[] = [
   {
     id: 'task-01',
     title: '审阅旧伞纸条候选',
-    scope: '剧本段落 02 / 情景 03',
+    scope: '编排段 02 / 情景 03',
     status: 'running',
     priority: 'high',
     progress: 58,
@@ -2093,14 +1629,14 @@ function ProductionPreviewWorkspace() {
       <SpecializedWorkbenchHeader
         category="preview"
         kicker="候选检查"
-        title="分集预演"
-        description="预演阶段只回答一件事：当前分集有没有候选。候选的采用、忽略和重新生成都在这里处理。"
+        title="制作预演"
+        description="预演阶段只回答一件事：当前制作有没有候选。候选的采用、忽略和重新生成都在这里处理。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         <div className="space-y-5">
           <MetricStrip
             metrics={[
-              { label: '编排覆盖', value: '4 段', detail: '剧本段落、情景和制作项已串联', icon: Route, status: 'ready' },
+              { label: '编排覆盖', value: '4 段', detail: '编排段、情景和制作项已串联', icon: Route, status: 'ready' },
               { label: '候选总数', value: String(totalCandidates), detail: candidateGenerated ? '刚生成了新的候选版本' : '当前可审阅候选', icon: SquareStack, status: totalCandidates > 0 ? 'ready' : 'review' },
               { label: '需要处理', value: String(pendingCandidates + missingCandidates), detail: `${pendingCandidates} 个待审 · ${missingCandidates} 个无候选`, icon: Boxes, status: pendingCandidates + missingCandidates > 0 ? 'review' : 'ready' },
             ]}
@@ -2383,7 +1919,7 @@ const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, {
   assets: {
     title: '素材准备工作台',
     stage: 'asset_prep',
-    description: '复用现有画布工作流来组织素材缺口、参考输入、AI 生成、人工审核和资源写回。',
+    description: '复用现有画布工作流来组织素材需求缺口、参考输入、AI 生成、人工审核和资源写回。',
     canvasName: '素材准备画布',
     icon: PackageCheck,
   },
@@ -2578,6 +2114,8 @@ function ScriptSplitWorkbench() {
     () => sortedScripts.filter((script) => normalizeScriptType(script.script_type) === 'episode'),
     [sortedScripts],
   )
+  const sourceLineEntries = useMemo(() => getScriptTextLineEntries(sourceText), [sourceText])
+  const sourceLineCount = useMemo(() => getScriptTextLineCount(sourceText), [sourceText])
   const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0] ?? null
   const sourceTitleLabel = sourceTitle.trim() || sourceFileName || '未命名总稿'
   const modelId = agentSettings.modelId ?? textModels[0]?.id ?? null
@@ -2643,14 +2181,17 @@ function ScriptSplitWorkbench() {
       const thread = detail.thread
       if (!run || !thread || (run.status !== 'completed' && run.status !== 'completed_with_warnings')) return
       try {
-        const parsed = await parseScriptSplitDraftsFromRun(run, sortedScripts, normalized)
-        const nextDrafts = parsed.drafts
+        const task = useAgentSessionStore.getState().pageTasks[requestId]
+        const artifact = selectLatestDraftArtifact(task?.artifacts, 'script_split')
+        if (!artifact) return
+        const latest = await localAgentClient.getDraft(artifact.draftId)
+        const nextDrafts = parseScriptSplitDraftContent(latest.content, sortedScripts, normalized)
         syncDrafts(nextDrafts)
-        setAgentDraft(parsed.agentDraft ?? null)
+        setAgentDraft(latest)
         setAgentDraftDirty(false)
-        if (parsed.agentDraft?.id) {
+        if (latest.id) {
           try {
-            setAgentDraftValidation(await localAgentClient.validateDraft(parsed.agentDraft.id))
+            setAgentDraftValidation(await localAgentClient.validateDraft(latest.id))
           } catch {
             setAgentDraftValidation(null)
           }
@@ -2665,7 +2206,7 @@ function ScriptSplitWorkbench() {
           updatedCount: 0,
           episodeCount: nextDrafts.length,
           agentRunId: run.id,
-          agentDraftId: parsed.agentDraft?.id,
+          agentDraftId: latest.id,
         })
         toast.success(`Agent 已给出拆分结论：${nextDrafts.length} 集`)
       } catch {
@@ -2776,7 +2317,7 @@ function ScriptSplitWorkbench() {
     setDraftSyncing(true)
     try {
       const latest = await localAgentClient.getDraft(agentDraft.id)
-      const nextDrafts = parseScriptSplitAgentContent(latest.content, sortedScripts, sourceText.trim())
+      const nextDrafts = parseScriptSplitDraftContent(latest.content, sortedScripts, sourceText.trim())
       setAgentDraft(latest)
       syncDrafts(nextDrafts)
       setAgentDraftDirty(false)
@@ -2926,8 +2467,8 @@ function ScriptSplitWorkbench() {
               order: draft.order,
               title: draft.title,
               summary: draft.summary,
-              start: draft.start,
-              end: draft.end,
+              start_line: draft.startLine,
+              end_line: draft.endLine,
             },
           }),
           entity_candidates: JSON.stringify([
@@ -3059,11 +2600,11 @@ function ScriptSplitWorkbench() {
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
               <WorkbenchMiniStat label="总稿" value={saveSourceScript ? '保存' : '不保存'} detail={sourceTitleLabel} />
-              <WorkbenchMiniStat label="拆分集数" value={drafts.length || '0'} detail="自动识别出来的分集数量" />
+              <WorkbenchMiniStat label="拆制作数" value={drafts.length || '0'} detail="自动识别出来的制作数量" />
               <WorkbenchMiniStat label="Agent" value={lastAgentRunId ? '已运行' : '待运行'} detail={lastAgentRunId ? `run ${lastAgentRunId}` : '使用现有本地 Agent 会话'} />
               <WorkbenchMiniStat label="Draft" value={agentDraftDirty ? '待同步' : scriptSplitDraftStatusLabel(agentDraft?.status)} detail={agentDraft?.id ?? '尚未生成'} />
               <WorkbenchMiniStat label="已有主剧本" value={mainScripts.length} detail="当前项目内的主剧本数量" />
-              <WorkbenchMiniStat label="已有分集剧本" value={episodeScripts.length} detail="当前项目内的分集脚本数量" />
+              <WorkbenchMiniStat label="已有制作剧本" value={episodeScripts.length} detail="当前项目内的制作脚本数量" />
             </div>
           </section>
 
@@ -3072,7 +2613,7 @@ function ScriptSplitWorkbench() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-foreground">总稿输入</p>
-                  <p className="mt-1 text-xs text-muted-foreground">复用现有本地 Agent Runtime，输出结构化分集草稿后再写入剧本。</p>
+                  <p className="mt-1 text-xs text-muted-foreground">复用现有本地 Agent Runtime，输出结构化制作草稿后再写入剧本。</p>
                 </div>
                 <Badge variant="outline">{sourceText.length} 字</Badge>
               </div>
@@ -3093,6 +2634,22 @@ function ScriptSplitWorkbench() {
                     value={sourceText}
                     onChange={(event) => handleSourceTextChange(event.target.value)}
                     placeholder="把总剧本贴在这里，或先导入 `.docx` / `.txt` 文档。工作台会按集标题拆分成多个剧本。"
+                  />
+                </div>
+                <div className="rounded-md border border-border bg-background">
+                  <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-foreground">行号预览</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">按最终拆分后的源文本行号显示。</p>
+                    </div>
+                    <Badge variant={selectedDraft ? 'secondary' : 'outline'} className="shrink-0">
+                      {selectedDraft ? `第 ${selectedDraft.startLine}-${selectedDraft.endLine} 行` : `${sourceLineCount} 行`}
+                    </Badge>
+                  </div>
+                  <ScriptLinePreview
+                    lines={sourceLineEntries}
+                    highlightStartLine={selectedDraft?.startLine}
+                    highlightEndLine={selectedDraft?.endLine}
                   />
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-3">
@@ -3212,6 +2769,9 @@ function ScriptSplitWorkbench() {
                               <Badge variant={draft.action === 'update' ? 'warning' : 'outline'}>
                                 {draft.action === 'update' ? '更新已有' : '新建'}
                               </Badge>
+                              <Badge variant="secondary" className="font-mono text-[10px]">
+                                {draft.startLine}-{draft.endLine} 行
+                              </Badge>
                             </div>
                             <p className="mt-1 truncate text-xs text-muted-foreground">{draft.summary || '暂无摘要'}</p>
                           </div>
@@ -3229,6 +2789,9 @@ function ScriptSplitWorkbench() {
                     <div className="min-w-0">
                       <p className="text-xs text-muted-foreground">当前选中</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{selectedAction}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        覆盖行号：第 {selectedDraft.startLine}-{selectedDraft.endLine} 行
+                      </p>
                     </div>
                     <Badge variant={selectedDraft.action === 'update' ? 'warning' : 'success'}>{selectedDraft.action === 'update' ? '更新' : '创建'}</Badge>
                   </div>
@@ -3261,9 +2824,9 @@ function ScriptSplitWorkbench() {
           </div>
         </main>
 
-        <aside className="w-80 shrink-0 overflow-y-auto border-l border-border bg-card p-4">
-          {result && (
-            <section className="mb-4 rounded-md border border-border bg-background p-3">
+        {result && (
+          <aside className="w-80 shrink-0 overflow-y-auto border-l border-border bg-card p-4">
+            <section className="rounded-md border border-border bg-background p-3">
               <p className="text-sm font-semibold text-foreground">最近一次结果</p>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-md border border-border px-2 py-2">
@@ -3300,8 +2863,8 @@ function ScriptSplitWorkbench() {
                 去剧本管理
               </Button>
             </section>
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
     </div>
   )
@@ -3316,6 +2879,7 @@ function CategoryContent({ category }: { category: WorkbenchCategory }) {
 }
 
 export function WorkbenchContent({ initialCategory = 'script', showCategoryTabs = true }: WorkbenchContentProps) {
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [category, setCategory] = useState<WorkbenchCategory>(() => {
     const tab = searchParams.get('tab')
@@ -3349,6 +2913,10 @@ export function WorkbenchContent({ initialCategory = 'script', showCategoryTabs 
                   key={item.value}
                   type="button"
                   onClick={() => {
+                    if (item.value === 'delivery') {
+                      navigate(item.href)
+                      return
+                    }
                     setCategory(item.value)
                     const next = new URLSearchParams(searchParams)
                     next.set('tab', item.value)

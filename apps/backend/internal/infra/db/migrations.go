@@ -10,7 +10,7 @@ import (
 	"time"
 
 	orgapp "github.com/movscript/movscript/internal/app/org"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -32,7 +32,7 @@ func (AppliedMigration) TableName() string {
 }
 
 func RegisteredMigrations() []Migration {
-	return []Migration{
+	core := []Migration{
 		{
 			Version: "000001",
 			Name:    "create_schema",
@@ -48,19 +48,19 @@ func RegisteredMigrations() []Migration {
 			Name:    "add_organization_support",
 			Up: func(db *gorm.DB) error {
 				models := []any{
-					&model.Organization{},
-					&model.OrganizationMember{},
-					&model.UserGroup{},
-					&model.UserGroupMember{},
-					&model.OrgInvitation{},
-					&model.Project{},
-					&model.AICredential{},
-					&model.FeatureConfig{},
-					&model.ResourceFolder{},
-					&model.GatewayAPIKey{},
-					&model.UsageLog{},
-					&model.UsageReservation{},
-					&model.AuditLog{},
+					&persistencemodel.Organization{},
+					&persistencemodel.OrganizationMember{},
+					&persistencemodel.UserGroup{},
+					&persistencemodel.UserGroupMember{},
+					&persistencemodel.OrgInvitation{},
+					&persistencemodel.Project{},
+					&persistencemodel.AICredential{},
+					&persistencemodel.FeatureConfig{},
+					&persistencemodel.ResourceFolder{},
+					&persistencemodel.GatewayAPIKey{},
+					&persistencemodel.UsageLog{},
+					&persistencemodel.UsageReservation{},
+					&persistencemodel.AuditLog{},
 				}
 				models = append(models, editionMigrationModels()...)
 				if err := db.AutoMigrate(models...); err != nil {
@@ -73,13 +73,13 @@ func RegisteredMigrations() []Migration {
 			Version: "000003",
 			Name:    "decouple_segments_from_script_versions",
 			Up: func(db *gorm.DB) error {
-				if err := db.AutoMigrate(&model.ProductionTextBlock{}, &model.Segment{}); err != nil {
+				if err := db.AutoMigrate(&persistencemodel.ProductionTextBlock{}, &persistencemodel.Segment{}); err != nil {
 					return err
 				}
 				migrator := db.Migrator()
 				for _, column := range []string{"script_id", "script_version_id", "source_range"} {
-					if migrator.HasColumn(&model.Segment{}, column) {
-						if err := migrator.DropColumn(&model.Segment{}, column); err != nil {
+					if migrator.HasColumn(&persistencemodel.Segment{}, column) {
+						if err := migrator.DropColumn(&persistencemodel.Segment{}, column); err != nil {
 							return fmt.Errorf("drop segments.%s: %w", column, err)
 						}
 					}
@@ -98,24 +98,24 @@ func RegisteredMigrations() []Migration {
 			Version: "000005",
 			Name:    "add_self_hosted_auth",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&model.User{}, &model.AuthSession{}, &model.AuthChallenge{})
+				return db.AutoMigrate(&persistencemodel.User{}, &persistencemodel.AuthSession{}, &persistencemodel.AuthChallenge{})
 			},
 		},
 		{
 			Version: "000006",
 			Name:    "add_hub_packages",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&model.HubPackage{})
+				return db.AutoMigrate(&persistencemodel.HubPackage{})
 			},
 		},
 		{
 			Version: "000007",
 			Name:    "add_org_join_codes",
 			Up: func(db *gorm.DB) error {
-				if err := db.AutoMigrate(&model.Organization{}); err != nil {
+				if err := db.AutoMigrate(&persistencemodel.Organization{}); err != nil {
 					return err
 				}
-				var orgs []model.Organization
+				var orgs []persistencemodel.Organization
 				if err := db.Where("is_personal = ? AND (join_code = ? OR join_code IS NULL)", false, "").Find(&orgs).Error; err != nil {
 					return err
 				}
@@ -131,7 +131,7 @@ func RegisteredMigrations() []Migration {
 			Version: "000008",
 			Name:    "add_jobrunner_leases",
 			Up: func(db *gorm.DB) error {
-				if err := db.AutoMigrate(&model.Job{}); err != nil {
+				if err := db.AutoMigrate(&persistencemodel.Job{}); err != nil {
 					return err
 				}
 				return createJobRunnerIndexes(db)
@@ -139,12 +139,58 @@ func RegisteredMigrations() []Migration {
 		},
 		{
 			Version: "000009",
-			Name:    "add_payment_configs",
+			Name:    "legacy_noop_000009",
 			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&model.PaymentConfig{})
+				return nil
+			},
+		},
+		{
+			Version: "000010",
+			Name:    "legacy_noop_000010",
+			Up: func(db *gorm.DB) error {
+				return nil
+			},
+		},
+		{
+			Version: "000011",
+			Name:    "rename_ai_model_config_pricing_mode",
+			Up: func(db *gorm.DB) error {
+				return renameAIModelConfigPricingModeColumn(db)
 			},
 		},
 	}
+	return core
+}
+
+func renameAIModelConfigPricingModeColumn(db *gorm.DB) error {
+	migrator := db.Migrator()
+	if !migrator.HasTable(&persistencemodel.AIModelConfig{}) {
+		return db.AutoMigrate(&persistencemodel.AIModelConfig{})
+	}
+	if !migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode") {
+		return nil
+	}
+	if !migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_pricing_mode") {
+		if err := migrator.RenameColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode", "custom_pricing_mode"); err != nil {
+			return fmt.Errorf("rename ai_model_configs.custom_billing_mode: %w", err)
+		}
+		return nil
+	}
+	if err := db.Exec(`UPDATE ai_model_configs SET custom_pricing_mode = custom_billing_mode WHERE COALESCE(custom_pricing_mode, '') = '' AND COALESCE(custom_billing_mode, '') <> ''`).Error; err != nil {
+		return fmt.Errorf("copy ai_model_configs pricing mode: %w", err)
+	}
+	if err := migrator.DropColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode"); err != nil {
+		return fmt.Errorf("drop ai_model_configs.custom_billing_mode: %w", err)
+	}
+	if migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode") && db.Dialector.Name() == "sqlite" {
+		if err := db.Exec(`ALTER TABLE ai_model_configs DROP COLUMN custom_billing_mode`).Error; err != nil {
+			return fmt.Errorf("drop ai_model_configs.custom_billing_mode with sqlite fallback: %w", err)
+		}
+	}
+	if migrator.HasColumn(&persistencemodel.AIModelConfig{}, "custom_billing_mode") {
+		return fmt.Errorf("drop ai_model_configs.custom_billing_mode: column still exists")
+	}
+	return nil
 }
 
 func createJobRunnerIndexes(db *gorm.DB) error {
@@ -179,14 +225,14 @@ func createJobRunnerIndexes(db *gorm.DB) error {
 
 func seedDefaultOrg(db *gorm.DB) error {
 	var count int64
-	if err := db.Model(&model.Organization{}).Count(&count).Error; err != nil {
+	if err := db.Model(&persistencemodel.Organization{}).Count(&count).Error; err != nil {
 		return fmt.Errorf("check orgs: %w", err)
 	}
 	if count > 0 {
 		return nil
 	}
 
-	var owner model.User
+	var owner persistencemodel.User
 	if err := db.Where("system_role = ?", "super_admin").First(&owner).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
@@ -194,7 +240,7 @@ func seedDefaultOrg(db *gorm.DB) error {
 		return fmt.Errorf("find super_admin: %w", err)
 	}
 
-	org := model.Organization{
+	org := persistencemodel.Organization{
 		Name:       "Default",
 		Slug:       "default",
 		IsPersonal: false,
@@ -206,7 +252,7 @@ func seedDefaultOrg(db *gorm.DB) error {
 		return fmt.Errorf("create default org: %w", err)
 	}
 
-	var users []model.User
+	var users []persistencemodel.User
 	if err := db.Find(&users).Error; err != nil {
 		return fmt.Errorf("list users: %w", err)
 	}
@@ -215,13 +261,13 @@ func seedDefaultOrg(db *gorm.DB) error {
 		if u.SystemRole == "super_admin" {
 			role = "owner"
 		}
-		member := model.OrganizationMember{OrgID: org.ID, UserID: u.ID, Role: role}
+		member := persistencemodel.OrganizationMember{OrgID: org.ID, UserID: u.ID, Role: role}
 		if err := db.Create(&member).Error; err != nil {
 			return fmt.Errorf("add user %d to default org: %w", u.ID, err)
 		}
 	}
 
-	if err := db.Model(&model.Project{}).Where("org_id IS NULL").Update("org_id", org.ID).Error; err != nil {
+	if err := db.Model(&persistencemodel.Project{}).Where("org_id IS NULL").Update("org_id", org.ID).Error; err != nil {
 		return fmt.Errorf("assign projects to default org: %w", err)
 	}
 
@@ -229,10 +275,10 @@ func seedDefaultOrg(db *gorm.DB) error {
 }
 
 func seedFeatureConfigs(db *gorm.DB) error {
-	features := []model.FeatureConfig{
+	features := []persistencemodel.FeatureConfig{
 		{FeatureKey: "script_analyze", DisplayName: "剧本 AI 分析", Description: "对剧本内容进行智能分析，提取人物、背景、场景等关键信息", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "main_script_analyze", DisplayName: "主剧本 AI 分析", Description: "拆解主剧本，提取分集剧本、分场剧本和项目设定候选", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "episode_script_analyze", DisplayName: "分集剧本 AI 分析", Description: "分析分集剧本，提取标题、描述、提纲、钩子和涉及分场", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "main_script_analyze", DisplayName: "主剧本 AI 分析", Description: "拆解主剧本，提取制作剧本、分场剧本和项目设定候选", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "episode_script_analyze", DisplayName: "制作剧本 AI 分析", Description: "分析制作剧本，提取标题、描述、提纲、钩子和涉及分场", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "scene_script_analyze", DisplayName: "分场剧本 AI 分析", Description: "分析分场剧本，提取时间、人物、场景、情节、氛围和提纲", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "assistant_chat", DisplayName: "助手对话", Description: "侧边栏助手，用于项目创作辅助对话", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "canvas_text", DisplayName: "画布·文本生成", Description: "画布工作流中的文本生成节点", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
@@ -247,10 +293,10 @@ func seedFeatureConfigs(db *gorm.DB) error {
 		{FeatureKey: "style_transfer", DisplayName: "画风迁移", Description: "将参考图的画风迁移到目标图像", Capability: "image_edit", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "multi_angle", DisplayName: "多角度", Description: "从单张参考图生成多角度视图", Capability: "image_edit", IsEnabled: true, AllowedModelIDs: "[]"},
 		{FeatureKey: "brainstorm", DisplayName: "头脑风暴", Description: "AI 多轮对话，辅助创意发散与剧本构思", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
-		{FeatureKey: "production_orchestrate", DisplayName: "制作编排 AI 分析", Description: "从剧本文本中提取五类制作编排候选：片段、情节、创作资料、素材需求、内容单元", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
+		{FeatureKey: "production_orchestrate", DisplayName: "制作编排 AI 分析", Description: "从剧本文本中提取五类制作编排候选：片段、情节、设定资料、素材需求、内容单元", Capability: "text", IsEnabled: true, AllowedModelIDs: "[]"},
 	}
 	for _, feature := range features {
-		var existing model.FeatureConfig
+		var existing persistencemodel.FeatureConfig
 		err := db.Where("feature_key = ?", feature.FeatureKey).First(&existing).Error
 		if err == nil {
 			continue
@@ -278,7 +324,7 @@ func RunMigrations(db *gorm.DB) error {
 	for _, migration := range RegisteredMigrations() {
 		checksum := migrationChecksum(migration)
 		if existing, ok := applied[migration.Version]; ok {
-			if existing.Checksum != checksum {
+			if existing.Checksum != checksum && !acceptsLegacyMigrationChecksum(migration, existing.Checksum) {
 				return fmt.Errorf("migration %s checksum mismatch: applied %s, current %s", migration.Version, existing.Checksum, checksum)
 			}
 			continue
@@ -379,73 +425,88 @@ func migrationChecksum(migration Migration) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func acceptsLegacyMigrationChecksum(migration Migration, checksum string) bool {
+	legacyChecksums := map[string]map[string]struct{}{
+		"000009": {
+			"ceb24f4d054945bfdf180e7452c97df8f8db4632f4db9f8377e69032a4998d0a": {},
+		},
+		"000010": {
+			"117f6dcc99612418640970bab33d24a3c08a183fc4b886e97e534ba061be11ad": {},
+		},
+	}
+	versionChecksums, ok := legacyChecksums[migration.Version]
+	if !ok {
+		return false
+	}
+	_, ok = versionChecksums[checksum]
+	return ok
+}
+
 func allModels() []any {
 	entities := []any{
-		&model.User{},
-		&model.AuthSession{},
-		&model.AuthChallenge{},
-		&model.Project{},
-		&model.ProjectMember{},
-		&model.Script{},
-		&model.ScriptVersion{},
-		&model.Production{},
-		&model.ProductionTextBlock{},
-		&model.Segment{},
-		&model.SceneMoment{},
-		&model.ContentUnit{},
-		&model.Keyframe{},
-		&model.PreviewTimeline{},
-		&model.PreviewTimelineItem{},
-		&model.CreativeReference{},
-		&model.CreativeReferenceState{},
-		&model.CreativeReferenceUsage{},
-		&model.CreativeRelationship{},
-		&model.EntityRelation{},
-		&model.AssetSlot{},
-		&model.AssetSlotCandidate{},
-		&model.CandidateDecision{},
-		&model.ReviewEvent{},
-		&model.WorkItem{},
-		&model.WorkReview{},
-		&model.WorkDependency{},
-		&model.DeliveryVersion{},
-		&model.DeliveryTimelineItem{},
-		&model.ExportRecord{},
-		&model.ScriptAnalysis{},
-		&model.AICredential{},
-		&model.AIModelConfig{},
-		&model.UsageReservation{},
-		&model.UsageLog{},
-		&model.ResourceFolder{},
-		&model.ResourceFolderPermission{},
-		&model.RawResource{},
-		&model.ResourceBinding{},
-		&model.Canvas{},
-		&model.CanvasNode{},
-		&model.CanvasEdge{},
-		&model.CanvasRun{},
-		&model.CanvasTask{},
-		&model.CanvasEntityWriteAudit{},
-		&model.CanvasOutput{},
-		&model.FeatureConfig{},
-		&model.Job{},
-		&model.Plugin{},
-		&model.PluginTool{},
-		&model.PluginSecret{},
-		&model.HubPackage{},
-		&model.GatewayAPIKey{},
-		&model.GatewayRateLimitCounter{},
-		&model.CloudFileConfig{},
-		&model.PaymentConfig{},
-		&model.AuditLog{},
-		&model.StoryboardScript{},
-		&model.StoryboardVersion{},
-		&model.StoryboardLine{},
-		&model.Organization{},
-		&model.OrganizationMember{},
-		&model.UserGroup{},
-		&model.UserGroupMember{},
-		&model.OrgInvitation{},
+		&persistencemodel.User{},
+		&persistencemodel.AuthSession{},
+		&persistencemodel.AuthChallenge{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectMember{},
+		&persistencemodel.Script{},
+		&persistencemodel.ScriptVersion{},
+		&persistencemodel.Production{},
+		&persistencemodel.ProductionTextBlock{},
+		&persistencemodel.Segment{},
+		&persistencemodel.SceneMoment{},
+		&persistencemodel.ContentUnit{},
+		&persistencemodel.Keyframe{},
+		&persistencemodel.PreviewTimeline{},
+		&persistencemodel.PreviewTimelineItem{},
+		&persistencemodel.CreativeReference{},
+		&persistencemodel.CreativeReferenceState{},
+		&persistencemodel.CreativeReferenceUsage{},
+		&persistencemodel.CreativeRelationship{},
+		&persistencemodel.EntityRelation{},
+		&persistencemodel.AssetSlot{},
+		&persistencemodel.AssetSlotCandidate{},
+		&persistencemodel.CandidateDecision{},
+		&persistencemodel.ReviewEvent{},
+		&persistencemodel.WorkItem{},
+		&persistencemodel.WorkReview{},
+		&persistencemodel.WorkDependency{},
+		&persistencemodel.DeliveryVersion{},
+		&persistencemodel.DeliveryTimelineItem{},
+		&persistencemodel.ExportRecord{},
+		&persistencemodel.ScriptAnalysis{},
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelConfig{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+		&persistencemodel.ResourceFolder{},
+		&persistencemodel.ResourceFolderPermission{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.ResourceBinding{},
+		&persistencemodel.Canvas{},
+		&persistencemodel.CanvasNode{},
+		&persistencemodel.CanvasEdge{},
+		&persistencemodel.CanvasRun{},
+		&persistencemodel.CanvasTask{},
+		&persistencemodel.CanvasEntityWriteAudit{},
+		&persistencemodel.CanvasOutput{},
+		&persistencemodel.FeatureConfig{},
+		&persistencemodel.Job{},
+		&persistencemodel.Plugin{},
+		&persistencemodel.PluginTool{},
+		&persistencemodel.PluginSecret{},
+		&persistencemodel.HubPackage{},
+		&persistencemodel.GatewayAPIKey{},
+		&persistencemodel.CloudFileConfig{},
+		&persistencemodel.AuditLog{},
+		&persistencemodel.StoryboardScript{},
+		&persistencemodel.StoryboardVersion{},
+		&persistencemodel.StoryboardLine{},
+		&persistencemodel.Organization{},
+		&persistencemodel.OrganizationMember{},
+		&persistencemodel.UserGroup{},
+		&persistencemodel.UserGroupMember{},
+		&persistencemodel.OrgInvitation{},
 	}
 	return append(entities, editionMigrationModels()...)
 }

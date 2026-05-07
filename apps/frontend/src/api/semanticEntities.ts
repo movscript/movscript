@@ -149,6 +149,7 @@ export interface ApplyProductionProposalResponse {
     scene_moments_created: number
     content_units_created: number
     asset_slots_created: number
+    keyframes_created: number
     creative_references_created: number
     creative_reference_usages: number
   }
@@ -156,6 +157,7 @@ export interface ApplyProductionProposalResponse {
   scene_moments: SemanticEntityRecord[]
   content_units: SemanticEntityRecord[]
   asset_slots: SemanticEntityRecord[]
+  keyframes: SemanticEntityRecord[]
 }
 
 export async function applyProductionProposal(
@@ -171,7 +173,7 @@ export async function applyProductionProposal(
 
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
-    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是剧本段落和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
+    cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是编排段和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
       num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
       text('title', '标题', true),
       select('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai']),
@@ -180,26 +182,27 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('summary', '摘要'),
       select('status', '状态', ['draft', 'active', 'archived']),
     ], '需要先在旧版剧本页创建 Script，创建版本时填写 script_id。'),
-    cfg('segments', 'segments', '剧本段落', '制作里的内容剧本段落，可选绑定制作文本块作为来源。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
+    cfg('segments', 'segments', '编排段', '本集内部的情绪、节奏和戏剧功能段，可选绑定制作文本块作为来源。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
       num('production_id', 'Production ID'),
       num('text_block_id', '文本块 ID'),
       text('title', '标题', true),
       selectOptions('kind', '类型', [
-        { value: 'section', label: '剧本段落' },
-        { value: 'scene', label: '场次' },
-        { value: 'montage', label: '蒙太奇' },
-        { value: 'narration', label: '旁白' },
-        { value: 'product_showcase', label: '产品展示' },
-        { value: 'title_card', label: '标题卡' },
+        { value: 'emotional_function', label: '情绪功能' },
+        { value: 'rhythm_shift', label: '节奏变化' },
+        { value: 'dramatic_function', label: '戏剧功能' },
+        { value: 'setup', label: '铺垫' },
+        { value: 'escalation', label: '升级' },
+        { value: 'release', label: '释放' },
+        { value: 'reversal', label: '反转' },
         { value: 'transition', label: '转场' },
       ]),
       num('order', '顺序'),
-      area('summary', '摘要'),
-      area('content', '内容'),
+      area('summary', '情绪/节奏/戏剧功能'),
+      area('content', '来源文本或补充说明'),
       select('status', '状态', ['draft', 'confirmed', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作下面的源文本颗粒，剧本段落可以绑定到这里而不是直接绑定剧本。', 'text-amber-600', ['title', 'kind', 'status', 'summary'], [
+    cfg('productionTextBlocks', 'production-text-blocks', '制作文本块', '制作下面的源文本颗粒，编排段可以绑定到这里而不是直接绑定剧本。', 'text-amber-600', ['title', 'kind', 'status', 'summary'], [
       num('production_id', 'Production ID', true, true),
       num('parent_block_id', '父文本块 ID'),
       selectOptions('kind', '类型', [
@@ -281,7 +284,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
     ], '创建时需要填写 storyboard_script_id。'),
     cfg('contentUnits', 'content-units', '制作项', '预演与生产的最小颗粒，镜头只是其中一种类型。', 'text-indigo-600', ['title', 'kind', 'duration_sec', 'status'], [
       num('production_id', 'Production ID'),
-      num('segment_id', '所属剧本段落 ID'),
+      num('segment_id', '所属编排段 ID'),
       num('scene_moment_id', '所属情景 ID'),
       text('title', '标题', true),
       selectOptions('kind', '类型', [
@@ -401,7 +404,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('metadata_json', '元数据 JSON'),
     ]),
     cfg('previewTimelineItems', 'preview-timeline-items', '预演时间线项', '预演时间线上的关键帧、制作项、缺口或备注项。', 'text-emerald-600', ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
-    cfg('creativeReferences', 'creative-references', '设定资料', '人物、地点、道具、产品、风格和规则等项目资料。', 'text-violet-600', ['name', 'kind', 'importance', 'status'], [
+    cfg('creativeReferences', 'creative-references', '设定资料', '人物、地点、道具、产品、风格和规则等项目设定资料。', 'text-violet-600', ['name', 'kind', 'importance', 'status'], [
       selectOptions('kind', '类型', [
         { value: 'person', label: '人物' },
         { value: 'place', label: '地点' },
@@ -416,7 +419,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('name', '名称', true),
       text('alias', '别名'),
       area('description', '描述'),
-      area('content', '资料内容'),
+      area('content', '设定资料内容'),
       selectOptions('importance', '重要性', [
         { value: 'main', label: '主要' },
         { value: 'supporting', label: '辅助' },
@@ -426,7 +429,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('profile_json', '档案 JSON'),
       area('tags_json', '标签 JSON'),
     ]),
-    cfg('creativeReferenceStates', 'creative-reference-states', '资料状态', '设定资料在特定剧本段落、情景或制作项中的临时状态。', 'text-fuchsia-600', ['name', 'scope_type', 'status', 'emotion'], [
+    cfg('creativeReferenceStates', 'creative-reference-states', '设定资料状态', '设定资料在特定编排段、情景或制作项中的临时状态。', 'text-fuchsia-600', ['name', 'scope_type', 'status', 'emotion'], [
       num('creative_reference_id', 'CreativeReference ID', true),
       select('scope_type', '作用范围', ['script', 'segment', 'scene_moment', 'storyboard_line', 'content_unit', 'time_period'], true),
       num('scope_id', 'Scope ID'),
@@ -440,7 +443,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('tags_json', '标签 JSON'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 creative_reference_id。'),
-    cfg('creativeReferenceUsages', 'creative-reference-usages', '资料使用', '记录结构对象使用哪一个设定资料及其状态。', 'text-fuchsia-600', ['owner_type', 'owner_id', 'role', 'status'], [
+    cfg('creativeReferenceUsages', 'creative-reference-usages', '设定资料引用', '记录结构对象使用哪一个设定资料及其状态。', 'text-fuchsia-600', ['owner_type', 'owner_id', 'role', 'status'], [
       select('owner_type', '归属类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe'], true),
       num('owner_id', 'Owner ID', true),
       num('creative_reference_id', 'CreativeReference ID', true),
@@ -452,7 +455,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['draft', 'confirmed', 'corrected', 'ignored']),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 owner_type、owner_id 和 creative_reference_id。'),
-    cfg('creativeRelationships', 'creative-relationships', '资料关系', '设定资料之间的关系、约束、引用和冲突。', 'text-fuchsia-600', ['label', 'category', 'type', 'status'], [
+    cfg('creativeRelationships', 'creative-relationships', '设定资料关系', '设定资料之间的关系、约束、引用和冲突。', 'text-fuchsia-600', ['label', 'category', 'type', 'status'], [
       num('source_creative_reference_id', 'SourceCreativeReference ID', true),
       num('target_creative_reference_id', 'TargetCreativeReference ID', true),
       select('scope_type', '作用范围', ['project', 'script', 'segment', 'scene_moment', 'storyboard_line', 'content_unit']),
@@ -466,12 +469,12 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('evidence', '证据'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 source_creative_reference_id 和 target_creative_reference_id。'),
-    cfg('assetSlots', 'asset-slots', '素材需求', '正式生产前需要补齐、候选或锁定的素材缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
+    cfg('assetSlots', 'asset-slots', '素材需求', '正式生产前需要补齐、候选或锁定的素材需求缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
       num('production_id', 'Production ID'),
       select('owner_type', '归属类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'creative_reference_state']),
       num('owner_id', '归属对象 ID'),
       num('creative_reference_id', '设定资料'),
-      num('creative_reference_state_id', '资料状态'),
+      num('creative_reference_state_id', '设定资料状态'),
       selectOptions('kind', '素材类型', [
         { value: 'image', label: '图片' },
         { value: 'video', label: '视频' },

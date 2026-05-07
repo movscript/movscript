@@ -98,11 +98,11 @@ const emptyHomeData: ProjectHomeData = {
 }
 
 const contentSurfaceLinks = [
-  { title: '剧本段落', detail: '剧本结构和章节', href: '/segments', icon: Film },
+  { title: '编排段', detail: '本集情绪、节奏和戏剧功能', href: '/segments', icon: Film },
   { title: '情景', detail: '时间、地点、条件和动作', href: '/scene-moments', icon: Clapperboard },
   { title: '设定资料', detail: '人物、地点、道具和规则', href: '/creative-references', icon: Sparkles },
   { title: '素材需求', detail: '缺口、候选和锁定素材', href: '/asset-slots', icon: PackageCheck },
-  { title: '关系网络', detail: '资料关系和一致性约束', href: '/reference-relations', icon: GitBranch },
+  { title: '关系网络', detail: '设定资料关系和一致性约束', href: '/reference-relations', icon: GitBranch },
   { title: '制作项', detail: '预演与生产的最小颗粒', href: '/contents', icon: Boxes },
   { title: '交付中心', detail: '交付包、成片版本和导出记录', href: '/delivery', icon: Video },
 ]
@@ -443,10 +443,10 @@ export default function ProjectHomePage() {
       {
         key: 'script',
         title: '剧本与情景',
-        description: '从剧本版本沉淀剧本段落和情景，形成分集编排的叙事来源。',
-        primaryLabel: '剧本/剧本段落/情景',
+        description: '从剧本版本沉淀编排段和情景，形成制作编排的叙事来源。',
+        primaryLabel: '剧本/编排段/情景',
         primaryValue: scriptTotal,
-        secondary: `${counts.confirmedSegments} 个剧本段落已确认，${counts.confirmedMoments} 个情景已确认`,
+        secondary: `${counts.confirmedSegments} 个编排段已确认，${counts.confirmedMoments} 个情景已确认`,
         progress: scriptProgress,
         state: scriptTotal === 0 ? 'empty' : scriptProgress >= 70 ? 'ready' : 'active',
         href: '/scripts',
@@ -455,11 +455,11 @@ export default function ProjectHomePage() {
       },
       {
         key: 'production',
-        title: '分集编排',
-        description: '项目现在以“分集”为主轴，承载从剧本到成片的一次完整生产单元。',
-        primaryLabel: '分集/分镜/预演',
+        title: '制作编排',
+        description: '项目现在以“制作”为主轴，承载从剧本到成片的一次完整生产单元。',
+        primaryLabel: '制作/分镜/预演',
         primaryValue: planTotal,
-        secondary: `${counts.activeProductions} 个分集进行中，${data.previewTimelines.length} 条预演时间线`,
+        secondary: `${counts.activeProductions} 个制作进行中，${data.previewTimelines.length} 条预演时间线`,
         progress: planProgress,
         state: data.productions.length === 0 ? (scriptTotal > 0 ? 'blocked' : 'empty') : planProgress >= 70 ? 'ready' : 'active',
         href: '/production',
@@ -469,10 +469,10 @@ export default function ProjectHomePage() {
       {
         key: 'constraints',
         title: '设定约束',
-        description: '人物、地点、道具、风格与资料关系统一管理，避免下游生成解释分裂。',
-        primaryLabel: '资料/关系/引用',
+        description: '人物、地点、道具、风格与设定资料关系统一管理，避免下游生成解释分裂。',
+        primaryLabel: '设定资料/关系/引用',
         primaryValue: constraintTotal + data.creativeReferenceUsages.length,
-        secondary: `${counts.confirmedReferences} 个资料已确认，${counts.confirmedRelationships} 条关系已确认`,
+        secondary: `${counts.confirmedReferences} 个设定资料已确认，${counts.confirmedRelationships} 条关系已确认`,
         progress: constraintProgress,
         state: constraintTotal === 0 ? (scriptTotal > 0 ? 'active' : 'empty') : constraintProgress >= 70 ? 'ready' : 'active',
         href: '/creative-references',
@@ -481,7 +481,7 @@ export default function ProjectHomePage() {
       },
       {
         key: 'assets',
-        title: '素材输入',
+        title: '素材需求',
         description: '素材需求负责表达缺口、候选和锁定素材，是关键帧和视频生产前的输入门槛。',
         primaryLabel: '素材需求',
         primaryValue: data.assetSlots.length,
@@ -531,18 +531,18 @@ export default function ProjectHomePage() {
         area: '理解确认工作台',
         href: '/workbench/script',
         priority: 'high',
-        detail: '没有剧本版本时，剧本段落、情景、分集和素材都缺少来源',
+        detail: '没有剧本版本时，编排段、情景、制作和素材都缺少来源',
       })
     }
 
     if (data.scriptVersions.length > 0 && data.productions.length === 0) {
       items.push({
         key: 'production',
-        title: '创建第一个分集',
-        area: '分集',
+        title: '创建第一个制作',
+        area: '制作',
         href: '/production',
         priority: 'high',
-        detail: '当前架构以分集为主轴，需要先建立生产单元',
+        detail: '当前架构以制作为主轴，需要先建立生产单元',
       })
     }
 
@@ -564,7 +564,7 @@ export default function ProjectHomePage() {
         area: '素材生成工作台',
         href: '/workbench/assets',
         priority: ['critical', 'high'].includes(String(slot.priority ?? '')) ? 'high' : 'medium',
-        detail: String(slot.description ?? '素材缺口会影响关键帧和视频生产'),
+        detail: String(slot.description ?? '素材需求缺口会影响关键帧和视频生产'),
       })
     }
 
@@ -575,7 +575,7 @@ export default function ProjectHomePage() {
         area: '制作项',
         href: '/contents',
         priority: 'medium',
-        detail: '分集创建后，需要把预演拆成可执行的生产颗粒',
+        detail: '制作创建后，需要把预演拆成可执行的生产颗粒',
       })
     }
 
@@ -583,8 +583,8 @@ export default function ProjectHomePage() {
     return [
       {
         key: 'preview',
-        title: '检查分集预演',
-        area: '分集预演',
+        title: '检查制作预演',
+        area: '制作预演',
         href: '/workbench/production-plan',
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
@@ -622,7 +622,7 @@ export default function ProjectHomePage() {
             </div>
             <h1 className="mt-2 truncate text-2xl font-semibold tracking-normal text-foreground">{project?.name}</h1>
             <p className="mt-1 max-w-4xl text-sm leading-6 text-muted-foreground">
-              {project?.description || '总览只负责把当前项目的分集、内容对象和工作台入口放在一起，具体生成、确认和返工决策进入对应工作台完成。'}
+              {project?.description || '总览只负责把当前项目的制作、内容对象和工作台入口放在一起，具体生成、确认和返工决策进入对应工作台完成。'}
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -635,7 +635,7 @@ export default function ProjectHomePage() {
             <Button asChild variant="outline" className="gap-2">
               <Link to="/production">
                 <Boxes size={15} />
-                分集
+                制作
               </Link>
             </Button>
             <Button asChild className="gap-2">
@@ -660,7 +660,7 @@ export default function ProjectHomePage() {
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatBlock label="分集" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={Boxes} />
+              <StatBlock label="制作" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={Boxes} />
               <StatBlock label="制作项" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可生产`} icon={Wand2} />
               <StatBlock label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={PackageCheck} />
               <StatBlock label="成片版本" value={data.deliveryVersions.length} detail={`${counts.approvedDeliveries} 个已放行`} icon={Video} />
@@ -677,7 +677,7 @@ export default function ProjectHomePage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-foreground">下一步</h2>
-                <p className="mt-1 text-xs text-muted-foreground">按阻塞、任务和素材缺口排序。</p>
+                <p className="mt-1 text-xs text-muted-foreground">按阻塞、任务和素材需求缺口排序。</p>
               </div>
               <Badge variant={stateVariant(nextLane?.state ?? 'empty')}>{stateLabel(nextLane?.state ?? 'empty')}</Badge>
             </div>

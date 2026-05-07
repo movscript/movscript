@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/commercial"
-	"github.com/movscript/movscript/internal/domain/model"
+	domainentitlement "github.com/movscript/movscript/internal/domain/entitlement"
 	"github.com/movscript/movscript/internal/infra/config"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -23,33 +23,30 @@ func TestCommunityResolvePersonalOrg(t *testing.T) {
 		Status:     "active",
 		CreatedBy:  1,
 	})
-	service := NewService(db, &config.Config{DeploymentMode: string(commercial.DeploymentPersonalLocal)})
+	service := NewService(db, &config.Config{DeploymentMode: string(domainentitlement.DeploymentPersonalLocal)})
 
-	snapshot, err := service.Resolve(context.Background(), commercial.SubjectRef{UserID: 1, OrgID: &orgID})
+	snapshot, err := service.Resolve(context.Background(), domainentitlement.SubjectRef{UserID: 1, OrgID: &orgID})
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if snapshot.Plan != commercial.PlanPersonal {
-		t.Fatalf("Plan = %q, want %q", snapshot.Plan, commercial.PlanPersonal)
+	if snapshot.Plan != domainentitlement.PlanPersonal {
+		t.Fatalf("Plan = %q, want %q", snapshot.Plan, domainentitlement.PlanPersonal)
 	}
-	if snapshot.DeploymentMode != commercial.DeploymentPersonalLocal {
-		t.Fatalf("DeploymentMode = %q, want %q", snapshot.DeploymentMode, commercial.DeploymentPersonalLocal)
+	if snapshot.DeploymentMode != domainentitlement.DeploymentPersonalLocal {
+		t.Fatalf("DeploymentMode = %q, want %q", snapshot.DeploymentMode, domainentitlement.DeploymentPersonalLocal)
 	}
-	if !hasCapability(snapshot, commercial.CapabilityBasicGateway) {
-		t.Fatalf("community personal snapshot missing %q", commercial.CapabilityBasicGateway)
+	if !hasCapability(snapshot, domainentitlement.CapabilityBasicGateway) {
+		t.Fatalf("community personal snapshot missing %q", domainentitlement.CapabilityBasicGateway)
 	}
-	if !hasCapability(snapshot, commercial.CapabilityUsageLogging) {
-		t.Fatalf("community personal snapshot missing %q", commercial.CapabilityUsageLogging)
+	if !hasCapability(snapshot, domainentitlement.CapabilityUsageLogging) {
+		t.Fatalf("community personal snapshot missing %q", domainentitlement.CapabilityUsageLogging)
 	}
-	if !snapshot.CommercialFlags["organization"] {
+	if !snapshot.EditionFlags["organization"] {
 		t.Fatal("community snapshot should mark organization=true")
-	}
-	if snapshot.CommercialFlags["enterprise"] {
-		t.Fatal("community snapshot should not mark enterprise=true")
 	}
 }
 
-func TestCommunityResolveOrgWithoutCommercialLimits(t *testing.T) {
+func TestCommunityResolveOrgWithoutPaidEditionLimits(t *testing.T) {
 	db := openEntitlementTestDB(t)
 	orgID := createEntitlementTestOrg(t, db, model.Organization{
 		Name:       "Team",
@@ -59,38 +56,35 @@ func TestCommunityResolveOrgWithoutCommercialLimits(t *testing.T) {
 		Status:     "trialing",
 		CreatedBy:  1,
 	})
-	service := NewService(db, &config.Config{DeploymentMode: string(commercial.DeploymentSelfHostedTeam)})
+	service := NewService(db, &config.Config{DeploymentMode: string(domainentitlement.DeploymentSelfHostedTeam)})
 
-	snapshot, err := service.Resolve(context.Background(), commercial.SubjectRef{UserID: 1, OrgID: &orgID})
+	snapshot, err := service.Resolve(context.Background(), domainentitlement.SubjectRef{UserID: 1, OrgID: &orgID})
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
-	if snapshot.Plan != commercial.PlanFree {
-		t.Fatalf("Plan = %q, want %q", snapshot.Plan, commercial.PlanFree)
+	if snapshot.Plan != domainentitlement.PlanFree {
+		t.Fatalf("Plan = %q, want %q", snapshot.Plan, domainentitlement.PlanFree)
 	}
-	if snapshot.Status != commercial.StatusTrialing {
-		t.Fatalf("Status = %q, want %q", snapshot.Status, commercial.StatusTrialing)
+	if snapshot.Status != domainentitlement.StatusTrialing {
+		t.Fatalf("Status = %q, want %q", snapshot.Status, domainentitlement.StatusTrialing)
 	}
-	if snapshot.Limits.MonthlyBudget != 0 {
-		t.Fatalf("MonthlyBudget = %v, want 0", snapshot.Limits.MonthlyBudget)
+	if snapshot.Limits.UsageCreditLimit != 0 {
+		t.Fatalf("UsageCreditLimit = %v, want 0", snapshot.Limits.UsageCreditLimit)
 	}
-	if hasCapability(snapshot, commercial.CapabilityOrgBudget) {
-		t.Fatalf("community snapshot should not include %q", commercial.CapabilityOrgBudget)
-	}
-	if !hasCapability(snapshot, commercial.CapabilityUsageLogging) {
-		t.Fatalf("community snapshot missing %q", commercial.CapabilityUsageLogging)
+	if !hasCapability(snapshot, domainentitlement.CapabilityUsageLogging) {
+		t.Fatalf("community snapshot missing %q", domainentitlement.CapabilityUsageLogging)
 	}
 }
 
-func TestCommunityCanUseRejectsEnterpriseCapability(t *testing.T) {
-	service := NewService(nil, &config.Config{DeploymentMode: string(commercial.DeploymentSelfHostedTeam)})
+func TestCommunityCanUseRejectsUnknownCapability(t *testing.T) {
+	service := NewService(nil, &config.Config{DeploymentMode: string(domainentitlement.DeploymentSelfHostedTeam)})
 
-	decision, err := service.CanUse(context.Background(), commercial.SubjectRef{UserID: 1}, commercial.CapabilitySSO)
+	decision, err := service.CanUse(context.Background(), domainentitlement.SubjectRef{UserID: 1}, domainentitlement.Capability("identity.sso"))
 	if err != nil {
 		t.Fatalf("CanUse() error = %v", err)
 	}
 	if decision.Allowed {
-		t.Fatal("CanUse(CapabilitySSO).Allowed = true, want false")
+		t.Fatal("CanUse(unknown capability).Allowed = true, want false")
 	}
 }
 
@@ -114,7 +108,7 @@ func createEntitlementTestOrg(t *testing.T, db *gorm.DB, org model.Organization)
 	return org.ID
 }
 
-func hasCapability(snapshot commercial.EntitlementSnapshot, capability commercial.Capability) bool {
+func hasCapability(snapshot domainentitlement.EntitlementSnapshot, capability domainentitlement.Capability) bool {
 	for _, candidate := range snapshot.EnabledCapabilities {
 		if candidate == capability {
 			return true

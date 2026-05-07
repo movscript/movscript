@@ -82,7 +82,7 @@ const DOMAIN_META: Record<CanvasDomainEntityKind, {
   defaultActions: CanvasDomainAction[]
 }> = {
   segment: {
-    label: '剧本段落',
+    label: '编排段',
     icon: Film,
     tone: 'cyan',
     defaultActions: [
@@ -96,7 +96,7 @@ const DOMAIN_META: Record<CanvasDomainEntityKind, {
     tone: 'teal',
     defaultActions: [
       { label: '生成内容', icon: Sparkles, outputPortId: 'content_units' },
-      { label: '补素材', icon: ImagePlus, outputPortId: 'asset_slots' },
+      { label: '补素材需求', icon: ImagePlus, outputPortId: 'asset_slots' },
     ],
   },
   creative_reference: {
@@ -104,12 +104,12 @@ const DOMAIN_META: Record<CanvasDomainEntityKind, {
     icon: Database,
     tone: 'violet',
     defaultActions: [
-      { label: '建素材', icon: CopyPlus, outputPortId: 'asset_slots' },
+      { label: '建素材需求', icon: CopyPlus, outputPortId: 'asset_slots' },
       { label: '状态', icon: ShieldCheck, outputPortId: 'states' },
     ],
   },
   asset_slot: {
-    label: '素材',
+    label: '素材需求',
     icon: ImagePlus,
     tone: 'amber',
     defaultActions: [
@@ -465,7 +465,7 @@ function domainMetrics(kind: CanvasDomainEntityKind, semanticValues?: EntitySema
     return [
       { label: '时长', value: durationValue(values.duration_sec) },
       { label: '输出', value: textValue(values.kind, '-') },
-      { label: '素材', value: assetMetricValue(values.asset_slots), warning: hasMissingAsset(values.asset_slots) },
+      { label: '素材需求', value: assetMetricValue(values.asset_slots), warning: hasMissingAsset(values.asset_slots) },
     ]
   }
   return [
@@ -524,12 +524,12 @@ function domainLinks(kind: CanvasDomainEntityKind, semanticValues?: EntitySemant
   if (kind === 'segment') {
     return [
       { label: '下游情景', value: countLabel(values.scene_moments, '个'), outputPortId: 'scene_moments' },
-      { label: '素材缺口', value: countLabel(values.asset_slots, '个'), tone: hasMissingAsset(values.asset_slots) ? 'warning' : 'default', outputPortId: 'asset_slots' },
+      { label: '素材需求缺口', value: countLabel(values.asset_slots, '个'), tone: hasMissingAsset(values.asset_slots) ? 'warning' : 'default', outputPortId: 'asset_slots' },
     ]
   }
   if (kind === 'scene_moment') {
     return [
-      { label: '所属剧本段落', value: idLabel(values.segment_id), inputPortId: 'segment_id', outputPortId: 'segment_id' },
+      { label: '所属编排段', value: idLabel(values.segment_id), inputPortId: 'segment_id', outputPortId: 'segment_id' },
       { label: '生成上下文', value: '关键帧/视频', tone: 'ready', outputPortId: 'content_units' },
     ]
   }

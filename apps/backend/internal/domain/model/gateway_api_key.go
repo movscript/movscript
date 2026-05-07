@@ -18,16 +18,9 @@ type GatewayAPIKey struct {
 	ProjectID       *uint      `gorm:"index" json:"project_id,omitempty"`
 	AllowedModelIDs string     `gorm:"type:text;default:'[]'" json:"allowed_model_ids"`
 	AllowedScopes   string     `gorm:"type:text;default:'[]'" json:"allowed_scopes"`
-	RateLimitRPM    int        `gorm:"default:0" json:"rate_limit_rpm"`
-	MonthlyBudget   float64    `gorm:"default:0" json:"monthly_budget"`
 	IsEnabled       bool       `gorm:"default:true" json:"is_enabled"`
 	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
 	Owner           User       `gorm:"foreignKey:OwnerUserID" json:"owner,omitempty"`
-}
 
-type GatewayRateLimitCounter struct {
-	gorm.Model
-	GatewayAPIKeyID uint      `gorm:"not null;index:idx_gateway_rate_window,unique" json:"gateway_api_key_id"`
-	WindowStart     time.Time `gorm:"not null;index:idx_gateway_rate_window,unique" json:"window_start"`
-	RequestCount    int       `gorm:"not null;default:0" json:"request_count"`
+	GatewayAPIKeyEditionFields `gorm:"embedded"`
 }

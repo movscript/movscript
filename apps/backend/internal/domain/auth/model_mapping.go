@@ -1,8 +1,8 @@
 package auth
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func RegisteredUserFromModel(user model.User) RegisteredUser {
+func RegisteredUserFromModel(user persistencemodel.User) RegisteredUser {
 	return RegisteredUser{
 		ID:              user.ID,
 		Username:        user.Username,
@@ -33,7 +33,7 @@ func UserProfileFromRegisteredUser(user RegisteredUser) UserProfile {
 	}
 }
 
-func UserProfileFromModel(user model.User) UserProfile {
+func UserProfileFromModel(user persistencemodel.User) UserProfile {
 	return UserProfile{
 		ID:              user.ID,
 		Username:        user.Username,
@@ -50,13 +50,13 @@ func UserProfileFromModel(user model.User) UserProfile {
 	}
 }
 
-func (user RegisteredUser) ToModel() model.User {
-	var target model.User
+func (user RegisteredUser) ToModel() persistencemodel.User {
+	var target persistencemodel.User
 	user.ApplyToModel(&target)
 	return target
 }
 
-func (user RegisteredUser) ApplyToModel(target *model.User) {
+func (user RegisteredUser) ApplyToModel(target *persistencemodel.User) {
 	target.Model.ID = user.ID
 	target.Username = user.Username
 	target.PasswordHash = user.PasswordHash
@@ -70,7 +70,7 @@ func (user RegisteredUser) ApplyToModel(target *model.User) {
 	target.EmailVerifiedAt = user.EmailVerifiedAt
 }
 
-func AuthChallengeFromModel(challenge model.AuthChallenge) AuthChallenge {
+func AuthChallengeFromModel(challenge persistencemodel.AuthChallenge) AuthChallenge {
 	return AuthChallenge{
 		ID:         challenge.ID,
 		Channel:    challenge.Channel,
@@ -84,13 +84,13 @@ func AuthChallengeFromModel(challenge model.AuthChallenge) AuthChallenge {
 	}
 }
 
-func (challenge AuthChallenge) ToModel() model.AuthChallenge {
-	var target model.AuthChallenge
+func (challenge AuthChallenge) ToModel() persistencemodel.AuthChallenge {
+	var target persistencemodel.AuthChallenge
 	challenge.ApplyToModel(&target)
 	return target
 }
 
-func (challenge AuthChallenge) ApplyToModel(target *model.AuthChallenge) {
+func (challenge AuthChallenge) ApplyToModel(target *persistencemodel.AuthChallenge) {
 	target.Model.ID = challenge.ID
 	target.Channel = challenge.Channel
 	target.Target = challenge.Target
@@ -102,7 +102,7 @@ func (challenge AuthChallenge) ApplyToModel(target *model.AuthChallenge) {
 	target.UpdatedAt = challenge.UpdatedAt
 }
 
-func AuthSessionFromModel(session model.AuthSession) AuthSession {
+func AuthSessionFromModel(session persistencemodel.AuthSession) AuthSession {
 	return AuthSession{
 		ID:         session.ID,
 		UserID:     session.UserID,
@@ -115,13 +115,13 @@ func AuthSessionFromModel(session model.AuthSession) AuthSession {
 	}
 }
 
-func (session AuthSession) ToModel() model.AuthSession {
-	var target model.AuthSession
+func (session AuthSession) ToModel() persistencemodel.AuthSession {
+	var target persistencemodel.AuthSession
 	session.ApplyToModel(&target)
 	return target
 }
 
-func (session AuthSession) ApplyToModel(target *model.AuthSession) {
+func (session AuthSession) ApplyToModel(target *persistencemodel.AuthSession) {
 	target.Model.ID = session.ID
 	target.UserID = session.UserID
 	target.TokenHash = session.TokenHash

@@ -5,17 +5,14 @@ import type { JSONValue } from '../types.js'
 export interface AgentRuntimeContract {
   id: string
   matches(manifest: AgentManifest): boolean
-  structuredContract?: string
   toolSchemas?: Record<string, JSONValue>
   commandOverride?: (input: { userMessage: string; manifest: AgentManifest }) => AgentCommandRuntime | undefined
   requiresConfiguredModel?: boolean
-  requiresStructuredJSON?: boolean
 }
 
 export interface AgentRuntimeContractResolver {
   find(manifest?: AgentManifest): AgentRuntimeContract | undefined
   requiresConfiguredModel(manifest?: AgentManifest): boolean
-  requiresStructuredJSON(manifest?: AgentManifest): boolean
 }
 
 export interface AgentRuntimeContractMetadata {
@@ -45,10 +42,6 @@ export class StaticAgentRuntimeContractResolver implements AgentRuntimeContractR
 
   requiresConfiguredModel(manifest?: AgentManifest): boolean {
     return this.find(manifest)?.requiresConfiguredModel === true
-  }
-
-  requiresStructuredJSON(manifest?: AgentManifest): boolean {
-    return this.find(manifest)?.requiresStructuredJSON === true
   }
 }
 

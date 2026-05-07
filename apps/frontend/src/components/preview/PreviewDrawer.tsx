@@ -31,7 +31,7 @@ type PreviewStoryNode = {
 }
 
 const scopeLabel: Record<PreviewScope, string> = {
-  segment: '剧本段落',
+  segment: '编排段',
   scene_moment: '情景',
   content_unit: '制作项',
 }
@@ -92,10 +92,10 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="shrink-0 text-[10px]">{scopeLabel[scope]}</Badge>
-              <span className="truncate text-sm font-semibold text-foreground">{entityTitle || data?.entity.title || '分集预演'}</span>
+              <span className="truncate text-sm font-semibold text-foreground">{entityTitle || data?.entity.title || '制作预演'}</span>
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {data?.context.scene_moment_title || data?.context.segment_title || data?.entity.description || '段落结构驱动预演，画面流承接真实剧情。'}
+              {data?.context.scene_moment_title || data?.context.segment_title || data?.entity.description || '编排段结构驱动预演，画面流承接真实剧情。'}
             </p>
           </div>
           <button
@@ -112,7 +112,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
             <div className="border-b border-border p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <Layers3 size={15} />
-                段落树
+                编排段树
               </div>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
                 外层只看叙事推进；展开后再看每段承载的关键画面。
@@ -120,11 +120,11 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {isLoading ? (
-                <LoadingBlock label="读取段落结构" />
+                <LoadingBlock label="读取编排段结构" />
               ) : isError ? (
                 <ErrorBlock />
               ) : storyNodes.length === 0 ? (
-                <EmptyBlock title="暂无段落结构" detail="需要先补充制作项和关键帧，预演才能形成可观看的剧情树。" />
+                <EmptyBlock title="暂无编排段结构" detail="需要先补充制作项和关键帧，预演才能形成可观看的剧情树。" />
               ) : (
                 <div className="space-y-2">
                   <button
@@ -355,7 +355,7 @@ function StoryFrame({ keyframe, index, unit }: { keyframe: PreviewKeyframe; inde
               ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
               : 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
           )}>
-            {keyframe.has_asset ? '可预演' : '待补素材'}
+            {keyframe.has_asset ? '可预演' : '待补素材资源'}
           </span>
         </div>
         <h3 className="text-sm font-semibold leading-5 text-foreground">{keyframe.title || '未命名关键帧'}</h3>
@@ -402,13 +402,13 @@ function MobileTree({ data, nodes }: { data: PreviewGenerateResponse; nodes: Pre
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Layers3 size={15} />
-          段落树
+          编排段树
         </div>
         <PreviewStats data={data} />
       </div>
       <div className="space-y-2">
         {nodes.length === 0 ? (
-          <EmptyBlock title="暂无段落结构" detail="需要先补充制作项和关键帧。" />
+          <EmptyBlock title="暂无编排段结构" detail="需要先补充制作项和关键帧。" />
         ) : nodes.map((node, index) => (
           <div key={node.unit.id} className="rounded-md border border-border bg-background p-3">
             <div className="flex items-center gap-2">

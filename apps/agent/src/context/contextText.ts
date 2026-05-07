@@ -73,7 +73,7 @@ export function renderMemoriesText(memories: AgentMemory[]): string {
   if (memories.length === 0) return 'No relevant memories.'
   return [
     'Startup memories:',
-    ...memories.slice(0, 12).map((memory) => `- [${memory.scope}/${memory.kind}] ${memory.content}`),
+    ...memories.slice(0, 12).map((memory) => `- [${memory.kind}] ${memory.title}: ${truncate(memory.content, 120)}`),
     '',
     'Use movscript_search_memories for more memory context when needed.',
   ].join('\n')
@@ -117,10 +117,10 @@ function businessKindLabel(kind: string): string {
     project: '项目',
     production: '制作单元',
     script: '剧本',
-    creative_reference: '创作资料',
+    creative_reference: '设定资料',
     asset_slot: '素材需求',
-    segment: '片段',
-    scene_moment: '情节',
+    segment: '编排段',
+    scene_moment: '情景',
     storyboard_script: '分镜脚本',
     storyboard_line: '分镜行',
     content_unit: '镜头/内容单元',
@@ -132,11 +132,12 @@ function businessKindLabel(kind: string): string {
 }
 
 function memoryFileLabel(memory: AgentMemory, memoryStorePath?: string): string {
-  const scopePart = memory.scope === 'project' && typeof memory.projectId === 'number'
-    ? `project-${memory.projectId}`
-    : memory.scope === 'thread' && memory.threadId
-      ? `thread-${memory.threadId}`
-      : memory.scope
-  const entry = `${scopePart}/${memory.id}`
+  const entry = `project-${memory.projectId}/${memory.id}`
   return memoryStorePath ? `${memoryStorePath}#${entry}` : entry
+}
+
+function truncate(value: string, limit: number): string {
+  const text = value.trim()
+  if (text.length <= limit) return text
+  return `${text.slice(0, limit - 1)}…`
 }

@@ -36,12 +36,12 @@ type APIKey struct {
 	ProjectID       *uint      `json:"project_id,omitempty"`
 	AllowedModelIDs string     `json:"allowed_model_ids"`
 	AllowedScopes   string     `json:"allowed_scopes"`
-	RateLimitRPM    int        `json:"rate_limit_rpm"`
-	MonthlyBudget   float64    `json:"monthly_budget"`
 	IsEnabled       bool       `json:"is_enabled"`
 	LastUsedAt      *time.Time `json:"last_used_at,omitempty"`
 	CreatedAt       time.Time  `json:"CreatedAt"`
 	UpdatedAt       time.Time  `json:"UpdatedAt"`
+
+	APIKeyEditionFields
 }
 
 func NewAPIKey(spec NewAPIKeySpec) APIKey {
@@ -98,8 +98,8 @@ func KeyAllowsProject(key *APIKey, requestedProjectID *uint) bool {
 	return *key.ProjectID == *requestedProjectID
 }
 
-func BillingContext(key *APIKey, projectID *uint) ai.BillingContext {
-	ctx := ai.BillingContext{ProjectID: projectID}
+func UsageContext(key *APIKey, projectID *uint) ai.UsageContext {
+	ctx := ai.UsageContext{ProjectID: projectID}
 	if key != nil {
 		ctx.OrgID = key.OrgID
 		ctx.GatewayAPIKeyID = &key.ID

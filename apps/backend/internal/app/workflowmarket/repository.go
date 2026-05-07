@@ -5,8 +5,8 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainmarket "github.com/movscript/movscript/internal/domain/workflowmarket"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -21,7 +21,7 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) ListPublicCanvases(ctx context.Context) ([]domainmarket.PublicCanvas, error) {
-	canvases := make([]model.Canvas, 0)
+	canvases := make([]persistencemodel.Canvas, 0)
 	err := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
 		Where("canvas_type = ? AND visibility = ?", "workflow", "public").
 		Order("published_at DESC NULLS LAST, id DESC").
@@ -37,7 +37,7 @@ func (r *gormRepository) ListPublicCanvases(ctx context.Context) ([]domainmarket
 }
 
 func (r *gormRepository) FindWorkflowCanvasesByKey(ctx context.Context, key string, userID uint) ([]domainmarket.PublicCanvas, error) {
-	canvases := make([]model.Canvas, 0)
+	canvases := make([]persistencemodel.Canvas, 0)
 	err := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
 		Where("canvas_type = ? AND workflow_key = ?", "workflow", key).
 		Where("owner_id = ? OR visibility = ?", userID, "public").
@@ -86,25 +86,25 @@ func (r *gormRepository) CreateCanvasFromTemplate(ctx context.Context, ownerID u
 	return canvasruntime.CanvasFromModel(cv), nil
 }
 
-func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []model.CanvasNode {
+func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []persistencemodel.CanvasNode {
 	domainNodes := domainmarket.TemplateNodesForCanvas(canvasID, defs)
-	nodes := make([]model.CanvasNode, 0, len(domainNodes))
+	nodes := make([]persistencemodel.CanvasNode, 0, len(domainNodes))
 	for _, node := range domainNodes {
 		nodes = append(nodes, node.ToModel())
 	}
 	return nodes
 }
 
-func TemplateEdgesForCanvas(canvasID uint, defs []TemplateEdge) []model.CanvasEdge {
+func TemplateEdgesForCanvas(canvasID uint, defs []TemplateEdge) []persistencemodel.CanvasEdge {
 	domainEdges := domainmarket.TemplateEdgesForCanvas(canvasID, defs)
-	edges := make([]model.CanvasEdge, 0, len(domainEdges))
+	edges := make([]persistencemodel.CanvasEdge, 0, len(domainEdges))
 	for _, edge := range domainEdges {
 		edges = append(edges, edge.ToModel())
 	}
 	return edges
 }
 
-func publicCanvasFromModel(cv model.Canvas) domainmarket.PublicCanvas {
+func publicCanvasFromModel(cv persistencemodel.Canvas) domainmarket.PublicCanvas {
 	nodes := make([]canvasruntime.CanvasNode, 0, len(cv.Nodes))
 	for _, node := range cv.Nodes {
 		nodes = append(nodes, canvasruntime.CanvasNodeFromModel(node))

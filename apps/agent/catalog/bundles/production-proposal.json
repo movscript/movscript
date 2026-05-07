@@ -8,8 +8,7 @@
   ],
   "tools": [
     "movscript_list_productions",
-    "movscript_read_production_context",
-    "movscript_check_entity_conflicts",
+    "movscript_read_current_production",
     "movscript_create_production_proposal",
     "movscript_inspect_production_proposal_context",
     "movscript_get_production_proposal",
@@ -17,11 +16,9 @@
     "movscript_upsert_proposal_scene_moment",
     "movscript_upsert_proposal_reference",
     "movscript_upsert_proposal_asset",
+    "movscript_upsert_proposal_content_unit",
     "movscript_upsert_proposal_keyframe",
-    "movscript_upsert_proposal_shot",
-    "movscript_upsert_production_proposal_node",
     "movscript_delete_production_proposal_node",
-    "movscript_propose_production_entities",
-    "movscript_list_drafts"
+    "movscript_submit_production_proposal"
   ]
 }

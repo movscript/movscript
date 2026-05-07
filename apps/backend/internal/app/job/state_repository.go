@@ -5,11 +5,11 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
-func MarkRetryScheduled(db *gorm.DB, job *model.Job, message string) {
+func MarkRetryScheduled(db *gorm.DB, job *persistencemodel.Job, message string) {
 	if db == nil || job == nil {
 		return
 	}

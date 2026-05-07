@@ -1,13 +1,12 @@
 import type { JSONValue } from '../types.js'
 import { parseToolResult } from '../runtime/context.js'
 import type { AgentRun, AgentMessage, ToolCallOutcome } from '../runtime/types.js'
-import type { AgentMemory, AgentMemoryKind, AgentMemoryScope, CreateMemoryInput, MemoryQuery } from './types.js'
+import type { AgentMemory, AgentMemoryKind, CreateMemoryInput } from './types.js'
 import type { AgentMemoryStore } from './memoryStore.js'
 import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
 
 export interface RelevantMemoryContext {
   projectId?: number
-  threadId: string
   query?: string
   limit?: number
 }
@@ -20,48 +19,89 @@ export interface MemoryExtractionInput {
   warnings: string[]
 }
 
+export interface MemorySearchInput {
+  projectId?: number
+  kind?: AgentMemoryKind
+  query?: string
+  limit?: number
+}
+
+export interface MemoryListInput {
+  projectId?: number
+  kind?: AgentMemoryKind
+  limit?: number
+}
+
+export interface MemoryLookupInput {
+  projectId?: number
+  id: string
+}
+
 export class MemoryManager {
   constructor(private readonly store: AgentMemoryStore) {}
 
   loadRelevantMemories(context: RelevantMemoryContext): AgentMemory[] {
+    if (typeof context.projectId !== 'number') return []
     return this.searchMemories({
       projectId: context.projectId,
-      threadId: context.threadId,
       query: context.query,
       limit: context.limit ?? 6,
     })
   }
 
   searchMemories(query: MemorySearchInput): AgentMemory[] {
-    const byId = new Map<string, AgentMemory>()
-    if (!query.scope || query.scope === 'global') {
-      for (const memory of this.store.listMemories({ scope: 'global', ...(query.kind ? { kind: query.kind } : {}) })) {
-        byId.set(memory.id, memory)
-      }
-    }
-    if ((!query.scope || query.scope === 'project') && typeof query.projectId === 'number') {
-      for (const memory of this.store.listMemories({ scope: 'project', projectId: query.projectId, ...(query.kind ? { kind: query.kind } : {}) })) {
-        byId.set(memory.id, memory)
-      }
-    }
-    if ((!query.scope || query.scope === 'thread') && query.threadId) {
-      for (const memory of this.store.listMemories({ scope: 'thread', threadId: query.threadId, ...(query.kind ? { kind: query.kind } : {}) })) {
-        byId.set(memory.id, memory)
-      }
-    }
-    return rankMemories(Array.from(byId.values()), query).slice(0, clampLimit(query.limit))
+    if (typeof query.projectId !== 'number') return []
+    return rankMemories(this.store.listMemories({
+      projectId: query.projectId,
+      ...(query.kind ? { kind: query.kind } : {}),
+      ...(query.query ? { query: query.query } : {}),
+      ...(query.limit ? { limit: query.limit } : {}),
+    }), query).slice(0, clampLimit(query.limit))
+  }
+
+  listMemorySummaries(query: MemoryListInput): Array<Pick<AgentMemory, 'id' | 'projectId' | 'title' | 'kind' | 'updatedAt'>> {
+    if (typeof query.projectId !== 'number') return []
+    return this.store.listMemories({
+      projectId: query.projectId,
+      ...(query.kind ? { kind: query.kind } : {}),
+      ...(query.limit ? { limit: query.limit } : {}),
+    }).map((memory) => ({
+      id: memory.id,
+      projectId: memory.projectId,
+      title: memory.title,
+      kind: memory.kind,
+      updatedAt: memory.updatedAt,
+    }))
+  }
+
+  getMemory(query: MemoryLookupInput): AgentMemory | undefined {
+    if (typeof query.projectId !== 'number') return undefined
+    const memory = this.store.getMemory(query.id)
+    if (!memory || memory.projectId !== query.projectId) return undefined
+    return memory
+  }
+
+  createMemory(input: CreateMemoryInput): AgentMemory {
+    return this.store.createMemory(input)
+  }
+
+  deleteMemory(input: MemoryLookupInput): boolean {
+    const memory = this.getMemory(input)
+    if (!memory) return false
+    return this.store.deleteMemory(memory.id)
   }
 
   extractAndWriteMemories(input: MemoryExtractionInput): AgentMemory[] {
+    if (typeof input.projectId !== 'number') return []
     const writes: CreateMemoryInput[] = []
     const preference = extractPreference(input.userMessage.content)
     if (preference) {
       writes.push({
-        scope: typeof input.projectId === 'number' ? 'project' : 'thread',
         projectId: input.projectId,
-        threadId: typeof input.projectId === 'number' ? undefined : input.userMessage.threadId,
+        title: buildMemoryTitle('preference', preference),
         kind: 'preference',
         content: preference,
+        ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
         sourceRunId: input.run.id,
         sourceMessageId: input.userMessage.id,
       })
@@ -69,24 +109,26 @@ export class MemoryManager {
 
     for (const outcome of input.toolResults) {
       if (publicToolName(outcome.call.name) === 'movscript_create_draft' && !outcome.error) {
+        const memory = describeDraftMemory(outcome.result)
         writes.push({
-          scope: typeof input.projectId === 'number' ? 'project' : 'thread',
           projectId: input.projectId,
-          threadId: typeof input.projectId === 'number' ? undefined : input.userMessage.threadId,
+          title: memory.title,
           kind: 'draft',
-          content: describeDraftMemory(outcome.result),
+          content: memory.content,
+          ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
           sourceRunId: input.run.id,
           sourceMessageId: input.userMessage.id,
         })
       }
 
       if ((publicToolName(outcome.call.name) === 'movscript_read_item' || publicToolName(outcome.call.name) === 'movscript_search_items') && !outcome.error) {
+        const memory = describeEntityRefMemory(outcome)
         writes.push({
-          scope: typeof input.projectId === 'number' ? 'project' : 'thread',
           projectId: input.projectId,
-          threadId: typeof input.projectId === 'number' ? undefined : input.userMessage.threadId,
+          title: memory.title,
           kind: 'item_ref',
-          content: describeEntityRefMemory(outcome),
+          content: memory.content,
+          ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
           sourceRunId: input.run.id,
           sourceMessageId: input.userMessage.id,
         })
@@ -94,10 +136,11 @@ export class MemoryManager {
 
       if (outcome.error) {
         writes.push({
-          scope: 'thread',
-          threadId: input.userMessage.threadId,
+          projectId: input.projectId,
+          title: `警告：${formatToolNameForDisplay(outcome.call.name)}`,
           kind: 'warning',
           content: `${formatToolNameForDisplay(outcome.call.name)} failed: ${outcome.error}`,
+          ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
           sourceRunId: input.run.id,
           sourceMessageId: input.userMessage.id,
         })
@@ -106,28 +149,20 @@ export class MemoryManager {
 
     for (const warning of input.warnings) {
       writes.push({
-        scope: 'thread',
-        threadId: input.userMessage.threadId,
+        projectId: input.projectId,
+        title: buildMemoryTitle('warning', warning),
         kind: 'warning',
         content: warning,
+        ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
         sourceRunId: input.run.id,
         sourceMessageId: input.userMessage.id,
       })
     }
 
     return writes
-      .filter((memory) => memory.content.trim().length > 0)
+      .filter((memory) => memory.title.trim().length > 0 && memory.content.trim().length > 0)
       .map((memory) => this.store.createMemory(memory))
   }
-}
-
-export interface MemorySearchInput {
-  projectId?: number
-  threadId?: string
-  scope?: AgentMemoryScope
-  kind?: AgentMemoryKind
-  query?: string
-  limit?: number
 }
 
 function rankMemories(memories: AgentMemory[], query: MemorySearchInput): AgentMemory[] {
@@ -142,12 +177,10 @@ function rankMemories(memories: AgentMemory[], query: MemorySearchInput): AgentM
 function scoreMemory(memory: AgentMemory, terms: string[], query: MemorySearchInput): number {
   let score = 1
   if (query.kind && memory.kind === query.kind) score += 2
-  if (query.scope && memory.scope === query.scope) score += 1
-  if (memory.threadId && query.threadId && memory.threadId === query.threadId) score += 1.5
-  if (typeof memory.projectId === 'number' && memory.projectId === query.projectId) score += 1
+  if (memory.projectId === query.projectId) score += 1
   if (terms.length === 0) return score
-  const content = memory.content.toLowerCase()
-  const matches = terms.filter((term) => content.includes(term)).length
+  const haystack = `${memory.title}\n${memory.content}`.toLowerCase()
+  const matches = terms.filter((term) => haystack.includes(term)).length
   return matches > 0 ? score + matches * 3 : 0
 }
 
@@ -180,23 +213,55 @@ function extractPreference(message: string): string | undefined {
   return message.trim()
 }
 
-function describeDraftMemory(result: JSONValue | undefined): string {
+function describeDraftMemory(result: JSONValue | undefined): { title: string; content: string } {
   const parsed = parseToolResult(result ?? null)
   if (isRecord(parsed)) {
     const id = parsed.id ?? parsed.ID
     const title = parsed.title
-    return `Created draft${id ? ` ${String(id)}` : ''}${title ? `: ${String(title)}` : ''}.`
+    const displayTitle = typeof title === 'string' && title.trim() ? title.trim() : '草稿'
+    return {
+      title: `草稿：${truncate(displayTitle, 24)}`,
+      content: `Created draft${id ? ` ${String(id)}` : ''}${title ? `: ${String(title)}` : ''}.`,
+    }
   }
-  return 'Created draft.'
+  return { title: '草稿', content: 'Created draft.' }
 }
 
-function describeEntityRefMemory(outcome: ToolCallOutcome): string {
+function describeEntityRefMemory(outcome: ToolCallOutcome): { title: string; content: string } {
   if (publicToolName(outcome.call.name) === 'movscript_read_item') {
-    return `Read business item ${String(outcome.call.args?.itemType ?? outcome.call.args?.entityType ?? 'item')} ${String(outcome.call.args?.itemId ?? outcome.call.args?.entityId ?? '')}.`
+    const itemType = String(outcome.call.args?.itemType ?? outcome.call.args?.entityType ?? 'item')
+    const itemId = String(outcome.call.args?.itemId ?? outcome.call.args?.entityId ?? '')
+    return {
+      title: `引用：${itemType} ${itemId}`.trim(),
+      content: `Read business item ${itemType} ${itemId}.`,
+    }
   }
   const parsed = parseToolResult(outcome.result ?? null)
   const count = isRecord(parsed) && Array.isArray(parsed.results) ? parsed.results.length : undefined
-  return `Searched business items with query "${String(outcome.call.args?.query ?? '')}"${typeof count === 'number' ? `, found ${count}` : ''}.`
+  const query = String(outcome.call.args?.query ?? '')
+  return {
+    title: `搜索引用：${truncate(query, 24) || '项目内容'}`,
+    content: `Searched business items with query "${query}"${typeof count === 'number' ? `, found ${count}` : ''}.`,
+  }
+}
+
+function buildMemoryTitle(kind: AgentMemoryKind, content: string): string {
+  const prefixMap: Record<AgentMemoryKind, string> = {
+    preference: '偏好',
+    fact: '事实',
+    item_ref: '引用',
+    entity_ref: '引用',
+    draft: '草稿',
+    decision: '决策',
+    warning: '警告',
+  }
+  return `${prefixMap[kind]}：${truncate(content, 24)}`
+}
+
+function truncate(value: string, limit: number): string {
+  const text = value.trim()
+  if (text.length <= limit) return text
+  return `${text.slice(0, limit - 1)}…`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

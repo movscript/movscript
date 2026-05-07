@@ -1,23 +1,20 @@
-package commercial
+package entitlement
 
 import "context"
 
 type DeploymentMode string
 
 const (
-	DeploymentPersonalLocal     DeploymentMode = "personal-local"
-	DeploymentSelfHostedTeam    DeploymentMode = "self-hosted-team"
-	DeploymentHostedCloud       DeploymentMode = "hosted-cloud"
-	DeploymentEnterprisePrivate DeploymentMode = "enterprise-private"
+	DeploymentPersonalLocal  DeploymentMode = "personal-local"
+	DeploymentSelfHostedTeam DeploymentMode = "self-hosted-team"
 )
 
 type Plan string
 
 const (
-	PlanPersonal   Plan = "personal"
-	PlanFree       Plan = "free"
-	PlanTeam       Plan = "team"
-	PlanEnterprise Plan = "enterprise"
+	PlanPersonal Plan = "personal"
+	PlanFree     Plan = "free"
+	PlanTeam     Plan = "team"
 )
 
 type Status string
@@ -32,21 +29,13 @@ const (
 type Capability string
 
 const (
-	CapabilityLocalWorkspace        Capability = "workspace.local"
-	CapabilitySelfHostedWorkspace   Capability = "workspace.self_hosted"
-	CapabilityBasicCollaboration    Capability = "collaboration.basic"
-	CapabilityBasicGateway          Capability = "gateway.basic"
-	CapabilityGatewayAPIKeys        Capability = "gateway.api_keys"
-	CapabilityOrgBudget             Capability = "billing.org_budget"
-	CapabilityUsageLogging          Capability = "billing.usage_logging"
-	CapabilityBasicAudit            Capability = "audit.basic"
-	CapabilityAuditExport           Capability = "audit.export"
-	CapabilityEnterpriseLicense     Capability = "license.enterprise"
-	CapabilitySSO                   Capability = "identity.sso"
-	CapabilitySCIM                  Capability = "identity.scim"
-	CapabilityHostedStorage         Capability = "storage.hosted"
-	CapabilityHostedWorker          Capability = "worker.hosted"
-	CapabilityCommercialMarketplace Capability = "marketplace.commercial"
+	CapabilityLocalWorkspace      Capability = "workspace.local"
+	CapabilitySelfHostedWorkspace Capability = "workspace.self_hosted"
+	CapabilityBasicCollaboration  Capability = "collaboration.basic"
+	CapabilityBasicGateway        Capability = "gateway.basic"
+	CapabilityGatewayAPIKeys      Capability = "gateway.api_keys"
+	CapabilityUsageLogging        Capability = "usage.logging"
+	CapabilityBasicAudit          Capability = "audit.basic"
 )
 
 type SubjectRef struct {
@@ -62,7 +51,7 @@ type Decision struct {
 }
 
 type LimitSnapshot struct {
-	MonthlyBudget float64 `json:"monthly_budget,omitempty"`
+	UsageCreditLimit float64 `json:"usage_credit_limit,omitempty"`
 }
 
 type EntitlementSnapshot struct {
@@ -72,7 +61,7 @@ type EntitlementSnapshot struct {
 	DeploymentMode      DeploymentMode  `json:"deployment_mode"`
 	EnabledCapabilities []Capability    `json:"enabled_capabilities"`
 	Limits              LimitSnapshot   `json:"limits"`
-	CommercialFlags     map[string]bool `json:"commercial_flags"`
+	EditionFlags        map[string]bool `json:"edition_flags"`
 }
 
 type EntitlementService interface {

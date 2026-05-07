@@ -44,12 +44,12 @@ func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
 	}
 }
 
-func TestBillingContextIncludesAPIKeyAndProject(t *testing.T) {
+func TestUsageContextIncludesAPIKeyAndProject(t *testing.T) {
 	orgID := uint(5)
 	projectID := uint(11)
 	key := &APIKey{ID: 3, OrgID: &orgID}
 
-	ctx := BillingContext(key, &projectID)
+	ctx := UsageContext(key, &projectID)
 
 	if ctx.OrgID == nil || *ctx.OrgID != 5 {
 		t.Fatalf("expected org id 5, got %#v", ctx.OrgID)

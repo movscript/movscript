@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func TestExecuteCanvasNodePropagatesInlineText(t *testing.T) {

@@ -1,8 +1,8 @@
 package resource
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func RawResourceFromModel(resource model.RawResource) RawResource {
+func RawResourceFromModel(resource persistencemodel.RawResource) RawResource {
 	return RawResource{
 		ID:             resource.ID,
 		OwnerID:        resource.OwnerID,
@@ -25,13 +25,13 @@ func RawResourceFromModel(resource model.RawResource) RawResource {
 	}
 }
 
-func (resource RawResource) ToModel() model.RawResource {
-	var target model.RawResource
+func (resource RawResource) ToModel() persistencemodel.RawResource {
+	var target persistencemodel.RawResource
 	resource.ApplyToModel(&target)
 	return target
 }
 
-func (resource RawResource) ApplyToModel(target *model.RawResource) {
+func (resource RawResource) ApplyToModel(target *persistencemodel.RawResource) {
 	target.Model.ID = resource.ID
 	target.Model.CreatedAt = resource.CreatedAt
 	target.Model.UpdatedAt = resource.UpdatedAt
@@ -51,7 +51,7 @@ func (resource RawResource) ApplyToModel(target *model.RawResource) {
 	target.CloudUploads = resource.CloudUploads
 }
 
-func UserRefFromModel(user model.User) *UserRef {
+func UserRefFromModel(user persistencemodel.User) *UserRef {
 	if user.ID == 0 {
 		return nil
 	}

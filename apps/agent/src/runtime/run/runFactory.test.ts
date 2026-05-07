@@ -24,7 +24,6 @@ test('buildAgentRun assembles lifecycle defaults and optional runtime metadata',
       id: 'contract_1',
       matches: () => true,
       requiresConfiguredModel: true,
-      requiresStructuredJSON: true,
     },
   })
 
@@ -37,7 +36,6 @@ test('buildAgentRun assembles lifecycle defaults and optional runtime metadata',
   assert.deepEqual(run.metadata?.forcedToolCall, { name: 'movscript_apply_draft', args: { draftId: 'draft_1' } })
   assert.equal(run.metadata?.runtimeContractId, 'contract_1')
   assert.equal(run.metadata?.runtimeRequiresConfiguredModel, true)
-  assert.equal(run.metadata?.runtimeRequiresStructuredJSON, undefined)
 })
 
 test('buildAgentRun omits metadata when no optional runtime inputs are present', () => {

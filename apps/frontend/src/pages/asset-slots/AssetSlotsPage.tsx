@@ -357,7 +357,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
           onQueryChange={(value) => {
             setFilter({ q: value })
           }}
-          queryPlaceholder={t('pages.assets.searchPlaceholder', '搜索素材名称、说明或提示')}
+          queryPlaceholder="搜索素材需求名称、说明或提示"
           filters={[{
             id: 'kind',
             label: '类型',
@@ -365,7 +365,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
             onChange: (value) => setFilter({ kind: value }),
             options: assetKindOrder.map((kind) => ({
               value: kind,
-              label: kind === 'all' ? '全部素材' : assetKindLabel(kind),
+              label: kind === 'all' ? '全部素材需求' : assetKindLabel(kind),
               count: kind === 'all' ? rows.length : rows.filter((row) => row.kind === kind).length,
             })),
           }]}
@@ -383,7 +383,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
             {isLoading ? (
               <p className="py-12 text-center text-xs text-muted-foreground">{t('common.loadingShort', '加载中')}</p>
             ) : filtered.length === 0 ? (
-              <EmptyPreview title="暂无素材需求" description="从内容、情景或资料页面创建素材需求，或手动新建一个候选素材需求。" />
+              <EmptyPreview title="暂无素材需求" description="从内容、情景或设定资料页面创建素材需求，或手动新建一个候选素材需求。" />
             ) : (
               <div className="grid gap-4">
                 {filtered.map((row) => (
@@ -409,7 +409,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
               eyebrow: selected ? assetKindLabel(selected.kind) : '素材需求',
               title: selected?.slot.name || (selected ? `素材需求 #${selected.slot.ID}` : '请选择素材需求'),
               subtitle: selected ? slotScopeLabel(selected.slot) : '项目素材需求',
-              summary: selected?.slot.description || selected?.slot.prompt_hint || '暂无素材描述。',
+              summary: selected?.slot.description || selected?.slot.prompt_hint || '暂无素材需求描述。',
               accentClassName: selected ? assetKindMeta[selected.kind].accent : 'from-sky-500/15 via-cyan-500/10 to-teal-500/10',
               status: <SlotStatusBadge status={normalizeSlotStatus(selected?.slot.status)} />,
               stats: selected ? [
@@ -446,7 +446,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
           <AssetInfoPanel title="归属对象" icon={Database}>
             <AssetInfoRow label="范围" value={selected ? slotScopeLabel(selected.slot) : '未选择素材需求'} />
-            <AssetInfoRow label="资料" value={selected?.slot.creative_reference_id ? `资料 #${selected.slot.creative_reference_id}` : '未绑定资料'} />
+            <AssetInfoRow label="设定资料" value={selected?.slot.creative_reference_id ? `设定资料 #${selected.slot.creative_reference_id}` : '未绑定设定资料'} />
           </AssetInfoPanel>
           <AssetInfoPanel title="候选素材" icon={Sparkles}>
             {selected?.candidates.length ? selected.candidates.slice(0, 4).map((candidate) => (
@@ -672,7 +672,7 @@ function normalizeSlotStatus(status?: string): SlotStatus {
 
 function slotScopeLabel(slot: AssetSlotRecord) {
   if (slot.owner_type && slot.owner_id) return `${slot.owner_type} #${slot.owner_id}`
-  if (slot.creative_reference_id) return `资料 #${slot.creative_reference_id}`
+  if (slot.creative_reference_id) return `设定资料 #${slot.creative_reference_id}`
   if (slot.resource_id) return `资源 #${slot.resource_id}`
   return '项目素材需求'
 }

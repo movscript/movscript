@@ -37,6 +37,7 @@ import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectHomePage from './pages/project-home/ProjectHomePage'
+import ProjectOrchestrationPage from './pages/project-workspace/ProjectWorkspacePage'
 import CreativeWorkbenchPage from './pages/creative-workbench/CreativeWorkbenchPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
@@ -296,9 +297,10 @@ export default function App() {
               <Route path="/delivery/workbench" element={<ProjectGuard><FinalVideosWorkspacePage /></ProjectGuard>} />
               <Route path="/delivery-workbench" element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
               <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
+              <Route path="/project-workspace" element={<ProjectGuard><ProjectOrchestrationPage /></ProjectGuard>} />
               <Route path="/creative-workbench" element={<ProjectGuard><CreativeWorkbenchPage /></ProjectGuard>} />
               <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
-              <Route path="/workbench" element={<ProjectGuard><Navigate to="/script-split-workbench" replace /></ProjectGuard>} />
+              <Route path="/workbench" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" /></ProjectGuard>} />
               <Route path="/script-split-workbench" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/script" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/production-plan" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="preview" showCategoryTabs={false} /></ProjectGuard>} />

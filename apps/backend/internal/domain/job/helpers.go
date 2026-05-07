@@ -52,7 +52,7 @@ type AIModelConfig struct {
 	CustomDisplayName     string     `json:"custom_display_name"`
 	ShortName             string     `json:"short_name"`
 	CustomCapabilities    string     `json:"custom_capabilities"`
-	CustomBillingMode     string     `json:"custom_billing_mode"`
+	CustomPricingMode     string     `json:"custom_pricing_mode"`
 	CustomAcceptsImage    bool       `json:"custom_accepts_image"`
 	CustomMaxInputImages  int        `json:"custom_max_input_images"`
 	CustomMaxInputVideos  int        `json:"custom_max_input_videos"`

@@ -9,9 +9,8 @@ import (
 )
 
 const (
-	PlanPersonal   = "personal"
-	PlanTeam       = "team"
-	PlanEnterprise = "enterprise"
+	PlanPersonal = "personal"
+	PlanTeam     = "team"
 
 	StatusActive    = "active"
 	StatusTrialing  = "trialing"
@@ -61,7 +60,7 @@ func NormalizeJoinCode(value string) string {
 
 func NormalizePlan(value string) string {
 	switch strings.TrimSpace(value) {
-	case PlanPersonal, PlanEnterprise:
+	case PlanPersonal, PlanTeam:
 		return strings.TrimSpace(value)
 	case "":
 		return PlanTeam

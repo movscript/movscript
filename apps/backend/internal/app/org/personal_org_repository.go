@@ -3,8 +3,8 @@ package org
 import (
 	"strings"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -15,7 +15,7 @@ func generateUniqueJoinCode(db *gorm.DB) (string, error) {
 			return "", err
 		}
 		var count int64
-		if err := db.Model(&model.Organization{}).Where("join_code = ?", code).Count(&count).Error; err != nil {
+		if err := db.Model(&persistencemodel.Organization{}).Where("join_code = ?", code).Count(&count).Error; err != nil {
 			return "", err
 		}
 		if count == 0 {
@@ -25,7 +25,7 @@ func generateUniqueJoinCode(db *gorm.DB) (string, error) {
 	return "", ErrConflict
 }
 
-func EnsureJoinCode(db *gorm.DB, org *model.Organization) error {
+func EnsureJoinCode(db *gorm.DB, org *persistencemodel.Organization) error {
 	if strings.TrimSpace(org.JoinCode) != "" {
 		return nil
 	}
@@ -39,7 +39,7 @@ func EnsureJoinCode(db *gorm.DB, org *model.Organization) error {
 
 func CreatePersonalOrg(db *gorm.DB, user domainorg.User) error {
 	var count int64
-	db.Model(&model.Organization{}).Where("slug = ?", user.Username).Count(&count)
+	db.Model(&persistencemodel.Organization{}).Where("slug = ?", user.Username).Count(&count)
 	org := domainorg.NewPersonalOrg(domainorg.UserIdentity{ID: user.ID, Username: user.Username}, count > 0).ToModel()
 	if err := db.Create(&org).Error; err != nil {
 		return err

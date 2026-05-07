@@ -11,13 +11,12 @@ import (
 )
 
 type OrgHandler struct {
-	service    *orgapp.Service
-	commercial orgCommercialDeps
-	db         *gorm.DB
+	service *orgapp.Service
+	db      *gorm.DB
 }
 
 func NewOrgHandler(db *gorm.DB) *OrgHandler {
-	return &OrgHandler{service: orgapp.NewService(db), commercial: newOrgCommercialDeps(db), db: db}
+	return &OrgHandler{service: orgapp.NewService(db), db: db}
 }
 
 func (h *OrgHandler) List(c *gin.Context) {

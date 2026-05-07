@@ -1,15 +1,15 @@
 package org
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func UserIdentityFromModel(user model.User) UserIdentity {
+func UserIdentityFromModel(user persistencemodel.User) UserIdentity {
 	return UserIdentity{
 		ID:       user.ID,
 		Username: user.Username,
 	}
 }
 
-func UserFromModel(user model.User) User {
+func UserFromModel(user persistencemodel.User) User {
 	domainUser := User{
 		ID:              user.ID,
 		Username:        user.Username,
@@ -31,13 +31,13 @@ func UserFromModel(user model.User) User {
 	return domainUser
 }
 
-func (user User) ToModel() model.User {
-	var target model.User
+func (user User) ToModel() persistencemodel.User {
+	var target persistencemodel.User
 	user.ApplyToModel(&target)
 	return target
 }
 
-func (user User) ApplyToModel(target *model.User) {
+func (user User) ApplyToModel(target *persistencemodel.User) {
 	target.Model.ID = user.ID
 	target.Username = user.Username
 	target.SystemRole = user.SystemRole
@@ -56,7 +56,7 @@ func (user User) ApplyToModel(target *model.User) {
 	}
 }
 
-func OrganizationFromModel(org model.Organization) Organization {
+func OrganizationFromModel(org persistencemodel.Organization) Organization {
 	domainOrg := Organization{
 		ID:         org.ID,
 		Name:       org.Name,
@@ -76,13 +76,13 @@ func OrganizationFromModel(org model.Organization) Organization {
 	return domainOrg
 }
 
-func (org Organization) ToModel() model.Organization {
-	var target model.Organization
+func (org Organization) ToModel() persistencemodel.Organization {
+	var target persistencemodel.Organization
 	org.ApplyToModel(&target)
 	return target
 }
 
-func (org Organization) ApplyToModel(target *model.Organization) {
+func (org Organization) ApplyToModel(target *persistencemodel.Organization) {
 	target.Model.ID = org.ID
 	target.Name = org.Name
 	target.Slug = org.Slug
@@ -99,7 +99,7 @@ func (org Organization) ApplyToModel(target *model.Organization) {
 	}
 }
 
-func OrganizationMemberFromModel(member model.OrganizationMember) OrganizationMember {
+func OrganizationMemberFromModel(member persistencemodel.OrganizationMember) OrganizationMember {
 	domainMember := OrganizationMember{
 		ID:        member.ID,
 		OrgID:     member.OrgID,
@@ -119,13 +119,13 @@ func OrganizationMemberFromModel(member model.OrganizationMember) OrganizationMe
 	return domainMember
 }
 
-func (member OrganizationMember) ToModel() model.OrganizationMember {
-	var target model.OrganizationMember
+func (member OrganizationMember) ToModel() persistencemodel.OrganizationMember {
+	var target persistencemodel.OrganizationMember
 	member.ApplyToModel(&target)
 	return target
 }
 
-func (member OrganizationMember) ApplyToModel(target *model.OrganizationMember) {
+func (member OrganizationMember) ApplyToModel(target *persistencemodel.OrganizationMember) {
 	target.Model.ID = member.ID
 	target.OrgID = member.OrgID
 	target.UserID = member.UserID
@@ -152,7 +152,7 @@ func (member OrganizationMember) ApplyToModel(target *model.OrganizationMember) 
 	}
 }
 
-func InvitationFromModel(inv model.OrgInvitation) Invitation {
+func InvitationFromModel(inv persistencemodel.OrgInvitation) Invitation {
 	domainInvitation := Invitation{
 		ID:        inv.ID,
 		OrgID:     inv.OrgID,
@@ -173,13 +173,13 @@ func InvitationFromModel(inv model.OrgInvitation) Invitation {
 	return domainInvitation
 }
 
-func (inv Invitation) ToModel() model.OrgInvitation {
-	var target model.OrgInvitation
+func (inv Invitation) ToModel() persistencemodel.OrgInvitation {
+	var target persistencemodel.OrgInvitation
 	inv.ApplyToModel(&target)
 	return target
 }
 
-func (inv Invitation) ApplyToModel(target *model.OrgInvitation) {
+func (inv Invitation) ApplyToModel(target *persistencemodel.OrgInvitation) {
 	target.Model.ID = inv.ID
 	target.OrgID = inv.OrgID
 	target.Token = inv.Token
@@ -197,7 +197,7 @@ func (inv Invitation) ApplyToModel(target *model.OrgInvitation) {
 	}
 }
 
-func UserGroupFromModel(group model.UserGroup) UserGroup {
+func UserGroupFromModel(group persistencemodel.UserGroup) UserGroup {
 	domainGroup := UserGroup{
 		ID:        group.ID,
 		OrgID:     group.OrgID,
@@ -215,13 +215,13 @@ func UserGroupFromModel(group model.UserGroup) UserGroup {
 	return domainGroup
 }
 
-func (group UserGroup) ToModel() model.UserGroup {
-	var target model.UserGroup
+func (group UserGroup) ToModel() persistencemodel.UserGroup {
+	var target persistencemodel.UserGroup
 	group.ApplyToModel(&target)
 	return target
 }
 
-func (group UserGroup) ApplyToModel(target *model.UserGroup) {
+func (group UserGroup) ApplyToModel(target *persistencemodel.UserGroup) {
 	target.Model.ID = group.ID
 	target.OrgID = group.OrgID
 	target.Name = group.Name
@@ -232,14 +232,14 @@ func (group UserGroup) ApplyToModel(target *model.UserGroup) {
 		target.DeletedAt.Valid = true
 	}
 	if len(group.Members) > 0 {
-		target.Members = make([]model.UserGroupMember, 0, len(group.Members))
+		target.Members = make([]persistencemodel.UserGroupMember, 0, len(group.Members))
 		for _, member := range group.Members {
 			target.Members = append(target.Members, member.ToModel())
 		}
 	}
 }
 
-func UserGroupMemberFromModel(member model.UserGroupMember) UserGroupMember {
+func UserGroupMemberFromModel(member persistencemodel.UserGroupMember) UserGroupMember {
 	domainMember := UserGroupMember{
 		ID:        member.ID,
 		GroupID:   member.GroupID,
@@ -258,13 +258,13 @@ func UserGroupMemberFromModel(member model.UserGroupMember) UserGroupMember {
 	return domainMember
 }
 
-func (member UserGroupMember) ToModel() model.UserGroupMember {
-	var target model.UserGroupMember
+func (member UserGroupMember) ToModel() persistencemodel.UserGroupMember {
+	var target persistencemodel.UserGroupMember
 	member.ApplyToModel(&target)
 	return target
 }
 
-func (member UserGroupMember) ApplyToModel(target *model.UserGroupMember) {
+func (member UserGroupMember) ApplyToModel(target *persistencemodel.UserGroupMember) {
 	target.Model.ID = member.ID
 	target.GroupID = member.GroupID
 	target.UserID = member.UserID
@@ -290,7 +290,7 @@ func (member UserGroupMember) ApplyToModel(target *model.UserGroupMember) {
 	}
 }
 
-func OrganizationsFromModels(orgs []model.Organization) []Organization {
+func OrganizationsFromModels(orgs []persistencemodel.Organization) []Organization {
 	out := make([]Organization, 0, len(orgs))
 	for _, org := range orgs {
 		out = append(out, OrganizationFromModel(org))
@@ -298,7 +298,7 @@ func OrganizationsFromModels(orgs []model.Organization) []Organization {
 	return out
 }
 
-func OrganizationMembersFromModels(members []model.OrganizationMember) []OrganizationMember {
+func OrganizationMembersFromModels(members []persistencemodel.OrganizationMember) []OrganizationMember {
 	out := make([]OrganizationMember, 0, len(members))
 	for _, member := range members {
 		out = append(out, OrganizationMemberFromModel(member))
@@ -306,7 +306,7 @@ func OrganizationMembersFromModels(members []model.OrganizationMember) []Organiz
 	return out
 }
 
-func InvitationsFromModels(invitations []model.OrgInvitation) []Invitation {
+func InvitationsFromModels(invitations []persistencemodel.OrgInvitation) []Invitation {
 	out := make([]Invitation, 0, len(invitations))
 	for _, invitation := range invitations {
 		out = append(out, InvitationFromModel(invitation))
@@ -314,7 +314,7 @@ func InvitationsFromModels(invitations []model.OrgInvitation) []Invitation {
 	return out
 }
 
-func UserGroupsFromModels(groups []model.UserGroup) []UserGroup {
+func UserGroupsFromModels(groups []persistencemodel.UserGroup) []UserGroup {
 	out := make([]UserGroup, 0, len(groups))
 	for _, group := range groups {
 		out = append(out, UserGroupFromModel(group))
@@ -322,7 +322,7 @@ func UserGroupsFromModels(groups []model.UserGroup) []UserGroup {
 	return out
 }
 
-func UserGroupMembersFromModels(members []model.UserGroupMember) []UserGroupMember {
+func UserGroupMembersFromModels(members []persistencemodel.UserGroupMember) []UserGroupMember {
 	out := make([]UserGroupMember, 0, len(members))
 	for _, member := range members {
 		out = append(out, UserGroupMemberFromModel(member))

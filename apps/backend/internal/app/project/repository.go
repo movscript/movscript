@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainproject "github.com/movscript/movscript/internal/domain/project"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -30,7 +30,7 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) List(ctx context.Context, orgID *uint) ([]domainproject.Project, error) {
-	projects := make([]model.Project, 0)
+	projects := make([]persistencemodel.Project, 0)
 	query := r.db.WithContext(ctx).Preload("Owner")
 	if orgID != nil {
 		query = query.Where("org_id = ?", *orgID)
@@ -42,7 +42,7 @@ func (r *gormRepository) List(ctx context.Context, orgID *uint) ([]domainproject
 }
 
 func (r *gormRepository) AdminList(ctx context.Context) ([]domainproject.Project, error) {
-	projects := make([]model.Project, 0)
+	projects := make([]persistencemodel.Project, 0)
 	if err := r.db.WithContext(ctx).Preload("Owner").Preload("Members.User").Order("id desc").Find(&projects).Error; err != nil {
 		return nil, err
 	}
@@ -50,13 +50,13 @@ func (r *gormRepository) AdminList(ctx context.Context) ([]domainproject.Project
 }
 
 func (r *gormRepository) ForceSetOwner(ctx context.Context, projectID uint, ownerID uint) (domainproject.Project, error) {
-	var updated model.Project
+	var updated persistencemodel.Project
 	if projectID == 0 || ownerID == 0 {
 		return domainproject.Project{}, ErrProjectNotFound
 	}
 
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var owner model.User
+		var owner persistencemodel.User
 		if err := tx.First(&owner, ownerID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrOwnerNotFound
@@ -64,7 +64,7 @@ func (r *gormRepository) ForceSetOwner(ctx context.Context, projectID uint, owne
 			return err
 		}
 
-		var project model.Project
+		var project persistencemodel.Project
 		if err := tx.First(&project, projectID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrProjectNotFound
@@ -72,16 +72,16 @@ func (r *gormRepository) ForceSetOwner(ctx context.Context, projectID uint, owne
 			return err
 		}
 
-		if err := tx.Model(&model.Project{}).Where("id = ?", project.ID).Update("owner_id", ownerID).Error; err != nil {
+		if err := tx.Model(&persistencemodel.Project{}).Where("id = ?", project.ID).Update("owner_id", ownerID).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&model.ProjectMember{}).
+		if err := tx.Model(&persistencemodel.ProjectMember{}).
 			Where("project_id = ? AND user_id <> ? AND role = ?", project.ID, ownerID, domainproject.RoleOwner).
 			Update("role", domainproject.RoleDirector).Error; err != nil {
 			return err
 		}
 
-		result := tx.Model(&model.ProjectMember{}).
+		result := tx.Model(&persistencemodel.ProjectMember{}).
 			Where("project_id = ? AND user_id = ?", project.ID, ownerID).
 			Update("role", domainproject.RoleOwner)
 		if result.Error != nil {
@@ -121,7 +121,7 @@ func (r *gormRepository) Create(ctx context.Context, input CreateInput, ownerID 
 }
 
 func (r *gormRepository) Get(ctx context.Context, id uint, orgID *uint) (domainproject.Project, error) {
-	var project model.Project
+	var project persistencemodel.Project
 	query := r.db.WithContext(ctx).Preload("Owner").Preload("Members.User").Where("id = ?", id)
 	if orgID != nil {
 		query = query.Where("org_id = ?", *orgID)
@@ -136,7 +136,7 @@ func (r *gormRepository) Get(ctx context.Context, id uint, orgID *uint) (domainp
 }
 
 func (r *gormRepository) BelongsToOrg(ctx context.Context, projectID uint, orgID uint) (bool, error) {
-	var project model.Project
+	var project persistencemodel.Project
 	if err := r.db.WithContext(ctx).Select("id, org_id").Where("id = ?", projectID).First(&project).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, ErrProjectNotFound
@@ -151,7 +151,7 @@ func (r *gormRepository) ResolveRole(ctx context.Context, projectID uint, userID
 		return domainproject.Role{}, ErrProjectNotFound
 	}
 	if resolved, ok := domainproject.ResolveSystemRole(projectID, userID, systemRole); ok {
-		var project model.Project
+		var project persistencemodel.Project
 		if err := r.db.WithContext(ctx).Select("id").First(&project, projectID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return domainproject.Role{}, ErrProjectNotFound
@@ -161,7 +161,7 @@ func (r *gormRepository) ResolveRole(ctx context.Context, projectID uint, userID
 		return resolved, nil
 	}
 
-	var project model.Project
+	var project persistencemodel.Project
 	if err := r.db.WithContext(ctx).Select("id, owner_id").First(&project, projectID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainproject.Role{}, ErrProjectNotFound
@@ -172,7 +172,7 @@ func (r *gormRepository) ResolveRole(ctx context.Context, projectID uint, userID
 		return resolved, nil
 	}
 
-	var member model.ProjectMember
+	var member persistencemodel.ProjectMember
 	if err := r.db.WithContext(ctx).Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainproject.Role{}, ErrProjectMemberNotFound
@@ -183,7 +183,7 @@ func (r *gormRepository) ResolveRole(ctx context.Context, projectID uint, userID
 }
 
 func (r *gormRepository) Update(ctx context.Context, id uint, input UpdateInput, orgID *uint) (domainproject.Project, error) {
-	var project model.Project
+	var project persistencemodel.Project
 	query := r.db.WithContext(ctx).Where("id = ?", id)
 	if orgID != nil {
 		query = query.Where("org_id = ?", *orgID)
@@ -208,7 +208,7 @@ func (r *gormRepository) Delete(ctx context.Context, id uint, orgID *uint) error
 	if orgID != nil {
 		query = query.Where("org_id = ?", *orgID)
 	}
-	return query.Delete(&model.Project{}).Error
+	return query.Delete(&persistencemodel.Project{}).Error
 }
 
 func (r *gormRepository) AddMember(ctx context.Context, projectID uint, input MemberInput, orgID *uint) (domainproject.Member, error) {
@@ -231,11 +231,11 @@ func (r *gormRepository) RemoveMember(ctx context.Context, projectID uint, membe
 	}
 	return r.db.WithContext(ctx).
 		Where("project_id = ? AND id = ?", projectID, memberID).
-		Delete(&model.ProjectMember{}).Error
+		Delete(&persistencemodel.ProjectMember{}).Error
 }
 
 func (r *gormRepository) ListMembers(ctx context.Context, projectID uint, orgID *uint) ([]domainproject.Member, error) {
-	members := make([]model.ProjectMember, 0)
+	members := make([]persistencemodel.ProjectMember, 0)
 	if _, err := r.Get(ctx, projectID, orgID); err != nil {
 		return nil, err
 	}
@@ -251,19 +251,19 @@ func (r *gormRepository) Progress(ctx context.Context, projectID uint, orgID *ui
 		return progress, err
 	}
 	db := r.db.WithContext(ctx)
-	if err := db.Model(&model.ScriptVersion{}).Where("project_id = ?", projectID).Count(&progress.Scripts).Error; err != nil {
+	if err := db.Model(&persistencemodel.ScriptVersion{}).Where("project_id = ?", projectID).Count(&progress.Scripts).Error; err != nil {
 		return progress, err
 	}
-	if err := db.Model(&model.Segment{}).Where("project_id = ?", projectID).Count(&progress.Segments).Error; err != nil {
+	if err := db.Model(&persistencemodel.Segment{}).Where("project_id = ?", projectID).Count(&progress.Segments).Error; err != nil {
 		return progress, err
 	}
-	if err := db.Model(&model.ProjectMember{}).Where("project_id = ?", projectID).Count(&progress.Members).Error; err != nil {
+	if err := db.Model(&persistencemodel.ProjectMember{}).Where("project_id = ?", projectID).Count(&progress.Members).Error; err != nil {
 		return progress, err
 	}
-	if err := db.Model(&model.AssetSlot{}).Where("project_id = ?", projectID).Count(&progress.AssetSlots).Error; err != nil {
+	if err := db.Model(&persistencemodel.AssetSlot{}).Where("project_id = ?", projectID).Count(&progress.AssetSlots).Error; err != nil {
 		return progress, err
 	}
-	if err := db.Model(&model.StoryboardLine{}).Where("project_id = ?", projectID).Count(&progress.StoryboardLines).Error; err != nil {
+	if err := db.Model(&persistencemodel.StoryboardLine{}).Where("project_id = ?", projectID).Count(&progress.StoryboardLines).Error; err != nil {
 		return progress, err
 	}
 
@@ -272,7 +272,7 @@ func (r *gormRepository) Progress(ctx context.Context, projectID uint, orgID *ui
 		Count  int64
 	}
 	var contentUnitBreakdown []statusCount
-	if err := db.Model(&model.ContentUnit{}).
+	if err := db.Model(&persistencemodel.ContentUnit{}).
 		Select("status, count(*) as count").
 		Where("project_id = ?", projectID).
 		Group("status").
@@ -286,14 +286,14 @@ func (r *gormRepository) Progress(ctx context.Context, projectID uint, orgID *ui
 	}
 
 	var acceptedKeyframeCount int64
-	if err := db.Model(&model.Keyframe{}).Where("project_id = ? AND status IN ?", projectID, []string{"attached", "accepted"}).Count(&acceptedKeyframeCount).Error; err != nil {
+	if err := db.Model(&persistencemodel.Keyframe{}).Where("project_id = ? AND status IN ?", projectID, []string{"attached", "accepted"}).Count(&acceptedKeyframeCount).Error; err != nil {
 		return progress, err
 	}
 	progress.Keyframes = map[string]int64{"accepted": acceptedKeyframeCount}
 	return progress, nil
 }
 
-func projectSliceFromModels(items []model.Project) []domainproject.Project {
+func projectSliceFromModels(items []persistencemodel.Project) []domainproject.Project {
 	projects := make([]domainproject.Project, 0, len(items))
 	for _, item := range items {
 		projects = append(projects, domainproject.ProjectFromModel(item))
@@ -301,7 +301,7 @@ func projectSliceFromModels(items []model.Project) []domainproject.Project {
 	return projects
 }
 
-func memberSliceFromModels(items []model.ProjectMember) []domainproject.Member {
+func memberSliceFromModels(items []persistencemodel.ProjectMember) []domainproject.Member {
 	members := make([]domainproject.Member, 0, len(items))
 	for _, item := range items {
 		members = append(members, domainproject.MemberFromModel(item))

@@ -3,12 +3,11 @@ package jobrunner
 import (
 	"context"
 	"fmt"
-
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job *model.Job, params generationParams, imageData []ai.MediaData, videoData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, params generationParams, imageData []ai.MediaData, videoData []ai.MediaData, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	dur := job.Duration
 	if dur == 0 {
 		dur = params.Int("duration")
@@ -31,7 +30,7 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 	return w.callVideoProvider(ctx, debugCtx, job, req, sm, debugResult)
 }
 
-func (w *Worker) buildVideoRequest(job *model.Job, params generationParams, dur int, imageData []ai.MediaData, videoData []ai.MediaData) ai.VideoRequest {
+func (w *Worker) buildVideoRequest(job *persistencemodel.Job, params generationParams, dur int, imageData []ai.MediaData, videoData []ai.MediaData) ai.VideoRequest {
 	req := ai.VideoRequest{
 		Prompt:                job.Prompt,
 		Duration:              dur,
@@ -59,13 +58,13 @@ func (w *Worker) buildVideoRequest(job *model.Job, params generationParams, dur 
 	return req
 }
 
-func (w *Worker) pollVideoProviderTask(ctx context.Context, debugCtx context.Context, job *model.Job, duration int, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+func (w *Worker) pollVideoProviderTask(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, duration int, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	sm.enter(StatePollingProviderTask, fmt.Sprintf("poll provider task %s", job.ProviderTaskID))
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
 		return err
 	}
 	resp, err := callProviderWithTimeout(debugCtx, providerPollTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-		return w.aiService.CallVideoPollWithBilling(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind, duration, w.billingContext(job))
+		return w.aiService.CallVideoPollWithUsage(ctx, job.UserID, job.ModelConfigID, job.ProviderTaskID, job.ProviderTaskKind, duration, w.usageContext(job))
 	})
 	w.saveDebugInfo(job, debugResult)
 	w.appendProviderTaskEvent(job, "poll", resp, err)
@@ -103,10 +102,10 @@ func (w *Worker) pollVideoProviderTask(ctx context.Context, debugCtx context.Con
 	}
 }
 
-func (w *Worker) submitVideoProviderTask(ctx context.Context, debugCtx context.Context, job *model.Job, req ai.VideoRequest, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+func (w *Worker) submitVideoProviderTask(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, req ai.VideoRequest, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	sm.enter(StateSubmittingProviderTask, "submit async video provider task")
 	resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-		return w.aiService.CallVideoStartWithBilling(ctx, job.UserID, job.ModelConfigID, req, w.billingContext(job))
+		return w.aiService.CallVideoStartWithUsage(ctx, job.UserID, job.ModelConfigID, req, w.usageContext(job))
 	})
 	w.saveDebugInfo(job, debugResult)
 	w.appendProviderTaskEvent(job, "submit", resp, err)
@@ -137,13 +136,13 @@ func (w *Worker) submitVideoProviderTask(ctx context.Context, debugCtx context.C
 	return nil
 }
 
-func (w *Worker) callVideoProvider(ctx context.Context, debugCtx context.Context, job *model.Job, req ai.VideoRequest, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+func (w *Worker) callVideoProvider(ctx context.Context, debugCtx context.Context, job *persistencemodel.Job, req ai.VideoRequest, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	sm.enter(StateCallingProvider, "call video provider")
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
 		return err
 	}
 	resp, err := callProviderWithTimeout(debugCtx, providerCallTimeout, func(ctx context.Context) (ai.VideoResponse, error) {
-		return w.aiService.CallVideoWithBilling(ctx, job.UserID, job.ModelConfigID, req, w.billingContext(job))
+		return w.aiService.CallVideoWithUsage(ctx, job.UserID, job.ModelConfigID, req, w.usageContext(job))
 	})
 	if err != nil {
 		w.saveDebugInfo(job, debugResult)

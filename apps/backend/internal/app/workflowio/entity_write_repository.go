@@ -8,10 +8,10 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -103,7 +103,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 	if len(value.ResourceIDs) == 0 {
 		return nil, nil
 	}
-	var slot model.AssetSlot
+	var slot persistencemodel.AssetSlot
 	if err := r.db.WithContext(ctx).First(&slot, slotID).Error; err != nil {
 		return nil, fmt.Errorf("asset_slot not found")
 	}
@@ -112,7 +112,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 		if resourceID == 0 {
 			continue
 		}
-		var existingCandidate model.AssetSlotCandidate
+		var existingCandidate persistencemodel.AssetSlotCandidate
 		err := r.db.WithContext(ctx).
 			Joins("JOIN asset_slots candidate_slots ON candidate_slots.id = asset_slot_candidates.candidate_asset_slot_id").
 			Where("asset_slot_candidates.asset_slot_id = ? AND candidate_slots.resource_id = ?", slotID, resourceID).
@@ -187,7 +187,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 	return bindingIDs, nil
 }
 
-func candidateSlotName(slot model.AssetSlot, resourceID uint) string {
+func candidateSlotName(slot persistencemodel.AssetSlot, resourceID uint) string {
 	base := strings.TrimSpace(slot.Name)
 	if base == "" {
 		base = fmt.Sprintf("素材位 #%d", slot.ID)
@@ -199,23 +199,23 @@ func (r *gormRepository) syncEntityRelationsForKind(ctx context.Context, kind st
 	db := r.db.WithContext(ctx)
 	switch kind {
 	case domainworkflow.EntityKindSegment:
-		item := model.Segment{}
+		item := persistencemodel.Segment{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
 	case domainworkflow.EntityKindSceneMoment:
-		item := model.SceneMoment{}
+		item := persistencemodel.SceneMoment{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
 	case domainworkflow.EntityKindCreativeReference:
-		item := model.CreativeReference{}
+		item := persistencemodel.CreativeReference{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
 	case domainworkflow.EntityKindAssetSlot:
-		item := model.AssetSlot{}
+		item := persistencemodel.AssetSlot{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
 	case domainworkflow.EntityKindContentUnit:
-		item := model.ContentUnit{}
+		item := persistencemodel.ContentUnit{}
 		item.ID = id
 		return entityrelation.SyncCoreEntityRelations(db, &item)
 	default:
@@ -236,7 +236,11 @@ func (r *gormRepository) createEntityWriteAudits(
 	if len(audits) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Create(&audits).Error
+	modelAudits := make([]persistencemodel.CanvasEntityWriteAudit, 0, len(audits))
+	for _, audit := range audits {
+		modelAudits = append(modelAudits, audit.ToModel())
+	}
+	return r.db.WithContext(ctx).Create(&modelAudits).Error
 }
 
 func buildEntityWriteAudits(
@@ -246,8 +250,8 @@ func buildEntityWriteAudits(
 	oldValues map[string]EntityPortValue,
 	bindingIDsByPort map[string][]uint,
 	meta EntityWriteMeta,
-) []model.CanvasEntityWriteAudit {
-	audits := make([]model.CanvasEntityWriteAudit, 0, len(values))
+) []canvasruntime.EntityWriteAudit {
+	audits := make([]canvasruntime.EntityWriteAudit, 0, len(values))
 	for portID, value := range values {
 		newValueJSON := mustMarshalString(entityPortValueAuditPayload(value))
 		oldValueJSON := ""
@@ -265,7 +269,7 @@ func buildEntityWriteAudits(
 			OldValueJSON:       oldValueJSON,
 			NewValueJSON:       newValueJSON,
 			ResourceBindingIDs: mustMarshalString(bindingIDsByPort[portID]),
-		}).ToModel())
+		}))
 	}
 	return audits
 }

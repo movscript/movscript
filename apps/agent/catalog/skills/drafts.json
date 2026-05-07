@@ -1,17 +1,18 @@
 {
   "skills": [
     {
-      "id": "movscript.workflow.safe-drafts",
-      "name": "Safe Draft Workflow",
+      "id": "movscript.drafts.safe-drafts",
+      "name": "Safe Drafts",
       "description": "Create local review artifacts for proposed changes and avoid direct formal data writes.",
       "version": "0.1.0",
-      "category": "workflow",
+      "category": "drafts",
       "enabled": true,
       "priority": 900,
-      "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer movscript_create_draft. A draft is a local runtime/client review artifact and does not modify formal project items. Use drafts for script ideas, creative-material notes, scene-beat suggestions, shot-plan notes, asset-need notes, keyframe notes, review notes, planning notes, and production proposal review objects. If the user explicitly wants a generated script saved as a formal project script, call movscript_create_script only after the content is clear enough to save; the runtime will require user approval before the backend write. Do not claim a draft or formal script has been applied to the project unless the relevant tool result proves it.",
+      "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer a local draft tool. Use dedicated structured draft tools when available, for example movscript_submit_script_split_draft for script splitting; otherwise use movscript_create_draft. A draft is a local runtime/client review artifact and does not modify formal project items. Use drafts for script ideas, creative-material notes, scene-beat suggestions, shot-plan notes, asset-need notes, keyframe notes, review notes, planning notes, and production proposal review objects. If the user explicitly wants a generated script saved as a formal project script, call movscript_create_script only after the content is clear enough to save; the runtime will require user approval before the backend write. Do not claim a draft or formal script has been applied to the project unless the relevant tool result proves it.",
       "outputContract": "For any draft creation, include the draft title, kind, and the next action the user can take. State clearly whether the artifact is only a local review object or an approved backend write target. Keep draft content actionable and scoped.",
       "toolHints": [
         "movscript_create_draft",
+        "movscript_submit_script_split_draft",
         "movscript_list_drafts",
         "movscript_create_script"
       ],
@@ -28,14 +29,13 @@
       "enabled": true,
       "priority": 850,
       "appliesWhen": "剧本,写剧本,新剧本,screenplay,script writing,故事大纲,短剧",
-      "instruction": "For script-writing requests, help the user shape premise, characters, conflict, structure, episode or scene beats, and tone. If the premise or required format is ambiguous, ask focused follow-up questions with movscript_request_user_input before committing to a formal save. Use movscript_create_draft for exploratory versions. When the user asks to save or create a new project script, call movscript_create_script with title, content, and useful metadata such as summary, hook, plot_summary, characters, core_settings, script_type, source_type, and order where known. Keep formal script content production-ready and avoid placeholder text unless the user asked for an outline only.",
+      "instruction": "For script-writing requests, help the user shape premise, characters, conflict, structure, production or scene beats, and tone. If the premise or required format is ambiguous, ask focused follow-up questions with movscript_request_user_input before committing to a formal save. Use movscript_create_draft for exploratory versions. When the user asks to save or create a new project script, call movscript_create_script with title, content, and useful metadata such as summary, hook, plot_summary, characters, core_settings, script_type, source_type, and order where known. Keep formal script content production-ready and avoid placeholder text unless the user asked for an outline only.",
       "outputContract": "When saving a script, state the title and whether the backend write is pending approval or completed. When only drafting, make clear it is a local draft.",
       "toolHints": [
         "movscript_request_user_input",
         "movscript_create_draft",
         "movscript_create_script",
-        "movscript_read_project_structure",
-        "movscript_search_entities"
+        "movscript_read_project_structure"
       ],
       "metadata": {
         "source": "builtin"
@@ -50,13 +50,11 @@
       "enabled": true,
       "priority": 820,
       "appliesWhen": "进度,progress,总结当前项目,project status,缺口,missing,还差什么",
-      "instruction": "When asked for project progress, inspect available project context and read the compact project structure before searching or reading individual scripts, creative references, business items, asset slots, resources, or pipeline nodes. Summarize what exists, what appears incomplete, and the next 3-5 concrete actions. If the available context is partial, say so and suggest exactly which items should be opened or searched next.",
-      "outputContract": "Use three sections: 已确认, 缺口, 下一步. Keep claims tied to read/search results.",
+      "instruction": "When asked for project progress, inspect available project context and read the compact project structure. Summarize what exists, what appears incomplete, and the next 3-5 concrete actions. If the available context is partial, say so and suggest exactly which focused page or domain context should be opened next.",
+      "outputContract": "Use three sections: 已确认, 缺口, 下一步. Keep claims tied to read results.",
       "toolHints": [
         "movscript_get_context_pack",
         "movscript_read_project_structure",
-        "movscript_search_entities",
-        "movscript_read_entity",
         "movscript_create_draft"
       ],
       "metadata": {
@@ -72,12 +70,10 @@
       "enabled": true,
       "priority": 810,
       "appliesWhen": "分镜,storyboard line,镜头,内容单元,content unit,场景缺口,visual gap,审查分镜,检查场景",
-      "instruction": "For visual planning review, read project structure first when the user asks for gaps across a scene moment, segment, content unit, or current project. Then read the referenced business item when an ID is provided; otherwise search by user keywords. Check whether location, time, characters, visual beats, storyboard-line coverage, content-unit prompts, asset slots, approval status, and downstream generation readiness are clear. Prefer creating a review draft instead of changing project items.",
+      "instruction": "For visual planning review, read project structure first when the user asks for gaps across a scene moment, segment, content unit, or current project. Check whether location, time, characters, visual beats, storyboard-line coverage, content-unit prompts, asset slots, approval status, and downstream generation readiness are clear. Prefer creating a review draft instead of changing project items.",
       "outputContract": "Return issues ordered by severity, then concrete draftable fixes. If creating a draft, make it a note, storyboard-line, content-unit, or asset-slot draft as appropriate.",
       "toolHints": [
         "movscript_read_project_structure",
-        "movscript_search_entities",
-        "movscript_read_entity",
         "movscript_create_draft"
       ],
       "metadata": {
@@ -96,8 +92,6 @@
       "instruction": "For content-unit or prompt creation requests, gather any referenced script, segment, scene moment, storyboard line, content unit, and asset-slot context first. Draft content units with purpose, framing, camera movement where useful, subject/action, visual continuity, duration or priority, and generation prompt notes. Keep generated content as movscript_create_draft unless the user explicitly asks only for inline text.",
       "outputContract": "A content-unit draft should be usable by a production user: numbered units, concise visual intent, required asset slots, and prompt-ready details. Avoid vague cinematic adjectives without production detail.",
       "toolHints": [
-        "movscript_search_entities",
-        "movscript_read_entity",
         "movscript_create_draft"
       ],
       "metadata": {
@@ -115,7 +109,6 @@
       "instruction": "Read-only tools can be used to answer context questions. Draft tools can be used for proposed work. Navigation tools may be used only when it helps the user inspect a relevant item. Formal writes, generation jobs, cost-bearing actions, destructive actions, and external network work require explicit approval and must not be implied as completed before the runtime reports success. If approval is required, explain the exact action, target, and risk.",
       "outputContract": "Never say formal project data was changed unless a write tool reports success. For blocked actions, state the needed approval or missing context.",
       "toolHints": [
-        "movscript_open_entity",
         "movscript_apply_draft",
         "movscript_create_generation_job"
       ],

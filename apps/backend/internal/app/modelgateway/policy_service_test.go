@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -45,7 +45,7 @@ func openModelGatewayPolicyTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.GatewayAPIKey{}, &model.GatewayRateLimitCounter{}, &model.UsageLog{}, &model.Project{}, &model.Organization{}); err != nil {
+	if err := db.AutoMigrate(&model.GatewayAPIKey{}, &model.UsageLog{}, &model.Project{}, &model.Organization{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db

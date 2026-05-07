@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -35,17 +35,17 @@ func (r *gormRepository) List(ctx context.Context, input ListInput) ([]domainres
 	if input.Page > 0 || input.PageSize > 0 {
 		page := domainresource.NormalizePage(domainresource.PageInput{Page: input.Page, PageSize: input.PageSize})
 		var total int64
-		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Count(&total).Error; err != nil {
+		if err := q.Session(&gorm.Session{}).Model(&persistencemodel.RawResource{}).Count(&total).Error; err != nil {
 			return nil, nil, err
 		}
-		resources := make([]model.RawResource, 0)
-		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Order("created_at desc").Limit(page.PageSize).Offset(page.Offset).Find(&resources).Error; err != nil {
+		resources := make([]persistencemodel.RawResource, 0)
+		if err := q.Session(&gorm.Session{}).Model(&persistencemodel.RawResource{}).Order("created_at desc").Limit(page.PageSize).Offset(page.Offset).Find(&resources).Error; err != nil {
 			return nil, nil, err
 		}
 		items := rawResourceSliceFromModels(resources)
 		return items, &Page{Total: total, Items: items, Page: page.Page, PageSize: page.PageSize}, nil
 	}
-	resources := make([]model.RawResource, 0)
+	resources := make([]persistencemodel.RawResource, 0)
 	if err := q.Order("created_at desc").Find(&resources).Error; err != nil {
 		return nil, nil, err
 	}
@@ -99,7 +99,7 @@ func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, o
 	}
 	allowed := resource.IsShared
 	if !allowed && resource.FolderID != nil {
-		var folder model.ResourceFolder
+		var folder persistencemodel.ResourceFolder
 		if r.db.WithContext(ctx).First(&folder, *resource.FolderID).Error == nil {
 			allowed = folder.IsShared
 		}
@@ -122,7 +122,7 @@ func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, org
 }
 
 func (r *gormRepository) DeleteResourceAndBindings(ctx context.Context, resource domainresource.RawResource) error {
-	var bindings []model.ResourceBinding
+	var bindings []persistencemodel.ResourceBinding
 	if err := r.db.WithContext(ctx).Select("id").Where("resource_id = ?", resource.ID).Find(&bindings).Error; err != nil {
 		return err
 	}
@@ -140,7 +140,7 @@ func (r *gormRepository) UploadFolderID(ctx context.Context, userID uint, orgID 
 	if folderIDValue == "" || folderIDValue == "0" {
 		return nil, nil
 	}
-	var folder model.ResourceFolder
+	var folder persistencemodel.ResourceFolder
 	if err := r.db.WithContext(ctx).First(&folder, folderIDValue).Error; err != nil {
 		return nil, nil
 	}
@@ -151,7 +151,7 @@ func (r *gormRepository) UploadFolderID(ctx context.Context, userID uint, orgID 
 		if !folder.IsShared {
 			return nil, ErrForbidden
 		}
-		var perm model.ResourceFolderPermission
+		var perm persistencemodel.ResourceFolderPermission
 		if r.db.WithContext(ctx).Where("folder_id = ? AND user_id = ? AND permission = ?", folder.ID, userID, "write").
 			First(&perm).Error != nil {
 			return nil, ErrForbidden
@@ -165,7 +165,7 @@ func (r *gormRepository) listQuery(ctx context.Context, input ListInput) (*gorm.
 	if input.Shared {
 		return r.sharedListQuery(ctx, input)
 	}
-	q := r.db.WithContext(ctx).Model(&model.RawResource{}).Where("owner_id = ?", input.UserID)
+	q := r.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).Where("owner_id = ?", input.UserID)
 	q = applyOrgScope(q, input.OrgID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID))
 	switch input.FolderID {
 	case "", "all":
@@ -179,7 +179,7 @@ func (r *gormRepository) listQuery(ctx context.Context, input ListInput) (*gorm.
 
 func (r *gormRepository) sharedListQuery(ctx context.Context, input ListInput) (*gorm.DB, error) {
 	if input.FolderID != "" {
-		var folder model.ResourceFolder
+		var folder persistencemodel.ResourceFolder
 		if err := r.db.WithContext(ctx).First(&folder, input.FolderID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, ErrFolderNotFound
@@ -192,14 +192,14 @@ func (r *gormRepository) sharedListQuery(ctx context.Context, input ListInput) (
 		if folder.OwnerID != input.UserID && !folder.IsShared {
 			return nil, ErrForbidden
 		}
-		return r.db.WithContext(ctx).Model(&model.RawResource{}).Where("folder_id = ?", folder.ID).Preload("Owner"), nil
+		return r.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).Where("folder_id = ?", folder.ID).Preload("Owner"), nil
 	}
-	q := r.db.WithContext(ctx).Model(&model.RawResource{}).Where("owner_id != ? AND is_shared = true", input.UserID).Preload("Owner")
+	q := r.db.WithContext(ctx).Model(&persistencemodel.RawResource{}).Where("owner_id != ? AND is_shared = true", input.UserID).Preload("Owner")
 	return applyOrgScope(q, input.OrgID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID)), nil
 }
 
 func (r *gormRepository) getResource(ctx context.Context, id uint) (domainresource.RawResource, error) {
-	var resource model.RawResource
+	var resource persistencemodel.RawResource
 	if err := r.db.WithContext(ctx).First(&resource, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainresource.RawResource{}, ErrNotFound
@@ -213,7 +213,7 @@ func (r *gormRepository) includeLegacyPersonal(ctx context.Context, orgID *uint)
 	if orgID == nil {
 		return true
 	}
-	var org model.Organization
+	var org persistencemodel.Organization
 	if err := r.db.WithContext(ctx).Select("is_personal").First(&org, *orgID).Error; err != nil {
 		return false
 	}
@@ -247,7 +247,7 @@ func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {
 	return q
 }
 
-func rawResourceSliceFromModels(items []model.RawResource) []domainresource.RawResource {
+func rawResourceSliceFromModels(items []persistencemodel.RawResource) []domainresource.RawResource {
 	resources := make([]domainresource.RawResource, 0, len(items))
 	for _, item := range items {
 		resources = append(resources, domainresource.RawResourceFromModel(item))

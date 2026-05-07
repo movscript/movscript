@@ -32,7 +32,7 @@ export type {
 } from './types.js'
 
 // Memory types
-export type { AgentMemory, AgentMemoryKind, AgentMemoryScope, MemoryQuery, CreateMemoryInput } from './memory/types.js'
+export type { AgentMemory, AgentMemoryKind, MemoryQuery, CreateMemoryInput } from './memory/types.js'
 
 // Manifest types
 export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from './manifest/agentManifest.js'
@@ -81,11 +81,19 @@ export { DEFAULT_TOOL_REGISTRY, StaticToolRegistry, mergeRegisteredTools } from 
 // Plugin catalog
 export {
   loadAgentPluginCatalog,
+  type AgentPluginBundle,
   resolveAgentSkillsDir,
   resolveAgentToolsDir,
   resolveBuiltinAgentSkillsDir,
   resolveBuiltinAgentToolsDir,
 } from './pluginCatalog.js'
+export {
+  FileAgentCatalogStateStore,
+  InMemoryAgentCatalogStateStore,
+  resolveAgentCatalogStatePath,
+  type AgentCatalogState,
+  type AgentCatalogStateStore,
+} from '../manifest/catalogState.js'
 
 // Model config
 export { RuntimeModelConfigStore, resolveRuntimeModelConfigPath, resolveRuntimeChatModelConfig } from './model/modelConfig.js'

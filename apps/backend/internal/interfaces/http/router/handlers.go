@@ -31,7 +31,6 @@ type handlers struct {
 	workflowMarket   *handler.WorkflowMarketHandler
 	audit            *handler.AuditHandler
 	cloudFileConfig  *handler.CloudFileConfigHandler
-	paymentConfig    *handler.PaymentConfigHandler
 	entitlement      *handler.EntitlementHandler
 	org              *handler.OrgHandler
 	ws               *wsiface.Handler
@@ -72,7 +71,6 @@ func newHandlers(deps Dependencies) handlers {
 		workflowMarket:   handler.NewWorkflowMarketHandler(db),
 		audit:            handler.NewAuditHandler(db),
 		cloudFileConfig:  handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey),
-		paymentConfig:    handler.NewPaymentConfigHandler(db, cfg.EncryptionKey),
 		entitlement:      handler.NewEntitlementHandler(deps.Entitlements),
 		org:              handler.NewOrgHandler(db),
 		ws:               wsiface.NewHandler(),

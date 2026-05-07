@@ -256,11 +256,11 @@ func writeGatewayChatError(c *gin.Context, err error, param string) {
 		writeOpenAIError(c, http.StatusBadRequest, err.Error(), "invalid_request_error", "", "unsupported_parameter")
 	case errors.Is(err, modelgatewayapp.ErrModelUnavailable):
 		writeOpenAIError(c, http.StatusBadRequest, err.Error(), "invalid_request_error", "model", "model_not_available")
-	case errors.Is(err, modelgatewayapp.ErrMonthlyBudgetExceeded):
-		writeOpenAIError(c, http.StatusPaymentRequired, err.Error(), "insufficient_quota", "", "monthly_budget_exceeded")
-	case errors.Is(err, modelgatewayapp.ErrRateLimitExceeded):
-		writeOpenAIError(c, http.StatusTooManyRequests, err.Error(), "insufficient_quota", "", "rate_limit_exceeded")
-	case modelgatewayapp.IsInsufficientQuota(err):
+	case errors.Is(err, modelgatewayapp.ErrEditionUsageLimitExceeded):
+		writeOpenAIError(c, http.StatusPaymentRequired, err.Error(), "insufficient_quota", "", "edition_usage_limit_exceeded")
+	case errors.Is(err, modelgatewayapp.ErrEditionRateLimited):
+		writeOpenAIError(c, http.StatusTooManyRequests, err.Error(), "insufficient_quota", "", "edition_rate_limit_exceeded")
+	case modelgatewayapp.IsUsageLimitExceeded(err):
 		writeOpenAIError(c, http.StatusPaymentRequired, err.Error(), "insufficient_quota", param, "insufficient_quota")
 	default:
 		writeOpenAIError(c, http.StatusBadGateway, err.Error(), "server_error", param, "provider_error")

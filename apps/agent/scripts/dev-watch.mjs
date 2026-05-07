@@ -6,15 +6,20 @@ import { join } from 'node:path'
 const WATCH_ROOTS = ['src', 'catalog']
 const WATCH_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.json'])
 const POLL_MS = Number(process.env.MOVSCRIPT_AGENT_DEV_POLL_MS || 700)
+const parentPid = Number(process.env.MOVSCRIPT_AGENT_PARENT_PID || 0)
 
 let child = null
 let snapshot = new Map()
 let scanning = false
 let restarting = false
 let stopped = false
+let timer = null
+let parentTimer = null
 
 function startAgent() {
+  if (stopped) return
   console.info('[agent:dev] starting node --import tsx src/server.ts')
+  const startedAt = Date.now()
   child = spawn(process.execPath, ['--import', 'tsx', 'src/server.ts'], {
     cwd: process.cwd(),
     env: process.env,
@@ -24,20 +29,27 @@ function startAgent() {
     if (stopped) return
     console.info(`[agent:dev] child exited code=${code ?? 'null'} signal=${signal ?? 'null'}; waiting for file changes`)
     child = null
+    if (!restarting && code && Date.now() - startedAt < 3_000) {
+      stopped = true
+      if (timer) clearInterval(timer)
+      process.exit(code)
+    }
   })
 }
 
 async function stopAgent() {
   const current = child
   child = null
-  if (!current || current.killed) return
+  if (!current || current.exitCode !== null || current.signalCode !== null) return
 
   await new Promise((resolve) => {
+    let exited = false
     const timer = setTimeout(() => {
-      if (!current.killed) current.kill('SIGKILL')
+      if (!exited) current.kill('SIGKILL')
       resolve()
     }, 2_000)
     current.once('exit', () => {
+      exited = true
       clearTimeout(timer)
       resolve()
     })
@@ -55,6 +67,13 @@ async function restartAgent() {
   } finally {
     restarting = false
   }
+}
+
+function getSignalExitCode(signal) {
+  if (signal === 'SIGINT') return 130
+  if (signal === 'SIGTERM') return 143
+  if (signal === 'SIGHUP') return 129
+  return 1
 }
 
 async function collectSnapshot() {
@@ -111,22 +130,46 @@ async function tick() {
   }
 }
 
+function parentProcessIsAlive() {
+  if (!parentPid || parentPid === process.pid) return true
+  try {
+    process.kill(parentPid, 0)
+    return true
+  } catch (error) {
+    if (error?.code === 'ESRCH') return false
+    return true
+  }
+}
+
 async function shutdown(signal) {
+  if (stopped) return
   stopped = true
-  clearInterval(timer)
+  if (timer) clearInterval(timer)
+  if (parentTimer) clearInterval(parentTimer)
   await stopAgent()
-  process.kill(process.pid, signal)
+  process.exit(getSignalExitCode(signal))
 }
 
 snapshot = await collectSnapshot()
 startAgent()
-const timer = setInterval(() => {
+timer = setInterval(() => {
   void tick()
 }, POLL_MS)
+
+if (parentPid) {
+  parentTimer = setInterval(() => {
+    if (!parentProcessIsAlive()) {
+      void shutdown('SIGHUP')
+    }
+  }, Math.max(POLL_MS, 1_000))
+}
 
 process.once('SIGINT', () => {
   void shutdown('SIGINT')
 })
 process.once('SIGTERM', () => {
   void shutdown('SIGTERM')
+})
+process.once('SIGHUP', () => {
+  void shutdown('SIGHUP')
 })

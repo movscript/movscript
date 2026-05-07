@@ -2,6 +2,8 @@ import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue, MCPResource, MCPTool } from '../types.js'
 import type { AgentManifest, AgentSkillManifest } from '../manifest/agentManifest.js'
 import type { RegisteredTool, ToolRiskLevel } from '../tools/toolRegistry.js'
+import type { AgentCatalogStateStore } from '../manifest/catalogState.js'
+import type { AgentPluginBundle } from '../manifest/pluginCatalog.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
@@ -270,7 +272,8 @@ export interface AgentDebugContextPanel {
   }>
   memories: Array<{
     id: string
-    scope: string
+    projectId: number
+    title: string
     kind: string
     content: string
   }>
@@ -421,8 +424,13 @@ export interface AgentCapabilitiesResponse {
     toolsDir: string
     builtinSkillsDir?: string
     builtinToolsDir?: string
+    bundlesDir?: string
+    builtinBundlesDir?: string
     skillCount: number
     toolCount: number
+    bundleCount?: number
+    activeBundleIds?: string[]
+    availableBundleIds?: string[]
   }
   mcp: {
     connected: boolean
@@ -444,6 +452,22 @@ export interface AgentRuntimeOptions {
   defaultAgentManifest?: AgentManifest
   skillCatalog?: AgentSkillManifest[]
   toolRegistry?: import('../tools/toolRegistry.js').ToolRegistry
+  catalogStateStore?: AgentCatalogStateStore
+  pluginCatalogLoader?: (options?: { enabledBundleIds?: string[] }) => {
+    manifest: AgentManifest
+    skills: AgentSkillManifest[]
+    registry: import('../tools/toolRegistry.js').ToolRegistry
+    warnings: string[]
+    skillsDir: string
+    toolsDir: string
+    builtinSkillsDir: string
+    builtinToolsDir: string
+    bundlesDir: string
+    builtinBundlesDir: string
+    bundles: AgentPluginBundle[]
+    activeBundleIds: string[]
+    availableBundleIds: string[]
+  }
   contractResolver?: AgentRuntimeContractResolver
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]

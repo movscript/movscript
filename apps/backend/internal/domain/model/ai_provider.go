@@ -25,7 +25,7 @@ type AICredential struct {
 }
 
 // AIModelConfig registers a model for use and stores all metadata needed to call it.
-// Capability/billing data comes from the Custom* fields (admin-declared).
+// Capability and usage-pricing data comes from the Custom* fields (admin-declared).
 // Generation parameters inherit from the credential adapter by default; when
 // CustomSupportedParams is non-empty, it becomes the model-level override.
 type AIModelConfig struct {
@@ -42,7 +42,7 @@ type AIModelConfig struct {
 	// Higher = preferred. Equal priority configs are round-robined.
 	Priority int `gorm:"default:0" json:"priority"`
 
-	// Admin-configured credit prices — semantics depend on BillingMode.
+	// Admin-configured credit prices; semantics depend on PricingMode.
 	CreditsInputPer1M  float64 `gorm:"default:0" json:"credits_input_per_1m"`  // per_token: per 1M input tokens
 	CreditsOutputPer1M float64 `gorm:"default:0" json:"credits_output_per_1m"` // per_token: per 1M output tokens
 	CreditsPerImage    float64 `gorm:"default:0" json:"credits_per_image"`     // per_image
@@ -53,7 +53,7 @@ type AIModelConfig struct {
 	CustomDisplayName     string `gorm:"default:''" json:"custom_display_name"`     // human-readable name shown in UI
 	ShortName             string `gorm:"default:''" json:"short_name"`              // concise name shown in selectors when set
 	CustomCapabilities    string `gorm:"default:''" json:"custom_capabilities"`     // comma-separated: "text", "image", "image_edit", "video", "video_i2v", "video_v2v"
-	CustomBillingMode     string `gorm:"default:''" json:"custom_billing_mode"`     // "per_token"|"per_image"|"per_second"|"per_call"
+	CustomPricingMode     string `gorm:"default:''" json:"custom_pricing_mode"`     // "per_token"|"per_image"|"per_second"|"per_call"
 	CustomAcceptsImage    bool   `gorm:"default:false" json:"custom_accepts_image"` // true for image_edit / i2v models
 	CustomMaxInputImages  int    `gorm:"default:0" json:"custom_max_input_images"`  // 0=unset, 1=single, -1=unlimited
 	CustomMaxInputVideos  int    `gorm:"default:0" json:"custom_max_input_videos"`  // 0=unset, 1=single, -1=unlimited

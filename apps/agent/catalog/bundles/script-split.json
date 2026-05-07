@@ -1,0 +1,16 @@
+{
+  "id": "movscript.bundle.script-split",
+  "name": "Script Split",
+  "description": "Dedicated script splitting tools and instructions for creating structured review drafts.",
+  "category": "script_split",
+  "skills": [
+    "movscript.intent.script-split"
+  ],
+  "tools": [
+    "movscript_submit_script_split_draft",
+    "movscript_get_draft",
+    "movscript_update_draft",
+    "movscript_patch_draft",
+    "movscript_validate_draft"
+  ]
+}

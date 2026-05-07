@@ -6,14 +6,6 @@ import { StaticToolRegistry } from './toolRegistry.js'
 
 const registry = new StaticToolRegistry([
   {
-    name: 'movscript_search_entities',
-    description: 'Search project items by business terms.',
-    permission: 'project.read',
-    risk: 'read',
-    projectScoped: true,
-    requiresApprovalByDefault: false,
-  },
-  {
     name: 'movscript_list_productions',
     description: 'List productions.',
     permission: 'project.read',
@@ -50,7 +42,6 @@ const registry = new StaticToolRegistry([
 
 test('tool policy injects current projectId into project scoped tools', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_search_entities', args: { query: '角色', limit: 10 } },
     { name: 'movscript_list_productions', args: { limit: 10 } },
     { name: 'movscript_create_draft', args: { kind: 'note', title: 't', content: 'c' } },
   ], { currentProjectId: 42, registry })
@@ -58,12 +49,11 @@ test('tool policy injects current projectId into project scoped tools', () => {
   assert.deepEqual(result.warnings, [])
   assert.equal(result.toolCalls[0].args?.projectId, 42)
   assert.equal(result.toolCalls[1].args?.projectId, 42)
-  assert.equal(result.toolCalls[2].args?.projectId, 42)
 })
 
 test('tool policy blocks project scoped tools without a current project', () => {
   const result = applyToolPolicy([
-    { name: 'movscript_search_entities', args: { query: '角色', limit: 10 } },
+    { name: 'movscript_list_productions', args: { limit: 10 } },
   ], { registry })
 
   assert.deepEqual(result.toolCalls, [])
@@ -114,7 +104,7 @@ test('tool policy blocks registered tools that the manifest does not grant', () 
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
       permissions: ['project.read'],
-      tools: [{ name: 'movscript_search_entities', mode: 'allow' }],
+      tools: [{ name: 'movscript_list_productions', mode: 'allow' }],
     },
   })
 

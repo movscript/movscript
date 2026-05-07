@@ -1,18 +1,18 @@
 package resourcebinding
 
 import (
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
-func NormalizeBinding(binding *model.ResourceBinding) {
+func NormalizeBinding(binding *persistencemodel.ResourceBinding) {
 	domainBinding := BindingFromModel(*binding)
 	Normalize(&domainBinding)
 	*binding = domainBinding.ToModel()
 }
 
-func BindingFromModel(binding model.ResourceBinding) Binding {
+func BindingFromModel(binding persistencemodel.ResourceBinding) Binding {
 	return Binding{
 		ID:           binding.ID,
 		ProjectID:    binding.ProjectID,
@@ -35,8 +35,8 @@ func BindingFromModel(binding model.ResourceBinding) Binding {
 	}
 }
 
-func (binding Binding) ToModel() model.ResourceBinding {
-	return model.ResourceBinding{
+func (binding Binding) ToModel() persistencemodel.ResourceBinding {
+	return persistencemodel.ResourceBinding{
 		Model:        gorm.Model{ID: binding.ID, CreatedAt: binding.CreatedAt, UpdatedAt: binding.UpdatedAt},
 		ProjectID:    binding.ProjectID,
 		ResourceID:   binding.ResourceID,
@@ -55,7 +55,7 @@ func (binding Binding) ToModel() model.ResourceBinding {
 	}
 }
 
-func resourceFromModelPointer(resource *model.RawResource) *domainresource.RawResource {
+func resourceFromModelPointer(resource *persistencemodel.RawResource) *domainresource.RawResource {
 	if resource == nil {
 		return nil
 	}

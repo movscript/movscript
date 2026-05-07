@@ -64,19 +64,19 @@ type ModelEditForm = {
   model_id_override: string
   priority: string
   capabilities: string[]
-  billing_mode: string
+  pricing_mode: string
   supported_params: string
 }
 
-const BILLING_LABEL_KEYS: Record<string, string> = {
-  per_token: 'admin.billing.perToken',
-  per_image: 'admin.billing.perImage',
-  per_second: 'admin.billing.perSecond',
-  per_call: 'admin.billing.perCall',
+const PRICING_LABEL_KEYS: Record<string, string> = {
+  per_token: 'admin.pricingMode.perToken',
+  per_image: 'admin.pricingMode.perImage',
+  per_second: 'admin.pricingMode.perSecond',
+  per_call: 'admin.pricingMode.perCall',
 }
 
 type PriceDef = {
-  billing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call' | string
+  pricing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call' | string
   ref_input_usd_per_1m?: number
   ref_output_usd_per_1m?: number
   ref_usd_per_image?: number
@@ -84,15 +84,15 @@ type PriceDef = {
 }
 
 function refPriceHint(def: PriceDef, t: (key: string, values?: Record<string, unknown>) => string): string {
-  switch (def.billing_mode) {
+  switch (def.pricing_mode) {
     case 'per_token':
       return def.ref_input_usd_per_1m || def.ref_output_usd_per_1m
-        ? t('admin.billing.referenceToken', { input: def.ref_input_usd_per_1m ?? 0, output: def.ref_output_usd_per_1m ?? 0 })
+        ? t('admin.pricingMode.referenceToken', { input: def.ref_input_usd_per_1m ?? 0, output: def.ref_output_usd_per_1m ?? 0 })
         : ''
     case 'per_image':
-      return def.ref_usd_per_image ? t('admin.billing.referenceImage', { price: def.ref_usd_per_image }) : ''
+      return def.ref_usd_per_image ? t('admin.pricingMode.referenceImage', { price: def.ref_usd_per_image }) : ''
     case 'per_second':
-      return def.ref_usd_per_second ? t('admin.billing.referenceSecond', { price: def.ref_usd_per_second }) : ''
+      return def.ref_usd_per_second ? t('admin.pricingMode.referenceSecond', { price: def.ref_usd_per_second }) : ''
     default:
       return ''
   }
@@ -325,7 +325,7 @@ function defaultPriceForm(): PriceForm {
 
 function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; onChange: (f: PriceForm) => void }) {
   const { t } = useTranslation()
-  const mode = def.billing_mode
+  const mode = def.pricing_mode
   const hint = refPriceHint(def, t)
   return (
     <div className="space-y-2">
@@ -787,7 +787,7 @@ export function ModelManagementPage() {
   const [addDisplayName, setAddDisplayName] = useState('')
   const [addShortName, setAddShortName] = useState('')
   const [addCapabilities, setAddCapabilities] = useState<string[]>(['text'])
-  const [addBillingMode, setAddBillingMode] = useState('per_token')
+  const [addPricingMode, setAddPricingMode] = useState('per_token')
   const [addAcceptsImage, setAddAcceptsImage] = useState(false)
   const [addMaxInputImages, setAddMaxInputImages] = useState(0)
   const [addMaxInputVideos, setAddMaxInputVideos] = useState(0)
@@ -802,7 +802,7 @@ export function ModelManagementPage() {
   // Editing existing model config
   const [editingConfig, setEditingConfig] = useState<AIModelConfig | null>(null)
   const [editForm, setEditForm] = useState<ModelEditForm>({
-    display_name: '', short_name: '', model_id_override: '', priority: '0', capabilities: [], billing_mode: 'per_token', supported_params: '',
+    display_name: '', short_name: '', model_id_override: '', priority: '0', capabilities: [], pricing_mode: 'per_token', supported_params: '',
   })
   // Files API editing state
   const [filesAPIEditFor, setFilesAPIEditFor] = useState<number | null>(null)
@@ -868,9 +868,9 @@ export function ModelManagementPage() {
   })
 
   const addModel = useMutation({
-    mutationFn: ({ credId, modelId, displayName, shortName, capabilities, billingMode, acceptsImage, maxInputImages, maxInputVideos, imageEditField, supportedParams, data }: {
+    mutationFn: ({ credId, modelId, displayName, shortName, capabilities, pricingMode, acceptsImage, maxInputImages, maxInputVideos, imageEditField, supportedParams, data }: {
       credId: number; modelId: string; displayName: string; shortName: string; capabilities: string[]
-      billingMode: string; acceptsImage: boolean; maxInputImages: number; maxInputVideos: number
+      pricingMode: string; acceptsImage: boolean; maxInputImages: number; maxInputVideos: number
       imageEditField: string; supportedParams: string; data: PriceForm
     }) =>
       api.post(`/admin/credentials/${credId}/models`, {
@@ -878,7 +878,7 @@ export function ModelManagementPage() {
         custom_display_name: displayName || modelId,
         short_name: shortName,
         custom_capabilities: capabilities.join(','),
-        custom_billing_mode: billingMode,
+        custom_pricing_mode: pricingMode,
         custom_accepts_image: acceptsImage,
         custom_max_input_images: maxInputImages,
         custom_max_input_videos: maxInputVideos,
@@ -904,7 +904,7 @@ export function ModelManagementPage() {
         model_id_override: data.model_id_override,
         priority: parseInt(data.priority, 10) || 0,
         custom_capabilities: data.capabilities.join(','),
-        custom_billing_mode: data.billing_mode,
+        custom_pricing_mode: data.pricing_mode,
         custom_accepts_image: data.capabilities.includes('image_edit') || data.capabilities.includes('video_i2v') || data.capabilities.includes('video_v2v'),
         custom_supported_params: data.supported_params,
       }),
@@ -927,7 +927,7 @@ export function ModelManagementPage() {
     setAddDisplayName('')
     setAddShortName('')
     setAddCapabilities(defaultCaps)
-    setAddBillingMode('per_token')
+    setAddPricingMode('per_token')
     setAddAcceptsImage(false)
     setAddMaxInputImages(0)
     setAddMaxInputVideos(0)
@@ -1219,13 +1219,13 @@ export function ModelManagementPage() {
                       text: t('admin.capabilities.text'), reasoning: t('admin.capabilities.reasoning'), image: t('admin.capabilities.image'), image_edit: t('admin.capabilities.imageEdit'),
                       video: t('admin.capabilities.video'), video_i2v: t('admin.capabilities.videoI2V'), video_v2v: t('admin.capabilities.videoV2V'),
                     }
-                    const billingOptions = [
-                      { value: 'per_token', label: t('admin.billing.perToken') },
-                      { value: 'per_image', label: t('admin.billing.perImage') },
-                      { value: 'per_second', label: t('admin.billing.perSecond') },
-                      { value: 'per_call', label: t('admin.billing.perCall') },
+                    const pricingOptions = [
+                      { value: 'per_token', label: t('admin.pricingMode.perToken') },
+                      { value: 'per_image', label: t('admin.pricingMode.perImage') },
+                      { value: 'per_second', label: t('admin.pricingMode.perSecond') },
+                      { value: 'per_call', label: t('admin.pricingMode.perCall') },
                     ]
-                    const inferBilling = (caps: string[]) => {
+                    const inferPricing = (caps: string[]) => {
                       if (caps.some(c => c === 'image' || c === 'image_edit')) return 'per_image'
                       if (caps.some(c => c.startsWith('video'))) return 'per_second'
                       return 'per_token'
@@ -1240,7 +1240,7 @@ export function ModelManagementPage() {
                       setAddDisplayName(preset.display_name)
                       setAddShortName('')
                       setAddCapabilities(preset.capabilities)
-                      setAddBillingMode(preset.billing_mode)
+                      setAddPricingMode(preset.pricing_mode ?? 'per_token')
                       setAddAcceptsImage(preset.accepts_image_input ?? false)
                       setAddMaxInputImages(preset.max_input_images ?? 0)
                       setAddMaxInputVideos(preset.max_input_videos ?? 0)
@@ -1353,7 +1353,7 @@ export function ModelManagementPage() {
                                     : [...addCapabilities, cap]
                                   if (next.length > 0) {
                                     setAddCapabilities(next)
-                                    setAddBillingMode(inferBilling(next))
+                                    setAddPricingMode(inferPricing(next))
                                     const needsImage = next.some(c => c === 'image_edit' || c === 'video_i2v' || c === 'video_v2v')
                                     setAddAcceptsImage(needsImage)
                                     setAddSupportedParams('')
@@ -1373,15 +1373,15 @@ export function ModelManagementPage() {
                         </div>
 
                         <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.billingMode')}</Label>
+                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
                           <div className="flex gap-2 flex-wrap">
-                            {billingOptions.map(opt => (
+                            {pricingOptions.map(opt => (
                               <button
                                 key={opt.value}
-                                onClick={() => setAddBillingMode(opt.value)}
+                                onClick={() => setAddPricingMode(opt.value)}
                                 className={cn(
                                   'text-xs px-2 py-0.5 rounded border transition-colors',
-                                  addBillingMode === opt.value
+                                  addPricingMode === opt.value
                                     ? 'border-ring bg-accent text-foreground'
                                     : 'border-border text-muted-foreground hover:border-ring/50'
                                 )}
@@ -1434,7 +1434,7 @@ export function ModelManagementPage() {
                         />
 
                         {(() => {
-                          const fakeDef = { billing_mode: addBillingMode }
+                          const fakeDef = { pricing_mode: addPricingMode }
                           return <PriceFields def={fakeDef} form={addPriceForm} onChange={setAddPriceForm} />
                         })()}
 
@@ -1450,7 +1450,7 @@ export function ModelManagementPage() {
                               displayName: addDisplayName.trim(),
                               shortName: addShortName.trim(),
                               capabilities: addCapabilities,
-                              billingMode: addBillingMode,
+                              pricingMode: addPricingMode,
                               acceptsImage: addAcceptsImage,
                               maxInputImages: addMaxInputImages,
                               maxInputVideos: addMaxInputVideos,
@@ -1478,7 +1478,7 @@ export function ModelManagementPage() {
                     const displayName = cfg.custom_display_name || cfg.model_def_id
                     const selectorName = cfg.short_name || displayName
                     const caps = cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : []
-                    const billing = cfg.custom_billing_mode
+                    const pricing = cfg.custom_pricing_mode || ''
 
                     return (
                       <div key={cfg.ID} className="border border-border rounded bg-background">
@@ -1495,8 +1495,8 @@ export function ModelManagementPage() {
                           {caps.length > 0 && (
                             <span className="text-muted-foreground">{caps.join(',')}</span>
                           )}
-                          {billing && (
-                            <span className="text-muted-foreground/50">{BILLING_LABEL_KEYS[billing] ? t(BILLING_LABEL_KEYS[billing]) : billing}</span>
+                          {pricing && (
+                            <span className="text-muted-foreground/50">{PRICING_LABEL_KEYS[pricing] ? t(PRICING_LABEL_KEYS[pricing]) : pricing}</span>
                           )}
                           <button
                             onClick={() => runTest(modelTestKey, () =>
@@ -1529,7 +1529,7 @@ export function ModelManagementPage() {
                                 model_id_override: cfg.model_id_override,
                                 priority: String(cfg.priority ?? 0),
                                 capabilities: nextCaps,
-                                billing_mode: cfg.custom_billing_mode || 'per_token',
+                                pricing_mode: cfg.custom_pricing_mode || 'per_token',
                                 supported_params: cfg.custom_supported_params || '',
                               })
                             }}
@@ -1609,15 +1609,15 @@ export function ModelManagementPage() {
                               </div>
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.billingMode')}</Label>
+                              <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
                               <div className="flex gap-1.5 flex-wrap">
-                                {([{ value: 'per_token', label: t('admin.billing.perToken') }, { value: 'per_image', label: t('admin.billing.perImage') }, { value: 'per_second', label: t('admin.billing.perSecond') }, { value: 'per_call', label: t('admin.billing.perCall') }]).map((opt) => (
+                                {([{ value: 'per_token', label: t('admin.pricingMode.perToken') }, { value: 'per_image', label: t('admin.pricingMode.perImage') }, { value: 'per_second', label: t('admin.pricingMode.perSecond') }, { value: 'per_call', label: t('admin.pricingMode.perCall') }]).map((opt) => (
                                   <button
                                     key={opt.value}
-                                    onClick={() => setEditForm((f) => ({ ...f, billing_mode: opt.value }))}
+                                    onClick={() => setEditForm((f) => ({ ...f, pricing_mode: opt.value }))}
                                     className={cn(
                                       'text-xs px-2 py-0.5 rounded border transition-colors',
-                                      editForm.billing_mode === opt.value ? 'border-ring bg-accent text-foreground' : 'border-border text-muted-foreground hover:border-ring/50'
+                                      editForm.pricing_mode === opt.value ? 'border-ring bg-accent text-foreground' : 'border-border text-muted-foreground hover:border-ring/50'
                                     )}
                                   >
                                     {opt.label}
@@ -1775,8 +1775,8 @@ export function ModelManagementPage() {
               <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayPriorityBody')}</p>
             </div>
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayBudgetTitle')}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayBudgetBody')}</p>
+              <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayScopeTitle')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayScopeBody')}</p>
             </div>
           </div>
 

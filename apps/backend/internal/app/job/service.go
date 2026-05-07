@@ -30,7 +30,7 @@ var (
 	ErrProjectOutsideOrg          = errors.New("project is outside current org")
 	ErrResourceOutsideOrg         = errors.New("resource is outside current org")
 	ErrLoadInputResources         = errors.New("failed to load input resources")
-	ErrReserveQuota               = errors.New("failed to reserve job quota")
+	ErrReserveUsage               = errors.New("failed to reserve job usage")
 	ErrCreateJob                  = errors.New("failed to create job")
 )
 
@@ -46,8 +46,8 @@ func (e InvalidJobTypeError) Unwrap() error {
 	return ErrInvalidJobType
 }
 
-func IsInsufficientQuota(err error) bool {
-	return errors.Is(err, ai.ErrInsufficientQuota)
+func IsUsageLimitExceeded(err error) bool {
+	return errors.Is(err, ai.ErrUsageLimitExceeded)
 }
 
 type Service struct {
@@ -216,12 +216,12 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	if err != nil {
 		return domainjob.Job{}, err
 	}
-	reservation, err := s.ai.ReserveQuota(ctx, input.UserID, preflight.Config.ID, estimate, ai.BillingContext{OrgID: input.OrgID, ProjectID: input.ProjectID})
+	reservation, err := s.ai.ReserveUsage(ctx, input.UserID, preflight.Config.ID, estimate, ai.UsageContext{OrgID: input.OrgID, ProjectID: input.ProjectID})
 	if err != nil {
-		if errors.Is(err, ai.ErrInsufficientQuota) {
+		if errors.Is(err, ai.ErrUsageLimitExceeded) {
 			return domainjob.Job{}, err
 		}
-		return domainjob.Job{}, wrapErr(ErrReserveQuota, err)
+		return domainjob.Job{}, wrapErr(ErrReserveUsage, err)
 	}
 
 	job, err := s.Create(ctx, CreateInput{

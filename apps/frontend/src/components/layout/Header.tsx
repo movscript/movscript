@@ -9,6 +9,7 @@ import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 const titleKeys: Record<string, string> = {
   '/projects': 'header.titles.projects',
   '/project-home': 'header.titles.projectHome',
+  '/project-workspace': 'header.titles.projectWorkspace',
   '/creation': 'header.titles.creation',
   '/workbench': 'header.titles.workbench',
   '/script-split-workbench': 'header.titles.workbench',

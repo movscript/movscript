@@ -5,7 +5,7 @@ import (
 	"time"
 
 	jobapp "github.com/movscript/movscript/internal/app/job"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -33,11 +33,11 @@ type StateTraceEntry = jobapp.StateTraceEntry
 
 type jobStateMachine struct {
 	w     *Worker
-	job   *model.Job
+	job   *persistencemodel.Job
 	trace []StateTraceEntry
 }
 
-func newJobStateMachine(w *Worker, job *model.Job) *jobStateMachine {
+func newJobStateMachine(w *Worker, job *persistencemodel.Job) *jobStateMachine {
 	sm := &jobStateMachine{w: w, job: job}
 	if job.StateTrace != "" {
 		_ = json.Unmarshal([]byte(job.StateTrace), &sm.trace)
@@ -142,6 +142,6 @@ func (sm *jobStateMachine) persist(state JobExecutionState) {
 	})
 }
 
-func MarkRetryScheduled(db *gorm.DB, job *model.Job, message string) {
+func MarkRetryScheduled(db *gorm.DB, job *persistencemodel.Job, message string) {
 	jobapp.MarkRetryScheduled(db, job, message)
 }

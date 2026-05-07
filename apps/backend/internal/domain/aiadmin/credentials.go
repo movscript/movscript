@@ -49,7 +49,7 @@ type NewModelConfigSpec struct {
 	CustomDisplayName     string
 	ShortName             string
 	CustomCapabilities    string
-	CustomBillingMode     string
+	CustomPricingMode     string
 	CustomAcceptsImage    bool
 	CustomMaxInputImages  int
 	CustomMaxInputVideos  int
@@ -72,7 +72,7 @@ type ModelConfig struct {
 	CustomDisplayName     string    `json:"custom_display_name"`
 	ShortName             string    `json:"short_name"`
 	CustomCapabilities    string    `json:"custom_capabilities"`
-	CustomBillingMode     string    `json:"custom_billing_mode"`
+	CustomPricingMode     string    `json:"custom_pricing_mode"`
 	CustomAcceptsImage    bool      `json:"custom_accepts_image"`
 	CustomMaxInputImages  int       `json:"custom_max_input_images"`
 	CustomMaxInputVideos  int       `json:"custom_max_input_videos"`
@@ -125,7 +125,7 @@ func NewModelConfig(spec NewModelConfigSpec) ModelConfig {
 		CustomDisplayName:     spec.CustomDisplayName,
 		ShortName:             spec.ShortName,
 		CustomCapabilities:    spec.CustomCapabilities,
-		CustomBillingMode:     spec.CustomBillingMode,
+		CustomPricingMode:     spec.CustomPricingMode,
 		CustomAcceptsImage:    spec.CustomAcceptsImage,
 		CustomMaxInputImages:  spec.CustomMaxInputImages,
 		CustomMaxInputVideos:  spec.CustomMaxInputVideos,

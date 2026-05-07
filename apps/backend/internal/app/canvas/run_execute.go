@@ -7,19 +7,19 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
 func (h *Service) ExecuteWorkflowRun(userID uint, canvasID uint, runID uint, order []string) {
-	h.executeWorkflowRunModel(&model.User{Model: gorm.Model{ID: userID}}, canvasID, runID, order)
+	h.executeWorkflowRunModel(&persistencemodel.User{Model: gorm.Model{ID: userID}}, canvasID, runID, order)
 }
 
-func (h *Service) executeWorkflowRunModel(user *model.User, canvasID uint, runID uint, order []string) {
+func (h *Service) executeWorkflowRunModel(user *persistencemodel.User, canvasID uint, runID uint, order []string) {
 	h.executeWorkflowRunWithContext(context.Background(), user, canvasID, runID, order)
 }
 
-func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model.User, canvasID uint, runID uint, order []string) {
+func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *persistencemodel.User, canvasID uint, runID uint, order []string) {
 	run, cv, err := h.canvasRepo().GetCanvasForRunExecution(ctx, canvasID, runID)
 	if err != nil {
 		finishedAt := time.Now()
@@ -27,16 +27,16 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 		return
 	}
 
-	upstream := map[string][]model.CanvasEdge{}
+	upstream := map[string][]persistencemodel.CanvasEdge{}
 	for _, e := range cv.Edges {
 		upstream[e.Target] = append(upstream[e.Target], e)
 	}
-	nodeMap := map[string]*model.CanvasNode{}
+	nodeMap := map[string]*persistencemodel.CanvasNode{}
 	for i := range cv.Nodes {
 		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
 	}
 	runTasks, _ := h.canvasRepo().ListRunTasksOrdered(ctx, runID)
-	taskMap := map[string]*model.CanvasTask{}
+	taskMap := map[string]*persistencemodel.CanvasTask{}
 	for i := range runTasks {
 		if strings.TrimSpace(runTasks[i].NodeID) == "" {
 			continue
@@ -65,7 +65,7 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *model
 		produced[nodeID][handle] = value
 		produced[nodeID][""] = value
 	}
-	valueForEdge := func(edge model.CanvasEdge) (canvasPortValue, bool) {
+	valueForEdge := func(edge persistencemodel.CanvasEdge) (canvasPortValue, bool) {
 		byHandle := produced[edge.Source]
 		if len(byHandle) == 0 {
 			return canvasPortValue{}, false

@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	entitlementapp "github.com/movscript/movscript/internal/app/entitlement"
 	hubapp "github.com/movscript/movscript/internal/app/hub"
-	"github.com/movscript/movscript/internal/domain/commercial"
+	"github.com/movscript/movscript/internal/domain/entitlement"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/cache"
@@ -31,7 +31,7 @@ type App struct {
 	Registry     *ai.Registry
 	AIService    *ai.AIService
 	Cache        cache.Cache
-	Entitlements commercial.EntitlementService
+	Entitlements entitlement.EntitlementService
 	Worker       *jobrunner.Worker
 	Router       *gin.Engine
 }

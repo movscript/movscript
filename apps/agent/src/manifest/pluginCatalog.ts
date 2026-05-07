@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   DEFAULT_AGENT_MANIFEST,
@@ -20,11 +20,27 @@ import {
 } from '../tools/toolRegistry.js'
 import type { JSONValue } from '../types.js'
 
+export interface AgentPluginBundle {
+  id: string
+  name: string
+  description?: string
+  category?: string
+  categories?: string[]
+  skills: string[]
+  tools: string[]
+  metadata?: Record<string, JSONValue>
+}
+
 export interface AgentPluginCatalog {
   skillsDir: string
   toolsDir: string
   builtinSkillsDir: string
   builtinToolsDir: string
+  bundlesDir: string
+  builtinBundlesDir: string
+  bundles: AgentPluginBundle[]
+  activeBundleIds: string[]
+  availableBundleIds: string[]
   skills: AgentSkillManifest[]
   tools: RegisteredTool[]
   toolGrants: AgentToolGrant[]
@@ -40,6 +56,7 @@ export function loadAgentPluginCatalog(options: {
   builtinToolsDir?: string
   bundlesDir?: string
   builtinBundlesDir?: string
+  enabledBundleIds?: string[]
   baseManifest?: AgentManifest
   baseTools?: RegisteredTool[]
 } = {}): AgentPluginCatalog {
@@ -67,16 +84,20 @@ export function loadAgentPluginCatalog(options: {
     ...builtinToolResult.grants,
     ...localToolResult.grants,
   ])
-  const bundleSkillRefs = Array.from(new Set([
-    ...builtinBundleResult.skillRefs,
-    ...localBundleResult.skillRefs,
-  ]))
-  const bundleToolRefs = Array.from(new Set([
-    ...builtinBundleResult.toolRefs,
-    ...localBundleResult.toolRefs,
-  ]))
-  const selectedSkillRefs = bundleSkillRefs.length > 0 ? bundleSkillRefs : skillDefinitions.map((skill) => skill.id)
-  const selectedToolRefs = bundleToolRefs.length > 0 ? bundleToolRefs : toolDefinitions.map((tool) => tool.name)
+  const bundles = dedupeByBundleId([
+    ...builtinBundleResult.bundles,
+    ...localBundleResult.bundles,
+  ])
+  const availableBundleIds = bundles.map((bundle) => bundle.id)
+  const missingEnabledBundleIds = (options.enabledBundleIds ?? []).filter((id) => !availableBundleIds.includes(id))
+  const activeBundles = options.enabledBundleIds
+    ? bundles.filter((bundle) => options.enabledBundleIds!.includes(bundle.id))
+    : bundles
+  const bundleSkillRefs = Array.from(new Set(activeBundles.flatMap((bundle) => bundle.skills)))
+  const bundleToolRefs = Array.from(new Set(activeBundles.flatMap((bundle) => bundle.tools)))
+  const useBundleSelection = options.enabledBundleIds !== undefined || bundleSkillRefs.length > 0 || bundleToolRefs.length > 0
+  const selectedSkillRefs = useBundleSelection ? bundleSkillRefs : skillDefinitions.map((skill) => skill.id)
+  const selectedToolRefs = useBundleSelection ? bundleToolRefs : toolDefinitions.map((tool) => tool.name)
   const skillResult = {
     skills: resolveSkillRefs(selectedSkillRefs, skillDefinitions),
     warnings: [
@@ -84,6 +105,7 @@ export function loadAgentPluginCatalog(options: {
       ...localSkillResult.warnings,
       ...builtinBundleResult.warnings,
       ...localBundleResult.warnings,
+      ...missingEnabledBundleIds.map((id) => `enabled bundle not found: ${id}`),
       ...missingSkillWarnings(selectedSkillRefs, skillDefinitions),
     ],
   }
@@ -97,6 +119,7 @@ export function loadAgentPluginCatalog(options: {
       ...localToolResult.warnings,
       ...builtinBundleResult.warnings,
       ...localBundleResult.warnings,
+      ...missingEnabledBundleIds.map((id) => `enabled bundle not found: ${id}`),
       ...missingToolWarnings(selectedToolRefs, toolDefinitions),
     ],
   }
@@ -114,12 +137,17 @@ export function loadAgentPluginCatalog(options: {
     toolsDir,
     builtinSkillsDir,
     builtinToolsDir,
+    bundlesDir,
+    builtinBundlesDir,
+    bundles,
+    activeBundleIds: activeBundles.map((bundle) => bundle.id),
+    availableBundleIds,
     skills: skillResult.skills,
     tools: toolResult.tools,
     toolGrants: toolResult.grants,
     manifest,
     registry,
-    warnings: [...skillResult.warnings, ...toolResult.warnings],
+    warnings: Array.from(new Set([...skillResult.warnings, ...toolResult.warnings])),
   }
 }
 
@@ -153,19 +181,17 @@ function resolveCatalogDir(kind: 'skills' | 'tools' | 'bundles'): string {
   return existsSync(fromSource) ? fromSource : fromDist
 }
 
-function loadBundleDirectory(dir: string): { skillRefs: string[]; toolRefs: string[]; warnings: string[] } {
+function loadBundleDirectory(dir: string): { bundles: AgentPluginBundle[]; warnings: string[] } {
   const warnings: string[] = []
-  const skillRefs: string[] = []
-  const toolRefs: string[] = []
+  const bundles: AgentPluginBundle[] = []
   for (const filePath of listPluginJSONFiles(dir)) {
     const parsed = readJSONFile(filePath, warnings)
     if (parsed === undefined) continue
-    skillRefs.push(...extractSkillRefs(parsed, filePath, warnings))
-    toolRefs.push(...extractToolRefs(parsed, filePath, warnings))
+    const bundle = extractBundle(parsed, dir, filePath, warnings)
+    if (bundle) bundles.push(bundle)
   }
   return {
-    skillRefs: Array.from(new Set(skillRefs)),
-    toolRefs: Array.from(new Set(toolRefs)),
+    bundles: dedupeByBundleId(bundles),
     warnings,
   }
 }
@@ -286,6 +312,33 @@ function extractToolRefs(value: unknown, filePath: string, warnings: string[]): 
   })
 }
 
+function extractBundle(value: unknown, rootDir: string, filePath: string, warnings: string[]): AgentPluginBundle | undefined {
+  if (!isRecord(value)) return undefined
+  const skills = extractSkillRefs(value, filePath, warnings)
+  const tools = extractToolRefs(value, filePath, warnings)
+  if (skills.length === 0 && tools.length === 0) return undefined
+  const id = nonEmptyString(value.id) ?? fallbackBundleId(rootDir, filePath)
+  const name = nonEmptyString(value.name) ?? id
+  const category = nonEmptyString(value.category) ?? pathCategory(rootDir, filePath)
+  const categories = Array.from(new Set([
+    ...catalogCategories(value),
+    ...(category ? [category] : []),
+  ]))
+  return {
+    id,
+    name,
+    ...(nonEmptyString(value.description) ? { description: nonEmptyString(value.description) } : {}),
+    ...(category ? { category } : {}),
+    ...(categories.length > 0 ? { categories } : {}),
+    skills: Array.from(new Set(skills)),
+    tools: Array.from(new Set(tools)),
+    metadata: {
+      ...(category ? { category } : {}),
+      catalogFile: filePath,
+    },
+  }
+}
+
 function resolveSkillRefs(refs: string[], definitions: AgentSkillManifest[]): AgentSkillManifest[] {
   const byId = new Map(definitions.map((skill) => [skill.id, skill]))
   return refs.flatMap((ref) => byId.get(ref) ?? [])
@@ -355,11 +408,26 @@ function normalizeToolGrant(input: unknown): AgentToolGrant | undefined {
   return { name, mode, ...(approval ? { approval } : {}) }
 }
 
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
+}
+
 function mergeToolGrants(base: AgentToolGrant[], next: AgentToolGrant[]): AgentToolGrant[] {
   const byName = new Map<string, AgentToolGrant>()
   for (const grant of base) byName.set(grant.name, grant)
   for (const grant of next) byName.set(grant.name, grant)
   return Array.from(byName.values())
+}
+
+function dedupeByBundleId(bundles: AgentPluginBundle[]): AgentPluginBundle[] {
+  const byId = new Map<string, AgentPluginBundle>()
+  for (const bundle of bundles) byId.set(bundle.id, bundle)
+  return Array.from(byId.values())
+}
+
+function fallbackBundleId(rootDir: string, filePath: string): string {
+  const relative = filePath.startsWith(rootDir) ? filePath.slice(rootDir.length).replace(/^[/\\]/, '') : basename(filePath)
+  return `catalog.bundle.${relative.replace(/\.json$/i, '').split(/[/\\]/).filter(Boolean).join('.')}`
 }
 
 function mergePermissions(base: string[], tools: RegisteredTool[]): string[] {

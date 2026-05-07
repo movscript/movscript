@@ -2,7 +2,6 @@ package semantic
 
 import (
 	"context"
-	"reflect"
 
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
@@ -14,32 +13,6 @@ func (s *Service) DeleteItemByKind(ctx context.Context, projectID uint, kind str
 	}
 	s.bumpProgressVersion(ctx, deletedProjectID)
 	return nil
-}
-
-func projectIDOf(item any) uint {
-	value := reflect.ValueOf(item)
-	if !value.IsValid() {
-		return 0
-	}
-	if value.Kind() == reflect.Pointer {
-		if value.IsNil() {
-			return 0
-		}
-		value = value.Elem()
-	}
-	if value.Kind() != reflect.Struct {
-		return 0
-	}
-	field := value.FieldByName("ProjectID")
-	if !field.IsValid() {
-		return 0
-	}
-	switch field.Kind() {
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return uint(field.Uint())
-	default:
-		return 0
-	}
 }
 
 func (s *Service) ensureProductionInProject(ctx context.Context, projectID uint, productionID uint) error {
@@ -133,6 +106,10 @@ func (s *Service) ensureSceneMomentInProject(ctx context.Context, projectID uint
 
 func (s *Service) ensureContentUnitInProject(ctx context.Context, projectID uint, contentUnitID uint) error {
 	return s.repo.EnsureContentUnitInProject(ctx, projectID, contentUnitID)
+}
+
+func (s *Service) ensureKeyframeInProject(ctx context.Context, projectID uint, keyframeID uint) error {
+	return s.repo.EnsureOwnerInProject(ctx, projectID, "keyframe", keyframeID)
 }
 
 func fallbackString(value string, fallback string) string {

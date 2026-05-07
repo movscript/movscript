@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -17,7 +17,7 @@ type repository interface {
 	ReloadAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
 	DeleteAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
 	FindAPIKeyByHash(ctx context.Context, hash string) (domainmodelgateway.APIKey, error)
-	FindUser(ctx context.Context, id uint) (model.User, error)
+	FindUser(ctx context.Context, id uint) (persistencemodel.User, error)
 	TouchAPIKeyLastUsed(ctx context.Context, key *domainmodelgateway.APIKey, usedAt time.Time) error
 	FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint, includeLegacy bool) (domainmodelgateway.APIKey, error)
 	FindProjectOrgID(ctx context.Context, projectID uint) (*uint, error)
@@ -29,7 +29,7 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint, includeLegacy bool) ([]domainmodelgateway.APIKey, error) {
-	keys := make([]model.GatewayAPIKey, 0)
+	keys := make([]persistencemodel.GatewayAPIKey, 0)
 	q := r.db.WithContext(ctx).Where("owner_user_id = ?", ownerUserID)
 	q = applyAPIKeyOrgScope(q, orgID, ownerUserID, includeLegacy)
 	err := q.Order("created_at desc").Find(&keys).Error
@@ -65,7 +65,7 @@ func (r *gormRepository) UpdateAPIKey(ctx context.Context, key *domainmodelgatew
 }
 
 func (r *gormRepository) ReloadAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error {
-	var row model.GatewayAPIKey
+	var row persistencemodel.GatewayAPIKey
 	if err := r.db.WithContext(ctx).First(&row, key.ID).Error; err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func (r *gormRepository) DeleteAPIKey(ctx context.Context, key *domainmodelgatew
 }
 
 func (r *gormRepository) FindAPIKeyByHash(ctx context.Context, hash string) (domainmodelgateway.APIKey, error) {
-	var key model.GatewayAPIKey
+	var key persistencemodel.GatewayAPIKey
 	err := r.db.WithContext(ctx).Where("key_hash = ? AND is_enabled = true", hash).First(&key).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return domainmodelgateway.APIKey{}, ErrAPIKeyNotFound
@@ -90,8 +90,8 @@ func (r *gormRepository) FindAPIKeyByHash(ctx context.Context, hash string) (dom
 	return domainmodelgateway.APIKeyFromModel(key), nil
 }
 
-func (r *gormRepository) FindUser(ctx context.Context, id uint) (model.User, error) {
-	var user model.User
+func (r *gormRepository) FindUser(ctx context.Context, id uint) (persistencemodel.User, error) {
+	var user persistencemodel.User
 	err := r.db.WithContext(ctx).First(&user, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return user, ErrAPIKeyNotFound
@@ -109,7 +109,7 @@ func (r *gormRepository) TouchAPIKeyLastUsed(ctx context.Context, key *domainmod
 }
 
 func (r *gormRepository) FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint, includeLegacy bool) (domainmodelgateway.APIKey, error) {
-	var key model.GatewayAPIKey
+	var key persistencemodel.GatewayAPIKey
 	q := r.db.WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID)
 	q = applyAPIKeyOrgScope(q, orgID, ownerUserID, includeLegacy)
 	if err := q.First(&key).Error; err != nil {
@@ -122,7 +122,7 @@ func (r *gormRepository) FindOwnedAPIKey(ctx context.Context, id uint, ownerUser
 }
 
 func (r *gormRepository) FindProjectOrgID(ctx context.Context, projectID uint) (*uint, error) {
-	var project model.Project
+	var project persistencemodel.Project
 	if err := r.db.WithContext(ctx).Select("id, org_id").First(&project, projectID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrProjectNotFound
@@ -133,7 +133,7 @@ func (r *gormRepository) FindProjectOrgID(ctx context.Context, projectID uint) (
 }
 
 func (r *gormRepository) IsPersonalOrg(ctx context.Context, orgID uint) bool {
-	var org model.Organization
+	var org persistencemodel.Organization
 	if err := r.db.WithContext(ctx).Select("is_personal").First(&org, orgID).Error; err != nil {
 		return false
 	}

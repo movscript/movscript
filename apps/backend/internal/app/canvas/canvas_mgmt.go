@@ -9,7 +9,7 @@ import (
 
 	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 var (
@@ -118,10 +118,10 @@ func (h *Service) GetVisibleCanvas(ctx context.Context, id string, ownerID uint,
 	return canvasruntime.CanvasFromModel(cv), nil
 }
 
-func (h *Service) getVisibleCanvasModel(ctx context.Context, id string, ownerID uint, orgID *uint) (model.Canvas, error) {
+func (h *Service) getVisibleCanvasModel(ctx context.Context, id string, ownerID uint, orgID *uint) (persistencemodel.Canvas, error) {
 	cv, err := h.GetCanvas(ctx, id)
 	if err != nil {
-		return model.Canvas{}, err
+		return persistencemodel.Canvas{}, err
 	}
 	if !h.inOrgScope(ctx, cv.OrgID, orgID, cv.OwnerID, ownerID) {
 		return cv.ToModel(), ErrCanvasForbidden
@@ -176,11 +176,11 @@ func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID
 	if input.Name != "" {
 		cv.Name = input.Name
 	}
-	nodes := make([]model.CanvasNode, 0, len(input.Nodes))
+	nodes := make([]persistencemodel.CanvasNode, 0, len(input.Nodes))
 	for _, node := range input.Nodes {
 		nodes = append(nodes, node.ToModel())
 	}
-	edges := make([]model.CanvasEdge, 0, len(input.Edges))
+	edges := make([]persistencemodel.CanvasEdge, 0, len(input.Edges))
 	for _, edge := range input.Edges {
 		edges = append(edges, edge.ToModel())
 	}
@@ -193,7 +193,7 @@ func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID
 	return canvasruntime.CanvasFromModel(cv), nil
 }
 
-func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (model.Canvas, error) {
+func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (persistencemodel.Canvas, error) {
 	return h.canvasRepo().GetOwnedCanvas(ctx, id, ownerID, orgID)
 }
 
@@ -202,7 +202,7 @@ func (h *Service) GetOwnedCanvas(ctx context.Context, id string, ownerID uint, o
 	return canvasruntime.CanvasFromModel(cv), err
 }
 
-func (h *Service) getNode(ctx context.Context, canvasID uint, nodeID string) (model.CanvasNode, error) {
+func (h *Service) getNode(ctx context.Context, canvasID uint, nodeID string) (persistencemodel.CanvasNode, error) {
 	return h.canvasRepo().GetNode(ctx, canvasID, nodeID)
 }
 

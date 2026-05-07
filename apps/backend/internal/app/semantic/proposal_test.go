@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -34,6 +34,19 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 					ClientID:    "shot-1",
 					Title:       "Medium shot",
 					Description: "Character enters.",
+					Keyframes: []ProposalKeyframeNode{{
+						Action:      "create",
+						ClientID:    "kf-shot-1",
+						Title:       "Door reveal",
+						Description: "Character appears in the doorway.",
+						Prompt:      "medium shot, doorway reveal",
+					}},
+				}},
+				Keyframes: []ProposalKeyframeNode{{
+					Action:      "create",
+					ClientID:    "kf-scene-1",
+					Title:       "Rainy exterior",
+					Description: "Rain falls outside the apartment.",
 				}},
 				CreativeReferences: []ProposalCreativeRefNode{{
 					Action:   "create",
@@ -60,7 +73,7 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 		t.Fatalf("apply proposal: %v", err)
 	}
 
-	if resp.Counts.SegmentsCreated != 1 || resp.Counts.SceneMomentsCreated != 1 || resp.Counts.ContentUnitsCreated != 1 || resp.Counts.CreativeReferencesCreated != 1 || resp.Counts.CreativeReferenceUsages != 1 || resp.Counts.AssetSlotsCreated != 1 {
+	if resp.Counts.SegmentsCreated != 1 || resp.Counts.SceneMomentsCreated != 1 || resp.Counts.ContentUnitsCreated != 1 || resp.Counts.CreativeReferencesCreated != 1 || resp.Counts.CreativeReferenceUsages != 1 || resp.Counts.AssetSlotsCreated != 1 || resp.Counts.KeyframesCreated != 2 {
 		t.Fatalf("unexpected counts: %+v", resp.Counts)
 	}
 
@@ -84,6 +97,23 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 	}
 	if usage.OwnerID == 0 || usage.CreativeReferenceID == 0 || usage.CreativeReferenceStateID == nil || *usage.CreativeReferenceStateID == 0 {
 		t.Fatalf("creative reference usage was not fully linked: %+v", usage)
+	}
+
+	var keyframes []model.Keyframe
+	if err := db.Order("content_unit_id, scene_moment_id, id").Find(&keyframes).Error; err != nil {
+		t.Fatalf("load keyframes: %v", err)
+	}
+	if len(keyframes) != 2 {
+		t.Fatalf("keyframe count = %d, want 2", len(keyframes))
+	}
+	if keyframes[0].ProductionID == nil || *keyframes[0].ProductionID != production.ID {
+		t.Fatalf("keyframe production id = %v, want %d", keyframes[0].ProductionID, production.ID)
+	}
+	if keyframes[0].SceneMomentID == nil || *keyframes[0].SceneMomentID == 0 {
+		t.Fatalf("keyframe scene moment id was not populated")
+	}
+	if keyframes[1].ContentUnitID == nil || *keyframes[1].ContentUnitID != unit.ID {
+		t.Fatalf("content-unit keyframe content unit id = %v, want %d", keyframes[1].ContentUnitID, unit.ID)
 	}
 }
 
@@ -154,6 +184,7 @@ func newProposalTestDB(t *testing.T) *gorm.DB {
 		&model.Segment{},
 		&model.SceneMoment{},
 		&model.ContentUnit{},
+		&model.Keyframe{},
 		&model.CreativeReference{},
 		&model.CreativeReferenceState{},
 		&model.CreativeReferenceUsage{},

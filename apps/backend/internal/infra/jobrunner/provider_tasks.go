@@ -4,16 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/movscript/movscript/internal/infra/ai"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"log"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
-	"github.com/movscript/movscript/internal/infra/ai"
 )
 
-func (w *Worker) billingContext(job *model.Job) ai.BillingContext {
-	return ai.BillingContext{
+func (w *Worker) usageContext(job *persistencemodel.Job) ai.UsageContext {
+	return ai.UsageContext{
 		OrgID:         job.OrgID,
 		ProjectID:     job.ProjectID,
 		JobID:         &job.ID,
@@ -32,7 +31,7 @@ type providerTaskEvent struct {
 	At        time.Time `json:"at"`
 }
 
-func (w *Worker) appendProviderTaskEvent(job *model.Job, action string, resp ai.VideoResponse, err error) {
+func (w *Worker) appendProviderTaskEvent(job *persistencemodel.Job, action string, resp ai.VideoResponse, err error) {
 	var history []providerTaskEvent
 	if job.ProviderTaskHistory != "" {
 		_ = json.Unmarshal([]byte(job.ProviderTaskHistory), &history)
@@ -74,7 +73,7 @@ func (w *Worker) appendProviderTaskEvent(job *model.Job, action string, resp ai.
 	}
 }
 
-func (w *Worker) scheduleSubmittedProviderTask(job *model.Job, resp ai.VideoResponse, sm *jobStateMachine) {
+func (w *Worker) scheduleSubmittedProviderTask(job *persistencemodel.Job, resp ai.VideoResponse, sm *jobStateMachine) {
 	nextRun := time.Now().Add(videoPollInterval)
 	status := firstNonEmpty(resp.Status, ai.VideoStatusSubmitted)
 	updates := map[string]any{
@@ -100,7 +99,7 @@ func (w *Worker) scheduleSubmittedProviderTask(job *model.Job, resp ai.VideoResp
 	log.Printf("[job] job #%d submitted provider task %s; poll at %s", job.ID, resp.TaskID, nextRun.Format(time.RFC3339))
 }
 
-func (w *Worker) scheduleProviderPoll(job *model.Job, message string, sm *jobStateMachine) {
+func (w *Worker) scheduleProviderPoll(job *persistencemodel.Job, message string, sm *jobStateMachine) {
 	nextRun := time.Now().Add(videoPollInterval)
 	updates := map[string]any{
 		"status":      StatusPending,
@@ -119,7 +118,7 @@ func (w *Worker) scheduleProviderPoll(job *model.Job, message string, sm *jobSta
 	log.Printf("[job] job #%d provider task %s pending; next poll at %s", job.ID, job.ProviderTaskID, nextRun.Format(time.RFC3339))
 }
 
-func (w *Worker) markProviderTaskFailed(job *model.Job, resp ai.VideoResponse, err error) {
+func (w *Worker) markProviderTaskFailed(job *persistencemodel.Job, resp ai.VideoResponse, err error) {
 	now := time.Now()
 	msg := firstNonEmpty(resp.Message)
 	if msg == "" && err != nil {
@@ -144,7 +143,7 @@ func (w *Worker) markProviderTaskFailed(job *model.Job, resp ai.VideoResponse, e
 	log.Printf("[job] job #%d provider task %s failed: %s", job.ID, job.ProviderTaskID, msg)
 }
 
-func (w *Worker) markProviderTaskCancelled(job *model.Job, resp ai.VideoResponse, message string) {
+func (w *Worker) markProviderTaskCancelled(job *persistencemodel.Job, resp ai.VideoResponse, message string) {
 	now := time.Now()
 	msg := firstNonEmpty(message, resp.Message, "video generation cancelled")
 	w.db.Model(job).Updates(map[string]any{
@@ -163,7 +162,7 @@ func (w *Worker) markProviderTaskCancelled(job *model.Job, resp ai.VideoResponse
 	log.Printf("[job] job #%d provider task %s cancelled: %s", job.ID, job.ProviderTaskID, msg)
 }
 
-func (w *Worker) cancelProviderTask(ctx context.Context, job *model.Job, taskID, taskKind string) (ai.VideoResponse, error) {
+func (w *Worker) cancelProviderTask(ctx context.Context, job *persistencemodel.Job, taskID, taskKind string) (ai.VideoResponse, error) {
 	if taskID == "" {
 		return ai.VideoResponse{}, nil
 	}
@@ -179,7 +178,7 @@ func (w *Worker) cancelProviderTask(ctx context.Context, job *model.Job, taskID,
 	return resp, nil
 }
 
-func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.Job, resp ai.VideoResponse, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+func (w *Worker) completeVideoSuccess(ctx context.Context, job *persistencemodel.Job, resp ai.VideoResponse, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
 		return err
 	}
@@ -242,7 +241,7 @@ func (w *Worker) completeVideoSuccess(ctx context.Context, job *model.Job, resp 
 	return nil
 }
 
-func (w *Worker) completeProviderResult(ctx context.Context, job *model.Job, result providerResult, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
+func (w *Worker) completeProviderResult(ctx context.Context, job *persistencemodel.Job, result providerResult, sm *jobStateMachine, debugResult *ai.DebugCallResult) error {
 	sm.enter(StateValidatingProviderData, "validate provider result URL")
 	if err := w.abortIfCancelled(ctx, job, sm); err != nil {
 		return err

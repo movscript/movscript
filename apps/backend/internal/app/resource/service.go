@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -102,7 +103,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (domainresource
 	if err != nil {
 		return domainresource.RawResource{}, err
 	}
-	mimeType := input.MimeType
+	mimeType := normalizeUploadMimeType(input.MimeType, input.Filename)
 	r := domainresource.NewUploadedResource(domainresource.NewUploadedResourceSpec{
 		OwnerID:        input.UserID,
 		OrgID:          input.OrgID,
@@ -240,6 +241,21 @@ func orgIDCachePart(orgID *uint) string {
 
 func MimeToType(mime, filename string) string {
 	return domainresource.MimeToType(mime, filename)
+}
+
+func normalizeUploadMimeType(mimeType, filename string) string {
+	base := strings.TrimSpace(strings.Split(mimeType, ";")[0])
+	if base != "" && base != "application/octet-stream" {
+		return mimeType
+	}
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".heic":
+		return "image/heic"
+	case ".heif":
+		return "image/heif"
+	default:
+		return mimeType
+	}
 }
 
 func GenerateStorageKey(resourceID uint, filename string) string {

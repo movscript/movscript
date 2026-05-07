@@ -1,0 +1,26 @@
+{
+  "skills": [
+    {
+      "id": "movscript.intent.script-split",
+      "name": "Script Split",
+      "description": "Split a raw source script into structured episode draft boundaries for review.",
+      "version": "0.1.0",
+      "category": "script_split",
+      "enabled": true,
+      "priority": 860,
+      "appliesWhen": "剧本拆分,剧本切分,script split,script-split,拆集,分集",
+      "instruction": "For script splitting, use movscript_submit_script_split_draft to create a structured script_split draft. Do not return the structured split as assistant JSON. Use sourceScript only for source title, summary, sourceType, and lineCount. Each episodeDraft must reference source text only by startLine and endLine, include globalContext, and never include body text, content, original lines, or copied script paragraphs.",
+      "outputContract": "State that a local script_split review draft was created and summarize the episode count and any warnings. Do not claim formal scripts were written.",
+      "toolHints": [
+        "movscript_submit_script_split_draft",
+        "movscript_get_draft",
+        "movscript_update_draft",
+        "movscript_patch_draft",
+        "movscript_validate_draft"
+      ],
+      "metadata": {
+        "source": "builtin"
+      }
+    }
+  ]
+}

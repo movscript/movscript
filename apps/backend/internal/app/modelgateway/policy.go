@@ -28,8 +28,8 @@ func KeyAllowsProject(key *domainmodelgateway.APIKey, requestedProjectID *uint) 
 	return domainmodelgateway.KeyAllowsProject(key, requestedProjectID)
 }
 
-func BillingContext(key *domainmodelgateway.APIKey, projectID *uint) ai.BillingContext {
-	return domainmodelgateway.BillingContext(key, projectID)
+func UsageContext(key *domainmodelgateway.APIKey, projectID *uint) ai.UsageContext {
+	return domainmodelgateway.UsageContext(key, projectID)
 }
 
 func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID uint, defaultErr error) (uint, string, error) {

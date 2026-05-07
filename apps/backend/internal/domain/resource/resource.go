@@ -147,7 +147,7 @@ func MimeToType(mime, filename string) string {
 	}
 	ext := strings.ToLower(filepath.Ext(filename))
 	switch ext {
-	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif":
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".avif", ".heic", ".heif":
 		return "image"
 	case ".mp4", ".mov", ".avi", ".webm":
 		return "video"

@@ -360,6 +360,17 @@ function listTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_read_current_production',
+      description: 'Read the current production and its focused production proposal context: scene moments, creative references, asset slots, content units, and keyframes.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number' },
+          productionId: { type: 'number', description: 'Defaults to the current UI production when omitted.' },
+          includeScriptText: { type: 'boolean' },
+        }
+      ),
+    },
+    {
       name: 'movscript_read_production_context',
       description: 'Read the full production orchestration context: existing segments, scene moments, creative references (project-level), asset slots (project-level), and content units for a given production. Use this as the first step before generating any candidates.',
       inputSchema: objectSchema(
@@ -388,8 +399,8 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_propose_production_entities',
-      description: 'Write the final analysis result as a tree-form production_proposal draft so the frontend can display it for user review. Supports action: "create" (new entity), "reuse" (reference existing by id), "update" (modify existing by id). Automatically supersedes previous draft proposals for the same production. Call this as the last step after check_entity_conflicts.',
+      name: 'movscript_submit_production_proposal',
+      description: 'Write the final analysis result as a local tree-form production_proposal draft so the frontend can compare it with the current production and ask for human confirmation. This does not modify backend entities.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
@@ -461,6 +472,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await readProjectStructure(args))
     case 'movscript_list_productions':
       return toolText(await listProductions(args))
+    case 'movscript_read_current_production':
+      return toolText(await readCurrentProduction(args))
     case 'movscript_create_draft':
       return toolText(createDraft(args))
     case 'movscript_list_drafts':
@@ -471,7 +484,7 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await readProductionContext(args))
     case 'movscript_check_entity_conflicts':
       return toolText(await checkEntityConflicts(args))
-    case 'movscript_propose_production_entities':
+    case 'movscript_submit_production_proposal':
       return toolText(proposeProductionEntities(args))
     case 'movscript_create_generation_job':
       return toolText(await createGenerationJob(args))
@@ -945,6 +958,42 @@ async function readProductionContext(args: Record<string, unknown>): Promise<unk
     contentUnits: productionContentUnits.map(summarizeProductionEntity),
     ...(scriptSource ? { scriptSource } : {}),
     ...(scriptText !== undefined ? { scriptText: scriptText.length > 8000 ? scriptText.slice(0, 8000) + '...' : scriptText } : {}),
+  }
+}
+
+async function readCurrentProduction(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getRequiredNumber(args, 'projectId')
+  const productionId = getOptionalNumber(args, 'productionId') ?? contextSnapshot.productionId
+  if (!productionId) throw new Error('productionId is required and no current production is selected')
+
+  const [context, keyframes] = await Promise.all([
+    readProductionContext({ projectId, productionId, includeScriptText: args.includeScriptText === true }),
+    backendList(`/projects/${projectId}/entities/keyframes`),
+  ])
+  const contentUnitIds = new Set(
+    isRecord(context) && Array.isArray(context.contentUnits)
+      ? context.contentUnits.map((item: any) => Number(item.ID ?? item.id)).filter((id) => Number.isFinite(id))
+      : [],
+  )
+  const sceneMomentIds = new Set(
+    isRecord(context) && Array.isArray(context.sceneMoments)
+      ? context.sceneMoments.map((item: any) => Number(item.ID ?? item.id)).filter((id) => Number.isFinite(id))
+      : [],
+  )
+  const productionKeyframes = keyframes.filter((keyframe: any) => (
+    Number(keyframe.production_id) === productionId ||
+    sceneMomentIds.has(Number(keyframe.scene_moment_id)) ||
+    contentUnitIds.has(Number(keyframe.content_unit_id))
+  ))
+
+  return {
+    ...(isRecord(context) ? context : {}),
+    productionId,
+    counts: {
+      ...(isRecord(context) && isRecord(context.counts) ? context.counts : {}),
+      keyframes: productionKeyframes.length,
+    },
+    keyframes: productionKeyframes.map(summarizeProductionEntity),
   }
 }
 

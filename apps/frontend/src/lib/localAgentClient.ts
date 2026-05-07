@@ -131,6 +131,8 @@ export interface AgentSkillManifest {
   name: string
   description: string
   version?: string
+  category?: string
+  categories?: string[]
   enabled: boolean
   priority?: number
   instruction: string
@@ -319,10 +321,12 @@ export interface AgentInspectResponse {
     name: string
     description: string
     permission: string
-    risk: string
+    risk: AgentDebugTool['risk']
     projectScoped: boolean
     requiresApprovalByDefault: boolean
     source?: string
+    category?: string
+    categories?: string[]
   }>
   skills: AgentSkillManifest[]
   defaultAgentManifest: AgentManifest

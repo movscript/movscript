@@ -1,3 +1,5 @@
+import type { JSONValue } from '../types.js'
+
 export type ToolRiskLevel = 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
 
 export interface RegisteredTool {
@@ -9,6 +11,7 @@ export interface RegisteredTool {
   category?: string
   categories?: string[]
   appliesWhen?: string
+  inputSchema?: JSONValue
   projectScoped: boolean
   requiresApprovalByDefault: boolean
 }
@@ -66,12 +69,50 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     ...(nonEmptyString(input.category) ? { category: nonEmptyString(input.category) } : {}),
     ...(stringArray(input.categories).length > 0 ? { categories: stringArray(input.categories) } : {}),
     ...(nonEmptyString(input.appliesWhen) ? { appliesWhen: nonEmptyString(input.appliesWhen) } : {}),
+    ...(isJSONValue(input.inputSchema) ? { inputSchema: input.inputSchema } : {}),
     projectScoped: input.projectScoped === true,
     requiresApprovalByDefault: input.requiresApprovalByDefault === true,
   }
 }
 
-export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([])
+export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
+  {
+    name: 'movscript_list_agent_bundles',
+    description: 'List locally available agent capability bundles, including their skill and tool references and whether they are enabled.',
+    permission: 'agent.catalog.read',
+    risk: 'read',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+  },
+  {
+    name: 'movscript_inspect_agent_bundle',
+    description: 'Inspect one locally available agent capability bundle before enabling it.',
+    permission: 'agent.catalog.read',
+    risk: 'read',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+  },
+  {
+    name: 'movscript_enable_agent_bundle',
+    description: 'Enable one locally available agent capability bundle. The refreshed skills and tools are available to the current or next agent run.',
+    permission: 'agent.catalog.write',
+    risk: 'write',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: true,
+  },
+  {
+    name: 'movscript_reload_agent_catalog',
+    description: 'Reload local agent skills, tools, and bundles from configured catalog directories.',
+    permission: 'agent.catalog.write',
+    risk: 'write',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: true,
+  },
+])
 
 function normalizeRisk(value: unknown): ToolRiskLevel | undefined {
   return value === 'read'
@@ -95,4 +136,12 @@ function stringArray(value: unknown): string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isJSONValue(value: unknown): value is JSONValue {
+  if (value === null) return true
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
+  if (Array.isArray(value)) return value.every(isJSONValue)
+  if (!isRecord(value)) return false
+  return Object.values(value).every(isJSONValue)
 }

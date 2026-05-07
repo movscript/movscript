@@ -4,7 +4,7 @@ import (
 	"context"
 
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +18,7 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) ListUsers(ctx context.Context, filter ListFilter) ([]domainauth.UserProfile, error) {
-	users := make([]model.User, 0)
+	users := make([]persistencemodel.User, 0)
 	q := r.db.WithContext(ctx)
 	if filter.Query != "" {
 		if r.db.Dialector.Name() == "postgres" {
@@ -33,7 +33,7 @@ func (r *gormRepository) ListUsers(ctx context.Context, filter ListFilter) ([]do
 	return userProfilesFromModels(users), nil
 }
 
-func userProfilesFromModels(users []model.User) []domainauth.UserProfile {
+func userProfilesFromModels(users []persistencemodel.User) []domainauth.UserProfile {
 	result := make([]domainauth.UserProfile, 0, len(users))
 	for _, user := range users {
 		result = append(result, domainauth.UserProfileFromModel(user))

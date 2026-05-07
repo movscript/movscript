@@ -14,7 +14,7 @@ type Organization struct {
 	Slug       string               `gorm:"uniqueIndex;not null;size:64" json:"slug"`
 	JoinCode   string               `gorm:"uniqueIndex:uidx_org_join_code,where:join_code <> '';size:24" json:"join_code"`
 	IsPersonal bool                 `gorm:"default:false" json:"is_personal"`
-	Plan       string               `gorm:"not null;default:'team';size:32;index" json:"plan"`       // personal|team|enterprise
+	Plan       string               `gorm:"not null;default:'team';size:32;index" json:"plan"`       // personal|team
 	Status     string               `gorm:"not null;default:'trialing';size:32;index" json:"status"` // active|trialing|past_due|suspended
 	CreatedBy  uint                 `gorm:"not null;index" json:"created_by"`
 	Members    []OrganizationMember `gorm:"foreignKey:OrgID" json:"members,omitempty"`

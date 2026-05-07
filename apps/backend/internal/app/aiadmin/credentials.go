@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
@@ -81,7 +82,11 @@ func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialIn
 }
 
 func (s *Service) UpdateCredential(ctx context.Context, input UpdateCredentialInput) (domainaiadmin.Credential, error) {
-	cred, err := s.GetCredential(ctx, input.ID)
+	id, err := parseUintID(input.ID)
+	if err != nil {
+		return domainaiadmin.Credential{}, err
+	}
+	cred, err := s.GetCredential(ctx, id)
 	if err != nil {
 		return cred, err
 	}
@@ -149,7 +154,7 @@ func (s *Service) DeleteCredential(ctx context.Context, id string) error {
 	return s.repo.DeleteCredential(ctx, id)
 }
 
-func (s *Service) GetCredential(ctx context.Context, id any) (domainaiadmin.Credential, error) {
+func (s *Service) GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error) {
 	cred, err := s.repo.GetCredential(ctx, id)
 	if err != nil {
 		return cred, err
@@ -158,7 +163,11 @@ func (s *Service) GetCredential(ctx context.Context, id any) (domainaiadmin.Cred
 }
 
 func (s *Service) ListRemoteModels(ctx context.Context, credentialID string) ([]string, error) {
-	cred, err := s.GetCredential(ctx, credentialID)
+	id, err := parseUintID(credentialID)
+	if err != nil {
+		return nil, err
+	}
+	cred, err := s.GetCredential(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +186,11 @@ func (s *Service) ListRemoteModels(ctx context.Context, credentialID string) ([]
 }
 
 func (s *Service) TestCredential(ctx context.Context, credentialID string) (TestResult, error) {
-	cred, err := s.GetCredential(ctx, credentialID)
+	id, err := parseUintID(credentialID)
+	if err != nil {
+		return TestResult{}, err
+	}
+	cred, err := s.GetCredential(ctx, id)
 	if err != nil {
 		return TestResult{}, err
 	}
@@ -212,4 +225,12 @@ func splitKlingCredential(key string) [2]string {
 		}
 	}
 	return [2]string{key, ""}
+}
+
+func parseUintID(id string) (uint, error) {
+	value, err := strconv.ParseUint(id, 10, 64)
+	if err != nil || value == 0 {
+		return 0, ErrNotFound
+	}
+	return uint(value), nil
 }

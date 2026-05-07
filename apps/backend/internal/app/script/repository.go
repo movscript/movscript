@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
 	"github.com/movscript/movscript/internal/infra/cache"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -40,7 +40,7 @@ func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
 }
 
 func (r *gormRepository) ListScripts(ctx context.Context, filter ListFilter) ([]domainscript.ScriptSnapshot, error) {
-	scripts := make([]model.Script, 0)
+	scripts := make([]persistencemodel.Script, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.Type != "" {
 		q = q.Where("script_type = ?", filter.Type)
@@ -69,7 +69,7 @@ func (r *gormRepository) CreateScript(ctx context.Context, item *domainscript.Sc
 }
 
 func (r *gormRepository) GetScript(ctx context.Context, id uint) (domainscript.ScriptSnapshot, error) {
-	var item model.Script
+	var item persistencemodel.Script
 	if err := r.db.WithContext(ctx).First(&item, id).Error; err != nil {
 		return domainscript.ScriptSnapshot{}, normalizeNotFound(err)
 	}
@@ -98,16 +98,16 @@ func (r *gormRepository) PatchScript(ctx context.Context, item *domainscript.Scr
 }
 
 func (r *gormRepository) DeleteScript(ctx context.Context, id uint) (uint, error) {
-	var item model.Script
+	var item persistencemodel.Script
 	_ = r.db.WithContext(ctx).Select("id, project_id").First(&item, id).Error
-	if err := r.db.WithContext(ctx).Delete(&model.Script{}, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Delete(&persistencemodel.Script{}, id).Error; err != nil {
 		return 0, err
 	}
 	return item.ProjectID, nil
 }
 
 func (r *gormRepository) FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptVersion, bool, error) {
-	var version model.ScriptVersion
+	var version persistencemodel.ScriptVersion
 	err := r.db.WithContext(ctx).Where("project_id = ? AND script_id = ? AND version_number = ?", projectID, scriptID, 1).First(&version).Error
 	if err == nil {
 		return domainscript.ScriptVersionFromModel(version), true, nil

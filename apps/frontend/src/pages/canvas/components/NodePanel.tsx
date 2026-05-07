@@ -11,6 +11,7 @@ import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
+import { IMAGE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 
 interface Props {
   nodeId: string
@@ -476,7 +477,7 @@ export function NodePanel({ nodeId, canvasId, nodeType, data, label, allNodes, e
             ref={fileRef}
             type="file"
             className="hidden"
-            accept={nodeType === 'image' ? 'image/*' : nodeType === 'video' ? 'video/*' : nodeType === 'audio' ? 'audio/*' : '*'}
+            accept={nodeType === 'image' ? IMAGE_UPLOAD_ACCEPT : nodeType === 'video' ? 'video/*' : nodeType === 'audio' ? 'audio/*' : '*'}
             onChange={(e) => e.target.files?.[0] && upload.mutate(e.target.files[0])}
           />
           <button

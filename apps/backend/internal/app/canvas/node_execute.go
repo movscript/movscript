@@ -7,21 +7,21 @@ import (
 	"strings"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
 func (h *Service) ExecuteCanvasNode(ctx context.Context, userID uint, cv canvasruntime.Canvas, node canvasruntime.CanvasNode, task *canvasruntime.CanvasTask, inputs canvasPortInputMap) map[string]canvasPortValue {
-	var taskModel *model.CanvasTask
+	var taskModel *persistencemodel.CanvasTask
 	if task != nil {
 		row := task.ToModel()
 		taskModel = &row
 	}
 	nodeModel := node.ToModel()
-	return h.executeCanvasNodeModel(ctx, &model.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), &nodeModel, taskModel, inputs)
+	return h.executeCanvasNodeModel(ctx, &persistencemodel.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), &nodeModel, taskModel, inputs)
 }
 
-func (h *Service) executeCanvasNodeModel(ctx context.Context, user *model.User, cv model.Canvas, node *model.CanvasNode, task *model.CanvasTask, inputs canvasPortInputMap) map[string]canvasPortValue {
+func (h *Service) executeCanvasNodeModel(ctx context.Context, user *persistencemodel.User, cv persistencemodel.Canvas, node *persistencemodel.CanvasNode, task *persistencemodel.CanvasTask, inputs canvasPortInputMap) map[string]canvasPortValue {
 	var nd nodeData
 	if err := json.Unmarshal([]byte(node.Data), &nd); err != nil {
 		if task != nil {
@@ -147,7 +147,7 @@ func (h *Service) executeCanvasNodeModel(ctx context.Context, user *model.User, 
 	return nil
 }
 
-func (h *Service) completeInlineValueTask(task *model.CanvasTask, node *model.CanvasNode, nd nodeData, outputs map[string]canvasPortValue) {
+func (h *Service) completeInlineValueTask(task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, outputs map[string]canvasPortValue) {
 	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
 	h.updateTaskOutputValues(task, outputs)
 	primary := firstCanvasOutputResource(outputs)
@@ -160,13 +160,13 @@ func (h *Service) completeInlineValueTask(task *model.CanvasTask, node *model.Ca
 }
 
 func (h *Service) CollectSingleNodeInputs(ctx context.Context, userID uint, cv canvasruntime.Canvas, nodeID string, overrides map[string]canvasPortValue) (canvasPortInputMap, error) {
-	return h.collectSingleNodeInputsModel(ctx, &model.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), nodeID, overrides)
+	return h.collectSingleNodeInputsModel(ctx, &persistencemodel.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), nodeID, overrides)
 }
 
-func (h *Service) collectSingleNodeInputsModel(ctx context.Context, user *model.User, cv model.Canvas, nodeID string, overrides map[string]canvasPortValue) (canvasPortInputMap, error) {
+func (h *Service) collectSingleNodeInputsModel(ctx context.Context, user *persistencemodel.User, cv persistencemodel.Canvas, nodeID string, overrides map[string]canvasPortValue) (canvasPortInputMap, error) {
 	inputs := canvasPortInputMap{}
 	connectedHandles := map[string]bool{}
-	nodeMap := map[string]*model.CanvasNode{}
+	nodeMap := map[string]*persistencemodel.CanvasNode{}
 	for i := range cv.Nodes {
 		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
 	}
@@ -222,7 +222,7 @@ func (h *Service) collectSingleNodeInputsModel(ctx context.Context, user *model.
 	return inputs, nil
 }
 
-func (h *Service) latestCanvasNodeOutputValue(ctx context.Context, user *model.User, cv model.Canvas, node *model.CanvasNode, sourceHandle string) (canvasPortValue, bool) {
+func (h *Service) latestCanvasNodeOutputValue(ctx context.Context, user *persistencemodel.User, cv persistencemodel.Canvas, node *persistencemodel.CanvasNode, sourceHandle string) (canvasPortValue, bool) {
 	handle := strings.TrimSpace(sourceHandle)
 	var nd nodeData
 	_ = json.Unmarshal([]byte(node.Data), &nd)
@@ -281,7 +281,7 @@ func (h *Service) latestCanvasNodeOutputValue(ctx context.Context, user *model.U
 	return canvasPortValue{}, false
 }
 
-func (h *Service) staticNodeOutputs(_ context.Context, node *model.CanvasNode, nd nodeData) map[string]canvasPortValue {
+func (h *Service) staticNodeOutputs(_ context.Context, node *persistencemodel.CanvasNode, nd nodeData) map[string]canvasPortValue {
 	outputs := map[string]canvasPortValue{}
 	handle := canvasruntime.DefaultSourceHandleForNode(node.Type, nd)
 	set := func(port string, value canvasPortValue) {
@@ -305,10 +305,10 @@ func (h *Service) staticNodeOutputs(_ context.Context, node *model.CanvasNode, n
 func (h *Service) ExecuteSingleWorkflowNode(userID uint, cv canvasruntime.Canvas, node canvasruntime.CanvasNode, task canvasruntime.CanvasTask, inputs canvasPortInputMap) {
 	nodeModel := node.ToModel()
 	taskModel := task.ToModel()
-	h.executeSingleWorkflowNodeModel(&model.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), &nodeModel, &taskModel, inputs)
+	h.executeSingleWorkflowNodeModel(&persistencemodel.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), &nodeModel, &taskModel, inputs)
 }
 
-func (h *Service) executeSingleWorkflowNodeModel(user *model.User, cv model.Canvas, node *model.CanvasNode, task *model.CanvasTask, inputs canvasPortInputMap) {
+func (h *Service) executeSingleWorkflowNodeModel(user *persistencemodel.User, cv persistencemodel.Canvas, node *persistencemodel.CanvasNode, task *persistencemodel.CanvasTask, inputs canvasPortInputMap) {
 	h.executeCanvasNodeModel(context.Background(), user, cv, node, task, inputs)
 }
 

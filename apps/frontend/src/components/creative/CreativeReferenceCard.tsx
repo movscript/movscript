@@ -45,7 +45,7 @@ export const creativeReferenceStatusMeta: Record<CreativeReferenceCardStatus, { 
   approved: { label: '已批准', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' },
   review: { label: '待确认', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
   draft: { label: '草稿', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
-  missing: { label: '缺资料', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
+  missing: { label: '待补设定', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
   ignored: { label: '已忽略', className: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300' },
   rejected: { label: '已拒绝', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
 }

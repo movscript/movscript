@@ -1,11 +1,29 @@
 package ai
 
-import "testing"
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+)
+
+func TestModelPresetJSONUsesPricingMode(t *testing.T) {
+	body, err := json.Marshal(ModelPreset{ID: "test", PricingMode: PricingPerImage})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	if !strings.Contains(got, `"pricing_mode":"per_image"`) {
+		t.Fatalf("missing pricing_mode in JSON: %s", got)
+	}
+	if strings.Contains(got, "billing_mode") {
+		t.Fatalf("unexpected legacy billing_mode in JSON: %s", got)
+	}
+}
 
 func TestResolveModelDefUsesAdapterDefaultParams(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-video", AdapterVolcen,
-		"Custom Video", CapabilityVideo, string(BillingPerSecond),
+		"Custom Video", CapabilityVideo, string(PricingPerSecond),
 		false, 0, 0,
 		"", "",
 	)
@@ -20,7 +38,7 @@ func TestResolveModelDefUsesAdapterDefaultParams(t *testing.T) {
 func TestResolveModelDefUsesAdapterDefaultTextParams(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-text", AdapterOpenAICompat,
-		"Custom Text", CapabilityText, string(BillingPerToken),
+		"Custom Text", CapabilityText, string(PricingPerToken),
 		false, 0, 0,
 		"", "",
 	)
@@ -37,7 +55,7 @@ func TestResolveModelDefUsesAdapterDefaultTextParams(t *testing.T) {
 func TestResolveModelDefAllowsEmptyModelParamOverride(t *testing.T) {
 	def := ResolveModelDef(
 		"restricted-video", AdapterVolcen,
-		"Restricted Video", CapabilityVideo, string(BillingPerSecond),
+		"Restricted Video", CapabilityVideo, string(PricingPerSecond),
 		false, 0, 0,
 		"", "[]",
 	)
@@ -52,7 +70,7 @@ func TestResolveModelDefAllowsEmptyModelParamOverride(t *testing.T) {
 func TestResolveModelDefCanRestrictTextParamsWithProfile(t *testing.T) {
 	def := ResolveModelDef(
 		"restricted-text", AdapterOpenAICompat,
-		"Restricted Text", CapabilityText, string(BillingPerToken),
+		"Restricted Text", CapabilityText, string(PricingPerToken),
 		false, 0, 0,
 		"", `{"deny":["temperature"]}`,
 	)
@@ -67,7 +85,7 @@ func TestResolveModelDefCanRestrictTextParamsWithProfile(t *testing.T) {
 func TestResolveModelDefAppliesModelParamProfile(t *testing.T) {
 	def := ResolveModelDef(
 		"profile-video", AdapterVolcen,
-		"Profile Video", CapabilityVideo, string(BillingPerSecond),
+		"Profile Video", CapabilityVideo, string(PricingPerSecond),
 		false, 0, 0,
 		"", `{
 			"allow": ["duration", "aspect_ratio", "resolution", "web_search"],
@@ -100,7 +118,7 @@ func TestResolveModelDefAppliesModelParamProfile(t *testing.T) {
 func TestValidateAndNormalizeGenerationParamsReturnsCanonicalKeys(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image", AdapterVolcen,
-		"Custom Image", CapabilityImage, string(BillingPerImage),
+		"Custom Image", CapabilityImage, string(PricingPerImage),
 		false, 0, 0,
 		"", "",
 	)

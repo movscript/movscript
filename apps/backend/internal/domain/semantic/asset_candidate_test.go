@@ -3,7 +3,7 @@ package semantic
 import (
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func TestMarkAssetSlotCandidateOnlyMovesUnresolvedSlots(t *testing.T) {

@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
+func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemodel.User, node *persistencemodel.CanvasNode, task *persistencemodel.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
 	spec := nd.ExecutableSpec
 	if spec == nil {
 		h.failTask(task, node, nd, "missing executable spec")
@@ -79,7 +79,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 			h.failTask(task, node, nd, err.Error())
 			return
 		}
-		resp, err := h.svc.CallTextWithBilling(ctx, user.ID, modelDbID, textReq, h.billingContextForNode(ctx, node, task))
+		resp, err := h.svc.CallTextWithUsage(ctx, user.ID, modelDbID, textReq, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -106,7 +106,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 		params = ai.NormalizeGenerationParams(preflight.NormalizedParams)
 		seed := int64PtrParam(params, "seed")
 		watermark := boolPtrParam(params, "watermark")
-		resp, err := h.svc.CallImageWithBilling(ctx, user.ID, modelDbID, ai.ImageRequest{
+		resp, err := h.svc.CallImageWithUsage(ctx, user.ID, modelDbID, ai.ImageRequest{
 			Prompt:              prompt,
 			N:                   intParam(params, "n", 1),
 			Quality:             stringParam(params, "quality", ""),
@@ -123,7 +123,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 			OptimizePromptMode:  stringParam(params, "optimize_prompt_mode", ""),
 			InputImageDataList:  imageData,
 			EditOnly:            spec.Capability == "image_edit",
-		}, h.billingContextForNode(ctx, node, task))
+		}, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -180,7 +180,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *model.User, n
 		if len(videoData) > 0 {
 			videoReq.InputVideoData = &videoData[0]
 		}
-		resp, err := h.svc.CallVideoWithBilling(ctx, user.ID, modelDbID, videoReq, h.billingContextForNode(ctx, node, task))
+		resp, err := h.svc.CallVideoWithUsage(ctx, user.ID, modelDbID, videoReq, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -225,7 +225,7 @@ type pluginHTTPRuntimeSpec struct {
 	Timeout  int    `json:"timeout"`
 }
 
-func (h *Service) executeHTTPPluginSpec(ctx context.Context, user *model.User, node *model.CanvasNode, task *model.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
+func (h *Service) executeHTTPPluginSpec(ctx context.Context, user *persistencemodel.User, node *persistencemodel.CanvasNode, task *persistencemodel.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
 	spec := nd.ExecutableSpec
 	if spec == nil || strings.TrimSpace(spec.PluginToolKey) == "" {
 		h.failTask(task, node, nd, "plugin tool key is required")

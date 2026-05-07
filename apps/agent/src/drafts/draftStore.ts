@@ -437,6 +437,16 @@ function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidatio
   if (!isRecord(parsed.global_settings)) {
     issues.push({ path: '/global_settings', message: 'Script split draft requires global_settings.', severity: 'error' })
   }
+  if (!isRecord(parsed.source_script)) {
+    issues.push({ path: '/source_script', message: 'Script split draft requires source_script.', severity: 'error' })
+  } else {
+    if (numberValue(parsed.source_script.line_count ?? parsed.source_script.lineCount) === undefined) {
+      issues.push({ path: '/source_script/line_count', message: 'Script split draft requires source_script.line_count.', severity: 'error' })
+    }
+    if (hasScriptSplitBodyText(parsed.source_script)) {
+      issues.push({ path: '/source_script/content', message: 'Script split draft must not store source script body text; use line_count and episode line ranges.', severity: 'error' })
+    }
+  }
   const episodes = parsed.episode_drafts
   if (!Array.isArray(episodes) || episodes.length === 0) {
     issues.push({ path: '/episode_drafts', message: 'Script split draft requires at least one episode draft.', severity: 'error' })
@@ -448,13 +458,31 @@ function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidatio
       issues.push({ path: base, message: 'Episode draft must be an object.', severity: 'error' })
       return
     }
-    for (const key of ['order', 'title', 'summary', 'content', 'start', 'end', 'action', 'existing_script_id']) {
+    for (const key of ['order', 'title', 'summary', 'action', 'existing_script_id']) {
       if (!(key in episode)) issues.push({ path: `${base}/${key}`, message: `Episode draft missing ${key}.`, severity: 'error' })
+    }
+    const startLine = numberValue(episode.start_line ?? episode.startLine ?? episode.start)
+    const endLine = numberValue(episode.end_line ?? episode.endLine ?? episode.end)
+    if (startLine === undefined || startLine < 1) {
+      issues.push({ path: `${base}/start_line`, message: 'Episode draft requires a valid start_line.', severity: 'error' })
+    }
+    if (endLine === undefined || endLine < 1) {
+      issues.push({ path: `${base}/end_line`, message: 'Episode draft requires a valid end_line.', severity: 'error' })
+    } else if (startLine !== undefined && endLine < startLine) {
+      issues.push({ path: `${base}/end_line`, message: 'Episode draft end_line must be greater than or equal to start_line.', severity: 'error' })
+    }
+    if (hasScriptSplitBodyText(episode)) {
+      issues.push({ path: `${base}/content`, message: 'Episode draft must not store script body text; use start_line/end_line.', severity: 'error' })
     }
     if (!isRecord(episode.global_context)) {
       issues.push({ path: `${base}/global_context`, message: 'Episode draft requires global_context.', severity: 'error' })
     }
   })
+}
+
+function hasScriptSplitBodyText(value: Record<string, unknown>): boolean {
+  return ['content', 'text', 'body', 'rawText', 'raw_text', 'sourceText', 'source_text']
+    .some((key) => typeof value[key] === 'string' && value[key].trim().length > 0)
 }
 
 function normalizeStoredDraft(draft: AgentDraft): AgentDraft {
@@ -493,6 +521,15 @@ function isJSONValue(value: unknown): value is JSONValue {
   if (Array.isArray(value)) return value.every(isJSONValue)
   if (!isRecord(value)) return false
   return Object.values(value).every(isJSONValue)
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
 }
 
 function clone<T>(value: T): T {

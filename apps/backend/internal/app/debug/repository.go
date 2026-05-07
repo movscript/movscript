@@ -6,7 +6,7 @@ import (
 
 	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
@@ -21,7 +21,7 @@ type gormRepository struct {
 }
 
 func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error) {
-	var cred model.AICredential
+	var cred persistencemodel.AICredential
 	if err := r.db.WithContext(ctx).First(&cred, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainaiadmin.Credential{}, ErrNotFound
@@ -32,7 +32,7 @@ func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainaiad
 }
 
 func (r *gormRepository) ListJobs(ctx context.Context, status string, limit, offset int) (JobPage, error) {
-	q := r.db.WithContext(ctx).Model(&model.Job{}).Preload("OutputResource")
+	q := r.db.WithContext(ctx).Model(&persistencemodel.Job{}).Preload("OutputResource")
 	if status != "" {
 		q = q.Where("status = ?", status)
 	}
@@ -42,7 +42,7 @@ func (r *gormRepository) ListJobs(ctx context.Context, status string, limit, off
 		return JobPage{}, err
 	}
 
-	items := make([]model.Job, 0)
+	items := make([]persistencemodel.Job, 0)
 	if err := q.Order("id DESC").Limit(limit).Offset(offset).Find(&items).Error; err != nil {
 		return JobPage{}, err
 	}
@@ -50,7 +50,7 @@ func (r *gormRepository) ListJobs(ctx context.Context, status string, limit, off
 }
 
 func (r *gormRepository) GetJob(ctx context.Context, id string) (domainjob.Job, error) {
-	var job model.Job
+	var job persistencemodel.Job
 	if err := r.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainjob.Job{}, ErrNotFound

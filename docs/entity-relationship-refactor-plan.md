@@ -32,47 +32,47 @@
 先把当前最关键的 5 组关系收敛清楚。这里先使用项目内现有实体命名：
 
 - 制作：`production`
-- 资料：`creative_reference`
-- 素材：`asset_slot`，实际文件是 `raw_resource`
-- 片段：`segment`
-- 情节：`scene_moment`
+- 设定资料：`creative_reference`
+- 素材槽：`asset_slot`，实际文件是 `raw_resource`
+- 编排段：`segment`
+- 情景：`scene_moment`
 - 内容单元：`content_unit`
 
-### 1. 制作使用资料、制作拥有片段
+### 1. 制作使用设定资料、制作拥有编排段
 
-制作和资料之间不是父子生命周期关系，而是业务使用关系。一个制作可以使用多个资料，一个资料也可以被多个制作复用。
+制作和设定资料之间不是父子生命周期关系，而是业务使用关系。一个制作可以使用多个设定资料，一个设定资料也可以被多个制作复用。
 
 | Source | Type | Target | 关系性质 | 建议 |
 | --- | --- | --- | --- | --- |
 | `production` | `uses` | `creative_reference` | 多对多语义关系 | 进入 `EntityRelation` |
-| `production` | `contains` | `segment` | 制作结构归属 | 保留 `Segment.ProductionID`，同时镜像关系 |
+| `production` | `contains` | `segment` | 编排结构归属 | 保留 `Segment.ProductionID`，同时镜像关系 |
 
 说明：
 
-- `production uses creative_reference` 表达“这个制作会用到哪些资料”。
-- `production contains segment` 表达“这个制作拆成哪些片段”。
-- `Segment.ProductionID` 可以保留，因为制作页面高频按 production 查片段。
+- `production uses creative_reference` 表达“这个制作会用到哪些设定资料”。
+- `production contains segment` 表达“这个制作包含哪些情绪、节奏和戏剧功能段”。
+- `Segment.ProductionID` 可以保留，因为制作页面高频按 production 查编排段。
 
-### 2. 资料属于项目、素材属于资料
+### 2. 设定资料属于项目、素材槽属于设定资料
 
-资料属于项目是强归属关系，应继续用外键表达。素材属于资料需要分两层理解：语义素材槽属于资料，实际文件资源被素材槽使用。
+设定资料属于项目是强归属关系，应继续用外键表达。素材槽属于设定资料需要分两层理解：语义素材槽属于设定资料，实际文件资源被素材槽使用。
 
 | Source | Type | Target | 关系性质 | 建议 |
 | --- | --- | --- | --- | --- |
 | `project` | `owns` | `creative_reference` | 项目强归属 | 保留 `CreativeReference.ProjectID` |
-| `creative_reference` | `has_asset` | `asset_slot` | 资料的素材需求或素材槽 | 进入 `EntityRelation`，可保留 `AssetSlot.CreativeReferenceID` |
-| `creative_reference_state` | `has_asset` | `asset_slot` | 某个资料状态的素材槽 | 进入 `EntityRelation`，可保留 `AssetSlot.CreativeReferenceStateID` |
+| `creative_reference` | `has_asset` | `asset_slot` | 设定资料的素材需求或素材槽 | 进入 `EntityRelation`，可保留 `AssetSlot.CreativeReferenceID` |
+| `creative_reference_state` | `has_asset` | `asset_slot` | 某个设定资料状态的素材槽 | 进入 `EntityRelation`，可保留 `AssetSlot.CreativeReferenceStateID` |
 | `asset_slot` | `uses_resource` | `raw_resource` | 素材槽使用实际文件 | 进入 `EntityRelation`，可保留 `AssetSlot.ResourceID` |
 
 说明：
 
-- “资料属于项目”不是复杂关系，`ProjectID` 足够。
-- “素材属于资料”建议不要直接理解成文件属于资料，而是：资料拥有素材槽，素材槽再绑定实际资源。
-- 这样可以支持一个角色资料拥有头像、半身、全身、表情、动作参考等多个素材槽。
+- “设定资料属于项目”不是复杂关系，`ProjectID` 足够。
+- “素材槽属于设定资料”不要理解成文件属于设定资料，而是：设定资料拥有素材槽，素材槽再绑定实际资源。
+- 这样可以支持一个角色设定资料拥有头像、半身、全身、表情、动作参考等多个素材槽。
 
-### 3. 片段拥有情节、内容单元
+### 3. 编排段拥有情景、内容单元
 
-片段是结构容器，情节和内容单元是片段下的制作颗粒。
+编排段是本集内部的情绪、节奏和戏剧功能容器，情景和内容单元是其下的制作颗粒。
 
 | Source | Type | Target | 关系性质 | 建议 |
 | --- | --- | --- | --- | --- |
@@ -81,13 +81,13 @@
 
 说明：
 
-- 情节负责“发生了什么、谁在什么条件下做什么”。
+- 情景负责“发生了什么、谁在什么条件下做什么”。
 - 内容单元负责“最终要生成或剪辑的一段画面、字幕、旁白、转场、音乐点等”。
-- 一个片段可以有多个情节，也可以有多个内容单元。
+- 一个编排段可以有多个情景，也可以有多个内容单元。
 
-### 4. 片段使用资料、素材
+### 4. 编排段使用设定资料、素材槽
 
-片段使用资料是创意语义关系；片段使用素材要区分“需要素材”和“已经选定素材”。
+编排段使用设定资料是创意语义关系；编排段使用素材槽要区分“需要素材”和“已经选定素材”。
 
 | Source | Type | Target | 关系性质 | 建议 |
 | --- | --- | --- | --- | --- |
@@ -97,14 +97,14 @@
 
 说明：
 
-- `uses creative_reference` 回答“这个片段涉及哪些人物、地点、道具、风格、规则”。
-- `needs_asset asset_slot` 回答“这个片段缺哪些素材”。
-- `uses_asset asset_slot` 回答“这个片段最终选用了哪些素材”。
+- `uses creative_reference` 回答“这个编排段涉及哪些人物、地点、道具、风格、规则”。
+- `needs_asset asset_slot` 回答“这个编排段缺哪些素材”。
+- `uses_asset asset_slot` 回答“这个编排段最终选用了哪些素材”。
 - 现有 `CreativeReferenceUsage` 和 `AssetSlot.OwnerType/OwnerID` 可以先镜像成这些关系。
 
-### 5. 内容单元使用情节、素材、资料
+### 5. 内容单元使用情节、素材槽、设定资料
 
-内容单元是更细的执行颗粒，它通常来源于某个情节，同时也会使用资料和素材。
+内容单元是更细的执行颗粒，它通常来源于某个情节，同时也会使用设定资料和素材槽。
 
 | Source | Type | Target | 关系性质 | 建议 |
 | --- | --- | --- | --- | --- |
@@ -129,8 +129,8 @@
 
 - `owns`：强归属，通常保留外键。
 - `contains`：结构包含，通常保留外键并镜像。
-- `uses`：使用资料。
-- `has_asset`：资料拥有素材槽。
+- `uses`：使用设定资料。
+- `has_asset`：设定资料拥有素材槽。
 - `needs_asset`：需要素材但未必选定。
 - `uses_asset`：已经选定或实际使用素材。
 - `uses_resource`：素材槽绑定实际资源。
@@ -239,10 +239,10 @@ type EntityRelation struct {
 | `production`            | `derived_from` | `script_version`        | 制作来源               |
 | `production`            | `uses_preview` | `preview_timeline`      | 制作采用某个预览时间线 |
 | `production`            | `contains`     | `production_text_block` | 制作内文本块           |
-| `production_text_block` | `contains`     | `segment`               | 文本块拆成片段         |
-| `segment`               | `contains`     | `scene_moment`          | 片段包含情节点         |
+| `production_text_block` | `contains`     | `segment`               | 文本块拆成编排段       |
+| `segment`               | `contains`     | `scene_moment`          | 编排段包含情节点       |
 | `scene_moment`          | `contains`     | `content_unit`          | 情节点生成内容单元     |
-| `segment`               | `contains`     | `content_unit`          | 片段直接生成内容单元   |
+| `segment`               | `contains`     | `content_unit`          | 编排段直接生成内容单元 |
 | `content_unit`          | `has_keyframe` | `keyframe`              | 内容单元的关键帧       |
 | `scene_moment`          | `has_keyframe` | `keyframe`              | 情节点的视觉锚点       |
 
@@ -255,11 +255,11 @@ type EntityRelation struct {
 | `storyboard_script`     | `has_version`  | `storyboard_version`    | 分镜脚本版本           |
 | `storyboard_version`    | `derived_from` | `storyboard_version`    | 分镜版本派生           |
 | `storyboard_script`     | `contains`     | `storyboard_line`       | 分镜行                 |
-| `storyboard_line`       | `based_on`     | `segment`               | 分镜行来源片段         |
+| `storyboard_line`       | `based_on`     | `segment`               | 分镜行来源编排段       |
 | `storyboard_line`       | `based_on`     | `scene_moment`          | 分镜行来源情节点       |
 | `storyboard_line`       | `compiles_to`  | `content_unit`          | 分镜行编译成内容单元   |
 | `preview_timeline`      | `contains`     | `preview_timeline_item` | 预览时间线条目         |
-| `preview_timeline_item` | `represents`   | `segment`               | 时间线条目代表片段     |
+| `preview_timeline_item` | `represents`   | `segment`               | 时间线条目代表编排段   |
 | `preview_timeline_item` | `represents`   | `content_unit`          | 时间线条目代表内容单元 |
 | `preview_timeline_item` | `uses`         | `keyframe`              | 时间线条目使用关键帧   |
 
@@ -270,10 +270,10 @@ type EntityRelation struct {
 | Source               | Type             | Target                     | 说明                                 |
 | -------------------- | ---------------- | -------------------------- | ------------------------------------ |
 | `creative_reference` | `has_state`      | `creative_reference_state` | 角色、地点、风格等在特定范围内的状态 |
-| `segment`            | `uses`           | `creative_reference`       | 片段使用创意资料                     |
-| `scene_moment`       | `uses`           | `creative_reference`       | 情节点使用创意资料                   |
-| `content_unit`       | `uses`           | `creative_reference`       | 内容单元使用创意资料                 |
-| `keyframe`           | `uses`           | `creative_reference`       | 关键帧使用创意资料                   |
+| `segment`            | `uses`           | `creative_reference`       | 编排段使用设定资料                   |
+| `scene_moment`       | `uses`           | `creative_reference`       | 情节点使用设定资料                   |
+| `content_unit`       | `uses`           | `creative_reference`       | 内容单元使用设定资料                 |
+| `keyframe`           | `uses`           | `creative_reference`       | 关键帧使用设定资料                   |
 | `creative_reference` | `related_to`     | `creative_reference`       | 泛关系                               |
 | `creative_reference` | `same_as`        | `creative_reference`       | 合并、别名或重复                     |
 | `creative_reference` | `located_in`     | `creative_reference`       | 人物或物体位于地点                   |
@@ -289,7 +289,7 @@ type EntityRelation struct {
 
 | Source                     | Type            | Target         | 说明                     |
 | -------------------------- | --------------- | -------------- | ------------------------ |
-| `segment`                  | `needs_asset`   | `asset_slot`   | 片段需要素材             |
+| `segment`                  | `needs_asset`   | `asset_slot`   | 编排段需要素材           |
 | `scene_moment`             | `needs_asset`   | `asset_slot`   | 情节点需要素材           |
 | `content_unit`             | `needs_asset`   | `asset_slot`   | 内容单元需要素材         |
 | `keyframe`                 | `needs_asset`   | `asset_slot`   | 关键帧需要素材           |

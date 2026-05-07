@@ -9,12 +9,10 @@ import (
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 )
 
-func TestPolicyServiceCommunitySkipsCommercialKeyLimits(t *testing.T) {
+func TestPolicyServiceCommunitySkipsPaidEditionKeyLimits(t *testing.T) {
 	db := openModelGatewayPolicyTestDB(t)
 	policy := NewPolicyService(db)
-	key := &domainmodelgateway.APIKey{
-		MonthlyBudget: 10,
-	}
+	key := &domainmodelgateway.APIKey{}
 
 	if err := policy.EnforceKeyLimits(context.Background(), key, 11); err != nil {
 		t.Fatalf("community EnforceKeyLimits() error = %v, want nil", err)

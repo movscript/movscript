@@ -1069,7 +1069,7 @@ function deliveryStatusLabel(status: string) {
     exported: '已导出',
     archived: '已归档',
     confirmed: '已确认',
-    needs_asset: '缺素材',
+    needs_asset: '缺素材资源',
     missing: '缺失',
     locked: '已锁定',
     pending: '待导出',

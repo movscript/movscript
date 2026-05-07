@@ -23,7 +23,7 @@ type PatchModelConfigInput struct {
 	CustomDisplayName     *string
 	ShortName             *string
 	CustomCapabilities    *string
-	CustomBillingMode     *string
+	CustomPricingMode     *string
 	CustomAcceptsImage    *bool
 	CustomMaxInputImages  *int
 	CustomMaxInputVideos  *int
@@ -76,8 +76,8 @@ func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigIn
 	if input.CustomCapabilities != nil {
 		cfg.CustomCapabilities = *input.CustomCapabilities
 	}
-	if input.CustomBillingMode != nil {
-		cfg.CustomBillingMode = *input.CustomBillingMode
+	if input.CustomPricingMode != nil {
+		cfg.CustomPricingMode = *input.CustomPricingMode
 	}
 	if input.CustomAcceptsImage != nil {
 		cfg.CustomAcceptsImage = *input.CustomAcceptsImage
@@ -134,7 +134,7 @@ func (s *Service) TestModelConfig(ctx context.Context, id string) (TestResult, e
 	if err != nil {
 		return TestResult{}, fmt.Errorf("credential not found: %w", err)
 	}
-	def := ai.ResolveModelDef(cfg.ModelDefID, cred.AdapterType, cfg.CustomDisplayName, cfg.CustomCapabilities, cfg.CustomBillingMode, cfg.CustomAcceptsImage, cfg.CustomMaxInputImages, cfg.CustomMaxInputVideos, cfg.CustomImageEditField, cfg.CustomSupportedParams)
+	def := ai.ResolveModelDef(cfg.ModelDefID, cred.AdapterType, cfg.CustomDisplayName, cfg.CustomCapabilities, cfg.CustomPricingMode, cfg.CustomAcceptsImage, cfg.CustomMaxInputImages, cfg.CustomMaxInputVideos, cfg.CustomImageEditField, cfg.CustomSupportedParams)
 
 	hasText := false
 	for _, cap := range def.Capabilities {
@@ -190,7 +190,7 @@ func newModelConfig(credentialID uint, input dto.AIModelConfigInput) domainaiadm
 		CustomDisplayName:     input.CustomDisplayName,
 		ShortName:             input.ShortName,
 		CustomCapabilities:    input.CustomCapabilities,
-		CustomBillingMode:     input.CustomBillingMode,
+		CustomPricingMode:     input.CustomPricingMode,
 		CustomAcceptsImage:    input.CustomAcceptsImage,
 		CustomMaxInputImages:  input.CustomMaxInputImages,
 		CustomMaxInputVideos:  input.CustomMaxInputVideos,
@@ -211,7 +211,7 @@ func applyModelConfigInput(cfg *domainaiadmin.ModelConfig, input dto.AIModelConf
 	cfg.CustomDisplayName = input.CustomDisplayName
 	cfg.ShortName = input.ShortName
 	cfg.CustomCapabilities = input.CustomCapabilities
-	cfg.CustomBillingMode = input.CustomBillingMode
+	cfg.CustomPricingMode = input.CustomPricingMode
 	cfg.CustomAcceptsImage = input.CustomAcceptsImage
 	cfg.CustomMaxInputImages = input.CustomMaxInputImages
 	cfg.CustomMaxInputVideos = input.CustomMaxInputVideos

@@ -10,7 +10,7 @@ test('normalizes a valid agent manifest v1', () => {
     name: 'Content Unit Planner',
     permissions: ['project.read', 'draft.write', 'project.read'],
     tools: [
-      { name: 'movscript_search_entities', mode: 'allow', approval: 'never' },
+      { name: 'movscript_search_items', mode: 'allow', approval: 'never' },
       { name: 'movscript_apply_draft', mode: 'allow', approval: 'always' },
       { name: '', mode: 'allow' },
     ],

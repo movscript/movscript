@@ -96,7 +96,7 @@ export default function FinalVideosPage() {
           <MetricCard icon={Boxes} label="制作" value={aggregate.productions} detail="当前项目制作单元" tone="text-orange-600" />
           <MetricCard icon={Film} label="交付版本" value={aggregate.versions} detail="DeliveryVersion" tone="text-lime-600" />
           <MetricCard icon={Download} label="已导出" value={aggregate.exported} detail="成功导出记录" tone="text-emerald-600" />
-          <MetricCard icon={ShieldCheck} label="阻塞项" value={aggregate.blockers} detail="缺素材或未批准" tone="text-amber-600" />
+          <MetricCard icon={ShieldCheck} label="阻塞项" value={aggregate.blockers} detail="缺素材资源或未批准" tone="text-amber-600" />
           <MetricCard icon={CheckCircle2} label="平均就绪" value={`${aggregate.avg}%`} detail="版本放行准备度" tone="text-sky-600" />
         </section>
 

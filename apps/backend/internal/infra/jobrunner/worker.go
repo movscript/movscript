@@ -6,16 +6,15 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/movscript/movscript/internal/infra/ai"
+	"github.com/movscript/movscript/internal/infra/cloudup"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/infra/storage"
+	"gorm.io/gorm"
 	"log"
 	"net/http"
 	"os"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
-	"github.com/movscript/movscript/internal/infra/ai"
-	"github.com/movscript/movscript/internal/infra/cloudup"
-	"github.com/movscript/movscript/internal/infra/storage"
-	"gorm.io/gorm"
 )
 
 // Worker is a pool of goroutines that execute pending Job records.
@@ -63,7 +62,7 @@ func newWorkerID() string {
 // cloudupService loads enabled cloud file configs from DB and builds a cloudup.Service.
 // Returns nil (no error) if no configs are enabled — callers must check HasUploaders().
 func (w *Worker) cloudupService() *cloudup.Service {
-	var rows []model.CloudFileConfig
+	var rows []persistencemodel.CloudFileConfig
 	if err := w.db.Where("is_enabled = true AND deleted_at IS NULL").Order("priority asc").Find(&rows).Error; err != nil {
 		return nil
 	}
@@ -75,7 +74,7 @@ func (w *Worker) cloudupService() *cloudup.Service {
 	return svc
 }
 
-func (w *Worker) execute(ctx context.Context, job *model.Job) (err error) {
+func (w *Worker) execute(ctx context.Context, job *persistencemodel.Job) (err error) {
 	callCtx, cancel := context.WithTimeout(ctx, jobExecutionTimeout)
 	defer cancel()
 	heartbeatCtx, stopHeartbeat := context.WithCancel(callCtx)
@@ -102,7 +101,7 @@ func (w *Worker) execute(ctx context.Context, job *model.Job) (err error) {
 
 	// Resolve @[resource:ID] mentions in the prompt.
 	// This populates InputResourceID (legacy) and merges mention IDs into InputResourceIDs.
-	// All mention markers are stripped from the prompt text sent to the model.
+	// All mention markers are stripped from the prompt text sent to the persistencemodel.
 	sm.enter(StateResolvingInputs, "resolve resource mentions in prompt")
 	if err := w.abortIfCancelled(callCtx, job, sm); err != nil {
 		return err

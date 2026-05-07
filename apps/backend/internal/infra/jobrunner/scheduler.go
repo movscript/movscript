@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"log"
+	"time"
 )
 
 // Start launches n worker goroutines. Cancel ctx to stop them gracefully.
@@ -50,7 +49,7 @@ func (w *Worker) reaperLoop(ctx context.Context) {
 
 // processOne atomically claims one pending job and executes it.
 func (w *Worker) processOne(ctx context.Context) {
-	var job model.Job
+	var job persistencemodel.Job
 	var err error
 	if w.db.Dialector.Name() == "postgres" {
 		err = w.claimPostgresJob(&job).Error
@@ -71,7 +70,7 @@ func (w *Worker) processOne(ctx context.Context) {
 	}
 }
 
-func (w *Worker) claimPostgresJob(job *model.Job) *gorm.DB {
+func (w *Worker) claimPostgresJob(job *persistencemodel.Job) *gorm.DB {
 	return w.db.Raw(`
 		UPDATE jobs
 		SET status='running',
@@ -98,10 +97,10 @@ func (w *Worker) claimPostgresJob(job *model.Job) *gorm.DB {
 	`, w.workerID, int(leaseDuration.Seconds())).Scan(job)
 }
 
-func (w *Worker) claimLocalJob(job *model.Job) error {
+func (w *Worker) claimLocalJob(job *persistencemodel.Job) error {
 	now := time.Now()
 	return w.db.Transaction(func(tx *gorm.DB) error {
-		var candidate model.Job
+		var candidate persistencemodel.Job
 		if err := tx.
 			Session(&gorm.Session{Logger: ignoreRecordNotFoundLogger{Interface: tx.Logger}}).
 			Where("status = ?", StatusPending).
@@ -130,7 +129,7 @@ func (w *Worker) claimLocalJob(job *model.Job) error {
 		if candidate.ProviderTaskID == "" {
 			updates["attempt_count"] = gorm.Expr("attempt_count + 1")
 		}
-		result := tx.Model(&model.Job{}).
+		result := tx.Model(&persistencemodel.Job{}).
 			Where("id = ? AND status = ?", candidate.ID, StatusPending).
 			Updates(updates)
 		if result.Error != nil {
@@ -154,7 +153,7 @@ func (l ignoreRecordNotFoundLogger) Trace(ctx context.Context, begin time.Time, 
 	l.Interface.Trace(ctx, begin, fc, err)
 }
 
-func (w *Worker) completeFailure(job *model.Job, err error) {
+func (w *Worker) completeFailure(job *persistencemodel.Job, err error) {
 	if err == nil {
 		return
 	}
@@ -196,7 +195,7 @@ func (w *Worker) completeFailure(job *model.Job, err error) {
 
 func (w *Worker) isJobCancelled(jobID uint) bool {
 	var status string
-	if err := w.db.Model(&model.Job{}).
+	if err := w.db.Model(&persistencemodel.Job{}).
 		Select("status").
 		Where("id = ?", jobID).
 		Scan(&status).Error; err != nil {
@@ -205,7 +204,7 @@ func (w *Worker) isJobCancelled(jobID uint) bool {
 	return status == StatusCancelled
 }
 
-func (w *Worker) abortIfCancelled(ctx context.Context, job *model.Job, sm *jobStateMachine) error {
+func (w *Worker) abortIfCancelled(ctx context.Context, job *persistencemodel.Job, sm *jobStateMachine) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -223,7 +222,7 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 	}
 	now := time.Now()
 	threshold := now.Add(-staleRunningTimeout)
-	var jobs []model.Job
+	var jobs []persistencemodel.Job
 	if err := w.db.Where(`
 		status = ?
 		AND deleted_at IS NULL
@@ -311,7 +310,7 @@ func (w *Worker) requeueStaleRunningJobs(ctx context.Context) {
 	}
 }
 
-func (w *Worker) staleJobUpdate(job *model.Job, now time.Time, threshold time.Time, updates map[string]any) *gorm.DB {
+func (w *Worker) staleJobUpdate(job *persistencemodel.Job, now time.Time, threshold time.Time, updates map[string]any) *gorm.DB {
 	return w.db.Model(job).
 		Where(`
 			status = ?
@@ -339,7 +338,7 @@ func (w *Worker) heartbeat(ctx context.Context, jobID uint) {
 func (w *Worker) renewLease(jobID uint) (int64, error) {
 	now := time.Now()
 	leaseUntil := now.Add(leaseDuration)
-	result := w.db.Model(&model.Job{}).
+	result := w.db.Model(&persistencemodel.Job{}).
 		Where("id = ? AND status = ? AND locked_by = ?", jobID, StatusRunning, w.workerID).
 		Updates(map[string]any{
 			"last_heartbeat_at": &now,

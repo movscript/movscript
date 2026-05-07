@@ -3,8 +3,7 @@ package ai
 import (
 	"context"
 	"fmt"
-
-	"github.com/movscript/movscript/internal/domain/model"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 // CallForFeature is the business-layer entry point for text-based features.
@@ -21,7 +20,7 @@ func (s *AIService) CallForFeature(ctx context.Context, userID uint, featureKey 
 		temp = def.Temperature
 	}
 
-	var fcfg model.FeatureConfig
+	var fcfg persistencemodel.FeatureConfig
 	if err := s.db.Where("feature_key = ?", featureKey).First(&fcfg).Error; err == nil {
 		if fcfg.SystemPromptOverride != "" {
 			sysPrompt = fcfg.SystemPromptOverride
@@ -36,11 +35,11 @@ func (s *AIService) CallForFeature(ctx context.Context, userID uint, featureKey 
 		return TextResponse{}, err
 	}
 
-	var mcfg model.AIModelConfig
+	var mcfg persistencemodel.AIModelConfig
 	if err := s.db.First(&mcfg, modelConfigID).Error; err != nil {
 		return TextResponse{}, fmt.Errorf("model config %d not found", modelConfigID)
 	}
-	var cred model.AICredential
+	var cred persistencemodel.AICredential
 	s.db.First(&cred, mcfg.CredentialID)
 	mdef := resolveDefFromConfig(mcfg, cred.AdapterType)
 	isReasoning := false
@@ -64,31 +63,31 @@ func (s *AIService) CallForFeature(ctx context.Context, userID uint, featureKey 
 
 // CallText calls a text generation model by AIModelConfig DB ID.
 func (s *AIService) CallText(ctx context.Context, userID, modelConfigID uint, req TextRequest) (TextResponse, error) {
-	return s.CallTextWithBilling(ctx, userID, modelConfigID, req, BillingContext{})
+	return s.CallTextWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
 }
 
-func (s *AIService) CallTextWithBilling(ctx context.Context, userID, modelConfigID uint, req TextRequest, billing BillingContext) (TextResponse, error) {
+func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID uint, req TextRequest, usage UsageContext) (TextResponse, error) {
 	cfg, provider, def, err := s.loadConfig(modelConfigID, "text")
 	if err != nil {
 		return TextResponse{}, err
 	}
 	req.Model = resolveModelID(cfg, def)
 	attachTextPromptDebug(ctx, req)
-	if billing.ReservationID == nil {
+	if usage.ReservationID == nil {
 		estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(req), maxPositive(req.MaxTokens, 1024), 0, 1)
-		reservation, err := s.ReserveQuota(ctx, userID, modelConfigID, estimate, billing)
+		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
 		if err != nil {
 			return TextResponse{}, err
 		}
-		billing.ReservationID = &reservation.ID
+		usage.ReservationID = &reservation.ID
 	}
 	resp, err := provider.TextGenerate(ctx, req)
 	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(billing.ReservationID), err.Error())
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
 		return TextResponse{}, err
 	}
 	estimate := estimateUsageCost(cfg, def, "text", resp.Usage.InputTokens, resp.Usage.OutputTokens, 0, 1)
-	if err := s.settleUsage(ctx, userID, modelConfigID, estimate, billing); err != nil {
+	if err := s.settleUsage(ctx, userID, modelConfigID, estimate, usage); err != nil {
 		return TextResponse{}, err
 	}
 	return resp, nil
@@ -99,10 +98,10 @@ func (s *AIService) CallTextWithBilling(ctx context.Context, userID, modelConfig
 // not report usage in the stream, the gateway still emits chunks but records
 // zero token usage.
 func (s *AIService) CallTextStream(ctx context.Context, userID, modelConfigID uint, req TextRequest) (<-chan TextStreamEvent, error) {
-	return s.CallTextStreamWithBilling(ctx, userID, modelConfigID, req, BillingContext{})
+	return s.CallTextStreamWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
 }
 
-func (s *AIService) CallTextStreamWithBilling(ctx context.Context, userID, modelConfigID uint, req TextRequest, billing BillingContext) (<-chan TextStreamEvent, error) {
+func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelConfigID uint, req TextRequest, usage UsageContext) (<-chan TextStreamEvent, error) {
 	cfg, provider, def, err := s.loadConfig(modelConfigID, "text")
 	if err != nil {
 		return nil, err
@@ -113,32 +112,32 @@ func (s *AIService) CallTextStreamWithBilling(ctx context.Context, userID, model
 	}
 	req.Model = resolveModelID(cfg, def)
 	attachTextPromptDebug(ctx, req)
-	if billing.ReservationID == nil {
+	if usage.ReservationID == nil {
 		estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(req), maxPositive(req.MaxTokens, 1024), 0, 1)
-		reservation, err := s.ReserveQuota(ctx, userID, modelConfigID, estimate, billing)
+		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
 		if err != nil {
 			return nil, err
 		}
-		billing.ReservationID = &reservation.ID
+		usage.ReservationID = &reservation.ID
 	}
 	upstream, err := streamer.TextStream(ctx, req)
 	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(billing.ReservationID), err.Error())
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
 		return nil, err
 	}
 
 	out := make(chan TextStreamEvent)
 	go func() {
 		defer close(out)
-		var usage TokenUsage
+		var tokenUsage TokenUsage
 		for event := range upstream {
 			if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
-				usage = event.Usage
+				tokenUsage = event.Usage
 			}
 			out <- event
 		}
-		estimate := estimateUsageCost(cfg, def, "text", usage.InputTokens, usage.OutputTokens, 0, 1)
-		_ = s.settleUsage(context.Background(), userID, modelConfigID, estimate, billing)
+		estimate := estimateUsageCost(cfg, def, "text", tokenUsage.InputTokens, tokenUsage.OutputTokens, 0, 1)
+		_ = s.settleUsage(context.Background(), userID, modelConfigID, estimate, usage)
 	}()
 	return out, nil
 }

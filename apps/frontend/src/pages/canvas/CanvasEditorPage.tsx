@@ -553,7 +553,7 @@ function defaultPortsForDomainEntity(kind: CanvasEntityKind, assetSlotKind?: str
   if (kind === 'creative_reference') {
     return {
       inputs: [],
-      outputs: [port('name', 'text', '名称'), port('kind', 'text', '类型'), port('description', 'text', '描述'), port('content', 'text', '资料内容'), port('profile_json', 'json', '结构资料')],
+      outputs: [port('name', 'text', '名称'), port('kind', 'text', '类型'), port('description', 'text', '描述'), port('content', 'text', '设定资料内容'), port('profile_json', 'json', '结构化设定')],
     }
   }
   if (kind === 'asset_slot') {
@@ -573,7 +573,7 @@ function defaultPortsForDomainEntity(kind: CanvasEntityKind, assetSlotKind?: str
         port('image', 'image', '成品图片'),
         port('video', 'video', '成品视频'),
         port('audio', 'audio', '成品音频'),
-        port('creative_reference_id', 'number', '所属资料'),
+        port('creative_reference_id', 'number', '所属设定资料'),
       ],
     }
   }
@@ -711,10 +711,10 @@ function CanvasResourceShelf({
     badge: string
     entityKind?: CanvasEntityKind
   }> = [
-    { id: 'segments' as const, label: '剧本段落', items: segments, titleKey: 'title', bodyKeys: ['summary', 'description', 'raw_source'], badge: 'segment', entityKind: 'segment' },
+    { id: 'segments' as const, label: '编排段', items: segments, titleKey: 'title', bodyKeys: ['summary', 'description', 'raw_source'], badge: 'segment', entityKind: 'segment' },
     { id: 'sceneMoments' as const, label: '情景', items: sceneMoments, titleKey: 'title', bodyKeys: ['description', 'action_text', 'condition_text'], badge: 'moment', entityKind: 'scene_moment' },
     { id: 'creativeReferences' as const, label: '设定资料', items: creativeReferences, titleKey: 'name', bodyKeys: ['description', 'content', 'profile_json'], badge: 'reference', entityKind: 'creative_reference' },
-    { id: 'assetSlots' as const, label: '素材', items: assetSlots, titleKey: 'name', bodyKeys: ['description', 'prompt_hint', 'slot_key'], badge: 'asset', entityKind: 'asset_slot' },
+    { id: 'assetSlots' as const, label: '素材需求', items: assetSlots, titleKey: 'name', bodyKeys: ['description', 'prompt_hint', 'slot_key'], badge: 'asset', entityKind: 'asset_slot' },
     { id: 'contentUnits' as const, label: '制作项', items: contentUnits, titleKey: 'title', bodyKeys: ['description', 'prompt'], badge: 'unit', entityKind: 'content_unit' },
   ]
   const activeSemanticTab = tab === 'resources' ? undefined : semanticTabs.find((item) => item.id === tab) ?? semanticTabs[0]
@@ -2501,7 +2501,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
     const assetSlot = assetSlotId ? assetSlotById.get(assetSlotId) : undefined
     const creativeReferenceId = semanticValueNumber(assetSlot?.creative_reference_id)
     if (!creativeReferenceId) {
-      toast.error('无法创建所属资料卡片', '当前素材需求没有绑定设定资料。')
+      toast.error('无法创建所属设定资料卡片', '当前素材需求没有绑定设定资料。')
       return
     }
     const existingNode = nodes.find((node) => {

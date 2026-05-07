@@ -67,9 +67,9 @@ func (h *JobHandler) writeJobCreateError(c *gin.Context, err error) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "project is outside current workspace"})
 	case errors.Is(err, jobapp.ErrResourceOutsideOrg):
 		c.JSON(http.StatusForbidden, gin.H{"error": "input resource is outside current workspace"})
-	case jobapp.IsInsufficientQuota(err):
-		c.JSON(http.StatusPaymentRequired, gin.H{"error": err.Error()})
-	case errors.Is(err, jobapp.ErrReserveQuota), errors.Is(err, jobapp.ErrCreateJob):
+	case jobapp.IsUsageLimitExceeded(err):
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error(), "code": "USAGE_LIMIT_EXCEEDED"})
+	case errors.Is(err, jobapp.ErrReserveUsage), errors.Is(err, jobapp.ErrCreateJob):
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	case errors.Is(err, jobapp.ErrLoadInputResources):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to load input resources: " + err.Error()})

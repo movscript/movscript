@@ -1,8 +1,8 @@
 package project
 
-import "github.com/movscript/movscript/internal/domain/model"
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
-func ProjectFromModel(project model.Project) Project {
+func ProjectFromModel(project persistencemodel.Project) Project {
 	members := make([]Member, 0, len(project.Members))
 	for _, member := range project.Members {
 		members = append(members, MemberFromModel(member))
@@ -22,13 +22,13 @@ func ProjectFromModel(project model.Project) Project {
 	}
 }
 
-func (project Project) ToModel() model.Project {
-	var target model.Project
+func (project Project) ToModel() persistencemodel.Project {
+	var target persistencemodel.Project
 	project.ApplyToModel(&target)
 	return target
 }
 
-func (project Project) ApplyToModel(target *model.Project) {
+func (project Project) ApplyToModel(target *persistencemodel.Project) {
 	target.Model.ID = project.ID
 	target.Model.CreatedAt = project.CreatedAt
 	target.Model.UpdatedAt = project.UpdatedAt
@@ -38,13 +38,13 @@ func (project Project) ApplyToModel(target *model.Project) {
 	target.OrgID = project.OrgID
 	target.Status = project.Status
 	target.TotalEpisodes = project.TotalEpisodes
-	target.Members = make([]model.ProjectMember, 0, len(project.Members))
+	target.Members = make([]persistencemodel.ProjectMember, 0, len(project.Members))
 	for _, member := range project.Members {
 		target.Members = append(target.Members, member.ToModel())
 	}
 }
 
-func MemberFromModel(member model.ProjectMember) Member {
+func MemberFromModel(member persistencemodel.ProjectMember) Member {
 	return Member{
 		ID:        member.ID,
 		ProjectID: member.ProjectID,
@@ -56,13 +56,13 @@ func MemberFromModel(member model.ProjectMember) Member {
 	}
 }
 
-func (member Member) ToModel() model.ProjectMember {
-	var target model.ProjectMember
+func (member Member) ToModel() persistencemodel.ProjectMember {
+	var target persistencemodel.ProjectMember
 	member.ApplyToModel(&target)
 	return target
 }
 
-func (member Member) ApplyToModel(target *model.ProjectMember) {
+func (member Member) ApplyToModel(target *persistencemodel.ProjectMember) {
 	target.Model.ID = member.ID
 	target.Model.CreatedAt = member.CreatedAt
 	target.Model.UpdatedAt = member.UpdatedAt
@@ -71,7 +71,7 @@ func (member Member) ApplyToModel(target *model.ProjectMember) {
 	target.Role = member.Role
 }
 
-func UserRefFromModel(user model.User) *UserRef {
+func UserRefFromModel(user persistencemodel.User) *UserRef {
 	if user.ID == 0 {
 		return nil
 	}

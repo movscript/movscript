@@ -23,12 +23,12 @@ func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
 	}
 }
 
-func TestBillingContextIncludesAPIKeyAndProject(t *testing.T) {
+func TestUsageContextIncludesAPIKeyAndProject(t *testing.T) {
 	orgID := uint(5)
 	projectID := uint(11)
 	key := &domainmodelgateway.APIKey{ID: 3, OrgID: &orgID}
 
-	ctx := BillingContext(key, &projectID)
+	ctx := UsageContext(key, &projectID)
 
 	if ctx.OrgID == nil || *ctx.OrgID != 5 {
 		t.Fatalf("expected org id 5, got %#v", ctx.OrgID)
@@ -38,13 +38,6 @@ func TestBillingContextIncludesAPIKeyAndProject(t *testing.T) {
 	}
 	if ctx.ProjectID == nil || *ctx.ProjectID != 11 {
 		t.Fatalf("expected project id 11, got %#v", ctx.ProjectID)
-	}
-}
-
-func TestMonthlyBudgetErrorIsDistinct(t *testing.T) {
-	err := ErrMonthlyBudgetExceeded
-	if err == nil || err.Error() == "" {
-		t.Fatal("expected monthly budget sentinel error")
 	}
 }
 

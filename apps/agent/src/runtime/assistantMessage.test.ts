@@ -14,7 +14,7 @@ test('assistant message surfaces missing project warning', () => {
 test('assistant message describes successful and failed tool outcomes', () => {
   const content = buildAssistantContent('搜索并写草稿', [
     {
-      call: { name: 'movscript_search_entities', args: { query: '主角' } },
+      call: { name: 'movscript_search_items', args: { query: '主角' } },
       result: toolText({ results: [{ id: 1 }, { id: 2 }] }),
     },
     {
@@ -43,31 +43,31 @@ test('assistant message extracts tool calls from model JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
-        name: 'movscript_read_production_context',
+        name: 'movscript_read_current_production',
         parameters: { production_id: 4, project_id: 1 },
       },
     ],
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_read_production_context')
+  assert.equal(toolCalls[0].name, 'movscript_read_current_production')
   assert.equal(toolCalls[0].args?.production_id, 4)
 })
 
 test('assistant message extracts a single tool call returned as JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
-    name: 'movscript_propose_production_entities',
+    name: 'movscript_submit_production_proposal',
     args: {
       projectId: 1,
       productionId: 4,
-      candidates: {
-        scene_moments: [{ client_id: 'sm_001', segment_id: 39 }],
+      proposal: {
+        segments: [{ client_id: 'segment_001', action: 'create', title: '开场' }],
       },
     },
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_propose_production_entities')
+  assert.equal(toolCalls[0].name, 'movscript_submit_production_proposal')
   assert.equal(toolCalls[0].args?.projectId, 1)
   assert.equal(toolCalls[0].args?.productionId, 4)
 })
@@ -75,22 +75,18 @@ test('assistant message extracts a single tool call returned as JSON content', (
 test('assistant message extracts model-emitted single tool_call wrapper', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_call: {
-      tool_name: 'movscript_check_entity_conflicts',
+      tool_name: 'movscript_inspect_production_proposal_context',
       parameters: {
-        project_id: 1,
-        production_id: 4,
-        candidates: {
-          scene_moments: [{ client_id: 'sm_001', segment_id: 39 }],
-        },
+        proposalRef: 'draft_1',
+        includeNodes: true,
       },
     },
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_check_entity_conflicts')
-  assert.equal(toolCalls[0].args?.projectId, 1)
-  assert.equal(toolCalls[0].args?.productionId, 4)
-  assert.deepEqual((toolCalls[0].args?.candidates as any)?.scene_moments, [{ client_id: 'sm_001', segment_id: 39 }])
+  assert.equal(toolCalls[0].name, 'movscript_inspect_production_proposal_context')
+  assert.equal(toolCalls[0].args?.proposalRef, 'draft_1')
+  assert.equal(toolCalls[0].args?.includeNodes, true)
 })
 
 function toolText(value: unknown): JSONValue {

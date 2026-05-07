@@ -21,9 +21,9 @@ type ScriptVersion struct {
 	CreatedByID     *uint   `json:"created_by_id,omitempty"`
 }
 
-// Segment is a production-facing semantic unit. It is not a scene synonym; it
-// can represent a scene, montage, product beat, narration, title card,
-// transition, or any other meaningful segment.
+// Segment is an episode-level orchestration unit. It represents an internal
+// emotional, rhythm, or dramatic-function phase of the episode, not a script
+// paragraph, scene synonym, or raw footage fragment.
 type Segment struct {
 	gorm.Model
 	ProjectID       uint                 `gorm:"not null;index" json:"project_id"`
@@ -32,7 +32,7 @@ type Segment struct {
 	TextBlockID     *uint                `gorm:"index" json:"text_block_id,omitempty"`
 	TextBlock       *ProductionTextBlock `gorm:"foreignKey:TextBlockID" json:"text_block,omitempty"`
 	ParentSegmentID *uint                `gorm:"index" json:"parent_segment_id,omitempty"`
-	Kind            string               `gorm:"not null;default:'section';index" json:"kind"` // scene|montage|narration|product_showcase|title_card|transition|section
+	Kind            string               `gorm:"not null;default:'emotional_function';index" json:"kind"` // emotional_function|rhythm_shift|dramatic_function|setup|escalation|release|reversal|transition
 	Order           int                  `gorm:"not null;default:0;index" json:"order"`
 	Title           string               `json:"title"`
 	Summary         string               `gorm:"type:text" json:"summary"`
