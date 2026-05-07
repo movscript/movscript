@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type PageInput struct {
@@ -43,21 +44,34 @@ type NewStoredGeneratedResourceSpec struct {
 }
 
 type RawResource struct {
-	ID             uint
-	OwnerID        uint
-	OrgID          *uint
-	FolderID       *uint
-	Type           string
-	Name           string
-	FilePath       string
-	URL            string
-	Size           int64
-	MimeType       string
-	StorageBackend string
-	StorageKey     string
-	IsShared       bool
-	DirectURL      string
-	CloudUploads   string
+	ID             uint      `json:"ID"`
+	OwnerID        uint      `json:"owner_id"`
+	Owner          *UserRef  `json:"owner,omitempty"`
+	OrgID          *uint     `json:"org_id,omitempty"`
+	FolderID       *uint     `json:"folder_id,omitempty"`
+	Type           string    `json:"type"`
+	Name           string    `json:"name"`
+	FilePath       string    `json:"-"`
+	URL            string    `json:"url"`
+	Size           int64     `json:"size"`
+	MimeType       string    `json:"mime_type"`
+	StorageBackend string    `json:"storage_backend"`
+	StorageKey     string    `json:"storage_key"`
+	IsShared       bool      `json:"is_shared"`
+	DirectURL      string    `json:"direct_url,omitempty"`
+	CloudUploads   string    `json:"-"`
+	CreatedAt      time.Time `json:"CreatedAt"`
+	UpdatedAt      time.Time `json:"UpdatedAt"`
+}
+
+type UserRef struct {
+	ID           uint    `json:"ID"`
+	Username     string  `json:"username"`
+	SystemRole   string  `json:"system_role,omitempty"`
+	PrimaryEmail *string `json:"primary_email,omitempty"`
+	DisplayName  string  `json:"display_name,omitempty"`
+	AvatarURL    string  `json:"avatar_url,omitempty"`
+	Status       string  `json:"status,omitempty"`
 }
 
 func NormalizePage(input PageInput) PageSpec {

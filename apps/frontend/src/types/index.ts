@@ -61,67 +61,6 @@ export interface Script {
   UpdatedAt: string
 }
 
-// Setting is a canonical project entity with a unique name plus type, default
-// asset state, state-specific tags, notes, and structured data.
-export interface Setting {
-  ID: number
-  project_id: number
-  script_id?: number // optional link to a script
-  source_script_id?: number
-  source_analysis_id?: number
-  type?: string
-  name: string
-  alias?: string
-  description?: string
-  content?: string
-  status?: string
-  importance?: string
-  tags?: string
-  state_tags?: string
-  profile_json?: string
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export interface ScriptSettingRef {
-  ID: number
-  project_id: number
-  script_id: number
-  script?: Script
-  setting_id: number
-  setting?: Setting
-  role?: string
-  scope?: 'main' | 'episode' | 'scene'
-  first_mention?: string
-  evidence?: string
-  note?: string
-  emotion?: string
-  state?: string
-  purpose?: string
-  order?: number
-  source?: 'ai' | 'manual'
-  confidence?: number
-  CreatedAt: string
-  UpdatedAt: string
-}
-
-export interface SettingRelationship {
-  ID: number
-  project_id: number
-  source_setting_id: number
-  source_setting?: Setting
-  target_setting_id: number
-  target_setting?: Setting
-  scope_script_id?: number
-  category?: string
-  type?: string
-  label?: string
-  description?: string
-  source?: 'ai' | 'manual'
-  CreatedAt: string
-  UpdatedAt: string
-}
-
 export interface AssetSlot {
   ID: number
   project_id: number
@@ -162,11 +101,10 @@ export interface AssetSlotCandidate {
   UpdatedAt: string
 }
 
-export type ArtifactKind = 'script' | 'setting' | 'asset_slot'
+export type ArtifactKind = 'script' | 'asset_slot'
 
 export interface ArtifactEntityContext {
   asset_slot_id?: number | null
-  setting_id?: number | null
 }
 
 export interface ArtifactRef {
@@ -541,7 +479,6 @@ export interface RawResource {
 
 export type ResourceBindingOwnerType =
   | 'script'
-  | 'setting'
   | 'asset_slot'
   | 'script_version'
   | 'segment'
@@ -562,7 +499,6 @@ export type ResourceBindingRole =
   | 'thumbnail'
   | 'attachment'
   | 'source'
-  | 'setting_doc'
 
 export type ResourceBindingStatus = 'draft' | 'selected' | 'rejected' | 'approved' | 'archived'
 export type ResourceBindingSourceType = 'upload' | 'job' | 'canvas' | 'import' | 'manual' | 'legacy'
@@ -629,7 +565,7 @@ export interface Job {
 // Canvas
 export type MediaNodeType = 'text' | 'image' | 'video' | 'audio'
 export type ToolNodeType = 'canvas' | 'ref_image_gen' | 'ref_video_gen' | 'multi_angle' | 'style_transfer' | 'motion_imitation' | 'video_edit'
-export type CanvasEntityKind = 'script' | 'segment' | 'scene_moment' | 'creative_reference' | 'setting' | 'asset_slot' | 'content_unit'
+export type CanvasEntityKind = 'script' | 'segment' | 'scene_moment' | 'creative_reference' | 'asset_slot' | 'content_unit'
 export type SpecialNodeType = 'input' | 'output' | 'resource_sink' | 'approval' | 'text_gen' | 'ai_gen' | 'group' | 'plugin_card' | 'entity_card'
 export type PluginNodeType = string & { readonly __pluginNodeType?: unique symbol }
 export type NodeType = MediaNodeType | ToolNodeType | SpecialNodeType | PluginNodeType

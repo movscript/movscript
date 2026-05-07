@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -102,6 +104,19 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 	httpReq.Header.Set("Accept", "text/event-stream")
 	httpReq.Header.Set("Authorization", "Bearer "+a.APIKey)
 
+	streamDebug := aiStreamDebugEnabled()
+	if streamDebug {
+		slog.Info("ai_openai_stream_request",
+			slog.String("model", req.Model),
+			slog.String("endpoint", a.chatEndpoint()),
+			slog.Int("message_count", len(req.Messages)),
+			slog.Bool("json_mode", req.JSONMode),
+			slog.Bool("is_reasoning", req.IsReasoning),
+			slog.Any("extra_params", req.ExtraParams),
+			slog.String("request_body", truncateForStreamDebug(string(httpReqBody))),
+		)
+	}
+
 	start := time.Now()
 	resp, err := a.rawHTTP.Do(httpReq)
 	latency := time.Since(start).Milliseconds()
@@ -111,6 +126,14 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 			RequestBody: mustJSON(body), LatencyMs: latency, Error: err.Error(),
 		})
 		return nil, err
+	}
+	if streamDebug {
+		slog.Info("ai_openai_stream_response",
+			slog.String("model", req.Model),
+			slog.Int("status", resp.StatusCode),
+			slog.Int64("latency_ms", latency),
+			slog.String("content_type", resp.Header.Get("Content-Type")),
+		)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
@@ -140,11 +163,27 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 			}
 			data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 			if data == "[DONE]" {
+				if streamDebug {
+					slog.Info("ai_openai_stream_done", slog.String("model", req.Model))
+				}
 				out <- TextStreamEvent{Done: true}
 				return
 			}
+			if streamDebug {
+				slog.Info("ai_openai_stream_raw_chunk",
+					slog.String("model", req.Model),
+					slog.String("data", truncateForStreamDebug(data)),
+				)
+			}
 			var chunk openAIChatCompletionChunk
 			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+				if streamDebug {
+					slog.Warn("ai_openai_stream_decode_failed",
+						slog.String("model", req.Model),
+						slog.String("error", err.Error()),
+						slog.String("data", truncateForStreamDebug(data)),
+					)
+				}
 				continue
 			}
 			event := TextStreamEvent{}
@@ -155,6 +194,18 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 				event.ReasoningDelta = choice.Delta.ReasoningContent
 				event.ToolCallDeltas = choice.Delta.ToolCalls
 				event.FinishReason = choice.FinishReason
+			}
+			if streamDebug {
+				slog.Info("ai_openai_stream_parsed_chunk",
+					slog.String("model", req.Model),
+					slog.Int("choices", len(chunk.Choices)),
+					slog.Int("content_delta_chars", len(event.ContentDelta)),
+					slog.Int("reasoning_delta_chars", len(event.ReasoningDelta)),
+					slog.Int("tool_call_deltas", len(event.ToolCallDeltas)),
+					slog.String("finish_reason", event.FinishReason),
+					slog.String("content_delta", truncateForStreamDebug(event.ContentDelta)),
+					slog.String("reasoning_delta", truncateForStreamDebug(event.ReasoningDelta)),
+				)
 			}
 			event.Usage = TokenUsage{
 				InputTokens:  chunk.Usage.PromptTokens,
@@ -167,6 +218,19 @@ func (a *OpenAIAdapter) TextStream(ctx context.Context, req TextRequest) (<-chan
 		}
 	}()
 	return out, nil
+}
+
+func aiStreamDebugEnabled() bool {
+	value := strings.TrimSpace(strings.ToLower(os.Getenv("MOVSCRIPT_AI_STREAM_DEBUG")))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+func truncateForStreamDebug(value string) string {
+	const max = 4000
+	if len(value) <= max {
+		return value
+	}
+	return value[:max] + fmt.Sprintf("\n...[truncated %d bytes]", len(value)-max)
 }
 
 type openAIChatCompletionResponse struct {

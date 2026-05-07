@@ -2,29 +2,69 @@ package script
 
 import (
 	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
+	"time"
 )
 
 const ScriptVersionStatusActive = "active"
 const ScriptSourceTypeRaw = "raw"
 
-type ScriptVersion struct {
-	ID              uint
-	ProjectID       uint
-	ScriptID        uint
-	ParentVersionID *uint
-	VersionNumber   int
-	Title           string
-	SourceType      string
-	Content         string
-	RawSource       string
-	Summary         string
-	Status          string
-	CreatedByID     *uint
+type ScriptSnapshot struct {
+	ID                     uint      `json:"ID"`
+	ProjectID              uint      `json:"project_id"`
+	Title                  string    `json:"title"`
+	Description            string    `json:"description"`
+	Content                string    `json:"content"`
+	RawSource              string    `json:"raw_source"`
+	ScriptType             string    `json:"script_type"`
+	SourceType             string    `json:"source_type"`
+	Version                int       `json:"version"`
+	ParentScriptID         *uint     `json:"parent_script_id,omitempty"`
+	AnalysisStatus         string    `json:"analysis_status"`
+	AssigneeID             *uint     `json:"assignee_id,omitempty"`
+	AuthorID               uint      `json:"author_id"`
+	Summary                string    `json:"summary"`
+	Characters             string    `json:"characters"`
+	CharacterProfiles      string    `json:"character_profiles"`
+	CharacterRelationships string    `json:"character_relationships"`
+	CoreSettings           string    `json:"core_settings"`
+	Background             string    `json:"background"`
+	ScenesDesc             string    `json:"scenes_desc"`
+	Hook                   string    `json:"hook"`
+	PlotSummary            string    `json:"plot_summary"`
+	ScriptPoints           string    `json:"script_points"`
+	PlannedSceneCount      int       `json:"planned_scene_count"`
+	PlannedCharacterCount  int       `json:"planned_character_count"`
+	TimeText               string    `json:"time_text"`
+	LocationText           string    `json:"location_text"`
+	StructuredCharacters   string    `json:"structured_characters"`
+	PlotBeats              string    `json:"plot_beats"`
+	Atmosphere             string    `json:"atmosphere"`
+	StructureJSON          string    `json:"structure_json"`
+	EntityCandidates       string    `json:"entity_candidates"`
+	RelationshipCandidates string    `json:"relationship_candidates"`
+	Order                  int       `json:"order"`
+	CreatedAt              time.Time `json:"CreatedAt"`
+	UpdatedAt              time.Time `json:"UpdatedAt"`
 }
 
-func NewInitialVersion(item model.Script, createdByID *uint) ScriptVersion {
+type ScriptVersion struct {
+	ID              uint      `json:"ID"`
+	ProjectID       uint      `json:"project_id"`
+	ScriptID        uint      `json:"script_id"`
+	ParentVersionID *uint     `json:"parent_version_id,omitempty"`
+	VersionNumber   int       `json:"version_number"`
+	Title           string    `json:"title"`
+	SourceType      string    `json:"source_type"`
+	Content         string    `json:"content"`
+	RawSource       string    `json:"raw_source"`
+	Summary         string    `json:"summary"`
+	Status          string    `json:"status"`
+	CreatedByID     *uint     `json:"created_by_id,omitempty"`
+	CreatedAt       time.Time `json:"CreatedAt"`
+	UpdatedAt       time.Time `json:"UpdatedAt"`
+}
+
+func NewInitialVersion(item ScriptSnapshot, createdByID *uint) ScriptVersion {
 	sourceType := item.SourceType
 	if sourceType == "" {
 		sourceType = ScriptSourceTypeRaw
@@ -43,7 +83,7 @@ func NewInitialVersion(item model.Script, createdByID *uint) ScriptVersion {
 	}
 }
 
-func NormalizeDefaults(item *model.Script) {
+func NormalizeDefaults(item *ScriptSnapshot) {
 	if item.ScriptType == "" {
 		item.ScriptType = "uncategorized"
 	}

@@ -3,7 +3,6 @@ package semantic
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -59,44 +58,12 @@ func (s *Service) validateWorkDependencyInput(ctx context.Context, projectID uin
 	return s.ensureOwnerInProject(ctx, projectID, "work_item", input.DependsOnWorkItemID)
 }
 
-func workItemUpdates(item model.WorkItem, input WorkItemInput) map[string]any {
+func workItemUpdates(item domainsemantic.WorkItem, input WorkItemInput) map[string]any {
 	return domainsemantic.WorkItemUpdates(item, input.domainPatch())
 }
 
-func WorkItemInputKeepsAssignment(item model.WorkItem, input WorkItemInput) bool {
+func WorkItemInputKeepsAssignment(item domainsemantic.WorkItem, input WorkItemInput) bool {
 	return domainsemantic.WorkItemPatchKeepsAssignment(item, input.domainPatch())
-}
-
-func DecodeWorkItemResultJSON(raw string) (domainsemantic.WorkItemResultPayload, error) {
-	return domainsemantic.DecodeWorkItemResultJSON(raw)
-}
-
-func ValidJSONObject(raw string) bool {
-	return domainsemantic.ValidJSONObject(raw)
-}
-
-func InitialWorkItemApplyStatus(resultType string) string {
-	return domainsemantic.InitialWorkItemApplyStatus(resultType)
-}
-
-func ApplyStatusForWorkItemPatch(item model.WorkItem, input WorkItemInput) string {
-	return domainsemantic.ApplyStatusForWorkItemPatch(item, input.domainPatch())
-}
-
-func ApplyWorkItemUpdates(item *model.WorkItem, updates map[string]any) {
-	domainsemantic.ApplyWorkItemUpdates(item, updates)
-}
-
-func PrepareWorkItemResultApplication(item *model.WorkItem) {
-	domainsemantic.PrepareWorkItemResultApplication(item)
-}
-
-func MarkWorkItemResultApplied(item *model.WorkItem, appliedAt string) {
-	domainsemantic.MarkWorkItemResultApplied(item, appliedAt)
-}
-
-func MarkWorkItemResultApplyFailed(item *model.WorkItem, errMsg string) {
-	domainsemantic.MarkWorkItemResultApplyFailed(item, errMsg)
 }
 
 func (s *Service) ensureUserInProject(ctx context.Context, projectID, userID uint) error {

@@ -103,7 +103,6 @@
     "sceneNotFound": "Scene not found",
     "scriptContentEmpty": "Script content cannot be empty",
     "scriptNotFound": "Script not found",
-    "settingNotFound": "Setting not found",
     "shotNotFound": "Shot not found",
     "storyboardNotFound": "Storyboard not found",
     "succeededJobRetry": "Succeeded jobs cannot be retried",
@@ -219,12 +218,6 @@
       "episode": "Episode Script",
       "scene": "Scene Script"
     },
-    "settingTypes": {
-      "character": "Character",
-      "scene": "Scene",
-      "prop": "Prop",
-      "worldRule": "World Rule"
-    },
     "shotStatus": {
       "draft": "Draft",
       "prompt_ready": "Ready",
@@ -257,7 +250,6 @@
   },
   "entities": {
     "scripts": "Scripts",
-    "settings": "Settings",
     "segments": "Segments",
     "assetSlots": "Asset Slots",
     "storyboardLines": "Storyboard Lines",
@@ -288,13 +280,9 @@
     "rawResourceRequired": "Preview *",
     "selectResourceFile": "Select image / video / audio / text file",
     "selectFromResourceLibrary": "Select from resource library",
-    "linkedSettingRequired": "Linked setting *",
-    "linkedSettingOptional": "Linked setting (optional)",
-    "selectSetting": "Select setting",
     "linkedStateRequired": "Linked state *",
     "selectAssetState": "Select state",
     "assetStatePlaceholder": "Select or enter the matching asset state",
-    "selectSettingFirst": "Select a setting first",
     "clearSelection": "Clear selection",
     "assetVariantType": "View type",
     "customVariantType": "Custom view type",
@@ -345,8 +333,6 @@
     "assetViews": "Multi-view Images",
     "assetResource": "Preview",
     "noAssetResource": "No preview",
-    "settingTags": "Linked setting + tags",
-    "noSettingTags": "No setting tags",
     "legacyAssetViews": "Legacy view images",
     "empty": "Empty",
     "noAssetViews": "No view images yet. Upload them from the asset page.",
@@ -545,20 +531,17 @@
       "empty": "No assets",
       "createOne": "Create one",
       "createTitle": "New Asset",
-      "settingFilter": "Setting assets",
-      "settingFallback": "Setting #{{id}}",
-      "unlinkedSetting": "Unlinked setting",
       "pagination": "{{total}} assets · {{page}}/{{pageCount}}",
       "library": {
         "title": "Asset Library Overview",
-        "subtitle": "Review the project's saved assets, setting links, and previewable media. Use asset generation for asset slots, candidate generation, and locking.",
+        "subtitle": "Review the project's saved assets, creative reference links, and previewable media. Use asset generation for asset slots, candidate generation, and locking.",
         "openGeneration": "Asset Generation",
         "emptyHint": "Uploaded assets will appear here as the project asset overview.",
         "metrics": {
           "assets": "Total assets",
-          "settings": "Settings",
+          "creativeReferences": "Creative references",
           "media": "Previewable media",
-          "linked": "Linked settings"
+          "linked": "Linked references"
         }
       },
       "semantic": {
@@ -601,8 +584,8 @@
           "scope": "Linked segment",
           "cue": "Asset cue",
           "candidates": "Candidates",
-          "linkedSetting": "Linked setting",
-          "settings": "Settings",
+          "linkedReference": "Linked reference",
+          "creativeReferences": "Creative references",
           "assetCount": "Assets"
         },
         "sections": {
@@ -855,13 +838,7 @@
     "scripts": {
       "empty": "No scripts",
       "createOne": "Create one",
-      "createTitle": "New Script",
-      "settingsEmpty": "No settings",
-      "settingsCreateTitle": "New Setting",
-      "settingName": "Setting name",
-      "settingContent": "Detailed Content",
-      "settingContentPlaceholder": "Describe this setting in detail...",
-      "createSetting": "Create Setting"
+      "createTitle": "New Script"
     },
     "episodes": {
       "all": "All Episodes",
@@ -1097,6 +1074,33 @@
       "autoPlan": "Auto plan",
       "hideContext": "Hide context",
       "showContext": "Show context",
+      "drafts": {
+        "title": "Review Items",
+        "filters": {
+          "allStatuses": "All statuses",
+          "allKinds": "All types"
+        },
+        "status": {
+          "draft": "Pending review",
+          "accepted": "Accepted",
+          "rejected": "Rejected",
+          "applied": "Written",
+          "superseded": "Replaced"
+        },
+        "kinds": {
+          "script": "Script draft",
+          "creative_reference": "Creative reference suggestion",
+          "asset_slot": "Asset need",
+          "storyboard_line": "Storyboard suggestion",
+          "content_unit": "Shot suggestion",
+          "prompt": "Prompt",
+          "note": "Review note",
+          "pipeline": "Pipeline proposal",
+          "segment": "Segment proposal",
+          "scene_moment": "Scene moment proposal",
+          "production_proposal": "Production proposal"
+        }
+      },
       "modes": {
         "chat": "Chat",
         "plan": "Plan",
@@ -1224,7 +1228,7 @@
     },
     "entityTypes": {
       "script": "Script",
-      "setting": "Setting",
+      "creative_reference": "Creative Reference",
       "assetSlot": "Asset Slot",
       "contentUnit": "Content Unit",
       "asset": "Asset",
@@ -2239,7 +2243,6 @@
       "assetProductionWorkbench": "Asset Production Workbench",
       "contentProductionWorkbench": "Content Production Workbench",
       "scripts": "Script Management",
-      "settings": "Setting Management",
       "assetSlots": "Asset Slots",
       "assets": "Assets",
       "segments": "Segments",
@@ -2293,7 +2296,6 @@
     "groups": {},
     "items": {
       "scripts": "Script Library",
-      "settings": "Settings",
       "assetSlots": "Asset Slots",
       "assets": "Assets",
       "episodes": "Episodes",

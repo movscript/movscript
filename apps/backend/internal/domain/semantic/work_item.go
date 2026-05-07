@@ -4,8 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
+	"time"
 )
 
 type WorkAuth struct {
@@ -46,25 +45,28 @@ type WorkItemResultApplication struct {
 }
 
 type WorkItem struct {
-	ID             uint
-	ProjectID      uint
-	ProductionID   *uint
-	TargetType     string
-	TargetID       uint
-	Kind           string
-	Title          string
-	Description    string
-	Status         string
-	Priority       string
-	AssigneeID     *uint
-	SourceJobID    *uint
-	SourceCanvasID *uint
-	ResultType     string
-	ResultJSON     string
-	ApplyStatus    string
-	AppliedAt      string
-	ApplyError     string
-	MetadataJSON   string
+	ID             uint      `json:"ID"`
+	ProjectID      uint      `json:"project_id"`
+	ProductionID   *uint     `json:"production_id,omitempty"`
+	TargetType     string    `json:"target_type"`
+	TargetID       uint      `json:"target_id"`
+	Kind           string    `json:"kind"`
+	Title          string    `json:"title"`
+	Description    string    `json:"description"`
+	Status         string    `json:"status"`
+	Priority       string    `json:"priority"`
+	AssigneeID     *uint     `json:"assignee_id,omitempty"`
+	Assignee       *UserRef  `json:"assignee,omitempty"`
+	SourceJobID    *uint     `json:"source_job_id,omitempty"`
+	SourceCanvasID *uint     `json:"source_canvas_id,omitempty"`
+	ResultType     string    `json:"result_type"`
+	ResultJSON     string    `json:"result_json"`
+	ApplyStatus    string    `json:"apply_status"`
+	AppliedAt      string    `json:"applied_at"`
+	ApplyError     string    `json:"apply_error"`
+	MetadataJSON   string    `json:"metadata_json"`
+	CreatedAt      time.Time `json:"CreatedAt"`
+	UpdatedAt      time.Time `json:"UpdatedAt"`
 }
 
 const (
@@ -144,7 +146,7 @@ func ValidateWorkItemPatch(patch WorkItemPatch) error {
 	return nil
 }
 
-func WorkItemUpdates(item model.WorkItem, patch WorkItemPatch) map[string]any {
+func WorkItemUpdates(item WorkItem, patch WorkItemPatch) map[string]any {
 	updates := CompactUpdates(map[string]any{
 		"production_id":    patch.ProductionID,
 		"target_type":      patch.TargetType,
@@ -169,7 +171,7 @@ func WorkItemUpdates(item model.WorkItem, patch WorkItemPatch) map[string]any {
 	return updates
 }
 
-func WorkItemPatchKeepsAssignment(item model.WorkItem, patch WorkItemPatch) bool {
+func WorkItemPatchKeepsAssignment(item WorkItem, patch WorkItemPatch) bool {
 	if patch.TargetType != item.TargetType || patch.TargetID != item.TargetID {
 		return false
 	}
@@ -182,7 +184,7 @@ func WorkItemPatchKeepsAssignment(item model.WorkItem, patch WorkItemPatch) bool
 	return true
 }
 
-func WorkItemStatusForPatch(item model.WorkItem, patch WorkItemPatch) string {
+func WorkItemStatusForPatch(item WorkItem, patch WorkItemPatch) string {
 	return FallbackString(patch.Status, item.Status)
 }
 
@@ -204,7 +206,7 @@ func WorkItemStatusRequiresManager(status string) bool {
 	}
 }
 
-func WorkItemPatchCompletes(item model.WorkItem, patch WorkItemPatch) bool {
+func WorkItemPatchCompletes(item WorkItem, patch WorkItemPatch) bool {
 	return WorkItemStatusForPatch(item, patch) == WorkItemStatusDone
 }
 
@@ -262,7 +264,7 @@ func DecodeWorkItemResultJSON(raw string) (WorkItemResultPayload, error) {
 	return payload, nil
 }
 
-func WorkItemResultApplicationFor(item model.WorkItem) (WorkItemResultApplication, error) {
+func WorkItemResultApplicationFor(item WorkItem) (WorkItemResultApplication, error) {
 	resultType := FallbackString(item.ResultType, WorkItemResultNone)
 	switch resultType {
 	case WorkItemResultNone:
@@ -368,7 +370,7 @@ func InitialWorkItemApplyStatus(resultType string) string {
 	return WorkItemApplyStatusPending
 }
 
-func ApplyStatusForWorkItemPatch(item model.WorkItem, patch WorkItemPatch) string {
+func ApplyStatusForWorkItemPatch(item WorkItem, patch WorkItemPatch) string {
 	resultType := FallbackString(patch.ResultType, item.ResultType)
 	if resultType == WorkItemResultNone {
 		return WorkItemApplyStatusNotApplicable
@@ -382,7 +384,7 @@ func ApplyStatusForWorkItemPatch(item model.WorkItem, patch WorkItemPatch) strin
 	return item.ApplyStatus
 }
 
-func PrepareWorkItemResultApplication(item *model.WorkItem) {
+func PrepareWorkItemResultApplication(item *WorkItem) {
 	item.ResultType = FallbackString(item.ResultType, WorkItemResultNone)
 	if item.ResultType == WorkItemResultNone {
 		item.ApplyStatus = WorkItemApplyStatusNotApplicable
@@ -394,18 +396,18 @@ func PrepareWorkItemResultApplication(item *model.WorkItem) {
 	item.ApplyError = ""
 }
 
-func MarkWorkItemResultApplied(item *model.WorkItem, appliedAt string) {
+func MarkWorkItemResultApplied(item *WorkItem, appliedAt string) {
 	item.ApplyStatus = WorkItemApplyStatusApplied
 	item.AppliedAt = appliedAt
 	item.ApplyError = ""
 }
 
-func MarkWorkItemResultApplyFailed(item *model.WorkItem, errMsg string) {
+func MarkWorkItemResultApplyFailed(item *WorkItem, errMsg string) {
 	item.ApplyStatus = WorkItemApplyStatusFailed
 	item.ApplyError = errMsg
 }
 
-func ApplyWorkItemUpdates(item *model.WorkItem, updates map[string]any) {
+func ApplyWorkItemUpdates(item *WorkItem, updates map[string]any) {
 	if value, ok := updates["production_id"].(*uint); ok {
 		item.ProductionID = value
 	}

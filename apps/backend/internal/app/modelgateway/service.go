@@ -117,7 +117,15 @@ func IsInsufficientQuota(err error) bool {
 
 func (s *Service) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint) ([]model.GatewayAPIKey, error) {
 	includeLegacy := orgID != nil && s.policy.IsPersonalOrg(ctx, *orgID)
-	return s.repo.ListAPIKeys(ctx, ownerUserID, orgID, includeLegacy)
+	keys, err := s.repo.ListAPIKeys(ctx, ownerUserID, orgID, includeLegacy)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]model.GatewayAPIKey, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, key.ToModel())
+	}
+	return out, nil
 }
 
 func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (CreateAPIKeyResult, error) {
@@ -137,16 +145,17 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 	})
 	key := domainKey.ToModel()
 	applyAPIKeyCommercialCreateFields(&key, input.Commercial)
-	if err := s.repo.CreateAPIKey(ctx, &key); err != nil {
+	domainKey = domainmodelgateway.APIKeyFromModel(key)
+	if err := s.repo.CreateAPIKey(ctx, &domainKey); err != nil {
 		return CreateAPIKeyResult{}, err
 	}
-	return CreateAPIKeyResult{Key: key, RawKey: rawKey}, nil
+	return CreateAPIKeyResult{Key: domainKey.ToModel(), RawKey: rawKey}, nil
 }
 
 func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (model.GatewayAPIKey, error) {
 	key, err := s.policy.FindOwnedAPIKey(ctx, input.ID, input.OwnerUserID, input.OrgID)
 	if err != nil {
-		return key, err
+		return key.ToModel(), err
 	}
 	updates := map[string]any{}
 	if input.Name != nil {
@@ -164,13 +173,13 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (mo
 	applyAPIKeyCommercialUpdateFields(updates, input.Commercial)
 	if len(updates) > 0 {
 		if err := s.repo.UpdateAPIKey(ctx, &key, updates); err != nil {
-			return key, err
+			return key.ToModel(), err
 		}
 	}
 	if err := s.repo.ReloadAPIKey(ctx, &key); err != nil {
-		return key, err
+		return key.ToModel(), err
 	}
-	return key, nil
+	return key.ToModel(), nil
 }
 
 func (s *Service) DeleteAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) error {
@@ -202,7 +211,8 @@ func (s *Service) PrincipalForAPIKey(ctx context.Context, rawKey string) (Princi
 		return Principal{}, false, err
 	}
 	key.LastUsedAt = &now
-	return Principal{User: &user, Key: &key}, true, nil
+	keyModel := key.ToModel()
+	return Principal{User: &user, Key: &keyModel}, true, nil
 }
 
 func (s *Service) EnforceKeyLimits(ctx context.Context, key *model.GatewayAPIKey, estimatedCost float64) error {

@@ -9,8 +9,6 @@ type CreativeReference struct {
 	ProjectID        uint     `gorm:"not null;index" json:"project_id"`
 	SourceScriptID   *uint    `gorm:"index" json:"source_script_id,omitempty"`
 	SourceAnalysisID *uint    `gorm:"index" json:"source_analysis_id,omitempty"`
-	LegacySettingID  *uint    `gorm:"index" json:"legacy_setting_id,omitempty"`
-	LegacySetting    *Setting `gorm:"foreignKey:LegacySettingID" json:"legacy_setting,omitempty"`
 	Kind             string   `gorm:"not null;index" json:"kind"` // person|animal|place|prop|product|brand|style|world_rule|time_period|restriction
 	Name             string   `gorm:"not null;index" json:"name"`
 	Alias            string   `json:"alias"`

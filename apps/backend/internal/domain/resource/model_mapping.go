@@ -6,6 +6,7 @@ func RawResourceFromModel(resource model.RawResource) RawResource {
 	return RawResource{
 		ID:             resource.ID,
 		OwnerID:        resource.OwnerID,
+		Owner:          UserRefFromModel(resource.Owner),
 		OrgID:          resource.OrgID,
 		FolderID:       resource.FolderID,
 		Type:           resource.Type,
@@ -19,6 +20,8 @@ func RawResourceFromModel(resource model.RawResource) RawResource {
 		IsShared:       resource.IsShared,
 		DirectURL:      resource.DirectURL,
 		CloudUploads:   resource.CloudUploads,
+		CreatedAt:      resource.CreatedAt,
+		UpdatedAt:      resource.UpdatedAt,
 	}
 }
 
@@ -30,6 +33,8 @@ func (resource RawResource) ToModel() model.RawResource {
 
 func (resource RawResource) ApplyToModel(target *model.RawResource) {
 	target.Model.ID = resource.ID
+	target.Model.CreatedAt = resource.CreatedAt
+	target.Model.UpdatedAt = resource.UpdatedAt
 	target.OwnerID = resource.OwnerID
 	target.OrgID = resource.OrgID
 	target.FolderID = resource.FolderID
@@ -44,4 +49,19 @@ func (resource RawResource) ApplyToModel(target *model.RawResource) {
 	target.IsShared = resource.IsShared
 	target.DirectURL = resource.DirectURL
 	target.CloudUploads = resource.CloudUploads
+}
+
+func UserRefFromModel(user model.User) *UserRef {
+	if user.ID == 0 {
+		return nil
+	}
+	return &UserRef{
+		ID:           user.ID,
+		Username:     user.Username,
+		SystemRole:   user.SystemRole,
+		PrimaryEmail: user.PrimaryEmail,
+		DisplayName:  user.DisplayName,
+		AvatarURL:    user.AvatarURL,
+		Status:       user.Status,
+	}
 }

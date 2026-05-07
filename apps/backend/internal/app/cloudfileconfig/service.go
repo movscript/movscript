@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	domaincloudfileconfig "github.com/movscript/movscript/internal/domain/cloudfileconfig"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/crypto"
 	"gorm.io/gorm"
 )
@@ -45,7 +44,9 @@ type UpdateInput struct {
 	IsEnabled *bool
 }
 
-func (s *Service) List(ctx context.Context) ([]model.CloudFileConfig, error) {
+type Config = domaincloudfileconfig.Config
+
+func (s *Service) List(ctx context.Context) ([]Config, error) {
 	cfgs, err := s.repo.ListConfigs(ctx)
 	if err != nil {
 		return nil, err
@@ -56,13 +57,13 @@ func (s *Service) List(ctx context.Context) ([]model.CloudFileConfig, error) {
 	return cfgs, nil
 }
 
-func (s *Service) Create(ctx context.Context, input CreateInput) (model.CloudFileConfig, error) {
+func (s *Service) Create(ctx context.Context, input CreateInput) (Config, error) {
 	if !ValidConfigType(input.ConfigType) {
-		return model.CloudFileConfig{}, ErrInvalidConfig
+		return Config{}, ErrInvalidConfig
 	}
 	encJSON, err := s.encryptConfig(input.Config)
 	if err != nil {
-		return model.CloudFileConfig{}, fmt.Errorf("%w: %v", ErrEncryptConfig, err)
+		return Config{}, fmt.Errorf("%w: %v", ErrEncryptConfig, err)
 	}
 	cfg := domaincloudfileconfig.NewConfig(domaincloudfileconfig.NewConfigSpec{
 		Name:       input.Name,
@@ -70,15 +71,15 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.CloudFil
 		ConfigJSON: encJSON,
 		Priority:   input.Priority,
 		IsEnabled:  input.IsEnabled,
-	}).ToModel()
+	})
 	if err := s.repo.CreateConfig(ctx, &cfg); err != nil {
-		return model.CloudFileConfig{}, err
+		return Config{}, err
 	}
 	cfg.MaskedConfig = s.maskConfig(cfg.ConfigJSON)
 	return cfg, nil
 }
 
-func (s *Service) Update(ctx context.Context, input UpdateInput) (model.CloudFileConfig, error) {
+func (s *Service) Update(ctx context.Context, input UpdateInput) (Config, error) {
 	cfg, err := s.repo.GetConfig(ctx, input.ID)
 	if err != nil {
 		return cfg, err

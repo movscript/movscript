@@ -89,7 +89,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 		if node == nil {
 			continue
 		}
-		task := canvasruntime.NewCanvasTask(*node, &run.ID, "").ToModel()
+		task := canvasruntime.NewTask(*node, &run.ID, "").ToModel()
 		if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
 			return run, err
 		}

@@ -4,8 +4,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 func TestGenerateJoinCodeUsesReadableAlphabet(t *testing.T) {
@@ -43,8 +41,7 @@ func TestNormalizePlanAndStatus(t *testing.T) {
 }
 
 func TestNewPersonalOrgUsesStableSlugFallback(t *testing.T) {
-	user := model.User{Username: "alice"}
-	user.ID = 7
+	user := UserIdentity{ID: 7, Username: "alice"}
 	org := NewPersonalOrg(user, true)
 	if org.Slug != "alice-7" || !org.IsPersonal || org.CreatedBy != 7 {
 		t.Fatalf("unexpected personal org: %+v", org)

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	appresource "github.com/movscript/movscript/internal/app/resource"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
@@ -221,18 +222,18 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, r)
 }
 
-func (h *ResourceHandler) populateResourceURLs(c *gin.Context, resources []model.RawResource) {
+func (h *ResourceHandler) populateResourceURLs(c *gin.Context, resources []domainresource.RawResource) {
 	for i := range resources {
 		h.populateResourceURL(c, &resources[i])
 	}
 }
 
-func (h *ResourceHandler) populateResourceURL(c *gin.Context, resource *model.RawResource) {
+func (h *ResourceHandler) populateResourceURL(c *gin.Context, resource *domainresource.RawResource) {
 	resource.URL = resourceURL(c, resource.ID)
 	h.populateDirectURL(c, resource)
 }
 
-func (h *ResourceHandler) populateDirectURL(_ *gin.Context, _ *model.RawResource) {
+func (h *ResourceHandler) populateDirectURL(_ *gin.Context, _ *domainresource.RawResource) {
 	// DirectURL is intentionally not populated: MinIO runs inside Docker and
 	// its presigned URLs use the internal hostname (minio:9000) which is
 	// unreachable from the browser. The frontend always uses the backend

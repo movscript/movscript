@@ -41,7 +41,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 		if node == nil {
 			continue
 		}
-		task := canvasruntime.NewCanvasTask(*node, &run.ID, "").ToModel()
+		task := canvasruntime.NewTask(*node, &run.ID, "").ToModel()
 		if err := h.canvasRepo().CreateTask(context.Background(), &task); err != nil {
 			return run, tasks, err
 		}

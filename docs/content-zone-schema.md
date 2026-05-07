@@ -115,7 +115,7 @@
 
 缺口：
 
-- workflow entity schema 当前只注册了 `script`、`setting`、`asset_slot`、`content_unit`。前端虽然支持 `segment`、`scene_moment`、`creative_reference` 卡片，但这些对象还没有只读上下文 schema，因此画布端口会退回默认 `input/result`，不能按字段读取生产上下文。
+- workflow entity schema 已移除旧 `setting` 实体，后续应统一通过 `creative_reference`、`creative_reference_state` 和使用关系读取创作资料上下文。
 - `EntityIOService` 当前的写入能力偏通用，后续需要明确区分只读上下文端口和生产写回端口，避免画布直接写入片段、情景、创作资料等上游事实。
 - `EntityCardNode` 目前只为 `asset_slot`、`content_unit` 拉取 `/entities/:kind/:id/semantic-values`，片段、情节、创作资料主要依赖拖拽时的摘要文本，卡片预览不足。
 - 画布写回已有审计表，但用户侧还缺少明显的素材候选采纳、锁定、回滚和查看写回历史的完整闭环。

@@ -3,14 +3,14 @@ package semantic
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
-func (s *Service) ListScriptVersions(ctx context.Context, filter ScriptVersionFilter) ([]model.ScriptVersion, error) {
+func (s *Service) ListScriptVersions(ctx context.Context, filter ScriptVersionFilter) ([]domainsemantic.ScriptVersion, error) {
 	return s.repo.ListScriptVersions(ctx, filter)
 }
 
-func (s *Service) CreateScriptVersion(ctx context.Context, projectID uint, input CreateScriptVersionInput, createdByID *uint) (model.ScriptVersion, error) {
+func (s *Service) CreateScriptVersion(ctx context.Context, projectID uint, input CreateScriptVersionInput, createdByID *uint) (domainsemantic.ScriptVersion, error) {
 	item, err := s.repo.CreateScriptVersion(ctx, projectID, input, createdByID)
 	if err != nil {
 		return item, err
@@ -19,9 +19,9 @@ func (s *Service) CreateScriptVersion(ctx context.Context, projectID uint, input
 	return item, nil
 }
 
-func (s *Service) PatchScriptVersion(ctx context.Context, projectID uint, id string, input PatchScriptVersionInput) (model.ScriptVersion, error) {
-	var item model.ScriptVersion
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchScriptVersion(ctx context.Context, projectID uint, id string, input PatchScriptVersionInput) (domainsemantic.ScriptVersion, error) {
+	item, err := s.repo.LoadScriptVersion(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	updates := compactUpdates(map[string]any{
@@ -33,13 +33,7 @@ func (s *Service) PatchScriptVersion(ctx context.Context, projectID uint, id str
 		"status":            input.Status,
 		"parent_version_id": input.ParentVersionID,
 	})
-	if err := s.PatchItem(ctx, &item, updates); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchScriptVersion(ctx, item, updates)
 }
 
 func (s *Service) nextScriptVersionNumber(ctx context.Context, projectID uint, scriptID uint) int {

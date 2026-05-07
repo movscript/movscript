@@ -15,7 +15,7 @@
     },
     {
       "name": "movscript_search_entities",
-      "description": "Search scripts, settings, semantic production entities, and asset slots in the current or specified project. Use when the user names content without an exact entity ID.",
+      "description": "Search scripts, creative references, semantic production entities, and asset slots in the current or specified project. Use when the user names content without an exact entity ID.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
@@ -54,7 +54,7 @@
     },
     {
       "name": "movscript_read_entity",
-      "description": "Read a single MovScript project entity by entityType and entityId. Supported entityType values are project, script, setting, asset_slot, segment, scene_moment, storyboard_script, storyboard_line, content_unit, keyframe, preview_timeline, and delivery_version.",
+      "description": "Read a single MovScript project entity by entityType and entityId. Supported entityType values are project, script, creative_reference, asset_slot, segment, scene_moment, storyboard_script, storyboard_line, content_unit, keyframe, preview_timeline, and delivery_version.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
@@ -67,7 +67,7 @@
     },
     {
       "name": "movscript_read_project_structure",
-      "description": "Read compact project structure across scripts, settings, semantic production entities, asset slots, and pipeline nodes.",
+      "description": "Read compact project structure across scripts, creative references, semantic production entities, asset slots, and pipeline nodes.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
@@ -80,7 +80,7 @@
     },
     {
       "name": "movscript_create_draft",
-      "description": "Create a local draft artifact for proposed scripts, settings, storyboard scripts or lines, content units, prompts, asset slots, segments, scene moments, or notes. This does not write formal project entities.",
+      "description": "Create a local runtime/client review artifact for proposed scripts, creative references, storyboard scripts or lines, content units, prompts, asset slots, segments, scene moments, production proposals, or notes. This does not write formal project entities.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",
@@ -94,7 +94,7 @@
     },
     {
       "name": "movscript_list_drafts",
-      "description": "List local draft artifacts for the current or specified project. Use to review previous agent proposals.",
+      "description": "List local runtime/client review artifacts for the current or specified project. Use to review previous agent proposals before any backend write flow.",
       "permission": "draft.read",
       "risk": "read",
       "source": "runtime",
@@ -189,7 +189,7 @@
     },
     {
       "name": "movscript_check_entity_conflicts",
-      "description": "Check proposed production candidates against existing entities before writing a proposal draft. Pass scope='project' to check CreativeReferences across all productions and get reuse_candidates.",
+      "description": "Check proposed production candidates against existing entities before creating a local client-review proposal draft. Pass scope='project' to check CreativeReferences across all productions and get reuse_candidates.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
@@ -202,7 +202,7 @@
     },
     {
       "name": "movscript_propose_production_entities",
-      "description": "Write production analysis candidates into a reviewable draft proposal. Supports tree-form proposal (action: create|reuse|update) and automatically supersedes previous draft proposals for the same production.",
+      "description": "Create a local client-review production proposal draft. This does not write backend project entities. Supports tree-form proposal (action: create|reuse|update) and automatically supersedes previous local proposal drafts for the same production.",
       "permission": "draft.write",
       "risk": "draft",
       "projectScoped": true,

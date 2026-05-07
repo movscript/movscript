@@ -11,6 +11,8 @@ func ConfigFromModel(config model.CloudFileConfig) Config {
 		Priority:     config.Priority,
 		IsEnabled:    config.IsEnabled,
 		MaskedConfig: config.MaskedConfig,
+		CreatedAt:    config.CreatedAt,
+		UpdatedAt:    config.UpdatedAt,
 	}
 }
 
@@ -22,6 +24,8 @@ func (config Config) ToModel() model.CloudFileConfig {
 
 func (config Config) ApplyToModel(target *model.CloudFileConfig) {
 	target.Model.ID = config.ID
+	target.Model.CreatedAt = config.CreatedAt
+	target.Model.UpdatedAt = config.UpdatedAt
 	target.Name = config.Name
 	target.ConfigType = config.ConfigType
 	target.ConfigJSON = config.ConfigJSON

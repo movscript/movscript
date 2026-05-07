@@ -3,6 +3,9 @@ package resourcebinding
 import (
 	"errors"
 	"strings"
+	"time"
+
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 )
 
 var (
@@ -32,7 +35,6 @@ const (
 	RoleThumbnail  = "thumbnail"
 	RoleAttachment = "attachment"
 	RoleSource     = "source"
-	RoleSettingDoc = "setting_doc"
 	RoleCandidate  = "candidate"
 
 	StatusDraft    = "draft"
@@ -59,21 +61,24 @@ type Filter struct {
 }
 
 type Binding struct {
-	ID           uint
-	ProjectID    uint
-	ResourceID   uint
-	OwnerType    string
-	OwnerID      uint
-	Role         string
-	Slot         string
-	SortOrder    int
-	Version      int
-	IsPrimary    bool
-	Status       string
-	SourceType   string
-	SourceID     *uint
-	MetadataJSON string
-	CreatedByID  *uint
+	ID           uint                        `json:"ID"`
+	ProjectID    uint                        `json:"project_id"`
+	ResourceID   uint                        `json:"resource_id"`
+	Resource     *domainresource.RawResource `json:"resource,omitempty"`
+	OwnerType    string                      `json:"owner_type"`
+	OwnerID      uint                        `json:"owner_id"`
+	Role         string                      `json:"role"`
+	Slot         string                      `json:"slot"`
+	SortOrder    int                         `json:"sort_order"`
+	Version      int                         `json:"version"`
+	IsPrimary    bool                        `json:"is_primary"`
+	Status       string                      `json:"status"`
+	SourceType   string                      `json:"source_type"`
+	SourceID     *uint                       `json:"source_id,omitempty"`
+	MetadataJSON string                      `json:"metadata_json"`
+	CreatedByID  *uint                       `json:"created_by_id,omitempty"`
+	CreatedAt    time.Time                   `json:"CreatedAt"`
+	UpdatedAt    time.Time                   `json:"UpdatedAt"`
 }
 
 type CreateInput struct {
@@ -157,7 +162,7 @@ func ValidOwnerType(value string) bool {
 
 func ValidRole(value string) bool {
 	switch value {
-	case RoleReference, RoleInput, RoleOutput, RoleDraft, RoleFinal, RoleThumbnail, RoleAttachment, RoleSource, RoleSettingDoc, RoleCandidate:
+	case RoleReference, RoleInput, RoleOutput, RoleDraft, RoleFinal, RoleThumbnail, RoleAttachment, RoleSource, RoleCandidate:
 		return true
 	default:
 		return false

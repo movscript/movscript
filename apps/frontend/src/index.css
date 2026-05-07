@@ -115,7 +115,20 @@
   container-type: inline-size;
 }
 
+.production-workbench {
+  container-type: inline-size;
+}
+
 .asset-prep-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.production-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.production-context-stack,
+.production-candidate-row {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -127,6 +140,14 @@
   .asset-prep-side {
     grid-column: 2;
   }
+
+  .production-layout {
+    grid-template-columns: 340px minmax(0, 1fr);
+  }
+
+  .production-side {
+    grid-column: 2;
+  }
 }
 
 @container (min-width: 1380px) {
@@ -136,6 +157,24 @@
 
   .asset-prep-side {
     grid-column: auto;
+  }
+
+  .production-layout {
+    grid-template-columns: 340px minmax(0, 1fr) 360px;
+  }
+
+  .production-side {
+    grid-column: auto;
+  }
+}
+
+@container (min-width: 1540px) {
+  .production-context-stack {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .production-candidate-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   }
 }
 
@@ -199,6 +238,21 @@
   overflow-x: hidden;
 }
 
+.ai-agent-panel-resizing,
+.ai-agent-panel-resizing * {
+  user-select: none !important;
+}
+
+.ai-agent-panel-resizing--x,
+.ai-agent-panel-resizing--x * {
+  cursor: col-resize !important;
+}
+
+.ai-agent-panel-resizing--y,
+.ai-agent-panel-resizing--y * {
+  cursor: row-resize !important;
+}
+
 .ai-agent-panel-shell {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
@@ -224,23 +278,74 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  gap: 10px;
+  padding: 10px;
+  background: hsl(var(--muted) / 0.32);
 }
 
-.ai-agent-panel-shell .ai-agent-panel-main > .ms-agent-body {
+.ai-agent-panel-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--background));
+}
+
+.ai-agent-panel-content-card {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.ai-agent-panel-context-section,
+.ai-agent-panel-input-card {
+  flex: 0 0 auto;
+}
+
+.ai-agent-panel-card-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 8px 10px;
+}
+
+.ai-agent-panel-card-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  color: hsl(var(--foreground));
+}
+
+.ai-agent-panel-card-subtitle {
+  margin-top: 2px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 14px;
+  color: hsl(var(--muted-foreground));
+}
+
+.ai-agent-panel-shell .ai-agent-panel-content-card > .ms-agent-body {
   flex: 1 1 auto;
   min-height: 0;
 }
 
-.ai-agent-panel-shell .ai-agent-panel-main > .ai-agent-panel-footer {
-  flex: 0 0 auto;
-  margin-top: auto;
-}
-
 .ai-agent-panel-shell .ms-agent-header {
-  min-height: 56px;
-  padding: 10px 12px;
+  min-height: 50px;
+  padding: 8px 10px;
   gap: 8px;
   align-items: flex-start;
+  border-bottom: 1px solid hsl(var(--border));
 }
 
 .ai-agent-panel-shell .ms-agent-header__content {
@@ -334,33 +439,36 @@
 
 .ai-agent-panel-shell .ms-agent-composer {
   margin: 0;
-  border-radius: 10px;
+  border: 0;
+  border-radius: 0;
   padding: 7px;
-  box-shadow: var(--ms-shadow-sm);
+  background: hsl(var(--background));
+  box-shadow: none;
 }
 
-.ai-agent-panel-footer {
+.ai-agent-panel-context-resize-handle {
   display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 56%;
-  overflow: hidden;
+  height: 14px;
+  flex: 0 0 auto;
+  cursor: row-resize;
+  touch-action: none;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid hsl(var(--border));
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--background));
 }
 
-.ai-agent-panel-footer-scroll {
-  display: grid;
-  flex: 1 1 auto;
+.ai-agent-panel-context-resize-handle:hover {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / 0.08);
+}
+
+.ai-agent-panel-context-body {
   min-height: 0;
-  max-height: min(360px, 40vh);
-  gap: 8px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-right: 2px;
-}
-
-.ai-agent-panel-footer > .ms-agent-composer {
-  flex: 0 0 auto;
+  padding: 8px;
 }
 
 .ai-agent-panel-context-card {
@@ -419,9 +527,24 @@
 
 .ai-agent-panel-shell .ms-agent-composer__field {
   min-height: 52px;
-  max-height: 128px;
+  max-height: 260px;
   font-size: 12px;
   line-height: 18px;
+  resize: vertical;
+}
+
+.ai-agent-panel-shell .ai-agent-panel-composer {
+  background: hsl(var(--background));
+}
+
+.ai-agent-panel-shell .ai-agent-panel-composer-field {
+  border-radius: 6px;
+  background: hsl(var(--muted) / 0.28);
+  padding: 8px 9px;
+}
+
+.ai-agent-panel-shell .ai-agent-panel-composer-field:focus {
+  background: hsl(var(--background));
 }
 
 .ai-agent-panel-shell .ms-agent-composer__toolbar {

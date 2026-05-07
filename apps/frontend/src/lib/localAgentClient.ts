@@ -70,6 +70,7 @@ export type AgentTraceEventKind =
   | 'tool_catalog'
   | 'prompt'
   | 'policy'
+  | 'reasoning'
   | 'tool_call'
   | 'model_call'
   | 'approval'
@@ -391,7 +392,6 @@ export interface AgentHealth {
     statePath: string
     memoryPath: string
     draftPath: string
-    productionStatePath: string
     modelConfigPath: string
   }
   modelConfigPath?: string
@@ -436,67 +436,11 @@ export interface RuntimeModelTestResult {
   }
 }
 
-export type ProductionActionType =
-  | 'AnalyzeScriptToSegments'
-  | 'ExtractSceneMoments'
-  | 'GenerateStoryboardScript'
-  | 'GenerateKeyframeCandidates'
-  | 'PrepareAssetSlots'
-  | 'BuildPreviewTimelineProposal'
-
-export type ProductionRunStatus = 'queued' | 'running' | 'waiting_approval' | 'succeeded' | 'failed' | 'cancelled'
-export type ProductionStepStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'skipped'
-export type ProductionCandidateStatus = 'candidate' | 'accepted' | 'rejected' | 'revised' | 'superseded'
-
-export interface ProductionRunStep {
-  id: string
-  runId: string
-  type: 'read_context' | 'analyze' | 'generate' | 'validate' | 'write_candidate' | 'request_approval'
-  status: ProductionStepStatus
-  inputSummary?: string
-  outputSummary?: string
-  error?: string
-  startedAt?: string
-  finishedAt?: string
-}
-
-export interface ProductionCandidate {
-  id: string
-  type: string
-  projectId: number
-  sourceActionId: string
-  sourceRunId: string
-  targetObject?: Record<string, unknown>
-  status: ProductionCandidateStatus
-  payload: Record<string, unknown>
-  confidence?: number
-  evidence?: string[]
-  createdAt: string
-  updatedAt?: string
-  statusChangedAt?: string
-  statusReason?: string
-}
-
-export interface ProductionRun {
-  id: string
-  actionId: string
-  actionType: ProductionActionType
-  status: ProductionRunStatus
-  projectId: number
-  steps: ProductionRunStep[]
-  candidates: ProductionCandidate[]
-  warnings: string[]
-  error?: string
-  createdAt: string
-  startedAt?: string
-  finishedAt?: string
-}
-
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
 export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
 export type AgentDraftKind =
+  | 'script_split'
   | 'script'
-  | 'setting'
   | 'asset_slot'
   | 'storyboard_line'
   | 'content_unit'
@@ -559,13 +503,74 @@ export interface AgentDraftApplyPreview {
   message: string
 }
 
+export interface AgentDraftPatchOp {
+  op: 'add' | 'replace' | 'remove'
+  path: string
+  value?: unknown
+}
+
+export interface AgentDraftValidationIssue {
+  path: string
+  message: string
+  severity: 'error' | 'warning'
+}
+
+export interface AgentDraftValidationResult {
+  ok: boolean
+  draftId: string
+  kind: AgentDraftKind
+  issues: AgentDraftValidationIssue[]
+}
+
+export interface AgentDraftPatchResult {
+  status: 'patched'
+  draft: AgentDraft
+  changedPaths: string[]
+  validation: AgentDraftValidationResult
+}
+
 export interface RunMessageResult {
   run: AgentRun
   thread: AgentThread
 }
 
+export type AgentRunStreamEvent =
+  | {
+    type: 'run'
+    run: AgentRun
+  }
+  | {
+    type: 'trace'
+    runId: string
+    event: AgentTraceEvent
+    run: AgentRun
+  }
+  | {
+    type: 'assistant_delta'
+    runId: string
+    traceEventId: string
+    delta: string
+    accumulated: string
+    roundIndex?: number
+    roundLabel?: string
+    createdAt: string
+    run: AgentRun
+  }
+  | {
+    type: 'assistant_message'
+    runId: string
+    message: AgentMessage
+    run: AgentRun
+  }
+  | {
+    type: 'done'
+    run: AgentRun
+  }
+
 export interface RunMessageOptions {
   onRunUpdate?: (run: AgentRun) => void
+  onStreamEvent?: (event: AgentRunStreamEvent) => void
+  onAssistantDelta?: (event: Extract<AgentRunStreamEvent, { type: 'assistant_delta' }>) => void
   timeoutMs?: number
   pollMs?: number
   agentManifest?: AgentManifest
@@ -679,17 +684,6 @@ export class LocalAgentClient {
     return withRuntimeModelConfigError(this.postJSON('/model-config/test', input))
   }
 
-  createProductionAction(input: {
-    actionType: ProductionActionType
-    actionId?: string
-    projectId: number
-    sourceObject?: Record<string, unknown>
-    inputContext: Record<string, unknown>
-    requestedBy?: string
-  }): Promise<ProductionRun> {
-    return this.postJSON('/production/actions', input)
-  }
-
   approveRun(runId: string, input: { approvedToolNames?: string[]; approvalIds?: string[] } = {}): Promise<AgentRun> {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/approve`, input)
   }
@@ -717,6 +711,77 @@ export class LocalAgentClient {
       if (TERMINAL_RUN_STATUSES.has(run.status)) return run
       if (Date.now() > deadline) throw new Error(`local runtime run ${runId} did not finish within ${timeoutMs}ms`)
       await new Promise((resolve) => setTimeout(resolve, pollMs))
+    }
+  }
+
+  async streamRun(runId: string, options: RunMessageOptions = {}): Promise<AgentRun> {
+    const controller = new AbortController()
+    let timedOut = false
+    const timeout = options.timeoutMs
+      ? globalThis.setTimeout(() => {
+        timedOut = true
+        controller.abort()
+      }, options.timeoutMs)
+      : undefined
+    try {
+      const res = await fetch(`${this.baseURL}/runs/${encodeURIComponent(runId)}/stream`, {
+        headers: this.authHeaders({ Accept: 'text/event-stream' }),
+        signal: controller.signal,
+      })
+      if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
+      if (!res.body) return await this.waitForRun(runId, options)
+
+      let latestRun = await this.getJSON<AgentRun>(`/runs/${encodeURIComponent(runId)}`)
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      const processBlock = (block: string) => {
+        const parsed = parseSSEBlock(block)
+        if (!parsed) return
+        let event: AgentRunStreamEvent
+        try {
+          event = JSON.parse(parsed.data) as AgentRunStreamEvent
+        } catch {
+          return
+        }
+        options.onStreamEvent?.(event)
+        if ('run' in event) {
+          latestRun = event.run
+        }
+        if (event.type === 'run' || event.type === 'done' || event.type === 'trace') {
+          options.onRunUpdate?.(event.run)
+        }
+        if (event.type === 'assistant_delta') {
+          options.onAssistantDelta?.(event)
+        }
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        let normalized = buffer.replace(/\r\n/g, '\n')
+        let separatorIndex = normalized.indexOf('\n\n')
+        while (separatorIndex >= 0) {
+          processBlock(normalized.slice(0, separatorIndex))
+          normalized = normalized.slice(separatorIndex + 2)
+          separatorIndex = normalized.indexOf('\n\n')
+        }
+        buffer = normalized
+      }
+      const tail = decoder.decode()
+      if (tail) buffer += tail
+      if (buffer.trim()) processBlock(buffer)
+      return latestRun
+    } catch (error) {
+      if (timedOut) {
+        const latestRun = await this.getJSON<AgentRun>(`/runs/${encodeURIComponent(runId)}`).catch(() => undefined)
+        if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
+        throw new Error(`local runtime run ${runId} did not finish within ${options.timeoutMs}ms`)
+      }
+      throw error
+    } finally {
+      if (timeout !== undefined) globalThis.clearTimeout(timeout)
     }
   }
 
@@ -754,6 +819,18 @@ export class LocalAgentClient {
     return this.postJSON('/draft', input)
   }
 
+  updateDraft(draftId: string, input: { status?: AgentDraftStatus; title?: string; content?: string; target?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentDraft> {
+    return this.patchJSON(`/drafts/${encodeURIComponent(draftId)}`, input)
+  }
+
+  patchDraft(draftId: string, input: { ops: AgentDraftPatchOp[]; expectedUpdatedAt?: string; metadata?: Record<string, unknown> }): Promise<AgentDraftPatchResult> {
+    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/patch`, input)
+  }
+
+  validateDraft(draftId: string): Promise<AgentDraftValidationResult> {
+    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/validate`, {})
+  }
+
   previewApplyDraft(draftId: string, input: { target?: Record<string, unknown>; targetEntityType?: string; targetEntityId?: number | string; targetField?: string; currentValue?: unknown; proposedValue?: unknown } = {}): Promise<AgentDraftApplyPreview> {
     return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/apply-preview`, input)
   }
@@ -783,6 +860,19 @@ export class LocalAgentClient {
       pollMs: options.pollMs,
       onRunUpdate: options.onRunUpdate,
     })
+    const finalThread = await this.getThread(thread.id)
+    return { run: finalRun, thread: finalThread }
+  }
+
+  async runMessageStream(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
+    const thread = input.threadId ? await this.getThreadOrCreate(input.threadId) : await this.createThread({ title: input.title, projectId: input.projectId })
+    await this.addMessage(thread.id, input.message, input.clientInput)
+    const run = await this.createRun(thread.id, {
+      ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
+      ...(input.clientInput ? { clientInput: input.clientInput } : {}),
+    })
+    options.onRunUpdate?.(run)
+    const finalRun = await this.streamRun(run.id, options)
     const finalThread = await this.getThread(thread.id)
     return { run: finalRun, thread: finalThread }
   }
@@ -857,4 +947,21 @@ async function withRuntimeModelConfigError<T>(promise: Promise<T>): Promise<T> {
     }
     throw error
   }
+}
+
+function parseSSEBlock(block: string): { event?: string; data: string } | undefined {
+  const lines = block.replace(/\r\n/g, '\n').split('\n')
+  const dataLines: string[] = []
+  let event: string | undefined
+  for (const line of lines) {
+    if (line.startsWith('event:')) {
+      event = line.slice('event:'.length).trim()
+      continue
+    }
+    if (line.startsWith('data:')) {
+      dataLines.push(line.slice('data:'.length).trimStart())
+    }
+  }
+  if (dataLines.length === 0) return undefined
+  return { event, data: dataLines.join('\n').trim() }
 }

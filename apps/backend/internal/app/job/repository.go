@@ -86,7 +86,7 @@ func (r *gormRepository) LoadInputResources(ctx context.Context, ids []uint, use
 			return InputResourcesResult{}, ErrResourceOutsideOrg
 		}
 	}
-	return domainjob.CountInputResources(resources), nil
+	return CountInputResources(resources), nil
 }
 
 func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error) {

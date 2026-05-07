@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	dto "github.com/movscript/movscript/internal/app/dto"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
 	"github.com/movscript/movscript/internal/infra/cache"
 )
@@ -46,13 +45,12 @@ type PatchInput struct {
 	Body        map[string]any
 }
 
-func (s *Service) List(ctx context.Context, filter ListFilter) ([]model.Script, error) {
+func (s *Service) List(ctx context.Context, filter ListFilter) ([]domainscript.ScriptSnapshot, error) {
 	return s.repo.ListScripts(ctx, filter)
 }
 
-func (s *Service) Create(ctx context.Context, input CreateInput) (model.Script, error) {
-	var item model.Script
-	dto.ApplyScriptInput(&item, input.Script)
+func (s *Service) Create(ctx context.Context, input CreateInput) (domainscript.ScriptSnapshot, error) {
+	item := scriptSnapshotFromInput(input.Script)
 	item.ProjectID = input.ProjectID
 	NormalizeDefaults(&item)
 	item.AuthorID = input.AuthorID
@@ -66,18 +64,22 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.Script, 
 	return item, nil
 }
 
-func (s *Service) Get(ctx context.Context, id uint) (model.Script, error) {
+func (s *Service) Get(ctx context.Context, id uint) (domainscript.ScriptSnapshot, error) {
 	return s.repo.GetScript(ctx, id)
 }
 
-func (s *Service) Update(ctx context.Context, input UpdateInput) (model.Script, error) {
+func (s *Service) Update(ctx context.Context, input UpdateInput) (domainscript.ScriptSnapshot, error) {
 	item, err := s.Get(ctx, input.ID)
 	if err != nil {
 		return item, err
 	}
 	projectID := item.ProjectID
-	dto.ApplyScriptInput(&item, input.Script)
+	next := scriptSnapshotFromInput(input.Script)
+	next.ID = item.ID
+	next.ProjectID = projectID
+	next.CreatedAt = item.CreatedAt
 	item.ProjectID = projectID
+	item = next
 	NormalizeDefaults(&item)
 	if err := s.repo.SaveScript(ctx, &item); err != nil {
 		return item, err
@@ -98,7 +100,7 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (s *Service) Patch(ctx context.Context, input PatchInput) (model.Script, error) {
+func (s *Service) Patch(ctx context.Context, input PatchInput) (domainscript.ScriptSnapshot, error) {
 	item, err := s.Get(ctx, input.ID)
 	if err != nil {
 		return item, err
@@ -132,11 +134,11 @@ func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
 	_, _ = s.cache.BumpVersion(ctx, fmt.Sprintf("project:%d:progress", projectID))
 }
 
-func NormalizeDefaults(item *model.Script) {
+func NormalizeDefaults(item *domainscript.ScriptSnapshot) {
 	domainscript.NormalizeDefaults(item)
 }
 
-func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, createdByID *uint) error {
+func (s *Service) ensureInitialVersion(ctx context.Context, item *domainscript.ScriptSnapshot, createdByID *uint) error {
 	if item == nil || item.ID == 0 {
 		return nil
 	}
@@ -157,8 +159,8 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, 
 		}
 		return s.repo.UpdateScriptVersionWithRelations(ctx, &version, updates)
 	}
-	version = domainscript.NewInitialVersion(*item, createdByID).ToModel()
-	return s.repo.CreateScriptVersionWithRelations(ctx, &version)
+	domainVersion := domainscript.NewInitialVersion(*item, createdByID)
+	return s.repo.CreateScriptVersionWithRelations(ctx, &domainVersion)
 }
 
 func wrapVersionSync(err error) error {
@@ -166,4 +168,38 @@ func wrapVersionSync(err error) error {
 		return nil
 	}
 	return errors.Join(ErrVersionSync, err)
+}
+
+func scriptSnapshotFromInput(input dto.ScriptInput) domainscript.ScriptSnapshot {
+	return domainscript.ScriptSnapshot{
+		Title:                  input.Title,
+		Description:            input.Description,
+		Content:                input.Content,
+		RawSource:              input.RawSource,
+		ScriptType:             input.ScriptType,
+		SourceType:             input.SourceType,
+		Version:                input.Version,
+		ParentScriptID:         input.ParentScriptID,
+		AssigneeID:             input.AssigneeID,
+		Summary:                input.Summary,
+		Characters:             input.Characters,
+		CharacterRelationships: input.CharacterRelationships,
+		CoreSettings:           input.CoreSettings,
+		Background:             input.Background,
+		ScenesDesc:             input.ScenesDesc,
+		Hook:                   input.Hook,
+		PlotSummary:            input.PlotSummary,
+		ScriptPoints:           input.ScriptPoints,
+		PlannedSceneCount:      input.PlannedSceneCount,
+		PlannedCharacterCount:  input.PlannedCharacterCount,
+		TimeText:               input.TimeText,
+		LocationText:           input.LocationText,
+		StructuredCharacters:   input.StructuredCharacters,
+		PlotBeats:              input.PlotBeats,
+		Atmosphere:             input.Atmosphere,
+		StructureJSON:          input.StructureJSON,
+		EntityCandidates:       input.EntityCandidates,
+		RelationshipCandidates: input.RelationshipCandidates,
+		Order:                  input.Order,
+	}
 }

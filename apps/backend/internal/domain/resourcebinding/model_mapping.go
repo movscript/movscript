@@ -2,6 +2,7 @@ package resourcebinding
 
 import (
 	"github.com/movscript/movscript/internal/domain/model"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"gorm.io/gorm"
 )
 
@@ -16,6 +17,7 @@ func BindingFromModel(binding model.ResourceBinding) Binding {
 		ID:           binding.ID,
 		ProjectID:    binding.ProjectID,
 		ResourceID:   binding.ResourceID,
+		Resource:     resourceFromModelPointer(binding.Resource),
 		OwnerType:    binding.OwnerType,
 		OwnerID:      binding.OwnerID,
 		Role:         binding.Role,
@@ -28,12 +30,14 @@ func BindingFromModel(binding model.ResourceBinding) Binding {
 		SourceID:     binding.SourceID,
 		MetadataJSON: binding.MetadataJSON,
 		CreatedByID:  binding.CreatedByID,
+		CreatedAt:    binding.CreatedAt,
+		UpdatedAt:    binding.UpdatedAt,
 	}
 }
 
 func (binding Binding) ToModel() model.ResourceBinding {
 	return model.ResourceBinding{
-		Model:        gorm.Model{ID: binding.ID},
+		Model:        gorm.Model{ID: binding.ID, CreatedAt: binding.CreatedAt, UpdatedAt: binding.UpdatedAt},
 		ProjectID:    binding.ProjectID,
 		ResourceID:   binding.ResourceID,
 		OwnerType:    binding.OwnerType,
@@ -49,4 +53,12 @@ func (binding Binding) ToModel() model.ResourceBinding {
 		MetadataJSON: binding.MetadataJSON,
 		CreatedByID:  binding.CreatedByID,
 	}
+}
+
+func resourceFromModelPointer(resource *model.RawResource) *domainresource.RawResource {
+	if resource == nil {
+		return nil
+	}
+	item := domainresource.RawResourceFromModel(*resource)
+	return &item
 }

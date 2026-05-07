@@ -103,7 +103,6 @@
     "sceneNotFound": "分场不存在",
     "scriptContentEmpty": "剧本内容不能为空",
     "scriptNotFound": "剧本不存在",
-    "settingNotFound": "设定不存在",
     "shotNotFound": "镜头不存在",
     "storyboardNotFound": "分镜不存在",
     "succeededJobRetry": "成功任务不能重试",
@@ -219,12 +218,6 @@
       "episode": "分集剧本",
       "scene": "分场剧本"
     },
-    "settingTypes": {
-      "character": "人物",
-      "scene": "场景",
-      "prop": "道具",
-      "worldRule": "世界规则"
-    },
     "shotStatus": {
       "draft": "草稿",
       "prompt_ready": "就绪",
@@ -257,7 +250,6 @@
   },
   "entities": {
     "scripts": "剧本",
-    "settings": "设定",
     "segments": "剧本段落",
     "assetSlots": "素材需求",
     "storyboardLines": "分镜行",
@@ -288,13 +280,9 @@
     "rawResourceRequired": "预览 *",
     "selectResourceFile": "选择图片 / 视频 / 音频 / 文本文件",
     "selectFromResourceLibrary": "从资源库选择",
-    "linkedSettingRequired": "绑定设定 *",
-    "linkedSettingOptional": "绑定设定（可选）",
-    "selectSetting": "选择设定",
     "linkedStateRequired": "绑定状态 *",
     "selectAssetState": "选择状态",
     "assetStatePlaceholder": "选择或输入素材对应状态",
-    "selectSettingFirst": "请先选择设定",
     "clearSelection": "清除选择",
     "assetVariantType": "视图类型",
     "customVariantType": "自定义视图类型",
@@ -345,8 +333,6 @@
     "assetViews": "多视角图",
     "assetResource": "预览",
     "noAssetResource": "暂无预览",
-    "settingTags": "绑定设定 + 标签",
-    "noSettingTags": "暂无设定标签",
     "legacyAssetViews": "历史视角图",
     "empty": "空",
     "noAssetViews": "暂无视角图，请在素材管理页上传",
@@ -545,20 +531,17 @@
       "empty": "暂无素材",
       "createOne": "新建一个",
       "createTitle": "新建素材",
-      "settingFilter": "设定素材",
-      "settingFallback": "设定 #{{id}}",
-      "unlinkedSetting": "未绑定设定",
       "pagination": "{{total}} 个素材 · {{page}}/{{pageCount}}",
       "library": {
         "title": "素材库总览",
-        "subtitle": "只查看当前项目已沉淀的素材、设定绑定和可用媒体；素材需求生成与候选锁定请进入素材生成。",
+        "subtitle": "只查看当前项目已沉淀的素材、资料绑定和可用媒体；素材需求生成与候选锁定请进入素材生成。",
         "openGeneration": "素材生成",
         "emptyHint": "上传素材后会在这里形成项目素材总览。",
         "metrics": {
           "assets": "素材总数",
-          "settings": "设定数量",
+          "creativeReferences": "设定资料数量",
           "media": "可预览媒体",
-          "linked": "已绑定设定"
+          "linked": "已绑定资料"
         }
       },
       "semantic": {
@@ -601,8 +584,8 @@
           "scope": "关联剧本段落",
           "cue": "素材提示",
           "candidates": "候选数量",
-          "linkedSetting": "关联设定",
-          "settings": "设定数量",
+          "linkedReference": "关联资料",
+          "creativeReferences": "设定资料数量",
           "assetCount": "素材数量"
         },
         "sections": {
@@ -855,13 +838,7 @@
     "scripts": {
       "empty": "暂无剧本",
       "createOne": "新建一个",
-      "createTitle": "新建剧本",
-      "settingsEmpty": "暂无设定",
-      "settingsCreateTitle": "新建设定",
-      "settingName": "设定名称",
-      "settingContent": "详细内容",
-      "settingContentPlaceholder": "详细描述此设定的内容…",
-      "createSetting": "创建设定"
+      "createTitle": "新建剧本"
     },
     "episodes": {
       "all": "全部分集",
@@ -1097,6 +1074,33 @@
       "autoPlan": "自动规划",
       "hideContext": "隐藏上下文",
       "showContext": "显示上下文",
+      "drafts": {
+        "title": "待确认建议",
+        "filters": {
+          "allStatuses": "全部状态",
+          "allKinds": "全部类型"
+        },
+        "status": {
+          "draft": "待确认",
+          "accepted": "已采纳",
+          "rejected": "已拒绝",
+          "applied": "已写入",
+          "superseded": "已替换"
+        },
+        "kinds": {
+          "script": "剧本草稿",
+          "creative_reference": "设定资料建议",
+          "asset_slot": "素材需求",
+          "storyboard_line": "分镜建议",
+          "content_unit": "镜头建议",
+          "prompt": "提示词",
+          "note": "审阅备注",
+          "pipeline": "流程提案",
+          "segment": "段落提案",
+          "scene_moment": "情节提案",
+          "production_proposal": "制作提案"
+        }
+      },
       "modes": {
         "chat": "协作",
         "plan": "规划",
@@ -1224,7 +1228,7 @@
     },
     "entityTypes": {
       "script": "剧本",
-      "setting": "设定",
+      "creative_reference": "设定资料",
       "assetSlot": "素材需求",
       "contentUnit": "制作项",
       "asset": "素材",
@@ -2239,7 +2243,6 @@
       "assetProductionWorkbench": "素材制作工作台",
       "contentProductionWorkbench": "内容制作工作台",
       "scripts": "剧本管理",
-      "settings": "设定管理",
       "assetSlots": "素材需求",
       "assets": "素材",
       "segments": "剧本段落",
@@ -2293,7 +2296,6 @@
     "groups": {},
     "items": {
       "scripts": "剧本库",
-      "settings": "设定",
       "assetSlots": "素材需求",
       "assets": "素材",
       "episodes": "分集",

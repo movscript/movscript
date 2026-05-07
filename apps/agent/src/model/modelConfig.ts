@@ -109,7 +109,21 @@ export type RuntimeModelToolChoice = 'none' | 'auto' | 'required' | {
   }
 }
 
-export type RuntimeModelTraceCallback = (event: { phase: 'request' | 'response' | 'error'; trace: RuntimeModelHTTPTrace; error?: string }) => void
+export type RuntimeModelStreamTraceKind = 'reasoning' | 'content' | 'tool_call' | 'usage' | 'raw'
+
+export interface RuntimeModelStreamTrace {
+  kind: RuntimeModelStreamTraceKind
+  delta?: string
+  accumulated?: string
+  chunk?: unknown
+}
+
+export type RuntimeModelTraceCallback = (event: {
+  phase: 'request' | 'response' | 'error' | 'stream'
+  trace: RuntimeModelHTTPTrace
+  error?: string
+  stream?: RuntimeModelStreamTrace
+}) => void
 
 const DEFAULT_BACKEND_API_BASE_URL = 'http://localhost:8765/api/v1'
 const DEFAULT_BACKEND_MODEL = 'movscript-default-chat'

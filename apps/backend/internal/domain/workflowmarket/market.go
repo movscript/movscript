@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type PortDef = canvasruntime.PortDef
@@ -41,6 +40,12 @@ type TemplateEdge struct {
 	TargetHandle string
 }
 
+type PublicCanvas struct {
+	canvasruntime.Canvas
+	Nodes []canvasruntime.CanvasNode
+	Edges []canvasruntime.CanvasEdge
+}
+
 type MarketItem struct {
 	Source      string     `json:"source"`
 	CanvasID    uint       `json:"canvas_id,omitempty"`
@@ -57,9 +62,9 @@ type MarketItem struct {
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
-func TemplateCanvas(ownerID uint, tpl TemplateDef, name string, projectID *uint, stage string) model.Canvas {
+func TemplateCanvas(ownerID uint, tpl TemplateDef, name string, projectID *uint, stage string) canvasruntime.Canvas {
 	tagsRaw, _ := json.Marshal(tpl.Tags)
-	return model.Canvas{
+	return canvasruntime.Canvas{
 		OwnerID:      ownerID,
 		Name:         name,
 		Description:  tpl.Description,
@@ -137,11 +142,11 @@ func FindTemplate(key string) (TemplateDef, bool) {
 	return TemplateDef{}, false
 }
 
-func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []model.CanvasNode {
-	nodes := make([]model.CanvasNode, 0, len(defs))
+func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []canvasruntime.CanvasNode {
+	nodes := make([]canvasruntime.CanvasNode, 0, len(defs))
 	for _, def := range defs {
 		raw, _ := json.Marshal(def.Data)
-		nodes = append(nodes, model.CanvasNode{
+		nodes = append(nodes, canvasruntime.CanvasNode{
 			CanvasID: canvasID,
 			NodeID:   def.NodeID,
 			Type:     def.Type,
@@ -154,10 +159,10 @@ func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []model.CanvasNo
 	return nodes
 }
 
-func TemplateEdgesForCanvas(canvasID uint, defs []TemplateEdge) []model.CanvasEdge {
-	edges := make([]model.CanvasEdge, 0, len(defs))
+func TemplateEdgesForCanvas(canvasID uint, defs []TemplateEdge) []canvasruntime.CanvasEdge {
+	edges := make([]canvasruntime.CanvasEdge, 0, len(defs))
 	for _, def := range defs {
-		edges = append(edges, model.CanvasEdge{
+		edges = append(edges, canvasruntime.CanvasEdge{
 			CanvasID:     canvasID,
 			EdgeID:       def.EdgeID,
 			Source:       def.Source,
@@ -184,7 +189,7 @@ func TemplateMarketItem(tpl TemplateDef) MarketItem {
 	}
 }
 
-func PublicCanvasMarketItem(cv model.Canvas) MarketItem {
+func PublicCanvasMarketItem(cv PublicCanvas) MarketItem {
 	key := strings.TrimSpace(cv.WorkflowKey)
 	if key == "" {
 		key = fmt.Sprintf("canvas:%d", cv.ID)
@@ -205,7 +210,7 @@ func PublicCanvasMarketItem(cv model.Canvas) MarketItem {
 	}
 }
 
-func CanvasWorkflowInputs(cv model.Canvas) []PortDef {
+func CanvasWorkflowInputs(cv PublicCanvas) []PortDef {
 	ports := make([]PortDef, 0)
 	for _, node := range cv.Nodes {
 		if node.Type != "input" {
@@ -222,7 +227,7 @@ func CanvasWorkflowInputs(cv model.Canvas) []PortDef {
 	return ports
 }
 
-func CanvasWorkflowOutputs(cv model.Canvas) []PortDef {
+func CanvasWorkflowOutputs(cv PublicCanvas) []PortDef {
 	ports := make([]PortDef, 0)
 	for _, node := range cv.Nodes {
 		if node.Type != "output" {

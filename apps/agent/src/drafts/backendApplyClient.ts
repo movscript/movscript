@@ -22,7 +22,6 @@ export interface BackendApplyResult {
 
 const PATCH_ROUTES: Record<string, string> = {
   script: '/scripts/:id',
-  setting: '/settings/:id',
   asset_slot: '/projects/:projectId/entities/asset-slots/:id',
   segment: '/projects/:projectId/entities/segments/:id',
   scene_moment: '/projects/:projectId/entities/scene-moments/:id',
@@ -40,7 +39,6 @@ const FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'character_relationships', 'core_settings', 'background', 'scenes_desc', 'hook', 'plot_summary',
     'script_points',
   ]),
-  setting: new Set(['type', 'name', 'alias', 'description', 'content', 'status', 'importance', 'tags', 'profile_json']),
   asset_slot: new Set(['name', 'kind', 'description', 'prompt_hint', 'priority', 'resource_id', 'locked_asset_slot_id', 'status', 'metadata_json']),
   segment: new Set(['title', 'kind', 'summary', 'content', 'production_id', 'text_block_id', 'status', 'metadata_json']),
   scene_moment: new Set(['title', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status', 'metadata_json']),

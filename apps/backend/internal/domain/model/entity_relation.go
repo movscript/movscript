@@ -8,7 +8,6 @@ const (
 	EntityRelationCategoryAsset     = "asset"
 	EntityRelationCategoryWorkflow  = "workflow"
 	EntityRelationCategoryDelivery  = "delivery"
-	EntityRelationCategorySetting   = "setting"
 
 	EntityRelationTypeOwns         = "owns"
 	EntityRelationTypeContains     = "contains"

@@ -3,7 +3,7 @@ package model
 import "gorm.io/gorm"
 
 // ScriptAnalysis stores one structured analysis snapshot for a script.
-// Confirmed analysis rows can be used as the source for Setting records.
+// Confirmed analysis rows can be used as the source for semantic production entities.
 type ScriptAnalysis struct {
 	gorm.Model
 	ProjectID              uint    `gorm:"not null;index" json:"project_id"`

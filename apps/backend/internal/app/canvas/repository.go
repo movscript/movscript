@@ -136,7 +136,12 @@ func (r *gormRepository) CreateCanvas(ctx context.Context, cv *model.Canvas) err
 			return nil
 		}
 
-		nodes, edge := canvasruntime.WorkflowBootstrapGraph(cv.ID)
+		domainNodes, domainEdge := canvasruntime.WorkflowBootstrapGraph(cv.ID)
+		nodes := make([]model.CanvasNode, 0, len(domainNodes))
+		for _, node := range domainNodes {
+			nodes = append(nodes, node.ToModel())
+		}
+		edge := domainEdge.ToModel()
 		if err := tx.Create(&nodes).Error; err != nil {
 			return err
 		}
@@ -764,6 +769,6 @@ func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *model.Canvas) error {
 		AssetKind:     slot.Kind,
 		AssetName:     slot.Name,
 		FallbackLabel: fmt.Sprintf("素材位 #%d", slot.ID),
-	})
+	}).ToModel()
 	return tx.Create(&node).Error
 }

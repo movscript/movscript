@@ -1,6 +1,11 @@
 package semantic
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
+)
 
 type SegmentSpec struct {
 	ProjectID       uint
@@ -17,18 +22,20 @@ type SegmentSpec struct {
 }
 
 type Segment struct {
-	ID              uint
-	ProjectID       uint
-	ProductionID    *uint
-	TextBlockID     *uint
-	ParentSegmentID *uint
-	Kind            string
-	Order           int
-	Title           string
-	Summary         string
-	Content         string
-	Status          string
-	MetadataJSON    string
+	ID              uint      `json:"ID"`
+	ProjectID       uint      `json:"project_id"`
+	ProductionID    *uint     `json:"production_id,omitempty"`
+	TextBlockID     *uint     `json:"text_block_id,omitempty"`
+	ParentSegmentID *uint     `json:"parent_segment_id,omitempty"`
+	Kind            string    `json:"kind"`
+	Order           int       `json:"order"`
+	Title           string    `json:"title"`
+	Summary         string    `json:"summary"`
+	Content         string    `json:"content"`
+	Status          string    `json:"status"`
+	MetadataJSON    string    `json:"metadata_json"`
+	CreatedAt       time.Time `json:"CreatedAt"`
+	UpdatedAt       time.Time `json:"UpdatedAt"`
 }
 
 func NewSegment(spec SegmentSpec) Segment {
@@ -62,18 +69,20 @@ type ProductionTextBlockSpec struct {
 }
 
 type ProductionTextBlock struct {
-	ID            uint
-	ProjectID     uint
-	ProductionID  uint
-	ParentBlockID *uint
-	Kind          string
-	Order         int
-	Title         string
-	Content       string
-	Summary       string
-	SourceType    string
-	Status        string
-	MetadataJSON  string
+	ID            uint      `json:"ID"`
+	ProjectID     uint      `json:"project_id"`
+	ProductionID  uint      `json:"production_id"`
+	ParentBlockID *uint     `json:"parent_block_id,omitempty"`
+	Kind          string    `json:"kind"`
+	Order         int       `json:"order"`
+	Title         string    `json:"title"`
+	Content       string    `json:"content"`
+	Summary       string    `json:"summary"`
+	SourceType    string    `json:"source_type"`
+	Status        string    `json:"status"`
+	MetadataJSON  string    `json:"metadata_json"`
+	CreatedAt     time.Time `json:"CreatedAt"`
+	UpdatedAt     time.Time `json:"UpdatedAt"`
 }
 
 func NewProductionTextBlock(spec ProductionTextBlockSpec) ProductionTextBlock {
@@ -108,19 +117,21 @@ type SceneMomentSpec struct {
 }
 
 type SceneMoment struct {
-	ID            uint
-	ProjectID     uint
-	SegmentID     *uint
-	Order         int
-	Title         string
-	Description   string
-	TimeText      string
-	LocationText  string
-	ConditionText string
-	ActionText    string
-	Mood          string
-	Status        string
-	MetadataJSON  string
+	ID            uint      `json:"ID"`
+	ProjectID     uint      `json:"project_id"`
+	SegmentID     *uint     `json:"segment_id,omitempty"`
+	Order         int       `json:"order"`
+	Title         string    `json:"title"`
+	Description   string    `json:"description"`
+	TimeText      string    `json:"time_text"`
+	LocationText  string    `json:"location_text"`
+	ConditionText string    `json:"condition_text"`
+	ActionText    string    `json:"action_text"`
+	Mood          string    `json:"mood"`
+	Status        string    `json:"status"`
+	MetadataJSON  string    `json:"metadata_json"`
+	CreatedAt     time.Time `json:"CreatedAt"`
+	UpdatedAt     time.Time `json:"UpdatedAt"`
 }
 
 func NewSceneMoment(spec SceneMomentSpec) SceneMoment {
@@ -170,33 +181,35 @@ type ContentUnitSpec struct {
 }
 
 type ContentUnit struct {
-	ID               uint
-	ProjectID        uint
-	ProductionID     *uint
-	SegmentID        *uint
-	SceneMomentID    *uint
-	Kind             string
-	Order            int
-	Title            string
-	Description      string
-	Prompt           string
-	DurationSec      float64
-	ShotSize         string
-	CameraAngle      string
-	CameraHeight     string
-	CameraMotion     string
-	MotionIntensity  string
-	CameraSpeed      string
-	Lens             string
-	FocalLength      string
-	FocusSubject     string
-	CompositionStart string
-	CompositionEnd   string
-	Stabilization    string
-	CameraParamsJSON string
-	CameraNotes      string
-	Status           string
-	MetadataJSON     string
+	ID               uint      `json:"ID"`
+	ProjectID        uint      `json:"project_id"`
+	ProductionID     *uint     `json:"production_id,omitempty"`
+	SegmentID        *uint     `json:"segment_id,omitempty"`
+	SceneMomentID    *uint     `json:"scene_moment_id,omitempty"`
+	Kind             string    `json:"kind"`
+	Order            int       `json:"order"`
+	Title            string    `json:"title"`
+	Description      string    `json:"description"`
+	Prompt           string    `json:"prompt"`
+	DurationSec      float64   `json:"duration_sec"`
+	ShotSize         string    `json:"shot_size"`
+	CameraAngle      string    `json:"camera_angle"`
+	CameraHeight     string    `json:"camera_height"`
+	CameraMotion     string    `json:"camera_motion"`
+	MotionIntensity  string    `json:"motion_intensity"`
+	CameraSpeed      string    `json:"camera_speed"`
+	Lens             string    `json:"lens"`
+	FocalLength      string    `json:"focal_length"`
+	FocusSubject     string    `json:"focus_subject"`
+	CompositionStart string    `json:"composition_start"`
+	CompositionEnd   string    `json:"composition_end"`
+	Stabilization    string    `json:"stabilization"`
+	CameraParamsJSON string    `json:"camera_params_json"`
+	CameraNotes      string    `json:"camera_notes"`
+	Status           string    `json:"status"`
+	MetadataJSON     string    `json:"metadata_json"`
+	CreatedAt        time.Time `json:"CreatedAt"`
+	UpdatedAt        time.Time `json:"UpdatedAt"`
 }
 
 func NewContentUnit(spec ContentUnitSpec) ContentUnit {
@@ -247,20 +260,22 @@ type PreviewTimelineItemSpec struct {
 }
 
 type PreviewTimelineItem struct {
-	ID                uint
-	ProjectID         uint
-	PreviewTimelineID uint
-	SegmentID         *uint
-	SceneMomentID     *uint
-	ContentUnitID     *uint
-	KeyframeID        *uint
-	Kind              string
-	Order             int
-	StartSec          float64
-	DurationSec       float64
-	Label             string
-	Status            string
-	MetadataJSON      string
+	ID                uint      `json:"ID"`
+	ProjectID         uint      `json:"project_id"`
+	PreviewTimelineID uint      `json:"preview_timeline_id"`
+	SegmentID         *uint     `json:"segment_id,omitempty"`
+	SceneMomentID     *uint     `json:"scene_moment_id,omitempty"`
+	ContentUnitID     *uint     `json:"content_unit_id,omitempty"`
+	KeyframeID        *uint     `json:"keyframe_id,omitempty"`
+	Kind              string    `json:"kind"`
+	Order             int       `json:"order"`
+	StartSec          float64   `json:"start_sec"`
+	DurationSec       float64   `json:"duration_sec"`
+	Label             string    `json:"label"`
+	Status            string    `json:"status"`
+	MetadataJSON      string    `json:"metadata_json"`
+	CreatedAt         time.Time `json:"CreatedAt"`
+	UpdatedAt         time.Time `json:"UpdatedAt"`
 }
 
 func NewPreviewTimelineItem(spec PreviewTimelineItemSpec) PreviewTimelineItem {
@@ -301,23 +316,27 @@ type AssetSlotSpec struct {
 }
 
 type AssetSlot struct {
-	ID                       uint
-	ProjectID                uint
-	ProductionID             *uint
-	CreativeReferenceID      *uint
-	CreativeReferenceStateID *uint
-	OwnerType                string
-	OwnerID                  *uint
-	Kind                     string
-	Name                     string
-	Description              string
-	SlotKey                  string
-	PromptHint               string
-	Status                   string
-	Priority                 string
-	ResourceID               *uint
-	LockedAssetSlotID        *uint
-	MetadataJSON             string
+	ID                       uint                        `json:"ID"`
+	ProjectID                uint                        `json:"project_id"`
+	ProductionID             *uint                       `json:"production_id,omitempty"`
+	CreativeReferenceID      *uint                       `json:"creative_reference_id,omitempty"`
+	CreativeReferenceStateID *uint                       `json:"creative_reference_state_id,omitempty"`
+	OwnerType                string                      `json:"owner_type"`
+	OwnerID                  *uint                       `json:"owner_id,omitempty"`
+	Kind                     string                      `json:"kind"`
+	Name                     string                      `json:"name"`
+	Description              string                      `json:"description"`
+	SlotKey                  string                      `json:"slot_key"`
+	PromptHint               string                      `json:"prompt_hint"`
+	Status                   string                      `json:"status"`
+	Priority                 string                      `json:"priority"`
+	ResourceID               *uint                       `json:"resource_id,omitempty"`
+	Resource                 *domainresource.RawResource `json:"resource,omitempty"`
+	LockedAssetSlotID        *uint                       `json:"locked_asset_slot_id,omitempty"`
+	LockedAssetSlot          *AssetSlot                  `json:"locked_asset_slot,omitempty"`
+	MetadataJSON             string                      `json:"metadata_json"`
+	CreatedAt                time.Time                   `json:"CreatedAt"`
+	UpdatedAt                time.Time                   `json:"UpdatedAt"`
 }
 
 func NewAssetSlot(spec AssetSlotSpec) AssetSlot {
@@ -353,15 +372,18 @@ type AssetSlotCandidateSpec struct {
 }
 
 type AssetSlotCandidate struct {
-	ID                   uint
-	ProjectID            uint
-	AssetSlotID          uint
-	CandidateAssetSlotID uint
-	SourceType           string
-	SourceID             *uint
-	Score                float64
-	Status               string
-	Note                 string
+	ID                   uint       `json:"ID"`
+	ProjectID            uint       `json:"project_id"`
+	AssetSlotID          uint       `json:"asset_slot_id"`
+	CandidateAssetSlotID uint       `json:"candidate_asset_slot_id"`
+	CandidateAssetSlot   *AssetSlot `json:"candidate_asset_slot,omitempty"`
+	SourceType           string     `json:"source_type"`
+	SourceID             *uint      `json:"source_id,omitempty"`
+	Score                float64    `json:"score"`
+	Status               string     `json:"status"`
+	Note                 string     `json:"note"`
+	CreatedAt            time.Time  `json:"CreatedAt"`
+	UpdatedAt            time.Time  `json:"UpdatedAt"`
 }
 
 func NewAssetSlotCandidate(spec AssetSlotCandidateSpec) AssetSlotCandidate {
@@ -395,21 +417,23 @@ type CandidateDecisionSpec struct {
 }
 
 type CandidateDecision struct {
-	ID                uint
-	ProjectID         uint
-	CandidateType     string
-	CandidateID       *uint
-	CandidateClientID string
-	TargetType        string
-	TargetID          *uint
-	Decision          string
-	Status            string
-	Reason            string
-	Note              string
-	Source            string
-	DecidedByID       *uint
-	AppliedAt         string
-	MetadataJSON      string
+	ID                uint      `json:"ID"`
+	ProjectID         uint      `json:"project_id"`
+	CandidateType     string    `json:"candidate_type"`
+	CandidateID       *uint     `json:"candidate_id,omitempty"`
+	CandidateClientID string    `json:"candidate_client_id"`
+	TargetType        string    `json:"target_type"`
+	TargetID          *uint     `json:"target_id,omitempty"`
+	Decision          string    `json:"decision"`
+	Status            string    `json:"status"`
+	Reason            string    `json:"reason"`
+	Note              string    `json:"note"`
+	Source            string    `json:"source"`
+	DecidedByID       *uint     `json:"decided_by_id,omitempty"`
+	AppliedAt         string    `json:"applied_at"`
+	MetadataJSON      string    `json:"metadata_json"`
+	CreatedAt         time.Time `json:"CreatedAt"`
+	UpdatedAt         time.Time `json:"UpdatedAt"`
 }
 
 func NewCandidateDecision(spec CandidateDecisionSpec) CandidateDecision {
@@ -447,19 +471,21 @@ type ReviewEventSpec struct {
 }
 
 type ReviewEvent struct {
-	ID              uint
-	ProjectID       uint
-	SubjectType     string
-	SubjectID       *uint
-	SubjectClientID string
-	EventType       string
-	FromStatus      string
-	ToStatus        string
-	Comment         string
-	Reason          string
-	Source          string
-	ActorID         *uint
-	MetadataJSON    string
+	ID              uint      `json:"ID"`
+	ProjectID       uint      `json:"project_id"`
+	SubjectType     string    `json:"subject_type"`
+	SubjectID       *uint     `json:"subject_id,omitempty"`
+	SubjectClientID string    `json:"subject_client_id"`
+	EventType       string    `json:"event_type"`
+	FromStatus      string    `json:"from_status"`
+	ToStatus        string    `json:"to_status"`
+	Comment         string    `json:"comment"`
+	Reason          string    `json:"reason"`
+	Source          string    `json:"source"`
+	ActorID         *uint     `json:"actor_id,omitempty"`
+	MetadataJSON    string    `json:"metadata_json"`
+	CreatedAt       time.Time `json:"CreatedAt"`
+	UpdatedAt       time.Time `json:"UpdatedAt"`
 }
 
 func NewReviewEvent(spec ReviewEventSpec) ReviewEvent {
@@ -491,15 +517,17 @@ type ExportRecordSpec struct {
 }
 
 type ExportRecord struct {
-	ID                uint
-	ProjectID         uint
-	DeliveryVersionID uint
-	ResourceID        *uint
-	Status            string
-	Format            string
-	Preset            string
-	Error             string
-	MetadataJSON      string
+	ID                uint      `json:"ID"`
+	ProjectID         uint      `json:"project_id"`
+	DeliveryVersionID uint      `json:"delivery_version_id"`
+	ResourceID        *uint     `json:"resource_id,omitempty"`
+	Status            string    `json:"status"`
+	Format            string    `json:"format"`
+	Preset            string    `json:"preset"`
+	Error             string    `json:"error"`
+	MetadataJSON      string    `json:"metadata_json"`
+	CreatedAt         time.Time `json:"CreatedAt"`
+	UpdatedAt         time.Time `json:"UpdatedAt"`
 }
 
 func NewExportRecord(spec ExportRecordSpec) ExportRecord {
@@ -532,20 +560,22 @@ type CanvasOutputSpec struct {
 }
 
 type CanvasOutput struct {
-	ID           uint
-	ProjectID    uint
-	CanvasID     uint
-	CanvasRunID  *uint
-	CanvasNodeID string
-	PortID       string
-	OwnerType    string
-	OwnerID      uint
-	OutputType   string
-	ResourceID   *uint
-	TargetField  string
-	ValueJSON    string
-	Status       string
-	MetadataJSON string
+	ID           uint      `json:"ID"`
+	ProjectID    uint      `json:"project_id"`
+	CanvasID     uint      `json:"canvas_id"`
+	CanvasRunID  *uint     `json:"canvas_run_id,omitempty"`
+	CanvasNodeID string    `json:"canvas_node_id"`
+	PortID       string    `json:"port_id"`
+	OwnerType    string    `json:"owner_type"`
+	OwnerID      uint      `json:"owner_id"`
+	OutputType   string    `json:"output_type"`
+	ResourceID   *uint     `json:"resource_id,omitempty"`
+	TargetField  string    `json:"target_field"`
+	ValueJSON    string    `json:"value_json"`
+	Status       string    `json:"status"`
+	MetadataJSON string    `json:"metadata_json"`
+	CreatedAt    time.Time `json:"CreatedAt"`
+	UpdatedAt    time.Time `json:"UpdatedAt"`
 }
 
 func NewCanvasOutput(spec CanvasOutputSpec) CanvasOutput {
@@ -576,13 +606,16 @@ type WorkReviewSpec struct {
 }
 
 type WorkReview struct {
-	ID           uint
-	ProjectID    uint
-	WorkItemID   uint
-	ReviewerID   *uint
-	Status       string
-	Comment      string
-	MetadataJSON string
+	ID           uint      `json:"ID"`
+	ProjectID    uint      `json:"project_id"`
+	WorkItemID   uint      `json:"work_item_id"`
+	ReviewerID   *uint     `json:"reviewer_id,omitempty"`
+	Reviewer     *UserRef  `json:"reviewer,omitempty"`
+	Status       string    `json:"status"`
+	Comment      string    `json:"comment"`
+	MetadataJSON string    `json:"metadata_json"`
+	CreatedAt    time.Time `json:"CreatedAt"`
+	UpdatedAt    time.Time `json:"UpdatedAt"`
 }
 
 func NewWorkReview(spec WorkReviewSpec) WorkReview {
@@ -607,14 +640,16 @@ type StoryboardScriptSpec struct {
 }
 
 type StoryboardScript struct {
-	ID              uint
-	ProjectID       uint
-	ScriptVersionID *uint
-	Name            string
-	Description     string
-	Status          string
-	IsPrimary       bool
-	MetadataJSON    string
+	ID              uint      `json:"ID"`
+	ProjectID       uint      `json:"project_id"`
+	ScriptVersionID *uint     `json:"script_version_id,omitempty"`
+	Name            string    `json:"name"`
+	Description     string    `json:"description"`
+	Status          string    `json:"status"`
+	IsPrimary       bool      `json:"is_primary"`
+	MetadataJSON    string    `json:"metadata_json"`
+	CreatedAt       time.Time `json:"CreatedAt"`
+	UpdatedAt       time.Time `json:"UpdatedAt"`
 }
 
 func NewStoryboardScript(spec StoryboardScriptSpec) StoryboardScript {
@@ -642,16 +677,18 @@ type StoryboardVersionSpec struct {
 }
 
 type StoryboardVersion struct {
-	ID                 uint
-	ProjectID          uint
-	StoryboardScriptID uint
-	ParentVersionID    *uint
-	VersionNumber      int
-	Title              string
-	Source             string
-	Status             string
-	SnapshotJSON       string
-	MetadataJSON       string
+	ID                 uint      `json:"ID"`
+	ProjectID          uint      `json:"project_id"`
+	StoryboardScriptID uint      `json:"storyboard_script_id"`
+	ParentVersionID    *uint     `json:"parent_version_id,omitempty"`
+	VersionNumber      int       `json:"version_number"`
+	Title              string    `json:"title"`
+	Source             string    `json:"source"`
+	Status             string    `json:"status"`
+	SnapshotJSON       string    `json:"snapshot_json"`
+	MetadataJSON       string    `json:"metadata_json"`
+	CreatedAt          time.Time `json:"CreatedAt"`
+	UpdatedAt          time.Time `json:"UpdatedAt"`
 }
 
 func NewStoryboardVersion(spec StoryboardVersionSpec) StoryboardVersion {
@@ -686,21 +723,23 @@ type StoryboardLineSpec struct {
 }
 
 type StoryboardLine struct {
-	ID                  uint
-	ProjectID           uint
-	StoryboardScriptID  uint
-	StoryboardVersionID *uint
-	SegmentID           *uint
-	SceneMomentID       *uint
-	Order               int
-	Kind                string
-	Title               string
-	Description         string
-	Dialogue            string
-	VisualIntent        string
-	DurationSec         float64
-	Status              string
-	MetadataJSON        string
+	ID                  uint      `json:"ID"`
+	ProjectID           uint      `json:"project_id"`
+	StoryboardScriptID  uint      `json:"storyboard_script_id"`
+	StoryboardVersionID *uint     `json:"storyboard_version_id,omitempty"`
+	SegmentID           *uint     `json:"segment_id,omitempty"`
+	SceneMomentID       *uint     `json:"scene_moment_id,omitempty"`
+	Order               int       `json:"order"`
+	Kind                string    `json:"kind"`
+	Title               string    `json:"title"`
+	Description         string    `json:"description"`
+	Dialogue            string    `json:"dialogue"`
+	VisualIntent        string    `json:"visual_intent"`
+	DurationSec         float64   `json:"duration_sec"`
+	Status              string    `json:"status"`
+	MetadataJSON        string    `json:"metadata_json"`
+	CreatedAt           time.Time `json:"CreatedAt"`
+	UpdatedAt           time.Time `json:"UpdatedAt"`
 }
 
 func NewStoryboardLine(spec StoryboardLineSpec) StoryboardLine {
@@ -726,7 +765,6 @@ type CreativeReferenceSpec struct {
 	ProjectID        uint
 	SourceScriptID   *uint
 	SourceAnalysisID *uint
-	LegacySettingID  *uint
 	Kind             string
 	Name             string
 	Alias            string
@@ -739,20 +777,21 @@ type CreativeReferenceSpec struct {
 }
 
 type CreativeReference struct {
-	ID               uint
-	ProjectID        uint
-	SourceScriptID   *uint
-	SourceAnalysisID *uint
-	LegacySettingID  *uint
-	Kind             string
-	Name             string
-	Alias            string
-	Description      string
-	Content          string
-	Importance       string
-	Status           string
-	ProfileJSON      string
-	TagsJSON         string
+	ID               uint      `json:"ID"`
+	ProjectID        uint      `json:"project_id"`
+	SourceScriptID   *uint     `json:"source_script_id,omitempty"`
+	SourceAnalysisID *uint     `json:"source_analysis_id,omitempty"`
+	Kind             string    `json:"kind"`
+	Name             string    `json:"name"`
+	Alias            string    `json:"alias"`
+	Description      string    `json:"description"`
+	Content          string    `json:"content"`
+	Importance       string    `json:"importance"`
+	Status           string    `json:"status"`
+	ProfileJSON      string    `json:"profile_json"`
+	TagsJSON         string    `json:"tags_json"`
+	CreatedAt        time.Time `json:"CreatedAt"`
+	UpdatedAt        time.Time `json:"UpdatedAt"`
 }
 
 func NewCreativeReference(spec CreativeReferenceSpec) CreativeReference {
@@ -760,7 +799,6 @@ func NewCreativeReference(spec CreativeReferenceSpec) CreativeReference {
 		ProjectID:        spec.ProjectID,
 		SourceScriptID:   spec.SourceScriptID,
 		SourceAnalysisID: spec.SourceAnalysisID,
-		LegacySettingID:  spec.LegacySettingID,
 		Kind:             FallbackString(spec.Kind, "character"),
 		Name:             spec.Name,
 		Alias:            spec.Alias,
@@ -790,20 +828,22 @@ type CreativeReferenceStateSpec struct {
 }
 
 type CreativeReferenceState struct {
-	ID                  uint
-	ProjectID           uint
-	CreativeReferenceID uint
-	ScopeType           string
-	ScopeID             *uint
-	Name                string
-	Description         string
-	VisualNotes         string
-	Emotion             string
-	Costume             string
-	Props               string
-	Status              string
-	TagsJSON            string
-	MetadataJSON        string
+	ID                  uint      `json:"ID"`
+	ProjectID           uint      `json:"project_id"`
+	CreativeReferenceID uint      `json:"creative_reference_id"`
+	ScopeType           string    `json:"scope_type"`
+	ScopeID             *uint     `json:"scope_id,omitempty"`
+	Name                string    `json:"name"`
+	Description         string    `json:"description"`
+	VisualNotes         string    `json:"visual_notes"`
+	Emotion             string    `json:"emotion"`
+	Costume             string    `json:"costume"`
+	Props               string    `json:"props"`
+	Status              string    `json:"status"`
+	TagsJSON            string    `json:"tags_json"`
+	MetadataJSON        string    `json:"metadata_json"`
+	CreatedAt           time.Time `json:"CreatedAt"`
+	UpdatedAt           time.Time `json:"UpdatedAt"`
 }
 
 func NewCreativeReferenceState(spec CreativeReferenceStateSpec) CreativeReferenceState {
@@ -839,18 +879,20 @@ type CreativeReferenceUsageSpec struct {
 }
 
 type CreativeReferenceUsage struct {
-	ID                       uint
-	ProjectID                uint
-	OwnerType                string
-	OwnerID                  uint
-	CreativeReferenceID      uint
-	CreativeReferenceStateID *uint
-	Role                     string
-	Order                    int
-	Evidence                 string
-	Source                   string
-	Status                   string
-	MetadataJSON             string
+	ID                       uint      `json:"ID"`
+	ProjectID                uint      `json:"project_id"`
+	OwnerType                string    `json:"owner_type"`
+	OwnerID                  uint      `json:"owner_id"`
+	CreativeReferenceID      uint      `json:"creative_reference_id"`
+	CreativeReferenceStateID *uint     `json:"creative_reference_state_id,omitempty"`
+	Role                     string    `json:"role"`
+	Order                    int       `json:"order"`
+	Evidence                 string    `json:"evidence"`
+	Source                   string    `json:"source"`
+	Status                   string    `json:"status"`
+	MetadataJSON             string    `json:"metadata_json"`
+	CreatedAt                time.Time `json:"CreatedAt"`
+	UpdatedAt                time.Time `json:"UpdatedAt"`
 }
 
 func NewCreativeReferenceUsage(spec CreativeReferenceUsageSpec) CreativeReferenceUsage {
@@ -886,20 +928,22 @@ type CreativeRelationshipSpec struct {
 }
 
 type CreativeRelationship struct {
-	ID                        uint
-	ProjectID                 uint
-	SourceCreativeReferenceID uint
-	TargetCreativeReferenceID uint
-	ScopeType                 string
-	ScopeID                   *uint
-	Category                  string
-	Type                      string
-	Label                     string
-	Description               string
-	Source                    string
-	Status                    string
-	Evidence                  string
-	MetadataJSON              string
+	ID                        uint      `json:"ID"`
+	ProjectID                 uint      `json:"project_id"`
+	SourceCreativeReferenceID uint      `json:"source_creative_reference_id"`
+	TargetCreativeReferenceID uint      `json:"target_creative_reference_id"`
+	ScopeType                 string    `json:"scope_type"`
+	ScopeID                   *uint     `json:"scope_id,omitempty"`
+	Category                  string    `json:"category"`
+	Type                      string    `json:"type"`
+	Label                     string    `json:"label"`
+	Description               string    `json:"description"`
+	Source                    string    `json:"source"`
+	Status                    string    `json:"status"`
+	Evidence                  string    `json:"evidence"`
+	MetadataJSON              string    `json:"metadata_json"`
+	CreatedAt                 time.Time `json:"CreatedAt"`
+	UpdatedAt                 time.Time `json:"UpdatedAt"`
 }
 
 func NewCreativeRelationship(spec CreativeRelationshipSpec) CreativeRelationship {
@@ -934,17 +978,19 @@ type ProductionSpec struct {
 }
 
 type Production struct {
-	ID                uint
-	ProjectID         uint
-	ScriptVersionID   *uint
-	PreviewTimelineID *uint
-	Name              string
-	Description       string
-	Status            string
-	SourceType        string
-	OwnerLabel        string
-	Progress          int
-	MetadataJSON      string
+	ID                uint      `json:"ID"`
+	ProjectID         uint      `json:"project_id"`
+	ScriptVersionID   *uint     `json:"script_version_id,omitempty"`
+	PreviewTimelineID *uint     `json:"preview_timeline_id,omitempty"`
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	Status            string    `json:"status"`
+	SourceType        string    `json:"source_type"`
+	OwnerLabel        string    `json:"owner_label"`
+	Progress          int       `json:"progress"`
+	MetadataJSON      string    `json:"metadata_json"`
+	CreatedAt         time.Time `json:"CreatedAt"`
+	UpdatedAt         time.Time `json:"UpdatedAt"`
 }
 
 func NewProduction(spec ProductionSpec) Production {
@@ -978,19 +1024,22 @@ type KeyframeSpec struct {
 }
 
 type Keyframe struct {
-	ID            uint
-	ProjectID     uint
-	ProductionID  *uint
-	SceneMomentID *uint
-	ContentUnitID *uint
-	ResourceID    *uint
-	CanvasID      *uint
-	Title         string
-	Description   string
-	Prompt        string
-	Order         int
-	Status        string
-	MetadataJSON  string
+	ID            uint                        `json:"ID"`
+	ProjectID     uint                        `json:"project_id"`
+	ProductionID  *uint                       `json:"production_id,omitempty"`
+	SceneMomentID *uint                       `json:"scene_moment_id,omitempty"`
+	ContentUnitID *uint                       `json:"content_unit_id,omitempty"`
+	ResourceID    *uint                       `json:"resource_id,omitempty"`
+	Resource      *domainresource.RawResource `json:"resource,omitempty"`
+	CanvasID      *uint                       `json:"canvas_id,omitempty"`
+	Title         string                      `json:"title"`
+	Description   string                      `json:"description"`
+	Prompt        string                      `json:"prompt"`
+	Order         int                         `json:"order"`
+	Status        string                      `json:"status"`
+	MetadataJSON  string                      `json:"metadata_json"`
+	CreatedAt     time.Time                   `json:"CreatedAt"`
+	UpdatedAt     time.Time                   `json:"UpdatedAt"`
 }
 
 func NewKeyframe(spec KeyframeSpec) Keyframe {
@@ -1022,15 +1071,17 @@ type PreviewTimelineSpec struct {
 }
 
 type PreviewTimeline struct {
-	ID              uint
-	ProjectID       uint
-	ProductionID    *uint
-	ScriptVersionID *uint
-	Name            string
-	Status          string
-	DurationSec     float64
-	IsPrimary       bool
-	MetadataJSON    string
+	ID              uint      `json:"ID"`
+	ProjectID       uint      `json:"project_id"`
+	ProductionID    *uint     `json:"production_id,omitempty"`
+	ScriptVersionID *uint     `json:"script_version_id,omitempty"`
+	Name            string    `json:"name"`
+	Status          string    `json:"status"`
+	DurationSec     float64   `json:"duration_sec"`
+	IsPrimary       bool      `json:"is_primary"`
+	MetadataJSON    string    `json:"metadata_json"`
+	CreatedAt       time.Time `json:"CreatedAt"`
+	UpdatedAt       time.Time `json:"UpdatedAt"`
 }
 
 func NewPreviewTimeline(spec PreviewTimelineSpec) PreviewTimeline {
@@ -1059,16 +1110,18 @@ type DeliveryVersionSpec struct {
 }
 
 type DeliveryVersion struct {
-	ID                uint
-	ProjectID         uint
-	ProductionID      *uint
-	PreviewTimelineID *uint
-	Name              string
-	Description       string
-	Status            string
-	IsPrimary         bool
-	DurationSec       float64
-	MetadataJSON      string
+	ID                uint      `json:"ID"`
+	ProjectID         uint      `json:"project_id"`
+	ProductionID      *uint     `json:"production_id,omitempty"`
+	PreviewTimelineID *uint     `json:"preview_timeline_id,omitempty"`
+	Name              string    `json:"name"`
+	Description       string    `json:"description"`
+	Status            string    `json:"status"`
+	IsPrimary         bool      `json:"is_primary"`
+	DurationSec       float64   `json:"duration_sec"`
+	MetadataJSON      string    `json:"metadata_json"`
+	CreatedAt         time.Time `json:"CreatedAt"`
+	UpdatedAt         time.Time `json:"UpdatedAt"`
 }
 
 func NewDeliveryVersion(spec DeliveryVersionSpec) DeliveryVersion {
@@ -1101,19 +1154,21 @@ type DeliveryTimelineItemSpec struct {
 }
 
 type DeliveryTimelineItem struct {
-	ID                uint
-	ProjectID         uint
-	DeliveryVersionID uint
-	ContentUnitID     *uint
-	AssetSlotID       *uint
-	ResourceID        *uint
-	Kind              string
-	Order             int
-	StartSec          float64
-	DurationSec       float64
-	Label             string
-	Status            string
-	MetadataJSON      string
+	ID                uint      `json:"ID"`
+	ProjectID         uint      `json:"project_id"`
+	DeliveryVersionID uint      `json:"delivery_version_id"`
+	ContentUnitID     *uint     `json:"content_unit_id,omitempty"`
+	AssetSlotID       *uint     `json:"asset_slot_id,omitempty"`
+	ResourceID        *uint     `json:"resource_id,omitempty"`
+	Kind              string    `json:"kind"`
+	Order             int       `json:"order"`
+	StartSec          float64   `json:"start_sec"`
+	DurationSec       float64   `json:"duration_sec"`
+	Label             string    `json:"label"`
+	Status            string    `json:"status"`
+	MetadataJSON      string    `json:"metadata_json"`
+	CreatedAt         time.Time `json:"CreatedAt"`
+	UpdatedAt         time.Time `json:"UpdatedAt"`
 }
 
 func NewDeliveryTimelineItem(spec DeliveryTimelineItemSpec) DeliveryTimelineItem {
@@ -1141,11 +1196,13 @@ type WorkDependencySpec struct {
 }
 
 type WorkDependency struct {
-	ID                  uint
-	ProjectID           uint
-	WorkItemID          uint
-	DependsOnWorkItemID uint
-	DependencyType      string
+	ID                  uint      `json:"ID"`
+	ProjectID           uint      `json:"project_id"`
+	WorkItemID          uint      `json:"work_item_id"`
+	DependsOnWorkItemID uint      `json:"depends_on_work_item_id"`
+	DependencyType      string    `json:"dependency_type"`
+	CreatedAt           time.Time `json:"CreatedAt"`
+	UpdatedAt           time.Time `json:"UpdatedAt"`
 }
 
 func NewWorkDependency(spec WorkDependencySpec) WorkDependency {
@@ -1175,18 +1232,20 @@ type ScriptVersionSpec struct {
 }
 
 type ScriptVersion struct {
-	ID              uint
-	ProjectID       uint
-	ScriptID        uint
-	ParentVersionID *uint
-	VersionNumber   int
-	Title           string
-	SourceType      string
-	Content         string
-	RawSource       string
-	Summary         string
-	Status          string
-	CreatedByID     *uint
+	ID              uint      `json:"ID"`
+	ProjectID       uint      `json:"project_id"`
+	ScriptID        uint      `json:"script_id"`
+	ParentVersionID *uint     `json:"parent_version_id,omitempty"`
+	VersionNumber   int       `json:"version_number"`
+	Title           string    `json:"title"`
+	SourceType      string    `json:"source_type"`
+	Content         string    `json:"content"`
+	RawSource       string    `json:"raw_source"`
+	Summary         string    `json:"summary"`
+	Status          string    `json:"status"`
+	CreatedByID     *uint     `json:"created_by_id,omitempty"`
+	CreatedAt       time.Time `json:"CreatedAt"`
+	UpdatedAt       time.Time `json:"UpdatedAt"`
 }
 
 func NewScriptVersion(spec ScriptVersionSpec) ScriptVersion {

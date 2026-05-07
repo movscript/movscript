@@ -40,7 +40,7 @@ export function compilePromptPreview(input: CompileAgentPromptInput): CompiledPr
     title: 'Runtime policy',
     content: [
       '读取和修改项目内容必须通过可用工具完成。',
-      '正式写入前优先创建草稿，并等待用户确认后再应用。',
+      '正式写入前优先创建本地草稿协议对象，交给客户端预览、修改或拒绝；只有用户确认后的 apply 流程才能写入后端。',
       '除非用户明确要求，不跨越当前选中实体修改其他内容。',
       input.policy.sandboxMode ? '当前运行处于 sandbox 模式：write/generate/destructive 工具会被模拟拦截。' : undefined,
       `approvalMode=${input.policy.approvalMode}; maxToolCalls=${input.policy.maxToolCalls}; maxIterations=${input.policy.maxIterations}`,

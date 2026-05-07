@@ -1866,7 +1866,7 @@ function ArchitectureTab() {
         <Panel title="Business Layer Flow" icon={<Clipboard size={14} />}>
           <div className="space-y-2 text-xs">
             {[
-              'Project -> Script/Setting -> Segment/SceneMoment -> StoryboardLine -> ContentUnit/Keyframe -> AssetSlot -> Preview/Delivery',
+              'Project -> Script/CreativeReference -> Segment/SceneMoment -> StoryboardLine -> ContentUnit/Keyframe -> AssetSlot -> Preview/Delivery',
               '业务实体由 Go backend 和语义/workflow schema 维护，runtime 通过 MCP context pack 和工具读取。',
               '写入类动作先落为 draft 或 approval request，避免 agent 直接改正式项目数据。',
             ].map((line) => (

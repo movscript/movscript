@@ -24,13 +24,6 @@ func registerProjectRoutes(protected *gin.RouterGroup, db *gorm.DB, h handlers) 
 		projectRoutes.POST("/members", h.projects.AddMember)
 		projectRoutes.DELETE("/members/:memberId", h.projects.RemoveMember)
 
-		projectRoutes.GET("/settings", h.settings.List)
-		projectRoutes.POST("/settings", h.settings.Create)
-		projectRoutes.GET("/setting-refs", h.settings.ListRefs)
-		projectRoutes.POST("/setting-refs", h.settings.CreateRef)
-		projectRoutes.GET("/setting-relationships", h.settings.ListRelationships)
-		projectRoutes.POST("/setting-relationships", h.settings.CreateRelationship)
-
 		projectRoutes.GET("/scripts", h.scripts.List)
 		projectRoutes.POST("/scripts", h.scripts.Create)
 		projectRoutes.GET("/scripts/:scriptId", h.scripts.Get)
@@ -39,10 +32,4 @@ func registerProjectRoutes(protected *gin.RouterGroup, db *gorm.DB, h handlers) 
 	}
 	protected.PATCH("/scripts/:id", h.scripts.Patch)
 
-	protected.PUT("/settings/:id", h.settings.Update)
-	protected.DELETE("/settings/:id", h.settings.Delete)
-	protected.PUT("/setting-refs/:id", h.settings.UpdateRef)
-	protected.DELETE("/setting-refs/:id", h.settings.DeleteRef)
-	protected.PUT("/setting-relationships/:id", h.settings.UpdateRelationship)
-	protected.DELETE("/setting-relationships/:id", h.settings.DeleteRelationship)
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"gorm.io/gorm"
 )
 
@@ -41,7 +42,7 @@ func (p *PolicyService) EnforceKeyLimits(ctx context.Context, key *model.Gateway
 	return p.enforceKeyCommercialLimits(ctx, key, estimatedCost)
 }
 
-func (p *PolicyService) FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) (model.GatewayAPIKey, error) {
+func (p *PolicyService) FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) (domainmodelgateway.APIKey, error) {
 	includeLegacy := orgID != nil && p.repo.IsPersonalOrg(ctx, *orgID)
 	return p.repo.FindOwnedAPIKey(ctx, id, ownerUserID, orgID, includeLegacy)
 }

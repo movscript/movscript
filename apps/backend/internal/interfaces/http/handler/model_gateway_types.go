@@ -100,6 +100,7 @@ type chatCompletionStreamChunk struct {
 	Model   string                       `json:"model"`
 	Choices []chatCompletionStreamChoice `json:"choices"`
 	Usage   *chatCompletionUsage         `json:"usage,omitempty"`
+	Event   *chatCompletionStreamEvent   `json:"event,omitempty"`
 }
 
 type chatCompletionStreamChoice struct {
@@ -109,9 +110,21 @@ type chatCompletionStreamChoice struct {
 }
 
 type chatCompletionStreamDelta struct {
-	Role      string             `json:"role,omitempty"`
-	Content   string             `json:"content,omitempty"`
-	ToolCalls []ai.ToolCallDelta `json:"tool_calls,omitempty"`
+	Role             string             `json:"role,omitempty"`
+	Content          string             `json:"content,omitempty"`
+	ReasoningContent string             `json:"reasoning_content,omitempty"`
+	ReasoningDelta   string             `json:"reasoning_delta,omitempty"`
+	ToolCalls        []ai.ToolCallDelta `json:"tool_calls,omitempty"`
+}
+
+type chatCompletionStreamEvent struct {
+	Role           string               `json:"role,omitempty"`
+	ContentDelta   string               `json:"content_delta,omitempty"`
+	ReasoningDelta string               `json:"reasoning_delta,omitempty"`
+	ToolCallDeltas []ai.ToolCallDelta   `json:"tool_call_deltas,omitempty"`
+	FinishReason   string               `json:"finish_reason,omitempty"`
+	Usage          *chatCompletionUsage `json:"usage,omitempty"`
+	Error          string               `json:"error,omitempty"`
 }
 
 type createGatewayAPIKeyRequest struct {

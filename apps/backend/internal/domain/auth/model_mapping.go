@@ -18,6 +18,23 @@ func RegisteredUserFromModel(user model.User) RegisteredUser {
 	}
 }
 
+func UserProfileFromModel(user model.User) UserProfile {
+	return UserProfile{
+		ID:              user.ID,
+		Username:        user.Username,
+		SystemRole:      user.SystemRole,
+		PrimaryEmail:    user.PrimaryEmail,
+		PrimaryPhone:    user.PrimaryPhone,
+		DisplayName:     user.DisplayName,
+		AvatarURL:       user.AvatarURL,
+		Locale:          user.Locale,
+		Status:          user.Status,
+		EmailVerifiedAt: user.EmailVerifiedAt,
+		CreatedAt:       user.CreatedAt,
+		UpdatedAt:       user.UpdatedAt,
+	}
+}
+
 func (user RegisteredUser) ToModel() model.User {
 	var target model.User
 	user.ApplyToModel(&target)

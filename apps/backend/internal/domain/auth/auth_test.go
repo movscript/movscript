@@ -54,7 +54,7 @@ func TestNewAuthChallengeAppliesDefaults(t *testing.T) {
 
 func TestChallengeValidForVerification(t *testing.T) {
 	now := time.Unix(100, 0).UTC()
-	challenge := NewAuthChallenge(ChallengeChannelEmail, "u@example.com", "hash", now).ToModel()
+	challenge := NewAuthChallenge(ChallengeChannelEmail, "u@example.com", "hash", now)
 	if !ChallengeValidForVerification(challenge, now) {
 		t.Fatal("expected challenge to be valid")
 	}

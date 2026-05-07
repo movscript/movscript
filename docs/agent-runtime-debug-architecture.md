@@ -18,7 +18,7 @@ The business layer should stay readable as:
 
 ```text
 Project
-  -> Script / Setting
+  -> Script / CreativeReference
   -> Segment / SceneMoment
   -> StoryboardLine
   -> ContentUnit / Keyframe

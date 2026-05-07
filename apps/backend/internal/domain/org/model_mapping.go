@@ -2,6 +2,13 @@ package org
 
 import "github.com/movscript/movscript/internal/domain/model"
 
+func UserIdentityFromModel(user model.User) UserIdentity {
+	return UserIdentity{
+		ID:       user.ID,
+		Username: user.Username,
+	}
+}
+
 func OrganizationFromModel(org model.Organization) Organization {
 	return Organization{
 		ID:         org.ID,

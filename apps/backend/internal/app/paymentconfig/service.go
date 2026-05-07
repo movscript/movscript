@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainpaymentconfig "github.com/movscript/movscript/internal/domain/paymentconfig"
 	"github.com/movscript/movscript/internal/infra/crypto"
 	"gorm.io/gorm"
@@ -49,7 +48,9 @@ type UpdateInput struct {
 	IsEnabled *bool
 }
 
-func (s *Service) List(ctx context.Context) ([]model.PaymentConfig, error) {
+type Config = domainpaymentconfig.Config
+
+func (s *Service) List(ctx context.Context) ([]Config, error) {
 	cfgs, err := s.repo.ListConfigs(ctx)
 	if err != nil {
 		return nil, err
@@ -60,13 +61,13 @@ func (s *Service) List(ctx context.Context) ([]model.PaymentConfig, error) {
 	return cfgs, nil
 }
 
-func (s *Service) Create(ctx context.Context, input CreateInput) (model.PaymentConfig, error) {
+func (s *Service) Create(ctx context.Context, input CreateInput) (Config, error) {
 	if !domainpaymentconfig.ValidConfigType(input.ConfigType) || !domainpaymentconfig.ValidMode(input.Mode) {
-		return model.PaymentConfig{}, ErrInvalidConfig
+		return Config{}, ErrInvalidConfig
 	}
 	encJSON, err := s.encryptConfig(input.Config)
 	if err != nil {
-		return model.PaymentConfig{}, fmt.Errorf("%w: %v", ErrEncryptConfig, err)
+		return Config{}, fmt.Errorf("%w: %v", ErrEncryptConfig, err)
 	}
 	cfg := domainpaymentconfig.NewConfig(domainpaymentconfig.NewConfigSpec{
 		Name:       input.Name,
@@ -76,15 +77,15 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.PaymentC
 		ConfigJSON: encJSON,
 		Priority:   input.Priority,
 		IsEnabled:  input.IsEnabled,
-	}).ToModel()
+	})
 	if err := s.repo.CreateConfig(ctx, &cfg); err != nil {
-		return model.PaymentConfig{}, err
+		return Config{}, err
 	}
 	cfg.MaskedConfig = s.maskConfig(cfg.ConfigJSON)
 	return cfg, nil
 }
 
-func (s *Service) Update(ctx context.Context, input UpdateInput) (model.PaymentConfig, error) {
+func (s *Service) Update(ctx context.Context, input UpdateInput) (Config, error) {
 	cfg, err := s.repo.GetConfig(ctx, input.ID)
 	if err != nil {
 		return cfg, err

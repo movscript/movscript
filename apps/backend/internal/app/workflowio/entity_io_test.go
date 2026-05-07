@@ -41,18 +41,15 @@ func TestEntityFieldUpdatesUseResourceIDForNumberPort(t *testing.T) {
 	}
 }
 
-func TestNormalizeEntityPortValuesCanonicalizesAliases(t *testing.T) {
+func TestNormalizeEntityPortValuesKeepsCanonicalField(t *testing.T) {
 	values, err := NormalizeEntityPortValues("script", map[string]EntityPortValue{
 		"core_settings": {Type: "json", JSON: map[string]any{"world": "near future"}},
 	})
 	if err != nil {
-		t.Fatalf("expected alias normalization to succeed: %v", err)
+		t.Fatalf("expected normalization to succeed: %v", err)
 	}
-	if _, ok := values["core_settings"]; ok {
-		t.Fatalf("expected semantic core_settings field to normalize away, got %#v", values)
-	}
-	if value, ok := values["settings"]; !ok || value.JSON == nil {
-		t.Fatalf("expected canonical settings workflow port value, got %#v", values)
+	if value, ok := values["core_settings"]; !ok || value.JSON == nil {
+		t.Fatalf("expected canonical core_settings value, got %#v", values)
 	}
 }
 
@@ -76,43 +73,6 @@ func TestEntitySchemasExposeVersionAndLayoutMetadata(t *testing.T) {
 	}
 	if schema.Projection != "workflow" || schema.Compatibility.CurrentVersion != EntitySchemaVersion {
 		t.Fatalf("expected workflow projection compatibility metadata, got %#v", schema.Compatibility)
-	}
-}
-
-func TestEntitySchemasExposeMigrationMetadata(t *testing.T) {
-	script, ok := EntitySchemaForKind("script")
-	if !ok {
-		t.Fatal("expected script schema")
-	}
-	var deprecated EntityMigration
-	for _, migration := range script.Compatibility.Migrations {
-		if migration.Kind == "deprecated_field" && migration.FromFieldID == "settings" {
-			deprecated = migration
-			break
-		}
-	}
-	if deprecated.Kind == "" {
-		t.Fatalf("expected script settings deprecation metadata, got %#v", script.Compatibility.Migrations)
-	}
-}
-
-func TestEntitySchemaMigrationReportIncludesActions(t *testing.T) {
-	report, err := EntitySchemaMigrationReportForKind("script")
-	if err != nil {
-		t.Fatalf("expected migration report: %v", err)
-	}
-	if report.Kind != "script" || report.CurrentVersion != EntitySchemaVersion {
-		t.Fatalf("unexpected migration report header: %#v", report)
-	}
-	found := false
-	for _, action := range report.Actions {
-		if action.Kind == "deprecated_field" && action.FromFieldID == "settings" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Fatalf("expected script settings deprecation action, got %#v", report.Actions)
 	}
 }
 
@@ -238,7 +198,7 @@ func TestProductionEntitySchemasOnlyWriteMediaPorts(t *testing.T) {
 }
 
 func TestScriptCharacterArchivePortsAreReadonlyDeprecated(t *testing.T) {
-	for _, portID := range []string{"character_profiles", "character_relationships", "settings", "background", "scenes_desc"} {
+	for _, portID := range []string{"character_profiles", "character_relationships", "core_settings", "background", "scenes_desc"} {
 		field, ok := EntityFieldForPort("script", portID)
 		if !ok {
 			t.Fatalf("expected script port %q", portID)
@@ -288,8 +248,8 @@ func TestResolveEntityPortSelectionCanonicalizesPorts(t *testing.T) {
 	if len(selection) != 2 {
 		t.Fatalf("expected two canonical ports, got %#v", selection)
 	}
-	if _, ok := selection["settings"]; !ok {
-		t.Fatalf("expected core_settings to resolve to settings, got %#v", selection)
+	if _, ok := selection["core_settings"]; !ok {
+		t.Fatalf("expected core_settings to resolve, got %#v", selection)
 	}
 }
 

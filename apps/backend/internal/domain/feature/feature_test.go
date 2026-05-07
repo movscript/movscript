@@ -1,10 +1,6 @@
 package feature
 
-import (
-	"testing"
-
-	"github.com/movscript/movscript/internal/domain/model"
-)
+import "testing"
 
 func TestEncodeDecodeUintIDs(t *testing.T) {
 	raw := EncodeUintIDs([]uint{3, 7})
@@ -29,7 +25,7 @@ func TestNormalizeDefaultModelID(t *testing.T) {
 }
 
 func TestBuildResponseAppliesDefinitionDefaults(t *testing.T) {
-	f := model.FeatureConfig{
+	f := FeatureConfig{
 		FeatureKey:        "brainstorm",
 		DisplayName:       "Brainstorm",
 		AllowedRoles:      `["owner"]`,

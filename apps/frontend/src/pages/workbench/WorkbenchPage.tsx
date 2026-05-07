@@ -39,7 +39,7 @@ import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelatio
 import { api } from '@/lib/api'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
-import { type AgentManifest } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentDraft, type AgentManifest, type AgentRun } from '@/lib/localAgentClient'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
@@ -1018,9 +1018,9 @@ function SpecializedQueue({
   )
 }
 
-function ContextStack({ rows }: { rows: WorkbenchLinkRow[] }) {
+function ContextStack({ rows, className }: { rows: WorkbenchLinkRow[]; className?: string }) {
   return (
-    <div className="grid gap-3 md:grid-cols-2">
+    <div className={cn('grid gap-3 md:grid-cols-2', className)}>
       {rows.map((row) => {
         const Icon = row.icon
         return (
@@ -1060,10 +1060,12 @@ function CandidateComparison({
   rows,
   primaryLabel,
   emptyText = '暂无候选',
+  rowClassName,
 }: {
   rows: Array<{ name: string; source: string; fit: string; issue: string; status: WorkStatus }>
   primaryLabel: string
   emptyText?: string
+  rowClassName?: string
 }) {
   if (rows.length === 0) {
     return <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">{emptyText}</p>
@@ -1071,7 +1073,7 @@ function CandidateComparison({
   return (
     <div className="space-y-2">
       {rows.map((row) => (
-        <div key={row.name} className="grid gap-3 rounded-md border border-border bg-background px-3 py-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+        <div key={row.name} className={cn('grid gap-3 rounded-md border border-border bg-background px-3 py-3 md:grid-cols-[1fr_1fr_1fr_auto]', rowClassName)}>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
             <p className="mt-1 truncate text-xs text-muted-foreground">{row.source}</p>
@@ -1265,9 +1267,9 @@ function ContentGenerationWorkbench() {
         ) : isError ? (
           <EmptyWorkbenchState title="制作项生成数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : (
-          <div className="space-y-5">
+          <div className="production-workbench space-y-5">
             <MetricStrip metrics={metrics} />
-            <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)_360px]">
+            <div className="production-layout grid gap-5">
               <SpecializedQueue
                 items={rows.map((row) => ({
                   id: row.id,
@@ -1296,7 +1298,7 @@ function ContentGenerationWorkbench() {
                           <Badge variant="outline">准备度 {selected.progress}%</Badge>
                         </div>
                       </div>
-                      <ContextStack rows={contextRows} />
+                      <ContextStack rows={contextRows} className="production-context-stack" />
                     </>
                   ) : (
                     <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无制作项</p>
@@ -1304,10 +1306,10 @@ function ContentGenerationWorkbench() {
                 </WorkbenchPanel>
 
                 <WorkbenchPanel title="候选版本对比" icon={Play} action={<Badge variant="secondary">{candidateRows.length > 0 ? '最新任务' : '暂无任务'}</Badge>}>
-                  <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" />
+                  <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" rowClassName="production-candidate-row" />
                 </WorkbenchPanel>
               </div>
-              <div className="min-w-0 space-y-5">
+              <div className="production-side min-w-0 space-y-5">
                 <WorkbenchPanel title="采用门禁" icon={ShieldCheck}>
                   <GateChecklist rows={standards} />
                 </WorkbenchPanel>
@@ -1394,6 +1396,7 @@ interface ScriptSplitResult {
   updatedCount: number
   episodeCount: number
   agentRunId?: string
+  agentDraftId?: string
   savedScripts?: Script[]
 }
 
@@ -1461,13 +1464,21 @@ const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
     '必须抽取总稿级 global_settings，并在每一个 episode_drafts 项里重复一份本集可用的 global_context。',
     'global_context 要包含故事世界、核心规则、人物关系、关键人物、关键场景、关键道具和连续性约束，保证后续编排只读取单集也能理解全局设定。',
     '已有剧本清单只用于判断 action 和 existing_script_id；不要直接调用写入工具。',
-    '输出必须是一个 machine-readable JSON 对象，不能包含 markdown 或解释文字。',
+    '必须通过 movscript_create_draft 创建 script_split 本地草稿，把拆分结果放入草稿 content；不要把结构化数据作为 assistant 正文返回。',
+    '如果需要修正已有拆分结果，只调用 movscript_get_draft、movscript_update_draft、movscript_patch_draft、movscript_validate_draft 修改草稿。',
+    '不要调用正式写入工具；正式 Script 创建和覆盖由 UI 在用户确认后处理。',
   ].join('\n'),
   skills: [],
-  permissions: ['project.read'],
+  permissions: ['project.read', 'draft.read', 'draft.write'],
   tools: [
     { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
+    { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
+    { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_patch_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
   ],
 }
 
@@ -1646,11 +1657,13 @@ function buildScriptSplitAgentMessage(input: {
     '[已有分集剧本，用于判断 create/update]',
     JSON.stringify(existingEpisodes, null, 2),
     '',
-    '[输出要求]',
-    '返回 schema=movscript.script_split_analysis.v1 的 JSON。',
-    '必须包含 global_settings：story_world、core_rules、character_relationships、key_characters、key_locations、key_props、continuity_notes。',
-    'episode_drafts 中每一集必须包含 order、title、summary、content、start、end、action、existing_script_id。',
-    'episode_drafts 中每一集还必须包含 global_context，字段同 global_settings，另加 episode_relevance，说明哪些全局设定会影响本集编排。',
+    '[工具要求]',
+    '必须调用 movscript_create_draft 创建本地草稿，而不是把结构化数据写在 assistant 正文。',
+    '草稿 kind 使用 script_split，title 使用“剧本拆分草稿 - <总稿标题>”。',
+    '草稿 content 是 JSON 字符串，schema=movscript.script_split_analysis.v1。',
+    '草稿 content 必须包含 global_settings：story_world、core_rules、character_relationships、key_characters、key_locations、key_props、continuity_notes。',
+    '草稿 content 的 episode_drafts 中每一集必须包含 order、title、summary、content、start、end、action、existing_script_id。',
+    '草稿 content 的 episode_drafts 中每一集还必须包含 global_context，字段同 global_settings，另加 episode_relevance，说明哪些全局设定会影响本集编排。',
     '每集 content 必须能被单独拿去编排；请在正文开头保留“全局设定上下文”小节，再接该集正文。',
     'start/end 用原文字符偏移，无法精确时用估算位置。',
     '如果标题与已有分集高度一致，action=update 并填写 existing_script_id；否则 action=create 且 existing_script_id=null。',
@@ -1673,6 +1686,52 @@ function parseScriptSplitAgentContent(content: string, scripts: Script[], fallba
   const drafts = rawEpisodes.flatMap((episode, index) => normalizeAgentEpisodeDraft(episode as ScriptSplitAgentEpisode, index, scripts, fallbackText, globalSettings))
   if (drafts.length === 0) throw new Error('Agent 没有返回可写入的分集草稿')
   return drafts
+}
+
+function findScriptSplitDraftIdFromRun(run: AgentRun): string | undefined {
+  for (const step of run.steps) {
+    if (step.type !== 'tool_call' || step.toolName !== 'movscript_create_draft') continue
+    const result = step.result
+    if (!isRecord(result)) continue
+    const draft = isRecord(result.draft) ? result.draft : undefined
+    const draftId = typeof draft?.id === 'string'
+      ? draft.id
+      : typeof result.id === 'string'
+        ? result.id
+        : undefined
+    if (draftId) return draftId
+  }
+  return undefined
+}
+
+async function parseScriptSplitDraftsFromRun(run: AgentRun, scripts: Script[], fallbackText: string): Promise<{ drafts: ScriptSplitDraft[]; agentDraft?: AgentDraft }> {
+  const draftId = findScriptSplitDraftIdFromRun(run)
+  if (draftId) {
+    const agentDraft = await localAgentClient.getDraft(draftId)
+    return {
+      drafts: parseScriptSplitAgentContent(agentDraft.content, scripts, fallbackText),
+      agentDraft,
+    }
+  }
+
+  for (const step of run.steps) {
+    if (step.type !== 'tool_call' || step.toolName !== 'movscript_create_draft') continue
+    const result = step.result
+    if (!isRecord(result)) continue
+    const draft = isRecord(result.draft) ? result.draft : undefined
+    const content = typeof draft?.content === 'string'
+      ? draft.content
+      : typeof result.content === 'string'
+        ? result.content
+        : undefined
+    if (!content) continue
+    try {
+      return { drafts: parseScriptSplitAgentContent(content, scripts, fallbackText) }
+    } catch {
+      // Keep scanning; the run may contain unrelated drafts.
+    }
+  }
+  throw new Error('Agent 没有通过工具返回可用的剧本拆分草稿')
 }
 
 function parseJSONFromAssistantContent(content: string): unknown {
@@ -2471,7 +2530,7 @@ function ScriptSplitWorkbench() {
     ].join('\n')
 
     scriptSplitToolCleanupRef.current?.()
-    scriptSplitToolCleanupRef.current = registerAgentPanelPageTool(requestId, (detail) => {
+    scriptSplitToolCleanupRef.current = registerAgentPanelPageTool(requestId, async (detail) => {
       if (detail.status === 'error') {
         toast.error(detail.error || 'Agent 拆分会话运行失败')
         return
@@ -2483,11 +2542,9 @@ function ScriptSplitWorkbench() {
       const run = detail.run
       const thread = detail.thread
       if (!run || !thread || (run.status !== 'completed' && run.status !== 'completed_with_warnings')) return
-      const assistant = thread.messages.find((message) => message.id === run.assistantMessageId)
-        ?? [...thread.messages].reverse().find((message) => message.role === 'assistant')
-      if (!assistant?.content) return
       try {
-        const nextDrafts = parseScriptSplitAgentContent(assistant.content, sortedScripts, normalized)
+        const parsed = await parseScriptSplitDraftsFromRun(run, sortedScripts, normalized)
+        const nextDrafts = parsed.drafts
         syncDrafts(nextDrafts)
         setLastAgentRunId(run.id)
         setResult({
@@ -2497,6 +2554,7 @@ function ScriptSplitWorkbench() {
           updatedCount: 0,
           episodeCount: nextDrafts.length,
           agentRunId: run.id,
+          agentDraftId: parsed.agentDraft?.id,
         })
         toast.success(`Agent 已给出拆分结论：${nextDrafts.length} 集`)
       } catch {
@@ -2514,7 +2572,7 @@ function ScriptSplitWorkbench() {
       projectId,
       clientInput,
       agentManifest: SCRIPT_SPLIT_AGENT_MANIFEST,
-      timeoutMs: 120_000,
+      timeoutMs: 900_000,
     })
 
     return { baseTitle }
@@ -2705,6 +2763,7 @@ function ScriptSplitWorkbench() {
         updatedCount,
         episodeCount: createdScripts.length,
         agentRunId,
+        agentDraftId: result?.agentDraftId,
       } satisfies ScriptSplitResult
     },
     onSuccess: (next) => {
@@ -2951,6 +3010,12 @@ function ScriptSplitWorkbench() {
                   <div className="col-span-2 rounded-md border border-border px-2 py-2">
                     <p className="text-muted-foreground">Agent Run</p>
                     <p className="mt-1 truncate font-mono text-[11px] text-foreground">{result.agentRunId}</p>
+                  </div>
+                )}
+                {result.agentDraftId && (
+                  <div className="col-span-2 rounded-md border border-border px-2 py-2">
+                    <p className="text-muted-foreground">Agent Draft</p>
+                    <p className="mt-1 truncate font-mono text-[11px] text-foreground">{result.agentDraftId}</p>
                   </div>
                 )}
               </div>

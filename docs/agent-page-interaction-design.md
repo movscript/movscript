@@ -13,7 +13,7 @@
 3. AI 面板构造 `clientInput.uiSnapshot`，把项目、选择项、标签等页面上下文带给 runtime。
 4. local runtime 执行 `runMessage()` 或 `createToolRun()`。
 5. run 完成后，AI 面板通过 `notifyAgentPanelRunSettled()` 把 `run/thread` 回传给页面。
-6. 页面自己解析 assistant 文本，或者读取 runtime 生成的 draft/proposal，再把结果写回本页面状态。
+6. 页面自己解析 assistant 文本，或者读取 runtime 生成的 draft/proposal 协议对象，再把结果写回本页面状态。
 
 相关代码：
 
@@ -41,8 +41,19 @@
 
 - 页面只描述任务，不关心 Agent 内部消息流。
 - 结果优先走结构化 artifact，不要依赖自然语言解析。
-- Draft / proposal / candidate 是内部机制，页面展示成业务化术语。
+- Draft / proposal / candidate 是 runtime 和客户端之间的协议对象，页面展示成业务化术语。
 - AI 面板保留为统一执行壳，但不承担页面业务语义本身。
+
+## Draft 定义
+
+这里的 `AgentDraft` 不是后端正式领域实体，也不是最终项目数据。它是 local runtime 和客户端之间通信用的审阅协议结构，承载：
+
+- AI 建议的内容或结构化提案。
+- 来源 run/thread、项目、目标实体等上下文引用。
+- 客户端预览、修改、拒绝、应用所需的生命周期状态。
+- 后续 apply 流程需要的 target/review metadata。
+
+因此，`movscript_propose_production_entities` 的含义是创建一个本地 `production_proposal` draft，让页面审阅；它不直接写后端。真正写入项目实体发生在页面或审批流调用后端 apply API 时。
 
 ## 推荐接口
 
@@ -79,7 +90,7 @@ AI 面板侧只做三件事：
 
 后续页面结果读取应按以下优先级处理：
 
-1. 结构化 draft / proposal / candidate。
+1. 结构化 draft / proposal / candidate 协议对象。
 2. runtime tool result。
 3. assistant 文本 fallback。
 

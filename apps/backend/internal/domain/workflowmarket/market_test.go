@@ -50,6 +50,12 @@ func TestTemplateCanvasAppliesWorkflowDefaults(t *testing.T) {
 	if cv.ProjectID == nil || *cv.ProjectID != projectID || cv.Stage != "generation" || cv.WorkflowTags != `["image"]` {
 		t.Fatalf("unexpected canvas project/tags: %+v", cv)
 	}
+	modelCanvas := cv.ToModel()
+	modelCanvas.ID = 31
+	roundTrip := canvasruntime.CanvasFromModel(modelCanvas)
+	if roundTrip.ID != 31 || roundTrip.WorkflowKey != "template:image-generation" {
+		t.Fatalf("unexpected canvas round-trip: %+v", roundTrip)
+	}
 }
 
 func TestWorkflowMarketItemMatchSearchesTags(t *testing.T) {

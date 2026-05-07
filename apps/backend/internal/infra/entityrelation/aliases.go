@@ -8,7 +8,6 @@ const (
 	EntityRelationCategoryAsset     = model.EntityRelationCategoryAsset
 	EntityRelationCategoryWorkflow  = model.EntityRelationCategoryWorkflow
 	EntityRelationCategoryDelivery  = model.EntityRelationCategoryDelivery
-	EntityRelationCategorySetting   = model.EntityRelationCategorySetting
 
 	EntityRelationTypeOwns         = model.EntityRelationTypeOwns
 	EntityRelationTypeContains     = model.EntityRelationTypeContains
@@ -48,7 +47,6 @@ type (
 	User                   = model.User
 	Project                = model.Project
 	Script                 = model.Script
-	Setting                = model.Setting
 	ScriptVersion          = model.ScriptVersion
 	Production             = model.Production
 	ProductionTextBlock    = model.ProductionTextBlock
@@ -56,8 +54,6 @@ type (
 	CreativeReferenceState = model.CreativeReferenceState
 	CreativeReferenceUsage = model.CreativeReferenceUsage
 	CreativeRelationship   = model.CreativeRelationship
-	SettingRelationship    = model.SettingRelationship
-	ScriptSettingRef       = model.ScriptSettingRef
 	Segment                = model.Segment
 	SceneMoment            = model.SceneMoment
 	ContentUnit            = model.ContentUnit

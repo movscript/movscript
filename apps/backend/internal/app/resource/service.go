@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/media"
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/storage"
@@ -56,10 +55,10 @@ type ListInput struct {
 }
 
 type Page struct {
-	Total    int64               `json:"total"`
-	Items    []model.RawResource `json:"items"`
-	Page     int                 `json:"page"`
-	PageSize int                 `json:"page_size"`
+	Total    int64                        `json:"total"`
+	Items    []domainresource.RawResource `json:"items"`
+	Page     int                          `json:"page"`
+	PageSize int                          `json:"page_size"`
 }
 
 type UploadInput struct {
@@ -81,7 +80,7 @@ type UpdateInput struct {
 	Name     string
 }
 
-func (s *Service) List(ctx context.Context, input ListInput) ([]model.RawResource, *Page, error) {
+func (s *Service) List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error) {
 	version, _ := s.cache.GetVersion(ctx, resourceListNamespace(input.UserID, input.OrgID))
 	cacheKey := resourceListCacheKey(input, version)
 	var cached cachedListResult
@@ -98,10 +97,10 @@ func (s *Service) List(ctx context.Context, input ListInput) ([]model.RawResourc
 	return resources, page, err
 }
 
-func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResource, error) {
+func (s *Service) Upload(ctx context.Context, input UploadInput) (domainresource.RawResource, error) {
 	folderID, err := s.repo.UploadFolderID(ctx, input.UserID, input.OrgID, input.FolderID)
 	if err != nil {
-		return model.RawResource{}, err
+		return domainresource.RawResource{}, err
 	}
 	mimeType := input.MimeType
 	r := domainresource.NewUploadedResource(domainresource.NewUploadedResourceSpec{
@@ -112,9 +111,9 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 		MimeType:       mimeType,
 		Size:           input.Size,
 		StorageBackend: s.store.Backend(),
-	}).ToModel()
+	})
 	if err := s.repo.CreateResource(ctx, &r); err != nil {
-		return model.RawResource{}, err
+		return domainresource.RawResource{}, err
 	}
 
 	key := GenerateStorageKey(r.ID, input.Filename)
@@ -132,7 +131,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 
 	if err := s.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
 		_ = s.repo.DeleteResourceRecord(ctx, &r)
-		return model.RawResource{}, err
+		return domainresource.RawResource{}, err
 	}
 	if err := s.repo.UpdateResourceRecord(ctx, &r, map[string]any{
 		"file_path":       key,
@@ -143,7 +142,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 		"mime_type":       r.MimeType,
 		"size":            r.Size,
 	}); err != nil {
-		return model.RawResource{}, err
+		return domainresource.RawResource{}, err
 	}
 	r.StorageKey = key
 	r.StorageBackend = s.store.Backend()
@@ -151,7 +150,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 	return r, nil
 }
 
-func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (model.RawResource, error) {
+func (s *Service) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {
 	return s.repo.GetVisible(ctx, id, userID, orgID)
 }
 
@@ -170,7 +169,7 @@ func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint)
 	return nil
 }
 
-func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResource, error) {
+func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource.RawResource, error) {
 	r, err := s.repo.GetOwned(ctx, input.ID, input.UserID, input.OrgID)
 	if err != nil {
 		return r, err
@@ -209,8 +208,8 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (model.RawResou
 }
 
 type cachedListResult struct {
-	Resources []model.RawResource `json:"resources"`
-	Page      *Page               `json:"page,omitempty"`
+	Resources []domainresource.RawResource `json:"resources"`
+	Page      *Page                        `json:"page,omitempty"`
 }
 
 func (s *Service) bumpListVersion(ctx context.Context, userID uint, orgID *uint) {

@@ -43,7 +43,6 @@ const EXACT_KEYS: Record<string, string> = {
   '剧本不存在': 'apiErrors.scriptNotFound',
   '剧本内容不能为空': 'apiErrors.scriptContentEmpty',
   'AI 返回格式异常，请重试': 'apiErrors.aiBadResponse',
-  '设定不存在': 'apiErrors.settingNotFound',
   '项目不存在': 'apiErrors.projectNotFound',
   '分集不存在': 'apiErrors.episodeNotFound',
   '分场不存在': 'apiErrors.sceneNotFound',

@@ -1,6 +1,6 @@
 # Agent Architecture
 
-This directory is the target namespace for the agent architecture. Existing code still lives under `src/runtime`, `src/production`, `src/mcpClient.ts`, and `src/server.ts`; this layer gives those modules a clear migration destination without breaking current imports.
+This directory is the target namespace for the agent architecture. Existing code still lives under `src/runtime`, `src/mcpClient.ts`, and `src/server.ts`; this layer gives those modules a clear migration destination without breaking current imports.
 
 ## Layers
 
@@ -41,6 +41,5 @@ This directory is the target namespace for the agent architecture. Existing code
 | `manifest` | `runtime/manifest/*`, `runtime/pluginCatalog.ts` |
 | `model` | `runtime/model/*`, `runtime/modelConfig.ts` |
 | `contracts` | `runtime/contracts/*` |
-| `domains/production` | `production/*` |
 | `adapters/mcp` | `mcpClient.ts` |
 | `adapters/http` | `server.ts` composition root |

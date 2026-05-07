@@ -42,7 +42,7 @@ Production（制作）
 - `movscript.search_entities` / `movscript.read_entity` — 读取项目实体
 
 **Draft 系统（`apps/agent/src/runtime/store/draftStore.ts`）：**
-- `AgentDraftKind`: `script | setting | asset_slot | storyboard_line | content_unit | prompt | note | pipeline`
+- `AgentDraftKind`: `script | asset_slot | storyboard_line | content_unit | prompt | note | pipeline | segment | scene_moment | production_proposal`
 - `AgentDraftStatus`: `draft | accepted | rejected | applied | superseded`
 - `BackendApplyClient` 支持 PATCH 到后端（仅更新已有实体）
 
@@ -155,13 +155,16 @@ agent 分析出"这个情节涉及人物小明"
 **扩展 `propose_production_entities`**：
 - 支持树形提案格式（见 3.1）
 - 支持 `action: "reuse" | "create" | "update"`
-- 在写入 draft 前，自动将同 scope 下的旧 draft 标记为 `superseded`
+- 创建本地客户端审阅用的 `production_proposal` draft，不直接写后端正式实体
+- 在创建新 draft 前，自动将同 scope 下的旧 draft 标记为 `superseded`
 
 **扩展 `read_production_context`**：
 - 增加 `include_project_references: true` 参数
 - 返回项目内所有制作的 CreativeReference 列表，供 agent 做跨制作查重
 
 ### 4.2 Draft 系统扩展
+
+这里的 Draft 是 Agent runtime 和客户端之间的审阅协议对象，用来承载 AI 生成的候选结构、上下文引用和生命周期状态。它不是后端正式领域实体；后端写入应由用户确认后的 apply 流程触发。
 
 **`AgentDraftKind` 增加**：
 - `segment` — 片段提案
@@ -230,5 +233,4 @@ agent 分析出"这个情节涉及人物小明"
 | `apps/backend/internal/domain/model/semantic_creative.go` | CreativeReference / State / Usage 模型 |
 | `apps/backend/internal/domain/model/semantic_production.go` | AssetSlot / CandidateDecision 模型 |
 | `apps/backend/internal/domain/model/semantic_structure.go` | Segment / SceneMoment / ContentUnit 模型 |
-| `apps/backend/internal/domain/model/setting.go` | Setting（旧版创作材料，已被 CreativeReference 替代） |
 | `apps/frontend/src/pages/production/ProductionOrchestratePage.tsx` | 前端制作编排页面 |

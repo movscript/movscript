@@ -163,31 +163,45 @@ func (h *ModelGatewayHandler) streamChatCompletions(c *gin.Context, input modelg
 			}
 			return
 		}
+		streamEvent := &chatCompletionStreamEvent{
+			Role:           event.Role,
+			ContentDelta:   event.ContentDelta,
+			ReasoningDelta: event.ReasoningDelta,
+			ToolCallDeltas: event.ToolCallDeltas,
+			FinishReason:   event.FinishReason,
+			Error:          event.Error,
+		}
+		if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
+			streamEvent.Usage = &chatCompletionUsage{
+				PromptTokens:     event.Usage.InputTokens,
+				CompletionTokens: event.Usage.OutputTokens,
+				TotalTokens:      event.Usage.InputTokens + event.Usage.OutputTokens,
+			}
+		}
 		chunk := chatCompletionStreamChunk{
 			ID:      id,
 			Object:  "chat.completion.chunk",
 			Created: created,
 			Model:   result.ResponseModel,
+			Event:   streamEvent,
 		}
-		if event.Role != "" || event.ContentDelta != "" || len(event.ToolCallDeltas) > 0 || event.FinishReason != "" {
+		if event.Role != "" || event.ContentDelta != "" || event.ReasoningDelta != "" || len(event.ToolCallDeltas) > 0 || event.FinishReason != "" {
 			chunk.Choices = []chatCompletionStreamChoice{{
 				Index: 0,
 				Delta: chatCompletionStreamDelta{
-					Role:      event.Role,
-					Content:   event.ContentDelta,
-					ToolCalls: event.ToolCallDeltas,
+					Role:             event.Role,
+					Content:          event.ContentDelta,
+					ReasoningContent: event.ReasoningDelta,
+					ReasoningDelta:   event.ReasoningDelta,
+					ToolCalls:        event.ToolCallDeltas,
 				},
 				FinishReason: event.FinishReason,
 			}}
 		} else {
 			chunk.Choices = []chatCompletionStreamChoice{}
 		}
-		if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
-			chunk.Usage = &chatCompletionUsage{
-				PromptTokens:     event.Usage.InputTokens,
-				CompletionTokens: event.Usage.OutputTokens,
-				TotalTokens:      event.Usage.InputTokens + event.Usage.OutputTokens,
-			}
+		if streamEvent.Usage != nil {
+			chunk.Usage = streamEvent.Usage
 		}
 		payload, _ := json.Marshal(chunk)
 		fmt.Fprintf(c.Writer, "data: %s\n\n", payload)

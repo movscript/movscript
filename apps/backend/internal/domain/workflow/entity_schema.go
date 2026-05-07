@@ -6,7 +6,6 @@ const EntitySemanticSchemaVersion = 1
 
 const (
 	EntityKindScript            = "script"
-	EntityKindSetting           = "setting"
 	EntityKindSegment           = "segment"
 	EntityKindSceneMoment       = "scene_moment"
 	EntityKindCreativeReference = "creative_reference"
@@ -199,29 +198,12 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 				jsonField("relationship_candidates", "details.characterRelationshipGraph", "Relationship Candidates", true),
 				deprecatedReadonlyField(jsonField("character_profiles", "details.characterProfiles", "Character Profiles", false)),
 				deprecatedReadonlyField(jsonField("character_relationships", "details.characterRelationshipGraph", "Character Relationships", false)),
-				workflowPort(deprecatedReadonlyField(jsonField("core_settings", "details.coreSettings", "Core Settings", false)), "settings"),
+				deprecatedReadonlyField(jsonField("core_settings", "details.coreSettings", "Core Settings", false)),
 				deprecatedReadonlyField(textField("background", "details.background", "Background", "textarea", false)),
 				deprecatedReadonlyField(textField("scenes_desc", "details.scenes", "Scenes", "textarea", false)),
 				textField("hook", "details.hook", "Hook", "textarea", true),
 				textField("plot_summary", "details.plotSummary", "Plot Summary", "textarea", true),
 				jsonField("script_points", "details.generatePoints", "Script Points", true),
-			})},
-		},
-		{
-			Kind: EntityKindSetting, LabelKey: "canvas.entityTypes.setting", FallbackLabel: "Setting",
-			Sections: []EntitySemanticSection{section("identity", "canvas.entityTypes.setting", "Identity", []EntitySemanticField{
-				resourceField("result", "details.attachments", "Result", "result", "output", false),
-				resourceField("reference", "details.referenceAssets", "Reference", "reference", "reference", false),
-				textField("name", "project.scripts.settingName", "Name", "input", true),
-				textField("type", "shared.type", "Type", "input", true),
-				textField("status", "details.productionStatus", "Status", "input", true),
-				jsonField("tags", "details.pointTagsPlaceholder", "Tags", true),
-				jsonField("state_tags", "details.pointTagsPlaceholder", "State Tags", true),
-				textField("description", "shared.description", "Description", "textarea", true),
-				textField("content", "project.scripts.settingContent", "Notes", "textarea", true),
-				textField("alias", "details.characterIdentity", "Alias", "input", true),
-				textField("importance", "details.characterGoal", "Importance", "input", true),
-				jsonField("profile_json", "details.contentManagement", "Optional Structured Data", true),
 			})},
 		},
 		{
@@ -385,18 +367,6 @@ func normalizeEntitySemanticSchemas(schemas []EntitySemanticSchema) {
 
 func schemaMigrations(kind string) []EntityMigration {
 	switch kind {
-	case "script":
-		return []EntityMigration{
-			{
-				FromVersion: 1,
-				ToVersion:   EntitySemanticSchemaVersion,
-				Kind:        "deprecated_field",
-				FieldID:     "core_settings",
-				FromFieldID: "settings",
-				ToFieldID:   "setting.profile_json",
-				Description: "Script core settings are readonly legacy data; write canonical settings to Setting records bound to the script.",
-			},
-		}
 	default:
 		return nil
 	}
@@ -667,11 +637,6 @@ func storedField(field EntitySemanticField, column string) EntitySemanticField {
 	return field
 }
 
-func workflowPort(field EntitySemanticField, portID string) EntitySemanticField {
-	field.WorkflowPort = portID
-	return field
-}
-
 func stringInSlice(value string, items []string) bool {
 	for _, item := range items {
 		if item == value {
@@ -682,10 +647,5 @@ func stringInSlice(value string, items []string) bool {
 }
 
 func defaultStorageColumn(id string) string {
-	switch id {
-	case "settings":
-		return "core_settings"
-	default:
-		return id
-	}
+	return id
 }

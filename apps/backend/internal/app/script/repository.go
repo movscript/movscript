@@ -6,21 +6,22 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainscript "github.com/movscript/movscript/internal/domain/script"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
 
 type repository interface {
-	ListScripts(ctx context.Context, filter ListFilter) ([]model.Script, error)
-	CreateScript(ctx context.Context, item *model.Script) error
-	GetScript(ctx context.Context, id uint) (model.Script, error)
-	SaveScript(ctx context.Context, item *model.Script) error
-	PatchScript(ctx context.Context, item *model.Script, updates map[string]any) error
+	ListScripts(ctx context.Context, filter ListFilter) ([]domainscript.ScriptSnapshot, error)
+	CreateScript(ctx context.Context, item *domainscript.ScriptSnapshot) error
+	GetScript(ctx context.Context, id uint) (domainscript.ScriptSnapshot, error)
+	SaveScript(ctx context.Context, item *domainscript.ScriptSnapshot) error
+	PatchScript(ctx context.Context, item *domainscript.ScriptSnapshot, updates map[string]any) error
 	DeleteScript(ctx context.Context, id uint) (uint, error)
 
-	FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (model.ScriptVersion, bool, error)
-	UpdateScriptVersionWithRelations(ctx context.Context, version *model.ScriptVersion, updates map[string]any) error
-	CreateScriptVersionWithRelations(ctx context.Context, version *model.ScriptVersion) error
+	FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptVersion, bool, error)
+	UpdateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion, updates map[string]any) error
+	CreateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion) error
 }
 
 type gormRepository struct {
@@ -38,7 +39,7 @@ func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
 	return &Service{repo: &gormRepository{db: db}, cache: c}
 }
 
-func (r *gormRepository) ListScripts(ctx context.Context, filter ListFilter) ([]model.Script, error) {
+func (r *gormRepository) ListScripts(ctx context.Context, filter ListFilter) ([]domainscript.ScriptSnapshot, error) {
 	scripts := make([]model.Script, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
 	if filter.Type != "" {
@@ -48,30 +49,52 @@ func (r *gormRepository) ListScripts(ctx context.Context, filter ListFilter) ([]
 		q = q.Where("assignee_id = ?", filter.AssigneeID)
 	}
 	err := q.Order(`"order", created_at`).Find(&scripts).Error
-	return scripts, err
+	if err != nil {
+		return nil, err
+	}
+	items := make([]domainscript.ScriptSnapshot, 0, len(scripts))
+	for _, script := range scripts {
+		items = append(items, domainscript.ScriptSnapshotFromModel(script))
+	}
+	return items, nil
 }
 
-func (r *gormRepository) CreateScript(ctx context.Context, item *model.Script) error {
-	return r.db.WithContext(ctx).Create(item).Error
+func (r *gormRepository) CreateScript(ctx context.Context, item *domainscript.ScriptSnapshot) error {
+	row := item.ToModel()
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return err
+	}
+	*item = domainscript.ScriptSnapshotFromModel(row)
+	return nil
 }
 
-func (r *gormRepository) GetScript(ctx context.Context, id uint) (model.Script, error) {
+func (r *gormRepository) GetScript(ctx context.Context, id uint) (domainscript.ScriptSnapshot, error) {
 	var item model.Script
 	if err := r.db.WithContext(ctx).First(&item, id).Error; err != nil {
-		return item, normalizeNotFound(err)
+		return domainscript.ScriptSnapshot{}, normalizeNotFound(err)
 	}
-	return item, nil
+	return domainscript.ScriptSnapshotFromModel(item), nil
 }
 
-func (r *gormRepository) SaveScript(ctx context.Context, item *model.Script) error {
-	return r.db.WithContext(ctx).Save(item).Error
+func (r *gormRepository) SaveScript(ctx context.Context, item *domainscript.ScriptSnapshot) error {
+	row := item.ToModel()
+	if err := r.db.WithContext(ctx).Save(&row).Error; err != nil {
+		return err
+	}
+	*item = domainscript.ScriptSnapshotFromModel(row)
+	return nil
 }
 
-func (r *gormRepository) PatchScript(ctx context.Context, item *model.Script, updates map[string]any) error {
+func (r *gormRepository) PatchScript(ctx context.Context, item *domainscript.ScriptSnapshot, updates map[string]any) error {
 	if len(updates) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Model(item).Updates(updates).Error
+	row := item.ToModel()
+	if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
+		return err
+	}
+	*item = domainscript.ScriptSnapshotFromModel(row)
+	return nil
 }
 
 func (r *gormRepository) DeleteScript(ctx context.Context, id uint) (uint, error) {
@@ -83,32 +106,39 @@ func (r *gormRepository) DeleteScript(ctx context.Context, id uint) (uint, error
 	return item.ProjectID, nil
 }
 
-func (r *gormRepository) FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (model.ScriptVersion, bool, error) {
+func (r *gormRepository) FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptVersion, bool, error) {
 	var version model.ScriptVersion
 	err := r.db.WithContext(ctx).Where("project_id = ? AND script_id = ? AND version_number = ?", projectID, scriptID, 1).First(&version).Error
 	if err == nil {
-		return version, true, nil
+		return domainscript.ScriptVersionFromModel(version), true, nil
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return version, false, nil
+		return domainscript.ScriptVersion{}, false, nil
 	}
-	return version, false, err
+	return domainscript.ScriptVersion{}, false, err
 }
 
-func (r *gormRepository) UpdateScriptVersionWithRelations(ctx context.Context, version *model.ScriptVersion, updates map[string]any) error {
+func (r *gormRepository) UpdateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion, updates map[string]any) error {
+	row := version.ToModel()
 	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
-	if err := db.Model(version).Updates(updates).Error; err != nil {
+	if err := db.Model(&row).Updates(updates).Error; err != nil {
 		return err
 	}
-	return entityrelation.SyncCoreEntityRelations(db, version)
+	if err := db.First(&row, row.ID).Error; err != nil {
+		return err
+	}
+	*version = domainscript.ScriptVersionFromModel(row)
+	return entityrelation.SyncCoreEntityRelations(db, &row)
 }
 
-func (r *gormRepository) CreateScriptVersionWithRelations(ctx context.Context, version *model.ScriptVersion) error {
+func (r *gormRepository) CreateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion) error {
+	row := version.ToModel()
 	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
-	if err := db.Create(version).Error; err != nil {
+	if err := db.Create(&row).Error; err != nil {
 		return err
 	}
-	return entityrelation.SyncCoreEntityRelations(db, version)
+	*version = domainscript.ScriptVersionFromModel(row)
+	return entityrelation.SyncCoreEntityRelations(db, &row)
 }
 
 func normalizeNotFound(err error) error {

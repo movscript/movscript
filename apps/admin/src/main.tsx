@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { Bot, Bug, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Moon, Route as RouteIcon, Settings2, ShieldCheck, SlidersHorizontal, Sun, type LucideIcon } from 'lucide-react'
+import { Bot, Bug, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Moon, Route as RouteIcon, Settings2, ShieldCheck, Sun, type LucideIcon } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
@@ -11,7 +11,6 @@ import { Button } from '@movscript/ui'
 import AdminPage, { CloudFileConfigPage, FeatureConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage } from '@admin/pages/admin/AdminPage'
 import AgentDebugPage from '@admin/pages/admin/AgentDebugPage'
 import { DebugPage } from '@admin/pages/admin/DebugPage'
-import { UIPreviewPage } from '@admin/pages/admin/UIPreviewPage'
 import { editionNavItems, editionRoutes } from '@admin-edition'
 import { Toaster } from '@/components/ui/Toaster'
 import { initTheme, useTheme } from '@/hooks/useTheme'
@@ -115,7 +114,6 @@ const baseNavItems: { to: string; label: string; icon: LucideIcon; end?: boolean
   { to: '/cloud-files', label: '输入中转', icon: CloudUpload },
   { to: '/agent-debug', label: 'Agent 调试', icon: Bot },
   { to: '/debug', label: '调试', icon: Bug },
-  { to: '/ui-preview', label: 'UI 预览', icon: SlidersHorizontal },
 ]
 
 const navItems = [...baseNavItems, ...editionNavItems]
@@ -268,7 +266,6 @@ function App() {
         ))}
         <Route path="/agent-debug" element={<AdminShell><AgentDebugPage /></AdminShell>} />
         <Route path="/debug" element={<AdminShell><DebugPage /></AdminShell>} />
-        <Route path="/ui-preview" element={<AdminShell><UIPreviewPage /></AdminShell>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

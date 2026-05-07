@@ -1,6 +1,35 @@
 package semantic
 
-import "github.com/movscript/movscript/internal/domain/model"
+import (
+	"github.com/movscript/movscript/internal/domain/model"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
+)
+
+func EntityRelationFromModel(relation model.EntityRelation) EntityRelation {
+	return EntityRelation{
+		ID:           relation.ID,
+		ProjectID:    relation.ProjectID,
+		SourceType:   relation.SourceType,
+		SourceID:     relation.SourceID,
+		TargetType:   relation.TargetType,
+		TargetID:     relation.TargetID,
+		Category:     relation.Category,
+		Type:         relation.Type,
+		Label:        relation.Label,
+		ScopeType:    relation.ScopeType,
+		ScopeID:      relation.ScopeID,
+		Direction:    relation.Direction,
+		Order:        relation.Order,
+		Weight:       relation.Weight,
+		Status:       relation.Status,
+		Source:       relation.Source,
+		Evidence:     relation.Evidence,
+		MetadataJSON: relation.MetadataJSON,
+		CreatedByID:  relation.CreatedByID,
+		CreatedAt:    relation.CreatedAt,
+		UpdatedAt:    relation.UpdatedAt,
+	}
+}
 
 func SegmentFromModel(segment model.Segment) Segment {
 	return Segment{
@@ -16,6 +45,8 @@ func SegmentFromModel(segment model.Segment) Segment {
 		Content:         segment.Content,
 		Status:          segment.Status,
 		MetadataJSON:    segment.MetadataJSON,
+		CreatedAt:       segment.CreatedAt,
+		UpdatedAt:       segment.UpdatedAt,
 	}
 }
 
@@ -38,6 +69,8 @@ func (segment Segment) ApplyToModel(target *model.Segment) {
 	target.Content = segment.Content
 	target.Status = segment.Status
 	target.MetadataJSON = segment.MetadataJSON
+	target.CreatedAt = segment.CreatedAt
+	target.UpdatedAt = segment.UpdatedAt
 }
 
 func ProductionTextBlockFromModel(block model.ProductionTextBlock) ProductionTextBlock {
@@ -54,6 +87,8 @@ func ProductionTextBlockFromModel(block model.ProductionTextBlock) ProductionTex
 		SourceType:    block.SourceType,
 		Status:        block.Status,
 		MetadataJSON:  block.MetadataJSON,
+		CreatedAt:     block.CreatedAt,
+		UpdatedAt:     block.UpdatedAt,
 	}
 }
 
@@ -76,6 +111,8 @@ func (block ProductionTextBlock) ApplyToModel(target *model.ProductionTextBlock)
 	target.SourceType = block.SourceType
 	target.Status = block.Status
 	target.MetadataJSON = block.MetadataJSON
+	target.CreatedAt = block.CreatedAt
+	target.UpdatedAt = block.UpdatedAt
 }
 
 func SceneMomentFromModel(moment model.SceneMoment) SceneMoment {
@@ -93,6 +130,8 @@ func SceneMomentFromModel(moment model.SceneMoment) SceneMoment {
 		Mood:          moment.Mood,
 		Status:        moment.Status,
 		MetadataJSON:  moment.MetadataJSON,
+		CreatedAt:     moment.CreatedAt,
+		UpdatedAt:     moment.UpdatedAt,
 	}
 }
 
@@ -116,6 +155,8 @@ func (moment SceneMoment) ApplyToModel(target *model.SceneMoment) {
 	target.Mood = moment.Mood
 	target.Status = moment.Status
 	target.MetadataJSON = moment.MetadataJSON
+	target.CreatedAt = moment.CreatedAt
+	target.UpdatedAt = moment.UpdatedAt
 }
 
 func ContentUnitFromModel(unit model.ContentUnit) ContentUnit {
@@ -147,6 +188,8 @@ func ContentUnitFromModel(unit model.ContentUnit) ContentUnit {
 		CameraNotes:      unit.CameraNotes,
 		Status:           unit.Status,
 		MetadataJSON:     unit.MetadataJSON,
+		CreatedAt:        unit.CreatedAt,
+		UpdatedAt:        unit.UpdatedAt,
 	}
 }
 
@@ -184,6 +227,8 @@ func (unit ContentUnit) ApplyToModel(target *model.ContentUnit) {
 	target.CameraNotes = unit.CameraNotes
 	target.Status = unit.Status
 	target.MetadataJSON = unit.MetadataJSON
+	target.CreatedAt = unit.CreatedAt
+	target.UpdatedAt = unit.UpdatedAt
 }
 
 func PreviewTimelineItemFromModel(item model.PreviewTimelineItem) PreviewTimelineItem {
@@ -202,6 +247,8 @@ func PreviewTimelineItemFromModel(item model.PreviewTimelineItem) PreviewTimelin
 		Label:             item.Label,
 		Status:            item.Status,
 		MetadataJSON:      item.MetadataJSON,
+		CreatedAt:         item.CreatedAt,
+		UpdatedAt:         item.UpdatedAt,
 	}
 }
 
@@ -226,6 +273,8 @@ func (item PreviewTimelineItem) ApplyToModel(target *model.PreviewTimelineItem) 
 	target.Label = item.Label
 	target.Status = item.Status
 	target.MetadataJSON = item.MetadataJSON
+	target.CreatedAt = item.CreatedAt
+	target.UpdatedAt = item.UpdatedAt
 }
 
 func AssetSlotFromModel(slot model.AssetSlot) AssetSlot {
@@ -245,8 +294,12 @@ func AssetSlotFromModel(slot model.AssetSlot) AssetSlot {
 		Status:                   slot.Status,
 		Priority:                 slot.Priority,
 		ResourceID:               slot.ResourceID,
+		Resource:                 rawResourceFromModelPointer(slot.Resource),
 		LockedAssetSlotID:        slot.LockedAssetSlotID,
+		LockedAssetSlot:          assetSlotFromModelPointer(slot.LockedAssetSlot),
 		MetadataJSON:             slot.MetadataJSON,
+		CreatedAt:                slot.CreatedAt,
+		UpdatedAt:                slot.UpdatedAt,
 	}
 }
 
@@ -274,6 +327,16 @@ func (slot AssetSlot) ApplyToModel(target *model.AssetSlot) {
 	target.ResourceID = slot.ResourceID
 	target.LockedAssetSlotID = slot.LockedAssetSlotID
 	target.MetadataJSON = slot.MetadataJSON
+	target.CreatedAt = slot.CreatedAt
+	target.UpdatedAt = slot.UpdatedAt
+}
+
+func assetSlotFromModelPointer(slot *model.AssetSlot) *AssetSlot {
+	if slot == nil {
+		return nil
+	}
+	item := AssetSlotFromModel(*slot)
+	return &item
 }
 
 func AssetSlotCandidateFromModel(candidate model.AssetSlotCandidate) AssetSlotCandidate {
@@ -287,7 +350,45 @@ func AssetSlotCandidateFromModel(candidate model.AssetSlotCandidate) AssetSlotCa
 		Score:                candidate.Score,
 		Status:               candidate.Status,
 		Note:                 candidate.Note,
+		CandidateAssetSlot:   assetSlotFromModelPointer(candidate.CandidateAssetSlot),
+		CreatedAt:            candidate.CreatedAt,
+		UpdatedAt:            candidate.UpdatedAt,
 	}
+}
+
+func MarkAssetSlotCandidate(slot *model.AssetSlot) {
+	domainSlot := AssetSlotFromModel(*slot)
+	MarkSlotCandidate(&domainSlot)
+	domainSlot.ApplyToModel(slot)
+}
+
+func MarkAssetSlotLockedToCandidate(slot *model.AssetSlot, candidate model.AssetSlotCandidate) {
+	domainSlot := AssetSlotFromModel(*slot)
+	domainCandidate := AssetSlotCandidateFromModel(candidate)
+	var candidateResourceID *uint
+	if candidate.CandidateAssetSlot != nil {
+		candidateResourceID = candidate.CandidateAssetSlot.ResourceID
+	}
+	LockSlotToCandidate(&domainSlot, domainCandidate, candidateResourceID)
+	domainSlot.ApplyToModel(slot)
+}
+
+func SelectAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
+	domainCandidate := AssetSlotCandidateFromModel(*candidate)
+	SelectCandidate(&domainCandidate)
+	domainCandidate.ApplyToModel(candidate)
+}
+
+func RejectAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
+	domainCandidate := AssetSlotCandidateFromModel(*candidate)
+	RejectCandidate(&domainCandidate)
+	domainCandidate.ApplyToModel(candidate)
+}
+
+func NormalizeAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
+	domainCandidate := AssetSlotCandidateFromModel(*candidate)
+	NormalizeCandidate(&domainCandidate)
+	domainCandidate.ApplyToModel(candidate)
 }
 
 func (candidate AssetSlotCandidate) ToModel() model.AssetSlotCandidate {
@@ -306,6 +407,8 @@ func (candidate AssetSlotCandidate) ApplyToModel(target *model.AssetSlotCandidat
 	target.Score = candidate.Score
 	target.Status = candidate.Status
 	target.Note = candidate.Note
+	target.CreatedAt = candidate.CreatedAt
+	target.UpdatedAt = candidate.UpdatedAt
 }
 
 func CandidateDecisionFromModel(decision model.CandidateDecision) CandidateDecision {
@@ -325,6 +428,8 @@ func CandidateDecisionFromModel(decision model.CandidateDecision) CandidateDecis
 		DecidedByID:       decision.DecidedByID,
 		AppliedAt:         decision.AppliedAt,
 		MetadataJSON:      decision.MetadataJSON,
+		CreatedAt:         decision.CreatedAt,
+		UpdatedAt:         decision.UpdatedAt,
 	}
 }
 
@@ -350,6 +455,8 @@ func (decision CandidateDecision) ApplyToModel(target *model.CandidateDecision) 
 	target.DecidedByID = decision.DecidedByID
 	target.AppliedAt = decision.AppliedAt
 	target.MetadataJSON = decision.MetadataJSON
+	target.CreatedAt = decision.CreatedAt
+	target.UpdatedAt = decision.UpdatedAt
 }
 
 func ReviewEventFromModel(event model.ReviewEvent) ReviewEvent {
@@ -367,6 +474,8 @@ func ReviewEventFromModel(event model.ReviewEvent) ReviewEvent {
 		Source:          event.Source,
 		ActorID:         event.ActorID,
 		MetadataJSON:    event.MetadataJSON,
+		CreatedAt:       event.CreatedAt,
+		UpdatedAt:       event.UpdatedAt,
 	}
 }
 
@@ -390,6 +499,8 @@ func (event ReviewEvent) ApplyToModel(target *model.ReviewEvent) {
 	target.Source = event.Source
 	target.ActorID = event.ActorID
 	target.MetadataJSON = event.MetadataJSON
+	target.CreatedAt = event.CreatedAt
+	target.UpdatedAt = event.UpdatedAt
 }
 
 func ExportRecordFromModel(record model.ExportRecord) ExportRecord {
@@ -403,6 +514,8 @@ func ExportRecordFromModel(record model.ExportRecord) ExportRecord {
 		Preset:            record.Preset,
 		Error:             record.Error,
 		MetadataJSON:      record.MetadataJSON,
+		CreatedAt:         record.CreatedAt,
+		UpdatedAt:         record.UpdatedAt,
 	}
 }
 
@@ -422,6 +535,8 @@ func (record ExportRecord) ApplyToModel(target *model.ExportRecord) {
 	target.Preset = record.Preset
 	target.Error = record.Error
 	target.MetadataJSON = record.MetadataJSON
+	target.CreatedAt = record.CreatedAt
+	target.UpdatedAt = record.UpdatedAt
 }
 
 func CanvasOutputFromModel(output model.CanvasOutput) CanvasOutput {
@@ -440,6 +555,8 @@ func CanvasOutputFromModel(output model.CanvasOutput) CanvasOutput {
 		ValueJSON:    output.ValueJSON,
 		Status:       output.Status,
 		MetadataJSON: output.MetadataJSON,
+		CreatedAt:    output.CreatedAt,
+		UpdatedAt:    output.UpdatedAt,
 	}
 }
 
@@ -464,6 +581,8 @@ func (output CanvasOutput) ApplyToModel(target *model.CanvasOutput) {
 	target.ValueJSON = output.ValueJSON
 	target.Status = output.Status
 	target.MetadataJSON = output.MetadataJSON
+	target.CreatedAt = output.CreatedAt
+	target.UpdatedAt = output.UpdatedAt
 }
 
 func WorkReviewFromModel(review model.WorkReview) WorkReview {
@@ -472,9 +591,12 @@ func WorkReviewFromModel(review model.WorkReview) WorkReview {
 		ProjectID:    review.ProjectID,
 		WorkItemID:   review.WorkItemID,
 		ReviewerID:   review.ReviewerID,
+		Reviewer:     UserRefFromModelPointer(review.Reviewer),
 		Status:       review.Status,
 		Comment:      review.Comment,
 		MetadataJSON: review.MetadataJSON,
+		CreatedAt:    review.CreatedAt,
+		UpdatedAt:    review.UpdatedAt,
 	}
 }
 
@@ -492,6 +614,8 @@ func (review WorkReview) ApplyToModel(target *model.WorkReview) {
 	target.Status = review.Status
 	target.Comment = review.Comment
 	target.MetadataJSON = review.MetadataJSON
+	target.CreatedAt = review.CreatedAt
+	target.UpdatedAt = review.UpdatedAt
 }
 
 func WorkItemFromModel(item model.WorkItem) WorkItem {
@@ -507,6 +631,7 @@ func WorkItemFromModel(item model.WorkItem) WorkItem {
 		Status:         item.Status,
 		Priority:       item.Priority,
 		AssigneeID:     item.AssigneeID,
+		Assignee:       UserRefFromModelPointer(item.Assignee),
 		SourceJobID:    item.SourceJobID,
 		SourceCanvasID: item.SourceCanvasID,
 		ResultType:     item.ResultType,
@@ -515,6 +640,8 @@ func WorkItemFromModel(item model.WorkItem) WorkItem {
 		AppliedAt:      item.AppliedAt,
 		ApplyError:     item.ApplyError,
 		MetadataJSON:   item.MetadataJSON,
+		CreatedAt:      item.CreatedAt,
+		UpdatedAt:      item.UpdatedAt,
 	}
 }
 
@@ -544,6 +671,8 @@ func (item WorkItem) ApplyToModel(target *model.WorkItem) {
 	target.AppliedAt = item.AppliedAt
 	target.ApplyError = item.ApplyError
 	target.MetadataJSON = item.MetadataJSON
+	target.CreatedAt = item.CreatedAt
+	target.UpdatedAt = item.UpdatedAt
 }
 
 func WorkDependencyFromModel(dependency model.WorkDependency) WorkDependency {
@@ -553,6 +682,8 @@ func WorkDependencyFromModel(dependency model.WorkDependency) WorkDependency {
 		WorkItemID:          dependency.WorkItemID,
 		DependsOnWorkItemID: dependency.DependsOnWorkItemID,
 		DependencyType:      dependency.DependencyType,
+		CreatedAt:           dependency.CreatedAt,
+		UpdatedAt:           dependency.UpdatedAt,
 	}
 }
 
@@ -568,6 +699,29 @@ func (dependency WorkDependency) ApplyToModel(target *model.WorkDependency) {
 	target.WorkItemID = dependency.WorkItemID
 	target.DependsOnWorkItemID = dependency.DependsOnWorkItemID
 	target.DependencyType = dependency.DependencyType
+	target.CreatedAt = dependency.CreatedAt
+	target.UpdatedAt = dependency.UpdatedAt
+}
+
+func UserRefFromModelPointer(user *model.User) *UserRef {
+	if user == nil {
+		return nil
+	}
+	return UserRefFromModel(*user)
+}
+
+func UserRefFromModel(user model.User) *UserRef {
+	return &UserRef{
+		ID:           user.ID,
+		Username:     user.Username,
+		SystemRole:   user.SystemRole,
+		PrimaryEmail: user.PrimaryEmail,
+		PrimaryPhone: user.PrimaryPhone,
+		DisplayName:  user.DisplayName,
+		AvatarURL:    user.AvatarURL,
+		Locale:       user.Locale,
+		Status:       user.Status,
+	}
 }
 
 func CreativeReferenceFromModel(ref model.CreativeReference) CreativeReference {
@@ -576,7 +730,6 @@ func CreativeReferenceFromModel(ref model.CreativeReference) CreativeReference {
 		ProjectID:        ref.ProjectID,
 		SourceScriptID:   ref.SourceScriptID,
 		SourceAnalysisID: ref.SourceAnalysisID,
-		LegacySettingID:  ref.LegacySettingID,
 		Kind:             ref.Kind,
 		Name:             ref.Name,
 		Alias:            ref.Alias,
@@ -586,6 +739,8 @@ func CreativeReferenceFromModel(ref model.CreativeReference) CreativeReference {
 		Status:           ref.Status,
 		ProfileJSON:      ref.ProfileJSON,
 		TagsJSON:         ref.TagsJSON,
+		CreatedAt:        ref.CreatedAt,
+		UpdatedAt:        ref.UpdatedAt,
 	}
 }
 
@@ -600,7 +755,6 @@ func (ref CreativeReference) ApplyToModel(target *model.CreativeReference) {
 	target.ProjectID = ref.ProjectID
 	target.SourceScriptID = ref.SourceScriptID
 	target.SourceAnalysisID = ref.SourceAnalysisID
-	target.LegacySettingID = ref.LegacySettingID
 	target.Kind = ref.Kind
 	target.Name = ref.Name
 	target.Alias = ref.Alias
@@ -610,6 +764,8 @@ func (ref CreativeReference) ApplyToModel(target *model.CreativeReference) {
 	target.Status = ref.Status
 	target.ProfileJSON = ref.ProfileJSON
 	target.TagsJSON = ref.TagsJSON
+	target.CreatedAt = ref.CreatedAt
+	target.UpdatedAt = ref.UpdatedAt
 }
 
 func CreativeReferenceStateFromModel(state model.CreativeReferenceState) CreativeReferenceState {
@@ -628,6 +784,8 @@ func CreativeReferenceStateFromModel(state model.CreativeReferenceState) Creativ
 		Status:              state.Status,
 		TagsJSON:            state.TagsJSON,
 		MetadataJSON:        state.MetadataJSON,
+		CreatedAt:           state.CreatedAt,
+		UpdatedAt:           state.UpdatedAt,
 	}
 }
 
@@ -652,6 +810,8 @@ func (state CreativeReferenceState) ApplyToModel(target *model.CreativeReference
 	target.Status = state.Status
 	target.TagsJSON = state.TagsJSON
 	target.MetadataJSON = state.MetadataJSON
+	target.CreatedAt = state.CreatedAt
+	target.UpdatedAt = state.UpdatedAt
 }
 
 func CreativeReferenceUsageFromModel(usage model.CreativeReferenceUsage) CreativeReferenceUsage {
@@ -668,6 +828,8 @@ func CreativeReferenceUsageFromModel(usage model.CreativeReferenceUsage) Creativ
 		Source:                   usage.Source,
 		Status:                   usage.Status,
 		MetadataJSON:             usage.MetadataJSON,
+		CreatedAt:                usage.CreatedAt,
+		UpdatedAt:                usage.UpdatedAt,
 	}
 }
 
@@ -690,6 +852,8 @@ func (usage CreativeReferenceUsage) ApplyToModel(target *model.CreativeReference
 	target.Source = usage.Source
 	target.Status = usage.Status
 	target.MetadataJSON = usage.MetadataJSON
+	target.CreatedAt = usage.CreatedAt
+	target.UpdatedAt = usage.UpdatedAt
 }
 
 func CreativeRelationshipFromModel(relationship model.CreativeRelationship) CreativeRelationship {
@@ -708,6 +872,8 @@ func CreativeRelationshipFromModel(relationship model.CreativeRelationship) Crea
 		Status:                    relationship.Status,
 		Evidence:                  relationship.Evidence,
 		MetadataJSON:              relationship.MetadataJSON,
+		CreatedAt:                 relationship.CreatedAt,
+		UpdatedAt:                 relationship.UpdatedAt,
 	}
 }
 
@@ -732,6 +898,8 @@ func (relationship CreativeRelationship) ApplyToModel(target *model.CreativeRela
 	target.Status = relationship.Status
 	target.Evidence = relationship.Evidence
 	target.MetadataJSON = relationship.MetadataJSON
+	target.CreatedAt = relationship.CreatedAt
+	target.UpdatedAt = relationship.UpdatedAt
 }
 
 func ProductionFromModel(production model.Production) Production {
@@ -747,6 +915,8 @@ func ProductionFromModel(production model.Production) Production {
 		OwnerLabel:        production.OwnerLabel,
 		Progress:          production.Progress,
 		MetadataJSON:      production.MetadataJSON,
+		CreatedAt:         production.CreatedAt,
+		UpdatedAt:         production.UpdatedAt,
 	}
 }
 
@@ -768,6 +938,8 @@ func (production Production) ApplyToModel(target *model.Production) {
 	target.OwnerLabel = production.OwnerLabel
 	target.Progress = production.Progress
 	target.MetadataJSON = production.MetadataJSON
+	target.CreatedAt = production.CreatedAt
+	target.UpdatedAt = production.UpdatedAt
 }
 
 func KeyframeFromModel(keyframe model.Keyframe) Keyframe {
@@ -778,6 +950,7 @@ func KeyframeFromModel(keyframe model.Keyframe) Keyframe {
 		SceneMomentID: keyframe.SceneMomentID,
 		ContentUnitID: keyframe.ContentUnitID,
 		ResourceID:    keyframe.ResourceID,
+		Resource:      rawResourceFromModelPointer(keyframe.Resource),
 		CanvasID:      keyframe.CanvasID,
 		Title:         keyframe.Title,
 		Description:   keyframe.Description,
@@ -785,6 +958,8 @@ func KeyframeFromModel(keyframe model.Keyframe) Keyframe {
 		Order:         keyframe.Order,
 		Status:        keyframe.Status,
 		MetadataJSON:  keyframe.MetadataJSON,
+		CreatedAt:     keyframe.CreatedAt,
+		UpdatedAt:     keyframe.UpdatedAt,
 	}
 }
 
@@ -808,6 +983,16 @@ func (keyframe Keyframe) ApplyToModel(target *model.Keyframe) {
 	target.Order = keyframe.Order
 	target.Status = keyframe.Status
 	target.MetadataJSON = keyframe.MetadataJSON
+	target.CreatedAt = keyframe.CreatedAt
+	target.UpdatedAt = keyframe.UpdatedAt
+}
+
+func rawResourceFromModelPointer(resource *model.RawResource) *domainresource.RawResource {
+	if resource == nil {
+		return nil
+	}
+	item := domainresource.RawResourceFromModel(*resource)
+	return &item
 }
 
 func PreviewTimelineFromModel(timeline model.PreviewTimeline) PreviewTimeline {
@@ -821,6 +1006,8 @@ func PreviewTimelineFromModel(timeline model.PreviewTimeline) PreviewTimeline {
 		DurationSec:     timeline.DurationSec,
 		IsPrimary:       timeline.IsPrimary,
 		MetadataJSON:    timeline.MetadataJSON,
+		CreatedAt:       timeline.CreatedAt,
+		UpdatedAt:       timeline.UpdatedAt,
 	}
 }
 
@@ -840,6 +1027,8 @@ func (timeline PreviewTimeline) ApplyToModel(target *model.PreviewTimeline) {
 	target.DurationSec = timeline.DurationSec
 	target.IsPrimary = timeline.IsPrimary
 	target.MetadataJSON = timeline.MetadataJSON
+	target.CreatedAt = timeline.CreatedAt
+	target.UpdatedAt = timeline.UpdatedAt
 }
 
 func DeliveryVersionFromModel(version model.DeliveryVersion) DeliveryVersion {
@@ -854,6 +1043,8 @@ func DeliveryVersionFromModel(version model.DeliveryVersion) DeliveryVersion {
 		IsPrimary:         version.IsPrimary,
 		DurationSec:       version.DurationSec,
 		MetadataJSON:      version.MetadataJSON,
+		CreatedAt:         version.CreatedAt,
+		UpdatedAt:         version.UpdatedAt,
 	}
 }
 
@@ -874,6 +1065,8 @@ func (version DeliveryVersion) ApplyToModel(target *model.DeliveryVersion) {
 	target.IsPrimary = version.IsPrimary
 	target.DurationSec = version.DurationSec
 	target.MetadataJSON = version.MetadataJSON
+	target.CreatedAt = version.CreatedAt
+	target.UpdatedAt = version.UpdatedAt
 }
 
 func DeliveryTimelineItemFromModel(item model.DeliveryTimelineItem) DeliveryTimelineItem {
@@ -891,6 +1084,8 @@ func DeliveryTimelineItemFromModel(item model.DeliveryTimelineItem) DeliveryTime
 		Label:             item.Label,
 		Status:            item.Status,
 		MetadataJSON:      item.MetadataJSON,
+		CreatedAt:         item.CreatedAt,
+		UpdatedAt:         item.UpdatedAt,
 	}
 }
 
@@ -914,6 +1109,8 @@ func (item DeliveryTimelineItem) ApplyToModel(target *model.DeliveryTimelineItem
 	target.Label = item.Label
 	target.Status = item.Status
 	target.MetadataJSON = item.MetadataJSON
+	target.CreatedAt = item.CreatedAt
+	target.UpdatedAt = item.UpdatedAt
 }
 
 func StoryboardScriptFromModel(script model.StoryboardScript) StoryboardScript {
@@ -926,6 +1123,8 @@ func StoryboardScriptFromModel(script model.StoryboardScript) StoryboardScript {
 		Status:          script.Status,
 		IsPrimary:       script.IsPrimary,
 		MetadataJSON:    script.MetadataJSON,
+		CreatedAt:       script.CreatedAt,
+		UpdatedAt:       script.UpdatedAt,
 	}
 }
 
@@ -944,6 +1143,8 @@ func (script StoryboardScript) ApplyToModel(target *model.StoryboardScript) {
 	target.Status = script.Status
 	target.IsPrimary = script.IsPrimary
 	target.MetadataJSON = script.MetadataJSON
+	target.CreatedAt = script.CreatedAt
+	target.UpdatedAt = script.UpdatedAt
 }
 
 func StoryboardVersionFromModel(version model.StoryboardVersion) StoryboardVersion {
@@ -958,6 +1159,8 @@ func StoryboardVersionFromModel(version model.StoryboardVersion) StoryboardVersi
 		Status:             version.Status,
 		SnapshotJSON:       version.SnapshotJSON,
 		MetadataJSON:       version.MetadataJSON,
+		CreatedAt:          version.CreatedAt,
+		UpdatedAt:          version.UpdatedAt,
 	}
 }
 
@@ -978,6 +1181,8 @@ func (version StoryboardVersion) ApplyToModel(target *model.StoryboardVersion) {
 	target.Status = version.Status
 	target.SnapshotJSON = version.SnapshotJSON
 	target.MetadataJSON = version.MetadataJSON
+	target.CreatedAt = version.CreatedAt
+	target.UpdatedAt = version.UpdatedAt
 }
 
 func StoryboardLineFromModel(line model.StoryboardLine) StoryboardLine {
@@ -997,6 +1202,8 @@ func StoryboardLineFromModel(line model.StoryboardLine) StoryboardLine {
 		DurationSec:         line.DurationSec,
 		Status:              line.Status,
 		MetadataJSON:        line.MetadataJSON,
+		CreatedAt:           line.CreatedAt,
+		UpdatedAt:           line.UpdatedAt,
 	}
 }
 
@@ -1022,6 +1229,8 @@ func (line StoryboardLine) ApplyToModel(target *model.StoryboardLine) {
 	target.DurationSec = line.DurationSec
 	target.Status = line.Status
 	target.MetadataJSON = line.MetadataJSON
+	target.CreatedAt = line.CreatedAt
+	target.UpdatedAt = line.UpdatedAt
 }
 
 func ScriptVersionFromModel(version model.ScriptVersion) ScriptVersion {
@@ -1038,6 +1247,8 @@ func ScriptVersionFromModel(version model.ScriptVersion) ScriptVersion {
 		Summary:         version.Summary,
 		Status:          version.Status,
 		CreatedByID:     version.CreatedByID,
+		CreatedAt:       version.CreatedAt,
+		UpdatedAt:       version.UpdatedAt,
 	}
 }
 
@@ -1060,4 +1271,6 @@ func (version ScriptVersion) ApplyToModel(target *model.ScriptVersion) {
 	target.Summary = version.Summary
 	target.Status = version.Status
 	target.CreatedByID = version.CreatedByID
+	target.CreatedAt = version.CreatedAt
+	target.UpdatedAt = version.UpdatedAt
 }

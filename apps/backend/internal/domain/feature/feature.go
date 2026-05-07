@@ -3,8 +3,6 @@ package feature
 import (
 	"encoding/json"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type InputSlot struct {
@@ -23,6 +21,23 @@ type Definition struct {
 	SystemPrompt  string
 	OutputSchema  string
 	MaxTokens     int
+}
+
+type FeatureConfig struct {
+	ID                   uint
+	FeatureKey           string
+	DisplayName          string
+	Description          string
+	Capability           string
+	IsEnabled            bool
+	OrgID                *uint
+	AllowedModelIDs      string
+	DefaultModelID       *uint
+	AllowedRoles         string
+	SystemPromptOverride string
+	MaxTokensOverride    int
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type Response struct {
@@ -92,7 +107,7 @@ func DecodeRoles(raw string) []string {
 	return roles
 }
 
-func BuildResponse(f model.FeatureConfig, allowedModelIDs []uint, def *Definition) Response {
+func BuildResponse(f FeatureConfig, allowedModelIDs []uint, def *Definition) Response {
 	defaultPrompt, outputSchema := "", ""
 	maxTokens := f.MaxTokensOverride
 	isInternal, isToolFeature := false, false

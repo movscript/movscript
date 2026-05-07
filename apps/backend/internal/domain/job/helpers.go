@@ -6,20 +6,39 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
+type ModelConfigInput struct {
+	ID                uint
+	CustomDisplayName string
+	ModelIDOverride   string
+	ModelDefID        string
+	CredentialID      uint
+}
+
+type CredentialInput struct {
+	DisplayName string
+}
+
+type InputResource struct {
+	ID       uint
+	Name     string
+	Type     string
+	MimeType string
+	Size     int64
+}
+
 type ContextSnapshotInput struct {
-	Model          model.AIModelConfig
-	Credential     model.AICredential
+	Model          ModelConfigInput
+	Credential     CredentialInput
 	Prompt         string
 	ExtraParams    string
 	AspectRatio    string
 	Duration       int
 	JobType        string
 	FeatureKey     string
-	InputResources []model.RawResource
+	InputResources []InputResource
 	CreatedAt      time.Time
 }
 
@@ -42,7 +61,7 @@ type ListSpec struct {
 }
 
 type InputResourcesResult struct {
-	Resources  []model.RawResource
+	Resources  []InputResource
 	ImageCount int
 	VideoCount int
 }
@@ -178,7 +197,7 @@ func NewQueuedJob(spec NewQueuedJobSpec) Job {
 	}
 }
 
-func CountInputResources(resources []model.RawResource) InputResourcesResult {
+func CountInputResources(resources []InputResource) InputResourcesResult {
 	result := InputResourcesResult{Resources: resources}
 	for _, r := range resources {
 		switch r.Type {
@@ -213,7 +232,7 @@ func MergeIDs(arr []uint, single *uint) []uint {
 	return result
 }
 
-func ParseInputIDs(job model.Job) []uint {
+func ParseInputIDs(job Job) []uint {
 	var ids []uint
 	if job.InputResourceIDs != "" {
 		_ = json.Unmarshal([]byte(job.InputResourceIDs), &ids)
@@ -224,12 +243,12 @@ func ParseInputIDs(job model.Job) []uint {
 	return ids
 }
 
-func OrderedResources(resources []model.RawResource, ids []uint) []model.RawResource {
-	byID := make(map[uint]model.RawResource, len(resources))
+func OrderedResources(resources []InputResource, ids []uint) []InputResource {
+	byID := make(map[uint]InputResource, len(resources))
 	for _, r := range resources {
 		byID[r.ID] = r
 	}
-	ordered := make([]model.RawResource, 0, len(ids))
+	ordered := make([]InputResource, 0, len(ids))
 	seen := make(map[uint]bool, len(ids))
 	for _, id := range ids {
 		if seen[id] {
@@ -336,11 +355,11 @@ func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, 
 	}
 }
 
-func ModelDisplay(mcfg model.AIModelConfig) string {
+func ModelDisplay(mcfg ModelConfigInput) string {
 	return FirstNonEmpty(mcfg.CustomDisplayName, mcfg.ModelDefID, "Model")
 }
 
-func ModelIdentifier(mcfg model.AIModelConfig) string {
+func ModelIdentifier(mcfg ModelConfigInput) string {
 	return FirstNonEmpty(mcfg.ModelIDOverride, mcfg.ModelDefID)
 }
 

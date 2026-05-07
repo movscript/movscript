@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -16,7 +15,6 @@ type CreativeReferenceFilter struct {
 type CreativeReferenceInput struct {
 	SourceScriptID   *uint  `json:"source_script_id"`
 	SourceAnalysisID *uint  `json:"source_analysis_id"`
-	LegacySettingID  *uint  `json:"legacy_setting_id"`
 	Kind             string `json:"kind" binding:"required"`
 	Name             string `json:"name" binding:"required"`
 	Alias            string `json:"alias"`
@@ -91,16 +89,15 @@ type CreativeRelationshipInput struct {
 	MetadataJSON              string `json:"metadata_json"`
 }
 
-func (s *Service) ListCreativeReferences(ctx context.Context, filter CreativeReferenceFilter) ([]model.CreativeReference, error) {
+func (s *Service) ListCreativeReferences(ctx context.Context, filter CreativeReferenceFilter) ([]domainsemantic.CreativeReference, error) {
 	return s.repo.ListCreativeReferences(ctx, filter)
 }
 
-func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, input CreativeReferenceInput) (model.CreativeReference, error) {
+func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, input CreativeReferenceInput) (domainsemantic.CreativeReference, error) {
 	item := domainsemantic.NewCreativeReference(domainsemantic.CreativeReferenceSpec{
 		ProjectID:        projectID,
 		SourceScriptID:   input.SourceScriptID,
 		SourceAnalysisID: input.SourceAnalysisID,
-		LegacySettingID:  input.LegacySettingID,
 		Kind:             input.Kind,
 		Name:             input.Name,
 		Alias:            input.Alias,
@@ -110,22 +107,18 @@ func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, i
 		Status:           input.Status,
 		ProfileJSON:      input.ProfileJSON,
 		TagsJSON:         input.TagsJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateCreativeReference(ctx, item)
 }
 
-func (s *Service) PatchCreativeReference(ctx context.Context, projectID uint, id string, input CreativeReferenceInput) (model.CreativeReference, error) {
-	var item model.CreativeReference
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchCreativeReference(ctx context.Context, projectID uint, id string, input CreativeReferenceInput) (domainsemantic.CreativeReference, error) {
+	item, err := s.repo.LoadCreativeReference(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
-	if err := s.PatchItem(ctx, &item, compactUpdates(map[string]any{
+	return s.repo.PatchCreativeReference(ctx, item, compactUpdates(map[string]any{
 		"source_script_id":   input.SourceScriptID,
 		"source_analysis_id": input.SourceAnalysisID,
-		"legacy_setting_id":  input.LegacySettingID,
 		"kind":               input.Kind,
 		"name":               input.Name,
 		"alias":              input.Alias,
@@ -135,22 +128,16 @@ func (s *Service) PatchCreativeReference(ctx context.Context, projectID uint, id
 		"status":             input.Status,
 		"profile_json":       input.ProfileJSON,
 		"tags_json":          input.TagsJSON,
-	})); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	}))
 }
 
-func (s *Service) ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]model.CreativeReferenceState, error) {
+func (s *Service) ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]domainsemantic.CreativeReferenceState, error) {
 	return s.repo.ListCreativeReferenceStates(ctx, filter)
 }
 
-func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID uint, input CreativeReferenceStateInput) (model.CreativeReferenceState, error) {
+func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID uint, input CreativeReferenceStateInput) (domainsemantic.CreativeReferenceState, error) {
 	if err := s.ensureCreativeReferenceInProject(ctx, projectID, input.CreativeReferenceID); err != nil {
-		return model.CreativeReferenceState{}, err
+		return domainsemantic.CreativeReferenceState{}, err
 	}
 	item := domainsemantic.NewCreativeReferenceState(domainsemantic.CreativeReferenceStateSpec{
 		ProjectID:           projectID,
@@ -166,22 +153,19 @@ func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID ui
 		Status:              input.Status,
 		TagsJSON:            input.TagsJSON,
 		MetadataJSON:        input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateCreativeReferenceState(ctx, item)
 }
 
-func (s *Service) PatchCreativeReferenceState(ctx context.Context, projectID uint, id string, input CreativeReferenceStateInput) (model.CreativeReferenceState, error) {
-	var item model.CreativeReferenceState
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchCreativeReferenceState(ctx context.Context, projectID uint, id string, input CreativeReferenceStateInput) (domainsemantic.CreativeReferenceState, error) {
+	item, err := s.repo.LoadCreativeReferenceState(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.ensureCreativeReferenceInProject(ctx, projectID, input.CreativeReferenceID); err != nil {
 		return item, err
 	}
-	if err := s.PatchItem(ctx, &item, compactUpdates(map[string]any{
+	return s.repo.PatchCreativeReferenceState(ctx, item, compactUpdates(map[string]any{
 		"creative_reference_id": input.CreativeReferenceID,
 		"scope_type":            input.ScopeType,
 		"scope_id":              input.ScopeID,
@@ -194,22 +178,16 @@ func (s *Service) PatchCreativeReferenceState(ctx context.Context, projectID uin
 		"status":                input.Status,
 		"tags_json":             input.TagsJSON,
 		"metadata_json":         input.MetadataJSON,
-	})); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	}))
 }
 
-func (s *Service) ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]model.CreativeReferenceUsage, error) {
+func (s *Service) ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]domainsemantic.CreativeReferenceUsage, error) {
 	return s.repo.ListCreativeReferenceUsages(ctx, filter)
 }
 
-func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID uint, input CreativeReferenceUsageInput) (model.CreativeReferenceUsage, error) {
+func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID uint, input CreativeReferenceUsageInput) (domainsemantic.CreativeReferenceUsage, error) {
 	if err := s.validateCreativeReferenceUsageOwners(ctx, projectID, input); err != nil {
-		return model.CreativeReferenceUsage{}, err
+		return domainsemantic.CreativeReferenceUsage{}, err
 	}
 	item := domainsemantic.NewCreativeReferenceUsage(domainsemantic.CreativeReferenceUsageSpec{
 		ProjectID:                projectID,
@@ -223,22 +201,19 @@ func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID ui
 		Source:                   input.Source,
 		Status:                   input.Status,
 		MetadataJSON:             input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateCreativeReferenceUsage(ctx, item)
 }
 
-func (s *Service) PatchCreativeReferenceUsage(ctx context.Context, projectID uint, id string, input CreativeReferenceUsageInput) (model.CreativeReferenceUsage, error) {
-	var item model.CreativeReferenceUsage
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchCreativeReferenceUsage(ctx context.Context, projectID uint, id string, input CreativeReferenceUsageInput) (domainsemantic.CreativeReferenceUsage, error) {
+	item, err := s.repo.LoadCreativeReferenceUsage(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validateCreativeReferenceUsageOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	if err := s.PatchItem(ctx, &item, compactUpdates(map[string]any{
+	return s.repo.PatchCreativeReferenceUsage(ctx, item, compactUpdates(map[string]any{
 		"owner_type":                  input.OwnerType,
 		"owner_id":                    input.OwnerID,
 		"creative_reference_id":       input.CreativeReferenceID,
@@ -249,22 +224,16 @@ func (s *Service) PatchCreativeReferenceUsage(ctx context.Context, projectID uin
 		"source":                      input.Source,
 		"status":                      input.Status,
 		"metadata_json":               input.MetadataJSON,
-	})); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	}))
 }
 
-func (s *Service) ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]model.CreativeRelationship, error) {
+func (s *Service) ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]domainsemantic.CreativeRelationship, error) {
 	return s.repo.ListCreativeRelationships(ctx, filter)
 }
 
-func (s *Service) CreateCreativeRelationship(ctx context.Context, projectID uint, input CreativeRelationshipInput) (model.CreativeRelationship, error) {
+func (s *Service) CreateCreativeRelationship(ctx context.Context, projectID uint, input CreativeRelationshipInput) (domainsemantic.CreativeRelationship, error) {
 	if err := s.validateCreativeRelationshipOwners(ctx, projectID, input); err != nil {
-		return model.CreativeRelationship{}, err
+		return domainsemantic.CreativeRelationship{}, err
 	}
 	item := domainsemantic.NewCreativeRelationship(domainsemantic.CreativeRelationshipSpec{
 		ProjectID:                 projectID,
@@ -280,22 +249,19 @@ func (s *Service) CreateCreativeRelationship(ctx context.Context, projectID uint
 		Status:                    input.Status,
 		Evidence:                  input.Evidence,
 		MetadataJSON:              input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateCreativeRelationship(ctx, item)
 }
 
-func (s *Service) PatchCreativeRelationship(ctx context.Context, projectID uint, id string, input CreativeRelationshipInput) (model.CreativeRelationship, error) {
-	var item model.CreativeRelationship
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchCreativeRelationship(ctx context.Context, projectID uint, id string, input CreativeRelationshipInput) (domainsemantic.CreativeRelationship, error) {
+	item, err := s.repo.LoadCreativeRelationship(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validateCreativeRelationshipOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	if err := s.PatchItem(ctx, &item, compactUpdates(map[string]any{
+	return s.repo.PatchCreativeRelationship(ctx, item, compactUpdates(map[string]any{
 		"source_creative_reference_id": input.SourceCreativeReferenceID,
 		"target_creative_reference_id": input.TargetCreativeReferenceID,
 		"scope_type":                   input.ScopeType,
@@ -308,13 +274,7 @@ func (s *Service) PatchCreativeRelationship(ctx context.Context, projectID uint,
 		"status":                       input.Status,
 		"evidence":                     input.Evidence,
 		"metadata_json":                input.MetadataJSON,
-	})); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	}))
 }
 
 func (s *Service) validateCreativeReferenceUsageOwners(ctx context.Context, projectID uint, input CreativeReferenceUsageInput) error {

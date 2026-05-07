@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -90,12 +89,12 @@ type ProposalTree struct {
 }
 
 type ApplyProductionProposalResponse struct {
-	ProductionID uint                `json:"production_id"`
-	Counts       ProposalApplyCounts `json:"counts"`
-	Segments     []model.Segment     `json:"segments"`
-	SceneMoments []model.SceneMoment `json:"scene_moments"`
-	ContentUnits []model.ContentUnit `json:"content_units"`
-	AssetSlots   []model.AssetSlot   `json:"asset_slots"`
+	ProductionID uint                         `json:"production_id"`
+	Counts       ProposalApplyCounts          `json:"counts"`
+	Segments     []domainsemantic.Segment     `json:"segments"`
+	SceneMoments []domainsemantic.SceneMoment `json:"scene_moments"`
+	ContentUnits []domainsemantic.ContentUnit `json:"content_units"`
+	AssetSlots   []domainsemantic.AssetSlot   `json:"asset_slots"`
 }
 
 type ProposalApplyCounts struct {

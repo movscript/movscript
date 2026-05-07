@@ -5,8 +5,6 @@ import (
 	"errors"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 var (
@@ -76,6 +74,16 @@ type CanvasNode struct {
 	Data     string
 }
 
+type CanvasEdge struct {
+	ID           uint
+	CanvasID     uint
+	EdgeID       string
+	Source       string
+	Target       string
+	SourceHandle string
+	TargetHandle string
+}
+
 type EntityWriteAudit struct {
 	ID                 uint
 	CanvasID           uint
@@ -134,7 +142,7 @@ func ValidCanvasType(value string) bool {
 
 func ValidRefType(value string) bool {
 	switch value {
-	case "script", "setting", "asset_slot", "content_unit":
+	case "script", "asset_slot", "content_unit":
 		return true
 	default:
 		return false
@@ -150,7 +158,7 @@ func SingleCanvasRefType(refType string) bool {
 	}
 }
 
-func WorkflowBootstrapGraph(canvasID uint) ([]model.CanvasNode, model.CanvasEdge) {
+func WorkflowBootstrapGraph(canvasID uint) ([]CanvasNode, CanvasEdge) {
 	inputData, _ := json.Marshal(map[string]any{
 		"source":     "manual",
 		"inputValue": "",
@@ -164,11 +172,11 @@ func WorkflowBootstrapGraph(canvasID uint) ([]model.CanvasNode, model.CanvasEdge
 		"paramType":         "resource",
 		"lockedFinalOutput": true,
 	})
-	nodes := []model.CanvasNode{
+	nodes := []CanvasNode{
 		{CanvasID: canvasID, NodeID: "input", Type: "input", Label: "输入", PosX: 120, PosY: 160, Data: string(inputData)},
 		{CanvasID: canvasID, NodeID: "final-output", Type: "output", Label: "最终输出", PosX: 560, PosY: 160, Data: string(outputData)},
 	}
-	edge := model.CanvasEdge{CanvasID: canvasID, EdgeID: "input-output", Source: "input", Target: "final-output", SourceHandle: "value", TargetHandle: "value"}
+	edge := CanvasEdge{CanvasID: canvasID, EdgeID: "input-output", Source: "input", Target: "final-output", SourceHandle: "value", TargetHandle: "value"}
 	return nodes, edge
 }
 

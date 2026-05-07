@@ -76,47 +76,6 @@ type ScriptInput struct {
 	Order                  int    `json:"order"`
 }
 
-type SettingInput struct {
-	ScriptID         *uint  `json:"script_id"`
-	SourceScriptID   *uint  `json:"source_script_id"`
-	SourceAnalysisID *uint  `json:"source_analysis_id"`
-	Type             string `json:"type"`
-	Name             string `json:"name" binding:"required"`
-	Alias            string `json:"alias"`
-	Description      string `json:"description"`
-	Content          string `json:"content"`
-	Status           string `json:"status"`
-	Importance       string `json:"importance"`
-	Tags             string `json:"tags"`
-	StateTags        string `json:"state_tags"`
-	ProfileJSON      string `json:"profile_json"`
-}
-
-type ScriptSettingRefInput struct {
-	ScriptID     uint    `json:"script_id" binding:"required"`
-	SettingID    uint    `json:"setting_id" binding:"required"`
-	Role         string  `json:"role"`
-	Scope        string  `json:"scope"`
-	FirstMention string  `json:"first_mention"`
-	Evidence     string  `json:"evidence"`
-	Note         string  `json:"note"`
-	Emotion      string  `json:"emotion"`
-	State        string  `json:"state"`
-	Purpose      string  `json:"purpose"`
-	Order        int     `json:"order"`
-	Confidence   float64 `json:"confidence"`
-}
-
-type SettingRelationshipInput struct {
-	SourceSettingID uint   `json:"source_setting_id" binding:"required"`
-	TargetSettingID uint   `json:"target_setting_id" binding:"required"`
-	ScopeScriptID   *uint  `json:"scope_script_id"`
-	Category        string `json:"category"`
-	Type            string `json:"type"`
-	Label           string `json:"label"`
-	Description     string `json:"description"`
-}
-
 func NewProject(in ProjectCreateInput, ownerID uint) model.Project {
 	return model.Project{
 		Name:          in.Name,
@@ -198,47 +157,6 @@ func ApplyScriptInput(s *model.Script, in ScriptInput) {
 	s.EntityCandidates = in.EntityCandidates
 	s.RelationshipCandidates = in.RelationshipCandidates
 	s.Order = in.Order
-}
-
-func ApplySettingInput(s *model.Setting, in SettingInput) {
-	s.ScriptID = in.ScriptID
-	s.SourceScriptID = in.SourceScriptID
-	s.SourceAnalysisID = in.SourceAnalysisID
-	s.Type = in.Type
-	s.Name = in.Name
-	s.Alias = in.Alias
-	s.Description = in.Description
-	s.Content = in.Content
-	s.Status = in.Status
-	s.Importance = in.Importance
-	s.Tags = in.Tags
-	s.StateTags = in.StateTags
-	s.ProfileJSON = in.ProfileJSON
-}
-
-func ApplyScriptSettingRefInput(ref *model.ScriptSettingRef, in ScriptSettingRefInput) {
-	ref.ScriptID = in.ScriptID
-	ref.SettingID = in.SettingID
-	ref.Role = in.Role
-	ref.Scope = in.Scope
-	ref.FirstMention = in.FirstMention
-	ref.Evidence = in.Evidence
-	ref.Note = in.Note
-	ref.Emotion = in.Emotion
-	ref.State = in.State
-	ref.Purpose = in.Purpose
-	ref.Order = in.Order
-	ref.Confidence = in.Confidence
-}
-
-func ApplySettingRelationshipInput(r *model.SettingRelationship, in SettingRelationshipInput) {
-	r.SourceSettingID = in.SourceSettingID
-	r.TargetSettingID = in.TargetSettingID
-	r.ScopeScriptID = in.ScopeScriptID
-	r.Category = in.Category
-	r.Type = in.Type
-	r.Label = in.Label
-	r.Description = in.Description
 }
 
 var projectPatchFields = stringSet("name", "description", "total_episodes")

@@ -66,7 +66,7 @@ export interface MCPContextSnapshot {
   updatedAt: string
 }
 
-export type MCPDraftKind = 'script' | 'setting' | 'storyboard' | 'shot' | 'prompt' | 'note' | 'pipeline' | 'segment' | 'scene_moment' | 'production_proposal'
+export type MCPDraftKind = 'script' | 'creative_reference' | 'storyboard' | 'shot' | 'prompt' | 'note' | 'pipeline' | 'segment' | 'scene_moment' | 'production_proposal'
 export type MCPDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface MCPDraft {

@@ -3,9 +3,13 @@ import { join } from 'node:path'
 import type { JSONValue } from '../types.js'
 import { atomicWriteJSON, resolveAgentStatePath } from '../runtime/store/fileStore.js'
 
+// AgentDraft is a local runtime/client review artifact. It is the protocol shape
+// used to pass proposed changes to the UI for preview, revision, approval, or
+// rejection. It is not a formal backend domain entity until a separate apply
+// flow writes accepted content to backend APIs.
 export type AgentDraftKind =
+  | 'script_split'
   | 'script'
-  | 'setting'
   | 'asset_slot'
   | 'storyboard_line'
   | 'content_unit'
@@ -85,9 +89,42 @@ export interface UpdateAgentDraftInput {
   metadata?: Record<string, JSONValue>
 }
 
+export type AgentDraftPatchOpType = 'add' | 'replace' | 'remove'
+
+export interface AgentDraftPatchOp {
+  op: AgentDraftPatchOpType
+  path: string
+  value?: JSONValue
+}
+
+export interface PatchAgentDraftInput {
+  ops?: unknown
+  expectedUpdatedAt?: unknown
+  metadata?: unknown
+}
+
+export interface AgentDraftPatchResult {
+  draft: AgentDraft
+  changedPaths: string[]
+}
+
+export interface AgentDraftValidationIssue {
+  path: string
+  message: string
+  severity: 'error' | 'warning'
+}
+
+export interface AgentDraftValidationResult {
+  ok: boolean
+  draftId: string
+  kind: AgentDraftKind
+  issues: AgentDraftValidationIssue[]
+}
+
 export interface AgentDraftStore {
   createDraft(input: CreateAgentDraftInput): AgentDraft
   updateDraft(id: string, input: UpdateAgentDraftInput): AgentDraft
+  patchDraft(id: string, input: PatchAgentDraftInput): AgentDraftPatchResult
   getDraft(id: string): AgentDraft | undefined
   listDrafts(query?: ListAgentDraftsQuery): AgentDraft[]
 }
@@ -133,6 +170,30 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
     }
     this.drafts.set(id, clone(updated))
     return clone(updated)
+  }
+
+  patchDraft(id: string, input: PatchAgentDraftInput): AgentDraftPatchResult {
+    const current = this.drafts.get(id)
+    if (!current) throw new Error(`draft not found: ${id}`)
+    if (typeof input.expectedUpdatedAt === 'string' && input.expectedUpdatedAt && input.expectedUpdatedAt !== current.updatedAt) {
+      throw new Error(`draft changed since expectedUpdatedAt: ${id}`)
+    }
+    const ops = normalizePatchOps(input.ops)
+    const document = parseDraftDocument(current.content)
+    for (const op of ops) {
+      applyPatchOp(document, op)
+    }
+    const updated = this.updateDraft(id, {
+      content: JSON.stringify(document, null, 2),
+      metadata: {
+        ...(normalizeMetadata(input.metadata) ?? {}),
+        lastPatchPaths: ops.map((op) => op.path),
+      },
+    })
+    return {
+      draft: updated,
+      changedPaths: ops.map((op) => op.path),
+    }
   }
 
   getDraft(id: string): AgentDraft | undefined {
@@ -190,6 +251,12 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
     return draft
   }
 
+  override patchDraft(id: string, input: PatchAgentDraftInput): AgentDraftPatchResult {
+    const result = super.patchDraft(id, input)
+    this.persist()
+    return result
+  }
+
   private load(): void {
     if (!existsSync(this.filePath)) return
     const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<DraftStateFile>
@@ -211,8 +278,8 @@ export function resolveAgentDraftPath(statePath = resolveAgentStatePath()): stri
 }
 
 export function normalizeDraftKind(value: unknown): AgentDraftKind {
-  return value === 'script'
-    || value === 'setting'
+  return value === 'script_split'
+    || value === 'script'
     || value === 'asset_slot'
     || value === 'storyboard_line'
     || value === 'content_unit'
@@ -224,6 +291,25 @@ export function normalizeDraftKind(value: unknown): AgentDraftKind {
     || value === 'production_proposal'
     ? value
     : 'note'
+}
+
+export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
+  const issues: AgentDraftValidationIssue[] = []
+  if (!draft.title.trim()) {
+    issues.push({ path: '/title', message: 'Draft title is required.', severity: 'error' })
+  }
+  if (!draft.content.trim()) {
+    issues.push({ path: '/content', message: 'Draft content is required.', severity: 'error' })
+  }
+  if (draft.kind === 'script_split') {
+    validateScriptSplitDraft(draft, issues)
+  }
+  return {
+    ok: !issues.some((issue) => issue.severity === 'error'),
+    draftId: draft.id,
+    kind: draft.kind,
+    issues,
+  }
 }
 
 export function normalizeDraftStatus(value: unknown): AgentDraftStatus | undefined {
@@ -255,6 +341,122 @@ function normalizeMetadata(value: unknown): Record<string, JSONValue> | undefine
   return clone(value) as Record<string, JSONValue>
 }
 
+function normalizePatchOps(value: unknown): AgentDraftPatchOp[] {
+  if (!Array.isArray(value) || value.length === 0) throw new Error('patch_draft requires non-empty ops')
+  return value.map((item) => {
+    if (!isRecord(item)) throw new Error('patch op must be an object')
+    const op = item.op
+    const path = item.path
+    if (op !== 'add' && op !== 'replace' && op !== 'remove') throw new Error(`unsupported patch op: ${String(op)}`)
+    if (typeof path !== 'string' || !path.startsWith('/')) throw new Error('patch op path must be a JSON pointer')
+    if (op !== 'remove' && !isJSONValue(item.value)) throw new Error(`patch op ${op} requires JSON value`)
+    return {
+      op,
+      path,
+      ...(op !== 'remove' ? { value: item.value as JSONValue } : {}),
+    }
+  })
+}
+
+function parseDraftDocument(content: string): JSONValue {
+  try {
+    const parsed = JSON.parse(content) as unknown
+    if (!isJSONValue(parsed)) throw new Error('draft content is not JSON value')
+    return parsed
+  } catch (error) {
+    throw new Error(`patch_draft requires JSON draft content: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+function applyPatchOp(document: JSONValue, op: AgentDraftPatchOp): void {
+  const segments = decodeJSONPointer(op.path)
+  if (segments.length === 0) throw new Error('patch_draft cannot replace the draft root')
+  const parent = resolvePatchParent(document, segments)
+  const key = segments[segments.length - 1]
+  if (Array.isArray(parent)) {
+    const index = key === '-' ? parent.length : Number(key)
+    if (!Number.isInteger(index) || index < 0 || index > parent.length) throw new Error(`invalid array path: ${op.path}`)
+    if (op.op === 'remove') {
+      if (index >= parent.length) throw new Error(`array path does not exist: ${op.path}`)
+      parent.splice(index, 1)
+      return
+    }
+    if (op.op === 'replace') {
+      if (index >= parent.length) throw new Error(`array path does not exist: ${op.path}`)
+      parent[index] = op.value ?? null
+      return
+    }
+    parent.splice(index, 0, op.value ?? null)
+    return
+  }
+  if (!isRecord(parent)) throw new Error(`patch parent is not an object: ${op.path}`)
+  if (op.op === 'remove') {
+    if (!(key in parent)) throw new Error(`object path does not exist: ${op.path}`)
+    delete parent[key]
+    return
+  }
+  if (op.op === 'replace' && !(key in parent)) throw new Error(`object path does not exist: ${op.path}`)
+  parent[key] = op.value ?? null
+}
+
+function decodeJSONPointer(path: string): string[] {
+  if (path === '/') return ['']
+  return path.slice(1).split('/').map((part) => part.replace(/~1/g, '/').replace(/~0/g, '~'))
+}
+
+function resolvePatchParent(document: JSONValue, segments: string[]): JSONValue {
+  let current: JSONValue = document
+  for (const segment of segments.slice(0, -1)) {
+    if (Array.isArray(current)) {
+      const index = Number(segment)
+      if (!Number.isInteger(index) || index < 0 || index >= current.length) throw new Error(`array path does not exist: /${segments.join('/')}`)
+      current = current[index] as JSONValue
+      continue
+    }
+    if (!isRecord(current) || !(segment in current)) throw new Error(`object path does not exist: /${segments.join('/')}`)
+    current = current[segment] as JSONValue
+  }
+  return current
+}
+
+function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(draft.content)
+  } catch {
+    issues.push({ path: '/content', message: 'Script split draft content must be valid JSON.', severity: 'error' })
+    return
+  }
+  if (!isRecord(parsed)) {
+    issues.push({ path: '/content', message: 'Script split draft content must be a JSON object.', severity: 'error' })
+    return
+  }
+  if (parsed.schema !== 'movscript.script_split_analysis.v1') {
+    issues.push({ path: '/schema', message: 'Script split draft schema must be movscript.script_split_analysis.v1.', severity: 'error' })
+  }
+  if (!isRecord(parsed.global_settings)) {
+    issues.push({ path: '/global_settings', message: 'Script split draft requires global_settings.', severity: 'error' })
+  }
+  const episodes = parsed.episode_drafts
+  if (!Array.isArray(episodes) || episodes.length === 0) {
+    issues.push({ path: '/episode_drafts', message: 'Script split draft requires at least one episode draft.', severity: 'error' })
+    return
+  }
+  episodes.forEach((episode, index) => {
+    const base = `/episode_drafts/${index}`
+    if (!isRecord(episode)) {
+      issues.push({ path: base, message: 'Episode draft must be an object.', severity: 'error' })
+      return
+    }
+    for (const key of ['order', 'title', 'summary', 'content', 'start', 'end', 'action', 'existing_script_id']) {
+      if (!(key in episode)) issues.push({ path: `${base}/${key}`, message: `Episode draft missing ${key}.`, severity: 'error' })
+    }
+    if (!isRecord(episode.global_context)) {
+      issues.push({ path: `${base}/global_context`, message: 'Episode draft requires global_context.', severity: 'error' })
+    }
+  })
+}
+
 function normalizeStoredDraft(draft: AgentDraft): AgentDraft {
   const now = new Date().toISOString()
   return {
@@ -283,6 +485,14 @@ function makeDraftId(): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isJSONValue(value: unknown): value is JSONValue {
+  if (value === null) return true
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
+  if (Array.isArray(value)) return value.every(isJSONValue)
+  if (!isRecord(value)) return false
+  return Object.values(value).every(isJSONValue)
 }
 
 function clone<T>(value: T): T {

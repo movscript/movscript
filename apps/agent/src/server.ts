@@ -7,6 +7,7 @@ import {
   getAgentRuntimeCapabilities,
   logAgentServerStartup,
 } from './bootstrap/agentServerContext.js'
+import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
 import type { JSONValue } from './types.js'
 
 const context = createAgentServerContext()
@@ -16,7 +17,6 @@ const {
   paths,
   client,
   agentRuntime,
-  productionRuntime,
   modelConfigStore,
   pluginCatalog,
 } = context
@@ -38,9 +38,9 @@ const server = createServer(async (req, res) => {
         ...getAgentRuntimeCapabilities(context),
         ok: true,
         draftPath: paths.draftPath,
-        productionStatePath: paths.productionStatePath,
         modelConfigPath: paths.modelConfigPath,
         modelConfig: modelConfigStore.getPublicConfig(),
+        modelCapabilities: describeRuntimeModelCapabilities(modelConfigStore.getEffectiveConfig()),
       })
       return
     }
@@ -51,7 +51,10 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && url.pathname === '/model-config') {
-      writeJSON(res, 200, modelConfigStore.getPublicConfig())
+      writeJSON(res, 200, {
+        ...modelConfigStore.getPublicConfig(),
+        capabilities: describeRuntimeModelCapabilities(modelConfigStore.getEffectiveConfig()),
+      })
       return
     }
 
@@ -137,80 +140,6 @@ const server = createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && url.pathname === '/production/actions') {
-      const body = await readJSON(req)
-      writeJSON(res, 201, await productionRuntime.createAction(normalizeOptionalObject(body, 'production action body')))
-      return
-    }
-
-    if (req.method === 'GET' && url.pathname === '/production/runs') {
-      writeJSON(res, 200, { runs: productionRuntime.listRuns() })
-      return
-    }
-
-    const productionRunMatch = url.pathname.match(/^\/production\/runs\/([^/]+)$/)
-    if (productionRunMatch && req.method === 'GET') {
-      const run = productionRuntime.getRun(productionRunMatch[1])
-      if (!run) {
-        writeJSON(res, 404, { error: 'production run not found' })
-        return
-      }
-      writeJSON(res, 200, run)
-      return
-    }
-
-    if (req.method === 'GET' && url.pathname === '/production/candidates') {
-      writeJSON(res, 200, { candidates: productionRuntime.listCandidates() })
-      return
-    }
-
-    const productionCandidateMatch = url.pathname.match(/^\/production\/candidates\/([^/]+)$/)
-    if (productionCandidateMatch && req.method === 'GET') {
-      const candidate = productionRuntime.getCandidate(productionCandidateMatch[1])
-      if (!candidate) {
-        writeJSON(res, 404, { error: 'production candidate not found' })
-        return
-      }
-      writeJSON(res, 200, candidate)
-      return
-    }
-
-    const productionCandidateApplyPreviewMatch = url.pathname.match(/^\/production\/candidates\/([^/]+)\/apply-preview$/)
-    if (productionCandidateApplyPreviewMatch && req.method === 'POST') {
-      const candidateId = productionCandidateApplyPreviewMatch[1]
-      if (!productionRuntime.getCandidate(candidateId)) {
-        writeJSON(res, 404, { error: 'production candidate not found' })
-        return
-      }
-      writeJSON(res, 200, productionRuntime.previewCandidateApply(candidateId))
-      return
-    }
-
-    const productionCandidateActionMatch = url.pathname.match(/^\/production\/candidates\/([^/]+)\/(accept|reject|revise|supersede)$/)
-    if (productionCandidateActionMatch && req.method === 'POST') {
-      const body = normalizeOptionalObject(await readJSON(req), 'candidate lifecycle body')
-      const candidateId = productionCandidateActionMatch[1]
-      if (!productionRuntime.getCandidate(candidateId)) {
-        writeJSON(res, 404, { error: 'production candidate not found' })
-        return
-      }
-      const action = productionCandidateActionMatch[2]
-      if (action === 'accept') {
-        writeJSON(res, 200, productionRuntime.acceptCandidate({ candidateId, ...body }))
-        return
-      }
-      if (action === 'reject') {
-        writeJSON(res, 200, productionRuntime.rejectCandidate({ candidateId, ...body }))
-        return
-      }
-      if (action === 'revise') {
-        writeJSON(res, 201, productionRuntime.reviseCandidate({ candidateId, ...body }))
-        return
-      }
-      writeJSON(res, 200, productionRuntime.supersedeCandidate({ candidateId, ...body }))
-      return
-    }
-
     const draftMatch = url.pathname.match(/^\/drafts\/([^/]+)$/)
     if (draftMatch && req.method === 'GET') {
       const draft = agentRuntime.getDraft(draftMatch[1])
@@ -219,6 +148,30 @@ const server = createServer(async (req, res) => {
         return
       }
       writeJSON(res, 200, draft)
+      return
+    }
+    if (draftMatch && req.method === 'PATCH') {
+      const body = normalizeOptionalObject(await readJSON(req), 'draft update body')
+      writeJSON(res, 200, agentRuntime.updateDraft({
+        draftId: draftMatch[1],
+        ...body,
+      }))
+      return
+    }
+
+    const draftPatchMatch = url.pathname.match(/^\/drafts\/([^/]+)\/patch$/)
+    if (draftPatchMatch && req.method === 'POST') {
+      const body = normalizeOptionalObject(await readJSON(req), 'draft patch body')
+      writeJSON(res, 200, agentRuntime.patchDraft({
+        draftId: draftPatchMatch[1],
+        ...body,
+      }))
+      return
+    }
+
+    const draftValidateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/validate$/)
+    if (draftValidateMatch && req.method === 'POST') {
+      writeJSON(res, 200, agentRuntime.validateDraft({ draftId: draftValidateMatch[1] }))
       return
     }
 
@@ -307,6 +260,12 @@ const server = createServer(async (req, res) => {
         return
       }
       writeJSON(res, 200, run)
+      return
+    }
+
+    const runStreamMatch = url.pathname.match(/^\/runs\/([^/]+)\/stream$/)
+    if (runStreamMatch && req.method === 'GET') {
+      streamRunEvents(req, res, agentRuntime, runStreamMatch[1])
       return
     }
 
@@ -461,6 +420,59 @@ function readJSON(req: IncomingMessage): Promise<unknown> {
 function writeJSON(res: ServerResponse, status: number, value: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
   res.end(JSON.stringify(value, null, 2))
+}
+
+function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, runId: string): void {
+  if (!runtime.getRun(runId)) {
+    writeJSON(res, 404, { error: 'run not found' })
+    return
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+  res.write(': connected\n\n')
+
+  let closed = false
+  let unsubscribe = () => {}
+  let subscribed = false
+  let closeAfterSubscribe = false
+  const heartbeat = setInterval(() => {
+    if (!closed && !res.writableEnded) res.write(': keep-alive\n\n')
+  }, 15_000)
+
+  const cleanup = (end: boolean) => {
+    if (closed) return
+    closed = true
+    clearInterval(heartbeat)
+    unsubscribe()
+    if (end && !res.writableEnded) res.end()
+  }
+
+  unsubscribe = runtime.subscribeRunStream(runId, (event) => {
+    if (closed || res.writableEnded) return
+    writeSSE(res, event.type, event)
+    if (event.type === 'done') {
+      if (subscribed) cleanup(true)
+      else closeAfterSubscribe = true
+    }
+  })
+  subscribed = true
+  if (closeAfterSubscribe) cleanup(true)
+
+  req.on('close', () => cleanup(false))
+}
+
+function writeSSE(res: ServerResponse, eventName: string, value: unknown): void {
+  res.write(`event: ${eventName}\n`)
+  const data = JSON.stringify(value)
+  for (const line of data.split(/\r?\n/)) {
+    res.write(`data: ${line}\n`)
+  }
+  res.write('\n')
 }
 
 function setHeaders(res: ServerResponse): void {

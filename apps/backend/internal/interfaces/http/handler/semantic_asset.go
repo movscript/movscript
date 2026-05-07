@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 )
 
@@ -83,7 +84,7 @@ func (h *SemanticEntityHandler) CreateAssetSlotCandidate(c *gin.Context) {
 		h.writeSemanticAppError(c, err)
 		return
 	}
-	single := []model.AssetSlotCandidate{item}
+	single := []domainsemantic.AssetSlotCandidate{item}
 	populateAssetSlotCandidateResourceURLs(c, single)
 	c.JSON(http.StatusCreated, single[0])
 }
@@ -191,7 +192,7 @@ func (h *SemanticEntityHandler) PatchReviewEvent(c *gin.Context) {
 	c.JSON(http.StatusOK, item)
 }
 
-func populateAssetSlotResourceURLs(c *gin.Context, items []model.AssetSlot) {
+func populateAssetSlotResourceURLs(c *gin.Context, items []domainsemantic.AssetSlot) {
 	for i := range items {
 		if items[i].Resource != nil {
 			items[i].Resource.URL = resourceURL(c, items[i].Resource.ID)
@@ -202,7 +203,7 @@ func populateAssetSlotResourceURLs(c *gin.Context, items []model.AssetSlot) {
 	}
 }
 
-func populateAssetSlotCandidateResourceURLs(c *gin.Context, items []model.AssetSlotCandidate) {
+func populateAssetSlotCandidateResourceURLs(c *gin.Context, items []domainsemantic.AssetSlotCandidate) {
 	for i := range items {
 		if items[i].CandidateAssetSlot != nil && items[i].CandidateAssetSlot.Resource != nil {
 			items[i].CandidateAssetSlot.Resource.URL = resourceURL(c, items[i].CandidateAssetSlot.Resource.ID)

@@ -43,7 +43,7 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
   assert.ok(systemMessages.some((message) => String(message.content).includes('outputMode: natural')))
 })
 
-test('buildContext gets structured contract through runtime contract resolver', () => {
+test('buildContext uses runtime contract for tool schemas without forcing JSON assistant content', () => {
   const resolver = new StaticAgentRuntimeContractResolver([
     {
       id: 'structured-test-contract',
@@ -106,7 +106,7 @@ test('buildContext gets structured contract through runtime contract resolver', 
   })
   const chatTools = buildOpenAIChatTools(tools, resolver.find(manifest))
 
-  assert.match(built.systemPrompt, /Runtime structured contract/)
-  assert.match(built.systemPrompt, /movscript\.structured_test\.v1/)
+  assert.doesNotMatch(built.systemPrompt, /Runtime structured contract/)
+  assert.doesNotMatch(built.systemPrompt, /Return only JSON/)
   assert.ok(chatTools.some((tool) => tool.function.name === 'movscript_structured_test_tool' && !!tool.function.parameters))
 })

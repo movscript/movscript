@@ -9,19 +9,35 @@ import (
 const DefaultChatModel = domainmodelgateway.DefaultChatModel
 
 func KeyAllowsScope(key *model.GatewayAPIKey, scope string) bool {
-	return domainmodelgateway.KeyAllowsScope(key, scope)
+	if key == nil {
+		return false
+	}
+	domainKey := domainmodelgateway.APIKeyFromModel(*key)
+	return domainmodelgateway.KeyAllowsScope(&domainKey, scope)
 }
 
 func KeyAllowsModel(key *model.GatewayAPIKey, modelConfigID uint) bool {
-	return domainmodelgateway.KeyAllowsModel(key, modelConfigID)
+	if key == nil {
+		return false
+	}
+	domainKey := domainmodelgateway.APIKeyFromModel(*key)
+	return domainmodelgateway.KeyAllowsModel(&domainKey, modelConfigID)
 }
 
 func KeyAllowsProject(key *model.GatewayAPIKey, requestedProjectID *uint) bool {
-	return domainmodelgateway.KeyAllowsProject(key, requestedProjectID)
+	if key == nil {
+		return false
+	}
+	domainKey := domainmodelgateway.APIKeyFromModel(*key)
+	return domainmodelgateway.KeyAllowsProject(&domainKey, requestedProjectID)
 }
 
 func BillingContext(key *model.GatewayAPIKey, projectID *uint) ai.BillingContext {
-	return domainmodelgateway.BillingContext(key, projectID)
+	if key == nil {
+		return domainmodelgateway.BillingContext(nil, projectID)
+	}
+	domainKey := domainmodelgateway.APIKeyFromModel(*key)
+	return domainmodelgateway.BillingContext(&domainKey, projectID)
 }
 
 func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID uint, defaultErr error) (uint, string, error) {

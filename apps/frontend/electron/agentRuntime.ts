@@ -89,6 +89,7 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
   try {
     const launch = resolveAgentRuntimeLaunch()
     const port = resolvePort(baseURL)
+    console.info(`[agent] spawning ${launch.command} ${launch.args.join(' ')} cwd=${launch.cwd}`)
     proc = spawn(launch.command, launch.args, {
       cwd: launch.cwd,
       env: {

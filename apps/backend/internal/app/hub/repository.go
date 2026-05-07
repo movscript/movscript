@@ -12,8 +12,8 @@ import (
 
 type repository interface {
 	Seed(ctx context.Context) error
-	List(ctx context.Context, admin bool) ([]model.HubPackage, error)
-	Find(ctx context.Context, id string, admin bool) (model.HubPackage, error)
+	List(ctx context.Context, admin bool) ([]domainhub.HubPackage, error)
+	Find(ctx context.Context, id string, admin bool) (domainhub.HubPackage, error)
 	IncrementDownloads(ctx context.Context, id uint) error
 }
 
@@ -30,7 +30,7 @@ func (r *gormRepository) Seed(ctx context.Context) error {
 		return nil
 	}
 	for _, item := range domainhub.SeedPackages() {
-		row := domainhub.NewSeedPackageRow(item)
+		row := domainhub.NewSeedPackageRow(item).ToModel()
 		if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
 			return err
 		}
@@ -38,7 +38,7 @@ func (r *gormRepository) Seed(ctx context.Context) error {
 	return nil
 }
 
-func (r *gormRepository) List(ctx context.Context, admin bool) ([]model.HubPackage, error) {
+func (r *gormRepository) List(ctx context.Context, admin bool) ([]domainhub.HubPackage, error) {
 	rows := make([]model.HubPackage, 0)
 	q := r.db.WithContext(ctx).Order("updated_at desc")
 	if !admin {
@@ -47,10 +47,14 @@ func (r *gormRepository) List(ctx context.Context, admin bool) ([]model.HubPacka
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	return rows, nil
+	items := make([]domainhub.HubPackage, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, domainhub.HubPackageFromModel(row))
+	}
+	return items, nil
 }
 
-func (r *gormRepository) Find(ctx context.Context, id string, admin bool) (model.HubPackage, error) {
+func (r *gormRepository) Find(ctx context.Context, id string, admin bool) (domainhub.HubPackage, error) {
 	var row model.HubPackage
 	q := r.db.WithContext(ctx).Where("package_id = ?", strings.TrimSpace(id))
 	if !admin {
@@ -58,11 +62,11 @@ func (r *gormRepository) Find(ctx context.Context, id string, admin bool) (model
 	}
 	if err := q.First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return model.HubPackage{}, ErrNotFound
+			return domainhub.HubPackage{}, ErrNotFound
 		}
-		return model.HubPackage{}, err
+		return domainhub.HubPackage{}, err
 	}
-	return row, nil
+	return domainhub.HubPackageFromModel(row), nil
 }
 
 func (r *gormRepository) IncrementDownloads(ctx context.Context, id uint) error {

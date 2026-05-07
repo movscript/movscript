@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 const (
@@ -102,6 +100,11 @@ type Organization struct {
 	CreatedBy  uint
 }
 
+type UserIdentity struct {
+	ID       uint
+	Username string
+}
+
 type OrganizationMember struct {
 	ID     uint
 	OrgID  uint
@@ -133,7 +136,7 @@ type UserGroupMember struct {
 	UserID  uint
 }
 
-func NewPersonalOrg(user model.User, slugExists bool) Organization {
+func NewPersonalOrg(user UserIdentity, slugExists bool) Organization {
 	return Organization{
 		Name:       user.Username,
 		Slug:       PersonalOrgSlug(user.Username, user.ID, slugExists),

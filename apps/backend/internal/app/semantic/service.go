@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
@@ -68,11 +68,11 @@ func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
 	_, _ = s.cache.BumpVersion(ctx, fmt.Sprintf("project:%d:progress", projectID))
 }
 
-func (s *Service) ListRelations(ctx context.Context, filter RelationFilter) ([]model.EntityRelation, error) {
+func (s *Service) ListRelations(ctx context.Context, filter RelationFilter) ([]domainsemantic.EntityRelation, error) {
 	return s.repo.ListRelations(ctx, filter)
 }
 
-func (s *Service) ListRelationsByEntity(ctx context.Context, projectID uint, entityType string, entityID uint, category string, relationType string) ([]model.EntityRelation, error) {
+func (s *Service) ListRelationsByEntity(ctx context.Context, projectID uint, entityType string, entityID uint, category string, relationType string) ([]domainsemantic.EntityRelation, error) {
 	filter := RelationFilter{
 		ProjectID: projectID,
 		Category:  category,
@@ -85,11 +85,11 @@ func (s *Service) ListRelationsByEntity(ctx context.Context, projectID uint, ent
 	return s.ListRelations(ctx, filter)
 }
 
-func (s *Service) ListRelationsBySource(ctx context.Context, projectID uint, sourceType string, sourceID uint, category string, relationType string) ([]model.EntityRelation, error) {
+func (s *Service) ListRelationsBySource(ctx context.Context, projectID uint, sourceType string, sourceID uint, category string, relationType string) ([]domainsemantic.EntityRelation, error) {
 	return s.ListRelationsByEntity(ctx, projectID, sourceType, sourceID, category, relationType)
 }
 
-func (s *Service) ListRelationsByTarget(ctx context.Context, projectID uint, targetType string, targetID uint, category string, relationType string) ([]model.EntityRelation, error) {
+func (s *Service) ListRelationsByTarget(ctx context.Context, projectID uint, targetType string, targetID uint, category string, relationType string) ([]domainsemantic.EntityRelation, error) {
 	filter := RelationFilter{
 		ProjectID:  projectID,
 		Category:   category,

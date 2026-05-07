@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
-import { getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
+import { getBackendLaunchPolicy, getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
 import { ensureAgentRuntimeRunning, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
 import { setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
@@ -50,6 +50,16 @@ function broadcastBackendStatus(status: BackendStatus): void {
   }
 }
 
+let shutdownStarted = false
+
+async function shutdownManagedServices(): Promise<void> {
+  if (shutdownStarted) return
+  shutdownStarted = true
+  await stopAgentRuntime()
+  await stopMCPServer()
+  await stopBackend(broadcastBackendStatus)
+}
+
 async function startAgentRuntimeOnAppReady(): Promise<void> {
   const status = await ensureAgentRuntimeRunning()
   if (!status.ok) {
@@ -59,9 +69,28 @@ async function startAgentRuntimeOnAppReady(): Promise<void> {
   console.info(`[agent] auto-start ${status.started ? 'started' : 'ready'} at ${status.baseURL}${status.pid ? ` pid=${status.pid}` : ''}`)
 }
 
+async function bootstrapBackendBeforeAgent(): Promise<boolean> {
+  const policy = getBackendLaunchPolicy()
+  console.info(`[bootstrap] backend policy=${policy}`)
+  const status = await startBackend(policy, broadcastBackendStatus)
+  if (policy !== 'spawn') return true
+
+  if (status.state !== 'ready') {
+    console.warn(`[backend] local bootstrap failed: ${status.message ?? status.state}`)
+    return false
+  }
+
+  console.info(`[bootstrap] local backend ready at ${LOCAL_BACKEND_URL}; starting agent after backend`)
+  setMCPAPIBaseURL(LOCAL_BACKEND_URL)
+  await setAgentRuntimeAPIBaseURL(LOCAL_BACKEND_URL)
+  return true
+}
+
 app.whenReady().then(async () => {
   await startMCPServer()
-  void startAgentRuntimeOnAppReady()
+  if (await bootstrapBackendBeforeAgent()) {
+    void startAgentRuntimeOnAppReady()
+  }
   createWindow()
 
   app.on('activate', () => {
@@ -70,10 +99,12 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', async () => {
-  await stopAgentRuntime()
-  await stopMCPServer()
-  await stopBackend(broadcastBackendStatus)
+  await shutdownManagedServices()
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  void shutdownManagedServices()
 })
 
 ipcMain.handle('dialog:openFile', async () => {
@@ -104,6 +135,7 @@ ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; 
   if (!settings?.apiBaseURL) return
   setMCPAPIBaseURL(settings.apiBaseURL)
   await setAgentRuntimeAPIBaseURL(settings.apiBaseURL)
+  await ensureAgentRuntimeRunning()
 })
 
 ipcMain.handle('agent:ensure-running', (_e, input?: { baseURL?: string }) => {

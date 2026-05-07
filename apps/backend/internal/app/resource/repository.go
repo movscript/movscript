@@ -11,14 +11,14 @@ import (
 )
 
 type repository interface {
-	List(ctx context.Context, input ListInput) ([]model.RawResource, *Page, error)
-	CreateResource(ctx context.Context, r *model.RawResource) error
-	DeleteResourceRecord(ctx context.Context, r *model.RawResource) error
-	UpdateResourceRecord(ctx context.Context, r *model.RawResource, updates map[string]any) error
-	ReloadResource(ctx context.Context, r *model.RawResource) error
-	GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (model.RawResource, error)
-	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (model.RawResource, error)
-	DeleteResourceAndBindings(ctx context.Context, r model.RawResource) error
+	List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error)
+	CreateResource(ctx context.Context, r *domainresource.RawResource) error
+	DeleteResourceRecord(ctx context.Context, r *domainresource.RawResource) error
+	UpdateResourceRecord(ctx context.Context, r *domainresource.RawResource, updates map[string]any) error
+	ReloadResource(ctx context.Context, r *domainresource.RawResource) error
+	GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
+	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
+	DeleteResourceAndBindings(ctx context.Context, r domainresource.RawResource) error
 	UploadFolderID(ctx context.Context, userID uint, orgID *uint, folderIDValue string) (*uint, error)
 }
 
@@ -26,7 +26,7 @@ type gormRepository struct {
 	db *gorm.DB
 }
 
-func (r *gormRepository) List(ctx context.Context, input ListInput) ([]model.RawResource, *Page, error) {
+func (r *gormRepository) List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error) {
 	q, err := r.listQuery(ctx, input)
 	if err != nil {
 		return nil, nil, err
@@ -42,30 +42,51 @@ func (r *gormRepository) List(ctx context.Context, input ListInput) ([]model.Raw
 		if err := q.Session(&gorm.Session{}).Model(&model.RawResource{}).Order("created_at desc").Limit(page.PageSize).Offset(page.Offset).Find(&resources).Error; err != nil {
 			return nil, nil, err
 		}
-		return resources, &Page{Total: total, Items: resources, Page: page.Page, PageSize: page.PageSize}, nil
+		items := rawResourceSliceFromModels(resources)
+		return items, &Page{Total: total, Items: items, Page: page.Page, PageSize: page.PageSize}, nil
 	}
 	resources := make([]model.RawResource, 0)
-	err = q.Order("created_at desc").Find(&resources).Error
-	return resources, nil, err
+	if err := q.Order("created_at desc").Find(&resources).Error; err != nil {
+		return nil, nil, err
+	}
+	return rawResourceSliceFromModels(resources), nil, nil
 }
 
-func (r *gormRepository) CreateResource(ctx context.Context, resource *model.RawResource) error {
-	return r.db.WithContext(ctx).Create(resource).Error
+func (r *gormRepository) CreateResource(ctx context.Context, resource *domainresource.RawResource) error {
+	modelResource := resource.ToModel()
+	if err := r.db.WithContext(ctx).Create(&modelResource).Error; err != nil {
+		return err
+	}
+	*resource = domainresource.RawResourceFromModel(modelResource)
+	return nil
 }
 
-func (r *gormRepository) DeleteResourceRecord(ctx context.Context, resource *model.RawResource) error {
-	return r.db.WithContext(ctx).Delete(resource).Error
+func (r *gormRepository) DeleteResourceRecord(ctx context.Context, resource *domainresource.RawResource) error {
+	modelResource := resource.ToModel()
+	return r.db.WithContext(ctx).Delete(&modelResource).Error
 }
 
-func (r *gormRepository) UpdateResourceRecord(ctx context.Context, resource *model.RawResource, updates map[string]any) error {
-	return r.db.WithContext(ctx).Model(resource).Updates(updates).Error
+func (r *gormRepository) UpdateResourceRecord(ctx context.Context, resource *domainresource.RawResource, updates map[string]any) error {
+	modelResource := resource.ToModel()
+	if err := r.db.WithContext(ctx).Model(&modelResource).Updates(updates).Error; err != nil {
+		return err
+	}
+	for key, value := range updates {
+		applyResourceUpdate(resource, key, value)
+	}
+	return nil
 }
 
-func (r *gormRepository) ReloadResource(ctx context.Context, resource *model.RawResource) error {
-	return r.db.WithContext(ctx).First(resource, resource.ID).Error
+func (r *gormRepository) ReloadResource(ctx context.Context, resource *domainresource.RawResource) error {
+	modelResource := resource.ToModel()
+	if err := r.db.WithContext(ctx).First(&modelResource, resource.ID).Error; err != nil {
+		return err
+	}
+	*resource = domainresource.RawResourceFromModel(modelResource)
+	return nil
 }
 
-func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (model.RawResource, error) {
+func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {
 	resource, err := r.getResource(ctx, id)
 	if err != nil {
 		return resource, err
@@ -89,7 +110,7 @@ func (r *gormRepository) GetVisible(ctx context.Context, id uint, userID uint, o
 	return resource, nil
 }
 
-func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (model.RawResource, error) {
+func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error) {
 	resource, err := r.getResource(ctx, id)
 	if err != nil {
 		return resource, err
@@ -100,7 +121,7 @@ func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, org
 	return resource, nil
 }
 
-func (r *gormRepository) DeleteResourceAndBindings(ctx context.Context, resource model.RawResource) error {
+func (r *gormRepository) DeleteResourceAndBindings(ctx context.Context, resource domainresource.RawResource) error {
 	var bindings []model.ResourceBinding
 	if err := r.db.WithContext(ctx).Select("id").Where("resource_id = ?", resource.ID).Find(&bindings).Error; err != nil {
 		return err
@@ -111,7 +132,8 @@ func (r *gormRepository) DeleteResourceAndBindings(ctx context.Context, resource
 			return err
 		}
 	}
-	return r.db.WithContext(ctx).Delete(&resource).Error
+	modelResource := resource.ToModel()
+	return r.db.WithContext(ctx).Delete(&modelResource).Error
 }
 
 func (r *gormRepository) UploadFolderID(ctx context.Context, userID uint, orgID *uint, folderIDValue string) (*uint, error) {
@@ -176,15 +198,15 @@ func (r *gormRepository) sharedListQuery(ctx context.Context, input ListInput) (
 	return applyOrgScope(q, input.OrgID, input.UserID, r.includeLegacyPersonal(ctx, input.OrgID)), nil
 }
 
-func (r *gormRepository) getResource(ctx context.Context, id uint) (model.RawResource, error) {
+func (r *gormRepository) getResource(ctx context.Context, id uint) (domainresource.RawResource, error) {
 	var resource model.RawResource
 	if err := r.db.WithContext(ctx).First(&resource, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return resource, ErrNotFound
+			return domainresource.RawResource{}, ErrNotFound
 		}
-		return resource, err
+		return domainresource.RawResource{}, err
 	}
-	return resource, nil
+	return domainresource.RawResourceFromModel(resource), nil
 }
 
 func (r *gormRepository) includeLegacyPersonal(ctx context.Context, orgID *uint) bool {
@@ -223,4 +245,61 @@ func applyListFilters(q *gorm.DB, input ListInput) *gorm.DB {
 		q = q.Where("LOWER(name) LIKE ?", "%"+filters.Keyword+"%")
 	}
 	return q
+}
+
+func rawResourceSliceFromModels(items []model.RawResource) []domainresource.RawResource {
+	resources := make([]domainresource.RawResource, 0, len(items))
+	for _, item := range items {
+		resources = append(resources, domainresource.RawResourceFromModel(item))
+	}
+	return resources
+}
+
+func applyResourceUpdate(resource *domainresource.RawResource, key string, value any) {
+	switch key {
+	case "file_path":
+		if v, ok := value.(string); ok {
+			resource.FilePath = v
+		}
+	case "storage_key":
+		if v, ok := value.(string); ok {
+			resource.StorageKey = v
+		}
+	case "storage_backend":
+		if v, ok := value.(string); ok {
+			resource.StorageBackend = v
+		}
+	case "type":
+		if v, ok := value.(string); ok {
+			resource.Type = v
+		}
+	case "name":
+		if v, ok := value.(string); ok {
+			resource.Name = v
+		}
+	case "mime_type":
+		if v, ok := value.(string); ok {
+			resource.MimeType = v
+		}
+	case "size":
+		switch v := value.(type) {
+		case int64:
+			resource.Size = v
+		case int:
+			resource.Size = int64(v)
+		}
+	case "is_shared":
+		if v, ok := value.(bool); ok {
+			resource.IsShared = v
+		}
+	case "folder_id":
+		switch v := value.(type) {
+		case uint:
+			resource.FolderID = &v
+		case *uint:
+			resource.FolderID = v
+		case nil:
+			resource.FolderID = nil
+		}
+	}
 }

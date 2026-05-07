@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	domainfeature "github.com/movscript/movscript/internal/domain/feature"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
@@ -98,7 +97,7 @@ func (s *Service) GetPublic(ctx context.Context, key string) (Response, error) {
 	return s.toResp(ctx, f), nil
 }
 
-func (s *Service) toResp(ctx context.Context, f model.FeatureConfig) Response {
+func (s *Service) toResp(ctx context.Context, f domainfeature.FeatureConfig) Response {
 	rawIDs := domainfeature.DecodeUintIDs(f.AllowedModelIDs)
 	ids := s.repo.FilterExistingModelIDs(ctx, rawIDs)
 	return domainfeature.BuildResponse(f, ids, featureDef(ai.GetFeatureDef(f.FeatureKey)))

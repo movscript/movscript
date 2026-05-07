@@ -15,8 +15,8 @@ func TestNormalizeOwnerTypeAndRole(t *testing.T) {
 	if got := NormalizeOwnerType("Creative-Reference "); got != "creative_reference" {
 		t.Fatalf("owner type = %q, want creative_reference", got)
 	}
-	if got := NormalizeRole(" Setting-Doc "); got != "setting_doc" {
-		t.Fatalf("role = %q, want setting_doc", got)
+	if got := NormalizeRole(" Source "); got != "source" {
+		t.Fatalf("role = %q, want source", got)
 	}
 }
 

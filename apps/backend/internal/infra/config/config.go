@@ -22,6 +22,7 @@ type Config struct {
 	DBPassword         string
 	DBName             string
 	DBPath             string
+	DBSlowThresholdMS  int
 	ServerPort         string
 	EncryptionKey      string // 32-byte hex string for AES-256-GCM
 	MCPToken           string // optional Bearer token for MCP endpoint; empty = no auth
@@ -70,6 +71,7 @@ func Load() *Config {
 		DBPassword:         getEnv("DB_PASSWORD", "postgres"),
 		DBName:             getEnv("DB_NAME", "movscript"),
 		DBPath:             getEnv("DB_PATH", dataDir+"/movscript.db"),
+		DBSlowThresholdMS:  getEnvInt("DB_SLOW_THRESHOLD_MS", 200),
 		ServerPort:         getEnv("SERVER_PORT", "8765"),
 		EncryptionKey:      getEnv("ENCRYPTION_KEY", ""),
 		MCPToken:           getEnv("MCP_TOKEN", ""),
@@ -157,6 +159,7 @@ func (c *Config) SafeSummary() map[string]any {
 		"db_port":              c.DBPort,
 		"db_name":              c.DBName,
 		"db_path":              c.DBPath,
+		"db_slow_threshold_ms": c.DBSlowThresholdMS,
 		"server_port":          c.ServerPort,
 		"auth_ttl_hours":       c.AuthTokenTTLHours,
 		"cors_allowed_origins": c.CORSAllowedOrigins,

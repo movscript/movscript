@@ -3,6 +3,7 @@ package resourcefolder
 import (
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -20,21 +21,37 @@ type NewFolderSpec struct {
 }
 
 type Folder struct {
-	ID             uint
-	OwnerID        uint
-	OrgID          *uint
-	Name           string
-	ParentID       *uint
-	StorageBackend string
-	IsShared       bool
-	ResourceCount  int
+	ID             uint      `json:"ID"`
+	OwnerID        uint      `json:"owner_id"`
+	Owner          *UserRef  `json:"owner,omitempty"`
+	OrgID          *uint     `json:"org_id,omitempty"`
+	Name           string    `json:"name"`
+	ParentID       *uint     `json:"parent_id,omitempty"`
+	StorageBackend string    `json:"storage_backend"`
+	IsShared       bool      `json:"is_shared"`
+	ResourceCount  int       `json:"resource_count"`
+	CreatedAt      time.Time `json:"CreatedAt"`
+	UpdatedAt      time.Time `json:"UpdatedAt"`
 }
 
 type Permission struct {
-	ID         uint
-	FolderID   uint
-	UserID     uint
-	Permission string
+	ID         uint      `json:"ID"`
+	FolderID   uint      `json:"folder_id"`
+	UserID     uint      `json:"user_id"`
+	User       *UserRef  `json:"user,omitempty"`
+	Permission string    `json:"permission"`
+	CreatedAt  time.Time `json:"CreatedAt"`
+	UpdatedAt  time.Time `json:"UpdatedAt"`
+}
+
+type UserRef struct {
+	ID           uint    `json:"ID"`
+	Username     string  `json:"username"`
+	SystemRole   string  `json:"system_role,omitempty"`
+	PrimaryEmail *string `json:"primary_email,omitempty"`
+	DisplayName  string  `json:"display_name,omitempty"`
+	AvatarURL    string  `json:"avatar_url,omitempty"`
+	Status       string  `json:"status,omitempty"`
 }
 
 func NewFolder(spec NewFolderSpec) Folder {

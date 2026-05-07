@@ -43,9 +43,6 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
       setDraft((d) => ({ ...d, ...updated }))
       qc.invalidateQueries({ queryKey: ['scripts', projectId] })
       qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId, script.ID] })
-      qc.invalidateQueries({ queryKey: ['settings', projectId] })
-      qc.invalidateQueries({ queryKey: ['setting-refs', projectId, script.ID] })
-      qc.invalidateQueries({ queryKey: ['setting-relationships', projectId, script.ID] })
     },
   })
 

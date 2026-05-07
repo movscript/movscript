@@ -14,8 +14,9 @@ func New(deps Dependencies) *gin.Engine {
 	h := newHandlers(deps)
 
 	r := gin.New()
-	r.Use(gin.Recovery())
 	r.Use(observability.RequestID())
+	r.Use(observability.RequestMetrics(observability.DefaultHTTPMetrics()))
+	r.Use(gin.Recovery())
 	r.Use(middleware.RequestLogger())
 	var corsOrigins []string
 	if deps.Config != nil {
@@ -27,6 +28,7 @@ func New(deps Dependencies) *gin.Engine {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+	r.GET("/metrics", observability.MetricsHandler(observability.DefaultHTTPMetrics()))
 	if deps.Config != nil {
 		registerAdminStaticRoutes(r, deps.Config.AdminStaticDir)
 	}

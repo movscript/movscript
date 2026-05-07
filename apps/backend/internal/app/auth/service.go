@@ -308,7 +308,7 @@ func (s *Service) VerifyChallenge(ctx context.Context, input ChallengeVerifyInpu
 	if err != nil {
 		return model.AuthChallenge{}, ErrInvalidChallenge
 	}
-	if !domainauth.ChallengeValidForVerification(challenge, time.Now().UTC()) {
+	if !domainauth.ChallengeValidForVerification(domainauth.AuthChallengeFromModel(challenge), time.Now().UTC()) {
 		return model.AuthChallenge{}, ErrInvalidChallenge
 	}
 	if challenge.CodeHash != sha256Hex(strings.TrimSpace(input.Code)) {

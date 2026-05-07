@@ -3,18 +3,17 @@ package semantic
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
-func (s *Service) ListSegments(ctx context.Context, filter SegmentFilter) ([]model.Segment, error) {
+func (s *Service) ListSegments(ctx context.Context, filter SegmentFilter) ([]domainsemantic.Segment, error) {
 	return s.repo.ListSegments(ctx, filter)
 }
 
-func (s *Service) CreateSegment(ctx context.Context, projectID uint, input CreateSegmentInput) (model.Segment, error) {
+func (s *Service) CreateSegment(ctx context.Context, projectID uint, input CreateSegmentInput) (domainsemantic.Segment, error) {
 	productionID, textBlockID, err := s.resolveSegmentOwners(ctx, projectID, input.ProductionID, input.TextBlockID)
 	if err != nil {
-		return model.Segment{}, err
+		return domainsemantic.Segment{}, err
 	}
 	item := domainsemantic.NewSegment(domainsemantic.SegmentSpec{
 		ProjectID:       projectID,
@@ -28,16 +27,13 @@ func (s *Service) CreateSegment(ctx context.Context, projectID uint, input Creat
 		Content:         input.Content,
 		Status:          input.Status,
 		MetadataJSON:    input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateSegment(ctx, item)
 }
 
-func (s *Service) PatchSegment(ctx context.Context, projectID uint, id string, input PatchSegmentInput) (model.Segment, error) {
-	var item model.Segment
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchSegment(ctx context.Context, projectID uint, id string, input PatchSegmentInput) (domainsemantic.Segment, error) {
+	item, err := s.repo.LoadSegment(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	updates := compactUpdates(map[string]any{
@@ -62,26 +58,20 @@ func (s *Service) PatchSegment(ctx context.Context, projectID uint, id string, i
 			updates["text_block_id"] = *textBlockID
 		}
 	}
-	if err := s.PatchItem(ctx, &item, updates); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchSegment(ctx, item, updates)
 }
 
-func (s *Service) ListProductionTextBlocks(ctx context.Context, filter ProductionTextBlockFilter) ([]model.ProductionTextBlock, error) {
+func (s *Service) ListProductionTextBlocks(ctx context.Context, filter ProductionTextBlockFilter) ([]domainsemantic.ProductionTextBlock, error) {
 	return s.repo.ListProductionTextBlocks(ctx, filter)
 }
 
-func (s *Service) CreateProductionTextBlock(ctx context.Context, projectID uint, input CreateProductionTextBlockInput) (model.ProductionTextBlock, error) {
+func (s *Service) CreateProductionTextBlock(ctx context.Context, projectID uint, input CreateProductionTextBlockInput) (domainsemantic.ProductionTextBlock, error) {
 	if err := s.ensureProductionInProject(ctx, projectID, input.ProductionID); err != nil {
-		return model.ProductionTextBlock{}, err
+		return domainsemantic.ProductionTextBlock{}, err
 	}
 	if input.ParentBlockID != nil {
 		if err := s.ensureProductionTextBlockInProject(ctx, projectID, *input.ParentBlockID); err != nil {
-			return model.ProductionTextBlock{}, err
+			return domainsemantic.ProductionTextBlock{}, err
 		}
 	}
 	item := domainsemantic.NewProductionTextBlock(domainsemantic.ProductionTextBlockSpec{
@@ -96,16 +86,13 @@ func (s *Service) CreateProductionTextBlock(ctx context.Context, projectID uint,
 		SourceType:    input.SourceType,
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateProductionTextBlock(ctx, item)
 }
 
-func (s *Service) PatchProductionTextBlock(ctx context.Context, projectID uint, id string, input PatchProductionTextBlockInput) (model.ProductionTextBlock, error) {
-	var item model.ProductionTextBlock
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchProductionTextBlock(ctx context.Context, projectID uint, id string, input PatchProductionTextBlockInput) (domainsemantic.ProductionTextBlock, error) {
+	item, err := s.repo.LoadProductionTextBlock(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if input.ProductionID != nil {
@@ -132,23 +119,17 @@ func (s *Service) PatchProductionTextBlock(ctx context.Context, projectID uint, 
 	if input.ProductionID != nil {
 		updates["production_id"] = *input.ProductionID
 	}
-	if err := s.PatchItem(ctx, &item, updates); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchProductionTextBlock(ctx, item, updates)
 }
 
-func (s *Service) ListSceneMoments(ctx context.Context, filter SceneMomentFilter) ([]model.SceneMoment, error) {
+func (s *Service) ListSceneMoments(ctx context.Context, filter SceneMomentFilter) ([]domainsemantic.SceneMoment, error) {
 	return s.repo.ListSceneMoments(ctx, filter)
 }
 
-func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input CreateSceneMomentInput) (model.SceneMoment, error) {
+func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input CreateSceneMomentInput) (domainsemantic.SceneMoment, error) {
 	if input.SegmentID != nil {
 		if err := s.ensureSegmentInProject(ctx, projectID, *input.SegmentID); err != nil {
-			return model.SceneMoment{}, err
+			return domainsemantic.SceneMoment{}, err
 		}
 	}
 	item := domainsemantic.NewSceneMoment(domainsemantic.SceneMomentSpec{
@@ -164,16 +145,13 @@ func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input C
 		Mood:          input.Mood,
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateSceneMoment(ctx, item)
 }
 
-func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id string, input PatchSceneMomentInput) (model.SceneMoment, error) {
-	var item model.SceneMoment
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id string, input PatchSceneMomentInput) (domainsemantic.SceneMoment, error) {
+	item, err := s.repo.LoadSceneMoment(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if input.SegmentID != nil {
@@ -194,13 +172,7 @@ func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id strin
 		"status":         input.Status,
 		"metadata_json":  input.MetadataJSON,
 	})
-	if err := s.PatchItem(ctx, &item, updates); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchSceneMoment(ctx, item, updates)
 }
 
 func (s *Service) resolveSegmentOwners(ctx context.Context, projectID uint, productionID *uint, textBlockID *uint) (*uint, *uint, error) {

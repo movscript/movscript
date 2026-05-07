@@ -22,7 +22,7 @@
     "migrate:backend": "cd apps/backend && go run ./cmd/migrate up",
     "migrate:backend:status": "cd apps/backend && go run ./cmd/migrate status",
     "dev:frontend": "node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=external pnpm --filter movscript-frontend dev",
-    "dev:frontend:local": "pnpm run build:backend:with-admin && node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=spawn pnpm --filter movscript-frontend dev",
+    "dev:frontend:local": "pnpm run build:backend:with-admin && node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=spawn MOVSCRIPT_AI_STREAM_DEBUG=1 pnpm --filter movscript-frontend dev",
     "dev:frontend:cloud": "node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=cloud pnpm --filter movscript-frontend dev",
     "dev:admin": "pnpm --filter movscript-admin dev",
     "dev:agent": "pnpm --filter movscript-agent dev",

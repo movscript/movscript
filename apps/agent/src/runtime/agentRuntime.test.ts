@@ -12,9 +12,6 @@ import { DEFAULT_AGENT_MANIFEST } from './manifest/agentManifest.js'
 import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from './store/backendApplyClient.js'
 import type { ApplyDraftReview } from './store/draftApply.js'
 import {
-  PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
-} from '../production/orchestrationContract.js'
-import {
   SCRIPT_SPLIT_RUNTIME_CONTRACT,
 } from './contracts/scriptSplitContract.js'
 import { StaticAgentRuntimeContractResolver } from './contracts/runtimeContract.js'
@@ -210,7 +207,7 @@ class FakeMCPClient {
       return toolText({
         counts: {
           scripts: 1,
-          settings: 0,
+          creative_references: 0,
           segments: 1,
           scene_moments: 2,
           storyboard_lines: 1,
@@ -1071,248 +1068,7 @@ test('context command returns fallback diagnostics when MCP context pack is unav
   assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
 })
 
-test('production orchestration analyzer uses JSON mode and structured tool schemas', async () => {
-  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-production-json-'))
-  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
-  const originalFetch = globalThis.fetch
-  const requests: Array<Record<string, unknown>> = []
-  try {
-    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
-    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 21, model: 'model_config:21' })
-
-    globalThis.fetch = (async (_url, init) => {
-      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
-      requests.push(body)
-      const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
-      const systemText = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '').join('\n')
-      assert.equal((body.response_format as Record<string, unknown> | undefined)?.type, 'json_object')
-      assert.match(systemText, /Production orchestration structured contract/)
-      assert.match(systemText, /movscript\.production_orchestration_analysis\.v1/)
-      assert.ok(Array.isArray(body.tools))
-      assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_read_production_context' && !!tool.function?.parameters))
-      assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_check_entity_conflicts' && !!tool.function?.parameters))
-      assert.ok((body.tools as Array<{ function?: { name?: string; parameters?: unknown } }>).some((tool) => tool.function?.name === 'movscript_propose_production_entities' && !!tool.function?.parameters))
-      const proposeTool = (body.tools as Array<{ function?: { name?: string; parameters?: any } }>).find((tool) => tool.function?.name === 'movscript_propose_production_entities')
-      assert.deepEqual(proposeTool?.function?.parameters?.required, ['proposal'])
-      assert.equal(proposeTool?.function?.parameters?.properties?.proposal?.properties?.schema?.enum?.[0], 'movscript.production_orchestration_analysis.v1')
-      return new Response(JSON.stringify({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              schema: 'movscript.production_orchestration_analysis.v1',
-              mode: 'analysis_only',
-              production_id: 4,
-              script_source: { entity_type: 'script', entity_id: 10, title: 'Demo script', version: 'v1' },
-              stages: {
-                extraction: { characters: [], locations: [], props: [], story_moments: [] },
-                canonicalization: { references: [], aliases: [] },
-                relations: { usages: [], dependencies: [] },
-                validation: { confidence: 1, warnings: [], unresolved: [] },
-              },
-              proposal: {
-                kind: 'production_proposal',
-                action_policy: {
-                  confirmed_entities: 'preserve',
-                  draft_entities: 'supersede_same_scope',
-                  creative_references: 'reuse_project_level_when_possible',
-                },
-                segments: [],
-              },
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }), { status: 200, headers: { 'content-type': 'application/json' } })
-    }) as typeof fetch
-
-    const client = new FakeMCPClient()
-    client.projectId = 42
-    const runtime = createTestRuntime({
-      mcpClient: client,
-      defaultAgentManifest: {
-        ...DEFAULT_AGENT_MANIFEST,
-        id: PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT.id,
-        soul: '输出JSON',
-        permissions: ['project.read', 'draft.read', 'draft.write'],
-        tools: [
-          { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
-          { name: 'movscript_check_entity_conflicts', mode: 'allow', approval: 'never' },
-          { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
-        ],
-      },
-      contractResolver: new StaticAgentRuntimeContractResolver([
-        PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
-      ]),
-    })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '分析这个剧本' }] })
-    await createAndWaitForRun(runtime, thread.id)
-
-    assert.equal(requests.length > 0, true)
-  } finally {
-    globalThis.fetch = originalFetch
-    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
-    rmSync(modelConfigDir, { recursive: true, force: true })
-  }
-})
-
-test('production orchestration analyzer only forces JSON mode on finalization when tools are available', async () => {
-  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-production-final-json-'))
-  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
-  const originalFetch = globalThis.fetch
-  const requests: Array<Record<string, unknown>> = []
-  try {
-    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
-    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 23, model: 'model_config:23' })
-
-    globalThis.fetch = (async (_url, init) => {
-      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
-      requests.push(body)
-      if (requests.length === 1) {
-        assert.equal(body.response_format, undefined)
-        assert.ok(Array.isArray(body.tools))
-        return new Response(JSON.stringify({
-          choices: [{
-            message: {
-              content: '我需要先读取制作上下文。',
-              tool_calls: [{
-                id: 'call_read_context',
-                type: 'function',
-                function: { name: 'movscript_read_production_context', arguments: JSON.stringify({ projectId: 42, productionId: 4 }) },
-              }],
-            },
-            finish_reason: 'tool_calls',
-          }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-      if (requests.length === 2) {
-        assert.equal(body.response_format, undefined)
-        assert.ok(Array.isArray(body.tools))
-        return new Response(JSON.stringify({
-          choices: [{
-            message: {
-              content: '已读取上下文，准备生成最终提案。',
-            },
-            finish_reason: 'stop',
-          }],
-        }), { status: 200, headers: { 'content-type': 'application/json' } })
-      }
-
-      assert.equal((body.response_format as Record<string, unknown> | undefined)?.type, 'json_object')
-      assert.equal(body.tools, undefined)
-      return new Response(JSON.stringify({
-        choices: [{
-          message: {
-            content: JSON.stringify({
-              schema: 'movscript.production_orchestration_analysis.v1',
-              mode: 'analysis_only',
-              production_id: 4,
-              creative_source: { source_type: 'script', entity_type: 'script', entity_id: 10, title: 'Demo script', version: 'v1', summary: 'demo' },
-              stages: {
-                extraction: { characters: [], locations: [], props: [], story_moments: [] },
-                canonicalization: { references: [], aliases: [] },
-                relations: { usages: [], dependencies: [] },
-                validation: { confidence: 1, warnings: [], unresolved: [] },
-              },
-              proposal: {
-                kind: 'production_proposal',
-                action_policy: {
-                  confirmed_entities: 'preserve',
-                  draft_entities: 'supersede_same_scope',
-                  creative_references: 'reuse_project_level_when_possible',
-                },
-                segments: [],
-              },
-            }),
-          },
-          finish_reason: 'stop',
-        }],
-      }), { status: 200, headers: { 'content-type': 'application/json' } })
-    }) as typeof fetch
-
-    const client = new FakeMCPClient()
-    client.projectId = 42
-    const runtime = createTestRuntime({
-      mcpClient: client,
-      defaultAgentManifest: {
-        ...DEFAULT_AGENT_MANIFEST,
-        id: PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT.id,
-        soul: '输出JSON',
-        permissions: ['project.read', 'draft.read', 'draft.write'],
-        tools: [
-          { name: 'movscript_read_production_context', mode: 'allow', approval: 'never' },
-          { name: 'movscript_check_entity_conflicts', mode: 'allow', approval: 'never' },
-          { name: 'movscript_propose_production_entities', mode: 'allow', approval: 'never' },
-        ],
-      },
-      contractResolver: new StaticAgentRuntimeContractResolver([
-        PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
-      ]),
-    })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '分析这个剧本' }] })
-    const run = await createAndWaitForRun(runtime, thread.id)
-    const finalThread = runtime.getThread(thread.id)
-    const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
-    const parsed = JSON.parse(assistant?.content ?? '{}') as { schema?: string }
-
-    assert.equal(run.status, 'completed')
-    assert.equal(requests.length, 3)
-    assert.equal(parsed.schema, 'movscript.production_orchestration_analysis.v1')
-    assert.equal(client.calls.some((call) => call.name === 'movscript_read_production_context'), true)
-  } finally {
-    globalThis.fetch = originalFetch
-    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
-    rmSync(modelConfigDir, { recursive: true, force: true })
-  }
-})
-
-test('production orchestration analyzer surfaces model gateway errors as retryable assistant content', async () => {
-  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-production-retryable-'))
-  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
-  const originalFetch = globalThis.fetch
-  try {
-    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
-    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 24, model: 'model_config:24' })
-
-    globalThis.fetch = (async () => new Response(JSON.stringify({
-      error: {
-        message: 'openai chat stream HTTP 400: Response input messages must contain the word json',
-        type: 'server_error',
-      },
-    }), { status: 502, headers: { 'content-type': 'application/json' } })) as typeof fetch
-
-    const client = new FakeMCPClient()
-    client.projectId = 42
-    const runtime = createTestRuntime({
-      mcpClient: client,
-      defaultAgentManifest: {
-        ...DEFAULT_AGENT_MANIFEST,
-        id: PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT.id,
-        soul: '输出JSON',
-      },
-      contractResolver: new StaticAgentRuntimeContractResolver([
-        PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
-      ]),
-    })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '分析这个剧本' }] })
-    const run = await createAndWaitForRun(runtime, thread.id)
-    const finalThread = runtime.getThread(thread.id)
-    const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
-
-    assert.equal(run.status, 'completed_with_warnings')
-    assert.match(run.warnings?.join('\n') ?? '', /模型调用未完成/)
-    assert.match(assistant?.content ?? '', /没有产出可用于写入的结构化 JSON/)
-    assert.match(assistant?.content ?? '', /请重试/)
-  } finally {
-    globalThis.fetch = originalFetch
-    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
-    rmSync(modelConfigDir, { recursive: true, force: true })
-  }
-})
-
-test('script split agent session uses existing runtime with JSON contract', async () => {
+test('script split agent session does not force JSON assistant output', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-script-split-json-'))
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   const originalFetch = globalThis.fetch
@@ -1327,80 +1083,13 @@ test('script split agent session uses existing runtime with JSON contract', asyn
       requests.push(body)
       const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
       const systemText = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '').join('\n')
-      assert.equal((body.response_format as Record<string, unknown> | undefined)?.type, 'json_object')
-      assert.match(systemText, /Runtime structured contract/)
-      assert.match(systemText, /movscript\.script_split_analysis\.v1/)
-      assert.match(systemText, /global_settings/)
-      assert.match(systemText, /global_context/)
+      assert.equal(body.response_format, undefined)
+      assert.doesNotMatch(systemText, /Runtime structured contract/)
+      assert.doesNotMatch(systemText, /movscript\.script_split_analysis\.v1/)
       return new Response(JSON.stringify({
         choices: [{
           message: {
-            content: JSON.stringify({
-              schema: 'movscript.script_split_analysis.v1',
-              source_title: '雨夜总稿',
-              source_summary: '两集短剧总稿。',
-              source_script: {
-                title: '雨夜总稿',
-                summary: '两集短剧总稿。',
-                content: '第1集 雨夜\n便利店相遇。\n\n第2集 旧信\n旧信浮出水面。',
-                source_type: 'raw',
-              },
-              global_settings: {
-                story_world: '现代都市雨夜悬疑。',
-                core_rules: ['旧信是母亲线索。'],
-                character_relationships: ['林夏与顾言因旧伞线索重新相遇。'],
-                key_characters: ['林夏', '顾言'],
-                key_locations: ['便利店', '旧巷'],
-                key_props: ['旧伞', '旧信'],
-                continuity_notes: ['旧伞在两集中都必须保持破损状态。'],
-              },
-              episode_drafts: [
-                {
-                  order: 1,
-                  title: '第1集 雨夜',
-                  summary: '便利店相遇。',
-                  content: '第1集 雨夜\n便利店相遇。',
-                  global_context: {
-                    story_world: '现代都市雨夜悬疑。',
-                    core_rules: ['旧信是母亲线索。'],
-                    character_relationships: ['林夏与顾言因旧伞线索重新相遇。'],
-                    key_characters: ['林夏', '顾言'],
-                    key_locations: ['便利店'],
-                    key_props: ['旧伞'],
-                    continuity_notes: ['旧伞必须保持破损状态。'],
-                    episode_relevance: ['旧伞第一次出现，影响道具设计和后续线索。'],
-                  },
-                  start: 1,
-                  end: 13,
-                  action: 'create',
-                  existing_script_id: null,
-                  rationale: '首个集标题。',
-                },
-                {
-                  order: 2,
-                  title: '第2集 旧信',
-                  summary: '旧信浮出水面。',
-                  content: '第2集 旧信\n旧信浮出水面。',
-                  global_context: {
-                    story_world: '现代都市雨夜悬疑。',
-                    core_rules: ['旧信是母亲线索。'],
-                    character_relationships: ['林夏与顾言因旧伞线索重新相遇。'],
-                    key_characters: ['林夏', '顾言'],
-                    key_locations: ['旧巷'],
-                    key_props: ['旧伞', '旧信'],
-                    continuity_notes: ['旧伞延续上一集破损状态。'],
-                    episode_relevance: ['旧信露出，影响本集编排的关键道具特写。'],
-                  },
-                  start: 16,
-                  end: 30,
-                  action: 'create',
-                  existing_script_id: null,
-                  rationale: '第二个集标题。',
-                },
-              ],
-              warnings: [],
-              confidence: 0.9,
-            }),
+            content: '我会通过工具或草稿把结构化数据交给 UI，聊天正文不进行 JSON 收口。',
           },
           finish_reason: 'stop',
         }],
@@ -1421,7 +1110,7 @@ test('script split agent session uses existing runtime with JSON contract', asyn
         ...DEFAULT_AGENT_MANIFEST,
         id: 'script-split-agent',
         name: '剧本拆分 Agent',
-        soul: '输出必须是一个 machine-readable JSON 对象。',
+        soul: '通过工具或草稿把结构化结果交给 UI；assistant 正文只做简短说明。',
         permissions: ['project.read'],
         tools: [
           { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
@@ -1431,13 +1120,14 @@ test('script split agent session uses existing runtime with JSON contract', asyn
     })
     const finalThread = runtime.getThread(thread.id)
     const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
-    const parsed = JSON.parse(assistant?.content ?? '{}') as { schema?: string; episode_drafts?: unknown[] }
 
     assert.equal(run.status, 'completed')
     assert.equal(requests.length, 1)
     assert.equal(run.metadata?.runtimeContractId, 'script-split-agent')
-    assert.equal(parsed.schema, 'movscript.script_split_analysis.v1')
-    assert.equal(parsed.episode_drafts?.length, 2)
+    assert.doesNotThrow(() => {
+      assert.throws(() => JSON.parse(assistant?.content ?? ''))
+    })
+    assert.match(assistant?.content ?? '', /聊天正文不进行 JSON 收口/)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath

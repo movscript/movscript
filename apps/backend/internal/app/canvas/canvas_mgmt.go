@@ -88,7 +88,7 @@ func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (mo
 	if err := h.ensureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
 		return model.Canvas{}, err
 	}
-	cv := canvasruntime.NewCanvas(input)
+	cv := canvasruntime.NewCanvas(input).ToModel()
 	if err := h.canvasRepo().CreateCanvas(ctx, &cv); err != nil {
 		return cv, err
 	}

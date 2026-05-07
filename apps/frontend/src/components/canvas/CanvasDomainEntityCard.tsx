@@ -21,7 +21,7 @@ import { AuthedImage } from '@/components/shared/AuthedImage'
 import { cn } from '@/lib/utils'
 import { API_BASE_URL } from '@/lib/config'
 
-export type CanvasDomainEntityKind = Exclude<CanvasEntityKind, 'script' | 'setting'>
+export type CanvasDomainEntityKind = Exclude<CanvasEntityKind, 'script'>
 
 export type CanvasDomainMetric = {
   label: string

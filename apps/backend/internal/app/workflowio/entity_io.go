@@ -276,8 +276,6 @@ func entityTableName(kind string) (string, bool) {
 	switch kind {
 	case domainworkflow.EntityKindScript:
 		return "scripts", true
-	case domainworkflow.EntityKindSetting:
-		return "settings", true
 	case domainworkflow.EntityKindSegment:
 		return "segments", true
 	case domainworkflow.EntityKindSceneMoment:
@@ -557,7 +555,7 @@ func buildEntityWriteAudits(
 			OldValueJSON:       oldValueJSON,
 			NewValueJSON:       newValueJSON,
 			ResourceBindingIDs: mustMarshalString(bindingIDsByPort[portID]),
-		}))
+		}).ToModel())
 	}
 	return audits
 }

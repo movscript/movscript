@@ -7,12 +7,13 @@ import (
 
 	dto "github.com/movscript/movscript/internal/app/dto"
 	"github.com/movscript/movscript/internal/domain/model"
+	domainscript "github.com/movscript/movscript/internal/domain/script"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func TestNormalizeDefaultsUsesRawSourceAsCanonicalInput(t *testing.T) {
-	item := model.Script{Content: "原始剧本文档"}
+	item := domainscript.ScriptSnapshot{Content: "原始剧本文档"}
 
 	NormalizeDefaults(&item)
 
@@ -31,7 +32,7 @@ func TestNormalizeDefaultsUsesRawSourceAsCanonicalInput(t *testing.T) {
 }
 
 func TestNormalizeDefaultsBackfillsContentFromRawSource(t *testing.T) {
-	item := model.Script{RawSource: "raw source only"}
+	item := domainscript.ScriptSnapshot{RawSource: "raw source only"}
 
 	NormalizeDefaults(&item)
 

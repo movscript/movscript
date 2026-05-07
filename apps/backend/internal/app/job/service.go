@@ -71,7 +71,11 @@ type ListResult struct {
 	Total int64
 }
 
-type InputResourcesResult = domainjob.InputResourcesResult
+type InputResourcesResult struct {
+	Resources  []model.RawResource
+	ImageCount int
+	VideoCount int
+}
 
 type ResponseLookups struct {
 	ResourcesByID   map[uint]model.RawResource

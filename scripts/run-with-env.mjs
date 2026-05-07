@@ -1,20 +1,30 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process'
 
-const [, , assignment, command, ...args] = process.argv
+const [, , ...rawArgs] = process.argv
 
-if (!assignment || !assignment.includes('=') || !command) {
-  console.error('usage: node scripts/run-with-env.mjs KEY=value command [...args]')
+const envAssignments = {}
+let commandIndex = 0
+while (commandIndex < rawArgs.length && rawArgs[commandIndex].includes('=')) {
+  const [key, ...valueParts] = rawArgs[commandIndex].split('=')
+  envAssignments[key] = valueParts.join('=')
+  commandIndex += 1
+}
+
+const command = rawArgs[commandIndex]
+const args = rawArgs.slice(commandIndex + 1)
+
+if (Object.keys(envAssignments).length === 0 || !command) {
+  console.error('usage: node scripts/run-with-env.mjs KEY=value [KEY=value ...] command [...args]')
   process.exit(1)
 }
 
-const [key, ...valueParts] = assignment.split('=')
 const child = spawn(command, args, {
   stdio: 'inherit',
   shell: process.platform === 'win32',
   env: {
     ...process.env,
-    [key]: valueParts.join('='),
+    ...envAssignments,
   },
 })
 

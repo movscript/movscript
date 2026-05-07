@@ -4,8 +4,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 const (
@@ -34,6 +32,21 @@ type RegisteredUser struct {
 	Locale          string
 	Status          string
 	EmailVerifiedAt *int64
+}
+
+type UserProfile struct {
+	ID              uint      `json:"ID"`
+	Username        string    `json:"username"`
+	SystemRole      string    `json:"system_role"`
+	PrimaryEmail    *string   `json:"primary_email,omitempty"`
+	PrimaryPhone    *string   `json:"primary_phone,omitempty"`
+	DisplayName     string    `json:"display_name,omitempty"`
+	AvatarURL       string    `json:"avatar_url,omitempty"`
+	Locale          string    `json:"locale,omitempty"`
+	Status          string    `json:"status"`
+	EmailVerifiedAt *int64    `json:"email_verified_at,omitempty"`
+	CreatedAt       time.Time `json:"CreatedAt"`
+	UpdatedAt       time.Time `json:"UpdatedAt"`
 }
 
 type AuthChallenge struct {
@@ -102,7 +115,7 @@ func NewAuthChallenge(channel string, target string, codeHash string, now time.T
 	}
 }
 
-func ChallengeValidForVerification(challenge model.AuthChallenge, now time.Time) bool {
+func ChallengeValidForVerification(challenge AuthChallenge, now time.Time) bool {
 	return challenge.ConsumedAt == nil && challenge.ExpiresAt.After(now.UTC()) && challenge.Attempts < ChallengeMaxAttempts
 }
 

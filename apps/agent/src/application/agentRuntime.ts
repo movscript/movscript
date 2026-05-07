@@ -12,6 +12,7 @@ import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from '../tools/toolRegistry.
 import {
   InMemoryAgentDraftStore,
   normalizeDraftStatus,
+  validateDraft,
   type AgentDraft,
   type AgentDraftKind,
   type AgentDraftStatus,
@@ -37,6 +38,7 @@ import type {
   AgentRun,
   AgentTraceEvent,
   AgentTraceEventKind,
+  AgentRunStreamEvent,
   AgentRunStep,
   AgentRuntimeOptions,
   AgentCapabilitiesResponse,
@@ -90,6 +92,7 @@ export type {
   AgentRun,
   AgentRunPreview,
   AgentRunStatus,
+  AgentRunStreamEvent,
   AgentRunStep,
   AgentRuntimeOptions,
   AgentApprovalRequest,
@@ -168,6 +171,7 @@ export class AgentRuntime {
   private readonly updateState?: AgentCapabilitiesResponse['updates']
   private readonly runControllers = new Map<string, AbortController>()
   private readonly runAuth = new Map<string, { backendAuthToken?: string; backendAPIBaseURL?: string }>()
+  private readonly runStreamSubscribers = new Map<string, Set<(event: AgentRunStreamEvent) => void>>()
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
@@ -466,6 +470,23 @@ export class AgentRuntime {
     return this.store.getRun(id)
   }
 
+  subscribeRunStream(runId: string, listener: (event: AgentRunStreamEvent) => void): () => void {
+    const run = this.requireRun(runId)
+    let subscribers = this.runStreamSubscribers.get(runId)
+    if (!subscribers) {
+      subscribers = new Set()
+      this.runStreamSubscribers.set(runId, subscribers)
+    }
+    subscribers.add(listener)
+    this.replayRunStream(run, listener)
+    return () => {
+      const current = this.runStreamSubscribers.get(runId)
+      if (!current) return
+      current.delete(listener)
+      if (current.size === 0) this.runStreamSubscribers.delete(runId)
+    }
+  }
+
   approveRun(runId: string, input: ApproveRunInput = {}): AgentRun {
     const run = this.requireRun(runId)
     if (run.status !== 'requires_action') throw new Error(`run ${runId} is not waiting for approval`)
@@ -645,6 +666,54 @@ export class AgentRuntime {
 
   getDraft(id: string): AgentDraft | undefined {
     return this.draftStore.getDraft(id)
+  }
+
+  updateDraft(input: {
+    draftId?: unknown
+    status?: unknown
+    title?: unknown
+    content?: unknown
+    target?: unknown
+    metadata?: unknown
+  }): AgentDraft {
+    const draftId = typeof input.draftId === 'string' && input.draftId.trim() ? input.draftId.trim() : undefined
+    if (!draftId) throw new Error('update draft requires draftId')
+    const status = normalizeDraftStatus(input.status)
+    return this.draftStore.updateDraft(draftId, {
+      ...(status ? { status } : {}),
+      ...(typeof input.title === 'string' ? { title: input.title } : {}),
+      ...(typeof input.content === 'string' ? { content: input.content } : {}),
+      ...(isRecord(input.target) ? { target: input.target } : {}),
+      ...(isJSONRecord(input.metadata) ? { metadata: input.metadata } : {}),
+    })
+  }
+
+  patchDraft(input: {
+    draftId?: unknown
+    ops?: unknown
+    expectedUpdatedAt?: unknown
+    metadata?: unknown
+  }): JSONValue {
+    const draftId = typeof input.draftId === 'string' && input.draftId.trim() ? input.draftId.trim() : undefined
+    if (!draftId) throw new Error('patch draft requires draftId')
+    const result = this.draftStore.patchDraft(draftId, {
+      ops: input.ops,
+      expectedUpdatedAt: input.expectedUpdatedAt,
+      metadata: input.metadata,
+    })
+    return {
+      status: 'patched',
+      ...result,
+      validation: validateDraft(result.draft),
+    } as unknown as JSONValue
+  }
+
+  validateDraft(input: { draftId?: unknown }): JSONValue {
+    const draftId = typeof input.draftId === 'string' && input.draftId.trim() ? input.draftId.trim() : undefined
+    if (!draftId) throw new Error('validate draft requires draftId')
+    const draft = this.draftStore.getDraft(draftId)
+    if (!draft) throw new Error(`draft not found: ${draftId}`)
+    return validateDraft(draft) as unknown as JSONValue
   }
 
   previewApplyDraft(input: {
@@ -1173,7 +1242,47 @@ export class AgentRuntime {
       ...(input.data !== undefined ? { data: input.data } : {}),
       ...(input.completedAt ? { completedAt: input.completedAt } : {}),
     })
+    this.emitRunStreamEvent(run.id, { type: 'trace', runId: run.id, event, run })
+    const assistantDelta = assistantDeltaFromTraceEvent(event)
+    if (assistantDelta) {
+      this.emitRunStreamEvent(run.id, { ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt, run })
+    }
+    const assistantMessage = assistantMessageFromTraceEvent(this.store.getThread(run.threadId) ?? undefined, event)
+    if (assistantMessage) {
+      this.emitRunStreamEvent(run.id, { type: 'assistant_message', runId: run.id, message: assistantMessage, run })
+    }
+    this.emitRunStreamEvent(run.id, { type: 'run', run })
+    if (isTerminalRunStatus(run.status)) {
+      this.emitRunStreamEvent(run.id, { type: 'done', run })
+    }
     return event
+  }
+
+  private replayRunStream(run: AgentRun, listener: (event: AgentRunStreamEvent) => void): void {
+    listener({ type: 'run', run })
+    for (const event of run.traceEvents ?? []) {
+      listener({ type: 'trace', runId: run.id, event, run })
+      const assistantDelta = assistantDeltaFromTraceEvent(event)
+      if (assistantDelta) {
+        listener({ ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt, run })
+      }
+    }
+    const assistantMessage = assistantMessageForRun(this.store.getThread(run.threadId), run)
+    if (assistantMessage) listener({ type: 'assistant_message', runId: run.id, message: assistantMessage, run })
+    if (isTerminalRunStatus(run.status)) listener({ type: 'done', run })
+  }
+
+  private emitRunStreamEvent(runId: string, event: AgentRunStreamEvent): void {
+    const subscribers = this.runStreamSubscribers.get(runId)
+    if (!subscribers || subscribers.size === 0) return
+    for (const subscriber of [...subscribers]) {
+      try {
+        subscriber(event)
+      } catch {
+        subscribers.delete(subscriber)
+      }
+    }
+    if (event.type === 'done') this.runStreamSubscribers.delete(runId)
   }
 
   private createMessage(threadId: string, role: AgentMessageRole, content: string, runId?: string): AgentMessage {
@@ -1291,8 +1400,46 @@ function isMessageRole(value: unknown): value is AgentMessageRole {
   return value === 'system' || value === 'user' || value === 'assistant'
 }
 
+function assistantDeltaFromTraceEvent(event: AgentTraceEvent): Omit<Extract<AgentRunStreamEvent, { type: 'assistant_delta' }>, 'runId' | 'traceEventId' | 'createdAt' | 'run'> | undefined {
+  void event
+  return undefined
+}
+
+function assistantMessageFromTraceEvent(thread: AgentThread | undefined, event: AgentTraceEvent): AgentMessage | undefined {
+  if (!thread || event.kind !== 'assistant') return undefined
+  const data = isRecord(event.data) ? event.data : undefined
+  const messageId = typeof data?.messageId === 'string' ? data.messageId : undefined
+  if (!messageId) return undefined
+  return thread.messages.find((message) => message.id === messageId && message.role === 'assistant')
+}
+
+function assistantMessageForRun(thread: AgentThread | undefined, run: AgentRun): AgentMessage | undefined {
+  if (!thread) return undefined
+  if (run.assistantMessageId) {
+    const message = thread.messages.find((item) => item.id === run.assistantMessageId && item.role === 'assistant')
+    if (message) return message
+  }
+  return [...thread.messages].reverse().find((message) => message.role === 'assistant' && message.runId === run.id)
+}
+
+function isTerminalRunStatus(status: AgentRun['status']): boolean {
+  return status === 'completed' || status === 'completed_with_warnings' || status === 'requires_action' || status === 'failed' || status === 'cancelled'
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
+  if (!isRecord(value)) return false
+  return Object.values(value).every(isJSONValue)
+}
+
+function isJSONValue(value: unknown): value is JSONValue {
+  if (value === null) return true
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
+  if (Array.isArray(value)) return value.every(isJSONValue)
+  return isJSONRecord(value)
 }
 
 function makeId(prefix: string): string {

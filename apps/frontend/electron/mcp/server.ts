@@ -171,7 +171,7 @@ function listResources(): MCPResource[] {
     resources.push(
       resource(`movscript://project/${id}/summary`, 'Project summary'),
       resource(`movscript://project/${id}/scripts`, 'Scripts'),
-      resource(`movscript://project/${id}/settings`, 'Settings'),
+      resource(`movscript://project/${id}/creative-references`, 'Creative references'),
       resource(`movscript://project/${id}/assets`, 'Assets'),
       resource(`movscript://project/${id}/episodes`, 'Episodes'),
       resource(`movscript://project/${id}/scenes`, 'Scenes'),
@@ -245,8 +245,9 @@ function projectEndpoint(projectId: number, kind: string): string {
       return `/projects/${projectId}/entities/storyboard-scripts`
     case 'shots':
       return `/projects/${projectId}/entities/content-units`
+    case 'creative-references':
+      return `/projects/${projectId}/entities/creative-references`
     case 'scripts':
-    case 'settings':
       return `/projects/${projectId}/${kind}`
     default:
       throw new Error(`Unsupported project resource kind: ${kind}`)
@@ -288,7 +289,7 @@ function listTools(): MCPTool[] {
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
-          entityType: { type: 'string', enum: ['project', 'script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot'] },
+          entityType: { type: 'string', enum: ['project', 'script', 'creative_reference', 'asset', 'episode', 'scene', 'storyboard', 'shot'] },
           entityId: { type: 'number' },
         },
         ['entityType', 'entityId']
@@ -309,7 +310,7 @@ function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_read_project_structure',
-      description: 'Read compact project structure across scripts, settings, episodes, scenes, storyboards, and shots.',
+      description: 'Read compact project structure across scripts, creative references, episodes, scenes, storyboards, and shots.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
@@ -323,7 +324,7 @@ function listTools(): MCPTool[] {
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
-          kind: { type: 'string', enum: ['script', 'setting', 'storyboard', 'shot', 'prompt', 'note', 'pipeline'] },
+          kind: { type: 'string', enum: ['script', 'creative_reference', 'storyboard', 'shot', 'prompt', 'note', 'pipeline'] },
           title: { type: 'string' },
           content: { type: 'string' },
           source: { type: 'object' },
@@ -341,7 +342,7 @@ function listTools(): MCPTool[] {
       description: 'Ask the MovScript UI to open a page for an entity type. This is navigation only.',
       inputSchema: objectSchema(
         {
-          entityType: { type: 'string', enum: ['project', 'script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot'] },
+          entityType: { type: 'string', enum: ['project', 'script', 'creative_reference', 'asset', 'episode', 'scene', 'storyboard', 'shot'] },
           entityId: { type: 'number' },
         },
         ['entityType']
@@ -407,6 +408,28 @@ function listTools(): MCPTool[] {
         ['projectId', 'productionId']
       ),
     },
+    {
+      name: 'movscript_create_generation_job',
+      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Returns the completed job and output_resource for direct chat display. This is cost-bearing and should only run after explicit user approval.',
+      inputSchema: objectSchema(
+        {
+          prompt: { type: 'string' },
+          output_type: { type: 'string', enum: ['image', 'video'], description: 'High-level output type. Ignored when job_type is provided.' },
+          job_type: { type: 'string', enum: ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v'] },
+          model_config_id: { type: 'number', description: 'Optional AIModelConfig ID. If omitted, MovScript chooses the first available model for the requested capability.' },
+          input_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Optional reference image/video resource IDs.' },
+          aspect_ratio: { type: 'string', description: 'Optional aspect ratio such as 1:1, 16:9, or 9:16.' },
+          duration: { type: 'number', description: 'Optional video duration in seconds.' },
+          extra_params: { type: 'object', description: 'Optional provider/model-specific generation parameters.' },
+          feature_key: { type: 'string', description: 'Optional feature key for routing/audit. Defaults to agent.chat_generation.' },
+          projectId: { type: 'number' },
+          wait: { type: 'boolean', description: 'Defaults to true. When false, returns after enqueueing the job.' },
+          timeout_ms: { type: 'number', description: 'Maximum wait time. Defaults to 180000 for image, 600000 for video.' },
+          poll_interval_ms: { type: 'number', description: 'Polling interval. Defaults to 2500.' },
+        },
+        ['prompt']
+      ),
+    },
   ]
 }
 
@@ -450,6 +473,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await checkEntityConflicts(args))
     case 'movscript_propose_production_entities':
       return toolText(proposeProductionEntities(args))
+    case 'movscript_create_generation_job':
+      return toolText(await createGenerationJob(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
   }
@@ -511,9 +536,9 @@ async function readProjectStructure(args: Record<string, unknown>): Promise<unkn
   const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
   const limit = getOptionalNumber(args, 'limit') ?? 50
   if (!projectId) throw new Error('projectId is required when no current project is selected')
-  const [scripts, settings, episodes, scenes, storyboards, shots] = await Promise.all([
+  const [scripts, creativeReferences, episodes, scenes, storyboards, shots] = await Promise.all([
     backendList(`/projects/${projectId}/scripts`),
-    backendList(`/projects/${projectId}/settings`),
+    backendList(`/projects/${projectId}/entities/creative-references`),
     backendList(`/projects/${projectId}/entities/productions`),
     backendList(`/projects/${projectId}/entities/segments`),
     backendList(`/projects/${projectId}/entities/storyboard-scripts`),
@@ -523,14 +548,14 @@ async function readProjectStructure(args: Record<string, unknown>): Promise<unkn
     projectId,
     counts: {
       scripts: scripts.length,
-      settings: settings.length,
+      creativeReferences: creativeReferences.length,
       episodes: episodes.length,
       scenes: scenes.length,
       storyboards: storyboards.length,
       shots: shots.length,
     },
     scripts: scripts.slice(0, limit).map(summarizeEntity),
-    settings: settings.slice(0, limit).map(summarizeEntity),
+    creativeReferences: creativeReferences.slice(0, limit).map(summarizeEntity),
     episodes: episodes.slice(0, limit).map(summarizeEntity),
     scenes: scenes.slice(0, limit).map((scene) => {
       const summary = summarizeEntityObject(scene)
@@ -600,7 +625,7 @@ async function searchEntities(args: Record<string, unknown>): Promise<unknown> {
   const requestedTypes = getStringArray(args.entityTypes)
   const entityTypes = requestedTypes.length > 0
     ? requestedTypes
-    : ['script', 'setting', 'asset', 'episode', 'scene', 'storyboard', 'shot']
+    : ['script', 'creative_reference', 'asset', 'episode', 'scene', 'storyboard', 'shot']
 
   if (!projectId) throw new Error('projectId is required when no current project is selected')
 
@@ -667,6 +692,194 @@ function openEntity(args: Record<string, unknown>): { opened: boolean; route: st
     shell.openExternal(`movscript://${route.replace(/^\//, '')}`).catch(() => undefined)
   }
   return { opened: true, route }
+}
+
+async function createGenerationJob(args: Record<string, unknown>): Promise<unknown> {
+  const prompt = getRequiredString(args, 'prompt').trim()
+  if (!prompt) throw new Error('prompt is required')
+
+  const inputResourceIds = getNumberArray(args.input_resource_ids ?? args.inputResourceIds ?? args.reference_resource_ids)
+  const jobType = inferGenerationJobType(args, inputResourceIds)
+  const modelConfigId = getOptionalNumeric(args, 'model_config_id')
+    ?? getOptionalNumeric(args, 'modelConfigId')
+    ?? await pickGenerationModelConfigId(jobType)
+  const projectId = getOptionalNumeric(args, 'projectId') ?? contextSnapshot.project?.id
+  const wait = args.wait !== false
+  const aspectRatio = getOptionalString(args, 'aspect_ratio')
+  const duration = getOptionalNumeric(args, 'duration')
+  const featureKey = getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey') ?? 'agent.chat_generation'
+  const extraParams = normalizeGenerationExtraParams(args.extra_params)
+
+  const job = await backendPost('/jobs', {
+    model_config_id: modelConfigId,
+    job_type: jobType,
+    feature_key: featureKey,
+    prompt,
+    ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
+    ...(duration !== undefined ? { duration } : {}),
+    ...(extraParams ? { extra_params: extraParams } : {}),
+    ...(inputResourceIds.length > 0 ? { input_resource_ids: inputResourceIds } : {}),
+    ...(projectId ? { project_id: projectId } : {}),
+  })
+
+  const initialJobId = getJobId(job)
+  if (!wait) {
+    return {
+      status: 'queued',
+      job,
+      jobId: initialJobId,
+      message: `生成任务已创建${initialJobId ? `（Job #${initialJobId}）` : ''}。`,
+    }
+  }
+  if (!initialJobId) throw new Error('generation job was created without an ID')
+
+  const timeoutMs = getOptionalNumeric(args, 'timeout_ms') ?? (jobType.startsWith('video') ? 600_000 : 180_000)
+  const pollIntervalMs = clampNumber(getOptionalNumeric(args, 'poll_interval_ms') ?? 2500, 500, 15_000)
+  const finalJob = await waitForGenerationJob(initialJobId, timeoutMs, pollIntervalMs)
+  const outputResourceId = isRecord(finalJob) && typeof finalJob.output_resource_id === 'number' ? finalJob.output_resource_id : undefined
+  const outputResource = isRecord(finalJob) && isRecord(finalJob.output_resource)
+    ? finalJob.output_resource
+    : outputResourceId
+      ? await findRawResourceById(outputResourceId)
+      : undefined
+  const finalStatus = isRecord(finalJob) && typeof finalJob.status === 'string' ? finalJob.status : 'unknown'
+
+  return {
+    status: finalStatus,
+    job: finalJob,
+    jobId: initialJobId,
+    output_resource: outputResource,
+    ...(outputResourceId ? { output_resource_id: outputResourceId } : {}),
+    media: outputResource ? {
+      id: outputResourceId ?? getRawResourceId(outputResource),
+      type: outputResource.type,
+      name: outputResource.name,
+      url: outputResource.url,
+      direct_url: outputResource.direct_url,
+      mime_type: outputResource.mime_type,
+    } : undefined,
+    message: finalStatus === 'succeeded'
+      ? `生成完成${outputResourceId ? `，输出资源 #${outputResourceId}` : ''}。`
+      : `生成任务结束，状态：${finalStatus}。`,
+  }
+}
+
+function inferGenerationJobType(args: Record<string, unknown>, inputResourceIds: number[]): string {
+  const explicit = getOptionalString(args, 'job_type') ?? getOptionalString(args, 'jobType')
+  if (explicit && isGenerationJobType(explicit)) return explicit
+  if (explicit) throw new Error(`unsupported job_type: ${explicit}`)
+
+  const outputType = getOptionalString(args, 'output_type') ?? getOptionalString(args, 'outputType') ?? 'image'
+  if (outputType === 'image') return inputResourceIds.length > 0 ? 'image_edit' : 'image'
+  if (outputType === 'video') {
+    const referenceKind = getOptionalString(args, 'reference_type') ?? getOptionalString(args, 'referenceType')
+    if (referenceKind === 'video') return 'video_v2v'
+    if (inputResourceIds.length > 0) return 'video_i2v'
+    return 'video'
+  }
+  if (isGenerationJobType(outputType)) return outputType
+  throw new Error(`unsupported output_type: ${outputType}`)
+}
+
+function isGenerationJobType(value: string): boolean {
+  return value === 'image'
+    || value === 'image_edit'
+    || value === 'video'
+    || value === 'video_i2v'
+    || value === 'video_v2v'
+}
+
+async function pickGenerationModelConfigId(jobType: string): Promise<number> {
+  const capabilityCandidates = modelCapabilityCandidates(jobType)
+  for (const capability of capabilityCandidates) {
+    const models = await backendList(`/models?capability=${encodeURIComponent(capability)}`)
+    const model = models.find((item) => Number.isFinite(Number(item?.id ?? item?.ID)))
+    const id = Number(model?.id ?? model?.ID)
+    if (Number.isFinite(id) && id > 0) return id
+  }
+  throw new Error(`没有可用的 ${jobType} 模型配置，请先在管理后台配置可用模型`)
+}
+
+function modelCapabilityCandidates(jobType: string): string[] {
+  switch (jobType) {
+    case 'image_edit':
+      return ['image_edit', 'image']
+    case 'video_i2v':
+      return ['video_i2v', 'video']
+    case 'video_v2v':
+      return ['video_v2v', 'video']
+    default:
+      return [jobType]
+  }
+}
+
+function normalizeGenerationExtraParams(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (typeof value === 'string') return value.trim() || undefined
+  if (isRecord(value)) return JSON.stringify(value)
+  return undefined
+}
+
+async function waitForGenerationJob(jobId: number, timeoutMs: number, pollIntervalMs: number): Promise<unknown> {
+  const deadline = Date.now() + timeoutMs
+  let latest: unknown
+  while (Date.now() <= deadline) {
+    latest = await backendGet(`/jobs/${jobId}`)
+    const status = isRecord(latest) && typeof latest.status === 'string' ? latest.status : ''
+    if (status === 'succeeded' || status === 'failed' || status === 'cancelled') return latest
+    await sleep(pollIntervalMs)
+  }
+  throw new Error(`generation job ${jobId} did not finish within ${timeoutMs}ms`)
+}
+
+function getJobId(job: unknown): number | undefined {
+  if (!isRecord(job)) return undefined
+  const id = Number(job.ID ?? job.id)
+  return Number.isFinite(id) && id > 0 ? id : undefined
+}
+
+function getRawResourceId(resource: Record<string, unknown>): number | undefined {
+  const id = Number(resource.ID ?? resource.id)
+  return Number.isFinite(id) && id > 0 ? id : undefined
+}
+
+async function findRawResourceById(resourceId: number): Promise<Record<string, unknown> | undefined> {
+  const resources = await backendList('/resources?page=1&page_size=200&type=image,video')
+  return resources.find((resource) => Number(resource?.ID ?? resource?.id) === resourceId)
+}
+
+function getOptionalString(args: Record<string, unknown>, key: string): string | undefined {
+  const value = args[key]
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
+}
+
+function getOptionalNumeric(args: Record<string, unknown>, key: string): number | undefined {
+  const value = args[key]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
+function getNumberArray(value: unknown): number[] {
+  const rawItems = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : []
+  return rawItems
+    .map((item) => typeof item === 'number' ? item : typeof item === 'string' ? Number(item) : NaN)
+    .filter((item) => Number.isInteger(item) && item > 0)
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 async function readProductionContext(args: Record<string, unknown>): Promise<unknown> {
@@ -1100,8 +1313,8 @@ function collectionForEntity(entityType: string): string {
   switch (entityType) {
     case 'script':
       return 'scripts'
-    case 'setting':
-      return 'settings'
+    case 'creative_reference':
+      return 'entities/creative-references'
     case 'asset':
       return 'entities/asset-slots'
     case 'episode':
@@ -1122,8 +1335,9 @@ function routeForEntity(entityType: string): string {
     case 'project':
       return '/projects'
     case 'script':
-    case 'setting':
       return '/scripts'
+    case 'creative_reference':
+      return '/creative-references'
     case 'asset':
       return '/assets'
     case 'episode':

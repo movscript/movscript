@@ -291,7 +291,7 @@ func (r *gormRepository) createAssetSlotOperationAudit(ctx context.Context, asse
 		EntityID:     assetSlotID,
 		UserID:       input.UserID,
 		NewValueJSON: string(raw),
-	})
+	}).ToModel()
 	return r.db.WithContext(ctx).Create(&audit).Error
 }
 

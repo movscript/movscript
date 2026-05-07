@@ -3,17 +3,16 @@ package semantic
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
-func (s *Service) ListProductions(ctx context.Context, filter ProductionFilter) ([]model.Production, error) {
+func (s *Service) ListProductions(ctx context.Context, filter ProductionFilter) ([]domainsemantic.Production, error) {
 	return s.repo.ListProductions(ctx, filter)
 }
 
-func (s *Service) CreateProduction(ctx context.Context, projectID uint, input ProductionInput) (model.Production, error) {
+func (s *Service) CreateProduction(ctx context.Context, projectID uint, input ProductionInput) (domainsemantic.Production, error) {
 	if err := s.validateProductionOwners(ctx, projectID, input.ScriptVersionID, input.PreviewTimelineID); err != nil {
-		return model.Production{}, err
+		return domainsemantic.Production{}, err
 	}
 	item := domainsemantic.NewProduction(domainsemantic.ProductionSpec{
 		ProjectID:         projectID,
@@ -26,16 +25,13 @@ func (s *Service) CreateProduction(ctx context.Context, projectID uint, input Pr
 		OwnerLabel:        input.OwnerLabel,
 		Progress:          input.Progress,
 		MetadataJSON:      input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateProduction(ctx, item)
 }
 
-func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string, input ProductionInput) (model.Production, error) {
-	var item model.Production
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string, input ProductionInput) (domainsemantic.Production, error) {
+	item, err := s.repo.LoadProduction(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validateProductionOwners(ctx, projectID, input.ScriptVersionID, input.PreviewTimelineID); err != nil {
@@ -52,54 +48,39 @@ func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string
 		"progress":            input.Progress,
 		"metadata_json":       input.MetadataJSON,
 	})
-	if err := s.PatchItem(ctx, &item, updates); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchProduction(ctx, item, updates)
 }
 
-func (s *Service) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]model.ContentUnit, error) {
+func (s *Service) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error) {
 	return s.repo.ListContentUnits(ctx, filter)
 }
 
-func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input ContentUnitInput) (model.ContentUnit, error) {
+func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
 	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID); err != nil {
-		return model.ContentUnit{}, err
+		return domainsemantic.ContentUnit{}, err
 	}
 	item := contentUnitFromInput(projectID, input)
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.CreateContentUnit(ctx, item)
 }
 
-func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id string, input ContentUnitInput) (model.ContentUnit, error) {
-	var item model.ContentUnit
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id string, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
+	item, err := s.repo.LoadContentUnit(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID); err != nil {
 		return item, err
 	}
-	if err := s.PatchItem(ctx, &item, contentUnitUpdates(input)); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchContentUnit(ctx, item, contentUnitUpdates(input))
 }
 
-func (s *Service) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]model.Keyframe, error) {
+func (s *Service) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error) {
 	return s.repo.ListKeyframes(ctx, filter)
 }
 
-func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input KeyframeInput) (model.Keyframe, error) {
+func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input KeyframeInput) (domainsemantic.Keyframe, error) {
 	if err := s.validateKeyframeOwners(ctx, projectID, input.ProductionID, input.SceneMomentID, input.ContentUnitID); err != nil {
-		return model.Keyframe{}, err
+		return domainsemantic.Keyframe{}, err
 	}
 	item := domainsemantic.NewKeyframe(domainsemantic.KeyframeSpec{
 		ProjectID:     projectID,
@@ -114,16 +95,13 @@ func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input Keyf
 		Order:         input.Order,
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateKeyframe(ctx, item)
 }
 
-func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, input KeyframeInput) (model.Keyframe, error) {
-	var item model.Keyframe
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, input KeyframeInput) (domainsemantic.Keyframe, error) {
+	item, err := s.repo.LoadKeyframe(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validateKeyframeOwners(ctx, projectID, input.ProductionID, input.SceneMomentID, input.ContentUnitID); err != nil {
@@ -142,22 +120,16 @@ func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, 
 		"status":          input.Status,
 		"metadata_json":   input.MetadataJSON,
 	})
-	if err := s.PatchItem(ctx, &item, updates); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchKeyframe(ctx, item, updates)
 }
 
-func (s *Service) ListPreviewTimelines(ctx context.Context, filter PreviewTimelineFilter) ([]model.PreviewTimeline, error) {
+func (s *Service) ListPreviewTimelines(ctx context.Context, filter PreviewTimelineFilter) ([]domainsemantic.PreviewTimeline, error) {
 	return s.repo.ListPreviewTimelines(ctx, filter)
 }
 
-func (s *Service) CreatePreviewTimeline(ctx context.Context, projectID uint, input PreviewTimelineInput) (model.PreviewTimeline, error) {
+func (s *Service) CreatePreviewTimeline(ctx context.Context, projectID uint, input PreviewTimelineInput) (domainsemantic.PreviewTimeline, error) {
 	if err := s.validatePreviewTimelineOwners(ctx, projectID, input.ProductionID); err != nil {
-		return model.PreviewTimeline{}, err
+		return domainsemantic.PreviewTimeline{}, err
 	}
 	item := domainsemantic.NewPreviewTimeline(domainsemantic.PreviewTimelineSpec{
 		ProjectID:       projectID,
@@ -168,16 +140,13 @@ func (s *Service) CreatePreviewTimeline(ctx context.Context, projectID uint, inp
 		DurationSec:     input.DurationSec,
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreatePreviewTimeline(ctx, item)
 }
 
-func (s *Service) PatchPreviewTimeline(ctx context.Context, projectID uint, id string, input PreviewTimelineInput) (model.PreviewTimeline, error) {
-	var item model.PreviewTimeline
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchPreviewTimeline(ctx context.Context, projectID uint, id string, input PreviewTimelineInput) (domainsemantic.PreviewTimeline, error) {
+	item, err := s.repo.LoadPreviewTimeline(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validatePreviewTimelineOwners(ctx, projectID, input.ProductionID); err != nil {
@@ -192,36 +161,27 @@ func (s *Service) PatchPreviewTimeline(ctx context.Context, projectID uint, id s
 		"is_primary":        &input.IsPrimary,
 		"metadata_json":     input.MetadataJSON,
 	})
-	if err := s.PatchItem(ctx, &item, updates); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchPreviewTimeline(ctx, item, updates)
 }
 
-func (s *Service) ListPreviewTimelineItems(ctx context.Context, filter PreviewTimelineItemFilter) ([]model.PreviewTimelineItem, error) {
+func (s *Service) ListPreviewTimelineItems(ctx context.Context, filter PreviewTimelineItemFilter) ([]domainsemantic.PreviewTimelineItem, error) {
 	return s.repo.ListPreviewTimelineItems(ctx, filter)
 }
 
-func (s *Service) CreatePreviewTimelineItem(ctx context.Context, projectID uint, timelineID uint, input PreviewTimelineItemInput) (model.PreviewTimelineItem, error) {
+func (s *Service) CreatePreviewTimelineItem(ctx context.Context, projectID uint, timelineID uint, input PreviewTimelineItemInput) (domainsemantic.PreviewTimelineItem, error) {
 	if timelineID == 0 {
 		timelineID = input.PreviewTimelineID
 	}
 	if err := s.ensurePreviewTimelineInProject(ctx, projectID, timelineID); err != nil {
-		return model.PreviewTimelineItem{}, err
+		return domainsemantic.PreviewTimelineItem{}, err
 	}
 	item := previewTimelineItemFromInput(projectID, timelineID, input)
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.CreatePreviewTimelineItem(ctx, item)
 }
 
-func (s *Service) PatchPreviewTimelineItem(ctx context.Context, projectID uint, id string, timelineID uint, input PreviewTimelineItemInput) (model.PreviewTimelineItem, error) {
-	var item model.PreviewTimelineItem
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchPreviewTimelineItem(ctx context.Context, projectID uint, id string, timelineID uint, input PreviewTimelineItemInput) (domainsemantic.PreviewTimelineItem, error) {
+	item, err := s.repo.LoadPreviewTimelineItem(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if timelineID > 0 {
@@ -238,16 +198,10 @@ func (s *Service) PatchPreviewTimelineItem(ctx context.Context, projectID uint, 
 	if timelineID > 0 && input.PreviewTimelineID > 0 {
 		updates["preview_timeline_id"] = timelineID
 	}
-	if err := s.PatchItem(ctx, &item, updates); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	return s.repo.PatchPreviewTimelineItem(ctx, item, updates)
 }
 
-func contentUnitFromInput(projectID uint, input ContentUnitInput) model.ContentUnit {
+func contentUnitFromInput(projectID uint, input ContentUnitInput) domainsemantic.ContentUnit {
 	return domainsemantic.NewContentUnit(domainsemantic.ContentUnitSpec{
 		ProjectID:        projectID,
 		ProductionID:     input.ProductionID,
@@ -275,7 +229,7 @@ func contentUnitFromInput(projectID uint, input ContentUnitInput) model.ContentU
 		CameraNotes:      input.CameraNotes,
 		Status:           input.Status,
 		MetadataJSON:     input.MetadataJSON,
-	}).ToModel()
+	})
 }
 
 func contentUnitUpdates(input ContentUnitInput) map[string]any {
@@ -308,7 +262,7 @@ func contentUnitUpdates(input ContentUnitInput) map[string]any {
 	})
 }
 
-func previewTimelineItemFromInput(projectID uint, timelineID uint, input PreviewTimelineItemInput) model.PreviewTimelineItem {
+func previewTimelineItemFromInput(projectID uint, timelineID uint, input PreviewTimelineItemInput) domainsemantic.PreviewTimelineItem {
 	return domainsemantic.NewPreviewTimelineItem(domainsemantic.PreviewTimelineItemSpec{
 		ProjectID:         projectID,
 		PreviewTimelineID: timelineID,
@@ -323,7 +277,7 @@ func previewTimelineItemFromInput(projectID uint, timelineID uint, input Preview
 		Label:             input.Label,
 		Status:            input.Status,
 		MetadataJSON:      input.MetadataJSON,
-	}).ToModel()
+	})
 }
 
 func previewTimelineItemUpdates(input PreviewTimelineItemInput) map[string]any {

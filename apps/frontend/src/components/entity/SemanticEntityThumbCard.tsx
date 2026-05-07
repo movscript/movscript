@@ -84,6 +84,5 @@ function kindLabel(kind: CanvasEntityKind) {
   if (kind === 'creative_reference') return '设定资料'
   if (kind === 'asset_slot') return '素材需求'
   if (kind === 'content_unit') return '制作项'
-  if (kind === 'setting') return '设定'
   return '剧本'
 }

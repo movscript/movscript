@@ -1,10 +1,6 @@
 package semantic
 
-import (
-	"testing"
-
-	"github.com/movscript/movscript/internal/domain/model"
-)
+import "testing"
 
 func TestNewWorkItemAppliesDefaultsAndMapsToModel(t *testing.T) {
 	assigneeID := uint(7)
@@ -27,7 +23,7 @@ func TestNewWorkItemAppliesDefaultsAndMapsToModel(t *testing.T) {
 
 func TestWorkItemPatchKeepsAssignmentRejectsTargetChange(t *testing.T) {
 	assigneeID := uint(7)
-	item := model.WorkItem{
+	item := WorkItem{
 		TargetType:  "content_unit",
 		TargetID:    10,
 		Kind:        "human",
@@ -55,7 +51,7 @@ func TestWorkItemPatchKeepsAssignmentRejectsTargetChange(t *testing.T) {
 func TestWorkItemPatchKeepsAssignmentAllowsStatusAndSubmissionChanges(t *testing.T) {
 	assigneeID := uint(7)
 	jobID := uint(11)
-	item := model.WorkItem{
+	item := WorkItem{
 		TargetType:  "content_unit",
 		TargetID:    10,
 		Kind:        "human",
@@ -82,7 +78,7 @@ func TestWorkItemPatchKeepsAssignmentAllowsStatusAndSubmissionChanges(t *testing
 }
 
 func TestWorkItemStatusRulesForPatch(t *testing.T) {
-	item := model.WorkItem{Status: WorkItemStatusTodo}
+	item := WorkItem{Status: WorkItemStatusTodo}
 	patch := WorkItemPatch{Status: WorkItemStatusReview}
 
 	got := WorkItemStatusForPatch(item, patch)
@@ -101,7 +97,7 @@ func TestWorkItemStatusRulesForPatch(t *testing.T) {
 }
 
 func TestWorkItemStatusRulesForDonePatch(t *testing.T) {
-	item := model.WorkItem{Status: WorkItemStatusReview}
+	item := WorkItem{Status: WorkItemStatusReview}
 	patch := WorkItemPatch{Status: WorkItemStatusDone}
 
 	if !WorkItemStatusRequiresManager(WorkItemStatusForPatch(item, patch)) {
@@ -123,7 +119,7 @@ func TestDecodeWorkItemResultJSONParsesAssetSlotCandidate(t *testing.T) {
 }
 
 func TestWorkItemResultApplicationForStatusChange(t *testing.T) {
-	item := model.WorkItem{
+	item := WorkItem{
 		TargetType: WorkItemTargetTypeContentUnit,
 		ResultType: WorkItemResultStatusChange,
 		ResultJSON: `{"target_status":"confirmed"}`,
@@ -139,7 +135,7 @@ func TestWorkItemResultApplicationForStatusChange(t *testing.T) {
 }
 
 func TestWorkItemResultApplicationForPresetTargetStatuses(t *testing.T) {
-	keyframeApp, err := WorkItemResultApplicationFor(model.WorkItem{ResultType: WorkItemResultAcceptKeyframe})
+	keyframeApp, err := WorkItemResultApplicationFor(WorkItem{ResultType: WorkItemResultAcceptKeyframe})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +143,7 @@ func TestWorkItemResultApplicationForPresetTargetStatuses(t *testing.T) {
 		t.Fatalf("unexpected keyframe application: %+v", keyframeApp)
 	}
 
-	deliveryApp, err := WorkItemResultApplicationFor(model.WorkItem{ResultType: WorkItemResultApproveDeliveryVersion})
+	deliveryApp, err := WorkItemResultApplicationFor(WorkItem{ResultType: WorkItemResultApproveDeliveryVersion})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +153,7 @@ func TestWorkItemResultApplicationForPresetTargetStatuses(t *testing.T) {
 }
 
 func TestWorkItemResultApplicationForAssetCandidate(t *testing.T) {
-	app, err := WorkItemResultApplicationFor(model.WorkItem{
+	app, err := WorkItemResultApplicationFor(WorkItem{
 		TargetType: WorkItemTargetTypeAssetSlot,
 		ResultType: WorkItemResultLockAssetCandidate,
 		ResultJSON: `{"asset_slot_candidate_id":42}`,
@@ -171,7 +167,7 @@ func TestWorkItemResultApplicationForAssetCandidate(t *testing.T) {
 }
 
 func TestApplyStatusForWorkItemPatchResetsWhenResultChanges(t *testing.T) {
-	item := model.WorkItem{
+	item := WorkItem{
 		ResultType:  "status_change",
 		ResultJSON:  `{"status":"confirmed"}`,
 		ApplyStatus: "applied",
@@ -186,7 +182,7 @@ func TestApplyStatusForWorkItemPatchResetsWhenResultChanges(t *testing.T) {
 }
 
 func TestApplyWorkItemUpdatesCopiesResultFields(t *testing.T) {
-	item := model.WorkItem{ResultType: WorkItemResultNone, ApplyStatus: WorkItemApplyStatusNotApplicable}
+	item := WorkItem{ResultType: WorkItemResultNone, ApplyStatus: WorkItemApplyStatusNotApplicable}
 	ApplyWorkItemUpdates(&item, map[string]any{
 		"status":       WorkItemStatusDone,
 		"result_type":  WorkItemResultStatusChange,
@@ -199,7 +195,7 @@ func TestApplyWorkItemUpdatesCopiesResultFields(t *testing.T) {
 }
 
 func TestPrepareWorkItemResultApplicationMarksNoneNotApplicable(t *testing.T) {
-	item := model.WorkItem{
+	item := WorkItem{
 		ResultType:  "",
 		ApplyStatus: WorkItemApplyStatusApplied,
 		AppliedAt:   "2026-05-07T12:00:00Z",
@@ -217,7 +213,7 @@ func TestPrepareWorkItemResultApplicationMarksNoneNotApplicable(t *testing.T) {
 }
 
 func TestPrepareWorkItemResultApplicationMarksResultPending(t *testing.T) {
-	item := model.WorkItem{
+	item := WorkItem{
 		ResultType:  WorkItemResultStatusChange,
 		ApplyStatus: WorkItemApplyStatusFailed,
 		ApplyError:  "old error",
@@ -231,7 +227,7 @@ func TestPrepareWorkItemResultApplicationMarksResultPending(t *testing.T) {
 }
 
 func TestMarkWorkItemResultAppliedAndFailed(t *testing.T) {
-	item := model.WorkItem{}
+	item := WorkItem{}
 	MarkWorkItemResultApplied(&item, "2026-05-07T12:00:00Z")
 	if item.ApplyStatus != WorkItemApplyStatusApplied || item.AppliedAt == "" || item.ApplyError != "" {
 		t.Fatalf("unexpected applied state: %+v", item)

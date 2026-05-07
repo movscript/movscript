@@ -10,7 +10,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
-    "dev": "tsx src/server.ts",
+    "dev": "node scripts/dev-watch.mjs",
     "dev:cli": "tsx src/cli.ts",
     "start": "node dist/server.js",
     "cli": "node dist/cli.js"

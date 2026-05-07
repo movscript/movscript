@@ -74,7 +74,7 @@ async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise
   setBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL, message: 'Starting local backend' }, onStatus)
   proc = spawn(bin, [], {
     cwd: resolveBackendCwd(bin),
-    detached: true,
+    detached: app.isPackaged,
     env: {
       ...process.env,
       MOVSCRIPT_APP_MODE: process.env.MOVSCRIPT_APP_MODE || 'local',
@@ -88,9 +88,9 @@ async function spawnBackend(onStatus?: (status: BackendStatus) => void): Promise
       ENCRYPTION_KEY: process.env.ENCRYPTION_KEY || localSecret,
       AUTH_TOKEN_SECRET: process.env.AUTH_TOKEN_SECRET || localSecret,
     },
-    stdio: 'ignore',
+    stdio: app.isPackaged ? 'ignore' : 'inherit',
   })
-  proc.unref()
+  if (app.isPackaged) proc.unref()
   if (proc.pid) writeBackendPid(proc.pid)
 
   proc.on('error', (err) => console.error('[backend]', err))
@@ -234,7 +234,7 @@ export async function stopBackend(
   const pid = proc?.pid ?? readBackendPid()
   proc = null
   if (pid && isProcessRunning(pid)) {
-    if (options.terminate) {
+    if (options.terminate || !app.isPackaged) {
       try {
         process.kill(pid)
       } catch {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainresourcefolder "github.com/movscript/movscript/internal/domain/resourcefolder"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
@@ -53,11 +52,11 @@ type PermissionInput struct {
 	Permission string
 }
 
-func (s *Service) List(ctx context.Context, userID uint, orgID *uint, shared bool) ([]model.ResourceFolder, error) {
+func (s *Service) List(ctx context.Context, userID uint, orgID *uint, shared bool) ([]domainresourcefolder.Folder, error) {
 	return s.repo.ListFolders(ctx, userID, orgID, shared, s.repo.IncludeLegacyPersonal(ctx, orgID))
 }
 
-func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (model.ResourceFolder, error) {
+func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (domainresourcefolder.Folder, error) {
 	folder, err := s.repo.CreateFolder(ctx, ownerID, input, s.repo.IncludeLegacyPersonal(ctx, input.OrgID))
 	if err != nil {
 		return folder, err
@@ -66,7 +65,7 @@ func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (
 	return folder, nil
 }
 
-func (s *Service) Update(ctx context.Context, userID uint, orgID *uint, id uint, input UpdateInput) (model.ResourceFolder, error) {
+func (s *Service) Update(ctx context.Context, userID uint, orgID *uint, id uint, input UpdateInput) (domainresourcefolder.Folder, error) {
 	folder, err := s.repo.UpdateFolder(ctx, userID, orgID, id, input, s.repo.IncludeLegacyPersonal(ctx, orgID))
 	if err != nil {
 		return folder, err
@@ -83,11 +82,11 @@ func (s *Service) Delete(ctx context.Context, userID uint, orgID *uint, id uint)
 	return nil
 }
 
-func (s *Service) ListPermissions(ctx context.Context, userID uint, orgID *uint, id uint) ([]model.ResourceFolderPermission, error) {
+func (s *Service) ListPermissions(ctx context.Context, userID uint, orgID *uint, id uint) ([]domainresourcefolder.Permission, error) {
 	return s.repo.ListPermissions(ctx, userID, orgID, id, s.repo.IncludeLegacyPersonal(ctx, orgID))
 }
 
-func (s *Service) GrantPermission(ctx context.Context, userID uint, orgID *uint, id uint, input PermissionInput) (model.ResourceFolderPermission, error) {
+func (s *Service) GrantPermission(ctx context.Context, userID uint, orgID *uint, id uint, input PermissionInput) (domainresourcefolder.Permission, error) {
 	perm, err := s.repo.GrantPermission(ctx, userID, orgID, id, input, s.repo.IncludeLegacyPersonal(ctx, orgID))
 	if err != nil {
 		return perm, err

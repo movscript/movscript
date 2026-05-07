@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { createScriptVersion, listScriptVersions, patchScriptVersion, type ScriptVersion } from '@/api/scriptVersions'
-import { createSemanticEntity, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
-import type { AssetSlot, Script, Setting } from '@/types'
+import { createSemanticEntity, semanticEntityConfig } from '@/api/semanticEntities'
+import type { Script } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import {
@@ -14,57 +14,19 @@ import {
   Clapperboard,
   Clock3,
   FileText,
-  Image as ImageIcon,
   Layers,
   Lock,
   Plus,
   ScrollText,
-  Users,
 } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ScriptCreateForm } from '@/components/shared/EntityCreateForms'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
-import { Input } from '@movscript/ui'
-import { Label } from '@movscript/ui'
 import { ScriptForm } from '@/components/forms/ScriptForm'
-import { BUILT_IN_SETTING_TYPES, DEFAULT_SETTING_STATUS, SettingDetailEditor, SettingStatusBadge, settingTypeLabel } from '@/components/settings/SettingDetailEditor'
-import { SettingAssetOverview } from '@/components/settings/SettingAssetOverview'
 import { useTranslation } from 'react-i18next'
-import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 
-type PageTab = 'scripts' | 'settings'
 type ScriptDetailTab = 'edit' | 'versions' | 'production'
-
-interface SettingPreview {
-  key: string
-  src: string
-  isVideo: boolean
-}
-
-type SettingAssetSlot = SemanticEntityRecord & AssetSlot
-
-function slotPreviewCandidates(slot: SettingAssetSlot): SettingPreview[] {
-  const resource = slot.resource
-  if (!resource?.url) return []
-  const src = resource.url.startsWith('http') ? resource.url : resource.url
-  return [{ key: `slot:${slot.ID}:${resource.ID}`, src, isVideo: resource.type === 'video' || !!resource.mime_type?.startsWith('video/') }]
-}
-
-function settingAssetPreviews(settingId: number, slots: SettingAssetSlot[], limit = 4): SettingPreview[] {
-  const previews: SettingPreview[] = []
-  const seen = new Set<string>()
-  for (const slot of slots) {
-    if (slot.creative_reference_id !== settingId && !(slot.owner_type === 'setting' && slot.owner_id === settingId)) continue
-    for (const preview of slotPreviewCandidates(slot)) {
-      if (seen.has(preview.src)) continue
-      seen.add(preview.src)
-      previews.push(preview)
-      if (previews.length >= limit) return previews
-    }
-  }
-  return previews
-}
 
 // ─── Scripts Section ────────────────────────────────────────────────────────
 
@@ -617,204 +579,12 @@ function formatDate(value?: string) {
   }).format(new Date(value))
 }
 
-// ─── Settings Section ────────────────────────────────────────────────────────
-
-function SettingsSection({ projectId }: { projectId: number }) {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const [filterType, setFilterType] = useState('')
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [showCreate, setShowCreate] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newType, setNewType] = useState('')
-  const assetSlotConfig = semanticEntityConfig('assetSlots')
-
-  const { data: rawSettings, isLoading } = useQuery<Setting[]>({
-    queryKey: ['settings', projectId, filterType],
-    queryFn: () =>
-      api.get(`/projects/${projectId}/settings`, { params: filterType ? { type: filterType } : {} })
-        .then((r) => r.data),
-    enabled: !!projectId,
-  })
-  const { data: settingAssets = [] } = useQuery<SettingAssetSlot[]>({
-    queryKey: ['asset-slots', projectId, 'settings-preview'],
-    queryFn: () => listSemanticEntities(projectId, assetSlotConfig) as Promise<SettingAssetSlot[]>,
-    enabled: !!projectId,
-  })
-  const settings = rawSettings ?? []
-
-  const create = useMutation({
-    mutationFn: (s: Partial<Setting>) => api.post(`/projects/${projectId}/settings`, s).then((r) => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['settings', projectId] })
-      setShowCreate(false)
-      setNewName('')
-      setNewType('')
-    },
-  })
-
-  const remove = useMutation({
-    mutationFn: (id: number) => api.delete(`/settings/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['settings', projectId] }); setSelectedId(null) },
-  })
-
-  const selected = settings.find((s) => s.ID === selectedId) ?? null
-  const detailOpen = selectedId !== null
-
-  function selectSetting(s: Setting) { setSelectedId(s.ID) }
-  const customTypes = Array.from(new Set(settings.map((setting) => setting.type).filter(Boolean) as string[]))
-    .filter((type) => !BUILT_IN_SETTING_TYPES.some((item) => item.value === type))
-  const filterTabs = [
-    { value: '', label: t('common.all') },
-    ...BUILT_IN_SETTING_TYPES.map((type) => ({ value: type.value, label: type.label })),
-    ...customTypes.map((type) => ({ value: type, label: type })),
-  ]
-
-  return (
-    <div className="flex h-full overflow-hidden">
-      <div className={cn('flex flex-col border-r border-border bg-card overflow-hidden transition-all duration-200', detailOpen ? 'w-72 shrink-0' : 'flex-1')}>
-        <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background shrink-0">
-          <div className="flex gap-0.5 overflow-x-auto scrollbar-none">
-            {filterTabs.map((t) => (
-              <button key={t.value} onClick={() => { setFilterType(t.value); setSelectedId(null) }}
-                className={cn('px-2.5 py-1 text-xs rounded-md whitespace-nowrap transition-colors', filterType === t.value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <Button variant="default" size="icon" onClick={() => setShowCreate(true)} className="ml-2 shrink-0 h-7 w-7"><Plus size={14} /></Button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {isLoading ? <p className="p-4 text-xs text-muted-foreground text-center">{t('common.loadingShort')}</p>
-            : settings.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-                <Users size={32} className="opacity-30" /><p className="text-sm">{t('pages.scripts.settingsEmpty')}</p>
-                <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground">{t('pages.scripts.createOne')}</button>
-              </div>
-            ) : detailOpen ? (
-              settings.map((s) => (
-                <button key={s.ID} onClick={() => selectSetting(s)}
-                  className={cn('flex w-full items-center gap-2.5 border-b border-border px-3 py-2.5 text-left transition-colors hover:bg-background', selectedId === s.ID ? 'bg-background border-l-2 border-l-primary' : '')}>
-                  <SettingPreviewThumb previews={settingAssetPreviews(s.ID, settingAssets, 4)} title={s.name} compact />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(s.type)}</span>
-                      <span className="text-sm font-medium truncate flex-1">{s.name}</span>
-                    </div>
-                    {s.status && <div className="mt-1.5"><SettingStatusBadge status={s.status} /></div>}
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="p-4 grid grid-cols-2 xl:grid-cols-3 gap-3">
-                {settings.map((s) => (
-                  <button key={s.ID} onClick={() => selectSetting(s)} className="overflow-hidden rounded-lg border border-border bg-background text-left transition-all hover:border-ring hover:shadow-sm">
-                    <SettingPreviewThumb previews={settingAssetPreviews(s.ID, settingAssets, 4)} title={s.name} />
-                    <div className="p-3">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(s.type)}</span>
-                        {s.status && <SettingStatusBadge status={s.status} />}
-                      </div>
-                      <h3 className="text-sm font-semibold text-foreground mb-1 line-clamp-2">{s.name}</h3>
-                      {s.description && <p className="text-xs text-muted-foreground line-clamp-2">{s.description}</p>}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-        </div>
-      </div>
-
-      {detailOpen && selected && (
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-background shrink-0">
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{settingTypeLabel(selected.type)}</span>
-              <h2 className="text-sm font-semibold text-foreground truncate">{selected.name}</h2>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setSelectedId(null)}>{t('common.close')}</Button>
-              <button onClick={() => remove.mutate(selected.ID)} className="text-xs text-muted-foreground hover:text-destructive transition-colors">{t('common.delete')}</button>
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto p-5">
-            <SettingDetailEditor setting={selected} projectId={projectId} />
-            <SettingAssetOverview setting={selected} className="mt-6" />
-          </div>
-        </div>
-      )}
-
-      <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.scripts.settingsCreateTitle')}>
-        <div className="space-y-4">
-          <div><Label className="text-xs font-medium text-muted-foreground mb-1">{t('forms.nameRequired')}</Label>
-            <Input autoFocus placeholder={t('pages.scripts.settingName')} value={newName} onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && newName.trim() && create.mutate({ name: newName.trim(), type: newType.trim(), status: DEFAULT_SETTING_STATUS })} />
-          </div>
-          <div>
-            <Label className="text-xs font-medium text-muted-foreground mb-1">类型（可选）</Label>
-            <div className="flex flex-wrap gap-2">
-              {BUILT_IN_SETTING_TYPES.map((type) => (
-                <button key={type.value} onClick={() => setNewType(type.value)}
-                  className={cn('px-3 py-1.5 text-xs rounded-md border transition-colors', newType === type.value ? 'border-foreground bg-foreground text-background' : 'border-border text-muted-foreground hover:border-ring')}>
-                  {type.label}
-                </button>
-              ))}
-              <Input className="h-8 w-44 text-xs" value={newType} onChange={(event) => setNewType(event.target.value)} placeholder="自定义类型" />
-            </div>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button onClick={() => create.mutate({ name: newName.trim(), type: newType.trim(), status: DEFAULT_SETTING_STATUS })} disabled={!newName.trim() || create.isPending} className="flex-1">
-              {create.isPending ? t('common.creating') : t('pages.scripts.createSetting')}
-            </Button>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>{t('common.cancel')}</Button>
-          </div>
-        </div>
-      </CreateDialog>
-    </div>
-  )
-}
-
-function SettingPreviewThumb({
-  previews,
-  title,
-  compact = false,
-}: {
-  previews: SettingPreview[]
-  title: string
-  compact?: boolean
-}) {
-  return (
-    <div className={cn(
-      'grid shrink-0 overflow-hidden bg-muted text-muted-foreground',
-      compact ? 'h-10 w-10 rounded-md' : 'aspect-[4/3] w-full',
-      previews.length <= 1 ? 'grid-cols-1' : 'grid-cols-2',
-      previews.length > 2 && 'grid-rows-2',
-    )}>
-      {previews.length === 0 ? (
-        <div className="flex h-full w-full items-center justify-center">
-          <ImageIcon size={compact ? 15 : 22} />
-        </div>
-      ) : previews.map((preview) => (
-        <div key={preview.key} className="min-h-0 min-w-0 overflow-hidden">
-          {preview.isVideo ? (
-            <AuthedVideo src={preview.src} className="h-full w-full object-cover" muted playsInline />
-          ) : (
-            <AuthedImage src={preview.src} alt={title} className="h-full w-full object-cover" />
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
-export default function ScriptsPage({ initialTab = 'scripts' }: { initialTab?: PageTab }) {
+export default function ScriptsPage() {
   const projectId = useProjectStore((s) => s.current?.ID)
 
   if (!projectId) return null
 
-  return initialTab === 'settings'
-    ? <SettingsSection projectId={projectId} />
-    : <ScriptsSection projectId={projectId} />
+  return <ScriptsSection projectId={projectId} />
 }

@@ -8,7 +8,7 @@
 
 1. 明确外键字段，例如 `ScriptVersion.ScriptID`、`Segment.ProductionID`、`ContentUnit.SceneMomentID`。
 2. 多态指针字段，例如 `OwnerType/OwnerID`、`ScopeType/ScopeID`、`TargetType/TargetID`。
-3. 局部关系表，例如 `SettingRelationship`、`CreativeRelationship`、`WorkDependency`、`ResourceBinding`。
+3. 局部关系表，例如 `CreativeRelationship`、`WorkDependency`、`ResourceBinding`。
 
 问题是这些表达方式混在一起后，业务语义不够清楚：
 
@@ -16,7 +16,7 @@
 - 同一对实体之间可能存在多种关系，但外键通常只能承载一种默认关系。
 - 关系本身有状态、来源、证据、顺序、版本、作用域、权重等属性时，外键会变得不够用。
 - `OwnerType/OwnerID` 解决了多态问题，但缺少统一的关系类型和约束。
-- `SettingRelationship` 与 `CreativeRelationship` 已经说明“关系是一等对象”的方向是对的，但范围还不统一。
+- `CreativeRelationship` 已经说明“关系是一等对象”的方向是对的，但范围还不统一。
 
 ## 目标
 
@@ -392,7 +392,6 @@ type EntityRelation struct {
 
 ### 可能被统一关系表替代
 
-- `SettingRelationship`
 - `CreativeRelationship`
 - `CreativeReferenceUsage`
 - `WorkDependency`
@@ -446,10 +445,9 @@ type EntityRelation struct {
 
 按风险逐步收敛：
 
-1. `SettingRelationship` 合并进 `CreativeRelationship` 或 `EntityRelation`。
-2. `CreativeReferenceUsage` 合并为 `uses` 关系。
-3. `AssetSlotCandidate` 合并为 `candidate_for` 关系，或保留专用表用于候选评分。
-4. `ResourceBinding` 如果资源业务继续复杂，保留专用表；如果只是关系用途，合并进 `EntityRelation`。
+1. `CreativeReferenceUsage` 合并为 `uses` 关系。
+2. `AssetSlotCandidate` 合并为 `candidate_for` 关系，或保留专用表用于候选评分。
+3. `ResourceBinding` 如果资源业务继续复杂，保留专用表；如果只是关系用途，合并进 `EntityRelation`。
 
 ## 关键设计问题
 

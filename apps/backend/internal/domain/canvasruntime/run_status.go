@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 const (
@@ -56,7 +54,16 @@ type CanvasTask struct {
 	ResourceID     *uint
 }
 
-func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) CanvasRun {
+type CanvasOutput struct {
+	ID          uint
+	CanvasID    uint
+	CanvasRunID *uint
+	ResourceID  *uint
+	ValueJSON   string
+	Status      string
+}
+
+func NewRun(cv CanvasGraph, inputValues any, startedAt time.Time) CanvasRun {
 	snapshot, snapshotHash, snapshotNodeCount, snapshotEdgeCount := BuildRunSnapshot(cv)
 	rawInputValues := "{}"
 	if inputValues != nil {
@@ -65,7 +72,7 @@ func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) CanvasR
 		}
 	}
 	run := CanvasRun{
-		CanvasID:          cv.ID,
+		CanvasID:          cv.Canvas.ID,
 		InputValues:       rawInputValues,
 		GraphSnapshot:     snapshot,
 		SnapshotHash:      snapshotHash,
@@ -76,7 +83,7 @@ func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) CanvasR
 	return run
 }
 
-func NewCanvasTask(node model.CanvasNode, runID *uint, inputValues string) CanvasTask {
+func NewTask(node CanvasNode, runID *uint, inputValues string) CanvasTask {
 	return CanvasTask{
 		CanvasNodeID: node.ID,
 		CanvasRunID:  runID,
@@ -88,30 +95,24 @@ func NewCanvasTask(node model.CanvasNode, runID *uint, inputValues string) Canva
 	}
 }
 
-func StartCanvasRun(run *model.CanvasRun, startedAt time.Time) {
-	domainRun := CanvasRunFromModel(*run)
-	StartRun(&domainRun, startedAt)
-	domainRun.ApplyToModel(run)
-}
-
 func StartRun(run *CanvasRun, startedAt time.Time) {
 	run.Status = CanvasRunStatusRunning
 	run.StartedAt = &startedAt
 }
 
-func CompleteCanvasRun(run *model.CanvasRun, finishedAt time.Time) {
+func CompleteRun(run *CanvasRun, finishedAt time.Time) {
 	run.Status = CanvasRunStatusDone
 	run.Error = ""
 	run.FinishedAt = &finishedAt
 }
 
-func FailCanvasRun(run *model.CanvasRun, errMsg string, finishedAt time.Time) {
+func FailRun(run *CanvasRun, errMsg string, finishedAt time.Time) {
 	run.Status = CanvasRunStatusFailed
 	run.Error = errMsg
 	run.FinishedAt = &finishedAt
 }
 
-func ApplyCanvasRunTaskStatus(run *model.CanvasRun, tasks []model.CanvasTask, finishedAt time.Time) bool {
+func ApplyRunTaskStatus(run *CanvasRun, tasks []CanvasTask, finishedAt time.Time) bool {
 	if len(tasks) == 0 {
 		return false
 	}
@@ -130,14 +131,14 @@ func ApplyCanvasRunTaskStatus(run *model.CanvasRun, tasks []model.CanvasTask, fi
 		return true
 	}
 	if failed {
-		FailCanvasRun(run, CanvasRunTaskFailureSummary(tasks), finishedAt)
+		FailRun(run, TaskFailureSummary(tasks), finishedAt)
 		return true
 	}
-	CompleteCanvasRun(run, finishedAt)
+	CompleteRun(run, finishedAt)
 	return true
 }
 
-func StartCanvasTask(task *model.CanvasTask, nd *NodeData) map[string]any {
+func StartTask(task *CanvasTask, nd *NodeData) map[string]any {
 	task.Status = CanvasTaskStatusRunning
 	if nd != nil {
 		nd.Status = CanvasTaskStatusRunning
@@ -145,7 +146,7 @@ func StartCanvasTask(task *model.CanvasTask, nd *NodeData) map[string]any {
 	return map[string]any{"status": CanvasTaskStatusRunning}
 }
 
-func CompleteCanvasTask(task *model.CanvasTask, nd *NodeData, resourceID *uint) map[string]any {
+func CompleteTask(task *CanvasTask, nd *NodeData, resourceID *uint) map[string]any {
 	task.Status = CanvasTaskStatusDone
 	task.ResourceID = resourceID
 	if nd != nil {
@@ -160,7 +161,7 @@ func CompleteCanvasTask(task *model.CanvasTask, nd *NodeData, resourceID *uint) 
 	return updates
 }
 
-func FailCanvasTask(task *model.CanvasTask, nd *NodeData, errMsg string) {
+func FailTask(task *CanvasTask, nd *NodeData, errMsg string) {
 	task.Status = CanvasTaskStatusFailed
 	task.Error = errMsg
 	if nd != nil {
@@ -173,14 +174,14 @@ func AttachableCanvasOutputStatuses() []string {
 	return []string{CanvasOutputStatusPending, CanvasOutputStatusAttached}
 }
 
-func AttachCanvasOutput(output *model.CanvasOutput, runID uint, resourceID uint, valueJSON string) {
+func AttachOutput(output *CanvasOutput, runID uint, resourceID uint, valueJSON string) {
 	output.CanvasRunID = &runID
 	output.ResourceID = &resourceID
 	output.ValueJSON = valueJSON
 	output.Status = CanvasOutputStatusAttached
 }
 
-func CanvasRunTaskFailureSummary(tasks []model.CanvasTask) string {
+func TaskFailureSummary(tasks []CanvasTask) string {
 	failures := make([]string, 0)
 	for _, task := range tasks {
 		if task.Status != CanvasTaskStatusFailed {

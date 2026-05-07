@@ -8,16 +8,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type RunSnapshot struct {
-	Version    int                `json:"version"`
-	CanvasID   uint               `json:"canvas_id"`
-	CapturedAt time.Time          `json:"captured_at"`
-	Nodes      []model.CanvasNode `json:"nodes"`
-	Edges      []model.CanvasEdge `json:"edges"`
+	Version    int          `json:"version"`
+	CanvasID   uint         `json:"canvas_id"`
+	CapturedAt time.Time    `json:"captured_at"`
+	Nodes      []CanvasNode `json:"nodes"`
+	Edges      []CanvasEdge `json:"edges"`
 }
 
 type ExecutionPlan struct {
@@ -27,7 +25,13 @@ type ExecutionPlan struct {
 
 type TaskPlan struct {
 	NodeID string
-	Node   *model.CanvasNode
+	Node   *CanvasNode
+}
+
+type CanvasGraph struct {
+	Canvas Canvas
+	Nodes  []CanvasNode
+	Edges  []CanvasEdge
 }
 
 // NodeData mirrors the JSON stored in CanvasNode.Data.
@@ -324,10 +328,10 @@ func DecodeRunInputValues(raw string) map[string]PortValue {
 	return values
 }
 
-func BuildRunSnapshot(cv model.Canvas) (string, string, int, int) {
+func BuildRunSnapshot(cv CanvasGraph) (string, string, int, int) {
 	snapshot := RunSnapshot{
 		Version:    1,
-		CanvasID:   cv.ID,
+		CanvasID:   cv.Canvas.ID,
 		CapturedAt: time.Now(),
 		Nodes:      cv.Nodes,
 		Edges:      cv.Edges,
@@ -337,39 +341,38 @@ func BuildRunSnapshot(cv model.Canvas) (string, string, int, int) {
 		return "", "", len(cv.Nodes), len(cv.Edges)
 	}
 	hashPayload, _ := json.Marshal(struct {
-		Nodes []model.CanvasNode `json:"nodes"`
-		Edges []model.CanvasEdge `json:"edges"`
+		Nodes []CanvasNode `json:"nodes"`
+		Edges []CanvasEdge `json:"edges"`
 	}{Nodes: cv.Nodes, Edges: cv.Edges})
 	sum := sha256.Sum256(hashPayload)
 	return string(b), hex.EncodeToString(sum[:]), len(cv.Nodes), len(cv.Edges)
 }
 
-func CanvasFromRunSnapshot(canvasID uint, raw string) (model.Canvas, error) {
+func CanvasGraphFromRunSnapshot(canvasID uint, raw string) (CanvasGraph, error) {
 	if strings.TrimSpace(raw) == "" {
-		return model.Canvas{}, fmt.Errorf("empty snapshot")
+		return CanvasGraph{}, fmt.Errorf("empty snapshot")
 	}
 	var snapshot RunSnapshot
 	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
-		return model.Canvas{}, err
+		return CanvasGraph{}, err
 	}
-	cv := model.Canvas{Nodes: snapshot.Nodes, Edges: snapshot.Edges}
-	cv.ID = canvasID
+	cv := CanvasGraph{Canvas: Canvas{ID: canvasID}, Nodes: snapshot.Nodes, Edges: snapshot.Edges}
 	return cv, nil
 }
 
-func BuildExecutionPlan(cv model.Canvas) (ExecutionPlan, error) {
+func BuildGraphExecutionPlan(cv CanvasGraph) (ExecutionPlan, error) {
 	order, err := TopoSort(cv.Nodes, cv.Edges)
 	if err != nil {
 		return ExecutionPlan{}, err
 	}
-	nodeMap := map[string]*model.CanvasNode{}
+	nodeMap := map[string]*CanvasNode{}
 	for i := range cv.Nodes {
 		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
 	}
 	plan := ExecutionPlan{Order: order}
 	for _, nid := range order {
 		node := nodeMap[nid]
-		if !CanvasNodeRequiresWorkflowTask(cv, node) {
+		if !GraphNodeRequiresWorkflowTask(cv, node) {
 			continue
 		}
 		plan.Tasks = append(plan.Tasks, TaskPlan{NodeID: nid, Node: node})
@@ -377,7 +380,7 @@ func BuildExecutionPlan(cv model.Canvas) (ExecutionPlan, error) {
 	return plan, nil
 }
 
-func CanvasNodeRequiresWorkflowTask(cv model.Canvas, node *model.CanvasNode) bool {
+func GraphNodeRequiresWorkflowTask(cv CanvasGraph, node *CanvasNode) bool {
 	if node == nil {
 		return false
 	}
@@ -399,7 +402,7 @@ func IsCanvasEntityNode(nodeType string) bool {
 	return nodeType == "entity_card"
 }
 
-func HasCanvasEntityInputs(edges []model.CanvasEdge, nodeID string) bool {
+func HasCanvasEntityInputs(edges []CanvasEdge, nodeID string) bool {
 	for _, edge := range edges {
 		if edge.Target == nodeID {
 			return true
@@ -408,7 +411,7 @@ func HasCanvasEntityInputs(edges []model.CanvasEdge, nodeID string) bool {
 	return false
 }
 
-func ValidateRequiredInputs(cv model.Canvas, inputValues map[string]PortValue) error {
+func ValidateGraphRequiredInputs(cv CanvasGraph, inputValues map[string]PortValue) error {
 	incoming := map[string]map[string]bool{}
 	for _, edge := range cv.Edges {
 		handle := strings.TrimSpace(edge.TargetHandle)
@@ -441,7 +444,7 @@ func ValidateRequiredInputs(cv model.Canvas, inputValues map[string]PortValue) e
 						continue
 					}
 				}
-				if !PortValueEmpty(StaticNodePortValue(node, nd)) {
+				if !PortValueEmpty(StaticGraphNodePortValue(node, nd)) {
 					continue
 				}
 			}
@@ -516,7 +519,7 @@ func DefaultPortValueTypeForNode(nodeType string, nd NodeData) string {
 	}
 }
 
-func StaticNodePortValue(node *model.CanvasNode, nd NodeData) PortValue {
+func StaticGraphNodePortValue(node *CanvasNode, nd NodeData) PortValue {
 	valueType := DefaultPortValueTypeForNode(node.Type, nd)
 	if nd.ResourceID != nil {
 		return PortValueFromResource(nd.ResourceID, valueType)
@@ -550,7 +553,7 @@ func (nd NodeData) ResolvedEntity() (string, uint) {
 }
 
 // TopoSort returns node IDs in topological order; returns error if a cycle exists.
-func TopoSort(nodes []model.CanvasNode, edges []model.CanvasEdge) ([]string, error) {
+func TopoSort(nodes []CanvasNode, edges []CanvasEdge) ([]string, error) {
 	inDegree := map[string]int{}
 	adj := map[string][]string{}
 	for _, n := range nodes {

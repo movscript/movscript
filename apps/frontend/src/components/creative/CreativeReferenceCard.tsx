@@ -53,7 +53,7 @@ export const creativeReferenceStatusMeta: Record<CreativeReferenceCardStatus, { 
 export function normalizeCreativeReferenceKind(kind?: string): CreativeReferenceCardKind {
   const normalized = String(kind ?? '').toLowerCase()
   if (['person', 'character', '人物', '角色'].includes(normalized)) return 'person'
-  if (['location', 'setting', 'place', '地点', '场景'].includes(normalized)) return 'location'
+  if (['location', 'place', '地点', '场景'].includes(normalized)) return 'location'
   if (['object', 'prop', '道具'].includes(normalized)) return 'object'
   if (['style', 'rule', 'world_rule', 'restriction', 'time_period', '风格', '规则'].includes(normalized)) return 'style'
   if (['product', 'brand', '产品', '品牌'].includes(normalized)) return 'product'

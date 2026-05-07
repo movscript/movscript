@@ -79,6 +79,7 @@ export type AgentTraceEventKind =
   | 'tool_catalog'
   | 'prompt'
   | 'policy'
+  | 'reasoning'
   | 'tool_call'
   | 'model_call'
   | 'approval'
@@ -127,6 +128,39 @@ export interface AgentRun {
   steps: AgentRunStep[]
   traceEvents?: AgentTraceEvent[]
 }
+
+export type AgentRunStreamEvent =
+  | {
+    type: 'run'
+    run: AgentRun
+  }
+  | {
+    type: 'trace'
+    runId: string
+    event: AgentTraceEvent
+    run: AgentRun
+  }
+  | {
+    type: 'assistant_delta'
+    runId: string
+    traceEventId: string
+    delta: string
+    accumulated: string
+    roundIndex?: number
+    roundLabel?: string
+    createdAt: string
+    run: AgentRun
+  }
+  | {
+    type: 'assistant_message'
+    runId: string
+    message: AgentMessage
+    run: AgentRun
+  }
+  | {
+    type: 'done'
+    run: AgentRun
+  }
 
 export interface AgentRunPreview {
   id: string

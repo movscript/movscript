@@ -2,7 +2,10 @@
 
 package router
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/infra/observability"
+)
 
 func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	// adapters and model presets (read-only UI templates, not used at runtime)
@@ -54,4 +57,5 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.POST("/debug/provider-call", h.debug.ProviderCall)
 	admin.GET("/debug/jobs", h.debug.ListJobs)
 	admin.GET("/debug/jobs/:id", h.debug.GetJob)
+	admin.GET("/debug/metrics", observability.MetricsSnapshotHandler(observability.DefaultHTTPMetrics()))
 }

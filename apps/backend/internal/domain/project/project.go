@@ -1,5 +1,7 @@
 package project
 
+import "time"
+
 type Role struct {
 	Role   string
 	UserID uint
@@ -13,20 +15,37 @@ const (
 )
 
 type Project struct {
-	ID            uint
-	Name          string
-	Description   string
-	OwnerID       uint
-	OrgID         *uint
-	Status        string
-	TotalEpisodes int
+	ID            uint      `json:"ID"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	OwnerID       uint      `json:"owner_id"`
+	Owner         *UserRef  `json:"owner,omitempty"`
+	OrgID         *uint     `json:"org_id,omitempty"`
+	Status        string    `json:"status"`
+	TotalEpisodes int       `json:"total_episodes"`
+	Members       []Member  `json:"members,omitempty"`
+	CreatedAt     time.Time `json:"CreatedAt"`
+	UpdatedAt     time.Time `json:"UpdatedAt"`
 }
 
 type Member struct {
-	ID        uint
-	ProjectID uint
-	UserID    uint
-	Role      string
+	ID        uint      `json:"ID"`
+	ProjectID uint      `json:"project_id"`
+	UserID    uint      `json:"user_id"`
+	User      *UserRef  `json:"user,omitempty"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"CreatedAt"`
+	UpdatedAt time.Time `json:"UpdatedAt"`
+}
+
+type UserRef struct {
+	ID           uint    `json:"ID"`
+	Username     string  `json:"username"`
+	SystemRole   string  `json:"system_role,omitempty"`
+	PrimaryEmail *string `json:"primary_email,omitempty"`
+	DisplayName  string  `json:"display_name,omitempty"`
+	AvatarURL    string  `json:"avatar_url,omitempty"`
+	Status       string  `json:"status,omitempty"`
 }
 
 func NewProject(name string, description string, totalEpisodes int, ownerID uint, orgID *uint) Project {

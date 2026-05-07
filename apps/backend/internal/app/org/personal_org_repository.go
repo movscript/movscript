@@ -40,7 +40,7 @@ func EnsureJoinCode(db *gorm.DB, org *model.Organization) error {
 func CreatePersonalOrg(db *gorm.DB, user *model.User) error {
 	var count int64
 	db.Model(&model.Organization{}).Where("slug = ?", user.Username).Count(&count)
-	org := domainorg.NewPersonalOrg(*user, count > 0).ToModel()
+	org := domainorg.NewPersonalOrg(domainorg.UserIdentityFromModel(*user), count > 0).ToModel()
 	if err := db.Create(&org).Error; err != nil {
 		return err
 	}

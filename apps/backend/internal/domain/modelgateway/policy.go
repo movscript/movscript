@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
@@ -61,7 +60,7 @@ func NewAPIKey(spec NewAPIKeySpec) APIKey {
 	}
 }
 
-func KeyAllowsScope(key *model.GatewayAPIKey, scope string) bool {
+func KeyAllowsScope(key *APIKey, scope string) bool {
 	scopes := parseStringArray(key.AllowedScopes)
 	if len(scopes) == 0 {
 		return scope == DefaultAPIScopeChat
@@ -74,7 +73,7 @@ func KeyAllowsScope(key *model.GatewayAPIKey, scope string) bool {
 	return false
 }
 
-func KeyAllowsModel(key *model.GatewayAPIKey, modelConfigID uint) bool {
+func KeyAllowsModel(key *APIKey, modelConfigID uint) bool {
 	ids := parseUintArray(key.AllowedModelIDs)
 	if len(ids) == 0 {
 		return true
@@ -87,7 +86,7 @@ func KeyAllowsModel(key *model.GatewayAPIKey, modelConfigID uint) bool {
 	return false
 }
 
-func KeyAllowsProject(key *model.GatewayAPIKey, requestedProjectID *uint) bool {
+func KeyAllowsProject(key *APIKey, requestedProjectID *uint) bool {
 	if key.ProjectID == nil {
 		return true
 	}
@@ -97,7 +96,7 @@ func KeyAllowsProject(key *model.GatewayAPIKey, requestedProjectID *uint) bool {
 	return *key.ProjectID == *requestedProjectID
 }
 
-func BillingContext(key *model.GatewayAPIKey, projectID *uint) ai.BillingContext {
+func BillingContext(key *APIKey, projectID *uint) ai.BillingContext {
 	ctx := ai.BillingContext{ProjectID: projectID}
 	if key != nil {
 		ctx.OrgID = key.OrgID

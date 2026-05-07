@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 )
 
@@ -104,8 +105,16 @@ func (h *SemanticEntityHandler) ListKeyframes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
 		return
 	}
-	populateKeyframeResourceURLs(c, items)
+	populateDomainKeyframeResourceURLs(c, items)
 	c.JSON(http.StatusOK, items)
+}
+
+func populateDomainKeyframeResourceURLs(c *gin.Context, items []domainsemantic.Keyframe) {
+	for i := range items {
+		if items[i].Resource != nil {
+			items[i].Resource.URL = resourceURL(c, items[i].Resource.ID)
+		}
+	}
 }
 
 func (h *SemanticEntityHandler) CreateKeyframe(c *gin.Context) {

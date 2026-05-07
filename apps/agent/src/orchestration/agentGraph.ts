@@ -11,7 +11,7 @@ import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { AgentLoopTraceInput, AgentLoopResult } from '../runtime/loop/agentLoop.js'
 import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
-import { callModel } from '../model/modelClient.js'
+import { createDefaultRuntimeModelRouter, type RuntimeModelRouter } from '../model/modelRouter.js'
 import { executeTool } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { buildApplyDraftPreview } from '../drafts/draftApply.js'
@@ -29,6 +29,7 @@ export interface AgentGraphInput {
   command?: AgentCommandRuntime
   rootUserMessageId?: string
   config: ConfiguredRuntimeModelConfig
+  modelRouter?: RuntimeModelRouter
   auth: RuntimeModelAuthContext
   policy: AgentRunPolicy
   mcpClient: Pick<MCPClient, 'initialize' | 'callTool'>
@@ -245,18 +246,50 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     ...state.history,
     baseMessages.at(-1)!,
   ]
-  const tools = buildOpenAIChatTools(input.capabilities, input.contractResolver?.find(input.manifest))
-  const wantsStructuredJSON = shouldReturnStructuredJSON(input.manifest, input.contractResolver)
-  const modelResult = await callModel({
+  const runtimeContract = input.contractResolver?.find(input.manifest)
+  const tools = buildOpenAIChatTools(input.capabilities, runtimeContract)
+  const modelRouter = input.modelRouter ?? createDefaultRuntimeModelRouter(input.config)
+  const reasoningRoute = modelRouter.resolve('reasoning')
+  if (!reasoningRoute) {
+    return { status: 'failed', error: 'run requires a configured reasoning model route' }
+  }
+  input.onTrace({
+    kind: 'model_call',
+    title: 'Model route selected',
+    summary: `reasoning -> ${reasoningRoute.provider}:${reasoningRoute.config.model}`,
+    status: 'info',
+    roundIndex: currentRoundIndex,
+    roundLabel,
+    roundSource: 'model',
+    data: {
+      capability: reasoningRoute.capability,
+      provider: reasoningRoute.provider,
+      modelConfigId: reasoningRoute.config.modelConfigId,
+      model: reasoningRoute.config.model,
+      source: reasoningRoute.source,
+    },
+  })
+  const modelResult = await modelRouter.call({
+    capability: 'reasoning',
     messages,
     tools,
     toolChoice: tools.length > 0 ? 'auto' : undefined,
-    config: input.config,
     auth: input.auth,
-    temperature: wantsStructuredJSON ? 0.1 : undefined,
-    jsonMode: wantsStructuredJSON && tools.length === 0,
     signal: input.signal,
     onTrace: (event) => {
+      if (event.phase === 'stream') {
+        input.onTrace({
+          kind: event.stream?.kind === 'reasoning' ? 'reasoning' : 'model_call',
+          title: event.stream?.kind === 'reasoning' ? 'Model reasoning delta' : 'Model stream delta',
+          summary: event.stream?.delta ? event.stream.delta.slice(0, 180) : undefined,
+          status: 'info',
+          roundIndex: currentRoundIndex,
+          roundLabel,
+          roundSource: 'model',
+          data: { phase: event.phase, stream: event.stream, latencyMs: event.trace.latencyMs },
+        })
+        return
+      }
       input.onTrace({
         kind: 'model_call',
         title: event.phase === 'request' ? 'Model HTTP request sent' : event.phase === 'response' ? 'Model HTTP response received' : 'Model HTTP call failed',
@@ -271,7 +304,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
   }).catch((error) => {
     if (isAbortError(error) || input.signal?.aborted) throw error
     const message = error instanceof Error ? error.message : String(error)
-    const finalContent = formatRecoverableModelError(message, wantsStructuredJSON)
+    const finalContent = formatRecoverableModelError(message)
     return {
       content: finalContent,
       tool_calls: [],
@@ -303,38 +336,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
   })
 
   if (modelResult.finish_reason === 'stop' || modelResult.tool_calls.length === 0) {
-    const finalResult = wantsStructuredJSON
-      && !('recoverableError' in modelResult)
-      && !isValidJSONObjectContent(modelResult.content)
-      ? await callModel({
-        messages: buildFinalJSONMessages(messages, modelResult.rawAssistantMessage),
-        tools: [],
-        config: input.config,
-        auth: input.auth,
-        temperature: 0.1,
-        jsonMode: true,
-        signal: input.signal,
-        onTrace: (event) => {
-          input.onTrace({
-            kind: 'model_call',
-            title: event.phase === 'request' ? 'Final JSON HTTP request sent' : event.phase === 'response' ? 'Final JSON HTTP response received' : 'Final JSON HTTP call failed',
-            summary: event.error ?? (event.trace.response ? `HTTP ${event.trace.response.status} in ${event.trace.latencyMs}ms` : undefined),
-            status: event.phase === 'request' ? 'started' : event.phase === 'error' ? 'failed' : event.trace.response?.ok === false ? 'failed' : 'completed',
-            roundIndex: currentRoundIndex,
-            roundLabel,
-            roundSource: 'model',
-            data: { phase: event.phase, ...event.trace, ...(event.error ? { error: event.error } : {}) },
-          })
-        },
-      }).catch((error) => {
-        if (isAbortError(error) || input.signal?.aborted) throw error
-        const message = error instanceof Error ? error.message : String(error)
-        return {
-          ...modelResult,
-          warnings: [`最终 JSON 收口未完成：${message}`],
-        }
-      })
-      : modelResult
+    const finalResult = modelResult
     const modelWarnings = 'warnings' in finalResult && Array.isArray(finalResult.warnings) ? finalResult.warnings : []
     return {
       history: [finalResult.rawAssistantMessage],
@@ -351,44 +353,13 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
   }
 }
 
-function shouldReturnStructuredJSON(manifest: AgentManifest, contractResolver?: AgentRuntimeContractResolver): boolean {
-  if (contractResolver?.requiresStructuredJSON(manifest)) return true
-  return /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(manifest.soul ?? '')
-}
-
-function formatRecoverableModelError(message: string, structuredJSON: boolean): string {
+function formatRecoverableModelError(message: string): string {
   return [
-    structuredJSON
-      ? '模型这次没有产出可用于写入的结构化 JSON。'
-      : '模型这次没有完成回复。',
+    '模型这次没有完成回复。',
     '请重试；如果连续失败，可以缩短输入或补充更明确的编排范围。',
     '',
     `错误信息：${message}`,
   ].join('\n')
-}
-
-function buildFinalJSONMessages(messages: RuntimeModelChatMessage[], assistantMessage: RuntimeModelChatMessage): RuntimeModelChatMessage[] {
-  return [
-    ...messages,
-    assistantMessage,
-    {
-      role: 'user',
-      content: [
-        'Now produce the final machine-readable JSON object only.',
-        'Use all previous tool results and context. Do not call tools. Do not include markdown fences or explanatory text.',
-      ].join(' '),
-    },
-  ]
-}
-
-function isValidJSONObjectContent(content: string | null): boolean {
-  if (!content?.trim()) return false
-  try {
-    const parsed = JSON.parse(content)
-    return !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-  } catch {
-    return false
-  }
 }
 
 async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/app/dto"
-	"github.com/movscript/movscript/internal/domain/model"
+	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
@@ -31,24 +31,24 @@ type PatchModelConfigInput struct {
 	CustomSupportedParams *string
 }
 
-func (s *Service) ListModelConfigs(ctx context.Context, credentialID string) ([]model.AIModelConfig, error) {
+func (s *Service) ListModelConfigs(ctx context.Context, credentialID string) ([]domainaiadmin.ModelConfig, error) {
 	return s.repo.ListModelConfigs(ctx, credentialID)
 }
 
-func (s *Service) CreateModelConfig(ctx context.Context, credentialID uint, input dto.AIModelConfigInput) (model.AIModelConfig, error) {
-	cfg := dto.NewAIModelConfig(input, credentialID)
+func (s *Service) CreateModelConfig(ctx context.Context, credentialID uint, input dto.AIModelConfigInput) (domainaiadmin.ModelConfig, error) {
+	cfg := newModelConfig(credentialID, input)
 	if err := s.repo.CreateModelConfig(ctx, &cfg); err != nil {
 		return cfg, err
 	}
 	return cfg, nil
 }
 
-func (s *Service) UpdateModelConfig(ctx context.Context, id string, input dto.AIModelConfigInput) (model.AIModelConfig, error) {
+func (s *Service) UpdateModelConfig(ctx context.Context, id string, input dto.AIModelConfigInput) (domainaiadmin.ModelConfig, error) {
 	cfg, err := s.GetModelConfig(ctx, id)
 	if err != nil {
 		return cfg, err
 	}
-	dto.ApplyAIModelConfigInput(&cfg, input)
+	applyModelConfigInput(&cfg, input)
 	if err := s.repo.SaveModelConfig(ctx, &cfg); err != nil {
 		return cfg, err
 	}
@@ -59,7 +59,7 @@ func (s *Service) DeleteModelConfig(ctx context.Context, id string) error {
 	return s.repo.DeleteModelConfig(ctx, id)
 }
 
-func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigInput) (model.AIModelConfig, error) {
+func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigInput) (domainaiadmin.ModelConfig, error) {
 	cfg, err := s.GetModelConfig(ctx, input.ID)
 	if err != nil {
 		return cfg, err
@@ -121,7 +121,7 @@ func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigIn
 	return cfg, nil
 }
 
-func (s *Service) GetModelConfig(ctx context.Context, id string) (model.AIModelConfig, error) {
+func (s *Service) GetModelConfig(ctx context.Context, id string) (domainaiadmin.ModelConfig, error) {
 	return s.repo.GetModelConfig(ctx, id)
 }
 
@@ -150,7 +150,7 @@ func (s *Service) TestModelConfig(ctx context.Context, id string) (TestResult, e
 		}, nil
 	}
 
-	provider, _, err := s.registry.BuildForConfig(cfg)
+	provider, _, err := s.registry.BuildForConfig(cfg.ToModel())
 	if err != nil {
 		return TestResult{Success: false, Message: err.Error()}, nil
 	}
@@ -172,5 +172,52 @@ func (s *Service) DebugModelConfig(ctx context.Context, id string) (ai.DebugCall
 	if err != nil {
 		return ai.DebugCallResult{}, err
 	}
-	return s.registry.DebugCall(ctx, cfg), nil
+	return s.registry.DebugCall(ctx, cfg.ToModel()), nil
+}
+
+func newModelConfig(credentialID uint, input dto.AIModelConfigInput) domainaiadmin.ModelConfig {
+	return domainaiadmin.NewModelConfig(domainaiadmin.NewModelConfigSpec{
+		CredentialID:          credentialID,
+		ModelDefID:            input.ModelDefID,
+		ModelIDOverride:       input.ModelIDOverride,
+		IsEnabled:             input.IsEnabled,
+		Priority:              input.Priority,
+		CreditsInputPer1M:     input.CreditsInputPer1M,
+		CreditsOutputPer1M:    input.CreditsOutputPer1M,
+		CreditsPerImage:       input.CreditsPerImage,
+		CreditsPerSecond:      input.CreditsPerSecond,
+		CreditsPerCall:        input.CreditsPerCall,
+		CustomDisplayName:     input.CustomDisplayName,
+		ShortName:             input.ShortName,
+		CustomCapabilities:    input.CustomCapabilities,
+		CustomBillingMode:     input.CustomBillingMode,
+		CustomAcceptsImage:    input.CustomAcceptsImage,
+		CustomMaxInputImages:  input.CustomMaxInputImages,
+		CustomMaxInputVideos:  input.CustomMaxInputVideos,
+		CustomImageEditField:  input.CustomImageEditField,
+		CustomSupportedParams: input.CustomSupportedParams,
+	})
+}
+
+func applyModelConfigInput(cfg *domainaiadmin.ModelConfig, input dto.AIModelConfigInput) {
+	cfg.ModelDefID = input.ModelDefID
+	cfg.ModelIDOverride = input.ModelIDOverride
+	cfg.Priority = input.Priority
+	cfg.CreditsInputPer1M = input.CreditsInputPer1M
+	cfg.CreditsOutputPer1M = input.CreditsOutputPer1M
+	cfg.CreditsPerImage = input.CreditsPerImage
+	cfg.CreditsPerSecond = input.CreditsPerSecond
+	cfg.CreditsPerCall = input.CreditsPerCall
+	cfg.CustomDisplayName = input.CustomDisplayName
+	cfg.ShortName = input.ShortName
+	cfg.CustomCapabilities = input.CustomCapabilities
+	cfg.CustomBillingMode = input.CustomBillingMode
+	cfg.CustomAcceptsImage = input.CustomAcceptsImage
+	cfg.CustomMaxInputImages = input.CustomMaxInputImages
+	cfg.CustomMaxInputVideos = input.CustomMaxInputVideos
+	cfg.CustomImageEditField = input.CustomImageEditField
+	cfg.CustomSupportedParams = input.CustomSupportedParams
+	if input.IsEnabled != nil {
+		cfg.IsEnabled = *input.IsEnabled
+	}
 }

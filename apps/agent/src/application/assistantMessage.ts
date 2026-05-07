@@ -117,8 +117,6 @@ export async function buildConfiguredAssistantTurn(input: ConfiguredAssistantTur
       messages ?? buildAssistantMessages(userMessage, toolResults, warnings, memories, run),
       auth,
       {
-        temperature: shouldReturnStructuredJSON(run) ? 0.1 : undefined,
-        jsonMode: shouldReturnStructuredJSON(run),
         tools,
         toolChoice: tools.length > 0 ? 'auto' : undefined,
       },
@@ -221,7 +219,6 @@ export function buildAssistantMessages(
         'Do not claim you changed project data unless a tool result proves it.',
         'When writes are represented as drafts or approval requests, describe them as drafts or pending approvals.',
         agentSoul ? `[Agent-specific output contract]\n${agentSoul}` : undefined,
-        shouldReturnStructuredJSON(run) ? 'This run requires machine-readable JSON. Return only a valid JSON object and no markdown fences.' : undefined,
       ].join('\n'),
     },
     context !== undefined ? {
@@ -277,12 +274,6 @@ function formatMemoryBlock(memories: AgentMemory[], limit: number): string {
     .slice(0, limit)
     .map((memory) => `- [${memory.scope}/${memory.kind}] ${memory.content}`)
     .join('\n')
-}
-
-function shouldReturnStructuredJSON(run?: AgentRun): boolean {
-  if (run?.metadata?.runtimeRequiresStructuredJSON === true) return true
-  const soul = typeof run?.agentManifest?.soul === 'string' ? run.agentManifest.soul : ''
-  return /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(soul)
 }
 
 function shouldRequireConfiguredModel(run?: AgentRun): boolean {
@@ -377,7 +368,7 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   if (call.name === 'movscript_read_project_structure') {
     const counts = isRecord(parsed) && isRecord(parsed.counts) ? parsed.counts : undefined
     const summary = counts
-      ? `（scripts=${String(counts.scripts ?? 0)}, settings=${String(counts.settings ?? 0)}, asset_slots=${String(counts.asset_slots ?? counts.assetSlots ?? 0)}, content_units=${String(counts.content_units ?? counts.contentUnits ?? 0)}）`
+      ? `（scripts=${String(counts.scripts ?? 0)}, creative_references=${String(counts.creative_references ?? counts.creativeReferences ?? 0)}, asset_slots=${String(counts.asset_slots ?? counts.assetSlots ?? 0)}, content_units=${String(counts.content_units ?? counts.contentUnits ?? 0)}）`
       : ''
     return `读取项目结构摘要${summary}。`
   }
@@ -385,13 +376,38 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
     return `创建本地草稿${draftId}。`
   }
+  if (call.name === 'movscript_get_draft') {
+    const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
+    return `读取本地草稿${draftId}。`
+  }
   if (call.name === 'movscript_list_drafts') {
     const count = isRecord(parsed) && Array.isArray(parsed.drafts) ? parsed.drafts.length : undefined
     return `列出本地草稿${count === undefined ? '' : `，共 ${count} 条`}。`
   }
+  if (call.name === 'movscript_update_draft') {
+    const draft = isRecord(parsed) && isRecord(parsed.draft) ? parsed.draft : parsed
+    const draftId = isRecord(draft) && typeof draft.id === 'string' ? ` ${draft.id}` : ''
+    return `更新本地草稿${draftId}。`
+  }
+  if (call.name === 'movscript_patch_draft') {
+    const paths = isRecord(parsed) && Array.isArray(parsed.changedPaths) ? parsed.changedPaths.length : undefined
+    return `细粒度修改本地草稿${paths === undefined ? '' : `，变更 ${paths} 个路径`}。`
+  }
+  if (call.name === 'movscript_validate_draft') {
+    const ok = isRecord(parsed) && parsed.ok === true
+    const issues = isRecord(parsed) && Array.isArray(parsed.issues) ? parsed.issues.length : undefined
+    return `校验本地草稿${ok ? '通过' : '未通过'}${issues === undefined ? '' : `，问题 ${issues} 个`}。`
+  }
   if (call.name === 'movscript_apply_draft') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
     return `应用草稿审批链已执行（${status}）；当前只更新本地 Agent 草稿生命周期，不直接写正式项目实体。`
+  }
+  if (call.name === 'movscript_create_generation_job') {
+    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
+    const outputResourceId = isRecord(parsed) && typeof parsed.output_resource_id === 'number'
+      ? `，输出资源 #${parsed.output_resource_id}`
+      : ''
+    return `生成任务已执行（${status}${outputResourceId}）。`
   }
   return `调用 ${call.name}。`
 }

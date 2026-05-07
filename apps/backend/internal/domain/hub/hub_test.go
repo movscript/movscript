@@ -3,9 +3,6 @@ package hub
 import (
 	"testing"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
-	"gorm.io/gorm"
 )
 
 func TestSlugifyAndSafeFilename(t *testing.T) {
@@ -27,8 +24,9 @@ func TestEncodeDecodeTags(t *testing.T) {
 
 func TestToPackageFormatsFields(t *testing.T) {
 	now := time.Unix(10, 0).UTC()
-	row := model.HubPackage{
-		Model:         gorm.Model{CreatedAt: now, UpdatedAt: now},
+	row := HubPackage{
+		CreatedAt:     now,
+		UpdatedAt:     now,
 		PackageID:     "pkg-1",
 		Title:         "Title",
 		Kind:          KindPlugin,
@@ -56,10 +54,16 @@ func TestNewDraftPackageDefaults(t *testing.T) {
 	if row.FileName != "unsafe.movpkg" || row.ContentType != "application/octet-stream" {
 		t.Fatalf("unexpected file defaults: %+v", row)
 	}
+	modelRow := row.ToModel()
+	modelRow.ID = 30
+	roundTrip := HubPackageFromModel(modelRow)
+	if roundTrip.ID != 30 || roundTrip.PackageID != "my-package" || roundTrip.Status != StatusPending {
+		t.Fatalf("unexpected draft round-trip: %+v", roundTrip)
+	}
 }
 
 func TestApplyPatchAndPublish(t *testing.T) {
-	row := model.HubPackage{Status: StatusPending, Signal: "待审核"}
+	row := HubPackage{Status: StatusPending, Signal: "待审核"}
 	status := StatusTakenDown
 	note := " needs review "
 	now := time.Unix(20, 0).UTC()

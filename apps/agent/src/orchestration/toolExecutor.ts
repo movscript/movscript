@@ -1,7 +1,7 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../state/types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
-import type { AgentDraftKind, AgentDraftStatus, AgentDraftStore } from '../drafts/draftStore.js'
+import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftStatus, type AgentDraftStore } from '../drafts/draftStore.js'
 import type { BackendApplyClient, BackendApplyResult } from '../drafts/backendApplyClient.js'
 import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import { buildApplyDraftPreview, markDraftApplied } from '../drafts/draftApply.js'
@@ -88,6 +88,55 @@ async function callRuntimeTool(
       createdByThreadId: run.threadId,
       metadata: isRecord(args.metadata) ? args.metadata : undefined,
     }) as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_get_draft') {
+    const draftId = stringField(args.draftId) ?? stringField(args.draft_id) ?? stringField(args.id)
+    if (!draftId) throw new Error('get_draft requires draftId')
+    const draft = draftStore.getDraft(draftId)
+    if (!draft) throw new Error(`draft not found: ${draftId}`)
+    return draft as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_update_draft') {
+    const draftId = stringField(args.draftId) ?? stringField(args.draft_id) ?? stringField(args.id)
+    if (!draftId) throw new Error('update_draft requires draftId')
+    const status = normalizeDraftStatus(args.status)
+    const draft = draftStore.updateDraft(draftId, {
+      ...(status ? { status } : {}),
+      ...(typeof args.title === 'string' ? { title: args.title } : {}),
+      ...(typeof args.content === 'string' ? { content: args.content } : {}),
+      ...(isRecord(args.target) ? { target: args.target } : {}),
+      ...(isRecord(args.metadata) ? { metadata: args.metadata as Record<string, JSONValue> } : {}),
+    })
+    return {
+      status: 'updated',
+      draft,
+      validation: validateDraft(draft),
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_patch_draft') {
+    const draftId = stringField(args.draftId) ?? stringField(args.draft_id) ?? stringField(args.id)
+    if (!draftId) throw new Error('patch_draft requires draftId')
+    const result = draftStore.patchDraft(draftId, {
+      ops: args.ops,
+      expectedUpdatedAt: args.expectedUpdatedAt ?? args.expected_updated_at,
+      metadata: args.metadata,
+    })
+    return {
+      status: 'patched',
+      ...result,
+      validation: validateDraft(result.draft),
+    } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_validate_draft') {
+    const draftId = stringField(args.draftId) ?? stringField(args.draft_id) ?? stringField(args.id)
+    if (!draftId) throw new Error('validate_draft requires draftId')
+    const draft = draftStore.getDraft(draftId)
+    if (!draft) throw new Error(`draft not found: ${draftId}`)
+    return validateDraft(draft) as unknown as JSONValue
   }
 
   if (toolName === 'movscript_propose_production_entities') {
@@ -494,7 +543,6 @@ function normalizeDraftQuery(args: Record<string, JSONValue>): {
 
 function isDraftKind(value: JSONValue | undefined): value is AgentDraftKind {
   return value === 'script'
-    || value === 'setting'
     || value === 'asset_slot'
     || value === 'storyboard_line'
     || value === 'content_unit'

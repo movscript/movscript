@@ -6,8 +6,6 @@ import (
 	"path"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 const (
@@ -54,6 +52,39 @@ type Package struct {
 	TakenDownAt     *time.Time `json:"takenDownAt,omitempty"`
 }
 
+type HubPackage struct {
+	ID              uint
+	PackageID       string
+	Title           string
+	Kind            string
+	Category        string
+	Creator         string
+	License         string
+	Signal          string
+	Summary         string
+	Tags            string
+	Downloads       int64
+	Rating          float64
+	Version         string
+	FileSizeBytes   int64
+	FileName        string
+	ContentType     string
+	Compatibility   string
+	Repository      string
+	Status          string
+	SubmittedBy     string
+	ReviewedBy      string
+	ReviewNote      string
+	StagingProvider string
+	StagingKey      string
+	PublicProvider  string
+	PublicKey       string
+	PublishedAt     *int64
+	TakenDownAt     *int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type CreateDraftInput struct {
 	Title           string
 	Kind            string
@@ -86,7 +117,7 @@ type PatchInput struct {
 	ReviewNote    *string
 }
 
-func ToPackage(row model.HubPackage) Package {
+func ToPackage(row HubPackage) Package {
 	publishedAt := TimePtr(row.PublishedAt)
 	takenDownAt := TimePtr(row.TakenDownAt)
 	provider := row.PublicProvider
@@ -125,9 +156,9 @@ func ToPackage(row model.HubPackage) Package {
 	}
 }
 
-func NewDraftPackage(id string, in CreateDraftInput) model.HubPackage {
+func NewDraftPackage(id string, in CreateDraftInput) HubPackage {
 	contentType := DefaultString(in.ContentType, "application/octet-stream")
-	return model.HubPackage{
+	return HubPackage{
 		PackageID:       id,
 		Title:           strings.TrimSpace(in.Title),
 		Kind:            DefaultString(strings.TrimSpace(in.Kind), KindPlugin),
@@ -151,7 +182,7 @@ func NewDraftPackage(id string, in CreateDraftInput) model.HubPackage {
 	}
 }
 
-func ApplyPatch(row *model.HubPackage, reviewer string, in PatchInput, now time.Time) {
+func ApplyPatch(row *HubPackage, reviewer string, in PatchInput, now time.Time) {
 	row.ReviewedBy = reviewer
 	if in.Title != nil {
 		row.Title = strings.TrimSpace(*in.Title)
@@ -188,7 +219,7 @@ func ApplyPatch(row *model.HubPackage, reviewer string, in PatchInput, now time.
 	}
 }
 
-func ApplyPublish(row *model.HubPackage, reviewer, note, provider, publicKey string, now time.Time) {
+func ApplyPublish(row *HubPackage, reviewer, note, provider, publicKey string, now time.Time) {
 	signal := row.Signal
 	if signal == "" || signal == "待审核" {
 		signal = "社区验证"
@@ -213,8 +244,8 @@ func SeedPackages() []Package {
 	}
 }
 
-func NewSeedPackageRow(item Package) model.HubPackage {
-	row := model.HubPackage{
+func NewSeedPackageRow(item Package) HubPackage {
+	row := HubPackage{
 		PackageID:      item.ID,
 		Title:          item.Title,
 		Kind:           item.Kind,

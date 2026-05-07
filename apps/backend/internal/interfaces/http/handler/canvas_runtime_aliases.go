@@ -56,7 +56,7 @@ func decodeCanvasRunInputValues(raw string) map[string]canvasPortValue {
 }
 
 func buildCanvasRunSnapshot(cv model.Canvas) (string, string, int, int) {
-	return canvasruntime.BuildRunSnapshot(cv)
+	return canvasruntime.BuildRunSnapshot(canvasruntime.CanvasGraphFromModel(cv))
 }
 
 func canvasFromRunSnapshot(canvasID uint, raw string) (model.Canvas, error) {
@@ -68,7 +68,11 @@ func buildCanvasExecutionPlan(cv model.Canvas) (canvasExecutionPlan, error) {
 }
 
 func canvasNodeRequiresWorkflowTask(cv model.Canvas, node *model.CanvasNode) bool {
-	return canvasruntime.CanvasNodeRequiresWorkflowTask(cv, node)
+	if node == nil {
+		return false
+	}
+	domainNode := canvasruntime.CanvasNodeFromModel(*node)
+	return canvasruntime.GraphNodeRequiresWorkflowTask(canvasruntime.CanvasGraphFromModel(cv), &domainNode)
 }
 
 func validateCanvasRequiredInputs(cv model.Canvas, inputValues map[string]canvasPortValue) error {
@@ -104,7 +108,15 @@ func isCanvasEntityNode(nodeType string) bool {
 }
 
 func topoSort(nodes []model.CanvasNode, edges []model.CanvasEdge) ([]string, error) {
-	return canvasruntime.TopoSort(nodes, edges)
+	domainNodes := make([]canvasruntime.CanvasNode, 0, len(nodes))
+	for _, node := range nodes {
+		domainNodes = append(domainNodes, canvasruntime.CanvasNodeFromModel(node))
+	}
+	domainEdges := make([]canvasruntime.CanvasEdge, 0, len(edges))
+	for _, edge := range edges {
+		domainEdges = append(domainEdges, canvasruntime.CanvasEdgeFromModel(edge))
+	}
+	return canvasruntime.TopoSort(domainNodes, domainEdges)
 }
 
 func normalizeCanvasTaskForResponse(dbTask *model.CanvasTask, nodeType string) {

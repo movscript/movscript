@@ -29,6 +29,19 @@ func TestWorkflowBootstrapGraph(t *testing.T) {
 	}
 }
 
+func TestNewCanvasAppliesDefaultsAndMaps(t *testing.T) {
+	canvas := NewCanvas(CanvasCreateInput{OwnerID: 1, Name: "Board", CanvasType: "workflow"})
+	if canvas.OwnerID != 1 || canvas.Name != "Board" || canvas.Visibility != "private" {
+		t.Fatalf("unexpected canvas: %+v", canvas)
+	}
+	modelCanvas := canvas.ToModel()
+	modelCanvas.ID = 27
+	roundTrip := CanvasFromModel(modelCanvas)
+	if roundTrip.ID != 27 || roundTrip.Name != "Board" || roundTrip.Visibility != "private" {
+		t.Fatalf("unexpected canvas round-trip: %+v", roundTrip)
+	}
+}
+
 func TestNewAssetSlotTargetNodeBuildsEntityCard(t *testing.T) {
 	node := NewAssetSlotTargetNode(AssetSlotTargetNodeInput{
 		CanvasID:      7,
@@ -46,6 +59,12 @@ func TestNewAssetSlotTargetNodeBuildsEntityCard(t *testing.T) {
 	}
 	if data["entityKind"] != "asset_slot" || data["entityTitle"] != "Hero frame" {
 		t.Fatalf("unexpected node data: %+v", data)
+	}
+	modelNode := node.ToModel()
+	modelNode.ID = 28
+	roundTrip := CanvasNodeFromModel(modelNode)
+	if roundTrip.ID != 28 || roundTrip.NodeID != "asset-slot-target" || roundTrip.Label != "Hero frame" {
+		t.Fatalf("unexpected node round-trip: %+v", roundTrip)
 	}
 }
 
@@ -79,5 +98,11 @@ func TestNewEntityWriteAuditTrimsStringFields(t *testing.T) {
 	}
 	if audit.NewValueJSON != "{\"ok\":true}" || audit.ResourceBindingIDs != "[9]" {
 		t.Fatalf("unexpected json fields: %+v", audit)
+	}
+	modelAudit := audit.ToModel()
+	modelAudit.ID = 29
+	roundTrip := EntityWriteAuditFromModel(modelAudit)
+	if roundTrip.ID != 29 || roundTrip.CanvasNodeID != "node-a" || roundTrip.PortID != "output" {
+		t.Fatalf("unexpected audit round-trip: %+v", roundTrip)
 	}
 }

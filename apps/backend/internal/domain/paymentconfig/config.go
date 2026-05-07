@@ -3,6 +3,7 @@ package paymentconfig
 import (
 	"encoding/json"
 	"strings"
+	"time"
 )
 
 const (
@@ -26,15 +27,17 @@ type NewConfigSpec struct {
 }
 
 type Config struct {
-	ID           uint
-	Name         string
-	ConfigType   string
-	Mode         string
-	Currency     string
-	ConfigJSON   string
-	Priority     int
-	IsEnabled    bool
-	MaskedConfig string
+	ID           uint      `json:"ID"`
+	Name         string    `json:"name"`
+	ConfigType   string    `json:"config_type"`
+	Mode         string    `json:"mode"`
+	Currency     string    `json:"currency"`
+	ConfigJSON   string    `json:"-"`
+	Priority     int       `json:"priority"`
+	IsEnabled    bool      `json:"is_enabled"`
+	MaskedConfig string    `json:"masked_config,omitempty"`
+	CreatedAt    time.Time `json:"CreatedAt"`
+	UpdatedAt    time.Time `json:"UpdatedAt"`
 }
 
 func ValidConfigType(t string) bool {

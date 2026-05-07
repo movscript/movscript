@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 
@@ -59,7 +58,7 @@ func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 }
 
 func TestCountInputResources(t *testing.T) {
-	result := CountInputResources([]model.RawResource{
+	result := CountInputResources([]InputResource{
 		{Type: "image"},
 		{Type: "video"},
 		{Type: "file"},
@@ -72,12 +71,12 @@ func TestCountInputResources(t *testing.T) {
 
 func TestBuildContextSnapshotIncludesModelAndResources(t *testing.T) {
 	raw := BuildContextSnapshot(ContextSnapshotInput{
-		Model:          model.AIModelConfig{ModelDefID: "gpt-image", CredentialID: 8},
-		Credential:     model.AICredential{DisplayName: "OpenAI"},
+		Model:          ModelConfigInput{ModelDefID: "gpt-image", CredentialID: 8},
+		Credential:     CredentialInput{DisplayName: "OpenAI"},
 		Prompt:         "draw",
 		ExtraParams:    `{"n":1}`,
 		JobType:        ai.CapabilityImage,
-		InputResources: []model.RawResource{{Name: "ref.png", Type: "image"}},
+		InputResources: []InputResource{{Name: "ref.png", Type: "image"}},
 		CreatedAt:      time.Unix(10, 0).UTC(),
 	})
 	var snapshot map[string]any

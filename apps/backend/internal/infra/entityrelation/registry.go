@@ -52,18 +52,6 @@ func SyncCoreEntityRelations(db *gorm.DB, item any) error {
 			return err
 		}
 		return syncCreativeRelationshipRelations(db, &current)
-	case *SettingRelationship:
-		var current SettingRelationship
-		if err := db.First(&current, v.ID).Error; err != nil {
-			return err
-		}
-		return syncSettingRelationshipRelations(db, &current)
-	case *ScriptSettingRef:
-		var current ScriptSettingRef
-		if err := db.First(&current, v.ID).Error; err != nil {
-			return err
-		}
-		return syncScriptSettingRefRelations(db, &current)
 	case *Segment:
 		var current Segment
 		if err := db.First(&current, v.ID).Error; err != nil {
@@ -220,10 +208,6 @@ func DeleteCoreEntityRelations(db *gorm.DB, item any) error {
 		return deleteMetadataEntityRelations(db, "creative_reference_usage_id", v.ID)
 	case *CreativeRelationship:
 		return deleteMetadataEntityRelations(db, "creative_relationship_id", v.ID)
-	case *SettingRelationship:
-		return deleteMetadataEntityRelations(db, "setting_relationship_id", v.ID)
-	case *ScriptSettingRef:
-		return deleteMetadataEntityRelations(db, "script_setting_ref_id", v.ID)
 	case *Segment:
 		return deleteEntityRelations(db, "segment", v.ID)
 	case *SceneMoment:

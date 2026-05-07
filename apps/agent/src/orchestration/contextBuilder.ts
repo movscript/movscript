@@ -64,7 +64,6 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
       command.requiredTools.length > 0 ? `requiredTools: ${command.requiredTools.join(', ')}` : undefined,
       '',
       command.systemContract,
-      command.outputMode === 'json' ? 'The final answer must be a valid JSON object with no markdown fences.' : undefined,
     ].filter(Boolean).join('\n'),
   })
 
@@ -81,9 +80,6 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   ]
   if (input.manifest.soul) {
     identityLines.push('', '[Agent-specific output contract]', input.manifest.soul)
-  }
-  if (runtimeContract?.structuredContract) {
-    identityLines.push('', '[Runtime structured contract]', runtimeContract.structuredContract)
   }
   debugParts.push({
     id: 'agent.identity',
@@ -191,10 +187,82 @@ function resolveOpenAIToolParameters(
   if (tool.inputSchema !== undefined) return tool.inputSchema
   if (tool.name === 'movscript_request_user_input') return USER_INPUT_TOOL_SCHEMA
   if (tool.name === 'movscript_search_memories') return SEARCH_MEMORIES_TOOL_SCHEMA
+  if (tool.name === 'movscript_create_draft') return CREATE_DRAFT_TOOL_SCHEMA
+  if (tool.name === 'movscript_get_draft') return DRAFT_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_update_draft') return UPDATE_DRAFT_TOOL_SCHEMA
+  if (tool.name === 'movscript_patch_draft') return PATCH_DRAFT_TOOL_SCHEMA
+  if (tool.name === 'movscript_validate_draft') return DRAFT_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_create_project') return CREATE_PROJECT_TOOL_SCHEMA
   if (tool.name === 'movscript_create_script') return CREATE_SCRIPT_TOOL_SCHEMA
   return undefined
 }
+
+const CREATE_DRAFT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'title', 'content'],
+  properties: {
+    kind: {
+      type: 'string',
+      enum: ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'production_proposal'],
+    },
+    title: { type: 'string' },
+    content: { type: 'string', description: 'Draft content. Prefer valid JSON for structured drafts.' },
+    projectId: { type: 'number' },
+    source: { type: 'object', additionalProperties: true },
+    target: { type: 'object', additionalProperties: true },
+    metadata: { type: 'object', additionalProperties: true },
+  },
+} satisfies Record<string, unknown>
+
+const DRAFT_ID_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['draftId'],
+  properties: {
+    draftId: { type: 'string' },
+  },
+} satisfies Record<string, unknown>
+
+const UPDATE_DRAFT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['draftId'],
+  properties: {
+    draftId: { type: 'string' },
+    title: { type: 'string' },
+    content: { type: 'string' },
+    status: { type: 'string', enum: ['draft', 'accepted', 'rejected', 'applied', 'superseded'] },
+    target: { type: 'object', additionalProperties: true },
+    metadata: { type: 'object', additionalProperties: true },
+  },
+} satisfies Record<string, unknown>
+
+const PATCH_DRAFT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['draftId', 'ops'],
+  properties: {
+    draftId: { type: 'string' },
+    expectedUpdatedAt: { type: 'string' },
+    metadata: { type: 'object', additionalProperties: true },
+    ops: {
+      type: 'array',
+      minItems: 1,
+      maxItems: 50,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['op', 'path'],
+        properties: {
+          op: { type: 'string', enum: ['add', 'replace', 'remove'] },
+          path: { type: 'string', description: 'JSON Pointer path, for example /episode_drafts/0/summary.' },
+          value: {},
+        },
+      },
+    },
+  },
+} satisfies Record<string, unknown>
 
 const SEARCH_MEMORIES_TOOL_SCHEMA = {
   type: 'object',

@@ -5,15 +5,9 @@ import { FileAgentDraftStore, resolveAgentDraftPath } from '../runtime/store/dra
 import { BackendApplyClient } from '../runtime/store/backendApplyClient.js'
 import { FileAgentMemoryStore } from '../runtime/memory/fileMemoryStore.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from '../runtime/modelConfig.js'
-import { ProductionRuntime } from '../production/runtime.js'
-import { FileProductionStore, resolveProductionStatePath } from '../production/store.js'
-import { ProductionPreviewSemanticFallbackClient } from '../production/semanticFallbackClient.js'
 import {
   StaticAgentRuntimeContractResolver,
 } from '../runtime/contracts/runtimeContract.js'
-import {
-  PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
-} from '../production/orchestrationContract.js'
 import {
   SCRIPT_SPLIT_RUNTIME_CONTRACT,
 } from '../runtime/contracts/scriptSplitContract.js'
@@ -30,13 +24,11 @@ export interface AgentServerContext {
     statePath: string
     memoryPath: string
     draftPath: string
-    productionStatePath: string
     modelConfigPath: string
   }
   updates: ReturnType<typeof buildAgentUpdateState>
   client: MCPClient
   agentRuntime: AgentRuntime
-  productionRuntime: ProductionRuntime
   backendApplyClient: BackendApplyClient
   modelConfigStore: RuntimeModelConfigStore
   pluginCatalog: ReturnType<typeof loadAgentPluginCatalog>
@@ -68,7 +60,6 @@ export interface AgentRuntimeCapabilities {
   }
   updates: ReturnType<typeof buildAgentUpdateState>
   backendApplyEnabled: boolean
-  productionSemanticFallbackEnabled: boolean
 }
 
 export function createAgentServerContext(): AgentServerContext {
@@ -77,11 +68,9 @@ export function createAgentServerContext(): AgentServerContext {
   const statePath = resolveAgentStatePath()
   const memoryPath = resolveAgentMemoryPath(statePath)
   const draftPath = resolveAgentDraftPath(statePath)
-  const productionStatePath = resolveProductionStatePath()
   const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
   const backendApplyClient = new BackendApplyClient()
   const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
-  const productionSemanticFallbackClient = new ProductionPreviewSemanticFallbackClient()
   const pluginCatalog = loadAgentPluginCatalog()
   const updateState = buildAgentUpdateState({
     runtimeVersion: '0.1.0',
@@ -104,12 +93,7 @@ export function createAgentServerContext(): AgentServerContext {
     ],
   })
   const client = new MCPClient({ endpoint: mcpEndpoint })
-  const productionRuntime = new ProductionRuntime({
-    store: new FileProductionStore(productionStatePath),
-    semanticFallbackClient: productionSemanticFallbackClient,
-  })
   const runtimeContractResolver = new StaticAgentRuntimeContractResolver([
-    PRODUCTION_ORCHESTRATION_RUNTIME_CONTRACT,
     SCRIPT_SPLIT_RUNTIME_CONTRACT,
   ])
 
@@ -142,13 +126,11 @@ export function createAgentServerContext(): AgentServerContext {
       statePath,
       memoryPath,
       draftPath,
-      productionStatePath,
       modelConfigPath,
     },
     updates: updateState,
     client,
     agentRuntime,
-    productionRuntime,
     backendApplyClient,
     modelConfigStore,
     pluginCatalog,
@@ -156,7 +138,7 @@ export function createAgentServerContext(): AgentServerContext {
 }
 
 export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentRuntimeCapabilities {
-  const { pluginCatalog, paths, mcpEndpoint, backendApplyClient, productionRuntime } = context
+  const { pluginCatalog, paths, mcpEndpoint, backendApplyClient } = context
   return {
     service: 'movscript-agent',
     mode: 'server',
@@ -169,7 +151,6 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
         'dynamic-update-policy',
         'drafts',
         'memories',
-        'production-runtime',
         'run-cancel',
       ],
       endpoints: [
@@ -180,7 +161,6 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
         '/runs/{id}/cancel',
         '/drafts',
         '/memories',
-        '/production/actions',
       ],
     },
     mcpEndpoint,
@@ -201,21 +181,18 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
     },
     updates: context.updates,
     backendApplyEnabled: backendApplyClient.isEnabled(),
-    productionSemanticFallbackEnabled: productionRuntime.isSemanticFallbackEnabled(),
   }
 }
 
 export function logAgentServerStartup(context: AgentServerContext): void {
-  const { port, mcpEndpoint, paths, backendApplyClient, productionRuntime, pluginCatalog, updates } = context
+  const { port, mcpEndpoint, paths, backendApplyClient, pluginCatalog, updates } = context
   console.info(`[agent] movscript-agent listening on http://127.0.0.1:${port}`)
   console.info(`[agent] using MovScript MCP endpoint ${mcpEndpoint}`)
   console.info(`[agent] state path ${paths.statePath}`)
   console.info(`[agent] memory path ${paths.memoryPath}`)
   console.info(`[agent] draft path ${paths.draftPath}`)
-  console.info(`[agent] production state path ${paths.productionStatePath}`)
   console.info(`[agent] model config path ${paths.modelConfigPath}`)
   console.info(`[agent] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
-  console.info(`[agent] production semantic fallback ${productionRuntime.isSemanticFallbackEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[agent] update policy ${updates.policy.channel} (${updates.current.policyVersion})`)
   console.info(`[agent] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)
   console.info(`[agent] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.tools.length})`)

@@ -9,7 +9,6 @@ type handlers struct {
 	projects         *handler.ProjectHandler
 	scripts          *handler.ScriptHandler
 	artifactRefs     *handler.ArtifactRefHandler
-	settings         *handler.SettingHandler
 	users            *handler.UserHandler
 	auth             *handler.AuthHandler
 	ai               *handler.AIHandler
@@ -51,7 +50,6 @@ func newHandlers(deps Dependencies) handlers {
 		projects:         handler.NewProjectHandler(db, cacheStore),
 		scripts:          handler.NewScriptHandler(db, cacheStore),
 		artifactRefs:     handler.NewArtifactRefHandler(db),
-		settings:         handler.NewSettingHandler(db),
 		users:            handler.NewUserHandler(db),
 		auth:             handler.NewAuthHandlerWithConfig(db, tokens, cfg),
 		ai:               handler.NewAIHandler(db, cfg.EncryptionKey, registry),

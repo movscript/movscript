@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/model"
+	domainproject "github.com/movscript/movscript/internal/domain/project"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
@@ -62,24 +62,19 @@ type Progress struct {
 	Keyframes       map[string]int64
 }
 
-type ProjectRole struct {
-	Role   string
-	UserID uint
-}
-
-func (s *Service) List(ctx context.Context, orgID *uint) ([]model.Project, error) {
+func (s *Service) List(ctx context.Context, orgID *uint) ([]domainproject.Project, error) {
 	return s.repo.List(ctx, orgID)
 }
 
-func (s *Service) AdminList(ctx context.Context) ([]model.Project, error) {
+func (s *Service) AdminList(ctx context.Context) ([]domainproject.Project, error) {
 	return s.repo.AdminList(ctx)
 }
 
-func (s *Service) ForceSetOwner(ctx context.Context, projectID uint, ownerID uint) (model.Project, error) {
+func (s *Service) ForceSetOwner(ctx context.Context, projectID uint, ownerID uint) (domainproject.Project, error) {
 	return s.repo.ForceSetOwner(ctx, projectID, ownerID)
 }
 
-func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (model.Project, error) {
+func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (domainproject.Project, error) {
 	project, err := s.repo.Create(ctx, input, ownerID, orgID)
 	if err == nil {
 		s.bumpProgressVersion(ctx, project.ID)
@@ -87,15 +82,15 @@ func (s *Service) Create(ctx context.Context, input CreateInput, ownerID uint, o
 	return project, err
 }
 
-func (s *Service) Get(ctx context.Context, id uint, orgID *uint) (model.Project, error) {
+func (s *Service) Get(ctx context.Context, id uint, orgID *uint) (domainproject.Project, error) {
 	return s.repo.Get(ctx, id, orgID)
 }
 
-func (s *Service) ResolveRole(ctx context.Context, projectID uint, userID uint, systemRole string) (ProjectRole, error) {
+func (s *Service) ResolveRole(ctx context.Context, projectID uint, userID uint, systemRole string) (domainproject.Role, error) {
 	return s.repo.ResolveRole(ctx, projectID, userID, systemRole)
 }
 
-func (s *Service) Update(ctx context.Context, id uint, input UpdateInput, orgID *uint) (model.Project, error) {
+func (s *Service) Update(ctx context.Context, id uint, input UpdateInput, orgID *uint) (domainproject.Project, error) {
 	project, err := s.repo.Update(ctx, id, input, orgID)
 	if err == nil {
 		s.bumpProgressVersion(ctx, project.ID)
@@ -111,7 +106,7 @@ func (s *Service) Delete(ctx context.Context, id uint, orgID *uint) error {
 	return err
 }
 
-func (s *Service) AddMember(ctx context.Context, projectID uint, input MemberInput, orgID *uint) (model.ProjectMember, error) {
+func (s *Service) AddMember(ctx context.Context, projectID uint, input MemberInput, orgID *uint) (domainproject.Member, error) {
 	member, err := s.repo.AddMember(ctx, projectID, input, orgID)
 	if err != nil {
 		return member, err
@@ -128,7 +123,7 @@ func (s *Service) RemoveMember(ctx context.Context, projectID uint, memberID uin
 	return err
 }
 
-func (s *Service) ListMembers(ctx context.Context, projectID uint, orgID *uint) ([]model.ProjectMember, error) {
+func (s *Service) ListMembers(ctx context.Context, projectID uint, orgID *uint) ([]domainproject.Member, error) {
 	return s.repo.ListMembers(ctx, projectID, orgID)
 }
 

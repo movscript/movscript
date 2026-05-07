@@ -7,13 +7,14 @@ import (
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func TestWorkItemInputKeepsAssignmentRejectsTargetChange(t *testing.T) {
 	assigneeID := uint(7)
-	item := model.WorkItem{
+	item := domainsemantic.WorkItem{
 		TargetType:  "content_unit",
 		TargetID:    10,
 		Kind:        "human",
@@ -41,7 +42,7 @@ func TestWorkItemInputKeepsAssignmentRejectsTargetChange(t *testing.T) {
 func TestWorkItemInputKeepsAssignmentAllowsStatusAndSubmissionChanges(t *testing.T) {
 	assigneeID := uint(7)
 	jobID := uint(11)
-	item := model.WorkItem{
+	item := domainsemantic.WorkItem{
 		TargetType:  "content_unit",
 		TargetID:    10,
 		Kind:        "human",
@@ -68,7 +69,7 @@ func TestWorkItemInputKeepsAssignmentAllowsStatusAndSubmissionChanges(t *testing
 }
 
 func TestDecodeWorkItemResultJSONParsesAssetSlotCandidate(t *testing.T) {
-	payload, err := DecodeWorkItemResultJSON(`{"asset_slot_candidate_id":42}`)
+	payload, err := domainsemantic.DecodeWorkItemResultJSON(`{"asset_slot_candidate_id":42}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +79,7 @@ func TestDecodeWorkItemResultJSONParsesAssetSlotCandidate(t *testing.T) {
 }
 
 func TestApplyStatusForWorkItemPatchResetsWhenResultChanges(t *testing.T) {
-	item := model.WorkItem{
+	item := domainsemantic.WorkItem{
 		ResultType:  "status_change",
 		ResultJSON:  `{"status":"confirmed"}`,
 		ApplyStatus: "applied",
@@ -87,14 +88,14 @@ func TestApplyStatusForWorkItemPatchResetsWhenResultChanges(t *testing.T) {
 		ResultType: "status_change",
 		ResultJSON: `{"status":"locked"}`,
 	}
-	if got := ApplyStatusForWorkItemPatch(item, req); got != "pending" {
+	if got := domainsemantic.ApplyStatusForWorkItemPatch(item, req.domainPatch()); got != "pending" {
 		t.Fatalf("apply status = %q, want pending", got)
 	}
 }
 
 func TestApplyWorkItemUpdatesCopiesResultFields(t *testing.T) {
-	item := model.WorkItem{ResultType: "none", ApplyStatus: "not_applicable"}
-	ApplyWorkItemUpdates(&item, map[string]any{
+	item := domainsemantic.WorkItem{ResultType: "none", ApplyStatus: "not_applicable"}
+	domainsemantic.ApplyWorkItemUpdates(&item, map[string]any{
 		"status":       "done",
 		"result_type":  "status_change",
 		"result_json":  `{"status":"confirmed"}`,
@@ -155,7 +156,7 @@ func TestCompleteWorkItemAppliesAssetCandidateRelationsWithoutHooks(t *testing.T
 	}
 
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}))
-	got, err := service.completeWorkItem(ctx, 1, &work, map[string]any{
+	got, err := service.completeWorkItem(ctx, 1, domainsemantic.WorkItemFromModel(work), map[string]any{
 		"status":       "done",
 		"result_type":  "lock_asset_candidate",
 		"result_json":  work.ResultJSON,

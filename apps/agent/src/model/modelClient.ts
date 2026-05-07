@@ -4,6 +4,7 @@ import type {
   RuntimeModelChatToolCall,
   RuntimeModelHTTPTrace,
   RuntimeModelRequestSnapshot,
+  RuntimeModelStreamTrace,
   RuntimeModelToolChoice,
   RuntimeModelAuthContext,
   RuntimeModelTraceCallback,
@@ -62,10 +63,19 @@ export async function callModel(input: ModelCallInput): Promise<ModelCallResult>
     throw error
   }
 
-  const responseText = await response.text()
+  const responseContentType = response.headers.get('content-type') ?? ''
+  const responseHeaders = sanitizeHeaders(Object.fromEntries(response.headers.entries()))
+  const responseText = isSSEContent(responseContentType) && response.body
+    ? await readStreamingSSEModelResponse(response, {
+      started,
+      publicRequest,
+      responseHeaders,
+      onTrace,
+    })
+    : await response.text()
   const latencyMs = Date.now() - started
 
-  const parsedResult = parseGatewayModelResponse(responseText, response.headers.get('content-type') ?? '')
+  const parsedResult = parseGatewayModelResponse(responseText, responseContentType)
   const parsed = parsedResult.parsedBody
 
   const content = parsedResult.content
@@ -83,7 +93,7 @@ export async function callModel(input: ModelCallInput): Promise<ModelCallResult>
       status: response.status,
       statusText: response.statusText,
       ok: response.ok,
-      headers: sanitizeHeaders(Object.fromEntries(response.headers.entries())),
+      headers: responseHeaders,
       bodyText: responseText,
       ...(parsed !== undefined ? { parsedBody: parsed } : {}),
       ...(content ? { content } : {}),
@@ -135,6 +145,166 @@ interface ParsedModelGatewayResponse {
   usage?: { prompt_tokens?: number; completion_tokens?: number }
   rawAssistantMessage: RuntimeModelChatMessage
   error?: string
+}
+
+function isSSEContent(contentType: string): boolean {
+  return contentType.toLowerCase().includes('text/event-stream')
+}
+
+async function readStreamingSSEModelResponse(
+  response: Response,
+  input: {
+    started: number
+    publicRequest: RuntimeModelRequestSnapshot
+    responseHeaders: Record<string, string>
+    onTrace?: RuntimeModelTraceCallback
+  },
+): Promise<string> {
+  if (!response.body) return await response.text()
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let responseText = ''
+  let buffer = ''
+  let accumulatedReasoning = ''
+  let accumulatedContent = ''
+
+  const emitStreamTrace = (stream: RuntimeModelStreamTrace) => {
+    input.onTrace?.({
+      phase: 'stream',
+      trace: {
+        request: input.publicRequest,
+        response: {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          headers: input.responseHeaders,
+          bodyText: stream.delta ?? '',
+          ...(stream.chunk !== undefined ? { parsedBody: stream.chunk } : {}),
+        },
+        latencyMs: Date.now() - input.started,
+      },
+      stream,
+    })
+  }
+
+  const processBlock = (block: string) => {
+    const eventData = readSSEDataFromBlock(block)
+    if (!eventData || eventData === '[DONE]') return
+
+    let chunk: unknown
+    try {
+      chunk = JSON.parse(eventData)
+    } catch {
+      emitStreamTrace({ kind: 'raw', delta: eventData })
+      return
+    }
+
+    const reasoningDelta = extractReasoningDelta(chunk)
+    if (reasoningDelta) {
+      accumulatedReasoning += reasoningDelta
+      emitStreamTrace({ kind: 'reasoning', delta: reasoningDelta, accumulated: accumulatedReasoning, chunk })
+    }
+
+    const contentDelta = extractContentDelta(chunk)
+    if (contentDelta) {
+      accumulatedContent += contentDelta
+      emitStreamTrace({ kind: 'content', delta: contentDelta, accumulated: accumulatedContent, chunk })
+    }
+
+    if (hasToolCallDelta(chunk)) {
+      emitStreamTrace({ kind: 'tool_call', chunk })
+    }
+
+    if (hasUsageDelta(chunk)) {
+      emitStreamTrace({ kind: 'usage', chunk })
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    const text = decoder.decode(value, { stream: true })
+    responseText += text
+    buffer += text
+
+    let normalized = buffer.replace(/\r\n/g, '\n')
+    let separatorIndex = normalized.indexOf('\n\n')
+    while (separatorIndex >= 0) {
+      const block = normalized.slice(0, separatorIndex)
+      processBlock(block)
+      normalized = normalized.slice(separatorIndex + 2)
+      separatorIndex = normalized.indexOf('\n\n')
+    }
+    buffer = normalized
+  }
+
+  const tail = decoder.decode()
+  if (tail) {
+    responseText += tail
+    buffer += tail
+  }
+  if (buffer.trim()) processBlock(buffer)
+
+  return responseText
+}
+
+function readSSEDataFromBlock(block: string): string {
+  return block
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.slice('data:'.length).trimStart())
+    .join('\n')
+    .trim()
+}
+
+function extractReasoningDelta(chunk: unknown): string {
+  const record = asRecord(chunk)
+  const event = asRecord(record?.event)
+  const eventDelta = stringValue(event?.reasoning_delta) || stringValue(event?.reasoningContent)
+  if (eventDelta) return eventDelta
+
+  const delta = firstChoiceDelta(record)
+  return stringValue(delta?.reasoning_content)
+    || stringValue(delta?.reasoning_delta)
+    || stringValue(delta?.reasoning)
+    || ''
+}
+
+function extractContentDelta(chunk: unknown): string {
+  const record = asRecord(chunk)
+  const event = asRecord(record?.event)
+  const eventDelta = stringValue(event?.content_delta) || stringValue(event?.contentDelta)
+  if (eventDelta) return eventDelta
+  return stringValue(firstChoiceDelta(record)?.content)
+}
+
+function hasToolCallDelta(chunk: unknown): boolean {
+  const record = asRecord(chunk)
+  const event = asRecord(record?.event)
+  const eventToolCalls = event?.tool_call_deltas
+  const deltaToolCalls = firstChoiceDelta(record)?.tool_calls
+  return (Array.isArray(eventToolCalls) && eventToolCalls.length > 0) || (Array.isArray(deltaToolCalls) && deltaToolCalls.length > 0)
+}
+
+function hasUsageDelta(chunk: unknown): boolean {
+  const record = asRecord(chunk)
+  const event = asRecord(record?.event)
+  return !!record?.usage || !!event?.usage
+}
+
+function firstChoiceDelta(record: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  const choices = record?.choices
+  if (!Array.isArray(choices)) return undefined
+  return asRecord(asRecord(choices[0])?.delta)
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? value as Record<string, unknown> : undefined
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value : ''
 }
 
 function parseGatewayModelResponse(responseText: string, contentType: string): ParsedModelGatewayResponse {

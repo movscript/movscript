@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
-	"github.com/movscript/movscript/internal/domain/model"
+	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	"gorm.io/gorm"
 )
@@ -95,7 +95,7 @@ func (h *ResourceBindingHandler) CreateByProject(c *gin.Context) {
 		h.writeResourceBindingError(c, err)
 		return
 	}
-	populateBindingResourceURLs(c, []model.ResourceBinding{binding})
+	populateBindingResourceURLs(c, []domainbinding.Binding{binding})
 	if created {
 		c.JSON(http.StatusCreated, binding)
 		return
@@ -135,7 +135,7 @@ func (h *ResourceBindingHandler) Patch(c *gin.Context) {
 		h.writeResourceBindingError(c, err)
 		return
 	}
-	populateBindingResourceURLs(c, []model.ResourceBinding{binding})
+	populateBindingResourceURLs(c, []domainbinding.Binding{binding})
 	c.JSON(http.StatusOK, binding)
 }
 
@@ -169,7 +169,7 @@ func parseOptionalUint(value string) uint {
 	return uint(parsed)
 }
 
-func populateBindingResourceURLs(c *gin.Context, bindings []model.ResourceBinding) {
+func populateBindingResourceURLs(c *gin.Context, bindings []domainbinding.Binding) {
 	for i := range bindings {
 		if bindings[i].Resource != nil {
 			bindings[i].Resource.URL = resourceURL(c, bindings[i].Resource.ID)

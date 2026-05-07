@@ -234,21 +234,6 @@ func compactAssetSlot(slot model.AssetSlot) map[string]any {
 	return item
 }
 
-func compactSettings(settings []model.Setting) []map[string]any {
-	items := make([]map[string]any, 0, len(settings))
-	for _, setting := range settings {
-		items = append(items, map[string]any{
-			"ID":          setting.ID,
-			"kind":        "setting",
-			"name":        setting.Name,
-			"type":        setting.Type,
-			"description": setting.Description,
-			"status":      setting.Status,
-		})
-	}
-	return items
-}
-
 func compactScripts(scripts []model.Script) []map[string]any {
 	items := make([]map[string]any, 0, len(scripts))
 	for _, script := range scripts {

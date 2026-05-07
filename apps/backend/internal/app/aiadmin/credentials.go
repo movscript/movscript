@@ -7,7 +7,6 @@ import (
 	"time"
 
 	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
 )
@@ -33,7 +32,7 @@ type UpdateCredentialInput struct {
 	Credentials     map[string]string
 }
 
-func (s *Service) ListCredentials(ctx context.Context) ([]model.AICredential, error) {
+func (s *Service) ListCredentials(ctx context.Context) ([]domainaiadmin.Credential, error) {
 	creds, err := s.repo.ListCredentials(ctx)
 	if err != nil {
 		return nil, err
@@ -44,7 +43,7 @@ func (s *Service) ListCredentials(ctx context.Context) ([]model.AICredential, er
 	return creds, nil
 }
 
-func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialInput) (model.AICredential, error) {
+func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialInput) (domainaiadmin.Credential, error) {
 	def := ai.GetAdapterDef(input.AdapterType)
 	baseURL := ""
 	if def != nil {
@@ -59,7 +58,7 @@ func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialIn
 		FilesAPIEnabled: input.FilesAPIEnabled,
 		FilesAPIBaseURL: input.FilesAPIBaseURL,
 	})
-	cred := domainCred.ToModel()
+	cred := domainCred
 	if input.FilesAPIKey != "" {
 		encFilesKey, _, err := s.registry.EncryptRawKey(input.FilesAPIKey)
 		if err != nil {
@@ -81,7 +80,7 @@ func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialIn
 	return cred, nil
 }
 
-func (s *Service) UpdateCredential(ctx context.Context, input UpdateCredentialInput) (model.AICredential, error) {
+func (s *Service) UpdateCredential(ctx context.Context, input UpdateCredentialInput) (domainaiadmin.Credential, error) {
 	cred, err := s.GetCredential(ctx, input.ID)
 	if err != nil {
 		return cred, err
@@ -150,7 +149,7 @@ func (s *Service) DeleteCredential(ctx context.Context, id string) error {
 	return s.repo.DeleteCredential(ctx, id)
 }
 
-func (s *Service) GetCredential(ctx context.Context, id any) (model.AICredential, error) {
+func (s *Service) GetCredential(ctx context.Context, id any) (domainaiadmin.Credential, error) {
 	cred, err := s.repo.GetCredential(ctx, id)
 	if err != nil {
 		return cred, err
@@ -163,7 +162,7 @@ func (s *Service) ListRemoteModels(ctx context.Context, credentialID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	provider, err := s.registry.BuildForCredential(cred)
+	provider, err := s.registry.BuildForCredential(cred.ToModel())
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +181,7 @@ func (s *Service) TestCredential(ctx context.Context, credentialID string) (Test
 	if err != nil {
 		return TestResult{}, err
 	}
-	provider, err := s.registry.BuildForCredential(cred)
+	provider, err := s.registry.BuildForCredential(cred.ToModel())
 	if err != nil {
 		return TestResult{Success: false, Message: err.Error()}, nil
 	}
@@ -193,7 +192,7 @@ func (s *Service) TestCredential(ctx context.Context, credentialID string) (Test
 	return TestResult{Success: true, Message: "连接正常", LatencyMs: time.Since(start).Milliseconds()}, nil
 }
 
-func (s *Service) applyMaskedKeys(cred *model.AICredential) {
+func (s *Service) applyMaskedKeys(cred *domainaiadmin.Credential) {
 	if cred.EncryptedKey != "" {
 		if plain, err := crypto.Decrypt(cred.EncryptedKey, s.encryptionKey); err == nil {
 			cred.MaskedKey = crypto.MaskKey(plain)

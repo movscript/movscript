@@ -3,16 +3,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   Bot, ChevronRight, Send, Loader2,
-  Plus, ArrowLeft, Copy, Check, X, ClipboardCheck,
+  Plus, ArrowLeft, Copy, Check, X, ClipboardCheck, CircleStop,
   Image, Video, FileText, Mic, File, Workflow, ShieldCheck,
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
-  Trash2, RefreshCw, History, Database, Save, FolderOpen,
+  Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
 } from 'lucide-react'
 import { api } from '@/lib/api'
+import { getAPIBaseURL, getAPIV1BaseURL } from '@/lib/config'
 import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSettled, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
+import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import {
   formatLocalAgentAssistantContent,
   LocalAgentWorkflowPanel,
@@ -142,7 +144,12 @@ function formatBytes(bytes: number) {
 }
 
 function resourceUrl(resource: Pick<RawResource, 'url' | 'direct_url'>) {
-  return resource.direct_url || resource.url
+  const url = resource.direct_url || resource.url
+  if (!url) return ''
+  if (/^(https?:|blob:|data:)/i.test(url)) return url
+  if (url.startsWith('/api/v1/')) return `${getAPIBaseURL()}${url}`
+  if (url.startsWith('/')) return `${getAPIV1BaseURL()}${url}`
+  return url
 }
 
 function attachmentKind(mimeType: string, fallbackName = ''): AgentAttachment['type'] {
@@ -181,9 +188,9 @@ function AttachmentPreview({ attachment, compact = false }: { attachment: AgentA
       compact ? 'w-28' : 'w-full'
     )}>
       {attachment.type === 'image' && url ? (
-        <img src={url} alt={attachment.name} className="h-20 w-full object-cover bg-muted" />
+        <AuthedImage src={url} alt={attachment.name} className="h-20 w-full object-cover bg-muted" />
       ) : attachment.type === 'video' && url ? (
-        <video src={url} className="h-20 w-full object-cover bg-black" muted controls />
+        <AuthedVideo src={url} className="h-20 w-full object-cover bg-black" muted controls />
       ) : (
         <div className="h-12 flex items-center justify-center text-muted-foreground bg-muted/40">
           <AttachmentIcon type={attachment.type} size={16} />
@@ -195,6 +202,114 @@ function AttachmentPreview({ attachment, compact = false }: { attachment: AgentA
       </div>
     </div>
   )
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function rawResourceFromUnknown(value: unknown): RawResource | undefined {
+  if (!isRecord(value)) return undefined
+  const id = Number(value.ID ?? value.id)
+  const rawType = value.type
+  if (!Number.isFinite(id) || id <= 0) return undefined
+  if (rawType !== 'image' && rawType !== 'video' && rawType !== 'audio' && rawType !== 'text' && rawType !== 'file') return undefined
+  const type: RawResource['type'] = rawType
+  return {
+    ID: id,
+    owner_id: Number(value.owner_id ?? value.ownerId ?? 0),
+    type,
+    name: typeof value.name === 'string' && value.name.trim() ? value.name : `resource-${id}`,
+    url: typeof value.url === 'string' && value.url ? value.url : `/api/v1/resources/${id}/file`,
+    size: typeof value.size === 'number' ? value.size : 0,
+    mime_type: typeof value.mime_type === 'string'
+      ? value.mime_type
+      : typeof value.mimeType === 'string'
+        ? value.mimeType
+        : type === 'video' ? 'video/mp4' : type === 'image' ? 'image/png' : 'application/octet-stream',
+    ...(typeof value.direct_url === 'string' ? { direct_url: value.direct_url } : {}),
+    ...(typeof value.storage_backend === 'string' ? { storage_backend: value.storage_backend } : {}),
+    ...(typeof value.storage_key === 'string' ? { storage_key: value.storage_key } : {}),
+  }
+}
+
+function collectGeneratedMediaHints(value: unknown, resources: Map<number, RawResource>, ids: Set<number>, depth = 0): void {
+  if (value === undefined || value === null || depth > 7) return
+  if (Array.isArray(value)) {
+    for (const item of value) collectGeneratedMediaHints(item, resources, ids, depth + 1)
+    return
+  }
+  if (!isRecord(value)) return
+
+  const resource = rawResourceFromUnknown(value)
+  if (resource && (resource.type === 'image' || resource.type === 'video')) {
+    resources.set(resource.ID, resource)
+  }
+
+  for (const key of ['output_resource', 'outputResource', 'media']) {
+    const nested = value[key]
+    const nestedResource = rawResourceFromUnknown(nested)
+    if (nestedResource && (nestedResource.type === 'image' || nestedResource.type === 'video')) {
+      resources.set(nestedResource.ID, nestedResource)
+    } else {
+      collectGeneratedMediaHints(nested, resources, ids, depth + 1)
+    }
+  }
+
+  for (const key of ['output_resources', 'outputResources']) {
+    collectGeneratedMediaHints(value[key], resources, ids, depth + 1)
+  }
+
+  const outputId = Number(value.output_resource_id ?? value.outputResourceId)
+  if (Number.isInteger(outputId) && outputId > 0) ids.add(outputId)
+  const outputIds = value.output_resource_ids ?? value.outputResourceIds
+  if (Array.isArray(outputIds)) {
+    for (const id of outputIds) {
+      const numeric = Number(id)
+      if (Number.isInteger(numeric) && numeric > 0) ids.add(numeric)
+    }
+  }
+
+  const data = value.data
+  if (data !== value) collectGeneratedMediaHints(data, resources, ids, depth + 1)
+  const job = value.job
+  if (job !== value) collectGeneratedMediaHints(job, resources, ids, depth + 1)
+}
+
+async function generatedAttachmentsFromRun(run: AgentRun): Promise<AgentAttachment[]> {
+  const resources = new Map<number, RawResource>()
+  const ids = new Set<number>()
+  for (const step of run.steps ?? []) {
+    collectGeneratedMediaHints(step.result, resources, ids)
+  }
+  for (const id of ids) {
+    if (!resources.has(id)) {
+      const found = await fetchResourceById(id)
+      if (found && (found.type === 'image' || found.type === 'video')) resources.set(id, found)
+    }
+  }
+  return Array.from(resources.values())
+    .filter((resource) => resource.type === 'image' || resource.type === 'video')
+    .map((resource) => ({
+      ...attachmentFromResource(resource),
+      id: `generated-${resource.ID}`,
+    }))
+}
+
+async function fetchResourceById(id: number): Promise<RawResource | undefined> {
+  try {
+    const { data } = await api.get<RawResource[] | { items: RawResource[] }>('/resources', {
+      params: { page: 1, page_size: 200, type: 'image,video' },
+    })
+    const resources = Array.isArray(data) ? data : data.items
+    return resources.find((resource) => resource.ID === id)
+  } catch {
+    return undefined
+  }
+}
+
+function withGeneratedAttachments(attachments: AgentAttachment[]): { attachments?: AgentAttachment[] } {
+  return attachments.length > 0 ? { attachments } : {}
 }
 
 function attachmentPromptBlock(attachments: AgentAttachment[]) {
@@ -895,9 +1010,33 @@ function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' |
 }
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
+const CONTEXT_PANE_HEIGHT_KEY = 'ai-panel-context-pane-height'
+const CONTEXT_PANE_DEFAULT_HEIGHT = 220
+const CONTEXT_PANE_MIN_HEIGHT = 96
+const CONTEXT_PANE_MAX_HEIGHT = 620
 
 function isStoppableAgentRun(run: AgentRun | null | undefined): run is AgentRun {
   return !!run && STOPPABLE_AGENT_RUN_STATUSES.has(run.status)
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value))
+}
+
+function readStoredNumber(key: string, fallback: number, min: number, max: number) {
+  try {
+    const parsed = Number(localStorage.getItem(key))
+    if (!Number.isFinite(parsed)) return fallback
+    return clampNumber(parsed, min, max)
+  } catch {
+    return fallback
+  }
+}
+
+function writeStoredNumber(key: string, value: number) {
+  try {
+    localStorage.setItem(key, String(Math.round(value)))
+  } catch {}
 }
 
 function compactRunActivity(run: AgentRun): ChatRunActivity {
@@ -930,7 +1069,8 @@ function compactRunActivity(run: AgentRun): ChatRunActivity {
       })),
     events: (run.traceEvents ?? [])
       .filter((event) => (
-        event.kind === 'tool_call'
+        event.kind === 'reasoning'
+        || event.kind === 'tool_call'
         || event.kind === 'model_call'
         || event.kind === 'context'
         || event.kind === 'memory'
@@ -940,7 +1080,6 @@ function compactRunActivity(run: AgentRun): ChatRunActivity {
         || event.kind === 'error'
       ))
       .filter((event) => event.kind !== 'tool_call' || !event.stepId || !toolStepIds.has(event.stepId))
-      .slice(-24)
       .map((event) => ({
         id: event.id,
         kind: event.kind,
@@ -954,6 +1093,50 @@ function compactRunActivity(run: AgentRun): ChatRunActivity {
         ...(event.completedAt ? { completedAt: event.completedAt } : {}),
       })),
   }
+}
+
+function reasoningTextFromRun(run: AgentRun | null) {
+  if (!run) return ''
+  const textParts: string[] = []
+  for (const event of run.traceEvents ?? []) {
+    if (event.kind !== 'reasoning' && !(event.kind === 'model_call' && typeof event.title === 'string' && event.title.toLowerCase().includes('reasoning'))) continue
+    const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
+    const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
+    const accumulated = typeof stream?.accumulated === 'string' ? stream.accumulated : undefined
+    const delta = typeof stream?.delta === 'string' ? stream.delta : undefined
+    if (accumulated) {
+      textParts.length = 0
+      textParts.push(accumulated)
+      continue
+    }
+    if (delta) textParts.push(delta)
+  }
+  return textParts.join('').trim()
+}
+
+function ThinkingBubble({ run }: { run: AgentRun | null }) {
+  const reasoning = reasoningTextFromRun(run)
+  if (run && run.status !== 'in_progress' && !reasoning) return null
+  return (
+    <AgentChatMessage
+      role="assistant"
+      avatar={<Bot size={13} />}
+      author="MovScript Agent"
+      footer={(
+        <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
+          思考中
+        </Badge>
+      )}
+    >
+      <div className="space-y-1.5">
+        <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+          <Loader2 size={11} className="animate-spin" />
+          <span>思考中</span>
+        </div>
+        {reasoning ? <MarkdownContent text={reasoning} /> : <div className="text-[11px] text-muted-foreground">...</div>}
+      </div>
+    </AgentChatMessage>
+  )
 }
 
 function formatActivityTime(value: string | undefined, locale: string) {
@@ -1409,7 +1592,7 @@ function MemoryPanel({
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script', 'setting', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline']
+const DRAFT_KINDS: AgentDraftKind[] = ['script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'production_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 
 function DraftPanel({
@@ -1425,7 +1608,7 @@ function DraftPanel({
   onRunUpdate: (run: AgentRun | null) => void
   onAppliedRun: (run: AgentRun, thread: LocalAgentThread) => void
 }) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const [status, setStatus] = useState<AgentDraftStatus | 'all'>('draft')
@@ -1553,7 +1736,7 @@ function DraftPanel({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-[10px] font-medium text-foreground">
           <ClipboardCheck size={11} />
-          Drafts
+          {t('agents.chat.drafts.title')}
         </div>
         <Button
           type="button"
@@ -1571,15 +1754,15 @@ function DraftPanel({
         <Select value={status} onValueChange={(next) => setStatus(next as AgentDraftStatus | 'all')}>
           <SelectTrigger size="sm" className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">all statuses</SelectItem>
-            {DRAFT_STATUSES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            <SelectItem value="all">{t('agents.chat.drafts.filters.allStatuses')}</SelectItem>
+            {DRAFT_STATUSES.map((item) => <SelectItem key={item} value={item}>{t(`agents.chat.drafts.status.${item}`)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={kind} onValueChange={(next) => setKind(next as AgentDraftKind | 'all')}>
           <SelectTrigger size="sm" className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">all kinds</SelectItem>
-            {DRAFT_KINDS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            <SelectItem value="all">{t('agents.chat.drafts.filters.allKinds')}</SelectItem>
+            {DRAFT_KINDS.map((item) => <SelectItem key={item} value={item}>{t(`agents.chat.drafts.kinds.${item}`)}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -1602,10 +1785,10 @@ function DraftPanel({
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="line-clamp-2 font-medium text-foreground">{draft.title}</span>
-                  <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 text-[9px] leading-4 px-1.5 py-0">{draft.status}</Badge>
+                  <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.status.${draft.status}`)}</Badge>
                 </div>
                 <div className="mt-1 flex items-center gap-1 text-[9px] text-muted-foreground">
-                  <span>{draft.kind}</span>
+                  <span>{t(`agents.chat.drafts.kinds.${draft.kind}`)}</span>
                   <span>·</span>
                   <span>{formatAgentDate(draft.updatedAt, locale)}</span>
                 </div>
@@ -1619,8 +1802,8 @@ function DraftPanel({
                   <div className="min-w-0">
                     <div className="truncate text-xs font-medium text-foreground">{selectedDraft.title}</div>
                     <div className="mt-1 flex flex-wrap gap-1">
-                      <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{selectedDraft.kind}</Badge>
-                      <Badge variant={draftStatusVariant(selectedDraft.status)} className="text-[9px] leading-4 px-1.5 py-0">{selectedDraft.status}</Badge>
+                      <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.kinds.${selectedDraft.kind}`)}</Badge>
+                      <Badge variant={draftStatusVariant(selectedDraft.status)} className="text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.status.${selectedDraft.status}`)}</Badge>
                       {selectedDraft.projectId && <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">project #{selectedDraft.projectId}</Badge>}
                     </div>
                   </div>
@@ -1880,9 +2063,11 @@ function ChatView({
       return false
     }
   })
+  const [contextPaneHeight, setContextPaneHeight] = useState(() => readStoredNumber(CONTEXT_PANE_HEIGHT_KEY, CONTEXT_PANE_DEFAULT_HEIGHT, CONTEXT_PANE_MIN_HEIGHT, CONTEXT_PANE_MAX_HEIGHT))
   const [activeLocalRun, setActiveLocalRun] = useState<AgentRun | null>(null)
   const [approvingLocalRun, setApprovingLocalRun] = useState(false)
   const [stoppingLocalRun, setStoppingLocalRun] = useState(false)
+  const [stopRequestedBeforeRun, setStopRequestedBeforeRun] = useState(false)
   const [startingLocalAgent, setStartingLocalAgent] = useState(false)
   const [localAgentStartError, setLocalAgentStartError] = useState<string | null>(null)
   const localRuntimeEnabled = true
@@ -1897,10 +2082,13 @@ function ChatView({
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
   const [localAgentThreadIds, setLocalAgentThreadIds] = useState<Record<string, string>>(() => readLocalAgentThreadIds())
   const consumedExternalDraftIdsRef = useRef<Set<string>>(new Set())
+  const stopRequestedBeforeRunRef = useRef(false)
+  const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
   const threadRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const contextPaneResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const {
     data: localAgentHealth,
     error: localAgentHealthError,
@@ -1943,7 +2131,7 @@ function ChatView({
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
     ?? (!localAgentOnline && localAgentHealthError instanceof Error ? localAgentHealthError.message : null)
-  const canStopLocalRun = isStoppableAgentRun(activeLocalRun)
+  const canStopLocalRun = isStoppableAgentRun(activeLocalRun) || loading || buildingSendDraft || stopRequestedBeforeRun
   const createProject = useMutation({
     mutationFn: (payload: { name: string; description?: string }) => api.post('/projects', payload).then((r) => r.data as Project),
     onSuccess: (project) => {
@@ -1974,6 +2162,37 @@ function ChatView({
       return resolved
     })
   }
+
+  const startContextPaneResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!showContext || event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    const startY = event.clientY
+    const startHeight = contextPaneHeight
+    contextPaneResizeRef.current = { startY, startHeight }
+    document.body.classList.add('ai-agent-panel-resizing', 'ai-agent-panel-resizing--y')
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const state = contextPaneResizeRef.current
+      if (!state) return
+      const delta = state.startY - moveEvent.clientY
+      const nextHeight = clampNumber(state.startHeight + delta, CONTEXT_PANE_MIN_HEIGHT, CONTEXT_PANE_MAX_HEIGHT)
+      setContextPaneHeight(nextHeight)
+      writeStoredNumber(CONTEXT_PANE_HEIGHT_KEY, nextHeight)
+    }
+
+    const onUp = () => {
+      contextPaneResizeRef.current = null
+      document.body.classList.remove('ai-agent-panel-resizing', 'ai-agent-panel-resizing--y')
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }, [contextPaneHeight, showContext])
 
   async function startLocalAgent() {
     if (startingLocalAgent) return
@@ -2025,13 +2244,17 @@ function ChatView({
       setActiveLocalRun(approvedRun)
       const finalRun = await localAgentClient.waitForRun(approvedRun.id, {
         onRunUpdate: setActiveLocalRun,
+        timeoutMs: 900_000,
+        pollMs: 1000,
       })
       const thread = await localAgentClient.getThread(finalRun.threadId)
       if (finalRun.status !== 'requires_action') {
         const content = formatLocalAgentAssistantContent(finalRun, thread)
+        const generatedAttachments = await generatedAttachmentsFromRun(finalRun)
         addMessage(userId, conv.id, {
           role: 'assistant',
           content,
+          ...withGeneratedAttachments(generatedAttachments),
           meta: { contextLabels: [`run ${finalRun.status}`], localRunActivity: compactRunActivity(finalRun) },
         })
       }
@@ -2086,12 +2309,16 @@ function ChatView({
       setActiveLocalRun(answeredRun)
       const finalRun = await localAgentClient.waitForRun(answeredRun.id, {
         onRunUpdate: setActiveLocalRun,
+        timeoutMs: 900_000,
+        pollMs: 1000,
       })
       const thread = await localAgentClient.getThread(finalRun.threadId)
       if (finalRun.status !== 'requires_action') {
+        const generatedAttachments = await generatedAttachmentsFromRun(finalRun)
         addMessage(userId, conv.id, {
           role: 'assistant',
           content: formatLocalAgentAssistantContent(finalRun, thread),
+          ...withGeneratedAttachments(generatedAttachments),
           meta: { contextLabels: [`run ${finalRun.status}`], localRunActivity: compactRunActivity(finalRun) },
         })
       }
@@ -2109,7 +2336,15 @@ function ChatView({
 
   const stopActiveLocalRun = useCallback(async () => {
     const run = activeLocalRun
-    if (!isStoppableAgentRun(run) || stoppingLocalRun) return
+    if (!isStoppableAgentRun(run)) {
+      if ((loading || buildingSendDraft) && !stoppingLocalRun) {
+        stopRequestedBeforeRunRef.current = true
+        setStopRequestedBeforeRun(true)
+        setStoppingLocalRun(true)
+      }
+      return
+    }
+    if (stoppingLocalRun && !stopRequestedBeforeRun) return
 
     setStoppingLocalRun(true)
     try {
@@ -2130,9 +2365,11 @@ function ChatView({
         content: `停止当前会话失败：${message}`,
       })
     } finally {
+      stopRequestedBeforeRunRef.current = false
+      setStopRequestedBeforeRun(false)
       setStoppingLocalRun(false)
     }
-  }, [activeLocalRun, stoppingLocalRun, loading, addMessage, conv.id, userId])
+  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, addMessage, conv.id, userId])
 
   const buildSendDraft = useCallback(async (options: {
     includeRuntimePreview?: boolean
@@ -2294,6 +2531,8 @@ function ChatView({
     setAttachments([])
     setLoading(true)
     setActiveLocalRun(null)
+    cancelRequestedRunIdsRef.current.clear()
+    setStoppingLocalRun(false)
     addMessage(userId, conv.id, {
       role: 'user',
       content: draft.visibleUserContent,
@@ -2317,7 +2556,7 @@ function ChatView({
         await refetchLocalAgentHealth()
       }
       await syncRuntimeModelConfig(draft.model.id, draft.model.name)
-      const { run, thread } = await localAgentClient.runMessage({
+      const runResult = await localAgentClient.runMessageStream({
         threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
         message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
         clientInput: draft.localRuntime?.clientInput,
@@ -2326,8 +2565,21 @@ function ChatView({
       }, {
         ...(draft.localRuntime?.agentManifest ? { agentManifest: draft.localRuntime.agentManifest } : {}),
         ...(draft.localRuntime?.timeoutMs ? { timeoutMs: draft.localRuntime.timeoutMs } : {}),
-        onRunUpdate: setActiveLocalRun,
-      })
+        pollMs: 120,
+        onRunUpdate: (nextRun) => {
+          setActiveLocalRun(nextRun)
+            if (stopRequestedBeforeRunRef.current && isStoppableAgentRun(nextRun) && !cancelRequestedRunIdsRef.current.has(nextRun.id)) {
+              cancelRequestedRunIdsRef.current.add(nextRun.id)
+              void localAgentClient.cancelRun(nextRun.id, { reason: '用户停止了当前会话。' })
+                .then(setActiveLocalRun)
+                .finally(() => {
+                  stopRequestedBeforeRunRef.current = false
+                  setStopRequestedBeforeRun(false)
+                })
+            }
+          },
+        })
+      const { run, thread } = runResult
       if (!draft.localRuntime?.diagnosticCommand) {
         setLocalAgentThreadIds((cur) => {
           const next = { ...cur, [conv.id]: thread.id }
@@ -2336,9 +2588,11 @@ function ChatView({
         })
       }
       const content = formatLocalAgentAssistantContent(run, thread)
+      const generatedAttachments = await generatedAttachmentsFromRun(run)
       addMessage(userId, conv.id, {
         role: 'assistant',
         content,
+        ...withGeneratedAttachments(generatedAttachments),
         meta: { contextLabels: [`run ${run.status}`], localRunActivity: compactRunActivity(run) },
       })
       notifyAgentPanelRunSettled({
@@ -2359,6 +2613,10 @@ function ChatView({
         error: message,
       })
     } finally {
+      stopRequestedBeforeRunRef.current = false
+      cancelRequestedRunIdsRef.current.clear()
+      setStopRequestedBeforeRun(false)
+      setStoppingLocalRun(false)
       setLoading(false)
     }
   }, [
@@ -2476,90 +2734,111 @@ function ChatView({
         onCancel={() => setPendingSendDraft(null)}
         onConfirm={confirmPendingSendDraft}
       />
-      <AgentHeader>
-        <AgentHeaderContent>
-          <AgentTitle className="ai-agent-panel-conversation-title">{conv.title}</AgentTitle>
-          <AgentSubtitle>Local Agent Runtime</AgentSubtitle>
-        </AgentHeaderContent>
-        <AgentHeaderActions>
-          <AgentStatus state={loading || buildingSendDraft ? 'running' : 'ready'}>
-            {loading || buildingSendDraft ? t('common.loading') : t('agents.chat.messagesCount', { count: conv.messages.length })}
-          </AgentStatus>
-          {canStopLocalRun && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={stopActiveLocalRun}
-              disabled={stoppingLocalRun}
-              className="h-7 px-2 text-xs text-destructive hover:text-destructive"
-              title="Stop current session"
-            >
-              {stoppingLocalRun ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
-              Stop
+      <section className="ai-agent-panel-card ai-agent-panel-content-card">
+        <AgentHeader>
+          <AgentHeaderContent>
+            <AgentTitle className="ai-agent-panel-conversation-title">{conv.title}</AgentTitle>
+            <AgentSubtitle>Local Agent Runtime</AgentSubtitle>
+          </AgentHeaderContent>
+          <AgentHeaderActions>
+            <AgentStatus state={loading || buildingSendDraft ? 'running' : 'ready'}>
+              {loading || buildingSendDraft ? t('common.loading') : t('agents.chat.messagesCount', { count: conv.messages.length })}
+            </AgentStatus>
+            {canStopLocalRun && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={stopActiveLocalRun}
+                disabled={stoppingLocalRun}
+                className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+                title="Stop current session"
+              >
+                {stoppingLocalRun ? <Loader2 size={13} className="animate-spin" /> : <CircleStop size={13} />}
+                Stop
+              </Button>
+            )}
+            <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label="Back">
+              <ArrowLeft size={14} />
             </Button>
-          )}
-          <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label="Back">
-            <ArrowLeft size={14} />
+          </AgentHeaderActions>
+        </AgentHeader>
+
+        <AgentBody>
+          <AgentThread ref={threadRef}>
+            {conv.messages.length === 0 && (
+              <AgentEmpty className="min-h-0 py-6">
+                <p className="text-sm font-medium text-foreground">
+                  {t('agents.chat.startChat')}
+                </p>
+                <AgentSuggestions className="grid w-full grid-cols-2 gap-2">
+                  {[
+                    { icon: <ListChecks size={13} />, label: t('agents.chat.suggestions.planProject') },
+                    { icon: <Sparkles size={13} />, label: t('agents.chat.suggestions.createContentUnit') },
+                    { icon: <Search size={13} />, label: t('agents.chat.suggestions.reviewAssets') },
+                    { icon: <Workflow size={13} />, label: t('agents.chat.suggestions.buildWorkflow') },
+                  ].map((item) => (
+                    <AgentSuggestion
+                      key={item.label}
+                      onClick={() => setInput(item.label)}
+                      className="justify-start rounded-md text-left text-[11px]"
+                    >
+                      {item.icon}
+                      <span className="leading-tight">{item.label}</span>
+                    </AgentSuggestion>
+                  ))}
+                </AgentSuggestions>
+              </AgentEmpty>
+            )}
+            {conv.messages.map((m) => <MessageBubble key={m.id} msg={m} />)}
+            <LocalAgentWorkflow
+              run={activeLocalRun}
+              approving={approvingLocalRun}
+              onApprove={approveActiveLocalRun}
+              onReject={rejectActiveLocalRun}
+              onAnswerInput={answerActiveLocalRunInput}
+            />
+            {activeLocalRun && (
+              <div className="mx-1">
+                <RunActivityPanel run={activeLocalRun} title="Live tool activity" />
+              </div>
+            )}
+            {loading && <ThinkingBubble run={activeLocalRun} />}
+            <div ref={bottomRef} />
+          </AgentThread>
+        </AgentBody>
+      </section>
+
+      <section className={cn('ai-agent-panel-card ai-agent-panel-context-section', showContext && 'ai-agent-panel-context-section--open')}>
+        <div className="ai-agent-panel-card-header">
+          <div className="min-w-0">
+            <p className="ai-agent-panel-card-title">上下文</p>
+            <p className="ai-agent-panel-card-subtitle">{contextLabels.length > 0 ? contextLabels.join(' / ') : '未选择上下文'}</p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => setShowContext((v) => !v)}
+            className="h-6 shrink-0 px-1 text-[10px] text-muted-foreground"
+          >
+            <Eye size={10} /> {showContext ? t('agents.chat.hideContext') : t('agents.chat.showContext')}
           </Button>
-        </AgentHeaderActions>
-      </AgentHeader>
-
-      <AgentBody>
-        <AgentThread ref={threadRef}>
-          {conv.messages.length === 0 && (
-            <AgentEmpty className="min-h-0 py-6">
-              <p className="text-sm font-medium text-foreground">
-                {t('agents.chat.startChat')}
-              </p>
-              <AgentSuggestions className="grid w-full grid-cols-2 gap-2">
-                {[
-                  { icon: <ListChecks size={13} />, label: t('agents.chat.suggestions.planProject') },
-                  { icon: <Sparkles size={13} />, label: t('agents.chat.suggestions.createContentUnit') },
-                  { icon: <Search size={13} />, label: t('agents.chat.suggestions.reviewAssets') },
-                  { icon: <Workflow size={13} />, label: t('agents.chat.suggestions.buildWorkflow') },
-                ].map((item) => (
-                  <AgentSuggestion
-                    key={item.label}
-                    onClick={() => setInput(item.label)}
-                    className="justify-start rounded-md text-left text-[11px]"
-                  >
-                    {item.icon}
-                    <span className="leading-tight">{item.label}</span>
-                  </AgentSuggestion>
-                ))}
-              </AgentSuggestions>
-            </AgentEmpty>
-          )}
-          {conv.messages.map((m) => <MessageBubble key={m.id} msg={m} />)}
-          <LocalAgentWorkflow
-            run={activeLocalRun}
-            approving={approvingLocalRun}
-            onApprove={approveActiveLocalRun}
-            onReject={rejectActiveLocalRun}
-            onAnswerInput={answerActiveLocalRunInput}
-          />
-          {activeLocalRun && (
-            <div className="mx-1">
-              <RunActivityPanel run={activeLocalRun} title="Live tool activity" />
-            </div>
-          )}
-          {loading && (
-            <AgentChatMessage
-              role="assistant"
-              avatar={<Bot size={13} />}
-              author={t('common.loading')}
-            >
-              <span className="inline-flex w-fit items-center gap-2">
-                <Loader2 size={13} className="animate-spin" />
-              </span>
-            </AgentChatMessage>
-          )}
-          <div ref={bottomRef} />
-        </AgentThread>
-      </AgentBody>
-
-      <div className="ai-agent-panel-footer min-w-0 shrink-0 px-3 py-2.5">
-        <div className="ai-agent-panel-footer-scroll space-y-2">
+        </div>
+        {showContext && (
+          <div
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize context area"
+            className="ai-agent-panel-context-resize-handle"
+            onPointerDown={startContextPaneResize}
+          >
+            <GripHorizontal size={18} aria-hidden="true" />
+          </div>
+        )}
+        <div
+          className={cn('ai-agent-panel-context-body space-y-2', !showContext && 'hidden')}
+          style={{ height: contextPaneHeight }}
+        >
           <div className="rounded-md border border-border bg-background/60 p-2 space-y-1">
             <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
               <span className={cn('min-w-0 truncate font-medium', localAgentOnline ? 'text-green-600' : 'text-amber-600')}>
@@ -2691,11 +2970,13 @@ function ChatView({
                 threadId={localAgentThreadIds[conv.id]}
                 online={localAgentOnline}
                 onRunUpdate={setActiveLocalRun}
-                onAppliedRun={(run, thread) => {
+                onAppliedRun={async (run, thread) => {
                   const content = formatLocalAgentAssistantContent(run, thread)
+                  const generatedAttachments = await generatedAttachmentsFromRun(run)
                   addMessage(userId, conv.id, {
                     role: 'assistant',
                     content,
+                    ...withGeneratedAttachments(generatedAttachments),
                     meta: { contextLabels: [`run ${run.status}`, 'Draft apply'], localRunActivity: compactRunActivity(run) },
                   })
                 }}
@@ -2708,19 +2989,15 @@ function ChatView({
             </div>
           )}
         </div>
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => setShowContext((v) => !v)}
-            className="h-6 shrink-0 px-1 text-[10px] text-muted-foreground"
-          >
-            <Eye size={10} /> {showContext ? t('agents.chat.hideContext') : t('agents.chat.showContext')}
-          </Button>
+      </section>
+
+      <section className="ai-agent-panel-card ai-agent-panel-input-card">
+        <div className="ai-agent-panel-card-header ai-agent-panel-input-header">
+          <p className="ai-agent-panel-card-title">输入</p>
           <p className="min-w-0 truncate text-right text-[10px] text-muted-foreground/40">{t('agents.chat.inputHint')}</p>
         </div>
         <AgentComposer
+          className="ai-agent-panel-composer"
           onSubmit={(e) => {
             e.preventDefault()
             send()
@@ -2739,6 +3016,7 @@ function ChatView({
             placeholder={t('agents.chat.inputPlaceholder')}
             minRows={2}
             value={input}
+            className="ai-agent-panel-composer-field"
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             disabled={loading || buildingSendDraft}
@@ -2778,14 +3056,14 @@ function ChatView({
               {stoppingLocalRun
                 ? <Loader2 size={15} className="animate-spin" />
                 : canStopLocalRun
-                  ? <X size={15} />
+                  ? <CircleStop size={15} />
                   : buildingSendDraft
                     ? <Loader2 size={15} className="animate-spin" />
                     : debugBeforeSend ? <Eye size={15} /> : <Send size={15} />}
             </AgentComposerSubmit>
           </AgentComposerToolbar>
         </AgentComposer>
-      </div>
+      </section>
     </AgentMain>
   )
 }
@@ -3012,6 +3290,7 @@ function BuiltinChat({ userId }: { userId: string }) {
 // ── AIAgentPanel ──────────────────────────────────────────────────────────────
 
 const PANEL_OPEN_KEY = 'ai-panel-open'
+const PANEL_WIDTH_KEY = 'ai-panel-width'
 const LOCAL_AGENT_THREAD_IDS_KEY = 'ai-panel-local-agent-thread-ids'
 const AGENT_DEBUG_PREVIEW_KEY = 'ai-panel-debug-preview'
 const AGENT_CONTEXT_VISIBLE_KEY = 'ai-panel-context-visible'
@@ -3046,8 +3325,10 @@ export function AIAgentPanel() {
       return true
     }
   })
+  const [panelWidth, setPanelWidth] = useState(() => readStoredNumber(PANEL_WIDTH_KEY, 420, 320, 760))
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
+  const panelResizeStateRef = React.useRef<{ startX: number; startWidth: number } | null>(null)
 
   useEffect(() => {
     function handleDraft() {
@@ -3067,12 +3348,55 @@ export function AIAgentPanel() {
     })
   }
 
+  const startPanelResize = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!open || event.button !== 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    const startWidth = panelWidth
+    const startX = event.clientX
+    panelResizeStateRef.current = { startX, startWidth }
+    const maxWidth = Math.min(760, Math.max(320, window.innerWidth - 280))
+    document.body.classList.add('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
+
+    const onMove = (moveEvent: PointerEvent) => {
+      const state = panelResizeStateRef.current
+      if (!state) return
+      const delta = state.startX - moveEvent.clientX
+      const nextWidth = clampNumber(state.startWidth + delta, 320, maxWidth)
+      setPanelWidth(nextWidth)
+      writeStoredNumber(PANEL_WIDTH_KEY, nextWidth)
+    }
+
+    const onUp = () => {
+      panelResizeStateRef.current = null
+      document.body.classList.remove('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+  }, [open, panelWidth])
+
   return (
     <div className={cn(
-      'ai-agent-panel h-full min-w-0 shrink-0 bg-background flex flex-col overflow-hidden transition-all duration-200',
-      open ? 'w-[420px]' : 'w-11'
-    )}>
-      <div className="flex items-center h-11 border-b border-border shrink-0 px-2.5 gap-2">
+      'ai-agent-panel relative h-full min-w-0 shrink-0 bg-background flex flex-col overflow-hidden transition-[width] duration-200',
+      open ? 'w-[var(--ai-agent-panel-width)]' : 'w-11',
+    )} style={{ ['--ai-agent-panel-width' as string]: `${panelWidth}px` }}>
+      {open && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize assistant panel"
+          className="absolute left-0 top-0 z-20 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-primary/30"
+          onPointerDown={startPanelResize}
+        >
+          <div className="absolute left-1/2 top-1/2 h-10 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/80" />
+        </div>
+      )}
+      <div className="flex items-center h-11 border-b border-border shrink-0 px-2.5 gap-2 pl-3">
         <button
           onClick={toggleOpen}
           title={open ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')}

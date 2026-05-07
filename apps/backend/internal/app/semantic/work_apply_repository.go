@@ -11,7 +11,7 @@ import (
 )
 
 func applyWorkItemResult(tx *gorm.DB, projectID uint, item model.WorkItem, actorID *uint, appliedAt string) error {
-	application, err := domainsemantic.WorkItemResultApplicationFor(item)
+	application, err := domainsemantic.WorkItemResultApplicationFor(domainsemantic.WorkItemFromModel(item))
 	if err != nil {
 		return err
 	}

@@ -956,7 +956,7 @@ export function EntityCardNode({ data, selected }: NodeProps & { data: NodeDataW
     enabled: !!kind && !!data.entityId && previewFields.length > 0,
   })
   const resolvedKind = kind ?? 'script'
-  const domainKind: CanvasDomainEntityKind = resolvedKind === 'script' || resolvedKind === 'setting' ? 'segment' : resolvedKind
+  const domainKind: CanvasDomainEntityKind = resolvedKind === 'script' ? 'segment' : resolvedKind
   const title = data.entityTitle || label
   const subtitle = [
     kindLabel,

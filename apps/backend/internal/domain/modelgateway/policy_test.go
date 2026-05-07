@@ -3,15 +3,13 @@ package modelgateway
 import (
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
-	"gorm.io/gorm"
 )
 
 func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
 	projectID := uint(7)
 	otherID := uint(8)
-	key := &model.GatewayAPIKey{ProjectID: &projectID}
+	key := &APIKey{ProjectID: &projectID}
 
 	if KeyAllowsProject(key, nil) {
 		t.Fatal("expected project-scoped key to reject requests without project_id")
@@ -35,7 +33,8 @@ func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
 		t.Fatalf("unexpected key: %+v", key)
 	}
 	modelKey := key.ToModel()
-	if !KeyAllowsScope(&modelKey, DefaultAPIScopeChat) {
+	domainModelKey := APIKeyFromModel(modelKey)
+	if !KeyAllowsScope(&domainModelKey, DefaultAPIScopeChat) {
 		t.Fatalf("expected default chat scope, got %q", key.AllowedScopes)
 	}
 	modelKey.ID = 12
@@ -48,7 +47,7 @@ func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
 func TestBillingContextIncludesAPIKeyAndProject(t *testing.T) {
 	orgID := uint(5)
 	projectID := uint(11)
-	key := &model.GatewayAPIKey{Model: gorm.Model{ID: 3}, OrgID: &orgID}
+	key := &APIKey{ID: 3, OrgID: &orgID}
 
 	ctx := BillingContext(key, &projectID)
 

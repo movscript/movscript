@@ -1,13 +1,9 @@
 package script
 
-import (
-	"testing"
-
-	"github.com/movscript/movscript/internal/domain/model"
-)
+import "testing"
 
 func TestNormalizeDefaultsUsesRawSourceAsCanonicalInput(t *testing.T) {
-	item := model.Script{Content: "原始剧本文档"}
+	item := ScriptSnapshot{Content: "原始剧本文档"}
 
 	NormalizeDefaults(&item)
 
@@ -26,7 +22,7 @@ func TestNormalizeDefaultsUsesRawSourceAsCanonicalInput(t *testing.T) {
 }
 
 func TestNormalizeDefaultsBackfillsContentFromRawSource(t *testing.T) {
-	item := model.Script{RawSource: "raw source only"}
+	item := ScriptSnapshot{RawSource: "raw source only"}
 
 	NormalizeDefaults(&item)
 
@@ -37,7 +33,8 @@ func TestNormalizeDefaultsBackfillsContentFromRawSource(t *testing.T) {
 
 func TestNewInitialVersionUsesScriptSnapshot(t *testing.T) {
 	createdByID := uint(9)
-	item := model.Script{
+	item := ScriptSnapshot{
+		ID:         2,
 		ProjectID:  1,
 		Title:      "Draft",
 		Content:    "content",
@@ -45,7 +42,6 @@ func TestNewInitialVersionUsesScriptSnapshot(t *testing.T) {
 		Summary:    "summary",
 		SourceType: "",
 	}
-	item.ID = 2
 
 	version := NewInitialVersion(item, &createdByID)
 

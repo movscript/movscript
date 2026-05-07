@@ -3,7 +3,6 @@ package semantic
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/model"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -81,14 +80,14 @@ type CanvasOutputInput struct {
 	MetadataJSON string `json:"metadata_json"`
 }
 
-func (s *Service) ListDeliveryVersions(ctx context.Context, filter DeliveryVersionFilter) ([]model.DeliveryVersion, error) {
+func (s *Service) ListDeliveryVersions(ctx context.Context, filter DeliveryVersionFilter) ([]domainsemantic.DeliveryVersion, error) {
 	return s.repo.ListDeliveryVersions(ctx, filter)
 }
 
-func (s *Service) CreateDeliveryVersion(ctx context.Context, projectID uint, input DeliveryVersionInput) (model.DeliveryVersion, error) {
+func (s *Service) CreateDeliveryVersion(ctx context.Context, projectID uint, input DeliveryVersionInput) (domainsemantic.DeliveryVersion, error) {
 	if input.ProductionID != nil {
 		if err := s.ensureProductionInProject(ctx, projectID, *input.ProductionID); err != nil {
-			return model.DeliveryVersion{}, err
+			return domainsemantic.DeliveryVersion{}, err
 		}
 	}
 	item := domainsemantic.NewDeliveryVersion(domainsemantic.DeliveryVersionSpec{
@@ -101,16 +100,13 @@ func (s *Service) CreateDeliveryVersion(ctx context.Context, projectID uint, inp
 		IsPrimary:         input.IsPrimary,
 		DurationSec:       input.DurationSec,
 		MetadataJSON:      input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateDeliveryVersion(ctx, item)
 }
 
-func (s *Service) PatchDeliveryVersion(ctx context.Context, projectID uint, id string, input DeliveryVersionInput) (model.DeliveryVersion, error) {
-	var item model.DeliveryVersion
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchDeliveryVersion(ctx context.Context, projectID uint, id string, input DeliveryVersionInput) (domainsemantic.DeliveryVersion, error) {
+	item, err := s.repo.LoadDeliveryVersion(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if input.ProductionID != nil {
@@ -118,7 +114,7 @@ func (s *Service) PatchDeliveryVersion(ctx context.Context, projectID uint, id s
 			return item, err
 		}
 	}
-	if err := s.PatchItem(ctx, &item, compactUpdates(map[string]any{
+	return s.repo.PatchDeliveryVersion(ctx, item, compactUpdates(map[string]any{
 		"production_id":       input.ProductionID,
 		"preview_timeline_id": input.PreviewTimelineID,
 		"name":                input.Name,
@@ -127,22 +123,16 @@ func (s *Service) PatchDeliveryVersion(ctx context.Context, projectID uint, id s
 		"is_primary":          &input.IsPrimary,
 		"duration_sec":        input.DurationSec,
 		"metadata_json":       input.MetadataJSON,
-	})); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	}))
 }
 
-func (s *Service) ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]model.DeliveryTimelineItem, error) {
+func (s *Service) ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]domainsemantic.DeliveryTimelineItem, error) {
 	return s.repo.ListDeliveryTimelineItems(ctx, filter)
 }
 
-func (s *Service) CreateDeliveryTimelineItem(ctx context.Context, projectID uint, input DeliveryTimelineItemInput) (model.DeliveryTimelineItem, error) {
+func (s *Service) CreateDeliveryTimelineItem(ctx context.Context, projectID uint, input DeliveryTimelineItemInput) (domainsemantic.DeliveryTimelineItem, error) {
 	if err := s.validateDeliveryTimelineItemOwners(ctx, projectID, input); err != nil {
-		return model.DeliveryTimelineItem{}, err
+		return domainsemantic.DeliveryTimelineItem{}, err
 	}
 	item := domainsemantic.NewDeliveryTimelineItem(domainsemantic.DeliveryTimelineItemSpec{
 		ProjectID:         projectID,
@@ -157,22 +147,19 @@ func (s *Service) CreateDeliveryTimelineItem(ctx context.Context, projectID uint
 		Label:             input.Label,
 		Status:            input.Status,
 		MetadataJSON:      input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateDeliveryTimelineItem(ctx, item)
 }
 
-func (s *Service) PatchDeliveryTimelineItem(ctx context.Context, projectID uint, id string, input DeliveryTimelineItemInput) (model.DeliveryTimelineItem, error) {
-	var item model.DeliveryTimelineItem
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchDeliveryTimelineItem(ctx context.Context, projectID uint, id string, input DeliveryTimelineItemInput) (domainsemantic.DeliveryTimelineItem, error) {
+	item, err := s.repo.LoadDeliveryTimelineItem(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validateDeliveryTimelineItemOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	if err := s.PatchItem(ctx, &item, compactUpdates(map[string]any{
+	return s.repo.PatchDeliveryTimelineItem(ctx, item, compactUpdates(map[string]any{
 		"delivery_version_id": input.DeliveryVersionID,
 		"content_unit_id":     input.ContentUnitID,
 		"asset_slot_id":       input.AssetSlotID,
@@ -184,22 +171,16 @@ func (s *Service) PatchDeliveryTimelineItem(ctx context.Context, projectID uint,
 		"label":               input.Label,
 		"status":              input.Status,
 		"metadata_json":       input.MetadataJSON,
-	})); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	}))
 }
 
-func (s *Service) ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]model.ExportRecord, error) {
+func (s *Service) ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]domainsemantic.ExportRecord, error) {
 	return s.repo.ListExportRecords(ctx, filter)
 }
 
-func (s *Service) CreateExportRecord(ctx context.Context, projectID uint, input ExportRecordInput) (model.ExportRecord, error) {
+func (s *Service) CreateExportRecord(ctx context.Context, projectID uint, input ExportRecordInput) (domainsemantic.ExportRecord, error) {
 	if err := s.validateExportRecordOwners(ctx, projectID, input); err != nil {
-		return model.ExportRecord{}, err
+		return domainsemantic.ExportRecord{}, err
 	}
 	item := domainsemantic.NewExportRecord(domainsemantic.ExportRecordSpec{
 		ProjectID:         projectID,
@@ -210,22 +191,19 @@ func (s *Service) CreateExportRecord(ctx context.Context, projectID uint, input 
 		Preset:            input.Preset,
 		Error:             input.Error,
 		MetadataJSON:      input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateExportRecord(ctx, item)
 }
 
-func (s *Service) PatchExportRecord(ctx context.Context, projectID uint, id string, input ExportRecordInput) (model.ExportRecord, error) {
-	var item model.ExportRecord
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchExportRecord(ctx context.Context, projectID uint, id string, input ExportRecordInput) (domainsemantic.ExportRecord, error) {
+	item, err := s.repo.LoadExportRecord(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validateExportRecordOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	if err := s.PatchItem(ctx, &item, compactUpdates(map[string]any{
+	return s.repo.PatchExportRecord(ctx, item, compactUpdates(map[string]any{
 		"delivery_version_id": input.DeliveryVersionID,
 		"resource_id":         input.ResourceID,
 		"status":              input.Status,
@@ -233,22 +211,16 @@ func (s *Service) PatchExportRecord(ctx context.Context, projectID uint, id stri
 		"preset":              input.Preset,
 		"error":               input.Error,
 		"metadata_json":       input.MetadataJSON,
-	})); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	}))
 }
 
-func (s *Service) ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]model.CanvasOutput, error) {
+func (s *Service) ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]domainsemantic.CanvasOutput, error) {
 	return s.repo.ListCanvasOutputs(ctx, filter)
 }
 
-func (s *Service) CreateCanvasOutput(ctx context.Context, projectID uint, input CanvasOutputInput) (model.CanvasOutput, error) {
+func (s *Service) CreateCanvasOutput(ctx context.Context, projectID uint, input CanvasOutputInput) (domainsemantic.CanvasOutput, error) {
 	if err := s.validateCanvasOutputOwners(ctx, projectID, input); err != nil {
-		return model.CanvasOutput{}, err
+		return domainsemantic.CanvasOutput{}, err
 	}
 	item := domainsemantic.NewCanvasOutput(domainsemantic.CanvasOutputSpec{
 		ProjectID:    projectID,
@@ -264,22 +236,19 @@ func (s *Service) CreateCanvasOutput(ctx context.Context, projectID uint, input 
 		ValueJSON:    input.ValueJSON,
 		Status:       input.Status,
 		MetadataJSON: input.MetadataJSON,
-	}).ToModel()
-	if err := s.CreateItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	})
+	return s.repo.CreateCanvasOutput(ctx, item)
 }
 
-func (s *Service) PatchCanvasOutput(ctx context.Context, projectID uint, id string, input CanvasOutputInput) (model.CanvasOutput, error) {
-	var item model.CanvasOutput
-	if err := s.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+func (s *Service) PatchCanvasOutput(ctx context.Context, projectID uint, id string, input CanvasOutputInput) (domainsemantic.CanvasOutput, error) {
+	item, err := s.repo.LoadCanvasOutput(ctx, projectID, id)
+	if err != nil {
 		return item, err
 	}
 	if err := s.validateCanvasOutputOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	if err := s.PatchItem(ctx, &item, compactUpdates(map[string]any{
+	return s.repo.PatchCanvasOutput(ctx, item, compactUpdates(map[string]any{
 		"canvas_id":      input.CanvasID,
 		"canvas_run_id":  input.CanvasRunID,
 		"canvas_node_id": input.CanvasNodeID,
@@ -292,13 +261,7 @@ func (s *Service) PatchCanvasOutput(ctx context.Context, projectID uint, id stri
 		"value_json":     input.ValueJSON,
 		"status":         input.Status,
 		"metadata_json":  input.MetadataJSON,
-	})); err != nil {
-		return item, err
-	}
-	if err := s.ReloadItem(ctx, &item); err != nil {
-		return item, err
-	}
-	return item, nil
+	}))
 }
 
 func (s *Service) validateDeliveryTimelineItemOwners(ctx context.Context, projectID uint, input DeliveryTimelineItemInput) error {

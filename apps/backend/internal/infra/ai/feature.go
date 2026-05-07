@@ -92,10 +92,10 @@ var FeatureCatalog = []FeatureDef{
 	},
 	{
 		ID: FeatureMainScriptAnalyze, DisplayName: "主剧本 AI 分析", IsInternal: true,
-		Description:  "拆解主剧本，提取分集剧本、分场剧本和项目设定候选",
+		Description:  "拆解主剧本，提取分集剧本、分场剧本和创作资料候选",
 		RequiredCap:  CapabilityText,
-		SystemPrompt: `你是短剧主剧本结构编辑。你的任务是把总剧本文档拆成可确认的分集剧本、分场剧本和设定候选。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
-		OutputSchema: `{"title":"标题","description":"描述","summary":"总提纲","episode_scripts":[{"id":"ep1","order":1,"title":"分集标题","description":"描述","outline":"提纲","hook":"钩子","content":"从原文拆出的分集剧本文本","scene_refs":["sc1"]}],"scene_scripts":[{"id":"sc1","episode_id":"ep1","order":1,"title":"分场标题","description":"描述","outline":"提纲","content":"从原文拆出的分场剧本文本","time_text":"时间","location_text":"场景","characters":["人物"],"plot":"情节","atmosphere":"氛围"}],"settings":[{"id":"set1","type":"character|scene|prop|world_rule","name":"名称","description":"描述"}]}`,
+		SystemPrompt: `你是短剧主剧本结构编辑。你的任务是把总剧本文档拆成可确认的分集剧本、分场剧本和创作资料候选。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
+		OutputSchema: `{"title":"标题","description":"描述","summary":"总提纲","episode_scripts":[{"id":"ep1","order":1,"title":"分集标题","description":"描述","outline":"提纲","hook":"钩子","content":"从原文拆出的分集剧本文本","scene_refs":["sc1"]}],"scene_scripts":[{"id":"sc1","episode_id":"ep1","order":1,"title":"分场标题","description":"描述","outline":"提纲","content":"从原文拆出的分场剧本文本","time_text":"时间","location_text":"场景","characters":["人物"],"plot":"情节","atmosphere":"氛围"}],"creative_references":[{"id":"cr1","kind":"person|place|prop|world_rule","name":"名称","description":"描述"}]}`,
 		MaxTokens:    DefaultTextMaxTokens, Temperature: 0,
 	},
 	{

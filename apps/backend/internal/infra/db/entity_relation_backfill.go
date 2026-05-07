@@ -29,8 +29,6 @@ func backfillCoreEntityRelations(db *gorm.DB) error {
 		{"creative_reference_states", func() error { return backfillEntityRelationsByRows[model.CreativeReferenceState](db) }},
 		{"creative_reference_usages", func() error { return backfillEntityRelationsByRows[model.CreativeReferenceUsage](db) }},
 		{"creative_relationships", func() error { return backfillEntityRelationsByRows[model.CreativeRelationship](db) }},
-		{"setting_relationships", func() error { return backfillEntityRelationsByRows[model.SettingRelationship](db) }},
-		{"script_setting_refs", func() error { return backfillEntityRelationsByRows[model.ScriptSettingRef](db) }},
 		{"segments", func() error { return backfillEntityRelationsByRows[model.Segment](db) }},
 		{"scene_moments", func() error { return backfillEntityRelationsByRows[model.SceneMoment](db) }},
 		{"content_units", func() error { return backfillEntityRelationsByRows[model.ContentUnit](db) }},

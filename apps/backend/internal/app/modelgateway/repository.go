@@ -6,19 +6,20 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"gorm.io/gorm"
 )
 
 type repository interface {
-	ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint, includeLegacy bool) ([]model.GatewayAPIKey, error)
-	CreateAPIKey(ctx context.Context, key *model.GatewayAPIKey) error
-	UpdateAPIKey(ctx context.Context, key *model.GatewayAPIKey, updates map[string]any) error
-	ReloadAPIKey(ctx context.Context, key *model.GatewayAPIKey) error
-	DeleteAPIKey(ctx context.Context, key *model.GatewayAPIKey) error
-	FindAPIKeyByHash(ctx context.Context, hash string) (model.GatewayAPIKey, error)
+	ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint, includeLegacy bool) ([]domainmodelgateway.APIKey, error)
+	CreateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
+	UpdateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey, updates map[string]any) error
+	ReloadAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
+	DeleteAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
+	FindAPIKeyByHash(ctx context.Context, hash string) (domainmodelgateway.APIKey, error)
 	FindUser(ctx context.Context, id uint) (model.User, error)
-	TouchAPIKeyLastUsed(ctx context.Context, key *model.GatewayAPIKey, usedAt time.Time) error
-	FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint, includeLegacy bool) (model.GatewayAPIKey, error)
+	TouchAPIKeyLastUsed(ctx context.Context, key *domainmodelgateway.APIKey, usedAt time.Time) error
+	FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint, includeLegacy bool) (domainmodelgateway.APIKey, error)
 	FindProjectOrgID(ctx context.Context, projectID uint) (*uint, error)
 	IsPersonalOrg(ctx context.Context, orgID uint) bool
 }
@@ -27,40 +28,66 @@ type gormRepository struct {
 	db *gorm.DB
 }
 
-func (r *gormRepository) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint, includeLegacy bool) ([]model.GatewayAPIKey, error) {
+func (r *gormRepository) ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint, includeLegacy bool) ([]domainmodelgateway.APIKey, error) {
 	keys := make([]model.GatewayAPIKey, 0)
 	q := r.db.WithContext(ctx).Where("owner_user_id = ?", ownerUserID)
 	q = applyAPIKeyOrgScope(q, orgID, ownerUserID, includeLegacy)
 	err := q.Order("created_at desc").Find(&keys).Error
-	return keys, err
+	if err != nil {
+		return nil, err
+	}
+	items := make([]domainmodelgateway.APIKey, 0, len(keys))
+	for _, key := range keys {
+		items = append(items, domainmodelgateway.APIKeyFromModel(key))
+	}
+	return items, nil
 }
 
-func (r *gormRepository) CreateAPIKey(ctx context.Context, key *model.GatewayAPIKey) error {
-	return r.db.WithContext(ctx).Create(key).Error
+func (r *gormRepository) CreateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error {
+	row := key.ToModel()
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return err
+	}
+	*key = domainmodelgateway.APIKeyFromModel(row)
+	return nil
 }
 
-func (r *gormRepository) UpdateAPIKey(ctx context.Context, key *model.GatewayAPIKey, updates map[string]any) error {
+func (r *gormRepository) UpdateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey, updates map[string]any) error {
 	if len(updates) == 0 {
 		return nil
 	}
-	return r.db.WithContext(ctx).Model(key).Updates(updates).Error
+	row := key.ToModel()
+	if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
+		return err
+	}
+	*key = domainmodelgateway.APIKeyFromModel(row)
+	return nil
 }
 
-func (r *gormRepository) ReloadAPIKey(ctx context.Context, key *model.GatewayAPIKey) error {
-	return r.db.WithContext(ctx).First(key, key.ID).Error
+func (r *gormRepository) ReloadAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error {
+	var row model.GatewayAPIKey
+	if err := r.db.WithContext(ctx).First(&row, key.ID).Error; err != nil {
+		return err
+	}
+	*key = domainmodelgateway.APIKeyFromModel(row)
+	return nil
 }
 
-func (r *gormRepository) DeleteAPIKey(ctx context.Context, key *model.GatewayAPIKey) error {
-	return r.db.WithContext(ctx).Delete(key).Error
+func (r *gormRepository) DeleteAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error {
+	row := key.ToModel()
+	return r.db.WithContext(ctx).Delete(&row).Error
 }
 
-func (r *gormRepository) FindAPIKeyByHash(ctx context.Context, hash string) (model.GatewayAPIKey, error) {
+func (r *gormRepository) FindAPIKeyByHash(ctx context.Context, hash string) (domainmodelgateway.APIKey, error) {
 	var key model.GatewayAPIKey
 	err := r.db.WithContext(ctx).Where("key_hash = ? AND is_enabled = true", hash).First(&key).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return key, ErrAPIKeyNotFound
+		return domainmodelgateway.APIKey{}, ErrAPIKeyNotFound
 	}
-	return key, err
+	if err != nil {
+		return domainmodelgateway.APIKey{}, err
+	}
+	return domainmodelgateway.APIKeyFromModel(key), nil
 }
 
 func (r *gormRepository) FindUser(ctx context.Context, id uint) (model.User, error) {
@@ -72,21 +99,26 @@ func (r *gormRepository) FindUser(ctx context.Context, id uint) (model.User, err
 	return user, err
 }
 
-func (r *gormRepository) TouchAPIKeyLastUsed(ctx context.Context, key *model.GatewayAPIKey, usedAt time.Time) error {
-	return r.db.WithContext(ctx).Model(key).Update("last_used_at", &usedAt).Error
+func (r *gormRepository) TouchAPIKeyLastUsed(ctx context.Context, key *domainmodelgateway.APIKey, usedAt time.Time) error {
+	row := key.ToModel()
+	if err := r.db.WithContext(ctx).Model(&row).Update("last_used_at", &usedAt).Error; err != nil {
+		return err
+	}
+	key.LastUsedAt = &usedAt
+	return nil
 }
 
-func (r *gormRepository) FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint, includeLegacy bool) (model.GatewayAPIKey, error) {
+func (r *gormRepository) FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint, includeLegacy bool) (domainmodelgateway.APIKey, error) {
 	var key model.GatewayAPIKey
 	q := r.db.WithContext(ctx).Where("id = ? AND owner_user_id = ?", id, ownerUserID)
 	q = applyAPIKeyOrgScope(q, orgID, ownerUserID, includeLegacy)
 	if err := q.First(&key).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return key, ErrAPIKeyNotFound
+			return domainmodelgateway.APIKey{}, ErrAPIKeyNotFound
 		}
-		return key, err
+		return domainmodelgateway.APIKey{}, err
 	}
-	return key, nil
+	return domainmodelgateway.APIKeyFromModel(key), nil
 }
 
 func (r *gormRepository) FindProjectOrgID(ctx context.Context, projectID uint) (*uint, error) {

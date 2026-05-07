@@ -21,7 +21,6 @@ export interface AgentRuntimeContractResolver {
 export interface AgentRuntimeContractMetadata {
   runtimeContractId?: string
   runtimeRequiresConfiguredModel?: boolean
-  runtimeRequiresStructuredJSON?: boolean
 }
 
 export function buildRuntimeContractMetadata(contract?: AgentRuntimeContract): AgentRuntimeContractMetadata | undefined {
@@ -29,7 +28,6 @@ export function buildRuntimeContractMetadata(contract?: AgentRuntimeContract): A
   return {
     runtimeContractId: contract.id,
     runtimeRequiresConfiguredModel: contract.requiresConfiguredModel === true,
-    runtimeRequiresStructuredJSON: contract.requiresStructuredJSON === true,
   }
 }
 
@@ -50,8 +48,7 @@ export class StaticAgentRuntimeContractResolver implements AgentRuntimeContractR
   }
 
   requiresStructuredJSON(manifest?: AgentManifest): boolean {
-    if (this.find(manifest)?.requiresStructuredJSON === true) return true
-    return /输出JSON|JSON对象|valid JSON|machine-readable JSON/i.test(manifest?.soul ?? '')
+    return this.find(manifest)?.requiresStructuredJSON === true
   }
 }
 
