@@ -154,7 +154,7 @@ func (s *Service) Register(ctx context.Context, input RegisterInput) (model.User
 	if err != nil {
 		return model.User{}, err
 	}
-	u := domainauth.NewRegisteredUser(input.Username, hash, input.Email, bootstrapSystemAdmin, verifiedAt)
+	u := domainauth.NewRegisteredUser(input.Username, hash, input.Email, bootstrapSystemAdmin, verifiedAt).ToModel()
 	if err := s.repo.CreateUser(ctx, &u); err != nil {
 		return model.User{}, err
 	}
@@ -218,7 +218,7 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 	if err != nil {
 		return model.User{}, err
 	}
-	u := domainauth.NewRegisteredUser(username, string(hashBytes), "", true, nil)
+	u := domainauth.NewRegisteredUser(username, string(hashBytes), "", true, nil).ToModel()
 	u.DisplayName = displayName
 	if err := s.repo.CreateUser(ctx, &u); err != nil {
 		return model.User{}, err
@@ -292,7 +292,7 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 	if err != nil {
 		return ChallengeStartResult{}, err
 	}
-	challenge := domainauth.NewAuthChallenge(channel, target, sha256Hex(code), time.Now().UTC())
+	challenge := domainauth.NewAuthChallenge(channel, target, sha256Hex(code), time.Now().UTC()).ToModel()
 	if err := s.repo.CreateChallenge(ctx, &challenge); err != nil {
 		return ChallengeStartResult{}, err
 	}
@@ -344,7 +344,7 @@ func (s *Service) CreateSession(ctx context.Context, userID uint, ttl time.Durat
 		return "", time.Time{}, err
 	}
 	expiresAt := time.Now().UTC().Add(ttl)
-	session := domainauth.NewAuthSession(userID, sha256Hex(raw), expiresAt, userAgent, ipAddress)
+	session := domainauth.NewAuthSession(userID, sha256Hex(raw), expiresAt, userAgent, ipAddress).ToModel()
 	if err := s.repo.CreateSession(ctx, &session); err != nil {
 		return "", time.Time{}, err
 	}

@@ -61,4 +61,10 @@ func TestNewInitialVersionUsesScriptSnapshot(t *testing.T) {
 	if version.CreatedByID == nil || *version.CreatedByID != createdByID {
 		t.Fatalf("created by = %#v, want %d", version.CreatedByID, createdByID)
 	}
+	modelVersion := version.ToModel()
+	modelVersion.ID = 17
+	roundTrip := ScriptVersionFromModel(modelVersion)
+	if roundTrip.ID != 17 || roundTrip.Title != "Draft" || roundTrip.Status != ScriptVersionStatusActive {
+		t.Fatalf("unexpected version round-trip: %+v", roundTrip)
+	}
 }

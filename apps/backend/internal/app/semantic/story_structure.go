@@ -28,7 +28,7 @@ func (s *Service) CreateSegment(ctx context.Context, projectID uint, input Creat
 		Content:         input.Content,
 		Status:          input.Status,
 		MetadataJSON:    input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -96,7 +96,7 @@ func (s *Service) CreateProductionTextBlock(ctx context.Context, projectID uint,
 		SourceType:    input.SourceType,
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -164,7 +164,7 @@ func (s *Service) CreateSceneMoment(ctx context.Context, projectID uint, input C
 		Mood:          input.Mood,
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

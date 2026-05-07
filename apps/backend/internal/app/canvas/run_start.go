@@ -13,7 +13,7 @@ func (h *Service) StartNode(ctx context.Context, user *model.User, cv model.Canv
 	if err != nil {
 		return model.CanvasTask{}, err
 	}
-	task := canvasruntime.NewCanvasTask(node, nil, canvasruntime.MarshalPortInputs(inputs))
+	task := canvasruntime.NewCanvasTask(node, nil, canvasruntime.MarshalPortInputs(inputs)).ToModel()
 	if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
 		return model.CanvasTask{}, err
 	}
@@ -30,7 +30,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 		return model.CanvasRun{}, nil, err
 	}
 	now := time.Now()
-	run := canvasruntime.NewCanvasRun(cv, inputValues, now)
+	run := canvasruntime.NewCanvasRun(cv, inputValues, now).ToModel()
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return model.CanvasRun{}, nil, err
 	}
@@ -41,7 +41,7 @@ func (h *Service) StartCanvasRun(user *model.User, cv model.Canvas, inputValues 
 		if node == nil {
 			continue
 		}
-		task := canvasruntime.NewCanvasTask(*node, &run.ID, "")
+		task := canvasruntime.NewCanvasTask(*node, &run.ID, "").ToModel()
 		if err := h.canvasRepo().CreateTask(context.Background(), &task); err != nil {
 			return run, tasks, err
 		}

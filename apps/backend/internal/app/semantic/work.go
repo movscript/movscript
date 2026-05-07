@@ -18,7 +18,7 @@ func (s *Service) CreateWorkItem(ctx context.Context, projectID uint, auth WorkA
 	if err := s.validateWorkItemInput(ctx, projectID, input); err != nil {
 		return model.WorkItem{}, err
 	}
-	item := domainsemantic.NewWorkItem(projectID, input.domainPatch())
+	item := domainsemantic.NewWorkItem(projectID, input.domainPatch()).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -79,7 +79,7 @@ func (s *Service) CreateWorkReview(ctx context.Context, projectID uint, auth Wor
 		Status:       input.Status,
 		Comment:      input.Comment,
 		MetadataJSON: input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -128,7 +128,7 @@ func (s *Service) CreateWorkDependency(ctx context.Context, projectID uint, auth
 		WorkItemID:          input.WorkItemID,
 		DependsOnWorkItemID: input.DependsOnWorkItemID,
 		DependencyType:      input.DependencyType,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

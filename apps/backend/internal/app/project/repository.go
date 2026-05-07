@@ -83,7 +83,7 @@ func (r *gormRepository) ForceSetOwner(ctx context.Context, projectID uint, owne
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
-			member := domainproject.OwnerMember(project.ID, ownerID)
+			member := domainproject.OwnerMember(project.ID, ownerID).ToModel()
 			if err := tx.Create(&member).Error; err != nil {
 				return err
 			}
@@ -95,13 +95,13 @@ func (r *gormRepository) ForceSetOwner(ctx context.Context, projectID uint, owne
 }
 
 func (r *gormRepository) Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (model.Project, error) {
-	project := domainproject.NewProject(input.Name, input.Description, input.TotalEpisodes, ownerID, orgID)
+	project := domainproject.NewProject(input.Name, input.Description, input.TotalEpisodes, ownerID, orgID).ToModel()
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&project).Error; err != nil {
 			return err
 		}
 		if project.OwnerID != 0 {
-			member := domainproject.OwnerMember(project.ID, project.OwnerID)
+			member := domainproject.OwnerMember(project.ID, project.OwnerID).ToModel()
 			return tx.Create(&member).Error
 		}
 		return nil
@@ -191,7 +191,7 @@ func (r *gormRepository) AddMember(ctx context.Context, projectID uint, input Me
 	if _, err := r.Get(ctx, projectID, orgID); err != nil {
 		return model.ProjectMember{}, err
 	}
-	member := domainproject.NewMember(projectID, input.UserID, input.Role)
+	member := domainproject.NewMember(projectID, input.UserID, input.Role).ToModel()
 	if err := r.db.WithContext(ctx).Create(&member).Error; err != nil {
 		return member, err
 	}

@@ -112,7 +112,7 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (model.RawResou
 		MimeType:       mimeType,
 		Size:           input.Size,
 		StorageBackend: s.store.Backend(),
-	})
+	}).ToModel()
 	if err := s.repo.CreateResource(ctx, &r); err != nil {
 		return model.RawResource{}, err
 	}

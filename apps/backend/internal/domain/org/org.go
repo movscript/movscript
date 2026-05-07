@@ -91,8 +91,50 @@ func PersonalOrgSlug(username string, userID uint, slugExists bool) string {
 	return slug
 }
 
-func NewPersonalOrg(user model.User, slugExists bool) model.Organization {
-	return model.Organization{
+type Organization struct {
+	ID         uint
+	Name       string
+	Slug       string
+	JoinCode   string
+	IsPersonal bool
+	Plan       string
+	Status     string
+	CreatedBy  uint
+}
+
+type OrganizationMember struct {
+	ID     uint
+	OrgID  uint
+	UserID uint
+	Role   string
+}
+
+type Invitation struct {
+	ID        uint
+	OrgID     uint
+	Token     string
+	Role      string
+	Note      string
+	CreatedBy uint
+	UsedBy    *uint
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+}
+
+type UserGroup struct {
+	ID    uint
+	OrgID uint
+	Name  string
+}
+
+type UserGroupMember struct {
+	ID      uint
+	GroupID uint
+	UserID  uint
+}
+
+func NewPersonalOrg(user model.User, slugExists bool) Organization {
+	return Organization{
 		Name:       user.Username,
 		Slug:       PersonalOrgSlug(user.Username, user.ID, slugExists),
 		JoinCode:   "",
@@ -103,20 +145,20 @@ func NewPersonalOrg(user model.User, slugExists bool) model.Organization {
 	}
 }
 
-func NewTeamOrg(name string, slug string, joinCode string, ownerID uint) model.Organization {
-	return model.Organization{Name: name, Slug: slug, JoinCode: joinCode, IsPersonal: false, Plan: PlanTeam, Status: StatusTrialing, CreatedBy: ownerID}
+func NewTeamOrg(name string, slug string, joinCode string, ownerID uint) Organization {
+	return Organization{Name: name, Slug: slug, JoinCode: joinCode, IsPersonal: false, Plan: PlanTeam, Status: StatusTrialing, CreatedBy: ownerID}
 }
 
-func OwnerMember(orgID uint, userID uint) model.OrganizationMember {
-	return model.OrganizationMember{OrgID: orgID, UserID: userID, Role: RoleOwner}
+func OwnerMember(orgID uint, userID uint) OrganizationMember {
+	return OrganizationMember{OrgID: orgID, UserID: userID, Role: RoleOwner}
 }
 
-func Member(orgID uint, userID uint, role string) model.OrganizationMember {
-	return model.OrganizationMember{OrgID: orgID, UserID: userID, Role: DefaultMemberRole(role)}
+func Member(orgID uint, userID uint, role string) OrganizationMember {
+	return OrganizationMember{OrgID: orgID, UserID: userID, Role: DefaultMemberRole(role)}
 }
 
-func NewInvitation(orgID uint, token string, role string, note string, createdBy uint, expiresAt time.Time) model.OrgInvitation {
-	return model.OrgInvitation{
+func NewInvitation(orgID uint, token string, role string, note string, createdBy uint, expiresAt time.Time) Invitation {
+	return Invitation{
 		OrgID:     orgID,
 		Token:     token,
 		Role:      DefaultMemberRole(role),
@@ -126,10 +168,10 @@ func NewInvitation(orgID uint, token string, role string, note string, createdBy
 	}
 }
 
-func NewUserGroup(orgID uint, name string) model.UserGroup {
-	return model.UserGroup{OrgID: orgID, Name: strings.TrimSpace(name)}
+func NewUserGroup(orgID uint, name string) UserGroup {
+	return UserGroup{OrgID: orgID, Name: strings.TrimSpace(name)}
 }
 
-func GroupMember(groupID uint, userID uint) model.UserGroupMember {
-	return model.UserGroupMember{GroupID: groupID, UserID: userID}
+func GroupMember(groupID uint, userID uint) UserGroupMember {
+	return UserGroupMember{GroupID: groupID, UserID: userID}
 }

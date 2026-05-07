@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
 )
@@ -47,6 +48,48 @@ type EntityWriteAuditSpec struct {
 	ResourceBindingIDs string
 }
 
+type Canvas struct {
+	ID           uint
+	OwnerID      uint
+	OrgID        *uint
+	Name         string
+	Description  string
+	CanvasType   string
+	ProjectID    *uint
+	Stage        string
+	RefType      string
+	RefID        *uint
+	Visibility   string
+	WorkflowKey  string
+	WorkflowTags string
+	PublishedAt  *time.Time
+}
+
+type CanvasNode struct {
+	ID       uint
+	CanvasID uint
+	NodeID   string
+	Type     string
+	Label    string
+	PosX     float64
+	PosY     float64
+	Data     string
+}
+
+type EntityWriteAudit struct {
+	ID                 uint
+	CanvasID           uint
+	CanvasRunID        uint
+	CanvasNodeID       string
+	PortID             string
+	EntityKind         string
+	EntityID           uint
+	UserID             uint
+	OldValueJSON       string
+	NewValueJSON       string
+	ResourceBindingIDs string
+}
+
 func NormalizeCreateInput(input *CanvasCreateInput) error {
 	if input.CanvasType == "" {
 		input.CanvasType = "inspiration"
@@ -65,8 +108,8 @@ func NormalizeCreateInput(input *CanvasCreateInput) error {
 	return nil
 }
 
-func NewCanvas(input CanvasCreateInput) model.Canvas {
-	return model.Canvas{
+func NewCanvas(input CanvasCreateInput) Canvas {
+	return Canvas{
 		OwnerID:     input.OwnerID,
 		OrgID:       input.OrgID,
 		Name:        input.Name,
@@ -129,7 +172,7 @@ func WorkflowBootstrapGraph(canvasID uint) ([]model.CanvasNode, model.CanvasEdge
 	return nodes, edge
 }
 
-func NewAssetSlotTargetNode(input AssetSlotTargetNodeInput) model.CanvasNode {
+func NewAssetSlotTargetNode(input AssetSlotTargetNodeInput) CanvasNode {
 	title := strings.TrimSpace(input.AssetName)
 	if title == "" {
 		title = strings.TrimSpace(input.FallbackLabel)
@@ -156,7 +199,7 @@ func NewAssetSlotTargetNode(input AssetSlotTargetNodeInput) model.CanvasNode {
 			{"id": "creative_reference_id", "type": "number", "label": "所属资料"},
 		},
 	})
-	return model.CanvasNode{
+	return CanvasNode{
 		CanvasID: input.CanvasID,
 		NodeID:   "asset-slot-target",
 		Type:     "entity_card",
@@ -176,8 +219,8 @@ func AssetSlotCanvasPortType(kind string) string {
 	}
 }
 
-func NewEntityWriteAudit(spec EntityWriteAuditSpec) model.CanvasEntityWriteAudit {
-	return model.CanvasEntityWriteAudit{
+func NewEntityWriteAudit(spec EntityWriteAuditSpec) EntityWriteAudit {
+	return EntityWriteAudit{
 		CanvasID:           spec.CanvasID,
 		CanvasRunID:        spec.CanvasRunID,
 		CanvasNodeID:       strings.TrimSpace(spec.CanvasNodeID),

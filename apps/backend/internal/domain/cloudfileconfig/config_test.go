@@ -19,6 +19,12 @@ func TestNewConfigTrimsNameAndType(t *testing.T) {
 	if cfg.Name != "S3" || cfg.ConfigType != TypeS3 || cfg.ConfigJSON != "{}" {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
+	modelCfg := cfg.ToModel()
+	modelCfg.ID = 8
+	roundTrip := ConfigFromModel(modelCfg)
+	if roundTrip.ID != 8 || roundTrip.Name != "S3" || roundTrip.ConfigType != TypeS3 {
+		t.Fatalf("unexpected config round-trip: %+v", roundTrip)
+	}
 }
 
 func TestMergeConfigUpdatePreservesMaskedSensitiveValues(t *testing.T) {

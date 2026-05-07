@@ -3,8 +3,6 @@ package resourcefolder
 import (
 	"strconv"
 	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 const (
@@ -21,8 +19,26 @@ type NewFolderSpec struct {
 	IsShared       bool
 }
 
-func NewFolder(spec NewFolderSpec) model.ResourceFolder {
-	return model.ResourceFolder{
+type Folder struct {
+	ID             uint
+	OwnerID        uint
+	OrgID          *uint
+	Name           string
+	ParentID       *uint
+	StorageBackend string
+	IsShared       bool
+	ResourceCount  int
+}
+
+type Permission struct {
+	ID         uint
+	FolderID   uint
+	UserID     uint
+	Permission string
+}
+
+func NewFolder(spec NewFolderSpec) Folder {
+	return Folder{
 		OwnerID:        spec.OwnerID,
 		OrgID:          spec.OrgID,
 		Name:           strings.TrimSpace(spec.Name),
@@ -49,8 +65,8 @@ func ValidPermission(permission string) bool {
 	}
 }
 
-func NewPermission(folderID uint, userID uint, permission string) model.ResourceFolderPermission {
-	return model.ResourceFolderPermission{
+func NewPermission(folderID uint, userID uint, permission string) Permission {
+	return Permission{
 		FolderID:   folderID,
 		UserID:     userID,
 		Permission: NormalizePermission(permission),

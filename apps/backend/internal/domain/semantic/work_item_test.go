@@ -6,6 +6,25 @@ import (
 	"github.com/movscript/movscript/internal/domain/model"
 )
 
+func TestNewWorkItemAppliesDefaultsAndMapsToModel(t *testing.T) {
+	assigneeID := uint(7)
+	item := NewWorkItem(1, WorkItemPatch{
+		TargetType: WorkItemTargetTypeContentUnit,
+		TargetID:   10,
+		Title:      "Render shot",
+		AssigneeID: &assigneeID,
+	})
+	if item.Kind != "human" || item.Status != WorkItemStatusTodo || item.Priority != "normal" || item.ResultType != WorkItemResultNone || item.ApplyStatus != WorkItemApplyStatusNotApplicable {
+		t.Fatalf("unexpected work item defaults: %+v", item)
+	}
+	modelItem := item.ToModel()
+	modelItem.ID = 11
+	roundTrip := WorkItemFromModel(modelItem)
+	if roundTrip.ID != 11 || roundTrip.AssigneeID == nil || *roundTrip.AssigneeID != assigneeID {
+		t.Fatalf("unexpected work item round-trip: %+v", roundTrip)
+	}
+}
+
 func TestWorkItemPatchKeepsAssignmentRejectsTargetChange(t *testing.T) {
 	assigneeID := uint(7)
 	item := model.WorkItem{

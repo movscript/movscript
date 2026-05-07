@@ -22,6 +22,41 @@ const (
 	IPAddressMaxLength = 64
 )
 
+type RegisteredUser struct {
+	ID              uint
+	Username        string
+	PasswordHash    string
+	SystemRole      string
+	PrimaryEmail    *string
+	PrimaryPhone    *string
+	DisplayName     string
+	AvatarURL       string
+	Locale          string
+	Status          string
+	EmailVerifiedAt *int64
+}
+
+type AuthChallenge struct {
+	ID         uint
+	Channel    string
+	Target     string
+	CodeHash   string
+	ExpiresAt  time.Time
+	ConsumedAt *time.Time
+	Attempts   int
+}
+
+type AuthSession struct {
+	ID         uint
+	UserID     uint
+	TokenHash  string
+	ExpiresAt  time.Time
+	RevokedAt  *time.Time
+	LastSeenAt *time.Time
+	UserAgent  string
+	IPAddress  string
+}
+
 func NormalizeEmail(value string) string {
 	value = strings.ToLower(strings.TrimSpace(value))
 	if value == "" {
@@ -40,8 +75,8 @@ func SystemRoleForNewUser(bootstrapSystemAdmin bool) string {
 	return SystemRoleUser
 }
 
-func NewRegisteredUser(username string, passwordHash string, email string, bootstrapSystemAdmin bool, verifiedAt *int64) model.User {
-	user := model.User{
+func NewRegisteredUser(username string, passwordHash string, email string, bootstrapSystemAdmin bool, verifiedAt *int64) RegisteredUser {
+	user := RegisteredUser{
 		Username:     strings.TrimSpace(username),
 		PasswordHash: passwordHash,
 		SystemRole:   SystemRoleForNewUser(bootstrapSystemAdmin),
@@ -54,12 +89,12 @@ func NewRegisteredUser(username string, passwordHash string, email string, boots
 	return user
 }
 
-func NewAuthChallenge(channel string, target string, codeHash string, now time.Time) model.AuthChallenge {
+func NewAuthChallenge(channel string, target string, codeHash string, now time.Time) AuthChallenge {
 	channel = strings.TrimSpace(channel)
 	if channel == "" {
 		channel = ChallengeChannelEmail
 	}
-	return model.AuthChallenge{
+	return AuthChallenge{
 		Channel:   channel,
 		Target:    NormalizeEmail(target),
 		CodeHash:  codeHash,
@@ -71,8 +106,8 @@ func ChallengeValidForVerification(challenge model.AuthChallenge, now time.Time)
 	return challenge.ConsumedAt == nil && challenge.ExpiresAt.After(now.UTC()) && challenge.Attempts < ChallengeMaxAttempts
 }
 
-func NewAuthSession(userID uint, tokenHash string, expiresAt time.Time, userAgent string, ipAddress string) model.AuthSession {
-	return model.AuthSession{
+func NewAuthSession(userID uint, tokenHash string, expiresAt time.Time, userAgent string, ipAddress string) AuthSession {
+	return AuthSession{
 		UserID:    userID,
 		TokenHash: tokenHash,
 		ExpiresAt: expiresAt.UTC(),

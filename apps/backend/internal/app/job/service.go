@@ -133,7 +133,7 @@ func (s *Service) GetCredential(ctx context.Context, id uint) (model.AICredentia
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (model.Job, error) {
-	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec(input))
+	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec(input)).ToModel()
 	return s.repo.Create(ctx, job)
 }
 

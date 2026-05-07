@@ -26,7 +26,7 @@ func (s *Service) CreateProduction(ctx context.Context, projectID uint, input Pr
 		OwnerLabel:        input.OwnerLabel,
 		Progress:          input.Progress,
 		MetadataJSON:      input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -114,7 +114,7 @@ func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input Keyf
 		Order:         input.Order,
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -168,7 +168,7 @@ func (s *Service) CreatePreviewTimeline(ctx context.Context, projectID uint, inp
 		DurationSec:     input.DurationSec,
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -275,7 +275,7 @@ func contentUnitFromInput(projectID uint, input ContentUnitInput) model.ContentU
 		CameraNotes:      input.CameraNotes,
 		Status:           input.Status,
 		MetadataJSON:     input.MetadataJSON,
-	})
+	}).ToModel()
 }
 
 func contentUnitUpdates(input ContentUnitInput) map[string]any {
@@ -323,7 +323,7 @@ func previewTimelineItemFromInput(projectID uint, timelineID uint, input Preview
 		Label:             input.Label,
 		Status:            input.Status,
 		MetadataJSON:      input.MetadataJSON,
-	})
+	}).ToModel()
 }
 
 func previewTimelineItemUpdates(input PreviewTimelineItemInput) map[string]any {

@@ -34,8 +34,14 @@ func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
 	if key.Name != "Test Key" || key.KeyPrefix != "mgw_prefix" || key.KeyHash != "hash" || !key.IsEnabled {
 		t.Fatalf("unexpected key: %+v", key)
 	}
-	if !KeyAllowsScope(&key, DefaultAPIScopeChat) {
+	modelKey := key.ToModel()
+	if !KeyAllowsScope(&modelKey, DefaultAPIScopeChat) {
 		t.Fatalf("expected default chat scope, got %q", key.AllowedScopes)
+	}
+	modelKey.ID = 12
+	roundTrip := APIKeyFromModel(modelKey)
+	if roundTrip.ID != 12 || roundTrip.Name != "Test Key" || roundTrip.AllowedScopes == "" {
+		t.Fatalf("unexpected key round-trip: %+v", roundTrip)
 	}
 }
 

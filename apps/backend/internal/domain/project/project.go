@@ -1,7 +1,5 @@
 package project
 
-import "github.com/movscript/movscript/internal/domain/model"
-
 type Role struct {
 	Role   string
 	UserID uint
@@ -14,8 +12,25 @@ const (
 	RoleViewer     = "viewer"
 )
 
-func NewProject(name string, description string, totalEpisodes int, ownerID uint, orgID *uint) model.Project {
-	return model.Project{
+type Project struct {
+	ID            uint
+	Name          string
+	Description   string
+	OwnerID       uint
+	OrgID         *uint
+	Status        string
+	TotalEpisodes int
+}
+
+type Member struct {
+	ID        uint
+	ProjectID uint
+	UserID    uint
+	Role      string
+}
+
+func NewProject(name string, description string, totalEpisodes int, ownerID uint, orgID *uint) Project {
+	return Project{
 		Name:          name,
 		Description:   description,
 		OwnerID:       ownerID,
@@ -24,12 +39,12 @@ func NewProject(name string, description string, totalEpisodes int, ownerID uint
 	}
 }
 
-func OwnerMember(projectID uint, userID uint) model.ProjectMember {
-	return model.ProjectMember{ProjectID: projectID, UserID: userID, Role: RoleOwner}
+func OwnerMember(projectID uint, userID uint) Member {
+	return Member{ProjectID: projectID, UserID: userID, Role: RoleOwner}
 }
 
-func NewMember(projectID uint, userID uint, role string) model.ProjectMember {
-	return model.ProjectMember{ProjectID: projectID, UserID: userID, Role: DefaultMemberRole(role)}
+func NewMember(projectID uint, userID uint, role string) Member {
+	return Member{ProjectID: projectID, UserID: userID, Role: DefaultMemberRole(role)}
 }
 
 func DefaultMemberRole(role string) string {

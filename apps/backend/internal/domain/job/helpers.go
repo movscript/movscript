@@ -64,6 +64,40 @@ type NewQueuedJobSpec struct {
 	ProjectID          *uint
 }
 
+type Job struct {
+	ID                 uint
+	UserID             uint
+	OrgID              *uint
+	ModelConfigID      uint
+	JobType            string
+	FeatureKey         string
+	Status             string
+	AttemptCount       int
+	MaxAttempts        int
+	NextRunAt          *time.Time
+	Prompt             string
+	ExtraParams        string
+	AspectRatio        string
+	Duration           int
+	RequestContext     string
+	InputResourceID    *uint
+	InputResourceIDs   string
+	OutputResourceID   *uint
+	UsageReservationID *uint
+	ProviderTaskID     string
+	ProviderTaskKind   string
+	ProviderTaskStatus string
+	ErrorMsg           string
+	DebugInfo          string
+	ExecutionState     string
+	LockedBy           string
+	LeaseUntil         *time.Time
+	LastHeartbeatAt    *time.Time
+	StartedAt          *time.Time
+	FinishedAt         *time.Time
+	ProjectID          *uint
+}
+
 // Job status constants match the jobs.status DB column values.
 const (
 	StatusPending   = "pending"
@@ -123,8 +157,8 @@ func BuildListSpec(filter ListFilter) ListSpec {
 	return spec
 }
 
-func NewQueuedJob(spec NewQueuedJobSpec) model.Job {
-	return model.Job{
+func NewQueuedJob(spec NewQueuedJobSpec) Job {
+	return Job{
 		UserID:             spec.UserID,
 		OrgID:              spec.OrgID,
 		ModelConfigID:      spec.ModelConfigID,

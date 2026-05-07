@@ -32,6 +32,23 @@ func TestNewCanvasTaskUsesPendingStatusAndNodeSnapshot(t *testing.T) {
 	}
 }
 
+func TestCanvasRunAndTaskModelMappingRoundTrip(t *testing.T) {
+	run := CanvasRun{ID: 7, CanvasID: 3, Status: CanvasRunStatusRunning, InputValues: "{}"}
+	modelRun := run.ToModel()
+	roundTripRun := CanvasRunFromModel(modelRun)
+	if roundTripRun.ID != 7 || roundTripRun.CanvasID != 3 || roundTripRun.Status != CanvasRunStatusRunning {
+		t.Fatalf("unexpected run round-trip: %+v", roundTripRun)
+	}
+
+	runID := uint(7)
+	task := CanvasTask{ID: 8, CanvasNodeID: 9, CanvasRunID: &runID, NodeID: "render", Status: CanvasTaskStatusPending}
+	modelTask := task.ToModel()
+	roundTripTask := CanvasTaskFromModel(modelTask)
+	if roundTripTask.ID != 8 || roundTripTask.CanvasNodeID != 9 || roundTripTask.CanvasRunID == nil || *roundTripTask.CanvasRunID != runID {
+		t.Fatalf("unexpected task round-trip: %+v", roundTripTask)
+	}
+}
+
 func TestCanvasRunTaskFailureSummaryUsesLabelAndError(t *testing.T) {
 	tasks := []model.CanvasTask{
 		{Status: "done", NodeLabel: "Ignored"},

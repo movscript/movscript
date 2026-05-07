@@ -281,7 +281,7 @@ func (s *Service) CreateCandidateDecision(ctx context.Context, projectID uint, i
 		DecidedByID:       input.DecidedByID,
 		AppliedAt:         input.AppliedAt,
 		MetadataJSON:      input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -340,7 +340,7 @@ func (s *Service) CreateReviewEvent(ctx context.Context, projectID uint, input R
 		Source:          input.Source,
 		ActorID:         input.ActorID,
 		MetadataJSON:    input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

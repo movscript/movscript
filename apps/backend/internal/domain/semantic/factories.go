@@ -1,10 +1,6 @@
 package semantic
 
-import (
-	"strconv"
-
-	"github.com/movscript/movscript/internal/domain/model"
-)
+import "strconv"
 
 type SegmentSpec struct {
 	ProjectID       uint
@@ -20,8 +16,23 @@ type SegmentSpec struct {
 	MetadataJSON    string
 }
 
-func NewSegment(spec SegmentSpec) model.Segment {
-	return model.Segment{
+type Segment struct {
+	ID              uint
+	ProjectID       uint
+	ProductionID    *uint
+	TextBlockID     *uint
+	ParentSegmentID *uint
+	Kind            string
+	Order           int
+	Title           string
+	Summary         string
+	Content         string
+	Status          string
+	MetadataJSON    string
+}
+
+func NewSegment(spec SegmentSpec) Segment {
+	return Segment{
 		ProjectID:       spec.ProjectID,
 		ProductionID:    spec.ProductionID,
 		TextBlockID:     spec.TextBlockID,
@@ -50,8 +61,23 @@ type ProductionTextBlockSpec struct {
 	MetadataJSON  string
 }
 
-func NewProductionTextBlock(spec ProductionTextBlockSpec) model.ProductionTextBlock {
-	return model.ProductionTextBlock{
+type ProductionTextBlock struct {
+	ID            uint
+	ProjectID     uint
+	ProductionID  uint
+	ParentBlockID *uint
+	Kind          string
+	Order         int
+	Title         string
+	Content       string
+	Summary       string
+	SourceType    string
+	Status        string
+	MetadataJSON  string
+}
+
+func NewProductionTextBlock(spec ProductionTextBlockSpec) ProductionTextBlock {
+	return ProductionTextBlock{
 		ProjectID:     spec.ProjectID,
 		ProductionID:  spec.ProductionID,
 		ParentBlockID: spec.ParentBlockID,
@@ -81,8 +107,24 @@ type SceneMomentSpec struct {
 	MetadataJSON  string
 }
 
-func NewSceneMoment(spec SceneMomentSpec) model.SceneMoment {
-	return model.SceneMoment{
+type SceneMoment struct {
+	ID            uint
+	ProjectID     uint
+	SegmentID     *uint
+	Order         int
+	Title         string
+	Description   string
+	TimeText      string
+	LocationText  string
+	ConditionText string
+	ActionText    string
+	Mood          string
+	Status        string
+	MetadataJSON  string
+}
+
+func NewSceneMoment(spec SceneMomentSpec) SceneMoment {
+	return SceneMoment{
 		ProjectID:     spec.ProjectID,
 		SegmentID:     spec.SegmentID,
 		Order:         spec.Order,
@@ -127,8 +169,38 @@ type ContentUnitSpec struct {
 	MetadataJSON     string
 }
 
-func NewContentUnit(spec ContentUnitSpec) model.ContentUnit {
-	return model.ContentUnit{
+type ContentUnit struct {
+	ID               uint
+	ProjectID        uint
+	ProductionID     *uint
+	SegmentID        *uint
+	SceneMomentID    *uint
+	Kind             string
+	Order            int
+	Title            string
+	Description      string
+	Prompt           string
+	DurationSec      float64
+	ShotSize         string
+	CameraAngle      string
+	CameraHeight     string
+	CameraMotion     string
+	MotionIntensity  string
+	CameraSpeed      string
+	Lens             string
+	FocalLength      string
+	FocusSubject     string
+	CompositionStart string
+	CompositionEnd   string
+	Stabilization    string
+	CameraParamsJSON string
+	CameraNotes      string
+	Status           string
+	MetadataJSON     string
+}
+
+func NewContentUnit(spec ContentUnitSpec) ContentUnit {
+	return ContentUnit{
 		ProjectID:        spec.ProjectID,
 		ProductionID:     spec.ProductionID,
 		SegmentID:        spec.SegmentID,
@@ -174,8 +246,25 @@ type PreviewTimelineItemSpec struct {
 	MetadataJSON      string
 }
 
-func NewPreviewTimelineItem(spec PreviewTimelineItemSpec) model.PreviewTimelineItem {
-	return model.PreviewTimelineItem{
+type PreviewTimelineItem struct {
+	ID                uint
+	ProjectID         uint
+	PreviewTimelineID uint
+	SegmentID         *uint
+	SceneMomentID     *uint
+	ContentUnitID     *uint
+	KeyframeID        *uint
+	Kind              string
+	Order             int
+	StartSec          float64
+	DurationSec       float64
+	Label             string
+	Status            string
+	MetadataJSON      string
+}
+
+func NewPreviewTimelineItem(spec PreviewTimelineItemSpec) PreviewTimelineItem {
+	return PreviewTimelineItem{
 		ProjectID:         spec.ProjectID,
 		PreviewTimelineID: spec.PreviewTimelineID,
 		SegmentID:         spec.SegmentID,
@@ -305,8 +394,26 @@ type CandidateDecisionSpec struct {
 	MetadataJSON      string
 }
 
-func NewCandidateDecision(spec CandidateDecisionSpec) model.CandidateDecision {
-	return model.CandidateDecision{
+type CandidateDecision struct {
+	ID                uint
+	ProjectID         uint
+	CandidateType     string
+	CandidateID       *uint
+	CandidateClientID string
+	TargetType        string
+	TargetID          *uint
+	Decision          string
+	Status            string
+	Reason            string
+	Note              string
+	Source            string
+	DecidedByID       *uint
+	AppliedAt         string
+	MetadataJSON      string
+}
+
+func NewCandidateDecision(spec CandidateDecisionSpec) CandidateDecision {
+	return CandidateDecision{
 		ProjectID:         spec.ProjectID,
 		CandidateType:     spec.CandidateType,
 		CandidateID:       spec.CandidateID,
@@ -339,8 +446,24 @@ type ReviewEventSpec struct {
 	MetadataJSON    string
 }
 
-func NewReviewEvent(spec ReviewEventSpec) model.ReviewEvent {
-	return model.ReviewEvent{
+type ReviewEvent struct {
+	ID              uint
+	ProjectID       uint
+	SubjectType     string
+	SubjectID       *uint
+	SubjectClientID string
+	EventType       string
+	FromStatus      string
+	ToStatus        string
+	Comment         string
+	Reason          string
+	Source          string
+	ActorID         *uint
+	MetadataJSON    string
+}
+
+func NewReviewEvent(spec ReviewEventSpec) ReviewEvent {
+	return ReviewEvent{
 		ProjectID:       spec.ProjectID,
 		SubjectType:     spec.SubjectType,
 		SubjectID:       spec.SubjectID,
@@ -367,8 +490,20 @@ type ExportRecordSpec struct {
 	MetadataJSON      string
 }
 
-func NewExportRecord(spec ExportRecordSpec) model.ExportRecord {
-	return model.ExportRecord{
+type ExportRecord struct {
+	ID                uint
+	ProjectID         uint
+	DeliveryVersionID uint
+	ResourceID        *uint
+	Status            string
+	Format            string
+	Preset            string
+	Error             string
+	MetadataJSON      string
+}
+
+func NewExportRecord(spec ExportRecordSpec) ExportRecord {
+	return ExportRecord{
 		ProjectID:         spec.ProjectID,
 		DeliveryVersionID: spec.DeliveryVersionID,
 		ResourceID:        spec.ResourceID,
@@ -396,8 +531,25 @@ type CanvasOutputSpec struct {
 	MetadataJSON string
 }
 
-func NewCanvasOutput(spec CanvasOutputSpec) model.CanvasOutput {
-	return model.CanvasOutput{
+type CanvasOutput struct {
+	ID           uint
+	ProjectID    uint
+	CanvasID     uint
+	CanvasRunID  *uint
+	CanvasNodeID string
+	PortID       string
+	OwnerType    string
+	OwnerID      uint
+	OutputType   string
+	ResourceID   *uint
+	TargetField  string
+	ValueJSON    string
+	Status       string
+	MetadataJSON string
+}
+
+func NewCanvasOutput(spec CanvasOutputSpec) CanvasOutput {
+	return CanvasOutput{
 		ProjectID:    spec.ProjectID,
 		CanvasID:     spec.CanvasID,
 		CanvasRunID:  spec.CanvasRunID,
@@ -423,8 +575,18 @@ type WorkReviewSpec struct {
 	MetadataJSON string
 }
 
-func NewWorkReview(spec WorkReviewSpec) model.WorkReview {
-	return model.WorkReview{
+type WorkReview struct {
+	ID           uint
+	ProjectID    uint
+	WorkItemID   uint
+	ReviewerID   *uint
+	Status       string
+	Comment      string
+	MetadataJSON string
+}
+
+func NewWorkReview(spec WorkReviewSpec) WorkReview {
+	return WorkReview{
 		ProjectID:    spec.ProjectID,
 		WorkItemID:   spec.WorkItemID,
 		ReviewerID:   spec.ReviewerID,
@@ -444,8 +606,19 @@ type StoryboardScriptSpec struct {
 	MetadataJSON    string
 }
 
-func NewStoryboardScript(spec StoryboardScriptSpec) model.StoryboardScript {
-	return model.StoryboardScript{
+type StoryboardScript struct {
+	ID              uint
+	ProjectID       uint
+	ScriptVersionID *uint
+	Name            string
+	Description     string
+	Status          string
+	IsPrimary       bool
+	MetadataJSON    string
+}
+
+func NewStoryboardScript(spec StoryboardScriptSpec) StoryboardScript {
+	return StoryboardScript{
 		ProjectID:       spec.ProjectID,
 		ScriptVersionID: spec.ScriptVersionID,
 		Name:            FallbackString(spec.Name, "Storyboard Script"),
@@ -468,8 +641,21 @@ type StoryboardVersionSpec struct {
 	MetadataJSON       string
 }
 
-func NewStoryboardVersion(spec StoryboardVersionSpec) model.StoryboardVersion {
-	return model.StoryboardVersion{
+type StoryboardVersion struct {
+	ID                 uint
+	ProjectID          uint
+	StoryboardScriptID uint
+	ParentVersionID    *uint
+	VersionNumber      int
+	Title              string
+	Source             string
+	Status             string
+	SnapshotJSON       string
+	MetadataJSON       string
+}
+
+func NewStoryboardVersion(spec StoryboardVersionSpec) StoryboardVersion {
+	return StoryboardVersion{
 		ProjectID:          spec.ProjectID,
 		StoryboardScriptID: spec.StoryboardScriptID,
 		ParentVersionID:    spec.ParentVersionID,
@@ -499,8 +685,26 @@ type StoryboardLineSpec struct {
 	MetadataJSON        string
 }
 
-func NewStoryboardLine(spec StoryboardLineSpec) model.StoryboardLine {
-	return model.StoryboardLine{
+type StoryboardLine struct {
+	ID                  uint
+	ProjectID           uint
+	StoryboardScriptID  uint
+	StoryboardVersionID *uint
+	SegmentID           *uint
+	SceneMomentID       *uint
+	Order               int
+	Kind                string
+	Title               string
+	Description         string
+	Dialogue            string
+	VisualIntent        string
+	DurationSec         float64
+	Status              string
+	MetadataJSON        string
+}
+
+func NewStoryboardLine(spec StoryboardLineSpec) StoryboardLine {
+	return StoryboardLine{
 		ProjectID:           spec.ProjectID,
 		StoryboardScriptID:  spec.StoryboardScriptID,
 		StoryboardVersionID: spec.StoryboardVersionID,
@@ -534,8 +738,25 @@ type CreativeReferenceSpec struct {
 	TagsJSON         string
 }
 
-func NewCreativeReference(spec CreativeReferenceSpec) model.CreativeReference {
-	return model.CreativeReference{
+type CreativeReference struct {
+	ID               uint
+	ProjectID        uint
+	SourceScriptID   *uint
+	SourceAnalysisID *uint
+	LegacySettingID  *uint
+	Kind             string
+	Name             string
+	Alias            string
+	Description      string
+	Content          string
+	Importance       string
+	Status           string
+	ProfileJSON      string
+	TagsJSON         string
+}
+
+func NewCreativeReference(spec CreativeReferenceSpec) CreativeReference {
+	return CreativeReference{
 		ProjectID:        spec.ProjectID,
 		SourceScriptID:   spec.SourceScriptID,
 		SourceAnalysisID: spec.SourceAnalysisID,
@@ -568,8 +789,25 @@ type CreativeReferenceStateSpec struct {
 	MetadataJSON        string
 }
 
-func NewCreativeReferenceState(spec CreativeReferenceStateSpec) model.CreativeReferenceState {
-	return model.CreativeReferenceState{
+type CreativeReferenceState struct {
+	ID                  uint
+	ProjectID           uint
+	CreativeReferenceID uint
+	ScopeType           string
+	ScopeID             *uint
+	Name                string
+	Description         string
+	VisualNotes         string
+	Emotion             string
+	Costume             string
+	Props               string
+	Status              string
+	TagsJSON            string
+	MetadataJSON        string
+}
+
+func NewCreativeReferenceState(spec CreativeReferenceStateSpec) CreativeReferenceState {
+	return CreativeReferenceState{
 		ProjectID:           spec.ProjectID,
 		CreativeReferenceID: spec.CreativeReferenceID,
 		ScopeType:           spec.ScopeType,
@@ -600,8 +838,23 @@ type CreativeReferenceUsageSpec struct {
 	MetadataJSON             string
 }
 
-func NewCreativeReferenceUsage(spec CreativeReferenceUsageSpec) model.CreativeReferenceUsage {
-	return model.CreativeReferenceUsage{
+type CreativeReferenceUsage struct {
+	ID                       uint
+	ProjectID                uint
+	OwnerType                string
+	OwnerID                  uint
+	CreativeReferenceID      uint
+	CreativeReferenceStateID *uint
+	Role                     string
+	Order                    int
+	Evidence                 string
+	Source                   string
+	Status                   string
+	MetadataJSON             string
+}
+
+func NewCreativeReferenceUsage(spec CreativeReferenceUsageSpec) CreativeReferenceUsage {
+	return CreativeReferenceUsage{
 		ProjectID:                spec.ProjectID,
 		OwnerType:                spec.OwnerType,
 		OwnerID:                  spec.OwnerID,
@@ -632,8 +885,25 @@ type CreativeRelationshipSpec struct {
 	MetadataJSON              string
 }
 
-func NewCreativeRelationship(spec CreativeRelationshipSpec) model.CreativeRelationship {
-	return model.CreativeRelationship{
+type CreativeRelationship struct {
+	ID                        uint
+	ProjectID                 uint
+	SourceCreativeReferenceID uint
+	TargetCreativeReferenceID uint
+	ScopeType                 string
+	ScopeID                   *uint
+	Category                  string
+	Type                      string
+	Label                     string
+	Description               string
+	Source                    string
+	Status                    string
+	Evidence                  string
+	MetadataJSON              string
+}
+
+func NewCreativeRelationship(spec CreativeRelationshipSpec) CreativeRelationship {
+	return CreativeRelationship{
 		ProjectID:                 spec.ProjectID,
 		SourceCreativeReferenceID: spec.SourceCreativeReferenceID,
 		TargetCreativeReferenceID: spec.TargetCreativeReferenceID,
@@ -663,8 +933,22 @@ type ProductionSpec struct {
 	MetadataJSON      string
 }
 
-func NewProduction(spec ProductionSpec) model.Production {
-	return model.Production{
+type Production struct {
+	ID                uint
+	ProjectID         uint
+	ScriptVersionID   *uint
+	PreviewTimelineID *uint
+	Name              string
+	Description       string
+	Status            string
+	SourceType        string
+	OwnerLabel        string
+	Progress          int
+	MetadataJSON      string
+}
+
+func NewProduction(spec ProductionSpec) Production {
+	return Production{
 		ProjectID:         spec.ProjectID,
 		ScriptVersionID:   spec.ScriptVersionID,
 		PreviewTimelineID: spec.PreviewTimelineID,
@@ -693,8 +977,24 @@ type KeyframeSpec struct {
 	MetadataJSON  string
 }
 
-func NewKeyframe(spec KeyframeSpec) model.Keyframe {
-	return model.Keyframe{
+type Keyframe struct {
+	ID            uint
+	ProjectID     uint
+	ProductionID  *uint
+	SceneMomentID *uint
+	ContentUnitID *uint
+	ResourceID    *uint
+	CanvasID      *uint
+	Title         string
+	Description   string
+	Prompt        string
+	Order         int
+	Status        string
+	MetadataJSON  string
+}
+
+func NewKeyframe(spec KeyframeSpec) Keyframe {
+	return Keyframe{
 		ProjectID:     spec.ProjectID,
 		ProductionID:  spec.ProductionID,
 		SceneMomentID: spec.SceneMomentID,
@@ -721,8 +1021,20 @@ type PreviewTimelineSpec struct {
 	MetadataJSON    string
 }
 
-func NewPreviewTimeline(spec PreviewTimelineSpec) model.PreviewTimeline {
-	return model.PreviewTimeline{
+type PreviewTimeline struct {
+	ID              uint
+	ProjectID       uint
+	ProductionID    *uint
+	ScriptVersionID *uint
+	Name            string
+	Status          string
+	DurationSec     float64
+	IsPrimary       bool
+	MetadataJSON    string
+}
+
+func NewPreviewTimeline(spec PreviewTimelineSpec) PreviewTimeline {
+	return PreviewTimeline{
 		ProjectID:       spec.ProjectID,
 		ProductionID:    spec.ProductionID,
 		ScriptVersionID: spec.ScriptVersionID,
@@ -746,8 +1058,21 @@ type DeliveryVersionSpec struct {
 	MetadataJSON      string
 }
 
-func NewDeliveryVersion(spec DeliveryVersionSpec) model.DeliveryVersion {
-	return model.DeliveryVersion{
+type DeliveryVersion struct {
+	ID                uint
+	ProjectID         uint
+	ProductionID      *uint
+	PreviewTimelineID *uint
+	Name              string
+	Description       string
+	Status            string
+	IsPrimary         bool
+	DurationSec       float64
+	MetadataJSON      string
+}
+
+func NewDeliveryVersion(spec DeliveryVersionSpec) DeliveryVersion {
+	return DeliveryVersion{
 		ProjectID:         spec.ProjectID,
 		ProductionID:      spec.ProductionID,
 		PreviewTimelineID: spec.PreviewTimelineID,
@@ -775,8 +1100,24 @@ type DeliveryTimelineItemSpec struct {
 	MetadataJSON      string
 }
 
-func NewDeliveryTimelineItem(spec DeliveryTimelineItemSpec) model.DeliveryTimelineItem {
-	return model.DeliveryTimelineItem{
+type DeliveryTimelineItem struct {
+	ID                uint
+	ProjectID         uint
+	DeliveryVersionID uint
+	ContentUnitID     *uint
+	AssetSlotID       *uint
+	ResourceID        *uint
+	Kind              string
+	Order             int
+	StartSec          float64
+	DurationSec       float64
+	Label             string
+	Status            string
+	MetadataJSON      string
+}
+
+func NewDeliveryTimelineItem(spec DeliveryTimelineItemSpec) DeliveryTimelineItem {
+	return DeliveryTimelineItem{
 		ProjectID:         spec.ProjectID,
 		DeliveryVersionID: spec.DeliveryVersionID,
 		ContentUnitID:     spec.ContentUnitID,
@@ -799,8 +1140,16 @@ type WorkDependencySpec struct {
 	DependencyType      string
 }
 
-func NewWorkDependency(spec WorkDependencySpec) model.WorkDependency {
-	return model.WorkDependency{
+type WorkDependency struct {
+	ID                  uint
+	ProjectID           uint
+	WorkItemID          uint
+	DependsOnWorkItemID uint
+	DependencyType      string
+}
+
+func NewWorkDependency(spec WorkDependencySpec) WorkDependency {
+	return WorkDependency{
 		ProjectID:           spec.ProjectID,
 		WorkItemID:          spec.WorkItemID,
 		DependsOnWorkItemID: spec.DependsOnWorkItemID,
@@ -825,8 +1174,23 @@ type ScriptVersionSpec struct {
 	CreatedByID       *uint
 }
 
-func NewScriptVersion(spec ScriptVersionSpec) model.ScriptVersion {
-	return model.ScriptVersion{
+type ScriptVersion struct {
+	ID              uint
+	ProjectID       uint
+	ScriptID        uint
+	ParentVersionID *uint
+	VersionNumber   int
+	Title           string
+	SourceType      string
+	Content         string
+	RawSource       string
+	Summary         string
+	Status          string
+	CreatedByID     *uint
+}
+
+func NewScriptVersion(spec ScriptVersionSpec) ScriptVersion {
+	return ScriptVersion{
 		ProjectID:       spec.ProjectID,
 		ScriptID:        spec.ScriptID,
 		ParentVersionID: spec.ParentVersionID,

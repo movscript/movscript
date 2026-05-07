@@ -727,8 +727,8 @@ export class AgentRuntime {
       let contextResult: JSONValue
       let contextError: string | undefined
       try {
-        await this.mcpClient.initialize()
-        contextResult = await this.mcpClient.callTool('movscript_get_context_pack', {})
+        await this.mcpClient.initialize({ signal })
+        contextResult = await this.mcpClient.callTool('movscript_get_context_pack', {}, { signal })
       } catch (error) {
         contextError = error instanceof Error ? error.message : String(error)
         this.recordTraceEvent(run, {
@@ -1107,7 +1107,6 @@ export class AgentRuntime {
         this.store.updateRun(run)
       }
     }
-  }
   }
 
   private rememberRunAuth(runId: string, value: unknown): void {

@@ -26,7 +26,37 @@ const (
 	CanvasOutputStatusRejected = "rejected"
 )
 
-func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) model.CanvasRun {
+type CanvasRun struct {
+	ID                uint
+	CanvasID          uint
+	Status            string
+	InputValues       string
+	OutputValues      string
+	Error             string
+	GraphSnapshot     string
+	SnapshotHash      string
+	SnapshotNodeCount int
+	SnapshotEdgeCount int
+	StartedAt         *time.Time
+	FinishedAt        *time.Time
+}
+
+type CanvasTask struct {
+	ID             uint
+	CanvasNodeID   uint
+	CanvasRunID    *uint
+	NodeID         string
+	NodeLabel      string
+	NodeType       string
+	Status         string
+	ProviderTaskID string
+	Error          string
+	InputValues    string
+	OutputValues   string
+	ResourceID     *uint
+}
+
+func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) CanvasRun {
 	snapshot, snapshotHash, snapshotNodeCount, snapshotEdgeCount := BuildRunSnapshot(cv)
 	rawInputValues := "{}"
 	if inputValues != nil {
@@ -34,7 +64,7 @@ func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) model.C
 			rawInputValues = string(b)
 		}
 	}
-	run := model.CanvasRun{
+	run := CanvasRun{
 		CanvasID:          cv.ID,
 		InputValues:       rawInputValues,
 		GraphSnapshot:     snapshot,
@@ -42,12 +72,12 @@ func NewCanvasRun(cv model.Canvas, inputValues any, startedAt time.Time) model.C
 		SnapshotNodeCount: snapshotNodeCount,
 		SnapshotEdgeCount: snapshotEdgeCount,
 	}
-	StartCanvasRun(&run, startedAt)
+	StartRun(&run, startedAt)
 	return run
 }
 
-func NewCanvasTask(node model.CanvasNode, runID *uint, inputValues string) model.CanvasTask {
-	return model.CanvasTask{
+func NewCanvasTask(node model.CanvasNode, runID *uint, inputValues string) CanvasTask {
+	return CanvasTask{
 		CanvasNodeID: node.ID,
 		CanvasRunID:  runID,
 		NodeID:       node.NodeID,
@@ -59,6 +89,12 @@ func NewCanvasTask(node model.CanvasNode, runID *uint, inputValues string) model
 }
 
 func StartCanvasRun(run *model.CanvasRun, startedAt time.Time) {
+	domainRun := CanvasRunFromModel(*run)
+	StartRun(&domainRun, startedAt)
+	domainRun.ApplyToModel(run)
+}
+
+func StartRun(run *CanvasRun, startedAt time.Time) {
 	run.Status = CanvasRunStatusRunning
 	run.StartedAt = &startedAt
 }

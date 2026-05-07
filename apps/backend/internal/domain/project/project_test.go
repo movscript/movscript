@@ -8,12 +8,24 @@ func TestNewProjectCopiesCreationFields(t *testing.T) {
 	if project.Name != "Film" || project.OwnerID != 7 || project.OrgID == nil || *project.OrgID != 5 || project.TotalEpisodes != 12 {
 		t.Fatalf("unexpected project: %+v", project)
 	}
+	modelProject := project.ToModel()
+	modelProject.ID = 18
+	roundTrip := ProjectFromModel(modelProject)
+	if roundTrip.ID != 18 || roundTrip.Name != "Film" || roundTrip.OwnerID != 7 {
+		t.Fatalf("unexpected project round-trip: %+v", roundTrip)
+	}
 }
 
 func TestNewMemberDefaultsViewerRole(t *testing.T) {
 	member := NewMember(1, 2, "")
 	if member.Role != "viewer" {
 		t.Fatalf("role = %q, want viewer", member.Role)
+	}
+	modelMember := member.ToModel()
+	modelMember.ID = 19
+	roundTrip := MemberFromModel(modelMember)
+	if roundTrip.ID != 19 || roundTrip.Role != RoleViewer {
+		t.Fatalf("unexpected member round-trip: %+v", roundTrip)
 	}
 }
 

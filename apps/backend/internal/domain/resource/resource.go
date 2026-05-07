@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type PageInput struct {
@@ -44,6 +42,24 @@ type NewStoredGeneratedResourceSpec struct {
 	StorageKey     string
 }
 
+type RawResource struct {
+	ID             uint
+	OwnerID        uint
+	OrgID          *uint
+	FolderID       *uint
+	Type           string
+	Name           string
+	FilePath       string
+	URL            string
+	Size           int64
+	MimeType       string
+	StorageBackend string
+	StorageKey     string
+	IsShared       bool
+	DirectURL      string
+	CloudUploads   string
+}
+
 func NormalizePage(input PageInput) PageSpec {
 	page := max(1, input.Page)
 	pageSize := max(1, input.PageSize)
@@ -57,8 +73,8 @@ func NormalizePage(input PageInput) PageSpec {
 	}
 }
 
-func NewUploadedResource(spec NewUploadedResourceSpec) model.RawResource {
-	return model.RawResource{
+func NewUploadedResource(spec NewUploadedResourceSpec) RawResource {
+	return RawResource{
 		OwnerID:        spec.OwnerID,
 		OrgID:          spec.OrgID,
 		FolderID:       spec.FolderID,
@@ -71,8 +87,8 @@ func NewUploadedResource(spec NewUploadedResourceSpec) model.RawResource {
 	}
 }
 
-func NewStoredGeneratedResource(spec NewStoredGeneratedResourceSpec) model.RawResource {
-	return model.RawResource{
+func NewStoredGeneratedResource(spec NewStoredGeneratedResourceSpec) RawResource {
+	return RawResource{
 		OwnerID:        spec.OwnerID,
 		OrgID:          spec.OrgID,
 		Type:           MimeToType(spec.MimeType, spec.Name),

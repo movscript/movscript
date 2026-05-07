@@ -27,4 +27,10 @@ func TestNewCredentialAppliesDefaults(t *testing.T) {
 	if !cred.FilesAPIEnabled || cred.FilesAPIBaseURL != "https://files.example" || cred.FilesAPIEncryptedKey != "files-encrypted" || cred.FilesAPIMaskedKey != "fk****" {
 		t.Fatalf("unexpected files api fields: %+v", cred)
 	}
+	modelCred := cred.ToModel()
+	modelCred.ID = 13
+	roundTrip := CredentialFromModel(modelCred)
+	if roundTrip.ID != 13 || roundTrip.AdapterType != "openai" || roundTrip.DisplayName != "Main" {
+		t.Fatalf("unexpected credential round-trip: %+v", roundTrip)
+	}
 }

@@ -45,6 +45,28 @@ type WorkItemResultApplication struct {
 	AssetSlotCandidateID uint
 }
 
+type WorkItem struct {
+	ID             uint
+	ProjectID      uint
+	ProductionID   *uint
+	TargetType     string
+	TargetID       uint
+	Kind           string
+	Title          string
+	Description    string
+	Status         string
+	Priority       string
+	AssigneeID     *uint
+	SourceJobID    *uint
+	SourceCanvasID *uint
+	ResultType     string
+	ResultJSON     string
+	ApplyStatus    string
+	AppliedAt      string
+	ApplyError     string
+	MetadataJSON   string
+}
+
 const (
 	WorkItemResultNone                   = "none"
 	WorkItemResultStatusChange           = "status_change"
@@ -77,8 +99,8 @@ const (
 	DeliveryVersionStatusApprove = "approved"
 )
 
-func NewWorkItem(projectID uint, patch WorkItemPatch) model.WorkItem {
-	return model.WorkItem{
+func NewWorkItem(projectID uint, patch WorkItemPatch) WorkItem {
+	return WorkItem{
 		ProjectID:      projectID,
 		ProductionID:   patch.ProductionID,
 		TargetType:     patch.TargetType,

@@ -52,13 +52,14 @@ func (s *Service) CreateCredential(ctx context.Context, input CreateCredentialIn
 	}
 	baseURL = domainaiadmin.ResolveBaseURL(baseURL, input.Credentials)
 
-	cred := domainaiadmin.NewCredential(domainaiadmin.NewCredentialSpec{
+	domainCred := domainaiadmin.NewCredential(domainaiadmin.NewCredentialSpec{
 		AdapterType:     input.AdapterType,
 		DisplayName:     input.DisplayName,
 		BaseURL:         baseURL,
 		FilesAPIEnabled: input.FilesAPIEnabled,
 		FilesAPIBaseURL: input.FilesAPIBaseURL,
 	})
+	cred := domainCred.ToModel()
 	if input.FilesAPIKey != "" {
 		encFilesKey, _, err := s.registry.EncryptRawKey(input.FilesAPIKey)
 		if err != nil {

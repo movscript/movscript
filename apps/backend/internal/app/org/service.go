@@ -99,7 +99,7 @@ func (s *Service) AddMember(ctx context.Context, caller model.OrganizationMember
 	if !IsAdminOrAbove(caller.Role) {
 		return model.OrganizationMember{}, ErrForbidden
 	}
-	member := domainorg.Member(caller.OrgID, input.UserID, input.Role)
+	member := domainorg.Member(caller.OrgID, input.UserID, input.Role).ToModel()
 	return s.repo.CreateMember(ctx, member)
 }
 
@@ -132,7 +132,7 @@ func (s *Service) CreateInvitation(ctx context.Context, caller model.Organizatio
 	if err != nil {
 		return model.OrgInvitation{}, err
 	}
-	inv := domainorg.NewInvitation(caller.OrgID, token, input.Role, input.Note, creatorID, time.Now().Add(7*24*time.Hour))
+	inv := domainorg.NewInvitation(caller.OrgID, token, input.Role, input.Note, creatorID, time.Now().Add(7*24*time.Hour)).ToModel()
 	return s.repo.CreateInvitation(ctx, inv)
 }
 
@@ -187,7 +187,7 @@ func (s *Service) AcceptInvitation(ctx context.Context, token string, user *mode
 		if err != nil {
 			return 0, err
 		}
-		createdUser := domainauth.NewRegisteredUser(registration.Username, string(hash), "", false, nil)
+		createdUser := domainauth.NewRegisteredUser(registration.Username, string(hash), "", false, nil).ToModel()
 		user = &createdUser
 		if err := s.repo.CreateUser(ctx, user); err != nil {
 			return 0, err
@@ -218,7 +218,7 @@ func (s *Service) CreateGroup(ctx context.Context, caller model.OrganizationMemb
 	if !IsAdminOrAbove(caller.Role) {
 		return model.UserGroup{}, ErrForbidden
 	}
-	group := domainorg.NewUserGroup(caller.OrgID, input.Name)
+	group := domainorg.NewUserGroup(caller.OrgID, input.Name).ToModel()
 	return s.repo.CreateGroup(ctx, group)
 }
 
@@ -226,7 +226,7 @@ func (s *Service) AddGroupMember(ctx context.Context, caller model.OrganizationM
 	if !IsAdminOrAbove(caller.Role) {
 		return model.UserGroupMember{}, ErrForbidden
 	}
-	gm := domainorg.GroupMember(groupID, userID)
+	gm := domainorg.GroupMember(groupID, userID).ToModel()
 	return s.repo.CreateGroupMember(ctx, gm)
 }
 

@@ -110,7 +110,7 @@ func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, i
 		Status:           input.Status,
 		ProfileJSON:      input.ProfileJSON,
 		TagsJSON:         input.TagsJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -166,7 +166,7 @@ func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID ui
 		Status:              input.Status,
 		TagsJSON:            input.TagsJSON,
 		MetadataJSON:        input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -223,7 +223,7 @@ func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID ui
 		Source:                   input.Source,
 		Status:                   input.Status,
 		MetadataJSON:             input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -280,7 +280,7 @@ func (s *Service) CreateCreativeRelationship(ctx context.Context, projectID uint
 		Status:                    input.Status,
 		Evidence:                  input.Evidence,
 		MetadataJSON:              input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

@@ -4071,6 +4071,11 @@ function AgentChatSidebar({
           setPhase('retryable')
           return
         }
+        if (payload.status === 'cancelled') {
+          setErrorMsg('分析已停止')
+          setPhase('retryable')
+          return
+        }
 
         const finalRun = payload.run
         const finalThread = payload.thread
@@ -5223,6 +5228,7 @@ function AgentRunStatusBadge({ status }: { status: AgentRun['status'] }) {
     completed:               { label: '已完成', cls: 'bg-emerald-500/10 text-emerald-600' },
     completed_with_warnings: { label: '完成(有警告)', cls: 'bg-amber-500/10 text-amber-600' },
     failed:                  { label: '失败', cls: 'bg-rose-500/10 text-rose-600' },
+    cancelled:               { label: '已停止', cls: 'bg-muted text-muted-foreground' },
   }
   const meta = map[status] ?? { label: status, cls: 'bg-muted text-muted-foreground' }
   return <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', meta.cls)}>{meta.label}</span>

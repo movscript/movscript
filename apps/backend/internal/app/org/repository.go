@@ -62,11 +62,11 @@ func (r *gormRepository) Create(ctx context.Context, ownerID uint, input CreateI
 		if err != nil {
 			return err
 		}
-		org = domainorg.NewTeamOrg(input.Name, input.Slug, code, ownerID)
+		org = domainorg.NewTeamOrg(input.Name, input.Slug, code, ownerID).ToModel()
 		if err := tx.Create(&org).Error; err != nil {
 			return err
 		}
-		member := domainorg.OwnerMember(org.ID, ownerID)
+		member := domainorg.OwnerMember(org.ID, ownerID).ToModel()
 		return tx.Create(&member).Error
 	})
 	return org, err
@@ -167,7 +167,7 @@ func (r *gormRepository) AcceptInvitation(ctx context.Context, inv model.OrgInvi
 		if tx.Where("org_id = ? AND user_id = ?", inv.OrgID, userID).First(&existing).Error == nil {
 			return nil
 		}
-		member := domainorg.Member(inv.OrgID, userID, inv.Role)
+		member := domainorg.Member(inv.OrgID, userID, inv.Role).ToModel()
 		if err := tx.Create(&member).Error; err != nil {
 			return err
 		}
@@ -184,7 +184,7 @@ func (r *gormRepository) JoinByCode(ctx context.Context, code string, user model
 		}
 		return 0, err
 	}
-	member := domainorg.Member(org.ID, user.ID, domainorg.RoleMember)
+	member := domainorg.Member(org.ID, user.ID, domainorg.RoleMember).ToModel()
 	if err := r.db.WithContext(ctx).Create(&member).Error; err != nil {
 		if IsDuplicateKey(err) {
 			return org.ID, nil

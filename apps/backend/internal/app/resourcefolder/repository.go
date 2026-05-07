@@ -60,7 +60,7 @@ func (r *gormRepository) CreateFolder(ctx context.Context, ownerID uint, input C
 		ParentID:       input.ParentID,
 		StorageBackend: input.StorageBackend,
 		IsShared:       input.IsShared,
-	})
+	}).ToModel()
 	if err := r.db.WithContext(ctx).Create(&folder).Error; err != nil {
 		return folder, err
 	}
@@ -131,7 +131,7 @@ func (r *gormRepository) GrantPermission(ctx context.Context, userID uint, orgID
 	}
 	var existing model.ResourceFolderPermission
 	if r.db.WithContext(ctx).Where("folder_id = ? AND user_id = ?", folder.ID, input.UserID).First(&existing).Error != nil {
-		existing = domainresourcefolder.NewPermission(folder.ID, input.UserID, perm)
+		existing = domainresourcefolder.NewPermission(folder.ID, input.UserID, perm).ToModel()
 		if err := r.db.WithContext(ctx).Create(&existing).Error; err != nil {
 			return existing, err
 		}

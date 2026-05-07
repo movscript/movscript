@@ -89,7 +89,7 @@ func (s *Service) CreateStoryboardScript(ctx context.Context, projectID uint, in
 		Status:          input.Status,
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -144,7 +144,7 @@ func (s *Service) CreateStoryboardVersion(ctx context.Context, projectID uint, i
 		Status:             input.Status,
 		SnapshotJSON:       input.SnapshotJSON,
 		MetadataJSON:       input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -250,7 +250,7 @@ func storyboardLineFromInput(projectID uint, input StoryboardLineInput) model.St
 		DurationSec:         input.DurationSec,
 		Status:              input.Status,
 		MetadataJSON:        input.MetadataJSON,
-	})
+	}).ToModel()
 }
 
 func (s *Service) nextStoryboardVersionNumber(ctx context.Context, projectID uint, storyboardScriptID uint) int {

@@ -25,7 +25,7 @@ const (
 func MarkAssetSlotCandidate(slot *model.AssetSlot) {
 	domainSlot := AssetSlotFromModel(*slot)
 	MarkSlotCandidate(&domainSlot)
-	*slot = domainSlot.ToModel()
+	domainSlot.ApplyToModel(slot)
 }
 
 func MarkAssetSlotLockedToCandidate(slot *model.AssetSlot, candidate model.AssetSlotCandidate) {
@@ -36,25 +36,25 @@ func MarkAssetSlotLockedToCandidate(slot *model.AssetSlot, candidate model.Asset
 		candidateResourceID = candidate.CandidateAssetSlot.ResourceID
 	}
 	LockSlotToCandidate(&domainSlot, domainCandidate, candidateResourceID)
-	*slot = domainSlot.ToModel()
+	domainSlot.ApplyToModel(slot)
 }
 
 func SelectAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
 	domainCandidate := AssetSlotCandidateFromModel(*candidate)
 	SelectCandidate(&domainCandidate)
-	*candidate = domainCandidate.ToModel()
+	domainCandidate.ApplyToModel(candidate)
 }
 
 func RejectAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
 	domainCandidate := AssetSlotCandidateFromModel(*candidate)
 	RejectCandidate(&domainCandidate)
-	*candidate = domainCandidate.ToModel()
+	domainCandidate.ApplyToModel(candidate)
 }
 
 func NormalizeAssetSlotCandidate(candidate *model.AssetSlotCandidate) {
 	domainCandidate := AssetSlotCandidateFromModel(*candidate)
 	NormalizeCandidate(&domainCandidate)
-	*candidate = domainCandidate.ToModel()
+	domainCandidate.ApplyToModel(candidate)
 }
 
 func MarkSlotCandidate(slot *AssetSlot) {

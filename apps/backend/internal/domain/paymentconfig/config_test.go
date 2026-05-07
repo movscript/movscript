@@ -32,6 +32,12 @@ func TestNewConfigNormalizesDefaults(t *testing.T) {
 	if cfg.Name != "Stripe" || cfg.ConfigType != TypeStripe || cfg.Mode != ModeSandbox || cfg.Currency != DefaultCurrency || cfg.ConfigJSON != "{}" {
 		t.Fatalf("unexpected config: %+v", cfg)
 	}
+	modelCfg := cfg.ToModel()
+	modelCfg.ID = 7
+	roundTrip := ConfigFromModel(modelCfg)
+	if roundTrip.ID != 7 || roundTrip.Name != "Stripe" || roundTrip.Currency != DefaultCurrency {
+		t.Fatalf("unexpected config round-trip: %+v", roundTrip)
+	}
 }
 
 func TestMergeConfigUpdatePreservesMaskedSensitiveValues(t *testing.T) {

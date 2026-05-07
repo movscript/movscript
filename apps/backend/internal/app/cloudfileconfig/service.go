@@ -70,7 +70,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (model.CloudFil
 		ConfigJSON: encJSON,
 		Priority:   input.Priority,
 		IsEnabled:  input.IsEnabled,
-	})
+	}).ToModel()
 	if err := s.repo.CreateConfig(ctx, &cfg); err != nil {
 		return model.CloudFileConfig{}, err
 	}

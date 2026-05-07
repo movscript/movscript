@@ -203,7 +203,7 @@ func (r *gormRepository) CreateScriptVersion(ctx context.Context, projectID uint
 	if err != nil {
 		return model.ScriptVersion{}, err
 	}
-	item := domainsemantic.NewScriptVersion(domainsemantic.ScriptVersionSpec{
+	domainItem := domainsemantic.NewScriptVersion(domainsemantic.ScriptVersionSpec{
 		ProjectID:         projectID,
 		ScriptID:          input.ScriptID,
 		ParentVersionID:   input.ParentVersionID,
@@ -219,9 +219,10 @@ func (r *gormRepository) CreateScriptVersion(ctx context.Context, projectID uint
 		Status:            input.Status,
 		CreatedByID:       createdByID,
 	})
-	if item.VersionNumber == 0 {
-		item.VersionNumber = r.NextScriptVersionNumber(ctx, projectID, input.ScriptID)
+	if domainItem.VersionNumber == 0 {
+		domainItem.VersionNumber = r.NextScriptVersionNumber(ctx, projectID, input.ScriptID)
 	}
+	item := domainItem.ToModel()
 	if err := r.db.WithContext(ctx).Create(&item).Error; err != nil {
 		return item, err
 	}

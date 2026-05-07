@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/movscript/movscript/internal/domain/model"
 	"github.com/movscript/movscript/internal/infra/ai"
@@ -26,12 +27,28 @@ type NewAPIKeySpec struct {
 	AllowedScopes   []string
 }
 
-func NewAPIKey(spec NewAPIKeySpec) model.GatewayAPIKey {
+type APIKey struct {
+	ID              uint
+	Name            string
+	KeyPrefix       string
+	KeyHash         string
+	OwnerUserID     uint
+	OrgID           *uint
+	ProjectID       *uint
+	AllowedModelIDs string
+	AllowedScopes   string
+	RateLimitRPM    int
+	MonthlyBudget   float64
+	IsEnabled       bool
+	LastUsedAt      *time.Time
+}
+
+func NewAPIKey(spec NewAPIKeySpec) APIKey {
 	scopes := spec.AllowedScopes
 	if len(scopes) == 0 {
 		scopes = []string{DefaultAPIScopeChat}
 	}
-	return model.GatewayAPIKey{
+	return APIKey{
 		Name:            strings.TrimSpace(spec.Name),
 		KeyPrefix:       spec.KeyPrefix,
 		KeyHash:         spec.KeyHash,

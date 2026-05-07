@@ -2,8 +2,6 @@ package aiadmin
 
 import (
 	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 type NewCredentialSpec struct {
@@ -12,6 +10,21 @@ type NewCredentialSpec struct {
 	BaseURL              string
 	EncryptedKey         string
 	MaskedKey            string
+	FilesAPIEnabled      bool
+	FilesAPIBaseURL      string
+	FilesAPIEncryptedKey string
+	FilesAPIMaskedKey    string
+}
+
+type Credential struct {
+	ID                   uint
+	AdapterType          string
+	DisplayName          string
+	BaseURL              string
+	EncryptedKey         string
+	MaskedKey            string
+	IsEnabled            bool
+	OrgID                *uint
 	FilesAPIEnabled      bool
 	FilesAPIBaseURL      string
 	FilesAPIEncryptedKey string
@@ -27,8 +40,8 @@ func ResolveBaseURL(defaultBaseURL string, credentials map[string]string) string
 	return strings.TrimSpace(defaultBaseURL)
 }
 
-func NewCredential(spec NewCredentialSpec) model.AICredential {
-	return model.AICredential{
+func NewCredential(spec NewCredentialSpec) Credential {
+	return Credential{
 		AdapterType:          strings.TrimSpace(spec.AdapterType),
 		DisplayName:          strings.TrimSpace(spec.DisplayName),
 		BaseURL:              strings.TrimSpace(spec.BaseURL),

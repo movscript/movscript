@@ -9,12 +9,27 @@ import (
 const ScriptVersionStatusActive = "active"
 const ScriptSourceTypeRaw = "raw"
 
-func NewInitialVersion(item model.Script, createdByID *uint) model.ScriptVersion {
+type ScriptVersion struct {
+	ID              uint
+	ProjectID       uint
+	ScriptID        uint
+	ParentVersionID *uint
+	VersionNumber   int
+	Title           string
+	SourceType      string
+	Content         string
+	RawSource       string
+	Summary         string
+	Status          string
+	CreatedByID     *uint
+}
+
+func NewInitialVersion(item model.Script, createdByID *uint) ScriptVersion {
 	sourceType := item.SourceType
 	if sourceType == "" {
 		sourceType = ScriptSourceTypeRaw
 	}
-	return model.ScriptVersion{
+	return ScriptVersion{
 		ProjectID:     item.ProjectID,
 		ScriptID:      item.ID,
 		VersionNumber: 1,

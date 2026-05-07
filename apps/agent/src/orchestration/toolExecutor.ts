@@ -56,9 +56,9 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
 
   // MCP tools
   throwIfAborted(options.signal)
-  await mcpClient.initialize()
+  await mcpClient.initialize({ signal: options.signal })
   throwIfAborted(options.signal)
-  const result = await mcpClient.callTool(call.name, args)
+  const result = await mcpClient.callTool(call.name, args, { signal: options.signal })
   throwIfAborted(options.signal)
   return { call, result, source: 'mcp' }
 }

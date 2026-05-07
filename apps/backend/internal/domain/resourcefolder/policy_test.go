@@ -7,6 +7,12 @@ func TestNewFolderTrimsMutableText(t *testing.T) {
 	if folder.OwnerID != 1 || folder.Name != "Assets" || folder.StorageBackend != "local" {
 		t.Fatalf("unexpected folder: %+v", folder)
 	}
+	modelFolder := folder.ToModel()
+	modelFolder.ID = 15
+	roundTrip := FolderFromModel(modelFolder)
+	if roundTrip.ID != 15 || roundTrip.Name != "Assets" || roundTrip.StorageBackend != "local" {
+		t.Fatalf("unexpected folder round-trip: %+v", roundTrip)
+	}
 }
 
 func TestNormalizeAndValidatePermission(t *testing.T) {
@@ -25,6 +31,12 @@ func TestNewPermissionAppliesDefault(t *testing.T) {
 	perm := NewPermission(1, 2, "")
 	if perm.FolderID != 1 || perm.UserID != 2 || perm.Permission != PermissionRead {
 		t.Fatalf("unexpected permission: %+v", perm)
+	}
+	modelPerm := perm.ToModel()
+	modelPerm.ID = 16
+	roundTrip := PermissionFromModel(modelPerm)
+	if roundTrip.ID != 16 || roundTrip.Permission != PermissionRead {
+		t.Fatalf("unexpected permission round-trip: %+v", roundTrip)
 	}
 }
 

@@ -50,6 +50,12 @@ func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 	if job.UserID != 1 || job.ModelConfigID != 2 || job.Prompt != "draw" {
 		t.Fatalf("unexpected job: %+v", job)
 	}
+	modelJob := job.ToModel()
+	modelJob.ID = 14
+	roundTrip := JobFromModel(modelJob)
+	if roundTrip.ID != 14 || roundTrip.Status != StatusPending || roundTrip.MaxAttempts != DefaultMaxAttempts {
+		t.Fatalf("unexpected job round-trip: %+v", roundTrip)
+	}
 }
 
 func TestCountInputResources(t *testing.T) {

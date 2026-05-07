@@ -112,13 +112,6 @@ func TestNewDomainBindingAppliesNormalizedCreateInput(t *testing.T) {
 	}
 }
 
-func TestNewBindingCompatibilityReturnsModel(t *testing.T) {
-	binding := NewBinding(CreateInput{ProjectID: 1, ResourceID: 2, OwnerType: "Asset-Slot", OwnerID: 3})
-	if binding.OwnerType != OwnerTypeAssetSlot || binding.Version != 1 {
-		t.Fatalf("unexpected compatibility model: %+v", binding)
-	}
-}
-
 func TestNewDomainBindingAndModelMapping(t *testing.T) {
 	sourceID := uint(5)
 	createdBy := uint(6)

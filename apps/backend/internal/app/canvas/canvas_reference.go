@@ -79,7 +79,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 		return model.CanvasRun{}, err
 	}
 	now := time.Now()
-	run := canvasruntime.NewCanvasRun(ref, inputValues, now)
+	run := canvasruntime.NewCanvasRun(ref, inputValues, now).ToModel()
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return model.CanvasRun{}, err
 	}
@@ -89,7 +89,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *model.
 		if node == nil {
 			continue
 		}
-		task := canvasruntime.NewCanvasTask(*node, &run.ID, "")
+		task := canvasruntime.NewCanvasTask(*node, &run.ID, "").ToModel()
 		if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
 			return run, err
 		}

@@ -8,12 +8,12 @@ export class MCPClient {
     this.endpoint = options.endpoint
   }
 
-  async initialize(): Promise<JSONValue> {
+  async initialize(options: { signal?: AbortSignal } = {}): Promise<JSONValue> {
     return this.request('initialize', {
       protocolVersion: '2025-06-18',
       clientInfo: { name: 'movscript-agent', version: '0.1.0' },
       capabilities: {},
-    })
+    }, options)
   }
 
   async listResources(): Promise<MCPResource[]> {
@@ -30,11 +30,11 @@ export class MCPClient {
     return result.tools
   }
 
-  async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
-    return this.request('tools/call', { name, arguments: args })
+  async callTool(name: string, args: Record<string, JSONValue> = {}, options: { signal?: AbortSignal } = {}): Promise<JSONValue> {
+    return this.request('tools/call', { name, arguments: args }, options)
   }
 
-  private async request<T = JSONValue>(method: string, params?: JSONValue): Promise<T> {
+  private async request<T = JSONValue>(method: string, params?: JSONValue, options: { signal?: AbortSignal } = {}): Promise<T> {
     const payload: JSONRPCRequest = {
       jsonrpc: '2.0',
       id: this.nextId++,
@@ -48,6 +48,7 @@ export class MCPClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
+        signal: options.signal,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)

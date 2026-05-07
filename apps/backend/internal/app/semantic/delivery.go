@@ -101,7 +101,7 @@ func (s *Service) CreateDeliveryVersion(ctx context.Context, projectID uint, inp
 		IsPrimary:         input.IsPrimary,
 		DurationSec:       input.DurationSec,
 		MetadataJSON:      input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -157,7 +157,7 @@ func (s *Service) CreateDeliveryTimelineItem(ctx context.Context, projectID uint
 		Label:             input.Label,
 		Status:            input.Status,
 		MetadataJSON:      input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -210,7 +210,7 @@ func (s *Service) CreateExportRecord(ctx context.Context, projectID uint, input 
 		Preset:            input.Preset,
 		Error:             input.Error,
 		MetadataJSON:      input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}
@@ -264,7 +264,7 @@ func (s *Service) CreateCanvasOutput(ctx context.Context, projectID uint, input 
 		ValueJSON:    input.ValueJSON,
 		Status:       input.Status,
 		MetadataJSON: input.MetadataJSON,
-	})
+	}).ToModel()
 	if err := s.CreateItem(ctx, &item); err != nil {
 		return item, err
 	}

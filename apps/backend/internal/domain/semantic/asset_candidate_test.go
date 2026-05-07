@@ -73,3 +73,18 @@ func TestModelAssetCandidateAdaptersKeepBehavior(t *testing.T) {
 		t.Fatalf("unexpected locked model slot: %+v", slot)
 	}
 }
+
+func TestModelAssetCandidateAdaptersPreserveAssociations(t *testing.T) {
+	resourceID := uint(42)
+	slot := model.AssetSlot{Resource: &model.RawResource{FilePath: "/tmp/a.png"}}
+	candidate := model.AssetSlotCandidate{
+		CandidateAssetSlotID: 9,
+		CandidateAssetSlot:   &model.AssetSlot{ResourceID: &resourceID},
+	}
+
+	MarkAssetSlotLockedToCandidate(&slot, candidate)
+
+	if slot.Resource == nil || slot.Resource.FilePath != "/tmp/a.png" {
+		t.Fatalf("resource association was not preserved: %+v", slot)
+	}
+}

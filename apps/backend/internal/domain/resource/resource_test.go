@@ -54,6 +54,12 @@ func TestNewUploadedResourceDerivesType(t *testing.T) {
 	if item.OwnerID != 1 || item.FolderID == nil || *item.FolderID != folderID || item.Type != "video" || item.FilePath != "" || item.StorageBackend != "local" {
 		t.Fatalf("unexpected uploaded resource: %+v", item)
 	}
+	modelItem := item.ToModel()
+	modelItem.ID = 9
+	roundTrip := RawResourceFromModel(modelItem)
+	if roundTrip.ID != 9 || roundTrip.Type != "video" || roundTrip.StorageBackend != "local" {
+		t.Fatalf("unexpected uploaded resource round-trip: %+v", roundTrip)
+	}
 }
 
 func TestNewStoredGeneratedResourceAppliesPendingPathAndKey(t *testing.T) {
@@ -67,6 +73,12 @@ func TestNewStoredGeneratedResourceAppliesPendingPathAndKey(t *testing.T) {
 	})
 	if item.Type != "image" || item.FilePath != "pending" || item.StorageKey != "canvas/key" {
 		t.Fatalf("unexpected generated resource: %+v", item)
+	}
+	modelItem := item.ToModel()
+	modelItem.ID = 10
+	roundTrip := RawResourceFromModel(modelItem)
+	if roundTrip.ID != 10 || roundTrip.FilePath != "pending" || roundTrip.StorageKey != "canvas/key" {
+		t.Fatalf("unexpected generated resource round-trip: %+v", roundTrip)
 	}
 }
 

@@ -125,7 +125,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		return CreateAPIKeyResult{}, err
 	}
 	rawKey := GenerateAPIKey()
-	key := domainmodelgateway.NewAPIKey(domainmodelgateway.NewAPIKeySpec{
+	domainKey := domainmodelgateway.NewAPIKey(domainmodelgateway.NewAPIKeySpec{
 		Name:            input.Name,
 		KeyPrefix:       KeyPrefix(rawKey),
 		KeyHash:         HashAPIKey(rawKey),
@@ -135,6 +135,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		AllowedModelIDs: input.AllowedModelIDs,
 		AllowedScopes:   input.AllowedScopes,
 	})
+	key := domainKey.ToModel()
 	applyAPIKeyCommercialCreateFields(&key, input.Commercial)
 	if err := s.repo.CreateAPIKey(ctx, &key); err != nil {
 		return CreateAPIKeyResult{}, err

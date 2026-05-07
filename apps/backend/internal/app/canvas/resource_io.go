@@ -177,7 +177,7 @@ func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uin
 		Size:           int64(len(data)),
 		StorageBackend: h.store.Backend(),
 		StorageKey:     key,
-	})
+	}).ToModel()
 	if err := h.canvasRepo().CreateResource(ctx, &r); err != nil {
 		return nil, fmt.Errorf("create resource record: %w", err)
 	}

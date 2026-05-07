@@ -896,7 +896,7 @@ function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' |
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 
-function isStoppableAgentRun(run: AgentRun | null | undefined) {
+function isStoppableAgentRun(run: AgentRun | null | undefined): run is AgentRun {
   return !!run && STOPPABLE_AGENT_RUN_STATUSES.has(run.status)
 }
 
@@ -2768,8 +2768,20 @@ function ChatView({
                 Debug
               </Button>
             </div>
-            <AgentComposerSubmit disabled={!canSend} label={debugBeforeSend ? 'Preview' : t('common.send')}>
-              {buildingSendDraft ? <Loader2 size={15} className="animate-spin" /> : debugBeforeSend ? <Eye size={15} /> : <Send size={15} />}
+            <AgentComposerSubmit
+              type={canStopLocalRun ? 'button' : 'submit'}
+              running={canStopLocalRun}
+              disabled={canStopLocalRun ? stoppingLocalRun : !canSend}
+              label={canStopLocalRun ? 'Stop' : debugBeforeSend ? 'Preview' : t('common.send')}
+              onClick={canStopLocalRun ? stopActiveLocalRun : undefined}
+            >
+              {stoppingLocalRun
+                ? <Loader2 size={15} className="animate-spin" />
+                : canStopLocalRun
+                  ? <X size={15} />
+                  : buildingSendDraft
+                    ? <Loader2 size={15} className="animate-spin" />
+                    : debugBeforeSend ? <Eye size={15} /> : <Send size={15} />}
             </AgentComposerSubmit>
           </AgentComposerToolbar>
         </AgentComposer>

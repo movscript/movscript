@@ -574,6 +574,30 @@ test('run requiring approval can be rejected without executing the tool', async 
   assert.match(assistant?.content ?? '', /已取消需要确认的工具调用/)
 })
 
+test('run can be cancelled while waiting for action', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const runtime = createTestRuntime({ mcpClient: client })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id, {
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['draft.write'],
+      tools: [{ name: 'movscript_create_draft', mode: 'allow', approval: 'always' }],
+    },
+  })
+  const cancelled = runtime.cancelRun(run.id, { reason: '用户停止了当前会话。' })
+  const finalThread = runtime.getThread(thread.id)
+  const assistant = finalThread?.messages.find((message) => message.id === cancelled.assistantMessageId)
+
+  assert.equal(cancelled.status, 'cancelled')
+  assert.equal(cancelled.pendingApprovals?.[0].status, 'rejected')
+  assert.ok(cancelled.cancelledAt)
+  assert.match(assistant?.content ?? '', /已停止当前会话/)
+  assert.equal(client.calls.some((call) => call.name === 'movscript_create_draft'), false)
+})
+
 test('apply_draft requires approval and marks draft applied after approval', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42

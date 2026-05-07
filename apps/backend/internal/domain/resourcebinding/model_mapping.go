@@ -11,10 +11,6 @@ func NormalizeBinding(binding *model.ResourceBinding) {
 	*binding = domainBinding.ToModel()
 }
 
-func NewBinding(input CreateInput) model.ResourceBinding {
-	return New(input).ToModel()
-}
-
 func BindingFromModel(binding model.ResourceBinding) Binding {
 	return Binding{
 		ID:           binding.ID,

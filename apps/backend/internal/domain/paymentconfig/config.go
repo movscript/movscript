@@ -3,8 +3,6 @@ package paymentconfig
 import (
 	"encoding/json"
 	"strings"
-
-	"github.com/movscript/movscript/internal/domain/model"
 )
 
 const (
@@ -25,6 +23,18 @@ type NewConfigSpec struct {
 	ConfigJSON string
 	Priority   int
 	IsEnabled  bool
+}
+
+type Config struct {
+	ID           uint
+	Name         string
+	ConfigType   string
+	Mode         string
+	Currency     string
+	ConfigJSON   string
+	Priority     int
+	IsEnabled    bool
+	MaskedConfig string
 }
 
 func ValidConfigType(t string) bool {
@@ -59,8 +69,8 @@ func NormalizeCurrency(currency string) string {
 	return currency
 }
 
-func NewConfig(spec NewConfigSpec) model.PaymentConfig {
-	return model.PaymentConfig{
+func NewConfig(spec NewConfigSpec) Config {
+	return Config{
 		Name:       strings.TrimSpace(spec.Name),
 		ConfigType: strings.TrimSpace(spec.ConfigType),
 		Mode:       NormalizeMode(spec.Mode),

@@ -157,7 +157,7 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *model.Script, 
 		}
 		return s.repo.UpdateScriptVersionWithRelations(ctx, &version, updates)
 	}
-	version = domainscript.NewInitialVersion(*item, createdByID)
+	version = domainscript.NewInitialVersion(*item, createdByID).ToModel()
 	return s.repo.CreateScriptVersionWithRelations(ctx, &version)
 }
 

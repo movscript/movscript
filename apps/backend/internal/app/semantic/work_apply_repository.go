@@ -75,7 +75,7 @@ func applyWorkItemAssetCandidate(tx *gorm.DB, projectID uint, item model.WorkIte
 		DecidedByID:   actorID,
 		AppliedAt:     appliedAt,
 		MetadataJSON:  workItemApplyMetadata(item.ID),
-	})
+	}).ToModel()
 	if err := tx.Create(&decision).Error; err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func createWorkItemAppliedReviewEvent(tx *gorm.DB, projectID uint, item model.Wo
 		Source:       domainsemantic.ReviewEventSourceManual,
 		ActorID:      actorID,
 		MetadataJSON: metadata,
-	})
+	}).ToModel()
 	if err := tx.Create(&event).Error; err != nil {
 		return err
 	}
