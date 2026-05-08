@@ -97,7 +97,12 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 			h.failTask(task, node, nd, "no model selected for this node")
 			return
 		}
-		if err := h.requireImageVerification(inputResources); err != nil {
+		videoDef, err := h.svc.GetVideoModelDef(nd.ModelDbID)
+		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		if err := h.requireImageVerification(videoDef, inputResources); err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
 		}
@@ -184,7 +189,10 @@ func (h *Service) orgIDForNode(ctx context.Context, node *persistencemodel.Canva
 	return orgID
 }
 
-func (h *Service) requireImageVerification(resources []domainresource.RawResource) error {
+func (h *Service) requireImageVerification(def *ai.ModelDef, resources []domainresource.RawResource) error {
+	if !def.RequiresImageVerification() {
+		return nil
+	}
 	for _, resource := range resources {
 		if resource.NeedsImageVerification() {
 			return ai.ErrImageVerificationRequired

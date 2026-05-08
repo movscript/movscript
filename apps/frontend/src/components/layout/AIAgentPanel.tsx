@@ -2394,14 +2394,25 @@ const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', '
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 const DRAFT_REFRESH_INTERVAL_MS = 1500
 
+function inferScopedDraftKind(pageContext?: PageContextSummary): AgentDraftKind | undefined {
+  if (!pageContext) return undefined
+  if (pageContext.pageType === 'production_orchestrate') return 'production_proposal'
+  if (pageContext.pageType === 'project_proposal' || pageContext.labels.some((label) => /project-(workspace|orchestration|proposal)/i.test(label))) {
+    return 'project_proposal'
+  }
+  return undefined
+}
+
 function DraftPanel({
   project,
   online,
   threadId,
+  pageContext,
 }: {
   project: Project | null
   online: boolean
   threadId?: string
+  pageContext?: PageContextSummary
 }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
@@ -2409,18 +2420,33 @@ function DraftPanel({
   const [status, setStatus] = useState<AgentDraftStatus | 'all'>('draft')
   const [kind, setKind] = useState<AgentDraftKind | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const scopedDraftId = pageContext?.draftId
+  const scopedPageKey = pageContext?.pageKey
+  const scopedDraftKind = inferScopedDraftKind(pageContext)
+  const isPageDraftScope = !!scopedDraftId || (!!scopedDraftKind && !!scopedPageKey)
   const query = {
     ...(project ? { projectId: project.ID } : {}),
-    ...(threadId ? { threadId } : {}),
-    ...(kind !== 'all' ? { kind } : {}),
+    ...(isPageDraftScope ? {} : threadId ? { threadId } : {}),
+    ...(scopedDraftKind
+      ? { kind: scopedDraftKind }
+      : kind !== 'all' ? { kind } : {}),
     ...(status !== 'all' ? { status } : {}),
+    ...(isPageDraftScope && !scopedDraftId && scopedPageKey ? { pageKey: scopedPageKey } : {}),
     limit: 20,
   }
   const draftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['local-agent-drafts', localAgentClient.baseURL, query],
-    queryFn: () => localAgentClient.listDrafts(query).then((r) => r.drafts),
-    enabled: online && !!threadId,
-    refetchInterval: online && threadId ? DRAFT_REFRESH_INTERVAL_MS : false,
+    queryKey: ['local-agent-drafts', localAgentClient.baseURL, query, scopedDraftId ?? null],
+    queryFn: async () => {
+      if (scopedDraftId) {
+        const draft = await localAgentClient.getDraft(scopedDraftId)
+        if (scopedDraftKind && draft.kind !== scopedDraftKind) return []
+        if (status !== 'all' && draft.status !== status) return []
+        return [draft]
+      }
+      return localAgentClient.listDrafts(query).then((r) => r.drafts)
+    },
+    enabled: online && (isPageDraftScope || !!threadId),
+    refetchInterval: online && (isPageDraftScope || threadId) ? DRAFT_REFRESH_INTERVAL_MS : false,
     refetchIntervalInBackground: false,
     retry: false,
   })
@@ -4108,6 +4134,7 @@ function ChatView({
                     project={currentProject}
                     online={localAgentOnline}
                     threadId={activeLocalRun?.threadId ?? (localThreadId || undefined)}
+                    pageContext={currentPageContext}
                   />
                   <MemoryPanel
                     project={currentProject}

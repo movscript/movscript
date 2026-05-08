@@ -144,12 +144,6 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 			h.failTask(task, node, nd, "prompt is required")
 			return
 		}
-		if spec.Capability == "video_i2v" {
-			if err := h.requireImageVerification(inputResources); err != nil {
-				h.failTask(task, node, nd, err.Error())
-				return
-			}
-		}
 		duration := firstPositive(spec.Duration, intParam(params, "duration", 0))
 		preflight, err := h.svc.PreflightGeneration(ai.GenerationPreflightRequest{
 			ModelConfigID: modelDbID,
@@ -161,6 +155,10 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 			VideoCount:    len(videoData),
 		})
 		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		if err := h.requireImageVerification(preflight.Def, inputResources); err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
 		}

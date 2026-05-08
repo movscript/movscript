@@ -1187,6 +1187,21 @@ function creativeReferenceStatusVariant(status?: string) {
   return 'warning' as const
 }
 
+function creativeUsageStatusLabel(status?: string) {
+  if (status === 'confirmed') return '已确认'
+  if (status === 'corrected') return '已修正'
+  if (status === 'ignored') return '已忽略'
+  if (status === 'draft') return '草稿'
+  return firstText(status, '未设置')
+}
+
+function creativeUsageStatusVariant(status?: string) {
+  if (status === 'confirmed' || status === 'corrected') return 'success' as const
+  if (status === 'ignored') return 'outline' as const
+  if (status === 'draft') return 'warning' as const
+  return 'outline' as const
+}
+
 function creativeReferenceWorkStatus(status?: string): WorkStatus {
   const normalized = normalizeCreativeReferenceStatus(status)
   if (normalized === 'ignored') return 'blocked'
@@ -2911,7 +2926,7 @@ function SettingPreparationWorkbench() {
                                 <p className="truncate text-sm font-medium text-foreground">
                                   {firstText(usage.role, usage.owner_type, '引用')} · #{usage.owner_id}
                                 </p>
-                                <Badge variant={usage.status === 'confirmed' ? 'success' : 'outline'}>{statusLabel(usage.status)}</Badge>
+                                <Badge variant={creativeUsageStatusVariant(usage.status)}>{creativeUsageStatusLabel(usage.status)}</Badge>
                               </div>
                               <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(usage.evidence, usage.source, '暂无证据说明')}</p>
                             </div>

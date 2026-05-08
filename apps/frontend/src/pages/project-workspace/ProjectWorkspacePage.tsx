@@ -240,6 +240,7 @@ export default function ProjectOrchestrationPage() {
   const [draggingReferenceId, setDraggingReferenceId] = useState<number | null>(null)
   const [dropTargetReferenceId, setDropTargetReferenceId] = useState<number | null>(null)
   const [mergingReferences, setMergingReferences] = useState(false)
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
 
   const queryKey = ['project-workspace', projectId] as const
 
@@ -260,16 +261,18 @@ export default function ProjectOrchestrationPage() {
   }, [project?.name, projectId])
 
   const draftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['project-workspace-drafts', projectId, pageKey],
+    queryKey: ['project-workspace-drafts', projectId, pageKey, activeDraftId],
     queryFn: async () => {
       if (!projectId || !pageKey) return []
-      const [projectDrafts, legacyDrafts] = await Promise.all([
-        localAgentClient.listDrafts({ projectId, kind: 'project_proposal', pageKey, limit: 12 }),
-        localAgentClient.listDrafts({ projectId, kind: 'note', pageKey, limit: 12 }),
-      ])
-      return dedupeDrafts([...projectDrafts.drafts, ...legacyDrafts.drafts])
+      if (activeDraftId) {
+        const draft = await localAgentClient.getDraft(activeDraftId)
+        return draft.kind === 'project_proposal' ? [draft] : []
+      }
+      return []
     },
     enabled: !!projectId && !!pageKey,
+    refetchInterval: activeDraftId ? 1500 : false,
+    refetchIntervalInBackground: false,
   })
 
   const derived = useMemo(() => {
@@ -363,6 +366,7 @@ export default function ProjectOrchestrationPage() {
           analysisScope: 'project',
         },
       })
+      setActiveDraftId(draftShell.id)
 
       const requestId = `project_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
       const prompt = buildProjectOrchestrationPrompt({

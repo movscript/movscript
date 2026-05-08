@@ -162,9 +162,6 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	if err != nil {
 		return domainjob.Job{}, wrapErr(ErrLoadInputResources, err)
 	}
-	if err := s.requireImageVerification(ctx, input.JobType, inputResources.Resources); err != nil {
-		return domainjob.Job{}, err
-	}
 
 	runtimeModelConfigID, err := s.ai.ResolveRuntimeGenerationModel(input.ModelConfigID, input.JobType)
 	if err != nil {
@@ -180,6 +177,9 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		VideoCount:    inputResources.VideoCount,
 	})
 	if err != nil {
+		return domainjob.Job{}, err
+	}
+	if err := s.requireImageVerification(preflight.Def, inputResources.Resources); err != nil {
 		return domainjob.Job{}, err
 	}
 
@@ -251,8 +251,8 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	return job, nil
 }
 
-func (s *Service) requireImageVerification(ctx context.Context, jobType string, resources []domainjob.InputResource) error {
-	if jobType != ai.CapabilityVideoI2V {
+func (s *Service) requireImageVerification(def *ai.ModelDef, resources []domainjob.InputResource) error {
+	if !def.RequiresImageVerification() {
 		return nil
 	}
 	for _, resource := range resources {

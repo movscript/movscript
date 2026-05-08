@@ -56,6 +56,16 @@ func (s *AIService) CallVideo(ctx context.Context, userID, modelConfigID uint, r
 	return s.CallVideoWithUsage(ctx, userID, modelConfigID, req, UsageContext{})
 }
 
+// GetVideoModelDef resolves the active video-capable model definition without
+// validating request media counts.
+func (s *AIService) GetVideoModelDef(modelConfigID uint) (*ModelDef, error) {
+	_, _, def, err := s.loadVideoConfig(modelConfigID)
+	if err != nil {
+		return nil, err
+	}
+	return def, nil
+}
+
 func (s *AIService) CallVideoWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
 	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
 	if err != nil {

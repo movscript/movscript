@@ -894,13 +894,13 @@ export default function ProductionOrchestratePage() {
         projectId,
         clientInput: buildCommandFirstClientInput({
           message: prompt,
-          labels: ['production-orchestrate', 'project-proposal', 'tool-driven'],
+          labels: ['project-workspace', 'project-orchestration', 'project-proposal', 'tool-driven'],
           hints: {
             projectId,
             productionId,
             draftId: draftShell.id,
-            route: { pathname: '/production-orchestrate', search: `?productionId=${productionId}` },
-            selection: { entityType: 'production', entityId: productionId, label: selectedProduction ? String(selectedProduction.name ?? `制作 #${productionId}`) : `制作 #${productionId}` },
+            route: { pathname: '/project-workspace' },
+            selection: { entityType: 'project', entityId: projectId, label: project?.name ?? `项目 #${projectId}` },
           },
         }),
         agentManifest: PROJECT_PROPOSAL_AGENT_MANIFEST,
