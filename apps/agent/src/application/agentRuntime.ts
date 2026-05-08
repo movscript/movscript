@@ -811,6 +811,11 @@ export class AgentRuntime {
     status?: unknown
     sourceEntityType?: unknown
     sourceEntityId?: unknown
+    pageKey?: unknown
+    pageType?: unknown
+    pageRoute?: unknown
+    pageEntityType?: unknown
+    pageEntityId?: unknown
     limit?: unknown
   } = {}): AgentDraft[] {
     return this.draftStore.listDrafts(normalizeDraftQuery(query))
@@ -830,7 +835,7 @@ export class AgentRuntime {
       kind: input.kind,
       title: input.title,
       content: input.content,
-      source: input.source,
+      source: normalizeDraftSource(input.source),
       target: input.target,
       metadata: input.metadata,
     })
@@ -1731,6 +1736,24 @@ export class AgentRuntime {
   private isAbortError(error: unknown): boolean {
     return error instanceof Error && error.name === 'AbortError'
   }
+}
+
+function normalizeDraftSource(value: unknown): Record<string, JSONValue> | undefined {
+  if (!isJSONRecord(value)) return undefined
+  const source: Record<string, JSONValue> = {
+    ...(typeof value.entityType === 'string' ? { entityType: value.entityType } : {}),
+    ...(typeof value.entityId === 'number' || typeof value.entityId === 'string' ? { entityId: value.entityId } : {}),
+    ...(typeof value.pipelineNodeId === 'number' || typeof value.pipelineNodeId === 'string' ? { pipelineNodeId: value.pipelineNodeId } : {}),
+    ...(typeof value.runId === 'string' ? { runId: value.runId } : {}),
+    ...(typeof value.threadId === 'string' ? { threadId: value.threadId } : {}),
+    ...(typeof value.userId === 'number' || typeof value.userId === 'string' ? { userId: value.userId } : {}),
+    ...(typeof value.pageKey === 'string' ? { pageKey: value.pageKey } : {}),
+    ...(typeof value.pageType === 'string' ? { pageType: value.pageType } : {}),
+    ...(typeof value.pageRoute === 'string' ? { pageRoute: value.pageRoute } : {}),
+    ...(typeof value.pageEntityType === 'string' ? { pageEntityType: value.pageEntityType } : {}),
+    ...(typeof value.pageEntityId === 'number' || typeof value.pageEntityId === 'string' ? { pageEntityId: value.pageEntityId } : {}),
+  }
+  return Object.keys(source).length > 0 ? source : undefined
 }
 
 function isMessageRole(value: unknown): value is AgentMessageRole {

@@ -126,10 +126,14 @@ func TestCompleteCanvasTaskUpdatesTaskNodeDataAndPersistencePatch(t *testing.T) 
 	if nd.TaskID == nil || *nd.TaskID != task.ID {
 		t.Fatalf("node task id = %v, want %d", nd.TaskID, task.ID)
 	}
-	if got := updates["status"]; got != CanvasTaskStatusDone {
+	if got := updates.Status; got != CanvasTaskStatusDone {
 		t.Fatalf("updates status = %v, want %q", got, CanvasTaskStatusDone)
 	}
-	if got := updates["resource_id"]; got != resourceID {
+	if updates.ResourceID == nil || *updates.ResourceID != resourceID {
+		var got any
+		if updates.ResourceID != nil {
+			got = *updates.ResourceID
+		}
 		t.Fatalf("updates resource_id = %v, want %d", got, resourceID)
 	}
 }

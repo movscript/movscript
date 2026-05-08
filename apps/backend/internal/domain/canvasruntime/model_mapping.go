@@ -471,14 +471,14 @@ func ApplyCanvasRunTaskStatus(run *persistencemodel.CanvasRun, tasks []persisten
 	return ok
 }
 
-func StartCanvasTask(task *persistencemodel.CanvasTask, nd *NodeData) map[string]any {
+func StartCanvasTask(task *persistencemodel.CanvasTask, nd *NodeData) CanvasTaskPatch {
 	domainTask := CanvasTaskFromModel(*task)
 	updates := StartTask(&domainTask, nd)
 	domainTask.ApplyToModel(task)
 	return updates
 }
 
-func CompleteCanvasTask(task *persistencemodel.CanvasTask, nd *NodeData, resourceID *uint) map[string]any {
+func CompleteCanvasTask(task *persistencemodel.CanvasTask, nd *NodeData, resourceID *uint) CanvasTaskPatch {
 	domainTask := CanvasTaskFromModel(*task)
 	updates := CompleteTask(&domainTask, nd, resourceID)
 	domainTask.ApplyToModel(task)

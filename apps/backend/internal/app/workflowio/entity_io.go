@@ -15,7 +15,7 @@ import (
 type EntityPortValue struct {
 	Type        string
 	Text        string
-	JSON        any
+	JSON        json.RawMessage
 	Number      *float64
 	Boolean     *bool
 	ResourceIDs []uint
@@ -123,7 +123,7 @@ func (s *EntityIOService) readStoredPorts(ctx context.Context, schema EntitySche
 		return fmt.Errorf("%s not found", entityLabel(schema.Kind))
 	}
 	for column, fields := range fieldsByColumn {
-		text := storedColumnText(row[column])
+		text := row.Text(column)
 		if strings.TrimSpace(text) == "" {
 			continue
 		}
@@ -263,7 +263,7 @@ func (s *EntityIOService) ProjectID(ctx context.Context, kind string, id uint, f
 	if err != nil {
 		return 0, fmt.Errorf("%s not found", entityLabel(kind))
 	}
-	projectID, err := storedColumnUint(row["project_id"])
+	projectID, err := row.Uint("project_id")
 	if err != nil || projectID == 0 {
 		return 0, fmt.Errorf("%s project_id is missing", entityLabel(kind))
 	}

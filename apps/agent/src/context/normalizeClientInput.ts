@@ -71,12 +71,23 @@ function normalizeClientAttachments(value: unknown): AgentClientAttachmentRef[] 
 function normalizeClientUISnapshot(value: unknown): AgentClientUISnapshot | undefined {
   if (!isRecord(value)) return undefined
   const route = isRecord(value.route) ? value.route : undefined
+  const pageContext = isRecord(value.pageContext) ? value.pageContext : undefined
   const project = isRecord(value.project) ? value.project : undefined
   const selection = isRecord(value.selection) ? value.selection : value.selection === null ? null : undefined
   const recentResources = normalizeClientResources(value.recentResources)
   const labels = normalizeStringArray(value.labels)
   const snapshot: AgentClientUISnapshot = {
     ...(route ? { route: { ...(typeof route.pathname === 'string' && route.pathname.trim() ? { pathname: route.pathname.trim() } : {}), ...(typeof route.search === 'string' ? { search: route.search } : {}), ...(typeof route.hash === 'string' ? { hash: route.hash } : {}) } } : {}),
+    ...(pageContext ? {
+      pageContext: {
+        ...(typeof pageContext.pageKey === 'string' ? { pageKey: pageContext.pageKey } : {}),
+        ...(typeof pageContext.pageType === 'string' ? { pageType: pageContext.pageType } : {}),
+        ...(typeof pageContext.pageRoute === 'string' ? { pageRoute: pageContext.pageRoute } : {}),
+        ...(typeof pageContext.pageEntityType === 'string' ? { pageEntityType: pageContext.pageEntityType } : {}),
+        ...(typeof pageContext.pageEntityId === 'number' || typeof pageContext.pageEntityId === 'string' ? { pageEntityId: pageContext.pageEntityId } : {}),
+        ...(typeof pageContext.draftId === 'string' ? { draftId: pageContext.draftId } : {}),
+      },
+    } : {}),
     ...(project ? { project: { ...(typeof project.id === 'number' && Number.isFinite(project.id) ? { id: project.id } : typeof project.ID === 'number' && Number.isFinite(project.ID) ? { id: project.ID } : {}), ...(typeof project.name === 'string' ? { name: project.name } : {}), ...(typeof project.status === 'string' ? { status: project.status } : {}), ...(typeof project.description === 'string' ? { description: project.description } : {}) } } : {}),
     ...(typeof value.productionId === 'number' && Number.isFinite(value.productionId) ? { productionId: value.productionId } : {}),
     ...(selection === null ? { selection: null } : selection ? { selection: { ...(typeof selection.entityType === 'string' ? { entityType: selection.entityType } : {}), ...(typeof selection.entityId === 'number' || typeof selection.entityId === 'string' ? { entityId: selection.entityId } : {}), ...(typeof selection.label === 'string' ? { label: selection.label } : {}) } } : {}),

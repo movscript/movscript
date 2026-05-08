@@ -309,6 +309,14 @@ export interface AgentClientUISnapshot {
     search?: string
     hash?: string
   }
+  pageContext?: {
+    pageKey?: string
+    pageType?: string
+    pageRoute?: string
+    pageEntityType?: string
+    pageEntityId?: number | string
+    draftId?: string
+  }
   project?: {
     id?: number
     name?: string

@@ -41,7 +41,7 @@ test('normalizes structured skills from manifest current', () => {
         enabled: true,
         priority: 10,
         instruction: 'Create draft-first output.',
-        toolHints: ['movscript_create_draft'],
+        toolHints: ['movscript_submit_script_split_draft'],
       },
     ],
   })
@@ -49,7 +49,12 @@ test('normalizes structured skills from manifest current', () => {
   assert.equal(manifest.skills.length, 1)
   assert.equal(manifest.skills[0].id, 'drafting')
   assert.equal(manifest.skills[0].instruction, 'Create draft-first output.')
-  assert.deepEqual(manifest.skills[0].toolHints, ['movscript_create_draft'])
+  assert.deepEqual(manifest.skills[0].toolHints, ['movscript_submit_script_split_draft'])
+})
+
+test('default manifest does not grant generic draft creation', () => {
+  assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'movscript_create_draft'), false)
+  assert.equal(DEFAULT_AGENT_MANIFEST.skills.some((skill) => skill.toolHints?.includes('movscript_create_draft')), false)
 })
 
 test('falls back to default manifest for unsupported input', () => {

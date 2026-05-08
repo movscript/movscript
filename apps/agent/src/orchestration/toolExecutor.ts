@@ -111,6 +111,7 @@ async function callRuntimeTool(
         ...(isRecord(args.source) ? args.source : {}),
         runId: run.id,
         threadId: run.threadId,
+        ...extractPageContext(run),
       },
       target: args.target,
       createdByRunId: run.id,
@@ -198,6 +199,7 @@ async function callRuntimeTool(
         entityId: productionId,
         runId: run.id,
         threadId: run.threadId,
+        ...extractPageContext(run),
       },
       createdByRunId: run.id,
       createdByThreadId: run.threadId,
@@ -327,6 +329,7 @@ async function callRuntimeTool(
         entityId: productionId,
         runId: run.id,
         threadId: run.threadId,
+        ...extractPageContext(run),
       },
       createdByRunId: run.id,
       createdByThreadId: run.threadId,
@@ -582,6 +585,7 @@ function submitScriptSplitDraft(
       runId: run.id,
       threadId: run.threadId,
       sourceType: 'raw',
+      ...extractPageContext(run),
     },
     createdByRunId: run.id,
     createdByThreadId: run.threadId,
@@ -989,6 +993,25 @@ function normalizeProposalNodeForType(nodeType: ProductionProposalNodeType, valu
 
 function proposalRefArg(args: Record<string, JSONValue>): unknown {
   return args.proposalRef ?? args.proposal_ref ?? args.draftRef ?? args.draft_ref ?? args.draftId ?? args.draft_id
+}
+
+function extractPageContext(run: AgentRun): Record<string, JSONValue> {
+  const clientInput = isRecord(run.metadata?.clientInput) ? run.metadata.clientInput as Record<string, JSONValue> : undefined
+  const uiSnapshot = isRecord(clientInput?.uiSnapshot) ? clientInput.uiSnapshot as Record<string, JSONValue> : undefined
+  const pageContext = isRecord(uiSnapshot?.pageContext) ? uiSnapshot.pageContext as Record<string, JSONValue> : undefined
+  const route = isRecord(uiSnapshot?.route) ? uiSnapshot.route as Record<string, JSONValue> : undefined
+  const selection = isRecord(uiSnapshot?.selection) ? uiSnapshot.selection as Record<string, JSONValue> : undefined
+  return {
+    ...(typeof pageContext?.pageKey === 'string' ? { pageKey: pageContext.pageKey } : {}),
+    ...(typeof pageContext?.pageType === 'string' ? { pageType: pageContext.pageType } : {}),
+    ...(typeof pageContext?.pageRoute === 'string' ? { pageRoute: pageContext.pageRoute } : typeof route?.pathname === 'string' ? { pageRoute: route.pathname } : {}),
+    ...(typeof pageContext?.pageEntityType === 'string' ? { pageEntityType: pageContext.pageEntityType } : typeof selection?.entityType === 'string' ? { pageEntityType: selection.entityType } : {}),
+    ...(typeof pageContext?.pageEntityId === 'number' || typeof pageContext?.pageEntityId === 'string'
+      ? { pageEntityId: pageContext.pageEntityId }
+      : typeof selection?.entityId === 'number' || typeof selection?.entityId === 'string'
+        ? { pageEntityId: selection.entityId }
+        : {}),
+  }
 }
 
 function draftRefArg(args: Record<string, JSONValue>): unknown {

@@ -85,12 +85,12 @@ type ExecutableSpec struct {
 }
 
 type PortValue struct {
-	Type       string   `json:"type"`
-	ResourceID *uint    `json:"resource_id,omitempty"`
-	Text       string   `json:"text,omitempty"`
-	JSON       any      `json:"json,omitempty"`
-	Number     *float64 `json:"number,omitempty"`
-	Boolean    *bool    `json:"boolean,omitempty"`
+	Type       string          `json:"type"`
+	ResourceID *uint           `json:"resource_id,omitempty"`
+	Text       string          `json:"text,omitempty"`
+	JSON       json.RawMessage `json:"json,omitempty"`
+	Number     *float64        `json:"number,omitempty"`
+	Boolean    *bool           `json:"boolean,omitempty"`
 }
 
 func (v *PortValue) UnmarshalJSON(data []byte) error {
@@ -113,10 +113,18 @@ func (v *PortValue) UnmarshalJSON(data []byte) error {
 		if err := json.Unmarshal(data, &decoded); err != nil {
 			return err
 		}
+		if PortValueEmpty(PortValue(decoded)) {
+			*v = PortValue{Type: "json", JSON: append(json.RawMessage(nil), data...)}
+			return nil
+		}
 		*v = PortValue(decoded)
 		v.Normalize()
 	default:
-		*v = PortValue{Type: "json", JSON: value}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return err
+		}
+		*v = PortValue{Type: "json", JSON: append(json.RawMessage(nil), raw...)}
 	}
 	return nil
 }
@@ -172,9 +180,9 @@ func PortValueFromText(valueType string, text string) PortValue {
 	value := PortValue{Type: valueType}
 	switch valueType {
 	case "json":
-		var decoded any
-		if err := json.Unmarshal([]byte(text), &decoded); err == nil {
-			value.JSON = decoded
+		raw := []byte(strings.TrimSpace(text))
+		if json.Valid(raw) {
+			value.JSON = append(json.RawMessage(nil), raw...)
 		} else {
 			value.Text = text
 		}
@@ -205,6 +213,11 @@ func PortValueFromAny(value any) PortValue {
 		return typed
 	case string:
 		return PortValue{Type: "text", Text: typed}
+	case json.RawMessage:
+		if len(typed) == 0 {
+			return PortValue{}
+		}
+		return PortValue{Type: "json", JSON: append(json.RawMessage(nil), typed...)}
 	case float64:
 		return PortValue{Type: "number", Number: &typed}
 	case bool:
@@ -221,9 +234,8 @@ func PortValueFromAny(value any) PortValue {
 				return portValue
 			}
 		}
-		var decoded any
-		if err := json.Unmarshal(raw, &decoded); err == nil {
-			return PortValue{Type: "json", JSON: decoded}
+		if json.Valid(raw) {
+			return PortValue{Type: "json", JSON: append(json.RawMessage(nil), raw...)}
 		}
 		return PortValue{}
 	}
@@ -234,9 +246,7 @@ func PortValueText(value PortValue) string {
 		return value.Text
 	}
 	if value.JSON != nil {
-		if b, err := json.Marshal(value.JSON); err == nil {
-			return string(b)
-		}
+		return string(value.JSON)
 	}
 	if value.Number != nil {
 		return strconv.FormatFloat(*value.Number, 'f', -1, 64)

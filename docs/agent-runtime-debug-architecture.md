@@ -109,7 +109,7 @@ Output contract:
 
 Intent: create a local draft or candidate artifact without writing formal project entities.
 
-Current support: `/draft <goal>` is an explicit command form for `movscript.create_draft`. Natural language draft requests are still supported.
+Current support: `/draft <goal>` creates a local draft artifact through the page/application-owned draft flow. Natural language draft requests are still supported, but draft creation is not a default agent tool.
 
 Example:
 

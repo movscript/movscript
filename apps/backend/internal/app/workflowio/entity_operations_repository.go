@@ -19,7 +19,7 @@ type repository interface {
 	WriteEntityPorts(ctx context.Context, kind string, id uint, values map[string]EntityPortValue, projectID uint, sourceType string, meta EntityWriteMeta) (EntityWriteResult, error)
 	FirstBindingBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) (resourceBindingProjection, bool, error)
 	FirstBindingByRole(ctx context.Context, ownerType string, ownerID uint, role string) (resourceBindingProjection, bool, error)
-	LoadEntityRow(ctx context.Context, table string, columns []string, id uint) (map[string]any, error)
+	LoadEntityRow(ctx context.Context, table string, columns []string, id uint) (EntityRow, error)
 	LoadScriptComputedFields(ctx context.Context, id uint) (scriptComputedProjection, error)
 	ListAssetSlotCandidates(ctx context.Context, assetSlotID uint) ([]assetSlotCandidateProjection, error)
 }

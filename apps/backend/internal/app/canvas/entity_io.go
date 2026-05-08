@@ -136,7 +136,9 @@ func (h *Service) entityPortValuesFromCanvasInputs(ctx context.Context, kind str
 		}
 		for _, portValue := range portValues {
 			if portValue.JSON != nil {
-				value.JSON = portValue.JSON
+				if raw, err := json.Marshal(portValue.JSON); err == nil {
+					value.JSON = raw
+				}
 			}
 			if portValue.Number != nil {
 				value.Number = portValue.Number
@@ -214,7 +216,9 @@ func entityPortValueToCanvasPortValue(value workflowio.EntityPortValue) canvasPo
 		} else if strings.TrimSpace(value.Text) != "" {
 			var decoded any
 			if err := json.Unmarshal([]byte(value.Text), &decoded); err == nil {
-				portValue.JSON = decoded
+				if raw, err := json.Marshal(decoded); err == nil {
+					portValue.JSON = raw
+				}
 			} else {
 				portValue.Text = value.Text
 			}

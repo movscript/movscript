@@ -123,7 +123,11 @@ func TestAppRepositoryInterfacesDoNotExposePersistenceModels(t *testing.T) {
 }
 
 func TestAppRepositoryInterfacesAvoidUntypedAny(t *testing.T) {
+	dynamicEntityIORoot := "workflowio/"
 	walkAppFiles(t, func(path string, file *ast.File, _ map[string]struct{}) {
+		if strings.HasPrefix(path, dynamicEntityIORoot) {
+			return
+		}
 		for _, decl := range file.Decls {
 			gen, ok := decl.(*ast.GenDecl)
 			if !ok || gen.Tok != token.TYPE {

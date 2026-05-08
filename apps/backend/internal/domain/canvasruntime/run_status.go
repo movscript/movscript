@@ -64,6 +64,13 @@ type CanvasTask struct {
 	DeletedAt      *time.Time                  `json:"DeletedAt"`
 }
 
+type CanvasTaskPatch struct {
+	Status       string
+	ResourceID   *uint
+	InputValues  string
+	OutputValues string
+}
+
 type CanvasOutput struct {
 	ID          uint
 	CanvasID    uint
@@ -148,15 +155,15 @@ func ApplyRunTaskStatus(run *CanvasRun, tasks []CanvasTask, finishedAt time.Time
 	return true
 }
 
-func StartTask(task *CanvasTask, nd *NodeData) map[string]any {
+func StartTask(task *CanvasTask, nd *NodeData) CanvasTaskPatch {
 	task.Status = CanvasTaskStatusRunning
 	if nd != nil {
 		nd.Status = CanvasTaskStatusRunning
 	}
-	return map[string]any{"status": CanvasTaskStatusRunning}
+	return CanvasTaskPatch{Status: CanvasTaskStatusRunning}
 }
 
-func CompleteTask(task *CanvasTask, nd *NodeData, resourceID *uint) map[string]any {
+func CompleteTask(task *CanvasTask, nd *NodeData, resourceID *uint) CanvasTaskPatch {
 	task.Status = CanvasTaskStatusDone
 	task.ResourceID = resourceID
 	if nd != nil {
@@ -164,11 +171,7 @@ func CompleteTask(task *CanvasTask, nd *NodeData, resourceID *uint) map[string]a
 		nd.ResourceID = resourceID
 		nd.TaskID = &task.ID
 	}
-	updates := map[string]any{"status": CanvasTaskStatusDone}
-	if resourceID != nil {
-		updates["resource_id"] = *resourceID
-	}
-	return updates
+	return CanvasTaskPatch{Status: CanvasTaskStatusDone, ResourceID: resourceID}
 }
 
 func FailTask(task *CanvasTask, nd *NodeData, errMsg string) {

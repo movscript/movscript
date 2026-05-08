@@ -37,7 +37,7 @@ import {
 
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
 import { api } from '@/lib/api'
-import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
 import {
@@ -2142,6 +2142,22 @@ function ScriptSplitWorkbench() {
   }
 
   async function getLatestWritableScriptSplitDraft(preferredDraftId?: string): Promise<AgentDraft | null> {
+    const sourceIdentity = getScriptSplitSourceIdentity(sourceTitle, sourceFileName, sourceText)
+    const pageKey = buildPageKey({
+      route: { pathname: '/workbench/script' },
+      projectId,
+      selection: sourceIdentity,
+      labels: ['script-split-workbench'],
+    })
+    const pageScoped = await localAgentClient.listDrafts({
+      projectId,
+      kind: 'script_split',
+      status: 'draft',
+      pageKey,
+      limit: 5,
+    })
+    const pageScopedLatest = pageScoped.drafts[0]
+    if (pageScopedLatest) return pageScopedLatest
     const preferred = preferredDraftId
       ? await localAgentClient.getDraft(preferredDraftId).catch(() => null)
       : null
@@ -2201,7 +2217,7 @@ function ScriptSplitWorkbench() {
       labels: ['script-split-workbench', 'structured-output'],
       hints: {
         projectId,
-        selection: null,
+        selection: getScriptSplitSourceIdentity(baseTitle, sourceFileName, normalized),
       },
     })
     const requestId = `script_split_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -2274,6 +2290,15 @@ function ScriptSplitWorkbench() {
     })
 
     return { baseTitle }
+  }
+
+  function getScriptSplitSourceIdentity(title: string, fileName: string, text: string) {
+    const sourceLabel = fileName.trim() || title.trim() || inferSourceScriptTitle(text)
+    return {
+      entityType: 'script_source',
+      entityId: sourceLabel,
+      label: sourceLabel,
+    }
   }
 
   async function handleImportFile(file?: File) {

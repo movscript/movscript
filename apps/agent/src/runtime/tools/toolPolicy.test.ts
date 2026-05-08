@@ -44,7 +44,18 @@ test('tool policy injects current projectId into project scoped tools', () => {
   const result = applyToolPolicy([
     { name: 'movscript_list_productions', args: { limit: 10 } },
     { name: 'movscript_create_draft', args: { kind: 'note', title: 't', content: 'c' } },
-  ], { currentProjectId: 42, registry })
+  ], {
+    currentProjectId: 42,
+    registry,
+    manifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: [...DEFAULT_AGENT_MANIFEST.permissions, 'draft.write'],
+      tools: [
+        ...DEFAULT_AGENT_MANIFEST.tools,
+        { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
+      ],
+    },
+  })
 
   assert.deepEqual(result.warnings, [])
   assert.equal(result.toolCalls[0].args?.projectId, 42)

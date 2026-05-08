@@ -38,7 +38,7 @@ type repository interface {
 	EnsureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error
 	ListEntityWriteAudits(ctx context.Context, filter EntityWriteAuditFilter) (EntityWriteAuditPage, error)
 	CreateTask(ctx context.Context, task canvasruntime.CanvasTask) (canvasruntime.CanvasTask, error)
-	UpdateTask(ctx context.Context, task canvasruntime.CanvasTask, updates map[string]any) error
+	UpdateTask(ctx context.Context, task canvasruntime.CanvasTask, patch canvasruntime.CanvasTaskPatch) error
 	SaveTask(ctx context.Context, task canvasruntime.CanvasTask) error
 	FindTask(ctx context.Context, taskID uint) (canvasruntime.CanvasTask, error)
 	SaveNode(ctx context.Context, node canvasruntime.CanvasNode) error
@@ -428,12 +428,30 @@ func (r *gormRepository) CreateTask(ctx context.Context, task canvasruntime.Canv
 	return canvasruntime.CanvasTaskFromModel(modelTask), nil
 }
 
-func (r *gormRepository) UpdateTask(ctx context.Context, task canvasruntime.CanvasTask, updates map[string]any) error {
+func (r *gormRepository) UpdateTask(ctx context.Context, task canvasruntime.CanvasTask, patch canvasruntime.CanvasTaskPatch) error {
+	updates := canvasTaskPatchColumns(patch)
 	if len(updates) == 0 {
 		return nil
 	}
 	modelTask := task.ToModel()
 	return r.db.WithContext(ctx).Model(&modelTask).Updates(updates).Error
+}
+
+func canvasTaskPatchColumns(patch canvasruntime.CanvasTaskPatch) map[string]any {
+	updates := make(map[string]any)
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if patch.ResourceID != nil {
+		updates["resource_id"] = *patch.ResourceID
+	}
+	if strings.TrimSpace(patch.InputValues) != "" {
+		updates["input_values"] = patch.InputValues
+	}
+	if strings.TrimSpace(patch.OutputValues) != "" {
+		updates["output_values"] = patch.OutputValues
+	}
+	return updates
 }
 
 func (r *gormRepository) SaveTask(ctx context.Context, task canvasruntime.CanvasTask) error {

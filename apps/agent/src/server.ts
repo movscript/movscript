@@ -392,7 +392,7 @@ function normalizeDraftBody(body: unknown): Record<string, JSONValue> {
     kind: normalizeDraftKind(body.kind),
     title: typeof body.title === 'string' ? body.title : 'Untitled draft',
     content: typeof body.content === 'string' ? body.content : '',
-    ...(isRecord(body.source) ? { source: body.source as Record<string, JSONValue> } : {}),
+    ...(isRecord(body.source) ? { source: normalizeDraftSource(body.source) } : {}),
     ...(isRecord(body.target) ? { target: body.target as Record<string, JSONValue> } : {}),
     ...(isRecord(body.metadata) ? { metadata: body.metadata as Record<string, JSONValue> } : {}),
   }
@@ -404,6 +404,11 @@ function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0
   const status = normalizeDraftStatus(url.searchParams.get('status'))
   const sourceEntityType = url.searchParams.get('sourceEntityType')
   const sourceEntityId = url.searchParams.get('sourceEntityId')
+  const pageKey = url.searchParams.get('pageKey')
+  const pageType = url.searchParams.get('pageType')
+  const pageRoute = url.searchParams.get('pageRoute')
+  const pageEntityType = url.searchParams.get('pageEntityType')
+  const pageEntityId = url.searchParams.get('pageEntityId')
   const limit = url.searchParams.get('limit')
   return {
     ...(projectId !== null && Number.isFinite(Number(projectId)) ? { projectId: Number(projectId) } : {}),
@@ -411,6 +416,11 @@ function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0
     ...(status ? { status } : {}),
     ...(sourceEntityType ? { sourceEntityType } : {}),
     ...(sourceEntityId ? { sourceEntityId } : {}),
+    ...(pageKey ? { pageKey } : {}),
+    ...(pageType ? { pageType } : {}),
+    ...(pageRoute ? { pageRoute } : {}),
+    ...(pageEntityType ? { pageEntityType } : {}),
+    ...(pageEntityId ? { pageEntityId } : {}),
     ...(limit !== null && Number.isFinite(Number(limit)) ? { limit: Number(limit) } : {}),
   }
 }
@@ -461,6 +471,22 @@ function normalizeMemoryProjectId(url: URL): number | undefined {
   const projectId = url.searchParams.get('projectId')
   if (projectId !== null && Number.isFinite(Number(projectId))) return Number(projectId)
   return undefined
+}
+
+function normalizeDraftSource(source: Record<string, unknown>): Record<string, JSONValue> {
+  return {
+    ...(typeof source.entityType === 'string' ? { entityType: source.entityType } : {}),
+    ...(typeof source.entityId === 'number' || typeof source.entityId === 'string' ? { entityId: source.entityId } : {}),
+    ...(typeof source.pipelineNodeId === 'number' || typeof source.pipelineNodeId === 'string' ? { pipelineNodeId: source.pipelineNodeId } : {}),
+    ...(typeof source.runId === 'string' ? { runId: source.runId } : {}),
+    ...(typeof source.threadId === 'string' ? { threadId: source.threadId } : {}),
+    ...(typeof source.userId === 'number' || typeof source.userId === 'string' ? { userId: source.userId } : {}),
+    ...(typeof source.pageKey === 'string' ? { pageKey: source.pageKey } : {}),
+    ...(typeof source.pageType === 'string' ? { pageType: source.pageType } : {}),
+    ...(typeof source.pageRoute === 'string' ? { pageRoute: source.pageRoute } : {}),
+    ...(typeof source.pageEntityType === 'string' ? { pageEntityType: source.pageEntityType } : {}),
+    ...(typeof source.pageEntityId === 'number' || typeof source.pageEntityId === 'string' ? { pageEntityId: source.pageEntityId } : {}),
+  }
 }
 
 function readJSON(req: IncomingMessage): Promise<unknown> {

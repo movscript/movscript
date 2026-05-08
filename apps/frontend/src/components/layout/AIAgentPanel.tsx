@@ -682,6 +682,9 @@ function buildAgentClientInput(options: {
   attachments: AgentAttachment[]
   projectId?: number
   labels?: string[]
+  route?: { pathname?: string; search?: string; hash?: string }
+  productionId?: number
+  selection?: { entityType?: string; entityId?: number | string; label?: string } | null
 }): AgentClientInput {
   const input = buildCommandFirstClientInput({
     message: options.message,
@@ -694,7 +697,12 @@ function buildAgentClientInput(options: {
       ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
     })),
     labels: options.labels,
-    hints: options.projectId ? { projectId: options.projectId } : undefined,
+    hints: {
+      ...(options.projectId ? { projectId: options.projectId } : {}),
+      ...(options.productionId ? { productionId: options.productionId } : {}),
+      ...(options.selection ? { selection: options.selection } : {}),
+      ...(options.route ? { route: options.route } : {}),
+    },
   })
   return input
 }

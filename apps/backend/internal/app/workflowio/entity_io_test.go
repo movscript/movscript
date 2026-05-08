@@ -44,7 +44,7 @@ func TestEntityFieldUpdatesUseResourceIDForNumberPort(t *testing.T) {
 
 func TestNormalizeEntityPortValuesKeepsCanonicalField(t *testing.T) {
 	values, err := NormalizeEntityPortValues("script", map[string]EntityPortValue{
-		"core_settings": {Type: "json", JSON: map[string]any{"world": "near future"}},
+		"core_settings": {Type: "json", JSON: json.RawMessage(`{"world":"near future"}`)},
 	})
 	if err != nil {
 		t.Fatalf("expected normalization to succeed: %v", err)
@@ -208,7 +208,7 @@ func TestScriptCharacterArchivePortsAreReadonlyDeprecated(t *testing.T) {
 			t.Fatalf("expected %q to be readonly deprecated, got %#v", portID, field)
 		}
 		err := validateEntityPortValues("script", map[string]EntityPortValue{
-			portID: {Type: "json", JSON: []any{map[string]any{"name": "old"}}},
+			portID: {Type: "json", JSON: json.RawMessage(`[{"name":"old"}]`)},
 		})
 		if err == nil || !strings.Contains(err.Error(), "not writable") {
 			t.Fatalf("expected readonly port error for %q, got %v", portID, err)

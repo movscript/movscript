@@ -348,7 +348,13 @@ test('agentic loop records direct draft tool-call steps without planner or subag
   const runtime = createTestRuntime({ mcpClient: client })
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
 
-  const run = await createAndWaitForRun(runtime, thread.id)
+  const run = await createAndWaitForRun(runtime, thread.id, {
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['draft.write'],
+      tools: [{ name: 'movscript_create_draft', mode: 'allow', approval: 'never' }],
+    },
+  })
   const draft = runtime.listDrafts({ projectId: 42 })[0]
 
   assert.equal(run.status, 'completed')
@@ -1587,7 +1593,13 @@ test('create_draft success writes draft memory', async () => {
   const runtime = createTestRuntime({ mcpClient: client })
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个草稿' }] })
 
-  await createAndWaitForRun(runtime, thread.id)
+  await createAndWaitForRun(runtime, thread.id, {
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['draft.write'],
+      tools: [{ name: 'movscript_create_draft', mode: 'allow', approval: 'never' }],
+    },
+  })
 
   assert.equal(runtime.listMemories({ kind: 'draft', projectId: 42 }).length, 1)
 })
@@ -1599,7 +1611,13 @@ test('create_draft writes local draft lifecycle metadata and list_drafts returns
   const runtime = createTestRuntime({ mcpClient: client, draftStore })
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我写一个镜头草稿' }] })
 
-  const run = await createAndWaitForRun(runtime, thread.id)
+  const run = await createAndWaitForRun(runtime, thread.id, {
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['draft.write'],
+      tools: [{ name: 'movscript_create_draft', mode: 'allow', approval: 'never' }],
+    },
+  })
   const draft = runtime.listDrafts({ projectId: 42, kind: 'content_unit' })[0]
 
   assert.equal(run.status, 'completed')
@@ -1614,6 +1632,76 @@ test('create_draft writes local draft lifecycle metadata and list_drafts returns
   runtime.addMessage(thread.id, { role: 'user', content: '列出当前项目已有的 Agent 草稿。' })
   await createAndWaitForRun(runtime, thread.id)
   assert.equal(client.calls.some((call) => call.name === 'movscript_list_drafts'), false)
+})
+
+test('create_draft preserves page context from client input', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const draftStore = new InMemoryAgentDraftStore()
+  const runtime = createTestRuntime({ mcpClient: client, draftStore })
+  const thread = runtime.createThread({
+    messages: [{
+      role: 'user',
+      content: '帮我写一个草稿',
+    }],
+  })
+
+  await createAndWaitForRun(runtime, thread.id, {
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['draft.write'],
+      tools: [{ name: 'movscript_create_draft', mode: 'allow', approval: 'never' }],
+    },
+    clientInput: {
+      message: '帮我写一个草稿',
+      uiSnapshot: {
+        route: { pathname: '/production-orchestrate', search: '?productionId=4' },
+        pageContext: {
+          pageKey: 'production_orchestrate|/production-orchestrate?productionId=4|production|4',
+          pageType: 'production_orchestrate',
+          pageRoute: '/production-orchestrate?productionId=4',
+          pageEntityType: 'production',
+          pageEntityId: 4,
+        },
+        project: { id: 42, name: 'Test Project' },
+        productionId: 4,
+        selection: { entityType: 'production', entityId: 4, label: '制作 4' },
+        labels: ['production-orchestrate'],
+      },
+    },
+  })
+
+  const draft = runtime.listDrafts({ projectId: 42, kind: 'content_unit' })[0]
+  assert.equal(draft?.source?.pageKey, 'production_orchestrate|/production-orchestrate?productionId=4|production|4')
+  assert.equal(draft?.source?.pageType, 'production_orchestrate')
+  assert.equal(draft?.source?.pageEntityType, 'production')
+  assert.equal(draft?.source?.pageEntityId, 4)
+})
+
+test('drafts can be scoped by page key', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const draftStore = new InMemoryAgentDraftStore()
+  const runtime = createTestRuntime({ mcpClient: client, draftStore })
+  const pageKey = 'production_orchestrate|/production-orchestrate?productionId=4|production|4'
+  draftStore.createDraft({
+    projectId: 42,
+    kind: 'production_proposal',
+    title: 'Scoped draft',
+    content: '{}',
+    source: { pageKey, pageType: 'production_orchestrate', pageRoute: '/production-orchestrate?productionId=4', pageEntityType: 'production', pageEntityId: 4 },
+  })
+  draftStore.createDraft({
+    projectId: 42,
+    kind: 'production_proposal',
+    title: 'Other page draft',
+    content: '{}',
+    source: { pageKey: 'other|page|production|99', pageType: 'other', pageRoute: '/other', pageEntityType: 'production', pageEntityId: 99 },
+  })
+
+  const drafts = runtime.listDrafts({ projectId: 42, kind: 'production_proposal', status: 'draft', pageKey })
+  assert.equal(drafts.length, 1)
+  assert.equal(drafts[0]?.title, 'Scoped draft')
 })
 
 test('runtime list_drafts filters by kind and status locally', async () => {

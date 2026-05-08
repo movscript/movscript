@@ -249,6 +249,14 @@ export interface AgentClientInput {
       search?: string
       hash?: string
     }
+    pageContext?: {
+      pageKey?: string
+      pageType?: string
+      pageRoute?: string
+      pageEntityType?: string
+      pageEntityId?: number | string
+      draftId?: string
+    }
     project?: {
       id?: number
       name?: string
@@ -752,6 +760,14 @@ export class LocalAgentClient {
   async streamRun(runId: string, options: RunMessageOptions = {}): Promise<AgentRun> {
     const controller = new AbortController()
     let timedOut = false
+    let lastKnownRun: AgentRun | undefined
+    const fullRunOrLatest = async (run: AgentRun): Promise<AgentRun> => {
+      if (run.streamPartial) {
+        const fullRun = await this.getRun(run.id).catch(() => undefined)
+        if (fullRun) return fullRun
+      }
+      return run
+    }
     const timeout = options.timeoutMs
       ? globalThis.setTimeout(() => {
         timedOut = true
@@ -767,21 +783,23 @@ export class LocalAgentClient {
       if (!res.body) return await this.waitForRun(runId, options)
 
       let latestRun = await this.getRun(runId)
+      lastKnownRun = latestRun
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
-      const processBlock = (block: string) => {
+      const processBlock = (block: string): AgentRun | undefined => {
         const parsed = parseSSEBlock(block)
-        if (!parsed) return
+        if (!parsed) return undefined
         let event: AgentRunStreamEvent
         try {
           event = JSON.parse(parsed.data) as AgentRunStreamEvent
         } catch {
-          return
+          return undefined
         }
         options.onStreamEvent?.(event)
         if ('run' in event && event.run) {
           latestRun = event.run
+          lastKnownRun = event.run
         }
         if (event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') {
           options.onRunUpdate?.(event.run)
@@ -789,6 +807,12 @@ export class LocalAgentClient {
         if (event.type === 'assistant_delta') {
           options.onAssistantDelta?.(event)
         }
+        if (TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
+        return undefined
+      }
+      const finishFromStream = async (run: AgentRun): Promise<AgentRun> => {
+        await reader.cancel().catch(() => undefined)
+        return fullRunOrLatest(run)
       }
 
       while (true) {
@@ -798,7 +822,8 @@ export class LocalAgentClient {
         let normalized = buffer.replace(/\r\n/g, '\n')
         let separatorIndex = normalized.indexOf('\n\n')
         while (separatorIndex >= 0) {
-          processBlock(normalized.slice(0, separatorIndex))
+          const terminalRun = processBlock(normalized.slice(0, separatorIndex))
+          if (terminalRun) return await finishFromStream(terminalRun)
           normalized = normalized.slice(separatorIndex + 2)
           separatorIndex = normalized.indexOf('\n\n')
         }
@@ -806,10 +831,12 @@ export class LocalAgentClient {
       }
       const tail = decoder.decode()
       if (tail) buffer += tail
-      if (buffer.trim()) processBlock(buffer)
+      if (buffer.trim()) {
+        const terminalRun = processBlock(buffer)
+        if (terminalRun) return await finishFromStream(terminalRun)
+      }
       if (latestRun.streamPartial && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
-        const fullRun = await this.getRun(runId).catch(() => undefined)
-        if (fullRun) return fullRun
+        return await finishFromStream(latestRun)
       }
       return latestRun
     } catch (error) {
@@ -818,6 +845,8 @@ export class LocalAgentClient {
         if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
         throw new Error(`local runtime run ${runId} did not finish within ${options.timeoutMs}ms`)
       }
+      const latestRun = lastKnownRun ?? await this.getRun(runId).catch(() => undefined)
+      if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return await fullRunOrLatest(latestRun)
       throw error
     } finally {
       if (timeout !== undefined) globalThis.clearTimeout(timeout)
@@ -841,11 +870,16 @@ export class LocalAgentClient {
     return this.getJSON(`/memories${params.size ? `?${params.toString()}` : ''}`)
   }
 
-  listDrafts(query: { projectId?: number; kind?: AgentDraftKind; status?: AgentDraftStatus; limit?: number } = {}): Promise<{ drafts: AgentDraft[] }> {
+  listDrafts(query: { projectId?: number; kind?: AgentDraftKind; status?: AgentDraftStatus; pageKey?: string; pageType?: string; pageRoute?: string; pageEntityType?: string; pageEntityId?: number | string; limit?: number } = {}): Promise<{ drafts: AgentDraft[] }> {
     const params = new URLSearchParams()
     if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
     if (query.kind) params.set('kind', query.kind)
     if (query.status) params.set('status', query.status)
+    if (query.pageKey) params.set('pageKey', query.pageKey)
+    if (query.pageType) params.set('pageType', query.pageType)
+    if (query.pageRoute) params.set('pageRoute', query.pageRoute)
+    if (query.pageEntityType) params.set('pageEntityType', query.pageEntityType)
+    if (query.pageEntityId !== undefined) params.set('pageEntityId', String(query.pageEntityId))
     if (typeof query.limit === 'number') params.set('limit', String(query.limit))
     return this.getJSON(`/drafts${params.size ? `?${params.toString()}` : ''}`)
   }

@@ -2,20 +2,6 @@
   "category": "drafts",
   "tools": [
     {
-      "name": "movscript_create_draft",
-      "description": "Create a local runtime/client review artifact for proposed scripts, creative materials, scene beats, shot plans, asset needs, keyframes, production proposals, or notes. This does not write formal project items.",
-      "permission": "draft.write",
-      "risk": "draft",
-      "source": "runtime",
-      "projectScoped": true,
-      "requiresApprovalByDefault": false,
-      "defaultGrant": {
-        "name": "movscript_create_draft",
-        "mode": "allow",
-        "approval": "never"
-      }
-    },
-    {
       "name": "movscript_get_draft",
       "description": "Read one local draft artifact by reference.",
       "permission": "draft.read",
@@ -101,7 +87,7 @@
     },
     {
       "name": "movscript_create_script",
-      "description": "Create a formal script record in the current project after user approval. For brainstorming, first use movscript_create_draft; use this only when the user wants the generated script saved into the project.",
+      "description": "Create a formal script record in the current project after user approval. Use this only when the user wants the generated script saved into the project.",
       "permission": "project.write",
       "risk": "write",
       "source": "runtime",

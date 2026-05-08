@@ -26,14 +26,17 @@ export function buildCommandFirstClientInput(input: {
   hints?: {
     projectId?: number
     productionId?: number
+    draftId?: string
     selection?: AgentSelectionHint
+    route?: { pathname?: string; search?: string; hash?: string }
   }
 }): AgentClientInput {
-  const route = inferRouteFromLabels(input.labels)
+  const route = input.hints?.route ?? inferRouteFromLabels(input.labels)
   const pageContext = buildPageContext({
     route,
     projectId: input.hints?.projectId,
     productionId: input.hints?.productionId,
+    draftId: input.hints?.draftId,
     selection: input.hints && 'selection' in input.hints ? input.hints.selection ?? null : undefined,
     labels: input.labels,
   })
@@ -45,6 +48,7 @@ export function buildCommandFirstClientInput(input: {
         ...(pageContext ? { pageContext } : {}),
         ...(input.hints?.projectId !== undefined ? { project: { id: input.hints.projectId } } : {}),
         ...(input.hints?.productionId !== undefined ? { productionId: input.hints.productionId } : {}),
+        ...(input.hints?.draftId ? { draftId: input.hints.draftId } : {}),
         ...(input.hints && 'selection' in input.hints ? { selection: input.hints.selection ?? null } : {}),
         ...(input.labels?.length ? { labels: input.labels } : {}),
       },
@@ -56,6 +60,7 @@ export function buildPageContext(input: {
   route?: { pathname?: string; search?: string; hash?: string }
   projectId?: number
   productionId?: number
+  draftId?: string
   selection?: AgentSelectionHint
   labels?: string[]
 }): {
@@ -64,6 +69,7 @@ export function buildPageContext(input: {
   pageRoute?: string
   pageEntityType?: string
   pageEntityId?: number | string
+  draftId?: string
 } | undefined {
   const pageType = inferPageType(input.labels, input.route?.pathname)
   const pageRoute = normalizeRoute(input.route)
@@ -76,7 +82,12 @@ export function buildPageContext(input: {
     ...(pageRoute ? { pageRoute } : {}),
     ...(pageEntityType ? { pageEntityType } : {}),
     ...(pageEntityId !== undefined ? { pageEntityId } : {}),
+    ...(input.draftId ? { draftId: input.draftId } : {}),
   }
+}
+
+export function normalizePageRoute(route?: { pathname?: string; search?: string; hash?: string }): string | undefined {
+  return normalizeRoute(route)
 }
 
 function inferRouteFromLabels(labels: string[] | undefined) {
@@ -85,6 +96,16 @@ function inferRouteFromLabels(labels: string[] | undefined) {
   if (list.some((label) => /creative-workbench/i.test(label))) return { pathname: '/creative-workbench' }
   if (list.some((label) => /script-split|workbench/i.test(label))) return { pathname: '/workbench/script' }
   return undefined
+}
+
+export function buildPageKey(input: {
+  route?: { pathname?: string; search?: string; hash?: string }
+  projectId?: number
+  productionId?: number
+  selection?: AgentSelectionHint
+  labels?: string[]
+}): string {
+  return buildPageContext(input)?.pageKey ?? 'page|unknown|page|0'
 }
 
 function inferPageType(labels: string[] | undefined, pathname?: string): string {

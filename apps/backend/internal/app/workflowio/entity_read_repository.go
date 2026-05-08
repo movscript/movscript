@@ -40,6 +40,25 @@ type assetSlotCandidateProjection struct {
 	CandidateAssetSlot   *assetSlotProjection
 }
 
+type EntityRow struct {
+	values map[string]any
+}
+
+func newEntityRow(values map[string]any) EntityRow {
+	if values == nil {
+		values = map[string]any{}
+	}
+	return EntityRow{values: values}
+}
+
+func (row EntityRow) Text(column string) string {
+	return storedColumnText(row.values[column])
+}
+
+func (row EntityRow) Uint(column string) (uint, error) {
+	return storedColumnUint(row.values[column])
+}
+
 func (r *gormRepository) FirstBindingBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) (resourceBindingProjection, bool, error) {
 	var binding resourceBindingProjection
 	err := r.db.WithContext(ctx).
@@ -70,12 +89,12 @@ func (r *gormRepository) FirstBindingByRole(ctx context.Context, ownerType strin
 	return resourceBindingProjection{ResourceID: binding.ResourceID}, binding.ResourceID != 0, nil
 }
 
-func (r *gormRepository) LoadEntityRow(ctx context.Context, table string, columns []string, id uint) (map[string]any, error) {
+func (r *gormRepository) LoadEntityRow(ctx context.Context, table string, columns []string, id uint) (EntityRow, error) {
 	row := map[string]any{}
 	if err := r.db.WithContext(ctx).Table(table).Select(columns).Where("id = ?", id).Take(&row).Error; err != nil {
-		return nil, err
+		return EntityRow{}, err
 	}
-	return row, nil
+	return newEntityRow(row), nil
 }
 
 func (r *gormRepository) LoadScriptComputedFields(ctx context.Context, id uint) (scriptComputedProjection, error) {

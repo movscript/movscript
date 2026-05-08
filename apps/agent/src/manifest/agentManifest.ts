@@ -59,7 +59,7 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
       enabled: true,
       priority: 100,
       instruction: '优先读取当前项目上下文；需要产出或修改内容时，只创建或编辑本地审阅草稿，不直接修改既有正式项目内容。正式写入、应用、生成任务和项目创建必须由 UI 或明确审批流程接管。',
-      toolHints: ['movscript_list_projects', 'movscript_read_project_structure', 'movscript_create_draft', 'movscript_get_draft', 'movscript_list_drafts', 'movscript_update_draft', 'movscript_patch_draft', 'movscript_validate_draft', 'movscript_list_memories', 'movscript_search_memories', 'movscript_get_memory', 'movscript_create_memory', 'movscript_delete_memory'],
+      toolHints: ['movscript_list_projects', 'movscript_read_project_structure', 'movscript_get_draft', 'movscript_list_drafts', 'movscript_update_draft', 'movscript_patch_draft', 'movscript_validate_draft', 'movscript_list_memories', 'movscript_search_memories', 'movscript_get_memory', 'movscript_create_memory', 'movscript_delete_memory'],
     },
   ],
   permissions: [
@@ -78,7 +78,6 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
     { name: 'movscript_list_projects', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
-    { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
     { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
