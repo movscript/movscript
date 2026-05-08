@@ -26,7 +26,6 @@ const WRITE_AGENT_MANIFEST = {
   tools: [
     ...DEFAULT_AGENT_MANIFEST.tools,
     { name: 'movscript_create_project', mode: 'allow' as const, approval: 'always' as const },
-    { name: 'movscript_apply_draft', mode: 'allow' as const, approval: 'always' as const },
     { name: 'movscript_create_script', mode: 'allow' as const, approval: 'always' as const },
   ],
 }
@@ -101,10 +100,6 @@ function installDefaultModelFetch(): void {
         ? `用户请求：${userMsg}\n\n参考记忆：\n${memoriesSection}`
         : `用户请求：${userMsg}`
       callsToMake.push({ id: 'call_draft_1', name: 'movscript_create_draft', args: { kind: 'content_unit', title: '草稿', content: draftContent, ...(projectId !== undefined ? { projectId } : {}) } })
-    }
-    if (/应用草稿|apply.*draft/i.test(userMsg) && toolNames.has('movscript_apply_draft')) {
-      const draftId = userMsg.match(/\b(draft_[a-zA-Z0-9_-]+)\b/)?.[1]
-      if (draftId) callsToMake.push({ id: 'call_apply_1', name: 'movscript_apply_draft', args: { draftId } })
     }
     if (/保存.*剧本|创建.*剧本|create.*script/i.test(userMsg) && toolNames.has('movscript_create_script')) {
       callsToMake.push({
@@ -645,7 +640,19 @@ test('run can be cancelled while waiting for action', async () => {
   assert.equal(client.calls.some((call) => call.name === 'movscript_create_draft'), false)
 })
 
-test('apply_draft requires approval and marks draft applied after approval', async () => {
+test('cancelling an already finished run returns the current run', async () => {
+  const runtime = createTestRuntime({ mcpClient: new FakeMCPClient() })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '你好' }] })
+
+  const run = await createAndWaitForRun(runtime, thread.id)
+  const cancelled = runtime.cancelRun(run.id, { reason: '用户停止了当前会话。' })
+
+  assert.equal(run.status, 'completed')
+  assert.equal(cancelled.id, run.id)
+  assert.equal(cancelled.status, 'completed')
+})
+
+test('agent does not apply drafts as a model-visible tool', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const backendApplyClient = new FakeBackendApplyClient()
@@ -663,26 +670,13 @@ test('apply_draft requires approval and marks draft applied after approval', asy
 
   const run = await createAndWaitForRun(runtime, thread.id, { agentManifest: WRITE_AGENT_MANIFEST })
 
-  assert.equal(run.status, 'requires_action')
-  assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_apply_draft')
-  assert.equal((run.pendingApprovals?.[0].preview as any)?.review?.target?.entityType, 'content_unit')
+  assert.equal(run.status, 'completed')
+  assert.equal(run.pendingApprovals?.length ?? 0, 0)
   assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
-
-  runtime.approveRun(run.id)
-  const appliedRun = await waitForRun(runtime, run.id)
-  const appliedDraft = runtime.getDraft(draft.id)
-
-  assert.equal(appliedRun.status, 'completed')
-  assert.equal(backendApplyClient.calls.length, 1)
-  assert.equal(backendApplyClient.calls[0].review.target.entityType, 'content_unit')
-  assert.equal(appliedDraft?.status, 'applied')
-  assert.equal(appliedDraft?.target?.entityId, 7)
-  assert.equal((appliedDraft?.metadata?.applyReview as any)?.requiresBackendApply, true)
-  assert.equal(appliedDraft?.metadata?.backendWritePerformed, true)
-  assert.equal((appliedDraft?.metadata?.backendApply as any)?.method, 'PATCH')
+  assert.equal(backendApplyClient.calls.length, 0)
 })
 
-test('createToolRun drives apply_draft through the same approval policy', async () => {
+test('UI apply_draft API marks draft applied without creating an agent approval run', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const backendApplyClient = new FakeBackendApplyClient()
@@ -695,39 +689,26 @@ test('createToolRun drives apply_draft through the same approval policy', async 
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
   })
 
-  const run = runtime.createToolRun({
-    title: 'Apply draft from UI',
-    message: 'Apply draft from UI',
-    agentManifest: WRITE_AGENT_MANIFEST,
-    toolCall: {
-      name: 'movscript_apply_draft',
-      args: {
-        draftId: draft.id,
-        target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
-        currentValue: 'Old content-unit description',
-        proposedValue: 'New content-unit description',
-      },
-    },
-  })
-  const waiting = await waitForRun(runtime, run.id)
+  const applied = await runtime.applyDraftFromUI({
+    draftId: draft.id,
+    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
+    currentValue: 'Old content-unit description',
+    proposedValue: 'New content-unit description',
+  }) as any
 
-  assert.equal(waiting.status, 'requires_action')
-  assert.equal(waiting.pendingApprovals?.[0].toolName, 'movscript_apply_draft')
-  assert.equal((waiting.pendingApprovals?.[0].preview as any)?.review?.currentValue, 'Old content-unit description')
-  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
-
-  runtime.approveRun(waiting.id, { approvalIds: [waiting.pendingApprovals![0].id] })
-  const appliedRun = await waitForRun(runtime, waiting.id)
-
-  assert.equal(appliedRun.status, 'completed')
+  assert.equal(applied.status, 'applied')
+  assert.equal(applied.review.currentValue, 'Old content-unit description')
   assert.equal(runtime.getDraft(draft.id)?.status, 'applied')
+  assert.equal((runtime.getDraft(draft.id)?.metadata?.applyReview as any)?.requiresBackendApply, true)
+  assert.equal(runtime.getDraft(draft.id)?.metadata?.backendWritePerformed, true)
+  assert.equal((runtime.getDraft(draft.id)?.metadata?.backendApply as any)?.method, 'PATCH')
   assert.equal(backendApplyClient.calls.length, 1)
+  assert.equal(runtime.listRuns().length, 0)
 })
 
-test('apply_draft passes current context user id to backend apply client', async () => {
+test('UI apply_draft API passes explicit user id to backend apply client', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
-  client.userId = 9
   const backendApplyClient = new FakeBackendApplyClient()
   const runtime = createTestRuntime({ mcpClient: client, backendApplyClient })
   const draft = runtime.createLocalDraft({
@@ -737,14 +718,11 @@ test('apply_draft passes current context user id to backend apply client', async
     content: 'New content-unit description',
     target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
   })
-  const thread = runtime.createThread({
-    messages: [{ role: 'user', content: `请应用草稿 ${draft.id} 到 content_unit #7 字段 description` }],
+  await runtime.applyDraftFromUI({
+    draftId: draft.id,
+    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
+    appliedByUserId: 9,
   })
-
-  await createAndWaitForRun(runtime, thread.id, { agentManifest: WRITE_AGENT_MANIFEST })
-  const waiting = runtime.listRuns()[0]
-  runtime.approveRun(waiting.id)
-  await waitForRun(runtime, waiting.id)
 
   assert.equal(backendApplyClient.calls[0].auth?.userId, 9)
 })
@@ -787,39 +765,31 @@ test('rejectDraft marks local draft rejected with reason', () => {
   assert.equal(rejected.rejectedReason, 'out of scope')
 })
 
-test('sandbox mode intercepts write-risk tools without applying drafts', async () => {
+test('sandbox mode intercepts agent write-risk tools', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const backendApplyClient = new FakeBackendApplyClient()
   const runtime = createTestRuntime({ mcpClient: client, backendApplyClient })
-  const draft = runtime.createLocalDraft({
-    projectId: 42,
-    kind: 'content_unit',
-    title: 'Content unit update',
-    content: 'New content-unit description',
-    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
-  })
   const run = runtime.createToolRun({
-    title: 'Sandbox apply draft',
-    message: 'Sandbox apply draft',
+    title: 'Sandbox create script',
+    message: 'Sandbox create script',
     sandboxMode: true,
     agentManifest: WRITE_AGENT_MANIFEST,
     toolCall: {
-      name: 'movscript_apply_draft',
-      args: { draftId: draft.id },
+      name: 'movscript_create_script',
+      args: { projectId: 42, title: 'Draft script', content: 'Body' },
     },
   })
 
   const finished = await waitForRun(runtime, run.id)
-  const sandboxed = finished.steps.find((step) => step.toolName === 'movscript_apply_draft')
+  const sandboxed = finished.steps.find((step) => step.toolName === 'movscript_create_script')
 
   assert.equal(finished.status, 'completed')
   assert.equal(Boolean(finished.pendingApprovals?.some((approval) => approval.status === 'pending')), false)
   assert.equal(sandboxed?.sandboxed, true)
   assert.equal(sandboxed?.roundSource, 'runtime_rule')
   assert.equal((sandboxed?.result as any)?.sandboxed, true)
-  assert.equal(runtime.getDraft(draft.id)?.status, 'draft')
-  assert.equal(backendApplyClient.calls.length, 0)
+  assert.equal(backendApplyClient.createScriptCalls.length, 0)
 })
 
 test('persists threads, messages, runs, and steps across runtime rebuilds', async () => {
@@ -836,13 +806,15 @@ test('persists threads, messages, runs, and steps across runtime rebuilds', asyn
     const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(statePath) })
     const restoredThread = rebuilt.getThread(thread.id)
     const restoredRun = rebuilt.getRun(run.id)
+    const restoredTraceEvents = rebuilt.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
 
     assert.equal(restoredThread?.title, 'Persistent thread')
     assert.equal(restoredThread?.messages.some((message) => message.role === 'user'), true)
     assert.equal(restoredRun?.status, 'completed')
     assert.ok(restoredRun?.steps.some((step) => step.type === 'tool_call'))
-    assert.ok(restoredRun?.traceEvents?.some((event) => event.kind === 'context'))
-    assert.ok(restoredRun?.traceEvents?.some((event) => event.kind === 'tool_call'))
+    assert.deepEqual(restoredRun?.traceEvents ?? [], [])
+    assert.ok(restoredTraceEvents.some((event) => event.kind === 'context'))
+    assert.ok(restoredTraceEvents.some((event) => event.kind === 'tool_call'))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -881,8 +853,9 @@ test('file store writes valid JSON atomically enough to recover state', () => {
     })
 
     const parsed = JSON.parse(readFileSync(statePath, 'utf8'))
-    assert.equal(parsed.version, 1)
+    assert.equal(parsed.version, 2)
     assert.equal(parsed.threads[0].id, 'thread_atomic')
+    assert.deepEqual(parsed.traceEvents, [])
     assert.equal(new FileAgentStore(statePath).getThread('thread_atomic')?.id, 'thread_atomic')
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -946,8 +919,9 @@ test('records backend model gateway HTTP request and response in run trace', asy
     const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello' }] })
     const run = await createAndWaitForRun(runtime, thread.id, { backendAuthToken: 'secret-token' })
 
-    const requestEvent = run.traceEvents?.find((event) => event.kind === 'model_call' && event.title === 'Model HTTP request sent')
-    const responseEvent = run.traceEvents?.find((event) => event.kind === 'model_call' && event.title === 'Model HTTP response received')
+    const traceEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+    const requestEvent = traceEvents.find((event) => event.kind === 'model_call' && event.title === 'Model HTTP request sent')
+    const responseEvent = traceEvents.find((event) => event.kind === 'model_call' && event.title === 'Model HTTP response received')
     const requestData = requestEvent?.data as any
     const responseData = responseEvent?.data as any
 
@@ -962,6 +936,142 @@ test('records backend model gateway HTTP request and response in run trace', asy
     assert.equal(responseData.response.parsedBody.id, 'chatcmpl_trace_test')
     assert.equal(responseData.response.content, 'trace reply')
     assert.equal(typeof responseData.latencyMs, 'number')
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    rmSync(modelConfigDir, { recursive: true, force: true })
+  }
+})
+
+test('emits assistant_delta events from streamed model content', async () => {
+  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-stream-'))
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const originalFetch = globalThis.fetch
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
+    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+
+    globalThis.fetch = (async () => {
+      const body = [
+        'data: {"choices":[{"delta":{"role":"assistant","content":"流式"},"finish_reason":""}]}',
+        '',
+        'data: {"event":{"content_delta":"响应"}}',
+        '',
+        'data: {"content_delta":"继续"}',
+        '',
+        'data: {"choices":[{"delta":{"content":"完成"},"finish_reason":"stop"}]}',
+        '',
+        'data: [DONE]',
+        '',
+      ].join('\n')
+      return new Response(body, {
+        status: 200,
+        statusText: 'OK',
+        headers: { 'content-type': 'text/event-stream' },
+      })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({ mcpClient: client })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello stream' }] })
+    const run = runtime.createRun({ threadId: thread.id, backendAuthToken: 'secret-token' })
+    const deltas: string[] = []
+    const accumulated: string[] = []
+    runtime.subscribeRunStream(run.id, (event) => {
+      if (event.type === 'assistant_delta') {
+        deltas.push(event.delta)
+        accumulated.push(event.accumulated)
+      }
+    })
+
+    const completed = await waitForRun(runtime, run.id)
+
+    assert.equal(completed.status, 'completed')
+    assert.deepEqual(completed.traceEvents ?? [], [])
+    assert.deepEqual(deltas, ['流式', '响应', '继续', '完成'])
+    assert.deepEqual(accumulated, ['流式', '流式响应', '流式响应继续', '流式响应继续完成'])
+    assert.equal(runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Model stream delta'), false)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    rmSync(modelConfigDir, { recursive: true, force: true })
+  }
+})
+
+test('emits structured live trace events from streamed tool call deltas', async () => {
+  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-tool-stream-'))
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const originalFetch = globalThis.fetch
+  let callCount = 0
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
+    const { RuntimeModelConfigStore } = await import('./model/modelConfig.js')
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+
+    globalThis.fetch = (async () => {
+      callCount += 1
+      if (callCount === 1) {
+        const body = [
+          'data: {"choices":[{"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_stream_draft","type":"function","function":{"name":"movscript_create_draft","arguments":"{\\"kind\\""}}]},"finish_reason":null}]}',
+          '',
+          'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\\"note\\",\\"title\\":\\"流式"}}]},"finish_reason":null}]}',
+          '',
+          'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"草稿\\",\\"content\\":\\"工具参数分片\\"}"}}]},"finish_reason":"tool_calls"}]}',
+          '',
+          'data: [DONE]',
+          '',
+        ].join('\n')
+        return new Response(body, {
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      }
+
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: 'done' }, finish_reason: 'stop' }],
+      }), {
+        status: 200,
+        statusText: 'OK',
+        headers: { 'content-type': 'application/json' },
+      })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({ mcpClient: client })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: 'stream a tool call' }] })
+    const run = runtime.createRun({
+      threadId: thread.id,
+      agentManifest: {
+        ...DEFAULT_AGENT_MANIFEST,
+        tools: [
+          ...DEFAULT_AGENT_MANIFEST.tools,
+          { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
+        ],
+      },
+    })
+    const liveToolEvents: any[] = []
+    runtime.subscribeRunStream(run.id, (event) => {
+      if (event.type === 'trace' && event.event.kind === 'tool_call' && event.event.title === 'Model tool call delta') {
+        liveToolEvents.push(event.event)
+      }
+    })
+
+    const completed = await waitForRun(runtime, run.id)
+
+    assert.equal(completed.status, 'completed')
+    assert.equal(runtime.listDrafts({ projectId: 42 }).length, 1)
+    assert.equal(liveToolEvents.length >= 3, true)
+    assert.deepEqual(new Set(liveToolEvents.map((event) => event.id)).size, 1)
+    const finalStream = liveToolEvents.at(-1)?.data?.stream
+    assert.equal(finalStream?.toolCall?.name, 'movscript_create_draft')
+    assert.equal(finalStream?.toolCall?.parseStatus, 'valid_json')
+    assert.deepEqual(finalStream?.toolCall?.argumentsJSON, { kind: 'note', title: '流式草稿', content: '工具参数分片' })
+    assert.deepEqual(completed.traceEvents ?? [], [])
+    assert.equal(runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Model tool call delta'), false)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -1096,8 +1206,11 @@ test('context command returns fallback diagnostics when MCP context pack is unav
   assert.match(assistant?.content ?? '', /Business reference: project#42/)
   assert.match(assistant?.content ?? '', /Context pack unavailable: mcp offline/)
   assert.throws(() => JSON.parse(assistant?.content ?? ''))
-  assert.equal(run.traceEvents?.some((event) => event.title === 'Context pack failed'), true)
-  assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
+  {
+    const traceEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+    assert.equal(traceEvents.some((event) => event.title === 'Context pack failed'), true)
+    assert.equal(traceEvents.some((event) => event.kind === 'model_call'), false)
+  }
 })
 
 test('script split agent session exposes structured submit tool without forcing JSON assistant output', async () => {
@@ -1165,7 +1278,12 @@ test('script split agent session exposes structured submit tool without forcing 
     const sourceScriptSchema = submitParameters?.properties?.sourceScript as Record<string, any> | undefined
     const episodeSchema = submitParameters?.properties?.episodeDrafts?.items as Record<string, any> | undefined
     assert.equal(submitParameters?.type, 'object')
+    assert.equal('sourceSummary' in (submitParameters?.properties ?? {}), true)
+    assert.equal('globalSettings' in (submitParameters?.properties ?? {}), true)
+    assert.equal('summary' in (sourceScriptSchema?.properties ?? {}), true)
     assert.equal('content' in (sourceScriptSchema?.properties ?? {}), false)
+    assert.equal('summary' in (episodeSchema?.properties ?? {}), true)
+    assert.equal('globalContext' in (episodeSchema?.properties ?? {}), true)
     assert.equal('content' in (episodeSchema?.properties ?? {}), false)
     assert.equal('startLine' in (episodeSchema?.properties ?? {}), true)
     assert.match(assistant?.content ?? '', /聊天正文不进行 JSON 收口/)
@@ -1202,40 +1320,29 @@ test('script split structured submit tool writes a normalized script_split draft
         projectId: 42,
         draftTitle: '剧本拆分草稿 - 总稿',
         sourceTitle: '总稿',
-        sourceSummary: '两个制作的总稿。',
-        sourceScript: {
-          title: '总稿',
-          summary: '两个制作的总稿。',
-          sourceType: 'raw',
-          lineCount: 4,
-        },
+        sourceSummary: '雨夜便利店总稿按行号拆分。',
+        lineCount: 4,
         globalSettings: {
           storyWorld: '雨夜城市',
-          coreRules: ['不要编造原文没有的剧情'],
-          characterRelationships: ['林夏和顾言关系紧张'],
-          keyCharacters: ['林夏', '顾言'],
+          coreRules: ['不能复制正文'],
+          characterRelationships: ['甲乙相遇'],
+          keyCharacters: ['甲', '乙'],
           keyLocations: ['便利店'],
           keyProps: ['旧信'],
-          continuityNotes: ['纸条必须前后连贯'],
+          continuityNotes: ['旧信后续追踪'],
         },
         episodeDrafts: [{
           order: 1,
           title: '第1集 雨夜便利店',
-          summary: '开场进入便利店。',
+          summary: '甲乙在雨夜便利店相遇。',
           globalContext: {
             storyWorld: '雨夜城市',
-            coreRules: ['不要编造原文没有的剧情'],
-            characterRelationships: ['林夏和顾言关系紧张'],
-            keyCharacters: ['林夏', '顾言'],
+            keyCharacters: ['甲', '乙'],
             keyLocations: ['便利店'],
-            keyProps: ['旧信'],
-            continuityNotes: ['纸条必须前后连贯'],
-            episodeRelevance: ['旧信在本集首次出现'],
+            episodeRelevance: ['建立相遇关系'],
           },
           startLine: 1,
           endLine: 2,
-          action: 'create',
-          existingScriptId: null,
         }],
         warnings: ['需复核'],
         confidence: 0.82,
@@ -1248,8 +1355,8 @@ test('script split structured submit tool writes a normalized script_split draft
     schema?: string
     source_title?: string
     source_script?: { line_count?: number }
-    global_settings?: { story_world?: string }
-    episode_drafts?: Array<{ existing_script_id?: number | null; start_line?: number; end_line?: number; content?: string }>
+    global_settings?: { story_world?: string; core_rules?: string[] }
+    episode_drafts?: Array<{ existing_script_id?: number | null; start_line?: number; end_line?: number; content?: string; title?: string; summary?: string; global_context?: { episode_relevance?: string[] } }>
   }
 
   assert.equal(completed.status, 'completed')
@@ -1259,11 +1366,76 @@ test('script split structured submit tool writes a normalized script_split draft
   assert.equal(parsed.schema, 'movscript.script_split_analysis.v1')
   assert.equal(parsed.source_title, '总稿')
   assert.equal(parsed.global_settings?.story_world, '雨夜城市')
+  assert.deepEqual(parsed.global_settings?.core_rules, ['不能复制正文'])
   assert.equal(parsed.source_script?.line_count, 4)
   assert.equal(parsed.episode_drafts?.[0]?.existing_script_id, null)
+  assert.equal(parsed.episode_drafts?.[0]?.title, '第1集 雨夜便利店')
+  assert.equal(parsed.episode_drafts?.[0]?.summary, '甲乙在雨夜便利店相遇。')
+  assert.deepEqual(parsed.episode_drafts?.[0]?.global_context?.episode_relevance, ['建立相遇关系'])
   assert.equal(parsed.episode_drafts?.[0]?.start_line, 1)
   assert.equal(parsed.episode_drafts?.[0]?.end_line, 2)
   assert.equal('content' in (parsed.episode_drafts?.[0] ?? {}), false)
+})
+
+test('script split submit tool supersedes older active draft for same source', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const draftStore = new InMemoryAgentDraftStore()
+  const runtime = createTestRuntime({
+    mcpClient: client,
+    draftStore,
+  })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '提交两次剧本拆分草稿' }] })
+  const manifest = {
+    ...DEFAULT_AGENT_MANIFEST,
+    permissions: ['project.read', 'draft.write'],
+    tools: [
+      ...DEFAULT_AGENT_MANIFEST.tools,
+      { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' as const },
+    ],
+  }
+
+  const firstRun = runtime.createToolRun({
+    threadId: thread.id,
+    agentManifest: manifest,
+    toolCall: {
+      name: 'movscript_submit_script_split_draft',
+      args: {
+        projectId: 42,
+        sourceTitle: '总稿',
+        lineCount: 4,
+        episodeDrafts: [{ order: 1, title: '第1集', startLine: 1, endLine: 2 }],
+      },
+    },
+  })
+  await waitForRun(runtime, firstRun.id)
+  const firstDraft = runtime.listDrafts({ projectId: 42, kind: 'script_split' })[0]
+
+  const secondRun = runtime.createToolRun({
+    threadId: thread.id,
+    agentManifest: manifest,
+    toolCall: {
+      name: 'movscript_submit_script_split_draft',
+      args: {
+        projectId: 42,
+        sourceTitle: '总稿',
+        lineCount: 4,
+        episodeDrafts: [{ order: 1, title: '第1集 修订', startLine: 1, endLine: 3 }],
+      },
+    },
+  })
+  const completed = await waitForRun(runtime, secondRun.id)
+  const drafts = runtime.listDrafts({ projectId: 42, kind: 'script_split', limit: 10 })
+  const activeDrafts = runtime.listDrafts({ projectId: 42, kind: 'script_split', status: 'draft', limit: 10 })
+  const superseded = runtime.getDraft(firstDraft.id)
+  const step = completed.steps.find((item) => item.toolName === 'movscript_submit_script_split_draft')
+  const result = step?.result as { supersededDraftIds?: string[] } | undefined
+
+  assert.equal(completed.status, 'completed')
+  assert.equal(drafts.length, 2)
+  assert.equal(activeDrafts.length, 1)
+  assert.equal(superseded?.status, 'superseded')
+  assert.deepEqual(result?.supersededDraftIds, [firstDraft.id])
 })
 
 test('script split submit tool rejects script body text in arguments', async () => {
@@ -1290,41 +1462,13 @@ test('script split submit tool rejects script body text in arguments', async () 
       args: {
         projectId: 42,
         sourceTitle: '总稿',
-        sourceSummary: '两个制作的总稿。',
-        sourceScript: {
-          title: '总稿',
-          summary: '两个制作的总稿。',
-          sourceType: 'raw',
-          lineCount: 4,
-        },
-        globalSettings: {
-          storyWorld: '雨夜城市',
-          coreRules: [],
-          characterRelationships: [],
-          keyCharacters: [],
-          keyLocations: [],
-          keyProps: [],
-          continuityNotes: [],
-        },
+        lineCount: 4,
         episodeDrafts: [{
           order: 1,
           title: '第1集',
-          summary: '开场。',
           content: '第1集 雨夜\n便利店相遇。',
-          globalContext: {
-            storyWorld: '雨夜城市',
-            coreRules: [],
-            characterRelationships: [],
-            keyCharacters: [],
-            keyLocations: [],
-            keyProps: [],
-            continuityNotes: [],
-            episodeRelevance: [],
-          },
           startLine: 1,
           endLine: 2,
-          action: 'create',
-          existingScriptId: null,
         }],
       },
     },
@@ -1334,7 +1478,7 @@ test('script split submit tool rejects script body text in arguments', async () 
 
   assert.equal(completed.status, 'completed_with_warnings')
   assert.equal(step?.status, 'failed')
-  assert.match(step?.error ?? '', /content is not allowed; use lineCount\/startLine\/endLine/)
+  assert.match(step?.error ?? '', /content is not allowed; use lineCount\/startLine\/endLine instead of passing long text/)
   assert.equal(runtime.listDrafts({ projectId: 42, kind: 'script_split' }).length, 0)
 })
 
@@ -1358,7 +1502,7 @@ test('memory command returns opened memory file refs without content or model ga
   assert.equal(run.status, 'completed')
   assert.match(assistant?.content ?? '', /Opened memory files:/)
   assert.match(assistant?.content ?? '', new RegExp(memory.id))
-  assert.equal(run.traceEvents?.some((event) => event.kind === 'model_call'), false)
+  assert.equal(runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.kind === 'model_call'), false)
 })
 
 test('production orchestrate requests include productionId in runtime context', async () => {
@@ -1733,14 +1877,14 @@ test('agent loop refreshes tools after enabling a bundle in the same run', async
     assert.equal(client.calls.some((call) => call.name === 'studio_same_run_echo'), true)
     assert.equal(run.steps.some((step) => step.toolName === 'movscript_enable_agent_bundle'), true)
     assert.equal(run.steps.some((step) => step.toolName === 'studio_same_run_echo'), true)
-    assert.equal(run.traceEvents?.some((event) => event.title === 'Agent catalog refreshed'), true)
+    assert.equal(runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Agent catalog refreshed'), true)
   } finally {
     globalThis.fetch = originalFetch
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('business production proposal tools upsert scene moments, assets, shots, and keyframes', async () => {
+test('business production proposal tools upsert segments, scene moments, assets, shots, and keyframes', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
   const draftStore = new InMemoryAgentDraftStore()
@@ -1752,13 +1896,20 @@ test('business production proposal tools upsert scene moments, assets, shots, an
       productionId: 4,
       analysisScope: 'production',
       proposal: {
-        segments: [{ client_id: 'segment-1', action: 'create', title: '开场', scene_moments: [] }],
+        segments: [],
       },
     }),
     source: { entityType: 'production', entityId: 4 },
   })
   const runtime = createTestRuntime({ mcpClient: client, draftStore })
   const calls = [
+    {
+      name: 'movscript_upsert_proposal_segment',
+      args: {
+        draftId: draft.id,
+        segment: { client_id: 'segment-1', action: 'create', title: '开场' },
+      },
+    },
     {
       name: 'movscript_upsert_proposal_scene_moment',
       args: {
@@ -1809,10 +1960,12 @@ test('business production proposal tools upsert scene moments, assets, shots, an
   const content = JSON.parse(runtime.getDraft(draft.id)!.content)
 
   assert.equal(inspected.status, 'completed')
+  assert.equal(content.proposal.segments[0].client_id, 'segment-1')
   assert.equal(content.proposal.segments[0].scene_moments[0].asset_slots[0].client_id, 'asset-1')
   assert.equal(content.proposal.segments[0].scene_moments[0].content_units[0].kind, 'shot')
   assert.equal(content.proposal.segments[0].scene_moments[0].content_units[0].keyframes[0].client_id, 'kf-1')
   assert.equal(inspectResult.counts.keyframes, 1)
+  assert.equal(inspectResult.counts.scene_moments, 1)
   assert.equal(inspectResult.nodes.some((node: any) => node.nodeType === 'keyframe' && node.client_id === 'kf-1'), true)
 })
 

@@ -23,7 +23,7 @@ import (
 )
 
 func (h *Service) completeResourceSinkTask(ctx context.Context, task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, user *persistencemodel.User, value canvasPortValue) map[string]canvasPortValue {
-	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
+	_ = h.updateTaskRow(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 	value.Normalize()
 	if value.ResourceID != nil && *value.ResourceID > 0 {
 		outputs := map[string]canvasPortValue{
@@ -31,7 +31,7 @@ func (h *Service) completeResourceSinkTask(ctx context.Context, task *persistenc
 			"": value,
 		}
 		h.updateTaskOutputValues(task, outputs)
-		_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, value.ResourceID))
+		_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, value.ResourceID))
 		if task.CanvasRunID == nil {
 			h.updateNodeData(node, nd)
 		}
@@ -56,7 +56,7 @@ func (h *Service) completeResourceSinkTask(ctx context.Context, task *persistenc
 		"": outputValue,
 	}
 	h.updateTaskOutputValues(task, outputs)
-	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
+	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -177,17 +177,20 @@ func (h *Service) createCanvasResourceFromBytes(ctx context.Context, ownerID uin
 		Size:           int64(len(data)),
 		StorageBackend: h.store.Backend(),
 		StorageKey:     key,
-	}).ToModel()
-	if err := h.canvasRepo().CreateResource(ctx, &r); err != nil {
+	})
+	r, err := h.canvasRepo().CreateResource(ctx, r)
+	if err != nil {
 		return nil, fmt.Errorf("create resource record: %w", err)
 	}
 	if err := h.store.Put(ctx, key, bytes.NewReader(data), int64(len(data)), mimeType); err != nil {
-		_ = h.canvasRepo().DeleteResource(ctx, &r)
+		_ = h.canvasRepo().DeleteResource(ctx, r)
 		return nil, fmt.Errorf("store resource: %w", err)
 	}
-	_ = h.canvasRepo().UpdateResource(ctx, &r, map[string]any{"file_path": "stored:" + key})
+	filePath := "stored:" + key
+	_ = h.canvasRepo().UpdateResource(ctx, r, domainresource.UpdateSpec{FilePath: &filePath})
 	r.FilePath = "stored:" + key
-	return &r, nil
+	modelResource := r.ToModel()
+	return &modelResource, nil
 }
 
 func canvasExtFromMime(mimeType string) string {

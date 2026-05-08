@@ -108,7 +108,10 @@ test('loads bundled MovScript platform catalog by default', () => {
     assert.equal(scriptSplitTool?.category, 'script_split')
     assert.ok(scriptSplitSchema)
     assert.ok(scriptSplitSchema?.required.includes('projectId'))
-    assert.ok(scriptSplitSchema?.required.includes('sourceSummary'))
+    assert.ok(scriptSplitSchema?.required.includes('lineCount'))
+    assert.equal(scriptSplitSchema?.required.includes('sourceSummary'), false)
+    assert.equal('sourceSummary' in (scriptSplitSchema?.properties ?? {}), true)
+    assert.equal('globalSettings' in (scriptSplitSchema?.properties ?? {}), true)
     assert.deepEqual(catalog.warnings, [])
   } finally {
     rmSync(dir, { recursive: true, force: true })

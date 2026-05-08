@@ -57,8 +57,19 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 	})
 }
 
-func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (string, ai.ImageRequest, ai.VideoRequest, error) {
-	return domainjob.CostRequest(modelConfigID, jobType, duration, extraParams, aspectRatio)
+func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (domainjob.CostRequestKind, ai.ImageRequest, ai.VideoRequest, error) {
+	kind, imageReq, videoReq, err := domainjob.CostRequest(modelConfigID, jobType, duration, extraParams, aspectRatio)
+	if err != nil {
+		return kind, ai.ImageRequest{}, ai.VideoRequest{}, err
+	}
+	switch kind {
+	case domainjob.CostRequestImage:
+		return kind, ai.ImageRequest{N: imageReq.Count, AspectRatio: imageReq.AspectRatio}, ai.VideoRequest{}, nil
+	case domainjob.CostRequestVideo:
+		return kind, ai.ImageRequest{}, ai.VideoRequest{Duration: videoReq.Duration, AspectRatio: videoReq.AspectRatio}, nil
+	default:
+		return kind, ai.ImageRequest{}, ai.VideoRequest{}, nil
+	}
 }
 
 func ModelDisplay(mcfg domainjob.AIModelConfig) string {

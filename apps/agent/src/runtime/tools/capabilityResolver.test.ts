@@ -4,7 +4,7 @@ import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
 import { resolveToolCatalog } from './capabilityResolver.js'
 import { StaticToolRegistry } from './toolRegistry.js'
 
-test('resolveToolCatalog activates categorized tools only for matching skills or tool hints', () => {
+test('resolveToolCatalog keeps explicitly granted categorized tools available', () => {
   const registry = new StaticToolRegistry([
     {
       name: 'studio.production_context',
@@ -43,8 +43,8 @@ test('resolveToolCatalog activates categorized tools only for matching skills or
     activeSkills: [],
   })
 
-  assert.equal(inactive.byName['studio.production_context'].available, false)
-  assert.equal(inactive.byName['studio.production_context'].unavailableReason, 'inactive')
+  assert.equal(inactive.byName['studio.production_context'].available, true)
+  assert.equal(inactive.byName['studio.production_context'].unavailableReason, undefined)
   assert.equal(inactive.byName['studio.general_context'].available, true)
 
   const active = resolveToolCatalog({

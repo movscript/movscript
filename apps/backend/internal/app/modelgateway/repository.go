@@ -13,11 +13,11 @@ import (
 type repository interface {
 	ListAPIKeys(ctx context.Context, ownerUserID uint, orgID *uint, includeLegacy bool) ([]domainmodelgateway.APIKey, error)
 	CreateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
-	UpdateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey, updates map[string]any) error
+	UpdateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
 	ReloadAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
 	DeleteAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error
 	FindAPIKeyByHash(ctx context.Context, hash string) (domainmodelgateway.APIKey, error)
-	FindUser(ctx context.Context, id uint) (persistencemodel.User, error)
+	UserExists(ctx context.Context, id uint) (bool, error)
 	TouchAPIKeyLastUsed(ctx context.Context, key *domainmodelgateway.APIKey, usedAt time.Time) error
 	FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint, includeLegacy bool) (domainmodelgateway.APIKey, error)
 	FindProjectOrgID(ctx context.Context, projectID uint) (*uint, error)
@@ -52,12 +52,9 @@ func (r *gormRepository) CreateAPIKey(ctx context.Context, key *domainmodelgatew
 	return nil
 }
 
-func (r *gormRepository) UpdateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey, updates map[string]any) error {
-	if len(updates) == 0 {
-		return nil
-	}
+func (r *gormRepository) UpdateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error {
 	row := key.ToModel()
-	if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&row).Select("name", "allowed_model_ids", "allowed_scopes", "is_enabled").Updates(row).Error; err != nil {
 		return err
 	}
 	*key = domainmodelgateway.APIKeyFromModel(row)
@@ -90,13 +87,16 @@ func (r *gormRepository) FindAPIKeyByHash(ctx context.Context, hash string) (dom
 	return domainmodelgateway.APIKeyFromModel(key), nil
 }
 
-func (r *gormRepository) FindUser(ctx context.Context, id uint) (persistencemodel.User, error) {
+func (r *gormRepository) UserExists(ctx context.Context, id uint) (bool, error) {
 	var user persistencemodel.User
 	err := r.db.WithContext(ctx).First(&user, id).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return user, ErrAPIKeyNotFound
+		return false, nil
 	}
-	return user, err
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (r *gormRepository) TouchAPIKeyLastUsed(ctx context.Context, key *domainmodelgateway.APIKey, usedAt time.Time) error {

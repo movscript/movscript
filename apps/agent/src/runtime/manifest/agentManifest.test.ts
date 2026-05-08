@@ -2,23 +2,22 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from './agentManifest.js'
 
-test('normalizes a valid agent manifest v1', () => {
+test('normalizes a valid current agent manifest', () => {
   const manifest = normalizeAgentManifest({
-    schema: 'movscript.agent.v1',
+    schema: 'movscript.agent.current',
     id: 'studio.content-unit-planner',
     version: '1.2.3',
     name: 'Content Unit Planner',
     permissions: ['project.read', 'draft.write', 'project.read'],
     tools: [
       { name: 'movscript_search_items', mode: 'allow', approval: 'never' },
-      { name: 'movscript_apply_draft', mode: 'allow', approval: 'always' },
+      { name: 'movscript_create_script', mode: 'allow', approval: 'always' },
       { name: '', mode: 'allow' },
     ],
     metadata: { owner: 'studio' },
   })
 
   assert.equal(manifest.schema, 'movscript.agent.current')
-  assert.equal(manifest.sourceSchema, 'movscript.agent.v1')
   assert.equal(manifest.id, 'studio.content-unit-planner')
   assert.deepEqual(manifest.permissions, ['project.read', 'draft.write'])
   assert.equal(manifest.tools.length, 2)
@@ -56,4 +55,5 @@ test('normalizes structured skills from manifest current', () => {
 test('falls back to default manifest for unsupported input', () => {
   assert.equal(normalizeAgentManifest(null).id, DEFAULT_AGENT_MANIFEST.id)
   assert.equal(normalizeAgentManifest({ schema: 'unknown' }).id, DEFAULT_AGENT_MANIFEST.id)
+  assert.equal(normalizeAgentManifest({ schema: 'movscript.agent.v1' }).id, DEFAULT_AGENT_MANIFEST.id)
 })

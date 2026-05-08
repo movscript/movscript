@@ -66,7 +66,8 @@ func (s *Service) Create(ctx context.Context, ownerID uint, input CreateInput) (
 }
 
 func (s *Service) Update(ctx context.Context, userID uint, orgID *uint, id uint, input UpdateInput) (domainresourcefolder.Folder, error) {
-	folder, err := s.repo.UpdateFolder(ctx, userID, orgID, id, input, s.repo.IncludeLegacyPersonal(ctx, orgID))
+	spec := domainresourcefolder.NewFolderUpdateSpec(input.Name, input.StorageBackend, input.IsShared)
+	folder, err := s.repo.UpdateFolder(ctx, userID, orgID, id, spec, s.repo.IncludeLegacyPersonal(ctx, orgID))
 	if err != nil {
 		return folder, err
 	}

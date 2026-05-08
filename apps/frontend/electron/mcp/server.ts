@@ -12,6 +12,7 @@ import {
 } from './types'
 
 const DEFAULT_PORT = 18765
+const MAX_PORT_PROBES = 20
 let apiBaseURL = normalizeAPIBaseURL(process.env.MOVSCRIPT_API_BASE_URL || 'http://localhost:8765')
 
 const contextSnapshot: MCPContextSnapshot = {
@@ -46,19 +47,31 @@ export function getMCPContextSnapshot(): MCPContextSnapshot {
 export async function startMCPServer(): Promise<number> {
   if (server?.listening) return addressPort(server) ?? DEFAULT_PORT
 
-  const port = Number(process.env.MOVSCRIPT_MCP_PORT || DEFAULT_PORT)
-  server = createServer(handleHTTP)
+  const requestedPort = Number(process.env.MOVSCRIPT_MCP_PORT || DEFAULT_PORT)
+  const ports = process.env.MOVSCRIPT_MCP_PORT
+    ? [requestedPort]
+    : Array.from({ length: MAX_PORT_PROBES }, (_item, index) => requestedPort + index)
+  let lastError: unknown
+  for (const port of ports) {
+    const nextServer = createServer(handleHTTP)
+    try {
+      await listenOnPort(nextServer, port)
+      server = nextServer
+      process.env.MOVSCRIPT_MCP_ENDPOINT = `http://127.0.0.1:${port}/mcp`
+      console.info(`[mcp] MovScript MCP server listening on http://127.0.0.1:${port}/mcp`)
+      return port
+    } catch (error) {
+      lastError = error
+      nextServer.close()
+      if (!isAddressInUseError(error)) throw error
+      if (process.env.MOVSCRIPT_MCP_PORT) {
+        throw new Error(`MovScript MCP port ${port} is already in use. Stop the existing process or set MOVSCRIPT_MCP_PORT to a free port.`)
+      }
+      console.warn(`[mcp] port ${port} is already in use; trying ${port + 1}`)
+    }
+  }
 
-  await new Promise<void>((resolve, reject) => {
-    server!.once('error', reject)
-    server!.listen(port, '127.0.0.1', () => {
-      server!.off('error', reject)
-      resolve()
-    })
-  })
-
-  console.info(`[mcp] MovScript MCP server listening on http://127.0.0.1:${port}/mcp`)
-  return port
+  throw new Error(`Unable to start MovScript MCP server near port ${requestedPort}: ${lastError instanceof Error ? lastError.message : String(lastError)}`)
 }
 
 export async function stopMCPServer(): Promise<void> {
@@ -70,6 +83,20 @@ export async function stopMCPServer(): Promise<void> {
 function addressPort(srv: Server): number | null {
   const address = srv.address()
   return typeof address === 'object' && address ? address.port : null
+}
+
+function listenOnPort(nextServer: Server, port: number): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    nextServer.once('error', reject)
+    nextServer.listen(port, '127.0.0.1', () => {
+      nextServer.off('error', reject)
+      resolve()
+    })
+  })
+}
+
+function isAddressInUseError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'code' in error && error.code === 'EADDRINUSE'
 }
 
 async function handleHTTP(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -494,14 +521,21 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
 }
 
 async function getContextPack(): Promise<unknown> {
+  const startedAt = Date.now()
   try {
+    const projectsStartedAt = Date.now()
     const projectsResult = await listProjects({})
     const projects = isRecord(projectsResult) && Array.isArray(projectsResult.projects) ? projectsResult.projects : []
+    const projectsMs = Date.now() - projectsStartedAt
     return {
       snapshot: contextSnapshot,
       projects,
       resources: listResources(),
       draftCount: drafts.size,
+      timings: {
+        totalMs: Date.now() - startedAt,
+        projectsMs,
+      },
     }
   } catch (error) {
     return {
@@ -510,6 +544,9 @@ async function getContextPack(): Promise<unknown> {
       projectsError: error instanceof Error ? error.message : String(error),
       resources: listResources(),
       draftCount: drafts.size,
+      timings: {
+        totalMs: Date.now() - startedAt,
+      },
     }
   }
 }

@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import {
   AtSign, Bot, ChevronRight, Send, Loader2,
   Plus, ArrowLeft, Copy, Check, X, ClipboardCheck, CircleStop,
-  Image, Video, FileText, Mic, File, Workflow, ShieldCheck,
+  Image, Video, FileText, Mic, File, Workflow,
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
   Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
-  SlidersHorizontal, Wrench, PackagePlus,
+  SlidersHorizontal, Wrench, PackagePlus, Route,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getAPIBaseURL, getAPIV1BaseURL } from '@/lib/config'
@@ -39,9 +40,10 @@ import {
   type AgentMemoryKind,
   type AgentMemoryScope,
   type AgentRun,
+  type AgentRunPolicy,
   type AgentRunPreview,
+  type AgentRunStreamEvent,
   type AgentSkillManifest,
-  type AgentThread as LocalAgentThread,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
 import {
@@ -82,6 +84,7 @@ import {
   useAgentStore,
   type ChatMessage,
   type ChatRunActivity,
+  type ChatRunActivityEvent,
   type Conversation,
   type AgentAttachment,
   type AgentSettings,
@@ -485,6 +488,7 @@ function collectGeneratedMediaHints(value: unknown, resources: Map<number, RawRe
 }
 
 async function generatedAttachmentsFromRun(run: AgentRun): Promise<AgentAttachment[]> {
+  if (run.streamPartial) return []
   const resources = new Map<number, RawResource>()
   const ids = new Set<number>()
   for (const step of run.steps ?? []) {
@@ -603,6 +607,7 @@ interface AgentSendDraft {
     projectId?: number
     clientInput?: AgentClientInput
     agentManifest?: AgentManifest
+    runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
     requestId?: string
     timeoutMs?: number
     diagnosticCommand?: boolean
@@ -628,6 +633,7 @@ function makeTraceId() {
 }
 
 const DEBUG_TEXT_MAX_CHARS = 4000
+const STREAMING_ASSISTANT_FLUSH_MS = 50
 
 function compactDebugValue(value: unknown, maxChars = DEBUG_TEXT_MAX_CHARS): unknown {
   if (typeof value === 'string') {
@@ -641,6 +647,14 @@ function compactDebugValue(value: unknown, maxChars = DEBUG_TEXT_MAX_CHARS): unk
     )
   }
   return value
+}
+
+function emptyLabel(t: ReturnType<typeof useTranslation>['t']) {
+  return t('agents.chat.panel.runtime.empty')
+}
+
+function countCharsLabel(t: ReturnType<typeof useTranslation>['t'], count: number) {
+  return t('agents.chat.panel.runtime.chars', { count })
 }
 
 function compactProject(project: Project | null): AgentSendDraft['context']['project'] | undefined {
@@ -728,13 +742,10 @@ function createImportedAgentManifest(input: {
     ...selectedTools.map((tool) => ('permission' in tool ? tool.permission : undefined)).filter((permission): permission is string => !!permission),
   ]))
   const grants = selectedTools.map((tool) => {
-    const fallbackApproval = 'requiresApprovalByDefault' in tool && tool.requiresApprovalByDefault
-      ? 'always'
-      : 'on_write'
     return {
       name: tool.name,
       mode: 'allow' as const,
-      approval: input.approvalOverrides?.[tool.name] ?? fallbackApproval,
+      approval: input.approvalOverrides?.[tool.name] ?? defaultToolApproval(tool),
     }
   })
   const byName = new Map<string, AgentToolGrant>()
@@ -759,6 +770,13 @@ function createImportedAgentManifest(input: {
   }
 }
 
+function defaultToolApproval(tool: ConversationContextTool): AgentToolApprovalMode {
+  if ('approval' in tool && tool.approval) return tool.approval
+  if ('requiresApproval' in tool && tool.requiresApproval) return 'always'
+  if ('requiresApprovalByDefault' in tool && tool.requiresApprovalByDefault) return 'always'
+  return 'on_write'
+}
+
 function safeJSONStringify(value: unknown) {
   return JSON.stringify(value, null, 2)
 }
@@ -768,13 +786,24 @@ function buildDebugHttpRequests(options: {
   modelName?: string
   messages: AgentSendDraft['outbound']['messages']
   localRuntime?: AgentSendDraft['localRuntime']
+  labels: {
+    syncModelConfig: string
+    loadExistingThread: string
+    missingThreadFallback: string
+    createThread: string
+    appendUserMessage: string
+    createRun: string
+    pollRun: string
+    pollRunNote: string
+    fetchFinalThread: string
+  }
 }): DebugHttpRequest[] {
   const baseURL = localAgentClient.baseURL
   const requests: DebugHttpRequest[] = []
   if (options.modelId) {
     requests.push({
       id: 'local-save-model-config',
-      label: 'Sync runtime model config',
+      label: options.labels.syncModelConfig,
       method: 'POST',
       url: `${baseURL}/model-config`,
       headers: { 'Content-Type': 'application/json' },
@@ -792,14 +821,14 @@ function buildDebugHttpRequests(options: {
   const threadRequests: DebugHttpRequest[] = threadId
     ? [{
       id: 'local-get-thread',
-      label: 'Load existing local thread',
+      label: options.labels.loadExistingThread,
       method: 'GET',
       url: `${baseURL}/threads/${encodeURIComponent(threadId)}`,
-      note: 'If this saved thread is missing, the client creates a new local thread instead.',
+      note: options.labels.missingThreadFallback,
     }]
     : [{
       id: 'local-create-thread',
-      label: 'Create local thread',
+      label: options.labels.createThread,
       method: 'POST',
       url: `${baseURL}/threads`,
       headers: { 'Content-Type': 'application/json' },
@@ -812,7 +841,7 @@ function buildDebugHttpRequests(options: {
     ...threadRequests,
     {
       id: 'local-add-message',
-      label: 'Append user message',
+      label: options.labels.appendUserMessage,
       method: 'POST',
       url: `${baseURL}/threads/${resolvedThreadId}/messages`,
       headers: { 'Content-Type': 'application/json' },
@@ -824,7 +853,7 @@ function buildDebugHttpRequests(options: {
     },
     {
       id: 'local-create-run',
-      label: 'Create local runtime run',
+      label: options.labels.createRun,
       method: 'POST',
       url: `${baseURL}/runs`,
       headers: { 'Content-Type': 'application/json' },
@@ -835,14 +864,14 @@ function buildDebugHttpRequests(options: {
     },
     {
       id: 'local-poll-run',
-      label: 'Poll run status',
+      label: options.labels.pollRun,
       method: 'GET',
       url: `${baseURL}/runs/{runId}`,
-      note: 'Repeated until completed, completed_with_warnings, requires_action, or failed.',
+      note: options.labels.pollRunNote,
     },
     {
       id: 'local-final-thread',
-      label: 'Fetch final local thread',
+      label: options.labels.fetchFinalThread,
       method: 'GET',
       url: `${baseURL}/threads/${resolvedThreadId}`,
     },
@@ -856,27 +885,31 @@ function buildDebugHttpRequests(options: {
 function LocalAgentWorkflow({
   run,
   approving = false,
+  events,
   onApprove,
   onReject,
   onAnswerInput,
 }: {
   run: AgentRun | null
   approving?: boolean
+  events?: ChatRunActivityEvent[]
   onApprove?: (approvalIds?: string[]) => void
   onReject?: (approvalIds?: string[]) => void
   onAnswerInput?: (requestId: string, answer: { choiceIds?: string[]; text?: string }) => void
 }) {
+  const { t } = useTranslation()
   return (
     <LocalAgentWorkflowPanel
       run={run}
       approving={approving}
+      events={events}
       onApprove={onApprove}
       onReject={onReject}
       onAnswerInput={onAnswerInput}
       approvalDetails={(approval) => (
         <>
           {approval.permission && (
-            <p className="mt-0.5 truncate text-[9px] text-muted-foreground/70">permission: {approval.permission}</p>
+            <p className="mt-0.5 truncate text-[9px] text-muted-foreground/70">{t('agents.chat.panel.runtime.permission')}: {approval.permission}</p>
           )}
           {approval.args && (
             <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-1.5 text-[9px] text-muted-foreground">
@@ -911,6 +944,7 @@ function AgentDebugPreviewDialog({
   onCancel: () => void
   onConfirm: () => void
 }) {
+  const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
   if (!draft) return null
   const raw = safeJSONStringify(draft)
@@ -931,7 +965,7 @@ function AgentDebugPreviewDialog({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <ClipboardCheck size={15} />
-              <h2 className="text-sm font-semibold text-foreground">Send debug preview</h2>
+              <h2 className="text-sm font-semibold text-foreground">{t('agents.chat.panel.debugPreview.title')}</h2>
               <Badge variant="secondary" className="text-[10px]">{draft.route}</Badge>
               {primaryRequest && <Badge variant="outline" className="text-[10px]">{primaryRequest.method}</Badge>}
             </div>
@@ -939,29 +973,29 @@ function AgentDebugPreviewDialog({
               {primaryRequest ? primaryRequest.url : draft.id}
             </p>
           </div>
-          <Button type="button" size="icon-sm" variant="ghost" onClick={onCancel} disabled={sending} aria-label="Close debug preview">
+          <Button type="button" size="icon-sm" variant="ghost" onClick={onCancel} disabled={sending} aria-label={t('agents.chat.panel.debugPreview.close')}>
             <X size={14} />
           </Button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
           <div className="grid gap-2 md:grid-cols-4">
-            <DebugSummaryItem label="Model" value={String(draft.model.name ?? draft.model.id ?? 'none')} />
-            <DebugSummaryItem label="Agent" value={draft.agent.name ?? 'No agent'} />
-            <DebugSummaryItem label="Mode" value={`${draft.settings.mode} · ${draft.settings.permissionMode}`} />
-            <DebugSummaryItem label="Requests" value={String(draft.httpRequests.length)} />
+            <DebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(draft.model.name ?? draft.model.id ?? t('common.emptyTitle'))} />
+            <DebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={draft.agent.name ?? t('agents.chat.panel.debugPreview.agent')} />
+            <DebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={`${draft.settings.mode} · ${draft.settings.permissionMode}`} />
+            <DebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(draft.httpRequests.length)} />
           </div>
 
           {draft.warnings.length > 0 && (
             <div className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-xs">
-              <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">Warnings</div>
+              <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">{t('agents.chat.panel.debugPreview.warnings')}</div>
               <ul className="space-y-1 text-[11px] text-muted-foreground">
                 {draft.warnings.map((warning) => <li key={warning}>{warning}</li>)}
               </ul>
             </div>
           )}
 
-          <DebugSection title="Final HTTP requests">
+          <DebugSection title={t('agents.chat.panel.prompt.finalHttpRequests')}>
             <div className="space-y-2">
               {draft.httpRequests.map((request, index) => (
                 <DebugHttpRequestCard key={request.id} request={request} index={index} />
@@ -970,11 +1004,11 @@ function AgentDebugPreviewDialog({
           </DebugSection>
 
           {preview?.context && (
-            <DebugSection title="Context">
+            <DebugSection title={t('agents.chat.panel.debugPreview.context')}>
               <div className="grid gap-2 text-[11px] md:grid-cols-3">
-                <DebugSummaryItem label="Route" value={preview.context.route.pathname} />
-                <DebugSummaryItem label="Project" value={preview.context.project ? `#${preview.context.project.id} ${preview.context.project.name ?? ''}`.trim() : 'none'} />
-                <DebugSummaryItem label="Memories" value={String(preview.context.memories.length)} />
+                <DebugSummaryItem label={t('agents.chat.panel.debugPreview.route')} value={preview.context.route.pathname} />
+                <DebugSummaryItem label={t('agents.chat.panel.debugPreview.project')} value={preview.context.project ? `#${preview.context.project.id} ${preview.context.project.name ?? ''}`.trim() : t('common.emptyTitle')} />
+                <DebugSummaryItem label={t('agents.chat.panel.debugPreview.memories')} value={String(preview.context.memories.length)} />
               </div>
               {(preview.context.recentResources.length > 0 || preview.context.attachments.length > 0) && (
                 <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
@@ -989,9 +1023,9 @@ function AgentDebugPreviewDialog({
           )}
 
           {preview?.skills && (
-            <DebugSection title="Skills">
+            <DebugSection title={t('agents.chat.panel.capabilities.skills')}>
               {preview.skills.length === 0 ? (
-                <div className="text-[11px] text-muted-foreground">No enabled skills.</div>
+                <div className="text-[11px] text-muted-foreground">{t('agents.chat.panel.runtime.noEnabledSkills')}</div>
               ) : (
                 <div className="space-y-1.5">
                   {preview.skills.map((skill) => (
@@ -1000,7 +1034,7 @@ function AgentDebugPreviewDialog({
                         <span className="font-medium text-foreground">{skill.name}</span>
                         <Badge variant="outline" className="text-[9px]">p{skill.resolvedPriority}</Badge>
                       </div>
-                      <p className="mt-0.5 text-muted-foreground">{skill.description || skill.compiledInstruction || '(no instruction)'}</p>
+                      <p className="mt-0.5 text-muted-foreground">{skill.description || skill.compiledInstruction || t('agents.chat.panel.runtime.noInstruction')}</p>
                     </div>
                   ))}
                 </div>
@@ -1009,29 +1043,29 @@ function AgentDebugPreviewDialog({
           )}
 
           {preview?.policy && (
-            <DebugSection title="Policy">
+            <DebugSection title={t('agents.chat.panel.runtime.policy')}>
               <div className="grid gap-2 text-[11px] md:grid-cols-4">
-                <DebugSummaryItem label="Approval mode" value={preview.policy.approvalMode} />
-                <DebugSummaryItem label="Max tool calls" value={String(preview.policy.maxToolCalls)} />
-                <DebugSummaryItem label="Max iterations" value={String(preview.policy.maxIterations)} />
-                <DebugSummaryItem label="File bytes" value={preview.policy.allowFileBytes ? 'allowed' : 'blocked'} />
+                <DebugSummaryItem label={t('agents.chat.panel.runtime.approvalMode')} value={preview.policy.approvalMode} />
+                <DebugSummaryItem label={t('agents.chat.panel.runtime.maxToolCalls')} value={String(preview.policy.maxToolCalls)} />
+                <DebugSummaryItem label={t('agents.chat.panel.runtime.maxIterations')} value={String(preview.policy.maxIterations)} />
+                <DebugSummaryItem label={t('agents.chat.panel.runtime.fileBytes')} value={preview.policy.allowFileBytes ? t('agents.chat.panel.capabilities.approval.always') : t('agents.chat.panel.capabilities.approval.never')} />
               </div>
               <div className="mt-2 grid gap-2 text-[11px] md:grid-cols-2">
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="mb-1 text-[10px] font-medium text-foreground">Runtime boundaries</div>
+                  <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.runtimeBoundaries')}</div>
                   <div className="space-y-0.5 text-[10px] text-muted-foreground">
-                    <div>network: {preview.policy.allowNetwork ? 'allowed' : 'blocked'}</div>
-                    <div>file bytes: {preview.policy.allowFileBytes ? 'allowed' : 'blocked'}</div>
-                    <div>cost limit: {preview.policy.costLimit ? `${preview.policy.costLimit.amount} ${preview.policy.costLimit.currency}` : 'none'}</div>
+                    <div>{t('agents.chat.panel.runtime.network')}: {preview.policy.allowNetwork ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}</div>
+                    <div>{t('agents.chat.panel.runtime.fileBytes')}: {preview.policy.allowFileBytes ? t('agents.chat.panel.runtime.allowed') : t('agents.chat.panel.runtime.blocked')}</div>
+                    <div>{t('agents.chat.panel.runtime.costLimit')}: {preview.policy.costLimit ? `${preview.policy.costLimit.amount} ${preview.policy.costLimit.currency}` : t('agents.chat.panel.runtime.none')}</div>
                   </div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="mb-1 text-[10px] font-medium text-foreground">Manifest grants</div>
+                  <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.manifestGrants')}</div>
                   <div className="space-y-0.5 text-[10px] text-muted-foreground">
                     {(preview.agentManifest?.tools ?? []).slice(0, 8).map((grant) => (
-                      <div key={grant.name}>{grant.name} · {grant.mode} · {grant.approval ?? 'default'}</div>
+                      <div key={grant.name}>{grant.name} · {grant.mode} · {grant.approval ?? t('agents.chat.panel.debugPreview.default')}</div>
                     ))}
-                    {(preview.agentManifest?.tools ?? []).length === 0 && <div>none</div>}
+                    {(preview.agentManifest?.tools ?? []).length === 0 && <div>{t('agents.chat.panel.runtime.none')}</div>}
                   </div>
                 </div>
               </div>
@@ -1039,29 +1073,29 @@ function AgentDebugPreviewDialog({
           )}
 
           {preview?.tools && (
-            <DebugSection title="Tools">
+            <DebugSection title={t('agents.chat.panel.capabilities.tools')}>
               <div className="grid gap-2 md:grid-cols-3">
-                <DebugSummaryItem label="Available" value={String(preview.tools.available.length)} />
-                <DebugSummaryItem label="Blocked" value={String(preview.tools.blocked.length)} />
-                <DebugSummaryItem label="Discovered" value={String(preview.tools.discovered.length)} />
+                <DebugSummaryItem label={t('agents.chat.panel.runtime.available')} value={String(preview.tools.available.length)} />
+                <DebugSummaryItem label={t('agents.chat.panel.runtime.blocked')} value={String(preview.tools.blocked.length)} />
+                <DebugSummaryItem label={t('agents.chat.panel.runtime.discovered')} value={String(preview.tools.discovered.length)} />
               </div>
               <div className="mt-2 grid gap-2 md:grid-cols-2">
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="mb-1 text-[10px] font-medium text-foreground">Available tools</div>
+                  <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.availableTools')}</div>
                   <div className="space-y-1 text-[10px] text-muted-foreground">
                     {preview.tools.available.slice(0, 8).map((tool) => (
-                      <div key={tool.name}>{tool.name} · {tool.risk ?? 'unknown'} · {tool.approval}</div>
+                      <div key={tool.name}>{tool.name} · {tool.risk ?? t('agents.chat.panel.runtime.unknown')} · {tool.approval}</div>
                     ))}
-                    {preview.tools.available.length === 0 && <div>none</div>}
+                    {preview.tools.available.length === 0 && <div>{t('agents.chat.panel.runtime.none')}</div>}
                   </div>
                 </div>
                 <div className="rounded-md border border-border bg-muted/20 p-2">
-                  <div className="mb-1 text-[10px] font-medium text-foreground">Blocked tools</div>
+                  <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.blockedTools')}</div>
                   <div className="space-y-1 text-[10px] text-muted-foreground">
                     {preview.tools.blocked.slice(0, 8).map((tool) => (
-                      <div key={tool.name}>{tool.name} · {tool.unavailableReason ?? 'blocked'}</div>
+                      <div key={tool.name}>{tool.name} · {tool.unavailableReason ?? t('agents.chat.panel.runtime.blocked')}</div>
                     ))}
-                    {preview.tools.blocked.length === 0 && <div>none</div>}
+                    {preview.tools.blocked.length === 0 && <div>{t('agents.chat.panel.runtime.none')}</div>}
                   </div>
                 </div>
               </div>
@@ -1069,22 +1103,22 @@ function AgentDebugPreviewDialog({
           )}
 
           {preview && (
-            <DebugSection title="Agentic Loop Preview">
+            <DebugSection title={t('agents.chat.panel.runtime.agenticLoopPreview')}>
               <div className="space-y-2 text-[11px]">
                 <div className="rounded-md border border-border bg-muted/20 p-2">
                   <div className="font-medium text-foreground">{preview.message}</div>
                   <div className="mt-1 text-muted-foreground">
-                    project: {preview.currentProjectId ?? 'none'} · memories: {preview.memoryCount} · tool calls: {preview.toolCalls.length} · sandbox: {preview.policy?.sandboxMode ? 'on' : 'off'}
+                    {t('agents.chat.panel.runtime.project')}: {preview.currentProjectId ?? t('common.emptyTitle')} · {t('agents.chat.panel.runtime.memories')}: {preview.memoryCount} · {t('agents.chat.panel.runtime.toolCalls')}: {preview.toolCalls.length} · {t('agents.chat.panel.runtime.sandbox')}: {preview.policy?.sandboxMode ? t('agents.chat.panel.runtime.on') : t('agents.chat.panel.runtime.off')}
                   </div>
                 </div>
                 <div className="space-y-1">
                   {preview.toolCalls.length === 0 ? (
-                    <div className="rounded-md border border-border bg-background px-2 py-1.5 text-muted-foreground">No immediate tool calls predicted.</div>
+                    <div className="rounded-md border border-border bg-background px-2 py-1.5 text-muted-foreground">{t('agents.chat.panel.prompt.noImmediateToolCalls')}</div>
                   ) : preview.toolCalls.map((call, index) => (
                     <div key={`${call.name}-${index}`} className="rounded-md border border-border bg-background px-2 py-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-medium text-foreground">{index + 1}. {call.name}</span>
-                        <Badge variant="outline" className="text-[9px]">tool</Badge>
+                        <Badge variant="outline" className="text-[9px]">{t('agents.chat.panel.runtime.tool')}</Badge>
                       </div>
                       {call.args && (
                         <pre className="mt-1 max-h-28 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
@@ -1099,13 +1133,13 @@ function AgentDebugPreviewDialog({
           )}
 
           {(draft.localRuntime || pendingApprovals.length > 0) && (
-            <DebugSection title="Approvals">
+            <DebugSection title={t('agents.chat.panel.prompt.approvals')}>
               <div className="space-y-2 text-[11px]">
                 {draft.localRuntime && (
                   <div className="grid gap-2 md:grid-cols-3">
-                    <DebugSummaryItem label="Thread" value={draft.localRuntime.threadId ?? 'new thread'} />
-                    <DebugSummaryItem label="Mode" value={draft.localRuntime.diagnosticCommand ? 'diagnostic' : 'conversation'} />
-                    <DebugSummaryItem label="Manifest" value="default" />
+                    <DebugSummaryItem label={t('agents.chat.panel.status.thread')} value={draft.localRuntime.threadId ?? t('agents.chat.panel.status.newThread')} />
+                    <DebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={draft.localRuntime.diagnosticCommand ? t('agents.chat.panel.debugPreview.diagnostic') : t('agents.chat.panel.debugPreview.conversation')} />
+                    <DebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={t('agents.chat.panel.debugPreview.default')} />
                   </div>
                 )}
                 {draft.localRuntime?.previewError && (
@@ -1115,7 +1149,7 @@ function AgentDebugPreviewDialog({
                 )}
                 {pendingApprovals.length > 0 ? (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                    <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">Approvals before execution</div>
+                    <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">{t('agents.chat.panel.workflow.approvalRequired')}</div>
                     <div className="space-y-1">
                       {pendingApprovals.map((approval) => (
                         <div key={approval.id} className="rounded border border-amber-500/20 bg-background/60 p-2">
@@ -1135,23 +1169,23 @@ function AgentDebugPreviewDialog({
                   </div>
                 ) : (
                   <div className="rounded-md border border-border bg-muted/20 p-2 text-muted-foreground">
-                    No approval required before execution.
+                    {t('agents.chat.panel.prompt.noApprovalRequired')}
                   </div>
                 )}
               </div>
             </DebugSection>
           )}
 
-          <DebugSection title="Outbound messages">
+          <DebugSection title={t('agents.chat.panel.prompt.outboundMessages')}>
             <div className="space-y-2">
               {draft.outbound.messages.map((message, index) => (
                 <div key={`${message.role}-${index}`} className="rounded-md border border-border bg-muted/20">
                   <div className="flex items-center justify-between border-b border-border/60 px-2 py-1">
                     <Badge variant="outline" className="text-[9px]">{message.role}</Badge>
-                    <span className="text-[9px] text-muted-foreground">{message.content.length} chars</span>
+                    <span className="text-[9px] text-muted-foreground">{countCharsLabel(t, message.content.length)}</span>
                   </div>
                   <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] leading-relaxed text-foreground">
-                    {message.content || '(empty)'}
+                    {message.content || emptyLabel(t)}
                   </pre>
                 </div>
               ))}
@@ -1159,7 +1193,7 @@ function AgentDebugPreviewDialog({
           </DebugSection>
 
           {preview?.promptPreview && (
-            <DebugSection title="Compiled prompt">
+            <DebugSection title={t('agents.chat.panel.prompt.compiledPrompt')}>
               <div className="space-y-2">
                 {preview.promptPreview.debugParts.map((part) => (
                   <div key={part.id} className="rounded-md border border-border bg-muted/20">
@@ -1168,7 +1202,7 @@ function AgentDebugPreviewDialog({
                       <span className="text-[10px] font-medium text-foreground">{part.title}</span>
                     </div>
                     <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] text-muted-foreground">
-                      {part.content || '(empty)'}
+                      {part.content || emptyLabel(t)}
                     </pre>
                   </div>
                 ))}
@@ -1176,7 +1210,7 @@ function AgentDebugPreviewDialog({
             </DebugSection>
           )}
 
-          <DebugSection title="Raw payload">
+          <DebugSection title={t('agents.chat.panel.prompt.rawPayload')}>
             <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted/30 p-2 text-[10px] leading-relaxed">
               {raw}
             </pre>
@@ -1186,15 +1220,15 @@ function AgentDebugPreviewDialog({
         <div className="flex items-center justify-between gap-2 border-t border-border px-4 py-3">
           <Button type="button" size="sm" variant="ghost" onClick={copyRaw} className="h-8 text-xs">
             {copied ? <Check size={12} /> : <Copy size={12} />}
-            {copied ? 'Copied' : 'Copy JSON'}
+            {copied ? t('agents.chat.panel.debugPreview.copied') : t('agents.chat.panel.debugPreview.copyJson')}
           </Button>
           <div className="flex gap-2">
             <Button type="button" size="sm" variant="outline" onClick={onCancel} disabled={sending}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="button" size="sm" onClick={onConfirm} disabled={sending}>
               {sending ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-              Send
+              {t('agents.chat.panel.debugPreview.send')}
             </Button>
           </div>
         </div>
@@ -1213,6 +1247,7 @@ function DebugSection({ title, children }: { title: string; children: React.Reac
 }
 
 function DebugHttpRequestCard({ request, index }: { request: DebugHttpRequest; index: number }) {
+  const { t } = useTranslation()
   return (
     <div className="overflow-hidden rounded-md border border-border bg-background">
       <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/30 px-2.5 py-2">
@@ -1220,7 +1255,7 @@ function DebugHttpRequestCard({ request, index }: { request: DebugHttpRequest; i
           {index + 1}
         </span>
         <Badge variant={request.conditional ? 'secondary' : 'outline'} className="text-[9px]">
-          {request.conditional ? 'conditional' : request.method}
+          {request.conditional ? t('common.switch') : request.method}
         </Badge>
         {request.conditional && <Badge variant="outline" className="text-[9px]">{request.method}</Badge>}
         <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground">{request.label}</span>
@@ -1235,7 +1270,7 @@ function DebugHttpRequestCard({ request, index }: { request: DebugHttpRequest; i
         <div className="grid gap-2 md:grid-cols-2">
           {request.headers && (
             <div>
-              <div className="mb-1 text-[9px] font-medium uppercase tracking-normal text-muted-foreground">Headers</div>
+              <div className="mb-1 text-[9px] font-medium uppercase tracking-normal text-muted-foreground">{t('agents.chat.panel.runtime.headers')}</div>
               <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded border border-border/70 bg-muted/20 p-2 text-[10px]">
                 {safeJSONStringify(request.headers)}
               </pre>
@@ -1243,7 +1278,7 @@ function DebugHttpRequestCard({ request, index }: { request: DebugHttpRequest; i
           )}
           {request.body !== undefined && (
             <div className={request.headers ? '' : 'md:col-span-2'}>
-              <div className="mb-1 text-[9px] font-medium uppercase tracking-normal text-muted-foreground">Body</div>
+              <div className="mb-1 text-[9px] font-medium uppercase tracking-normal text-muted-foreground">{t('agents.chat.panel.runtime.body')}</div>
               <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words rounded border border-border/70 bg-muted/20 p-2 text-[10px]">
                 {safeJSONStringify(request.body)}
               </pre>
@@ -1292,6 +1327,7 @@ function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' |
 }
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
+const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
 const AGENT_CATALOG_TOOL_NAMES = new Set(['movscript_enable_agent_bundle', 'movscript_reload_agent_catalog'])
 const CONTEXT_PANE_HEIGHT_KEY = 'ai-panel-context-pane-height'
 const CONTEXT_PANE_DEFAULT_HEIGHT = 220
@@ -1302,10 +1338,14 @@ function isStoppableAgentRun(run: AgentRun | null | undefined): run is AgentRun 
   return !!run && STOPPABLE_AGENT_RUN_STATUSES.has(run.status)
 }
 
+function isTerminalAgentRun(run: AgentRun | null | undefined): run is AgentRun {
+  return !!run && TERMINAL_AGENT_RUN_STATUSES.has(run.status)
+}
+
 function runTouchesAgentCatalog(run: AgentRun | null | undefined): boolean {
   if (!run) return false
+  if (run.streamPartial) return false
   return run.steps.some((step) => step.type === 'tool_call' && step.toolName && AGENT_CATALOG_TOOL_NAMES.has(step.toolName))
-    || (run.traceEvents ?? []).some((event) => event.toolName && AGENT_CATALOG_TOOL_NAMES.has(event.toolName))
 }
 
 function clampNumber(value: number, min: number, max: number) {
@@ -1329,7 +1369,6 @@ function writeStoredNumber(key: string, value: number) {
 }
 
 function compactRunActivity(run: AgentRun): ChatRunActivity {
-  const toolStepIds = new Set(run.steps.filter((step) => step.type === 'tool_call').map((step) => step.id))
   return {
     runId: run.id,
     threadId: run.threadId,
@@ -1356,56 +1395,53 @@ function compactRunActivity(run: AgentRun): ChatRunActivity {
         createdAt: step.createdAt,
         ...(step.completedAt ? { completedAt: step.completedAt } : {}),
       })),
-    events: (run.traceEvents ?? [])
-      .filter((event) => (
-        event.kind === 'reasoning'
-        || event.kind === 'tool_call'
-        || event.kind === 'model_call'
-        || event.kind === 'context'
-        || event.kind === 'memory'
-        || event.kind === 'approval'
-        || event.kind === 'input'
-        || event.kind === 'assistant'
-        || event.kind === 'error'
-      ))
-      .filter((event) => event.kind !== 'tool_call' || !event.stepId || !toolStepIds.has(event.stepId))
-      .map((event) => ({
-        id: event.id,
-        kind: event.kind,
-        title: event.title,
-        status: event.status,
-        ...(event.summary ? { summary: event.summary } : {}),
-        ...(event.toolName ? { toolName: event.toolName } : {}),
-        ...(event.stepId ? { stepId: event.stepId } : {}),
-        ...(event.data !== undefined ? { data: event.data } : {}),
-        createdAt: event.createdAt,
-        ...(event.completedAt ? { completedAt: event.completedAt } : {}),
-      })),
+    events: [],
   }
 }
 
-function reasoningTextFromRun(run: AgentRun | null) {
-  if (!run) return ''
-  const textParts: string[] = []
-  for (const event of run.traceEvents ?? []) {
-    if (event.kind !== 'reasoning' && !(event.kind === 'model_call' && typeof event.title === 'string' && event.title.toLowerCase().includes('reasoning'))) continue
-    const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
-    const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
-    const accumulated = typeof stream?.accumulated === 'string' ? stream.accumulated : undefined
-    const delta = typeof stream?.delta === 'string' ? stream.delta : undefined
-    if (accumulated) {
-      textParts.length = 0
-      textParts.push(accumulated)
-      continue
+interface ThinkingBubbleState {
+  status: 'preparing_request' | 'thinking' | 'preparing_tool_call' | 'calling_tool'
+  toolName?: string
+}
+
+function toolNameFromToolCallStreamEvent(event: ChatRunActivityEvent): string | undefined {
+  const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
+  const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
+  const toolCall = stream?.toolCall && typeof stream.toolCall === 'object' ? stream.toolCall as Record<string, unknown> : undefined
+  return typeof toolCall?.name === 'string' && toolCall.name.trim() ? toolCall.name.trim() : undefined
+}
+
+function getThinkingBubbleState(run: AgentRun | null, events: ChatRunActivityEvent[]): ThinkingBubbleState {
+  if (!run || run.status !== 'in_progress') return { status: 'thinking' }
+  const activeToolStep = [...run.steps].reverse().find((step) => step.type === 'tool_call' && step.status === 'in_progress')
+  if (activeToolStep) {
+    return {
+      status: 'calling_tool',
+      ...(activeToolStep.toolName ? { toolName: activeToolStep.toolName } : {}),
     }
-    if (delta) textParts.push(delta)
   }
-  return textParts.join('').trim()
+  const latestToolCallEvent = [...events].reverse().find((event) => event.kind === 'tool_call' && event.title === 'Model tool call delta')
+  if (!latestToolCallEvent) return { status: 'thinking' }
+  const eventMs = new Date(latestToolCallEvent.createdAt).getTime()
+  const hasNewerToolStep = Number.isFinite(eventMs)
+    ? run.steps.some((step) => step.type === 'tool_call' && new Date(step.createdAt).getTime() >= eventMs)
+    : false
+  if (hasNewerToolStep) return { status: 'thinking' }
+  return {
+    status: 'preparing_tool_call',
+    ...(toolNameFromToolCallStreamEvent(latestToolCallEvent) ? { toolName: toolNameFromToolCallStreamEvent(latestToolCallEvent) } : {}),
+  }
 }
 
-function ThinkingBubble({ run }: { run: AgentRun | null }) {
-  const reasoning = reasoningTextFromRun(run)
-  if (run && run.status !== 'in_progress' && !reasoning) return null
+function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentRun | null; state?: ThinkingBubbleState }) {
+  const reasoning = ''
+  const label = state.status === 'calling_tool'
+    ? `调用工具${state.toolName ? `：${state.toolName}` : ''}`
+    : state.status === 'preparing_tool_call'
+      ? `准备调用工具${state.toolName ? `：${state.toolName}` : ''}`
+      : state.status === 'preparing_request'
+        ? '准备请求中'
+      : '思考中'
   return (
     <AgentChatMessage
       role="assistant"
@@ -1413,14 +1449,14 @@ function ThinkingBubble({ run }: { run: AgentRun | null }) {
       author="MovScript Agent"
       footer={(
         <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
-          思考中
+          {label}
         </Badge>
       )}
     >
       <div className="space-y-1.5">
         <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
           <Loader2 size={11} className="animate-spin" />
-          <span>思考中</span>
+          <span>{label}</span>
         </div>
         {reasoning ? <MarkdownContent text={reasoning} /> : <div className="text-[11px] text-muted-foreground">...</div>}
       </div>
@@ -1452,6 +1488,34 @@ function activitySummary(activity: ChatRunActivity) {
   return activity.events.length > 0 ? `${activity.events.length} events` : 'no tool calls'
 }
 
+function formatToolCallStreamDetail(event: ChatRunActivityEvent) {
+  const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
+  const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
+  const toolCall = stream?.toolCall && typeof stream.toolCall === 'object' ? stream.toolCall as Record<string, unknown> : undefined
+  if (!toolCall) return null
+  const name = typeof toolCall.name === 'string' && toolCall.name.trim() ? toolCall.name : undefined
+  const id = typeof toolCall.id === 'string' && toolCall.id.trim() ? toolCall.id : undefined
+  const parseStatus = typeof toolCall.parseStatus === 'string' ? toolCall.parseStatus.replace(/_/g, ' ') : 'partial'
+  const args = typeof toolCall.argumentsBuffer === 'string' ? toolCall.argumentsBuffer : ''
+  const parsedArgs = toolCall.argumentsJSON
+  return {
+    label: name ?? id ?? 'tool',
+    parseStatus,
+    args,
+    parsedArgs,
+  }
+}
+
+function liveTraceEventKey(event: ChatRunActivityEvent) {
+  if (event.kind !== 'tool_call' || event.title !== 'Model tool call delta') return event.id
+  if (event.id.startsWith('trace_live_')) return event.id
+  const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
+  const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
+  const toolCall = stream?.toolCall && typeof stream.toolCall === 'object' ? stream.toolCall as Record<string, unknown> : undefined
+  const index = typeof toolCall?.index === 'number' ? toolCall.index : 0
+  return `model-tool-call-stream:${index}`
+}
+
 function ActivityJSONBlock({ label, value }: { label: string; value: unknown }) {
   const text = safeJSONStringify(value)
   return (
@@ -1469,12 +1533,14 @@ function ActivityJSONBlock({ label, value }: { label: string; value: unknown }) 
 function RunActivityPanel({
   activity,
   run,
+  events,
   title = 'Activity',
   defaultOpen = false,
   className,
 }: {
   activity?: ChatRunActivity
   run?: AgentRun | null
+  events?: ChatRunActivityEvent[]
   title?: string
   defaultOpen?: boolean
   className?: string
@@ -1483,9 +1549,12 @@ function RunActivityPanel({
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const data = activity ?? (run ? compactRunActivity(run) : undefined)
   if (!data) return null
+  const displayData = events?.length
+    ? { ...data, events: [...data.events, ...events] }
+    : data
 
   const items = [
-    ...data.steps.map((step) => ({
+    ...displayData.steps.map((step) => ({
       id: step.id,
       kind: 'tool',
       title: step.toolName ?? step.title ?? 'Tool call',
@@ -1497,21 +1566,24 @@ function RunActivityPanel({
       result: step.result,
       error: step.error,
     })),
-    ...data.events.map((event) => ({
-      id: event.id,
-      kind: event.kind,
-      title: event.toolName ? `${event.title}: ${event.toolName}` : event.title,
-      status: event.status,
-      time: formatActivityTime(event.createdAt, locale),
-      duration: durationLabel(event.createdAt, event.completedAt),
-      summary: event.summary,
-      args: undefined,
-      result: event.data,
-      error: event.status === 'failed' || event.status === 'blocked' ? event.summary : undefined,
-    })),
+    ...displayData.events.map((event) => {
+      const streamToolCall = formatToolCallStreamDetail(event)
+      return {
+        id: event.id,
+        kind: event.kind,
+        title: streamToolCall ? streamToolCall.label : event.toolName ? `${event.title}: ${event.toolName}` : event.title,
+        status: event.status,
+        time: formatActivityTime(event.createdAt, locale),
+        duration: durationLabel(event.createdAt, event.completedAt),
+        summary: streamToolCall ? `preparing args: ${streamToolCall.parseStatus} (${streamToolCall.args.length} chars)` : event.summary,
+        args: undefined,
+        result: streamToolCall ? (streamToolCall.parsedArgs ?? streamToolCall.args) : event.data,
+        error: event.status === 'failed' || event.status === 'blocked' ? event.summary : undefined,
+      }
+    }),
   ].sort((a, b) => {
-    const aTime = new Date((data.steps.find((step) => step.id === a.id)?.createdAt ?? data.events.find((event) => event.id === a.id)?.createdAt ?? '')).getTime()
-    const bTime = new Date((data.steps.find((step) => step.id === b.id)?.createdAt ?? data.events.find((event) => event.id === b.id)?.createdAt ?? '')).getTime()
+    const aTime = new Date((displayData.steps.find((step) => step.id === a.id)?.createdAt ?? displayData.events.find((event) => event.id === a.id)?.createdAt ?? '')).getTime()
+    const bTime = new Date((displayData.steps.find((step) => step.id === b.id)?.createdAt ?? displayData.events.find((event) => event.id === b.id)?.createdAt ?? '')).getTime()
     return (Number.isFinite(aTime) ? aTime : 0) - (Number.isFinite(bTime) ? bTime : 0)
   })
 
@@ -1529,7 +1601,7 @@ function RunActivityPanel({
           <Badge variant={runStatusVariant(data.status)} className="text-[9px] leading-4 px-1.5 py-0">
             {data.status.replace(/_/g, ' ')}
           </Badge>
-          <span className="text-[9px] text-muted-foreground">{activitySummary(data)}</span>
+          <span className="text-[9px] text-muted-foreground">{activitySummary(displayData)}</span>
         </span>
       </summary>
       <div className="space-y-1.5 border-t border-border/70 px-2.5 py-2">
@@ -1627,9 +1699,6 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       )}
     >
       <MarkdownContent text={msg.content} attachments={msg.attachments} />
-      {!isUser && msg.meta?.localRunActivity && (
-        <RunActivityPanel activity={msg.meta.localRunActivity} title="Tool activity" />
-      )}
       {msg.attachments && msg.attachments.length > 0 && (
         <div className={cn('mt-2 grid gap-1.5', msg.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
           {msg.attachments.map((attachment) => (
@@ -1637,6 +1706,27 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           ))}
         </div>
       )}
+    </AgentChatMessage>
+  )
+}
+
+function StreamingAssistantBubble({ content }: { content: string }) {
+  const { t } = useTranslation()
+  if (!content.trim()) return null
+  return (
+    <AgentChatMessage
+      role="assistant"
+      avatar={<Bot size={13} />}
+      author={t('agents.chat.agentName')}
+      footer={(
+        <div className="flex flex-wrap gap-1">
+          <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+            {t('agents.chat.streaming')}
+          </Badge>
+        </div>
+      )}
+    >
+      <MarkdownContent text={content} />
     </AgentChatMessage>
   )
 }
@@ -1654,8 +1744,8 @@ function formatAgentDate(value: string | number, locale: string) {
   return date.toLocaleDateString(locale, { month: 'short', day: 'numeric' })
 }
 
-function localThreadTitle(thread: Pick<AgentThreadSummary, 'title' | 'id' | 'messageCount'>) {
-  return thread.title || `Local thread ${thread.id.slice(-6)}`
+function localThreadTitle(thread: Pick<AgentThreadSummary, 'title' | 'id'>, t: ReturnType<typeof useTranslation>['t']) {
+  return thread.title || t('agents.chat.panel.runtime.localThreadTitle', { id: thread.id.slice(-6) })
 }
 
 function asString(value: unknown) {
@@ -1672,32 +1762,70 @@ function draftStatusVariant(status: AgentDraftStatus): 'secondary' | 'success' |
   return 'outline'
 }
 
+function buildDraftOpenPath(draft: AgentDraft): string | null {
+  const source = isRecord(draft.source) ? draft.source : undefined
+  const target = isRecord(draft.target) ? draft.target : undefined
+  const sourceEntityType = source ? stringValue(source.entityType) : undefined
+  const targetEntityType = target ? stringValue(target.entityType) : undefined
+  const sourceEntityId = source ? numberValue(source.entityId) : undefined
+  const targetEntityId = target ? numberValue(target.entityId) : undefined
+
+  if (draft.kind === 'script_split') {
+    return `/workbench/script?draftId=${encodeURIComponent(draft.id)}`
+  }
+
+  const productionId = sourceEntityId ?? targetEntityId
+  const productionRelatedKinds: AgentDraft['kind'][] = [
+    'production_proposal',
+    'pipeline',
+    'segment',
+    'scene_moment',
+    'content_unit',
+    'asset_slot',
+    'storyboard_line',
+  ]
+  if (
+    productionId !== undefined
+    && (
+      draft.kind === 'production_proposal'
+      || sourceEntityType === 'production'
+      || targetEntityType === 'production'
+      || productionRelatedKinds.includes(draft.kind)
+    )
+  ) {
+    return `/production-orchestrate?productionId=${productionId}&draftId=${encodeURIComponent(draft.id)}`
+  }
+
+  return null
+}
+
 function diffRows(currentValue: unknown, proposedValue: unknown) {
   const before = asString(currentValue)
   const after = asString(proposedValue)
   if (before === after) {
-    return [{ type: 'same' as const, text: after || '(empty)' }]
+    return [{ type: 'same' as const, text: after }]
   }
   return [
-    ...(before ? before.split('\n').map((text) => ({ type: 'removed' as const, text })) : [{ type: 'removed' as const, text: '(empty)' }]),
-    ...(after ? after.split('\n').map((text) => ({ type: 'added' as const, text })) : [{ type: 'added' as const, text: '(empty)' }]),
+    ...(before ? before.split('\n').map((text) => ({ type: 'removed' as const, text })) : [{ type: 'removed' as const, text: '' }]),
+    ...(after ? after.split('\n').map((text) => ({ type: 'added' as const, text })) : [{ type: 'added' as const, text: '' }]),
   ]
 }
 
 function DraftDiff({ preview }: { preview: AgentDraftApplyPreview }) {
+  const { t } = useTranslation()
   const rows = diffRows(preview.review.currentValue, preview.review.proposedValue)
   return (
     <div className="overflow-hidden rounded-md border border-border bg-background">
       <div className="grid border-b border-border bg-muted/30 text-[10px] font-medium text-muted-foreground md:grid-cols-2">
-        <div className="border-b border-border px-2 py-1.5 md:border-b-0 md:border-r">Current</div>
-        <div className="px-2 py-1.5">Proposed</div>
+        <div className="border-b border-border px-2 py-1.5 md:border-b-0 md:border-r">{t('agents.chat.panel.drafts.current')}</div>
+        <div className="px-2 py-1.5">{t('agents.chat.panel.drafts.proposed')}</div>
       </div>
       <div className="grid md:grid-cols-2">
         <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words border-b border-border bg-red-500/5 p-2 text-[10px] leading-relaxed text-red-700 md:border-b-0 md:border-r">
-          {asString(preview.review.currentValue) || '(empty)'}
+          {asString(preview.review.currentValue) || t('common.emptyTitle')}
         </pre>
         <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words bg-green-500/5 p-2 text-[10px] leading-relaxed text-green-700">
-          {asString(preview.review.proposedValue) || '(empty)'}
+          {asString(preview.review.proposedValue) || t('common.emptyTitle')}
         </pre>
       </div>
       <div className="border-t border-border bg-muted/20 p-2">
@@ -1713,7 +1841,7 @@ function DraftDiff({ preview }: { preview: AgentDraftApplyPreview }) {
               )}
             >
               {row.type === 'removed' ? '- ' : row.type === 'added' ? '+ ' : '  '}
-              {row.text}
+              {row.text || emptyLabel(t)}
             </div>
           ))}
         </div>
@@ -1731,6 +1859,19 @@ function isDraftApplyPreview(value: unknown): value is AgentDraftApplyPreview {
     && !!record.draft
 }
 
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
+}
+
 function MemoryPanel({
   project,
   threadId,
@@ -1740,7 +1881,7 @@ function MemoryPanel({
   threadId?: string
   online: boolean
 }) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const [scope, setScope] = useState<AgentMemoryScope>('global')
@@ -1790,7 +1931,7 @@ function MemoryPanel({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-[10px] font-medium text-foreground">
           <Database size={11} />
-          Memory
+          {t('agents.chat.panel.memory.title')}
         </div>
         <Button
           type="button"
@@ -1801,7 +1942,7 @@ function MemoryPanel({
           className="h-5 px-1 text-[10px] text-muted-foreground"
         >
           <RefreshCw size={10} className={memoriesQuery.isFetching ? 'animate-spin' : ''} />
-          Refresh
+          {t('agents.chat.panel.memory.refresh')}
         </Button>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
@@ -1824,7 +1965,7 @@ function MemoryPanel({
       </div>
       {scopedTargetMissing ? (
         <p className="text-[10px] leading-relaxed text-muted-foreground">
-          {scope === 'project' ? 'Select a project to view project memory.' : 'Send or restore a local thread to view thread memory.'}
+          {scope === 'project' ? t('agents.chat.panel.memory.missingProject') : t('agents.chat.panel.memory.missingThread')}
         </p>
       ) : (
         <>
@@ -1833,7 +1974,7 @@ function MemoryPanel({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               disabled={!online || saving}
-              placeholder="Add memory..."
+              placeholder={t('agents.chat.panel.memory.add')}
               rows={2}
               className="min-h-12 flex-1 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
@@ -1843,14 +1984,14 @@ function MemoryPanel({
               onClick={saveMemory}
               disabled={!online || saving || !content.trim()}
               className="h-12 w-8 shrink-0"
-              title="Save memory"
+              title={t('agents.chat.panel.memory.save')}
             >
               {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
             </Button>
           </div>
           <div className="max-h-36 space-y-1 overflow-y-auto pr-1">
             {memories.length === 0 ? (
-              <p className="text-[10px] text-muted-foreground">No memory in this scope.</p>
+              <p className="text-[10px] text-muted-foreground">{t('agents.chat.panel.memory.noMemory')}</p>
             ) : memories.map((memory) => (
               <div key={memory.id} className="rounded-md border border-border bg-background p-1.5">
                 <div className="flex items-start justify-between gap-2">
@@ -1861,13 +2002,13 @@ function MemoryPanel({
                     </div>
                     <p className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground">{memory.content}</p>
                   </div>
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="ghost"
-                    onClick={() => deleteMemory(memory.id)}
-                    className="h-5 w-5 shrink-0 text-muted-foreground hover:text-destructive"
-                    title="Delete memory"
+                    <Button
+                      type="button"
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => deleteMemory(memory.id)}
+                      className="h-5 w-5 shrink-0 text-muted-foreground hover:text-destructive"
+                    title={t('agents.chat.panel.memory.delete')}
                   >
                     <Trash2 size={10} />
                   </Button>
@@ -1898,6 +2039,7 @@ function ConversationContextPanel({
   onChange: (next: ConversationAgentContextConfig) => void
   onRefresh: () => void
 }) {
+  const { t } = useTranslation()
   const skills = inspect?.skills ?? []
   const tools = useMemo<ConversationContextTool[]>(() => capabilities?.resolvedTools.discovered ?? inspect?.registeredTools ?? [], [capabilities?.resolvedTools.discovered, inspect?.registeredTools])
   const availableToolNames = useMemo(() => new Set(capabilities?.resolvedTools.available.map((tool) => tool.name) ?? []), [capabilities?.resolvedTools.available])
@@ -1966,11 +2108,11 @@ function ConversationContextPanel({
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 text-[10px] font-medium text-foreground">
             <SlidersHorizontal size={11} />
-            Conversation Context
-            {config.enabled && <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">custom</Badge>}
+            {t('agents.chat.panel.capabilities.title')}
+            {config.enabled && <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{t('agents.chat.panel.capabilities.custom')}</Badge>}
           </div>
           <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
-            查看当前 Runtime 加载的 skills/tools，并把选中的能力导入当前对话。
+            {t('agents.chat.panel.capabilities.selectHint')}
           </p>
         </div>
         <Button
@@ -1982,25 +2124,25 @@ function ConversationContextPanel({
           className="h-5 px-1 text-[10px] text-muted-foreground"
         >
           <RefreshCw size={10} className={loading ? 'animate-spin' : ''} />
-          Refresh
+          {t('agents.chat.panel.capabilities.refresh')}
         </Button>
       </div>
 
       {!online ? (
-        <p className="text-[10px] leading-relaxed text-muted-foreground">Start the local runtime to inspect loaded skills and tools.</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.capabilities.startHint')}</p>
       ) : !inspect ? (
-        <p className="text-[10px] leading-relaxed text-muted-foreground">{loading ? 'Loading runtime catalog...' : 'Runtime catalog is not loaded yet.'}</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{loading ? t('agents.chat.panel.capabilities.loadingCatalog') : t('agents.chat.panel.capabilities.notLoaded')}</p>
       ) : (
         <>
           <div className="grid grid-cols-3 gap-1.5">
-            <DebugSummaryItem label="Skills" value={String(skills.length)} />
-            <DebugSummaryItem label="Tools" value={String(tools.length)} />
-            <DebugSummaryItem label="Selected" value={`${selectedSkillIds.length}/${selectedToolNames.length}`} />
+            <DebugSummaryItem label={t('agents.chat.panel.capabilities.skills')} value={String(skills.length)} />
+            <DebugSummaryItem label={t('agents.chat.panel.capabilities.tools')} value={String(tools.length)} />
+            <DebugSummaryItem label={t('agents.chat.panel.capabilities.selected')} value={t('agents.chat.panel.capabilities.selectedCount', { skills: selectedSkillIds.length, tools: selectedToolNames.length })} />
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <Button type="button" size="xs" variant="secondary" onClick={importCurrentCatalog} className="h-7 px-2 text-[10px]">
               <PackagePlus size={10} />
-              Import current
+              {t('agents.chat.panel.capabilities.importCurrentCatalog')}
             </Button>
             <Button
               type="button"
@@ -2010,7 +2152,7 @@ function ConversationContextPanel({
               disabled={!config.manifest}
               className="h-7 px-2 text-[10px]"
             >
-              {config.enabled ? 'Use custom context' : 'Use runtime default'}
+              {config.enabled ? t('agents.chat.panel.capabilities.useCustomContext') : t('agents.chat.panel.capabilities.useRuntimeDefault')}
             </Button>
             {config.manifest && (
               <Button
@@ -2020,7 +2162,7 @@ function ConversationContextPanel({
                 onClick={() => onChange(EMPTY_AGENT_CONTEXT_CONFIG)}
                 className="h-7 px-2 text-[10px] text-muted-foreground"
               >
-                Clear
+                {t('agents.chat.panel.capabilities.clear')}
               </Button>
             )}
           </div>
@@ -2030,11 +2172,11 @@ function ConversationContextPanel({
               <div className="flex items-center justify-between gap-2">
                 <span className="min-w-0 truncate font-medium text-foreground">{config.manifest.name}</span>
                 <Badge variant={config.enabled ? 'success' : 'secondary'} className="text-[9px] leading-4 px-1.5 py-0">
-                  {config.enabled ? 'active' : 'saved'}
+                  {config.enabled ? t('agents.chat.panel.capabilities.active') : t('agents.chat.panel.capabilities.saved')}
                 </Badge>
               </div>
               <div className="mt-1 text-muted-foreground">
-                {selectedSkills.length} skills / {selectedTools.length} tools will be sent with this conversation.
+                {t('agents.chat.panel.capabilities.selectedManifest', { skills: selectedSkills.length, tools: selectedTools.length })}
               </div>
             </div>
           )}
@@ -2046,7 +2188,7 @@ function ConversationContextPanel({
             </summary>
             <div className="max-h-44 space-y-1 overflow-y-auto border-t border-border p-1.5">
               {skills.length === 0 ? (
-                <p className="px-1 text-[10px] text-muted-foreground">No skills loaded.</p>
+                <p className="px-1 text-[10px] text-muted-foreground">{t('agents.chat.panel.capabilities.noSkillsLoaded')}</p>
               ) : skills.map((skill) => (
                 <label key={skill.id} className="flex cursor-pointer items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
                   <input
@@ -2058,7 +2200,7 @@ function ConversationContextPanel({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1">
                       <span className="truncate font-medium text-foreground">{skill.name}</span>
-                      {!skill.enabled && <Badge variant="secondary" className="text-[8px] leading-3 px-1 py-0">disabled</Badge>}
+                      {!skill.enabled && <Badge variant="secondary" className="text-[8px] leading-3 px-1 py-0">{t('agents.chat.panel.capabilities.disabled')}</Badge>}
                     </span>
                     <span className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{skill.description || skill.id}</span>
                   </span>
@@ -2074,7 +2216,7 @@ function ConversationContextPanel({
             </summary>
             <div className="max-h-56 space-y-1 overflow-y-auto border-t border-border p-1.5">
               {tools.length === 0 ? (
-                <p className="px-1 text-[10px] text-muted-foreground">No tools loaded.</p>
+                <p className="px-1 text-[10px] text-muted-foreground">{t('agents.chat.panel.capabilities.noToolsLoaded')}</p>
               ) : tools.map((tool) => (
                 <div key={tool.name} className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
                   <div className="flex items-start gap-1.5">
@@ -2096,16 +2238,16 @@ function ConversationContextPanel({
                     <div className="mt-1.5 flex items-center justify-between gap-2 pl-4">
                       <span className="truncate text-[9px] text-muted-foreground">{tool.permission}</span>
                       <Select
-                        value={config.approvalOverrides[tool.name] ?? (tool.requiresApprovalByDefault ? 'always' : 'on_write')}
+                        value={config.approvalOverrides[tool.name] ?? defaultToolApproval(tool)}
                         onValueChange={(next) => setToolApproval(tool.name, next as AgentToolApprovalMode)}
                       >
                         <SelectTrigger size="sm" className="h-6 w-24 text-[9px]">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="never">never</SelectItem>
-                          <SelectItem value="on_write">on write</SelectItem>
-                          <SelectItem value="always">always</SelectItem>
+                          <SelectItem value="never">{t('agents.chat.panel.capabilities.approval.never')}</SelectItem>
+                          <SelectItem value="on_write">{t('agents.chat.panel.capabilities.approval.onWrite')}</SelectItem>
+                          <SelectItem value="always">{t('agents.chat.panel.capabilities.approval.always')}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -2120,36 +2262,197 @@ function ConversationContextPanel({
   )
 }
 
+function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
+  const { t } = useTranslation()
+  const preview = draft?.localRuntime?.preview
+  if (!draft) {
+    return (
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        {t('agents.chat.panel.prompt.hint')}
+      </p>
+    )
+  }
+
+  const uiSnapshot = draft.localRuntime?.clientInput?.uiSnapshot
+
+  return (
+    <div className="space-y-2">
+      <div className="grid gap-2 text-[11px] md:grid-cols-4">
+        <DebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(draft.model.name ?? draft.model.id ?? t('common.emptyTitle'))} />
+        <DebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={draft.agent.name ?? t('agents.chat.panel.debugPreview.default')} />
+        <DebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={`${draft.settings.mode} · ${draft.settings.permissionMode}`} />
+        <DebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(draft.httpRequests.length)} />
+      </div>
+
+      {uiSnapshot && (
+        <details className="rounded-md border border-border bg-background/60">
+          <summary className="cursor-pointer list-none px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+            {t('agents.chat.panel.context.snapshot')}
+          </summary>
+          <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-2 py-1.5 text-[10px] text-muted-foreground">
+            {safeJSONStringify(uiSnapshot)}
+          </pre>
+        </details>
+      )}
+      {!preview?.promptPreview && (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          {t('agents.chat.panel.prompt.noCompiledPreview')}
+        </p>
+      )}
+
+      <div className="grid gap-2 md:grid-cols-2">
+        <details className="rounded-md border border-border bg-background/60" open>
+          <summary className="cursor-pointer list-none px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+            {t('agents.chat.panel.prompt.outboundMessages')}
+          </summary>
+          <div className="space-y-1.5 border-t border-border/60 px-2 py-1.5">
+            {draft.outbound.messages.map((message, index) => (
+              <div key={`${message.role}-${index}`} className="rounded border border-border/70 bg-muted/20">
+                <div className="flex items-center justify-between border-b border-border/60 px-2 py-1">
+                  <Badge variant="outline" className="text-[9px]">{message.role}</Badge>
+                  <span className="text-[9px] text-muted-foreground">{countCharsLabel(t, message.content.length)}</span>
+                </div>
+                <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] leading-relaxed text-foreground">
+                  {message.content || emptyLabel(t)}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </details>
+
+        <details className="rounded-md border border-border bg-background/60">
+          <summary className="cursor-pointer list-none px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+            {t('agents.chat.panel.prompt.promptLayers')}
+          </summary>
+          <div className="space-y-1.5 border-t border-border/60 px-2 py-1.5 text-[10px]">
+            <div>
+              <div className="mb-1 font-medium text-foreground">{t('agents.chat.panel.prompt.systemPrompt')}</div>
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-muted-foreground">
+                {draft.outbound.systemPrompt || emptyLabel(t)}
+              </pre>
+            </div>
+            <div>
+              <div className="mb-1 font-medium text-foreground">{t('agents.chat.panel.prompt.agentContext')}</div>
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-muted-foreground">
+                {draft.outbound.agentContext || emptyLabel(t)}
+              </pre>
+            </div>
+            <div>
+              <div className="mb-1 font-medium text-foreground">{t('agents.chat.panel.prompt.enrichedUserContent')}</div>
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/30 p-2 text-muted-foreground">
+                {draft.outbound.enrichedUserContent || emptyLabel(t)}
+              </pre>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      {draft.localRuntime?.preview?.promptPreview && (
+        <details className="rounded-md border border-border bg-background/60" open>
+          <summary className="cursor-pointer list-none px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+            {t('agents.chat.panel.prompt.compiledPrompt')}
+          </summary>
+          <div className="space-y-2 border-t border-border/60 px-2 py-1.5">
+            {draft.localRuntime.preview.promptPreview.debugParts.map((part) => (
+              <div key={part.id} className="rounded-md border border-border bg-muted/20">
+                <div className="flex items-center gap-2 border-b border-border/60 px-2 py-1">
+                  <Badge variant="outline" className="text-[9px]">{part.kind}</Badge>
+                  <span className="text-[10px] font-medium text-foreground">{part.title}</span>
+                </div>
+                <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] text-muted-foreground">
+                  {part.content || emptyLabel(t)}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {preview && (
+        <>
+          <div className="grid gap-2 text-[11px] md:grid-cols-3">
+            <DebugSummaryItem label={t('agents.chat.panel.prompt.toolCalls')} value={String(preview.toolCalls.length)} />
+            <DebugSummaryItem label={t('agents.chat.panel.prompt.approvals')} value={String(preview.pendingApprovals.filter((approval) => approval.status === 'pending').length)} />
+            <DebugSummaryItem label={t('agents.chat.panel.prompt.warnings')} value={String(preview.warnings.length)} />
+          </div>
+
+          <details className="rounded-md border border-border bg-background/60">
+          <summary className="cursor-pointer list-none px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+              {t('agents.chat.panel.prompt.toolCalls')}
+          </summary>
+            <div className="space-y-1.5 border-t border-border/60 px-2 py-1.5">
+              {preview.toolCalls.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground">{t('agents.chat.panel.prompt.noImmediateToolCalls')}</p>
+              ) : preview.toolCalls.map((call, index) => (
+                <div key={`${call.name}-${index}`} className="rounded border border-border/70 bg-background px-2 py-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[10px] font-medium text-foreground">{index + 1}. {call.name}</span>
+                    <Badge variant="outline" className="text-[9px]">{t('agents.chat.panel.runtime.tool')}</Badge>
+                  </div>
+                  {call.args && (
+                    <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-1.5 text-[10px]">
+                      {safeJSONStringify(call.args)}
+                    </pre>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
+
+          <details className="rounded-md border border-border bg-background/60">
+          <summary className="cursor-pointer list-none px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+              {t('agents.chat.panel.prompt.approvals')}
+          </summary>
+            <div className="space-y-1.5 border-t border-border/60 px-2 py-1.5">
+              {preview.pendingApprovals.length === 0 ? (
+                <p className="text-[10px] text-muted-foreground">{t('agents.chat.panel.prompt.noApprovalRequired')}</p>
+              ) : preview.pendingApprovals.map((approval) => (
+                <div key={approval.id} className="rounded border border-amber-500/20 bg-amber-500/10 p-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[10px] font-medium text-foreground">{approval.toolName}</span>
+                    <Badge variant="warning" className="text-[9px]">{approval.risk ?? approval.status}</Badge>
+                  </div>
+                  <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{approval.reason}</p>
+                  {approval.args && (
+                    <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 p-1.5 text-[9px] text-muted-foreground">
+                      {safeJSONStringify(approval.args)}
+                    </pre>
+                  )}
+                </div>
+              ))}
+            </div>
+          </details>
+        </>
+      )}
+
+      <div className="space-y-1.5">
+        <div className="text-[10px] font-medium text-foreground">{t('agents.chat.panel.prompt.finalHttpRequests')}</div>
+        <div className="space-y-2">
+          {draft.httpRequests.map((request, index) => (
+            <DebugHttpRequestCard key={request.id} request={request} index={index} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'production_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 
 function DraftPanel({
   project,
-  threadId,
   online,
-  onRunUpdate,
-  onAppliedRun,
 }: {
   project: Project | null
-  threadId?: string
   online: boolean
-  onRunUpdate: (run: AgentRun | null) => void
-  onAppliedRun: (run: AgentRun, thread: LocalAgentThread) => void
 }) {
   const { t, i18n } = useTranslation()
-  const qc = useQueryClient()
+  const navigate = useNavigate()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const [status, setStatus] = useState<AgentDraftStatus | 'all'>('draft')
   const [kind, setKind] = useState<AgentDraftKind | 'all'>('all')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [targetEntityType, setTargetEntityType] = useState('')
-  const [targetEntityId, setTargetEntityId] = useState('')
-  const [targetField, setTargetField] = useState('')
-  const [currentValue, setCurrentValue] = useState('')
-  const [proposedValue, setProposedValue] = useState('')
-  const [rejectReason, setRejectReason] = useState('')
-  const [preview, setPreview] = useState<AgentDraftApplyPreview | null>(null)
-  const [working, setWorking] = useState(false)
   const query = {
     ...(project ? { projectId: project.ID } : {}),
     ...(kind !== 'all' ? { kind } : {}),
@@ -2164,11 +2467,11 @@ function DraftPanel({
   })
   const drafts = draftsQuery.data ?? []
   const selectedDraft = drafts.find((draft) => draft.id === selectedId) ?? drafts[0] ?? null
+  const openDraftPath = useMemo(() => (selectedDraft ? buildDraftOpenPath(selectedDraft) : null), [selectedDraft])
 
   useEffect(() => {
     if (!selectedDraft) {
       setSelectedId(null)
-      setPreview(null)
       return
     }
     if (!selectedId || !drafts.some((draft) => draft.id === selectedId)) {
@@ -2176,87 +2479,8 @@ function DraftPanel({
     }
   }, [drafts, selectedDraft, selectedId])
 
-  useEffect(() => {
-    if (!selectedDraft) return
-    const target = selectedDraft.target ?? {}
-    setTargetEntityType(typeof target.entityType === 'string' ? target.entityType : '')
-    setTargetEntityId(target.entityId === undefined || target.entityId === null ? '' : String(target.entityId))
-    setTargetField(typeof target.field === 'string' ? target.field : '')
-    setProposedValue(selectedDraft.content)
-    setCurrentValue('')
-    setRejectReason('')
-    setPreview(null)
-  }, [selectedDraft?.id])
-
   async function refreshDrafts() {
     await draftsQuery.refetch()
-  }
-
-  async function buildPreview() {
-    if (!selectedDraft) return
-    setWorking(true)
-    try {
-      const next = await localAgentClient.previewApplyDraft(selectedDraft.id, {
-        targetEntityType: targetEntityType.trim(),
-        targetEntityId: Number.isFinite(Number(targetEntityId)) && targetEntityId.trim() ? Number(targetEntityId) : targetEntityId.trim(),
-        targetField: targetField.trim(),
-        currentValue,
-        proposedValue: proposedValue || selectedDraft.content,
-      })
-      setPreview(next)
-    } finally {
-      setWorking(false)
-    }
-  }
-
-  async function rejectSelectedDraft() {
-    if (!selectedDraft) return
-    setWorking(true)
-    try {
-      await localAgentClient.rejectDraft(selectedDraft.id, rejectReason.trim() || undefined)
-      setPreview(null)
-      qc.invalidateQueries({ queryKey: ['local-agent-drafts'] })
-    } finally {
-      setWorking(false)
-    }
-  }
-
-  async function startApplyRun() {
-    if (!selectedDraft) return
-    setWorking(true)
-    try {
-      const activePreview = preview ?? await localAgentClient.previewApplyDraft(selectedDraft.id, {
-        targetEntityType: targetEntityType.trim(),
-        targetEntityId: Number.isFinite(Number(targetEntityId)) && targetEntityId.trim() ? Number(targetEntityId) : targetEntityId.trim(),
-        targetField: targetField.trim(),
-        currentValue,
-        proposedValue: proposedValue || selectedDraft.content,
-      })
-      setPreview(activePreview)
-      const run = await localAgentClient.createToolRun({
-        ...(threadId ? { threadId } : {}),
-        title: `Apply draft ${selectedDraft.title}`,
-        message: `Apply Agent draft ${selectedDraft.id} to ${String(activePreview.review.target.entityType)} ${String(activePreview.review.target.entityId)}.`,
-        toolCall: {
-          name: 'movscript_apply_draft',
-          args: {
-            draftId: selectedDraft.id,
-            target: activePreview.review.target,
-            currentValue: activePreview.review.currentValue,
-            proposedValue: activePreview.review.proposedValue,
-          },
-        },
-      })
-      onRunUpdate(run)
-      const finalRun = await localAgentClient.waitForRun(run.id, {
-        onRunUpdate,
-      })
-      const thread = await localAgentClient.getThread(finalRun.threadId)
-      onAppliedRun(finalRun, thread)
-      qc.invalidateQueries({ queryKey: ['local-agent-drafts'] })
-    } finally {
-      setWorking(false)
-    }
   }
 
   return (
@@ -2275,7 +2499,7 @@ function DraftPanel({
           className="h-5 px-1 text-[10px] text-muted-foreground"
         >
           <RefreshCw size={10} className={draftsQuery.isFetching ? 'animate-spin' : ''} />
-          Refresh
+          {t('agents.chat.panel.drafts.refresh')}
         </Button>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
@@ -2295,9 +2519,9 @@ function DraftPanel({
         </Select>
       </div>
       {!online ? (
-        <p className="text-[10px] leading-relaxed text-muted-foreground">Start the local runtime to inspect Agent drafts.</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.drafts.noOnline')}</p>
       ) : drafts.length === 0 ? (
-        <p className="text-[10px] leading-relaxed text-muted-foreground">No drafts match this filter.</p>
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.drafts.emptyFilter')}</p>
       ) : (
         <div className="grid gap-2 xl:grid-cols-[0.8fr_1.2fr]">
           <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
@@ -2332,76 +2556,32 @@ function DraftPanel({
                     <div className="mt-1 flex flex-wrap gap-1">
                       <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.kinds.${selectedDraft.kind}`)}</Badge>
                       <Badge variant={draftStatusVariant(selectedDraft.status)} className="text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.status.${selectedDraft.status}`)}</Badge>
-                      {selectedDraft.projectId && <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">project #{selectedDraft.projectId}</Badge>}
+                      {selectedDraft.projectId && <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">{t('agents.chat.panel.drafts.projectBadge', { id: selectedDraft.projectId })}</Badge>}
                     </div>
                   </div>
                 </div>
                 <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 p-2 text-[10px] leading-relaxed">
-                  {selectedDraft.content || '(empty draft)'}
+                  {selectedDraft.content || t('agents.chat.panel.drafts.emptyDraft')}
                 </pre>
               </div>
-              <div className="grid gap-1.5 md:grid-cols-3">
-                <input
-                  value={targetEntityType}
-                  onChange={(e) => { setTargetEntityType(e.target.value); setPreview(null) }}
-                  placeholder="entity type"
-                  className="h-7 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-                <input
-                  value={targetEntityId}
-                  onChange={(e) => { setTargetEntityId(e.target.value); setPreview(null) }}
-                  placeholder="entity id"
-                  className="h-7 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-                <input
-                  value={targetField}
-                  onChange={(e) => { setTargetField(e.target.value); setPreview(null) }}
-                  placeholder="field"
-                  className="h-7 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
+              <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
+                {openDraftPath
+                  ? t('agents.chat.panel.drafts.pageOnlyHint')
+                  : t('agents.chat.panel.drafts.noPage')}
               </div>
-              <div className="grid gap-1.5 md:grid-cols-2">
-                <textarea
-                  value={currentValue}
-                  onChange={(e) => { setCurrentValue(e.target.value); setPreview(null) }}
-                  placeholder="Current value for review..."
-                  rows={3}
-                  className="min-h-20 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-                <textarea
-                  value={proposedValue}
-                  onChange={(e) => { setProposedValue(e.target.value); setPreview(null) }}
-                  placeholder="Proposed value..."
-                  rows={3}
-                  className="min-h-20 resize-none rounded-md border border-input bg-background px-2 py-1.5 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-              </div>
-              {preview && (
-                <div className="space-y-1.5">
-                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
-                    {preview.review.sideEffect} Approval is required before this write can run.
-                  </div>
-                  <DraftDiff preview={preview} />
-                </div>
-              )}
               <div className="flex flex-wrap items-center gap-1.5">
-                <Button type="button" size="xs" variant="outline" onClick={buildPreview} disabled={working || !targetEntityType.trim() || !targetEntityId.trim() || !targetField.trim()}>
-                  {working ? <Loader2 size={10} className="animate-spin" /> : <Eye size={10} />}
-                  Diff
-                </Button>
-                <Button type="button" size="xs" variant="secondary" onClick={startApplyRun} disabled={working || !targetEntityType.trim() || !targetEntityId.trim() || !targetField.trim() || selectedDraft.status === 'applied'}>
-                  {working ? <Loader2 size={10} className="animate-spin" /> : <ShieldCheck size={10} />}
-                  Request apply
-                </Button>
-                <input
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="rejection reason"
-                  className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                />
-                <Button type="button" size="xs" variant="ghost" onClick={rejectSelectedDraft} disabled={working || selectedDraft.status === 'rejected'} className="text-muted-foreground hover:text-destructive">
-                  <X size={10} />
-                  Reject
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="secondary"
+                  onClick={() => {
+                    if (openDraftPath) navigate(openDraftPath)
+                  }}
+                  disabled={!openDraftPath}
+                  className="gap-1.5"
+                >
+                  <Route size={10} />
+                  {t('agents.chat.panel.drafts.openPage')}
                 </Button>
               </div>
             </div>
@@ -2562,6 +2742,8 @@ function ChatView({
   const {
     settings,
     addMessage,
+    upsertMessage,
+    removeMessage,
     updateConversationTitle,
     updateSettings,
   } = useAgentStore()
@@ -2614,7 +2796,14 @@ function ChatView({
   const [buildingSendDraft, setBuildingSendDraft] = useState(false)
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
   const [agentContextConfigs, setAgentContextConfigs] = useState<Record<string, ConversationAgentContextConfig>>({})
+  const [streamingAssistantMessageId, setStreamingAssistantMessageId] = useState<string | null>(null)
+  const [streamingAssistantText, setStreamingAssistantText] = useState('')
+  const [liveTraceEvents, setLiveTraceEvents] = useState<ChatRunActivityEvent[]>([])
+  const [pendingAssistantState, setPendingAssistantState] = useState<ThinkingBubbleState | null>(null)
   const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
+  const streamingAssistantMessageIdRef = useRef<string | null>(null)
+  const streamingAssistantTextRef = useRef('')
+  const streamingFlushTimerRef = useRef<number | null>(null)
   const processedExternalTaskRequestIdRef = useRef<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const shouldAutoScrollRef = useRef(true)
@@ -2638,7 +2827,11 @@ function ChatView({
   useEffect(() => { inputRef.current?.focus() }, [conv.id])
   useEffect(() => {
     shouldAutoScrollRef.current = true
+    setLiveTraceEvents([])
   }, [conv.id])
+  useEffect(() => () => {
+    if (streamingFlushTimerRef.current !== null) window.clearTimeout(streamingFlushTimerRef.current)
+  }, [])
   // Auto-clear stale modelId
   useEffect(() => {
     if (textModels.length > 0 && settings.modelId !== null) {
@@ -2696,6 +2889,16 @@ function ChatView({
   const activeModel = textModels.find((m) => m.id === modelId)
   const activeLocalRun = conversationRuntime?.run ?? null
   const loading = conversationRuntime?.loading ?? false
+  const hasStreamingAssistantContent = !!streamingAssistantMessageId || !!streamingAssistantText.trim()
+  const thinkingState = pendingAssistantState ?? getThinkingBubbleState(activeLocalRun, liveTraceEvents)
+  const showThinkingBubble = (loading || buildingSendDraft || !!pendingAssistantState)
+    && !hasStreamingAssistantContent
+    && !pendingSendDraft
+  const showLocalWorkflow = activeLocalRun?.status === 'requires_action'
+    && (
+      (activeLocalRun.pendingApprovals ?? []).some((approval) => approval.status === 'pending')
+      || (activeLocalRun.pendingInputRequests ?? []).some((request) => request.status === 'pending')
+    )
   const approvingLocalRun = conversationRuntime?.approving ?? false
   const stoppingLocalRun = conversationRuntime?.stopping ?? false
   const stopRequestedBeforeRun = conversationRuntime?.stopRequested ?? false
@@ -2705,10 +2908,10 @@ function ChatView({
     const thread = threadRef.current
     if (!thread || !shouldAutoScrollRef.current) return
     thread.scrollTo({ top: thread.scrollHeight, behavior: 'auto' })
-  }, [conv.id, conv.messages.length, loading])
+  }, [conv.id, conv.messages.length, loading, buildingSendDraft, hasStreamingAssistantContent, streamingAssistantText, pendingAssistantState])
   const contextLabels = [
-    'Local Runtime',
-    activeConversationManifest ? 'Custom skills/tools' : null,
+    t('agents.chat.localRuntime'),
+    activeConversationManifest ? t('agents.chat.panel.capabilities.custom') : null,
     settings.includeProjectContext && currentProject ? currentProject.name : null,
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     composerAttachments.length > 0 ? t('agents.chat.attachmentsCount', { count: composerAttachments.length }) : null,
@@ -2718,7 +2921,8 @@ function ChatView({
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
     ?? (!localAgentOnline && localAgentHealthError instanceof Error ? localAgentHealthError.message : null)
-  const canStopLocalRun = isStoppableAgentRun(activeLocalRun) || loading || buildingSendDraft || stopRequestedBeforeRun
+  const hasActiveLocalWork = !isTerminalAgentRun(activeLocalRun) && (loading || buildingSendDraft)
+  const canStopLocalRun = isStoppableAgentRun(activeLocalRun) || hasActiveLocalWork || stopRequestedBeforeRun
   const { data: localAgentInspect, isFetching: fetchingLocalAgentInspect, refetch: refetchLocalAgentInspect } = useQuery<AgentInspectResponse>({
     queryKey: ['local-agent-panel-inspect', localAgentClient.baseURL],
     queryFn: async () => {
@@ -2979,6 +3183,82 @@ function ChatView({
     setMentionRange(null)
   }
 
+  const resetStreamingAssistant = useCallback(() => {
+    if (streamingFlushTimerRef.current !== null) {
+      window.clearTimeout(streamingFlushTimerRef.current)
+      streamingFlushTimerRef.current = null
+    }
+    streamingAssistantMessageIdRef.current = null
+    streamingAssistantTextRef.current = ''
+    setStreamingAssistantMessageId(null)
+    setStreamingAssistantText('')
+  }, [])
+
+  const updateStreamingAssistantText = useCallback((runId: string, text: string) => {
+    if (!text.trim()) return
+    const messageId = streamingAssistantMessageIdRef.current ?? `stream-${runId}`
+    streamingAssistantMessageIdRef.current = messageId
+    streamingAssistantTextRef.current = text
+    setStreamingAssistantMessageId((current) => current ?? messageId)
+    setStreamingAssistantText((current) => current || text)
+    if (streamingFlushTimerRef.current !== null) return
+    streamingFlushTimerRef.current = window.setTimeout(() => {
+      streamingFlushTimerRef.current = null
+      setStreamingAssistantText(streamingAssistantTextRef.current)
+    }, STREAMING_ASSISTANT_FLUSH_MS)
+  }, [])
+
+  const recordLiveTraceEvent = useCallback((event: AgentRunStreamEvent) => {
+    if (event.type !== 'trace') return
+    const trace = event.event
+    if (trace.kind !== 'tool_call' && trace.kind !== 'model_call' && trace.kind !== 'context' && trace.kind !== 'memory' && trace.kind !== 'policy' && trace.kind !== 'tool_catalog') return
+    const data = trace.data && typeof trace.data === 'object' ? trace.data as Record<string, unknown> : undefined
+    const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
+    if (trace.kind === 'tool_call') {
+      setPendingAssistantState({
+        status: trace.status === 'started' ? 'calling_tool' : 'preparing_tool_call',
+        ...(trace.toolName ? { toolName: trace.toolName } : {}),
+      })
+    } else if (trace.kind === 'model_call' && stream?.kind === 'tool_call') {
+      const toolName = toolNameFromToolCallStreamEvent({
+        id: trace.id,
+        kind: trace.kind,
+        title: trace.title,
+        status: trace.status,
+        ...(trace.summary ? { summary: trace.summary } : {}),
+        ...(trace.toolName ? { toolName: trace.toolName } : {}),
+        ...(trace.stepId ? { stepId: trace.stepId } : {}),
+        ...(trace.data !== undefined ? { data: trace.data } : {}),
+        createdAt: trace.createdAt,
+        ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
+      })
+      setPendingAssistantState({
+        status: 'preparing_tool_call',
+        ...(toolName ? { toolName } : {}),
+      })
+    }
+    const item: ChatRunActivityEvent = {
+      id: trace.id,
+      kind: trace.kind,
+      title: trace.title,
+      status: trace.status,
+      ...(trace.summary ? { summary: trace.summary } : {}),
+      ...(trace.toolName ? { toolName: trace.toolName } : {}),
+      ...(trace.stepId ? { stepId: trace.stepId } : {}),
+      ...(trace.data !== undefined ? { data: trace.data } : {}),
+      createdAt: trace.createdAt,
+      ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
+    }
+    setLiveTraceEvents((current) => {
+      const itemKey = liveTraceEventKey(item)
+      const existingIndex = current.findIndex((candidate) => liveTraceEventKey(candidate) === itemKey)
+      const next = existingIndex >= 0
+        ? current.map((candidate, index) => index === existingIndex ? item : candidate)
+        : [...current, item]
+      return next.slice(-16)
+    })
+  }, [])
+
   const approveActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = activeLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
@@ -3000,7 +3280,7 @@ function ChatView({
           role: 'assistant',
           content,
           ...withGeneratedAttachments(generatedAttachments),
-          meta: { contextLabels: [`run ${finalRun.status}`], localRunActivity: compactRunActivity(finalRun) },
+          meta: { contextLabels: [`run ${finalRun.status}`] },
         })
       }
       if (runTouchesAgentCatalog(finalRun)) refreshAgentCatalogContext()
@@ -3028,7 +3308,7 @@ function ChatView({
       addMessage(userId, conv.id, {
         role: 'assistant',
         content,
-        meta: { contextLabels: [`run ${rejectedRun.status}`], localRunActivity: compactRunActivity(rejectedRun) },
+        meta: { contextLabels: [`run ${rejectedRun.status}`] },
       })
       if (runTouchesAgentCatalog(rejectedRun)) refreshAgentCatalogContext()
     } catch (e) {
@@ -3062,7 +3342,7 @@ function ChatView({
           role: 'assistant',
           content: formatLocalAgentAssistantContent(finalRun, thread),
           ...withGeneratedAttachments(generatedAttachments),
-          meta: { contextLabels: [`run ${finalRun.status}`], localRunActivity: compactRunActivity(finalRun) },
+          meta: { contextLabels: [`run ${finalRun.status}`] },
         })
       }
       if (runTouchesAgentCatalog(finalRun)) refreshAgentCatalogContext()
@@ -3090,17 +3370,29 @@ function ChatView({
     setConversationRuntime(conv.id, { stopping: true, loading: true, stopRequested: stopRequestedBeforeRun })
     try {
       const cancelledRun = await localAgentClient.cancelRun(run.id, { reason: '用户停止了当前会话。' })
-      setConversationRun(conv.id, cancelledRun, { stopping: true, loading: true, stopRequested: false })
+      const finishedBeforeCancel = isTerminalAgentRun(cancelledRun) && cancelledRun.status !== 'cancelled'
+      setConversationRun(conv.id, cancelledRun, {
+        stopping: finishedBeforeCancel ? false : true,
+        loading: finishedBeforeCancel ? false : true,
+        stopRequested: false,
+      })
       if (!loading) {
         const thread = await localAgentClient.getThread(cancelledRun.threadId)
         addMessage(userId, conv.id, {
           role: 'assistant',
           content: formatLocalAgentAssistantContent(cancelledRun, thread),
-          meta: { contextLabels: [`run ${cancelledRun.status}`], localRunActivity: compactRunActivity(cancelledRun) },
+          meta: { contextLabels: [`run ${cancelledRun.status}`] },
         })
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
+      if (/already finished/i.test(message)) {
+        const latestRun = await localAgentClient.getRun(run.id).catch(() => undefined)
+        if (latestRun) {
+          setConversationRun(conv.id, latestRun, { stopRequested: false, stopping: false, loading: false })
+          return
+        }
+      }
       addMessage(userId, conv.id, {
         role: 'assistant',
         content: `停止当前会话失败：${message}`,
@@ -3118,6 +3410,7 @@ function ChatView({
     projectId?: number
     clientInput?: AgentClientInput
     agentManifest?: AgentManifest
+    runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
     requestId?: string
     timeoutMs?: number
     omitDebugArtifacts?: boolean
@@ -3164,6 +3457,7 @@ function ChatView({
       ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
       clientInput,
       ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
+      ...(options.runPolicy ? { runPolicy: options.runPolicy } : {}),
       ...((options.requestId ?? pageToolRequestId) ? { requestId: options.requestId ?? pageToolRequestId } : {}),
       ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
       diagnosticCommand,
@@ -3181,6 +3475,7 @@ function ChatView({
             ...(threadId ? { threadId } : {}),
             clientInput,
             ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
+            ...(options.runPolicy ? { policy: options.runPolicy } : {}),
           })
         } catch (e) {
           if (!threadId) throw e
@@ -3188,6 +3483,7 @@ function ChatView({
           localRuntime.preview = await localAgentClient.previewRun({
             clientInput,
             ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
+            ...(options.runPolicy ? { policy: options.runPolicy } : {}),
           })
         }
       } catch (e) {
@@ -3235,6 +3531,17 @@ function ChatView({
           ...(activeModel ? { modelName: publicModelLabel(activeModel) } : {}),
           messages,
           localRuntime,
+          labels: {
+            syncModelConfig: t('agents.chat.panel.http.syncModelConfig'),
+            loadExistingThread: t('agents.chat.panel.http.loadExistingThread'),
+            missingThreadFallback: t('agents.chat.panel.http.missingThreadFallback'),
+            createThread: t('agents.chat.panel.http.createThread'),
+            appendUserMessage: t('agents.chat.panel.http.appendUserMessage'),
+            createRun: t('agents.chat.panel.http.createRun'),
+            pollRun: t('agents.chat.panel.http.pollRun'),
+            pollRunNote: t('agents.chat.panel.http.pollRunNote'),
+            fetchFinalThread: t('agents.chat.panel.http.fetchFinalThread'),
+          },
         }),
       localRuntime,
       warnings,
@@ -3280,13 +3587,15 @@ function ChatView({
     setMentionRange(null)
     setConversationRuntime(conv.id, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
     cancelRequestedRunIdsRef.current.clear()
+    setLiveTraceEvents([])
+    setPendingAssistantState({ status: 'preparing_request' })
     addMessage(userId, conv.id, {
       role: 'user',
       content: draft.visibleUserContent,
       attachments: messageAttachments,
       meta: {
         modelId: draft.model.id,
-        agentName: 'Local Agent Runtime',
+        agentName: t('agents.chat.localRuntime'),
         mode: draft.settings.mode,
         permissionMode: draft.settings.permissionMode,
         contextLabels: draft.contextLabels,
@@ -3299,12 +3608,14 @@ function ChatView({
     if (draft.localRuntime?.requestId) {
       setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id })
     }
+    resetStreamingAssistant()
 
     try {
       if (!localAgentOnline) {
         await localAgentClient.ensureRunning()
         await refetchLocalAgentHealth()
       }
+      setPendingAssistantState({ status: 'thinking' })
       await syncRuntimeModelConfig(draft.model.id, draft.model.name)
       const runResult = await localAgentClient.runMessageStream({
         threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
@@ -3314,10 +3625,19 @@ function ChatView({
         projectId: draft.localRuntime?.projectId,
       }, {
         ...(draft.localRuntime?.agentManifest ? { agentManifest: draft.localRuntime.agentManifest } : {}),
+        ...(draft.localRuntime?.runPolicy ? { runPolicy: draft.localRuntime.runPolicy } : {}),
         ...(draft.localRuntime?.timeoutMs ? { timeoutMs: draft.localRuntime.timeoutMs } : {}),
         pollMs: 120,
         onRunUpdate: (nextRun) => {
           const artifacts = extractAgentTaskArtifacts(nextRun)
+          if (nextRun.status === 'in_progress' || nextRun.status === 'queued') {
+            const nextThinkingState = getThinkingBubbleState(nextRun, [])
+            setPendingAssistantState((current) =>
+              current?.status === 'preparing_tool_call' && nextThinkingState.status === 'thinking'
+                ? current
+                : nextThinkingState
+            )
+          }
           if (runTouchesAgentCatalog(nextRun)) refreshAgentCatalogContext()
           if (draft.localRuntime?.requestId) {
             setPageTaskRunning(draft.localRuntime.requestId, {
@@ -3336,33 +3656,60 @@ function ChatView({
             cancelRequestedRunIdsRef.current.add(nextRun.id)
             void localAgentClient.cancelRun(nextRun.id, { reason: '用户停止了当前会话。' })
               .then((cancelledRun) => {
+                const finishedBeforeCancel = isTerminalAgentRun(cancelledRun) && cancelledRun.status !== 'cancelled'
                 setConversationRun(conv.id, cancelledRun, {
-                  loading: true,
+                  loading: finishedBeforeCancel ? false : true,
                   building: false,
                   approving: false,
-                  stopping: true,
+                  stopping: finishedBeforeCancel ? false : true,
                   stopRequested: false,
                 })
+              })
+              .catch(async (error) => {
+                const message = error instanceof Error ? error.message : String(error)
+                if (/already finished/i.test(message)) {
+                  const latestRun = await localAgentClient.getRun(nextRun.id).catch(() => undefined)
+                  if (latestRun) setConversationRun(conv.id, latestRun, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
+                }
               })
               .finally(() => {
                 setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false })
               })
-            }
+          }
         },
+        onAssistantDelta: (event) => {
+          updateStreamingAssistantText(event.runId, event.accumulated)
+        },
+        onStreamEvent: recordLiveTraceEvent,
       })
-      const { run, thread } = runResult
+      const { thread } = runResult
+      const run = runResult.run.streamPartial
+        ? await localAgentClient.getRun(runResult.run.id).catch(() => runResult.run)
+        : runResult.run
       const artifacts = extractAgentTaskArtifacts(run)
       if (!draft.localRuntime?.diagnosticCommand) setLocalThreadId(conv.id, thread.id)
       if (draft.localRuntime?.requestId) setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id, run, threadId: thread.id, artifacts })
       setConversationRun(conv.id, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
       const content = formatLocalAgentAssistantContent(run, thread)
       const generatedAttachments = await generatedAttachmentsFromRun(run)
-      addMessage(userId, conv.id, {
-        role: 'assistant',
-        content,
-        ...withGeneratedAttachments(generatedAttachments),
-        meta: { contextLabels: [`run ${run.status}`], localRunActivity: compactRunActivity(run) },
-      })
+      const streamingMessageId = streamingAssistantMessageIdRef.current
+      setPendingAssistantState(null)
+      resetStreamingAssistant()
+      if (streamingMessageId) {
+        upsertMessage(userId, conv.id, streamingMessageId, {
+          role: 'assistant',
+          content,
+          ...withGeneratedAttachments(generatedAttachments),
+          meta: { contextLabels: [`run ${run.status}`] },
+        })
+      } else {
+        addMessage(userId, conv.id, {
+          role: 'assistant',
+          content,
+          ...withGeneratedAttachments(generatedAttachments),
+          meta: { contextLabels: [`run ${run.status}`] },
+        })
+      }
       if (runTouchesAgentCatalog(run)) refreshAgentCatalogContext()
       notifyAgentPanelRunSettled({
         requestId: draft.localRuntime?.requestId,
@@ -3373,6 +3720,10 @@ function ChatView({
       })
     } catch (e: any) {
       const message = e instanceof Error ? e.message : String(e)
+      const streamingMessageId = streamingAssistantMessageIdRef.current
+      if (streamingMessageId) removeMessage(userId, conv.id, streamingMessageId)
+      setPendingAssistantState(null)
+      resetStreamingAssistant()
       addMessage(userId, conv.id, {
         role: 'assistant',
         content: `本地 Agent 暂不可用。\n\n启动命令：\`pnpm --filter movscript-agent dev\`\n健康检查：\`${localAgentClient.baseURL}/health\`\n\n错误：${message}`,
@@ -3385,10 +3736,14 @@ function ChatView({
       })
     } finally {
       cancelRequestedRunIdsRef.current.clear()
+      setPendingAssistantState(null)
+      resetStreamingAssistant()
       setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false, building: false })
     }
   }, [
     addMessage,
+    upsertMessage,
+    removeMessage,
     userId,
     conv.id,
     conv.messages.length,
@@ -3403,6 +3758,9 @@ function ChatView({
     setConversationRuntime,
     clearConversationDraft,
     refreshAgentCatalogContext,
+    resetStreamingAssistant,
+    updateStreamingAssistantText,
+    recordLiveTraceEvent,
   ])
 
   useEffect(() => {
@@ -3433,6 +3791,7 @@ function ChatView({
       projectId: payload.projectId,
       clientInput: payload.clientInput,
       agentManifest: payload.agentManifest,
+      runPolicy: payload.runPolicy,
       requestId: payload.requestId,
       timeoutMs: payload.timeoutMs,
       omitDebugArtifacts: true,
@@ -3518,7 +3877,7 @@ function ChatView({
         <AgentHeader>
           <AgentHeaderContent>
             <AgentTitle className="ai-agent-panel-conversation-title">{conv.title}</AgentTitle>
-            <AgentSubtitle>Local Agent Runtime</AgentSubtitle>
+          <AgentSubtitle>{t('agents.chat.localRuntime')}</AgentSubtitle>
           </AgentHeaderContent>
           <AgentHeaderActions>
             <AgentStatus state={loading || buildingSendDraft ? 'running' : 'ready'}>
@@ -3563,22 +3922,23 @@ function ChatView({
               </AgentEmpty>
             )}
             {conv.messages.map((m) => <MessageBubble key={m.id} msg={m} />)}
+            <StreamingAssistantBubble content={streamingAssistantText} />
+            {showThinkingBubble && <ThinkingBubble run={activeLocalRun} state={thinkingState} />}
+            <div ref={bottomRef} />
+          </AgentThread>
+        </AgentBody>
+        {showLocalWorkflow && (
+          <div className="border-t border-border/70 px-3 py-2">
             <LocalAgentWorkflow
               run={activeLocalRun}
               approving={approvingLocalRun}
+              events={liveTraceEvents}
               onApprove={approveActiveLocalRun}
               onReject={rejectActiveLocalRun}
               onAnswerInput={answerActiveLocalRunInput}
             />
-            {activeLocalRun && (
-              <div className="mx-1">
-                <RunActivityPanel run={activeLocalRun} title="Live tool activity" />
-              </div>
-            )}
-            {loading && <ThinkingBubble run={activeLocalRun} />}
-            <div ref={bottomRef} />
-          </AgentThread>
-        </AgentBody>
+          </div>
+        )}
       </section>
 
       <section className={cn('ai-agent-panel-card ai-agent-panel-context-section', showContext && 'ai-agent-panel-context-section--open')}>
@@ -3615,7 +3975,7 @@ function ChatView({
           <div className="rounded-md border border-border bg-background/60 p-2 space-y-1">
             <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
               <span className={cn('min-w-0 truncate font-medium', localAgentOnline ? 'text-green-600' : 'text-amber-600')}>
-                {localAgentOnline ? 'Local Runtime online' : (checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting Local Runtime' : 'Checking Local Runtime') : 'Local Runtime offline')}
+                {localAgentOnline ? t('agents.chat.panel.status.localRuntimeOnline') : (checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? t('agents.chat.panel.status.startingLocalRuntime') : t('agents.chat.panel.status.checkingLocalRuntime')) : t('agents.chat.panel.status.localRuntimeOffline'))}
               </span>
               <Button
                 type="button"
@@ -3625,12 +3985,12 @@ function ChatView({
                 disabled={checkingLocalAgent || startingLocalAgent}
                 className="h-5 px-1 text-[10px] text-muted-foreground"
               >
-                {checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? 'Starting' : 'Checking') : (canAutoStartLocalAgent ? 'Start' : 'Refresh')}
+                {checkingLocalAgent || startingLocalAgent ? (canAutoStartLocalAgent ? t('agents.chat.panel.status.starting') : t('agents.chat.panel.status.checking')) : (canAutoStartLocalAgent ? t('agents.chat.panel.status.start') : t('agents.chat.panel.status.refresh'))}
               </Button>
             </div>
             {!localAgentOnline && (
               <p className="text-[10px] leading-relaxed text-muted-foreground">
-                {canAutoStartLocalAgent ? 'MovScript will start the local runtime through the desktop client.' : 'This window cannot start local processes. Open the Electron desktop client or start it manually.'} Browser mode can still start it manually with <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-agent dev</code>.
+                {canAutoStartLocalAgent ? t('agents.chat.panel.status.autoStartHint') : t('agents.chat.panel.status.localRuntimeCannotStart')} {t('agents.chat.browserModeManualStart')} <code className="rounded bg-muted px-1 py-0.5">pnpm --filter movscript-agent dev</code>.
               </p>
             )}
             {localAgentErrorMessage && (
@@ -3640,104 +4000,107 @@ function ChatView({
             )}
             {localThreadId && (
               <p className="truncate text-[10px] text-muted-foreground/70">
-                Thread: <code className="rounded bg-muted px-1 py-0.5">{localThreadId}</code>
+                {t('agents.chat.panel.status.thread')}: <code className="rounded bg-muted px-1 py-0.5">{localThreadId}</code>
               </p>
             )}
           </div>
-          <ProjectRequirementPanel
-            project={currentProject}
-            projects={projects}
-            loading={loadingProjects}
-            creating={createProject.isPending}
-            onSelect={setCurrentProject}
-            onCreate={(payload) => createProject.mutate(payload)}
-          />
-          {activeModel && (
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground/60">
-              <Wand2 size={10} />
-              <span className="truncate">{publicModelLabel(activeModel)}</span>
-            </div>
-          )}
-          {showContext && (
-            <div className="ai-agent-panel-context-card rounded-md border border-border bg-background/60 p-2 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={settings.includeProjectContext}
-                    onChange={(e) => updateSettings({ includeProjectContext: e.target.checked })}
-                    className="h-3 w-3"
-                  />
-                  {t('agents.chat.projectContext')}
-                </label>
-                <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={settings.includeRecentResources}
-                    onChange={(e) => updateSettings({ includeRecentResources: e.target.checked })}
-                    className="h-3 w-3"
-                  />
-                  {t('agents.chat.resourceContext')}
-                </label>
-              </div>
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
-                  <input
-                    type="checkbox"
-                    checked={settings.autoPlan}
-                    onChange={(e) => updateSettings({ autoPlan: e.target.checked })}
-                    className="h-3 w-3"
-                  />
-                  <span className="truncate">{t('agents.chat.autoPlan')}</span>
-                </label>
-                {debugBeforeSend && (
-                  <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
-                    Debug preview
-                  </Badge>
-                )}
-                <Select
-                  value={settings.permissionMode}
-                  onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
-                >
-                  <SelectTrigger size="sm" className="ml-auto h-7 w-28 max-w-full text-[10px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ask">{t('agents.chat.permissions.ask')}</SelectItem>
-                    <SelectItem value="suggest">{t('agents.chat.permissions.suggest')}</SelectItem>
-                    <SelectItem value="auto">{t('agents.chat.permissions.auto')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {contextLabels.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {contextLabels.map((label) => (
-                    <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{label}</Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {composerAttachmentEntries.length > 0 && (
-            <div className="grid grid-cols-2 gap-1.5">
-              {composerAttachmentEntries.map(({ attachment }) => (
-                <div key={attachmentKey(attachment)} className="relative">
-                  <AttachmentPreview attachment={attachment} compact />
-                  <Button
-                    type="button"
-                    size="icon-xs"
-                    variant="secondary"
-                    onClick={() => removeAttachment(attachment.id)}
-                    className="absolute right-1 top-1 h-5 w-5 text-muted-foreground hover:text-destructive"
-                  >
-                    <X size={10} />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
           {showContext && (
             <div className="ai-agent-panel-context-stack">
+              <DebugSection title={t('agents.chat.panel.layers.productSurface')}>
+                <div className="space-y-2">
+                  <div className="grid gap-2 text-[11px] md:grid-cols-3">
+                    <DebugSummaryItem label={t('agents.chat.panel.status.thread')} value={localThreadId || t('agents.chat.panel.status.newThread')} />
+                    <DebugSummaryItem label={t('agents.chat.panel.context.runtime')} value={localAgentOnline ? t('agents.chat.panel.status.online') : t('agents.chat.panel.status.offline')} />
+                    <DebugSummaryItem label={t('agents.chat.panel.context.conversation')} value={activeConversationManifest ? t('agents.chat.panel.context.customContext') : t('agents.chat.panel.context.runtimeDefault')} />
+                    {activeModel && <DebugSummaryItem label={t('agents.chat.panel.context.runtime')} value={publicModelLabel(activeModel)} />}
+                  </div>
+                  <ProjectRequirementPanel
+                    project={currentProject}
+                    projects={projects}
+                    loading={loadingProjects}
+                    creating={createProject.isPending}
+                    onSelect={setCurrentProject}
+                    onCreate={(payload) => createProject.mutate(payload)}
+                  />
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={settings.includeProjectContext}
+                        onChange={(e) => updateSettings({ includeProjectContext: e.target.checked })}
+                        className="h-3 w-3"
+                      />
+                      <span className="truncate">{t('agents.chat.projectContext')}</span>
+                    </label>
+                    <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={settings.includeRecentResources}
+                        onChange={(e) => updateSettings({ includeRecentResources: e.target.checked })}
+                        className="h-3 w-3"
+                      />
+                      <span className="truncate">{t('agents.chat.resourceContext')}</span>
+                    </label>
+                    <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={settings.autoPlan}
+                        onChange={(e) => updateSettings({ autoPlan: e.target.checked })}
+                        className="h-3 w-3"
+                      />
+                      <span className="truncate">{t('agents.chat.autoPlan')}</span>
+                    </label>
+                    {debugBeforeSend && (
+                      <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+                        {t('agents.chat.debugPreview')}
+                      </Badge>
+                    )}
+                    <Select
+                      value={settings.permissionMode}
+                      onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
+                    >
+                      <SelectTrigger size="sm" className="ml-auto h-7 w-28 max-w-full text-[10px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ask">{t('agents.chat.permissions.ask')}</SelectItem>
+                        <SelectItem value="suggest">{t('agents.chat.permissions.suggest')}</SelectItem>
+                        <SelectItem value="auto">{t('agents.chat.permissions.auto')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {contextLabels.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {contextLabels.map((label) => (
+                        <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{label}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </DebugSection>
+              <DebugSection title={t('agents.chat.panel.layers.runtimeContext')}>
+                <div className="space-y-2">
+                  <div className="grid gap-2 text-[11px] md:grid-cols-3">
+                    <DebugSummaryItem label={t('agents.chat.panel.context.project')} value={currentProject ? `${currentProject.name}` : t('common.emptyTitle')} />
+                    <DebugSummaryItem label={t('agents.chat.panel.context.resources')} value={String(recentResources.length)} />
+                    <DebugSummaryItem label={t('agents.chat.panel.context.attachments')} value={String(composerAttachments.length)} />
+                  </div>
+                  {pendingSendDraft?.localRuntime?.clientInput?.uiSnapshot ? (
+                    <details className="rounded-md border border-border bg-background/60">
+                      <summary className="cursor-pointer list-none px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+                        {t('agents.chat.panel.context.snapshot')}
+                      </summary>
+                      <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-2 py-1.5 text-[10px] text-muted-foreground">
+                        {safeJSONStringify(pendingSendDraft.localRuntime.clientInput.uiSnapshot)}
+                      </pre>
+                    </details>
+                  ) : (
+                    <p className="text-[10px] leading-relaxed text-muted-foreground">
+                      {t('agents.chat.panel.context.noSnapshot')}
+                    </p>
+                  )}
+                </div>
+              </DebugSection>
               <ConversationContextPanel
                 online={localAgentOnline}
                 inspect={localAgentInspect}
@@ -3747,34 +4110,45 @@ function ChatView({
                 onChange={updateAgentContextConfig}
                 onRefresh={refreshAgentCatalogContext}
               />
-              <DraftPanel
-                project={currentProject}
-                threadId={localThreadId || undefined}
-                online={localAgentOnline}
-                onRunUpdate={(run) => {
-                  if (run) {
-                    setConversationRun(conv.id, run, { loading: true })
-                  } else {
-                    setConversationRuntime(conv.id, { run: undefined, runId: undefined, status: undefined, loading: false })
-                  }
-                }}
-                onAppliedRun={async (run, thread) => {
-                  setConversationRun(conv.id, run, { loading: false })
-                  const content = formatLocalAgentAssistantContent(run, thread)
-                  const generatedAttachments = await generatedAttachmentsFromRun(run)
-                  addMessage(userId, conv.id, {
-                    role: 'assistant',
-                    content,
-                    ...withGeneratedAttachments(generatedAttachments),
-                    meta: { contextLabels: [`run ${run.status}`, 'Draft apply'], localRunActivity: compactRunActivity(run) },
-                  })
-                }}
-              />
-              <MemoryPanel
-                project={currentProject}
-                threadId={localThreadId || undefined}
-                online={localAgentOnline}
-              />
+              <DebugSection title={t('agents.chat.panel.layers.prompt')}>
+                <PromptLayerPanel draft={pendingSendDraft} />
+              </DebugSection>
+              <DebugSection title={t('agents.chat.panel.layers.execution')}>
+                <div className="space-y-2">
+                  {activeLocalRun ? (
+                    <RunActivityPanel
+                      run={activeLocalRun}
+                      events={liveTraceEvents}
+                      title={t('agents.chat.panel.execution.runTimeline')}
+                    />
+                  ) : (
+                    <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.execution.noRunYet')}</p>
+                  )}
+                  {showLocalWorkflow && (
+                    <LocalAgentWorkflow
+                      run={activeLocalRun}
+                      approving={approvingLocalRun}
+                      events={liveTraceEvents}
+                      onApprove={approveActiveLocalRun}
+                      onReject={rejectActiveLocalRun}
+                      onAnswerInput={answerActiveLocalRunInput}
+                    />
+                  )}
+                </div>
+              </DebugSection>
+              <DebugSection title={t('agents.chat.panel.layers.artifacts')}>
+                <div className="space-y-2">
+                  <DraftPanel
+                    project={currentProject}
+                    online={localAgentOnline}
+                  />
+                  <MemoryPanel
+                    project={currentProject}
+                    threadId={localThreadId || undefined}
+                    online={localAgentOnline}
+                  />
+                </div>
+              </DebugSection>
             </div>
           )}
         </div>
@@ -3898,17 +4272,17 @@ function ChatView({
                 variant={debugBeforeSend ? 'secondary' : 'ghost'}
                 onClick={() => setDebugBeforeSend(!debugBeforeSend)}
                 className="h-7 px-2 text-[10px]"
-                title="Preview payload before sending"
+                title={t('agents.chat.previewPayload')}
               >
                 <Eye size={11} />
-                Debug
+                {t('agents.chat.debugPreview')}
               </Button>
             </div>
             <AgentComposerSubmit
               type={canStopLocalRun ? 'button' : 'submit'}
               running={canStopLocalRun}
               disabled={canStopLocalRun ? stoppingLocalRun : !canSend}
-              label={canStopLocalRun ? 'Stop' : debugBeforeSend ? 'Preview' : t('common.send')}
+              label={canStopLocalRun ? t('agents.chat.stop') : debugBeforeSend ? t('agents.chat.preview') : t('common.send')}
               onClick={canStopLocalRun ? stopActiveLocalRun : undefined}
             >
               {stoppingLocalRun
@@ -4006,7 +4380,7 @@ function ConversationList({
                   variant="ghost"
                   onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
                   className="absolute bottom-2 right-2 h-5 w-5 text-muted-foreground/50 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                  aria-label="Delete conversation"
+                  aria-label={t('agents.chat.deleteConversation')}
                 >
                   <X size={11} />
                 </Button>
@@ -4017,7 +4391,7 @@ function ConversationList({
         <AgentSidebarSection>
           <div className="mb-1 flex items-center justify-between px-1">
             <AgentSidebarTitle className="px-0">
-              <span className="inline-flex items-center gap-1"><History size={11} /> Local Runtime</span>
+              <span className="inline-flex items-center gap-1"><History size={11} /> {t('agents.chat.localRuntime')}</span>
             </AgentSidebarTitle>
             <Button
               type="button"
@@ -4030,14 +4404,17 @@ function ConversationList({
             </Button>
           </div>
           {localThreads.length === 0 ? (
-            <p className="px-1 text-[10px] text-muted-foreground">No local runtime threads found.</p>
+            <p className="px-1 text-[10px] text-muted-foreground">{t('agents.chat.localRuntimeThreadsEmpty')}</p>
           ) : localThreads.map((thread) => (
             <AgentConversationItem
               key={thread.id}
               onClick={() => restoreThread(thread.id)}
-              title={localThreadTitle(thread)}
-              description={`${thread.messageCount} messages${thread.projectId ? ` · project #${thread.projectId}` : ''}`}
-              meta={restoringThreadId === thread.id ? 'Restoring' : formatAgentDate(thread.updatedAt, i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US')}
+              title={localThreadTitle(thread, t)}
+              description={[
+                t('agents.chat.messagesCount', { count: thread.messageCount }),
+                thread.projectId ? t('agents.chat.panel.drafts.projectBadge', { id: thread.projectId }) : null,
+              ].filter(Boolean).join(' · ')}
+              meta={restoringThreadId === thread.id ? t('agents.chat.restoring') : formatAgentDate(thread.updatedAt, i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US')}
             />
           ))}
         </AgentSidebarSection>
@@ -4050,6 +4427,7 @@ function ConversationList({
 // ── Built-in chat ─────────────────────────────────────────────────────────────
 
 function BuiltinChat({ userId }: { userId: string }) {
+  const { t } = useTranslation()
   const {
     getConversations,
     getActiveConversationId,
@@ -4081,13 +4459,13 @@ function BuiltinChat({ userId }: { userId: string }) {
   async function handleRestoreLocalThread(threadId: string) {
     const thread = await localAgentClient.getThread(threadId)
     const convId = createConversation(userId)
-    updateConversationTitle(userId, convId, thread.title || `Local thread ${thread.id.slice(-6)}`)
+    updateConversationTitle(userId, convId, localThreadTitle(thread, t))
     for (const message of thread.messages) {
       if (message.role !== 'user' && message.role !== 'assistant') continue
       addMessage(userId, convId, {
         role: message.role,
         content: message.content,
-        meta: { contextLabels: ['Restored Local Runtime'] },
+        meta: { contextLabels: [t('agents.chat.panel.runtime.restoredLocalRuntime')] },
       })
     }
     setLocalThreadId(convId, thread.id)

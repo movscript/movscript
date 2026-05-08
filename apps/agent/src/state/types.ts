@@ -131,16 +131,20 @@ export interface AgentRun {
   traceEvents?: AgentTraceEvent[]
 }
 
+export type AgentRunStreamRun = AgentRun & {
+  streamPartial?: true
+}
+
 export type AgentRunStreamEvent =
   | {
     type: 'run'
-    run: AgentRun
+    run: AgentRunStreamRun
   }
   | {
     type: 'trace'
     runId: string
     event: AgentTraceEvent
-    run: AgentRun
+    run: AgentRunStreamRun
   }
   | {
     type: 'assistant_delta'
@@ -151,17 +155,17 @@ export type AgentRunStreamEvent =
     roundIndex?: number
     roundLabel?: string
     createdAt: string
-    run: AgentRun
+    run?: AgentRunStreamRun
   }
   | {
     type: 'assistant_message'
     runId: string
     message: AgentMessage
-    run: AgentRun
+    run: AgentRunStreamRun
   }
   | {
     type: 'done'
-    run: AgentRun
+    run: AgentRunStreamRun
   }
 
 export interface AgentRunPreview {
@@ -493,6 +497,7 @@ export interface CreateRunInput {
   agentManifest?: unknown
   approvedToolNames?: unknown
   clientInput?: unknown
+  policy?: unknown
   backendAuthToken?: unknown
   backendAPIBaseURL?: unknown
   sandboxMode?: unknown
@@ -506,6 +511,7 @@ export interface CreateToolRunInput {
   agentManifest?: unknown
   approvedToolNames?: unknown
   clientInput?: unknown
+  policy?: unknown
   backendAuthToken?: unknown
   backendAPIBaseURL?: unknown
   sandboxMode?: unknown
@@ -517,6 +523,7 @@ export interface PreviewRunInput {
   agentManifest?: unknown
   approvedToolNames?: unknown
   clientInput?: unknown
+  policy?: unknown
   backendAuthToken?: unknown
   backendAPIBaseURL?: unknown
   sandboxMode?: unknown

@@ -13,8 +13,6 @@ const (
 	PlanTeam     = "team"
 
 	StatusActive    = "active"
-	StatusTrialing  = "trialing"
-	StatusPastDue   = "past_due"
 	StatusSuspended = "suspended"
 
 	RoleOwner  = "owner"
@@ -71,7 +69,7 @@ func NormalizePlan(value string) string {
 
 func NormalizeStatus(value string) string {
 	switch strings.TrimSpace(value) {
-	case StatusActive, StatusTrialing, StatusPastDue, StatusSuspended:
+	case StatusActive, StatusSuspended:
 		return strings.TrimSpace(value)
 	case "":
 		return StatusActive
@@ -182,7 +180,7 @@ func NewPersonalOrg(user UserIdentity, slugExists bool) Organization {
 }
 
 func NewTeamOrg(name string, slug string, joinCode string, ownerID uint) Organization {
-	return Organization{Name: name, Slug: slug, JoinCode: joinCode, IsPersonal: false, Plan: PlanTeam, Status: StatusTrialing, CreatedBy: ownerID}
+	return Organization{Name: name, Slug: slug, JoinCode: joinCode, IsPersonal: false, Plan: PlanTeam, Status: StatusActive, CreatedBy: ownerID}
 }
 
 func OwnerMember(orgID uint, userID uint) OrganizationMember {

@@ -15,9 +15,7 @@
         "required": [
           "projectId",
           "sourceTitle",
-          "sourceSummary",
-          "sourceScript",
-          "globalSettings",
+          "lineCount",
           "episodeDrafts"
         ],
         "properties": {
@@ -28,30 +26,34 @@
             "type": "string"
           },
           "sourceTitle": {
-            "type": "string"
+            "type": "string",
+            "description": "Source script title only. Do not include script body."
           },
           "sourceSummary": {
-            "type": "string"
+            "type": "string",
+            "description": "Short source-level summary. Do not include script body."
+          },
+          "lineCount": {
+            "type": "number",
+            "minimum": 1,
+            "description": "Total number of numbered source lines."
           },
           "sourceScript": {
             "type": "object",
             "additionalProperties": false,
             "required": [
-              "title",
-              "summary",
-              "sourceType",
               "lineCount"
             ],
-            "properties": {
-              "title": {
-                "type": "string",
-                "description": "Source script title only. Do not include source body text."
-              },
-              "summary": {
-                "type": "string",
-                "description": "Short source-level summary. Do not copy or quote the original script body."
-              },
-              "sourceType": {
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "description": "Source script title only. Do not include source body text."
+                },
+                "summary": {
+                  "type": "string",
+                  "description": "Short source-level summary. Do not include source body text."
+                },
+                "sourceType": {
                 "type": "string",
                 "enum": [
                   "raw"
@@ -68,15 +70,6 @@
           "globalSettings": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "storyWorld",
-              "coreRules",
-              "characterRelationships",
-              "keyCharacters",
-              "keyLocations",
-              "keyProps",
-              "continuityNotes"
-            ],
             "properties": {
               "storyWorld": {
                 "type": "string"
@@ -122,44 +115,30 @@
           "episodeDrafts": {
             "type": "array",
             "minItems": 1,
-            "description": "Each episode must reference the source body only by startLine/endLine. Never include content, text, body, or original lines.",
+            "description": "Each episode provides metadata and startLine/endLine. Never include content, text, body, or original lines.",
             "items": {
               "type": "object",
               "additionalProperties": false,
               "required": [
-                "order",
-                "title",
-                "summary",
-                "globalContext",
                 "startLine",
-                "endLine",
-                "action",
-                "existingScriptId"
+                "endLine"
               ],
               "properties": {
                 "order": {
-                  "type": "number"
+                  "type": "number",
+                  "description": "Optional. Defaults to the episode range order in this array."
                 },
                 "title": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Episode title. Do not include body text."
                 },
                 "summary": {
                   "type": "string",
-                  "description": "Episode-level summary. Do not copy the original episode body."
+                  "description": "Short episode summary. Do not include body text or copied original lines."
                 },
                 "globalContext": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "storyWorld",
-                    "coreRules",
-                    "characterRelationships",
-                    "keyCharacters",
-                    "keyLocations",
-                    "keyProps",
-                    "continuityNotes",
-                    "episodeRelevance"
-                  ],
                   "properties": {
                     "storyWorld": {
                       "type": "string"

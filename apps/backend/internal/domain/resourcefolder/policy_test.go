@@ -15,6 +15,22 @@ func TestNewFolderTrimsMutableText(t *testing.T) {
 	}
 }
 
+func TestNewFolderUpdateSpecTrimsAndPreservesFalse(t *testing.T) {
+	shared := false
+	spec := NewFolderUpdateSpec(" Assets ", " local ", &shared)
+	if spec.Name == nil || *spec.Name != "Assets" || spec.StorageBackend == nil || *spec.StorageBackend != "local" {
+		t.Fatalf("unexpected text updates: %+v", spec)
+	}
+	if spec.IsShared == nil || *spec.IsShared {
+		t.Fatalf("expected false sharing update: %+v", spec)
+	}
+	folder := Folder{Name: "Old", StorageBackend: "old", IsShared: true}
+	folder.ApplyUpdate(spec)
+	if folder.Name != "Assets" || folder.StorageBackend != "local" || folder.IsShared {
+		t.Fatalf("folder update not applied: %+v", folder)
+	}
+}
+
 func TestNormalizeAndValidatePermission(t *testing.T) {
 	if got := NormalizePermission(""); got != PermissionRead {
 		t.Fatalf("permission = %q, want read", got)

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +27,12 @@ type Claims struct {
 	IssuedAt   int64  `json:"iat"`
 }
 
+type Subject struct {
+	UserID     uint
+	Username   string
+	SystemRole string
+}
+
 type Manager struct {
 	secret []byte
 	ttl    time.Duration
@@ -44,13 +49,13 @@ func NewManager(secret string, ttl time.Duration) (*Manager, error) {
 	return &Manager{secret: []byte(secret), ttl: ttl}, nil
 }
 
-func (m *Manager) Issue(user persistencemodel.User) (string, time.Time, error) {
+func (m *Manager) Issue(subject Subject) (string, time.Time, error) {
 	now := time.Now().UTC()
 	expiresAt := now.Add(m.ttl)
 	claims := Claims{
-		UserID:     user.ID,
-		Username:   user.Username,
-		SystemRole: user.SystemRole,
+		UserID:     subject.UserID,
+		Username:   subject.Username,
+		SystemRole: subject.SystemRole,
 		IssuedAt:   now.Unix(),
 		ExpiresAt:  expiresAt.Unix(),
 	}

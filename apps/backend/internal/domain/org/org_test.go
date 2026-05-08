@@ -35,6 +35,9 @@ func TestNormalizePlanAndStatus(t *testing.T) {
 	if got := NormalizeStatus(""); got != StatusActive {
 		t.Fatalf("status = %q, want active", got)
 	}
+	if got := NormalizeStatus("unknown_status"); got != StatusActive {
+		t.Fatalf("status = %q, want active", got)
+	}
 	if got := NormalizeStatus("suspended"); got != StatusSuspended {
 		t.Fatalf("status = %q, want suspended", got)
 	}

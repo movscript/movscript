@@ -8,8 +8,8 @@ import { planPreviewToolRequests } from './previewPlanner.js'
 
 const registry = new StaticToolRegistry([
   {
-    name: 'movscript_apply_draft',
-    description: 'Apply a draft.',
+    name: 'movscript_create_script',
+    description: 'Create a script.',
     permission: 'project.write',
     risk: 'write',
     source: 'runtime',
@@ -18,19 +18,12 @@ const registry = new StaticToolRegistry([
   },
 ])
 
-test('planPreviewToolRequests predicts approval-gated draft apply calls with preview metadata', async () => {
+test('planPreviewToolRequests predicts approval-gated write calls without draft apply metadata', async () => {
   const draftStore = new InMemoryAgentDraftStore()
-  const draft = draftStore.createDraft({
-    projectId: 42,
-    kind: 'content_unit',
-    title: 'Description update',
-    content: 'New description',
-    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
-  })
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
     permissions: ['project.write'],
-    tools: [{ name: 'movscript_apply_draft', mode: 'allow' as const, approval: 'always' as const }],
+    tools: [{ name: 'movscript_create_script', mode: 'allow' as const, approval: 'always' as const }],
   }
 
   const result = await planPreviewToolRequests({
@@ -50,7 +43,7 @@ test('planPreviewToolRequests predicts approval-gated draft apply calls with pre
       blocked: [],
       byName: {},
       available: [{
-        name: 'movscript_apply_draft',
+        name: 'movscript_create_script',
         source: 'runtime',
         registered: true,
         granted: true,
@@ -72,10 +65,10 @@ test('planPreviewToolRequests predicts approval-gated draft apply calls with pre
     memories: [],
     warnings: [],
     history: [],
-    userMessage: `应用草稿 ${draft.id}`,
+    userMessage: '保存剧本',
     command: {
       name: 'chat',
-      payload: `应用草稿 ${draft.id}`,
+      payload: '保存剧本',
       contextProfile: 'minimal',
       outputMode: 'natural',
       requiredTools: [],
@@ -100,10 +93,10 @@ test('planPreviewToolRequests predicts approval-gated draft apply calls with pre
       finish_reason: 'tool_calls',
       tool_calls: [{
         id: 'call_1',
-        type: 'function',
-        function: {
-          name: 'movscript_apply_draft',
-          arguments: JSON.stringify({ draftId: draft.id }),
+          type: 'function',
+          function: {
+          name: 'movscript_create_script',
+          arguments: JSON.stringify({ title: '雨夜便利店', content: '正文' }),
         },
       }],
       rawAssistantMessage: {
@@ -125,10 +118,9 @@ test('planPreviewToolRequests predicts approval-gated draft apply calls with pre
   assert.equal(result.toolCalls.length, 0)
   assert.equal(result.pendingApprovals.length, 1)
   assert.equal(result.pendingApprovals[0].id, 'approval_1')
-  assert.equal(result.pendingApprovals[0].toolName, 'movscript_apply_draft')
+  assert.equal(result.pendingApprovals[0].toolName, 'movscript_create_script')
   assert.equal(result.pendingApprovals[0].risk, 'write')
-  assert.equal((result.pendingApprovals[0].preview as any)?.review?.target?.entityType, 'content_unit')
-  assert.equal((result.pendingApprovals[0].preview as any)?.review?.requiresBackendApply, true)
+  assert.equal(result.pendingApprovals[0].preview, undefined)
 })
 
 test('planPreviewToolRequests returns an empty plan without a model config', async () => {

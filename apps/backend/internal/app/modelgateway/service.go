@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -22,8 +21,8 @@ var (
 	ErrAPIKeyNotFound            = errors.New("gateway api key not found")
 	ErrProjectNotFound           = errors.New("gateway project not found")
 	ErrProjectOutsideOrg         = errors.New("gateway project is outside current org")
-	ErrEditionUsageLimitExceeded = errors.New("gateway edition usage limit exceeded")
-	ErrEditionRateLimited        = errors.New("gateway edition rate limit exceeded")
+	ErrGatewayUsageLimitExceeded = errors.New("gateway usage limit exceeded")
+	ErrGatewayRateLimited        = errors.New("gateway rate limit exceeded")
 	ErrInsufficientScope         = errors.New("gateway key is not allowed to use requested scope")
 	ErrModelNotAllowed           = errors.New("gateway key is not allowed to use this model")
 	ErrProjectNotAllowed         = errors.New("gateway key is not allowed to use this project scope")
@@ -54,7 +53,7 @@ type CreateAPIKeyInput struct {
 	ProjectID       *uint
 	AllowedModelIDs []uint
 	AllowedScopes   []string
-	Edition         APIKeyCreateEditionInput
+	Runtime         APIKeyCreateRuntimeInput
 }
 
 type UpdateAPIKeyInput struct {
@@ -65,7 +64,7 @@ type UpdateAPIKeyInput struct {
 	AllowedModelIDs []uint
 	AllowedScopes   []string
 	IsEnabled       *bool
-	Edition         APIKeyUpdateEditionInput
+	Runtime         APIKeyUpdateRuntimeInput
 }
 
 type CreateAPIKeyResult struct {
@@ -134,7 +133,7 @@ func (s *Service) CreateAPIKey(ctx context.Context, input CreateAPIKeyInput) (Cr
 		AllowedModelIDs: input.AllowedModelIDs,
 		AllowedScopes:   input.AllowedScopes,
 	})
-	applyAPIKeyEditionCreateFields(&domainKey, input.Edition)
+	applyAPIKeyRuntimeCreateFields(&domainKey, input.Runtime)
 	if err := s.repo.CreateAPIKey(ctx, &domainKey); err != nil {
 		return CreateAPIKeyResult{}, err
 	}
@@ -146,24 +145,15 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (do
 	if err != nil {
 		return key, err
 	}
-	updates := map[string]any{}
-	if input.Name != nil {
-		updates["name"] = strings.TrimSpace(*input.Name)
-	}
-	if input.AllowedModelIDs != nil {
-		updates["allowed_model_ids"] = mustJSONString(input.AllowedModelIDs)
-	}
-	if input.AllowedScopes != nil {
-		updates["allowed_scopes"] = mustJSONString(input.AllowedScopes)
-	}
-	if input.IsEnabled != nil {
-		updates["is_enabled"] = *input.IsEnabled
-	}
-	applyAPIKeyEditionUpdateFields(updates, input.Edition)
-	if len(updates) > 0 {
-		if err := s.repo.UpdateAPIKey(ctx, &key, updates); err != nil {
-			return key, err
-		}
+	key.ApplyUpdate(domainmodelgateway.APIKeyUpdateSpec{
+		Name:            input.Name,
+		AllowedModelIDs: input.AllowedModelIDs,
+		AllowedScopes:   input.AllowedScopes,
+		IsEnabled:       input.IsEnabled,
+	})
+	applyAPIKeyRuntimeUpdateFields(&key, input.Runtime)
+	if err := s.repo.UpdateAPIKey(ctx, &key); err != nil {
+		return key, err
 	}
 	if err := s.repo.ReloadAPIKey(ctx, &key); err != nil {
 		return key, err
@@ -188,19 +178,19 @@ func (s *Service) PrincipalForAPIKey(ctx context.Context, rawKey string) (Princi
 		}
 		return Principal{}, false, err
 	}
-	user, err := s.repo.FindUser(ctx, key.OwnerUserID)
+	userExists, err := s.repo.UserExists(ctx, key.OwnerUserID)
 	if err != nil {
-		if errors.Is(err, ErrAPIKeyNotFound) {
-			return Principal{}, false, nil
-		}
 		return Principal{}, false, err
+	}
+	if !userExists {
+		return Principal{}, false, nil
 	}
 	now := time.Now()
 	if err := s.repo.TouchAPIKeyLastUsed(ctx, &key, now); err != nil {
 		return Principal{}, false, err
 	}
 	key.LastUsedAt = &now
-	return Principal{UserID: user.ID, Key: &key}, true, nil
+	return Principal{UserID: key.OwnerUserID, Key: &key}, true, nil
 }
 
 func (s *Service) ListChatModels(_ context.Context, principal Principal) ([]ai.PublicModel, error) {
@@ -298,14 +288,6 @@ func KeyPrefix(raw string) string {
 		return raw
 	}
 	return raw[:12]
-}
-
-func mustJSONString(value any) string {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return "[]"
-	}
-	return string(data)
 }
 
 func wrapErr(base error, err error) error {

@@ -22,7 +22,7 @@ Frontend / Electron
 - Thread：对话线程，包含多条消息。
 - Run：一次用户消息的执行实例，包含 policy、steps、warnings、pendingApprovals。
 - Step：Run 的可见执行记录，类型只有 `tool_call` 和 `message`。
-- Draft：本地草稿，用户确认后才通过 `apply_draft` 写入正式实体。
+- Draft：本地草稿。agent 只负责创建和修改；用户确认后的应用由 UI/应用层 apply API 写入正式实体。
 - Memory：本地记忆，按 global/project/thread 作用域加载和写入。
 - Manifest：定义 agent permissions、tools、skills。
 - Policy：定义审批模式、sandbox、工具调用上限和运行边界。
@@ -57,15 +57,15 @@ Sandbox 会完整运行到结束，但在实际写入前拦截高风险工具：
 {
   "sandboxed": true,
   "wouldHaveExecuted": {
-    "name": "movscript.apply_draft",
+    "name": "movscript.create_generation_job",
     "args": {}
   },
-  "simulatedResult": "movscript.apply_draft 已模拟执行（sandbox 模式，未实际写入）",
+  "simulatedResult": "写入/生成工具已模拟执行（sandbox 模式，未实际写入）",
   "interceptedAt": "2026-05-03T00:00:00.000Z"
 }
 ```
 
-`apply_draft` 在 runtime tool 层也有 sandbox 检查，防止绕过通用工具拦截后写入。
+草稿 apply 不进入 agent runtime tool 层；它是 UI/应用层的审阅提交动作。
 
 ## 文件入口
 

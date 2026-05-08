@@ -49,7 +49,7 @@ func (h *Service) executeCanvasNodeModel(ctx context.Context, user *persistencem
 		outputValue := firstCanvasInputValue(inputs)
 		if canvasruntime.PortValueEmpty(outputValue) {
 			if task != nil {
-				_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
+				_ = h.updateTaskRow(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 				h.failTask(task, node, nd, "output node has no upstream value")
 			}
 			return nil
@@ -67,7 +67,7 @@ func (h *Service) executeCanvasNodeModel(ctx context.Context, user *persistencem
 		}
 		outputValue := firstCanvasInputValue(inputs)
 		if canvasruntime.PortValueEmpty(outputValue) {
-			_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
+			_ = h.updateTaskRow(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 			h.failTask(task, node, nd, "resource sink has no upstream value")
 			return nil
 		}
@@ -124,7 +124,7 @@ func (h *Service) executeCanvasNodeModel(ctx context.Context, user *persistencem
 		}
 	}
 	if node.Type == "canvas" && nd.ExecutableSpec == nil {
-		_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
+		_ = h.updateTaskRow(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 		return h.completeCanvasReferenceTask(ctx, task, node, nd, user, inputs)
 	}
 
@@ -148,11 +148,11 @@ func (h *Service) executeCanvasNodeModel(ctx context.Context, user *persistencem
 }
 
 func (h *Service) completeInlineValueTask(task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, outputs map[string]canvasPortValue) {
-	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
+	_ = h.updateTaskRow(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
 	h.updateTaskOutputValues(task, outputs)
 	primary := firstCanvasOutputResource(outputs)
 	updates := canvasruntime.CompleteCanvasTask(task, &nd, primary)
-	_ = h.canvasRepo().UpdateTask(context.Background(), task, updates)
+	_ = h.updateTaskRow(context.Background(), task, updates)
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}

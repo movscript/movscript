@@ -19,7 +19,7 @@ type CanvasHandler struct {
 
 func NewCanvasHandler(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, store storage.Storage) *CanvasHandler {
 	return &CanvasHandler{
-		CanvasExecService: canvasservice.NewService(db, registry, svc, nil, store),
+		CanvasExecService: canvasservice.NewService(db, registry, svc, nil, nil, store),
 	}
 }
 

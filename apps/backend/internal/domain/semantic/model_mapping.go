@@ -703,24 +703,51 @@ func (dependency WorkDependency) ApplyToModel(target *persistencemodel.WorkDepen
 	target.UpdatedAt = dependency.UpdatedAt
 }
 
-func UserRefFromModelPointer(user *persistencemodel.User) *UserRef {
-	if user == nil {
-		return nil
-	}
-	return UserRefFromModel(*user)
+func UserRefFromModelPointer(user any) *UserRef {
+	return UserRefFromModel(user)
 }
 
-func UserRefFromModel(user persistencemodel.User) *UserRef {
+func UserRefFromModel(input any) *UserRef {
+	user := userRefFields(input)
+	if user.id == 0 {
+		return nil
+	}
 	return &UserRef{
-		ID:           user.ID,
-		Username:     user.Username,
-		SystemRole:   user.SystemRole,
-		PrimaryEmail: user.PrimaryEmail,
-		PrimaryPhone: user.PrimaryPhone,
-		DisplayName:  user.DisplayName,
-		AvatarURL:    user.AvatarURL,
-		Locale:       user.Locale,
-		Status:       user.Status,
+		ID:           user.id,
+		Username:     user.username,
+		SystemRole:   user.systemRole,
+		PrimaryEmail: user.primaryEmail,
+		PrimaryPhone: user.primaryPhone,
+		DisplayName:  user.displayName,
+		AvatarURL:    user.avatarURL,
+		Locale:       user.locale,
+		Status:       user.status,
+	}
+}
+
+type userRefSnapshot struct {
+	id           uint
+	username     string
+	systemRole   string
+	primaryEmail *string
+	primaryPhone *string
+	displayName  string
+	avatarURL    string
+	locale       string
+	status       string
+}
+
+func userRefFields(input any) userRefSnapshot {
+	switch user := input.(type) {
+	case persistencemodel.User:
+		return userRefSnapshot{id: user.ID, username: user.Username, systemRole: user.SystemRole, primaryEmail: user.PrimaryEmail, primaryPhone: user.PrimaryPhone, displayName: user.DisplayName, avatarURL: user.AvatarURL, locale: user.Locale, status: user.Status}
+	case *persistencemodel.User:
+		if user == nil {
+			return userRefSnapshot{}
+		}
+		return userRefSnapshot{id: user.ID, username: user.Username, systemRole: user.SystemRole, primaryEmail: user.PrimaryEmail, primaryPhone: user.PrimaryPhone, displayName: user.DisplayName, avatarURL: user.AvatarURL, locale: user.Locale, status: user.Status}
+	default:
+		return userRefSnapshot{}
 	}
 }
 

@@ -12,7 +12,7 @@ import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from '../memory/types.js'
 import { resolveAgentSkills } from '../manifest/skillResolver.js'
-import { InMemoryAgentStore, type AgentStore } from '../state/store.js'
+import { InMemoryAgentStore, type AgentStore, type AgentTraceQuery } from '../state/store.js'
 import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from '../tools/toolRegistry.js'
 import {
   InMemoryAgentDraftStore,
@@ -23,8 +23,8 @@ import {
   type AgentDraftStatus,
   type AgentDraftStore,
 } from '../drafts/draftStore.js'
-import { buildApplyDraftPreview, rejectDraft } from '../drafts/draftApply.js'
-import { BackendApplyClient } from '../drafts/backendApplyClient.js'
+import { buildApplyDraftPreview, markDraftApplied, rejectDraft, type ApplyDraftInput } from '../drafts/draftApply.js'
+import { BackendApplyClient, type BackendApplyResult } from '../drafts/backendApplyClient.js'
 import { runAgentGraph } from '../orchestration/agentGraph.js'
 import { buildPromptPreview } from '../orchestration/contextBuilder.js'
 import {
@@ -41,6 +41,7 @@ import type {
   AgentMessageRole,
   AgentRunPreview,
   AgentRun,
+  AgentRunStreamRun,
   AgentTraceEvent,
   AgentTraceEventKind,
   AgentRunStreamEvent,
@@ -432,7 +433,7 @@ export class AgentRuntime {
     const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
     const runtimeContract = this.contractResolver.find(agentManifest)
     const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
-    const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true })
+    const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true, policy: input.policy })
     const initialUser = [...thread.messages].reverse().find((message) => message.role === 'user')
     const run = buildAgentRun({
       id: makeId('run'),
@@ -479,7 +480,7 @@ export class AgentRuntime {
     const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
     const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
     const runtimeContract = this.contractResolver.find(agentManifest)
-    const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true })
+    const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true, policy: input.policy })
     const run = buildAgentRun({
       id: makeId('run'),
       threadId: thread.id,
@@ -540,7 +541,7 @@ export class AgentRuntime {
       userMessage: message,
     })
     const debugContext = buildDebugContext(contextResult, memories, clientInput)
-    const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode !== false })
+    const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode !== false, policy: input.policy })
     const promptPreview = buildPromptPreview({
       manifest: agentManifest,
       skills,
@@ -603,11 +604,36 @@ export class AgentRuntime {
   }
 
   listRuns(): AgentRun[] {
-    return this.store.listRuns()
+    return this.store.listRuns().map(toProductRun)
   }
 
   getRun(id: string): AgentRun | undefined {
-    return this.store.getRun(id)
+    const run = this.store.getRun(id)
+    return run ? toProductRun(run) : undefined
+  }
+
+  getRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
+    this.requireRun(runId)
+    return this.store.listRunTraceEvents(runId, query)
+  }
+
+  getRunTraceSummary(runId: string): {
+    runId: string
+    total: number
+    byKind: Partial<Record<AgentTraceEventKind, number>>
+    latestEvent?: AgentTraceEvent
+  } {
+    this.requireRun(runId)
+    const events = this.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER })
+    const byKind: Partial<Record<AgentTraceEventKind, number>> = {}
+    for (const event of events) byKind[event.kind] = (byKind[event.kind] ?? 0) + 1
+    const latestEvent = events.at(-1)
+    return {
+      runId,
+      total: events.length,
+      byKind,
+      ...(latestEvent ? { latestEvent } : {}),
+    }
   }
 
   subscribeRunStream(runId: string, listener: (event: AgentRunStreamEvent) => void): () => void {
@@ -706,9 +732,7 @@ export class AgentRuntime {
   cancelRun(runId: string, input: CancelRunInput = {}): AgentRun {
     const run = this.requireRun(runId)
     if (run.status === 'cancelled') return run
-    if (run.status === 'completed' || run.status === 'completed_with_warnings' || run.status === 'failed') {
-      throw new Error(`run ${runId} is already finished`)
-    }
+    if (isFinishedRunStatus(run.status)) return run
     const controller = this.runControllers.get(runId)
     controller?.abort(createAbortError(typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim() : 'Run was cancelled.'))
     return this.markRunCancelled(run, typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim() : undefined)
@@ -876,6 +900,42 @@ export class AgentRuntime {
     return buildApplyDraftPreview(this.draftStore, input) as unknown as JSONValue
   }
 
+  async applyDraftFromUI(input: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }): Promise<JSONValue> {
+    const preview = buildApplyDraftPreview(this.draftStore, input)
+    const appliedByUserId = input.appliedByUserId
+    let backendApply: BackendApplyResult
+    try {
+      backendApply = await this.backendApplyClient.applyReview(preview.review, {
+        ...(typeof appliedByUserId === 'number' || typeof appliedByUserId === 'string' ? { userId: appliedByUserId } : {}),
+        ...(typeof input.backendAuthToken === 'string' ? { backendAuthToken: input.backendAuthToken } : {}),
+        ...(typeof input.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: input.backendAPIBaseURL } : {}),
+      })
+    } catch (error) {
+      this.draftStore.updateDraft(preview.draft.id, {
+        metadata: {
+          ...(isRecord(preview.draft.metadata) ? preview.draft.metadata : {}),
+          backendWritePerformed: false,
+          backendWriteError: error instanceof Error ? error.message : String(error),
+        },
+      })
+      throw error
+    }
+    const finalDraft = markDraftApplied(this.draftStore, preview.draft, preview.review, input, {
+      appliedBy: 'movscript-ui',
+      backendWritePerformed: backendApply.performed,
+      backendApply: backendApply as unknown as JSONValue,
+    })
+    return {
+      status: 'applied',
+      review: preview.review,
+      draft: finalDraft,
+      message: backendApply.performed
+        ? 'Draft applied by UI and backend business item patch completed.'
+        : 'Draft marked applied by UI. Backend business item patch was skipped.',
+      backendApply,
+    } as unknown as JSONValue
+  }
+
   rejectDraft(input: { draftId?: unknown; reason?: unknown }): AgentDraft {
     return rejectDraft(this.draftStore, input.draftId, input.reason)
   }
@@ -904,6 +964,7 @@ export class AgentRuntime {
     if (run.status === 'cancelled') return
     this.throwIfRunCancelled(runId, signal)
 
+    const runStartedAt = Date.now()
     run.status = 'in_progress'
     run.startedAt = isoNow()
     run.updatedAt = run.startedAt
@@ -943,21 +1004,26 @@ export class AgentRuntime {
       this.throwIfRunCancelled(run.id, signal)
       let contextResult: JSONValue
       let contextError: string | undefined
+      const contextStartedAt = Date.now()
       try {
         await this.mcpClient.initialize({ signal })
         contextResult = await this.mcpClient.callTool('movscript_get_context_pack', {}, { signal })
       } catch (error) {
         contextError = error instanceof Error ? error.message : String(error)
+        const contextDurationMs = Date.now() - contextStartedAt
         this.recordTraceEvent(run, {
           kind: 'context',
           title: 'Context pack failed',
-          summary: contextError,
+          summary: `${contextError} (${contextDurationMs}ms)`,
           status: isLocalDiagnosticCommand(command.name) ? 'blocked' : 'failed',
           round: setupRound,
           data: {
             source: 'mcp_context_pack',
             endpoint: 'movscript_get_context_pack',
             error: contextError,
+            durationMs: contextDurationMs,
+            startedAt: new Date(contextStartedAt).toISOString(),
+            completedAt: isoNow(),
             fallback: isLocalDiagnosticCommand(command.name) ? 'client_input_snapshot' : 'none',
           },
         })
@@ -966,27 +1032,38 @@ export class AgentRuntime {
         contextResult = buildLocalDiagnosticFallbackContextResult(clientInput, contextError)
       }
       const context = extractAgentContext(contextResult)
+      const contextPackTimings = extractContextPackTimings(contextResult)
+      const contextDurationMs = Date.now() - contextStartedAt
       if (typeof context.currentProjectId === 'number') {
         thread.projectId = context.currentProjectId
         this.store.updateThread(thread)
       }
+      const memoryStartedAt = Date.now()
       const memories = this.memoryManager.loadRelevantMemories({
         projectId: context.currentProjectId,
         query: lastUser.content,
       })
+      const memoryLoadedAt = Date.now()
       this.recordTraceEvent(run, {
         kind: 'memory',
         title: 'Relevant memories loaded',
-        summary: `${memories.length} memory item(s) matched this run.`,
+        summary: `${memories.length} memory item(s) matched this run. (${memoryLoadedAt - memoryStartedAt}ms)`,
         status: 'completed',
         round: setupRound,
-        data: { memoryIds: memories.map((m) => m.id), kinds: Array.from(new Set(memories.map((m) => m.kind))) },
+        data: {
+          memoryIds: memories.map((m) => m.id),
+          kinds: Array.from(new Set(memories.map((m) => m.kind))),
+          durationMs: memoryLoadedAt - memoryStartedAt,
+          startedAt: new Date(memoryStartedAt).toISOString(),
+          completedAt: new Date(memoryLoadedAt).toISOString(),
+        },
       })
 
       const agentManifest = run.agentManifest ?? this.defaultAgentManifest
       const runtimeContract = this.contractResolver.find(agentManifest)
       const contextWarnings = contextError ? [`Context pack unavailable: ${contextError}`] : []
       const skills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
+      const capabilityStartedAt = Date.now()
       const capabilities = await resolveAgentCapabilities({
         mcpClient: this.mcpClient,
         manifest: agentManifest,
@@ -998,6 +1075,7 @@ export class AgentRuntime {
         activeSkills: skills,
         userMessage: lastUser.content,
       })
+      const capabilityDurationMs = Date.now() - capabilityStartedAt
       const setup = buildRunSetupMetadata({
         run,
         agentManifest,
@@ -1016,8 +1094,8 @@ export class AgentRuntime {
         kind: 'context',
         title: contextError ? 'Runtime context resolved from fallback' : 'Runtime context resolved',
         summary: debugContext.project
-          ? `Project #${debugContext.project.id} ${debugContext.project.name ?? ''}`.trim()
-          : contextError ? 'MCP context unavailable; using client input snapshot.' : 'No project context selected.',
+          ? `Project #${debugContext.project.id} ${debugContext.project.name ?? ''} (${contextDurationMs}ms)`.trim()
+          : contextError ? `MCP context unavailable; using client input snapshot. (${contextDurationMs}ms)` : `No project context selected. (${contextDurationMs}ms)`,
         status: contextError ? 'blocked' : 'completed',
         round: setupRound,
         data: {
@@ -1026,6 +1104,10 @@ export class AgentRuntime {
           selection: debugContext.selection,
           recentResourceCount: debugContext.recentResources.length,
           attachmentCount: debugContext.attachments.length,
+          durationMs: contextDurationMs,
+          startedAt: new Date(contextStartedAt).toISOString(),
+          completedAt: new Date(Date.now()).toISOString(),
+          ...(contextPackTimings ? { contextPackTimings } : {}),
           ...(contextError ? { fallback: true, error: contextError } : {}),
         },
       })
@@ -1048,10 +1130,17 @@ export class AgentRuntime {
       this.recordTraceEvent(run, {
         kind: 'tool_catalog',
         title: 'Tool catalog resolved',
-        summary: `${capabilities.resolvedTools.available.length} available, ${capabilities.resolvedTools.blocked.length} blocked.`,
+        summary: `${capabilities.resolvedTools.available.length} available, ${capabilities.resolvedTools.blocked.length} blocked. (${capabilityDurationMs}ms)`,
         status: 'completed',
         round: setupRound,
-        data: { availableToolNames: capabilities.resolvedTools.available.map((t) => t.name), blockedTools: capabilities.resolvedTools.blocked.map((t) => ({ name: t.name, reason: t.unavailableReason })), warnings: capabilities.warnings },
+        data: {
+          availableToolNames: capabilities.resolvedTools.available.map((t) => t.name),
+          blockedTools: capabilities.resolvedTools.blocked.map((t) => ({ name: t.name, reason: t.unavailableReason })),
+          warnings: capabilities.warnings,
+          durationMs: capabilityDurationMs,
+          startedAt: new Date(capabilityStartedAt).toISOString(),
+          completedAt: isoNow(),
+        },
       })
 
       run.metadata = setup.metadata
@@ -1137,6 +1226,22 @@ export class AgentRuntime {
         return
       }
 
+      const setupCompletedAt = Date.now()
+      this.recordTraceEvent(run, {
+        kind: 'model_call',
+        title: 'Pre-model setup complete',
+        summary: `Context, memory, and tool setup finished in ${setupCompletedAt - runStartedAt}ms before the first model request.`,
+        status: 'info',
+        round: setupRound,
+        data: {
+          durationMs: setupCompletedAt - runStartedAt,
+          contextMs: contextDurationMs,
+          memoryMs: memoryLoadedAt - memoryStartedAt,
+          capabilityMs: capabilityDurationMs,
+          ...(contextPackTimings ? { contextPackTimings } : {}),
+        },
+      })
+
       // Resolve model config
       const { resolveRuntimeChatModelConfig } = await import('../model/modelConfig.js')
       const modelConfig = resolveRuntimeChatModelConfig()
@@ -1191,6 +1296,10 @@ export class AgentRuntime {
         ...(run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(run.metadata.forcedToolCall) as ToolCall] } : {}),
         ...(getApprovedToolNames(run).length > 0 ? { approvedToolNames: getApprovedToolNames(run) } : {}),
         onTrace: (traceInput) => {
+          if (traceInput.volatile) {
+            this.emitVolatileTraceEvent(run, traceInput)
+            return
+          }
           this.recordTraceEvent(run, {
             kind: traceInput.kind,
             title: traceInput.title,
@@ -1427,34 +1536,77 @@ export class AgentRuntime {
       ...(input.data !== undefined ? { data: input.data } : {}),
       ...(input.completedAt ? { completedAt: input.completedAt } : {}),
     })
-    this.emitRunStreamEvent(run.id, { type: 'trace', runId: run.id, event, run })
+    this.store.appendTraceEvent(event)
+    const streamRun = toStreamRun(run)
+    this.emitRunStreamEvent(run.id, { type: 'trace', runId: run.id, event, run: streamRun })
     const assistantDelta = assistantDeltaFromTraceEvent(event)
     if (assistantDelta) {
-      this.emitRunStreamEvent(run.id, { ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt, run })
+      this.emitRunStreamEvent(run.id, { ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt, run: streamRun })
     }
     const assistantMessage = assistantMessageFromTraceEvent(this.store.getThread(run.threadId) ?? undefined, event)
     if (assistantMessage) {
-      this.emitRunStreamEvent(run.id, { type: 'assistant_message', runId: run.id, message: assistantMessage, run })
+      this.emitRunStreamEvent(run.id, { type: 'assistant_message', runId: run.id, message: assistantMessage, run: streamRun })
     }
-    this.emitRunStreamEvent(run.id, { type: 'run', run })
+    this.emitRunStreamEvent(run.id, { type: 'run', run: streamRun })
     if (isTerminalRunStatus(run.status)) {
-      this.emitRunStreamEvent(run.id, { type: 'done', run })
+      this.emitRunStreamEvent(run.id, { type: 'done', run: streamRun })
     }
     return event
   }
 
+  private emitVolatileTraceEvent(run: AgentRun, input: {
+    kind: AgentTraceEventKind
+    title: string
+    status: AgentTraceEvent['status']
+    roundIndex: number
+    roundLabel: string
+    roundSource: AgentTraceEvent['roundSource']
+    summary?: string
+    data?: unknown
+    volatileKey?: string
+  }): void {
+    const event: AgentTraceEvent = {
+      id: input.volatileKey ? `trace_live_${input.volatileKey}` : makeId('trace'),
+      runId: run.id,
+      kind: input.kind,
+      title: input.title,
+      status: input.status,
+      roundId: `round_${input.roundIndex}`,
+      roundIndex: input.roundIndex,
+      roundLabel: input.roundLabel,
+      roundSource: input.roundSource,
+      createdAt: isoNow(),
+      ...(input.summary ? { summary: input.summary } : {}),
+      ...(input.data !== undefined ? { data: input.data as JSONValue } : {}),
+    }
+    if (input.kind === 'tool_call') {
+      this.emitRunStreamEvent(run.id, { type: 'trace', runId: run.id, event, run: toStreamRun(run) })
+    }
+    const assistantDelta = assistantDeltaFromTraceEvent(event)
+    if (assistantDelta) {
+      this.emitRunStreamEvent(run.id, {
+        ...assistantDelta,
+        runId: run.id,
+        traceEventId: event.id,
+        createdAt: event.createdAt,
+      })
+    }
+  }
+
   private replayRunStream(run: AgentRun, listener: (event: AgentRunStreamEvent) => void): void {
-    listener({ type: 'run', run })
-    for (const event of run.traceEvents ?? []) {
-      listener({ type: 'trace', runId: run.id, event, run })
+    const streamRun = toStreamRun(run)
+    listener({ type: 'run', run: streamRun })
+    const traceEvents = this.store.listRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+    for (const event of traceEvents) {
+      listener({ type: 'trace', runId: run.id, event, run: streamRun })
       const assistantDelta = assistantDeltaFromTraceEvent(event)
       if (assistantDelta) {
-        listener({ ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt, run })
+        listener({ ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt, run: streamRun })
       }
     }
     const assistantMessage = assistantMessageForRun(this.store.getThread(run.threadId), run)
-    if (assistantMessage) listener({ type: 'assistant_message', runId: run.id, message: assistantMessage, run })
-    if (isTerminalRunStatus(run.status)) listener({ type: 'done', run })
+    if (assistantMessage) listener({ type: 'assistant_message', runId: run.id, message: assistantMessage, run: streamRun })
+    if (isTerminalRunStatus(run.status)) listener({ type: 'done', run: streamRun })
   }
 
   private emitRunStreamEvent(runId: string, event: AgentRunStreamEvent): void {
@@ -1586,8 +1738,19 @@ function isMessageRole(value: unknown): value is AgentMessageRole {
 }
 
 function assistantDeltaFromTraceEvent(event: AgentTraceEvent): Omit<Extract<AgentRunStreamEvent, { type: 'assistant_delta' }>, 'runId' | 'traceEventId' | 'createdAt' | 'run'> | undefined {
-  void event
-  return undefined
+  const data = isRecord(event.data) ? event.data : undefined
+  const stream = isRecord(data?.stream) ? data.stream : undefined
+  if (stream?.kind !== 'content') return undefined
+  const delta = typeof stream.delta === 'string' ? stream.delta : ''
+  if (!delta) return undefined
+  const accumulated = typeof stream.accumulated === 'string' ? stream.accumulated : delta
+  return {
+    type: 'assistant_delta',
+    delta,
+    accumulated,
+    ...(typeof event.roundIndex === 'number' ? { roundIndex: event.roundIndex } : {}),
+    ...(typeof event.roundLabel === 'string' ? { roundLabel: event.roundLabel } : {}),
+  }
 }
 
 function assistantMessageFromTraceEvent(thread: AgentThread | undefined, event: AgentTraceEvent): AgentMessage | undefined {
@@ -1609,6 +1772,65 @@ function assistantMessageForRun(thread: AgentThread | undefined, run: AgentRun):
 
 function isTerminalRunStatus(status: AgentRun['status']): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'requires_action' || status === 'failed' || status === 'cancelled'
+}
+
+function extractContextPackTimings(value: unknown): { totalMs?: number; projectsMs?: number } | undefined {
+  if (!isRecord(value) || !isRecord(value.timings)) return undefined
+  const timings = value.timings
+  const result: { totalMs?: number; projectsMs?: number } = {}
+  if (typeof timings.totalMs === 'number' && Number.isFinite(timings.totalMs)) result.totalMs = timings.totalMs
+  if (typeof timings.projectsMs === 'number' && Number.isFinite(timings.projectsMs)) result.projectsMs = timings.projectsMs
+  return Object.keys(result).length > 0 ? result : undefined
+}
+
+function isFinishedRunStatus(status: AgentRun['status']): boolean {
+  return status === 'completed' || status === 'completed_with_warnings' || status === 'failed'
+}
+
+function toStreamRun(run: AgentRun): AgentRunStreamRun {
+  return {
+    id: run.id,
+    threadId: run.threadId,
+    status: run.status,
+    agentManifest: run.agentManifest,
+    policy: run.policy,
+    ...(run.pendingApprovals ? { pendingApprovals: run.pendingApprovals } : {}),
+    ...(run.pendingInputRequests ? { pendingInputRequests: run.pendingInputRequests } : {}),
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    ...(run.startedAt ? { startedAt: run.startedAt } : {}),
+    ...(run.completedAt ? { completedAt: run.completedAt } : {}),
+    ...(run.failedAt ? { failedAt: run.failedAt } : {}),
+    ...(run.cancelledAt ? { cancelledAt: run.cancelledAt } : {}),
+    ...(run.error ? { error: run.error } : {}),
+    ...(run.warnings ? { warnings: run.warnings } : {}),
+    ...(run.assistantMessageId ? { assistantMessageId: run.assistantMessageId } : {}),
+    steps: run.steps.map((step) => ({
+      id: step.id,
+      runId: step.runId,
+      type: step.type,
+      status: step.status,
+      ...(step.roundId ? { roundId: step.roundId } : {}),
+      ...(step.roundIndex !== undefined ? { roundIndex: step.roundIndex } : {}),
+      ...(step.roundLabel ? { roundLabel: step.roundLabel } : {}),
+      ...(step.roundSource ? { roundSource: step.roundSource } : {}),
+      ...(step.title ? { title: step.title } : {}),
+      ...(step.toolName ? { toolName: step.toolName } : {}),
+      ...(step.error ? { error: step.error } : {}),
+      ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
+      createdAt: step.createdAt,
+      ...(step.completedAt ? { completedAt: step.completedAt } : {}),
+    })),
+    traceEvents: [],
+    streamPartial: true,
+  }
+}
+
+function toProductRun(run: AgentRun): AgentRun {
+  return {
+    ...run,
+    traceEvents: [],
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

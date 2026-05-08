@@ -62,7 +62,7 @@ func RegisteredMigrations() []Migration {
 					&persistencemodel.UsageReservation{},
 					&persistencemodel.AuditLog{},
 				}
-				models = append(models, editionMigrationModels()...)
+				models = append(models, runtimeMigrationModels()...)
 				if err := db.AutoMigrate(models...); err != nil {
 					return err
 				}
@@ -156,6 +156,13 @@ func RegisteredMigrations() []Migration {
 			Name:    "rename_ai_model_config_pricing_mode",
 			Up: func(db *gorm.DB) error {
 				return renameAIModelConfigPricingModeColumn(db)
+			},
+		},
+		{
+			Version: "000012",
+			Name:    "add_raw_resource_image_verification",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.RawResource{})
 			},
 		},
 	}
@@ -508,5 +515,5 @@ func allModels() []any {
 		&persistencemodel.UserGroupMember{},
 		&persistencemodel.OrgInvitation{},
 	}
-	return append(entities, editionMigrationModels()...)
+	return append(entities, runtimeMigrationModels()...)
 }

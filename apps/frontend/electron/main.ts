@@ -109,6 +109,9 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+}).catch((error) => {
+  console.error('[bootstrap] failed to start desktop services', error)
+  createWindow()
 })
 
 app.on('window-all-closed', async () => {

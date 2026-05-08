@@ -20,6 +20,12 @@ type NewFolderSpec struct {
 	IsShared       bool
 }
 
+type FolderUpdateSpec struct {
+	Name           *string
+	StorageBackend *string
+	IsShared       *bool
+}
+
 type Folder struct {
 	ID             uint      `json:"ID"`
 	OwnerID        uint      `json:"owner_id"`
@@ -52,6 +58,41 @@ type UserRef struct {
 	DisplayName  string  `json:"display_name,omitempty"`
 	AvatarURL    string  `json:"avatar_url,omitempty"`
 	Status       string  `json:"status,omitempty"`
+}
+
+func NewFolderUpdateSpec(name string, storageBackend string, isShared *bool) FolderUpdateSpec {
+	var spec FolderUpdateSpec
+	if strings.TrimSpace(name) != "" {
+		trimmed := strings.TrimSpace(name)
+		spec.Name = &trimmed
+	}
+	if strings.TrimSpace(storageBackend) != "" {
+		trimmed := strings.TrimSpace(storageBackend)
+		spec.StorageBackend = &trimmed
+	}
+	if isShared != nil {
+		shared := *isShared
+		spec.IsShared = &shared
+	}
+	return spec
+}
+
+func (spec FolderUpdateSpec) Empty() bool {
+	return spec.Name == nil &&
+		spec.StorageBackend == nil &&
+		spec.IsShared == nil
+}
+
+func (folder *Folder) ApplyUpdate(spec FolderUpdateSpec) {
+	if spec.Name != nil {
+		folder.Name = *spec.Name
+	}
+	if spec.StorageBackend != nil {
+		folder.StorageBackend = *spec.StorageBackend
+	}
+	if spec.IsShared != nil {
+		folder.IsShared = *spec.IsShared
+	}
 }
 
 func NewFolder(spec NewFolderSpec) Folder {

@@ -14,7 +14,7 @@ type repository interface {
 	List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error)
 	CreateResource(ctx context.Context, r *domainresource.RawResource) error
 	DeleteResourceRecord(ctx context.Context, r *domainresource.RawResource) error
-	UpdateResourceRecord(ctx context.Context, r *domainresource.RawResource, updates map[string]any) error
+	UpdateResourceRecord(ctx context.Context, r *domainresource.RawResource, spec domainresource.UpdateSpec) error
 	ReloadResource(ctx context.Context, r *domainresource.RawResource) error
 	GetVisible(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
 	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainresource.RawResource, error)
@@ -66,14 +66,16 @@ func (r *gormRepository) DeleteResourceRecord(ctx context.Context, resource *dom
 	return r.db.WithContext(ctx).Delete(&modelResource).Error
 }
 
-func (r *gormRepository) UpdateResourceRecord(ctx context.Context, resource *domainresource.RawResource, updates map[string]any) error {
+func (r *gormRepository) UpdateResourceRecord(ctx context.Context, resource *domainresource.RawResource, spec domainresource.UpdateSpec) error {
 	modelResource := resource.ToModel()
+	updates := resourceUpdateColumns(spec)
+	if len(updates) == 0 {
+		return nil
+	}
 	if err := r.db.WithContext(ctx).Model(&modelResource).Updates(updates).Error; err != nil {
 		return err
 	}
-	for key, value := range updates {
-		applyResourceUpdate(resource, key, value)
-	}
+	resource.ApplyUpdate(spec)
 	return nil
 }
 
@@ -255,51 +257,51 @@ func rawResourceSliceFromModels(items []persistencemodel.RawResource) []domainre
 	return resources
 }
 
-func applyResourceUpdate(resource *domainresource.RawResource, key string, value any) {
-	switch key {
-	case "file_path":
-		if v, ok := value.(string); ok {
-			resource.FilePath = v
-		}
-	case "storage_key":
-		if v, ok := value.(string); ok {
-			resource.StorageKey = v
-		}
-	case "storage_backend":
-		if v, ok := value.(string); ok {
-			resource.StorageBackend = v
-		}
-	case "type":
-		if v, ok := value.(string); ok {
-			resource.Type = v
-		}
-	case "name":
-		if v, ok := value.(string); ok {
-			resource.Name = v
-		}
-	case "mime_type":
-		if v, ok := value.(string); ok {
-			resource.MimeType = v
-		}
-	case "size":
-		switch v := value.(type) {
-		case int64:
-			resource.Size = v
-		case int:
-			resource.Size = int64(v)
-		}
-	case "is_shared":
-		if v, ok := value.(bool); ok {
-			resource.IsShared = v
-		}
-	case "folder_id":
-		switch v := value.(type) {
-		case uint:
-			resource.FolderID = &v
-		case *uint:
-			resource.FolderID = v
-		case nil:
-			resource.FolderID = nil
-		}
+func resourceUpdateColumns(spec domainresource.UpdateSpec) map[string]any {
+	updates := map[string]any{}
+	if spec.FilePath != nil {
+		updates["file_path"] = *spec.FilePath
 	}
+	if spec.StorageKey != nil {
+		updates["storage_key"] = *spec.StorageKey
+	}
+	if spec.StorageBackend != nil {
+		updates["storage_backend"] = *spec.StorageBackend
+	}
+	if spec.Type != nil {
+		updates["type"] = *spec.Type
+	}
+	if spec.Name != nil {
+		updates["name"] = *spec.Name
+	}
+	if spec.MimeType != nil {
+		updates["mime_type"] = *spec.MimeType
+	}
+	if spec.Size != nil {
+		updates["size"] = *spec.Size
+	}
+	if spec.IsShared != nil {
+		updates["is_shared"] = *spec.IsShared
+	}
+	if spec.ClearFolder {
+		updates["folder_id"] = nil
+	} else if spec.FolderID != nil {
+		updates["folder_id"] = *spec.FolderID
+	}
+	if spec.VerificationStatus != nil {
+		updates["verification_status"] = *spec.VerificationStatus
+	}
+	if spec.VerificationRef != nil {
+		updates["verification_ref"] = *spec.VerificationRef
+	}
+	if spec.VerifiedAt != nil {
+		updates["verified_at"] = *spec.VerifiedAt
+	}
+	if spec.VerificationProvider != nil {
+		updates["verification_provider"] = *spec.VerificationProvider
+	}
+	if spec.VerificationError != nil {
+		updates["verification_error"] = *spec.VerificationError
+	}
+	return updates
 }

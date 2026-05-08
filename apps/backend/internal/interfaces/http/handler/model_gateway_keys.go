@@ -40,7 +40,7 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 		ProjectID:       req.ProjectID,
 		AllowedModelIDs: req.AllowedModelIDs,
 		AllowedScopes:   req.AllowedScopes,
-		Edition:         req.Edition.toAppInput(),
+		Runtime:         req.Runtime.toAppInput(),
 	})
 	if err != nil {
 		writeGatewayAPIKeyError(c, err)
@@ -68,7 +68,7 @@ func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
 		AllowedModelIDs: req.AllowedModelIDs,
 		AllowedScopes:   req.AllowedScopes,
 		IsEnabled:       req.IsEnabled,
-		Edition:         req.Edition.toAppInput(),
+		Runtime:         req.Runtime.toAppInput(),
 	})
 	if err != nil {
 		writeGatewayAPIKeyError(c, err)

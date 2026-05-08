@@ -1,5 +1,7 @@
 # Movscript
 
+[English](README.md)
+
 Movscript 是一个开源的短剧生产与 AI 辅助视频创作桌面工作台。它把项目策划、剧本、素材、制作、分场、分镜、镜头、资源库、画布工作流、生成任务、模型管理、插件和本地 Agent 整合到一个 local-first 应用中。
 
 > 项目仍处于早期阶段。API、插件 manifest 和 Agent 契约在稳定版本发布前可能继续调整。
@@ -62,9 +64,10 @@ docker compose up -d db minio createbuckets
 ```bash
 cp apps/backend/.env.example apps/backend/.env
 openssl rand -hex 32
+openssl rand -hex 32
 ```
 
-把生成的 64 位十六进制值写入 `apps/backend/.env` 的 `ENCRYPTION_KEY`。
+把生成的两个 64 位十六进制值分别写入 `apps/backend/.env` 的 `ENCRYPTION_KEY` 和 `AUTH_TOKEN_SECRET`。
 开发本地版时可以设置：
 
 ```env
@@ -110,22 +113,24 @@ pnpm run typecheck        # 可用包的 TypeScript 类型检查
 
 ## 文档
 
-文档入口：[docs/README.md](docs/README.md)。
+文档入口：[docs/README.zh-CN.md](docs/README.zh-CN.md)。
 
 主要文档：
 
-- [快速开始](docs/getting-started.md)
-- [配置](docs/configuration.md)
-- [开发指南](docs/development.md)
-- [架构](docs/architecture.md)
-- [API 参考](docs/api.md)
-- [AI Providers](docs/ai-providers.md)
-- [插件](docs/plugins.md)
-- [部署](docs/deployment.md)
-- [故障排查](docs/troubleshooting.md)
+- [快速开始](docs/getting-started.zh-CN.md)
+- [配置](docs/configuration.zh-CN.md)
+- [开发指南](docs/development.zh-CN.md)
+- [架构](docs/architecture.zh-CN.md)
+- [API 参考](docs/api.zh-CN.md)
+- [AI Providers](docs/ai-providers.zh-CN.md)
+- [数据与隐私](docs/data-and-privacy.zh-CN.md)
+- [插件](docs/plugins.zh-CN.md)
+- [部署](docs/deployment.zh-CN.md)
+- [故障排查](docs/troubleshooting.zh-CN.md)
+- [发布检查清单](docs/release-checklist.zh-CN.md)
 
 英文入口：[README.md](README.md)。
 
 ## 开源
 
-Movscript 使用 [MIT License](LICENSE)。参与贡献前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md) 和 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+Movscript 使用 [Apache License 2.0](LICENSE)。参与贡献前请阅读 [贡献指南](CONTRIBUTING.zh-CN.md)、[安全策略](SECURITY.zh-CN.md) 和 [行为准则](CODE_OF_CONDUCT.zh-CN.md)。

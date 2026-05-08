@@ -119,7 +119,3 @@ func fallbackString(value string, fallback string) string {
 func fallbackInt(value int, fallback int) int {
 	return domainsemantic.FallbackInt(value, fallback)
 }
-
-func compactUpdates(values map[string]any) map[string]any {
-	return domainsemantic.CompactUpdates(values)
-}

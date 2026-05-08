@@ -135,11 +135,11 @@ Movscript 可以借鉴 Cursor 的商业逻辑，但不必复制闭源路线。Mo
 
 ## 许可证风险
 
-当前项目使用 MIT License。MIT 对社区友好，但商业防御较弱，第三方可以基于代码构建竞品 SaaS。
+当前项目使用 Apache License 2.0。Apache 2.0 对社区友好，并提供明确的专利授权条款，但商业防御仍然有限，第三方可以基于代码构建竞品 SaaS。
 
 可选路径：
 
-- 继续 MIT，优先换取社区扩散和开发者信任。
+- 继续 Apache 2.0，优先换取社区扩散、开发者信任和更清晰的专利授权边界。
 - 未来将企业版和托管服务代码放在私有仓库。
 - 对 server-side 商业能力采用单独许可证。
 - 在大量外部贡献进入前，尽早明确 CLA、贡献协议和商业边界。
@@ -159,8 +159,8 @@ Movscript 可以借鉴 Cursor 的商业逻辑，但不必复制闭源路线。Mo
 - project、resource、resource folder、canvas、job、gateway API key 已按当前 workspace 隔离。
 - 旧的未绑定 `org_id` 的个人数据只在 personal workspace 兼容展示和操作，不混入团队 workspace。
 - AI usage reservation 和 usage log 已写入 `org_id`，组织用量页按 organization 聚合。
-- chat、canvas、job、model gateway 这些主要 AI 消耗入口会把当前 workspace 写入 billing context。
-- 非 personal organization 的预算控制由企业仓 overlay 实现；社区仓不保存企业预算表结构。
+- chat、canvas、job、model gateway 这些主要 AI 消耗入口会把当前 workspace 写入 usage context。
+- 非 personal organization 的预算控制由 runtime overlay 实现；社区仓不保存 overlay 专用预算表结构。
 - Gateway API key 创建、列表、更新和删除按 workspace 隔离，项目级 key 会校验 project 属于当前 workspace。
 
 这不是最终商业版本，但已经具备 Team Self-hosted Beta 的核心收费边界：团队数据隔离、团队用量归集、团队预算控制和 API key 治理。

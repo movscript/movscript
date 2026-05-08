@@ -1,4 +1,4 @@
-//go:build !enterprise
+//go:build !runtime_overlay
 
 package modelgateway
 
@@ -9,7 +9,7 @@ import (
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 )
 
-func TestPolicyServiceCommunitySkipsPaidEditionKeyLimits(t *testing.T) {
+func TestPolicyServiceCommunitySkipsRuntimeKeyLimits(t *testing.T) {
 	db := openModelGatewayPolicyTestDB(t)
 	policy := NewPolicyService(db)
 	key := &domainmodelgateway.APIKey{}

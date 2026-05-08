@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { AgentWorkMode } from '@/store/agentStore'
-import type { AgentClientInput, AgentManifest, AgentRun, AgentThread } from '@/lib/localAgentClient'
+import type { AgentClientInput, AgentManifest, AgentRun, AgentRunPolicy, AgentThread } from '@/lib/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
 export type AgentPageTaskStatus = 'queued' | 'claimed' | 'building' | 'running' | 'completed' | 'cancelled' | 'error'
@@ -19,6 +19,7 @@ export interface AgentPageTaskPayload {
   projectId?: number
   clientInput?: AgentClientInput
   agentManifest?: AgentManifest
+  runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
   timeoutMs?: number
   renderMode?: AgentTaskRenderMode
 }
@@ -130,10 +131,7 @@ function compactRun(run: AgentRun | undefined): AgentRun | undefined {
       args: undefined,
       result: undefined,
     })),
-    traceEvents: run.traceEvents?.map((event) => ({
-      ...event,
-      data: undefined,
-    })),
+    traceEvents: [],
   }
 }
 
@@ -328,7 +326,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               ...defaultConversationRuntime(conversationId),
               ...(state.conversationRuntimes[conversationId] ?? {}),
               ...patch,
-              run,
+              run: compactRun(run),
               runId: run.id,
               threadId: run.threadId,
               status: run.status,

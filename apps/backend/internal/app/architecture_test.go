@@ -98,6 +98,84 @@ func TestMigratedAppRepositoriesDoNotImportDomainModel(t *testing.T) {
 	}
 }
 
+func TestAppRepositoryInterfacesDoNotExposePersistenceModels(t *testing.T) {
+	walkAppFiles(t, func(path string, file *ast.File, _ map[string]struct{}) {
+		persistenceNames := importedNames(file, persistenceModelImport)
+		if len(persistenceNames) == 0 {
+			return
+		}
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || typeSpec.Name.Name != "repository" {
+					continue
+				}
+				if exprReferencesNames(typeSpec.Type, persistenceNames) {
+					t.Errorf("%s: repository interface exposes persistence models", path)
+				}
+			}
+		}
+	})
+}
+
+func TestAppRepositoryInterfacesAvoidUntypedAny(t *testing.T) {
+	walkAppFiles(t, func(path string, file *ast.File, _ map[string]struct{}) {
+		for _, decl := range file.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || typeSpec.Name.Name != "repository" {
+					continue
+				}
+				if exprReferencesUntypedAny(typeSpec.Type) {
+					t.Errorf("%s: repository interface exposes untyped any/interface{}", path)
+				}
+			}
+		}
+	})
+}
+
+func TestCommunityCodeDoesNotUseStaleCommercialBoundaryNames(t *testing.T) {
+	terms := []string{
+		"edition",
+		"Edition",
+		"paid",
+		"Paid",
+		"commercial",
+		"Commercial",
+		"enterprise",
+		"Enterprise",
+		"GatewayAPIKey" + "Edition",
+		"APIKey" + "Edition",
+		"register" + "Edition",
+		"edition" + "_flags",
+		"MOVSCRIPT_ADMIN_" + "EDITION",
+		"admin-" + "edition",
+	}
+	roots := []string{
+		"..",
+		"../../../../apps/admin/src",
+		"../../../../apps/admin/vite.config.ts",
+		"../../../../apps/admin/tsconfig.json",
+	}
+	for _, root := range roots {
+		walkTextFiles(t, root, func(path string, content string) {
+			for _, term := range terms {
+				if strings.Contains(content, term) {
+					t.Errorf("%s contains stale commercial boundary name %q", path, term)
+				}
+			}
+		})
+	}
+}
+
 func walkAppFiles(t *testing.T, visit func(path string, file *ast.File, modelNames map[string]struct{})) {
 	t.Helper()
 	fset := token.NewFileSet()
@@ -111,7 +189,7 @@ func walkAppFiles(t *testing.T, visit func(path string, file *ast.File, modelNam
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		if isEnterpriseOnlyFile(path) {
+		if isRuntimeOverlayOnlyFile(path) {
 			return nil
 		}
 		file, err := parser.ParseFile(fset, path, nil, 0)
@@ -127,7 +205,52 @@ func walkAppFiles(t *testing.T, visit func(path string, file *ast.File, modelNam
 	}
 }
 
-func isEnterpriseOnlyFile(path string) bool {
+func walkTextFiles(t *testing.T, root string, visit func(path string, content string)) {
+	t.Helper()
+	info, err := os.Stat(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !info.IsDir() {
+		content, err := os.ReadFile(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		visit(root, string(content))
+		return
+	}
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			switch entry.Name() {
+			case "dist", "node_modules", "vendor", "bin":
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		switch filepath.Ext(path) {
+		case ".go", ".ts", ".tsx", ".json":
+		default:
+			return nil
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		visit(path, string(content))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func isRuntimeOverlayOnlyFile(path string) bool {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return false
@@ -137,7 +260,7 @@ func isEnterpriseOnlyFile(path string) bool {
 		if line == "" {
 			continue
 		}
-		return strings.HasPrefix(line, "//go:build enterprise")
+		return strings.HasPrefix(line, "//go:build runtime_overlay")
 	}
 	return false
 }

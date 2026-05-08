@@ -2,8 +2,6 @@ package modelgateway
 
 import (
 	"testing"
-
-	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 func TestKeyAllowsProjectRequiresMatchingRequestProject(t *testing.T) {
@@ -44,47 +42,35 @@ func TestNewAPIKeyAppliesDefaultScope(t *testing.T) {
 	}
 }
 
-func TestUsageContextIncludesAPIKeyAndProject(t *testing.T) {
-	orgID := uint(5)
-	projectID := uint(11)
-	key := &APIKey{ID: 3, OrgID: &orgID}
+func TestAPIKeyApplyUpdate(t *testing.T) {
+	key := NewAPIKey(NewAPIKeySpec{
+		Name:            "Original",
+		KeyPrefix:       "mgw_prefix",
+		KeyHash:         "hash",
+		OwnerUserID:     1,
+		AllowedModelIDs: []uint{1},
+		AllowedScopes:   []string{"model:chat"},
+	})
+	name := " Updated "
+	enabled := false
 
-	ctx := UsageContext(key, &projectID)
+	key.ApplyUpdate(APIKeyUpdateSpec{
+		Name:            &name,
+		AllowedModelIDs: []uint{2, 3},
+		AllowedScopes:   []string{"*"},
+		IsEnabled:       &enabled,
+	})
 
-	if ctx.OrgID == nil || *ctx.OrgID != 5 {
-		t.Fatalf("expected org id 5, got %#v", ctx.OrgID)
+	if key.Name != "Updated" {
+		t.Fatalf("Name = %q, want Updated", key.Name)
 	}
-	if ctx.GatewayAPIKeyID == nil || *ctx.GatewayAPIKeyID != 3 {
-		t.Fatalf("expected gateway api key id 3, got %#v", ctx.GatewayAPIKeyID)
+	if key.AllowedModelIDs != "[2,3]" {
+		t.Fatalf("AllowedModelIDs = %q, want [2,3]", key.AllowedModelIDs)
 	}
-	if ctx.ProjectID == nil || *ctx.ProjectID != 11 {
-		t.Fatalf("expected project id 11, got %#v", ctx.ProjectID)
+	if key.AllowedScopes != `["*"]` {
+		t.Fatalf("AllowedScopes = %q, want [\"*\"]", key.AllowedScopes)
 	}
-}
-
-func TestResolveTextModelSupportsDefaultAndAliases(t *testing.T) {
-	models := []ai.PublicModel{
-		{ID: 4, ModelDefID: "gpt-like", ModelIDOverride: "public-name"},
-		{ID: 5, ModelDefID: "provider-hidden", LogicalModelID: "logical-name"},
-	}
-
-	id, name, err := ResolveTextModel(models, "", 4, nil)
-	if err != nil || id != 4 || name != DefaultChatModel {
-		t.Fatalf("expected default model, got id=%d name=%q err=%v", id, name, err)
-	}
-
-	id, name, err = ResolveTextModel(models, "public-name", 0, nil)
-	if err != nil || id != 4 || name != "public-name" {
-		t.Fatalf("expected override model, got id=%d name=%q err=%v", id, name, err)
-	}
-
-	id, name, err = ResolveTextModel(models, "model_config:4", 0, nil)
-	if err != nil || id != 4 || name != "model_config:4" {
-		t.Fatalf("expected model_config model, got id=%d name=%q err=%v", id, name, err)
-	}
-
-	id, name, err = ResolveTextModel(models, "logical-name", 0, nil)
-	if err != nil || id != 5 || name != "logical-name" {
-		t.Fatalf("expected logical model, got id=%d name=%q err=%v", id, name, err)
+	if key.IsEnabled {
+		t.Fatal("IsEnabled = true, want false")
 	}
 }

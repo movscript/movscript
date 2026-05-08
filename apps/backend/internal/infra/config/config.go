@@ -42,7 +42,9 @@ type Config struct {
 	RedisDB        int
 
 	// Object storage
-	StorageBackend string
+	StorageBackend     string
+	ImageVerifyBaseURL string
+	ImageVerifyAPIKey  string
 
 	// Filesystem object storage
 	FilesystemStorageRoot string
@@ -90,6 +92,8 @@ func Load() *Config {
 		RedisDB:        getEnvInt("REDIS_DB", 0),
 
 		StorageBackend:        getEnv("STORAGE_BACKEND", "minio"),
+		ImageVerifyBaseURL:    getEnv("IMAGE_VERIFY_BASE_URL", ""),
+		ImageVerifyAPIKey:     getEnv("IMAGE_VERIFY_API_KEY", ""),
 		FilesystemStorageRoot: getEnv("FILESYSTEM_STORAGE_ROOT", dataDir+"/resources"),
 
 		MinIOEndpoint:  getEnv("MINIO_ENDPOINT", "minio:9000"),
@@ -164,6 +168,7 @@ func (c *Config) SafeSummary() map[string]any {
 		"auth_ttl_hours":       c.AuthTokenTTLHours,
 		"cors_allowed_origins": c.CORSAllowedOrigins,
 		"storage_backend":      c.StorageBackend,
+		"image_verify_set":     c.ImageVerifyBaseURL != "",
 		"filesystem_root":      c.FilesystemStorageRoot,
 		"minio_endpoint":       c.MinIOEndpoint,
 		"minio_bucket":         c.MinIOBucket,

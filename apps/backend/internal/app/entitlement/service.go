@@ -11,5 +11,5 @@ import (
 var ErrNotFound = errors.New("entitlement item not found")
 
 func NewService(db *gorm.DB, cfg *config.Config) domainentitlement.EntitlementService {
-	return newEditionService(db, cfg)
+	return newRuntimeService(db, cfg)
 }

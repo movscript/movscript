@@ -1,6 +1,6 @@
 import type { JSONValue } from '../types.js'
 
-export type AgentManifestSchema = 'movscript.agent.v1' | 'movscript.agent.current'
+export type AgentManifestSchema = 'movscript.agent.current'
 export type AgentToolGrantMode = 'allow' | 'deny'
 export type AgentToolApprovalMode = 'never' | 'always' | 'on_write'
 
@@ -43,7 +43,6 @@ export interface AgentManifest {
     platformModelId?: number
   }
   metadata?: Record<string, JSONValue>
-  sourceSchema?: AgentManifestSchema
 }
 
 export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
@@ -100,16 +99,14 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
 
 export function normalizeAgentManifest(input: unknown): AgentManifest {
   if (!isRecord(input)) return DEFAULT_AGENT_MANIFEST
-  if (input.schema !== 'movscript.agent.v1' && input.schema !== 'movscript.agent.current') return DEFAULT_AGENT_MANIFEST
+  if (input.schema !== 'movscript.agent.current') return DEFAULT_AGENT_MANIFEST
 
   const id = nonEmptyString(input.id) ?? DEFAULT_AGENT_MANIFEST.id
   const version = nonEmptyString(input.version) ?? DEFAULT_AGENT_MANIFEST.version
   const name = nonEmptyString(input.name) ?? DEFAULT_AGENT_MANIFEST.name
   const permissions = stringArray(input.permissions)
   const tools = toolGrantArray(input.tools)
-  const skills = input.schema === 'movscript.agent.current'
-    ? skillManifestArray(input.skills)
-    : legacySkillManifestArray(input)
+  const skills = skillManifestArray(input.skills)
 
   return {
     schema: 'movscript.agent.current',
@@ -123,7 +120,6 @@ export function normalizeAgentManifest(input: unknown): AgentManifest {
     tools,
     ...(isRecord(input.model) ? { model: normalizeModelBinding(input.model) } : {}),
     ...(isJSONRecord(input.metadata) ? { metadata: input.metadata } : {}),
-    sourceSchema: input.schema,
   }
 }
 
@@ -194,21 +190,6 @@ function skillManifestArray(value: unknown): AgentSkillManifest[] {
 
 export function normalizeAgentSkillManifest(input: unknown): AgentSkillManifest | undefined {
   return skillManifestArray([input])[0]
-}
-
-function legacySkillManifestArray(input: Record<string, unknown>): AgentSkillManifest[] {
-  if (Array.isArray(input.skills)) return skillManifestArray(input.skills)
-  const metadata = isRecord(input.metadata) ? input.metadata : undefined
-  const skillIds = stringArray(metadata?.skillIds)
-  return skillIds.map((id, index) => ({
-    id,
-    name: id,
-    description: '',
-    enabled: true,
-    priority: index,
-    instruction: '',
-    metadata: { source: 'legacy.metadata.skillIds' },
-  }))
 }
 
 function normalizeModelBinding(value: Record<string, unknown>): AgentManifest['model'] {

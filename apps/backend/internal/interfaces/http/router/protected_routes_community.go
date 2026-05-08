@@ -1,4 +1,4 @@
-//go:build !enterprise
+//go:build !runtime_overlay
 
 package router
 
@@ -47,6 +47,7 @@ func registerResourceRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.POST("/resources/upload", h.resources.Upload)
 	protected.GET("/resources/:id/file", h.resources.ServeFile)
 	protected.PUT("/resources/:id", h.resources.Update)
+	protected.POST("/resources/:id/verify-image", h.resources.VerifyImage)
 	protected.DELETE("/resources/:id", h.resources.Delete)
 	protected.PATCH("/resource-bindings/:id", h.resourceBindings.Patch)
 	protected.DELETE("/resource-bindings/:id", h.resourceBindings.Delete)

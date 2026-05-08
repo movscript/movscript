@@ -38,7 +38,7 @@ func (p *PolicyService) CanCallChat(ctx context.Context, principal Principal, mo
 }
 
 func (p *PolicyService) EnforceKeyLimits(ctx context.Context, key *domainmodelgateway.APIKey, estimatedCost float64) error {
-	return p.enforceKeyEditionLimits(ctx, key, estimatedCost)
+	return p.enforceKeyRuntimeLimits(ctx, key, estimatedCost)
 }
 
 func (p *PolicyService) FindOwnedAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) (domainmodelgateway.APIKey, error) {

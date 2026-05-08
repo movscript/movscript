@@ -18,7 +18,7 @@ func (h *Service) completeCanvasReferenceTask(ctx context.Context, task *persist
 		return nil
 	}
 
-	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, primaryOutput))
+	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, primaryOutput))
 	h.updateTaskOutputValues(task, outputs)
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
@@ -90,15 +90,17 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *persis
 			continue
 		}
 		task := canvasruntime.NewTask(*node, &run.ID, "").ToModel()
-		if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
+		if err := h.createTaskRow(ctx, &task); err != nil {
 			return run, err
 		}
 	}
 
 	h.executeWorkflowRunWithContext(ctx, user, ref.ID, run.ID, plan.Order)
-	if run, err = h.canvasRepo().FindCanvasRun(ctx, run.ID); err != nil {
+	domainRun, err := h.canvasRepo().FindCanvasRun(ctx, run.ID)
+	if err != nil {
 		return run, err
 	}
+	run = domainRun.ToModel()
 	if run.Status != canvasruntime.CanvasRunStatusDone {
 		if strings.TrimSpace(run.Error) != "" {
 			return run, fmt.Errorf("referenced workflow failed: %s", run.Error)
@@ -205,7 +207,7 @@ func (h *Service) outputsForReferencedWorkflowRun(ref persistencemodel.Canvas, n
 	}
 	if len(outputNodes) == 0 {
 		if nodes, err := h.canvasRepo().ListOutputNodes(context.Background(), ref.ID); err == nil {
-			outputNodes = nodes
+			outputNodes = canvasNodeRows(nodes)
 		}
 	}
 
@@ -215,7 +217,8 @@ func (h *Service) outputsForReferencedWorkflowRun(ref persistencemodel.Canvas, n
 			outputNodeIDs = append(outputNodeIDs, outputNode.ID)
 		}
 	}
-	refTasks, _ := h.canvasRepo().ListTasksForRunAndNodes(context.Background(), runID, outputNodeIDs)
+	domainRefTasks, _ := h.canvasRepo().ListTasksForRunAndNodes(context.Background(), runID, outputNodeIDs)
+	refTasks := canvasTaskRows(domainRefTasks)
 
 	outputs := map[string]canvasPortValue{}
 	var primaryOutput *uint
@@ -272,7 +275,7 @@ func (h *Service) outputsForReferencedWorkflowRun(ref persistencemodel.Canvas, n
 	return outputs, primaryOutput, nil
 }
 
-func (h *Service) canvasReferenceOutputsFromRun(run persistencemodel.CanvasRun, nd nodeData) (map[string]canvasPortValue, *uint) {
+func (h *Service) canvasReferenceOutputsFromRun(run canvasruntime.CanvasRun, nd nodeData) (map[string]canvasPortValue, *uint) {
 	runOutputs := canvasruntime.DecodePortOutputs(run.OutputValues)
 	if len(runOutputs) == 0 {
 		return nil, nil

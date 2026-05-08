@@ -8,6 +8,7 @@ import { InMemoryAgentMemoryStore } from './runtime/memory/memoryStore.js'
 import { InMemoryAgentStore } from './runtime/store/store.js'
 import { InMemoryAgentDraftStore } from './runtime/store/draftStore.js'
 import { BackendApplyClient } from './runtime/store/backendApplyClient.js'
+import type { ApplyDraftReview } from './runtime/store/draftApply.js'
 import { DEFAULT_AGENT_MANIFEST } from './runtime/manifest/agentManifest.js'
 import { StaticAgentRuntimeContractResolver } from './runtime/contracts/runtimeContract.js'
 import { InMemoryAgentCatalogStateStore } from './runtime/index.js'
@@ -32,6 +33,20 @@ class StubMCPClient {
 
   async listResources(): Promise<MCPResource[]> {
     return []
+  }
+}
+
+class StubBackendApplyClient extends BackendApplyClient {
+  readonly calls: ApplyDraftReview[] = []
+
+  override async applyReview(review: ApplyDraftReview) {
+    this.calls.push(review)
+    return {
+      performed: true,
+      method: 'PATCH' as const,
+      url: 'http://backend/api/v1/projects/42/entities/content-units/7',
+      payload: { description: review.proposedValue },
+    }
   }
 }
 
@@ -75,6 +90,32 @@ test('memories endpoints stay project-scoped', async () => {
   assert.ok(runtime.getMemory(7, other.id))
 })
 
+test('memory list accepts non-project scopes without server errors', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    skillCatalog: [],
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  runtime.createMemory({ projectId: 42, title: 'Local', kind: 'preference', content: 'local' })
+
+  const globalRes = await dispatch(handler, 'GET', '/memories?scope=global')
+  assert.equal(globalRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(globalRes.body), { memories: [] })
+
+  const threadRes = await dispatch(handler, 'GET', '/memories?scope=thread&threadId=t1')
+  assert.equal(threadRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(threadRes.body), { memories: [] })
+})
+
 test('create memory requires projectId through the HTTP layer', async () => {
   const runtime = new AgentRuntime({
     mcpClient: new StubMCPClient(),
@@ -94,6 +135,43 @@ test('create memory requires projectId through the HTTP layer', async () => {
   assert.equal(res.statusCode, 500)
   const json = JSON.parse(res.body) as { error: string }
   assert.match(json.error, /projectId is required/i)
+})
+
+test('draft apply endpoint is an application-layer action outside agent runs', async () => {
+  const backendApplyClient = new StubBackendApplyClient()
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient,
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    skillCatalog: [],
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const draft = runtime.createLocalDraft({
+    projectId: 42,
+    kind: 'content_unit',
+    title: 'Description update',
+    content: 'New description',
+    target: { projectId: 42, entityType: 'content_unit', entityId: 7, field: 'description' },
+  })
+
+  const res = await dispatch(handler, 'POST', `/drafts/${draft.id}/apply`, {
+    currentValue: 'Old description',
+  })
+  const json = JSON.parse(res.body) as { status: string; draft: { status: string } }
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(json.status, 'applied')
+  assert.equal(json.draft.status, 'applied')
+  assert.equal(runtime.getDraft(draft.id)?.status, 'applied')
+  assert.equal(backendApplyClient.calls.length, 1)
+  assert.equal(runtime.listRuns().length, 0)
 })
 
 function buildServerContext(agentRuntime: AgentRuntime): AgentServerContext {

@@ -15,7 +15,7 @@ import (
 )
 
 func (h *Service) completeEntityWriteTask(ctx context.Context, task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, cv persistencemodel.Canvas, portInputs canvasPortInputMap, user *persistencemodel.User) map[string]canvasPortValue {
-	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
+	_ = h.updateTaskRow(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
 	kind, entityID := nd.ResolvedEntity()
 	if kind == "" || entityID == 0 {
 		h.failTask(task, node, nd, "entity node is missing entity reference")
@@ -43,7 +43,7 @@ func (h *Service) completeEntityWriteTask(ctx context.Context, task *persistence
 		h.failTask(task, node, nd, err.Error())
 		return nil
 	}
-	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, result.PrimaryResourceID))
+	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, result.PrimaryResourceID))
 	if result.PrimaryResourceID != nil {
 		h.attachGeneratedAssetSlotCandidate(ctx, cv, runID, user.ID, kind, entityID, *result.PrimaryResourceID)
 	}

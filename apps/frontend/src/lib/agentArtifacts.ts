@@ -72,6 +72,7 @@ function artifactFromDraftCandidate(
 }
 
 export function extractAgentTaskArtifacts(run?: AgentRun): AgentTaskArtifactRef[] {
+  if (run?.streamPartial) return []
   if (!run?.steps?.length) return []
   const artifacts = new Map<string, AgentTaskArtifactRef>()
   for (const step of run.steps) {

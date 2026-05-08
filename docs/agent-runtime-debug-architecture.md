@@ -147,7 +147,7 @@ The Agent Debug page exposes a command-first matrix for current runtime function
 | `/project_structure` | `movscript.read_project_structure` | Reads the compact project structure as a standalone debug action. |
 | `/read_entity <type> #<id>` | `movscript.read_entity` | Reads one formal entity. |
 | `/list_drafts` | `movscript.list_drafts` | Lists local Agent drafts without a dedicated draft UI. |
-| `/apply_draft draft_xxx to <type> #<id> field <field>` | `movscript.apply_draft` | Creates an approval request before applying. |
+| Draft apply UI | `POST /drafts/:id/apply` | Application-layer review action; not exposed as an agent tool. |
 | `POST /runs/tool` payload | UI/cost tools such as `movscript.open_entity`, `movscript.create_generation_job` | Used when a feature is better represented as a command payload than a custom UI. |
 
 ## Current Debug Inventory

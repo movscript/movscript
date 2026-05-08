@@ -4,9 +4,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/gorm"
 )
 
 const testSecret = "0123456789abcdef0123456789abcdef"
@@ -30,8 +27,8 @@ func TestManagerIssuesAndVerifiesSignedToken(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	token, expiresAt, err := m.Issue(model.User{
-		Model:      gorm.Model{ID: 7},
+	token, expiresAt, err := m.Issue(Subject{
+		UserID:     7,
 		Username:   "alice",
 		SystemRole: "super_admin",
 	})
@@ -59,7 +56,7 @@ func TestManagerRejectsExpiredToken(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, _, err := m.Issue(model.User{Model: gorm.Model{ID: 1}})
+	token, _, err := m.Issue(Subject{UserID: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

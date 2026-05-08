@@ -2,12 +2,8 @@ package modelgateway
 
 import (
 	"encoding/json"
-	"fmt"
-	"strconv"
 	"strings"
 	"time"
-
-	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 const (
@@ -26,6 +22,13 @@ type NewAPIKeySpec struct {
 	AllowedScopes   []string
 }
 
+type APIKeyUpdateSpec struct {
+	Name            *string
+	AllowedModelIDs []uint
+	AllowedScopes   []string
+	IsEnabled       *bool
+}
+
 type APIKey struct {
 	ID              uint       `json:"ID"`
 	Name            string     `json:"name"`
@@ -41,7 +44,7 @@ type APIKey struct {
 	CreatedAt       time.Time  `json:"CreatedAt"`
 	UpdatedAt       time.Time  `json:"UpdatedAt"`
 
-	APIKeyEditionFields
+	APIKeyRuntimeFields
 }
 
 func NewAPIKey(spec NewAPIKeySpec) APIKey {
@@ -59,6 +62,21 @@ func NewAPIKey(spec NewAPIKeySpec) APIKey {
 		AllowedModelIDs: mustJSONString(spec.AllowedModelIDs),
 		AllowedScopes:   mustJSONString(scopes),
 		IsEnabled:       true,
+	}
+}
+
+func (key *APIKey) ApplyUpdate(spec APIKeyUpdateSpec) {
+	if spec.Name != nil {
+		key.Name = strings.TrimSpace(*spec.Name)
+	}
+	if spec.AllowedModelIDs != nil {
+		key.AllowedModelIDs = mustJSONString(spec.AllowedModelIDs)
+	}
+	if spec.AllowedScopes != nil {
+		key.AllowedScopes = mustJSONString(spec.AllowedScopes)
+	}
+	if spec.IsEnabled != nil {
+		key.IsEnabled = *spec.IsEnabled
 	}
 }
 
@@ -96,59 +114,6 @@ func KeyAllowsProject(key *APIKey, requestedProjectID *uint) bool {
 		return false
 	}
 	return *key.ProjectID == *requestedProjectID
-}
-
-func UsageContext(key *APIKey, projectID *uint) ai.UsageContext {
-	ctx := ai.UsageContext{ProjectID: projectID}
-	if key != nil {
-		ctx.OrgID = key.OrgID
-		ctx.GatewayAPIKeyID = &key.ID
-	}
-	return ctx
-}
-
-func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID uint, defaultErr error) (uint, string, error) {
-	requested := strings.TrimSpace(requestedModel)
-	if requested == "" || requested == DefaultChatModel {
-		return defaultID, DefaultChatModel, defaultErr
-	}
-
-	if strings.HasPrefix(requested, "model_config:") {
-		rawID := strings.TrimPrefix(requested, "model_config:")
-		id, err := strconv.ParseUint(rawID, 10, 64)
-		if err != nil || id == 0 {
-			return 0, requested, fmt.Errorf("model %q not found", requested)
-		}
-		for _, m := range models {
-			if m.ID == uint(id) {
-				return uint(id), requested, nil
-			}
-		}
-		return 0, requested, fmt.Errorf("model %q not found", requested)
-	}
-
-	for _, m := range models {
-		if requested == ModelID(m) || requested == m.ModelDefID || requested == m.ModelIDOverride || requested == m.LogicalModelID {
-			return m.ID, requested, nil
-		}
-	}
-	return 0, requested, fmt.Errorf("model %q not found", requested)
-}
-
-func ModelID(m ai.PublicModel) string {
-	if m.ModelIDOverride != "" {
-		return m.ModelIDOverride
-	}
-	if m.LogicalModelID != "" {
-		return m.LogicalModelID
-	}
-	if m.ModelDefID != "" {
-		return m.ModelDefID
-	}
-	if m.ID > 0 {
-		return fmt.Sprintf("model_config:%d", m.ID)
-	}
-	return ""
 }
 
 func parseStringArray(raw string) []string {

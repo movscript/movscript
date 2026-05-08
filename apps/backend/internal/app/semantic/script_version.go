@@ -24,16 +24,16 @@ func (s *Service) PatchScriptVersion(ctx context.Context, projectID uint, id str
 	if err != nil {
 		return item, err
 	}
-	updates := compactUpdates(map[string]any{
-		"title":             input.Title,
-		"source_type":       input.SourceType,
-		"content":           input.Content,
-		"raw_source":        input.RawSource,
-		"summary":           input.Summary,
-		"status":            input.Status,
-		"parent_version_id": input.ParentVersionID,
-	})
-	return s.repo.PatchScriptVersion(ctx, item, updates)
+	patch := domainsemantic.ScriptVersionPatch{
+		Title:           input.Title,
+		SourceType:      input.SourceType,
+		Content:         input.Content,
+		RawSource:       input.RawSource,
+		Summary:         input.Summary,
+		Status:          input.Status,
+		ParentVersionID: input.ParentVersionID,
+	}
+	return s.repo.PatchScriptVersion(ctx, item, patch)
 }
 
 func (s *Service) nextScriptVersionNumber(ctx context.Context, projectID uint, scriptID uint) int {

@@ -16,10 +16,10 @@ test('buildAgentRun assembles lifecycle defaults and optional runtime metadata',
       allowNetwork: false,
       allowFileBytes: false,
     },
-    approvedToolNames: ['movscript_apply_draft'],
+    approvedToolNames: ['movscript_create_script'],
     clientInput: { message: 'hello' },
     initialUserMessageId: 'msg_1',
-    forcedToolCall: { name: 'movscript_apply_draft', args: { draftId: 'draft_1' } },
+    forcedToolCall: { name: 'movscript_create_script', args: { title: 'Draft script' } },
     runtimeContract: {
       id: 'contract_1',
       matches: () => true,
@@ -30,10 +30,10 @@ test('buildAgentRun assembles lifecycle defaults and optional runtime metadata',
   assert.equal(run.status, 'queued')
   assert.equal(run.createdAt, '2026-05-06T00:00:00.000Z')
   assert.deepEqual(run.steps, [])
-  assert.deepEqual(run.traceEvents, [])
+  assert.deepEqual(run.traceEvents ?? [], [])
   assert.equal(run.metadata?.initialUserMessageId, 'msg_1')
-  assert.deepEqual(run.metadata?.approvedToolNames, ['movscript_apply_draft'])
-  assert.deepEqual(run.metadata?.forcedToolCall, { name: 'movscript_apply_draft', args: { draftId: 'draft_1' } })
+  assert.deepEqual(run.metadata?.approvedToolNames, ['movscript_create_script'])
+  assert.deepEqual(run.metadata?.forcedToolCall, { name: 'movscript_create_script', args: { title: 'Draft script' } })
   assert.equal(run.metadata?.runtimeContractId, 'contract_1')
   assert.equal(run.metadata?.runtimeRequiresConfiguredModel, true)
 })

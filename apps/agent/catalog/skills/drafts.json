@@ -9,7 +9,7 @@
       "enabled": true,
       "priority": 900,
       "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer a local draft tool. Use dedicated structured draft tools when available, for example movscript_submit_script_split_draft for script splitting; otherwise use movscript_create_draft. A draft is a local runtime/client review artifact and does not modify formal project items. Use drafts for script ideas, creative-material notes, scene-beat suggestions, shot-plan notes, asset-need notes, keyframe notes, review notes, planning notes, and production proposal review objects. If the user explicitly wants a generated script saved as a formal project script, call movscript_create_script only after the content is clear enough to save; the runtime will require user approval before the backend write. Do not claim a draft or formal script has been applied to the project unless the relevant tool result proves it.",
-      "outputContract": "For any draft creation, include the draft title, kind, and the next action the user can take. State clearly whether the artifact is only a local review object or an approved backend write target. Keep draft content actionable and scoped.",
+      "outputContract": "For any draft creation or modification, include the draftId, draft title, kind, current status, and the next action the user can take. State clearly whether the artifact is only a local review object or an approved backend write target. Keep draft content actionable and scoped. When future edits should continue from this artifact, name that draftId explicitly.",
       "toolHints": [
         "movscript_create_draft",
         "movscript_submit_script_split_draft",
@@ -106,10 +106,9 @@
       "category": "policy",
       "enabled": true,
       "priority": 700,
-      "instruction": "Read-only tools can be used to answer context questions. Draft tools can be used for proposed work. Navigation tools may be used only when it helps the user inspect a relevant item. Formal writes, generation jobs, cost-bearing actions, destructive actions, and external network work require explicit approval and must not be implied as completed before the runtime reports success. If approval is required, explain the exact action, target, and risk.",
-      "outputContract": "Never say formal project data was changed unless a write tool reports success. For blocked actions, state the needed approval or missing context.",
+      "instruction": "Read-only tools can be used to answer context questions. Draft tools can be used for proposed work. Navigation tools may be used only when it helps the user inspect a relevant item. Applying drafts is a UI/application workflow decision, not an agent action. Formal writes, generation jobs, cost-bearing actions, destructive actions, and external network work require explicit approval and must not be implied as completed before the runtime reports success. If approval is required, explain the exact action, target, and risk.",
+      "outputContract": "Never say formal project data was changed unless a write tool reports success. For drafts, state that the proposal is local and must be reviewed or applied in the UI.",
       "toolHints": [
-        "movscript_apply_draft",
         "movscript_create_generation_job"
       ],
       "metadata": {

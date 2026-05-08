@@ -24,7 +24,7 @@ test('buildRunStep creates in-progress step with round metadata', () => {
   assert.equal(step.toolName, 'movscript_list_productions')
 })
 
-test('appendTraceEvent appends sanitized trace data and updates run timestamp', () => {
+test('appendTraceEvent builds sanitized trace data and updates run timestamp without mutating run trace list', () => {
   const run = {
     id: 'run_1',
     threadId: 'thread_1',
@@ -57,7 +57,7 @@ test('appendTraceEvent appends sanitized trace data and updates run timestamp', 
     },
   })
 
-  assert.equal(run.traceEvents.length, 1)
+  assert.equal(run.traceEvents.length, 0)
   assert.equal(run.updatedAt, '2026-05-06T00:00:01.000Z')
   assert.equal(event.data && typeof event.data === 'object' && !Array.isArray(event.data) ? event.data.keep : undefined, 'value')
   assert.equal(event.data && typeof event.data === 'object' && !Array.isArray(event.data) ? 'skip' in event.data : true, false)

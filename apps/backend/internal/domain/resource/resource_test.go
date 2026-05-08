@@ -85,6 +85,41 @@ func TestNewStoredGeneratedResourceAppliesPendingPathAndKey(t *testing.T) {
 	}
 }
 
+func TestRawResourceApplyUpdateHandlesZeroValuesAndFolderClear(t *testing.T) {
+	folderID := uint(3)
+	resource := RawResource{
+		FolderID:       &folderID,
+		Name:           "old.png",
+		FilePath:       "old",
+		StorageKey:     "old",
+		StorageBackend: "local",
+		Type:           "image",
+		MimeType:       "image/png",
+		Size:           12,
+		IsShared:       true,
+	}
+	empty := ""
+	size := int64(0)
+	isShared := false
+	resource.ApplyUpdate(UpdateSpec{
+		FilePath:       &empty,
+		StorageKey:     &empty,
+		StorageBackend: &empty,
+		Type:           &empty,
+		Name:           &empty,
+		MimeType:       &empty,
+		Size:           &size,
+		IsShared:       &isShared,
+		ClearFolder:    true,
+	})
+	if resource.FilePath != "" || resource.StorageKey != "" || resource.StorageBackend != "" || resource.Type != "" || resource.Name != "" || resource.MimeType != "" {
+		t.Fatalf("string fields were not cleared: %+v", resource)
+	}
+	if resource.Size != 0 || resource.IsShared || resource.FolderID != nil {
+		t.Fatalf("zero values/folder clear were not applied: %+v", resource)
+	}
+}
+
 func TestInOrgScopeAllowsLegacyPersonalOnlyForOwner(t *testing.T) {
 	orgID := uint(9)
 	if !InOrgScope(nil, &orgID, 7, 7, true) {

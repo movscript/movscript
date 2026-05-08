@@ -2,9 +2,8 @@ import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../state/types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
 import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftStatus, type AgentDraftStore } from '../drafts/draftStore.js'
-import type { BackendApplyClient, BackendApplyResult } from '../drafts/backendApplyClient.js'
+import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
-import { buildApplyDraftPreview, markDraftApplied } from '../drafts/draftApply.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentMemoryKind } from '../memory/types.js'
 import { runtimeToolName } from '../tools/toolNames.js'
@@ -80,7 +79,7 @@ async function callRuntimeTool(
   backendApplyClient: BackendApplyClient,
   memoryManager: MemoryManager | undefined,
   catalogManager: AgentCatalogToolManager | undefined,
-  sandboxMode: boolean,
+  _sandboxMode: boolean,
 ): Promise<JSONValue | undefined> {
   if (toolName === 'movscript_list_agent_bundles') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
@@ -266,6 +265,10 @@ async function callRuntimeTool(
     } as unknown as JSONValue
   }
 
+  if (toolName === 'movscript_upsert_proposal_segment') {
+    return upsertProductionProposalBusinessNode(draftStore, args, 'segment', args.segment, undefined, 'segment') as unknown as JSONValue
+  }
+
   if (toolName === 'movscript_upsert_proposal_scene_moment') {
     return upsertProductionProposalBusinessNode(draftStore, args, 'scene_moment', args.sceneMoment ?? args.scene_moment, args.segment, 'scene_moment') as unknown as JSONValue
   }
@@ -290,89 +293,6 @@ async function callRuntimeTool(
   if (toolName === 'movscript_upsert_proposal_shot') {
     const shot = isRecord(args.shot) ? { ...args.shot, kind: stringField(args.shot.kind) ?? 'shot' } : args.shot
     return upsertProductionProposalBusinessNode(draftStore, args, 'content_unit', shot, args.sceneMoment ?? args.scene_moment, 'shot') as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_list_production_proposal_nodes') {
-    const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
-    const content = parseProductionProposalDraftContent(draft)
-    const nodeType = normalizeProposalNodeType(args.nodeType ?? args.node_type)
-    const parentClientId = stringField(args.parentClientId) ?? stringField(args.parent_client_id)
-    const limit = Math.max(1, Math.min(Math.floor(numberField(args.limit) ?? 200), 300))
-    const nodes = listProductionProposalNodes(content.proposal)
-      .filter((node) => !nodeType || node.nodeType === nodeType)
-      .filter((node) => !parentClientId || node.parentClientId === parentClientId)
-      .slice(0, limit)
-    return {
-      draftRef: draft.id,
-      draftId: draft.id,
-      productionId: content.productionId,
-      nodes,
-      count: nodes.length,
-    } as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_upsert_production_proposal_node') {
-    const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
-    const nodeType = normalizeProposalNodeType(args.nodeType ?? args.node_type)
-    if (!nodeType) throw new Error('upsert_production_proposal_node requires nodeType')
-    const node = normalizeProposalNodeForType(nodeType, args.node)
-    const parent = isRecord(args.parent) ? args.parent : undefined
-    const content = parseProductionProposalDraftContent(draft)
-    const upsert = upsertProductionProposalNode(content.proposal, nodeType, node, parent, numberField(args.position))
-    const updated = draftStore.updateDraft(draft.id, {
-      content: JSON.stringify(content),
-      metadata: {
-        ...(isRecord(draft.metadata) ? draft.metadata : {}),
-        lastProposalNodeMutation: {
-          op: upsert.created ? 'create' : 'update',
-          nodeType,
-          path: upsert.path,
-          mutatedAt: new Date().toISOString(),
-        },
-      },
-    })
-    const updatedContent = parseProductionProposalDraftContent(updated)
-    return {
-      status: upsert.created ? 'created' : 'updated',
-      proposalRef: updated.id,
-      draft: updated,
-      node: upsert.node,
-      path: upsert.path,
-      counts: countProductionProposalNodes(updatedContent.proposal),
-    } as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_delete_production_proposal_node') {
-    const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
-    const nodeType = normalizeProposalNodeType(args.nodeType ?? args.node_type)
-    if (!nodeType) throw new Error('delete_production_proposal_node requires nodeType')
-    const content = parseProductionProposalDraftContent(draft)
-    const deleted = deleteProductionProposalNode(content.proposal, nodeType, {
-      id: numberField(args.id),
-      clientId: stringField(args.client_id) ?? stringField(args.clientId),
-      path: stringField(args.path),
-    })
-    const updated = draftStore.updateDraft(draft.id, {
-      content: JSON.stringify(content),
-      metadata: {
-        ...(isRecord(draft.metadata) ? draft.metadata : {}),
-        lastProposalNodeMutation: {
-          op: 'delete',
-          nodeType,
-          path: deleted.path,
-          mutatedAt: new Date().toISOString(),
-        },
-      },
-    })
-    const updatedContent = parseProductionProposalDraftContent(updated)
-    return {
-      status: 'deleted',
-      proposalRef: updated.id,
-      draft: updated,
-      deletedNode: deleted.node,
-      path: deleted.path,
-      counts: countProductionProposalNodes(updatedContent.proposal),
-    } as unknown as JSONValue
   }
 
   if (toolName === 'movscript_create_production_proposal_from_items' || toolName === 'movscript_propose_production_entities' || toolName === 'movscript_submit_production_proposal') {
@@ -433,51 +353,6 @@ async function callRuntimeTool(
   if (toolName === 'movscript_list_drafts') {
     return {
       drafts: draftStore.listDrafts(normalizeDraftQuery(args)),
-    } as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_apply_draft') {
-    if (sandboxMode) {
-      return buildSandboxResult(toolName, args)
-    }
-    const preview = buildApplyDraftPreview(draftStore, args)
-    const context = isRecord(run.metadata?.context) ? run.metadata.context as Record<string, unknown> : undefined
-    const appliedByUserId = args.appliedByUserId ?? (context?.user as Record<string, unknown> | undefined)?.id
-    let backendApply: BackendApplyResult
-    try {
-      backendApply = await backendApplyClient.applyReview(
-        preview.review,
-        {
-          ...(typeof appliedByUserId === 'number' || typeof appliedByUserId === 'string' ? { userId: appliedByUserId } : {}),
-          ...(typeof run.metadata?.backendAuthToken === 'string' ? { backendAuthToken: run.metadata.backendAuthToken } : {}),
-          ...(typeof run.metadata?.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: run.metadata.backendAPIBaseURL } : {}),
-        },
-      )
-    } catch (error) {
-      draftStore.updateDraft(preview.draft.id, {
-        metadata: {
-          ...(isRecord(preview.draft.metadata) ? preview.draft.metadata : {}),
-          backendWritePerformed: false,
-          backendWriteError: error instanceof Error ? error.message : String(error),
-        },
-      })
-      throw error
-    }
-    const finalDraft = markDraftApplied(draftStore, preview.draft, preview.review, {
-      ...args,
-      ...(typeof appliedByUserId === 'number' || typeof appliedByUserId === 'string' ? { appliedByUserId } : {}),
-    }, {
-      backendWritePerformed: backendApply.performed,
-      backendApply: backendApply as unknown as JSONValue,
-    })
-    return {
-      status: 'applied',
-      review: preview.review,
-      draft: finalDraft,
-      message: backendApply.performed
-        ? 'Draft applied and backend business item patch completed.'
-        : 'Draft marked applied in the local agent lifecycle. Backend business item patch was skipped.',
-      backendApply,
     } as unknown as JSONValue
   }
 
@@ -661,21 +536,21 @@ function submitScriptSplitDraft(
   if (projectId === undefined) throw new Error('submit_script_split_draft requires projectId')
 
   const sourceTitle = stringField(args.sourceTitle) ?? stringField(args.source_title)
-  const sourceSummary = stringField(args.sourceSummary) ?? stringField(args.source_summary)
+  const sourceSummary = stringField(args.sourceSummary) ?? stringField(args.source_summary) ?? `${sourceTitle ?? '源剧本'}按行号拆分。`
   const sourceScript = isRecord(args.sourceScript) ? args.sourceScript : isRecord(args.source_script) ? args.source_script : undefined
-  const globalSettings = isRecord(args.globalSettings) ? args.globalSettings : isRecord(args.global_settings) ? args.global_settings : undefined
+  const globalSettings = isRecord(args.globalSettings) ? args.globalSettings : isRecord(args.global_settings) ? args.global_settings : {}
   const episodeDrafts = Array.isArray(args.episodeDrafts) ? args.episodeDrafts : Array.isArray(args.episode_drafts) ? args.episode_drafts : undefined
   if (!sourceTitle) throw new Error('submit_script_split_draft requires sourceTitle')
-  if (!sourceSummary) throw new Error('submit_script_split_draft requires sourceSummary')
-  if (!sourceScript) throw new Error('submit_script_split_draft requires sourceScript')
-  if (!globalSettings) throw new Error('submit_script_split_draft requires globalSettings')
   if (!episodeDrafts || episodeDrafts.length === 0) throw new Error('submit_script_split_draft requires episodeDrafts')
-  rejectScriptSplitBodyText(sourceScript, 'sourceScript')
+  rejectScriptSplitBodyText(args, 'args')
+  if (sourceScript) rejectScriptSplitBodyText(sourceScript, 'sourceScript')
   episodeDrafts.forEach((episode, index) => rejectScriptSplitBodyText(episode, `episodeDrafts[${index}]`))
 
-  const sourceLineCount = numberField(sourceScript.lineCount)
-    ?? numberField(sourceScript.line_count)
-  if (!sourceLineCount || sourceLineCount <= 0) throw new Error('submit_script_split_draft requires sourceScript.lineCount')
+  const sourceLineCount = numberField(args.lineCount)
+    ?? numberField(args.line_count)
+    ?? (sourceScript ? numberField(sourceScript.lineCount) : undefined)
+    ?? (sourceScript ? numberField(sourceScript.line_count) : undefined)
+  if (!sourceLineCount || sourceLineCount <= 0) throw new Error('submit_script_split_draft requires lineCount')
   const normalizedGlobalSettings = normalizeScriptSplitGlobalSettings(globalSettings)
   const normalizedEpisodes = episodeDrafts.flatMap((episode, index) => {
     const normalized = normalizeScriptSplitEpisodeDraft(episode, index, sourceLineCount)
@@ -687,14 +562,15 @@ function submitScriptSplitDraft(
     schema: 'movscript.script_split_analysis.v1',
     source_title: sourceTitle,
     source_summary: sourceSummary,
-    source_script: normalizeScriptSplitSourceScript(sourceScript, sourceTitle, sourceSummary, sourceLineCount),
+    source_script: normalizeScriptSplitSourceScript(sourceScript ?? {}, sourceTitle, sourceSummary, sourceLineCount),
     global_settings: normalizedGlobalSettings,
     episode_drafts: normalizedEpisodes,
     ...(Array.isArray(args.warnings) ? { warnings: args.warnings.flatMap((warning) => stringField(warning) ? [stringField(warning)!] : []) } : { warnings: [] }),
     ...(typeof args.confidence === 'number' && Number.isFinite(args.confidence) ? { confidence: args.confidence } : { confidence: 0 }),
   }
   const draftTitle = stringField(args.draftTitle) ?? stringField(args.draft_title) ?? `剧本拆分草稿 - ${sourceTitle}`
-  const sourceScriptTitle = stringField(sourceScript.title) ?? sourceTitle
+  const sourceScriptTitle = sourceScript ? stringField(sourceScript.title) ?? sourceTitle : sourceTitle
+  const supersededDraftIds = supersedeScriptSplitDrafts(draftStore, projectId, sourceScriptTitle, run.id)
   const draft = draftStore.createDraft({
     projectId,
     kind: 'script_split',
@@ -713,6 +589,7 @@ function submitScriptSplitDraft(
       sourceTitle,
       sourceSummary,
       episodeCount: normalizedEpisodes.length,
+      supersededDraftIds,
     },
   })
   return {
@@ -720,6 +597,7 @@ function submitScriptSplitDraft(
     draftRef: draft.id,
     draftId: draft.id,
     draft,
+    supersededDraftIds,
     validation: validateDraft(draft),
   } as unknown as JSONValue
 }
@@ -740,12 +618,9 @@ function normalizeScriptSplitSourceScript(
 
 function normalizeScriptSplitEpisodeDraft(value: unknown, index: number, sourceLineCount: number): Record<string, JSONValue> | undefined {
   if (!isRecord(value)) return undefined
-  const title = stringField(value.title)
-  const summary = stringField(value.summary)
+  const title = stringField(value.title) ?? `第${numberField(value.order) ?? index + 1}集`
+  const summary = stringField(value.summary) ?? `源剧本第${normalizeLineNumber(value.startLine ?? value.start_line ?? value.start) ?? index + 1}行至第${normalizeLineNumber(value.endLine ?? value.end_line ?? value.end) ?? normalizeLineNumber(value.startLine ?? value.start_line ?? value.start) ?? index + 1}行。`
   const globalContext = isRecord(value.globalContext) ? value.globalContext : isRecord(value.global_context) ? value.global_context : undefined
-  if (!title) throw new Error(`submit_script_split_draft episodeDrafts[${index}] requires title`)
-  if (!summary) throw new Error(`submit_script_split_draft episodeDrafts[${index}] requires summary`)
-  if (!globalContext) throw new Error(`submit_script_split_draft episodeDrafts[${index}] requires globalContext`)
   const action = value.action === 'update' ? 'update' : 'create'
   const existingScriptId = numberField(value.existingScriptId) ?? numberField(value.existing_script_id) ?? null
   const startLine = normalizeLineNumber(value.startLine ?? value.start_line ?? value.start) ?? index + 1
@@ -755,7 +630,7 @@ function normalizeScriptSplitEpisodeDraft(value: unknown, index: number, sourceL
     order: numberField(value.order) ?? index + 1,
     title,
     summary,
-    global_context: normalizeScriptSplitGlobalContext(globalContext),
+    global_context: normalizeScriptSplitGlobalContext(globalContext ?? {}),
     start_line: clampLineNumber(startLine, sourceLineCount),
     end_line: clampLineNumber(Math.max(startLine, endLine), sourceLineCount),
     action,
@@ -786,7 +661,7 @@ function rejectScriptSplitBodyText(value: unknown, path: string): void {
   if (!isRecord(value)) return
   for (const key of ['content', 'text', 'body', 'rawText', 'raw_text', 'sourceText', 'source_text']) {
     if (stringField(value[key])) {
-      throw new Error(`submit_script_split_draft ${path}.${key} is not allowed; use lineCount/startLine/endLine instead of passing script text`)
+      throw new Error(`submit_script_split_draft ${path}.${key} is not allowed; use lineCount/startLine/endLine instead of passing long text`)
     }
   }
 }
@@ -989,6 +864,30 @@ function supersedeProductionProposalDrafts(draftStore: AgentDraftStore, projectI
   return supersededDraftIds
 }
 
+function supersedeScriptSplitDrafts(draftStore: AgentDraftStore, projectId: number, sourceTitle: string, supersededByRunId: string): string[] {
+  const now = new Date().toISOString()
+  const supersededDraftIds: string[] = []
+  const activeDrafts = draftStore.listDrafts({
+    projectId,
+    kind: 'script_split',
+    status: 'draft',
+    limit: 100,
+  })
+  for (const draft of activeDrafts) {
+    if (draft.source?.entityType !== 'script_split') continue
+    if (String(draft.source.entityId ?? '') !== sourceTitle) continue
+    draftStore.updateDraft(draft.id, {
+      status: 'superseded',
+      metadata: {
+        supersededByRunId,
+        supersededAt: now,
+      },
+    })
+    supersededDraftIds.push(draft.id)
+  }
+  return supersededDraftIds
+}
+
 function countProductionProposalNodes(proposal: Record<string, JSONValue>): Record<string, number> {
   const segments = getRecordArrayValue(proposal.segments)
   const sceneMoments = segments.flatMap((segment) => getRecordArrayValue(segment.scene_moments))
@@ -1089,7 +988,7 @@ function normalizeProposalNodeForType(nodeType: ProductionProposalNodeType, valu
 }
 
 function proposalRefArg(args: Record<string, JSONValue>): unknown {
-  return args.proposalRef ?? args.proposal_ref ?? args.draftRef ?? args.draft_ref ?? args.draftId ?? args.draft_id ?? args.id
+  return args.proposalRef ?? args.proposal_ref ?? args.draftRef ?? args.draft_ref ?? args.draftId ?? args.draft_id
 }
 
 function draftRefArg(args: Record<string, JSONValue>): unknown {
@@ -1218,19 +1117,6 @@ function upsertProductionProposalBusinessNode(
   } as unknown as JSONValue
 }
 
-function deleteProductionProposalNode(
-  proposal: Record<string, JSONValue>,
-  nodeType: ProductionProposalNodeType,
-  locator: { id?: number; clientId?: string; path?: string },
-): { node: Record<string, JSONValue>; path: string } {
-  const target = locator.path
-    ? findProductionProposalNodeByPath(proposal, locator.path)
-    : findProductionProposalNode(proposal, nodeType, locator)
-  if (!target || target.nodeType !== nodeType) throw new Error(`production proposal ${nodeType} node not found`)
-  target.items.splice(target.index, 1)
-  return { node: target.node, path: target.path }
-}
-
 function resolveProposalContainer(
   proposal: Record<string, JSONValue>,
   nodeType: ProductionProposalNodeType,
@@ -1281,20 +1167,13 @@ function findProductionProposalNode(
   nodeType: ProductionProposalNodeType,
   locator: { id?: number; clientId?: string; path?: string },
 ): ({ nodeType: ProductionProposalNodeType; node: Record<string, JSONValue>; path: string; items: Record<string, JSONValue>[]; index: number } | undefined) {
-  if (locator.path) return findProductionProposalNodeByPath(proposal, locator.path)
+  if (locator.path) return iterateProductionProposalNodeRefs(proposal).find((candidate) => candidate.path === locator.path)
   for (const candidate of iterateProductionProposalNodeRefs(proposal)) {
     if (candidate.nodeType !== nodeType) continue
     if (locator.id !== undefined && numberField(candidate.node.id) === locator.id) return candidate
     if (locator.clientId && stringField(candidate.node.client_id) === locator.clientId) return candidate
   }
   return undefined
-}
-
-function findProductionProposalNodeByPath(
-  proposal: Record<string, JSONValue>,
-  path: string,
-): ({ nodeType: ProductionProposalNodeType; node: Record<string, JSONValue>; path: string; items: Record<string, JSONValue>[]; index: number } | undefined) {
-  return iterateProductionProposalNodeRefs(proposal).find((candidate) => candidate.path === path)
 }
 
 function iterateProductionProposalNodeRefs(proposal: Record<string, JSONValue>): Array<{

@@ -1,8 +1,6 @@
 package job
 
 import (
-	"time"
-
 	domainjob "github.com/movscript/movscript/internal/domain/job"
 )
 
@@ -15,32 +13,24 @@ const (
 	DefaultMaxAttempts = domainjob.DefaultMaxAttempts
 )
 
-type ExecutionState string
+type ExecutionState = domainjob.ExecutionState
 
 const (
-	StateClaimed                ExecutionState = "claimed"
-	StateResolvingInputs        ExecutionState = "resolving_inputs"
-	StateLoadingInputs          ExecutionState = "loading_inputs"
-	StatePreparingRequest       ExecutionState = "preparing_request"
-	StateSubmittingProviderTask ExecutionState = "submitting_provider_task"
-	StateCallingProvider        ExecutionState = "calling_provider"
-	StatePollingProviderTask    ExecutionState = "polling_provider_task"
-	StateWaitingProviderTask    ExecutionState = "waiting_provider_task"
-	StateValidatingProviderData ExecutionState = "validating_provider_data"
-	StateSavingResult           ExecutionState = "saving_result"
-	StatePersistingSuccess      ExecutionState = "persisting_success"
-	StateRetryScheduled         ExecutionState = "retry_scheduled"
-	StateSucceeded              ExecutionState = "succeeded"
-	StateFailed                 ExecutionState = "failed"
-	StateCancelled              ExecutionState = "cancelled"
+	StateClaimed                = domainjob.StateClaimed
+	StateResolvingInputs        = domainjob.StateResolvingInputs
+	StateLoadingInputs          = domainjob.StateLoadingInputs
+	StatePreparingRequest       = domainjob.StatePreparingRequest
+	StateSubmittingProviderTask = domainjob.StateSubmittingProviderTask
+	StateCallingProvider        = domainjob.StateCallingProvider
+	StatePollingProviderTask    = domainjob.StatePollingProviderTask
+	StateWaitingProviderTask    = domainjob.StateWaitingProviderTask
+	StateValidatingProviderData = domainjob.StateValidatingProviderData
+	StateSavingResult           = domainjob.StateSavingResult
+	StatePersistingSuccess      = domainjob.StatePersistingSuccess
+	StateRetryScheduled         = domainjob.StateRetryScheduled
+	StateSucceeded              = domainjob.StateSucceeded
+	StateFailed                 = domainjob.StateFailed
+	StateCancelled              = domainjob.StateCancelled
 )
 
-type StateTraceEntry struct {
-	State      ExecutionState `json:"state"`
-	Status     string         `json:"status"`
-	Message    string         `json:"message,omitempty"`
-	Error      string         `json:"error,omitempty"`
-	StartedAt  time.Time      `json:"started_at"`
-	FinishedAt *time.Time     `json:"finished_at,omitempty"`
-	DurationMs int64          `json:"duration_ms,omitempty"`
-}
+type StateTraceEntry = domainjob.StateTraceEntry

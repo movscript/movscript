@@ -64,6 +64,190 @@ type ScriptVersion struct {
 	UpdatedAt       time.Time `json:"UpdatedAt"`
 }
 
+type ScriptPatchSpec struct {
+	Title                  *string
+	Description            *string
+	Content                *string
+	RawSource              *string
+	ScriptType             *string
+	SourceType             *string
+	Version                *int
+	ParentScriptID         **uint
+	AssigneeID             **uint
+	Summary                *string
+	Characters             *string
+	CharacterRelationships *string
+	CoreSettings           *string
+	Background             *string
+	ScenesDesc             *string
+	Hook                   *string
+	PlotSummary            *string
+	ScriptPoints           *string
+	PlannedSceneCount      *int
+	TimeText               *string
+	LocationText           *string
+	StructuredCharacters   *string
+	PlotBeats              *string
+	Atmosphere             *string
+	StructureJSON          *string
+	EntityCandidates       *string
+	RelationshipCandidates *string
+	Order                  *int
+}
+
+type InitialVersionSyncSpec struct {
+	Title      string
+	SourceType string
+	Content    string
+	RawSource  string
+	Summary    string
+	Status     *string
+}
+
+func (spec ScriptPatchSpec) Empty() bool {
+	return spec.Title == nil &&
+		spec.Description == nil &&
+		spec.Content == nil &&
+		spec.RawSource == nil &&
+		spec.ScriptType == nil &&
+		spec.SourceType == nil &&
+		spec.Version == nil &&
+		spec.ParentScriptID == nil &&
+		spec.AssigneeID == nil &&
+		spec.Summary == nil &&
+		spec.Characters == nil &&
+		spec.CharacterRelationships == nil &&
+		spec.CoreSettings == nil &&
+		spec.Background == nil &&
+		spec.ScenesDesc == nil &&
+		spec.Hook == nil &&
+		spec.PlotSummary == nil &&
+		spec.ScriptPoints == nil &&
+		spec.PlannedSceneCount == nil &&
+		spec.TimeText == nil &&
+		spec.LocationText == nil &&
+		spec.StructuredCharacters == nil &&
+		spec.PlotBeats == nil &&
+		spec.Atmosphere == nil &&
+		spec.StructureJSON == nil &&
+		spec.EntityCandidates == nil &&
+		spec.RelationshipCandidates == nil &&
+		spec.Order == nil
+}
+
+func InitialVersionSync(item ScriptSnapshot, existing ScriptVersion) InitialVersionSyncSpec {
+	spec := InitialVersionSyncSpec{
+		Title:      item.Title,
+		SourceType: item.SourceType,
+		Content:    item.Content,
+		RawSource:  item.RawSource,
+		Summary:    item.Summary,
+	}
+	if existing.Status == "" {
+		status := ScriptVersionStatusActive
+		spec.Status = &status
+	}
+	return spec
+}
+
+func (item *ScriptSnapshot) ApplyPatch(spec ScriptPatchSpec) {
+	if spec.Title != nil {
+		item.Title = *spec.Title
+	}
+	if spec.Description != nil {
+		item.Description = *spec.Description
+	}
+	if spec.Content != nil {
+		item.Content = *spec.Content
+	}
+	if spec.RawSource != nil {
+		item.RawSource = *spec.RawSource
+	}
+	if spec.ScriptType != nil {
+		item.ScriptType = *spec.ScriptType
+	}
+	if spec.SourceType != nil {
+		item.SourceType = *spec.SourceType
+	}
+	if spec.Version != nil {
+		item.Version = *spec.Version
+	}
+	if spec.ParentScriptID != nil {
+		item.ParentScriptID = *spec.ParentScriptID
+	}
+	if spec.AssigneeID != nil {
+		item.AssigneeID = *spec.AssigneeID
+	}
+	if spec.Summary != nil {
+		item.Summary = *spec.Summary
+	}
+	if spec.Characters != nil {
+		item.Characters = *spec.Characters
+	}
+	if spec.CharacterRelationships != nil {
+		item.CharacterRelationships = *spec.CharacterRelationships
+	}
+	if spec.CoreSettings != nil {
+		item.CoreSettings = *spec.CoreSettings
+	}
+	if spec.Background != nil {
+		item.Background = *spec.Background
+	}
+	if spec.ScenesDesc != nil {
+		item.ScenesDesc = *spec.ScenesDesc
+	}
+	if spec.Hook != nil {
+		item.Hook = *spec.Hook
+	}
+	if spec.PlotSummary != nil {
+		item.PlotSummary = *spec.PlotSummary
+	}
+	if spec.ScriptPoints != nil {
+		item.ScriptPoints = *spec.ScriptPoints
+	}
+	if spec.PlannedSceneCount != nil {
+		item.PlannedSceneCount = *spec.PlannedSceneCount
+	}
+	if spec.TimeText != nil {
+		item.TimeText = *spec.TimeText
+	}
+	if spec.LocationText != nil {
+		item.LocationText = *spec.LocationText
+	}
+	if spec.StructuredCharacters != nil {
+		item.StructuredCharacters = *spec.StructuredCharacters
+	}
+	if spec.PlotBeats != nil {
+		item.PlotBeats = *spec.PlotBeats
+	}
+	if spec.Atmosphere != nil {
+		item.Atmosphere = *spec.Atmosphere
+	}
+	if spec.StructureJSON != nil {
+		item.StructureJSON = *spec.StructureJSON
+	}
+	if spec.EntityCandidates != nil {
+		item.EntityCandidates = *spec.EntityCandidates
+	}
+	if spec.RelationshipCandidates != nil {
+		item.RelationshipCandidates = *spec.RelationshipCandidates
+	}
+	if spec.Order != nil {
+		item.Order = *spec.Order
+	}
+}
+
+func (version *ScriptVersion) ApplyInitialSync(spec InitialVersionSyncSpec) {
+	version.Title = spec.Title
+	version.SourceType = spec.SourceType
+	version.Content = spec.Content
+	version.RawSource = spec.RawSource
+	version.Summary = spec.Summary
+	if spec.Status != nil {
+		version.Status = *spec.Status
+	}
+}
+
 func NewInitialVersion(item ScriptSnapshot, createdByID *uint) ScriptVersion {
 	sourceType := item.SourceType
 	if sourceType == "" {

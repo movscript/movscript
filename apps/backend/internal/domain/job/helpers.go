@@ -5,8 +5,14 @@ import (
 	"errors"
 	"strconv"
 	"time"
+)
 
-	"github.com/movscript/movscript/internal/infra/ai"
+const (
+	CapabilityImage     = "image"
+	CapabilityImageEdit = "image_edit"
+	CapabilityVideo     = "video"
+	CapabilityVideoI2V  = "video_i2v"
+	CapabilityVideoV2V  = "video_v2v"
 )
 
 type ModelConfigInput struct {
@@ -64,30 +70,40 @@ type AIModelConfig struct {
 }
 
 type RawResource struct {
-	ID             uint       `json:"ID"`
-	OwnerID        uint       `json:"owner_id"`
-	OrgID          *uint      `json:"org_id,omitempty"`
-	FolderID       *uint      `json:"folder_id,omitempty"`
-	Type           string     `json:"type"`
-	Name           string     `json:"name"`
-	URL            string     `json:"url"`
-	Size           int64      `json:"size"`
-	MimeType       string     `json:"mime_type"`
-	StorageBackend string     `json:"storage_backend"`
-	StorageKey     string     `json:"storage_key"`
-	IsShared       bool       `json:"is_shared"`
-	DirectURL      string     `json:"direct_url,omitempty"`
-	CreatedAt      time.Time  `json:"CreatedAt"`
-	UpdatedAt      time.Time  `json:"UpdatedAt"`
-	DeletedAt      *time.Time `json:"DeletedAt"`
+	ID                   uint       `json:"ID"`
+	OwnerID              uint       `json:"owner_id"`
+	OrgID                *uint      `json:"org_id,omitempty"`
+	FolderID             *uint      `json:"folder_id,omitempty"`
+	Type                 string     `json:"type"`
+	Name                 string     `json:"name"`
+	URL                  string     `json:"url"`
+	Size                 int64      `json:"size"`
+	MimeType             string     `json:"mime_type"`
+	StorageBackend       string     `json:"storage_backend"`
+	StorageKey           string     `json:"storage_key"`
+	IsShared             bool       `json:"is_shared"`
+	DirectURL            string     `json:"direct_url,omitempty"`
+	VerificationStatus   string     `json:"verification_status,omitempty"`
+	VerificationRef      string     `json:"verification_ref,omitempty"`
+	VerifiedAt           *time.Time `json:"verified_at,omitempty"`
+	VerificationProvider string     `json:"verification_provider,omitempty"`
+	VerificationError    string     `json:"verification_error,omitempty"`
+	CreatedAt            time.Time  `json:"CreatedAt"`
+	UpdatedAt            time.Time  `json:"UpdatedAt"`
+	DeletedAt            *time.Time `json:"DeletedAt"`
 }
 
 type InputResource struct {
-	ID       uint
-	Name     string
-	Type     string
-	MimeType string
-	Size     int64
+	ID                   uint
+	Name                 string
+	Type                 string
+	MimeType             string
+	Size                 int64
+	VerificationStatus   string
+	VerificationRef      string
+	VerifiedAt           *time.Time
+	VerificationProvider string
+	VerificationError    string
 }
 
 type ContextSnapshotInput struct {
@@ -125,6 +141,23 @@ type InputResourcesResult struct {
 	Resources  []InputResource
 	ImageCount int
 	VideoCount int
+}
+
+type CostRequestKind string
+
+const (
+	CostRequestImage CostRequestKind = "image"
+	CostRequestVideo CostRequestKind = "video"
+)
+
+type ImageCostRequest struct {
+	Count       int
+	AspectRatio string
+}
+
+type VideoCostRequest struct {
+	Duration    int
+	AspectRatio string
 }
 
 type NewQueuedJobSpec struct {
@@ -373,12 +406,12 @@ func BuildContextSnapshot(input ContextSnapshotInput) string {
 	return string(b)
 }
 
-func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (string, ai.ImageRequest, ai.VideoRequest, error) {
+func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (CostRequestKind, ImageCostRequest, VideoCostRequest, error) {
 	extra := map[string]any{}
 	if extraParams != "" {
 		_ = json.Unmarshal([]byte(extraParams), &extra)
 	}
-	extra = ai.NormalizeGenerationParams(extra)
+	extra = normalizeGenerationParams(extra)
 	getString := func(key string) string {
 		if v, ok := extra[key].(string); ok {
 			return v
@@ -403,22 +436,22 @@ func CostRequest(modelConfigID uint, jobType string, duration int, extraParams, 
 	}
 
 	switch jobType {
-	case ai.CapabilityImage, ai.CapabilityImageEdit:
-		return "image", ai.ImageRequest{
-			N:           1,
+	case CapabilityImage, CapabilityImageEdit:
+		return CostRequestImage, ImageCostRequest{
+			Count:       1,
 			AspectRatio: FirstNonEmpty(aspectRatio, getString("aspect_ratio")),
-		}, ai.VideoRequest{}, nil
-	case ai.CapabilityVideo, ai.CapabilityVideoI2V, ai.CapabilityVideoV2V:
+		}, VideoCostRequest{}, nil
+	case CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
 		dur := duration
 		if dur <= 0 {
 			dur = getInt("duration")
 		}
-		return "video", ai.ImageRequest{}, ai.VideoRequest{
+		return CostRequestVideo, ImageCostRequest{}, VideoCostRequest{
 			Duration:    dur,
 			AspectRatio: FirstNonEmpty(aspectRatio, getString("aspect_ratio"), getString("ratio")),
 		}, nil
 	default:
-		return "", ai.ImageRequest{}, ai.VideoRequest{}, errors.New("unsupported generation job type")
+		return "", ImageCostRequest{}, VideoCostRequest{}, errors.New("unsupported generation job type")
 	}
 }
 
@@ -431,7 +464,7 @@ func ModelIdentifier(mcfg ModelConfigInput) string {
 }
 
 func IsVideoJob(jobType string) bool {
-	return jobType == ai.CapabilityVideo || jobType == ai.CapabilityVideoI2V || jobType == ai.CapabilityVideoV2V
+	return jobType == CapabilityVideo || jobType == CapabilityVideoI2V || jobType == CapabilityVideoV2V
 }
 
 func FirstNonEmpty(values ...string) string {
@@ -441,4 +474,16 @@ func FirstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeGenerationParams(params map[string]any) map[string]any {
+	if params == nil {
+		return map[string]any{}
+	}
+	if ratio, ok := params["ratio"]; ok {
+		if _, exists := params["aspect_ratio"]; !exists {
+			params["aspect_ratio"] = ratio
+		}
+	}
+	return params
 }

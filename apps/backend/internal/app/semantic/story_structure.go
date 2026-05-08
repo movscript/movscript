@@ -36,29 +36,25 @@ func (s *Service) PatchSegment(ctx context.Context, projectID uint, id string, i
 	if err != nil {
 		return item, err
 	}
-	updates := compactUpdates(map[string]any{
-		"parent_segment_id": input.ParentSegmentID,
-		"kind":              input.Kind,
-		"order":             input.Order,
-		"title":             input.Title,
-		"summary":           input.Summary,
-		"content":           input.Content,
-		"status":            input.Status,
-		"metadata_json":     input.MetadataJSON,
-	})
+	patch := domainsemantic.SegmentPatch{
+		ParentSegmentID: input.ParentSegmentID,
+		Kind:            input.Kind,
+		Order:           input.Order,
+		Title:           input.Title,
+		Summary:         input.Summary,
+		Content:         input.Content,
+		Status:          input.Status,
+		MetadataJSON:    input.MetadataJSON,
+	}
 	if input.TextBlockID != nil || input.ProductionID != nil {
 		productionID, textBlockID, err := s.resolveSegmentOwners(ctx, projectID, input.ProductionID, input.TextBlockID)
 		if err != nil {
 			return item, err
 		}
-		if productionID != nil {
-			updates["production_id"] = *productionID
-		}
-		if textBlockID != nil {
-			updates["text_block_id"] = *textBlockID
-		}
+		patch.ProductionID = productionID
+		patch.TextBlockID = textBlockID
 	}
-	return s.repo.PatchSegment(ctx, item, updates)
+	return s.repo.PatchSegment(ctx, item, patch)
 }
 
 func (s *Service) ListProductionTextBlocks(ctx context.Context, filter ProductionTextBlockFilter) ([]domainsemantic.ProductionTextBlock, error) {
@@ -105,21 +101,19 @@ func (s *Service) PatchProductionTextBlock(ctx context.Context, projectID uint, 
 			return item, err
 		}
 	}
-	updates := compactUpdates(map[string]any{
-		"parent_block_id": input.ParentBlockID,
-		"kind":            input.Kind,
-		"order":           input.Order,
-		"title":           input.Title,
-		"content":         input.Content,
-		"summary":         input.Summary,
-		"source_type":     input.SourceType,
-		"status":          input.Status,
-		"metadata_json":   input.MetadataJSON,
-	})
-	if input.ProductionID != nil {
-		updates["production_id"] = *input.ProductionID
+	patch := domainsemantic.ProductionTextBlockPatch{
+		ProductionID:  input.ProductionID,
+		ParentBlockID: input.ParentBlockID,
+		Kind:          input.Kind,
+		Order:         input.Order,
+		Title:         input.Title,
+		Content:       input.Content,
+		Summary:       input.Summary,
+		SourceType:    input.SourceType,
+		Status:        input.Status,
+		MetadataJSON:  input.MetadataJSON,
 	}
-	return s.repo.PatchProductionTextBlock(ctx, item, updates)
+	return s.repo.PatchProductionTextBlock(ctx, item, patch)
 }
 
 func (s *Service) ListSceneMoments(ctx context.Context, filter SceneMomentFilter) ([]domainsemantic.SceneMoment, error) {
@@ -159,20 +153,20 @@ func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id strin
 			return item, err
 		}
 	}
-	updates := compactUpdates(map[string]any{
-		"segment_id":     input.SegmentID,
-		"order":          input.Order,
-		"title":          input.Title,
-		"description":    input.Description,
-		"time_text":      input.TimeText,
-		"location_text":  input.LocationText,
-		"condition_text": input.ConditionText,
-		"action_text":    input.ActionText,
-		"mood":           input.Mood,
-		"status":         input.Status,
-		"metadata_json":  input.MetadataJSON,
-	})
-	return s.repo.PatchSceneMoment(ctx, item, updates)
+	patch := domainsemantic.SceneMomentPatch{
+		SegmentID:     input.SegmentID,
+		Order:         input.Order,
+		Title:         input.Title,
+		Description:   input.Description,
+		TimeText:      input.TimeText,
+		LocationText:  input.LocationText,
+		ConditionText: input.ConditionText,
+		ActionText:    input.ActionText,
+		Mood:          input.Mood,
+		Status:        input.Status,
+		MetadataJSON:  input.MetadataJSON,
+	}
+	return s.repo.PatchSceneMoment(ctx, item, patch)
 }
 
 func (s *Service) resolveSegmentOwners(ctx context.Context, projectID uint, productionID *uint, textBlockID *uint) (*uint, *uint, error) {

@@ -63,8 +63,8 @@ func (r *gormRepository) CreateCanvasFromTemplate(ctx context.Context, ownerID u
 		if err := entityrelation.SyncCoreEntityRelations(tx, &cv); err != nil {
 			return err
 		}
-		nodes := TemplateNodesForCanvas(cv.ID, tpl.Nodes)
-		edges := TemplateEdgesForCanvas(cv.ID, tpl.Edges)
+		nodes := templateNodeRowsForCanvas(cv.ID, tpl.Nodes)
+		edges := templateEdgeRowsForCanvas(cv.ID, tpl.Edges)
 		if len(nodes) > 0 {
 			if err := tx.Create(&nodes).Error; err != nil {
 				return err
@@ -86,7 +86,7 @@ func (r *gormRepository) CreateCanvasFromTemplate(ctx context.Context, ownerID u
 	return canvasruntime.CanvasFromModel(cv), nil
 }
 
-func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []persistencemodel.CanvasNode {
+func templateNodeRowsForCanvas(canvasID uint, defs []TemplateNode) []persistencemodel.CanvasNode {
 	domainNodes := domainmarket.TemplateNodesForCanvas(canvasID, defs)
 	nodes := make([]persistencemodel.CanvasNode, 0, len(domainNodes))
 	for _, node := range domainNodes {
@@ -95,7 +95,7 @@ func TemplateNodesForCanvas(canvasID uint, defs []TemplateNode) []persistencemod
 	return nodes
 }
 
-func TemplateEdgesForCanvas(canvasID uint, defs []TemplateEdge) []persistencemodel.CanvasEdge {
+func templateEdgeRowsForCanvas(canvasID uint, defs []TemplateEdge) []persistencemodel.CanvasEdge {
 	domainEdges := domainmarket.TemplateEdgesForCanvas(canvasID, defs)
 	edges := make([]persistencemodel.CanvasEdge, 0, len(domainEdges))
 	for _, edge := range domainEdges {

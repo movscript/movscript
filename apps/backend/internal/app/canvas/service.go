@@ -16,7 +16,7 @@ type Service struct {
 	uploadDir string
 }
 
-func NewService(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, entityIO *workflowio.EntityIOService, store storage.Storage) Service {
+func NewService(db *gorm.DB, registry *ai.Registry, svc *ai.AIService, verifier ai.ImageVerificationClient, entityIO *workflowio.EntityIOService, store storage.Storage) Service {
 	if entityIO == nil {
 		entityIO = workflowio.NewEntityIOService(db)
 	}

@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
-
-	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 func TestMergeIDsDeduplicatesAndPreservesOrder(t *testing.T) {
@@ -37,7 +35,7 @@ func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 	job := NewQueuedJob(NewQueuedJobSpec{
 		UserID:        1,
 		ModelConfigID: 2,
-		JobType:       ai.CapabilityImage,
+		JobType:       CapabilityImage,
 		Prompt:        "draw",
 	})
 	if job.Status != StatusPending {
@@ -54,6 +52,72 @@ func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 	roundTrip := JobFromModel(modelJob)
 	if roundTrip.ID != 14 || roundTrip.Status != StatusPending || roundTrip.MaxAttempts != DefaultMaxAttempts {
 		t.Fatalf("unexpected job round-trip: %+v", roundTrip)
+	}
+}
+
+func TestScheduleRetryResetsProviderAndAppendsTrace(t *testing.T) {
+	now := time.Unix(20, 0).UTC()
+	outputID := uint(5)
+	finishedAt := time.Unix(10, 0).UTC()
+	job := Job{
+		Status:              StatusFailed,
+		AttemptCount:        2,
+		MaxAttempts:         0,
+		ErrorMsg:            "failed",
+		OutputResourceID:    &outputID,
+		ProviderTaskID:      "task",
+		ProviderTaskKind:    "video",
+		ProviderTaskStatus:  "failed",
+		ProviderTaskHistory: "history",
+		LockedBy:            "worker",
+		LeaseUntil:          &finishedAt,
+		LastHeartbeatAt:     &finishedAt,
+		FinishedAt:          &finishedAt,
+	}
+
+	job.ScheduleRetry(now, "manual retry requested")
+
+	if job.Status != StatusPending || job.AttemptCount != 0 || job.MaxAttempts != DefaultMaxAttempts {
+		t.Fatalf("unexpected retry counters: %+v", job)
+	}
+	if job.ErrorMsg != "" || job.OutputResourceID != nil || job.ProviderTaskID != "" || job.ProviderTaskHistory != "" {
+		t.Fatalf("provider state was not reset: %+v", job)
+	}
+	if job.NextRunAt == nil || !job.NextRunAt.Equal(now) || job.FinishedAt != nil || job.LeaseUntil != nil {
+		t.Fatalf("unexpected retry timing: %+v", job)
+	}
+	if job.ExecutionState != string(StateRetryScheduled) || job.LastHeartbeatAt == nil || !job.LastHeartbeatAt.Equal(now) {
+		t.Fatalf("unexpected execution state: %+v", job)
+	}
+	var trace []StateTraceEntry
+	if err := json.Unmarshal([]byte(job.StateTrace), &trace); err != nil {
+		t.Fatal(err)
+	}
+	if len(trace) != 1 || trace[0].State != StateRetryScheduled || trace[0].Status != StatusSucceeded || trace[0].Message != "manual retry requested" {
+		t.Fatalf("unexpected trace: %+v", trace)
+	}
+}
+
+func TestDeleteActionAndCancelForDelete(t *testing.T) {
+	if got := (Job{Status: StatusPending}).DeleteAction(); got != DeleteActionCancel {
+		t.Fatalf("pending delete action = %s, want %s", got, DeleteActionCancel)
+	}
+	if got := (Job{Status: StatusRunning}).DeleteAction(); got != DeleteActionBlock {
+		t.Fatalf("running delete action = %s, want %s", got, DeleteActionBlock)
+	}
+	if got := (Job{Status: StatusSucceeded}).DeleteAction(); got != DeleteActionRemove {
+		t.Fatalf("succeeded delete action = %s, want %s", got, DeleteActionRemove)
+	}
+
+	now := time.Unix(30, 0).UTC()
+	nextRunAt := time.Unix(40, 0).UTC()
+	job := Job{Status: StatusPending, NextRunAt: &nextRunAt, LockedBy: "worker", LeaseUntil: &nextRunAt}
+	job.MarkCancelledForDelete(now, "cancelled by user")
+	if job.Status != StatusCancelled || job.ErrorMsg != "cancelled by user" || job.NextRunAt != nil || job.LockedBy != "" || job.LeaseUntil != nil {
+		t.Fatalf("unexpected delete cancellation: %+v", job)
+	}
+	if job.FinishedAt == nil || !job.FinishedAt.Equal(now) || job.LastHeartbeatAt == nil || !job.LastHeartbeatAt.Equal(now) {
+		t.Fatalf("unexpected cancellation timing: %+v", job)
 	}
 }
 
@@ -75,7 +139,7 @@ func TestBuildContextSnapshotIncludesModelAndResources(t *testing.T) {
 		Credential:     CredentialInput{DisplayName: "OpenAI"},
 		Prompt:         "draw",
 		ExtraParams:    `{"n":1}`,
-		JobType:        ai.CapabilityImage,
+		JobType:        CapabilityImage,
 		InputResources: []InputResource{{Name: "ref.png", Type: "image"}},
 		CreatedAt:      time.Unix(10, 0).UTC(),
 	})
@@ -83,17 +147,17 @@ func TestBuildContextSnapshotIncludesModelAndResources(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot["job_type"] != ai.CapabilityImage || snapshot["prompt"] != "draw" {
+	if snapshot["job_type"] != CapabilityImage || snapshot["prompt"] != "draw" {
 		t.Fatalf("unexpected snapshot: %s", raw)
 	}
 }
 
 func TestCostRequestBuildsVideoRequestFromParams(t *testing.T) {
-	kind, _, videoReq, err := CostRequest(1, ai.CapabilityVideo, 0, `{"duration":5,"ratio":"16:9"}`, "")
+	kind, _, videoReq, err := CostRequest(1, CapabilityVideo, 0, `{"duration":5,"ratio":"16:9"}`, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if kind != "video" || videoReq.Duration != 5 || videoReq.AspectRatio != "16:9" {
+	if kind != CostRequestVideo || videoReq.Duration != 5 || videoReq.AspectRatio != "16:9" {
 		t.Fatalf("unexpected video cost request: kind=%s req=%+v", kind, videoReq)
 	}
 }

@@ -1,13 +1,14 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
-import type { AgentRun, AgentThread } from './types.js'
+import type { AgentRun, AgentThread, AgentTraceEvent } from './types.js'
 import { InMemoryAgentStore, type AgentStore } from './store.js'
 
 interface AgentStateFile {
-  version: 1
+  version: 1 | 2
   threads: AgentThread[]
   runs: AgentRun[]
+  traceEvents?: AgentTraceEvent[]
 }
 
 export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
@@ -39,6 +40,11 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     this.persist()
   }
 
+  override appendTraceEvent(event: AgentTraceEvent): void {
+    super.appendTraceEvent(event)
+    this.persist()
+  }
+
   private load(): void {
     if (!existsSync(this.filePath)) return
     const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<AgentStateFile>
@@ -48,13 +54,18 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     for (const run of parsed.runs ?? []) {
       super.createRun(run)
     }
+    for (const event of parsed.traceEvents ?? []) {
+      super.appendTraceEvent(event)
+    }
   }
 
   private persist(): void {
+    const runs = this.listRuns()
     const state: AgentStateFile = {
-      version: 1,
+      version: 2,
       threads: this.listThreads(),
-      runs: this.listRuns(),
+      runs,
+      traceEvents: runs.flatMap((run) => this.listRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })),
     }
     atomicWriteJSON(this.filePath, state)
   }
@@ -62,6 +73,9 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
 
 export function resolveAgentStatePath(): string {
   if (process.env.MOVSCRIPT_AGENT_STATE_PATH) return process.env.MOVSCRIPT_AGENT_STATE_PATH
+  if (process.env.MOVSCRIPT_AGENT_USER_DATA_DIR) {
+    return join(process.env.MOVSCRIPT_AGENT_USER_DATA_DIR, 'state.json')
+  }
   return join(process.cwd(), '.movscript-agent', 'state.json')
 }
 

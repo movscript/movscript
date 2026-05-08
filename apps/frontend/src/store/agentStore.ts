@@ -117,6 +117,8 @@ interface AgentStore {
   deleteConversation: (userId: string, id: string) => void
   setActiveConversation: (userId: string, id: string | null) => void
   addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
+  upsertMessage: (userId: string, conversationId: string, messageId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
+  removeMessage: (userId: string, conversationId: string, messageId: string) => void
   updateConversationTitle: (userId: string, id: string, title: string) => void
   getConversationDraft: (userId: string, conversationId: string) => ConversationDraft
   updateConversationDraft: (userId: string, conversationId: string, patch: Partial<ConversationDraft>) => void
@@ -294,6 +296,45 @@ export const useAgentStore = create<AgentStore>()(
               conversations: cur.conversations.map((c) =>
                 c.id === conversationId
                   ? { ...c, messages: [...c.messages, { ...msg, id: genId(), timestamp: Date.now() }], updatedAt: Date.now() }
+                  : c
+              ),
+            },
+          },
+        }
+      }),
+
+      upsertMessage: (userId, conversationId, messageId, msg) => set((state) => {
+        const cur = getUserState(state, userId)
+        const now = Date.now()
+        return {
+          convsByUser: {
+            ...state.convsByUser,
+            [userId]: {
+              ...cur,
+              conversations: cur.conversations.map((c) => {
+                if (c.id !== conversationId) return c
+                const existingIndex = c.messages.findIndex((message) => message.id === messageId)
+                const nextMessage = { ...msg, id: messageId, timestamp: existingIndex >= 0 ? c.messages[existingIndex].timestamp : now }
+                const messages = existingIndex >= 0
+                  ? c.messages.map((message, index) => index === existingIndex ? nextMessage : message)
+                  : [...c.messages, nextMessage]
+                return { ...c, messages, updatedAt: now }
+              }),
+            },
+          },
+        }
+      }),
+
+      removeMessage: (userId, conversationId, messageId) => set((state) => {
+        const cur = getUserState(state, userId)
+        return {
+          convsByUser: {
+            ...state.convsByUser,
+            [userId]: {
+              ...cur,
+              conversations: cur.conversations.map((c) =>
+                c.id === conversationId
+                  ? { ...c, messages: c.messages.filter((message) => message.id !== messageId), updatedAt: Date.now() }
                   : c
               ),
             },

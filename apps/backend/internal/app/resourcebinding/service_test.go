@@ -82,11 +82,12 @@ func TestBuildUpdatesNormalizesMutableFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updates["role"] != "final" || updates["slot"] != "poster" || updates["version"] != 1 {
-		t.Fatalf("unexpected normalized role/slot/version: %#v", updates)
+	columns := bindingUpdateColumns(updates)
+	if columns["role"] != "final" || columns["slot"] != "poster" || columns["version"] != 1 {
+		t.Fatalf("unexpected normalized role/slot/version: %#v", columns)
 	}
-	if updates["status"] != "approved" || updates["source_type"] != "canvas" || updates["metadata_json"] != "{}" {
-		t.Fatalf("unexpected normalized status/source/metadata: %#v", updates)
+	if columns["status"] != "approved" || columns["source_type"] != "canvas" || columns["metadata_json"] != "{}" {
+		t.Fatalf("unexpected normalized status/source/metadata: %#v", columns)
 	}
 }
 

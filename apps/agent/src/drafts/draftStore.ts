@@ -28,6 +28,11 @@ export interface AgentDraftSource {
   runId?: string
   threadId?: string
   userId?: number | string
+  pageKey?: string
+  pageType?: string
+  pageRoute?: string
+  pageEntityType?: string
+  pageEntityId?: number | string
   [key: string]: JSONValue | undefined
 }
 
@@ -75,6 +80,11 @@ export interface ListAgentDraftsQuery {
   status?: AgentDraftStatus
   sourceEntityType?: string
   sourceEntityId?: number | string
+  pageKey?: string
+  pageType?: string
+  pageRoute?: string
+  pageEntityType?: string
+  pageEntityId?: number | string
   limit?: number
 }
 
@@ -504,6 +514,11 @@ function matchesDraftQuery(draft: AgentDraft, query: ListAgentDraftsQuery): bool
   if (query.status && draft.status !== query.status) return false
   if (query.sourceEntityType && draft.source?.entityType !== query.sourceEntityType) return false
   if (query.sourceEntityId !== undefined && draft.source?.entityId !== query.sourceEntityId) return false
+  if (query.pageKey && draft.source?.pageKey !== query.pageKey) return false
+  if (query.pageType && draft.source?.pageType !== query.pageType) return false
+  if (query.pageRoute && draft.source?.pageRoute !== query.pageRoute) return false
+  if (query.pageEntityType && draft.source?.pageEntityType !== query.pageEntityType) return false
+  if (query.pageEntityId !== undefined && draft.source?.pageEntityId !== query.pageEntityId) return false
   return true
 }
 

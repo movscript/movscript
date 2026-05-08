@@ -33,7 +33,7 @@ func assertNoDomainModelImports(t *testing.T, root string) {
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		if isEnterpriseOnlyFile(path) {
+		if isRuntimeOverlayOnlyFile(path) {
 			return nil
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
@@ -53,7 +53,7 @@ func assertNoDomainModelImports(t *testing.T, root string) {
 	}
 }
 
-func isEnterpriseOnlyFile(path string) bool {
+func isRuntimeOverlayOnlyFile(path string) bool {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return false
@@ -63,7 +63,7 @@ func isEnterpriseOnlyFile(path string) bool {
 		if line == "" {
 			continue
 		}
-		return strings.HasPrefix(line, "//go:build enterprise")
+		return strings.HasPrefix(line, "//go:build runtime_overlay")
 	}
 	return false
 }

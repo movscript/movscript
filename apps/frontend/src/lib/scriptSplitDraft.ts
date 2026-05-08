@@ -458,7 +458,7 @@ function serializeGlobalContext(context: ScriptSplitGlobalContext, includeEpisod
 export function scriptSplitDraftStatusLabel(status?: AgentDraft['status']) {
   if (status === 'draft') return '待确认'
   if (status === 'accepted') return '已接受'
-  if (status === 'rejected') return '已拒绝'
+  if (status === 'rejected') return '已删除'
   if (status === 'applied') return '已写入'
   if (status === 'superseded') return '已替换'
   return '未生成'

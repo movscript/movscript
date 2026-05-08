@@ -2,10 +2,11 @@ package canvas
 
 import (
 	"context"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 )
 
-func (h *Service) createBinding(ctx context.Context, binding persistencemodel.ResourceBinding) error {
+func (h *Service) createBinding(ctx context.Context, binding domainresourcebinding.Binding) error {
 	if h == nil || h.canvasRepo() == nil {
 		return nil
 	}

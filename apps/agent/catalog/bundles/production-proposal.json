@@ -12,13 +12,12 @@
     "movscript_create_production_proposal",
     "movscript_inspect_production_proposal_context",
     "movscript_get_production_proposal",
-    "movscript_list_production_proposal_nodes",
+    "movscript_upsert_proposal_segment",
     "movscript_upsert_proposal_scene_moment",
     "movscript_upsert_proposal_reference",
     "movscript_upsert_proposal_asset",
     "movscript_upsert_proposal_content_unit",
     "movscript_upsert_proposal_keyframe",
-    "movscript_delete_production_proposal_node",
     "movscript_submit_production_proposal"
   ]
 }

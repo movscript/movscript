@@ -7,7 +7,7 @@
     "movscript-agent": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-server-bundle.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "dev": "node scripts/dev-watch.mjs",
@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "esbuild": "^0.27.7",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }

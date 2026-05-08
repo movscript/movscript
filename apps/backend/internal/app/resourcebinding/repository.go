@@ -16,7 +16,7 @@ type repository interface {
 	FindBindingByUniqueKey(ctx context.Context, projectID uint, resourceID uint, ownerType string, ownerID uint, role string, slot string, version int) (domainbinding.Binding, bool, error)
 	CreateBinding(ctx context.Context, binding domainbinding.Binding) (domainbinding.Binding, error)
 	GetBinding(ctx context.Context, id uint) (domainbinding.Binding, bool, error)
-	UpdateBinding(ctx context.Context, binding domainbinding.Binding, updates map[string]any) (domainbinding.Binding, error)
+	UpdateBinding(ctx context.Context, binding domainbinding.Binding, spec domainbinding.UpdateSpec) (domainbinding.Binding, error)
 	DeleteBinding(ctx context.Context, binding domainbinding.Binding) error
 	EnsureResourceVisibleToUser(ctx context.Context, resourceID uint, userID uint) error
 	EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error
@@ -103,8 +103,9 @@ func (r *gormRepository) GetBinding(ctx context.Context, id uint) (domainbinding
 	return domainbinding.BindingFromModel(binding), true, nil
 }
 
-func (r *gormRepository) UpdateBinding(ctx context.Context, binding domainbinding.Binding, updates map[string]any) (domainbinding.Binding, error) {
+func (r *gormRepository) UpdateBinding(ctx context.Context, binding domainbinding.Binding, spec domainbinding.UpdateSpec) (domainbinding.Binding, error) {
 	row := binding.ToModel()
+	updates := bindingUpdateColumns(spec)
 	if len(updates) == 0 {
 		return binding, nil
 	}
@@ -129,6 +130,38 @@ func (r *gormRepository) UpdateBinding(ctx context.Context, binding domainbindin
 		return domainbinding.BindingFromModel(row), err
 	}
 	return domainbinding.BindingFromModel(row), nil
+}
+
+func bindingUpdateColumns(spec domainbinding.UpdateSpec) map[string]any {
+	updates := map[string]any{}
+	if spec.Role != nil {
+		updates["role"] = *spec.Role
+	}
+	if spec.Slot != nil {
+		updates["slot"] = *spec.Slot
+	}
+	if spec.SortOrder != nil {
+		updates["sort_order"] = *spec.SortOrder
+	}
+	if spec.Version != nil {
+		updates["version"] = *spec.Version
+	}
+	if spec.IsPrimary != nil {
+		updates["is_primary"] = *spec.IsPrimary
+	}
+	if spec.Status != nil {
+		updates["status"] = *spec.Status
+	}
+	if spec.SourceType != nil {
+		updates["source_type"] = *spec.SourceType
+	}
+	if spec.SourceID != nil {
+		updates["source_id"] = *spec.SourceID
+	}
+	if spec.MetadataJSON != nil {
+		updates["metadata_json"] = *spec.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) DeleteBinding(ctx context.Context, binding domainbinding.Binding) error {

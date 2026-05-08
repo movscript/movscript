@@ -5,6 +5,7 @@ import { app } from 'electron'
 
 const DEFAULT_PRODUCTION_RUNTIME_BASE_URL = 'http://127.0.0.1:28765'
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
+const DEFAULT_AGENT_USER_DATA_DIR = 'movscript-agent'
 const MIN_AGENT_RUNTIME_API_VERSION = 1
 
 let proc: ChildProcess | null = null
@@ -100,6 +101,7 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
         ...launch.env,
         MOVSCRIPT_AGENT_PORT: String(port),
         MOVSCRIPT_MCP_ENDPOINT: process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT,
+        MOVSCRIPT_AGENT_USER_DATA_DIR: process.env.MOVSCRIPT_AGENT_USER_DATA_DIR || join(app.getPath('userData'), DEFAULT_AGENT_USER_DATA_DIR),
         ...(backendAPIBaseURL ? {
           MOVSCRIPT_BACKEND_API_BASE_URL: backendAPIBaseURL,
           MOVSCRIPT_API_BASE_URL: backendAPIBaseURL,
@@ -191,12 +193,22 @@ function resolveAgentRuntimeLaunch(): AgentRuntimeLaunch {
   ]
 
   for (const root of roots) {
+    const bundledServer = join(root, 'dist', 'server.bundle.js')
+    if (app.isPackaged && existsSync(bundledServer)) {
+      return {
+        command: process.execPath,
+        args: [bundledServer],
+        cwd: join(app.getPath('userData'), DEFAULT_AGENT_USER_DATA_DIR),
+        env: { ELECTRON_RUN_AS_NODE: '1' },
+      }
+    }
+
     const distServer = join(root, 'dist', 'server.js')
     if (app.isPackaged && existsSync(distServer)) {
       return {
         command: process.execPath,
         args: [distServer],
-        cwd: root,
+        cwd: join(app.getPath('userData'), DEFAULT_AGENT_USER_DATA_DIR),
         env: { ELECTRON_RUN_AS_NODE: '1' },
       }
     }

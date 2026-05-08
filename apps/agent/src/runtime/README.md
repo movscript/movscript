@@ -16,7 +16,7 @@ The standalone agent process owns agent state and orchestration. CLI, Electron, 
 | `loop/` | Agentic loop pipeline: context build, model call, policy gate, tool execution, and final loop result. |
 | `input/` | Request normalization, default run policy, approval merging, and round identifiers. |
 | `context.ts` | Parse `movscript.get_context_pack` results into runtime context such as current project id. |
-| `agentManifest.ts` | `movscript.agent.v1` normalization and the default local-agent contract. |
+| `agentManifest.ts` | Current manifest normalization and the default local-agent contract. |
 | `toolRegistry.ts` | Tool metadata, permissions, risk levels, and default approval requirements. |
 | `toolPolicy.ts` | Manifest authorization, registration checks, approval gating, project-scoped gating, and project id injection. |
 | `assistantMessage.ts` | User-facing assistant content from tool outcomes and warnings. |
@@ -33,7 +33,7 @@ The standalone agent process owns agent state and orchestration. CLI, Electron, 
 - Sandbox mode intercepts write/generation/destructive tools and records `sandboxed: true` steps without performing writes.
 - Approval-required calls pause with `status: "requires_action"` and `pendingApprovals`.
 - `approveRun` resumes the same run with approved tool names.
-- Frontend-selected agents can pass a `movscript.agent.v1` manifest to `POST /runs`.
+- Frontend-selected agents pass a `movscript.agent.current` manifest to `POST /runs`.
 - Memory is local and file-backed.
 
 ## Architecture Pattern Direction

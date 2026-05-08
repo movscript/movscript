@@ -1,13 +1,13 @@
 package jobrunner
 
-import jobapp "github.com/movscript/movscript/internal/app/job"
+import domainjob "github.com/movscript/movscript/internal/domain/job"
 
 const (
-	StatusPending   = jobapp.StatusPending
-	StatusRunning   = jobapp.StatusRunning
-	StatusSucceeded = jobapp.StatusSucceeded
-	StatusFailed    = jobapp.StatusFailed
-	StatusCancelled = jobapp.StatusCancelled
+	StatusPending   = domainjob.StatusPending
+	StatusRunning   = domainjob.StatusRunning
+	StatusSucceeded = domainjob.StatusSucceeded
+	StatusFailed    = domainjob.StatusFailed
+	StatusCancelled = domainjob.StatusCancelled
 )
 
-const DefaultMaxAttempts = jobapp.DefaultMaxAttempts
+const DefaultMaxAttempts = domainjob.DefaultMaxAttempts

@@ -44,6 +44,7 @@ func newHandlers(deps Dependencies) handlers {
 	registry := deps.Registry
 	aiService := deps.AIService
 	cacheStore := deps.Cache
+	imageVerifier := deps.ImageVerifier
 
 	return handlers{
 		projects:         handler.NewProjectHandler(db, cacheStore),
@@ -52,7 +53,7 @@ func newHandlers(deps Dependencies) handlers {
 		users:            handler.NewUserHandler(db),
 		auth:             handler.NewAuthHandlerWithConfig(db, tokens, cfg),
 		ai:               handler.NewAIHandler(db, cfg.EncryptionKey, registry),
-		resources:        handler.NewResourceHandler(db, store, cacheStore),
+		resources:        handler.NewResourceHandler(db, store, imageVerifier, cacheStore),
 		resourceBindings: handler.NewResourceBindingHandler(db),
 		semanticEntities: handler.NewSemanticEntityHandler(db, cacheStore),
 		preview:          handler.NewPreviewHandler(db),

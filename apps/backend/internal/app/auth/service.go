@@ -184,10 +184,11 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 		if err != nil {
 			return domainauth.UserProfile{}, err
 		}
-		updates := map[string]any{"password_hash": string(hashBytes)}
+		passwordHash := string(hashBytes)
+		updates := domainauth.UserUpdateSpec{PasswordHash: &passwordHash}
 		displayName := strings.TrimSpace(input.DisplayName)
 		if displayName != "" && strings.TrimSpace(existing.DisplayName) == "" {
-			updates["display_name"] = displayName
+			updates.DisplayName = &displayName
 		}
 		if err := s.repo.UpdateUser(ctx, existing.ID, updates); err != nil {
 			return domainauth.UserProfile{}, err
@@ -255,8 +256,8 @@ func (s *Service) CurrentUser(ctx context.Context, userID uint) (domainauth.User
 }
 
 func (s *Service) UpdateProfile(ctx context.Context, userID uint, input ProfileInput) (domainauth.UserProfile, error) {
-	updates := domainauth.ProfileUpdates(domainauth.ProfileInput(input))
-	if len(updates) > 0 {
+	updates := domainauth.ProfileUpdateSpec(domainauth.ProfileInput(input))
+	if !updates.Empty() {
 		if err := s.repo.UpdateUser(ctx, userID, updates); err != nil {
 			return domainauth.UserProfile{}, err
 		}
@@ -333,7 +334,7 @@ func (s *Service) CreateSession(ctx context.Context, userID uint, ttl time.Durat
 		return "", time.Time{}, err
 	}
 	expiresAt := time.Now().UTC().Add(ttl)
-	session := domainauth.NewAuthSession(userID, sha256Hex(raw), expiresAt, userAgent, ipAddress).ToModel()
+	session := domainauth.NewAuthSession(userID, sha256Hex(raw), expiresAt, userAgent, ipAddress)
 	if err := s.repo.CreateSession(ctx, &session); err != nil {
 		return "", time.Time{}, err
 	}
@@ -367,11 +368,15 @@ func (s *Service) IssueCredential(ctx context.Context, input CredentialInput) (C
 	if s.tokens == nil {
 		return Credential{}, errors.New("auth token manager is required")
 	}
-	user, err := s.repo.FindUserModelByID(ctx, input.UserID)
+	user, err := s.repo.FindUserByID(ctx, input.UserID)
 	if err != nil {
 		return Credential{}, err
 	}
-	token, expiresAt, err := s.tokens.Issue(user)
+	token, expiresAt, err := s.tokens.Issue(tokenauth.Subject{
+		UserID:     user.ID,
+		Username:   user.Username,
+		SystemRole: user.SystemRole,
+	})
 	if err != nil {
 		return Credential{}, err
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	appresource "github.com/movscript/movscript/internal/app/resource"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
@@ -22,8 +23,8 @@ type ResourceHandler struct {
 	service *appresource.Service
 }
 
-func NewResourceHandler(db *gorm.DB, store storage.Storage, cacheStore ...cache.Cache) *ResourceHandler {
-	return &ResourceHandler{store: store, service: appresource.NewService(db, store, cacheStore...)}
+func NewResourceHandler(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, cacheStore ...cache.Cache) *ResourceHandler {
+	return &ResourceHandler{store: store, service: appresource.NewService(db, store, verifier, cacheStore...)}
 }
 
 // List returns the current user's resources.
@@ -220,6 +221,25 @@ func (h *ResourceHandler) Update(c *gin.Context) {
 	c.JSON(http.StatusOK, r)
 }
 
+func (h *ResourceHandler) VerifyImage(c *gin.Context) {
+	user := currentUser(c)
+	if user == nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
+		return
+	}
+	r, err := h.service.VerifyImage(c.Request.Context(), appresource.VerifyImageInput{
+		UserID: user.ID,
+		OrgID:  currentOrgID(c),
+		ID:     parseID(c.Param("id")),
+	})
+	if err != nil {
+		h.writeResourceError(c, err)
+		return
+	}
+	h.populateResourceURL(c, &r)
+	c.JSON(http.StatusOK, r)
+}
+
 func (h *ResourceHandler) populateResourceURLs(c *gin.Context, resources []domainresource.RawResource) {
 	for i := range resources {
 		h.populateResourceURL(c, &resources[i])
@@ -246,6 +266,8 @@ func (h *ResourceHandler) writeResourceError(c *gin.Context, err error) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "folder not found"})
 	case errors.Is(err, appresource.ErrForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+	case errors.Is(err, ai.ErrImageVerificationRequired):
+		c.JSON(http.StatusForbidden, gin.H{"error": "image verification required", "code": "IMAGE_VERIFICATION_REQUIRED"})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 	}

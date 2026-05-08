@@ -389,6 +389,7 @@ export default function AgentDebugPage() {
   const [previewMessage, setPreviewMessage] = useState(() => t('agents.debug.defaultPreviewMessage'))
   const [modelForm, setModelForm] = useState(initialRuntimeModelForm)
   const [debugRun, setDebugRun] = useState<AgentRun | null>(null)
+  const [debugRunTraceEvents, setDebugRunTraceEvents] = useState<AgentTraceEvent[]>([])
   const [debugThreadMessages, setDebugThreadMessages] = useState<Array<{ id: string; role: string; content: string; createdAt: string }>>([])
   const [debugRunError, setDebugRunError] = useState<string | null>(null)
   const [debugRunInput, setDebugRunInput] = useState<DebugRunInputSnapshot | null>(null)
@@ -466,6 +467,7 @@ export default function AgentDebugPage() {
       const message = messageOverride?.trim() || previewMessage.trim() || t('agents.debug.defaultPreviewMessage')
       setActiveTab('run')
       setDebugRun(null)
+      setDebugRunTraceEvents([])
       setDebugRunError(null)
       setDebugThreadMessages([])
       setSelectedHistoryRunId(null)
@@ -485,6 +487,7 @@ export default function AgentDebugPage() {
         onRunUpdate: (run) => setDebugRun(run),
       })
       setDebugRun(result.run)
+      setDebugRunTraceEvents(await loadRunTraceEvents(result.run.id))
       setSelectedHistoryRunId(result.run.id)
       setDebugThreadMessages(result.thread.messages.map((message) => ({
         id: message.id,
@@ -552,10 +555,11 @@ export default function AgentDebugPage() {
     runHistory: runHistory.data,
     runHistoryError: runHistory.error?.message,
     debugRun,
+    debugRunTraceEvents,
     debugThreadMessages,
     debugRunError,
     debugRunInput,
-  }), [capabilities.data, debugRun, debugRunError, debugRunInput, debugThreadMessages, health.data, inspect.data, modelConfig.data, preview.data, preview.error, runHistory.data, runHistory.error, selectedManifest, testModel.data, testModel.error])
+  }), [capabilities.data, debugRun, debugRunError, debugRunInput, debugRunTraceEvents, debugThreadMessages, health.data, inspect.data, modelConfig.data, preview.data, preview.error, runHistory.data, runHistory.error, selectedManifest, testModel.data, testModel.error])
 
   async function approveDebugRun(approvalIds?: string[]) {
     if (!debugRun) return
@@ -572,6 +576,7 @@ export default function AgentDebugPage() {
         onRunUpdate: (run) => setDebugRun(run),
       })
       setDebugRun(finalRun)
+      setDebugRunTraceEvents(await loadRunTraceEvents(finalRun.id))
       setSelectedHistoryRunId(finalRun.id)
       const thread = await localAgentClient.getThread(finalRun.threadId)
       setDebugThreadMessages(thread.messages.map((message) => ({
@@ -596,6 +601,7 @@ export default function AgentDebugPage() {
     try {
       const rejectedRun = await localAgentClient.rejectRun(debugRun.id, { approvalIds })
       setDebugRun(rejectedRun)
+      setDebugRunTraceEvents(await loadRunTraceEvents(rejectedRun.id))
       setSelectedHistoryRunId(rejectedRun.id)
       const thread = await localAgentClient.getThread(rejectedRun.threadId)
       setDebugThreadMessages(thread.messages.map((message) => ({
@@ -625,6 +631,7 @@ export default function AgentDebugPage() {
 
   async function openHistoryRun(run: AgentRun) {
     setDebugRun(run)
+    setDebugRunTraceEvents(await loadRunTraceEvents(run.id))
     setSelectedHistoryRunId(run.id)
     setDebugRunInput(buildInputSnapshotFromRun(run))
     setDebugRunError(null)
@@ -640,6 +647,11 @@ export default function AgentDebugPage() {
     } catch {
       setDebugThreadMessages([])
     }
+  }
+
+  async function loadRunTraceEvents(runId: string): Promise<AgentTraceEvent[]> {
+    const response = await localAgentClient.getRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER })
+    return response.events
   }
 
   return (
@@ -958,6 +970,7 @@ export default function AgentDebugPage() {
               <PlanTab
                 preview={preview.data}
                 run={debugRun}
+                traceEvents={debugRunTraceEvents}
                 input={debugRunInput}
                 threadMessages={debugThreadMessages}
                 running={executeRun.isPending}
@@ -984,6 +997,7 @@ export default function AgentDebugPage() {
               <RightRunPanel
                 input={debugRunInput}
                 run={debugRun}
+                traceEvents={debugRunTraceEvents}
                 running={executeRun.isPending || approvingRun}
                 error={debugRunError ?? executeRun.error?.message ?? null}
                 onOpenTimeline={() => setActiveTab('plan')}
@@ -1013,6 +1027,7 @@ interface WorkbenchSession {
 
 interface WorkbenchRunState {
   run: AgentRun | null
+  traceEvents: AgentTraceEvent[]
   threadMessages: Array<{ id: string; role: string; content: string; createdAt: string; runId?: string }>
   running: boolean
   loadingThread?: boolean
@@ -1085,7 +1100,7 @@ function WorkbenchTab({
 
   const availableTools = capabilities?.resolvedTools?.available ?? inspect?.registeredTools?.map((t) => ({ name: t.name, description: t.description })) ?? []
 
-  const activeRunState = activeThreadId ? (runStates[activeThreadId] ?? { run: null, threadMessages: [], running: false, error: null }) : null
+  const activeRunState = activeThreadId ? (runStates[activeThreadId] ?? { run: null, traceEvents: [], threadMessages: [], running: false, error: null }) : null
 
   useEffect(() => {
     setMessage(debugMessage)
@@ -1095,7 +1110,7 @@ function WorkbenchTab({
 
   function setRunState(threadId: string, patch: Partial<WorkbenchRunState>) {
     setRunStates((prev) => {
-      const existing = prev[threadId] ?? { run: null, threadMessages: [], running: false, error: null }
+      const existing = prev[threadId] ?? { run: null, traceEvents: [], threadMessages: [], running: false, error: null }
       return { ...prev, [threadId]: { ...existing, ...patch } }
     })
   }
@@ -1114,6 +1129,7 @@ function WorkbenchTab({
         .sort((a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime())[0] ?? null
       setRunState(threadId, {
         run: latestRun,
+        traceEvents: latestRun ? await loadTraceEventsForRun(latestRun.id) : [],
         threadMessages: thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt, runId: m.runId })),
         loadingThread: false,
         error: null,
@@ -1167,7 +1183,7 @@ function WorkbenchTab({
     const session: WorkbenchSession = { threadId: thread.id, title: thread.title ?? thread.id.slice(0, 12), createdAt: thread.createdAt, messageCount: 0 }
     setSessions((prev) => [session, ...prev])
     setActiveThreadId(thread.id)
-    setRunState(thread.id, { run: null, threadMessages: [], running: false, loadingThread: false, error: null })
+    setRunState(thread.id, { run: null, traceEvents: [], threadMessages: [], running: false, loadingThread: false, error: null })
   }
 
   async function deleteSession(threadId: string) {
@@ -1216,6 +1232,7 @@ function WorkbenchTab({
       const thread = await localAgentClient.getThread(activeThreadId)
       setRunState(activeThreadId, {
         run: finalRun,
+        traceEvents: await loadTraceEventsForRun(finalRun.id),
         running: false,
         threadMessages: thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt, runId: m.runId })),
       })
@@ -1244,6 +1261,7 @@ function WorkbenchTab({
       })
       setRunState(activeThreadId, {
         run: result.run,
+        traceEvents: await loadTraceEventsForRun(result.run.id),
         running: false,
         threadMessages: result.thread.messages.map((m) => ({ id: m.id, role: m.role, content: m.content, createdAt: m.createdAt, runId: m.runId })),
       })
@@ -1254,6 +1272,10 @@ function WorkbenchTab({
     } finally {
       setSendingMessage(false)
     }
+  }
+
+  async function loadTraceEventsForRun(runId: string): Promise<AgentTraceEvent[]> {
+    return (await localAgentClient.getRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER })).events
   }
 
   return (
@@ -1582,10 +1604,10 @@ function WorkbenchRunOutput({
     )
   }
 
-  const { run, threadMessages, running, loadingThread, error } = state
+  const { run, traceEvents: runTraceEvents, threadMessages, running, loadingThread, error } = state
   const orderedSteps = run ? orderRunStepsChronologically(run.steps) : []
   const userMessage = [...threadMessages].reverse().find((m) => m.role === 'user')
-  const traceEvents = run ? normalizeTraceEvents(run, threadMessages) : []
+  const traceEvents = run ? normalizeTraceEvents(run, runTraceEvents, threadMessages) : []
   const setupEvents = traceEvents.filter((event) => ['run', 'message', 'context', 'memory', 'manifest', 'skill', 'tool_catalog', 'policy', 'prompt'].includes(event.kind))
   const modelEvents = traceEvents.filter((event) => event.kind === 'model_call')
   const toolEvents = traceEvents.filter((event) => event.kind === 'tool_call' || event.kind === 'approval')
@@ -2176,11 +2198,11 @@ function RunHistoryPanel({
                   </div>
                   <div className="mt-1 truncate font-mono text-[10px] text-foreground" title={run.id}>{run.id}</div>
                   <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
-                    {firstUserMessage || `${run.steps.length} step(s), ${run.traceEvents?.length ?? 0} event(s)`}
+                    {firstUserMessage || `${run.steps.length} step(s)`}
                   </p>
                   <div className="mt-1 flex flex-wrap gap-1">
                     <Badge variant="outline" className="text-[9px]">{run.steps.length} steps</Badge>
-                    <Badge variant="outline" className="text-[9px]">{run.traceEvents?.length ?? 0} events</Badge>
+                    <Badge variant="outline" className="text-[9px]">trace on demand</Badge>
                     {run.pendingApprovals?.some((approval) => approval.status === 'pending') && (
                       <Badge variant="warning" className="text-[9px]">approval</Badge>
                     )}
@@ -2198,12 +2220,14 @@ function RunHistoryPanel({
 function RightRunPanel({
   input,
   run,
+  traceEvents,
   running,
   error,
   onOpenTimeline,
 }: {
   input: DebugRunInputSnapshot | null
   run: AgentRun | null
+  traceEvents: AgentTraceEvent[]
   running: boolean
   error: string | null
   onOpenTimeline: () => void
@@ -2239,6 +2263,7 @@ function RightRunPanel({
           <div className="grid grid-cols-2 gap-2">
             <Metric label="Thread" value={run?.threadId ?? 'pending'} />
             <Metric label="Steps" value={run ? String(run.steps.length) : running ? '...' : '0'} />
+            <Metric label="Trace" value={run ? String(traceEvents.length) : running ? '...' : '0'} />
           </div>
 
           {run && recentSteps.length > 0 && (
@@ -2570,6 +2595,7 @@ function RunInteractionPanel({
 function PlanTab({
   preview,
   run,
+  traceEvents,
   input,
   threadMessages,
   running,
@@ -2580,6 +2606,7 @@ function PlanTab({
 }: {
   preview?: AgentRunPreview
   run: AgentRun | null
+  traceEvents: AgentTraceEvent[]
   input: DebugRunInputSnapshot | null
   threadMessages: Array<{ id: string; role: string; content: string; createdAt: string }>
   running: boolean
@@ -2594,6 +2621,7 @@ function PlanTab({
     <div className="space-y-4">
       <DebugRunTimeline
         run={run}
+        traceEvents={traceEvents}
         input={input}
         threadMessages={threadMessages}
         running={running}
@@ -2666,6 +2694,7 @@ function PlanTab({
 
 function DebugRunTimeline({
   run,
+  traceEvents,
   input,
   threadMessages,
   running,
@@ -2675,6 +2704,7 @@ function DebugRunTimeline({
   onReject,
 }: {
   run: AgentRun | null
+  traceEvents: AgentTraceEvent[]
   input: DebugRunInputSnapshot | null
   threadMessages: Array<{ id: string; role: string; content: string; createdAt: string }>
   running: boolean
@@ -2758,7 +2788,7 @@ function DebugRunTimeline({
           )}
         />
 
-        <AgentActivityTrace run={run} threadMessages={threadMessages} />
+        <AgentActivityTrace run={run} traceEvents={traceEvents} threadMessages={threadMessages} />
 
         <div className="space-y-2">
           <div className="text-xs font-semibold text-foreground">Step Timeline</div>
@@ -2894,12 +2924,14 @@ function buildRunStages({
 
 function AgentActivityTrace({
   run,
+  traceEvents,
   threadMessages,
 }: {
   run: AgentRun
+  traceEvents: AgentTraceEvent[]
   threadMessages: Array<{ id: string; role: string; content: string; createdAt: string }>
 }) {
-  const events = normalizeTraceEvents(run, threadMessages)
+  const events = normalizeTraceEvents(run, traceEvents, threadMessages)
   const rounds = groupTraceRounds(run, events)
   const toolEventCount = events.filter((event) => event.kind === 'tool_call').length
   const modelCallCount = rounds.reduce((count, round) => count + groupModelHTTPCalls(round.events).length, 0)
@@ -3224,10 +3256,11 @@ function mergeTraceStatus(current: AgentTraceEvent['status'], next: AgentTraceEv
 
 function normalizeTraceEvents(
   run: AgentRun,
+  traceEvents: AgentTraceEvent[],
   threadMessages: Array<{ id: string; role: string; content: string; createdAt: string }>,
 ): AgentTraceEvent[] {
-  if ((run.traceEvents?.length ?? 0) > 0) {
-    return [...(run.traceEvents ?? [])].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  if (traceEvents.length > 0) {
+    return [...traceEvents].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   }
   const events: AgentTraceEvent[] = []
   const userMessage = threadMessages.find((message) => message.role === 'user')
@@ -3361,8 +3394,7 @@ function extractRunMessage(run: AgentRun): string {
   const clientInput = run.metadata?.clientInput
   if (isPlainRecord(clientInput) && typeof clientInput.visibleMessage === 'string') return clientInput.visibleMessage
   if (isPlainRecord(clientInput) && typeof clientInput.message === 'string') return clientInput.message
-  const traceMessage = run.traceEvents?.find((event) => event.kind === 'message' && event.summary)?.summary
-  return traceMessage ?? ''
+  return ''
 }
 
 function buildInputSnapshotFromRun(run: AgentRun): DebugRunInputSnapshot | null {

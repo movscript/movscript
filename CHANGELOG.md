@@ -12,7 +12,7 @@ This project follows semantic versioning once stable releases begin.
 - GitHub Actions CI for backend tests and frontend typecheck/build.
 - Frontend internationalization foundation with English and Simplified Chinese locale files.
 - Environment examples for backend and frontend configuration.
-- Documentation indexes for `docs/`, `docs/agent/`, `docs/ui/`, and `memory/`.
+- Documentation indexes for the public `docs/` guides and planning documents.
 
 ### Changed
 

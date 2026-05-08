@@ -17,7 +17,6 @@ import type {
   ToolCall,
 } from '../state/types.js'
 import { resolveRuntimeChatModelConfig } from '../model/modelConfig.js'
-import { buildApplyDraftPreview } from '../drafts/draftApply.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
 import { callModel } from '../model/modelClient.js'
@@ -95,7 +94,6 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
       .filter((blocked) => blocked.reason === 'approval_required')
       .map((blocked): AgentApprovalRequest => {
         const now = input.now()
-        const preview = buildApprovalPreview(input.draftStore, blocked.call)
         return {
           id: input.makeApprovalId(),
           runId: 'preview',
@@ -103,7 +101,6 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
           ...(blocked.call.args ? { args: blocked.call.args } : {}),
           reason: blocked.message,
           ...(blocked.tool?.risk ? { risk: blocked.tool.risk } : {}),
-          ...(preview !== undefined ? { preview } : {}),
           status: 'pending',
           createdAt: now,
           updatedAt: now,
@@ -124,13 +121,4 @@ function parseToolArguments(value: string): Record<string, JSONValue> {
     // Ignore malformed preview arguments; policy will see an empty argument object.
   }
   return {}
-}
-
-function buildApprovalPreview(draftStore: AgentDraftStore, call: ToolCall): JSONValue | undefined {
-  if (call.name !== 'movscript_apply_draft') return undefined
-  try {
-    return buildApplyDraftPreview(draftStore, call.args ?? {}) as unknown as JSONValue
-  } catch {
-    return undefined
-  }
 }

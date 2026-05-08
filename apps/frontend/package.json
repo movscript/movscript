@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
+    "prebuild": "node ../../scripts/prepare-agent-deploy.mjs",
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "pack": "pnpm run build && electron-builder --dir",

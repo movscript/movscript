@@ -29,7 +29,7 @@ func TestRepositoryItemPersistenceSyncsEntityRelationsExplicitly(t *testing.T) {
 		Status:     "draft",
 	}
 
-	if err := repo.CreateItem(ctx, &item); err != nil {
+	if err := repo.createItem(ctx, &item); err != nil {
 		t.Fatalf("create item: %v", err)
 	}
 
@@ -43,7 +43,7 @@ func TestRepositoryItemPersistenceSyncsEntityRelationsExplicitly(t *testing.T) {
 		t.Fatalf("create relation status = %q, want draft", relation.Status)
 	}
 
-	if err := repo.PatchItem(ctx, &item, map[string]any{"status": "confirmed"}); err != nil {
+	if err := repo.patchItem(ctx, &item, map[string]any{"status": "confirmed"}); err != nil {
 		t.Fatalf("patch item: %v", err)
 	}
 	relation = model.EntityRelation{}
@@ -56,7 +56,7 @@ func TestRepositoryItemPersistenceSyncsEntityRelationsExplicitly(t *testing.T) {
 		t.Fatalf("patch relation status = %q, want confirmed", relation.Status)
 	}
 
-	if err := repo.DeleteItem(ctx, &item); err != nil {
+	if err := repo.deleteItem(ctx, &item); err != nil {
 		t.Fatalf("delete item: %v", err)
 	}
 	var count int64

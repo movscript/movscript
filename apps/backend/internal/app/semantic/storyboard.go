@@ -102,14 +102,15 @@ func (s *Service) PatchStoryboardScript(ctx context.Context, projectID uint, id 
 			return item, err
 		}
 	}
-	return s.repo.PatchStoryboardScript(ctx, item, compactUpdates(map[string]any{
-		"script_version_id": input.ScriptVersionID,
-		"name":              input.Name,
-		"description":       input.Description,
-		"status":            input.Status,
-		"is_primary":        &input.IsPrimary,
-		"metadata_json":     input.MetadataJSON,
-	}))
+	patch := domainsemantic.StoryboardScriptPatch{
+		ScriptVersionID: input.ScriptVersionID,
+		Name:            input.Name,
+		Description:     input.Description,
+		Status:          input.Status,
+		IsPrimary:       input.IsPrimary,
+		MetadataJSON:    input.MetadataJSON,
+	}
+	return s.repo.PatchStoryboardScript(ctx, item, patch)
 }
 
 func (s *Service) ListStoryboardVersions(ctx context.Context, filter StoryboardVersionFilter) ([]domainsemantic.StoryboardVersion, error) {
@@ -143,14 +144,15 @@ func (s *Service) PatchStoryboardVersion(ctx context.Context, projectID uint, id
 	if err != nil {
 		return item, err
 	}
-	return s.repo.PatchStoryboardVersion(ctx, item, compactUpdates(map[string]any{
-		"parent_version_id": input.ParentVersionID,
-		"title":             input.Title,
-		"source":            input.Source,
-		"status":            input.Status,
-		"snapshot_json":     input.SnapshotJSON,
-		"metadata_json":     input.MetadataJSON,
-	}))
+	patch := domainsemantic.StoryboardVersionPatch{
+		ParentVersionID: input.ParentVersionID,
+		Title:           input.Title,
+		Source:          input.Source,
+		Status:          input.Status,
+		SnapshotJSON:    input.SnapshotJSON,
+		MetadataJSON:    input.MetadataJSON,
+	}
+	return s.repo.PatchStoryboardVersion(ctx, item, patch)
 }
 
 func (s *Service) ListStoryboardLines(ctx context.Context, filter StoryboardLineFilter) ([]domainsemantic.StoryboardLine, error) {
@@ -173,21 +175,22 @@ func (s *Service) PatchStoryboardLine(ctx context.Context, projectID uint, id st
 	if err := s.validateStoryboardLineOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	return s.repo.PatchStoryboardLine(ctx, item, compactUpdates(map[string]any{
-		"storyboard_script_id":  input.StoryboardScriptID,
-		"storyboard_version_id": input.StoryboardVersionID,
-		"segment_id":            input.SegmentID,
-		"scene_moment_id":       input.SceneMomentID,
-		"order":                 input.Order,
-		"kind":                  input.Kind,
-		"title":                 input.Title,
-		"description":           input.Description,
-		"dialogue":              input.Dialogue,
-		"visual_intent":         input.VisualIntent,
-		"duration_sec":          input.DurationSec,
-		"status":                input.Status,
-		"metadata_json":         input.MetadataJSON,
-	}))
+	patch := domainsemantic.StoryboardLinePatch{
+		StoryboardScriptID:  input.StoryboardScriptID,
+		StoryboardVersionID: input.StoryboardVersionID,
+		SegmentID:           input.SegmentID,
+		SceneMomentID:       input.SceneMomentID,
+		Order:               input.Order,
+		Kind:                input.Kind,
+		Title:               input.Title,
+		Description:         input.Description,
+		Dialogue:            input.Dialogue,
+		VisualIntent:        input.VisualIntent,
+		DurationSec:         input.DurationSec,
+		Status:              input.Status,
+		MetadataJSON:        input.MetadataJSON,
+	}
+	return s.repo.PatchStoryboardLine(ctx, item, patch)
 }
 
 func (s *Service) validateStoryboardLineOwners(ctx context.Context, projectID uint, input StoryboardLineInput) error {

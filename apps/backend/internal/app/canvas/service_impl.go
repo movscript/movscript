@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
@@ -15,7 +16,7 @@ type canvasPortValue = canvasruntime.PortValue
 type canvasPortInputMap = canvasruntime.PortInputMap
 
 func (h *Service) executeTask(user *persistencemodel.User, node *persistencemodel.CanvasNode, task *persistencemodel.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
-	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
+	_ = h.updateTaskRow(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -31,7 +32,12 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 
 	upstreamResources := portInputs.Flatten()
 	var resultURL, mimeType, resType string
-	imageData, videoData := h.loadCanvasInputResources(ctx, nd, upstreamResources)
+	inputResourceIDs, inputResources, err := h.loadCanvasInputResourceRows(ctx, nd, upstreamResources)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return
+	}
+	imageData, videoData := h.mediaDataFromCanvasResources(ctx, inputResourceIDs, inputResources)
 
 	if nd.ExecutableSpec != nil {
 		h.executeExecutableSpec(ctx, user, node, task, nd, portInputs)
@@ -91,6 +97,10 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 			h.failTask(task, node, nd, "no model selected for this node")
 			return
 		}
+		if err := h.requireImageVerification(inputResources); err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
 		videoReq := ai.VideoRequest{
 			Prompt:             nd.Prompt,
 			InputImageDataList: imageData,
@@ -124,7 +134,7 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 		return
 	}
 
-	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
+	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
 	value := canvasruntime.PortValueFromResource(&r.ID, resType)
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
 		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
@@ -138,7 +148,7 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 
 func (h *Service) completeInlineTextTask(task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, text string) {
 	value := canvasPortValue{Type: "text", Text: text}
-	_ = h.canvasRepo().UpdateTask(context.Background(), task, canvasruntime.CompleteCanvasTask(task, &nd, nil))
+	_ = h.updateTaskRow(context.Background(), task, canvasruntime.CompleteCanvasTask(task, &nd, nil))
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
 		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
 		"": value,
@@ -172,4 +182,13 @@ func (h *Service) orgIDForNode(ctx context.Context, node *persistencemodel.Canva
 		return nil
 	}
 	return orgID
+}
+
+func (h *Service) requireImageVerification(resources []domainresource.RawResource) error {
+	for _, resource := range resources {
+		if resource.NeedsImageVerification() {
+			return ai.ErrImageVerificationRequired
+		}
+	}
+	return nil
 }

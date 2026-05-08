@@ -21,8 +21,6 @@ type Status string
 
 const (
 	StatusActive    Status = "active"
-	StatusTrialing  Status = "trialing"
-	StatusPastDue   Status = "past_due"
 	StatusSuspended Status = "suspended"
 )
 
@@ -61,7 +59,7 @@ type EntitlementSnapshot struct {
 	DeploymentMode      DeploymentMode  `json:"deployment_mode"`
 	EnabledCapabilities []Capability    `json:"enabled_capabilities"`
 	Limits              LimitSnapshot   `json:"limits"`
-	EditionFlags        map[string]bool `json:"edition_flags"`
+	RuntimeFlags        map[string]bool `json:"runtime_flags"`
 }
 
 type EntitlementService interface {

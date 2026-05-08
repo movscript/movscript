@@ -1,7 +1,6 @@
 appId: com.movscript.desktop
 productName: Movscript
 asar: true
-icon: build/icon.png
 
 directories:
   output: release
@@ -20,15 +19,14 @@ extraResources:
       - server
       - server.exe
       - admin/**
-  - from: ../agent
+  - from: movscript-agent
     to: movscript-agent
     filter:
       - dist/**
+      - catalog/**
       - package.json
-      - node_modules/**
 
 mac:
-  icon: build/icon.png
   target:
     - dmg
     - zip
@@ -38,9 +36,6 @@ win:
   target:
     - nsis
     - portable
-
-dmg:
-  iconSize: 128
 
 nsis:
   oneClick: false

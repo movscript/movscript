@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/ai"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func (h *Service) applyPromptPortInputs(ctx context.Context, nd *nodeData, portInputs canvasPortInputMap) {
@@ -80,7 +80,7 @@ func (h *Service) readCanvasTextInputs(ctx context.Context, resourcePtrs []*uint
 	if err != nil {
 		return nil
 	}
-	byID := make(map[uint]persistencemodel.RawResource, len(resources))
+	byID := make(map[uint]domainresource.RawResource, len(resources))
 	for _, r := range resources {
 		byID[r.ID] = r
 	}
@@ -105,22 +105,7 @@ func (h *Service) readCanvasTextInputs(ctx context.Context, resourcePtrs []*uint
 }
 
 func (h *Service) loadCanvasInputResources(ctx context.Context, nd nodeData, upstreamResources []*uint) (imageData, videoData []ai.MediaData) {
-	ids := make([]uint, 0, len(nd.InputResourceIDs)+len(upstreamResources))
-	seen := map[uint]bool{}
-	for _, id := range nd.InputResourceIDs {
-		if id == 0 || seen[id] {
-			continue
-		}
-		seen[id] = true
-		ids = append(ids, id)
-	}
-	for _, ptr := range upstreamResources {
-		if ptr == nil || *ptr == 0 || seen[*ptr] {
-			continue
-		}
-		seen[*ptr] = true
-		ids = append(ids, *ptr)
-	}
+	ids := h.collectCanvasInputResourceIDs(nd, upstreamResources)
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -129,7 +114,23 @@ func (h *Service) loadCanvasInputResources(ctx context.Context, nd nodeData, ups
 	if err != nil {
 		return nil, nil
 	}
-	byID := make(map[uint]persistencemodel.RawResource, len(resources))
+	return h.mediaDataFromCanvasResources(ctx, ids, resources)
+}
+
+func (h *Service) loadCanvasInputResourceRows(ctx context.Context, nd nodeData, upstreamResources []*uint) ([]uint, []domainresource.RawResource, error) {
+	ids := h.collectCanvasInputResourceIDs(nd, upstreamResources)
+	if len(ids) == 0 {
+		return nil, nil, nil
+	}
+	resources, err := h.canvasRepo().FindResources(ctx, ids)
+	if err != nil {
+		return ids, nil, err
+	}
+	return ids, resources, nil
+}
+
+func (h *Service) mediaDataFromCanvasResources(ctx context.Context, ids []uint, resources []domainresource.RawResource) (imageData, videoData []ai.MediaData) {
+	byID := make(map[uint]domainresource.RawResource, len(resources))
 	for _, r := range resources {
 		byID[r.ID] = r
 	}
@@ -153,7 +154,27 @@ func (h *Service) loadCanvasInputResources(ctx context.Context, nd nodeData, ups
 	return imageData, videoData
 }
 
-func (h *Service) readCanvasResourceBytes(ctx context.Context, r persistencemodel.RawResource) ([]byte, string, error) {
+func (h *Service) collectCanvasInputResourceIDs(nd nodeData, upstreamResources []*uint) []uint {
+	ids := make([]uint, 0, len(nd.InputResourceIDs)+len(upstreamResources))
+	seen := map[uint]bool{}
+	for _, id := range nd.InputResourceIDs {
+		if id == 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+	for _, ptr := range upstreamResources {
+		if ptr == nil || *ptr == 0 || seen[*ptr] {
+			continue
+		}
+		seen[*ptr] = true
+		ids = append(ids, *ptr)
+	}
+	return ids
+}
+
+func (h *Service) readCanvasResourceBytes(ctx context.Context, r domainresource.RawResource) ([]byte, string, error) {
 	mimeType := r.MimeType
 	if r.StorageKey != "" && h.store != nil {
 		rc, _, storedMime, err := h.store.GetObject(ctx, r.StorageKey, -1, -1)

@@ -162,6 +162,9 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	if err != nil {
 		return domainjob.Job{}, wrapErr(ErrLoadInputResources, err)
 	}
+	if err := s.requireImageVerification(ctx, input.JobType, inputResources.Resources); err != nil {
+		return domainjob.Job{}, err
+	}
 
 	runtimeModelConfigID, err := s.ai.ResolveRuntimeGenerationModel(input.ModelConfigID, input.JobType)
 	if err != nil {
@@ -248,15 +251,30 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	return job, nil
 }
 
+func (s *Service) requireImageVerification(ctx context.Context, jobType string, resources []domainjob.InputResource) error {
+	if jobType != ai.CapabilityVideoI2V {
+		return nil
+	}
+	for _, resource := range resources {
+		if resource.Type != "image" {
+			continue
+		}
+		if resource.VerificationStatus != string(ai.ImageVerificationVerified) {
+			return ai.ErrImageVerificationRequired
+		}
+	}
+	return nil
+}
+
 func (s *Service) estimateJobCost(modelConfigID uint, jobType string, duration int, extraParams, aspectRatio string) (ai.UsageEstimate, error) {
 	kind, imageReq, videoReq, err := CostRequest(modelConfigID, jobType, duration, extraParams, aspectRatio)
 	if err != nil {
 		return ai.UsageEstimate{}, err
 	}
 	switch kind {
-	case "image":
+	case domainjob.CostRequestImage:
 		return s.ai.EstimateImageCost(modelConfigID, imageReq)
-	case "video":
+	case domainjob.CostRequestVideo:
 		return s.ai.EstimateVideoCost(modelConfigID, videoReq)
 	default:
 		return ai.UsageEstimate{}, err

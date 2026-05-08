@@ -110,6 +110,30 @@ type UpdateInput struct {
 	MetadataJSON *string
 }
 
+type UpdateSpec struct {
+	Role         *string
+	Slot         *string
+	SortOrder    *int
+	Version      *int
+	IsPrimary    *bool
+	Status       *string
+	SourceType   *string
+	SourceID     *uint
+	MetadataJSON *string
+}
+
+func (spec UpdateSpec) Empty() bool {
+	return spec.Role == nil &&
+		spec.Slot == nil &&
+		spec.SortOrder == nil &&
+		spec.Version == nil &&
+		spec.IsPrimary == nil &&
+		spec.Status == nil &&
+		spec.SourceType == nil &&
+		spec.SourceID == nil &&
+		spec.MetadataJSON == nil
+}
+
 func NormalizeOwnerType(value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
 	return strings.ReplaceAll(value, "-", "_")
@@ -247,50 +271,55 @@ func ValidateCreateInput(input CreateInput) error {
 	return nil
 }
 
-func BuildUpdates(input UpdateInput) (map[string]any, error) {
-	updates := map[string]any{}
+func BuildUpdateSpec(input UpdateInput) (UpdateSpec, error) {
+	var spec UpdateSpec
 	if input.Role != nil {
 		role := NormalizeRole(*input.Role)
 		if !ValidRole(role) {
-			return nil, ErrInvalidInput
+			return UpdateSpec{}, ErrInvalidInput
 		}
-		updates["role"] = role
+		spec.Role = &role
 	}
 	if input.Slot != nil {
-		updates["slot"] = strings.TrimSpace(*input.Slot)
+		slot := strings.TrimSpace(*input.Slot)
+		spec.Slot = &slot
 	}
 	if input.SortOrder != nil {
-		updates["sort_order"] = *input.SortOrder
+		sortOrder := *input.SortOrder
+		spec.SortOrder = &sortOrder
 	}
 	if input.Version != nil {
 		version := *input.Version
 		if version <= 0 {
 			version = 1
 		}
-		updates["version"] = version
+		spec.Version = &version
 	}
 	if input.IsPrimary != nil {
-		updates["is_primary"] = *input.IsPrimary
+		isPrimary := *input.IsPrimary
+		spec.IsPrimary = &isPrimary
 	}
 	if input.Status != nil {
 		status := NormalizeStatus(*input.Status)
 		if !ValidStatus(status) {
-			return nil, ErrInvalidInput
+			return UpdateSpec{}, ErrInvalidInput
 		}
-		updates["status"] = status
+		spec.Status = &status
 	}
 	if input.SourceType != nil {
 		sourceType := NormalizeSourceType(*input.SourceType)
 		if !ValidSourceType(sourceType) {
-			return nil, ErrInvalidInput
+			return UpdateSpec{}, ErrInvalidInput
 		}
-		updates["source_type"] = sourceType
+		spec.SourceType = &sourceType
 	}
 	if input.SourceID != nil {
-		updates["source_id"] = *input.SourceID
+		sourceID := *input.SourceID
+		spec.SourceID = &sourceID
 	}
 	if input.MetadataJSON != nil {
-		updates["metadata_json"] = strings.TrimSpace(*input.MetadataJSON)
+		metadataJSON := strings.TrimSpace(*input.MetadataJSON)
+		spec.MetadataJSON = &metadataJSON
 	}
-	return updates, nil
+	return spec, nil
 }

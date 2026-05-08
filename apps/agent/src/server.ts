@@ -204,6 +204,16 @@ export function createAgentRequestListener(context: AgentServerContext): (req: I
       return
     }
 
+    const draftApplyMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply$/)
+    if (draftApplyMatch && req.method === 'POST') {
+      const body = normalizeOptionalObject(await readJSON(req), 'draft apply body')
+      writeJSON(res, 200, await context.agentRuntime.applyDraftFromUI({
+        draftId: draftApplyMatch[1],
+        ...withRequestAuth(body, req),
+      }))
+      return
+    }
+
     const draftRejectMatch = url.pathname.match(/^\/drafts\/([^/]+)\/reject$/)
     if (draftRejectMatch && req.method === 'POST') {
       const body = normalizeOptionalObject(await readJSON(req), 'draft rejection body')
@@ -282,6 +292,21 @@ export function createAgentRequestListener(context: AgentServerContext): (req: I
       return
     }
 
+    const runTraceSummaryMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/summary$/)
+    if (runTraceSummaryMatch && req.method === 'GET') {
+      writeJSON(res, 200, context.agentRuntime.getRunTraceSummary(runTraceSummaryMatch[1]))
+      return
+    }
+
+    const runTraceMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace$/)
+    if (runTraceMatch && req.method === 'GET') {
+      writeJSON(res, 200, {
+        runId: runTraceMatch[1],
+        events: context.agentRuntime.getRunTraceEvents(runTraceMatch[1], normalizeTraceQuery(url)),
+      })
+      return
+    }
+
     const runStreamMatch = url.pathname.match(/^\/runs\/([^/]+)\/stream$/)
     if (runStreamMatch && req.method === 'GET') {
       streamRunEvents(req, res, context.agentRuntime, runStreamMatch[1])
@@ -317,7 +342,8 @@ export function createAgentRequestListener(context: AgentServerContext): (req: I
     }
 
     if (req.method === 'GET' && url.pathname === '/memories') {
-      writeJSON(res, 200, { memories: context.agentRuntime.listMemorySummaries(normalizeMemoryQuery(url)) })
+      const query = normalizeMemoryQuery(url)
+      writeJSON(res, 200, { memories: query ? context.agentRuntime.listMemorySummaries(query) : [] })
       return
     }
 
@@ -330,14 +356,14 @@ export function createAgentRequestListener(context: AgentServerContext): (req: I
     const memoryMatch = url.pathname.match(/^\/memories\/([^/]+)$/)
     if (memoryMatch && req.method === 'GET') {
       const projectId = normalizeMemoryProjectId(url)
-      const memory = context.agentRuntime.getMemory(projectId, memoryMatch[1])
+      const memory = typeof projectId === 'number' ? context.agentRuntime.getMemory(projectId, memoryMatch[1]) : undefined
       writeJSON(res, memory ? 200 : 404, memory ? { memory } : { error: 'memory not found' })
       return
     }
 
     if (memoryMatch && req.method === 'DELETE') {
       const projectId = normalizeMemoryProjectId(url)
-      const deleted = context.agentRuntime.deleteMemory(projectId, memoryMatch[1])
+      const deleted = typeof projectId === 'number' ? context.agentRuntime.deleteMemory(projectId, memoryMatch[1]) : false
       writeJSON(res, deleted ? 200 : 404, deleted ? { deleted: true } : { error: 'memory not found' })
       return
     }
@@ -395,8 +421,11 @@ function normalizeOptionalObject(body: unknown, label: string): Record<string, u
   return body
 }
 
-function normalizeMemoryQuery(url: URL): Parameters<AgentRuntime['listMemories']>[0] {
+function normalizeMemoryQuery(url: URL): Parameters<AgentRuntime['listMemories']>[0] | undefined {
+  const scope = url.searchParams.get('scope')
+  if (scope === 'global' || scope === 'thread') return undefined
   const projectId = normalizeMemoryProjectId(url)
+  if (typeof projectId !== 'number') return undefined
   const kind = url.searchParams.get('kind')
   const query = url.searchParams.get('query')
   const limit = url.searchParams.get('limit')
@@ -428,10 +457,10 @@ function normalizeMemoryBody(body: Record<string, unknown>): Parameters<AgentRun
   }
 }
 
-function normalizeMemoryProjectId(url: URL): number {
+function normalizeMemoryProjectId(url: URL): number | undefined {
   const projectId = url.searchParams.get('projectId')
   if (projectId !== null && Number.isFinite(Number(projectId))) return Number(projectId)
-  throw new Error('memory projectId is required')
+  return undefined
 }
 
 function readJSON(req: IncomingMessage): Promise<unknown> {
@@ -458,7 +487,7 @@ function readJSON(req: IncomingMessage): Promise<unknown> {
 
 function writeJSON(res: ServerResponse, status: number, value: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
-  res.end(JSON.stringify(value, null, 2))
+  res.end(JSON.stringify(value))
 }
 
 function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, runId: string): void {
@@ -512,6 +541,18 @@ function writeSSE(res: ServerResponse, eventName: string, value: unknown): void 
     res.write(`data: ${line}\n`)
   }
   res.write('\n')
+}
+
+function normalizeTraceQuery(url: URL): { cursor?: string; limit?: number; kind?: any } {
+  const cursor = url.searchParams.get('cursor')
+  const limitRaw = url.searchParams.get('limit')
+  const kind = url.searchParams.get('kind')
+  const limit = limitRaw !== null ? Number(limitRaw) : undefined
+  return {
+    ...(cursor ? { cursor } : {}),
+    ...(Number.isFinite(limit) ? { limit } : {}),
+    ...(kind ? { kind } : {}),
+  }
 }
 
 function setHeaders(res: ServerResponse): void {

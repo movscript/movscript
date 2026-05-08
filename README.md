@@ -1,5 +1,7 @@
 # Movscript
 
+[简体中文](README.zh-CN.md)
+
 Movscript is an open-source desktop production workspace for short drama and AI-assisted video creation. It combines story planning, production assets, production and scene breakdowns, storyboards, shots, canvas workflows, generation jobs, model administration, plugins, and a local agent in one local-first application.
 
 > The project is still early. APIs, plugin manifests, and agent contracts may change before a stable release.
@@ -59,9 +61,10 @@ Frontend-managed local mode uses SQLite on `localhost:8766` and can run alongsid
 ```bash
 cp apps/backend/.env.example apps/backend/.env
 openssl rand -hex 32
+openssl rand -hex 32
 ```
 
-Paste the generated 64-character value into `ENCRYPTION_KEY` in `apps/backend/.env`.
+Paste the generated 64-character values into `ENCRYPTION_KEY` and `AUTH_TOKEN_SECRET` in `apps/backend/.env`.
 
 ### 4. Run the Backend and Frontend
 
@@ -105,12 +108,15 @@ Primary guides:
 - [Architecture](docs/architecture.md)
 - [API reference](docs/api.md)
 - [AI providers](docs/ai-providers.md)
+- [Data and privacy](docs/data-and-privacy.md)
 - [Plugins](docs/plugins.md)
+- [Claude Code 集成规划](docs/claude-code-integration-plan.md)
 - [Deployment](docs/deployment.md)
 - [Troubleshooting](docs/troubleshooting.md)
+- [Release checklist](docs/release-checklist.md)
 
 Chinese entry point: [README.zh-CN.md](README.zh-CN.md).
 
 ## Open Source
 
-Movscript is released under the [MIT License](LICENSE). Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+Movscript is released under the [Apache License 2.0](LICENSE). Before contributing, read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).

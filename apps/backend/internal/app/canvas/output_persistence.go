@@ -112,7 +112,7 @@ func (h *Service) bindWorkflowOutputResource(ctx context.Context, cv persistence
 		SourceID:     &sourceID,
 		MetadataJSON: string(metadata),
 		CreatedByID:  &userID,
-	}).ToModel()
+	})
 	_ = h.createBinding(ctx, binding)
 }
 
@@ -159,7 +159,7 @@ func (h *Service) attachWorkflowOutputTargets(ctx context.Context, cv persistenc
 	}
 }
 
-func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv persistencemodel.Canvas, runID uint, userID uint, target persistencemodel.CanvasOutput, value canvasPortValue) {
+func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv persistencemodel.Canvas, runID uint, userID uint, target CanvasOutputTarget, value canvasPortValue) {
 	if cv.ProjectID == nil || value.ResourceID == nil || *value.ResourceID == 0 {
 		return
 	}
@@ -174,13 +174,13 @@ func (h *Service) attachAssetSlotCandidateOutput(ctx context.Context, cv persist
 		BindingMeta:    canvasOutputMetadataJSON(cv.ID, runID, target, value),
 		CandidateNote:  "由素材生成画布写回",
 		SourceSlotID:   target.OwnerID,
-		OutputTarget:   &target,
+		OutputTarget:   ptrCanvasOutputTargetRow(target),
 		OutputValueRaw: string(raw),
 		CandidateNode:  target.CanvasNodeID,
 	})
 }
 
-func canvasOutputMetadataJSON(canvasID uint, runID uint, target persistencemodel.CanvasOutput, value canvasPortValue) string {
+func canvasOutputMetadataJSON(canvasID uint, runID uint, target CanvasOutputTarget, value canvasPortValue) string {
 	raw, _ := json.Marshal(map[string]any{
 		"canvas_id":        canvasID,
 		"canvas_run_id":    runID,
@@ -189,4 +189,9 @@ func canvasOutputMetadataJSON(canvasID uint, runID uint, target persistencemodel
 		"value_type":       value.Type,
 	})
 	return string(raw)
+}
+
+func ptrCanvasOutputTargetRow(target CanvasOutputTarget) *persistencemodel.CanvasOutput {
+	row := target.toRow()
+	return &row
 }

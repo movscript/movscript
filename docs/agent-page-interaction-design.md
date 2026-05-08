@@ -20,11 +20,11 @@
 
 相关代码：
 
-- [agentPanelBridge.ts](/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/src/lib/agentPanelBridge.ts)
-- [AIAgentPanel.tsx](/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/src/components/layout/AIAgentPanel.tsx)
-- [WorkbenchPage.tsx](/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/src/pages/workbench/WorkbenchPage.tsx)
-- [ProductionOrchestratePage.tsx](/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/src/pages/production/ProductionOrchestratePage.tsx)
-- [CreativeWorkbenchPage.tsx](/Users/zhaoqian/Code/Github/migua/movscript/movscript/apps/frontend/src/pages/creative-workbench/CreativeWorkbenchPage.tsx)
+- [agentPanelBridge.ts](../apps/frontend/src/lib/agentPanelBridge.ts)
+- [AIAgentPanel.tsx](../apps/frontend/src/components/layout/AIAgentPanel.tsx)
+- [WorkbenchPage.tsx](../apps/frontend/src/pages/workbench/WorkbenchPage.tsx)
+- [ProductionOrchestratePage.tsx](../apps/frontend/src/pages/production/ProductionOrchestratePage.tsx)
+- [CreativeWorkbenchPage.tsx](../apps/frontend/src/pages/creative-workbench/CreativeWorkbenchPage.tsx)
 
 ## 当前核心设计点
 

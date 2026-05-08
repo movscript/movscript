@@ -20,7 +20,7 @@ func (h *Service) startNodeModel(ctx context.Context, user *persistencemodel.Use
 		return persistencemodel.CanvasTask{}, err
 	}
 	task := canvasruntime.NewCanvasTask(node, nil, canvasruntime.MarshalPortInputs(inputs)).ToModel()
-	if err := h.canvasRepo().CreateTask(ctx, &task); err != nil {
+	if err := h.createTaskRow(ctx, &task); err != nil {
 		return persistencemodel.CanvasTask{}, err
 	}
 	go h.executeSingleWorkflowNodeModel(user, cv, &node, &task, inputs)
@@ -53,7 +53,7 @@ func (h *Service) startCanvasRunModel(user *persistencemodel.User, cv persistenc
 			continue
 		}
 		task := canvasruntime.NewTask(*node, &run.ID, "").ToModel()
-		if err := h.canvasRepo().CreateTask(context.Background(), &task); err != nil {
+		if err := h.createTaskRow(context.Background(), &task); err != nil {
 			return run, tasks, err
 		}
 		tasks = append(tasks, task)

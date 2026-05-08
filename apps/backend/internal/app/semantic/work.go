@@ -44,11 +44,11 @@ func (s *Service) PatchWorkItem(ctx context.Context, projectID uint, id string, 
 	if !isManager && domainsemantic.WorkItemStatusRequiresManager(domainsemantic.WorkItemStatusForPatch(item, input.domainPatch())) {
 		return item, ErrForbidden{Message: "只有项目负责人或导演可以完成或取消任务"}
 	}
-	updates := workItemUpdates(item, input)
+	patch := input.domainPatch()
 	if domainsemantic.WorkItemPatchCompletes(item, input.domainPatch()) {
-		return s.completeWorkItem(ctx, projectID, item, updates, &auth.UserID)
+		return s.completeWorkItem(ctx, projectID, item, patch, &auth.UserID)
 	}
-	return s.repo.PatchWorkItem(ctx, item, updates)
+	return s.repo.PatchWorkItem(ctx, item, patch)
 }
 
 func (s *Service) ListWorkReviews(ctx context.Context, filter WorkReviewFilter) ([]domainsemantic.WorkReview, error) {
@@ -84,13 +84,14 @@ func (s *Service) PatchWorkReview(ctx context.Context, projectID uint, id string
 	if err := s.validateWorkReviewInput(ctx, projectID, &input, auth.UserID, false); err != nil {
 		return item, err
 	}
-	return s.repo.PatchWorkReview(ctx, item, compactUpdates(map[string]any{
-		"work_item_id":  input.WorkItemID,
-		"reviewer_id":   input.ReviewerID,
-		"status":        input.Status,
-		"comment":       input.Comment,
-		"metadata_json": input.MetadataJSON,
-	}))
+	patch := domainsemantic.WorkReviewPatch{
+		WorkItemID:   input.WorkItemID,
+		ReviewerID:   input.ReviewerID,
+		Status:       input.Status,
+		Comment:      input.Comment,
+		MetadataJSON: input.MetadataJSON,
+	}
+	return s.repo.PatchWorkReview(ctx, item, patch)
 }
 
 func (s *Service) ListWorkDependencies(ctx context.Context, filter WorkDependencyFilter) ([]domainsemantic.WorkDependency, error) {
@@ -124,11 +125,12 @@ func (s *Service) PatchWorkDependency(ctx context.Context, projectID uint, id st
 	if err := s.validateWorkDependencyInput(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	return s.repo.PatchWorkDependency(ctx, item, compactUpdates(map[string]any{
-		"work_item_id":            input.WorkItemID,
-		"depends_on_work_item_id": input.DependsOnWorkItemID,
-		"dependency_type":         input.DependencyType,
-	}))
+	patch := domainsemantic.WorkDependencyPatch{
+		WorkItemID:          input.WorkItemID,
+		DependsOnWorkItemID: input.DependsOnWorkItemID,
+		DependencyType:      input.DependencyType,
+	}
+	return s.repo.PatchWorkDependency(ctx, item, patch)
 }
 
 func (s *Service) DeleteWorkItem(ctx context.Context, projectID uint, id string, auth WorkAuth) error {

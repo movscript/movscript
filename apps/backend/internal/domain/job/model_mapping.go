@@ -115,21 +115,26 @@ func JobsFromModels(jobs []persistencemodel.Job) []Job {
 
 func RawResourceFromModel(resource persistencemodel.RawResource) RawResource {
 	domainResource := RawResource{
-		ID:             resource.ID,
-		OwnerID:        resource.OwnerID,
-		OrgID:          resource.OrgID,
-		FolderID:       resource.FolderID,
-		Type:           resource.Type,
-		Name:           resource.Name,
-		URL:            resource.URL,
-		Size:           resource.Size,
-		MimeType:       resource.MimeType,
-		StorageBackend: resource.StorageBackend,
-		StorageKey:     resource.StorageKey,
-		IsShared:       resource.IsShared,
-		DirectURL:      resource.DirectURL,
-		CreatedAt:      resource.CreatedAt,
-		UpdatedAt:      resource.UpdatedAt,
+		ID:                   resource.ID,
+		OwnerID:              resource.OwnerID,
+		OrgID:                resource.OrgID,
+		FolderID:             resource.FolderID,
+		Type:                 resource.Type,
+		Name:                 resource.Name,
+		URL:                  resource.URL,
+		Size:                 resource.Size,
+		MimeType:             resource.MimeType,
+		StorageBackend:       resource.StorageBackend,
+		StorageKey:           resource.StorageKey,
+		IsShared:             resource.IsShared,
+		DirectURL:            resource.DirectURL,
+		VerificationStatus:   resource.VerificationStatus,
+		VerificationRef:      resource.VerificationRef,
+		VerifiedAt:           resource.VerifiedAt,
+		VerificationProvider: resource.VerificationProvider,
+		VerificationError:    resource.VerificationError,
+		CreatedAt:            resource.CreatedAt,
+		UpdatedAt:            resource.UpdatedAt,
 	}
 	if resource.DeletedAt.Valid {
 		deletedAt := resource.DeletedAt.Time
@@ -158,6 +163,11 @@ func (resource RawResource) ApplyToModel(target *persistencemodel.RawResource) {
 	target.StorageKey = resource.StorageKey
 	target.IsShared = resource.IsShared
 	target.DirectURL = resource.DirectURL
+	target.VerificationStatus = resource.VerificationStatus
+	target.VerificationRef = resource.VerificationRef
+	target.VerifiedAt = resource.VerifiedAt
+	target.VerificationProvider = resource.VerificationProvider
+	target.VerificationError = resource.VerificationError
 	target.CreatedAt = resource.CreatedAt
 	target.UpdatedAt = resource.UpdatedAt
 	if resource.DeletedAt != nil {
@@ -178,11 +188,16 @@ func InputResourcesFromRawResources(resources []RawResource) []InputResource {
 	out := make([]InputResource, 0, len(resources))
 	for _, resource := range resources {
 		out = append(out, InputResource{
-			ID:       resource.ID,
-			Name:     resource.Name,
-			Type:     resource.Type,
-			MimeType: resource.MimeType,
-			Size:     resource.Size,
+			ID:                   resource.ID,
+			Name:                 resource.Name,
+			Type:                 resource.Type,
+			MimeType:             resource.MimeType,
+			Size:                 resource.Size,
+			VerificationStatus:   resource.VerificationStatus,
+			VerificationRef:      resource.VerificationRef,
+			VerifiedAt:           resource.VerifiedAt,
+			VerificationProvider: resource.VerificationProvider,
+			VerificationError:    resource.VerificationError,
 		})
 	}
 	return out

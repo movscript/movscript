@@ -16,11 +16,11 @@ type repository interface {
 	CreateScript(ctx context.Context, item *domainscript.ScriptSnapshot) error
 	GetScript(ctx context.Context, id uint) (domainscript.ScriptSnapshot, error)
 	SaveScript(ctx context.Context, item *domainscript.ScriptSnapshot) error
-	PatchScript(ctx context.Context, item *domainscript.ScriptSnapshot, updates map[string]any) error
+	PatchScript(ctx context.Context, item *domainscript.ScriptSnapshot, spec domainscript.ScriptPatchSpec) error
 	DeleteScript(ctx context.Context, id uint) (uint, error)
 
 	FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptVersion, bool, error)
-	UpdateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion, updates map[string]any) error
+	UpdateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion, spec domainscript.InitialVersionSyncSpec) error
 	CreateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion) error
 }
 
@@ -85,7 +85,8 @@ func (r *gormRepository) SaveScript(ctx context.Context, item *domainscript.Scri
 	return nil
 }
 
-func (r *gormRepository) PatchScript(ctx context.Context, item *domainscript.ScriptSnapshot, updates map[string]any) error {
+func (r *gormRepository) PatchScript(ctx context.Context, item *domainscript.ScriptSnapshot, spec domainscript.ScriptPatchSpec) error {
+	updates := scriptPatchColumns(spec)
 	if len(updates) == 0 {
 		return nil
 	}
@@ -93,7 +94,7 @@ func (r *gormRepository) PatchScript(ctx context.Context, item *domainscript.Scr
 	if err := r.db.WithContext(ctx).Model(&row).Updates(updates).Error; err != nil {
 		return err
 	}
-	*item = domainscript.ScriptSnapshotFromModel(row)
+	item.ApplyPatch(spec)
 	return nil
 }
 
@@ -118,9 +119,10 @@ func (r *gormRepository) FindInitialVersion(ctx context.Context, projectID uint,
 	return domainscript.ScriptVersion{}, false, err
 }
 
-func (r *gormRepository) UpdateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion, updates map[string]any) error {
+func (r *gormRepository) UpdateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion, spec domainscript.InitialVersionSyncSpec) error {
 	row := version.ToModel()
 	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
+	updates := initialVersionSyncColumns(spec)
 	if err := db.Model(&row).Updates(updates).Error; err != nil {
 		return err
 	}
@@ -129,6 +131,109 @@ func (r *gormRepository) UpdateScriptVersionWithRelations(ctx context.Context, v
 	}
 	*version = domainscript.ScriptVersionFromModel(row)
 	return entityrelation.SyncCoreEntityRelations(db, &row)
+}
+
+func scriptPatchColumns(spec domainscript.ScriptPatchSpec) map[string]any {
+	updates := map[string]any{}
+	if spec.Title != nil {
+		updates["title"] = *spec.Title
+	}
+	if spec.Description != nil {
+		updates["description"] = *spec.Description
+	}
+	if spec.Content != nil {
+		updates["content"] = *spec.Content
+	}
+	if spec.RawSource != nil {
+		updates["raw_source"] = *spec.RawSource
+	}
+	if spec.ScriptType != nil {
+		updates["script_type"] = *spec.ScriptType
+	}
+	if spec.SourceType != nil {
+		updates["source_type"] = *spec.SourceType
+	}
+	if spec.Version != nil {
+		updates["version"] = *spec.Version
+	}
+	if spec.ParentScriptID != nil {
+		updates["parent_script_id"] = *spec.ParentScriptID
+	}
+	if spec.AssigneeID != nil {
+		updates["assignee_id"] = *spec.AssigneeID
+	}
+	if spec.Summary != nil {
+		updates["summary"] = *spec.Summary
+	}
+	if spec.Characters != nil {
+		updates["characters"] = *spec.Characters
+	}
+	if spec.CharacterRelationships != nil {
+		updates["character_relationships"] = *spec.CharacterRelationships
+	}
+	if spec.CoreSettings != nil {
+		updates["core_settings"] = *spec.CoreSettings
+	}
+	if spec.Background != nil {
+		updates["background"] = *spec.Background
+	}
+	if spec.ScenesDesc != nil {
+		updates["scenes_desc"] = *spec.ScenesDesc
+	}
+	if spec.Hook != nil {
+		updates["hook"] = *spec.Hook
+	}
+	if spec.PlotSummary != nil {
+		updates["plot_summary"] = *spec.PlotSummary
+	}
+	if spec.ScriptPoints != nil {
+		updates["script_points"] = *spec.ScriptPoints
+	}
+	if spec.PlannedSceneCount != nil {
+		updates["planned_scene_count"] = *spec.PlannedSceneCount
+	}
+	if spec.TimeText != nil {
+		updates["time_text"] = *spec.TimeText
+	}
+	if spec.LocationText != nil {
+		updates["location_text"] = *spec.LocationText
+	}
+	if spec.StructuredCharacters != nil {
+		updates["structured_characters"] = *spec.StructuredCharacters
+	}
+	if spec.PlotBeats != nil {
+		updates["plot_beats"] = *spec.PlotBeats
+	}
+	if spec.Atmosphere != nil {
+		updates["atmosphere"] = *spec.Atmosphere
+	}
+	if spec.StructureJSON != nil {
+		updates["structure_json"] = *spec.StructureJSON
+	}
+	if spec.EntityCandidates != nil {
+		updates["entity_candidates"] = *spec.EntityCandidates
+	}
+	if spec.RelationshipCandidates != nil {
+		updates["relationship_candidates"] = *spec.RelationshipCandidates
+	}
+	if spec.Order != nil {
+		updates["order"] = *spec.Order
+	}
+	return updates
+}
+
+func initialVersionSyncColumns(spec domainscript.InitialVersionSyncSpec) map[string]any {
+	updates := map[string]any{
+		"title":       spec.Title,
+		"source_type": spec.SourceType,
+		"content":     spec.Content,
+		"raw_source":  spec.RawSource,
+		"summary":     spec.Summary,
+	}
+	if spec.Status != nil {
+		updates["status"] = *spec.Status
+	}
+	return updates
 }
 
 func (r *gormRepository) CreateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion) error {

@@ -153,7 +153,7 @@ func TestValidateCreateInputRejectsUnknownOwner(t *testing.T) {
 	}
 }
 
-func TestBuildUpdatesNormalizesMutableFields(t *testing.T) {
+func TestBuildUpdateSpecNormalizesMutableFields(t *testing.T) {
 	role := "Final"
 	slot := " poster "
 	version := 0
@@ -161,7 +161,7 @@ func TestBuildUpdatesNormalizesMutableFields(t *testing.T) {
 	sourceType := "Canvas"
 	metadata := " {} "
 
-	updates, err := BuildUpdates(UpdateInput{
+	spec, err := BuildUpdateSpec(UpdateInput{
 		Role:         &role,
 		Slot:         &slot,
 		Version:      &version,
@@ -172,17 +172,17 @@ func TestBuildUpdatesNormalizesMutableFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updates["role"] != "final" || updates["slot"] != "poster" || updates["version"] != 1 {
-		t.Fatalf("unexpected normalized role/slot/version: %#v", updates)
+	if spec.Role == nil || *spec.Role != "final" || spec.Slot == nil || *spec.Slot != "poster" || spec.Version == nil || *spec.Version != 1 {
+		t.Fatalf("unexpected normalized role/slot/version: %#v", spec)
 	}
-	if updates["status"] != "approved" || updates["source_type"] != "canvas" || updates["metadata_json"] != "{}" {
-		t.Fatalf("unexpected normalized status/source/metadata: %#v", updates)
+	if spec.Status == nil || *spec.Status != "approved" || spec.SourceType == nil || *spec.SourceType != "canvas" || spec.MetadataJSON == nil || *spec.MetadataJSON != "{}" {
+		t.Fatalf("unexpected normalized status/source/metadata: %#v", spec)
 	}
 }
 
-func TestBuildUpdatesRejectsInvalidStatus(t *testing.T) {
+func TestBuildUpdateSpecRejectsInvalidStatus(t *testing.T) {
 	status := "pending"
-	if _, err := BuildUpdates(UpdateInput{Status: &status}); err != ErrInvalidInput {
+	if _, err := BuildUpdateSpec(UpdateInput{Status: &status}); err != ErrInvalidInput {
 		t.Fatalf("error = %v, want ErrInvalidInput", err)
 	}
 }

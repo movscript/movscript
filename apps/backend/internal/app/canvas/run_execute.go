@@ -20,12 +20,14 @@ func (h *Service) executeWorkflowRunModel(user *persistencemodel.User, canvasID 
 }
 
 func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *persistencemodel.User, canvasID uint, runID uint, order []string) {
-	run, cv, err := h.canvasRepo().GetCanvasForRunExecution(ctx, canvasID, runID)
+	domainRun, graph, err := h.canvasRepo().GetCanvasForRunExecution(ctx, canvasID, runID)
 	if err != nil {
 		finishedAt := time.Now()
 		_ = h.canvasRepo().FailRunNotFound(ctx, runID, &finishedAt)
 		return
 	}
+	run := domainRun.ToModel()
+	cv := graph.ToModel()
 
 	upstream := map[string][]persistencemodel.CanvasEdge{}
 	for _, e := range cv.Edges {
@@ -35,7 +37,8 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *persi
 	for i := range cv.Nodes {
 		nodeMap[cv.Nodes[i].NodeID] = &cv.Nodes[i]
 	}
-	runTasks, _ := h.canvasRepo().ListRunTasksOrdered(ctx, runID)
+	domainRunTasks, _ := h.canvasRepo().ListRunTasksOrdered(ctx, runID)
+	runTasks := canvasTaskRows(domainRunTasks)
 	taskMap := map[string]*persistencemodel.CanvasTask{}
 	for i := range runTasks {
 		if strings.TrimSpace(runTasks[i].NodeID) == "" {

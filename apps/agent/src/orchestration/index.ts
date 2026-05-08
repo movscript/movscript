@@ -1,5 +1,4 @@
 export * as AgentGraph from './agentGraph.js'
-export * as AgentLoopCompatibility from './agentLoopCompatibility.js'
 export * as ContextBuilder from './contextBuilder.js'
 export * as ModelClient from '../model/modelClient.js'
 export * as ToolExecutor from './toolExecutor.js'

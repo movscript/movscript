@@ -2074,6 +2074,7 @@ function ScriptSplitWorkbench() {
   const agentSettings = useAgentStore((s) => s.settings)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [sourceTitle, setSourceTitle] = useState('')
   const [sourceText, setSourceText] = useState('')
@@ -2117,6 +2118,7 @@ function ScriptSplitWorkbench() {
   const sourceLineEntries = useMemo(() => getScriptTextLineEntries(sourceText), [sourceText])
   const sourceLineCount = useMemo(() => getScriptTextLineCount(sourceText), [sourceText])
   const selectedDraft = drafts.find((draft) => draft.id === selectedDraftId) ?? drafts[0] ?? null
+  const openedDraftId = searchParams.get('draftId')?.trim() || ''
   const sourceTitleLabel = sourceTitle.trim() || sourceFileName || '未命名总稿'
   const modelId = agentSettings.modelId ?? textModels[0]?.id ?? null
 
@@ -2139,9 +2141,50 @@ function ScriptSplitWorkbench() {
     resetAgentDrafts()
   }
 
+  async function getLatestWritableScriptSplitDraft(preferredDraftId?: string): Promise<AgentDraft | null> {
+    const preferred = preferredDraftId
+      ? await localAgentClient.getDraft(preferredDraftId).catch(() => null)
+      : null
+    if (preferred && preferred.kind === 'script_split' && preferred.status !== 'superseded') return preferred
+    const latest = await localAgentClient.listDrafts({
+      projectId,
+      kind: 'script_split',
+      status: 'draft',
+      limit: 1,
+    })
+    return latest.drafts[0] ?? preferred
+  }
+
   useEffect(() => {
     return () => scriptSplitToolCleanupRef.current?.()
   }, [])
+
+  useEffect(() => {
+    if (!openedDraftId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const draft = await localAgentClient.getDraft(openedDraftId)
+        if (cancelled || draft.kind !== 'script_split') return
+        setAgentDraft(draft)
+        setAgentDraftDirty(false)
+        setLastAgentRunId(draft.createdByRunId ?? null)
+        if (!sourceTitle.trim()) {
+          setSourceTitle(draft.title)
+        }
+        try {
+          setAgentDraftValidation(await localAgentClient.validateDraft(draft.id))
+        } catch {
+          setAgentDraftValidation(null)
+        }
+      } catch {
+        if (!cancelled) setAgentDraft(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [openedDraftId])
 
   async function openScriptSplitAgentSession(normalized: string) {
     if (!projectId) throw new Error('请先选择项目')
@@ -2184,7 +2227,8 @@ function ScriptSplitWorkbench() {
         const task = useAgentSessionStore.getState().pageTasks[requestId]
         const artifact = selectLatestDraftArtifact(task?.artifacts, 'script_split')
         if (!artifact) return
-        const latest = await localAgentClient.getDraft(artifact.draftId)
+        const latest = await getLatestWritableScriptSplitDraft(artifact.draftId)
+        if (!latest) return
         const nextDrafts = parseScriptSplitDraftContent(latest.content, sortedScripts, normalized)
         syncDrafts(nextDrafts)
         setAgentDraft(latest)
@@ -2334,12 +2378,12 @@ function ScriptSplitWorkbench() {
     if (!agentDraft) return
     setDraftRejecting(true)
     try {
-      const rejected = await localAgentClient.rejectDraft(agentDraft.id, '用户在剧本拆分页面拒绝了该提案')
+      const rejected = await localAgentClient.rejectDraft(agentDraft.id, '用户在剧本拆分页面删除了该提案')
       setAgentDraft(rejected)
       setAgentDraftDirty(false)
-      toast.success('已拒绝 Agent Draft')
+      toast.success('已删除 Agent Draft')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '拒绝 Agent Draft 失败')
+      toast.error(error instanceof Error ? error.message : '删除 Agent Draft 失败')
     } finally {
       setDraftRejecting(false)
     }
@@ -2409,7 +2453,7 @@ function ScriptSplitWorkbench() {
       }
       if (nextDrafts.length === 0) throw new Error('没有可拆分的剧本内容')
       if (!agentDraft) throw new Error('当前拆分结果没有关联的 Agent Draft，请重新运行 Agent 拆分')
-      if (agentDraft.status === 'rejected') throw new Error('当前 Agent Draft 已拒绝，不能写入')
+      if (agentDraft.status === 'rejected') throw new Error('当前 Agent Draft 已删除，不能写入')
       if (agentDraft.status === 'applied') throw new Error('当前 Agent Draft 已写入，请重新生成新的拆分提案')
 
       let sourceScriptId: number | null = null
@@ -2734,7 +2778,7 @@ function ScriptSplitWorkbench() {
                       disabled={!agentDraft || draftRejecting || createAll.isPending || agentDraft.status !== 'draft'}
                     >
                       {draftRejecting ? <Loader2 size={13} className="animate-spin" /> : <AlertTriangle size={13} />}
-                      拒绝
+                      删除
                     </Button>
                   </div>
                 </div>

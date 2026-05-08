@@ -9,7 +9,7 @@
       "enabled": true,
       "priority": 860,
       "appliesWhen": "剧本拆分,剧本切分,script split,script-split,拆集,分集",
-      "instruction": "For script splitting, use movscript_submit_script_split_draft to create a structured script_split draft. Do not return the structured split as assistant JSON. Use sourceScript only for source title, summary, sourceType, and lineCount. Each episodeDraft must reference source text only by startLine and endLine, include globalContext, and never include body text, content, original lines, or copied script paragraphs.",
+      "instruction": "For script splitting, use movscript_submit_script_split_draft to create a local script_split draft. Do not return the structured split as assistant JSON. Pass sourceTitle, sourceSummary, lineCount, globalSettings, and episodeDrafts with startLine/endLine, title, summary, globalContext, action, and existingScriptId. Never pass body text, content, original lines, or copied script paragraphs in tool arguments.",
       "outputContract": "State that a local script_split review draft was created and summarize the episode count and any warnings. Do not claim formal scripts were written.",
       "toolHints": [
         "movscript_submit_script_split_draft",

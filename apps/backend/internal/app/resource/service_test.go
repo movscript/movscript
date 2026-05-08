@@ -70,7 +70,7 @@ func TestDeleteResourceDeletesBindingsAndRelationsWithoutHooks(t *testing.T) {
 		t.Fatalf("create binding: %v", err)
 	}
 
-	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil)
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil)
 	if err := service.Delete(ctx, resource.ID, resource.OwnerID, nil); err != nil {
 		t.Fatalf("delete resource: %v", err)
 	}

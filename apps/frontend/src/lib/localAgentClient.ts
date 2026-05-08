@@ -104,7 +104,7 @@ export interface AgentToolCall {
 }
 
 export interface AgentManifest {
-  schema: 'movscript.agent.v1' | 'movscript.agent.current'
+  schema: 'movscript.agent.current'
   id: string
   version: string
   name: string
@@ -123,7 +123,6 @@ export interface AgentManifest {
     platformModelId?: number
   }
   metadata?: Record<string, unknown>
-  sourceSchema?: 'movscript.agent.v1' | 'movscript.agent.current'
 }
 
 export interface AgentSkillManifest {
@@ -210,6 +209,7 @@ export interface AgentRun {
   assistantMessageId?: string
   steps: AgentRunStep[]
   traceEvents?: AgentTraceEvent[]
+  streamPartial?: true
 }
 
 export interface AgentRunPreview {
@@ -505,6 +505,7 @@ export interface AgentDraftApplyPreview {
   review: AgentDraftApplyReview
   draft: AgentDraft
   message: string
+  backendApply?: Record<string, unknown>
 }
 
 export interface AgentDraftPatchOp {
@@ -558,7 +559,7 @@ export type AgentRunStreamEvent =
     roundIndex?: number
     roundLabel?: string
     createdAt: string
-    run: AgentRun
+    run?: AgentRun
   }
   | {
     type: 'assistant_message'
@@ -571,6 +572,18 @@ export type AgentRunStreamEvent =
     run: AgentRun
   }
 
+export interface AgentRunTraceResponse {
+  runId: string
+  events: AgentTraceEvent[]
+}
+
+export interface AgentRunTraceSummary {
+  runId: string
+  total: number
+  byKind: Partial<Record<AgentTraceEventKind, number>>
+  latestEvent?: AgentTraceEvent
+}
+
 export interface RunMessageOptions {
   onRunUpdate?: (run: AgentRun) => void
   onStreamEvent?: (event: AgentRunStreamEvent) => void
@@ -578,6 +591,7 @@ export interface RunMessageOptions {
   timeoutMs?: number
   pollMs?: number
   agentManifest?: AgentManifest
+  runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
 }
 
 const DEFAULT_LOCAL_AGENT_BASE_URL = 'http://127.0.0.1:28765'
@@ -641,7 +655,7 @@ export class LocalAgentClient {
     })
   }
 
-  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput } = {}): Promise<AgentRun> {
+  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> } = {}): Promise<AgentRun> {
     return this.postJSON('/runs', { threadId, ...input })
   }
 
@@ -657,11 +671,12 @@ export class LocalAgentClient {
     agentManifest?: AgentManifest
     approvedToolNames?: string[]
     clientInput?: AgentClientInput
+    policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
   }): Promise<AgentRun> {
     return this.postJSON('/runs/tool', input)
   }
 
-  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput }): Promise<AgentRunPreview> {
+  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> }): Promise<AgentRunPreview> {
     return this.postJSON('/runs/preview', input)
   }
 
@@ -700,6 +715,22 @@ export class LocalAgentClient {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/cancel`, input)
   }
 
+  getRun(runId: string): Promise<AgentRun> {
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}`)
+  }
+
+  getRunTraceEvents(runId: string, query: { cursor?: string; limit?: number; kind?: AgentTraceEventKind } = {}): Promise<AgentRunTraceResponse> {
+    const params = new URLSearchParams()
+    if (query.cursor) params.set('cursor', query.cursor)
+    if (typeof query.limit === 'number') params.set('limit', String(query.limit))
+    if (query.kind) params.set('kind', query.kind)
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}/trace${params.size ? `?${params.toString()}` : ''}`)
+  }
+
+  getRunTraceSummary(runId: string): Promise<AgentRunTraceSummary> {
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}/trace/summary`)
+  }
+
   answerRunInput(runId: string, input: { requestId?: string; choiceIds?: string[]; text?: string }): Promise<AgentRun> {
     return this.postJSON(`/runs/${encodeURIComponent(runId)}/input`, input)
   }
@@ -710,7 +741,7 @@ export class LocalAgentClient {
     const deadline = Date.now() + timeoutMs
 
     while (true) {
-      const run = await this.getJSON<AgentRun>(`/runs/${encodeURIComponent(runId)}`)
+      const run = await this.getRun(runId)
       options.onRunUpdate?.(run)
       if (TERMINAL_RUN_STATUSES.has(run.status)) return run
       if (Date.now() > deadline) throw new Error(`local runtime run ${runId} did not finish within ${timeoutMs}ms`)
@@ -735,7 +766,7 @@ export class LocalAgentClient {
       if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
       if (!res.body) return await this.waitForRun(runId, options)
 
-      let latestRun = await this.getJSON<AgentRun>(`/runs/${encodeURIComponent(runId)}`)
+      let latestRun = await this.getRun(runId)
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
@@ -749,10 +780,10 @@ export class LocalAgentClient {
           return
         }
         options.onStreamEvent?.(event)
-        if ('run' in event) {
+        if ('run' in event && event.run) {
           latestRun = event.run
         }
-        if (event.type === 'run' || event.type === 'done' || event.type === 'trace') {
+        if (event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') {
           options.onRunUpdate?.(event.run)
         }
         if (event.type === 'assistant_delta') {
@@ -776,10 +807,14 @@ export class LocalAgentClient {
       const tail = decoder.decode()
       if (tail) buffer += tail
       if (buffer.trim()) processBlock(buffer)
+      if (latestRun.streamPartial && TERMINAL_RUN_STATUSES.has(latestRun.status)) {
+        const fullRun = await this.getRun(runId).catch(() => undefined)
+        if (fullRun) return fullRun
+      }
       return latestRun
     } catch (error) {
       if (timedOut) {
-        const latestRun = await this.getJSON<AgentRun>(`/runs/${encodeURIComponent(runId)}`).catch(() => undefined)
+        const latestRun = await this.getRun(runId).catch(() => undefined)
         if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
         throw new Error(`local runtime run ${runId} did not finish within ${options.timeoutMs}ms`)
       }
@@ -839,6 +874,10 @@ export class LocalAgentClient {
     return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/apply-preview`, input)
   }
 
+  applyDraft(draftId: string, input: { target?: Record<string, unknown>; targetEntityType?: string; targetEntityId?: number | string; targetField?: string; currentValue?: unknown; proposedValue?: unknown } = {}): Promise<AgentDraftApplyPreview> {
+    return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/apply`, input)
+  }
+
   rejectDraft(draftId: string, reason?: string): Promise<AgentDraft> {
     return this.postJSON(`/drafts/${encodeURIComponent(draftId)}/reject`, { reason })
   }
@@ -857,6 +896,7 @@ export class LocalAgentClient {
     const run = await this.createRun(thread.id, {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
+      ...(options.runPolicy ? { policy: options.runPolicy } : {}),
     })
     options.onRunUpdate?.(run)
     const finalRun = await this.waitForRun(run.id, {
@@ -874,6 +914,7 @@ export class LocalAgentClient {
     const run = await this.createRun(thread.id, {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
+      ...(options.runPolicy ? { policy: options.runPolicy } : {}),
     })
     options.onRunUpdate?.(run)
     const finalRun = await this.streamRun(run.id, options)

@@ -114,16 +114,17 @@ func (s *Service) PatchDeliveryVersion(ctx context.Context, projectID uint, id s
 			return item, err
 		}
 	}
-	return s.repo.PatchDeliveryVersion(ctx, item, compactUpdates(map[string]any{
-		"production_id":       input.ProductionID,
-		"preview_timeline_id": input.PreviewTimelineID,
-		"name":                input.Name,
-		"description":         input.Description,
-		"status":              input.Status,
-		"is_primary":          &input.IsPrimary,
-		"duration_sec":        input.DurationSec,
-		"metadata_json":       input.MetadataJSON,
-	}))
+	patch := domainsemantic.DeliveryVersionPatch{
+		ProductionID:      input.ProductionID,
+		PreviewTimelineID: input.PreviewTimelineID,
+		Name:              input.Name,
+		Description:       input.Description,
+		Status:            input.Status,
+		IsPrimary:         input.IsPrimary,
+		DurationSec:       input.DurationSec,
+		MetadataJSON:      input.MetadataJSON,
+	}
+	return s.repo.PatchDeliveryVersion(ctx, item, patch)
 }
 
 func (s *Service) ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]domainsemantic.DeliveryTimelineItem, error) {
@@ -159,19 +160,20 @@ func (s *Service) PatchDeliveryTimelineItem(ctx context.Context, projectID uint,
 	if err := s.validateDeliveryTimelineItemOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	return s.repo.PatchDeliveryTimelineItem(ctx, item, compactUpdates(map[string]any{
-		"delivery_version_id": input.DeliveryVersionID,
-		"content_unit_id":     input.ContentUnitID,
-		"asset_slot_id":       input.AssetSlotID,
-		"resource_id":         input.ResourceID,
-		"kind":                input.Kind,
-		"order":               input.Order,
-		"start_sec":           input.StartSec,
-		"duration_sec":        input.DurationSec,
-		"label":               input.Label,
-		"status":              input.Status,
-		"metadata_json":       input.MetadataJSON,
-	}))
+	patch := domainsemantic.DeliveryTimelineItemPatch{
+		DeliveryVersionID: input.DeliveryVersionID,
+		ContentUnitID:     input.ContentUnitID,
+		AssetSlotID:       input.AssetSlotID,
+		ResourceID:        input.ResourceID,
+		Kind:              input.Kind,
+		Order:             input.Order,
+		StartSec:          input.StartSec,
+		DurationSec:       input.DurationSec,
+		Label:             input.Label,
+		Status:            input.Status,
+		MetadataJSON:      input.MetadataJSON,
+	}
+	return s.repo.PatchDeliveryTimelineItem(ctx, item, patch)
 }
 
 func (s *Service) ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]domainsemantic.ExportRecord, error) {
@@ -203,15 +205,16 @@ func (s *Service) PatchExportRecord(ctx context.Context, projectID uint, id stri
 	if err := s.validateExportRecordOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	return s.repo.PatchExportRecord(ctx, item, compactUpdates(map[string]any{
-		"delivery_version_id": input.DeliveryVersionID,
-		"resource_id":         input.ResourceID,
-		"status":              input.Status,
-		"format":              input.Format,
-		"preset":              input.Preset,
-		"error":               input.Error,
-		"metadata_json":       input.MetadataJSON,
-	}))
+	patch := domainsemantic.ExportRecordPatch{
+		DeliveryVersionID: input.DeliveryVersionID,
+		ResourceID:        input.ResourceID,
+		Status:            input.Status,
+		Format:            input.Format,
+		Preset:            input.Preset,
+		Error:             input.Error,
+		MetadataJSON:      input.MetadataJSON,
+	}
+	return s.repo.PatchExportRecord(ctx, item, patch)
 }
 
 func (s *Service) ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]domainsemantic.CanvasOutput, error) {
@@ -248,20 +251,21 @@ func (s *Service) PatchCanvasOutput(ctx context.Context, projectID uint, id stri
 	if err := s.validateCanvasOutputOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	return s.repo.PatchCanvasOutput(ctx, item, compactUpdates(map[string]any{
-		"canvas_id":      input.CanvasID,
-		"canvas_run_id":  input.CanvasRunID,
-		"canvas_node_id": input.CanvasNodeID,
-		"port_id":        input.PortID,
-		"owner_type":     input.OwnerType,
-		"owner_id":       input.OwnerID,
-		"output_type":    input.OutputType,
-		"resource_id":    input.ResourceID,
-		"target_field":   input.TargetField,
-		"value_json":     input.ValueJSON,
-		"status":         input.Status,
-		"metadata_json":  input.MetadataJSON,
-	}))
+	patch := domainsemantic.CanvasOutputPatch{
+		CanvasID:     input.CanvasID,
+		CanvasRunID:  input.CanvasRunID,
+		CanvasNodeID: input.CanvasNodeID,
+		PortID:       input.PortID,
+		OwnerType:    input.OwnerType,
+		OwnerID:      input.OwnerID,
+		OutputType:   input.OutputType,
+		ResourceID:   input.ResourceID,
+		TargetField:  input.TargetField,
+		ValueJSON:    input.ValueJSON,
+		Status:       input.Status,
+		MetadataJSON: input.MetadataJSON,
+	}
+	return s.repo.PatchCanvasOutput(ctx, item, patch)
 }
 
 func (s *Service) validateDeliveryTimelineItemOwners(ctx context.Context, projectID uint, input DeliveryTimelineItemInput) error {

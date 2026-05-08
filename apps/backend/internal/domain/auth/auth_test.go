@@ -81,11 +81,11 @@ func TestNewAuthSessionTruncatesClientMetadata(t *testing.T) {
 	}
 }
 
-func TestProfileUpdatesTrimValues(t *testing.T) {
+func TestProfileUpdateSpecTrimValues(t *testing.T) {
 	name := " Alice "
-	updates := ProfileUpdates(ProfileInput{DisplayName: &name})
-	if updates["display_name"] != "Alice" {
-		t.Fatalf("updates = %#v", updates)
+	spec := ProfileUpdateSpec(ProfileInput{DisplayName: &name})
+	if spec.DisplayName == nil || *spec.DisplayName != "Alice" {
+		t.Fatalf("spec = %#v", spec)
 	}
 }
 

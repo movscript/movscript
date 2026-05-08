@@ -66,7 +66,6 @@ export function appendTraceEvent(input: AppendTraceEventInput): AgentTraceEvent 
     ...(input.data !== undefined ? { data: toJSONValue(input.data) } : {}),
     ...(input.completedAt ? { completedAt: input.completedAt } : {}),
   }
-  input.run.traceEvents = [...(input.run.traceEvents ?? []), event]
   input.run.updatedAt = event.completedAt ?? event.createdAt
   return event
 }

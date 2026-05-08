@@ -1,7 +1,7 @@
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph'
 import type { MCPClient } from '../mcpClient.js'
 import type { AgentManifest } from '../manifest/agentManifest.js'
-import type { AgentApprovalRequest, AgentDebugContextPanel, AgentInputRequest, AgentMessage, AgentRun, AgentRunPolicy, AgentRunStatus, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall, ToolCallOutcome, JSONValue } from '../state/types.js'
+import type { AgentApprovalRequest, AgentDebugContextPanel, AgentInputRequest, AgentMessage, AgentRun, AgentRunPolicy, AgentRunStatus, AgentTraceEventKind, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall, ToolCallOutcome, JSONValue } from '../state/types.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
@@ -9,14 +9,33 @@ import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ConfiguredRuntimeModelConfig, RuntimeModelAuthContext, RuntimeModelChatMessage, RuntimeModelChatToolCall } from '../model/modelConfig.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import type { AgentLoopTraceInput, AgentLoopResult } from '../runtime/loop/agentLoop.js'
 import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
 import { createDefaultRuntimeModelRouter, type RuntimeModelRouter } from '../model/modelRouter.js'
 import { executeTool, type AgentCatalogToolManager } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { formatToolNameForDisplay } from '../tools/toolNames.js'
-import { buildApplyDraftPreview } from '../drafts/draftApply.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
+
+export interface AgentGraphTraceInput {
+  kind: AgentTraceEventKind
+  title: string
+  summary?: string
+  status: 'started' | 'completed' | 'blocked' | 'failed' | 'info'
+  roundIndex: number
+  roundLabel: string
+  roundSource: 'setup' | 'runtime_rule' | 'model' | 'approval' | 'final'
+  stepId?: string
+  toolName?: string
+  data?: unknown
+  volatile?: boolean
+  volatileKey?: string
+}
+
+export type AgentGraphResult =
+  | { status: 'completed'; finalContent: string; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
+  | { status: 'requires_action'; pendingApprovals: AgentApprovalRequest[]; pendingInputRequests?: AgentInputRequest[]; messages: RuntimeModelChatMessage[]; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
+  | { status: 'cancelled'; reason?: string }
+  | { status: 'failed'; error: string }
 
 export interface AgentGraphInput {
   run: AgentRun
@@ -50,8 +69,8 @@ export interface AgentGraphInput {
     registry: ToolRegistry
     warnings: string[]
   }>
-  onTrace: (input: AgentLoopTraceInput) => void
-  onStepCreate: (type: 'tool_call' | 'message', roundIndex: number, roundLabel: string, roundSource: AgentLoopTraceInput['roundSource'], toolName?: string) => string
+  onTrace: (input: AgentGraphTraceInput) => void
+  onStepCreate: (type: 'tool_call' | 'message', roundIndex: number, roundLabel: string, roundSource: AgentGraphTraceInput['roundSource'], toolName?: string) => string
   onStepComplete: (stepId: string, result?: JSONValue, error?: string, sandboxed?: boolean) => void
 }
 
@@ -70,7 +89,7 @@ type AgentGraphState = {
   modelContent?: string | null
 }
 
-export async function runAgentGraph(input: AgentGraphInput): Promise<AgentLoopResult> {
+export async function runAgentGraph(input: AgentGraphInput): Promise<AgentGraphResult> {
   throwIfAborted(input.signal)
   const State = Annotation.Root({
     history: Annotation<RuntimeModelChatMessage[]>({
@@ -287,15 +306,25 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     signal: input.signal,
     onTrace: (event) => {
       if (event.phase === 'stream') {
+        const isToolCallStream = event.stream?.kind === 'tool_call'
+        const volatileKey = isToolCallStream
+          ? toolCallStreamTraceKey(currentRoundIndex, event.stream?.toolCall)
+          : undefined
         input.onTrace({
-          kind: event.stream?.kind === 'reasoning' ? 'reasoning' : 'model_call',
-          title: event.stream?.kind === 'reasoning' ? 'Model reasoning delta' : 'Model stream delta',
-          summary: event.stream?.delta ? event.stream.delta.slice(0, 180) : undefined,
+          kind: event.stream?.kind === 'reasoning' ? 'reasoning' : isToolCallStream ? 'tool_call' : 'model_call',
+          title: event.stream?.kind === 'reasoning'
+            ? 'Model reasoning delta'
+            : isToolCallStream ? 'Model tool call delta' : 'Model stream delta',
+          summary: isToolCallStream
+            ? formatToolCallStreamSummary(event.stream?.toolCall)
+            : event.stream?.delta ? event.stream.delta.slice(0, 180) : undefined,
           status: 'info',
           roundIndex: currentRoundIndex,
           roundLabel,
           roundSource: 'model',
           data: { phase: event.phase, stream: event.stream, latencyMs: event.trace.latencyMs },
+          volatile: true,
+          ...(volatileKey ? { volatileKey } : {}),
         })
         return
       }
@@ -440,7 +469,6 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
         reason: blocked.message,
         ...(blocked.tool?.risk ? { risk: blocked.tool.risk } : {}),
         ...(blocked.tool?.permission ? { permission: blocked.tool.permission } : {}),
-        ...(blocked.call.name === 'movscript_apply_draft' ? { preview: safeBuildDraftPreview(input.draftStore, blocked.call.args ?? {}) } : {}),
         status: 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -692,6 +720,17 @@ function toToolCall(call: RuntimeModelChatToolCall): ToolCall {
   }
 }
 
+function formatToolCallStreamSummary(toolCall: { name?: string; id?: string; argumentsBuffer?: string; parseStatus?: string } | undefined): string | undefined {
+  if (!toolCall) return undefined
+  const label = toolCall.name || toolCall.id || 'tool'
+  const chars = toolCall.argumentsBuffer?.length ?? 0
+  return `${label} arguments ${toolCall.parseStatus ?? 'partial'} (${chars} chars)`
+}
+
+function toolCallStreamTraceKey(roundIndex: number, toolCall: { index?: number } | undefined): string {
+  return `model-tool-call-stream:${roundIndex}:${toolCall?.index ?? 0}`
+}
+
 function parseArgs(input: string): Record<string, JSONValue> {
   try {
     const parsed = JSON.parse(input)
@@ -714,14 +753,6 @@ function summarizeResult(value: JSONValue | undefined): string {
   const keys = Object.keys(value)
   const status = typeof value.status === 'string' ? `${value.status}; ` : ''
   return `${status}${keys.length} key(s): ${keys.slice(0, 6).join(', ')}`
-}
-
-function safeBuildDraftPreview(draftStore: AgentDraftStore, args: Record<string, JSONValue>): JSONValue | undefined {
-  try {
-    return buildApplyDraftPreview(draftStore, args as Record<string, unknown>) as unknown as JSONValue
-  } catch {
-    return undefined
-  }
 }
 
 function makeId(prefix: string): string {

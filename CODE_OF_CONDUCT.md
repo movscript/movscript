@@ -1,5 +1,7 @@
 # Code of Conduct
 
+[简体中文](CODE_OF_CONDUCT.zh-CN.md)
+
 Movscript follows the Contributor Covenant Code of Conduct, version 2.1.
 
 ## Our pledge

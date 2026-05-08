@@ -40,8 +40,8 @@ func TestAttachAssetSlotCandidateOutputSyncsRelationsWithoutHooks(t *testing.T) 
 		t.Fatalf("create canvas output: %v", err)
 	}
 
-	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil, nil, nil)
-	service.attachAssetSlotCandidateOutput(context.Background(), persistencemodel.Canvas{Model: gorm.Model{ID: 10}, ProjectID: &projectID}, 20, 30, target, canvasPortValue{
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil, nil, nil, nil)
+	service.attachAssetSlotCandidateOutput(context.Background(), persistencemodel.Canvas{Model: gorm.Model{ID: 10}, ProjectID: &projectID}, 20, 30, canvasOutputTargetFromRow(target), canvasPortValue{
 		Type:       "image",
 		ResourceID: &resourceID,
 	})
@@ -78,7 +78,7 @@ func TestCanvasRunHelpersSyncRelationsWithoutHooks(t *testing.T) {
 	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&cv).Error; err != nil {
 		t.Fatalf("create canvas: %v", err)
 	}
-	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil, nil, nil)
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil, nil, nil, nil)
 	run := persistencemodel.CanvasRun{
 		CanvasID: cv.ID,
 		Status:   canvasruntime.CanvasRunStatusRunning,
@@ -120,7 +120,7 @@ func TestDeleteCanvasDeletesCanvasAndRunRelationsWithoutHooks(t *testing.T) {
 	if err := saveCanvasWithRelations(db.Session(&gorm.Session{SkipHooks: true}), &cv); err != nil {
 		t.Fatalf("create canvas: %v", err)
 	}
-	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil, nil, nil)
+	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil, nil, nil, nil)
 	run := persistencemodel.CanvasRun{
 		CanvasID: cv.ID,
 		Status:   canvasruntime.CanvasRunStatusRunning,

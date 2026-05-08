@@ -43,25 +43,48 @@ type NewStoredGeneratedResourceSpec struct {
 	StorageKey     string
 }
 
+type UpdateSpec struct {
+	FilePath             *string
+	StorageKey           *string
+	StorageBackend       *string
+	Type                 *string
+	Name                 *string
+	MimeType             *string
+	Size                 *int64
+	IsShared             *bool
+	FolderID             *uint
+	ClearFolder          bool
+	VerificationStatus   *string
+	VerificationRef      *string
+	VerifiedAt           *time.Time
+	VerificationProvider *string
+	VerificationError    *string
+}
+
 type RawResource struct {
-	ID             uint      `json:"ID"`
-	OwnerID        uint      `json:"owner_id"`
-	Owner          *UserRef  `json:"owner,omitempty"`
-	OrgID          *uint     `json:"org_id,omitempty"`
-	FolderID       *uint     `json:"folder_id,omitempty"`
-	Type           string    `json:"type"`
-	Name           string    `json:"name"`
-	FilePath       string    `json:"-"`
-	URL            string    `json:"url"`
-	Size           int64     `json:"size"`
-	MimeType       string    `json:"mime_type"`
-	StorageBackend string    `json:"storage_backend"`
-	StorageKey     string    `json:"storage_key"`
-	IsShared       bool      `json:"is_shared"`
-	DirectURL      string    `json:"direct_url,omitempty"`
-	CloudUploads   string    `json:"-"`
-	CreatedAt      time.Time `json:"CreatedAt"`
-	UpdatedAt      time.Time `json:"UpdatedAt"`
+	ID                   uint       `json:"ID"`
+	OwnerID              uint       `json:"owner_id"`
+	Owner                *UserRef   `json:"owner,omitempty"`
+	OrgID                *uint      `json:"org_id,omitempty"`
+	FolderID             *uint      `json:"folder_id,omitempty"`
+	Type                 string     `json:"type"`
+	Name                 string     `json:"name"`
+	FilePath             string     `json:"-"`
+	URL                  string     `json:"url"`
+	Size                 int64      `json:"size"`
+	MimeType             string     `json:"mime_type"`
+	StorageBackend       string     `json:"storage_backend"`
+	StorageKey           string     `json:"storage_key"`
+	IsShared             bool       `json:"is_shared"`
+	DirectURL            string     `json:"direct_url,omitempty"`
+	VerificationStatus   string     `json:"verification_status,omitempty"`
+	VerificationRef      string     `json:"verification_ref,omitempty"`
+	VerifiedAt           *time.Time `json:"verified_at,omitempty"`
+	VerificationProvider string     `json:"verification_provider,omitempty"`
+	VerificationError    string     `json:"verification_error,omitempty"`
+	CloudUploads         string     `json:"-"`
+	CreatedAt            time.Time  `json:"CreatedAt"`
+	UpdatedAt            time.Time  `json:"UpdatedAt"`
 }
 
 type UserRef struct {
@@ -72,6 +95,72 @@ type UserRef struct {
 	DisplayName  string  `json:"display_name,omitempty"`
 	AvatarURL    string  `json:"avatar_url,omitempty"`
 	Status       string  `json:"status,omitempty"`
+}
+
+func (spec UpdateSpec) Empty() bool {
+	return spec.FilePath == nil &&
+		spec.StorageKey == nil &&
+		spec.StorageBackend == nil &&
+		spec.Type == nil &&
+		spec.Name == nil &&
+		spec.MimeType == nil &&
+		spec.Size == nil &&
+		spec.IsShared == nil &&
+		spec.FolderID == nil &&
+		!spec.ClearFolder &&
+		spec.VerificationStatus == nil &&
+		spec.VerificationRef == nil &&
+		spec.VerifiedAt == nil &&
+		spec.VerificationProvider == nil &&
+		spec.VerificationError == nil
+}
+
+func (resource *RawResource) ApplyUpdate(spec UpdateSpec) {
+	if spec.FilePath != nil {
+		resource.FilePath = *spec.FilePath
+	}
+	if spec.StorageKey != nil {
+		resource.StorageKey = *spec.StorageKey
+	}
+	if spec.StorageBackend != nil {
+		resource.StorageBackend = *spec.StorageBackend
+	}
+	if spec.Type != nil {
+		resource.Type = *spec.Type
+	}
+	if spec.Name != nil {
+		resource.Name = *spec.Name
+	}
+	if spec.MimeType != nil {
+		resource.MimeType = *spec.MimeType
+	}
+	if spec.Size != nil {
+		resource.Size = *spec.Size
+	}
+	if spec.IsShared != nil {
+		resource.IsShared = *spec.IsShared
+	}
+	if spec.ClearFolder {
+		resource.FolderID = nil
+	} else if spec.FolderID != nil {
+		folderID := *spec.FolderID
+		resource.FolderID = &folderID
+	}
+	if spec.VerificationStatus != nil {
+		resource.VerificationStatus = *spec.VerificationStatus
+	}
+	if spec.VerificationRef != nil {
+		resource.VerificationRef = *spec.VerificationRef
+	}
+	if spec.VerifiedAt != nil {
+		resource.VerifiedAt = spec.VerifiedAt
+	}
+	if spec.VerificationProvider != nil {
+		resource.VerificationProvider = *spec.VerificationProvider
+	}
+	if spec.VerificationError != nil {
+		resource.VerificationError = *spec.VerificationError
+	}
 }
 
 func NormalizePage(input PageInput) PageSpec {
@@ -113,6 +202,13 @@ func NewStoredGeneratedResource(spec NewStoredGeneratedResourceSpec) RawResource
 		StorageBackend: spec.StorageBackend,
 		StorageKey:     spec.StorageKey,
 	}
+}
+
+func (resource RawResource) NeedsImageVerification() bool {
+	if resource.Type != "image" {
+		return false
+	}
+	return resource.VerificationStatus != "verified"
 }
 
 func ParseListFilters(resourceType, query string) ListFilters {

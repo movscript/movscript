@@ -17,7 +17,7 @@ Movscript 至少有四种形态：
 - `personal-local`：单人本地使用，自带 key，本地 backend。
 - `self-hosted-team`：团队自部署 backend，多人协作。
 - `hosted-cloud`：官方托管服务。
-- `enterprise-private`：企业私有部署 + 商业授权。
+- `enterprise-private`：企业私有部署 + 商业授权状态。
 
 这些形态不对应不同代码仓库，而是对应不同的服务实现和授权状态。
 
@@ -63,7 +63,7 @@ type EntitlementService interface {
 - deployment_mode
 - limits
 - enabled_capabilities
-- commercial_flags
+- runtime_flags
 
 这层不负责计费，只负责资格判断。
 
@@ -90,7 +90,7 @@ type GatewayPolicyService interface {
 
 计量层负责回答“用了多少、扣多少、是否超额”。
 
-现有 `usage.go` 和 `infra/ai/billing.go` 已经具备雏形，建议把它们收束成统一的用量接口：
+现有 `infra/ai/usage.go` 已经具备雏形，建议把它收束成统一的用量接口：
 
 ```go
 type UsageService interface {
@@ -195,10 +195,10 @@ type AuditSink interface {
 
 - 解析请求上下文
 - 调用 policy 判断是否允许
-- 计算 billing context
+- 计算 usage context
 - 转交给 AI service
 
-### `apps/backend/internal/infra/ai/billing.go`
+### `apps/backend/internal/infra/ai/usage.go`
 
 这里应该逐步演进成用量计量服务的底层实现。
 
@@ -222,7 +222,7 @@ type AuditSink interface {
 ```text
 Plan
 Entitlement
-LicenseToken
+RuntimeGrant
 PolicyRule
 UsageLedger
 AuditEvent
@@ -232,7 +232,7 @@ AuditEvent
 
 - `Plan`：产品层级，如 free/team/enterprise。
 - `Entitlement`：某个 subject 实际拥有的能力集合。
-- `LicenseToken`：私有部署或离线授权。
+- `RuntimeGrant`：部署形态或外部授权状态注入的能力凭证。
 - `PolicyRule`：模型路由、key、feature、预算规则。
 - `UsageLedger`：统一账本。
 - `AuditEvent`：不可变事件流。
@@ -247,63 +247,63 @@ AuditEvent
 
 以及一个基础接口包：
 
-- `internal/domain/commercial`
+- `internal/domain/entitlement`
 
-其中只放接口、枚举和最小 DTO，不放商业实现。
+其中只放接口、枚举和最小 DTO，不放 overlay 专用实现。
 
-## 企业实现仓库边界
+## Runtime Overlay 边界
 
 当前工程方向调整为：
 
 - `movscript` 仓库构建社区版。
-- `enterprise` 仓库构建商业版。
+- 外部 overlay 构建商业或托管运行版。
 - `movscript` 仓库只保留共享抽象和社区实现。
-- 社区版不创建企业专用的计费和交易表。
-- 社区版不注册企业专用的计费和交易 HTTP 路由。
-- 新的商业实现、企业路由、企业部署脚本和商业授权逻辑应进入 `enterprise` 仓库的 MovScript overlay。
+- 社区版不创建 overlay 专用的计费和交易表。
+- 社区版不注册 overlay 专用的计费和交易 HTTP 路由。
+- 新的商业实现、托管路由、企业部署脚本和授权逻辑应进入外部 MovScript overlay。
 
-因此，社区仓中的 `//go:build enterprise` 文件只作为迁移期遗留存在。后续不要继续在社区仓新增企业实现文件；如果需要新增商业能力，应先在社区仓补稳定接口或社区默认实现，再在 enterprise overlay 中实现商业版本。
+社区仓不应新增运行版专用实现文件；如果需要新增商业或托管能力，应先在社区仓补稳定接口或社区默认实现，再在 runtime overlay 中实现对应版本。
 
 目标构建关系：
 
 ```text
 movscript                         -> community build
-enterprise + movscript checkout   -> enterprise build
+runtime overlay + movscript tree   -> overlay build
 ```
 
-`enterprise` 仓库当前通过 `overlays/movscript` 叠加商业文件，并用 `-tags enterprise` 产出商业后端。
+外部 overlay 通过同路径叠加运行版文件，并用 `-tags runtime_overlay` 产出 overlay 后端。
 
-## 条件编译与企业 Overlay
+## 条件编译与 Runtime Overlay
 
-第一步落地采用“社区默认实现 + 企业 overlay 替换”的方式：
+第一步落地采用“社区默认实现 + runtime overlay 替换”的方式：
 
 ```text
-apps/backend/internal/domain/commercial/
-  commercial.go              # 稳定接口、枚举、DTO，社区版和企业版共享
+apps/backend/internal/domain/entitlement/
+  entitlement.go             # 稳定接口、枚举、DTO，社区版和 overlay 共享
 
 apps/backend/internal/app/entitlement/
   service.go                 # 对外构造函数
-  edition_community.go       # //go:build !enterprise，社区默认实现
+  runtime_community.go       # //go:build !runtime_overlay，社区默认实现
 
-enterprise/overlays/backend/
+runtime overlay/
   internal/app/entitlement/
-    edition_enterprise.go    # //go:build enterprise，企业实现
+    runtime_overlay.go       # //go:build runtime_overlay，overlay 实现
 ```
 
 社区版必须始终满足：
 
-- 不依赖 `enterprise/` 目录。
-- 不需要 license 即可编译和运行。
-- `go build ./cmd/server` 使用 `!enterprise` 默认实现。
+- 不依赖外部 overlay 目录。
+- 不需要外部授权服务即可编译和运行。
+- `go build ./cmd/server` 使用 `!runtime_overlay` 默认实现。
 - 默认实现可以返回 plan/status/capability 快照，但不得开启平台 key、远程计量、托管 worker/storage、SSO/SCIM、审计导出等企业能力。
 
-企业版构建时由发布脚本把 `enterprise/overlays/backend` 中的同路径文件覆盖或挂载到 `apps/backend` module 内，再执行：
+Overlay 构建时由发布脚本把同路径文件覆盖或挂载到 `apps/backend` module 内，再执行：
 
 ```bash
-go build -tags enterprise ./cmd/server
+go build -tags runtime_overlay ./cmd/server
 ```
 
-由于 Go 的 `internal/` 规则，企业后端实现不能作为旁边独立 Go module 直接 import `apps/backend/internal/...`。企业实现要么以 overlay 方式进入同一个 module 编译，要么通过 RPC/进程级插件与社区 backend 通信。短期推荐 overlay，后续如果商业能力需要独立部署，再拆 RPC 边界。
+由于 Go 的 `internal/` 规则，overlay 后端实现不能作为旁边独立 Go module 直接 import `apps/backend/internal/...`。Overlay 实现要么以同 module 方式编译，要么通过 RPC/进程级插件与社区 backend 通信。短期推荐 overlay，后续如果商业能力需要独立部署，再拆 RPC 边界。
 
 插件机制用于扩展商业模板、workflow、Hub 分发和企业 UI，不用于单独强制 license、扣费、预算、provider raw key 可见性等核心判断。这些判断必须落在权益、策略、用量和审计接口上。
 
@@ -311,12 +311,12 @@ go build -tags enterprise ./cmd/server
 
 社区版已经先落了一个最小可演进切口：
 
-- `internal/domain/commercial`：商业边界接口和 DTO。
+- `internal/domain/entitlement`：权益、策略、用量、审计接口和 DTO。
 - `internal/app/entitlement`：社区默认权益实现。
 - `GET /api/v1/entitlement`：返回当前 workspace 的 entitlement snapshot。
 - `MOVSCRIPT_DEPLOYMENT_MODE`：显式区分 `personal-local`、`self-hosted-team` 等部署模式。
 
-这个切口不引入企业依赖，不影响 `go build ./cmd/server`，后续企业版只要覆盖同路径实现即可。
+这个切口不引入 overlay 依赖，不影响 `go build ./cmd/server`，后续 overlay 版本只要覆盖同路径实现即可。
 
 ## 实现优先级
 
@@ -329,7 +329,7 @@ go build -tags enterprise ./cmd/server
 
 ### 第二阶段
 
-- 让 `org`、`modelgateway`、`ai billing` 统一走这些接口
+- 让 `org`、`modelgateway`、`ai usage` 统一走这些接口
 - 把 `personal` 和 `team` 的能力差异收束到 policy
 
 ### 第三阶段

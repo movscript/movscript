@@ -17,6 +17,7 @@ type Dependencies struct {
 	Tokens        *auth.Manager
 	Registry      *ai.Registry
 	AIService     *ai.AIService
+	ImageVerifier ai.ImageVerificationClient
 	Cache         cache.Cache
 	Entitlements  entitlement.EntitlementService
 	EncryptionKey []byte

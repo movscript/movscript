@@ -58,10 +58,6 @@ func (s *Service) validateWorkDependencyInput(ctx context.Context, projectID uin
 	return s.ensureOwnerInProject(ctx, projectID, "work_item", input.DependsOnWorkItemID)
 }
 
-func workItemUpdates(item domainsemantic.WorkItem, input WorkItemInput) map[string]any {
-	return domainsemantic.WorkItemUpdates(item, input.domainPatch())
-}
-
 func WorkItemInputKeepsAssignment(item domainsemantic.WorkItem, input WorkItemInput) bool {
 	return domainsemantic.WorkItemPatchKeepsAssignment(item, input.domainPatch())
 }

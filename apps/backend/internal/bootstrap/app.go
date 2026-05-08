@@ -24,16 +24,17 @@ import (
 )
 
 type App struct {
-	Config       *config.Config
-	DB           *gorm.DB
-	Store        storage.Storage
-	Tokens       *auth.Manager
-	Registry     *ai.Registry
-	AIService    *ai.AIService
-	Cache        cache.Cache
-	Entitlements entitlement.EntitlementService
-	Worker       *jobrunner.Worker
-	Router       *gin.Engine
+	Config        *config.Config
+	DB            *gorm.DB
+	Store         storage.Storage
+	Tokens        *auth.Manager
+	Registry      *ai.Registry
+	AIService     *ai.AIService
+	ImageVerifier ai.ImageVerificationClient
+	Cache         cache.Cache
+	Entitlements  entitlement.EntitlementService
+	Worker        *jobrunner.Worker
+	Router        *gin.Engine
 }
 
 func New() (*App, error) {
@@ -81,6 +82,10 @@ func New() (*App, error) {
 
 	registry := ai.NewRegistry(database, encKey)
 	aiService := ai.NewAIService(database, registry)
+	var imageVerifier ai.ImageVerificationClient
+	if cfg.ImageVerifyBaseURL != "" {
+		imageVerifier = ai.NewHTTPImageVerificationClient(cfg.ImageVerifyBaseURL, cfg.ImageVerifyAPIKey)
+	}
 	cacheStore, err := cache.New(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize cache: %w", err)
@@ -95,6 +100,7 @@ func New() (*App, error) {
 		Tokens:        tokens,
 		Registry:      registry,
 		AIService:     aiService,
+		ImageVerifier: imageVerifier,
 		Cache:         cacheStore,
 		Entitlements:  entitlements,
 		EncryptionKey: encKey,

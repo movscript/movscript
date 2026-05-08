@@ -110,9 +110,9 @@ func (s *Service) Patch(ctx context.Context, input PatchInput) (domainscript.Scr
 		next.ScriptType = scriptType
 	}
 	NormalizeDefaults(&next)
-	updates := dto.ScriptPatchUpdates(input.Body)
-	if len(updates) > 0 {
-		if err := s.repo.PatchScript(ctx, &item, updates); err != nil {
+	patch := scriptPatchSpecFromBody(dto.ScriptPatchUpdates(input.Body))
+	if !patch.Empty() {
+		if err := s.repo.PatchScript(ctx, &item, patch); err != nil {
 			return item, err
 		}
 	}
@@ -147,20 +147,142 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *domainscript.S
 		return err
 	}
 	if found {
-		updates := map[string]any{
-			"title":       item.Title,
-			"source_type": item.SourceType,
-			"content":     item.Content,
-			"raw_source":  item.RawSource,
-			"summary":     item.Summary,
-		}
-		if version.Status == "" {
-			updates["status"] = domainscript.ScriptVersionStatusActive
-		}
-		return s.repo.UpdateScriptVersionWithRelations(ctx, &version, updates)
+		return s.repo.UpdateScriptVersionWithRelations(ctx, &version, domainscript.InitialVersionSync(*item, version))
 	}
 	domainVersion := domainscript.NewInitialVersion(*item, createdByID)
 	return s.repo.CreateScriptVersionWithRelations(ctx, &domainVersion)
+}
+
+func scriptPatchSpecFromBody(body map[string]any) domainscript.ScriptPatchSpec {
+	var spec domainscript.ScriptPatchSpec
+	if value, ok := body["title"].(string); ok {
+		spec.Title = &value
+	}
+	if value, ok := body["description"].(string); ok {
+		spec.Description = &value
+	}
+	if value, ok := body["content"].(string); ok {
+		spec.Content = &value
+	}
+	if value, ok := body["raw_source"].(string); ok {
+		spec.RawSource = &value
+	}
+	if value, ok := body["script_type"].(string); ok {
+		spec.ScriptType = &value
+	}
+	if value, ok := body["source_type"].(string); ok {
+		spec.SourceType = &value
+	}
+	if value, ok := intFromPatch(body["version"]); ok {
+		spec.Version = &value
+	}
+	if value, ok := optionalUintFromPatch(body["parent_script_id"]); ok {
+		spec.ParentScriptID = &value
+	}
+	if value, ok := optionalUintFromPatch(body["assignee_id"]); ok {
+		spec.AssigneeID = &value
+	}
+	if value, ok := body["summary"].(string); ok {
+		spec.Summary = &value
+	}
+	if value, ok := body["characters"].(string); ok {
+		spec.Characters = &value
+	}
+	if value, ok := body["character_relationships"].(string); ok {
+		spec.CharacterRelationships = &value
+	}
+	if value, ok := body["core_settings"].(string); ok {
+		spec.CoreSettings = &value
+	}
+	if value, ok := body["background"].(string); ok {
+		spec.Background = &value
+	}
+	if value, ok := body["scenes_desc"].(string); ok {
+		spec.ScenesDesc = &value
+	}
+	if value, ok := body["hook"].(string); ok {
+		spec.Hook = &value
+	}
+	if value, ok := body["plot_summary"].(string); ok {
+		spec.PlotSummary = &value
+	}
+	if value, ok := body["script_points"].(string); ok {
+		spec.ScriptPoints = &value
+	}
+	if value, ok := intFromPatch(body["planned_scene_count"]); ok {
+		spec.PlannedSceneCount = &value
+	}
+	if value, ok := body["time_text"].(string); ok {
+		spec.TimeText = &value
+	}
+	if value, ok := body["location_text"].(string); ok {
+		spec.LocationText = &value
+	}
+	if value, ok := body["structured_characters"].(string); ok {
+		spec.StructuredCharacters = &value
+	}
+	if value, ok := body["plot_beats"].(string); ok {
+		spec.PlotBeats = &value
+	}
+	if value, ok := body["atmosphere"].(string); ok {
+		spec.Atmosphere = &value
+	}
+	if value, ok := body["structure_json"].(string); ok {
+		spec.StructureJSON = &value
+	}
+	if value, ok := body["entity_candidates"].(string); ok {
+		spec.EntityCandidates = &value
+	}
+	if value, ok := body["relationship_candidates"].(string); ok {
+		spec.RelationshipCandidates = &value
+	}
+	if value, ok := intFromPatch(body["order"]); ok {
+		spec.Order = &value
+	}
+	return spec
+}
+
+func intFromPatch(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int64:
+		return int(typed), true
+	case float64:
+		return int(typed), true
+	default:
+		return 0, false
+	}
+}
+
+func optionalUintFromPatch(value any) (*uint, bool) {
+	switch typed := value.(type) {
+	case nil:
+		return nil, true
+	case uint:
+		v := typed
+		return &v, true
+	case int:
+		if typed < 0 {
+			return nil, false
+		}
+		v := uint(typed)
+		return &v, true
+	case int64:
+		if typed < 0 {
+			return nil, false
+		}
+		v := uint(typed)
+		return &v, true
+	case float64:
+		if typed < 0 {
+			return nil, false
+		}
+		v := uint(typed)
+		return &v, true
+	default:
+		return nil, false
+	}
 }
 
 func wrapVersionSync(err error) error {

@@ -1,5 +1,7 @@
 # Security Policy
 
+[简体中文](SECURITY.zh-CN.md)
+
 ## Supported versions
 
 Security fixes are handled on the default branch until the project publishes a formal version support policy.

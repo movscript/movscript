@@ -8,8 +8,13 @@ import (
 	"gorm.io/gorm"
 )
 
+type organizationSnapshot struct {
+	IsPersonal bool
+	Status     string
+}
+
 type repository interface {
-	FindOrganization(ctx context.Context, orgID uint) (persistencemodel.Organization, error)
+	FindOrganization(ctx context.Context, orgID uint) (organizationSnapshot, error)
 }
 
 type gormRepository struct {
@@ -23,13 +28,13 @@ func newRepository(db *gorm.DB) repository {
 	return &gormRepository{db: db}
 }
 
-func (r *gormRepository) FindOrganization(ctx context.Context, orgID uint) (persistencemodel.Organization, error) {
+func (r *gormRepository) FindOrganization(ctx context.Context, orgID uint) (organizationSnapshot, error) {
 	var org persistencemodel.Organization
 	if err := r.db.WithContext(ctx).Select("id, is_personal, plan, status").First(&org, orgID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return org, ErrNotFound
+			return organizationSnapshot{}, ErrNotFound
 		}
-		return org, err
+		return organizationSnapshot{}, err
 	}
-	return org, nil
+	return organizationSnapshot{IsPersonal: org.IsPersonal, Status: org.Status}, nil
 }

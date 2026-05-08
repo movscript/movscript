@@ -47,7 +47,12 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 		InputResourceIDs: spec.InputResourceIDs,
 	}
 	upstreamResources := portInputs.Flatten()
-	imageData, videoData := h.loadCanvasInputResources(ctx, specData, upstreamResources)
+	inputResourceIDs, inputResources, err := h.loadCanvasInputResourceRows(ctx, specData, upstreamResources)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return
+	}
+	imageData, videoData := h.mediaDataFromCanvasResources(ctx, inputResourceIDs, inputResources)
 	prompt := strings.TrimSpace(spec.Prompt)
 	if prompt == "" && spec.Params != nil {
 		if v, ok := spec.Params["prompt"].(string); ok {
@@ -139,6 +144,12 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 			h.failTask(task, node, nd, "prompt is required")
 			return
 		}
+		if spec.Capability == "video_i2v" {
+			if err := h.requireImageVerification(inputResources); err != nil {
+				h.failTask(task, node, nd, err.Error())
+				return
+			}
+		}
 		duration := firstPositive(spec.Duration, intParam(params, "duration", 0))
 		preflight, err := h.svc.PreflightGeneration(ai.GenerationPreflightRequest{
 			ModelConfigID: modelDbID,
@@ -202,7 +213,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 		return
 	}
 
-	_ = h.canvasRepo().UpdateTask(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
+	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
 	value := canvasruntime.PortValueFromResource(&r.ID, resType)
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
 		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
@@ -237,7 +248,7 @@ func (h *Service) executeHTTPPluginSpec(ctx context.Context, user *persistencemo
 		h.failTask(task, node, nd, "plugin tool not found")
 		return
 	}
-	if !tool.Plugin.Trusted {
+	if tool.Plugin == nil || !tool.Plugin.Trusted {
 		h.failTask(task, node, nd, "plugin_http executor requires a trusted plugin")
 		return
 	}

@@ -111,10 +111,23 @@ export type RuntimeModelToolChoice = 'none' | 'auto' | 'required' | {
 
 export type RuntimeModelStreamTraceKind = 'reasoning' | 'content' | 'tool_call' | 'usage' | 'raw'
 
+export interface RuntimeModelToolCallStreamTrace {
+  index: number
+  id?: string
+  type?: string
+  name?: string
+  argumentsDelta?: string
+  argumentsBuffer: string
+  argumentsJSON?: unknown
+  parseStatus: 'partial' | 'valid_json'
+}
+
 export interface RuntimeModelStreamTrace {
   kind: RuntimeModelStreamTraceKind
   delta?: string
   accumulated?: string
+  toolCall?: RuntimeModelToolCallStreamTrace
+  toolCalls?: RuntimeModelToolCallStreamTrace[]
   chunk?: unknown
 }
 

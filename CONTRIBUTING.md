@@ -1,5 +1,7 @@
 # Contributing to Movscript
 
+[简体中文](CONTRIBUTING.zh-CN.md)
+
 Thanks for helping improve Movscript. The project values focused changes, reproducible validation, and documentation that matches the code being shipped.
 
 ## Development Setup

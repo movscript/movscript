@@ -15,6 +15,7 @@ type repository interface {
 	Get(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error)
 	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error)
 	LoadInputResources(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error)
+	LoadInputResourcesDetailed(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error)
 	ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error)
 	GetCredential(ctx context.Context, id uint) (domainjob.AICredential, error)
 	Create(ctx context.Context, job domainjob.Job) (domainjob.Job, error)
@@ -71,6 +72,14 @@ func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, org
 }
 
 func (r *gormRepository) LoadInputResources(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error) {
+	return r.loadInputResources(ctx, ids, userID, orgID)
+}
+
+func (r *gormRepository) LoadInputResourcesDetailed(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error) {
+	return r.loadInputResources(ctx, ids, userID, orgID)
+}
+
+func (r *gormRepository) loadInputResources(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error) {
 	if len(ids) == 0 {
 		return InputResourcesResult{}, nil
 	}
@@ -153,30 +162,28 @@ func (r *gormRepository) Create(ctx context.Context, job domainjob.Job) (domainj
 
 func (r *gormRepository) Retry(ctx context.Context, job *domainjob.Job, message string) (domainjob.Job, error) {
 	now := time.Now()
-	maxAttempts := job.MaxAttempts
-	if maxAttempts <= 0 {
-		maxAttempts = domainjob.DefaultMaxAttempts
-	}
+	job.ScheduleRetry(now, message)
 	row := job.ToModel()
 	if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{
-		"status":                domainjob.StatusPending,
-		"attempt_count":         0,
-		"max_attempts":          maxAttempts,
-		"error_msg":             "",
-		"next_run_at":           &now,
-		"finished_at":           nil,
-		"locked_by":             "",
-		"lease_until":           nil,
-		"last_heartbeat_at":     nil,
-		"output_resource_id":    nil,
-		"provider_task_id":      "",
-		"provider_task_kind":    "",
-		"provider_task_status":  "",
-		"provider_task_history": "",
+		"status":                job.Status,
+		"attempt_count":         job.AttemptCount,
+		"max_attempts":          job.MaxAttempts,
+		"error_msg":             job.ErrorMsg,
+		"next_run_at":           job.NextRunAt,
+		"finished_at":           job.FinishedAt,
+		"locked_by":             job.LockedBy,
+		"lease_until":           job.LeaseUntil,
+		"last_heartbeat_at":     job.LastHeartbeatAt,
+		"output_resource_id":    job.OutputResourceID,
+		"provider_task_id":      job.ProviderTaskID,
+		"provider_task_kind":    job.ProviderTaskKind,
+		"provider_task_status":  job.ProviderTaskStatus,
+		"provider_task_history": job.ProviderTaskHistory,
+		"execution_state":       job.ExecutionState,
+		"state_trace":           job.StateTrace,
 	}).Error; err != nil {
 		return *job, err
 	}
-	MarkRetryScheduled(r.db.WithContext(ctx), &row, message)
 	return r.reload(ctx, job.ID)
 }
 
@@ -186,16 +193,17 @@ func (r *gormRepository) MarkCancelled(ctx context.Context, id uint, userID uint
 		return job, err
 	}
 	now := time.Now()
+	job.MarkCancelled(now, providerStatus, message)
 	row := job.ToModel()
 	if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{
-		"status":               domainjob.StatusCancelled,
-		"provider_task_status": providerStatus,
-		"error_msg":            message,
-		"next_run_at":          nil,
-		"finished_at":          &now,
-		"locked_by":            "",
-		"lease_until":          nil,
-		"last_heartbeat_at":    &now,
+		"status":               job.Status,
+		"provider_task_status": job.ProviderTaskStatus,
+		"error_msg":            job.ErrorMsg,
+		"next_run_at":          job.NextRunAt,
+		"finished_at":          job.FinishedAt,
+		"locked_by":            job.LockedBy,
+		"lease_until":          job.LeaseUntil,
+		"last_heartbeat_at":    job.LastHeartbeatAt,
 	}).Error; err != nil {
 		return job, err
 	}
@@ -209,24 +217,29 @@ func (r *gormRepository) Delete(ctx context.Context, id uint, userID uint, orgID
 	}
 	row := job.ToModel()
 	releaseReservation := false
-	if job.Status == domainjob.StatusPending {
+	switch job.DeleteAction() {
+	case domainjob.DeleteActionCancel:
 		now := time.Now()
+		job.MarkCancelledForDelete(now, "cancelled by user")
+		row = job.ToModel()
 		if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{
-			"status":            domainjob.StatusCancelled,
-			"error_msg":         "cancelled by user",
-			"finished_at":       &now,
-			"next_run_at":       nil,
-			"locked_by":         "",
-			"lease_until":       nil,
-			"last_heartbeat_at": &now,
+			"status":            job.Status,
+			"error_msg":         job.ErrorMsg,
+			"finished_at":       job.FinishedAt,
+			"next_run_at":       job.NextRunAt,
+			"locked_by":         job.LockedBy,
+			"lease_until":       job.LeaseUntil,
+			"last_heartbeat_at": job.LastHeartbeatAt,
 		}).Error; err != nil {
 			return job, false, err
 		}
 		releaseReservation = job.UsageReservationID != nil
-	} else if job.Status == domainjob.StatusRunning {
+	case domainjob.DeleteActionBlock:
 		return job, false, ErrRunningJobMustCancelDelete
-	} else if err := r.db.WithContext(ctx).Delete(&row).Error; err != nil {
-		return job, false, err
+	default:
+		if err := r.db.WithContext(ctx).Delete(&row).Error; err != nil {
+			return job, false, err
+		}
 	}
 	return job, releaseReservation, nil
 }

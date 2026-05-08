@@ -10,7 +10,7 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
-import { editionOverviewCards, editionSectionCards } from '@admin-edition'
+import { runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
@@ -2774,7 +2774,7 @@ export default function AdminPage() {
       icon: Settings2,
       href: '/models',
     },
-    ...editionOverviewCards,
+    ...runtimeOverviewCards,
   ]
 
   const sectionCards = [
@@ -2784,7 +2784,7 @@ export default function AdminPage() {
     { label: t('admin.tabs.storage'), detail: '内部资源存储后端状态和用户占用。', icon: HardDrive, href: '/storage' },
     { label: t('admin.tabs.cloudFiles'), detail: '公共对象中转和云文件存储配置。', icon: CloudUpload, href: '/cloud-files' },
     { label: 'Agent 调试', detail: '本地 Agent 运行时、工具、技能和上下文调试。', icon: Bot, href: '/agent-debug' },
-    ...editionSectionCards,
+    ...runtimeSectionCards,
   ]
 
   if (currentUser?.system_role !== 'super_admin') {

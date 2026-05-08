@@ -9,7 +9,6 @@ import (
 
 	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 var (
@@ -88,14 +87,15 @@ func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (ca
 	if err := h.ensureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
 		return canvasruntime.Canvas{}, err
 	}
-	cv := canvasruntime.NewCanvas(input).ToModel()
-	if err := h.canvasRepo().CreateCanvas(ctx, &cv); err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
+	cv, err := h.canvasRepo().CreateCanvas(ctx, canvasruntime.NewCanvas(input))
+	if err != nil {
+		return cv, err
 	}
-	if err := h.canvasRepo().ReloadCanvas(ctx, &cv); err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
+	cv, err = h.canvasRepo().ReloadCanvas(ctx, cv)
+	if err != nil {
+		return cv, err
 	}
-	return canvasruntime.CanvasFromModel(cv), nil
+	return cv, nil
 }
 
 func (h *Service) FindExistingSingleCanvas(ctx context.Context, input CanvasCreateInput) (canvasruntime.Canvas, bool, error) {
@@ -111,36 +111,32 @@ func (h *Service) FindExistingSingleCanvas(ctx context.Context, input CanvasCrea
 }
 
 func (h *Service) GetVisibleCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
-	cv, err := h.getVisibleCanvasModel(ctx, id, ownerID, orgID)
-	if err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
-	}
-	return canvasruntime.CanvasFromModel(cv), nil
+	return h.getVisibleCanvas(ctx, id, ownerID, orgID)
 }
 
-func (h *Service) getVisibleCanvasModel(ctx context.Context, id string, ownerID uint, orgID *uint) (persistencemodel.Canvas, error) {
+func (h *Service) getVisibleCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
 	cv, err := h.GetCanvas(ctx, id)
 	if err != nil {
-		return persistencemodel.Canvas{}, err
+		return canvasruntime.Canvas{}, err
 	}
 	if !h.inOrgScope(ctx, cv.OrgID, orgID, cv.OwnerID, ownerID) {
-		return cv.ToModel(), ErrCanvasForbidden
+		return cv, ErrCanvasForbidden
 	}
 	if cv.OwnerID != ownerID && !(cv.CanvasType == "workflow" && cv.Visibility == "public") {
-		return cv.ToModel(), ErrCanvasForbidden
+		return cv, ErrCanvasForbidden
 	}
-	return cv.ToModel(), nil
+	return cv, nil
 }
 
 func (h *Service) PatchCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasPatchInput) (canvasruntime.Canvas, error) {
 	cv, err := h.getOwnedCanvas(ctx, id, ownerID, orgID)
 	if err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
+		return cv, err
 	}
 	if input.Name != nil {
 		name := strings.TrimSpace(*input.Name)
 		if name == "" {
-			return canvasruntime.CanvasFromModel(cv), fmt.Errorf("name is required")
+			return cv, fmt.Errorf("name is required")
 		}
 		cv.Name = name
 	}
@@ -151,13 +147,14 @@ func (h *Service) PatchCanvas(ctx context.Context, id string, ownerID uint, orgI
 		tagsRaw, _ := json.Marshal(workflowmarket.CleanTags(input.Tags))
 		cv.WorkflowTags = string(tagsRaw)
 	}
-	if err := h.canvasRepo().SaveCanvasMetadata(ctx, &cv); err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
+	if err := h.canvasRepo().SaveCanvasMetadata(ctx, cv); err != nil {
+		return cv, err
 	}
-	if err := h.canvasRepo().ReloadCanvas(ctx, &cv); err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
+	cv, err = h.canvasRepo().ReloadCanvas(ctx, cv)
+	if err != nil {
+		return cv, err
 	}
-	return canvasruntime.CanvasFromModel(cv), nil
+	return cv, nil
 }
 
 func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) error {
@@ -165,50 +162,41 @@ func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint, org
 	if err != nil {
 		return err
 	}
-	return h.canvasRepo().DeleteCanvas(ctx, &cv)
+	return h.canvasRepo().DeleteCanvas(ctx, cv)
 }
 
 func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasSaveInput) (canvasruntime.Canvas, error) {
 	cv, err := h.getOwnedCanvas(ctx, id, ownerID, orgID)
 	if err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
+		return cv, err
 	}
 	if input.Name != "" {
 		cv.Name = input.Name
 	}
-	nodes := make([]persistencemodel.CanvasNode, 0, len(input.Nodes))
-	for _, node := range input.Nodes {
-		nodes = append(nodes, node.ToModel())
+	if err := h.canvasRepo().ReplaceCanvasGraph(ctx, cv, input.Nodes, input.Edges); err != nil {
+		return cv, err
 	}
-	edges := make([]persistencemodel.CanvasEdge, 0, len(input.Edges))
-	for _, edge := range input.Edges {
-		edges = append(edges, edge.ToModel())
+	cv, err = h.canvasRepo().ReloadCanvas(ctx, cv)
+	if err != nil {
+		return cv, err
 	}
-	if err := h.canvasRepo().ReplaceCanvasGraph(ctx, &cv, nodes, edges); err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
-	}
-	if err := h.canvasRepo().ReloadCanvas(ctx, &cv); err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
-	}
-	return canvasruntime.CanvasFromModel(cv), nil
+	return cv, nil
 }
 
-func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (persistencemodel.Canvas, error) {
+func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
 	return h.canvasRepo().GetOwnedCanvas(ctx, id, ownerID, orgID)
 }
 
 func (h *Service) GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
-	cv, err := h.getOwnedCanvas(ctx, id, ownerID, orgID)
-	return canvasruntime.CanvasFromModel(cv), err
+	return h.getOwnedCanvas(ctx, id, ownerID, orgID)
 }
 
-func (h *Service) getNode(ctx context.Context, canvasID uint, nodeID string) (persistencemodel.CanvasNode, error) {
+func (h *Service) getNode(ctx context.Context, canvasID uint, nodeID string) (canvasruntime.CanvasNode, error) {
 	return h.canvasRepo().GetNode(ctx, canvasID, nodeID)
 }
 
 func (h *Service) GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasruntime.CanvasNode, error) {
-	node, err := h.getNode(ctx, canvasID, nodeID)
-	return canvasruntime.CanvasNodeFromModel(node), err
+	return h.getNode(ctx, canvasID, nodeID)
 }
 
 func (h *Service) ListRuns(ctx context.Context, canvasID uint, status string, pageMode bool, page int, pageSize int) (CanvasRunListPage, error) {
@@ -220,11 +208,7 @@ func (h *Service) GetRun(ctx context.Context, canvasID uint, runID string) (canv
 }
 
 func (h *Service) ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]canvasruntime.CanvasTask, error) {
-	tasks, err := h.canvasRepo().ListRunTasks(ctx, canvasID, runID)
-	if err != nil {
-		return nil, err
-	}
-	return canvasruntime.CanvasTasksFromModels(tasks), nil
+	return h.canvasRepo().ListRunTasks(ctx, canvasID, runID)
 }
 
 func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) (canvasruntime.CanvasTask, string, error) {
@@ -233,10 +217,10 @@ func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID u
 	}
 	node, task, err := h.canvasRepo().LatestNodeTask(ctx, canvasID, nodeID)
 	if err != nil {
-		return canvasruntime.CanvasTaskFromModel(task), node.Type, err
+		return task, node.Type, err
 	}
-	h.lazyBackfillCanvasTaskOutputs(&task, node.Type)
-	return canvasruntime.CanvasTaskFromModel(task), node.Type, nil
+	task = h.LazyBackfillCanvasTaskOutputs(task, node.Type)
+	return task, node.Type, nil
 }
 
 func (h *Service) ListNodeTasks(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) ([]canvasruntime.CanvasTask, string, error) {
@@ -248,9 +232,9 @@ func (h *Service) ListNodeTasks(ctx context.Context, canvasID string, ownerID ui
 		return nil, node.Type, err
 	}
 	for i := range tasks {
-		h.lazyBackfillCanvasTaskOutputs(&tasks[i], node.Type)
+		tasks[i] = h.LazyBackfillCanvasTaskOutputs(tasks[i], node.Type)
 	}
-	return canvasruntime.CanvasTasksFromModels(tasks), node.Type, nil
+	return tasks, node.Type, nil
 }
 
 func (h *Service) inOrgScope(ctx context.Context, entityOrgID *uint, currentOrgID *uint, ownerID uint, userID uint) bool {

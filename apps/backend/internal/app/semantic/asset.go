@@ -153,23 +153,24 @@ func (s *Service) PatchAssetSlot(ctx context.Context, projectID uint, id string,
 	if err := s.validateAssetSlotOwners(ctx, projectID, input.ProductionID, input.LockedAssetSlotID); err != nil {
 		return item, err
 	}
-	return s.repo.PatchAssetSlot(ctx, item, compactUpdates(map[string]any{
-		"production_id":               input.ProductionID,
-		"creative_reference_id":       input.CreativeReferenceID,
-		"creative_reference_state_id": input.CreativeReferenceStateID,
-		"owner_type":                  input.OwnerType,
-		"owner_id":                    input.OwnerID,
-		"kind":                        input.Kind,
-		"name":                        input.Name,
-		"description":                 input.Description,
-		"slot_key":                    input.SlotKey,
-		"prompt_hint":                 input.PromptHint,
-		"status":                      input.Status,
-		"priority":                    input.Priority,
-		"resource_id":                 input.ResourceID,
-		"locked_asset_slot_id":        input.LockedAssetSlotID,
-		"metadata_json":               input.MetadataJSON,
-	}))
+	patch := domainsemantic.AssetSlotPatch{
+		ProductionID:             input.ProductionID,
+		CreativeReferenceID:      input.CreativeReferenceID,
+		CreativeReferenceStateID: input.CreativeReferenceStateID,
+		OwnerType:                input.OwnerType,
+		OwnerID:                  input.OwnerID,
+		Kind:                     input.Kind,
+		Name:                     input.Name,
+		Description:              input.Description,
+		SlotKey:                  input.SlotKey,
+		PromptHint:               input.PromptHint,
+		Status:                   input.Status,
+		Priority:                 input.Priority,
+		ResourceID:               input.ResourceID,
+		LockedAssetSlotID:        input.LockedAssetSlotID,
+		MetadataJSON:             input.MetadataJSON,
+	}
+	return s.repo.PatchAssetSlot(ctx, item, patch)
 }
 
 func (s *Service) ListAssetSlotCandidates(ctx context.Context, filter AssetSlotCandidateFilter) ([]domainsemantic.AssetSlotCandidate, error) {
@@ -195,8 +196,7 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 		if err != nil {
 			return domainsemantic.AssetSlotCandidate{}, ErrInvalidInput{Err: err}
 		}
-		item := result.Candidate.ToModel()
-		return s.repo.ReloadAssetSlotCandidate(ctx, &item)
+		return s.repo.ReloadAssetSlotCandidate(ctx, result.Candidate)
 	}
 	if err := s.ensureAssetSlotInProject(ctx, projectID, input.CandidateAssetSlotID); err != nil {
 		return domainsemantic.AssetSlotCandidate{}, err
@@ -225,15 +225,16 @@ func (s *Service) PatchAssetSlotCandidate(ctx context.Context, projectID uint, i
 	if err := s.ensureAssetSlotInProject(ctx, projectID, input.CandidateAssetSlotID); err != nil {
 		return item, err
 	}
-	return s.repo.PatchAssetSlotCandidate(ctx, item, compactUpdates(map[string]any{
-		"asset_slot_id":           input.AssetSlotID,
-		"candidate_asset_slot_id": input.CandidateAssetSlotID,
-		"source_type":             input.SourceType,
-		"source_id":               input.SourceID,
-		"score":                   input.Score,
-		"status":                  input.Status,
-		"note":                    input.Note,
-	}))
+	patch := domainsemantic.AssetSlotCandidatePatch{
+		AssetSlotID:          input.AssetSlotID,
+		CandidateAssetSlotID: input.CandidateAssetSlotID,
+		SourceType:           input.SourceType,
+		SourceID:             input.SourceID,
+		Score:                input.Score,
+		Status:               input.Status,
+		Note:                 input.Note,
+	}
+	return s.repo.PatchAssetSlotCandidate(ctx, item, patch)
 }
 
 func (s *Service) ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]domainsemantic.CandidateDecision, error) {
@@ -271,21 +272,22 @@ func (s *Service) PatchCandidateDecision(ctx context.Context, projectID uint, id
 	if err := s.validateCandidateDecisionOwners(ctx, projectID, input); err != nil {
 		return item, err
 	}
-	return s.repo.PatchCandidateDecision(ctx, item, compactUpdates(map[string]any{
-		"candidate_type":      input.CandidateType,
-		"candidate_id":        input.CandidateID,
-		"candidate_client_id": input.CandidateClientID,
-		"target_type":         input.TargetType,
-		"target_id":           input.TargetID,
-		"decision":            input.Decision,
-		"status":              input.Status,
-		"reason":              input.Reason,
-		"note":                input.Note,
-		"source":              input.Source,
-		"decided_by_id":       input.DecidedByID,
-		"applied_at":          input.AppliedAt,
-		"metadata_json":       input.MetadataJSON,
-	}))
+	patch := domainsemantic.CandidateDecisionPatch{
+		CandidateType:     input.CandidateType,
+		CandidateID:       input.CandidateID,
+		CandidateClientID: input.CandidateClientID,
+		TargetType:        input.TargetType,
+		TargetID:          input.TargetID,
+		Decision:          input.Decision,
+		Status:            input.Status,
+		Reason:            input.Reason,
+		Note:              input.Note,
+		Source:            input.Source,
+		DecidedByID:       input.DecidedByID,
+		AppliedAt:         input.AppliedAt,
+		MetadataJSON:      input.MetadataJSON,
+	}
+	return s.repo.PatchCandidateDecision(ctx, item, patch)
 }
 
 func (s *Service) ListReviewEvents(ctx context.Context, filter ReviewEventFilter) ([]domainsemantic.ReviewEvent, error) {
@@ -321,19 +323,20 @@ func (s *Service) PatchReviewEvent(ctx context.Context, projectID uint, id strin
 	if err := s.validateScopedOwner(ctx, projectID, input.SubjectType, input.SubjectID); err != nil {
 		return item, err
 	}
-	return s.repo.PatchReviewEvent(ctx, item, compactUpdates(map[string]any{
-		"subject_type":      input.SubjectType,
-		"subject_id":        input.SubjectID,
-		"subject_client_id": input.SubjectClientID,
-		"event_type":        input.EventType,
-		"from_status":       input.FromStatus,
-		"to_status":         input.ToStatus,
-		"comment":           input.Comment,
-		"reason":            input.Reason,
-		"source":            input.Source,
-		"actor_id":          input.ActorID,
-		"metadata_json":     input.MetadataJSON,
-	}))
+	patch := domainsemantic.ReviewEventPatch{
+		SubjectType:     input.SubjectType,
+		SubjectID:       input.SubjectID,
+		SubjectClientID: input.SubjectClientID,
+		EventType:       input.EventType,
+		FromStatus:      input.FromStatus,
+		ToStatus:        input.ToStatus,
+		Comment:         input.Comment,
+		Reason:          input.Reason,
+		Source:          input.Source,
+		ActorID:         input.ActorID,
+		MetadataJSON:    input.MetadataJSON,
+	}
+	return s.repo.PatchReviewEvent(ctx, item, patch)
 }
 
 func (s *Service) validateAssetSlotOwners(ctx context.Context, projectID uint, productionID *uint, lockedAssetSlotID *uint) error {

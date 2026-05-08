@@ -155,7 +155,7 @@ self_hosted_workspace
 - credential storage。
 - model gateway 来源。
 - sync 行为。
-- billing policy。
+- usage policy。
 - entitlement policy。
 - audit policy。
 
@@ -288,7 +288,7 @@ DEPLOYMENT_MODE=enterprise-private
 - credential storage。
 - storage backend。
 - worker backend。
-- billing policy。
+- usage policy。
 - entitlement policy。
 - audit policy。
 

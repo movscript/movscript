@@ -5,6 +5,7 @@ import type {
   RuntimeModelHTTPTrace,
   RuntimeModelRequestSnapshot,
   RuntimeModelStreamTrace,
+  RuntimeModelToolCallStreamTrace,
   RuntimeModelToolChoice,
   RuntimeModelAuthContext,
   RuntimeModelTraceCallback,
@@ -168,6 +169,7 @@ async function readStreamingSSEModelResponse(
   let buffer = ''
   let accumulatedReasoning = ''
   let accumulatedContent = ''
+  const toolCallParts = new Map<number, { id?: string; type?: string; name?: string; argumentsBuffer: string }>()
 
   const emitStreamTrace = (stream: RuntimeModelStreamTrace) => {
     input.onTrace?.({
@@ -212,8 +214,26 @@ async function readStreamingSSEModelResponse(
       emitStreamTrace({ kind: 'content', delta: contentDelta, accumulated: accumulatedContent, chunk })
     }
 
-    if (hasToolCallDelta(chunk)) {
-      emitStreamTrace({ kind: 'tool_call', chunk })
+    const toolCallDeltas = extractToolCallDeltas(chunk)
+    if (toolCallDeltas.length > 0) {
+      const toolCalls: RuntimeModelToolCallStreamTrace[] = []
+      for (const toolDelta of toolCallDeltas) {
+        const index = typeof toolDelta.index === 'number' ? toolDelta.index : toolCallParts.size
+        const current = toolCallParts.get(index) ?? { argumentsBuffer: '' }
+        if (toolDelta.id) current.id = toolDelta.id
+        if (toolDelta.type) current.type = toolDelta.type
+        if (toolDelta.function?.name) current.name = (current.name ?? '') + toolDelta.function.name
+        const argumentsDelta = toolDelta.function?.arguments
+        if (argumentsDelta) current.argumentsBuffer += argumentsDelta
+        toolCallParts.set(index, current)
+        toolCalls.push(toToolCallStreamTrace(index, current, argumentsDelta))
+      }
+      emitStreamTrace({
+        kind: 'tool_call',
+        toolCall: toolCalls[toolCalls.length - 1],
+        toolCalls,
+        chunk,
+      })
     }
 
     if (hasUsageDelta(chunk)) {
@@ -261,7 +281,9 @@ function readSSEDataFromBlock(block: string): string {
 function extractReasoningDelta(chunk: unknown): string {
   const record = asRecord(chunk)
   const event = asRecord(record?.event)
-  const eventDelta = stringValue(event?.reasoning_delta) || stringValue(event?.reasoningContent)
+  const eventDelta = stringValue(event?.reasoning_delta)
+    || stringValue(event?.reasoningContent)
+    || stringValue(event?.reasoning)
   if (eventDelta) return eventDelta
 
   const delta = firstChoiceDelta(record)
@@ -274,17 +296,84 @@ function extractReasoningDelta(chunk: unknown): string {
 function extractContentDelta(chunk: unknown): string {
   const record = asRecord(chunk)
   const event = asRecord(record?.event)
-  const eventDelta = stringValue(event?.content_delta) || stringValue(event?.contentDelta)
+  const eventDelta = stringValue(event?.content_delta)
+    || stringValue(event?.contentDelta)
+    || stringValue(event?.content)
   if (eventDelta) return eventDelta
-  return stringValue(firstChoiceDelta(record)?.content)
+  const delta = firstChoiceDelta(record)
+  return stringValue(delta?.content)
+    || stringValue(delta?.text)
+    || stringValue(record?.content_delta)
+    || stringValue(record?.contentDelta)
+    || stringValue(record?.delta)
 }
 
-function hasToolCallDelta(chunk: unknown): boolean {
+interface RuntimeModelToolCallDelta {
+  index?: number
+  id?: string
+  type?: string
+  function?: {
+    name?: string
+    arguments?: string
+  }
+}
+
+function extractToolCallDeltas(chunk: unknown): RuntimeModelToolCallDelta[] {
   const record = asRecord(chunk)
   const event = asRecord(record?.event)
   const eventToolCalls = event?.tool_call_deltas
   const deltaToolCalls = firstChoiceDelta(record)?.tool_calls
-  return (Array.isArray(eventToolCalls) && eventToolCalls.length > 0) || (Array.isArray(deltaToolCalls) && deltaToolCalls.length > 0)
+  return normalizeToolCallDeltas(
+    Array.isArray(deltaToolCalls) && deltaToolCalls.length > 0
+      ? deltaToolCalls
+      : Array.isArray(eventToolCalls) ? eventToolCalls : [],
+  )
+}
+
+function normalizeToolCallDeltas(value: unknown[]): RuntimeModelToolCallDelta[] {
+  return value.flatMap((item): RuntimeModelToolCallDelta[] => {
+    const record = asRecord(item)
+    if (!record) return []
+    const fn = asRecord(record.function)
+    return [{
+      ...(typeof record.index === 'number' ? { index: record.index } : {}),
+      ...(typeof record.id === 'string' ? { id: record.id } : {}),
+      ...(typeof record.type === 'string' ? { type: record.type } : {}),
+      ...(fn ? {
+        function: {
+          ...(typeof fn.name === 'string' ? { name: fn.name } : {}),
+          ...(typeof fn.arguments === 'string' ? { arguments: fn.arguments } : {}),
+        },
+      } : {}),
+    }]
+  })
+}
+
+function toToolCallStreamTrace(
+  index: number,
+  current: { id?: string; type?: string; name?: string; argumentsBuffer: string },
+  argumentsDelta: string | undefined,
+): RuntimeModelToolCallStreamTrace {
+  const parsedArguments = tryParseJSON(current.argumentsBuffer)
+  return {
+    index,
+    ...(current.id ? { id: current.id } : {}),
+    ...(current.type ? { type: current.type } : {}),
+    ...(current.name ? { name: current.name } : {}),
+    ...(argumentsDelta ? { argumentsDelta } : {}),
+    argumentsBuffer: current.argumentsBuffer,
+    ...(parsedArguments.ok ? { argumentsJSON: parsedArguments.value } : {}),
+    parseStatus: parsedArguments.ok ? 'valid_json' : 'partial',
+  }
+}
+
+function tryParseJSON(value: string): { ok: true; value: unknown } | { ok: false } {
+  if (!value.trim()) return { ok: false }
+  try {
+    return { ok: true, value: JSON.parse(value) }
+  } catch {
+    return { ok: false }
+  }
 }
 
 function hasUsageDelta(chunk: unknown): boolean {

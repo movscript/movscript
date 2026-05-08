@@ -9,6 +9,7 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/app/workflowio"
+	domainscript "github.com/movscript/movscript/internal/domain/script"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -19,129 +20,124 @@ type repository interface {
 	WithTx(ctx context.Context, fn func(repository) error) error
 	ListRelations(ctx context.Context, filter RelationFilter) ([]domainsemantic.EntityRelation, error)
 	ListScriptVersions(ctx context.Context, filter ScriptVersionFilter) ([]domainsemantic.ScriptVersion, error)
-	LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (persistencemodel.Script, error)
+	LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptSnapshot, error)
 	CreateScriptVersion(ctx context.Context, projectID uint, input CreateScriptVersionInput, createdByID *uint) (domainsemantic.ScriptVersion, error)
 	LoadScriptVersion(ctx context.Context, projectID uint, id string) (domainsemantic.ScriptVersion, error)
-	PatchScriptVersion(ctx context.Context, item domainsemantic.ScriptVersion, updates map[string]any) (domainsemantic.ScriptVersion, error)
+	PatchScriptVersion(ctx context.Context, item domainsemantic.ScriptVersion, patch domainsemantic.ScriptVersionPatch) (domainsemantic.ScriptVersion, error)
 	NextScriptVersionNumber(ctx context.Context, projectID uint, scriptID uint) int
 	ListSegments(ctx context.Context, filter SegmentFilter) ([]domainsemantic.Segment, error)
 	CreateSegment(ctx context.Context, item domainsemantic.Segment) (domainsemantic.Segment, error)
 	LoadSegment(ctx context.Context, projectID uint, id string) (domainsemantic.Segment, error)
-	PatchSegment(ctx context.Context, item domainsemantic.Segment, updates map[string]any) (domainsemantic.Segment, error)
+	PatchSegment(ctx context.Context, item domainsemantic.Segment, patch domainsemantic.SegmentPatch) (domainsemantic.Segment, error)
 	ListProductionTextBlocks(ctx context.Context, filter ProductionTextBlockFilter) ([]domainsemantic.ProductionTextBlock, error)
 	CreateProductionTextBlock(ctx context.Context, item domainsemantic.ProductionTextBlock) (domainsemantic.ProductionTextBlock, error)
 	LoadProductionTextBlock(ctx context.Context, projectID uint, id string) (domainsemantic.ProductionTextBlock, error)
-	PatchProductionTextBlock(ctx context.Context, item domainsemantic.ProductionTextBlock, updates map[string]any) (domainsemantic.ProductionTextBlock, error)
+	PatchProductionTextBlock(ctx context.Context, item domainsemantic.ProductionTextBlock, patch domainsemantic.ProductionTextBlockPatch) (domainsemantic.ProductionTextBlock, error)
 	ListSceneMoments(ctx context.Context, filter SceneMomentFilter) ([]domainsemantic.SceneMoment, error)
 	CreateSceneMoment(ctx context.Context, item domainsemantic.SceneMoment) (domainsemantic.SceneMoment, error)
 	LoadSceneMoment(ctx context.Context, projectID uint, id string) (domainsemantic.SceneMoment, error)
-	PatchSceneMoment(ctx context.Context, item domainsemantic.SceneMoment, updates map[string]any) (domainsemantic.SceneMoment, error)
+	PatchSceneMoment(ctx context.Context, item domainsemantic.SceneMoment, patch domainsemantic.SceneMomentPatch) (domainsemantic.SceneMoment, error)
 	ResolveSegmentOwners(ctx context.Context, projectID uint, productionID *uint, textBlockID *uint) (*uint, *uint, error)
 	ListProductions(ctx context.Context, filter ProductionFilter) ([]domainsemantic.Production, error)
 	CreateProduction(ctx context.Context, item domainsemantic.Production) (domainsemantic.Production, error)
 	LoadProduction(ctx context.Context, projectID uint, id string) (domainsemantic.Production, error)
-	PatchProduction(ctx context.Context, item domainsemantic.Production, updates map[string]any) (domainsemantic.Production, error)
+	PatchProduction(ctx context.Context, item domainsemantic.Production, patch domainsemantic.ProductionPatch) (domainsemantic.Production, error)
 	ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error)
 	CreateContentUnit(ctx context.Context, item domainsemantic.ContentUnit) (domainsemantic.ContentUnit, error)
 	LoadContentUnit(ctx context.Context, projectID uint, id string) (domainsemantic.ContentUnit, error)
-	PatchContentUnit(ctx context.Context, item domainsemantic.ContentUnit, updates map[string]any) (domainsemantic.ContentUnit, error)
+	PatchContentUnit(ctx context.Context, item domainsemantic.ContentUnit, patch domainsemantic.ContentUnitPatch) (domainsemantic.ContentUnit, error)
 	ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error)
 	CreateKeyframe(ctx context.Context, item domainsemantic.Keyframe) (domainsemantic.Keyframe, error)
 	LoadKeyframe(ctx context.Context, projectID uint, id string) (domainsemantic.Keyframe, error)
-	PatchKeyframe(ctx context.Context, item domainsemantic.Keyframe, updates map[string]any) (domainsemantic.Keyframe, error)
+	PatchKeyframe(ctx context.Context, item domainsemantic.Keyframe, patch domainsemantic.KeyframePatch) (domainsemantic.Keyframe, error)
 	ListPreviewTimelines(ctx context.Context, filter PreviewTimelineFilter) ([]domainsemantic.PreviewTimeline, error)
 	CreatePreviewTimeline(ctx context.Context, item domainsemantic.PreviewTimeline) (domainsemantic.PreviewTimeline, error)
 	LoadPreviewTimeline(ctx context.Context, projectID uint, id string) (domainsemantic.PreviewTimeline, error)
-	PatchPreviewTimeline(ctx context.Context, item domainsemantic.PreviewTimeline, updates map[string]any) (domainsemantic.PreviewTimeline, error)
+	PatchPreviewTimeline(ctx context.Context, item domainsemantic.PreviewTimeline, patch domainsemantic.PreviewTimelinePatch) (domainsemantic.PreviewTimeline, error)
 	ListPreviewTimelineItems(ctx context.Context, filter PreviewTimelineItemFilter) ([]domainsemantic.PreviewTimelineItem, error)
 	CreatePreviewTimelineItem(ctx context.Context, item domainsemantic.PreviewTimelineItem) (domainsemantic.PreviewTimelineItem, error)
 	LoadPreviewTimelineItem(ctx context.Context, projectID uint, id string) (domainsemantic.PreviewTimelineItem, error)
-	PatchPreviewTimelineItem(ctx context.Context, item domainsemantic.PreviewTimelineItem, updates map[string]any) (domainsemantic.PreviewTimelineItem, error)
+	PatchPreviewTimelineItem(ctx context.Context, item domainsemantic.PreviewTimelineItem, patch domainsemantic.PreviewTimelineItemPatch) (domainsemantic.PreviewTimelineItem, error)
 	ListStoryboardScripts(ctx context.Context, filter StoryboardScriptFilter) ([]domainsemantic.StoryboardScript, error)
 	CreateStoryboardScript(ctx context.Context, item domainsemantic.StoryboardScript) (domainsemantic.StoryboardScript, error)
 	LoadStoryboardScript(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardScript, error)
-	PatchStoryboardScript(ctx context.Context, item domainsemantic.StoryboardScript, updates map[string]any) (domainsemantic.StoryboardScript, error)
+	PatchStoryboardScript(ctx context.Context, item domainsemantic.StoryboardScript, patch domainsemantic.StoryboardScriptPatch) (domainsemantic.StoryboardScript, error)
 	ListStoryboardVersions(ctx context.Context, filter StoryboardVersionFilter) ([]domainsemantic.StoryboardVersion, error)
 	CreateStoryboardVersion(ctx context.Context, item domainsemantic.StoryboardVersion) (domainsemantic.StoryboardVersion, error)
 	LoadStoryboardVersion(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardVersion, error)
-	PatchStoryboardVersion(ctx context.Context, item domainsemantic.StoryboardVersion, updates map[string]any) (domainsemantic.StoryboardVersion, error)
+	PatchStoryboardVersion(ctx context.Context, item domainsemantic.StoryboardVersion, patch domainsemantic.StoryboardVersionPatch) (domainsemantic.StoryboardVersion, error)
 	ListStoryboardLines(ctx context.Context, filter StoryboardLineFilter) ([]domainsemantic.StoryboardLine, error)
 	CreateStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine) (domainsemantic.StoryboardLine, error)
 	LoadStoryboardLine(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardLine, error)
-	PatchStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine, updates map[string]any) (domainsemantic.StoryboardLine, error)
+	PatchStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine, patch domainsemantic.StoryboardLinePatch) (domainsemantic.StoryboardLine, error)
 	NextStoryboardVersionNumber(ctx context.Context, projectID uint, storyboardScriptID uint) int
 	ListWorkItems(ctx context.Context, filter WorkItemFilter) ([]domainsemantic.WorkItem, error)
 	CreateWorkItem(ctx context.Context, item domainsemantic.WorkItem) (domainsemantic.WorkItem, error)
 	LoadWorkItem(ctx context.Context, projectID uint, id string) (domainsemantic.WorkItem, error)
-	PatchWorkItem(ctx context.Context, item domainsemantic.WorkItem, updates map[string]any) (domainsemantic.WorkItem, error)
+	PatchWorkItem(ctx context.Context, item domainsemantic.WorkItem, patch domainsemantic.WorkItemPatch) (domainsemantic.WorkItem, error)
 	DeleteWorkItem(ctx context.Context, item domainsemantic.WorkItem) error
-	CompleteWorkItem(ctx context.Context, projectID uint, item domainsemantic.WorkItem, updates map[string]any, actorID *uint) (domainsemantic.WorkItem, error)
+	CompleteWorkItem(ctx context.Context, projectID uint, item domainsemantic.WorkItem, patch domainsemantic.WorkItemPatch, actorID *uint) (domainsemantic.WorkItem, error)
 	ListWorkReviews(ctx context.Context, filter WorkReviewFilter) ([]domainsemantic.WorkReview, error)
 	CreateWorkReview(ctx context.Context, item domainsemantic.WorkReview) (domainsemantic.WorkReview, error)
 	LoadWorkReview(ctx context.Context, projectID uint, id string) (domainsemantic.WorkReview, error)
-	PatchWorkReview(ctx context.Context, item domainsemantic.WorkReview, updates map[string]any) (domainsemantic.WorkReview, error)
+	PatchWorkReview(ctx context.Context, item domainsemantic.WorkReview, patch domainsemantic.WorkReviewPatch) (domainsemantic.WorkReview, error)
 	DeleteWorkReview(ctx context.Context, item domainsemantic.WorkReview) error
 	ListWorkDependencies(ctx context.Context, filter WorkDependencyFilter) ([]domainsemantic.WorkDependency, error)
 	CreateWorkDependency(ctx context.Context, item domainsemantic.WorkDependency) (domainsemantic.WorkDependency, error)
 	LoadWorkDependency(ctx context.Context, projectID uint, id string) (domainsemantic.WorkDependency, error)
-	PatchWorkDependency(ctx context.Context, item domainsemantic.WorkDependency, updates map[string]any) (domainsemantic.WorkDependency, error)
+	PatchWorkDependency(ctx context.Context, item domainsemantic.WorkDependency, patch domainsemantic.WorkDependencyPatch) (domainsemantic.WorkDependency, error)
 	DeleteWorkDependency(ctx context.Context, item domainsemantic.WorkDependency) error
 	ListDeliveryVersions(ctx context.Context, filter DeliveryVersionFilter) ([]domainsemantic.DeliveryVersion, error)
 	CreateDeliveryVersion(ctx context.Context, item domainsemantic.DeliveryVersion) (domainsemantic.DeliveryVersion, error)
 	LoadDeliveryVersion(ctx context.Context, projectID uint, id string) (domainsemantic.DeliveryVersion, error)
-	PatchDeliveryVersion(ctx context.Context, item domainsemantic.DeliveryVersion, updates map[string]any) (domainsemantic.DeliveryVersion, error)
+	PatchDeliveryVersion(ctx context.Context, item domainsemantic.DeliveryVersion, patch domainsemantic.DeliveryVersionPatch) (domainsemantic.DeliveryVersion, error)
 	ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]domainsemantic.DeliveryTimelineItem, error)
 	CreateDeliveryTimelineItem(ctx context.Context, item domainsemantic.DeliveryTimelineItem) (domainsemantic.DeliveryTimelineItem, error)
 	LoadDeliveryTimelineItem(ctx context.Context, projectID uint, id string) (domainsemantic.DeliveryTimelineItem, error)
-	PatchDeliveryTimelineItem(ctx context.Context, item domainsemantic.DeliveryTimelineItem, updates map[string]any) (domainsemantic.DeliveryTimelineItem, error)
+	PatchDeliveryTimelineItem(ctx context.Context, item domainsemantic.DeliveryTimelineItem, patch domainsemantic.DeliveryTimelineItemPatch) (domainsemantic.DeliveryTimelineItem, error)
 	ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]domainsemantic.ExportRecord, error)
 	CreateExportRecord(ctx context.Context, item domainsemantic.ExportRecord) (domainsemantic.ExportRecord, error)
 	LoadExportRecord(ctx context.Context, projectID uint, id string) (domainsemantic.ExportRecord, error)
-	PatchExportRecord(ctx context.Context, item domainsemantic.ExportRecord, updates map[string]any) (domainsemantic.ExportRecord, error)
+	PatchExportRecord(ctx context.Context, item domainsemantic.ExportRecord, patch domainsemantic.ExportRecordPatch) (domainsemantic.ExportRecord, error)
 	ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]domainsemantic.CanvasOutput, error)
 	CreateCanvasOutput(ctx context.Context, item domainsemantic.CanvasOutput) (domainsemantic.CanvasOutput, error)
 	LoadCanvasOutput(ctx context.Context, projectID uint, id string) (domainsemantic.CanvasOutput, error)
-	PatchCanvasOutput(ctx context.Context, item domainsemantic.CanvasOutput, updates map[string]any) (domainsemantic.CanvasOutput, error)
+	PatchCanvasOutput(ctx context.Context, item domainsemantic.CanvasOutput, patch domainsemantic.CanvasOutputPatch) (domainsemantic.CanvasOutput, error)
 	ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([]domainsemantic.AssetSlot, error)
 	CreateAssetSlot(ctx context.Context, item domainsemantic.AssetSlot) (domainsemantic.AssetSlot, error)
 	LoadAssetSlot(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlot, error)
-	PatchAssetSlot(ctx context.Context, item domainsemantic.AssetSlot, updates map[string]any) (domainsemantic.AssetSlot, error)
+	PatchAssetSlot(ctx context.Context, item domainsemantic.AssetSlot, patch domainsemantic.AssetSlotPatch) (domainsemantic.AssetSlot, error)
 	ListAssetSlotCandidates(ctx context.Context, filter AssetSlotCandidateFilter) ([]domainsemantic.AssetSlotCandidate, error)
 	CreateAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error)
 	LoadAssetSlotCandidate(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlotCandidate, error)
-	PatchAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate, updates map[string]any) (domainsemantic.AssetSlotCandidate, error)
+	PatchAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate, patch domainsemantic.AssetSlotCandidatePatch) (domainsemantic.AssetSlotCandidate, error)
 	AttachAssetSlotCandidate(ctx context.Context, input workflowio.AttachAssetSlotCandidateInput) (workflowio.AttachAssetSlotCandidateResult, error)
-	ReloadAssetSlotCandidate(ctx context.Context, candidate *persistencemodel.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error)
+	ReloadAssetSlotCandidate(ctx context.Context, candidate domainsemantic.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error)
 	ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]domainsemantic.CandidateDecision, error)
 	CreateCandidateDecision(ctx context.Context, item domainsemantic.CandidateDecision) (domainsemantic.CandidateDecision, error)
 	LoadCandidateDecision(ctx context.Context, projectID uint, id string) (domainsemantic.CandidateDecision, error)
-	PatchCandidateDecision(ctx context.Context, item domainsemantic.CandidateDecision, updates map[string]any) (domainsemantic.CandidateDecision, error)
+	PatchCandidateDecision(ctx context.Context, item domainsemantic.CandidateDecision, patch domainsemantic.CandidateDecisionPatch) (domainsemantic.CandidateDecision, error)
 	ListReviewEvents(ctx context.Context, filter ReviewEventFilter) ([]domainsemantic.ReviewEvent, error)
 	CreateReviewEvent(ctx context.Context, item domainsemantic.ReviewEvent) (domainsemantic.ReviewEvent, error)
 	LoadReviewEvent(ctx context.Context, projectID uint, id string) (domainsemantic.ReviewEvent, error)
-	PatchReviewEvent(ctx context.Context, item domainsemantic.ReviewEvent, updates map[string]any) (domainsemantic.ReviewEvent, error)
+	PatchReviewEvent(ctx context.Context, item domainsemantic.ReviewEvent, patch domainsemantic.ReviewEventPatch) (domainsemantic.ReviewEvent, error)
 	ListCreativeReferences(ctx context.Context, filter CreativeReferenceFilter) ([]domainsemantic.CreativeReference, error)
 	CreateCreativeReference(ctx context.Context, item domainsemantic.CreativeReference) (domainsemantic.CreativeReference, error)
 	LoadCreativeReference(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReference, error)
-	PatchCreativeReference(ctx context.Context, item domainsemantic.CreativeReference, updates map[string]any) (domainsemantic.CreativeReference, error)
+	PatchCreativeReference(ctx context.Context, item domainsemantic.CreativeReference, patch domainsemantic.CreativeReferencePatch) (domainsemantic.CreativeReference, error)
 	ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]domainsemantic.CreativeReferenceState, error)
 	CreateCreativeReferenceState(ctx context.Context, item domainsemantic.CreativeReferenceState) (domainsemantic.CreativeReferenceState, error)
 	LoadCreativeReferenceState(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReferenceState, error)
-	PatchCreativeReferenceState(ctx context.Context, item domainsemantic.CreativeReferenceState, updates map[string]any) (domainsemantic.CreativeReferenceState, error)
+	PatchCreativeReferenceState(ctx context.Context, item domainsemantic.CreativeReferenceState, patch domainsemantic.CreativeReferenceStatePatch) (domainsemantic.CreativeReferenceState, error)
 	ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]domainsemantic.CreativeReferenceUsage, error)
 	CreateCreativeReferenceUsage(ctx context.Context, item domainsemantic.CreativeReferenceUsage) (domainsemantic.CreativeReferenceUsage, error)
 	LoadCreativeReferenceUsage(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReferenceUsage, error)
-	PatchCreativeReferenceUsage(ctx context.Context, item domainsemantic.CreativeReferenceUsage, updates map[string]any) (domainsemantic.CreativeReferenceUsage, error)
+	PatchCreativeReferenceUsage(ctx context.Context, item domainsemantic.CreativeReferenceUsage, patch domainsemantic.CreativeReferenceUsagePatch) (domainsemantic.CreativeReferenceUsage, error)
 	ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]domainsemantic.CreativeRelationship, error)
 	CreateCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship) (domainsemantic.CreativeRelationship, error)
 	LoadCreativeRelationship(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeRelationship, error)
-	PatchCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship, updates map[string]any) (domainsemantic.CreativeRelationship, error)
-	LoadProjectItem(ctx context.Context, projectID uint, item any, id string) error
+	PatchCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship, patch domainsemantic.CreativeRelationshipPatch) (domainsemantic.CreativeRelationship, error)
 	DeleteProjectItemByKind(ctx context.Context, projectID uint, kind string, id string) (uint, error)
-	CreateItem(ctx context.Context, item any) error
-	PatchItem(ctx context.Context, item any, updates map[string]any) error
-	ReloadItem(ctx context.Context, item any) error
-	DeleteItem(ctx context.Context, item any) error
 	EnsureProductionInProject(ctx context.Context, projectID uint, productionID uint) error
 	EnsureProductionTextBlockInProject(ctx context.Context, projectID uint, blockID uint) error
 	EnsureSegmentInProject(ctx context.Context, projectID uint, segmentID uint) error
@@ -155,7 +151,6 @@ type repository interface {
 	EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error
 	EnsureCanvasInProject(ctx context.Context, projectID uint, canvasID uint) error
 	EnsureCanvasRunInProject(ctx context.Context, projectID uint, runID uint) error
-	EnsureProjectScopedModelInProject(ctx context.Context, projectID uint, id uint, item any) error
 	EnsureUserInProject(ctx context.Context, projectID uint, userID uint) error
 	EnsureJobInProject(ctx context.Context, projectID uint, jobID uint) error
 }
@@ -164,7 +159,7 @@ type gormRepository struct {
 	db *gorm.DB
 }
 
-func newRepository(db *gorm.DB) repository {
+func newRepository(db *gorm.DB) *gormRepository {
 	return &gormRepository{db: db}
 }
 
@@ -238,21 +233,21 @@ func scriptVersionsFromModels(items []persistencemodel.ScriptVersion) []domainse
 	return result
 }
 
-func (r *gormRepository) LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (persistencemodel.Script, error) {
+func (r *gormRepository) LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptSnapshot, error) {
 	var script persistencemodel.Script
 	if err := r.db.WithContext(ctx).Select("id, project_id, title, raw_source, content").First(&script, scriptID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return script, ErrScriptNotFound
+			return domainscript.ScriptSnapshot{}, ErrScriptNotFound
 		}
-		return script, err
+		return domainscript.ScriptSnapshot{}, err
 	}
 	if script.ProjectID != projectID {
-		return script, ErrScriptNotFound
+		return domainscript.ScriptSnapshot{}, ErrScriptNotFound
 	}
-	return script, nil
+	return domainscript.ScriptSnapshotFromModel(script), nil
 }
 
-func (r *gormRepository) LoadProjectItem(ctx context.Context, projectID uint, item any, id string) error {
+func (r *gormRepository) loadProjectItem(ctx context.Context, projectID uint, item any, id string) error {
 	if err := r.db.WithContext(ctx).Where("project_id = ?", projectID).First(item, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrNotFound
@@ -267,10 +262,10 @@ func (r *gormRepository) DeleteProjectItemByKind(ctx context.Context, projectID 
 	if err != nil {
 		return 0, err
 	}
-	if err := r.LoadProjectItem(ctx, projectID, item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, item, id); err != nil {
 		return 0, err
 	}
-	if err := r.DeleteItem(ctx, item); err != nil {
+	if err := r.deleteItem(ctx, item); err != nil {
 		return 0, err
 	}
 	return projectID, nil
@@ -331,7 +326,7 @@ func newDeleteItemModel(kind string) (any, error) {
 	}
 }
 
-func (r *gormRepository) CreateItem(ctx context.Context, item any) error {
+func (r *gormRepository) createItem(ctx context.Context, item any) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		if err := tx.Create(item).Error; err != nil {
@@ -341,7 +336,7 @@ func (r *gormRepository) CreateItem(ctx context.Context, item any) error {
 	})
 }
 
-func (r *gormRepository) PatchItem(ctx context.Context, item any, updates map[string]any) error {
+func (r *gormRepository) patchItem(ctx context.Context, item any, updates map[string]any) error {
 	if len(updates) == 0 {
 		return nil
 	}
@@ -360,11 +355,7 @@ func (r *gormRepository) PatchItem(ctx context.Context, item any, updates map[st
 	})
 }
 
-func (r *gormRepository) ReloadItem(ctx context.Context, item any) error {
-	return r.db.WithContext(ctx).First(item).Error
-}
-
-func (r *gormRepository) DeleteItem(ctx context.Context, item any) error {
+func (r *gormRepository) deleteItem(ctx context.Context, item any) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		if err := tx.Delete(item).Error; err != nil {
@@ -407,18 +398,47 @@ func (r *gormRepository) CreateScriptVersion(ctx context.Context, projectID uint
 
 func (r *gormRepository) LoadScriptVersion(ctx context.Context, projectID uint, id string) (domainsemantic.ScriptVersion, error) {
 	var item persistencemodel.ScriptVersion
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ScriptVersion{}, err
 	}
 	return domainsemantic.ScriptVersionFromModel(item), nil
 }
 
-func (r *gormRepository) PatchScriptVersion(ctx context.Context, item domainsemantic.ScriptVersion, updates map[string]any) (domainsemantic.ScriptVersion, error) {
+func (r *gormRepository) PatchScriptVersion(ctx context.Context, item domainsemantic.ScriptVersion, patch domainsemantic.ScriptVersionPatch) (domainsemantic.ScriptVersion, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, scriptVersionPatchColumns(patch)); err != nil {
 		return domainsemantic.ScriptVersionFromModel(modelItem), err
 	}
 	return domainsemantic.ScriptVersionFromModel(modelItem), nil
+}
+
+func scriptVersionPatchColumns(patch domainsemantic.ScriptVersionPatch) map[string]any {
+	if patch.Empty() {
+		return map[string]any{}
+	}
+	updates := map[string]any{}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.SourceType) != "" {
+		updates["source_type"] = patch.SourceType
+	}
+	if strings.TrimSpace(patch.Content) != "" {
+		updates["content"] = patch.Content
+	}
+	if strings.TrimSpace(patch.RawSource) != "" {
+		updates["raw_source"] = patch.RawSource
+	}
+	if strings.TrimSpace(patch.Summary) != "" {
+		updates["summary"] = patch.Summary
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if patch.ParentVersionID != nil {
+		updates["parent_version_id"] = patch.ParentVersionID
+	}
+	return updates
 }
 
 func (r *gormRepository) NextScriptVersionNumber(ctx context.Context, projectID uint, scriptID uint) int {
@@ -459,7 +479,7 @@ func segmentsFromModels(items []persistencemodel.Segment) []domainsemantic.Segme
 
 func (r *gormRepository) CreateSegment(ctx context.Context, item domainsemantic.Segment) (domainsemantic.Segment, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.SegmentFromModel(modelItem), err
 	}
 	return domainsemantic.SegmentFromModel(modelItem), nil
@@ -467,18 +487,52 @@ func (r *gormRepository) CreateSegment(ctx context.Context, item domainsemantic.
 
 func (r *gormRepository) LoadSegment(ctx context.Context, projectID uint, id string) (domainsemantic.Segment, error) {
 	var item persistencemodel.Segment
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.Segment{}, err
 	}
 	return domainsemantic.SegmentFromModel(item), nil
 }
 
-func (r *gormRepository) PatchSegment(ctx context.Context, item domainsemantic.Segment, updates map[string]any) (domainsemantic.Segment, error) {
+func (r *gormRepository) PatchSegment(ctx context.Context, item domainsemantic.Segment, patch domainsemantic.SegmentPatch) (domainsemantic.Segment, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, segmentPatchColumns(patch)); err != nil {
 		return domainsemantic.SegmentFromModel(modelItem), err
 	}
 	return domainsemantic.SegmentFromModel(modelItem), nil
+}
+
+func segmentPatchColumns(patch domainsemantic.SegmentPatch) map[string]any {
+	updates := map[string]any{
+		"order": patch.Order,
+	}
+	if patch.ProductionID != nil {
+		updates["production_id"] = *patch.ProductionID
+	}
+	if patch.TextBlockID != nil {
+		updates["text_block_id"] = *patch.TextBlockID
+	}
+	if patch.ParentSegmentID != nil {
+		updates["parent_segment_id"] = patch.ParentSegmentID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.Summary) != "" {
+		updates["summary"] = patch.Summary
+	}
+	if strings.TrimSpace(patch.Content) != "" {
+		updates["content"] = patch.Content
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListProductionTextBlocks(ctx context.Context, filter ProductionTextBlockFilter) ([]domainsemantic.ProductionTextBlock, error) {
@@ -506,7 +560,7 @@ func productionTextBlocksFromModels(items []persistencemodel.ProductionTextBlock
 
 func (r *gormRepository) CreateProductionTextBlock(ctx context.Context, item domainsemantic.ProductionTextBlock) (domainsemantic.ProductionTextBlock, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.ProductionTextBlockFromModel(modelItem), err
 	}
 	return domainsemantic.ProductionTextBlockFromModel(modelItem), nil
@@ -514,18 +568,52 @@ func (r *gormRepository) CreateProductionTextBlock(ctx context.Context, item dom
 
 func (r *gormRepository) LoadProductionTextBlock(ctx context.Context, projectID uint, id string) (domainsemantic.ProductionTextBlock, error) {
 	var item persistencemodel.ProductionTextBlock
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ProductionTextBlock{}, err
 	}
 	return domainsemantic.ProductionTextBlockFromModel(item), nil
 }
 
-func (r *gormRepository) PatchProductionTextBlock(ctx context.Context, item domainsemantic.ProductionTextBlock, updates map[string]any) (domainsemantic.ProductionTextBlock, error) {
+func (r *gormRepository) PatchProductionTextBlock(ctx context.Context, item domainsemantic.ProductionTextBlock, patch domainsemantic.ProductionTextBlockPatch) (domainsemantic.ProductionTextBlock, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, productionTextBlockPatchColumns(patch)); err != nil {
 		return domainsemantic.ProductionTextBlockFromModel(modelItem), err
 	}
 	return domainsemantic.ProductionTextBlockFromModel(modelItem), nil
+}
+
+func productionTextBlockPatchColumns(patch domainsemantic.ProductionTextBlockPatch) map[string]any {
+	updates := map[string]any{
+		"order": patch.Order,
+	}
+	if patch.ProductionID != nil {
+		updates["production_id"] = *patch.ProductionID
+	}
+	if patch.ParentBlockID != nil {
+		updates["parent_block_id"] = patch.ParentBlockID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.Content) != "" {
+		updates["content"] = patch.Content
+	}
+	if strings.TrimSpace(patch.Summary) != "" {
+		updates["summary"] = patch.Summary
+	}
+	if strings.TrimSpace(patch.SourceType) != "" {
+		updates["source_type"] = patch.SourceType
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListSceneMoments(ctx context.Context, filter SceneMomentFilter) ([]domainsemantic.SceneMoment, error) {
@@ -550,7 +638,7 @@ func sceneMomentsFromModels(items []persistencemodel.SceneMoment) []domainsemant
 
 func (r *gormRepository) CreateSceneMoment(ctx context.Context, item domainsemantic.SceneMoment) (domainsemantic.SceneMoment, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.SceneMomentFromModel(modelItem), err
 	}
 	return domainsemantic.SceneMomentFromModel(modelItem), nil
@@ -558,18 +646,55 @@ func (r *gormRepository) CreateSceneMoment(ctx context.Context, item domainseman
 
 func (r *gormRepository) LoadSceneMoment(ctx context.Context, projectID uint, id string) (domainsemantic.SceneMoment, error) {
 	var item persistencemodel.SceneMoment
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.SceneMoment{}, err
 	}
 	return domainsemantic.SceneMomentFromModel(item), nil
 }
 
-func (r *gormRepository) PatchSceneMoment(ctx context.Context, item domainsemantic.SceneMoment, updates map[string]any) (domainsemantic.SceneMoment, error) {
+func (r *gormRepository) PatchSceneMoment(ctx context.Context, item domainsemantic.SceneMoment, patch domainsemantic.SceneMomentPatch) (domainsemantic.SceneMoment, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, sceneMomentPatchColumns(patch)); err != nil {
 		return domainsemantic.SceneMomentFromModel(modelItem), err
 	}
 	return domainsemantic.SceneMomentFromModel(modelItem), nil
+}
+
+func sceneMomentPatchColumns(patch domainsemantic.SceneMomentPatch) map[string]any {
+	updates := map[string]any{
+		"order": patch.Order,
+	}
+	if patch.SegmentID != nil {
+		updates["segment_id"] = patch.SegmentID
+	}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.TimeText) != "" {
+		updates["time_text"] = patch.TimeText
+	}
+	if strings.TrimSpace(patch.LocationText) != "" {
+		updates["location_text"] = patch.LocationText
+	}
+	if strings.TrimSpace(patch.ConditionText) != "" {
+		updates["condition_text"] = patch.ConditionText
+	}
+	if strings.TrimSpace(patch.ActionText) != "" {
+		updates["action_text"] = patch.ActionText
+	}
+	if strings.TrimSpace(patch.Mood) != "" {
+		updates["mood"] = patch.Mood
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ResolveSegmentOwners(ctx context.Context, projectID uint, productionID *uint, textBlockID *uint) (*uint, *uint, error) {
@@ -753,7 +878,7 @@ func (r *gormRepository) EnsureCreativeReferenceStateInProject(ctx context.Conte
 }
 
 func (r *gormRepository) EnsureAssetSlotInProject(ctx context.Context, projectID uint, assetSlotID uint) error {
-	return r.EnsureProjectScopedModelInProject(ctx, projectID, assetSlotID, &persistencemodel.AssetSlot{})
+	return r.ensureProjectScopedModelInProject(ctx, projectID, assetSlotID, &persistencemodel.AssetSlot{})
 }
 
 func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uint, ownerType string, ownerID uint) error {
@@ -783,7 +908,7 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 	case "content_unit":
 		return r.EnsureContentUnitInProject(ctx, projectID, ownerID)
 	case "keyframe":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.Keyframe{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.Keyframe{})
 	case "preview_timeline":
 		return r.EnsurePreviewTimelineInProject(ctx, projectID, ownerID)
 	case "creative_reference":
@@ -791,25 +916,25 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 	case "creative_reference_state":
 		return r.EnsureCreativeReferenceStateInProject(ctx, projectID, ownerID)
 	case "storyboard_script":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardScript{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardScript{})
 	case "storyboard_version":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardVersion{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardVersion{})
 	case "storyboard_line":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardLine{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardLine{})
 	case "asset_slot":
 		return r.EnsureAssetSlotInProject(ctx, projectID, ownerID)
 	case "asset_slot_candidate":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.AssetSlotCandidate{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.AssetSlotCandidate{})
 	case "candidate_decision":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.CandidateDecision{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.CandidateDecision{})
 	case "review_event":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.ReviewEvent{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.ReviewEvent{})
 	case "work_item":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.WorkItem{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.WorkItem{})
 	case "delivery_version":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.DeliveryVersion{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.DeliveryVersion{})
 	case "canvas_output":
-		return r.EnsureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.CanvasOutput{})
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.CanvasOutput{})
 	case "canvas":
 		return r.EnsureCanvasInProject(ctx, projectID, ownerID)
 	case "canvas_run":
@@ -841,7 +966,7 @@ func (r *gormRepository) EnsureCanvasRunInProject(ctx context.Context, projectID
 	return r.EnsureCanvasInProject(ctx, projectID, item.CanvasID)
 }
 
-func (r *gormRepository) EnsureProjectScopedModelInProject(ctx context.Context, projectID uint, id uint, item any) error {
+func (r *gormRepository) ensureProjectScopedModelInProject(ctx context.Context, projectID uint, id uint, item any) error {
 	var row struct {
 		ProjectID uint
 	}
@@ -919,7 +1044,7 @@ func productionsFromModels(items []persistencemodel.Production) []domainsemantic
 
 func (r *gormRepository) CreateProduction(ctx context.Context, item domainsemantic.Production) (domainsemantic.Production, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.ProductionFromModel(modelItem), err
 	}
 	return domainsemantic.ProductionFromModel(modelItem), nil
@@ -927,18 +1052,49 @@ func (r *gormRepository) CreateProduction(ctx context.Context, item domainsemant
 
 func (r *gormRepository) LoadProduction(ctx context.Context, projectID uint, id string) (domainsemantic.Production, error) {
 	var item persistencemodel.Production
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.Production{}, err
 	}
 	return domainsemantic.ProductionFromModel(item), nil
 }
 
-func (r *gormRepository) PatchProduction(ctx context.Context, item domainsemantic.Production, updates map[string]any) (domainsemantic.Production, error) {
+func (r *gormRepository) PatchProduction(ctx context.Context, item domainsemantic.Production, patch domainsemantic.ProductionPatch) (domainsemantic.Production, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, productionPatchColumns(patch)); err != nil {
 		return domainsemantic.ProductionFromModel(modelItem), err
 	}
 	return domainsemantic.ProductionFromModel(modelItem), nil
+}
+
+func productionPatchColumns(patch domainsemantic.ProductionPatch) map[string]any {
+	updates := map[string]any{
+		"progress": patch.Progress,
+	}
+	if patch.ScriptVersionID != nil {
+		updates["script_version_id"] = patch.ScriptVersionID
+	}
+	if patch.PreviewTimelineID != nil {
+		updates["preview_timeline_id"] = patch.PreviewTimelineID
+	}
+	if strings.TrimSpace(patch.Name) != "" {
+		updates["name"] = patch.Name
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.SourceType) != "" {
+		updates["source_type"] = patch.SourceType
+	}
+	if strings.TrimSpace(patch.OwnerLabel) != "" {
+		updates["owner_label"] = patch.OwnerLabel
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error) {
@@ -969,7 +1125,7 @@ func contentUnitsFromModels(items []persistencemodel.ContentUnit) []domainsemant
 
 func (r *gormRepository) CreateContentUnit(ctx context.Context, item domainsemantic.ContentUnit) (domainsemantic.ContentUnit, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.ContentUnitFromModel(modelItem), err
 	}
 	return domainsemantic.ContentUnitFromModel(modelItem), nil
@@ -977,18 +1133,95 @@ func (r *gormRepository) CreateContentUnit(ctx context.Context, item domainseman
 
 func (r *gormRepository) LoadContentUnit(ctx context.Context, projectID uint, id string) (domainsemantic.ContentUnit, error) {
 	var item persistencemodel.ContentUnit
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ContentUnit{}, err
 	}
 	return domainsemantic.ContentUnitFromModel(item), nil
 }
 
-func (r *gormRepository) PatchContentUnit(ctx context.Context, item domainsemantic.ContentUnit, updates map[string]any) (domainsemantic.ContentUnit, error) {
+func (r *gormRepository) PatchContentUnit(ctx context.Context, item domainsemantic.ContentUnit, patch domainsemantic.ContentUnitPatch) (domainsemantic.ContentUnit, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, contentUnitPatchColumns(patch)); err != nil {
 		return domainsemantic.ContentUnitFromModel(modelItem), err
 	}
 	return domainsemantic.ContentUnitFromModel(modelItem), nil
+}
+
+func contentUnitPatchColumns(patch domainsemantic.ContentUnitPatch) map[string]any {
+	updates := map[string]any{
+		"order":        patch.Order,
+		"duration_sec": patch.DurationSec,
+	}
+	if patch.ProductionID != nil {
+		updates["production_id"] = patch.ProductionID
+	}
+	if patch.SegmentID != nil {
+		updates["segment_id"] = patch.SegmentID
+	}
+	if patch.SceneMomentID != nil {
+		updates["scene_moment_id"] = patch.SceneMomentID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Prompt) != "" {
+		updates["prompt"] = patch.Prompt
+	}
+	if strings.TrimSpace(patch.ShotSize) != "" {
+		updates["shot_size"] = patch.ShotSize
+	}
+	if strings.TrimSpace(patch.CameraAngle) != "" {
+		updates["camera_angle"] = patch.CameraAngle
+	}
+	if strings.TrimSpace(patch.CameraHeight) != "" {
+		updates["camera_height"] = patch.CameraHeight
+	}
+	if strings.TrimSpace(patch.CameraMotion) != "" {
+		updates["camera_motion"] = patch.CameraMotion
+	}
+	if strings.TrimSpace(patch.MotionIntensity) != "" {
+		updates["motion_intensity"] = patch.MotionIntensity
+	}
+	if strings.TrimSpace(patch.CameraSpeed) != "" {
+		updates["camera_speed"] = patch.CameraSpeed
+	}
+	if strings.TrimSpace(patch.Lens) != "" {
+		updates["lens"] = patch.Lens
+	}
+	if strings.TrimSpace(patch.FocalLength) != "" {
+		updates["focal_length"] = patch.FocalLength
+	}
+	if strings.TrimSpace(patch.FocusSubject) != "" {
+		updates["focus_subject"] = patch.FocusSubject
+	}
+	if strings.TrimSpace(patch.CompositionStart) != "" {
+		updates["composition_start"] = patch.CompositionStart
+	}
+	if strings.TrimSpace(patch.CompositionEnd) != "" {
+		updates["composition_end"] = patch.CompositionEnd
+	}
+	if strings.TrimSpace(patch.Stabilization) != "" {
+		updates["stabilization"] = patch.Stabilization
+	}
+	if strings.TrimSpace(patch.CameraParamsJSON) != "" {
+		updates["camera_params_json"] = patch.CameraParamsJSON
+	}
+	if strings.TrimSpace(patch.CameraNotes) != "" {
+		updates["camera_notes"] = patch.CameraNotes
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error) {
@@ -1019,7 +1252,7 @@ func keyframesFromModels(items []persistencemodel.Keyframe) []domainsemantic.Key
 
 func (r *gormRepository) CreateKeyframe(ctx context.Context, item domainsemantic.Keyframe) (domainsemantic.Keyframe, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.KeyframeFromModel(modelItem), err
 	}
 	return domainsemantic.KeyframeFromModel(modelItem), nil
@@ -1027,18 +1260,55 @@ func (r *gormRepository) CreateKeyframe(ctx context.Context, item domainsemantic
 
 func (r *gormRepository) LoadKeyframe(ctx context.Context, projectID uint, id string) (domainsemantic.Keyframe, error) {
 	var item persistencemodel.Keyframe
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.Keyframe{}, err
 	}
 	return domainsemantic.KeyframeFromModel(item), nil
 }
 
-func (r *gormRepository) PatchKeyframe(ctx context.Context, item domainsemantic.Keyframe, updates map[string]any) (domainsemantic.Keyframe, error) {
+func (r *gormRepository) PatchKeyframe(ctx context.Context, item domainsemantic.Keyframe, patch domainsemantic.KeyframePatch) (domainsemantic.Keyframe, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, keyframePatchColumns(patch)); err != nil {
 		return domainsemantic.KeyframeFromModel(modelItem), err
 	}
 	return domainsemantic.KeyframeFromModel(modelItem), nil
+}
+
+func keyframePatchColumns(patch domainsemantic.KeyframePatch) map[string]any {
+	updates := map[string]any{
+		"order": patch.Order,
+	}
+	if patch.ProductionID != nil {
+		updates["production_id"] = patch.ProductionID
+	}
+	if patch.SceneMomentID != nil {
+		updates["scene_moment_id"] = patch.SceneMomentID
+	}
+	if patch.ContentUnitID != nil {
+		updates["content_unit_id"] = patch.ContentUnitID
+	}
+	if patch.ResourceID != nil {
+		updates["resource_id"] = patch.ResourceID
+	}
+	if patch.CanvasID != nil {
+		updates["canvas_id"] = patch.CanvasID
+	}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Prompt) != "" {
+		updates["prompt"] = patch.Prompt
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListPreviewTimelines(ctx context.Context, filter PreviewTimelineFilter) ([]domainsemantic.PreviewTimeline, error) {
@@ -1063,7 +1333,7 @@ func previewTimelinesFromModels(items []persistencemodel.PreviewTimeline) []doma
 
 func (r *gormRepository) CreatePreviewTimeline(ctx context.Context, item domainsemantic.PreviewTimeline) (domainsemantic.PreviewTimeline, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.PreviewTimelineFromModel(modelItem), err
 	}
 	return domainsemantic.PreviewTimelineFromModel(modelItem), nil
@@ -1071,18 +1341,41 @@ func (r *gormRepository) CreatePreviewTimeline(ctx context.Context, item domains
 
 func (r *gormRepository) LoadPreviewTimeline(ctx context.Context, projectID uint, id string) (domainsemantic.PreviewTimeline, error) {
 	var item persistencemodel.PreviewTimeline
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.PreviewTimeline{}, err
 	}
 	return domainsemantic.PreviewTimelineFromModel(item), nil
 }
 
-func (r *gormRepository) PatchPreviewTimeline(ctx context.Context, item domainsemantic.PreviewTimeline, updates map[string]any) (domainsemantic.PreviewTimeline, error) {
+func (r *gormRepository) PatchPreviewTimeline(ctx context.Context, item domainsemantic.PreviewTimeline, patch domainsemantic.PreviewTimelinePatch) (domainsemantic.PreviewTimeline, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, previewTimelinePatchColumns(patch)); err != nil {
 		return domainsemantic.PreviewTimelineFromModel(modelItem), err
 	}
 	return domainsemantic.PreviewTimelineFromModel(modelItem), nil
+}
+
+func previewTimelinePatchColumns(patch domainsemantic.PreviewTimelinePatch) map[string]any {
+	updates := map[string]any{
+		"duration_sec": patch.DurationSec,
+		"is_primary":   patch.IsPrimary,
+	}
+	if patch.ProductionID != nil {
+		updates["production_id"] = patch.ProductionID
+	}
+	if patch.ScriptVersionID != nil {
+		updates["script_version_id"] = patch.ScriptVersionID
+	}
+	if strings.TrimSpace(patch.Name) != "" {
+		updates["name"] = patch.Name
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListPreviewTimelineItems(ctx context.Context, filter PreviewTimelineItemFilter) ([]domainsemantic.PreviewTimelineItem, error) {
@@ -1114,7 +1407,7 @@ func previewTimelineItemsFromModels(items []persistencemodel.PreviewTimelineItem
 
 func (r *gormRepository) CreatePreviewTimelineItem(ctx context.Context, item domainsemantic.PreviewTimelineItem) (domainsemantic.PreviewTimelineItem, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.PreviewTimelineItemFromModel(modelItem), err
 	}
 	return domainsemantic.PreviewTimelineItemFromModel(modelItem), nil
@@ -1122,18 +1415,54 @@ func (r *gormRepository) CreatePreviewTimelineItem(ctx context.Context, item dom
 
 func (r *gormRepository) LoadPreviewTimelineItem(ctx context.Context, projectID uint, id string) (domainsemantic.PreviewTimelineItem, error) {
 	var item persistencemodel.PreviewTimelineItem
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.PreviewTimelineItem{}, err
 	}
 	return domainsemantic.PreviewTimelineItemFromModel(item), nil
 }
 
-func (r *gormRepository) PatchPreviewTimelineItem(ctx context.Context, item domainsemantic.PreviewTimelineItem, updates map[string]any) (domainsemantic.PreviewTimelineItem, error) {
+func (r *gormRepository) PatchPreviewTimelineItem(ctx context.Context, item domainsemantic.PreviewTimelineItem, patch domainsemantic.PreviewTimelineItemPatch) (domainsemantic.PreviewTimelineItem, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, previewTimelineItemPatchColumns(patch)); err != nil {
 		return domainsemantic.PreviewTimelineItemFromModel(modelItem), err
 	}
 	return domainsemantic.PreviewTimelineItemFromModel(modelItem), nil
+}
+
+func previewTimelineItemPatchColumns(patch domainsemantic.PreviewTimelineItemPatch) map[string]any {
+	updates := map[string]any{
+		"order":        patch.Order,
+		"start_sec":    patch.StartSec,
+		"duration_sec": patch.DurationSec,
+	}
+	if patch.PreviewTimelineID > 0 {
+		updates["preview_timeline_id"] = patch.PreviewTimelineID
+	}
+	if patch.SegmentID != nil {
+		updates["segment_id"] = patch.SegmentID
+	}
+	if patch.SceneMomentID != nil {
+		updates["scene_moment_id"] = patch.SceneMomentID
+	}
+	if patch.ContentUnitID != nil {
+		updates["content_unit_id"] = patch.ContentUnitID
+	}
+	if patch.KeyframeID != nil {
+		updates["keyframe_id"] = patch.KeyframeID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Label) != "" {
+		updates["label"] = patch.Label
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListStoryboardScripts(ctx context.Context, filter StoryboardScriptFilter) ([]domainsemantic.StoryboardScript, error) {
@@ -1161,7 +1490,7 @@ func storyboardScriptsFromModels(items []persistencemodel.StoryboardScript) []do
 
 func (r *gormRepository) CreateStoryboardScript(ctx context.Context, item domainsemantic.StoryboardScript) (domainsemantic.StoryboardScript, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.StoryboardScriptFromModel(modelItem), err
 	}
 	return domainsemantic.StoryboardScriptFromModel(modelItem), nil
@@ -1169,18 +1498,40 @@ func (r *gormRepository) CreateStoryboardScript(ctx context.Context, item domain
 
 func (r *gormRepository) LoadStoryboardScript(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardScript, error) {
 	var item persistencemodel.StoryboardScript
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.StoryboardScript{}, err
 	}
 	return domainsemantic.StoryboardScriptFromModel(item), nil
 }
 
-func (r *gormRepository) PatchStoryboardScript(ctx context.Context, item domainsemantic.StoryboardScript, updates map[string]any) (domainsemantic.StoryboardScript, error) {
+func (r *gormRepository) PatchStoryboardScript(ctx context.Context, item domainsemantic.StoryboardScript, patch domainsemantic.StoryboardScriptPatch) (domainsemantic.StoryboardScript, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, storyboardScriptPatchColumns(patch)); err != nil {
 		return domainsemantic.StoryboardScriptFromModel(modelItem), err
 	}
 	return domainsemantic.StoryboardScriptFromModel(modelItem), nil
+}
+
+func storyboardScriptPatchColumns(patch domainsemantic.StoryboardScriptPatch) map[string]any {
+	updates := map[string]any{
+		"is_primary": patch.IsPrimary,
+	}
+	if patch.ScriptVersionID != nil {
+		updates["script_version_id"] = patch.ScriptVersionID
+	}
+	if strings.TrimSpace(patch.Name) != "" {
+		updates["name"] = patch.Name
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListStoryboardVersions(ctx context.Context, filter StoryboardVersionFilter) ([]domainsemantic.StoryboardVersion, error) {
@@ -1208,7 +1559,7 @@ func storyboardVersionsFromModels(items []persistencemodel.StoryboardVersion) []
 
 func (r *gormRepository) CreateStoryboardVersion(ctx context.Context, item domainsemantic.StoryboardVersion) (domainsemantic.StoryboardVersion, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.StoryboardVersionFromModel(modelItem), err
 	}
 	return domainsemantic.StoryboardVersionFromModel(modelItem), nil
@@ -1216,18 +1567,41 @@ func (r *gormRepository) CreateStoryboardVersion(ctx context.Context, item domai
 
 func (r *gormRepository) LoadStoryboardVersion(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardVersion, error) {
 	var item persistencemodel.StoryboardVersion
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.StoryboardVersion{}, err
 	}
 	return domainsemantic.StoryboardVersionFromModel(item), nil
 }
 
-func (r *gormRepository) PatchStoryboardVersion(ctx context.Context, item domainsemantic.StoryboardVersion, updates map[string]any) (domainsemantic.StoryboardVersion, error) {
+func (r *gormRepository) PatchStoryboardVersion(ctx context.Context, item domainsemantic.StoryboardVersion, patch domainsemantic.StoryboardVersionPatch) (domainsemantic.StoryboardVersion, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, storyboardVersionPatchColumns(patch)); err != nil {
 		return domainsemantic.StoryboardVersionFromModel(modelItem), err
 	}
 	return domainsemantic.StoryboardVersionFromModel(modelItem), nil
+}
+
+func storyboardVersionPatchColumns(patch domainsemantic.StoryboardVersionPatch) map[string]any {
+	updates := map[string]any{}
+	if patch.ParentVersionID != nil {
+		updates["parent_version_id"] = patch.ParentVersionID
+	}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.Source) != "" {
+		updates["source"] = patch.Source
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.SnapshotJSON) != "" {
+		updates["snapshot_json"] = patch.SnapshotJSON
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListStoryboardLines(ctx context.Context, filter StoryboardLineFilter) ([]domainsemantic.StoryboardLine, error) {
@@ -1258,7 +1632,7 @@ func storyboardLinesFromModels(items []persistencemodel.StoryboardLine) []domain
 
 func (r *gormRepository) CreateStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine) (domainsemantic.StoryboardLine, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.StoryboardLineFromModel(modelItem), err
 	}
 	return domainsemantic.StoryboardLineFromModel(modelItem), nil
@@ -1266,18 +1640,57 @@ func (r *gormRepository) CreateStoryboardLine(ctx context.Context, item domainse
 
 func (r *gormRepository) LoadStoryboardLine(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardLine, error) {
 	var item persistencemodel.StoryboardLine
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.StoryboardLine{}, err
 	}
 	return domainsemantic.StoryboardLineFromModel(item), nil
 }
 
-func (r *gormRepository) PatchStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine, updates map[string]any) (domainsemantic.StoryboardLine, error) {
+func (r *gormRepository) PatchStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine, patch domainsemantic.StoryboardLinePatch) (domainsemantic.StoryboardLine, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, storyboardLinePatchColumns(patch)); err != nil {
 		return domainsemantic.StoryboardLineFromModel(modelItem), err
 	}
 	return domainsemantic.StoryboardLineFromModel(modelItem), nil
+}
+
+func storyboardLinePatchColumns(patch domainsemantic.StoryboardLinePatch) map[string]any {
+	updates := map[string]any{
+		"storyboard_script_id": patch.StoryboardScriptID,
+		"order":                patch.Order,
+		"duration_sec":         patch.DurationSec,
+	}
+	if patch.StoryboardVersionID != nil {
+		updates["storyboard_version_id"] = patch.StoryboardVersionID
+	}
+	if patch.SegmentID != nil {
+		updates["segment_id"] = patch.SegmentID
+	}
+	if patch.SceneMomentID != nil {
+		updates["scene_moment_id"] = patch.SceneMomentID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Dialogue) != "" {
+		updates["dialogue"] = patch.Dialogue
+	}
+	if strings.TrimSpace(patch.VisualIntent) != "" {
+		updates["visual_intent"] = patch.VisualIntent
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) NextStoryboardVersionNumber(ctx context.Context, projectID uint, storyboardScriptID uint) int {
@@ -1318,7 +1731,7 @@ func workItemsFromModels(items []persistencemodel.WorkItem) []domainsemantic.Wor
 
 func (r *gormRepository) CreateWorkItem(ctx context.Context, item domainsemantic.WorkItem) (domainsemantic.WorkItem, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.WorkItemFromModel(modelItem), err
 	}
 	return domainsemantic.WorkItemFromModel(modelItem), nil
@@ -1326,23 +1739,70 @@ func (r *gormRepository) CreateWorkItem(ctx context.Context, item domainsemantic
 
 func (r *gormRepository) LoadWorkItem(ctx context.Context, projectID uint, id string) (domainsemantic.WorkItem, error) {
 	var item persistencemodel.WorkItem
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.WorkItem{}, err
 	}
 	return domainsemantic.WorkItemFromModel(item), nil
 }
 
-func (r *gormRepository) PatchWorkItem(ctx context.Context, item domainsemantic.WorkItem, updates map[string]any) (domainsemantic.WorkItem, error) {
+func (r *gormRepository) PatchWorkItem(ctx context.Context, item domainsemantic.WorkItem, patch domainsemantic.WorkItemPatch) (domainsemantic.WorkItem, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, workItemPatchColumns(item, patch)); err != nil {
 		return domainsemantic.WorkItemFromModel(modelItem), err
 	}
 	return domainsemantic.WorkItemFromModel(modelItem), nil
 }
 
+func workItemPatchColumns(item domainsemantic.WorkItem, patch domainsemantic.WorkItemPatch) map[string]any {
+	updates := map[string]any{
+		"target_id": patch.TargetID,
+	}
+	if patch.ProductionID != nil {
+		updates["production_id"] = patch.ProductionID
+	}
+	if strings.TrimSpace(patch.TargetType) != "" {
+		updates["target_type"] = patch.TargetType
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Title) != "" {
+		updates["title"] = patch.Title
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.Priority) != "" {
+		updates["priority"] = patch.Priority
+	}
+	if patch.AssigneeID != nil {
+		updates["assignee_id"] = patch.AssigneeID
+	}
+	if patch.SourceJobID != nil {
+		updates["source_job_id"] = patch.SourceJobID
+	}
+	if patch.SourceCanvasID != nil {
+		updates["source_canvas_id"] = patch.SourceCanvasID
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	if strings.TrimSpace(patch.ResultType) != "" || strings.TrimSpace(patch.ResultJSON) != "" {
+		updates["result_type"] = domainsemantic.FallbackString(patch.ResultType, item.ResultType)
+		updates["result_json"] = patch.ResultJSON
+		updates["apply_status"] = domainsemantic.ApplyStatusForWorkItemPatch(item, patch)
+		updates["applied_at"] = patch.AppliedAt
+		updates["apply_error"] = patch.ApplyError
+	}
+	return updates
+}
+
 func (r *gormRepository) DeleteWorkItem(ctx context.Context, item domainsemantic.WorkItem) error {
 	modelItem := item.ToModel()
-	return r.DeleteItem(ctx, &modelItem)
+	return r.deleteItem(ctx, &modelItem)
 }
 
 func (r *gormRepository) ListWorkReviews(ctx context.Context, filter WorkReviewFilter) ([]domainsemantic.WorkReview, error) {
@@ -1370,7 +1830,7 @@ func workReviewsFromModels(items []persistencemodel.WorkReview) []domainsemantic
 
 func (r *gormRepository) CreateWorkReview(ctx context.Context, item domainsemantic.WorkReview) (domainsemantic.WorkReview, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.WorkReviewFromModel(modelItem), err
 	}
 	return domainsemantic.WorkReviewFromModel(modelItem), nil
@@ -1378,23 +1838,42 @@ func (r *gormRepository) CreateWorkReview(ctx context.Context, item domainsemant
 
 func (r *gormRepository) LoadWorkReview(ctx context.Context, projectID uint, id string) (domainsemantic.WorkReview, error) {
 	var item persistencemodel.WorkReview
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.WorkReview{}, err
 	}
 	return domainsemantic.WorkReviewFromModel(item), nil
 }
 
-func (r *gormRepository) PatchWorkReview(ctx context.Context, item domainsemantic.WorkReview, updates map[string]any) (domainsemantic.WorkReview, error) {
+func (r *gormRepository) PatchWorkReview(ctx context.Context, item domainsemantic.WorkReview, patch domainsemantic.WorkReviewPatch) (domainsemantic.WorkReview, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, workReviewPatchColumns(patch)); err != nil {
 		return domainsemantic.WorkReviewFromModel(modelItem), err
 	}
 	return domainsemantic.WorkReviewFromModel(modelItem), nil
 }
 
+func workReviewPatchColumns(patch domainsemantic.WorkReviewPatch) map[string]any {
+	updates := map[string]any{
+		"work_item_id": patch.WorkItemID,
+	}
+	if patch.ReviewerID != nil {
+		updates["reviewer_id"] = patch.ReviewerID
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.Comment) != "" {
+		updates["comment"] = patch.Comment
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
+}
+
 func (r *gormRepository) DeleteWorkReview(ctx context.Context, item domainsemantic.WorkReview) error {
 	modelItem := item.ToModel()
-	return r.DeleteItem(ctx, &modelItem)
+	return r.deleteItem(ctx, &modelItem)
 }
 
 func (r *gormRepository) ListWorkDependencies(ctx context.Context, filter WorkDependencyFilter) ([]domainsemantic.WorkDependency, error) {
@@ -1419,7 +1898,7 @@ func workDependenciesFromModels(items []persistencemodel.WorkDependency) []domai
 
 func (r *gormRepository) CreateWorkDependency(ctx context.Context, item domainsemantic.WorkDependency) (domainsemantic.WorkDependency, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.WorkDependencyFromModel(modelItem), err
 	}
 	return domainsemantic.WorkDependencyFromModel(modelItem), nil
@@ -1427,33 +1906,44 @@ func (r *gormRepository) CreateWorkDependency(ctx context.Context, item domainse
 
 func (r *gormRepository) LoadWorkDependency(ctx context.Context, projectID uint, id string) (domainsemantic.WorkDependency, error) {
 	var item persistencemodel.WorkDependency
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.WorkDependency{}, err
 	}
 	return domainsemantic.WorkDependencyFromModel(item), nil
 }
 
-func (r *gormRepository) PatchWorkDependency(ctx context.Context, item domainsemantic.WorkDependency, updates map[string]any) (domainsemantic.WorkDependency, error) {
+func (r *gormRepository) PatchWorkDependency(ctx context.Context, item domainsemantic.WorkDependency, patch domainsemantic.WorkDependencyPatch) (domainsemantic.WorkDependency, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, workDependencyPatchColumns(patch)); err != nil {
 		return domainsemantic.WorkDependencyFromModel(modelItem), err
 	}
 	return domainsemantic.WorkDependencyFromModel(modelItem), nil
 }
 
-func (r *gormRepository) DeleteWorkDependency(ctx context.Context, item domainsemantic.WorkDependency) error {
-	modelItem := item.ToModel()
-	return r.DeleteItem(ctx, &modelItem)
+func workDependencyPatchColumns(patch domainsemantic.WorkDependencyPatch) map[string]any {
+	updates := map[string]any{
+		"work_item_id":            patch.WorkItemID,
+		"depends_on_work_item_id": patch.DependsOnWorkItemID,
+	}
+	if strings.TrimSpace(patch.DependencyType) != "" {
+		updates["dependency_type"] = patch.DependencyType
+	}
+	return updates
 }
 
-func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, item domainsemantic.WorkItem, updates map[string]any, actorID *uint) (domainsemantic.WorkItem, error) {
+func (r *gormRepository) DeleteWorkDependency(ctx context.Context, item domainsemantic.WorkDependency) error {
+	modelItem := item.ToModel()
+	return r.deleteItem(ctx, &modelItem)
+}
+
+func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, item domainsemantic.WorkItem, patch domainsemantic.WorkItemPatch, actorID *uint) (domainsemantic.WorkItem, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	var applyErr error
 	modelItem := item.ToModel()
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
 		next := domainsemantic.WorkItemFromModel(modelItem)
-		domainsemantic.ApplyWorkItemUpdates(&next, updates)
+		domainsemantic.ApplyWorkItemUpdates(&next, workItemPatchColumns(item, patch))
 		domainsemantic.PrepareWorkItemResultApplication(&next)
 		nextModel := next.ToModel()
 		if err := tx.Save(&nextModel).Error; err != nil {
@@ -1517,7 +2007,7 @@ func deliveryVersionsFromModels(items []persistencemodel.DeliveryVersion) []doma
 
 func (r *gormRepository) CreateDeliveryVersion(ctx context.Context, item domainsemantic.DeliveryVersion) (domainsemantic.DeliveryVersion, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.DeliveryVersionFromModel(modelItem), err
 	}
 	return domainsemantic.DeliveryVersionFromModel(modelItem), nil
@@ -1525,18 +2015,44 @@ func (r *gormRepository) CreateDeliveryVersion(ctx context.Context, item domains
 
 func (r *gormRepository) LoadDeliveryVersion(ctx context.Context, projectID uint, id string) (domainsemantic.DeliveryVersion, error) {
 	var item persistencemodel.DeliveryVersion
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.DeliveryVersion{}, err
 	}
 	return domainsemantic.DeliveryVersionFromModel(item), nil
 }
 
-func (r *gormRepository) PatchDeliveryVersion(ctx context.Context, item domainsemantic.DeliveryVersion, updates map[string]any) (domainsemantic.DeliveryVersion, error) {
+func (r *gormRepository) PatchDeliveryVersion(ctx context.Context, item domainsemantic.DeliveryVersion, patch domainsemantic.DeliveryVersionPatch) (domainsemantic.DeliveryVersion, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, deliveryVersionPatchColumns(patch)); err != nil {
 		return domainsemantic.DeliveryVersionFromModel(modelItem), err
 	}
 	return domainsemantic.DeliveryVersionFromModel(modelItem), nil
+}
+
+func deliveryVersionPatchColumns(patch domainsemantic.DeliveryVersionPatch) map[string]any {
+	updates := map[string]any{
+		"is_primary":   patch.IsPrimary,
+		"duration_sec": patch.DurationSec,
+	}
+	if patch.ProductionID != nil {
+		updates["production_id"] = patch.ProductionID
+	}
+	if patch.PreviewTimelineID != nil {
+		updates["preview_timeline_id"] = patch.PreviewTimelineID
+	}
+	if strings.TrimSpace(patch.Name) != "" {
+		updates["name"] = patch.Name
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]domainsemantic.DeliveryTimelineItem, error) {
@@ -1564,7 +2080,7 @@ func deliveryTimelineItemsFromModels(items []persistencemodel.DeliveryTimelineIt
 
 func (r *gormRepository) CreateDeliveryTimelineItem(ctx context.Context, item domainsemantic.DeliveryTimelineItem) (domainsemantic.DeliveryTimelineItem, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.DeliveryTimelineItemFromModel(modelItem), err
 	}
 	return domainsemantic.DeliveryTimelineItemFromModel(modelItem), nil
@@ -1572,18 +2088,49 @@ func (r *gormRepository) CreateDeliveryTimelineItem(ctx context.Context, item do
 
 func (r *gormRepository) LoadDeliveryTimelineItem(ctx context.Context, projectID uint, id string) (domainsemantic.DeliveryTimelineItem, error) {
 	var item persistencemodel.DeliveryTimelineItem
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.DeliveryTimelineItem{}, err
 	}
 	return domainsemantic.DeliveryTimelineItemFromModel(item), nil
 }
 
-func (r *gormRepository) PatchDeliveryTimelineItem(ctx context.Context, item domainsemantic.DeliveryTimelineItem, updates map[string]any) (domainsemantic.DeliveryTimelineItem, error) {
+func (r *gormRepository) PatchDeliveryTimelineItem(ctx context.Context, item domainsemantic.DeliveryTimelineItem, patch domainsemantic.DeliveryTimelineItemPatch) (domainsemantic.DeliveryTimelineItem, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, deliveryTimelineItemPatchColumns(patch)); err != nil {
 		return domainsemantic.DeliveryTimelineItemFromModel(modelItem), err
 	}
 	return domainsemantic.DeliveryTimelineItemFromModel(modelItem), nil
+}
+
+func deliveryTimelineItemPatchColumns(patch domainsemantic.DeliveryTimelineItemPatch) map[string]any {
+	updates := map[string]any{
+		"delivery_version_id": patch.DeliveryVersionID,
+		"order":               patch.Order,
+		"start_sec":           patch.StartSec,
+		"duration_sec":        patch.DurationSec,
+	}
+	if patch.ContentUnitID != nil {
+		updates["content_unit_id"] = patch.ContentUnitID
+	}
+	if patch.AssetSlotID != nil {
+		updates["asset_slot_id"] = patch.AssetSlotID
+	}
+	if patch.ResourceID != nil {
+		updates["resource_id"] = patch.ResourceID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Label) != "" {
+		updates["label"] = patch.Label
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]domainsemantic.ExportRecord, error) {
@@ -1611,7 +2158,7 @@ func exportRecordsFromModels(items []persistencemodel.ExportRecord) []domainsema
 
 func (r *gormRepository) CreateExportRecord(ctx context.Context, item domainsemantic.ExportRecord) (domainsemantic.ExportRecord, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.ExportRecordFromModel(modelItem), err
 	}
 	return domainsemantic.ExportRecordFromModel(modelItem), nil
@@ -1619,18 +2166,43 @@ func (r *gormRepository) CreateExportRecord(ctx context.Context, item domainsema
 
 func (r *gormRepository) LoadExportRecord(ctx context.Context, projectID uint, id string) (domainsemantic.ExportRecord, error) {
 	var item persistencemodel.ExportRecord
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ExportRecord{}, err
 	}
 	return domainsemantic.ExportRecordFromModel(item), nil
 }
 
-func (r *gormRepository) PatchExportRecord(ctx context.Context, item domainsemantic.ExportRecord, updates map[string]any) (domainsemantic.ExportRecord, error) {
+func (r *gormRepository) PatchExportRecord(ctx context.Context, item domainsemantic.ExportRecord, patch domainsemantic.ExportRecordPatch) (domainsemantic.ExportRecord, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, exportRecordPatchColumns(patch)); err != nil {
 		return domainsemantic.ExportRecordFromModel(modelItem), err
 	}
 	return domainsemantic.ExportRecordFromModel(modelItem), nil
+}
+
+func exportRecordPatchColumns(patch domainsemantic.ExportRecordPatch) map[string]any {
+	updates := map[string]any{
+		"delivery_version_id": patch.DeliveryVersionID,
+	}
+	if patch.ResourceID != nil {
+		updates["resource_id"] = patch.ResourceID
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.Format) != "" {
+		updates["format"] = patch.Format
+	}
+	if strings.TrimSpace(patch.Preset) != "" {
+		updates["preset"] = patch.Preset
+	}
+	if strings.TrimSpace(patch.Error) != "" {
+		updates["error"] = patch.Error
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]domainsemantic.CanvasOutput, error) {
@@ -1661,7 +2233,7 @@ func canvasOutputsFromModels(items []persistencemodel.CanvasOutput) []domainsema
 
 func (r *gormRepository) CreateCanvasOutput(ctx context.Context, item domainsemantic.CanvasOutput) (domainsemantic.CanvasOutput, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.CanvasOutputFromModel(modelItem), err
 	}
 	return domainsemantic.CanvasOutputFromModel(modelItem), nil
@@ -1669,18 +2241,56 @@ func (r *gormRepository) CreateCanvasOutput(ctx context.Context, item domainsema
 
 func (r *gormRepository) LoadCanvasOutput(ctx context.Context, projectID uint, id string) (domainsemantic.CanvasOutput, error) {
 	var item persistencemodel.CanvasOutput
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CanvasOutput{}, err
 	}
 	return domainsemantic.CanvasOutputFromModel(item), nil
 }
 
-func (r *gormRepository) PatchCanvasOutput(ctx context.Context, item domainsemantic.CanvasOutput, updates map[string]any) (domainsemantic.CanvasOutput, error) {
+func (r *gormRepository) PatchCanvasOutput(ctx context.Context, item domainsemantic.CanvasOutput, patch domainsemantic.CanvasOutputPatch) (domainsemantic.CanvasOutput, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, canvasOutputPatchColumns(patch)); err != nil {
 		return domainsemantic.CanvasOutputFromModel(modelItem), err
 	}
 	return domainsemantic.CanvasOutputFromModel(modelItem), nil
+}
+
+func canvasOutputPatchColumns(patch domainsemantic.CanvasOutputPatch) map[string]any {
+	updates := map[string]any{
+		"canvas_id": patch.CanvasID,
+		"owner_id":  patch.OwnerID,
+	}
+	if patch.CanvasRunID != nil {
+		updates["canvas_run_id"] = patch.CanvasRunID
+	}
+	if strings.TrimSpace(patch.CanvasNodeID) != "" {
+		updates["canvas_node_id"] = patch.CanvasNodeID
+	}
+	if strings.TrimSpace(patch.PortID) != "" {
+		updates["port_id"] = patch.PortID
+	}
+	if strings.TrimSpace(patch.OwnerType) != "" {
+		updates["owner_type"] = patch.OwnerType
+	}
+	if strings.TrimSpace(patch.OutputType) != "" {
+		updates["output_type"] = patch.OutputType
+	}
+	if patch.ResourceID != nil {
+		updates["resource_id"] = patch.ResourceID
+	}
+	if strings.TrimSpace(patch.TargetField) != "" {
+		updates["target_field"] = patch.TargetField
+	}
+	if strings.TrimSpace(patch.ValueJSON) != "" {
+		updates["value_json"] = patch.ValueJSON
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([]domainsemantic.AssetSlot, error) {
@@ -1713,7 +2323,7 @@ func assetSlotsFromModels(items []persistencemodel.AssetSlot) []domainsemantic.A
 
 func (r *gormRepository) CreateAssetSlot(ctx context.Context, item domainsemantic.AssetSlot) (domainsemantic.AssetSlot, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.AssetSlotFromModel(modelItem), err
 	}
 	return domainsemantic.AssetSlotFromModel(modelItem), nil
@@ -1721,21 +2331,71 @@ func (r *gormRepository) CreateAssetSlot(ctx context.Context, item domainsemanti
 
 func (r *gormRepository) LoadAssetSlot(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlot, error) {
 	var item persistencemodel.AssetSlot
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.AssetSlot{}, err
 	}
 	return domainsemantic.AssetSlotFromModel(item), nil
 }
 
-func (r *gormRepository) PatchAssetSlot(ctx context.Context, item domainsemantic.AssetSlot, updates map[string]any) (domainsemantic.AssetSlot, error) {
+func (r *gormRepository) PatchAssetSlot(ctx context.Context, item domainsemantic.AssetSlot, patch domainsemantic.AssetSlotPatch) (domainsemantic.AssetSlot, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, assetSlotPatchColumns(patch)); err != nil {
 		return domainsemantic.AssetSlotFromModel(modelItem), err
 	}
 	if err := r.db.WithContext(ctx).Preload("Resource").Preload("LockedAssetSlot.Resource").First(&modelItem, modelItem.ID).Error; err != nil {
 		return domainsemantic.AssetSlotFromModel(modelItem), err
 	}
 	return domainsemantic.AssetSlotFromModel(modelItem), nil
+}
+
+func assetSlotPatchColumns(patch domainsemantic.AssetSlotPatch) map[string]any {
+	updates := make(map[string]any)
+	if patch.ProductionID != nil {
+		updates["production_id"] = patch.ProductionID
+	}
+	if patch.CreativeReferenceID != nil {
+		updates["creative_reference_id"] = patch.CreativeReferenceID
+	}
+	if patch.CreativeReferenceStateID != nil {
+		updates["creative_reference_state_id"] = patch.CreativeReferenceStateID
+	}
+	if strings.TrimSpace(patch.OwnerType) != "" {
+		updates["owner_type"] = patch.OwnerType
+	}
+	if patch.OwnerID != nil {
+		updates["owner_id"] = patch.OwnerID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Name) != "" {
+		updates["name"] = patch.Name
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.SlotKey) != "" {
+		updates["slot_key"] = patch.SlotKey
+	}
+	if strings.TrimSpace(patch.PromptHint) != "" {
+		updates["prompt_hint"] = patch.PromptHint
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.Priority) != "" {
+		updates["priority"] = patch.Priority
+	}
+	if patch.ResourceID != nil {
+		updates["resource_id"] = patch.ResourceID
+	}
+	if patch.LockedAssetSlotID != nil {
+		updates["locked_asset_slot_id"] = patch.LockedAssetSlotID
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListAssetSlotCandidates(ctx context.Context, filter AssetSlotCandidateFilter) ([]domainsemantic.AssetSlotCandidate, error) {
@@ -1763,7 +2423,7 @@ func assetSlotCandidatesFromModels(items []persistencemodel.AssetSlotCandidate) 
 
 func (r *gormRepository) CreateAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.AssetSlotCandidateFromModel(modelItem), err
 	}
 	return domainsemantic.AssetSlotCandidateFromModel(modelItem), nil
@@ -1771,15 +2431,15 @@ func (r *gormRepository) CreateAssetSlotCandidate(ctx context.Context, item doma
 
 func (r *gormRepository) LoadAssetSlotCandidate(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlotCandidate, error) {
 	var item persistencemodel.AssetSlotCandidate
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.AssetSlotCandidate{}, err
 	}
 	return domainsemantic.AssetSlotCandidateFromModel(item), nil
 }
 
-func (r *gormRepository) PatchAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate, updates map[string]any) (domainsemantic.AssetSlotCandidate, error) {
+func (r *gormRepository) PatchAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate, patch domainsemantic.AssetSlotCandidatePatch) (domainsemantic.AssetSlotCandidate, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, assetSlotCandidatePatchColumns(patch)); err != nil {
 		return domainsemantic.AssetSlotCandidateFromModel(modelItem), err
 	}
 	if err := r.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").First(&modelItem, modelItem.ID).Error; err != nil {
@@ -1788,15 +2448,37 @@ func (r *gormRepository) PatchAssetSlotCandidate(ctx context.Context, item domai
 	return domainsemantic.AssetSlotCandidateFromModel(modelItem), nil
 }
 
+func assetSlotCandidatePatchColumns(patch domainsemantic.AssetSlotCandidatePatch) map[string]any {
+	updates := map[string]any{
+		"asset_slot_id":           patch.AssetSlotID,
+		"candidate_asset_slot_id": patch.CandidateAssetSlotID,
+		"score":                   patch.Score,
+	}
+	if strings.TrimSpace(patch.SourceType) != "" {
+		updates["source_type"] = patch.SourceType
+	}
+	if patch.SourceID != nil {
+		updates["source_id"] = patch.SourceID
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.Note) != "" {
+		updates["note"] = patch.Note
+	}
+	return updates
+}
+
 func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input workflowio.AttachAssetSlotCandidateInput) (workflowio.AttachAssetSlotCandidateResult, error) {
 	return workflowio.NewEntityIOService(r.db).AttachAssetSlotCandidate(ctx, input)
 }
 
-func (r *gormRepository) ReloadAssetSlotCandidate(ctx context.Context, candidate *persistencemodel.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error) {
-	if err := r.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").First(candidate, candidate.ID).Error; err != nil {
-		return domainsemantic.AssetSlotCandidateFromModel(*candidate), err
+func (r *gormRepository) ReloadAssetSlotCandidate(ctx context.Context, candidate domainsemantic.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error) {
+	modelItem := candidate.ToModel()
+	if err := r.db.WithContext(ctx).Preload("CandidateAssetSlot.Resource").First(&modelItem, modelItem.ID).Error; err != nil {
+		return domainsemantic.AssetSlotCandidateFromModel(modelItem), err
 	}
-	return domainsemantic.AssetSlotCandidateFromModel(*candidate), nil
+	return domainsemantic.AssetSlotCandidateFromModel(modelItem), nil
 }
 
 func (r *gormRepository) ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]domainsemantic.CandidateDecision, error) {
@@ -1833,7 +2515,7 @@ func candidateDecisionsFromModels(items []persistencemodel.CandidateDecision) []
 
 func (r *gormRepository) CreateCandidateDecision(ctx context.Context, item domainsemantic.CandidateDecision) (domainsemantic.CandidateDecision, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.CandidateDecisionFromModel(modelItem), err
 	}
 	return domainsemantic.CandidateDecisionFromModel(modelItem), nil
@@ -1841,18 +2523,62 @@ func (r *gormRepository) CreateCandidateDecision(ctx context.Context, item domai
 
 func (r *gormRepository) LoadCandidateDecision(ctx context.Context, projectID uint, id string) (domainsemantic.CandidateDecision, error) {
 	var item persistencemodel.CandidateDecision
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CandidateDecision{}, err
 	}
 	return domainsemantic.CandidateDecisionFromModel(item), nil
 }
 
-func (r *gormRepository) PatchCandidateDecision(ctx context.Context, item domainsemantic.CandidateDecision, updates map[string]any) (domainsemantic.CandidateDecision, error) {
+func (r *gormRepository) PatchCandidateDecision(ctx context.Context, item domainsemantic.CandidateDecision, patch domainsemantic.CandidateDecisionPatch) (domainsemantic.CandidateDecision, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, candidateDecisionPatchColumns(patch)); err != nil {
 		return domainsemantic.CandidateDecisionFromModel(modelItem), err
 	}
 	return domainsemantic.CandidateDecisionFromModel(modelItem), nil
+}
+
+func candidateDecisionPatchColumns(patch domainsemantic.CandidateDecisionPatch) map[string]any {
+	updates := make(map[string]any)
+	if strings.TrimSpace(patch.CandidateType) != "" {
+		updates["candidate_type"] = patch.CandidateType
+	}
+	if patch.CandidateID != nil {
+		updates["candidate_id"] = patch.CandidateID
+	}
+	if strings.TrimSpace(patch.CandidateClientID) != "" {
+		updates["candidate_client_id"] = patch.CandidateClientID
+	}
+	if strings.TrimSpace(patch.TargetType) != "" {
+		updates["target_type"] = patch.TargetType
+	}
+	if patch.TargetID != nil {
+		updates["target_id"] = patch.TargetID
+	}
+	if strings.TrimSpace(patch.Decision) != "" {
+		updates["decision"] = patch.Decision
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.Reason) != "" {
+		updates["reason"] = patch.Reason
+	}
+	if strings.TrimSpace(patch.Note) != "" {
+		updates["note"] = patch.Note
+	}
+	if strings.TrimSpace(patch.Source) != "" {
+		updates["source"] = patch.Source
+	}
+	if patch.DecidedByID != nil {
+		updates["decided_by_id"] = patch.DecidedByID
+	}
+	if strings.TrimSpace(patch.AppliedAt) != "" {
+		updates["applied_at"] = patch.AppliedAt
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListReviewEvents(ctx context.Context, filter ReviewEventFilter) ([]domainsemantic.ReviewEvent, error) {
@@ -1886,7 +2612,7 @@ func reviewEventsFromModels(items []persistencemodel.ReviewEvent) []domainsemant
 
 func (r *gormRepository) CreateReviewEvent(ctx context.Context, item domainsemantic.ReviewEvent) (domainsemantic.ReviewEvent, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.ReviewEventFromModel(modelItem), err
 	}
 	return domainsemantic.ReviewEventFromModel(modelItem), nil
@@ -1894,18 +2620,56 @@ func (r *gormRepository) CreateReviewEvent(ctx context.Context, item domainseman
 
 func (r *gormRepository) LoadReviewEvent(ctx context.Context, projectID uint, id string) (domainsemantic.ReviewEvent, error) {
 	var item persistencemodel.ReviewEvent
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.ReviewEvent{}, err
 	}
 	return domainsemantic.ReviewEventFromModel(item), nil
 }
 
-func (r *gormRepository) PatchReviewEvent(ctx context.Context, item domainsemantic.ReviewEvent, updates map[string]any) (domainsemantic.ReviewEvent, error) {
+func (r *gormRepository) PatchReviewEvent(ctx context.Context, item domainsemantic.ReviewEvent, patch domainsemantic.ReviewEventPatch) (domainsemantic.ReviewEvent, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, reviewEventPatchColumns(patch)); err != nil {
 		return domainsemantic.ReviewEventFromModel(modelItem), err
 	}
 	return domainsemantic.ReviewEventFromModel(modelItem), nil
+}
+
+func reviewEventPatchColumns(patch domainsemantic.ReviewEventPatch) map[string]any {
+	updates := make(map[string]any)
+	if strings.TrimSpace(patch.SubjectType) != "" {
+		updates["subject_type"] = patch.SubjectType
+	}
+	if patch.SubjectID != nil {
+		updates["subject_id"] = patch.SubjectID
+	}
+	if strings.TrimSpace(patch.SubjectClientID) != "" {
+		updates["subject_client_id"] = patch.SubjectClientID
+	}
+	if strings.TrimSpace(patch.EventType) != "" {
+		updates["event_type"] = patch.EventType
+	}
+	if strings.TrimSpace(patch.FromStatus) != "" {
+		updates["from_status"] = patch.FromStatus
+	}
+	if strings.TrimSpace(patch.ToStatus) != "" {
+		updates["to_status"] = patch.ToStatus
+	}
+	if strings.TrimSpace(patch.Comment) != "" {
+		updates["comment"] = patch.Comment
+	}
+	if strings.TrimSpace(patch.Reason) != "" {
+		updates["reason"] = patch.Reason
+	}
+	if strings.TrimSpace(patch.Source) != "" {
+		updates["source"] = patch.Source
+	}
+	if patch.ActorID != nil {
+		updates["actor_id"] = patch.ActorID
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListCreativeReferences(ctx context.Context, filter CreativeReferenceFilter) ([]domainsemantic.CreativeReference, error) {
@@ -1930,7 +2694,7 @@ func creativeReferencesFromModels(items []persistencemodel.CreativeReference) []
 
 func (r *gormRepository) CreateCreativeReference(ctx context.Context, item domainsemantic.CreativeReference) (domainsemantic.CreativeReference, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.CreativeReferenceFromModel(modelItem), err
 	}
 	return domainsemantic.CreativeReferenceFromModel(modelItem), nil
@@ -1938,18 +2702,56 @@ func (r *gormRepository) CreateCreativeReference(ctx context.Context, item domai
 
 func (r *gormRepository) LoadCreativeReference(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReference, error) {
 	var item persistencemodel.CreativeReference
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CreativeReference{}, err
 	}
 	return domainsemantic.CreativeReferenceFromModel(item), nil
 }
 
-func (r *gormRepository) PatchCreativeReference(ctx context.Context, item domainsemantic.CreativeReference, updates map[string]any) (domainsemantic.CreativeReference, error) {
+func (r *gormRepository) PatchCreativeReference(ctx context.Context, item domainsemantic.CreativeReference, patch domainsemantic.CreativeReferencePatch) (domainsemantic.CreativeReference, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, creativeReferencePatchColumns(patch)); err != nil {
 		return domainsemantic.CreativeReferenceFromModel(modelItem), err
 	}
 	return domainsemantic.CreativeReferenceFromModel(modelItem), nil
+}
+
+func creativeReferencePatchColumns(patch domainsemantic.CreativeReferencePatch) map[string]any {
+	updates := make(map[string]any)
+	if patch.SourceScriptID != nil {
+		updates["source_script_id"] = patch.SourceScriptID
+	}
+	if patch.SourceAnalysisID != nil {
+		updates["source_analysis_id"] = patch.SourceAnalysisID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Name) != "" {
+		updates["name"] = patch.Name
+	}
+	if strings.TrimSpace(patch.Alias) != "" {
+		updates["alias"] = patch.Alias
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Content) != "" {
+		updates["content"] = patch.Content
+	}
+	if strings.TrimSpace(patch.Importance) != "" {
+		updates["importance"] = patch.Importance
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.ProfileJSON) != "" {
+		updates["profile_json"] = patch.ProfileJSON
+	}
+	if strings.TrimSpace(patch.TagsJSON) != "" {
+		updates["tags_json"] = patch.TagsJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]domainsemantic.CreativeReferenceState, error) {
@@ -1974,7 +2776,7 @@ func creativeReferenceStatesFromModels(items []persistencemodel.CreativeReferenc
 
 func (r *gormRepository) CreateCreativeReferenceState(ctx context.Context, item domainsemantic.CreativeReferenceState) (domainsemantic.CreativeReferenceState, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.CreativeReferenceStateFromModel(modelItem), err
 	}
 	return domainsemantic.CreativeReferenceStateFromModel(modelItem), nil
@@ -1982,18 +2784,59 @@ func (r *gormRepository) CreateCreativeReferenceState(ctx context.Context, item 
 
 func (r *gormRepository) LoadCreativeReferenceState(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReferenceState, error) {
 	var item persistencemodel.CreativeReferenceState
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CreativeReferenceState{}, err
 	}
 	return domainsemantic.CreativeReferenceStateFromModel(item), nil
 }
 
-func (r *gormRepository) PatchCreativeReferenceState(ctx context.Context, item domainsemantic.CreativeReferenceState, updates map[string]any) (domainsemantic.CreativeReferenceState, error) {
+func (r *gormRepository) PatchCreativeReferenceState(ctx context.Context, item domainsemantic.CreativeReferenceState, patch domainsemantic.CreativeReferenceStatePatch) (domainsemantic.CreativeReferenceState, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, creativeReferenceStatePatchColumns(patch)); err != nil {
 		return domainsemantic.CreativeReferenceStateFromModel(modelItem), err
 	}
 	return domainsemantic.CreativeReferenceStateFromModel(modelItem), nil
+}
+
+func creativeReferenceStatePatchColumns(patch domainsemantic.CreativeReferenceStatePatch) map[string]any {
+	updates := make(map[string]any)
+	if patch.CreativeReferenceID > 0 {
+		updates["creative_reference_id"] = patch.CreativeReferenceID
+	}
+	if strings.TrimSpace(patch.ScopeType) != "" {
+		updates["scope_type"] = patch.ScopeType
+	}
+	if patch.ScopeID != nil {
+		updates["scope_id"] = patch.ScopeID
+	}
+	if strings.TrimSpace(patch.Name) != "" {
+		updates["name"] = patch.Name
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.VisualNotes) != "" {
+		updates["visual_notes"] = patch.VisualNotes
+	}
+	if strings.TrimSpace(patch.Emotion) != "" {
+		updates["emotion"] = patch.Emotion
+	}
+	if strings.TrimSpace(patch.Costume) != "" {
+		updates["costume"] = patch.Costume
+	}
+	if strings.TrimSpace(patch.Props) != "" {
+		updates["props"] = patch.Props
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.TagsJSON) != "" {
+		updates["tags_json"] = patch.TagsJSON
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]domainsemantic.CreativeReferenceUsage, error) {
@@ -2027,7 +2870,7 @@ func creativeReferenceUsagesFromModels(items []persistencemodel.CreativeReferenc
 
 func (r *gormRepository) CreateCreativeReferenceUsage(ctx context.Context, item domainsemantic.CreativeReferenceUsage) (domainsemantic.CreativeReferenceUsage, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.CreativeReferenceUsageFromModel(modelItem), err
 	}
 	return domainsemantic.CreativeReferenceUsageFromModel(modelItem), nil
@@ -2035,18 +2878,48 @@ func (r *gormRepository) CreateCreativeReferenceUsage(ctx context.Context, item 
 
 func (r *gormRepository) LoadCreativeReferenceUsage(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeReferenceUsage, error) {
 	var item persistencemodel.CreativeReferenceUsage
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CreativeReferenceUsage{}, err
 	}
 	return domainsemantic.CreativeReferenceUsageFromModel(item), nil
 }
 
-func (r *gormRepository) PatchCreativeReferenceUsage(ctx context.Context, item domainsemantic.CreativeReferenceUsage, updates map[string]any) (domainsemantic.CreativeReferenceUsage, error) {
+func (r *gormRepository) PatchCreativeReferenceUsage(ctx context.Context, item domainsemantic.CreativeReferenceUsage, patch domainsemantic.CreativeReferenceUsagePatch) (domainsemantic.CreativeReferenceUsage, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, creativeReferenceUsagePatchColumns(patch)); err != nil {
 		return domainsemantic.CreativeReferenceUsageFromModel(modelItem), err
 	}
 	return domainsemantic.CreativeReferenceUsageFromModel(modelItem), nil
+}
+
+func creativeReferenceUsagePatchColumns(patch domainsemantic.CreativeReferenceUsagePatch) map[string]any {
+	updates := map[string]any{
+		"owner_id":              patch.OwnerID,
+		"creative_reference_id": patch.CreativeReferenceID,
+		"order":                 patch.Order,
+	}
+	if strings.TrimSpace(patch.OwnerType) != "" {
+		updates["owner_type"] = patch.OwnerType
+	}
+	if patch.CreativeReferenceStateID != nil {
+		updates["creative_reference_state_id"] = patch.CreativeReferenceStateID
+	}
+	if strings.TrimSpace(patch.Role) != "" {
+		updates["role"] = patch.Role
+	}
+	if strings.TrimSpace(patch.Evidence) != "" {
+		updates["evidence"] = patch.Evidence
+	}
+	if strings.TrimSpace(patch.Source) != "" {
+		updates["source"] = patch.Source
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }
 
 func (r *gormRepository) ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]domainsemantic.CreativeRelationship, error) {
@@ -2077,7 +2950,7 @@ func creativeRelationshipsFromModels(items []persistencemodel.CreativeRelationsh
 
 func (r *gormRepository) CreateCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship) (domainsemantic.CreativeRelationship, error) {
 	modelItem := item.ToModel()
-	if err := r.CreateItem(ctx, &modelItem); err != nil {
+	if err := r.createItem(ctx, &modelItem); err != nil {
 		return domainsemantic.CreativeRelationshipFromModel(modelItem), err
 	}
 	return domainsemantic.CreativeRelationshipFromModel(modelItem), nil
@@ -2085,16 +2958,54 @@ func (r *gormRepository) CreateCreativeRelationship(ctx context.Context, item do
 
 func (r *gormRepository) LoadCreativeRelationship(ctx context.Context, projectID uint, id string) (domainsemantic.CreativeRelationship, error) {
 	var item persistencemodel.CreativeRelationship
-	if err := r.LoadProjectItem(ctx, projectID, &item, id); err != nil {
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
 		return domainsemantic.CreativeRelationship{}, err
 	}
 	return domainsemantic.CreativeRelationshipFromModel(item), nil
 }
 
-func (r *gormRepository) PatchCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship, updates map[string]any) (domainsemantic.CreativeRelationship, error) {
+func (r *gormRepository) PatchCreativeRelationship(ctx context.Context, item domainsemantic.CreativeRelationship, patch domainsemantic.CreativeRelationshipPatch) (domainsemantic.CreativeRelationship, error) {
 	modelItem := item.ToModel()
-	if err := r.PatchItem(ctx, &modelItem, updates); err != nil {
+	if err := r.patchItem(ctx, &modelItem, creativeRelationshipPatchColumns(patch)); err != nil {
 		return domainsemantic.CreativeRelationshipFromModel(modelItem), err
 	}
 	return domainsemantic.CreativeRelationshipFromModel(modelItem), nil
+}
+
+func creativeRelationshipPatchColumns(patch domainsemantic.CreativeRelationshipPatch) map[string]any {
+	updates := map[string]any{
+		"source_creative_reference_id": patch.SourceCreativeReferenceID,
+		"target_creative_reference_id": patch.TargetCreativeReferenceID,
+	}
+	if strings.TrimSpace(patch.ScopeType) != "" {
+		updates["scope_type"] = patch.ScopeType
+	}
+	if patch.ScopeID != nil {
+		updates["scope_id"] = patch.ScopeID
+	}
+	if strings.TrimSpace(patch.Category) != "" {
+		updates["category"] = patch.Category
+	}
+	if strings.TrimSpace(patch.Type) != "" {
+		updates["type"] = patch.Type
+	}
+	if strings.TrimSpace(patch.Label) != "" {
+		updates["label"] = patch.Label
+	}
+	if strings.TrimSpace(patch.Description) != "" {
+		updates["description"] = patch.Description
+	}
+	if strings.TrimSpace(patch.Source) != "" {
+		updates["source"] = patch.Source
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.Evidence) != "" {
+		updates["evidence"] = patch.Evidence
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
 }

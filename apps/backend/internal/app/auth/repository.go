@@ -19,19 +19,18 @@ type repository interface {
 	CreateUser(ctx context.Context, user *domainauth.RegisteredUser) (domainauth.UserProfile, error)
 	SuperAdminCount(ctx context.Context) (int64, error)
 	FindSuperAdmin(ctx context.Context) (domainauth.RegisteredUser, error)
-	UpdateUser(ctx context.Context, userID uint, updates map[string]any) error
+	UpdateUser(ctx context.Context, userID uint, spec domainauth.UserUpdateSpec) error
 	FindAvailableUsername(ctx context.Context, base string) (string, error)
 	FindUserForLogin(ctx context.Context, username string, email string) (domainauth.RegisteredUser, error)
 	FindUserByID(ctx context.Context, userID uint) (domainauth.UserProfile, error)
-	FindUserModelByID(ctx context.Context, userID uint) (persistencemodel.User, error)
 	CreateChallenge(ctx context.Context, challenge *domainauth.AuthChallenge) error
 	FindChallenge(ctx context.Context, id uint) (domainauth.AuthChallenge, error)
 	IncrementChallengeAttempts(ctx context.Context, challenge *domainauth.AuthChallenge) error
 	ConsumeChallenge(ctx context.Context, challenge *domainauth.AuthChallenge, consumedAt time.Time) error
 	FindUserByEmail(ctx context.Context, email string) (domainauth.UserProfile, error)
-	CreateSession(ctx context.Context, session *persistencemodel.AuthSession) error
-	FindActiveSession(ctx context.Context, tokenHash string, now time.Time) (persistencemodel.AuthSession, error)
-	TouchSession(ctx context.Context, session *persistencemodel.AuthSession, seenAt time.Time) error
+	CreateSession(ctx context.Context, session *domainauth.AuthSession) error
+	FindActiveSession(ctx context.Context, tokenHash string, now time.Time) (domainauth.AuthSession, error)
+	TouchSession(ctx context.Context, session *domainauth.AuthSession, seenAt time.Time) error
 	RevokeSession(ctx context.Context, tokenHash string, revokedAt time.Time) error
 	OrgMemberships(ctx context.Context, userID uint) ([]OrgMembershipSummary, error)
 }
@@ -97,11 +96,29 @@ func (r *gormRepository) FindSuperAdmin(ctx context.Context) (domainauth.Registe
 	return domainauth.RegisteredUserFromModel(user), nil
 }
 
-func (r *gormRepository) UpdateUser(ctx context.Context, userID uint, updates map[string]any) error {
+func (r *gormRepository) UpdateUser(ctx context.Context, userID uint, spec domainauth.UserUpdateSpec) error {
+	updates := userUpdateColumns(spec)
 	if len(updates) == 0 {
 		return nil
 	}
 	return r.db.WithContext(ctx).Model(&persistencemodel.User{}).Where("id = ?", userID).Updates(updates).Error
+}
+
+func userUpdateColumns(spec domainauth.UserUpdateSpec) map[string]any {
+	updates := map[string]any{}
+	if spec.PasswordHash != nil {
+		updates["password_hash"] = *spec.PasswordHash
+	}
+	if spec.DisplayName != nil {
+		updates["display_name"] = *spec.DisplayName
+	}
+	if spec.AvatarURL != nil {
+		updates["avatar_url"] = *spec.AvatarURL
+	}
+	if spec.Locale != nil {
+		updates["locale"] = *spec.Locale
+	}
+	return updates
 }
 
 func (r *gormRepository) FindAvailableUsername(ctx context.Context, base string) (string, error) {
@@ -140,14 +157,6 @@ func (r *gormRepository) FindUserByID(ctx context.Context, userID uint) (domaina
 		return domainauth.UserProfile{}, err
 	}
 	return domainauth.UserProfileFromModel(user), nil
-}
-
-func (r *gormRepository) FindUserModelByID(ctx context.Context, userID uint) (persistencemodel.User, error) {
-	var user persistencemodel.User
-	if err := r.db.WithContext(ctx).First(&user, userID).Error; err != nil {
-		return persistencemodel.User{}, err
-	}
-	return user, nil
 }
 
 func (r *gormRepository) CreateChallenge(ctx context.Context, challenge *domainauth.AuthChallenge) error {
@@ -189,23 +198,33 @@ func (r *gormRepository) FindUserByEmail(ctx context.Context, email string) (dom
 	return domainauth.UserProfileFromModel(user), nil
 }
 
-func (r *gormRepository) CreateSession(ctx context.Context, session *persistencemodel.AuthSession) error {
-	return r.db.WithContext(ctx).Create(session).Error
+func (r *gormRepository) CreateSession(ctx context.Context, session *domainauth.AuthSession) error {
+	row := session.ToModel()
+	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
+		return err
+	}
+	*session = domainauth.AuthSessionFromModel(row)
+	return nil
 }
 
-func (r *gormRepository) FindActiveSession(ctx context.Context, tokenHash string, now time.Time) (persistencemodel.AuthSession, error) {
+func (r *gormRepository) FindActiveSession(ctx context.Context, tokenHash string, now time.Time) (domainauth.AuthSession, error) {
 	var session persistencemodel.AuthSession
 	err := r.db.WithContext(ctx).
 		Where("token_hash = ? AND revoked_at IS NULL AND expires_at > ?", tokenHash, now).
 		First(&session).Error
 	if err != nil {
-		return persistencemodel.AuthSession{}, err
+		return domainauth.AuthSession{}, err
 	}
-	return session, nil
+	return domainauth.AuthSessionFromModel(session), nil
 }
 
-func (r *gormRepository) TouchSession(ctx context.Context, session *persistencemodel.AuthSession, seenAt time.Time) error {
-	return r.db.WithContext(ctx).Model(session).Updates(map[string]any{"last_seen_at": &seenAt}).Error
+func (r *gormRepository) TouchSession(ctx context.Context, session *domainauth.AuthSession, seenAt time.Time) error {
+	row := session.ToModel()
+	if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{"last_seen_at": &seenAt}).Error; err != nil {
+		return err
+	}
+	session.LastSeenAt = &seenAt
+	return nil
 }
 
 func (r *gormRepository) RevokeSession(ctx context.Context, tokenHash string, revokedAt time.Time) error {

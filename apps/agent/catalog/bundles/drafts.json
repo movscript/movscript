@@ -19,7 +19,6 @@
     "movscript_patch_draft",
     "movscript_validate_draft",
     "movscript_request_user_input",
-    "movscript_apply_draft",
     "movscript_create_script"
   ]
 }

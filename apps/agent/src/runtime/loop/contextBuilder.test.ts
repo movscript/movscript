@@ -35,12 +35,15 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
 
   const systemMessages = built.messages.filter((message) => message.role === 'system')
   assert.ok(systemMessages.length > 1)
-  assert.match(systemMessages[0].content ?? '', /Current work context/)
-  assert.match(systemMessages[0].content ?? '', /Title:/)
-  assert.match(systemMessages[0].content ?? '', /Business reference:/)
-  assert.match(systemMessages[0].content ?? '', /production#4/)
+  assert.match(systemMessages[0].content ?? '', /Global Capability Policy/)
+  assert.match(systemMessages[1].content ?? '', /Current work context/)
+  assert.match(systemMessages[1].content ?? '', /Title:/)
+  assert.match(systemMessages[1].content ?? '', /Business reference:/)
+  assert.match(systemMessages[1].content ?? '', /production#4/)
   assert.equal(systemMessages.some((message) => String(message.content).includes('Runtime context JSON')), false)
   assert.ok(systemMessages.some((message) => String(message.content).includes('outputMode: natural')))
+  assert.ok(systemMessages.some((message) => String(message.content).includes('durable handoff anchors')))
+  assert.ok(systemMessages.some((message) => String(message.content).includes('Do not dump raw tool traces')))
 })
 
 test('buildContext uses runtime contract for tool schemas without forcing JSON assistant content', () => {

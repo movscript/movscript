@@ -219,6 +219,7 @@ export function buildAssistantMessages(
         'Use the runtime context, plan, tool results, and memories when available.',
         'Do not claim you changed project data unless a tool result proves it.',
         'When writes are represented as drafts or approval requests, describe them as drafts or pending approvals.',
+        'Final responses must leave durable handoff anchors for future turns: created or modified artifact references such as draftId, proposalRef, projectId, and productionId; current artifact status; key decisions; unresolved questions; and the exact object future edits should continue from. Do not dump raw tool traces; preserve only user-relevant conclusions and stable references.',
         agentSoul ? `[Agent-specific output contract]\n${agentSoul}` : undefined,
       ].join('\n'),
     },
@@ -400,10 +401,6 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     const ok = isRecord(parsed) && parsed.ok === true
     const issues = isRecord(parsed) && Array.isArray(parsed.issues) ? parsed.issues.length : undefined
     return `校验本地草稿${ok ? '通过' : '未通过'}${issues === undefined ? '' : `，问题 ${issues} 个`}。`
-  }
-  if (call.name === 'movscript_apply_draft') {
-    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
-    return `应用草稿审批链已执行（${status}）；当前只更新本地 Agent 草稿生命周期，不直接写正式项目实体。`
   }
   if (call.name === 'movscript_create_generation_job') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'

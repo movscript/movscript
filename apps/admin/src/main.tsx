@@ -11,7 +11,7 @@ import { Button } from '@movscript/ui'
 import AdminPage, { CloudFileConfigPage, FeatureConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage } from '@admin/pages/admin/AdminPage'
 import AgentDebugPage from '@admin/pages/admin/AgentDebugPage'
 import { DebugPage } from '@admin/pages/admin/DebugPage'
-import { editionNavItems, editionRoutes } from '@admin-edition'
+import { runtimeNavItems, runtimeRoutes } from '@admin-runtime'
 import { Toaster } from '@/components/ui/Toaster'
 import { initTheme, useTheme } from '@/hooks/useTheme'
 import '@/i18n'
@@ -116,7 +116,7 @@ const baseNavItems: { to: string; label: string; icon: LucideIcon; end?: boolean
   { to: '/debug', label: '调试', icon: Bug },
 ]
 
-const navItems = [...baseNavItems, ...editionNavItems]
+const navItems = [...baseNavItems, ...runtimeNavItems]
 
 const adminBasename = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
   ? '/admin'
@@ -261,7 +261,7 @@ function App() {
         <Route path="/projects" element={<AdminShell><ProjectOwnerManagementPage /></AdminShell>} />
         <Route path="/storage" element={<AdminShell><StoragePage /></AdminShell>} />
         <Route path="/cloud-files" element={<AdminShell><CloudFileConfigPage /></AdminShell>} />
-        {editionRoutes.map((route) => (
+        {runtimeRoutes.map((route) => (
           <Route key={route.path} path={route.path} element={<AdminShell>{route.element}</AdminShell>} />
         ))}
         <Route path="/agent-debug" element={<AdminShell><AgentDebugPage /></AdminShell>} />

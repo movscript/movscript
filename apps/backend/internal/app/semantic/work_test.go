@@ -156,11 +156,15 @@ func TestCompleteWorkItemAppliesAssetCandidateRelationsWithoutHooks(t *testing.T
 	}
 
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}))
-	got, err := service.completeWorkItem(ctx, 1, domainsemantic.WorkItemFromModel(work), map[string]any{
-		"status":       "done",
-		"result_type":  "lock_asset_candidate",
-		"result_json":  work.ResultJSON,
-		"apply_status": "pending",
+	got, err := service.completeWorkItem(ctx, 1, domainsemantic.WorkItemFromModel(work), domainsemantic.WorkItemPatch{
+		TargetType: work.TargetType,
+		TargetID:   work.TargetID,
+		Kind:       work.Kind,
+		Title:      work.Title,
+		Status:     "done",
+		Priority:   work.Priority,
+		ResultType: "lock_asset_candidate",
+		ResultJSON: work.ResultJSON,
 	}, nil)
 	if err != nil {
 		t.Fatalf("complete work item: %v", err)

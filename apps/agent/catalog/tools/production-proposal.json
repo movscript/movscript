@@ -74,16 +74,16 @@
       }
     },
     {
-      "name": "movscript_list_production_proposal_nodes",
-      "description": "List scene moments, creative references, asset slots, content units, and keyframes inside a production_proposal draft.",
-      "permission": "draft.read",
-      "risk": "read",
+      "name": "movscript_upsert_proposal_segment",
+      "description": "Create or update one segment inside the local production_proposal draft so scene moments can be attached under it.",
+      "permission": "draft.write",
+      "risk": "draft",
       "source": "runtime",
       "category": "production_proposal",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_list_production_proposal_nodes",
+        "name": "movscript_upsert_proposal_segment",
         "mode": "allow",
         "approval": "never"
       }
@@ -159,21 +159,6 @@
       "requiresApprovalByDefault": false,
       "defaultGrant": {
         "name": "movscript_upsert_proposal_keyframe",
-        "mode": "allow",
-        "approval": "never"
-      }
-    },
-    {
-      "name": "movscript_delete_production_proposal_node",
-      "description": "Delete one scene moment, creative reference, asset slot, content unit, or keyframe from a production_proposal draft.",
-      "permission": "draft.write",
-      "risk": "draft",
-      "source": "runtime",
-      "category": "production_proposal",
-      "projectScoped": false,
-      "requiresApprovalByDefault": false,
-      "defaultGrant": {
-        "name": "movscript_delete_production_proposal_node",
         "mode": "allow",
         "approval": "never"
       }

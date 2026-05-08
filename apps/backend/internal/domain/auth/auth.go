@@ -137,18 +137,35 @@ type ProfileInput struct {
 	Locale      *string
 }
 
-func ProfileUpdates(input ProfileInput) map[string]any {
-	updates := map[string]any{}
+type UserUpdateSpec struct {
+	PasswordHash *string
+	DisplayName  *string
+	AvatarURL    *string
+	Locale       *string
+}
+
+func (spec UserUpdateSpec) Empty() bool {
+	return spec.PasswordHash == nil &&
+		spec.DisplayName == nil &&
+		spec.AvatarURL == nil &&
+		spec.Locale == nil
+}
+
+func ProfileUpdateSpec(input ProfileInput) UserUpdateSpec {
+	var spec UserUpdateSpec
 	if input.DisplayName != nil {
-		updates["display_name"] = strings.TrimSpace(*input.DisplayName)
+		displayName := strings.TrimSpace(*input.DisplayName)
+		spec.DisplayName = &displayName
 	}
 	if input.AvatarURL != nil {
-		updates["avatar_url"] = strings.TrimSpace(*input.AvatarURL)
+		avatarURL := strings.TrimSpace(*input.AvatarURL)
+		spec.AvatarURL = &avatarURL
 	}
 	if input.Locale != nil {
-		updates["locale"] = strings.TrimSpace(*input.Locale)
+		locale := strings.TrimSpace(*input.Locale)
+		spec.Locale = &locale
 	}
-	return updates
+	return spec
 }
 
 func Truncate(value string, max int) string {

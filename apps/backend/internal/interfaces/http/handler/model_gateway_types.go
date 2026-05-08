@@ -128,19 +128,19 @@ type chatCompletionStreamEvent struct {
 }
 
 type createGatewayAPIKeyRequest struct {
-	Name            string   `json:"name" binding:"required"`
-	ProjectID       *uint    `json:"project_id"`
-	AllowedModelIDs []uint   `json:"allowed_model_ids"`
-	AllowedScopes   []string `json:"allowed_scopes"`
-	Edition         gatewayAPIKeyCreateEditionRequest
+	Name            string                            `json:"name" binding:"required"`
+	ProjectID       *uint                             `json:"project_id"`
+	AllowedModelIDs []uint                            `json:"allowed_model_ids"`
+	AllowedScopes   []string                          `json:"allowed_scopes"`
+	Runtime         gatewayAPIKeyCreateRuntimeRequest `json:"runtime,omitempty"`
 }
 
 type updateGatewayAPIKeyRequest struct {
-	Name            *string  `json:"name"`
-	AllowedModelIDs []uint   `json:"allowed_model_ids"`
-	AllowedScopes   []string `json:"allowed_scopes"`
-	IsEnabled       *bool    `json:"is_enabled"`
-	Edition         gatewayAPIKeyUpdateEditionRequest
+	Name            *string                           `json:"name"`
+	AllowedModelIDs []uint                            `json:"allowed_model_ids"`
+	AllowedScopes   []string                          `json:"allowed_scopes"`
+	IsEnabled       *bool                             `json:"is_enabled"`
+	Runtime         gatewayAPIKeyUpdateRuntimeRequest `json:"runtime,omitempty"`
 }
 
 type gatewayAPIKeyCreateResponse struct {

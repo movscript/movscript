@@ -64,3 +64,45 @@ func TestNewInitialVersionUsesScriptSnapshot(t *testing.T) {
 		t.Fatalf("unexpected version round-trip: %+v", roundTrip)
 	}
 }
+
+func TestScriptPatchSpecAppliesZeroValuesAndNilPointers(t *testing.T) {
+	assigneeID := uint(7)
+	item := ScriptSnapshot{
+		Title:             "Old",
+		Version:           3,
+		ParentScriptID:    &assigneeID,
+		AssigneeID:        &assigneeID,
+		PlannedSceneCount: 8,
+		Order:             9,
+	}
+	empty := ""
+	zero := 0
+	var noParent *uint
+	var noAssignee *uint
+
+	item.ApplyPatch(ScriptPatchSpec{
+		Title:             &empty,
+		Version:           &zero,
+		ParentScriptID:    &noParent,
+		AssigneeID:        &noAssignee,
+		PlannedSceneCount: &zero,
+		Order:             &zero,
+	})
+
+	if item.Title != "" || item.Version != 0 || item.ParentScriptID != nil || item.AssigneeID != nil || item.PlannedSceneCount != 0 || item.Order != 0 {
+		t.Fatalf("patch zero values not applied: %+v", item)
+	}
+}
+
+func TestInitialVersionSyncActivatesMissingStatus(t *testing.T) {
+	item := ScriptSnapshot{Title: "Draft", SourceType: ScriptSourceTypeRaw, Content: "content", RawSource: "raw", Summary: "summary"}
+	spec := InitialVersionSync(item, ScriptVersion{})
+	if spec.Status == nil || *spec.Status != ScriptVersionStatusActive {
+		t.Fatalf("status = %#v, want active", spec.Status)
+	}
+	version := ScriptVersion{}
+	version.ApplyInitialSync(spec)
+	if version.Title != "Draft" || version.Status != ScriptVersionStatusActive || version.RawSource != "raw" {
+		t.Fatalf("sync not applied: %+v", version)
+	}
+}

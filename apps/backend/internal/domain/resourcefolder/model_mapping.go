@@ -64,24 +64,46 @@ func (permission Permission) ApplyToModel(target *persistencemodel.ResourceFolde
 	target.Permission = permission.Permission
 }
 
-func UserRefFromModelPointer(user *persistencemodel.User) *UserRef {
-	if user == nil {
-		return nil
-	}
-	return UserRefFromModel(*user)
+func UserRefFromModelPointer(user any) *UserRef {
+	return UserRefFromModel(user)
 }
 
-func UserRefFromModel(user persistencemodel.User) *UserRef {
-	if user.ID == 0 {
+func UserRefFromModel(input any) *UserRef {
+	user := userRefFields(input)
+	if user.id == 0 {
 		return nil
 	}
 	return &UserRef{
-		ID:           user.ID,
-		Username:     user.Username,
-		SystemRole:   user.SystemRole,
-		PrimaryEmail: user.PrimaryEmail,
-		DisplayName:  user.DisplayName,
-		AvatarURL:    user.AvatarURL,
-		Status:       user.Status,
+		ID:           user.id,
+		Username:     user.username,
+		SystemRole:   user.systemRole,
+		PrimaryEmail: user.primaryEmail,
+		DisplayName:  user.displayName,
+		AvatarURL:    user.avatarURL,
+		Status:       user.status,
+	}
+}
+
+type userRefSnapshot struct {
+	id           uint
+	username     string
+	systemRole   string
+	primaryEmail *string
+	displayName  string
+	avatarURL    string
+	status       string
+}
+
+func userRefFields(input any) userRefSnapshot {
+	switch user := input.(type) {
+	case persistencemodel.User:
+		return userRefSnapshot{id: user.ID, username: user.Username, systemRole: user.SystemRole, primaryEmail: user.PrimaryEmail, displayName: user.DisplayName, avatarURL: user.AvatarURL, status: user.Status}
+	case *persistencemodel.User:
+		if user == nil {
+			return userRefSnapshot{}
+		}
+		return userRefSnapshot{id: user.ID, username: user.Username, systemRole: user.SystemRole, primaryEmail: user.PrimaryEmail, displayName: user.DisplayName, avatarURL: user.AvatarURL, status: user.Status}
+	default:
+		return userRefSnapshot{}
 	}
 }

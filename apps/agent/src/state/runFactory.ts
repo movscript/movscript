@@ -26,7 +26,6 @@ export function buildAgentRun(input: BuildAgentRunInput): AgentRun {
     createdAt: input.now,
     updatedAt: input.now,
     steps: [],
-    traceEvents: [],
     ...withMetadata(buildAgentRunMetadata(input)),
   }
 }

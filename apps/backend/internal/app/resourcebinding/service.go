@@ -111,7 +111,7 @@ func (s *Service) Update(ctx context.Context, id uint, input UpdateInput) (domai
 	if err != nil {
 		return binding, err
 	}
-	if len(updates) > 0 {
+	if !updates.Empty() {
 		return s.repo.UpdateBinding(ctx, binding, updates)
 	}
 	return binding, nil
@@ -153,10 +153,10 @@ func validateCreateInput(input CreateInput) error {
 	return nil
 }
 
-func buildUpdates(input UpdateInput) (map[string]any, error) {
-	updates, err := domainbinding.BuildUpdates(input)
+func buildUpdates(input UpdateInput) (domainbinding.UpdateSpec, error) {
+	updates, err := domainbinding.BuildUpdateSpec(input)
 	if err != nil {
-		return nil, ErrInvalidInput
+		return domainbinding.UpdateSpec{}, ErrInvalidInput
 	}
 	return updates, nil
 }

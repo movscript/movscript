@@ -176,9 +176,13 @@ export function resolveBuiltinAgentBundlesDir(): string {
 }
 
 function resolveCatalogDir(kind: 'skills' | 'tools' | 'bundles'): string {
-  const fromSource = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'catalog', kind)
-  const fromDist = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'catalog', kind)
-  return existsSync(fromSource) ? fromSource : fromDist
+  const moduleDir = dirname(fileURLToPath(import.meta.url))
+  const candidates = [
+    resolve(moduleDir, '..', '..', 'catalog', kind),
+    resolve(moduleDir, '..', '..', '..', 'catalog', kind),
+    resolve(moduleDir, '..', 'catalog', kind),
+  ]
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[1]
 }
 
 function loadBundleDirectory(dir: string): { bundles: AgentPluginBundle[]; warnings: string[] } {

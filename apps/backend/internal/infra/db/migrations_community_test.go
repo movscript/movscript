@@ -1,4 +1,4 @@
-//go:build !enterprise
+//go:build !runtime_overlay
 
 package db
 
@@ -9,9 +9,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func TestCommunityEditionDoesNotContributeMigrationModels(t *testing.T) {
-	if got := editionMigrationModels(); len(got) != 0 {
-		t.Fatalf("editionMigrationModels() length = %d, want 0", len(got))
+func TestCommunityRuntimeDoesNotContributeMigrationModels(t *testing.T) {
+	if got := runtimeMigrationModels(); len(got) != 0 {
+		t.Fatalf("runtimeMigrationModels() length = %d, want 0", len(got))
 	}
 }
 

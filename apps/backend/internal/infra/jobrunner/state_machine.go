@@ -4,32 +4,31 @@ import (
 	"encoding/json"
 	"time"
 
-	jobapp "github.com/movscript/movscript/internal/app/job"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/gorm"
 )
 
-type JobExecutionState = jobapp.ExecutionState
+type JobExecutionState = domainjob.ExecutionState
 
 const (
-	StateClaimed                = jobapp.StateClaimed
-	StateResolvingInputs        = jobapp.StateResolvingInputs
-	StateLoadingInputs          = jobapp.StateLoadingInputs
-	StatePreparingRequest       = jobapp.StatePreparingRequest
-	StateSubmittingProviderTask = jobapp.StateSubmittingProviderTask
-	StateCallingProvider        = jobapp.StateCallingProvider
-	StatePollingProviderTask    = jobapp.StatePollingProviderTask
-	StateWaitingProviderTask    = jobapp.StateWaitingProviderTask
-	StateValidatingProviderData = jobapp.StateValidatingProviderData
-	StateSavingResult           = jobapp.StateSavingResult
-	StatePersistingSuccess      = jobapp.StatePersistingSuccess
-	StateRetryScheduled         = jobapp.StateRetryScheduled
-	StateSucceeded              = jobapp.StateSucceeded
-	StateFailed                 = jobapp.StateFailed
-	StateCancelled              = jobapp.StateCancelled
+	StateClaimed                = domainjob.StateClaimed
+	StateResolvingInputs        = domainjob.StateResolvingInputs
+	StateLoadingInputs          = domainjob.StateLoadingInputs
+	StatePreparingRequest       = domainjob.StatePreparingRequest
+	StateSubmittingProviderTask = domainjob.StateSubmittingProviderTask
+	StateCallingProvider        = domainjob.StateCallingProvider
+	StatePollingProviderTask    = domainjob.StatePollingProviderTask
+	StateWaitingProviderTask    = domainjob.StateWaitingProviderTask
+	StateValidatingProviderData = domainjob.StateValidatingProviderData
+	StateSavingResult           = domainjob.StateSavingResult
+	StatePersistingSuccess      = domainjob.StatePersistingSuccess
+	StateRetryScheduled         = domainjob.StateRetryScheduled
+	StateSucceeded              = domainjob.StateSucceeded
+	StateFailed                 = domainjob.StateFailed
+	StateCancelled              = domainjob.StateCancelled
 )
 
-type StateTraceEntry = jobapp.StateTraceEntry
+type StateTraceEntry = domainjob.StateTraceEntry
 
 type jobStateMachine struct {
 	w     *Worker
@@ -140,8 +139,4 @@ func (sm *jobStateMachine) persist(state JobExecutionState) {
 		"state_trace":       string(b),
 		"last_heartbeat_at": &now,
 	})
-}
-
-func MarkRetryScheduled(db *gorm.DB, job *persistencemodel.Job, message string) {
-	jobapp.MarkRetryScheduled(db, job, message)
 }

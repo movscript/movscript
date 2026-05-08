@@ -13,6 +13,7 @@ import (
 
 	"github.com/movscript/movscript/internal/domain/media"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
+	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
@@ -26,14 +27,15 @@ var (
 )
 
 type Service struct {
-	repo  repository
-	store storage.Storage
-	cache cache.Cache
+	repo     repository
+	store    storage.Storage
+	verifier ai.ImageVerificationClient
+	cache    cache.Cache
 }
 
 const listCacheTTL = 60 * time.Second
 
-func NewService(db *gorm.DB, store storage.Storage, cacheStore ...cache.Cache) *Service {
+func NewService(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, cacheStore ...cache.Cache) *Service {
 	var c cache.Cache
 	if len(cacheStore) > 0 {
 		c = cacheStore[0]
@@ -41,7 +43,7 @@ func NewService(db *gorm.DB, store storage.Storage, cacheStore ...cache.Cache) *
 	if c == nil {
 		c = cache.NewNoop()
 	}
-	return &Service{repo: &gormRepository{db: db}, store: store, cache: c}
+	return &Service{repo: &gormRepository{db: db}, store: store, verifier: verifier, cache: c}
 }
 
 type ListInput struct {
@@ -79,6 +81,12 @@ type UpdateInput struct {
 	IsShared *bool
 	FolderID *uint
 	Name     string
+}
+
+type VerifyImageInput struct {
+	UserID uint
+	OrgID  *uint
+	ID     uint
 }
 
 func (s *Service) List(ctx context.Context, input ListInput) ([]domainresource.RawResource, *Page, error) {
@@ -134,14 +142,14 @@ func (s *Service) Upload(ctx context.Context, input UploadInput) (domainresource
 		_ = s.repo.DeleteResourceRecord(ctx, &r)
 		return domainresource.RawResource{}, err
 	}
-	if err := s.repo.UpdateResourceRecord(ctx, &r, map[string]any{
-		"file_path":       key,
-		"storage_key":     key,
-		"storage_backend": s.store.Backend(),
-		"type":            r.Type,
-		"name":            r.Name,
-		"mime_type":       r.MimeType,
-		"size":            r.Size,
+	if err := s.repo.UpdateResourceRecord(ctx, &r, domainresource.UpdateSpec{
+		FilePath:       &key,
+		StorageKey:     &key,
+		StorageBackend: ptrString(s.store.Backend()),
+		Type:           &r.Type,
+		Name:           &r.Name,
+		MimeType:       &r.MimeType,
+		Size:           &r.Size,
 	}); err != nil {
 		return domainresource.RawResource{}, err
 	}
@@ -175,13 +183,13 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource
 	if err != nil {
 		return r, err
 	}
-	updates := map[string]any{}
+	var updates domainresource.UpdateSpec
 	if input.IsShared != nil {
-		updates["is_shared"] = *input.IsShared
+		updates.IsShared = input.IsShared
 	}
 	if input.FolderID != nil {
 		if *input.FolderID == 0 {
-			updates["folder_id"] = nil
+			updates.ClearFolder = true
 		} else {
 			folderID, err := s.repo.UploadFolderID(ctx, input.UserID, input.OrgID, strconv.FormatUint(uint64(*input.FolderID), 10))
 			if err != nil {
@@ -190,13 +198,13 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource
 			if folderID == nil {
 				return r, ErrFolderNotFound
 			}
-			updates["folder_id"] = *folderID
+			updates.FolderID = folderID
 		}
 	}
 	if input.Name != "" {
-		updates["name"] = input.Name
+		updates.Name = &input.Name
 	}
-	if len(updates) > 0 {
+	if !updates.Empty() {
 		if err := s.repo.UpdateResourceRecord(ctx, &r, updates); err != nil {
 			return r, err
 		}
@@ -206,6 +214,78 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (domainresource
 	}
 	s.bumpListVersion(ctx, input.UserID, input.OrgID)
 	return r, nil
+}
+
+func (s *Service) VerifyImage(ctx context.Context, input VerifyImageInput) (domainresource.RawResource, error) {
+	r, err := s.repo.GetOwned(ctx, input.ID, input.UserID, input.OrgID)
+	if err != nil {
+		return r, err
+	}
+	if r.Type != "image" {
+		return r, errors.New("resource is not an image")
+	}
+	if s.verifier == nil {
+		return r, errors.New("image verifier is not configured")
+	}
+	ref, err := s.buildVerificationRef(ctx, r)
+	if err != nil {
+		return r, err
+	}
+	result, err := s.verifier.VerifyImage(ctx, ai.ImageVerificationRequest{
+		ImageURL: ref,
+		MimeType: r.MimeType,
+	})
+	if err != nil {
+		status := string(ai.ImageVerificationRejected)
+		errText := err.Error()
+		_ = s.repo.UpdateResourceRecord(ctx, &r, domainresource.UpdateSpec{
+			VerificationStatus:   &status,
+			VerificationRef:      &ref,
+			VerificationProvider: ptrString("seeaance"),
+			VerificationError:    &errText,
+		})
+		return r, err
+	}
+	status := string(result.Status)
+	if status == "" {
+		status = string(ai.ImageVerificationPending)
+	}
+	verifiedAt := result.CheckedAt
+	if verifiedAt.IsZero() {
+		verifiedAt = time.Now().UTC()
+	}
+	updates := domainresource.UpdateSpec{
+		VerificationStatus:   &status,
+		VerificationRef:      &result.Ref,
+		VerifiedAt:           &verifiedAt,
+		VerificationProvider: &result.Provider,
+		VerificationError:    stringPtr(result.Message),
+	}
+	if err := s.repo.UpdateResourceRecord(ctx, &r, updates); err != nil {
+		return r, err
+	}
+	if err := s.repo.ReloadResource(ctx, &r); err != nil {
+		return r, err
+	}
+	return r, nil
+}
+
+func (s *Service) buildVerificationRef(ctx context.Context, r domainresource.RawResource) (string, error) {
+	if r.StorageKey != "" && s.store != nil {
+		if url, err := s.store.DirectURL(ctx, r.StorageKey); err == nil && url != "" {
+			return url, nil
+		}
+	}
+	if r.URL != "" {
+		return r.URL, nil
+	}
+	if r.DirectURL != "" {
+		return r.DirectURL, nil
+	}
+	if r.FilePath != "" {
+		return "file://" + r.FilePath, nil
+	}
+	return "", errors.New("resource has no verifiable reference")
 }
 
 type cachedListResult struct {
@@ -237,6 +317,14 @@ func orgIDCachePart(orgID *uint) string {
 		return "none"
 	}
 	return strconv.FormatUint(uint64(*orgID), 10)
+}
+
+func ptrString(value string) *string {
+	return &value
+}
+
+func stringPtr(value string) *string {
+	return &value
 }
 
 func MimeToType(mime, filename string) string {

@@ -37,11 +37,29 @@ export interface BuiltContext {
   debugParts: CompiledPromptPreview['debugParts']
 }
 
+const GLOBAL_CAPABILITY_DISCOVERY_POLICY = [
+  'Capability discovery is a first-class runtime behavior.',
+  'Before claiming a needed capability, skill, or tool is missing, inspect the available tool catalog in the current context.',
+  'If the current tools are insufficient and agent catalog tools are available, call movscript_list_agent_bundles to discover relevant bundles, then movscript_inspect_agent_bundle for the best candidate.',
+  'If enabling a bundle is needed, call movscript_enable_agent_bundle with the specific bundle id and let the runtime approval policy decide whether it may be enabled.',
+  'After a bundle is enabled or catalog files may have changed, call movscript_reload_agent_catalog before retrying the task.',
+  'Do not imply that a bundle, skill, tool, backend write, generation job, or cost-bearing action was enabled or applied until the relevant tool result proves it.',
+  'If catalog tools are not available, say that dynamic capability loading is not available in this run and continue with the best available tools.',
+].join('\n')
+
 export function buildContext(input: ContextBuilderInput): BuiltContext {
   const debugParts: CompiledPromptPreview['debugParts'] = []
   const command = input.command ?? parseAgentCommand(input.userMessage)
   const contractResolver = input.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
   const runtimeContract = contractResolver.find(input.manifest)
+
+  // --- Global Policy ---
+  debugParts.push({
+    id: 'policy.capability-discovery',
+    kind: 'policy',
+    title: 'Global Capability Policy',
+    content: GLOBAL_CAPABILITY_DISCOVERY_POLICY,
+  })
 
   // --- Context ---
   debugParts.push({
@@ -78,6 +96,7 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     'When several independent read tools are needed for the same step, request them in the same model turn so the runtime can execute them concurrently.',
     'Do not claim you changed project data unless a tool result proves it.',
     'When writes are represented as drafts or approval requests, describe them as drafts or pending approvals.',
+    'Final responses must leave durable handoff anchors for future turns: created or modified artifact references such as draftId, proposalRef, projectId, and productionId; current artifact status; key decisions; unresolved questions; and the exact object future edits should continue from. Do not dump raw tool traces; preserve only user-relevant conclusions and stable references.',
     'Think in business terms: project, production, episode orchestration segment, scene moment, creative material, asset need, shot, and review draft. Treat segment as an internal emotional, rhythm, or dramatic-function phase of an episode, not as a script paragraph or plot summary. Avoid exposing runtime field names unless a tool result or approval requires them.',
   ]
   if (input.manifest.soul) {
@@ -145,9 +164,14 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   const systemPrompt = debugParts
     .map((part) => `## ${part.title}\n${part.content}`)
     .join('\n\n')
+  const topLevelPolicyParts = debugParts.filter((part) => part.id === 'policy.capability-discovery')
   const primaryContextParts = debugParts.filter((part) => part.id === 'context.summary' || part.id === 'context.memories')
-  const otherParts = debugParts.filter((part) => part.id !== 'context.summary' && part.id !== 'context.memories')
+  const otherParts = debugParts.filter((part) => part.id !== 'policy.capability-discovery' && part.id !== 'context.summary' && part.id !== 'context.memories')
   const systemMessages: RuntimeModelChatMessage[] = [
+    ...topLevelPolicyParts.map((part) => ({
+      role: 'system' as const,
+      content: `## ${part.title}\n${part.content}`,
+    })),
     ...(primaryContextParts.length > 0 ? [{
       role: 'system' as const,
       content: primaryContextParts.map((part) => `## ${part.title}\n${part.content}`).join('\n\n'),
@@ -212,15 +236,13 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_create_production_proposal') return CREATE_PRODUCTION_PROPOSAL_TOOL_SCHEMA
   if (tool.name === 'movscript_inspect_production_proposal_context') return INSPECT_PRODUCTION_PROPOSAL_CONTEXT_TOOL_SCHEMA
   if (tool.name === 'movscript_get_production_proposal') return PRODUCTION_PROPOSAL_DRAFT_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_upsert_proposal_segment') return UPSERT_PROPOSAL_SEGMENT_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_scene_moment') return UPSERT_PROPOSAL_SCENE_MOMENT_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_reference') return UPSERT_PROPOSAL_REFERENCE_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_asset') return UPSERT_PROPOSAL_ASSET_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_content_unit') return UPSERT_PROPOSAL_CONTENT_UNIT_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_keyframe') return UPSERT_PROPOSAL_KEYFRAME_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_shot') return UPSERT_PROPOSAL_SHOT_TOOL_SCHEMA
-  if (tool.name === 'movscript_list_production_proposal_nodes') return LIST_PRODUCTION_PROPOSAL_NODES_TOOL_SCHEMA
-  if (tool.name === 'movscript_upsert_production_proposal_node') return UPSERT_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA
-  if (tool.name === 'movscript_delete_production_proposal_node') return DELETE_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA
   if (tool.name === 'movscript_submit_production_proposal') return CREATE_PRODUCTION_PROPOSAL_FROM_ITEMS_TOOL_SCHEMA
   if (tool.name === 'movscript_create_production_proposal_from_items') return CREATE_PRODUCTION_PROPOSAL_FROM_ITEMS_TOOL_SCHEMA
   if (tool.name === 'movscript_create_project') return CREATE_PROJECT_TOOL_SCHEMA
@@ -325,10 +347,10 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
 const SCRIPT_SPLIT_SOURCE_SCRIPT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'summary', 'sourceType', 'lineCount'],
+  required: ['lineCount'],
   properties: {
     title: { type: 'string', description: 'Source script title only. Do not include source body text.' },
-    summary: { type: 'string', description: 'Short source-level summary. Do not copy or quote the original script body.' },
+    summary: { type: 'string', description: 'Short source-level summary. Do not include source body text.' },
     sourceType: { type: 'string', enum: ['raw'], description: 'Always raw for line-number based splitting.' },
     lineCount: { type: 'number', minimum: 1, description: 'Total number of numbered source lines. This is the only source-body reference allowed.' },
   },
@@ -337,7 +359,6 @@ const SCRIPT_SPLIT_SOURCE_SCRIPT_TOOL_SCHEMA = {
 const SCRIPT_SPLIT_GLOBAL_SETTINGS_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['storyWorld', 'coreRules', 'characterRelationships', 'keyCharacters', 'keyLocations', 'keyProps', 'continuityNotes'],
   properties: {
     storyWorld: { type: 'string' },
     coreRules: { type: 'array', items: { type: 'string' } },
@@ -350,17 +371,9 @@ const SCRIPT_SPLIT_GLOBAL_SETTINGS_TOOL_SCHEMA = {
 } satisfies Record<string, unknown>
 
 const SCRIPT_SPLIT_GLOBAL_CONTEXT_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['storyWorld', 'coreRules', 'characterRelationships', 'keyCharacters', 'keyLocations', 'keyProps', 'continuityNotes', 'episodeRelevance'],
+  ...SCRIPT_SPLIT_GLOBAL_SETTINGS_TOOL_SCHEMA,
   properties: {
-    storyWorld: { type: 'string' },
-    coreRules: { type: 'array', items: { type: 'string' } },
-    characterRelationships: { type: 'array', items: { type: 'string' } },
-    keyCharacters: { type: 'array', items: { type: 'string' } },
-    keyLocations: { type: 'array', items: { type: 'string' } },
-    keyProps: { type: 'array', items: { type: 'string' } },
-    continuityNotes: { type: 'array', items: { type: 'string' } },
+    ...SCRIPT_SPLIT_GLOBAL_SETTINGS_TOOL_SCHEMA.properties,
     episodeRelevance: { type: 'array', items: { type: 'string' } },
   },
 } satisfies Record<string, unknown>
@@ -368,11 +381,11 @@ const SCRIPT_SPLIT_GLOBAL_CONTEXT_TOOL_SCHEMA = {
 const SCRIPT_SPLIT_EPISODE_DRAFT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['order', 'title', 'summary', 'globalContext', 'startLine', 'endLine', 'action', 'existingScriptId'],
+  required: ['startLine', 'endLine'],
   properties: {
-    order: { type: 'number' },
-    title: { type: 'string' },
-    summary: { type: 'string', description: 'Episode-level summary. Do not copy the original episode body.' },
+    order: { type: 'number', description: 'Optional. Defaults to the episode range order in this array.' },
+    title: { type: 'string', description: 'Episode title. Do not include body text.' },
+    summary: { type: 'string', description: 'Short episode summary. Do not include body text or copied original lines.' },
     globalContext: SCRIPT_SPLIT_GLOBAL_CONTEXT_TOOL_SCHEMA,
     startLine: { type: 'number', minimum: 1, description: 'First source line included in this episode. Use line numbers only; do not pass body text.' },
     endLine: { type: 'number', minimum: 1, description: 'Last source line included in this episode. Use line numbers only; do not pass body text.' },
@@ -384,19 +397,20 @@ const SCRIPT_SPLIT_EPISODE_DRAFT_TOOL_SCHEMA = {
 const SCRIPT_SPLIT_SUBMIT_DRAFT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['sourceTitle', 'sourceScript', 'globalSettings', 'episodeDrafts'],
+  required: ['projectId', 'sourceTitle', 'lineCount', 'episodeDrafts'],
   properties: {
     projectId: { type: 'number' },
     draftTitle: { type: 'string' },
-    sourceTitle: { type: 'string' },
-    sourceSummary: { type: 'string' },
+    sourceTitle: { type: 'string', description: 'Source script title only. Do not include script body.' },
+    sourceSummary: { type: 'string', description: 'Short source-level summary. Do not include script body.' },
+    lineCount: { type: 'number', minimum: 1, description: 'Total number of numbered source lines.' },
     sourceScript: SCRIPT_SPLIT_SOURCE_SCRIPT_TOOL_SCHEMA,
     globalSettings: SCRIPT_SPLIT_GLOBAL_SETTINGS_TOOL_SCHEMA,
     episodeDrafts: {
       type: 'array',
       minItems: 1,
       items: SCRIPT_SPLIT_EPISODE_DRAFT_TOOL_SCHEMA,
-      description: 'Each episode must reference the source body only by startLine/endLine. Never include content, text, body, or original lines.',
+      description: 'Each episode provides metadata and startLine/endLine. Never include content, text, body, or original lines.',
     },
     warnings: { type: 'array', items: { type: 'string' } },
     confidence: { type: 'number' },
@@ -675,11 +689,6 @@ const CHECK_PROPOSAL_CONFLICTS_TOOL_SCHEMA = {
   },
 } satisfies Record<string, unknown>
 
-const PRODUCTION_PROPOSAL_NODE_TYPE_SCHEMA = {
-  type: 'string',
-  enum: ['segment', 'scene_moment', 'content_unit', 'creative_reference', 'asset_slot', 'keyframe'],
-} satisfies Record<string, unknown>
-
 const PRODUCTION_PROPOSAL_DRAFT_ID_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -727,7 +736,10 @@ const INSPECT_PRODUCTION_PROPOSAL_CONTEXT_TOOL_SCHEMA = {
     proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
     draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
     includeNodes: { type: 'boolean' },
-    nodeType: PRODUCTION_PROPOSAL_NODE_TYPE_SCHEMA,
+    nodeType: {
+      type: 'string',
+      enum: ['segment', 'scene_moment', 'content_unit', 'creative_reference', 'asset_slot', 'keyframe'],
+    },
   },
 } satisfies Record<string, unknown>
 
@@ -739,6 +751,18 @@ const PROPOSAL_PARENT_SCHEMA = {
     localRef: { type: 'string', description: 'Stable local reference from the proposal tree.' },
     client_id: { type: 'string', description: 'Compatibility alias for localRef.' },
     path: { type: 'string' },
+  },
+} satisfies Record<string, unknown>
+
+const UPSERT_PROPOSAL_SEGMENT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['proposalRef', 'segment'],
+  properties: {
+    proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
+    draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
+    segment: PROPOSAL_SEGMENT_SCHEMA,
+    position: { type: 'number', minimum: 0 },
   },
 } satisfies Record<string, unknown>
 
@@ -836,80 +860,6 @@ const UPSERT_PROPOSAL_SHOT_TOOL_SCHEMA = {
     sceneMoment: PROPOSAL_PARENT_SCHEMA,
     shot: PROPOSAL_CONTENT_UNIT_SCHEMA,
     position: { type: 'number', minimum: 0 },
-  },
-} satisfies Record<string, unknown>
-
-const LIST_PRODUCTION_PROPOSAL_NODES_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['proposalRef'],
-  properties: {
-    proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
-    draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
-    nodeType: PRODUCTION_PROPOSAL_NODE_TYPE_SCHEMA,
-    parentClientId: {
-      type: 'string',
-      description: 'Optional parent local reference filter.',
-    },
-    limit: {
-      type: 'number',
-      minimum: 1,
-      maximum: 300,
-    },
-  },
-} satisfies Record<string, unknown>
-
-const UPSERT_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['proposalRef', 'nodeType', 'node'],
-  properties: {
-    proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
-    draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
-    nodeType: PRODUCTION_PROPOSAL_NODE_TYPE_SCHEMA,
-    parent: {
-      type: 'object',
-      additionalProperties: false,
-      description: 'Required for non-segment nodes. scene_moment parent is a segment; content_unit, creative_reference, and asset_slot parent is a scene_moment.',
-      properties: {
-        id: { type: 'number' },
-        client_id: { type: 'string' },
-        path: { type: 'string' },
-      },
-    },
-    node: {
-      type: 'object',
-      additionalProperties: true,
-      description: 'One proposal node. Include action create/reuse/update; include id for reuse/update; include client_id for stable local references.',
-    },
-    position: {
-      type: 'number',
-      minimum: 0,
-      description: 'Optional insertion index when creating a new node.',
-    },
-  },
-} satisfies Record<string, unknown>
-
-const DELETE_PRODUCTION_PROPOSAL_NODE_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['proposalRef', 'nodeType'],
-  properties: {
-    proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
-    draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
-    nodeType: PRODUCTION_PROPOSAL_NODE_TYPE_SCHEMA,
-    id: {
-      type: 'number',
-      description: 'Backend business item id for reuse/update nodes.',
-    },
-    client_id: {
-      type: 'string',
-      description: 'Stable local client id for draft nodes.',
-    },
-    path: {
-      type: 'string',
-      description: 'Optional JSON path returned by list_production_proposal_nodes.',
-    },
   },
 } satisfies Record<string, unknown>
 

@@ -13,7 +13,7 @@ type repository interface {
 	IncludeLegacyPersonal(ctx context.Context, orgID *uint) bool
 	ListFolders(ctx context.Context, userID uint, orgID *uint, shared bool, includeLegacy bool) ([]domainresourcefolder.Folder, error)
 	CreateFolder(ctx context.Context, ownerID uint, input CreateInput, includeLegacy bool) (domainresourcefolder.Folder, error)
-	UpdateFolder(ctx context.Context, userID uint, orgID *uint, id uint, input UpdateInput, includeLegacy bool) (domainresourcefolder.Folder, error)
+	UpdateFolder(ctx context.Context, userID uint, orgID *uint, id uint, spec domainresourcefolder.FolderUpdateSpec, includeLegacy bool) (domainresourcefolder.Folder, error)
 	DeleteFolder(ctx context.Context, userID uint, orgID *uint, id uint, includeLegacy bool) error
 	ListPermissions(ctx context.Context, userID uint, orgID *uint, id uint, includeLegacy bool) ([]domainresourcefolder.Permission, error)
 	GrantPermission(ctx context.Context, userID uint, orgID *uint, id uint, input PermissionInput, includeLegacy bool) (domainresourcefolder.Permission, error)
@@ -67,28 +67,35 @@ func (r *gormRepository) CreateFolder(ctx context.Context, ownerID uint, input C
 	return domainresourcefolder.FolderFromModel(folder), nil
 }
 
-func (r *gormRepository) UpdateFolder(ctx context.Context, userID uint, orgID *uint, id uint, input UpdateInput, includeLegacy bool) (domainresourcefolder.Folder, error) {
+func (r *gormRepository) UpdateFolder(ctx context.Context, userID uint, orgID *uint, id uint, spec domainresourcefolder.FolderUpdateSpec, includeLegacy bool) (domainresourcefolder.Folder, error) {
 	folder, err := r.requireOwner(ctx, userID, orgID, id, includeLegacy)
 	if err != nil {
 		return domainresourcefolder.Folder{}, err
 	}
-	updates := map[string]any{}
-	if input.Name != "" {
-		updates["name"] = input.Name
-	}
-	if input.StorageBackend != "" {
-		updates["storage_backend"] = input.StorageBackend
-	}
-	if input.IsShared != nil {
-		updates["is_shared"] = *input.IsShared
-	}
-	if err := r.db.WithContext(ctx).Model(&folder).Updates(updates).Error; err != nil {
-		return domainresourcefolder.Folder{}, err
+	updates := folderUpdateColumns(spec)
+	if len(updates) > 0 {
+		if err := r.db.WithContext(ctx).Model(&folder).Updates(updates).Error; err != nil {
+			return domainresourcefolder.Folder{}, err
+		}
 	}
 	if err := r.db.WithContext(ctx).First(&folder, folder.ID).Error; err != nil {
 		return domainresourcefolder.Folder{}, err
 	}
 	return domainresourcefolder.FolderFromModel(folder), nil
+}
+
+func folderUpdateColumns(spec domainresourcefolder.FolderUpdateSpec) map[string]any {
+	updates := map[string]any{}
+	if spec.Name != nil {
+		updates["name"] = *spec.Name
+	}
+	if spec.StorageBackend != nil {
+		updates["storage_backend"] = *spec.StorageBackend
+	}
+	if spec.IsShared != nil {
+		updates["is_shared"] = *spec.IsShared
+	}
+	return updates
 }
 
 func (r *gormRepository) DeleteFolder(ctx context.Context, userID uint, orgID *uint, id uint, includeLegacy bool) error {

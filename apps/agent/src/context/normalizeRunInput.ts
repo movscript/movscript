@@ -33,6 +33,11 @@ export function normalizeDraftQuery(query: {
   status?: unknown
   sourceEntityType?: unknown
   sourceEntityId?: unknown
+  pageKey?: unknown
+  pageType?: unknown
+  pageRoute?: unknown
+  pageEntityType?: unknown
+  pageEntityId?: unknown
   limit?: unknown
 }): {
   projectId?: number
@@ -40,6 +45,11 @@ export function normalizeDraftQuery(query: {
   status?: AgentDraftStatus
   sourceEntityType?: string
   sourceEntityId?: number | string
+  pageKey?: string
+  pageType?: string
+  pageRoute?: string
+  pageEntityType?: string
+  pageEntityId?: number | string
   limit?: number
 } {
   const kind = normalizeOptionalDraftKind(query.kind)
@@ -50,6 +60,11 @@ export function normalizeDraftQuery(query: {
     ...(status ? { status } : {}),
     ...(typeof query.sourceEntityType === 'string' && query.sourceEntityType.trim() ? { sourceEntityType: query.sourceEntityType.trim() } : {}),
     ...(typeof query.sourceEntityId === 'number' || typeof query.sourceEntityId === 'string' ? { sourceEntityId: query.sourceEntityId } : {}),
+    ...(typeof query.pageKey === 'string' && query.pageKey.trim() ? { pageKey: query.pageKey.trim() } : {}),
+    ...(typeof query.pageType === 'string' && query.pageType.trim() ? { pageType: query.pageType.trim() } : {}),
+    ...(typeof query.pageRoute === 'string' && query.pageRoute.trim() ? { pageRoute: query.pageRoute.trim() } : {}),
+    ...(typeof query.pageEntityType === 'string' && query.pageEntityType.trim() ? { pageEntityType: query.pageEntityType.trim() } : {}),
+    ...(typeof query.pageEntityId === 'number' || typeof query.pageEntityId === 'string' ? { pageEntityId: query.pageEntityId } : {}),
     ...(typeof query.limit === 'number' && Number.isFinite(query.limit) ? { limit: query.limit } : {}),
   }
 }
@@ -63,16 +78,34 @@ export function getApprovedToolNames(run: AgentRun): string[] {
   return normalizeApprovedToolNames(run.metadata?.approvedToolNames)
 }
 
-export function defaultRunPolicy(input: { approvalMode?: AgentRunPolicy['approvalMode']; sandboxMode?: boolean; workflow?: AgentWorkflowConfig } = {}): AgentRunPolicy {
+export function defaultRunPolicy(input: { approvalMode?: AgentRunPolicy['approvalMode']; sandboxMode?: boolean; workflow?: AgentWorkflowConfig; policy?: unknown } = {}): AgentRunPolicy {
+  const override = normalizeRunPolicyOverride(input.policy)
   return {
     approvalMode: input.approvalMode ?? 'interactive',
     ...(input.sandboxMode ? { sandboxMode: true } : {}),
-    maxToolCalls: 20,
-    maxIterations: 20,
+    maxToolCalls: override.maxToolCalls ?? 20,
+    maxIterations: override.maxIterations ?? 20,
     allowNetwork: false,
     allowFileBytes: false,
     workflow: input.workflow ?? { profile: 'standard', includeMemories: true, allowForcedToolCalls: true },
   }
+}
+
+function normalizeRunPolicyOverride(value: unknown): Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> {
+  if (!value || typeof value !== 'object') return {}
+  const record = value as Record<string, unknown>
+  return {
+    ...(isPositiveFiniteNumber(record.maxToolCalls) ? { maxToolCalls: clampPolicyLimit(record.maxToolCalls) } : {}),
+    ...(isPositiveFiniteNumber(record.maxIterations) ? { maxIterations: clampPolicyLimit(record.maxIterations) } : {}),
+  }
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
+function clampPolicyLimit(value: number): number {
+  return Math.max(1, Math.min(200, Math.floor(value)))
 }
 
 export type AgentRunRoundInfo = {
