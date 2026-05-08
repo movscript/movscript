@@ -208,6 +208,10 @@ function normalizeReferenceStatus(value: string): 'all' | ReferenceStatus {
   return value in creativeReferenceStatusMeta ? value as ReferenceStatus : 'all'
 }
 
+function isArchivedReferenceStatus(status: ReferenceStatus) {
+  return status === 'merged' || status === 'ignored'
+}
+
 export default function CreativeReferencesPage() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
@@ -271,18 +275,24 @@ export default function CreativeReferencesPage() {
     return rawReferences.map((reference) => toReferenceViewModel(reference, usageCounts))
   }, [projectId, rawReferences, usageCounts])
 
+  const activeReferences = useMemo(() => {
+    return references.filter((reference) => !isArchivedReferenceStatus(reference.status))
+  }, [references])
+
   const filteredReferences = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return references.filter((reference) => {
+    const source = status === 'all' ? activeReferences : references
+    return source.filter((reference) => {
       const matchesSelected = !referenceFilterId || String(reference.id) === referenceFilterId || String(reference.id).replace('ref-', '') === referenceFilterId
       const matchesKind = kind === 'all' || reference.kind === kind
       const matchesStatus = status === 'all' || reference.status === status
       const matchesQuery = !q || [reference.title, reference.subtitle, reference.summary, ...reference.visualNotes, ...reference.facts].some((item) => item.toLowerCase().includes(q))
       return matchesSelected && matchesKind && matchesStatus && matchesQuery
     })
-  }, [kind, query, referenceFilterId, references, status])
+  }, [activeReferences, kind, query, referenceFilterId, references, status])
 
-  const selected = references.find((reference) => String(reference.id) === selectedId) ?? filteredReferences[0] ?? references[0] ?? null
+  const selectedPool = status === 'all' ? activeReferences : references
+  const selected = selectedPool.find((reference) => String(reference.id) === selectedId) ?? filteredReferences[0] ?? selectedPool[0] ?? null
   const selectedRecord = selected ? rawReferences.find((reference) => reference.ID === Number(selected.id)) : null
   const selectedReferenceId = selectedRecord?.ID ?? (selected && Number.isFinite(Number(selected.id)) ? Number(selected.id) : undefined)
   const segmentById = useMemo(() => new Map(segments.map((item) => [item.ID, item])), [segments])
@@ -318,10 +328,11 @@ export default function CreativeReferencesPage() {
       Boolean(slot.owner_type === 'content_unit' && slot.owner_id && contentIds.has(slot.owner_id))
     ))
   }, [assetSlots, referencedContentUnits, referencedSceneMoments, selectedReferenceId])
-  const lockedCount = references.filter((reference) => reference.status === 'locked').length
-  const reviewCount = references.filter((reference) => reference.status === 'review').length
-  const missingCount = references.filter((reference) => reference.status === 'missing').length
-  const averageCoverage = references.length ? Math.round(references.reduce((sum, reference) => sum + reference.coverage, 0) / references.length) : 0
+  const lockedCount = activeReferences.filter((reference) => reference.status === 'locked').length
+  const reviewCount = activeReferences.filter((reference) => reference.status === 'review').length
+  const missingCount = activeReferences.filter((reference) => reference.status === 'missing').length
+  const mergedCount = references.filter((reference) => reference.status === 'merged').length
+  const averageCoverage = activeReferences.length ? Math.round(activeReferences.reduce((sum, reference) => sum + reference.coverage, 0) / activeReferences.length) : 0
 
   function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
     setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
@@ -370,7 +381,7 @@ export default function CreativeReferencesPage() {
       )}
       overview={(
         <section className="grid grid-cols-4 gap-3">
-          <MetricCard icon={Database} label="设定资料总数" value={references.length} detail="覆盖人物、地点、道具、产品、风格" tone="text-sky-600" />
+          <MetricCard icon={Database} label="设定资料总数" value={activeReferences.length} detail={mergedCount > 0 ? `${mergedCount} 个已合并归档` : '覆盖人物、地点、道具、产品、风格'} tone="text-sky-600" />
           <MetricCard icon={ShieldCheck} label="已锁定" value={lockedCount} detail="可直接进入预演和生成" tone="text-emerald-600" />
           <MetricCard icon={AlertTriangle} label="待处理" value={reviewCount + missingCount} detail={`${reviewCount} 个待确认 / ${missingCount} 个待补设定`} tone="text-amber-600" />
           <MetricCard icon={Layers3} label="平均完整度" value={`${averageCoverage}%`} detail="按事实、视觉、资产覆盖估算" tone="text-violet-600" />
@@ -390,7 +401,7 @@ export default function CreativeReferencesPage() {
               options: referenceKinds.map((item) => ({
                 value: item,
                 label: item === 'all' ? '全部设定资料' : creativeReferenceKindMeta[item].label,
-                count: item === 'all' ? references.length : references.filter((reference) => reference.kind === item).length,
+                count: item === 'all' ? activeReferences.length : activeReferences.filter((reference) => reference.kind === item).length,
               })),
             },
             {
@@ -399,16 +410,17 @@ export default function CreativeReferencesPage() {
               value: status,
               onChange: (value) => setFilter({ status: value }),
               options: [
-                { value: 'all', label: '全部状态', count: references.length },
+                { value: 'all', label: '全部状态', count: activeReferences.length },
                 { value: 'locked', label: '已锁定', count: lockedCount },
                 { value: 'review', label: '待确认', count: reviewCount },
                 { value: 'missing', label: '待补设定', count: missingCount },
+                { value: 'merged', label: '已合并', count: mergedCount },
               ],
             },
           ]}
           chips={referenceFilterId ? [{ id: 'reference', label: `设定资料 ${referenceFilterId}`, onRemove: () => setFilter({ reference_id: null }) }] : []}
           resultCount={filteredReferences.length}
-          totalCount={references.length}
+          totalCount={status === 'all' ? activeReferences.length : references.length}
         />
       )}
       list={(

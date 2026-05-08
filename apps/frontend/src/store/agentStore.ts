@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import i18n from '@/i18n'
 
 export interface ChatMessage {
@@ -156,261 +155,185 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   permissionMode: 'ask',
 }
 
-const PERSISTED_MESSAGE_MAX_CHARS = 20_000
-
-function compactPersistedContent(content: string): string {
-  if (content.length <= PERSISTED_MESSAGE_MAX_CHARS) return content
-  return `${content.slice(0, PERSISTED_MESSAGE_MAX_CHARS)}\n...[truncated ${content.length - PERSISTED_MESSAGE_MAX_CHARS} chars from persisted chat history]`
-}
-
-function stripAttachmentPreviewUrl(attachment: AgentAttachment): AgentAttachment {
-  return { ...attachment, previewUrl: undefined }
-}
-
-function compactPersistedMessage(message: ChatMessage): ChatMessage {
-  return {
-    ...message,
-    attachments: message.attachments?.map(stripAttachmentPreviewUrl),
-    content: compactPersistedContent(message.content),
-    meta: message.meta?.localRunActivity
-      ? {
-        ...message.meta,
-        localRunActivity: {
-          ...message.meta.localRunActivity,
-          steps: message.meta.localRunActivity.steps.map((step) => ({
-            ...step,
-            args: undefined,
-            result: undefined,
-          })),
-          events: message.meta.localRunActivity.events.map((event) => ({
-            ...event,
-            data: undefined,
-          })),
-        },
-      }
-      : message.meta,
-  }
-}
-
-function compactPersistedConversationDraft(draft: ConversationDraft): ConversationDraft {
-  return {
-    ...draft,
-    attachments: draft.attachments.map(stripAttachmentPreviewUrl),
-  }
-}
-
-function compactPersistedUserState(userState: UserConvState): UserConvState {
-  const conversations = userState.conversations ?? []
-  const draftsByConversation = userState.draftsByConversation ?? {}
-  return {
-    ...userState,
-    conversations: conversations.map((conversation) => ({
-      ...conversation,
-      messages: conversation.messages.map(compactPersistedMessage),
-    })),
-    draftsByConversation: Object.fromEntries(
-      Object.entries(draftsByConversation).map(([conversationId, draft]) => [
-        conversationId,
-        compactPersistedConversationDraft(draft),
-      ]),
-    ),
-  }
-}
-
-function compactPersistedConversations(convsByUser: Record<string, UserConvState>): Record<string, UserConvState> {
-  return Object.fromEntries(
-    Object.entries(convsByUser).map(([userId, userState]) => [userId, compactPersistedUserState(userState)]),
-  )
-}
-
 const EMPTY_CONVERSATION_DRAFT: ConversationDraft = {
   input: '',
   attachments: [],
 }
 
+const LEGACY_AGENT_STORAGE_KEYS = ['agent-store-v3', 'agent-session-store-v1']
+
+if (typeof window !== 'undefined') {
+  for (const key of LEGACY_AGENT_STORAGE_KEYS) {
+    try {
+      window.localStorage.removeItem(key)
+    } catch {
+      // Ignore storage access failures; the panel store itself remains in-memory.
+    }
+  }
+}
+
 export const useAgentStore = create<AgentStore>()(
-  persist(
-    (set, get) => ({
-      settings: DEFAULT_AGENT_SETTINGS,
-      convsByUser: {},
+  (set, get) => ({
+    settings: DEFAULT_AGENT_SETTINGS,
+    convsByUser: {},
 
-      updateSettings: (s) => set((state) => ({ settings: { ...state.settings, ...s } })),
+    updateSettings: (s) => set((state) => ({ settings: { ...state.settings, ...s } })),
 
-      getConversations: (userId) => getUserState(get(), userId).conversations,
-      getActiveConversationId: (userId) => getUserState(get(), userId).activeConversationId,
+    getConversations: (userId) => getUserState(get(), userId).conversations,
+    getActiveConversationId: (userId) => getUserState(get(), userId).activeConversationId,
 
-      createConversation: (userId) => {
-        const id = genId()
-        set((state) => {
-          const cur = getUserState(state, userId)
-          return {
-            convsByUser: {
-              ...state.convsByUser,
-              [userId]: {
-                conversations: [
-                  { id, title: i18n.t('agents.chat.newConversation'), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
-                  ...cur.conversations,
-                ],
-                activeConversationId: id,
-                draftsByConversation: cur.draftsByConversation,
-              },
-            },
-          }
-        })
-        return id
-      },
-
-      deleteConversation: (userId, id) => set((state) => {
+    createConversation: (userId) => {
+      const id = genId()
+      set((state) => {
         const cur = getUserState(state, userId)
-        const conversations = cur.conversations.filter((c) => c.id !== id)
-        const draftsByConversation = { ...cur.draftsByConversation }
-        delete draftsByConversation[id]
         return {
           convsByUser: {
             ...state.convsByUser,
             [userId]: {
-              conversations,
-              activeConversationId: cur.activeConversationId === id
-                ? (conversations[0]?.id ?? null)
-                : cur.activeConversationId,
-              draftsByConversation,
+              conversations: [
+                { id, title: i18n.t('agents.chat.newConversation'), messages: [], createdAt: Date.now(), updatedAt: Date.now() },
+                ...cur.conversations,
+              ],
+              activeConversationId: id,
+              draftsByConversation: cur.draftsByConversation,
             },
           },
         }
-      }),
+      })
+      return id
+    },
 
-      setActiveConversation: (userId, id) => set((state) => ({
+    deleteConversation: (userId, id) => set((state) => {
+      const cur = getUserState(state, userId)
+      const conversations = cur.conversations.filter((c) => c.id !== id)
+      const draftsByConversation = { ...cur.draftsByConversation }
+      delete draftsByConversation[id]
+      return {
         convsByUser: {
           ...state.convsByUser,
-          [userId]: { ...getUserState(state, userId), activeConversationId: id },
+          [userId]: {
+            conversations,
+            activeConversationId: cur.activeConversationId === id
+              ? (conversations[0]?.id ?? null)
+              : cur.activeConversationId,
+            draftsByConversation,
+          },
         },
-      })),
+      }
+    }),
 
-      addMessage: (userId, conversationId, msg) => set((state) => {
-        const cur = getUserState(state, userId)
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              conversations: cur.conversations.map((c) =>
-                c.id === conversationId
-                  ? { ...c, messages: [...c.messages, { ...msg, id: genId(), timestamp: Date.now() }], updatedAt: Date.now() }
-                  : c
-              ),
-            },
+    setActiveConversation: (userId, id) => set((state) => ({
+      convsByUser: {
+        ...state.convsByUser,
+        [userId]: { ...getUserState(state, userId), activeConversationId: id },
+      },
+    })),
+
+    addMessage: (userId, conversationId, msg) => set((state) => {
+      const cur = getUserState(state, userId)
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((c) =>
+              c.id === conversationId
+                ? { ...c, messages: [...c.messages, { ...msg, id: genId(), timestamp: Date.now() }], updatedAt: Date.now() }
+                : c
+            ),
           },
-        }
-      }),
+        },
+      }
+    }),
 
-      upsertMessage: (userId, conversationId, messageId, msg) => set((state) => {
-        const cur = getUserState(state, userId)
-        const now = Date.now()
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              conversations: cur.conversations.map((c) => {
-                if (c.id !== conversationId) return c
-                const existingIndex = c.messages.findIndex((message) => message.id === messageId)
-                const nextMessage = { ...msg, id: messageId, timestamp: existingIndex >= 0 ? c.messages[existingIndex].timestamp : now }
-                const messages = existingIndex >= 0
-                  ? c.messages.map((message, index) => index === existingIndex ? nextMessage : message)
-                  : [...c.messages, nextMessage]
-                return { ...c, messages, updatedAt: now }
-              }),
-            },
+    upsertMessage: (userId, conversationId, messageId, msg) => set((state) => {
+      const cur = getUserState(state, userId)
+      const now = Date.now()
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((c) => {
+              if (c.id !== conversationId) return c
+              const existingIndex = c.messages.findIndex((message) => message.id === messageId)
+              const nextMessage = { ...msg, id: messageId, timestamp: existingIndex >= 0 ? c.messages[existingIndex].timestamp : now }
+              const messages = existingIndex >= 0
+                ? c.messages.map((message, index) => index === existingIndex ? nextMessage : message)
+                : [...c.messages, nextMessage]
+              return { ...c, messages, updatedAt: now }
+            }),
           },
-        }
-      }),
+        },
+      }
+    }),
 
-      removeMessage: (userId, conversationId, messageId) => set((state) => {
-        const cur = getUserState(state, userId)
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              conversations: cur.conversations.map((c) =>
-                c.id === conversationId
-                  ? { ...c, messages: c.messages.filter((message) => message.id !== messageId), updatedAt: Date.now() }
-                  : c
-              ),
-            },
+    removeMessage: (userId, conversationId, messageId) => set((state) => {
+      const cur = getUserState(state, userId)
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((c) =>
+              c.id === conversationId
+                ? { ...c, messages: c.messages.filter((message) => message.id !== messageId), updatedAt: Date.now() }
+                : c
+            ),
           },
-        }
-      }),
+        },
+      }
+    }),
 
-      updateConversationTitle: (userId, id, title) => set((state) => {
-        const cur = getUserState(state, userId)
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              conversations: cur.conversations.map((c) => c.id === id ? { ...c, title } : c),
-            },
+    updateConversationTitle: (userId, id, title) => set((state) => {
+      const cur = getUserState(state, userId)
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            conversations: cur.conversations.map((c) => c.id === id ? { ...c, title } : c),
           },
-        }
-      }),
+        },
+      }
+    }),
 
-      getConversationDraft: (userId, conversationId) => getUserState(get(), userId).draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT,
+    getConversationDraft: (userId, conversationId) => getUserState(get(), userId).draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT,
 
-      updateConversationDraft: (userId, conversationId, patch) => set((state) => {
-        const cur = getUserState(state, userId)
-        const currentDraft = cur.draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              draftsByConversation: {
-                ...cur.draftsByConversation,
-                [conversationId]: {
-                  ...currentDraft,
-                  ...patch,
-                },
+    updateConversationDraft: (userId, conversationId, patch) => set((state) => {
+      const cur = getUserState(state, userId)
+      const currentDraft = cur.draftsByConversation[conversationId] ?? EMPTY_CONVERSATION_DRAFT
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            draftsByConversation: {
+              ...cur.draftsByConversation,
+              [conversationId]: {
+                ...currentDraft,
+                ...patch,
               },
             },
           },
-        }
-      }),
-
-      clearConversationDraft: (userId, conversationId) => set((state) => {
-        const cur = getUserState(state, userId)
-        if (!cur.draftsByConversation[conversationId]) return {}
-        const draftsByConversation = { ...cur.draftsByConversation }
-        delete draftsByConversation[conversationId]
-        return {
-          convsByUser: {
-            ...state.convsByUser,
-            [userId]: {
-              ...cur,
-              draftsByConversation,
-            },
-          },
-        }
-      }),
+        },
+      }
     }),
-    {
-      name: 'agent-store-v3',
-      partialize: (state) => ({
-        settings: state.settings,
-        convsByUser: compactPersistedConversations(state.convsByUser),
-      }),
-      merge: (persisted, current) => {
-        const state = persisted as Partial<AgentStore> | undefined
-        return {
-          ...current,
-          ...state,
-          convsByUser: compactPersistedConversations(state?.convsByUser ?? current.convsByUser),
-          settings: {
-            ...DEFAULT_AGENT_SETTINGS,
-            ...(state?.settings ?? {}),
+
+    clearConversationDraft: (userId, conversationId) => set((state) => {
+      const cur = getUserState(state, userId)
+      if (!cur.draftsByConversation[conversationId]) return {}
+      const draftsByConversation = { ...cur.draftsByConversation }
+      delete draftsByConversation[conversationId]
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            ...cur,
+            draftsByConversation,
           },
-        }
-      },
-    }
-  )
+        },
+      }
+    }),
+  }),
 )

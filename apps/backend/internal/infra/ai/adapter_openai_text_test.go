@@ -16,14 +16,14 @@ func TestBuildOpenAIChatBodyIncludesToolCalls(t *testing.T) {
 					ID:   "call_1",
 					Type: "function",
 					Function: ToolFunction{
-						Name:      "movscript.search_entities",
-						Arguments: `{"query":"scene"}`,
+						Name:      "movscript.read_current_production",
+						Arguments: `{"projectId":42,"productionId":4}`,
 					},
 				}},
 			},
 			{Role: "tool", ToolCallID: "call_1", Content: `{"results":[]}`},
 		},
-		Tools:      json.RawMessage(`[{"type":"function","function":{"name":"movscript.search_entities","parameters":{"type":"object"}}}]`),
+		Tools:      json.RawMessage(`[{"type":"function","function":{"name":"movscript.read_current_production","parameters":{"type":"object"}}}]`),
 		ToolChoice: json.RawMessage(`"auto"`),
 	}, false)
 	if err != nil {

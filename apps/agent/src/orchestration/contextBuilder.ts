@@ -211,8 +211,6 @@ function resolveOpenAIToolParameters(
 ): unknown {
   if (contract?.toolSchemas?.[tool.name] !== undefined) return contract.toolSchemas[tool.name]
   if (tool.inputSchema !== undefined) return tool.inputSchema
-  if (tool.name === 'movscript_search_items') return SEARCH_ITEMS_TOOL_SCHEMA
-  if (tool.name === 'movscript_read_item') return READ_ITEM_TOOL_SCHEMA
   if (tool.name === 'movscript_request_user_input') return USER_INPUT_TOOL_SCHEMA
   if (tool.name === 'movscript_list_memories') return LIST_MEMORIES_TOOL_SCHEMA
   if (tool.name === 'movscript_search_memories') return SEARCH_MEMORIES_TOOL_SCHEMA
@@ -232,7 +230,8 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_list_productions') return LIST_PRODUCTIONS_TOOL_SCHEMA
   if (tool.name === 'movscript_read_current_production') return READ_CURRENT_PRODUCTION_TOOL_SCHEMA
   if (tool.name === 'movscript_read_production_context') return READ_PRODUCTION_CONTEXT_TOOL_SCHEMA
-  if (tool.name === 'movscript_check_proposal_conflicts') return CHECK_PROPOSAL_CONFLICTS_TOOL_SCHEMA
+  if (tool.name === 'movscript_build_orchestration_diff') return BUILD_ORCHESTRATION_DIFF_TOOL_SCHEMA
+  if (tool.name === 'movscript_check_proposal_is_available') return CHECK_PROPOSAL_IS_AVAILABLE_TOOL_SCHEMA
   if (tool.name === 'movscript_create_production_proposal') return CREATE_PRODUCTION_PROPOSAL_TOOL_SCHEMA
   if (tool.name === 'movscript_inspect_production_proposal_context') return INSPECT_PRODUCTION_PROPOSAL_CONTEXT_TOOL_SCHEMA
   if (tool.name === 'movscript_get_production_proposal') return PRODUCTION_PROPOSAL_DRAFT_ID_TOOL_SCHEMA
@@ -249,28 +248,6 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_create_script') return CREATE_SCRIPT_TOOL_SCHEMA
   return undefined
 }
-
-const SEARCH_ITEMS_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    query: {
-      type: 'string',
-      description: 'Focused keywords or a short phrase to search business items.',
-    },
-    projectId: {
-      type: 'number',
-      description: 'Optional project reference id. Defaults to the current project when available.',
-    },
-    limit: {
-      type: 'number',
-      minimum: 1,
-      maximum: 25,
-      description: 'Maximum number of items to return.',
-    },
-  },
-  required: ['query'],
-} satisfies Record<string, unknown>
 
 const EMPTY_OBJECT_TOOL_SCHEMA = {
   type: 'object',
@@ -306,26 +283,6 @@ const ENABLE_AGENT_BUNDLE_TOOL_SCHEMA = {
   required: ['bundleId'],
 } satisfies Record<string, unknown>
 
-const READ_ITEM_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    itemType: {
-      type: 'string',
-      description: 'Business item type, such as project, production, script, creative_reference, asset_slot, segment, scene_moment, content_unit, or keyframe.',
-    },
-    itemId: {
-      type: 'number',
-      description: 'Business item reference id.',
-    },
-    projectId: {
-      type: 'number',
-      description: 'Optional project reference id. Defaults to the current project when available.',
-    },
-  },
-  required: ['itemType', 'itemId'],
-} satisfies Record<string, unknown>
-
 const CREATE_DRAFT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -333,7 +290,7 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
   properties: {
     kind: {
       type: 'string',
-      enum: ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'production_proposal'],
+      enum: ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'project_proposal', 'production_proposal'],
     },
     title: { type: 'string' },
     content: { type: 'string', description: 'Draft content. Prefer valid JSON for structured drafts.' },
@@ -538,6 +495,12 @@ const PROPOSAL_ACTION_SCHEMA = {
   description: 'create suggests new business work, reuse links an existing business item by reference, update proposes a reviewed change to an existing business item.',
 } satisfies Record<string, unknown>
 
+const PROPOSAL_DIFF_ACTION_SCHEMA = {
+  type: 'string',
+  enum: ['create', 'reuse', 'update', 'keep', 'ignore', 'supersede'],
+  description: 'Review-level decision from comparing agent-derived requirements with existing production and draft state. Confirmed entities should normally be keep, reuse, or additive create.',
+} satisfies Record<string, unknown>
+
 const PROPOSAL_REF_SCHEMA = {
   type: 'object',
   additionalProperties: true,
@@ -550,6 +513,11 @@ const PROPOSAL_REF_SCHEMA = {
     name: { type: 'string' },
     kind: { type: 'string', description: 'character, location, prop, product, brand, style, world_rule, or another project-specific kind.' },
     role: { type: 'string', description: 'How the reference is used in this scene moment.' },
+    requirement_ref: { type: 'string', description: 'Stable reference to the setting requirement this node satisfies.' },
+    coverage_status: { type: 'string', enum: ['covered', 'partial', 'missing', 'conflict'], description: 'Whether current project settings already cover this production requirement.' },
+    diff_action: PROPOSAL_DIFF_ACTION_SCHEMA,
+    source_evidence: { type: 'string', description: 'Short source clue from script, brief, user request, or current entity that justifies the node.' },
+    rationale: { type: 'string', description: 'Why this setting should be reused, created, or updated for the scene moment.' },
     state: {
       type: 'object',
       additionalProperties: false,
@@ -576,6 +544,11 @@ const PROPOSAL_ASSET_SLOT_SCHEMA = {
     kind: { type: 'string', description: 'image, video, audio, text, reference, prop, costume, location, or another project-specific kind.' },
     description: { type: 'string' },
     priority: { type: 'string', description: 'missing, high, medium, low, candidate, or project-specific priority.' },
+    requirement_ref: { type: 'string', description: 'Stable reference to the asset requirement this slot satisfies.' },
+    coverage_status: { type: 'string', enum: ['covered', 'partial', 'missing', 'conflict'], description: 'Whether current asset slots already cover this asset requirement.' },
+    diff_action: PROPOSAL_DIFF_ACTION_SCHEMA,
+    source_evidence: { type: 'string', description: 'Short source clue from script, brief, setting state, or scene moment that justifies the asset need.' },
+    rationale: { type: 'string', description: 'Why this asset need should be reused, created, or updated.' },
   },
 } satisfies Record<string, unknown>
 
@@ -617,6 +590,11 @@ const PROPOSAL_SCENE_MOMENT_SCHEMA = {
     order: { type: 'number' },
     status: { type: 'string' },
     rationale: { type: 'string' },
+    expression_goal: { type: 'string', description: 'What situation, information, relationship shift, or emotion this scene moment must express.' },
+    requirement_ref: { type: 'string', description: 'Stable reference to the scene-moment derivation requirement.' },
+    coverage_status: { type: 'string', enum: ['covered', 'partial', 'missing', 'conflict'], description: 'Whether existing scene moments already cover this derived situation.' },
+    diff_action: PROPOSAL_DIFF_ACTION_SCHEMA,
+    source_evidence: { type: 'string', description: 'Short source clue from script, brief, or current production that justifies the scene moment.' },
     content_units: {
       type: 'array',
       items: PROPOSAL_CONTENT_UNIT_SCHEMA,
@@ -647,6 +625,11 @@ const PROPOSAL_SEGMENT_SCHEMA = {
     order: { type: 'number' },
     status: { type: 'string' },
     rationale: { type: 'string' },
+    expression_goal: { type: 'string', description: 'The emotional, rhythm, or dramatic-function purpose this segment serves in the production.' },
+    requirement_ref: { type: 'string', description: 'Stable reference to the segment rhythm requirement.' },
+    coverage_status: { type: 'string', enum: ['covered', 'partial', 'missing', 'conflict'], description: 'Whether existing segments already cover this derived rhythm/function.' },
+    diff_action: PROPOSAL_DIFF_ACTION_SCHEMA,
+    source_evidence: { type: 'string', description: 'Short source clue from script, brief, or current production that justifies the segment.' },
     scene_moments: {
       type: 'array',
       items: PROPOSAL_SCENE_MOMENT_SCHEMA,
@@ -667,7 +650,7 @@ const PRODUCTION_PROPOSAL_TREE_SCHEMA = {
   },
 } satisfies Record<string, unknown>
 
-const CHECK_PROPOSAL_CONFLICTS_TOOL_SCHEMA = {
+const BUILD_ORCHESTRATION_DIFF_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   required: ['productionId', 'proposal'],
@@ -680,10 +663,33 @@ const CHECK_PROPOSAL_CONFLICTS_TOOL_SCHEMA = {
       type: 'number',
       description: 'Business reference for the production/episode currently being prepared.',
     },
-    scope: {
-      type: 'string',
-      enum: ['production', 'project'],
-      description: 'Use project when checking creative materials or asset needs shared across productions.',
+    proposal: {
+      ...PRODUCTION_PROPOSAL_TREE_SCHEMA,
+      description: 'Agent-derived orchestration tree before it is written to a draft. Include segment rhythm, scene moments, setting usage, and asset needs only.',
+    },
+    currentDraft: {
+      ...PRODUCTION_PROPOSAL_TREE_SCHEMA,
+      description: 'Optional current local draft tree. When omitted, the tool compares only against formal production context.',
+    },
+  },
+} satisfies Record<string, unknown>
+
+const CHECK_PROPOSAL_IS_AVAILABLE_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['productionId', 'proposal'],
+  properties: {
+    projectId: {
+      type: 'number',
+      description: 'Current project reference. The runtime usually fills this from UI context.',
+    },
+    productionId: {
+      type: 'number',
+      description: 'Business reference for the production/episode currently being prepared.',
+    },
+    autofix: {
+      type: 'boolean',
+      description: 'When true, the tool returns normalizedProposal with unambiguous reuse/update ids filled and duplicate create actions converted. Defaults to true.',
     },
     proposal: PRODUCTION_PROPOSAL_TREE_SCHEMA,
   },
@@ -692,10 +698,9 @@ const CHECK_PROPOSAL_CONFLICTS_TOOL_SCHEMA = {
 const PRODUCTION_PROPOSAL_DRAFT_ID_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['proposalRef'],
   properties: {
-    proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
-    draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
+    proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created. If omitted, the runtime uses the current page draftId when available.' },
+    draftId: { type: 'string', description: 'Compatibility alias for proposalRef. If omitted, the runtime uses the current page draftId when available.' },
   },
 } satisfies Record<string, unknown>
 

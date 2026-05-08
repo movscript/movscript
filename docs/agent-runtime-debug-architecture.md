@@ -6,8 +6,8 @@ This document is the working map for the current MovScript agent framework and t
 
 | Layer | Scope | Main code | Runtime artifacts | Debug visibility |
 | --- | --- | --- | --- | --- |
-| Product surface | User entrypoints and current workspace context. | `apps/admin/src/pages/admin/AgentDebugPage.tsx`, `apps/frontend/src/components/layout/AIAgentPanel.tsx`, `apps/frontend/src/mcp/MCPContextBridge.tsx` | `clientInput`, `uiSnapshot`, attachments, route, current project, selection | Preview input, Context tab, run input snapshot |
-| Local agent | Run lifecycle, agentic loop, permissions, drafts, memory, sandbox mode. | `apps/agent/src/server.ts`, `apps/agent/src/runtime/agentRuntime.ts` | thread, message, run, policy, steps, approvals, memories, drafts | Overview, Manifest, Skills, Tools, Prompt, Run Timeline, Raw JSON |
+| Product surface | User entrypoints and current workspace context. It renders runtime state but does not own persisted thread/run/draft truth. | `apps/admin/src/pages/admin/AgentDebugPage.tsx`, `apps/frontend/src/components/layout/AIAgentPanel.tsx`, `apps/frontend/src/mcp/MCPContextBridge.tsx` | `clientInput`, `uiSnapshot`, attachments, route, current project, selection, selected `threadId/draftId` | Preview input, Context tab, run input snapshot |
+| Local agent | Run lifecycle, agentic loop, permissions, drafts, memory, sandbox mode. It owns persisted thread/message/run/trace/draft/memory state. | `apps/agent/src/server.ts`, `apps/agent/src/runtime/agentRuntime.ts` | thread, message, run, policy, steps, approvals, memories, drafts | Overview, Manifest, Skills, Tools, Prompt, Run Timeline, Raw JSON |
 | Business context layer | MovScript project entities and production state. | `apps/backend/internal/interfaces/http/router/router.go`, `apps/backend/internal/domain/workflow/entity_schema.go`, `apps/frontend/src/lib/mcpTools.ts` | context pack, semantic entities, workflow schemas, resource bindings, canvas tasks | Context JSON, tool result JSON, AI Function Inventory |
 | Tool execution layer | MCP/runtime/plugin tool discovery, grants, policy, execution. | `apps/agent/src/runtime/toolRegistry.ts`, `apps/agent/src/runtime/toolPolicy.ts`, `apps/agent/catalog/tools` | resolved tool catalog, blocked tools, tool calls, tool outcomes | Tools table, approval preview, step timeline args/result/error |
 | Model layer | Optional assistant chat reply through backend model gateway. | `apps/agent/src/runtime/modelConfig.ts`, `apps/agent/src/runtime/assistantMessage.ts` | compiled prompt, assistant message | Model Connection, Prompt tab, final assistant message |
@@ -143,12 +143,11 @@ The Agent Debug page exposes a command-first matrix for current runtime function
 
 | Command | Runtime function | Notes |
 | --- | --- | --- |
-| `/search <query>` | `movscript.search_entities` | Project-scoped read; results appear in run steps and assistant summary. |
-| `/project_structure` | `movscript.read_project_structure` | Reads the compact project structure as a standalone debug action. |
-| `/read_entity <type> #<id>` | `movscript.read_entity` | Reads one formal entity. |
-| `/list_drafts` | `movscript.list_drafts` | Lists local Agent drafts without a dedicated draft UI. |
+| `/inspect_context` | `movscript.get_context_pack` | Shows the current route, selected project/production, selection, and runtime input snapshot. |
+| Production context request | `movscript.read_current_production` | Reads the selected production through a focused business-context tool when production tools are enabled. |
+| `/list_drafts` | `movscript.list_drafts` | Debug command for listing local Agent drafts; product usage should prefer current-thread draft display in AI Panel or the dedicated AI historical drafts page. |
 | Draft apply UI | `POST /drafts/:id/apply` | Application-layer review action; not exposed as an agent tool. |
-| `POST /runs/tool` payload | UI/cost tools such as `movscript.open_entity`, `movscript.create_generation_job` | Used when a feature is better represented as a command payload than a custom UI. |
+| `POST /runs/tool` payload | Cost-bearing tools such as `movscript.create_generation_job` | Used when a feature is better represented as an approved command payload than a custom UI. |
 
 ## Current Debug Inventory
 

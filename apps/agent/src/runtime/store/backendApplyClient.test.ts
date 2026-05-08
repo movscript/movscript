@@ -78,6 +78,57 @@ test('applyProposal posts production proposal payload with auth headers', async 
   }
 })
 
+test('applyReview posts project proposal payload with auth headers', async () => {
+  const originalFetch = globalThis.fetch
+  const calls: Array<{ url: string; init: RequestInit }> = []
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} })
+    return new Response(JSON.stringify({ counts: { creative_references_created: 1 } }), {
+      status: 201,
+      headers: { 'content-type': 'application/json' },
+    })
+  }) as typeof fetch
+  try {
+    const client = new BackendApplyClient({ baseURL: 'http://backend' })
+    const payload = {
+      scope: 'project_proposal',
+      proposal: {
+        creative_references: [{
+          action: 'create',
+          entity: 'creativeReferences',
+          payload: { name: 'Lin Xia', kind: 'person', status: 'draft' },
+        }],
+        asset_slots: [],
+      },
+      operations: [],
+    }
+
+    const result = await client.applyReview(review({
+      projectId: 42,
+      entityType: 'project',
+      entityId: 42,
+      field: 'proposal',
+      proposedValue: JSON.stringify(payload),
+    }), {
+      userId: 7,
+      backendAuthToken: 'token_1',
+    })
+
+    assert.equal(result.performed, true)
+    assert.equal(result.method, 'POST')
+    assert.equal(result.url, 'http://backend/api/v1/projects/42/entities/project-proposals/apply')
+    assert.deepEqual(result.payload, payload)
+    assert.equal(calls.length, 1)
+    assert.equal(calls[0].init.method, 'POST')
+    assert.equal((calls[0].init.headers as Record<string, string>).Authorization, 'Bearer token_1')
+    assert.equal((calls[0].init.headers as Record<string, string>)['X-User-ID'], '7')
+    assert.deepEqual(JSON.parse(String(calls[0].init.body)), payload)
+    assert.deepEqual(result.response, { counts: { creative_references_created: 1 } })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 function review(input: {
   projectId?: number | string
   entityType: string

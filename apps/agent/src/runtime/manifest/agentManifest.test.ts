@@ -10,7 +10,6 @@ test('normalizes a valid current agent manifest', () => {
     name: 'Content Unit Planner',
     permissions: ['project.read', 'draft.write', 'project.read'],
     tools: [
-      { name: 'movscript_search_items', mode: 'allow', approval: 'never' },
       { name: 'movscript_create_script', mode: 'allow', approval: 'always' },
       { name: '', mode: 'allow' },
     ],
@@ -20,8 +19,8 @@ test('normalizes a valid current agent manifest', () => {
   assert.equal(manifest.schema, 'movscript.agent.current')
   assert.equal(manifest.id, 'studio.content-unit-planner')
   assert.deepEqual(manifest.permissions, ['project.read', 'draft.write'])
-  assert.equal(manifest.tools.length, 2)
-  assert.equal(manifest.tools[1].approval, 'always')
+  assert.equal(manifest.tools.length, 1)
+  assert.equal(manifest.tools[0].approval, 'always')
   assert.equal(manifest.metadata?.owner, 'studio')
 })
 

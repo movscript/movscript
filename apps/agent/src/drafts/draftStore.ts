@@ -18,6 +18,7 @@ export type AgentDraftKind =
   | 'pipeline'
   | 'segment'
   | 'scene_moment'
+  | 'project_proposal'
   | 'production_proposal'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
@@ -78,6 +79,9 @@ export interface ListAgentDraftsQuery {
   projectId?: number
   kind?: AgentDraftKind
   status?: AgentDraftStatus
+  statuses?: AgentDraftStatus[]
+  threadId?: string
+  runId?: string
   sourceEntityType?: string
   sourceEntityId?: number | string
   pageKey?: string
@@ -298,6 +302,7 @@ export function normalizeDraftKind(value: unknown): AgentDraftKind {
     || value === 'pipeline'
     || value === 'segment'
     || value === 'scene_moment'
+    || value === 'project_proposal'
     || value === 'production_proposal'
     ? value
     : 'note'
@@ -512,6 +517,9 @@ function matchesDraftQuery(draft: AgentDraft, query: ListAgentDraftsQuery): bool
   if (typeof query.projectId === 'number' && draft.projectId !== query.projectId) return false
   if (query.kind && draft.kind !== query.kind) return false
   if (query.status && draft.status !== query.status) return false
+  if (query.statuses && query.statuses.length > 0 && !query.statuses.includes(draft.status)) return false
+  if (query.threadId && draft.createdByThreadId !== query.threadId && draft.source?.threadId !== query.threadId) return false
+  if (query.runId && draft.createdByRunId !== query.runId && draft.source?.runId !== query.runId) return false
   if (query.sourceEntityType && draft.source?.entityType !== query.sourceEntityType) return false
   if (query.sourceEntityId !== undefined && draft.source?.entityId !== query.sourceEntityId) return false
   if (query.pageKey && draft.source?.pageKey !== query.pageKey) return false

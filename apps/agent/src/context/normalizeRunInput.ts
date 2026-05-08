@@ -31,6 +31,9 @@ export function normalizeDraftQuery(query: {
   projectId?: unknown
   kind?: unknown
   status?: unknown
+  statuses?: unknown
+  threadId?: unknown
+  runId?: unknown
   sourceEntityType?: unknown
   sourceEntityId?: unknown
   pageKey?: unknown
@@ -43,6 +46,9 @@ export function normalizeDraftQuery(query: {
   projectId?: number
   kind?: AgentDraftKind
   status?: AgentDraftStatus
+  statuses?: AgentDraftStatus[]
+  threadId?: string
+  runId?: string
   sourceEntityType?: string
   sourceEntityId?: number | string
   pageKey?: string
@@ -54,10 +60,14 @@ export function normalizeDraftQuery(query: {
 } {
   const kind = normalizeOptionalDraftKind(query.kind)
   const status = normalizeDraftStatus(query.status)
+  const statuses = normalizeDraftStatuses(query.statuses ?? query.status)
   return {
     ...(typeof query.projectId === 'number' && Number.isFinite(query.projectId) ? { projectId: query.projectId } : {}),
     ...(kind ? { kind } : {}),
     ...(status ? { status } : {}),
+    ...(statuses.length > 0 ? { statuses } : {}),
+    ...(typeof query.threadId === 'string' && query.threadId.trim() ? { threadId: query.threadId.trim() } : {}),
+    ...(typeof query.runId === 'string' && query.runId.trim() ? { runId: query.runId.trim() } : {}),
     ...(typeof query.sourceEntityType === 'string' && query.sourceEntityType.trim() ? { sourceEntityType: query.sourceEntityType.trim() } : {}),
     ...(typeof query.sourceEntityId === 'number' || typeof query.sourceEntityId === 'string' ? { sourceEntityId: query.sourceEntityId } : {}),
     ...(typeof query.pageKey === 'string' && query.pageKey.trim() ? { pageKey: query.pageKey.trim() } : {}),
@@ -67,6 +77,14 @@ export function normalizeDraftQuery(query: {
     ...(typeof query.pageEntityId === 'number' || typeof query.pageEntityId === 'string' ? { pageEntityId: query.pageEntityId } : {}),
     ...(typeof query.limit === 'number' && Number.isFinite(query.limit) ? { limit: query.limit } : {}),
   }
+}
+
+function normalizeDraftStatuses(value: unknown): AgentDraftStatus[] {
+  const raw = Array.isArray(value) ? value : []
+  return Array.from(new Set(raw.flatMap((item) => {
+    const status = normalizeDraftStatus(item)
+    return status ? [status] : []
+  })))
 }
 
 export function normalizeOptionalDraftKind(value: unknown): AgentDraftKind | undefined {

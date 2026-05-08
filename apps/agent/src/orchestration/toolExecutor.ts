@@ -174,6 +174,8 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_create_production_proposal') {
+    const pageContext = extractPageContext(run)
+    const pageDraftId = typeof pageContext.draftId === 'string' ? pageContext.draftId : undefined
     const projectId = numberField(args.projectId) ?? numberField(args.project_id)
     const productionId = numberField(args.productionId) ?? numberField(args.production_id)
     if (projectId === undefined) throw new Error('create_production_proposal requires projectId')
@@ -181,7 +183,6 @@ async function callRuntimeTool(
     const analysisScope = stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production'
     const summary = stringField(args.summary)
     const now = new Date().toISOString()
-    const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id)
     const content = {
       productionId,
       analysisScope,
@@ -189,6 +190,33 @@ async function callRuntimeTool(
       proposal: { segments: [] },
       proposedAt: now,
     }
+    if (pageDraftId) {
+      const existingDraft = draftStore.getDraft(pageDraftId)
+      if (existingDraft) {
+        const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id, pageDraftId)
+        const draft = draftStore.updateDraft(existingDraft.id, {
+          status: 'draft',
+          title: stringField(args.title) ?? `制作编排提案 - ${analysisScope}`,
+          content: JSON.stringify(content),
+          metadata: {
+            ...(existingDraft.metadata ?? {}),
+            analysisScope,
+            productionId,
+            supersededDraftIds,
+          },
+        })
+        return {
+          proposalRef: draft.id,
+          draftRef: draft.id,
+          draftId: draft.id,
+          draft,
+          status: 'updated',
+          counts: countProductionProposalNodes((content.proposal as Record<string, JSONValue>)),
+          supersededDraftIds,
+        } as unknown as JSONValue
+      }
+    }
+    const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id)
     const draft = draftStore.createDraft({
       projectId,
       kind: 'production_proposal',
@@ -207,6 +235,7 @@ async function callRuntimeTool(
         analysisScope,
         productionId,
         supersededDraftIds,
+        ...(pageDraftId ? { stalePageDraftId: pageDraftId } : {}),
       },
     })
     return {
@@ -221,7 +250,7 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_get_production_proposal') {
-    const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
+    const draft = requireProductionProposalDraft(draftStore, proposalRefArgWithPageContext(args, run))
     return {
       draftRef: draft.id,
       proposalRef: draft.id,
@@ -240,10 +269,14 @@ async function callRuntimeTool(
     const projectId = numberField(args.projectId)
       ?? numberField(args.project_id)
       ?? numberField(contextProject?.id)
-    const explicitDraftId = proposalRefArg(args)
+    const explicitDraftId = proposalRefArgWithPageContext(args, run)
+    const pageContext = extractPageContext(run)
+    const pageDraftId = typeof pageContext.draftId === 'string' ? pageContext.draftId : undefined
     const draft = explicitDraftId
-      ? requireProductionProposalDraft(draftStore, explicitDraftId)
-      : findLatestProductionProposalDraft(draftStore, projectId, productionId)
+      ? draftStore.getDraft(String(explicitDraftId))
+      : pageDraftId
+        ? draftStore.getDraft(pageDraftId)
+        : findLatestProductionProposalDraft(draftStore, projectId, productionId)
     const content = draft ? parseProductionProposalDraftContent(draft) : undefined
     const nodeType = normalizeProposalNodeType(args.nodeType ?? args.node_type)
     const includeNodes = args.includeNodes !== false && args.include_nodes !== false
@@ -268,36 +301,38 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_upsert_proposal_segment') {
-    return upsertProductionProposalBusinessNode(draftStore, args, 'segment', args.segment, undefined, 'segment') as unknown as JSONValue
+    return upsertProductionProposalBusinessNode(draftStore, run, args, 'segment', args.segment, undefined, 'segment') as unknown as JSONValue
   }
 
   if (toolName === 'movscript_upsert_proposal_scene_moment') {
-    return upsertProductionProposalBusinessNode(draftStore, args, 'scene_moment', args.sceneMoment ?? args.scene_moment, args.segment, 'scene_moment') as unknown as JSONValue
+    return upsertProductionProposalBusinessNode(draftStore, run, args, 'scene_moment', args.sceneMoment ?? args.scene_moment, args.segment, 'scene_moment') as unknown as JSONValue
   }
 
   if (toolName === 'movscript_upsert_proposal_reference') {
-    return upsertProductionProposalBusinessNode(draftStore, args, 'creative_reference', args.reference, args.sceneMoment ?? args.scene_moment, 'creative_reference') as unknown as JSONValue
+    return upsertProductionProposalBusinessNode(draftStore, run, args, 'creative_reference', args.reference, args.sceneMoment ?? args.scene_moment, 'creative_reference') as unknown as JSONValue
   }
 
   if (toolName === 'movscript_upsert_proposal_asset') {
-    return upsertProductionProposalBusinessNode(draftStore, args, 'asset_slot', args.asset, args.sceneMoment ?? args.scene_moment, 'asset_slot') as unknown as JSONValue
+    return upsertProductionProposalBusinessNode(draftStore, run, args, 'asset_slot', args.asset, args.sceneMoment ?? args.scene_moment, 'asset_slot') as unknown as JSONValue
   }
 
   if (toolName === 'movscript_upsert_proposal_content_unit') {
-    return upsertProductionProposalBusinessNode(draftStore, args, 'content_unit', args.contentUnit ?? args.content_unit, args.sceneMoment ?? args.scene_moment, 'content_unit') as unknown as JSONValue
+    return upsertProductionProposalBusinessNode(draftStore, run, args, 'content_unit', args.contentUnit ?? args.content_unit, args.sceneMoment ?? args.scene_moment, 'content_unit') as unknown as JSONValue
   }
 
   if (toolName === 'movscript_upsert_proposal_keyframe') {
     const parent = isRecord(args.shot) ? args.shot : args.sceneMoment ?? args.scene_moment
-    return upsertProductionProposalBusinessNode(draftStore, args, 'keyframe', args.keyframe, parent, 'keyframe') as unknown as JSONValue
+    return upsertProductionProposalBusinessNode(draftStore, run, args, 'keyframe', args.keyframe, parent, 'keyframe') as unknown as JSONValue
   }
 
   if (toolName === 'movscript_upsert_proposal_shot') {
     const shot = isRecord(args.shot) ? { ...args.shot, kind: stringField(args.shot.kind) ?? 'shot' } : args.shot
-    return upsertProductionProposalBusinessNode(draftStore, args, 'content_unit', shot, args.sceneMoment ?? args.scene_moment, 'shot') as unknown as JSONValue
+    return upsertProductionProposalBusinessNode(draftStore, run, args, 'content_unit', shot, args.sceneMoment ?? args.scene_moment, 'shot') as unknown as JSONValue
   }
 
   if (toolName === 'movscript_create_production_proposal_from_items' || toolName === 'movscript_propose_production_entities' || toolName === 'movscript_submit_production_proposal') {
+    const pageContext = extractPageContext(run)
+    const pageDraftId = typeof pageContext.draftId === 'string' ? pageContext.draftId : undefined
     const projectId = numberField(args.projectId) ?? numberField(args.project_id)
     const proposalInput = isRecord(args.proposal) ? args.proposal : undefined
     const productionId = numberField(args.productionId)
@@ -311,7 +346,6 @@ async function callRuntimeTool(
     const normalizedProposal = normalizeProductionProposal(args.proposal, args.candidates)
     const summary = stringField(args.summary) ?? inferProductionProposalSummary(args.proposal)
     const now = new Date().toISOString()
-    const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id)
     const content = {
       productionId,
       analysisScope,
@@ -319,6 +353,36 @@ async function callRuntimeTool(
       proposal: normalizedProposal,
       proposedAt: now,
     }
+    if (pageDraftId) {
+      const existingDraft = draftStore.getDraft(pageDraftId)
+      if (existingDraft) {
+        const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id, pageDraftId)
+        const draft = draftStore.updateDraft(existingDraft.id, {
+          status: 'draft',
+          title: `制作编排提案 - ${analysisScope}`,
+          content: JSON.stringify(content),
+          metadata: {
+            ...(existingDraft.metadata ?? {}),
+            analysisScope,
+            productionId,
+            supersededDraftIds,
+          },
+        })
+        const counts = countProductionProposalNodes(normalizedProposal)
+        const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
+        return {
+          proposalRef: draft.id,
+          draftRef: draft.id,
+          draftId: draft.id,
+          draft,
+          status: 'updated',
+          counts,
+          supersededDraftIds,
+          message: `已更新 ${total} 个候选业务项`,
+        } as unknown as JSONValue
+      }
+    }
+    const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id)
     const draft = draftStore.createDraft({
       projectId,
       kind: 'production_proposal',
@@ -337,6 +401,7 @@ async function callRuntimeTool(
         analysisScope,
         productionId,
         supersededDraftIds,
+        ...(pageDraftId ? { stalePageDraftId: pageDraftId } : {}),
       },
     })
     const counts = countProductionProposalNodes(normalizedProposal)
@@ -479,13 +544,6 @@ function buildSandboxResult(toolName: string, args: Record<string, JSONValue>): 
 }
 
 function translateToolArgsForRuntime(toolName: string, args: Record<string, JSONValue>): Record<string, JSONValue> {
-  if (toolName === 'movscript_read_item' || toolName === 'movscript_read_entity') {
-    return {
-      ...args,
-      ...(typeof args.itemType === 'string' ? { entityType: args.itemType } : {}),
-      ...(typeof args.itemId === 'number' || typeof args.itemId === 'string' ? { entityId: args.itemId } : {}),
-    }
-  }
   return args
 }
 
@@ -535,6 +593,8 @@ function submitScriptSplitDraft(
   run: AgentRun,
   args: Record<string, JSONValue>,
 ): JSONValue {
+  const pageContext = extractPageContext(run)
+  const pageDraftId = typeof pageContext.draftId === 'string' ? pageContext.draftId : undefined
   const projectId = numberField(args.projectId) ?? numberField(args.project_id)
   if (projectId === undefined) throw new Error('submit_script_split_draft requires projectId')
 
@@ -573,6 +633,29 @@ function submitScriptSplitDraft(
   }
   const draftTitle = stringField(args.draftTitle) ?? stringField(args.draft_title) ?? `剧本拆分草稿 - ${sourceTitle}`
   const sourceScriptTitle = sourceScript ? stringField(sourceScript.title) ?? sourceTitle : sourceTitle
+  if (pageDraftId) {
+    const existingDraft = draftStore.getDraft(pageDraftId)
+    if (!existingDraft) throw new Error(`draft not found: ${pageDraftId}`)
+    const draft = draftStore.updateDraft(existingDraft.id, {
+      title: draftTitle,
+      content: JSON.stringify(content, null, 2),
+      metadata: {
+        ...(existingDraft.metadata ?? {}),
+        analysisScope: 'script_split',
+        sourceTitle,
+        sourceSummary,
+        episodeCount: normalizedEpisodes.length,
+      },
+    })
+    return {
+      status: 'updated',
+      draftRef: draft.id,
+      draftId: draft.id,
+      draft,
+      supersededDraftIds: [],
+      validation: validateDraft(draft),
+    } as unknown as JSONValue
+  }
   const supersededDraftIds = supersedeScriptSplitDrafts(draftStore, projectId, sourceScriptTitle, run.id)
   const draft = draftStore.createDraft({
     projectId,
@@ -844,7 +927,7 @@ function inferProductionProposalSummary(proposal: JSONValue | undefined): string
   return summary ?? title
 }
 
-function supersedeProductionProposalDrafts(draftStore: AgentDraftStore, projectId: number, productionId: number, supersededByRunId: string): string[] {
+function supersedeProductionProposalDrafts(draftStore: AgentDraftStore, projectId: number, productionId: number, supersededByRunId: string, exceptDraftId?: string): string[] {
   const now = new Date().toISOString()
   const supersededDraftIds: string[] = []
   const activeDrafts = draftStore.listDrafts({
@@ -854,6 +937,7 @@ function supersedeProductionProposalDrafts(draftStore: AgentDraftStore, projectI
     limit: 100,
   })
   for (const draft of activeDrafts) {
+    if (exceptDraftId && draft.id === exceptDraftId) continue
     if (draft.source?.entityType !== 'production') continue
     if (String(draft.source.entityId) !== String(productionId)) continue
     draftStore.updateDraft(draft.id, {
@@ -995,6 +1079,12 @@ function proposalRefArg(args: Record<string, JSONValue>): unknown {
   return args.proposalRef ?? args.proposal_ref ?? args.draftRef ?? args.draft_ref ?? args.draftId ?? args.draft_id
 }
 
+function proposalRefArgWithPageContext(args: Record<string, JSONValue>, run: AgentRun): unknown {
+  const explicit = proposalRefArg(args)
+  if (explicit) return explicit
+  return extractPageContext(run).draftId
+}
+
 function extractPageContext(run: AgentRun): Record<string, JSONValue> {
   const clientInput = isRecord(run.metadata?.clientInput) ? run.metadata.clientInput as Record<string, JSONValue> : undefined
   const uiSnapshot = isRecord(clientInput?.uiSnapshot) ? clientInput.uiSnapshot as Record<string, JSONValue> : undefined
@@ -1011,6 +1101,7 @@ function extractPageContext(run: AgentRun): Record<string, JSONValue> {
       : typeof selection?.entityId === 'number' || typeof selection?.entityId === 'string'
         ? { pageEntityId: selection.entityId }
         : {}),
+    ...(typeof pageContext?.draftId === 'string' ? { draftId: pageContext.draftId } : {}),
   }
 }
 
@@ -1105,13 +1196,14 @@ function upsertProductionProposalNode(
 
 function upsertProductionProposalBusinessNode(
   draftStore: AgentDraftStore,
+  run: AgentRun,
   args: Record<string, JSONValue>,
   nodeType: ProductionProposalNodeType,
   rawNode: JSONValue | undefined,
   rawParent: JSONValue | undefined,
   label: string,
 ): JSONValue {
-  const draft = requireProductionProposalDraft(draftStore, proposalRefArg(args))
+  const draft = requireProductionProposalDraft(draftStore, proposalRefArgWithPageContext(args, run))
   const node = normalizeProposalNodeForType(nodeType, rawNode)
   const parent = isRecord(rawParent) ? rawParent : undefined
   const content = parseProductionProposalDraftContent(draft)
@@ -1317,6 +1409,7 @@ function isDraftKind(value: JSONValue | undefined): value is AgentDraftKind {
     || value === 'pipeline'
     || value === 'segment'
     || value === 'scene_moment'
+    || value === 'project_proposal'
     || value === 'production_proposal'
 }
 

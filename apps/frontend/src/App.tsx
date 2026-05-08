@@ -45,6 +45,7 @@ import SegmentsPage from './pages/segments/SegmentsPage'
 import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
 import FinalVideosPage from './pages/final-videos/FinalVideosPage'
 import FinalVideosWorkspacePage from './pages/final-videos/FinalVideosWorkspacePage'
+import AIDraftsPage from './pages/agent/AIDraftsPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 import { Loader2 } from 'lucide-react'
@@ -322,6 +323,7 @@ export default function App() {
               <Route path="/resources" element={<ResourcesPage />} />
               <Route path="/jobs" element={<JobsPage />} />
               <Route path="/plugins" element={<ClientPluginsPage />} />
+              <Route path="/agent/drafts" element={<Padded><AIDraftsPage /></Padded>} />
 
               {/* Agent debug moved to the admin application. */}
               <Route path="/agent/debug" element={<LegacyAgentDebugRedirect />} />

@@ -90,6 +90,7 @@ function normalizeClientUISnapshot(value: unknown): AgentClientUISnapshot | unde
     } : {}),
     ...(project ? { project: { ...(typeof project.id === 'number' && Number.isFinite(project.id) ? { id: project.id } : typeof project.ID === 'number' && Number.isFinite(project.ID) ? { id: project.ID } : {}), ...(typeof project.name === 'string' ? { name: project.name } : {}), ...(typeof project.status === 'string' ? { status: project.status } : {}), ...(typeof project.description === 'string' ? { description: project.description } : {}) } } : {}),
     ...(typeof value.productionId === 'number' && Number.isFinite(value.productionId) ? { productionId: value.productionId } : {}),
+    ...(typeof value.draftId === 'string' ? { draftId: value.draftId } : {}),
     ...(selection === null ? { selection: null } : selection ? { selection: { ...(typeof selection.entityType === 'string' ? { entityType: selection.entityType } : {}), ...(typeof selection.entityId === 'number' || typeof selection.entityId === 'string' ? { entityId: selection.entityId } : {}), ...(typeof selection.label === 'string' ? { label: selection.label } : {}) } } : {}),
     ...(recentResources.length > 0 ? { recentResources } : {}),
     ...(labels.length > 0 ? { labels } : {}),

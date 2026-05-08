@@ -362,20 +362,6 @@ function describeToolOutcome(outcome: ToolCallOutcome): string {
 function describeToolResult(call: ToolCall, result: JSONValue): string {
   const parsed = parseToolResult(result)
   const toolName = publicToolName(call.name)
-  if (toolName === 'movscript_search_items') {
-    const count = isRecord(parsed) && Array.isArray(parsed.results) ? parsed.results.length : undefined
-    return `搜索项目内容${count === undefined ? '' : `，找到 ${count} 条结果`}。`
-  }
-  if (toolName === 'movscript_read_item') {
-    return `读取项目内容 ${String(call.args?.itemType ?? 'item')} ${String(call.args?.itemId ?? '')}。`
-  }
-  if (call.name === 'movscript_read_project_structure') {
-    const counts = isRecord(parsed) && isRecord(parsed.counts) ? parsed.counts : undefined
-    const summary = counts
-      ? `（scripts=${String(counts.scripts ?? 0)}, creative_references=${String(counts.creative_references ?? counts.creativeReferences ?? 0)}, asset_slots=${String(counts.asset_slots ?? counts.assetSlots ?? 0)}, content_units=${String(counts.content_units ?? counts.contentUnits ?? 0)}）`
-      : ''
-    return `读取项目结构摘要${summary}。`
-  }
   if (call.name === 'movscript_create_draft') {
     const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
     return `创建本地草稿${draftId}。`

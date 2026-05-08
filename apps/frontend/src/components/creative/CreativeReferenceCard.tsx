@@ -12,6 +12,7 @@ export type CreativeReferenceCardStatus =
   | 'corrected'
   | 'draft'
   | 'ignored'
+  | 'merged'
   | 'active'
   | 'approved'
   | 'rejected'
@@ -47,6 +48,7 @@ export const creativeReferenceStatusMeta: Record<CreativeReferenceCardStatus, { 
   draft: { label: '草稿', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
   missing: { label: '待补设定', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
   ignored: { label: '已忽略', className: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300' },
+  merged: { label: '已合并', className: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300' },
   rejected: { label: '已拒绝', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
 }
 

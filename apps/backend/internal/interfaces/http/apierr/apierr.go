@@ -27,6 +27,7 @@ type Response struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 	Action  string `json:"action,omitempty"`
+	Debug   any    `json:"debug,omitempty"`
 }
 
 func NotFound(msg string) Response {
@@ -60,4 +61,12 @@ func Cycle(msg string) Response {
 
 func Conflict(msg string) Response {
 	return Response{Code: CodeConflict, Message: msg}
+}
+
+func NotFoundDebug(msg string, debug any) Response {
+	return Response{Code: CodeNotFound, Message: msg, Debug: debug}
+}
+
+func InvalidInputDebug(msg string, debug any) Response {
+	return Response{Code: CodeInvalidInput, Message: msg, Debug: debug}
 }

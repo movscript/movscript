@@ -121,7 +121,7 @@ func (s *Service) ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([
 }
 
 func (s *Service) CreateAssetSlot(ctx context.Context, projectID uint, input AssetSlotInput) (domainsemantic.AssetSlot, error) {
-	if err := s.validateAssetSlotOwners(ctx, projectID, input.ProductionID, input.LockedAssetSlotID); err != nil {
+	if err := s.validateAssetSlotOwners(ctx, projectID, input.ProductionID, input.CreativeReferenceID, input.CreativeReferenceStateID, input.OwnerType, input.OwnerID, input.LockedAssetSlotID); err != nil {
 		return domainsemantic.AssetSlot{}, err
 	}
 	item := domainsemantic.NewAssetSlot(domainsemantic.AssetSlotSpec{
@@ -150,7 +150,7 @@ func (s *Service) PatchAssetSlot(ctx context.Context, projectID uint, id string,
 	if err != nil {
 		return item, err
 	}
-	if err := s.validateAssetSlotOwners(ctx, projectID, input.ProductionID, input.LockedAssetSlotID); err != nil {
+	if err := s.validateAssetSlotOwners(ctx, projectID, input.ProductionID, input.CreativeReferenceID, input.CreativeReferenceStateID, input.OwnerType, input.OwnerID, input.LockedAssetSlotID); err != nil {
 		return item, err
 	}
 	patch := domainsemantic.AssetSlotPatch{
@@ -339,9 +339,24 @@ func (s *Service) PatchReviewEvent(ctx context.Context, projectID uint, id strin
 	return s.repo.PatchReviewEvent(ctx, item, patch)
 }
 
-func (s *Service) validateAssetSlotOwners(ctx context.Context, projectID uint, productionID *uint, lockedAssetSlotID *uint) error {
+func (s *Service) validateAssetSlotOwners(ctx context.Context, projectID uint, productionID *uint, creativeReferenceID *uint, creativeReferenceStateID *uint, ownerType string, ownerID *uint, lockedAssetSlotID *uint) error {
 	if productionID != nil {
 		if err := s.ensureProductionInProject(ctx, projectID, *productionID); err != nil {
+			return err
+		}
+	}
+	if creativeReferenceID != nil {
+		if err := s.ensureCreativeReferenceInProject(ctx, projectID, *creativeReferenceID); err != nil {
+			return err
+		}
+	}
+	if creativeReferenceStateID != nil {
+		if err := s.ensureCreativeReferenceStateInProject(ctx, projectID, *creativeReferenceStateID); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(ownerType) != "" && ownerID != nil {
+		if err := s.ensureOwnerInProject(ctx, projectID, ownerType, *ownerID); err != nil {
 			return err
 		}
 	}

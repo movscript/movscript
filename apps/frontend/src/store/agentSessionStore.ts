@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type { AgentWorkMode } from '@/store/agentStore'
 import type { AgentClientInput, AgentManifest, AgentRun, AgentRunPolicy, AgentThread } from '@/lib/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
@@ -135,45 +134,6 @@ function compactRun(run: AgentRun | undefined): AgentRun | undefined {
   }
 }
 
-function compactPageTasks(pageTasks: Record<string, AgentPageTaskState>): Record<string, AgentPageTaskState> {
-  return Object.fromEntries(
-    Object.entries(pageTasks).map(([requestId, task]) => [
-      requestId,
-      {
-        ...task,
-        run: compactRun(task.run),
-        thread: undefined,
-      },
-    ]),
-  )
-}
-
-function compactConversationRuntimes(conversationRuntimes: Record<string, AgentConversationRuntimeState>): Record<string, AgentConversationRuntimeState> {
-  return Object.fromEntries(
-    Object.entries(conversationRuntimes).map(([conversationId, runtime]) => [
-      conversationId,
-      {
-        ...runtime,
-        run: compactRun(runtime.run),
-      },
-    ]),
-  )
-}
-
-function compactStandaloneSession(session: AgentStandaloneSessionState): AgentStandaloneSessionState {
-  return {
-    ...session,
-    run: compactRun(session.run),
-    thread: undefined,
-  }
-}
-
-function compactStandaloneSessions(standaloneSessions: Record<string, AgentStandaloneSessionState>): Record<string, AgentStandaloneSessionState> {
-  return Object.fromEntries(
-    Object.entries(standaloneSessions).map(([sessionId, session]) => [sessionId, compactStandaloneSession(session)]),
-  )
-}
-
 function defaultConversationRuntime(conversationId: string): AgentConversationRuntimeState {
   return {
     conversationId,
@@ -187,8 +147,7 @@ function defaultConversationRuntime(conversationId: string): AgentConversationRu
 }
 
 export const useAgentSessionStore = create<AgentSessionStore>()(
-  persist(
-    (set, get) => ({
+  (set, get) => ({
       pageTasks: {},
       conversationRuntimes: {},
       localThreadIdsByConversation: {},
@@ -414,25 +373,4 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         }
       }),
     }),
-    {
-      name: 'agent-session-store-v1',
-      partialize: (state) => ({
-        pageTasks: compactPageTasks(state.pageTasks),
-        conversationRuntimes: compactConversationRuntimes(state.conversationRuntimes),
-        localThreadIdsByConversation: state.localThreadIdsByConversation,
-        standaloneSessions: compactStandaloneSessions(state.standaloneSessions),
-      }),
-      merge: (persisted, current) => {
-        const state = persisted as Partial<AgentSessionStore> | undefined
-        return {
-          ...current,
-          ...state,
-          pageTasks: compactPageTasks(state?.pageTasks ?? current.pageTasks),
-          conversationRuntimes: compactConversationRuntimes(state?.conversationRuntimes ?? current.conversationRuntimes),
-          localThreadIdsByConversation: state?.localThreadIdsByConversation ?? current.localThreadIdsByConversation,
-          standaloneSessions: compactStandaloneSessions(state?.standaloneSessions ?? current.standaloneSessions),
-        }
-      },
-    },
-  ),
 )

@@ -8,13 +8,13 @@ import {
   Image, Video, FileText, Mic, File, Workflow,
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
   Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
-  SlidersHorizontal, Wrench, PackagePlus, Route,
+  SlidersHorizontal, Wrench, Route,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getAPIBaseURL, getAPIV1BaseURL } from '@/lib/config'
 import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSettled, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
 import { publicModelLabel } from '@/lib/modelDisplay'
-import { buildCommandFirstClientInput, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
+import { buildCommandFirstClientInput, buildPageContext, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
@@ -43,7 +43,6 @@ import {
   type AgentRunPolicy,
   type AgentRunPreview,
   type AgentRunStreamEvent,
-  type AgentSkillManifest,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
 import {
@@ -562,7 +561,7 @@ function buildAgentContext(options: {
     sections.push('[计划要求] 对复杂请求先给 2-5 步简短计划；执行后同步状态和结果。')
   }
   if (options.includeProjectContext && options.project) {
-    sections.push(`[当前项目]\n名称：${options.project.name}\n状态：${options.project.status || '未指定'}\n简介：${options.project.description || '无'}`)
+    sections.push(`[项目信息]\n名称：${options.project.name}\n状态：${options.project.status || '未指定'}\n简介：${options.project.description || '无'}`)
   }
   if (options.includeRecentResources && options.recentResources.length > 0) {
     sections.push(`[最近素材]\n${options.recentResources.slice(0, 8).map((r) => `- #${r.ID} ${r.name} (${r.type}, ${formatBytes(r.size)})`).join('\n')}`)
@@ -684,6 +683,7 @@ function buildAgentClientInput(options: {
   labels?: string[]
   route?: { pathname?: string; search?: string; hash?: string }
   productionId?: number
+  draftId?: string
   selection?: { entityType?: string; entityId?: number | string; label?: string } | null
 }): AgentClientInput {
   const input = buildCommandFirstClientInput({
@@ -700,6 +700,7 @@ function buildAgentClientInput(options: {
     hints: {
       ...(options.projectId ? { projectId: options.projectId } : {}),
       ...(options.productionId ? { productionId: options.productionId } : {}),
+      ...(options.draftId ? { draftId: options.draftId } : {}),
       ...(options.selection ? { selection: options.selection } : {}),
       ...(options.route ? { route: options.route } : {}),
     },
@@ -707,82 +708,16 @@ function buildAgentClientInput(options: {
   return input
 }
 
-type AgentToolGrant = AgentManifest['tools'][number]
-type AgentToolApprovalMode = NonNullable<AgentToolGrant['approval']>
 type ConversationContextTool = AgentDebugTool | AgentInspectResponse['registeredTools'][number]
 
 interface ConversationAgentContextConfig {
   enabled: boolean
   manifest: AgentManifest | null
-  skillIds: string[]
-  toolNames: string[]
-  approvalOverrides: Record<string, AgentToolApprovalMode>
 }
 
 const EMPTY_AGENT_CONTEXT_CONFIG: ConversationAgentContextConfig = {
   enabled: false,
   manifest: null,
-  skillIds: [],
-  toolNames: [],
-  approvalOverrides: {},
-}
-
-function createImportedAgentManifest(input: {
-  base: AgentManifest
-  skills: AgentSkillManifest[]
-  tools: ConversationContextTool[]
-  skillIds: string[]
-  toolNames: string[]
-  approvalOverrides?: Record<string, AgentToolApprovalMode>
-}): AgentManifest {
-  const skillIdSet = new Set(input.skillIds)
-  const toolNameSet = new Set(input.toolNames)
-  const selectedSkills = input.skills
-    .filter((skill) => skillIdSet.has(skill.id))
-    .map((skill, index) => ({
-      ...skill,
-      enabled: true,
-      priority: typeof skill.priority === 'number' ? skill.priority : index,
-    }))
-  const selectedTools = input.tools.filter((tool) => toolNameSet.has(tool.name))
-  const permissions = Array.from(new Set([
-    ...input.base.permissions,
-    ...selectedTools.map((tool) => ('permission' in tool ? tool.permission : undefined)).filter((permission): permission is string => !!permission),
-  ]))
-  const grants = selectedTools.map((tool) => {
-    return {
-      name: tool.name,
-      mode: 'allow' as const,
-      approval: input.approvalOverrides?.[tool.name] ?? defaultToolApproval(tool),
-    }
-  })
-  const byName = new Map<string, AgentToolGrant>()
-  for (const grant of input.base.tools ?? []) byName.set(grant.name, grant)
-  for (const grant of grants) byName.set(grant.name, grant)
-
-  return {
-    ...input.base,
-    schema: 'movscript.agent.current',
-    id: `${input.base.id}.conversation-context`,
-    name: `${input.base.name} + Conversation Context`,
-    description: 'Conversation-level imported skills and tools from the current local runtime catalog.',
-    skills: selectedSkills,
-    permissions,
-    tools: Array.from(byName.values()),
-    metadata: {
-      ...(input.base.metadata ?? {}),
-      importedFrom: 'ai-agent-panel',
-      importedSkillIds: input.skillIds,
-      importedToolNames: input.toolNames,
-    },
-  }
-}
-
-function defaultToolApproval(tool: ConversationContextTool): AgentToolApprovalMode {
-  if ('approval' in tool && tool.approval) return tool.approval
-  if ('requiresApproval' in tool && tool.requiresApproval) return 'always'
-  if ('requiresApprovalByDefault' in tool && tool.requiresApprovalByDefault) return 'always'
-  return 'on_write'
 }
 
 function safeJSONStringify(value: unknown) {
@@ -1307,6 +1242,143 @@ function DebugSummaryItem({ label, value }: { label: string; value: string }) {
   )
 }
 
+interface PageContextSummary {
+  pageKey?: string
+  pageType?: string
+  pageRoute?: string
+  pageEntityType?: string
+  pageEntityId?: number | string
+  draftId?: string
+  projectId?: number
+  productionId?: number
+  selectionLabel?: string
+  selectionEntityType?: string
+  selectionEntityId?: number | string
+  labels: string[]
+}
+
+function PageContextPanel({
+  context,
+}: {
+  context: PageContextSummary
+}) {
+  const { t } = useTranslation()
+  const rows = [
+    context.pageRoute ? { label: t('agents.chat.panel.pageContext.route'), value: context.pageRoute } : null,
+    context.pageKey ? { label: t('agents.chat.panel.pageContext.pageKey'), value: context.pageKey } : null,
+    context.selectionLabel ? { label: t('agents.chat.panel.pageContext.selection'), value: context.selectionLabel } : null,
+    context.draftId ? { label: t('agents.chat.panel.pageContext.currentDraft'), value: context.draftId } : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>
+
+  return (
+    <div className="rounded-md border border-border bg-background/60 p-2 space-y-2">
+      <div className="grid gap-2 text-[11px] md:grid-cols-3">
+        <DebugSummaryItem label={t('agents.chat.panel.pageContext.page')} value={context.pageType || t('agents.chat.panel.pageContext.unknown')} />
+        <DebugSummaryItem label={t('agents.chat.panel.pageContext.entity')} value={formatPageEntityLabel(context, t)} />
+        <DebugSummaryItem label={t('agents.chat.panel.pageContext.currentDraft')} value={context.draftId || t('agents.chat.panel.pageContext.noDraft')} />
+      </div>
+      {rows.length > 0 ? (
+        <div className="space-y-1">
+          {rows.map((row) => (
+            <div key={row.label} className="grid grid-cols-[76px_minmax(0,1fr)] gap-2 rounded border border-border/60 bg-muted/20 px-2 py-1 text-[10px]">
+              <span className="text-muted-foreground">{row.label}</span>
+              <span className="truncate font-mono text-foreground" title={row.value}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.pageContext.empty')}</p>
+      )}
+      {context.labels.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {context.labels.map((label) => (
+            <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{label}</Badge>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        {context.draftId
+          ? t('agents.chat.panel.pageContext.draftHint')
+          : t('agents.chat.panel.pageContext.noDraftHint')}
+      </p>
+    </div>
+  )
+}
+
+function formatPageEntityLabel(context: PageContextSummary, t: ReturnType<typeof useTranslation>['t']) {
+  const type = context.pageEntityType ?? context.selectionEntityType
+  const id = context.pageEntityId ?? context.selectionEntityId
+  if (!type && id === undefined) return t('agents.chat.panel.pageContext.none')
+  if (!type) return String(id)
+  return id === undefined ? type : `${type} #${id}`
+}
+
+function buildPageContextSummary(input: {
+  clientInput?: AgentClientInput
+  projectId?: number
+  fallbackProjectId?: number
+  fallbackLabels?: string[]
+}): PageContextSummary {
+  const uiSnapshot = isRecord(input.clientInput?.uiSnapshot) ? input.clientInput.uiSnapshot : undefined
+  const pageContext = isRecord(uiSnapshot?.pageContext) ? uiSnapshot.pageContext : undefined
+  const project = isRecord(uiSnapshot?.project) ? uiSnapshot.project : undefined
+  const selection = isRecord(uiSnapshot?.selection) ? uiSnapshot.selection : undefined
+  const route = isRecord(uiSnapshot?.route) ? uiSnapshot.route : undefined
+  const labels = Array.isArray(uiSnapshot?.labels)
+    ? uiSnapshot.labels.filter((label): label is string => typeof label === 'string' && !!label.trim())
+    : input.fallbackLabels ?? []
+  const projectId = numberValue(input.projectId ?? project?.id ?? input.fallbackProjectId)
+  const productionId = numberValue(uiSnapshot?.productionId)
+  const routeLike = {
+    pathname: stringValue(route?.pathname),
+    search: stringValue(route?.search),
+    hash: stringValue(route?.hash),
+  }
+  const synthesizedPageContext = pageContext
+    ? undefined
+    : buildPageContext({
+      route: routeLike.pathname || routeLike.search || routeLike.hash ? routeLike : undefined,
+      projectId,
+      productionId,
+      draftId: stringValue(uiSnapshot?.draftId),
+      selection: selection
+        ? {
+          entityType: stringValue(selection.entityType),
+          entityId: stringValue(selection.entityId) ?? numberValue(selection.entityId),
+          label: stringValue(selection.label),
+        }
+        : undefined,
+      labels,
+    })
+
+  const resolvedPageContext = pageContext ?? synthesizedPageContext
+  return {
+    pageKey: stringValue(resolvedPageContext?.pageKey),
+    pageType: stringValue(resolvedPageContext?.pageType),
+    pageRoute: stringValue(resolvedPageContext?.pageRoute),
+    pageEntityType: stringValue(resolvedPageContext?.pageEntityType),
+    pageEntityId: stringValue(resolvedPageContext?.pageEntityId) ?? numberValue(resolvedPageContext?.pageEntityId),
+    draftId: stringValue(resolvedPageContext?.draftId ?? uiSnapshot?.draftId),
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...(productionId !== undefined ? { productionId } : {}),
+    selectionLabel: stringValue(selection?.label),
+    selectionEntityType: stringValue(selection?.entityType),
+    selectionEntityId: stringValue(selection?.entityId) ?? numberValue(selection?.entityId),
+    labels,
+  }
+}
+
+function clientInputFromRun(run: AgentRun | null | undefined): AgentClientInput | undefined {
+  const clientInput = isRecord(run?.metadata?.clientInput) ? run.metadata.clientInput : undefined
+  if (!clientInput) return undefined
+  const message = stringValue(clientInput.message) ?? stringValue(clientInput.visibleMessage) ?? ''
+  return {
+    message,
+    ...(Array.isArray(clientInput.attachments) ? { attachments: clientInput.attachments as AgentClientInput['attachments'] } : {}),
+    ...(isRecord(clientInput.uiSnapshot) ? { uiSnapshot: clientInput.uiSnapshot as AgentClientInput['uiSnapshot'] } : {}),
+  }
+}
+
 function workflowStepTitle(step: AgentRun['steps'][number]) {
   if (step.type === 'tool_call') return step.toolName ?? 'Tool call'
   return 'Assistant message'
@@ -1337,7 +1409,6 @@ function runStatusVariant(status: string): 'secondary' | 'success' | 'warning' |
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
 const AGENT_CATALOG_TOOL_NAMES = new Set(['movscript_enable_agent_bundle', 'movscript_reload_agent_catalog'])
-const CONTEXT_PANE_HEIGHT_KEY = 'ai-panel-context-pane-height'
 const CONTEXT_PANE_DEFAULT_HEIGHT = 220
 const CONTEXT_PANE_MIN_HEIGHT = 96
 const CONTEXT_PANE_MAX_HEIGHT = 620
@@ -1358,22 +1429,6 @@ function runTouchesAgentCatalog(run: AgentRun | null | undefined): boolean {
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
-}
-
-function readStoredNumber(key: string, fallback: number, min: number, max: number) {
-  try {
-    const parsed = Number(localStorage.getItem(key))
-    if (!Number.isFinite(parsed)) return fallback
-    return clampNumber(parsed, min, max)
-  } catch {
-    return fallback
-  }
-}
-
-function writeStoredNumber(key: string, value: number) {
-  try {
-    localStorage.setItem(key, String(Math.round(value)))
-  } catch {}
 }
 
 function compactRunActivity(run: AgentRun): ChatRunActivity {
@@ -1782,6 +1837,10 @@ function buildDraftOpenPath(draft: AgentDraft): string | null {
     return `/workbench/script?draftId=${encodeURIComponent(draft.id)}`
   }
 
+  if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
+    return `/project-workspace?draftId=${encodeURIComponent(draft.id)}`
+  }
+
   const productionId = sourceEntityId ?? targetEntityId
   const productionRelatedKinds: AgentDraft['kind'][] = [
     'production_proposal',
@@ -2036,7 +2095,6 @@ function ConversationContextPanel({
   capabilities,
   loading,
   config,
-  onChange,
   onRefresh,
 }: {
   online: boolean
@@ -2044,71 +2102,16 @@ function ConversationContextPanel({
   capabilities?: AgentCapabilitiesResponse
   loading: boolean
   config: ConversationAgentContextConfig
-  onChange: (next: ConversationAgentContextConfig) => void
   onRefresh: () => void
 }) {
   const { t } = useTranslation()
   const skills = inspect?.skills ?? []
-  const tools = useMemo<ConversationContextTool[]>(() => capabilities?.resolvedTools.discovered ?? inspect?.registeredTools ?? [], [capabilities?.resolvedTools.discovered, inspect?.registeredTools])
-  const availableToolNames = useMemo(() => new Set(capabilities?.resolvedTools.available.map((tool) => tool.name) ?? []), [capabilities?.resolvedTools.available])
-  const selectedSkillIds = config.skillIds.length > 0
-    ? config.skillIds
-    : (config.manifest?.skills ?? []).map((skill) => skill.id)
-  const selectedToolNames = config.toolNames.length > 0
-    ? config.toolNames
-    : (config.manifest?.tools ?? []).filter((grant) => grant.mode !== 'deny').map((grant) => grant.name)
-  const selectedSkillSet = new Set(selectedSkillIds)
-  const selectedToolSet = new Set(selectedToolNames)
-  const selectedSkills = skills.filter((skill) => selectedSkillSet.has(skill.id))
-  const selectedTools = tools.filter((tool) => selectedToolSet.has(tool.name))
-
-  function updateSelection(patch: Partial<ConversationAgentContextConfig>) {
-    onChange({ ...config, ...patch })
-  }
-
-  function buildAndApply(skillIds: string[], toolNames: string[], enabled = true, approvalOverrides = config.approvalOverrides) {
-    if (!inspect?.defaultAgentManifest) return
-    const manifest = createImportedAgentManifest({
-      base: inspect.defaultAgentManifest,
-      skills,
-      tools,
-      skillIds,
-      toolNames,
-      approvalOverrides,
-    })
-    onChange({
-      enabled,
-      manifest,
-      skillIds,
-      toolNames,
-      approvalOverrides,
-    })
-  }
-
-  function importCurrentCatalog() {
-    const skillIds = skills.filter((skill) => skill.enabled !== false).map((skill) => skill.id)
-    const toolNames = tools.map((tool) => tool.name)
-    buildAndApply(skillIds, toolNames, true, {})
-  }
-
-  function toggleSkill(skillId: string, enabled: boolean) {
-    const next = enabled
-      ? Array.from(new Set([...selectedSkillIds, skillId]))
-      : selectedSkillIds.filter((id) => id !== skillId)
-    buildAndApply(next, selectedToolNames, config.enabled)
-  }
-
-  function toggleTool(toolName: string, enabled: boolean) {
-    const next = enabled
-      ? Array.from(new Set([...selectedToolNames, toolName]))
-      : selectedToolNames.filter((name) => name !== toolName)
-    buildAndApply(selectedSkillIds, next, config.enabled)
-  }
-
-  function setToolApproval(toolName: string, approval: AgentToolApprovalMode) {
-    const nextOverrides = { ...config.approvalOverrides, [toolName]: approval }
-    buildAndApply(selectedSkillIds, selectedToolNames, config.enabled, nextOverrides)
-  }
+  const tools = useMemo<ConversationContextTool[]>(() => capabilities?.resolvedTools.available ?? inspect?.registeredTools ?? [], [capabilities?.resolvedTools.available, inspect?.registeredTools])
+  const activeManifest = (config.enabled ? config.manifest : inspect?.defaultAgentManifest) ?? null
+  const activeSkillIds = new Set((activeManifest?.skills ?? []).filter((skill) => skill.enabled !== false).map((skill) => skill.id))
+  const activeToolNames = new Set((activeManifest?.tools ?? []).filter((grant) => grant.mode !== 'deny').map((grant) => grant.name))
+  const activeSkills = skills.filter((skill) => activeSkillIds.has(skill.id))
+  const activeTools = tools.filter((tool) => activeToolNames.has(tool.name))
 
   return (
     <div className="rounded-md border border-border bg-background/60 p-2 space-y-2">
@@ -2117,10 +2120,12 @@ function ConversationContextPanel({
           <div className="flex items-center gap-1.5 text-[10px] font-medium text-foreground">
             <SlidersHorizontal size={11} />
             {t('agents.chat.panel.capabilities.title')}
-            {config.enabled && <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{t('agents.chat.panel.capabilities.custom')}</Badge>}
+            <Badge variant={config.enabled ? 'secondary' : 'outline'} className="text-[9px] leading-4 px-1.5 py-0">
+              {config.enabled ? t('agents.chat.panel.capabilities.custom') : t('agents.chat.panel.capabilities.runtimeDefault')}
+            </Badge>
           </div>
           <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
-            {t('agents.chat.panel.capabilities.selectHint')}
+            {t('agents.chat.panel.capabilities.activeHint')}
           </p>
         </div>
         <Button
@@ -2142,124 +2147,64 @@ function ConversationContextPanel({
         <p className="text-[10px] leading-relaxed text-muted-foreground">{loading ? t('agents.chat.panel.capabilities.loadingCatalog') : t('agents.chat.panel.capabilities.notLoaded')}</p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-1.5">
-            <DebugSummaryItem label={t('agents.chat.panel.capabilities.skills')} value={String(skills.length)} />
-            <DebugSummaryItem label={t('agents.chat.panel.capabilities.tools')} value={String(tools.length)} />
-            <DebugSummaryItem label={t('agents.chat.panel.capabilities.selected')} value={t('agents.chat.panel.capabilities.selectedCount', { skills: selectedSkillIds.length, tools: selectedToolNames.length })} />
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Button type="button" size="xs" variant="secondary" onClick={importCurrentCatalog} className="h-7 px-2 text-[10px]">
-              <PackagePlus size={10} />
-              {t('agents.chat.panel.capabilities.importCurrentCatalog')}
-            </Button>
-            <Button
-              type="button"
-              size="xs"
-              variant={config.enabled ? 'outline' : 'ghost'}
-              onClick={() => updateSelection({ enabled: !config.enabled })}
-              disabled={!config.manifest}
-              className="h-7 px-2 text-[10px]"
-            >
-              {config.enabled ? t('agents.chat.panel.capabilities.useCustomContext') : t('agents.chat.panel.capabilities.useRuntimeDefault')}
-            </Button>
-            {config.manifest && (
-              <Button
-                type="button"
-                size="xs"
-                variant="ghost"
-                onClick={() => onChange(EMPTY_AGENT_CONTEXT_CONFIG)}
-                className="h-7 px-2 text-[10px] text-muted-foreground"
-              >
-                {t('agents.chat.panel.capabilities.clear')}
-              </Button>
-            )}
+          <div className="grid grid-cols-2 gap-1.5">
+            <DebugSummaryItem label={t('agents.chat.panel.capabilities.skills')} value={String(activeSkills.length)} />
+            <DebugSummaryItem label={t('agents.chat.panel.capabilities.tools')} value={String(activeTools.length)} />
           </div>
 
-          {config.manifest && (
+          {activeManifest && (
             <div className="rounded-md border border-border bg-muted/20 p-2 text-[10px]">
               <div className="flex items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-medium text-foreground">{config.manifest.name}</span>
-                <Badge variant={config.enabled ? 'success' : 'secondary'} className="text-[9px] leading-4 px-1.5 py-0">
-                  {config.enabled ? t('agents.chat.panel.capabilities.active') : t('agents.chat.panel.capabilities.saved')}
+                <span className="min-w-0 truncate font-medium text-foreground">{activeManifest.name}</span>
+                <Badge variant={config.enabled ? 'secondary' : 'outline'} className="text-[9px] leading-4 px-1.5 py-0">
+                  {config.enabled ? t('agents.chat.panel.capabilities.custom') : t('agents.chat.panel.capabilities.runtimeDefault')}
                 </Badge>
               </div>
               <div className="mt-1 text-muted-foreground">
-                {t('agents.chat.panel.capabilities.selectedManifest', { skills: selectedSkills.length, tools: selectedTools.length })}
+                {t('agents.chat.panel.capabilities.activeManifest', { skills: activeSkills.length, tools: activeTools.length })}
               </div>
             </div>
           )}
 
-          <details className="rounded-md border border-border bg-background/70" open={config.enabled}>
+          <details className="rounded-md border border-border bg-background/70" open>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
               <span className="inline-flex items-center gap-1.5"><ClipboardCheck size={10} /> Skills</span>
-              <span className="text-[9px] text-muted-foreground">{selectedSkillIds.length}/{skills.length}</span>
+              <span className="text-[9px] text-muted-foreground">{activeSkills.length}</span>
             </summary>
             <div className="max-h-44 space-y-1 overflow-y-auto border-t border-border p-1.5">
-              {skills.length === 0 ? (
+              {activeSkills.length === 0 ? (
                 <p className="px-1 text-[10px] text-muted-foreground">{t('agents.chat.panel.capabilities.noSkillsLoaded')}</p>
-              ) : skills.map((skill) => (
-                <label key={skill.id} className="flex cursor-pointer items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
-                  <input
-                    type="checkbox"
-                    checked={selectedSkillSet.has(skill.id)}
-                    onChange={(e) => toggleSkill(skill.id, e.target.checked)}
-                    className="mt-0.5 h-3 w-3 shrink-0"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1">
-                      <span className="truncate font-medium text-foreground">{skill.name}</span>
-                      {!skill.enabled && <Badge variant="secondary" className="text-[8px] leading-3 px-1 py-0">{t('agents.chat.panel.capabilities.disabled')}</Badge>}
-                    </span>
-                    <span className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{skill.description || skill.id}</span>
-                  </span>
-                </label>
+              ) : activeSkills.map((skill) => (
+                <div key={skill.id} className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
+                  <div className="flex items-start gap-1.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1">
+                        <span className="truncate font-medium text-foreground">{skill.name}</span>
+                        {!skill.enabled && <Badge variant="secondary" className="text-[8px] leading-3 px-1 py-0">{t('agents.chat.panel.capabilities.disabled')}</Badge>}
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{skill.description || skill.id}</p>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </details>
 
-          <details className="rounded-md border border-border bg-background/70">
+          <details className="rounded-md border border-border bg-background/70" open>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
               <span className="inline-flex items-center gap-1.5"><Wrench size={10} /> Tools</span>
-              <span className="text-[9px] text-muted-foreground">{selectedToolNames.length}/{tools.length}</span>
+              <span className="text-[9px] text-muted-foreground">{activeTools.length}</span>
             </summary>
             <div className="max-h-56 space-y-1 overflow-y-auto border-t border-border p-1.5">
-              {tools.length === 0 ? (
+              {activeTools.length === 0 ? (
                 <p className="px-1 text-[10px] text-muted-foreground">{t('agents.chat.panel.capabilities.noToolsLoaded')}</p>
-              ) : tools.map((tool) => (
+              ) : activeTools.map((tool) => (
                 <div key={tool.name} className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
-                  <div className="flex items-start gap-1.5">
-                    <input
-                      type="checkbox"
-                      checked={selectedToolSet.has(tool.name)}
-                      onChange={(e) => toggleTool(tool.name, e.target.checked)}
-                      className="mt-0.5 h-3 w-3 shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-1">
-                        <span className="truncate font-medium text-foreground">{tool.name}</span>
-                        <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{tool.risk}</Badge>
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{tool.description}</p>
-                    </div>
+                  <div className="flex min-w-0 items-center gap-1">
+                    <span className="truncate font-medium text-foreground">{tool.name}</span>
+                    <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{tool.risk}</Badge>
                   </div>
-                  {selectedToolSet.has(tool.name) && (
-                    <div className="mt-1.5 flex items-center justify-between gap-2 pl-4">
-                      <span className="truncate text-[9px] text-muted-foreground">{tool.permission}</span>
-                      <Select
-                        value={config.approvalOverrides[tool.name] ?? defaultToolApproval(tool)}
-                        onValueChange={(next) => setToolApproval(tool.name, next as AgentToolApprovalMode)}
-                      >
-                        <SelectTrigger size="sm" className="h-6 w-24 text-[9px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="never">{t('agents.chat.panel.capabilities.approval.never')}</SelectItem>
-                          <SelectItem value="on_write">{t('agents.chat.panel.capabilities.approval.onWrite')}</SelectItem>
-                          <SelectItem value="always">{t('agents.chat.panel.capabilities.approval.always')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{tool.description}</p>
                 </div>
               ))}
             </div>
@@ -2445,15 +2390,18 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'production_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'project_proposal', 'production_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
+const DRAFT_REFRESH_INTERVAL_MS = 1500
 
 function DraftPanel({
   project,
   online,
+  threadId,
 }: {
   project: Project | null
   online: boolean
+  threadId?: string
 }) {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
@@ -2463,6 +2411,7 @@ function DraftPanel({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const query = {
     ...(project ? { projectId: project.ID } : {}),
+    ...(threadId ? { threadId } : {}),
     ...(kind !== 'all' ? { kind } : {}),
     ...(status !== 'all' ? { status } : {}),
     limit: 20,
@@ -2470,7 +2419,9 @@ function DraftPanel({
   const draftsQuery = useQuery<AgentDraft[]>({
     queryKey: ['local-agent-drafts', localAgentClient.baseURL, query],
     queryFn: () => localAgentClient.listDrafts(query).then((r) => r.drafts),
-    enabled: online,
+    enabled: online && !!threadId,
+    refetchInterval: online && threadId ? DRAFT_REFRESH_INTERVAL_MS : false,
+    refetchIntervalInBackground: false,
     retry: false,
   })
   const drafts = draftsQuery.data ?? []
@@ -2496,19 +2447,31 @@ function DraftPanel({
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 text-[10px] font-medium text-foreground">
           <ClipboardCheck size={11} />
-          {t('agents.chat.drafts.title')}
+          {t('agents.chat.panel.drafts.currentThreadTitle')}
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="xs"
-          onClick={refreshDrafts}
-          disabled={!online || draftsQuery.isFetching}
-          className="h-5 px-1 text-[10px] text-muted-foreground"
-        >
-          <RefreshCw size={10} className={draftsQuery.isFetching ? 'animate-spin' : ''} />
-          {t('agents.chat.panel.drafts.refresh')}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={() => navigate('/agent/drafts')}
+            className="h-5 px-1 text-[10px] text-muted-foreground"
+          >
+            <History size={10} />
+            {t('agents.chat.panel.drafts.history')}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            onClick={refreshDrafts}
+            disabled={!online || !threadId || draftsQuery.isFetching}
+            className="h-5 px-1 text-[10px] text-muted-foreground"
+          >
+            <RefreshCw size={10} className={draftsQuery.isFetching ? 'animate-spin' : ''} />
+            {t('agents.chat.panel.drafts.refresh')}
+          </Button>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-1.5">
         <Select value={status} onValueChange={(next) => setStatus(next as AgentDraftStatus | 'all')}>
@@ -2528,6 +2491,8 @@ function DraftPanel({
       </div>
       {!online ? (
         <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.drafts.noOnline')}</p>
+      ) : !threadId ? (
+        <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.drafts.noThread')}</p>
       ) : drafts.length === 0 ? (
         <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.drafts.emptyFilter')}</p>
       ) : (
@@ -2783,27 +2748,14 @@ function ChatView({
   const [mentionRange, setMentionRange] = useState<{ start: number; end: number; query: string } | null>(null)
   const [uploading, setUploading] = useState(false)
   const [draggingFiles, setDraggingFiles] = useState(false)
-  const [showContext, setShowContextState] = useState(() => {
-    try {
-      return localStorage.getItem(AGENT_CONTEXT_VISIBLE_KEY) === 'true'
-    } catch {
-      return false
-    }
-  })
-  const [contextPaneHeight, setContextPaneHeight] = useState(() => readStoredNumber(CONTEXT_PANE_HEIGHT_KEY, CONTEXT_PANE_DEFAULT_HEIGHT, CONTEXT_PANE_MIN_HEIGHT, CONTEXT_PANE_MAX_HEIGHT))
+  const [showContext, setShowContextState] = useState(false)
+  const [contextPaneHeight, setContextPaneHeight] = useState(CONTEXT_PANE_DEFAULT_HEIGHT)
   const [startingLocalAgent, setStartingLocalAgent] = useState(false)
   const [localAgentStartError, setLocalAgentStartError] = useState<string | null>(null)
   const localRuntimeEnabled = true
-  const [debugBeforeSend, setDebugBeforeSendState] = useState(() => {
-    try {
-      return localStorage.getItem(AGENT_DEBUG_PREVIEW_KEY) === 'true'
-    } catch {
-      return false
-    }
-  })
+  const [debugBeforeSend, setDebugBeforeSendState] = useState(false)
   const [buildingSendDraft, setBuildingSendDraft] = useState(false)
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
-  const [agentContextConfigs, setAgentContextConfigs] = useState<Record<string, ConversationAgentContextConfig>>({})
   const [streamingAssistantMessageId, setStreamingAssistantMessageId] = useState<string | null>(null)
   const [streamingAssistantText, setStreamingAssistantText] = useState('')
   const [liveTraceEvents, setLiveTraceEvents] = useState<ChatRunActivityEvent[]>([])
@@ -2910,7 +2862,7 @@ function ChatView({
   const approvingLocalRun = conversationRuntime?.approving ?? false
   const stoppingLocalRun = conversationRuntime?.stopping ?? false
   const stopRequestedBeforeRun = conversationRuntime?.stopRequested ?? false
-  const agentContextConfig = agentContextConfigs[conv.id] ?? EMPTY_AGENT_CONTEXT_CONFIG
+  const agentContextConfig = EMPTY_AGENT_CONTEXT_CONFIG
   const activeConversationManifest = agentContextConfig.enabled ? agentContextConfig.manifest ?? undefined : undefined
   useEffect(() => {
     const thread = threadRef.current
@@ -2924,6 +2876,14 @@ function ChatView({
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     composerAttachments.length > 0 ? t('agents.chat.attachmentsCount', { count: composerAttachments.length }) : null,
   ].filter(Boolean) as string[]
+  const currentPageContext = buildPageContextSummary({
+    clientInput: pendingSendDraft?.localRuntime?.clientInput
+      ?? externalTask?.payload.clientInput
+      ?? clientInputFromRun(activeLocalRun),
+    projectId: pendingSendDraft?.localRuntime?.projectId ?? externalTask?.payload.projectId,
+    fallbackProjectId: currentProject?.ID,
+    fallbackLabels: contextLabels,
+  })
   const canSend = (!!input.trim() || composerAttachments.length > 0) && !loading && !uploading && !buildingSendDraft
   const localAgentOnline = !!localAgentHealth?.ok && !localAgentHealthError
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
@@ -2971,23 +2931,14 @@ function ChatView({
 
   function setDebugBeforeSend(next: boolean) {
     setDebugBeforeSendState(next)
-    try { localStorage.setItem(AGENT_DEBUG_PREVIEW_KEY, String(next)) } catch {}
   }
 
   function setShowContext(next: boolean | ((current: boolean) => boolean)) {
     setShowContextState((current) => {
       const resolved = typeof next === 'function' ? next(current) : next
-      try { localStorage.setItem(AGENT_CONTEXT_VISIBLE_KEY, String(resolved)) } catch {}
       return resolved
     })
   }
-
-  const updateAgentContextConfig = useCallback((next: ConversationAgentContextConfig) => {
-    setAgentContextConfigs((current) => ({
-      ...current,
-      [conv.id]: next,
-    }))
-  }, [conv.id])
 
   const refreshAgentCatalogContext = useCallback(() => {
     void refetchLocalAgentInspect()
@@ -3009,7 +2960,6 @@ function ChatView({
       const delta = state.startY - moveEvent.clientY
       const nextHeight = clampNumber(state.startHeight + delta, CONTEXT_PANE_MIN_HEIGHT, CONTEXT_PANE_MAX_HEIGHT)
       setContextPaneHeight(nextHeight)
-      writeStoredNumber(CONTEXT_PANE_HEIGHT_KEY, nextHeight)
     }
 
     const onUp = () => {
@@ -4030,61 +3980,70 @@ function ChatView({
                     onSelect={setCurrentProject}
                     onCreate={(payload) => createProject.mutate(payload)}
                   />
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={settings.includeProjectContext}
-                        onChange={(e) => updateSettings({ includeProjectContext: e.target.checked })}
-                        className="h-3 w-3"
-                      />
-                      <span className="truncate">{t('agents.chat.projectContext')}</span>
-                    </label>
-                    <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={settings.includeRecentResources}
-                        onChange={(e) => updateSettings({ includeRecentResources: e.target.checked })}
-                        className="h-3 w-3"
-                      />
-                      <span className="truncate">{t('agents.chat.resourceContext')}</span>
-                    </label>
-                    <label className="flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
-                      <input
-                        type="checkbox"
-                        checked={settings.autoPlan}
-                        onChange={(e) => updateSettings({ autoPlan: e.target.checked })}
-                        className="h-3 w-3"
-                      />
-                      <span className="truncate">{t('agents.chat.autoPlan')}</span>
-                    </label>
-                    {debugBeforeSend && (
-                      <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
-                        {t('agents.chat.debugPreview')}
-                      </Badge>
-                    )}
-                    <Select
-                      value={settings.permissionMode}
-                      onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
-                    >
-                      <SelectTrigger size="sm" className="ml-auto h-7 w-28 max-w-full text-[10px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ask">{t('agents.chat.permissions.ask')}</SelectItem>
-                        <SelectItem value="suggest">{t('agents.chat.permissions.suggest')}</SelectItem>
-                        <SelectItem value="auto">{t('agents.chat.permissions.auto')}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {contextLabels.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
+                  <div className="rounded-md border border-border bg-background/60 p-2">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={settings.includeProjectContext}
+                          onChange={(e) => updateSettings({ includeProjectContext: e.target.checked })}
+                          className="h-3 w-3 shrink-0"
+                        />
+                        <span className="min-w-0 truncate font-medium text-foreground">{t('agents.chat.projectContext')}</span>
+                      </label>
+                      <label className="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={settings.includeRecentResources}
+                          onChange={(e) => updateSettings({ includeRecentResources: e.target.checked })}
+                          className="h-3 w-3 shrink-0"
+                        />
+                        <span className="min-w-0 truncate font-medium text-foreground">{t('agents.chat.resourceContext')}</span>
+                      </label>
+                      <label className="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={settings.autoPlan}
+                          onChange={(e) => updateSettings({ autoPlan: e.target.checked })}
+                          className="h-3 w-3 shrink-0"
+                        />
+                        <span className="min-w-0 truncate font-medium text-foreground">{t('agents.chat.autoPlan')}</span>
+                      </label>
+                      <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px]">
+                        <span className="min-w-0 truncate font-medium text-foreground">{t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) })}</span>
+                        <Badge variant={settings.includeRecentResources && recentResources.length > 0 ? 'secondary' : 'outline'} className="shrink-0 text-[9px] leading-4 px-1.5 py-0">
+                          {settings.includeRecentResources ? t('agents.chat.panel.runtime.on') : t('agents.chat.panel.runtime.off')}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+                      {debugBeforeSend && (
+                        <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
+                          {t('agents.chat.debugPreview')}
+                        </Badge>
+                      )}
                       {contextLabels.map((label) => (
                         <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{label}</Badge>
                       ))}
+                      <Select
+                        value={settings.permissionMode}
+                        onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
+                      >
+                        <SelectTrigger size="sm" className="ml-auto h-7 w-28 max-w-full text-[10px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ask">{t('agents.chat.permissions.ask')}</SelectItem>
+                          <SelectItem value="suggest">{t('agents.chat.permissions.suggest')}</SelectItem>
+                          <SelectItem value="auto">{t('agents.chat.permissions.auto')}</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
+                  </div>
                 </div>
+              </DebugSection>
+              <DebugSection title={t('agents.chat.panel.layers.pageContext')}>
+                <PageContextPanel context={currentPageContext} />
               </DebugSection>
               <DebugSection title={t('agents.chat.panel.layers.runtimeContext')}>
                 <div className="space-y-2">
@@ -4115,7 +4074,6 @@ function ChatView({
                 capabilities={localAgentCapabilities}
                 loading={fetchingLocalAgentInspect || fetchingLocalAgentCapabilities}
                 config={agentContextConfig}
-                onChange={updateAgentContextConfig}
                 onRefresh={refreshAgentCatalogContext}
               />
               <DebugSection title={t('agents.chat.panel.layers.prompt')}>
@@ -4144,11 +4102,12 @@ function ChatView({
                   )}
                 </div>
               </DebugSection>
-              <DebugSection title={t('agents.chat.panel.layers.artifacts')}>
+              <DebugSection title={t('agents.chat.panel.layers.drafts')}>
                 <div className="space-y-2">
                   <DraftPanel
                     project={currentProject}
                     online={localAgentOnline}
+                    threadId={activeLocalRun?.threadId ?? (localThreadId || undefined)}
                   />
                   <MemoryPanel
                     project={currentProject}
@@ -4532,22 +4491,10 @@ function BuiltinChat({ userId }: { userId: string }) {
 
 // ── AIAgentPanel ──────────────────────────────────────────────────────────────
 
-const PANEL_OPEN_KEY = 'ai-panel-open'
-const PANEL_WIDTH_KEY = 'ai-panel-width'
-const AGENT_DEBUG_PREVIEW_KEY = 'ai-panel-debug-preview'
-const AGENT_CONTEXT_VISIBLE_KEY = 'ai-panel-context-visible'
-
 export function AIAgentPanel() {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(() => {
-    try {
-      const saved = localStorage.getItem(PANEL_OPEN_KEY)
-      return saved === null ? true : saved === 'true'
-    } catch {
-      return true
-    }
-  })
-  const [panelWidth, setPanelWidth] = useState(() => readStoredNumber(PANEL_WIDTH_KEY, 420, 320, 760))
+  const [open, setOpen] = useState(true)
+  const [panelWidth, setPanelWidth] = useState(420)
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -4557,7 +4504,6 @@ export function AIAgentPanel() {
   useEffect(() => {
     function handleDraft() {
       setOpen(true)
-      try { localStorage.setItem(PANEL_OPEN_KEY, 'true') } catch {}
     }
 
     window.addEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
@@ -4567,7 +4513,6 @@ export function AIAgentPanel() {
   function toggleOpen() {
     setOpen((v) => {
       const next = !v
-      try { localStorage.setItem(PANEL_OPEN_KEY, String(next)) } catch {}
       return next
     })
   }
@@ -4604,7 +4549,6 @@ export function AIAgentPanel() {
       }
       panelRef.current?.style.setProperty('--ai-agent-panel-width', `${finalWidth}px`)
       setPanelWidth(finalWidth)
-      writeStoredNumber(PANEL_WIDTH_KEY, finalWidth)
       panelResizeStateRef.current = null
       document.body.classList.remove('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
       window.removeEventListener('pointermove', onMove)

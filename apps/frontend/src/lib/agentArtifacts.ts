@@ -34,6 +34,7 @@ function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
     'pipeline',
     'segment',
     'scene_moment',
+    'project_proposal',
     'production_proposal',
   ]
   return allowed.includes(normalized as AgentDraftKind) ? normalized as AgentDraftKind : undefined

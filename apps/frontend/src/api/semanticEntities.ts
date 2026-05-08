@@ -128,6 +128,38 @@ export async function listEntityRelations(projectId: number, filters: EntityRela
   return data
 }
 
+export interface GenerationContextReference {
+  usage: SemanticEntityRecord
+  reference?: SemanticEntityRecord
+  state?: SemanticEntityRecord
+}
+
+export interface GenerationContext {
+  target: {
+    type: 'content_unit'
+    content_unit: SemanticEntityRecord
+  }
+  intent: 'keyframe' | 'video'
+  production?: SemanticEntityRecord
+  segment?: SemanticEntityRecord
+  scene_moment?: SemanticEntityRecord
+  creative_references: GenerationContextReference[]
+  asset_slots: SemanticEntityRecord[]
+  keyframes: SemanticEntityRecord[]
+  constraints: {
+    read_only_entities: string[]
+    write_targets: string[]
+  }
+}
+
+export async function buildContentUnitGenerationContext(projectId: number, contentUnitId: number, intent: 'keyframe' | 'video' = 'video') {
+  const { data } = await api.post<GenerationContext>(
+    `/projects/${projectId}/entities/content-units/${contentUnitId}/generation-context`,
+    { target_type: 'content_unit', target_id: contentUnitId, intent },
+  )
+  return data
+}
+
 export async function createSemanticEntity(projectId: number, config: SemanticEntityConfig, payload: SemanticEntityPayload) {
   const { data } = await api.post<SemanticEntityRecord>(semanticEntityPath(projectId, config), payload)
   return data

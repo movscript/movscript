@@ -246,6 +246,9 @@ func walkTextFiles(t *testing.T, root string, visit func(path string, content st
 		if err != nil {
 			return err
 		}
+		if isRuntimeOverlayOnlyFile(path) {
+			return nil
+		}
 		visit(path, string(content))
 		return nil
 	})

@@ -2,6 +2,15 @@
   "category": "drafts",
   "tools": [
     {
+      "name": "movscript_create_draft",
+      "description": "Create a local runtime/client review artifact for compatibility or explicitly granted debug workflows. Page-owned product flows should create draft shells before agent runs.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false
+    },
+    {
       "name": "movscript_get_draft",
       "description": "Read one local draft artifact by reference.",
       "permission": "draft.read",

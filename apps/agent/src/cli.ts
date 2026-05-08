@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { MCPClient } from './mcpClient.js'
+import { FileAgentDraftStore } from './drafts/draftStore.js'
 import type { JSONValue } from './types.js'
 
 const endpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || 'http://127.0.0.1:18765/mcp'
@@ -32,18 +33,18 @@ async function main() {
   }
 
   if (command === 'draft') {
-    await client.initialize()
     const kind = getFlag(args, '--kind') || 'note'
     const title = getFlag(args, '--title') || 'Untitled draft'
     const content = getFlag(args, '--content') || ''
     const projectId = getNumberFlag(args, '--project-id')
-    const result = await client.callTool('movscript_create_draft', compact({
+    const store = new FileAgentDraftStore()
+    const draft = store.createDraft(compact({
       projectId,
       kind,
       title,
       content,
     }))
-    printJSON(result)
+    printJSON({ draft })
     return
   }
 

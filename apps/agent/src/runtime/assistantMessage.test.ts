@@ -14,29 +14,23 @@ test('assistant message surfaces missing project warning', () => {
 test('assistant message describes successful and failed tool outcomes', () => {
   const content = buildAssistantContent('搜索并写草稿', [
     {
-      call: { name: 'movscript_search_items', args: { query: '主角' } },
-      result: toolText({ results: [{ id: 1 }, { id: 2 }] }),
-    },
-    {
       call: { name: 'movscript_create_draft', args: { kind: 'note' } },
       error: 'create failed',
     },
   ])
-
-  assert.match(content, /找到 2 条结果/)
   assert.match(content, /movscript\.create_draft 未完成：create failed/)
 })
 
-test('assistant message no longer special-cases removed slash commands', () => {
+test('assistant message describes current production reads', () => {
   const content = buildAssistantContent('/production_plan 第一场', [
     {
-      call: { name: 'movscript_read_project_structure', args: { limit: 50 } },
-      result: toolText({ counts: { scripts: 1 } }),
+      call: { name: 'movscript_read_current_production', args: { projectId: 42, productionId: 4 } },
+      result: toolText({ counts: { segments: 1, sceneMoments: 2 } }),
     },
   ], [], [], makeRun())
 
   assert.throws(() => JSON.parse(content))
-  assert.match(content, /读取项目结构摘要/)
+  assert.match(content, /read_current_production/i)
 })
 
 test('assistant message extracts tool calls from model JSON content', () => {
@@ -130,13 +124,13 @@ function makeRun(): AgentRun {
       {
         id: 'step_tool',
         runId: 'run_test',
-        type: 'tool_call',
-        status: 'completed',
-        toolName: 'movscript_read_project_structure',
-        args: { limit: 50 },
-        createdAt: '2026-05-03T00:00:00.000Z',
-        completedAt: '2026-05-03T00:00:00.000Z',
-      },
+      type: 'tool_call',
+      status: 'completed',
+      toolName: 'movscript_read_current_production',
+      args: { projectId: 42, productionId: 4 },
+      createdAt: '2026-05-03T00:00:00.000Z',
+      completedAt: '2026-05-03T00:00:00.000Z',
+    },
     ],
   }
 }

@@ -16,18 +16,26 @@
 创作来源 → agent 分析 → 提案（draft）→ 用户确认 → 写入后端
 ```
 
+项目编排和制作编排拆成两条提案通道：
+
+- `project_proposal`：项目级治理提案，只应用 `creative_reference` 和 `asset_slot`。它负责创建设定资料、修改设定资料、删除/合并重复设定、创建或锁定项目级素材需求。用户确认后走 `POST /projects/:id/entities/project-proposals/apply`。
+- `production_proposal`：制作级结构提案，只应用制作结构和制作使用关系。它负责 `segment`、`scene_moment`，以及在情景下提出设定引用和素材需求使用；内容单元、关键帧、台词定稿、运镜表和 prompt 仍属于下游制作工作台。用户确认后走 `POST /projects/:id/entities/production-proposals/apply`。
+- 制作侧可以读取项目侧的设定资料和素材需求用于复用、去重和引用，但不直接拥有这些实体；项目侧是它们的最终 owner。
+
 分析产出的实体层级：
 
 ```
 Production（制作）
 ├── Segment（编排段）        — 本集内部的情绪 / 节奏 / 戏剧功能段
 │   └── SceneMoment（情景）  — 具体时空、条件、动作和局部情绪
-│       ├── ContentUnit（内容片段）— 一个镜头：景别/运动/时长/提示词
-│       └── CreativeReferenceUsage — 这个情节用到哪些人物/场景，各自什么状态
+│       ├── CreativeReferenceUsage — 这个情节用到哪些人物/场景，各自什么状态
+│       └── AssetSlot（素材需求）   — 需要准备什么素材、用于哪个情节、优先级如何
 ├── CreativeReference（设定资料）— 项目级：人物/场景/道具/品牌（跨制作共享）
 │   └── CreativeReferenceState（设定状态）— 某个情节里该设定资料的具体表现（服装/情绪/道具）
-└── AssetSlot（素材槽）      — 需要准备的媒体文件（图/视/音），可复用已锁定素材
+└── 制作工作台（下游）       — 基于 SceneMoment 再生成 ContentUnit / Keyframe / 运镜表 / 台词定稿
 ```
+
+编排工作台的核心作用是定上游约束：情节结构、情绪节奏、人物状态、设定引用、连续性和素材诉求。它不负责把情节拆成最终镜头，不负责定稿台词、运镜表、关键帧或 prompt。`ContentUnit` 和 `Keyframe` 是制作工作台的产物，编排提案只允许保留少量 `production_notes` / `directing_intent` 作为下游参考。
 
 ---
 
@@ -35,16 +43,15 @@ Production（制作）
 
 ### 已有能力
 
-**Agent 工具（`apps/agent/catalog/tools/movscript-mcp-tools.json`）：**
+**Agent 工具（`apps/agent/catalog/tools/*.json`）：**
 - `movscript.read_production_context` — 读取完整制作编排上下文
-- `movscript.check_entity_conflicts` — 检查当前制作内的实体冲突
-- `movscript.propose_production_entities` — 写入可审阅的草稿提案
-- `movscript.search_entities` / `movscript.read_entity` — 读取项目实体
+- `movscript.check_proposal_is_available` — 检查提案是否可提交并返回归一化建议
+- `movscript.create_production_proposal` / `movscript.upsert_proposal_*` — 写入可审阅的草稿提案
 
 **Draft 系统（`apps/agent/src/runtime/store/draftStore.ts`）：**
-- `AgentDraftKind`: `script | asset_slot | storyboard_line | content_unit | prompt | note | pipeline | segment | scene_moment | production_proposal`
+- `AgentDraftKind`: `script | asset_slot | storyboard_line | content_unit | prompt | note | pipeline | segment | scene_moment | project_proposal | production_proposal`
 - `AgentDraftStatus`: `draft | accepted | rejected | applied | superseded`
-- `BackendApplyClient` 支持 PATCH 到后端（仅更新已有实体）
+- `BackendApplyClient` 支持字段级 PATCH，也支持提案级 POST：`project_proposal` 走项目提案 apply，`production_proposal` 走制作提案 apply
 
 **后端数据模型（`apps/backend/internal/domain/model/`）：**
 - `CreativeReference` — 项目级，`ProjectID` 无 `ProductionID`，天然跨制作共享
@@ -56,7 +63,7 @@ Production（制作）
 ### 已知缺口
 
 1. **`AgentDraftKind` 缺少 `segment` 和 `scene_moment`** — agent 无法提案新建这两类实体
-2. **`BackendApplyClient` 只做 PATCH** — 无法批量新建实体树（Segment → SceneMoment → ContentUnit）
+2. **`BackendApplyClient` 只做 PATCH** — 无法批量新建实体树（Segment → SceneMoment → CreativeReferenceUsage / AssetSlot）
 3. **`check_entity_conflicts` 只检查当前制作** — 无法发现跨制作的 CreativeReference 复用机会
 4. **没有批量提案的结构化格式** — 现在一个 draft 对应一个字段，无法表达整棵实体树
 5. **前端没有提案审阅 UI** — 用户看不到 agent 提出的树形结构，无法逐节点确认/拒绝
@@ -69,7 +76,7 @@ Production（制作）
 
 **现状**：一个 draft = 一个 target entity + 一个 field（字段级）
 
-**需要**：一个 draft = 一棵实体树（树级），包含：
+**需要**：一个 draft = 一棵编排约束树（树级），包含：
 ```json
 {
   "kind": "pipeline",
@@ -88,8 +95,8 @@ Production（制作）
             "creative_references": [
               { "action": "reuse", "id": 42, "role": "protagonist", "state": { "costume": "红色外套" } }
             ],
-            "content_units": [
-              { "action": "create", "kind": "shot", "shot_size": "medium", "duration_sec": 3 }
+            "asset_slots": [
+              { "action": "create", "name": "主角半身参考图", "kind": "image", "priority": "high" }
             ]
           }
         ]
@@ -103,6 +110,8 @@ Production（制作）
 - `"create"` — 新建实体
 - `"reuse"` — 复用已有实体（附 `id`）
 - `"update"` — 修改已有实体（附 `id` 和变更字段）
+
+编排阶段禁止把镜头、台词定稿、运镜、关键帧、prompt 当作正式提案节点写入。需要给制作工作台的表达建议时，只写在 `rationale`、`directing_intent` 或 `production_notes` 一类的说明字段中，不能生成 `content_units` 或 `keyframes`。
 
 ### 3.2 重新推演：增量 diff 而非全量覆盖
 
@@ -127,16 +136,7 @@ Production（制作）
 
 **问题**：一个项目有多个制作（如短视频版、直播版），人物"小明"在两个制作里都出现，agent 分析时不能新建两个 CreativeReference，必须复用同一个。
 
-**当前缺口**：`check_entity_conflicts` 只检查当前制作内的冲突，不检查项目级 CreativeReference。
-
-**解决方案**：在 agent 分析流程中增加**项目级查重**步骤：
-
-```
-agent 分析出"这个情节涉及人物小明"
-  → 调用 search_entities，在项目级搜索 CreativeReference，name 匹配"小明"
-  → 找到 → 提案中使用 action: "reuse", id: 42
-  → 没找到 → 提案中使用 action: "create"
-```
+**解决方案**：在制作提案工具里直接做业务语义归一化和复用判断，不再暴露通用实体搜索接口；agent 只读取当前 production context 和 proposal context，然后把 `reuse/create/update` 交给提案校验工具裁定。
 
 **AssetSlot 复用**：已锁定的素材（如人物参考图）通过 `LockedAssetSlotID` 引用，agent 提案时应检查是否已有可复用的锁定素材。
 
@@ -169,11 +169,13 @@ agent 分析出"这个情节涉及人物小明"
 **`AgentDraftKind` 增加**：
 - `segment` — 编排段提案（本集内部的情绪 / 节奏 / 戏剧功能段）
 - `scene_moment` — 情景提案
+- `project_proposal` — 项目级治理提案（设定资料与素材需求）
 - `production_proposal` — 完整编排树提案（包含上述所有层级）
 
 **`BackendApplyClient` 增加批量创建能力**：
 - 新增 `POST` 路由支持（当前只有 PATCH）
-- 按拓扑顺序创建：Segment → SceneMoment → ContentUnit → AssetSlot
+- 项目提案应用：`ProjectProposal → CreativeReference / AssetSlot`
+- 按拓扑顺序创建：Segment → SceneMoment → CreativeReferenceUsage → AssetSlot
 - 创建 CreativeReferenceUsage 绑定
 
 ### 4.3 前端提案审阅 UI
@@ -181,7 +183,7 @@ agent 分析出"这个情节涉及人物小明"
 在 `ProductionOrchestratePage` 中增加"Agent 提案"面板：
 
 **展示内容**：
-- 树形结构：编排段 → 情景 → 内容单元 + 素材槽
+- 树形结构：编排段 → 情景 → 设定引用 + 素材需求
 - 每个节点标注 `action`（新建/复用/修改）
 - 复用节点标注来源制作
 - 修改节点显示 before/after diff
@@ -215,7 +217,8 @@ agent 分析出"这个情节涉及人物小明"
 
 - **保守策略**：已 `confirmed` 的实体不能被 agent 直接覆盖，只能补充或提议修改（需二次确认）
 - **项目级共享**：`CreativeReference` 是项目级实体，跨制作必须复用，不能重复创建
-- **拓扑顺序**：批量创建时必须按 Segment → SceneMoment → ContentUnit → AssetSlot 顺序，因为子实体依赖父实体的 ID
+- **拓扑顺序**：批量创建时必须按 Segment → SceneMoment → CreativeReferenceUsage → AssetSlot 顺序，因为子实体依赖父实体的 ID
+- **编排边界**：编排 proposal 不生成 `content_unit`、`keyframe`、台词终稿、运镜表或 prompt；这些必须在制作工作台根据已确认的 `scene_moment` 再展开。
 - **Supersede 语义**：重新分析时，同 scope 下的旧 draft 必须先标记为 `superseded`，不能让两个版本并存
 
 ---

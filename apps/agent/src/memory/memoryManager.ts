@@ -121,19 +121,6 @@ export class MemoryManager {
         })
       }
 
-      if ((publicToolName(outcome.call.name) === 'movscript_read_item' || publicToolName(outcome.call.name) === 'movscript_search_items') && !outcome.error) {
-        const memory = describeEntityRefMemory(outcome)
-        writes.push({
-          projectId: input.projectId,
-          title: memory.title,
-          kind: 'item_ref',
-          content: memory.content,
-          ...(input.userMessage.threadId ? { sourceThreadId: input.userMessage.threadId } : {}),
-          sourceRunId: input.run.id,
-          sourceMessageId: input.userMessage.id,
-        })
-      }
-
       if (outcome.error) {
         writes.push({
           projectId: input.projectId,
@@ -225,24 +212,6 @@ function describeDraftMemory(result: JSONValue | undefined): { title: string; co
     }
   }
   return { title: '草稿', content: 'Created draft.' }
-}
-
-function describeEntityRefMemory(outcome: ToolCallOutcome): { title: string; content: string } {
-  if (publicToolName(outcome.call.name) === 'movscript_read_item') {
-    const itemType = String(outcome.call.args?.itemType ?? outcome.call.args?.entityType ?? 'item')
-    const itemId = String(outcome.call.args?.itemId ?? outcome.call.args?.entityId ?? '')
-    return {
-      title: `引用：${itemType} ${itemId}`.trim(),
-      content: `Read business item ${itemType} ${itemId}.`,
-    }
-  }
-  const parsed = parseToolResult(outcome.result ?? null)
-  const count = isRecord(parsed) && Array.isArray(parsed.results) ? parsed.results.length : undefined
-  const query = String(outcome.call.args?.query ?? '')
-  return {
-    title: `搜索引用：${truncate(query, 24) || '项目内容'}`,
-    content: `Searched business items with query "${query}"${typeof count === 'number' ? `, found ${count}` : ''}.`,
-  }
 }
 
 function buildMemoryTitle(kind: AgentMemoryKind, content: string): string {

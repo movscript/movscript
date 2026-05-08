@@ -5,6 +5,7 @@ export interface APIErrorBody {
   message?: string
   error?: string
   action?: string
+  debug?: unknown
 }
 
 const CODE_KEYS: Record<string, string> = {
@@ -94,6 +95,10 @@ export function translateApiError(input: unknown, fallbackKey = 'common.requestF
   const body = input as APIErrorBody | undefined
   const raw = body?.message ?? body?.error
 
+  if (raw && isGenerationContextDebug(body?.debug)) {
+    return raw
+  }
+
   if (body?.code && CODE_KEYS[body.code]) {
     return i18n.t(CODE_KEYS[body.code], { defaultValue: raw || i18n.t(fallbackKey) })
   }
@@ -110,4 +115,10 @@ export function translateApiError(input: unknown, fallbackKey = 'common.requestF
   }
 
   return raw
+}
+
+function isGenerationContextDebug(value: unknown): value is { code: string } {
+  if (!value || typeof value !== 'object') return false
+  const code = (value as { code?: unknown }).code
+  return typeof code === 'string' && code.startsWith('GENERATION_CONTEXT_')
 }

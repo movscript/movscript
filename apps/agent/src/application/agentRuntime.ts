@@ -809,6 +809,8 @@ export class AgentRuntime {
     projectId?: unknown
     kind?: unknown
     status?: unknown
+    threadId?: unknown
+    runId?: unknown
     sourceEntityType?: unknown
     sourceEntityId?: unknown
     pageKey?: unknown
@@ -1100,7 +1102,7 @@ export class AgentRuntime {
         title: contextError ? 'Runtime context resolved from fallback' : 'Runtime context resolved',
         summary: debugContext.project
           ? `Project #${debugContext.project.id} ${debugContext.project.name ?? ''} (${contextDurationMs}ms)`.trim()
-          : contextError ? `MCP context unavailable; using client input snapshot. (${contextDurationMs}ms)` : `No project context selected. (${contextDurationMs}ms)`,
+          : contextError ? `MCP context unavailable; using client input snapshot. (${contextDurationMs}ms)` : `No project selected. (${contextDurationMs}ms)`,
         status: contextError ? 'blocked' : 'completed',
         round: setupRound,
         data: {

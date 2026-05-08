@@ -2892,7 +2892,7 @@ function buildRunStages({
     {
       id: 'context',
       title: 'Context Pack',
-      detail: hasContext ? 'Route, project, manifest, skills, tools, and memory context are attached.' : hasRun || running ? 'Resolving UI snapshot, project context, skills, tools, and memories.' : 'Context resolution starts after execution.',
+      detail: hasContext ? 'Route, project, manifest, skills, tools, and memory context are attached.' : hasRun || running ? 'Resolving UI snapshot, project info, skills, tools, and memories.' : 'Context resolution starts after execution.',
       status: runFailed && !hasContext ? 'failed' : hasContext ? 'complete' : hasRun || running ? 'active' : 'pending',
     },
     {

@@ -1,11 +1,8 @@
-import { BrowserWindow, shell } from 'electron'
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
 import {
   JSONRPCRequest,
   JSONRPCResponse,
   MCPContextSnapshot,
-  MCPDraft,
-  MCPDraftKind,
   MCPJSONValue,
   MCPResource,
   MCPTool,
@@ -23,7 +20,6 @@ const contextSnapshot: MCPContextSnapshot = {
   updatedAt: new Date(0).toISOString(),
 }
 
-const drafts = new Map<string, MCPDraft>()
 let server: Server | null = null
 let contextAuthToken = ''
 
@@ -203,8 +199,7 @@ function listResources(): MCPResource[] {
       resource(`movscript://project/${id}/episodes`, 'Episodes'),
       resource(`movscript://project/${id}/scenes`, 'Scenes'),
       resource(`movscript://project/${id}/storyboards`, 'Storyboards'),
-      resource(`movscript://project/${id}/shots`, 'Shots'),
-      resource(`movscript://project/${id}/drafts`, 'Drafts')
+      resource(`movscript://project/${id}/shots`, 'Shots')
     )
   }
 
@@ -234,11 +229,6 @@ async function readResource(uri: string): Promise<MCPJSONValue> {
 
   const projectId = Number(match[1])
   const kind = match[2]
-
-  if (kind === 'drafts') {
-    const projectDrafts = Array.from(drafts.values()).filter((d) => d.projectId === projectId)
-    return resourceContent(uri, projectDrafts)
-  }
 
   const data = await backendGet(projectEndpoint(projectId, kind))
   return resourceContent(uri, summarizeResource(data))
@@ -298,6 +288,19 @@ function listTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_read_project_scripts',
+      description: 'Read scripts in the current or specified project. Use this when project planning, splitting, or orchestration needs access to the project screenplay/library. Set includeContent when the actual script body is needed.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
+          scriptId: { type: 'number', description: 'Optional script ID to read one script.' },
+          includeContent: { type: 'boolean', description: 'When true, include script body text up to contentLimit characters per script.' },
+          contentLimit: { type: 'number', description: 'Maximum script body characters per script when includeContent is true. Defaults to 8000.' },
+          limit: { type: 'number', description: 'Maximum scripts to return when scriptId is omitted. Defaults to 50.' },
+        }
+      ),
+    },
+    {
       name: 'movscript_create_project',
       description: 'Create a formal MovScript project. Use only when the user explicitly asks to create a new project or confirms the project name.',
       inputSchema: objectSchema(
@@ -308,71 +311,6 @@ function listTools(): MCPTool[] {
           total_episodes: { type: 'number' },
         },
         ['name']
-      ),
-    },
-    {
-      name: 'movscript_read_entity',
-      description: 'Read one project entity by type and id from MovScript backend APIs.',
-      inputSchema: objectSchema(
-        {
-          projectId: { type: 'number' },
-          entityType: { type: 'string', enum: ['project', 'script', 'creative_reference', 'asset', 'episode', 'scene', 'storyboard', 'shot'] },
-          entityId: { type: 'number' },
-        },
-        ['entityType', 'entityId']
-      ),
-    },
-    {
-      name: 'movscript_search_entities',
-      description: 'Search project entities by keyword across first-version read scopes.',
-      inputSchema: objectSchema(
-        {
-          projectId: { type: 'number' },
-          query: { type: 'string' },
-          entityTypes: { type: 'array', items: { type: 'string' } },
-          limit: { type: 'number' },
-        },
-        ['query']
-      ),
-    },
-    {
-      name: 'movscript_read_project_structure',
-      description: 'Read compact project structure across scripts, creative references, episodes, scenes, storyboards, and shots.',
-      inputSchema: objectSchema(
-        {
-          projectId: { type: 'number' },
-          limit: { type: 'number' },
-        }
-      ),
-    },
-    {
-      name: 'movscript_create_draft',
-      description: 'Create a local draft artifact. This does not write to MovScript project entities.',
-      inputSchema: objectSchema(
-        {
-          projectId: { type: 'number' },
-          kind: { type: 'string', enum: ['script', 'creative_reference', 'storyboard', 'shot', 'prompt', 'note', 'pipeline'] },
-          title: { type: 'string' },
-          content: { type: 'string' },
-          source: { type: 'object' },
-        },
-        ['kind', 'title', 'content']
-      ),
-    },
-    {
-      name: 'movscript_list_drafts',
-      description: 'List local draft artifacts for the current or specified project.',
-      inputSchema: objectSchema({ projectId: { type: 'number' } }),
-    },
-    {
-      name: 'movscript_open_entity',
-      description: 'Ask the MovScript UI to open a page for an entity type. This is navigation only.',
-      inputSchema: objectSchema(
-        {
-          entityType: { type: 'string', enum: ['project', 'script', 'creative_reference', 'asset', 'episode', 'scene', 'storyboard', 'shot'] },
-          entityId: { type: 'number' },
-        },
-        ['entityType']
       ),
     },
     {
@@ -410,40 +348,38 @@ function listTools(): MCPTool[] {
       ),
     },
     {
-      name: 'movscript_check_entity_conflicts',
-      description: 'Given a list of proposed production entities, check each one against existing entities and return conflict status: "none" (safe to create), "duplicate" (very similar entity exists), or "supersedes" (new version replaces old). For creative_references, pass scope="project" to check across all productions and get reuse_candidates. Always call this before propose_production_entities.',
+      name: 'movscript_check_proposal_is_available',
+      description: 'Validate whether a production_proposal tree is available to submit/apply for the current production. Checks reuse/update ids, project-scoped creative references and asset slots, production-scoped segments and scene moments, and returns suggestions plus a normalized proposal when existing items can be reused.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
           productionId: { type: 'number' },
-          scope: { type: 'string', enum: ['production', 'project'], description: 'Conflict check scope. Use "project" to find reusable CreativeReferences across all productions.' },
-          candidates: {
+          proposal: {
             type: 'object',
-            description: 'Object with keys: segments, scene_moments, creative_references, asset_slots, content_units — each an array of candidate objects with client_id and identifying fields.',
+            description: 'Production proposal tree with segments, nested scene_moments, creative_references, asset_slots, content_units, and keyframes.',
           },
+          autofix: { type: 'boolean', description: 'When true, normalizedProposal fills missing reuse/update ids or converts duplicate create actions to reuse/update where unambiguous. Defaults to true.' },
         },
-        ['projectId', 'productionId', 'candidates']
+        ['projectId', 'productionId', 'proposal']
       ),
     },
     {
-      name: 'movscript_submit_production_proposal',
-      description: 'Write the final analysis result as a local tree-form production_proposal draft so the frontend can compare it with the current production and ask for human confirmation. This does not modify backend entities.',
+      name: 'movscript_build_orchestration_diff',
+      description: 'Compare an agent-derived orchestration proposal with the current production and project-level settings/assets before writing a draft. Returns setting coverage, asset coverage, segment and scene-moment diffs, and review gates.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number' },
-          productionId: { type: 'number' },
-          analysisScope: { type: 'string' },
+          productionId: { type: 'number', description: 'Defaults to the current UI production when omitted.' },
           proposal: {
             type: 'object',
-            description: 'Tree-form proposal with keys: segments (array), each segment has scene_moments (array), each scene_moment has content_units and creative_references. Each node has action: "create"|"reuse"|"update" and optionally id for reuse/update.',
+            description: 'Agent-derived tree with segments, nested scene_moments, creative_references, and asset_slots.',
           },
-          candidates: {
+          currentDraft: {
             type: 'object',
-            description: 'Legacy flat candidates format (segments, scene_moments, creative_references, asset_slots, content_units). Use proposal instead for tree-form.',
+            description: 'Optional current local production_proposal tree, used to mark draft keep/update/supersede differences.',
           },
-          summary: { type: 'string' },
         },
-        ['projectId', 'productionId']
+        ['proposal']
       ),
     },
     {
@@ -489,30 +425,20 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await getContextPack())
     case 'movscript_list_projects':
       return toolText(await listProjects(args))
+    case 'movscript_read_project_scripts':
+      return toolText(await readProjectScripts(args))
     case 'movscript_create_project':
       return toolText(await createProject(args))
-    case 'movscript_read_entity':
-      return toolText(await readEntity(args))
-    case 'movscript_search_entities':
-      return toolText(await searchEntities(args))
-    case 'movscript_read_project_structure':
-      return toolText(await readProjectStructure(args))
     case 'movscript_list_productions':
       return toolText(await listProductions(args))
     case 'movscript_read_current_production':
       return toolText(await readCurrentProduction(args))
-    case 'movscript_create_draft':
-      return toolText(createDraft(args))
-    case 'movscript_list_drafts':
-      return toolText(listDrafts(args))
-    case 'movscript_open_entity':
-      return toolText(openEntity(args))
     case 'movscript_read_production_context':
       return toolText(await readProductionContext(args))
-    case 'movscript_check_entity_conflicts':
-      return toolText(await checkEntityConflicts(args))
-    case 'movscript_submit_production_proposal':
-      return toolText(proposeProductionEntities(args))
+    case 'movscript_check_proposal_is_available':
+      return toolText(await checkProposalIsAvailable(args))
+    case 'movscript_build_orchestration_diff':
+      return toolText(await buildOrchestrationDiff(args))
     case 'movscript_create_generation_job':
       return toolText(await createGenerationJob(args))
     default:
@@ -531,7 +457,6 @@ async function getContextPack(): Promise<unknown> {
       snapshot: contextSnapshot,
       projects,
       resources: listResources(),
-      draftCount: drafts.size,
       timings: {
         totalMs: Date.now() - startedAt,
         projectsMs,
@@ -543,7 +468,6 @@ async function getContextPack(): Promise<unknown> {
       projects: [],
       projectsError: error instanceof Error ? error.message : String(error),
       resources: listResources(),
-      draftCount: drafts.size,
       timings: {
         totalMs: Date.now() - startedAt,
       },
@@ -557,6 +481,29 @@ async function listProjects(args: Record<string, unknown>): Promise<unknown> {
   return {
     count: projects.length,
     projects: projects.slice(0, limit).map(summarizeProject),
+  }
+}
+
+async function readProjectScripts(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
+  if (!projectId) throw new Error('projectId is required when no current project is selected')
+
+  const scriptId = getOptionalNumber(args, 'scriptId')
+  const includeContent = args.includeContent === true
+  const contentLimit = clampNumber(Math.floor(getOptionalNumber(args, 'contentLimit') ?? 8000), 500, 50000)
+  const limit = Math.max(1, Math.min(Math.floor(getOptionalNumber(args, 'limit') ?? 50), 100))
+  const scripts = await backendList(`/projects/${projectId}/scripts`)
+  const selectedScripts = scriptId
+    ? scripts.filter((script: any) => Number(script?.ID ?? script?.id) === scriptId)
+    : scripts.slice(0, limit)
+
+  return {
+    projectId,
+    count: scripts.length,
+    returned: selectedScripts.length,
+    includeContent,
+    contentLimit: includeContent ? contentLimit : 0,
+    scripts: selectedScripts.map((script: any) => summarizeScript(script, { includeContent, contentLimit })),
   }
 }
 
@@ -579,47 +526,6 @@ async function createProject(args: Record<string, unknown>): Promise<unknown> {
     message: isRecord(summary) && typeof summary.id === 'number'
       ? `项目「${name}」已创建（project#${summary.id}）。`
       : `项目「${name}」已创建。`,
-  }
-}
-
-async function readProjectStructure(args: Record<string, unknown>): Promise<unknown> {
-  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
-  const limit = getOptionalNumber(args, 'limit') ?? 50
-  if (!projectId) throw new Error('projectId is required when no current project is selected')
-  const [scripts, creativeReferences, episodes, scenes, storyboards, shots] = await Promise.all([
-    backendList(`/projects/${projectId}/scripts`),
-    backendList(`/projects/${projectId}/entities/creative-references`),
-    backendList(`/projects/${projectId}/entities/productions`),
-    backendList(`/projects/${projectId}/entities/segments`),
-    backendList(`/projects/${projectId}/entities/storyboard-scripts`),
-    backendList(`/projects/${projectId}/entities/content-units`),
-  ])
-  return {
-    projectId,
-    counts: {
-      scripts: scripts.length,
-      creativeReferences: creativeReferences.length,
-      episodes: episodes.length,
-      scenes: scenes.length,
-      storyboards: storyboards.length,
-      shots: shots.length,
-    },
-    scripts: scripts.slice(0, limit).map(summarizeEntity),
-    creativeReferences: creativeReferences.slice(0, limit).map(summarizeEntity),
-    episodes: episodes.slice(0, limit).map(summarizeEntity),
-    scenes: scenes.slice(0, limit).map((scene) => {
-      const summary = summarizeEntityObject(scene)
-      return {
-        ...summary,
-        storyboards: storyboards.filter((storyboard) => Number(storyboard?.scene_id) === Number(scene?.ID ?? scene?.id)).length,
-        shots: shots.filter((shot) => storyboards.some((storyboard) => Number(storyboard?.scene_id) === Number(scene?.ID ?? scene?.id) && Number(shot?.storyboard_id) === Number(storyboard?.ID ?? storyboard?.id))).length,
-      }
-    }),
-    storyboards: storyboards.slice(0, limit).map((storyboard) => ({
-      ...summarizeEntityObject(storyboard),
-      shots: shots.filter((shot) => Number(shot?.storyboard_id) === Number(storyboard?.ID ?? storyboard?.id)).length,
-    })),
-    shots: shots.slice(0, limit).map(summarizeEntity),
   }
 }
 
@@ -646,102 +552,6 @@ async function backendList(path: string): Promise<any[]> {
   if (Array.isArray(data)) return data
   if (isRecord(data) && Array.isArray(data.items)) return data.items
   return []
-}
-
-async function readEntity(args: Record<string, unknown>): Promise<unknown> {
-  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
-  const entityType = getRequiredString(args, 'entityType')
-  const entityId = getRequiredNumber(args, 'entityId')
-
-  if (entityType === 'project') {
-    return backendGet(`/projects/${entityId}`)
-  }
-  if (!projectId) throw new Error('projectId is required when no current project is selected')
-
-  const collection = collectionForEntity(entityType)
-  const data = await backendGet(`/projects/${projectId}/${collection}`)
-  const items = Array.isArray(data) ? data : data?.items
-  if (!Array.isArray(items)) return data
-
-  const found = items.find((item) => Number(item?.ID ?? item?.id) === entityId)
-  if (!found) throw new Error(`${entityType} ${entityId} not found`)
-  return found
-}
-
-async function searchEntities(args: Record<string, unknown>): Promise<unknown> {
-  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
-  const query = getRequiredString(args, 'query').trim().toLowerCase()
-  const limit = getOptionalNumber(args, 'limit') ?? 20
-  const requestedTypes = getStringArray(args.entityTypes)
-  const entityTypes = requestedTypes.length > 0
-    ? requestedTypes
-    : ['script', 'creative_reference', 'asset', 'episode', 'scene', 'storyboard', 'shot']
-
-  if (!projectId) throw new Error('projectId is required when no current project is selected')
-
-  const results: unknown[] = []
-  for (const entityType of entityTypes) {
-    const collection = collectionForEntity(entityType)
-    const data = await backendGet(`/projects/${projectId}/${collection}`)
-    const items = Array.isArray(data) ? data : data?.items
-    if (!Array.isArray(items)) continue
-
-    for (const item of items) {
-      const haystack = JSON.stringify(item).toLowerCase()
-      if (haystack.includes(query)) {
-        results.push({ entityType, item: summarizeEntity(item) })
-      }
-      if (results.length >= limit) return { results }
-    }
-  }
-
-  return { results }
-}
-
-function createDraft(args: Record<string, unknown>): MCPDraft {
-  const kind = getRequiredString(args, 'kind') as MCPDraftKind
-  const title = getRequiredString(args, 'title')
-  const content = getRequiredString(args, 'content')
-  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id ?? null
-  const now = new Date().toISOString()
-  const draft: MCPDraft = {
-    id: `draft_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-    projectId,
-    kind,
-    status: 'draft',
-    title,
-    content,
-    source: isRecord(args.source) ? {
-      entityType: typeof args.source.entityType === 'string' ? args.source.entityType : undefined,
-      entityId: typeof args.source.entityId === 'number' ? args.source.entityId : undefined,
-      runId: typeof args.source.runId === 'string' ? args.source.runId : undefined,
-    } : undefined,
-    createdAt: now,
-    updatedAt: now,
-  }
-  drafts.set(draft.id, draft)
-  return draft
-}
-
-function listDrafts(args: Record<string, unknown>): { drafts: MCPDraft[] } {
-  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id ?? null
-  return {
-    drafts: Array.from(drafts.values())
-      .filter((draft) => projectId === null || draft.projectId === projectId)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-  }
-}
-
-function openEntity(args: Record<string, unknown>): { opened: boolean; route: string } {
-  const entityType = getRequiredString(args, 'entityType')
-  const route = routeForEntity(entityType)
-  const win = BrowserWindow.getAllWindows()[0]
-  if (win) {
-    win.webContents.send('mcp:open-route', route)
-  } else {
-    shell.openExternal(`movscript://${route.replace(/^\//, '')}`).catch(() => undefined)
-  }
-  return { opened: true, route }
 }
 
 async function createGenerationJob(args: Record<string, unknown>): Promise<unknown> {
@@ -1034,55 +844,42 @@ async function readCurrentProduction(args: Record<string, unknown>): Promise<unk
   }
 }
 
-async function checkEntityConflicts(args: Record<string, unknown>): Promise<unknown> {
+async function checkProposalIsAvailable(args: Record<string, unknown>): Promise<unknown> {
   const projectId = getRequiredNumber(args, 'projectId')
   const productionId = getRequiredNumber(args, 'productionId')
-  const scope = typeof args.scope === 'string' && args.scope === 'project' ? 'project' : 'production'
-  const candidates = isRecord(args.candidates) ? args.candidates : {}
+  const autofix = args.autofix !== false
+  const proposal = isRecord(args.proposal)
+    ? cloneJSON(args.proposal)
+    : legacyCandidatesToProposal(isRecord(args.candidates) ? args.candidates : {})
 
-  const [segments, sceneMoments, creativeReferences, assetSlots, contentUnits] = await Promise.all([
+  const [segments, sceneMoments, creativeReferences, assetSlots, contentUnits, keyframes] = await Promise.all([
     backendList(`/projects/${projectId}/entities/segments`),
     backendList(`/projects/${projectId}/entities/scene-moments`),
     backendList(`/projects/${projectId}/entities/creative-references`),
     backendList(`/projects/${projectId}/entities/asset-slots`),
     backendList(`/projects/${projectId}/entities/content-units`),
+    backendList(`/projects/${projectId}/entities/keyframes`),
   ])
 
   const productionSegments = segments.filter((s: any) => Number(s.production_id) === productionId)
-
-  function checkConflict(
-    proposed: any[],
-    existing: any[],
-    matchFn: (p: any, e: any) => boolean,
-    similarityFn: (p: any, e: any) => number,
-  ): any[] {
-    return proposed.map((candidate) => {
-      const exactMatch = existing.find((e) => matchFn(candidate, e))
-      if (exactMatch) {
-        return {
-          ...candidate,
-          conflict_status: 'duplicate',
-          conflict_entity_id: Number(exactMatch.ID ?? exactMatch.id),
-          conflict_entity_name: exactMatch.name ?? exactMatch.title ?? '',
-          conflict_similarity: 1.0,
-        }
-      }
-      const similar = existing
-        .map((e) => ({ entity: e, score: similarityFn(candidate, e) }))
-        .filter((r) => r.score >= 0.7)
-        .sort((a, b) => b.score - a.score)[0]
-      if (similar) {
-        return {
-          ...candidate,
-          conflict_status: 'duplicate',
-          conflict_entity_id: Number(similar.entity.ID ?? similar.entity.id),
-          conflict_entity_name: similar.entity.name ?? similar.entity.title ?? '',
-          conflict_similarity: similar.score,
-        }
-      }
-      return { ...candidate, conflict_status: 'none' }
-    })
-  }
+  const segmentIds = new Set(productionSegments.map((s: any) => entityId(s)).filter((id): id is number => id !== undefined))
+  const productionSceneMoments = sceneMoments.filter((sm: any) => segmentIds.has(Number(sm.segment_id)))
+  const sceneMomentIds = new Set(productionSceneMoments.map((sm: any) => entityId(sm)).filter((id): id is number => id !== undefined))
+  const productionContentUnits = contentUnits.filter((cu: any) =>
+    Number(cu.production_id) === productionId ||
+    segmentIds.has(Number(cu.segment_id)) ||
+    sceneMomentIds.has(Number(cu.scene_moment_id))
+  )
+  const contentUnitIds = new Set(productionContentUnits.map((cu: any) => entityId(cu)).filter((id): id is number => id !== undefined))
+  const productionKeyframes = keyframes.filter((keyframe: any) => (
+    Number(keyframe.production_id) === productionId ||
+    sceneMomentIds.has(Number(keyframe.scene_moment_id)) ||
+    contentUnitIds.has(Number(keyframe.content_unit_id))
+  ))
+  const errors: Array<Record<string, unknown>> = []
+  const warnings: Array<Record<string, unknown>> = []
+  const suggestions: Array<Record<string, unknown>> = []
+  const counts = { checked: 0, errors: 0, warnings: 0, suggestions: 0, autofixed: 0 }
 
   function nameSimilarity(a: any, b: any): number {
     const nameA = String(a.name ?? a.title ?? '').toLowerCase().trim()
@@ -1097,193 +894,543 @@ async function checkEntityConflicts(args: Record<string, unknown>): Promise<unkn
     return union > 0 ? intersection / union : 0
   }
 
-  function exactNameMatch(a: any, b: any): boolean {
-    return String(a.name ?? a.title ?? '').toLowerCase().trim() ===
-      String(b.name ?? b.title ?? '').toLowerCase().trim()
+  function addError(issue: Record<string, unknown>) {
+    errors.push(issue)
+    counts.errors += 1
   }
 
-  function segmentMatch(a: any, b: any): boolean {
-    return exactNameMatch(a, b) && Number(b.production_id) === productionId
+  function addWarning(issue: Record<string, unknown>) {
+    warnings.push(issue)
+    counts.warnings += 1
   }
 
-  const checkedSegments = checkConflict(
-    getArray(candidates.segments),
-    productionSegments,
-    segmentMatch,
-    nameSimilarity,
-  )
-  const checkedSceneMoments = checkConflict(
-    getArray(candidates.scene_moments),
-    sceneMoments,
-    exactNameMatch,
-    nameSimilarity,
-  )
+  function addSuggestion(suggestion: Record<string, unknown>) {
+    suggestions.push(suggestion)
+    counts.suggestions += 1
+  }
 
-  // For creative_references: project scope checks all existing refs (project-level entities have no production_id)
-  // Returns reuse_candidates for items that already exist at project level
-  const creativeRefCandidates = getArray(candidates.creative_references)
-  const checkedCreativeReferences = creativeRefCandidates.map((candidate) => {
-    const exactMatch = creativeReferences.find(
-      (e: any) => exactNameMatch(candidate, e) && (candidate.type ?? candidate.kind) === (e.kind ?? e.type),
-    )
-    if (exactMatch) {
-      return {
-        ...candidate,
-        conflict_status: 'duplicate',
-        conflict_entity_id: Number(exactMatch.ID ?? exactMatch.id),
-        conflict_entity_name: exactMatch.name ?? exactMatch.title ?? '',
-        conflict_similarity: 1.0,
-        ...(scope === 'project' ? { reuse_action: 'reuse', reuse_source: 'project' } : {}),
+  function findReusable(candidate: any, existing: any[], kindSensitive = false): { entity: any; score: number } | undefined {
+    const candidateKind = String(candidate.kind ?? candidate.type ?? '').trim()
+    const exact = existing.find((item) => {
+      if (normalizeName(candidate) !== normalizeName(item)) return false
+      if (!kindSensitive) return true
+      const itemKind = String(item.kind ?? item.type ?? '').trim()
+      return !candidateKind || !itemKind || candidateKind === itemKind
+    })
+    if (exact) return { entity: exact, score: 1 }
+    return existing
+      .map((item) => {
+        const itemKind = String(item.kind ?? item.type ?? '').trim()
+        const kindBonus = candidateKind && itemKind && candidateKind === itemKind ? 0.2 : 0
+        return { entity: item, score: Math.min(1, nameSimilarity(candidate, item) + kindBonus) }
+      })
+      .filter((item) => item.score >= 0.7)
+      .sort((a, b) => b.score - a.score)[0]
+  }
+
+  function validateNode(options: {
+    node: Record<string, unknown>
+    path: string
+    nodeType: string
+    existing: any[]
+    kindSensitive?: boolean
+    duplicateAction?: 'reuse' | 'update'
+  }) {
+    counts.checked += 1
+    const action = typeof options.node.action === 'string' && options.node.action.trim()
+      ? options.node.action.trim()
+      : 'create'
+    const id = getOptionalNumeric(options.node, 'id')
+    const existingById = id === undefined ? undefined : options.existing.find((item) => entityId(item) === id)
+    const match = findReusable(options.node, options.existing, options.kindSensitive)
+    const matchId = match ? entityId(match.entity) : undefined
+    const label = String(options.node.name ?? options.node.title ?? options.node.client_id ?? options.node.localRef ?? options.path)
+
+    if ((action === 'reuse' || action === 'update') && id === undefined) {
+      if (autofix && matchId !== undefined) {
+        options.node.id = matchId
+        counts.autofixed += 1
+        addSuggestion({
+          path: options.path,
+          node_type: options.nodeType,
+          code: `${action.toUpperCase()}_ID_FILLED`,
+          action,
+          id: matchId,
+          existing_name: match?.entity?.name ?? match?.entity?.title ?? '',
+          similarity: match?.score,
+          message: `${options.nodeType} ${JSON.stringify(label)} ${action} id filled from existing context.`,
+        })
+        return
+      }
+      addError({
+        path: options.path,
+        node_type: options.nodeType,
+        code: `${action.toUpperCase()}_ID_REQUIRED`,
+        action,
+        message: `${options.nodeType} ${JSON.stringify(label)} uses action ${JSON.stringify(action)} but does not provide id.`,
+      })
+      return
+    }
+
+    if ((action === 'reuse' || action === 'update') && id !== undefined && !existingById) {
+      addError({
+        path: options.path,
+        node_type: options.nodeType,
+        code: `${action.toUpperCase()}_ID_NOT_FOUND`,
+        action,
+        id,
+        message: `${options.nodeType} ${JSON.stringify(label)} references id ${id}, but it is not available in the current project/production scope.`,
+      })
+      return
+    }
+
+    if (action === 'create' && match && matchId !== undefined) {
+      addWarning({
+        path: options.path,
+        node_type: options.nodeType,
+        code: 'CREATE_DUPLICATES_EXISTING',
+        action,
+        existing_id: matchId,
+        existing_name: match.entity?.name ?? match.entity?.title ?? '',
+        similarity: match.score,
+        message: `${options.nodeType} ${JSON.stringify(label)} looks like an existing item and should usually reuse/update instead of create.`,
+      })
+      if (autofix && options.duplicateAction) {
+        options.node.action = options.duplicateAction
+        options.node.id = matchId
+        counts.autofixed += 1
+        addSuggestion({
+          path: options.path,
+          node_type: options.nodeType,
+          code: 'DUPLICATE_CREATE_AUTOFIXED',
+          action: options.duplicateAction,
+          id: matchId,
+          existing_name: match.entity?.name ?? match.entity?.title ?? '',
+          similarity: match.score,
+        })
       }
     }
-    const similar = creativeReferences
-      .map((e: any) => ({
-        entity: e,
-        score: Math.min(1, nameSimilarity(candidate, e) + ((candidate.type ?? candidate.kind) === (e.kind ?? e.type) ? 0.2 : 0)),
-      }))
-      .filter((r: any) => r.score >= 0.7)
-      .sort((a: any, b: any) => b.score - a.score)[0]
-    if (similar) {
-      return {
-        ...candidate,
-        conflict_status: 'duplicate',
-        conflict_entity_id: Number(similar.entity.ID ?? similar.entity.id),
-        conflict_entity_name: similar.entity.name ?? similar.entity.title ?? '',
-        conflict_similarity: similar.score,
-        ...(scope === 'project' ? { reuse_action: 'reuse', reuse_source: 'project' } : {}),
-      }
-    }
-    return { ...candidate, conflict_status: 'none' }
+  }
+
+  getArray((proposal as any).segments).forEach((segment: any, segmentIndex) => {
+    if (!isRecord(segment)) return
+    const segmentPath = `/segments/${segmentIndex}`
+    validateNode({ node: segment, path: segmentPath, nodeType: 'segment', existing: productionSegments, duplicateAction: 'update' })
+    getArray(segment.scene_moments).forEach((sceneMoment: any, sceneMomentIndex) => {
+      if (!isRecord(sceneMoment)) return
+      const sceneMomentPath = `${segmentPath}/scene_moments/${sceneMomentIndex}`
+      validateNode({ node: sceneMoment, path: sceneMomentPath, nodeType: 'scene_moment', existing: productionSceneMoments, duplicateAction: 'update' })
+      getArray(sceneMoment.creative_references).forEach((reference: any, referenceIndex) => {
+        if (!isRecord(reference)) return
+        validateNode({
+          node: reference,
+          path: `${sceneMomentPath}/creative_references/${referenceIndex}`,
+          nodeType: 'creative_reference',
+          existing: creativeReferences,
+          kindSensitive: true,
+          duplicateAction: 'reuse',
+        })
+      })
+      getArray(sceneMoment.asset_slots).forEach((asset: any, assetIndex) => {
+        if (!isRecord(asset)) return
+        validateNode({
+          node: asset,
+          path: `${sceneMomentPath}/asset_slots/${assetIndex}`,
+          nodeType: 'asset_slot',
+          existing: assetSlots,
+          duplicateAction: 'reuse',
+        })
+      })
+      getArray(sceneMoment.content_units).forEach((unit: any, unitIndex) => {
+        if (!isRecord(unit)) return
+        const unitPath = `${sceneMomentPath}/content_units/${unitIndex}`
+        validateNode({ node: unit, path: unitPath, nodeType: 'content_unit', existing: productionContentUnits, duplicateAction: 'update' })
+        getArray(unit.keyframes).forEach((keyframe: any, keyframeIndex) => {
+          if (!isRecord(keyframe)) return
+          validateNode({ node: keyframe, path: `${unitPath}/keyframes/${keyframeIndex}`, nodeType: 'keyframe', existing: productionKeyframes, duplicateAction: 'update' })
+        })
+      })
+      getArray(sceneMoment.keyframes).forEach((keyframe: any, keyframeIndex) => {
+        if (!isRecord(keyframe)) return
+        validateNode({ node: keyframe, path: `${sceneMomentPath}/keyframes/${keyframeIndex}`, nodeType: 'keyframe', existing: productionKeyframes, duplicateAction: 'update' })
+      })
+    })
   })
 
-  // reuse_candidates: project-level CreativeReferences that match proposed ones
-  const reuseCandidates = scope === 'project'
-    ? checkedCreativeReferences
-        .filter((c: any) => c.conflict_status === 'duplicate')
-        .map((c: any) => ({
-          proposed_client_id: c.client_id,
-          existing_id: c.conflict_entity_id,
-          existing_name: c.conflict_entity_name,
-          similarity: c.conflict_similarity,
-          source: 'project',
-        }))
-    : []
-
-  const checkedAssetSlots = checkConflict(
-    getArray(candidates.asset_slots),
-    assetSlots,
-    exactNameMatch,
-    nameSimilarity,
-  )
-  const checkedContentUnits = checkConflict(
-    getArray(candidates.content_units),
-    contentUnits,
-    exactNameMatch,
-    nameSimilarity,
-  )
-
-  const conflictCounts = {
-    segments: checkedSegments.filter((c) => c.conflict_status !== 'none').length,
-    scene_moments: checkedSceneMoments.filter((c) => c.conflict_status !== 'none').length,
-    creative_references: checkedCreativeReferences.filter((c: any) => c.conflict_status !== 'none').length,
-    asset_slots: checkedAssetSlots.filter((c) => c.conflict_status !== 'none').length,
-    content_units: checkedContentUnits.filter((c) => c.conflict_status !== 'none').length,
-  }
-
   return {
-    scope,
-    conflict_counts: conflictCounts,
-    total_conflicts: Object.values(conflictCounts).reduce((sum, n) => sum + n, 0),
-    ...(scope === 'project' && reuseCandidates.length > 0 ? { reuse_candidates: reuseCandidates } : {}),
-    candidates: {
-      segments: checkedSegments,
-      scene_moments: checkedSceneMoments,
-      creative_references: checkedCreativeReferences,
-      asset_slots: checkedAssetSlots,
-      content_units: checkedContentUnits,
-    },
+    ok: errors.length === 0,
+    projectId,
+    productionId,
+    counts,
+    errors,
+    warnings,
+    suggestions,
+    normalizedProposal: proposal,
   }
 }
 
-function proposeProductionEntities(args: Record<string, unknown>): unknown {
-  const projectId = getRequiredNumber(args, 'projectId')
-  const productionId = getRequiredNumber(args, 'productionId')
-  const analysisScope = typeof args.analysisScope === 'string' ? args.analysisScope : 'production'
-  const summary = typeof args.summary === 'string' ? args.summary : ''
-  const proposal = isRecord(args.proposal) ? args.proposal : null
-  const candidates = isRecord(args.candidates) ? args.candidates : {}
+async function buildOrchestrationDiff(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getOptionalNumber(args, 'projectId') ?? contextSnapshot.project?.id
+  const productionId = getOptionalNumber(args, 'productionId') ?? contextSnapshot.productionId
+  if (!projectId) throw new Error('projectId is required when no current project is selected')
+  if (!productionId) throw new Error('productionId is required and no current production is selected')
 
-  // Supersede existing draft proposals for the same production
-  const supersededIds: string[] = []
-  for (const [id, draft] of drafts.entries()) {
-    if (
-      draft.projectId === projectId &&
-      draft.kind === 'production_proposal' &&
-      draft.status === 'draft' &&
-      isRecord(draft.source) &&
-      Number(draft.source.entityId) === productionId
-    ) {
-      drafts.set(id, { ...draft, status: 'superseded', updatedAt: new Date().toISOString() })
-      supersededIds.push(id)
-    }
+  const proposal = normalizeProposalTree(args.proposal)
+  const currentDraft = args.currentDraft === undefined ? undefined : normalizeProposalTree(args.currentDraft)
+
+  const [segments, sceneMoments, creativeReferences, assetSlots] = await Promise.all([
+    backendList(`/projects/${projectId}/entities/segments`),
+    backendList(`/projects/${projectId}/entities/scene-moments`),
+    backendList(`/projects/${projectId}/entities/creative-references`),
+    backendList(`/projects/${projectId}/entities/asset-slots`),
+  ])
+
+  const productionSegments = segments.filter((segment: any) => Number(segment.production_id) === productionId)
+  const productionSegmentIds = new Set(productionSegments.map((segment: any) => entityId(segment)).filter((id): id is number => id !== undefined))
+  const productionSceneMoments = sceneMoments.filter((sceneMoment: any) => productionSegmentIds.has(Number(sceneMoment.segment_id)))
+  const productionSceneMomentIds = new Set(productionSceneMoments.map((sceneMoment: any) => entityId(sceneMoment)).filter((id): id is number => id !== undefined))
+  const productionAssetSlots = assetSlots.filter((slot: any) => (
+    Number(slot.production_id) === productionId ||
+    (String(slot.owner_type ?? '') === 'segment' && productionSegmentIds.has(Number(slot.owner_id))) ||
+    (String(slot.owner_type ?? '') === 'scene_moment' && productionSceneMomentIds.has(Number(slot.owner_id)))
+  ))
+
+  const settingCoverage: Array<Record<string, unknown>> = []
+  const assetCoverage: Array<Record<string, unknown>> = []
+  const segmentDiffs: Array<Record<string, unknown>> = []
+  const sceneMomentDiffs: Array<Record<string, unknown>> = []
+  const reviewGates: Array<Record<string, unknown>> = []
+  const actionCounts: Record<string, number> = { create: 0, reuse: 0, update: 0, keep: 0, ignore: 0, supersede: 0 }
+
+  function recordAction(action: string | undefined) {
+    const key = action && action in actionCounts ? action : 'create'
+    actionCounts[key] += 1
   }
 
-  const now = new Date().toISOString()
-  const draftId = `prod_proposal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+  const draftSegments = currentDraft ? getArray((currentDraft as any).segments) : []
+  getArray((proposal as any).segments).forEach((segment: any, segmentIndex) => {
+    if (!isRecord(segment)) return
+    const segmentPath = `/segments/${segmentIndex}`
+    const segmentRef = ensureRequirementRef(segment, `segment_${segmentIndex + 1}`, segmentPath)
+    const existingSegmentMatch = findReusableEntity(segment, productionSegments, false)
+    const draftSegmentMatch = findProposalNodeByName(segment, draftSegments)
+    const segmentDiff = annotateStructuralNode({
+      node: segment,
+      path: segmentPath,
+      nodeType: 'segment',
+      requirementRef: segmentRef,
+      existingMatch: existingSegmentMatch,
+      draftMatch: draftSegmentMatch,
+      updateFields: ['kind', 'title', 'summary'],
+      reviewGates,
+    })
+    segmentDiffs.push(segmentDiff)
+    recordAction(String(segment.diff_action ?? segment.action ?? 'create'))
 
-  const draft: MCPDraft = {
-    id: draftId,
-    projectId,
-    kind: 'production_proposal',
-    status: 'draft',
-    title: `制作编排提案 — ${analysisScope}`,
-    content: JSON.stringify({
-      productionId,
-      analysisScope,
-      summary,
-      ...(proposal ? { proposal } : { candidates }),
-      proposedAt: now,
-    }),
-    source: { entityType: 'production', entityId: productionId },
-    createdAt: now,
-    updatedAt: now,
+    getArray(segment.scene_moments).forEach((sceneMoment: any, sceneMomentIndex) => {
+      if (!isRecord(sceneMoment)) return
+      const sceneMomentPath = `${segmentPath}/scene_moments/${sceneMomentIndex}`
+      const sceneRef = ensureRequirementRef(sceneMoment, `${segmentRef}.scene_${sceneMomentIndex + 1}`, sceneMomentPath)
+      const existingSceneMatch = findReusableEntity(sceneMoment, productionSceneMoments, false)
+      const draftSceneMatch = draftSegmentMatch
+        ? findProposalNodeByName(sceneMoment, getArray(draftSegmentMatch.node.scene_moments))
+        : undefined
+      const sceneDiff = annotateStructuralNode({
+        node: sceneMoment,
+        path: sceneMomentPath,
+        nodeType: 'scene_moment',
+        requirementRef: sceneRef,
+        existingMatch: existingSceneMatch,
+        draftMatch: draftSceneMatch,
+        updateFields: ['title', 'description', 'time_text', 'location_text', 'action_text', 'mood'],
+        reviewGates,
+      })
+      sceneMomentDiffs.push(sceneDiff)
+      recordAction(String(sceneMoment.diff_action ?? sceneMoment.action ?? 'create'))
+
+      getArray(sceneMoment.creative_references).forEach((reference: any, referenceIndex) => {
+        if (!isRecord(reference)) return
+        const referencePath = `${sceneMomentPath}/creative_references/${referenceIndex}`
+        const requirementRef = ensureRequirementRef(reference, `${sceneRef}.setting_${referenceIndex + 1}`, referencePath)
+        const match = findReusableEntity(reference, creativeReferences, true)
+        const coverage = annotateCoverageNode({
+          node: reference,
+          path: referencePath,
+          nodeType: 'creative_reference',
+          requirementRef,
+          existingMatch: match,
+          missingMessage: 'Project settings do not yet contain this required creative reference.',
+          matchedMessage: 'Project settings already contain a reusable creative reference.',
+        })
+        settingCoverage.push({
+          ...coverage,
+          scene_moment_ref: sceneRef,
+          role: reference.role,
+        })
+        recordAction(String(reference.diff_action ?? reference.action ?? 'create'))
+      })
+
+      getArray(sceneMoment.asset_slots).forEach((slot: any, slotIndex) => {
+        if (!isRecord(slot)) return
+        const assetPath = `${sceneMomentPath}/asset_slots/${slotIndex}`
+        const requirementRef = ensureRequirementRef(slot, `${sceneRef}.asset_${slotIndex + 1}`, assetPath)
+        const match = findReusableEntity(slot, productionAssetSlots.length > 0 ? productionAssetSlots : assetSlots, true)
+        const coverage = annotateCoverageNode({
+          node: slot,
+          path: assetPath,
+          nodeType: 'asset_slot',
+          requirementRef,
+          existingMatch: match,
+          missingMessage: 'Current production assets do not yet cover this scene or setting need.',
+          matchedMessage: 'Current project or production already has a reusable asset slot.',
+        })
+        assetCoverage.push({
+          ...coverage,
+          scene_moment_ref: sceneRef,
+          priority: slot.priority,
+        })
+        recordAction(String(slot.diff_action ?? slot.action ?? 'create'))
+      })
+    })
+  })
+
+  const counts = {
+    segment_requirements: segmentDiffs.length,
+    scene_moment_requirements: sceneMomentDiffs.length,
+    setting_requirements: settingCoverage.length,
+    asset_requirements: assetCoverage.length,
+    missing_settings: settingCoverage.filter((item) => item.coverage_status === 'missing').length,
+    missing_assets: assetCoverage.filter((item) => item.coverage_status === 'missing').length,
+    creates: actionCounts.create,
+    reuses: actionCounts.reuse,
+    updates: actionCounts.update,
+    keeps: actionCounts.keep,
+    review_gates: reviewGates.length,
   }
 
-  drafts.set(draftId, draft)
-
-  // Count proposed entities
-  let counts: Record<string, number>
-  if (proposal) {
-    const segments = getArray(proposal.segments)
-    const sceneMoments = segments.flatMap((s: any) => getArray(s.scene_moments))
-    const contentUnits = sceneMoments.flatMap((sm: any) => getArray(sm.content_units))
-    const creativeRefs = sceneMoments.flatMap((sm: any) => getArray(sm.creative_references))
-    const assetSlots = sceneMoments.flatMap((sm: any) => getArray(sm.asset_slots))
-    counts = {
-      segments: segments.length,
-      scene_moments: sceneMoments.length,
-      content_units: contentUnits.length,
-      creative_references: creativeRefs.length,
-      asset_slots: assetSlots.length,
-    }
-  } else {
-    counts = {
-      segments: getArray(candidates.segments).length,
-      scene_moments: getArray(candidates.scene_moments).length,
-      creative_references: getArray(candidates.creative_references).length,
-      asset_slots: getArray(candidates.asset_slots).length,
-      content_units: getArray(candidates.content_units).length,
-    }
-  }
-
-  const total = Object.values(counts).reduce((s, n) => s + n, 0)
   return {
-    draftId,
-    status: 'proposed',
+    ok: reviewGates.filter((gate) => gate.severity === 'error').length === 0,
+    projectId,
+    productionId,
     counts,
-    supersededDraftIds: supersededIds,
-    message: `已写入 ${total} 个候选实体${supersededIds.length > 0 ? `，已替换 ${supersededIds.length} 个旧提案` : ''}`,
+    settingCoverage,
+    assetCoverage,
+    segmentDiffs,
+    sceneMomentDiffs,
+    reviewGates,
+    annotatedProposal: proposal,
   }
+}
+
+function normalizeProposalTree(value: unknown): Record<string, unknown> {
+  const raw = isRecord(value) && isRecord(value.proposal) ? value.proposal : value
+  const proposal = cloneJSON(isRecord(raw) ? raw : { segments: [] }) as Record<string, unknown>
+  if (!Array.isArray(proposal.segments)) proposal.segments = []
+  return proposal
+}
+
+function ensureRequirementRef(node: Record<string, unknown>, fallback: string, path: string): string {
+  const current = getOptionalString(node, 'requirement_ref')
+    ?? getOptionalString(node, 'requirementRef')
+    ?? getOptionalString(node, 'client_id')
+    ?? getOptionalString(node, 'localRef')
+    ?? fallback
+  node.requirement_ref = current
+  node.localRef = getOptionalString(node, 'localRef') ?? getOptionalString(node, 'client_id') ?? current
+  node.client_id = getOptionalString(node, 'client_id') ?? getOptionalString(node, 'localRef') ?? current
+  if (!node.source_evidence) node.source_evidence = path
+  return current
+}
+
+function annotateStructuralNode(input: {
+  node: Record<string, unknown>
+  path: string
+  nodeType: string
+  requirementRef: string
+  existingMatch?: { entity: any; score: number }
+  draftMatch?: { node: Record<string, unknown>; path: string; score: number }
+  updateFields: string[]
+  reviewGates: Array<Record<string, unknown>>
+}): Record<string, unknown> {
+  const existing = input.existingMatch?.entity
+  const existingId = existing ? entityId(existing) : undefined
+  const hasDifference = existing ? hasMeaningfulDifference(input.node, existing, input.updateFields) : false
+  const status = existing
+    ? hasDifference ? 'partial' : 'covered'
+    : input.draftMatch ? 'partial' : 'missing'
+  const diffAction = existing
+    ? hasDifference ? 'update' : 'keep'
+    : input.draftMatch ? 'supersede' : 'create'
+  const proposalAction = diffAction === 'keep' ? 'reuse' : diffAction === 'supersede' ? 'update' : diffAction
+
+  input.node.coverage_status = status
+  input.node.diff_action = diffAction
+  input.node.action = getOptionalString(input.node, 'action') ?? proposalAction
+  if ((input.node.action === 'reuse' || input.node.action === 'update') && existingId !== undefined) input.node.id = getOptionalNumeric(input.node, 'id') ?? existingId
+  input.node.rationale = getOptionalString(input.node, 'rationale')
+    ?? structuralRationale(input.nodeType, status, diffAction, input.existingMatch?.score, input.draftMatch?.path)
+
+  if (existing && String(existing.status ?? '') === 'confirmed' && diffAction === 'update') {
+    input.reviewGates.push({
+      severity: 'warning',
+      code: 'CONFIRMED_ENTITY_UPDATE_REQUIRES_REVIEW',
+      node_type: input.nodeType,
+      path: input.path,
+      existing_id: existingId,
+      message: 'This proposal updates a confirmed entity. Keep it as an explicit reviewed update, not an automatic overwrite.',
+    })
+  }
+
+  return {
+    path: input.path,
+    node_type: input.nodeType,
+    requirement_ref: input.requirementRef,
+    title: input.node.title ?? input.node.name,
+    coverage_status: status,
+    diff_action: diffAction,
+    proposed_action: input.node.action,
+    existing_id: existingId,
+    existing_name: existing?.title ?? existing?.name,
+    similarity: input.existingMatch?.score,
+    current_draft_path: input.draftMatch?.path,
+    rationale: input.node.rationale,
+  }
+}
+
+function annotateCoverageNode(input: {
+  node: Record<string, unknown>
+  path: string
+  nodeType: string
+  requirementRef: string
+  existingMatch?: { entity: any; score: number }
+  missingMessage: string
+  matchedMessage: string
+}): Record<string, unknown> {
+  const existing = input.existingMatch?.entity
+  const existingId = existing ? entityId(existing) : undefined
+  const status = existing ? input.existingMatch!.score >= 1 ? 'covered' : 'partial' : 'missing'
+  const diffAction = existing ? 'reuse' : 'create'
+  input.node.coverage_status = status
+  input.node.diff_action = diffAction
+  input.node.action = getOptionalString(input.node, 'action') ?? diffAction
+  if ((input.node.action === 'reuse' || input.node.action === 'update') && existingId !== undefined) input.node.id = getOptionalNumeric(input.node, 'id') ?? existingId
+  input.node.rationale = getOptionalString(input.node, 'rationale') ?? (existing ? input.matchedMessage : input.missingMessage)
+  return {
+    path: input.path,
+    node_type: input.nodeType,
+    requirement_ref: input.requirementRef,
+    name: input.node.name ?? input.node.title,
+    kind: input.node.kind ?? input.node.type,
+    coverage_status: status,
+    diff_action: diffAction,
+    proposed_action: input.node.action,
+    existing_id: existingId,
+    existing_name: existing?.name ?? existing?.title,
+    similarity: input.existingMatch?.score,
+    rationale: input.node.rationale,
+  }
+}
+
+function findReusableEntity(candidate: Record<string, unknown>, existing: any[], kindSensitive = false): { entity: any; score: number } | undefined {
+  const candidateKind = String(candidate.kind ?? candidate.type ?? '').trim()
+  const exact = existing.find((item) => {
+    if (normalizeName(candidate) !== normalizeName(item)) return false
+    if (!kindSensitive) return true
+    const itemKind = String(item.kind ?? item.type ?? '').trim()
+    return !candidateKind || !itemKind || candidateKind === itemKind
+  })
+  if (exact) return { entity: exact, score: 1 }
+  return existing
+    .map((item) => {
+      const itemKind = String(item.kind ?? item.type ?? '').trim()
+      const kindBonus = candidateKind && itemKind && candidateKind === itemKind ? 0.2 : 0
+      return { entity: item, score: Math.min(1, proposalNameSimilarity(candidate, item) + kindBonus) }
+    })
+    .filter((item) => item.score >= 0.7)
+    .sort((a, b) => b.score - a.score)[0]
+}
+
+function findProposalNodeByName(candidate: Record<string, unknown>, nodes: unknown[]): { node: Record<string, unknown>; path: string; score: number } | undefined {
+  return nodes
+    .map((node, index) => isRecord(node)
+      ? { node, path: String(index), score: proposalNameSimilarity(candidate, node) }
+      : undefined)
+    .filter((item): item is { node: Record<string, unknown>; path: string; score: number } => !!item && item.score >= 0.7)
+    .sort((a, b) => b.score - a.score)[0]
+}
+
+function proposalNameSimilarity(a: any, b: any): number {
+  const nameA = normalizeName(a)
+  const nameB = normalizeName(b)
+  if (!nameA || !nameB) return 0
+  if (nameA === nameB) return 1
+  if (nameA.includes(nameB) || nameB.includes(nameA)) return 0.85
+  const wordsA = new Set(nameA.split(/\s+/))
+  const wordsB = new Set(nameB.split(/\s+/))
+  const intersection = [...wordsA].filter((word) => wordsB.has(word)).length
+  const union = new Set([...wordsA, ...wordsB]).size
+  return union > 0 ? intersection / union : 0
+}
+
+function hasMeaningfulDifference(candidate: Record<string, unknown>, existing: Record<string, unknown>, fields: string[]): boolean {
+  return fields.some((field) => {
+    const next = normalizedComparableText(candidate[field])
+    if (!next) return false
+    const current = normalizedComparableText(existing[field])
+    return current !== '' && next !== current
+  })
+}
+
+function normalizedComparableText(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
+}
+
+function structuralRationale(nodeType: string, coverageStatus: string, diffAction: string, score?: number, draftPath?: string): string {
+  if (diffAction === 'keep') return `Existing ${nodeType} already covers this requirement.`
+  if (diffAction === 'update') return `Existing ${nodeType} partially covers this requirement but differs in proposed fields.`
+  if (diffAction === 'supersede') return `A current draft candidate exists at ${draftPath}; replace it with this reviewed derivation.`
+  if (coverageStatus === 'missing') return `No existing ${nodeType} covers this derived requirement.`
+  return `Matched existing ${nodeType}${score !== undefined ? ` with similarity ${score.toFixed(2)}` : ''}.`
+}
+
+function cloneJSON<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+function legacyCandidatesToProposal(candidates: Record<string, unknown>): Record<string, unknown> {
+  const segments = getArray(candidates.segments)
+  if (segments.length > 0) return { segments }
+  const sceneMoments = getArray(candidates.scene_moments)
+  const creativeReferences = getArray(candidates.creative_references)
+  const assetSlots = getArray(candidates.asset_slots)
+  const contentUnits = getArray(candidates.content_units)
+  if (sceneMoments.length === 0 && creativeReferences.length === 0 && assetSlots.length === 0 && contentUnits.length === 0) {
+    return { segments: [] }
+  }
+  return {
+    segments: [{
+      action: 'create',
+      client_id: 'legacy_segment',
+      title: 'Legacy proposal candidates',
+      scene_moments: [{
+        action: 'create',
+        client_id: 'legacy_scene_moment',
+        title: 'Legacy proposal candidates',
+        creative_references: creativeReferences,
+        asset_slots: assetSlots,
+        content_units: contentUnits,
+      }, ...sceneMoments],
+    }],
+  }
+}
+
+function entityId(item: any): number | undefined {
+  const id = Number(item?.ID ?? item?.id)
+  return Number.isFinite(id) && id > 0 ? id : undefined
+}
+
+function normalizeName(item: any): string {
+  return String(item?.name ?? item?.title ?? '').toLowerCase().trim()
 }
 
 function summarizeProductionEntity(item: any): unknown {
@@ -1395,50 +1542,6 @@ function getArray(value: unknown): any[] {
   return Array.isArray(value) ? value : []
 }
 
-function collectionForEntity(entityType: string): string {
-  switch (entityType) {
-    case 'script':
-      return 'scripts'
-    case 'creative_reference':
-      return 'entities/creative-references'
-    case 'asset':
-      return 'entities/asset-slots'
-    case 'episode':
-      return 'entities/productions'
-    case 'scene':
-      return 'entities/segments'
-    case 'storyboard':
-      return 'entities/storyboard-scripts'
-    case 'shot':
-      return 'entities/content-units'
-    default:
-      throw new Error(`Unsupported entity type: ${entityType}`)
-  }
-}
-
-function routeForEntity(entityType: string): string {
-  switch (entityType) {
-    case 'project':
-      return '/projects'
-    case 'script':
-      return '/scripts'
-    case 'creative_reference':
-      return '/creative-references'
-    case 'asset':
-      return '/assets'
-    case 'episode':
-      return '/episodes'
-    case 'scene':
-      return '/scenes'
-    case 'storyboard':
-      return '/storyboards'
-    case 'shot':
-      return '/shots'
-    default:
-      throw new Error(`Unsupported entity type: ${entityType}`)
-  }
-}
-
 async function backendGet(path: string): Promise<any> {
   const headers: Record<string, string> = {}
   if (contextAuthToken) headers.Authorization = `Bearer ${contextAuthToken}`
@@ -1489,6 +1592,49 @@ function summarizeProject(item: any): unknown {
     ...(typeof item.CreatedAt === 'string' ? { CreatedAt: item.CreatedAt } : {}),
     ...(typeof item.UpdatedAt === 'string' ? { UpdatedAt: item.UpdatedAt } : {}),
   }
+}
+
+function summarizeScript(item: any, options: { includeContent: boolean; contentLimit: number }): unknown {
+  if (!item || typeof item !== 'object') return item
+  const body = String(item.content || item.raw_source || '')
+  const summary: Record<string, unknown> = {}
+  for (const key of [
+    'ID',
+    'id',
+    'project_id',
+    'parent_script_id',
+    'episode_id',
+    'title',
+    'script_type',
+    'source_type',
+    'version',
+    'order',
+    'status',
+    'summary',
+    'description',
+    'characters',
+    'core_settings',
+    'hook',
+    'plot_summary',
+    'script_points',
+    'planned_scene_count',
+    'planned_character_count',
+    'time_text',
+    'location_text',
+    'structured_characters',
+    'plot_beats',
+    'atmosphere',
+    'CreatedAt',
+    'UpdatedAt',
+  ]) {
+    if (item[key] !== undefined) summary[key] = truncateLongText(item[key])
+  }
+  summary.body_length = body.length
+  if (options.includeContent) {
+    summary.content = body.length > options.contentLimit ? `${body.slice(0, options.contentLimit)}...` : body
+    summary.content_truncated = body.length > options.contentLimit
+  }
+  return summary
 }
 
 function summarizeEntity(item: any): unknown {
@@ -1570,7 +1716,6 @@ function renderMarkdown(value: unknown): string {
         lines.push(...value.projects.map((project, index) => formatProjectLine(project, index)))
       }
     }
-    if (typeof value.draftCount === 'number') lines.push('', `本地草稿数量：${value.draftCount}`)
     return lines.join('\n')
   }
 

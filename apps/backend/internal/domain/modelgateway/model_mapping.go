@@ -3,7 +3,7 @@ package modelgateway
 import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
 func APIKeyFromModel(key persistencemodel.GatewayAPIKey) APIKey {
-	return APIKey{
+	target := APIKey{
 		ID:              key.ID,
 		Name:            key.Name,
 		KeyPrefix:       key.KeyPrefix,
@@ -18,6 +18,8 @@ func APIKeyFromModel(key persistencemodel.GatewayAPIKey) APIKey {
 		CreatedAt:       key.CreatedAt,
 		UpdatedAt:       key.UpdatedAt,
 	}
+	applyAPIKeyRuntimeFromModel(&target, key)
+	return target
 }
 
 func (key APIKey) ToModel() persistencemodel.GatewayAPIKey {
@@ -40,4 +42,5 @@ func (key APIKey) ApplyToModel(target *persistencemodel.GatewayAPIKey) {
 	target.LastUsedAt = key.LastUsedAt
 	target.CreatedAt = key.CreatedAt
 	target.UpdatedAt = key.UpdatedAt
+	applyAPIKeyRuntimeToModel(key, target)
 }

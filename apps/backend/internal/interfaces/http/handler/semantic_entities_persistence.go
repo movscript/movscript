@@ -26,7 +26,23 @@ func (h *SemanticEntityHandler) DeleteSemanticItemByKind(c *gin.Context, kind st
 func (h *SemanticEntityHandler) writeSemanticAppError(c *gin.Context, err error) {
 	var invalidInput semanticapp.ErrInvalidInput
 	var forbidden semanticapp.ErrForbidden
+	var generationContextErr semanticapp.GenerationContextError
 	switch {
+	case errors.As(err, &generationContextErr):
+		if generationContextErr.Code == "GENERATION_CONTEXT_UNSUPPORTED_TARGET" || generationContextErr.Code == "GENERATION_CONTEXT_TARGET_REQUIRED" {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInputDebug(generationContextErr.Message, generationContextErr))
+			return
+		}
+		if generationContextErr.Code == "GENERATION_CONTEXT_ENTITY_NOT_FOUND" {
+			c.JSON(http.StatusNotFound, apierr.NotFoundDebug(generationContextErr.Message, generationContextErr))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, apierr.Response{
+			Code:    apierr.CodeInternalError,
+			Message: generationContextErr.Message,
+			Action:  apierr.ActionRetry,
+			Debug:   generationContextErr,
+		})
 	case errors.As(err, &invalidInput):
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(invalidInput.Error()))
 	case errors.As(err, &forbidden):

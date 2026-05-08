@@ -28,6 +28,7 @@ import {
   Settings2,
   ShieldCheck,
   Scissors,
+  Sparkles,
   SquareStack,
   Target,
   Upload,
@@ -37,6 +38,7 @@ import {
 
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
 import { api } from '@/lib/api'
+import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
@@ -64,13 +66,16 @@ import { useAgentStore } from '@/store/agentStore'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import type { Canvas, CanvasStage, Job, PublicModel } from '@/types'
+import type { Canvas, CanvasStage, Job, PublicModel, RawResource } from '@/types'
 import type { Script } from '@/types'
-import { Badge, Button, Card, Progress } from '@movscript/ui'
+import { Badge, Button, Card, Progress, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { Input, Label, Textarea } from '@movscript/ui'
 import {
+  buildContentUnitGenerationContext,
   listSemanticEntities,
   semanticEntityConfig,
+  updateSemanticEntity,
+  type GenerationContext,
   type SemanticEntityRecord,
 } from '@/api/semanticEntities'
 import {
@@ -78,6 +83,7 @@ import {
   workbenchSurfaces,
   type WorkbenchCategory,
 } from '@/pages/project-workspace/structure'
+import { MediaViewer } from '@/components/shared/MediaViewer'
 
 export type WorkbenchMode = 'free'
 type WorkStatus = 'blocked' | 'review' | 'ready' | 'running'
@@ -463,11 +469,22 @@ interface WorkbenchLinkRow {
 }
 
 type WorkbenchRecord = SemanticEntityRecord & {
+  alias?: string
   description?: string
   content?: string
   prompt?: string
   prompt_hint?: string
   visual_intent?: string
+  summary?: string
+  action_text?: string
+  condition_text?: string
+  time_text?: string
+  location_text?: string
+  mood?: string
+  emotion?: string
+  costume?: string
+  visual_notes?: string
+  props?: string
   duration_sec?: number
   production_id?: number
   segment_id?: number
@@ -481,15 +498,26 @@ type WorkbenchRecord = SemanticEntityRecord & {
   name?: string
   priority?: string
   resource_id?: number
+  resource?: RawResource
   locked_asset_slot_id?: number
   slot_key?: string
   source_type?: string
   source_id?: number
+  scope_type?: string
+  scope_id?: number
   score?: number
   note?: string
   candidate_asset_slot_id?: number
   asset_slot_id?: number
   candidate_asset_slot?: WorkbenchRecord
+  shot_size?: string
+  camera_angle?: string
+  camera_motion?: string
+  importance?: string
+  profile_json?: string
+  tags_json?: string
+  role?: string
+  evidence?: string
 }
 
 interface AssetPrepData {
@@ -499,17 +527,60 @@ interface AssetPrepData {
   segments: WorkbenchRecord[]
   sceneMoments: WorkbenchRecord[]
   creativeReferences: WorkbenchRecord[]
+  creativeReferenceStates: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
   jobs: Job[]
 }
 
 interface ProductionWorkbenchData {
+  productions: WorkbenchRecord[]
+  segments: WorkbenchRecord[]
+  sceneMoments: WorkbenchRecord[]
+  creativeReferences: WorkbenchRecord[]
+  creativeReferenceUsages: WorkbenchRecord[]
   contentUnits: WorkbenchRecord[]
   assetSlots: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
   previewTimelineItems: WorkbenchRecord[]
   deliveryVersions: WorkbenchRecord[]
   jobs: Job[]
+}
+
+interface SettingPrepData {
+  productions: WorkbenchRecord[]
+  scripts: Script[]
+  scriptVersions: WorkbenchRecord[]
+  segments: WorkbenchRecord[]
+  sceneMoments: WorkbenchRecord[]
+  creativeReferences: WorkbenchRecord[]
+  creativeReferenceStates: WorkbenchRecord[]
+  creativeReferenceUsages: WorkbenchRecord[]
+  creativeRelationships: WorkbenchRecord[]
+  assetSlots: WorkbenchRecord[]
+  contentUnits: WorkbenchRecord[]
+}
+
+interface SettingPrepRow {
+  id: string
+  title: string
+  kind: string
+  status: WorkStatus
+  rawStatus: string
+  priority: Priority
+  progress: number
+  readinessLabel: string
+  scope: string
+  missing: string[]
+  warnings: string[]
+  record: WorkbenchRecord
+  states: WorkbenchRecord[]
+  usages: WorkbenchRecord[]
+  relationships: WorkbenchRecord[]
+  assetSlots: WorkbenchRecord[]
+  linkedSegments: WorkbenchRecord[]
+  linkedSceneMoments: WorkbenchRecord[]
+  linkedContentUnits: WorkbenchRecord[]
+  linkedProductions: WorkbenchRecord[]
 }
 
 interface AssetPrepViewRow {
@@ -520,9 +591,36 @@ interface AssetPrepViewRow {
   priority: Priority
   need?: string
   progress: number
+  settingKey: string
+  settingLabel: string
+  settingDetail: string
+  sceneMomentId?: number
+  sceneMomentLabel: string
+  segmentId?: number
+  segmentLabel: string
+  contentUnitId?: number
+  contentUnitLabel: string
+  creativeReferenceId?: number
+  creativeReferenceLabel: string
+  contextSummary: string
   slot: WorkbenchRecord
   candidates: WorkbenchRecord[]
   lockedSlot?: WorkbenchRecord
+}
+
+interface AssetPrepOption {
+  value: string
+  label: string
+  detail: string
+  count: number
+  candidateCount: number
+}
+
+interface AssetPrepFilterState {
+  sceneMomentId: string
+  segmentId: string
+  contentUnitId: string
+  creativeReferenceId: string
 }
 
 interface ContentGenerationViewRow {
@@ -538,14 +636,32 @@ interface ContentGenerationViewRow {
   keyframes: WorkbenchRecord[]
 }
 
+interface ContentGenerationMomentRow {
+  id: string
+  title: string
+  scope: string
+  status: WorkStatus
+  priority: Priority
+  progress: number
+  moment: WorkbenchRecord
+  productionIds: number[]
+  segment?: WorkbenchRecord
+  references: WorkbenchRecord[]
+  units: WorkbenchRecord[]
+  assetSlots: WorkbenchRecord[]
+  missingSlots: WorkbenchRecord[]
+  keyframes: WorkbenchRecord[]
+}
+
 async function loadAssetPrepData(projectId: number): Promise<AssetPrepData> {
-  const [slots, candidates, contentUnits, segments, sceneMoments, creativeReferences, keyframes, jobs] = await Promise.all([
+  const [slots, candidates, contentUnits, segments, sceneMoments, creativeReferences, creativeReferenceStates, keyframes, jobs] = await Promise.all([
     listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
     listSemanticEntities(projectId, semanticEntityConfig('assetSlotCandidates')),
     listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
     listSemanticEntities(projectId, semanticEntityConfig('segments')),
     listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
     listSemanticEntities(projectId, semanticEntityConfig('creativeReferences')),
+    listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceStates')),
     listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
     loadWorkbenchJobs(projectId, ['image', 'image_edit']),
   ])
@@ -556,13 +672,19 @@ async function loadAssetPrepData(projectId: number): Promise<AssetPrepData> {
     segments: segments as WorkbenchRecord[],
     sceneMoments: sceneMoments as WorkbenchRecord[],
     creativeReferences: creativeReferences as WorkbenchRecord[],
+    creativeReferenceStates: creativeReferenceStates as WorkbenchRecord[],
     keyframes: keyframes as WorkbenchRecord[],
     jobs,
   }
 }
 
 async function loadProductionWorkbenchData(projectId: number): Promise<ProductionWorkbenchData> {
-  const [contentUnits, assetSlots, keyframes, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
+  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, contentUnits, assetSlots, keyframes, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
+    listSemanticEntities(projectId, semanticEntityConfig('productions')),
+    listSemanticEntities(projectId, semanticEntityConfig('segments')),
+    listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
+    listSemanticEntities(projectId, semanticEntityConfig('creativeReferences')),
+    listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceUsages')),
     listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
     listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
     listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
@@ -571,9 +693,123 @@ async function loadProductionWorkbenchData(projectId: number): Promise<Productio
     loadWorkbenchJobs(projectId, ['video', 'video_i2v', 'video_v2v']),
   ])
   return {
+    productions: productions as WorkbenchRecord[],
+    segments: segments as WorkbenchRecord[],
+    sceneMoments: sceneMoments as WorkbenchRecord[],
+    creativeReferences: creativeReferences as WorkbenchRecord[],
+    creativeReferenceUsages: creativeReferenceUsages as WorkbenchRecord[],
     contentUnits: contentUnits as WorkbenchRecord[],
     assetSlots: assetSlots as WorkbenchRecord[],
     keyframes: keyframes as WorkbenchRecord[],
+    previewTimelineItems: previewTimelineItems as WorkbenchRecord[],
+    deliveryVersions: deliveryVersions as WorkbenchRecord[],
+    jobs,
+  }
+}
+
+async function safeWorkbenchList(projectId: number, kind: Parameters<typeof semanticEntityConfig>[0]): Promise<WorkbenchRecord[]> {
+  try {
+    return await listSemanticEntities(projectId, semanticEntityConfig(kind)) as WorkbenchRecord[]
+  } catch (error) {
+    console.warn(`Failed to load workbench entity: ${kind}`, error)
+    return []
+  }
+}
+
+async function loadSettingPrepData(projectId: number): Promise<SettingPrepData> {
+  const [
+    productions,
+    scripts,
+    scriptVersions,
+    segments,
+    sceneMoments,
+    creativeReferences,
+    creativeReferenceStates,
+    creativeReferenceUsages,
+    creativeRelationships,
+    assetSlots,
+    contentUnits,
+  ] = await Promise.all([
+    safeWorkbenchList(projectId, 'productions'),
+    api.get<Script[]>(`/projects/${projectId}/scripts`).then((r) => r.data).catch(() => []),
+    safeWorkbenchList(projectId, 'scriptVersions'),
+    safeWorkbenchList(projectId, 'segments'),
+    safeWorkbenchList(projectId, 'sceneMoments'),
+    safeWorkbenchList(projectId, 'creativeReferences'),
+    safeWorkbenchList(projectId, 'creativeReferenceStates'),
+    safeWorkbenchList(projectId, 'creativeReferenceUsages'),
+    safeWorkbenchList(projectId, 'creativeRelationships'),
+    safeWorkbenchList(projectId, 'assetSlots'),
+    safeWorkbenchList(projectId, 'contentUnits'),
+  ])
+  return {
+    productions,
+    scripts,
+    scriptVersions,
+    segments,
+    sceneMoments,
+    creativeReferences,
+    creativeReferenceStates,
+    creativeReferenceUsages,
+    creativeRelationships,
+    assetSlots,
+    contentUnits,
+  }
+}
+
+interface ProductionPreviewData {
+  productions: WorkbenchRecord[]
+  segments: WorkbenchRecord[]
+  sceneMoments: WorkbenchRecord[]
+  creativeReferences: WorkbenchRecord[]
+  creativeReferenceUsages: WorkbenchRecord[]
+  contentUnits: WorkbenchRecord[]
+  assetSlots: WorkbenchRecord[]
+  keyframes: WorkbenchRecord[]
+  previewTimelines: WorkbenchRecord[]
+  previewTimelineItems: WorkbenchRecord[]
+  deliveryVersions: WorkbenchRecord[]
+  jobs: Job[]
+}
+
+async function loadProductionPreviewData(projectId: number): Promise<ProductionPreviewData> {
+  const [
+    productions,
+    segments,
+    sceneMoments,
+    creativeReferences,
+    creativeReferenceUsages,
+    contentUnits,
+    assetSlots,
+    keyframes,
+    previewTimelines,
+    previewTimelineItems,
+    deliveryVersions,
+    jobs,
+  ] = await Promise.all([
+    listSemanticEntities(projectId, semanticEntityConfig('productions')),
+    listSemanticEntities(projectId, semanticEntityConfig('segments')),
+    listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
+    listSemanticEntities(projectId, semanticEntityConfig('creativeReferences')),
+    listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceUsages')),
+    listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
+    listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
+    listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
+    listSemanticEntities(projectId, semanticEntityConfig('previewTimelines')),
+    listSemanticEntities(projectId, semanticEntityConfig('previewTimelineItems')),
+    listSemanticEntities(projectId, semanticEntityConfig('deliveryVersions')),
+    loadWorkbenchJobs(projectId, ['video', 'video_i2v', 'video_v2v']),
+  ])
+  return {
+    productions: productions as WorkbenchRecord[],
+    segments: segments as WorkbenchRecord[],
+    sceneMoments: sceneMoments as WorkbenchRecord[],
+    creativeReferences: creativeReferences as WorkbenchRecord[],
+    creativeReferenceUsages: creativeReferenceUsages as WorkbenchRecord[],
+    contentUnits: contentUnits as WorkbenchRecord[],
+    assetSlots: assetSlots as WorkbenchRecord[],
+    keyframes: keyframes as WorkbenchRecord[],
+    previewTimelines: previewTimelines as WorkbenchRecord[],
     previewTimelineItems: previewTimelineItems as WorkbenchRecord[],
     deliveryVersions: deliveryVersions as WorkbenchRecord[],
     jobs,
@@ -597,6 +833,12 @@ async function loadWorkbenchJobs(projectId: number, types: string[]) {
 function buildAssetPrepRows(data?: AssetPrepData): AssetPrepViewRow[] {
   if (!data) return []
   const slotById = new Map(data.slots.map((slot) => [slot.ID, slot]))
+  const contentUnitById = new Map(data.contentUnits.map((item) => [item.ID, item]))
+  const sceneMomentById = new Map(data.sceneMoments.map((item) => [item.ID, item]))
+  const segmentById = new Map(data.segments.map((item) => [item.ID, item]))
+  const keyframeById = new Map(data.keyframes.map((item) => [item.ID, item]))
+  const referenceById = new Map(data.creativeReferences.map((reference) => [reference.ID, reference]))
+  const stateById = new Map(data.creativeReferenceStates.map((state) => [state.ID, state]))
   const visibleSlots = data.slots.filter((slot) => slot.owner_type !== 'asset_slot')
   return visibleSlots
     .map((slot) => {
@@ -607,11 +849,34 @@ function buildAssetPrepRows(data?: AssetPrepData): AssetPrepViewRow[] {
           candidate_asset_slot: candidate.candidate_asset_slot ?? (candidate.candidate_asset_slot_id ? slotById.get(Number(candidate.candidate_asset_slot_id)) : undefined),
         }))
       const lockedSlot = slot.locked_asset_slot_id ? slotById.get(Number(slot.locked_asset_slot_id)) : undefined
+      const context = deriveAssetContext(
+        slot,
+        {
+          contentUnitById,
+          sceneMomentById,
+          segmentById,
+          keyframeById,
+          referenceById,
+          stateById,
+        },
+      )
       return {
         id: String(slot.ID),
         title: titleOfRecord(slot),
-        scope: assetSlotScopeLabel(slot, data),
-        status: assetSlotWorkStatus(slot, candidates),
+        scope: context.contextSummary,
+        settingKey: context.referenceKey,
+        settingLabel: context.creativeReferenceLabel,
+        settingDetail: context.settingDetail,
+        sceneMomentId: context.sceneMomentId,
+        sceneMomentLabel: context.sceneMomentLabel,
+        segmentId: context.segmentId,
+        segmentLabel: context.segmentLabel,
+        contentUnitId: context.contentUnitId,
+        contentUnitLabel: context.contentUnitLabel,
+        creativeReferenceId: context.creativeReferenceId,
+        creativeReferenceLabel: context.creativeReferenceLabel,
+        contextSummary: context.contextSummary,
+        status: assetSlotWorkStatus(slot, lockedSlot),
         priority: priorityFromRecord(slot.priority),
         need: firstText(slot.description, slot.prompt_hint, slot.slot_key, slot.kind),
         progress: assetSlotProgress(slot, candidates, lockedSlot),
@@ -623,18 +888,128 @@ function buildAssetPrepRows(data?: AssetPrepData): AssetPrepViewRow[] {
     .sort((a, b) => workStatusRank(a.status) - workStatusRank(b.status) || priorityRank(b.priority) - priorityRank(a.priority) || b.slot.ID - a.slot.ID)
 }
 
+function deriveAssetContext(
+  slot: WorkbenchRecord,
+  refs: {
+    contentUnitById: Map<number, WorkbenchRecord>
+    sceneMomentById: Map<number, WorkbenchRecord>
+    segmentById: Map<number, WorkbenchRecord>
+    keyframeById: Map<number, WorkbenchRecord>
+    referenceById: Map<number, WorkbenchRecord>
+    stateById: Map<number, WorkbenchRecord>
+  },
+) {
+  const referenceId = slot.creative_reference_id || (slot.owner_type === 'creative_reference' ? slot.owner_id : undefined)
+  const stateId = slot.creative_reference_state_id || (slot.owner_type === 'creative_reference_state' ? slot.owner_id : undefined)
+  const state = stateId ? refs.stateById.get(Number(stateId)) : undefined
+  const creativeReferenceId = referenceId || (state?.creative_reference_id ? Number(state.creative_reference_id) : undefined)
+  const reference = creativeReferenceId ? refs.referenceById.get(Number(creativeReferenceId)) : undefined
+
+  const directContentUnitId = slot.owner_type === 'content_unit' ? slot.owner_id : undefined
+  const directSceneMomentId = slot.owner_type === 'scene_moment' ? slot.owner_id : undefined
+  const directSegmentId = slot.owner_type === 'segment' ? slot.owner_id : undefined
+  const directKeyframeId = slot.owner_type === 'keyframe' ? slot.owner_id : undefined
+  const keyframe = directKeyframeId ? refs.keyframeById.get(Number(directKeyframeId)) : undefined
+  const contentUnitId = directContentUnitId || (keyframe?.content_unit_id ? Number(keyframe.content_unit_id) : undefined)
+  const contentUnit = contentUnitId ? refs.contentUnitById.get(Number(contentUnitId)) : undefined
+  const sceneMomentId = directSceneMomentId || (contentUnit?.scene_moment_id ? Number(contentUnit.scene_moment_id) : keyframe?.scene_moment_id ? Number(keyframe.scene_moment_id) : undefined)
+  const sceneMoment = sceneMomentId ? refs.sceneMomentById.get(Number(sceneMomentId)) : undefined
+  const segmentId = directSegmentId || (sceneMoment?.segment_id ? Number(sceneMoment.segment_id) : contentUnit?.segment_id ? Number(contentUnit.segment_id) : keyframe?.segment_id ? Number(keyframe.segment_id) : undefined)
+  const segment = segmentId ? refs.segmentById.get(Number(segmentId)) : undefined
+
+  const referenceLabel = reference ? titleOfRecord(reference) : creativeReferenceId ? `设定资料 #${creativeReferenceId}` : '未绑定设定资料'
+  const usageLabel = [
+    segment ? `编排段 · ${titleOfRecord(segment)}` : segmentId ? `编排段 #${segmentId}` : null,
+    sceneMoment ? `场景 · ${titleOfRecord(sceneMoment)}` : sceneMomentId ? `场景 #${sceneMomentId}` : null,
+    contentUnit ? `制作项 · ${titleOfRecord(contentUnit)}` : contentUnitId ? `制作项 #${contentUnitId}` : null,
+  ].filter(Boolean).join(' / ')
+
+  return {
+    referenceKey: stateId ? `state:${stateId}` : creativeReferenceId ? `reference:${creativeReferenceId}` : 'unbound',
+    creativeReferenceId,
+    creativeReferenceLabel: referenceLabel,
+    settingDetail: state
+      ? `设定状态 / ${firstText(state.scope_type, '临时状态')}`
+      : reference
+        ? firstText(reference.kind, reference.status, '设定资料')
+        : '未绑定设定资料',
+    segmentId,
+    segmentLabel: segment ? `编排段 · ${titleOfRecord(segment)}` : segmentId ? `编排段 #${segmentId}` : '未绑定编排段',
+    sceneMomentId,
+    sceneMomentLabel: sceneMoment ? `场景 · ${titleOfRecord(sceneMoment)}` : sceneMomentId ? `场景 #${sceneMomentId}` : '未绑定场景',
+    contentUnitId,
+    contentUnitLabel: contentUnit ? `制作项 · ${titleOfRecord(contentUnit)}` : contentUnitId ? `制作项 #${contentUnitId}` : '未绑定制作项',
+    contextSummary: [referenceLabel, usageLabel || '未绑定使用位置'].join(' / '),
+  }
+}
+
+function assetScopeCountLabel(rows: AssetPrepViewRow[]) {
+  return String(new Set(rows.map((row) => row.contextSummary)).size)
+}
+
+function buildAssetFilterOptions(rows: AssetPrepViewRow[]) {
+  return {
+    sceneMoments: collectAssetOptions(rows, (row) => row.sceneMomentId, (row) => row.sceneMomentLabel),
+    segments: collectAssetOptions(rows, (row) => row.segmentId, (row) => row.segmentLabel),
+    contentUnits: collectAssetOptions(rows, (row) => row.contentUnitId, (row) => row.contentUnitLabel),
+    creativeReferences: collectAssetOptions(rows, (row) => row.creativeReferenceId, (row) => row.creativeReferenceLabel),
+  }
+}
+
+function collectAssetOptions(
+  rows: AssetPrepViewRow[],
+  valueOf: (row: AssetPrepViewRow) => number | undefined,
+  labelOf: (row: AssetPrepViewRow) => string,
+): AssetPrepOption[] {
+  const options = new Map<string, AssetPrepOption>()
+  for (const row of rows) {
+    const value = valueOf(row)
+    if (!value) continue
+    const key = String(value)
+    const existing = options.get(key)
+    if (existing) {
+      existing.count += 1
+      existing.candidateCount += row.candidates.length
+      continue
+    }
+    options.set(key, {
+      value: key,
+      label: labelOf(row),
+      detail: row.contextSummary,
+      count: 1,
+      candidateCount: row.candidates.length,
+    })
+  }
+  return [...options.values()].sort((a, b) => b.count - a.count || b.candidateCount - a.candidateCount || a.label.localeCompare(b.label, 'zh-Hans-CN'))
+}
+
+function matchesAssetPrepFilters(row: AssetPrepViewRow, filters: AssetPrepFilterState) {
+  if (filters.sceneMomentId !== 'all' && String(row.sceneMomentId ?? '') !== filters.sceneMomentId) return false
+  if (filters.segmentId !== 'all' && String(row.segmentId ?? '') !== filters.segmentId) return false
+  if (filters.contentUnitId !== 'all' && String(row.contentUnitId ?? '') !== filters.contentUnitId) return false
+  if (filters.creativeReferenceId !== 'all' && String(row.creativeReferenceId ?? '') !== filters.creativeReferenceId) return false
+  return true
+}
+
+function hasAssetPrepFilters(filters: AssetPrepFilterState) {
+  return filters.sceneMomentId !== 'all' || filters.segmentId !== 'all' || filters.contentUnitId !== 'all' || filters.creativeReferenceId !== 'all'
+}
+
 function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGenerationViewRow[] {
   if (!data) return []
-  const visibleAssetSlots = data.assetSlots.filter((slot) => slot.owner_type !== 'asset_slot')
-  return data.contentUnits
+  const contentUnits = data.contentUnits ?? []
+  const assetSlotsData = data.assetSlots ?? []
+  const keyframesData = data.keyframes ?? []
+  const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot')
+  return contentUnits
     .map((unit) => {
-      const keyframeIds = new Set(data.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID).map((keyframe) => keyframe.ID))
+      const keyframeIds = new Set(keyframesData.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID).map((keyframe) => keyframe.ID))
       const assetSlots = visibleAssetSlots.filter((slot) => (
         (slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID) ||
         (slot.owner_type === 'keyframe' && slot.owner_id ? keyframeIds.has(Number(slot.owner_id)) : false)
       ))
       const missingSlots = assetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
-      const keyframes = data.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+      const keyframes = keyframesData.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
       const status = contentUnitWorkStatus(unit, missingSlots)
       const priority: Priority = missingSlots.length > 0 ? 'high' : status === 'running' ? 'medium' : 'low'
       return {
@@ -653,11 +1028,78 @@ function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGene
     .sort((a, b) => workStatusRank(a.status) - workStatusRank(b.status) || priorityRank(b.priority) - priorityRank(a.priority) || numberOf(a.unit.order) - numberOf(b.unit.order))
 }
 
+function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): ContentGenerationMomentRow[] {
+  if (!data) return []
+  const productions = data.productions ?? []
+  const segments = data.segments ?? []
+  const sceneMoments = data.sceneMoments ?? []
+  const contentUnits = data.contentUnits ?? []
+  const assetSlotsData = data.assetSlots ?? []
+  const keyframesData = data.keyframes ?? []
+  const creativeReferences = data.creativeReferences ?? []
+  const creativeReferenceUsages = data.creativeReferenceUsages ?? []
+  const visibleAssetSlots = assetSlotsData.filter((slot) => slot.owner_type !== 'asset_slot')
+  return sceneMoments
+    .slice()
+    .sort(byOrder)
+    .map((moment) => {
+      const segment = moment.segment_id ? segments.find((item) => item.ID === Number(moment.segment_id)) : undefined
+      const units = contentUnits
+        .filter((unit) => Number(unit.scene_moment_id) === moment.ID)
+        .slice()
+        .sort(byOrder)
+      const unitIds = new Set(units.map((unit) => unit.ID))
+      const productionIds = new Set<number>()
+      if (Number.isFinite(Number(moment.production_id)) && Number(moment.production_id) > 0) productionIds.add(Number(moment.production_id))
+      if (segment?.production_id) productionIds.add(Number(segment.production_id))
+      units.forEach((unit) => {
+        if (unit.production_id) productionIds.add(Number(unit.production_id))
+      })
+      const usageReferenceIds = creativeReferenceUsages
+        .filter((usage) => (
+          (usage.owner_type === 'scene_moment' && Number(usage.owner_id) === moment.ID) ||
+          (usage.owner_type === 'content_unit' && usage.owner_id ? unitIds.has(Number(usage.owner_id)) : false)
+        ))
+        .map((usage) => Number(usage.creative_reference_id))
+        .filter((id) => Number.isFinite(id) && id > 0)
+      const references = dedupeRecords(creativeReferences.filter((reference) => usageReferenceIds.includes(reference.ID)))
+      const keyframes = keyframesData.filter((keyframe) => Number(keyframe.scene_moment_id) === moment.ID || (keyframe.content_unit_id ? unitIds.has(Number(keyframe.content_unit_id)) : false)).slice().sort(byOrder)
+      const keyframeIds = new Set(keyframes.map((keyframe) => keyframe.ID))
+      const assetSlots = visibleAssetSlots.filter((slot) => (
+        (slot.owner_type === 'scene_moment' && Number(slot.owner_id) === moment.ID) ||
+        (slot.owner_type === 'content_unit' && slot.owner_id ? unitIds.has(Number(slot.owner_id)) : false) ||
+        (slot.owner_type === 'keyframe' && slot.owner_id ? keyframeIds.has(Number(slot.owner_id)) : false)
+      ))
+      const missingSlots = assetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+      const hasUnitPrompt = units.some((unit) => firstText(unit.description, unit.prompt))
+      const status = momentWorkStatus(moment, units, missingSlots)
+      const priority: Priority = units.length === 0 || missingSlots.length > 0 ? 'high' : status === 'running' ? 'medium' : 'low'
+      return {
+        id: String(moment.ID),
+        title: titleOfRecord(moment),
+        scope: momentScopeLabel(moment, segment, units, keyframes, missingSlots, productions, Array.from(productionIds)),
+        status,
+        priority,
+        progress: momentProgress(moment, units, missingSlots, keyframes, hasUnitPrompt),
+        moment,
+        productionIds: Array.from(productionIds),
+        segment,
+        references,
+        units,
+        assetSlots,
+        missingSlots,
+        keyframes,
+      }
+    })
+}
+
 function buildAssetMetrics(rows: AssetPrepViewRow[], data?: AssetPrepData): WorkbenchMetric[] {
   const activeJobs = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
+  const candidateCount = rows.reduce((sum, row) => sum + row.candidates.length, 0)
   return [
-    { label: '素材需求缺口', value: String(rows.length), detail: '来自内容区素材需求', icon: PackageCheck, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
-    { label: '候选素材', value: String(data?.candidates.length ?? 0), detail: 'asset-slot-candidates', icon: SquareStack, status: (data?.candidates.length ?? 0) > 0 ? 'review' : 'blocked' },
+    { label: '素材需求', value: String(rows.length), detail: '有需求即进入准备，不等待设定定稿', icon: PackageCheck, status: rows.length > 0 ? 'review' : 'blocked' },
+    { label: '候选素材', value: String(candidateCount), detail: '当前筛选下的候选集', icon: SquareStack, status: candidateCount > 0 ? 'review' : rows.length > 0 ? 'review' : 'blocked' },
+    { label: '上下文范围', value: assetScopeCountLabel(rows), detail: '按场景与设定聚合', icon: GitBranch, status: rows.length > 0 ? 'ready' : 'blocked' },
     { label: '已锁定', value: String(rows.filter((row) => normalizeAssetSlotStatus(row.slot.status) === 'locked').length), detail: '可进入关键帧或制作项生成', icon: LockKeyhole, status: 'ready' },
     { label: '生成任务', value: String(activeJobs), detail: '当前项目图片任务', icon: RefreshCw, status: activeJobs > 0 ? 'running' : 'ready' },
   ]
@@ -674,29 +1116,27 @@ function buildProductionMetrics(rows: ContentGenerationViewRow[], data?: Product
   ]
 }
 
-function buildAssetContext(row: AssetPrepViewRow | null, data?: AssetPrepData): WorkbenchLinkRow[] {
+function buildMomentMetrics(rows: ContentGenerationMomentRow[], data?: ProductionWorkbenchData): WorkbenchMetric[] {
+  const readyMoments = rows.filter((row) => row.units.length > 0 && row.missingSlots.length === 0).length
+  const uncoveredMoments = rows.filter((row) => row.units.length === 0).length
+  const totalUnits = rows.reduce((sum, row) => sum + row.units.length, 0)
+  return [
+    { label: '情节', value: String(rows.length), detail: '生成工作台的入口层', icon: Route, status: rows.length > 0 ? 'review' : 'blocked' },
+    { label: '已有镜头', value: String(totalUnits), detail: '情节下面的制作项', icon: Boxes, status: totalUnits > 0 ? 'ready' : 'blocked' },
+    { label: '可直接生成', value: String(readyMoments), detail: '情节、镜头和素材输入都已接上', icon: CheckCircle2, status: readyMoments > 0 ? 'ready' : 'review' },
+    { label: '待拆镜头', value: String(uncoveredMoments), detail: '还没有生成制作项的情节', icon: Wand2, status: uncoveredMoments > 0 ? 'blocked' : 'ready' },
+  ]
+}
+
+function buildAssetContext(row: AssetPrepViewRow | null): WorkbenchLinkRow[] {
   if (!row) return []
   const slot = row.slot
   return [
     { label: '素材需求', value: `${assetKindLabel(slot.kind)} / ${assetPriorityLabel(slot.priority)} / ${assetStatusLabel(slot.status)}`, icon: PackageCheck },
-    { label: '归属上下文', value: assetSlotScopeLabel(slot, data), icon: GitBranch },
+    { label: '设定资料', value: row.creativeReferenceLabel, icon: Users },
+    { label: '场景 / 制作项 / 编排段', value: [row.sceneMomentLabel, row.contentUnitLabel, row.segmentLabel].join(' / '), icon: GitBranch },
     { label: '用途说明', value: firstText(slot.description, slot.prompt_hint, '未填写用途或提示'), icon: FileText },
     { label: '锁定输出', value: row.lockedSlot ? titleOfRecord(row.lockedSlot) : slot.resource_id ? `资源 #${slot.resource_id}` : '尚未锁定素材', icon: LockKeyhole },
-  ]
-}
-
-function buildAssetStandards(row: AssetPrepViewRow | null): WorkbenchGate[] {
-  if (!row) return []
-  const slot = row.slot
-  const hasOwner = Boolean(slot.owner_type && slot.owner_id) || Boolean(slot.creative_reference_id)
-  const hasBrief = Boolean(firstText(slot.description, slot.prompt_hint))
-  const hasCandidate = row.candidates.length > 0 || Boolean(row.lockedSlot || slot.resource_id)
-  const isLocked = normalizeAssetSlotStatus(slot.status) === 'locked' || Boolean(row.lockedSlot || slot.resource_id)
-  return [
-    { label: '归属明确', detail: hasOwner ? '已绑定内容、情景或设定资料上下文' : '需要绑定 owner 或设定资料来源', done: hasOwner, tone: hasOwner ? 'success' : 'warning' },
-    { label: '用途/提示完整', detail: hasBrief ? '已有用途说明或生成提示' : '需要补充 description 或 prompt_hint', done: hasBrief, tone: hasBrief ? 'success' : 'warning' },
-    { label: '候选可比较', detail: hasCandidate ? `${row.candidates.length} 个候选 / ${row.lockedSlot || slot.resource_id ? '已有锁定引用' : '待锁定'}` : '需要上传、生成或关联候选素材', done: hasCandidate, tone: hasCandidate ? 'success' : 'warning' },
-    { label: '输出可写回', detail: isLocked ? '已具备资源或锁定素材需求' : '采用前仍不能进入下游生成', done: isLocked, tone: isLocked ? 'success' : 'warning' },
   ]
 }
 
@@ -710,6 +1150,7 @@ function buildAssetCandidateRows(row: AssetPrepViewRow | null) {
       fit: candidate.score ? `评分 ${candidate.score}` : firstText(candidateSlot?.description, candidateSlot?.prompt_hint, candidateSlot?.status, '未填写说明'),
       issue: firstText(candidate.note, candidateSlot?.prompt_hint, candidate.status, '待人工复核'),
       status: candidate.status === 'selected' ? 'ready' as WorkStatus : candidate.status === 'rejected' ? 'blocked' as WorkStatus : 'review' as WorkStatus,
+      resource: candidateSlot?.resource,
     }
   })
   if (candidateRows.length === 0 && row.lockedSlot) {
@@ -719,9 +1160,360 @@ function buildAssetCandidateRows(row: AssetPrepViewRow | null) {
       fit: firstText(row.lockedSlot.description, row.lockedSlot.prompt_hint, '已锁定素材'),
       issue: '已作为当前素材需求输出',
       status: 'ready' as WorkStatus,
+      resource: row.lockedSlot.resource,
     }]
   }
   return candidateRows
+}
+
+function normalizeCreativeReferenceStatus(status?: string) {
+  if (status === 'confirmed' || status === 'locked' || status === 'ignored' || status === 'merged') return status
+  return 'draft'
+}
+
+function creativeReferenceStatusLabel(status?: string) {
+  const normalized = normalizeCreativeReferenceStatus(status)
+  if (normalized === 'confirmed') return '已确认'
+  if (normalized === 'locked') return '已锁定'
+  if (normalized === 'ignored') return '已忽略'
+  if (normalized === 'merged') return '已合并'
+  return '草稿'
+}
+
+function creativeReferenceStatusVariant(status?: string) {
+  const normalized = normalizeCreativeReferenceStatus(status)
+  if (normalized === 'confirmed' || normalized === 'locked' || normalized === 'merged') return 'success' as const
+  if (normalized === 'ignored') return 'outline' as const
+  return 'warning' as const
+}
+
+function creativeReferenceWorkStatus(status?: string): WorkStatus {
+  const normalized = normalizeCreativeReferenceStatus(status)
+  if (normalized === 'ignored') return 'blocked'
+  if (normalized === 'draft') return 'review'
+  return 'ready'
+}
+
+function creativeReferenceKindLabel(kind?: string) {
+  if (kind === 'person') return '人物'
+  if (kind === 'place') return '地点'
+  if (kind === 'prop') return '道具'
+  if (kind === 'product') return '产品'
+  if (kind === 'brand') return '品牌'
+  if (kind === 'style') return '风格'
+  if (kind === 'world_rule') return '世界规则'
+  if (kind === 'time_period') return '时间段'
+  if (kind === 'restriction') return '限制'
+  return firstText(kind, '设定')
+}
+
+function parseCreativeProfileJSON(profileJSON?: string) {
+  const raw = firstText(profileJSON, '')
+  if (!raw) return { profileJson: '', visualIntent: '' }
+  try {
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return { profileJson: raw, visualIntent: '' }
+    }
+    const data = parsed as Record<string, unknown>
+    const visualIntent = firstText(data.visual_intent, data.visualIntent, data.visual_notes, '')
+    const cleaned = { ...data }
+    delete cleaned.visual_intent
+    delete cleaned.visualIntent
+    delete cleaned.visual_notes
+    return {
+      profileJson: Object.keys(cleaned).length > 0 ? JSON.stringify(cleaned, null, 2) : '',
+      visualIntent,
+    }
+  } catch {
+    return { profileJson: raw, visualIntent: '' }
+  }
+}
+
+function composeCreativeProfileJSON(profileJson: string, visualIntent: string) {
+  const trimmedProfile = profileJson.trim()
+  const trimmedVisual = visualIntent.trim()
+  if (!trimmedProfile && !trimmedVisual) return ''
+  try {
+    const parsed = trimmedProfile ? JSON.parse(trimmedProfile) : {}
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid profile json')
+    const next = { ...(parsed as Record<string, unknown>) }
+    if (trimmedVisual) next.visual_intent = trimmedVisual
+    else {
+      delete next.visual_intent
+      delete next.visualIntent
+      delete next.visual_notes
+    }
+    return JSON.stringify(next, null, 2)
+  } catch {
+    if (!trimmedVisual) return trimmedProfile
+    return JSON.stringify({
+      raw_profile: trimmedProfile,
+      visual_intent: trimmedVisual,
+    }, null, 2)
+  }
+}
+
+function buildSettingPrepForm(record: WorkbenchRecord) {
+  const profile = parseCreativeProfileJSON(record.profile_json)
+  return {
+    name: firstText(record.name, record.title, record.label, ''),
+    alias: firstText(record.alias, ''),
+    kind: firstText(record.kind, 'person'),
+    importance: firstText(record.importance, 'supporting'),
+    status: normalizeCreativeReferenceStatus(record.status),
+    description: firstText(record.description, ''),
+    content: firstText(record.content, ''),
+    visualIntent: profile.visualIntent,
+    profileJson: profile.profileJson,
+    tagsJson: firstText(record.tags_json, ''),
+  }
+}
+
+function buildSettingPrepUsageSummary(record: SettingPrepRow | null) {
+  if (!record) return '暂无使用上下文'
+  const productions = record.linkedProductions.slice(0, 2).map((item) => titleOfRecord(item))
+  const segments = record.linkedSegments.slice(0, 2).map((item) => titleOfRecord(item))
+  const moments = record.linkedSceneMoments.slice(0, 2).map((item) => titleOfRecord(item))
+  const parts = [
+    productions.length > 0 ? `制作 ${productions.join('、')}` : null,
+    segments.length > 0 ? `编排段 ${segments.join('、')}` : null,
+    moments.length > 0 ? `情景 ${moments.join('、')}` : null,
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join(' / ') : '暂无使用上下文'
+}
+
+function buildSettingPrepEvidenceRows(record: SettingPrepRow | null) {
+  if (!record) return []
+  const lines: string[] = []
+  for (const item of record.linkedSceneMoments.slice(0, 3)) {
+    const line = [
+      titleOfRecord(item),
+      firstText(item.time_text, item.location_text, item.mood, item.description, item.action_text),
+    ].filter(Boolean).join(' · ')
+    if (line.trim()) lines.push(line)
+  }
+  for (const item of record.linkedSegments.slice(0, 2)) {
+    const line = [
+      titleOfRecord(item),
+      firstText(item.summary, item.description, item.content),
+    ].filter(Boolean).join(' · ')
+    if (line.trim()) lines.push(line)
+  }
+  return lines.length > 0 ? lines : ['当前设定暂时没有绑定到可见剧本或编排上下文。']
+}
+
+function buildSettingPrepContextRows(record: SettingPrepRow | null) {
+  if (!record) return []
+  return [
+    { label: '设定资料', value: `${creativeReferenceKindLabel(record.record.kind)} / ${creativeReferenceStatusLabel(record.record.status)}`, icon: Sparkles },
+    { label: '使用范围', value: buildSettingPrepUsageSummary(record), icon: GitBranch },
+    { label: '设定状态', value: `${record.states.length} 个状态记录`, icon: Layers },
+    { label: '关联素材', value: record.assetSlots.length > 0 ? `${record.assetSlots.length} 个素材需求` : '尚未关联素材需求', icon: PackageCheck },
+    { label: '关系网络', value: record.relationships.length > 0 ? `${record.relationships.length} 条关系` : '尚未建立关系', icon: Route },
+  ]
+}
+
+function buildSettingPrepChecklist(record: SettingPrepRow | null) {
+  if (!record) return []
+  const readyForLock = record.missing.length === 0 && (record.rawStatus === 'confirmed' || record.rawStatus === 'locked')
+  return [
+    { label: '名称明确', detail: firstText(record.record.name, '设定资料需要一个稳定名称'), done: Boolean(firstText(record.record.name)), tone: 'warning' as const },
+    { label: '设定正文完整', detail: record.missing.includes('缺设定正文') ? '需要补充可直接用于制作的设定说明' : '已有可用设定正文', done: !record.missing.includes('缺设定正文'), tone: 'warning' as const },
+    { label: '视觉锚点可用', detail: record.missing.includes('缺视觉锚点') ? '需要补充视觉说明、档案或提示词锚点' : '已有视觉说明或档案', done: !record.missing.includes('缺视觉锚点'), tone: 'warning' as const },
+    { label: '被使用范围明确', detail: record.usages.length > 0 ? `${record.usages.length} 个引用正在使用这个设定` : '还没有被剧本或制作使用', done: record.usages.length > 0, tone: 'warning' as const },
+    { label: '状态可放行', detail: readyForLock ? '可以进入已确认或已锁定状态' : '建议先补齐缺口，再确认状态', done: readyForLock, tone: 'warning' as const },
+  ]
+}
+
+function buildSettingPrepRows(data?: SettingPrepData): SettingPrepRow[] {
+  if (!data) return []
+  const segmentsById = new Map(data.segments.map((item) => [item.ID, item]))
+  const momentsById = new Map(data.sceneMoments.map((item) => [item.ID, item]))
+  const productionsById = new Map(data.productions.map((item) => [item.ID, item]))
+  const contentUnitsById = new Map(data.contentUnits.map((item) => [item.ID, item]))
+
+  return data.creativeReferences
+    .slice()
+    .sort((a, b) => byOrder(a, b))
+    .map((record) => {
+      const states = data.creativeReferenceStates.filter((state) => Number(state.creative_reference_id) === record.ID)
+      const usages = data.creativeReferenceUsages.filter((usage) => Number(usage.creative_reference_id) === record.ID)
+      const relatedAssetSlots = data.assetSlots.filter((slot) => Number(slot.creative_reference_id) === record.ID || states.some((state) => Number(slot.creative_reference_state_id) === state.ID))
+      const relationships = data.creativeRelationships.filter((relation) => Number(relation.source_creative_reference_id) === record.ID || Number(relation.target_creative_reference_id) === record.ID)
+
+      const linkedSegments = dedupeRecords([
+        ...usages
+          .filter((usage) => usage.owner_type === 'segment')
+          .map((usage) => segmentsById.get(Number(usage.owner_id)))
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+        ...relatedAssetSlots
+          .filter((slot) => slot.owner_type === 'segment')
+          .map((slot) => segmentsById.get(Number(slot.owner_id)))
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+      ])
+      const linkedSceneMoments = dedupeRecords([
+        ...usages
+          .filter((usage) => usage.owner_type === 'scene_moment')
+          .map((usage) => momentsById.get(Number(usage.owner_id)))
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+        ...relatedAssetSlots
+          .filter((slot) => slot.owner_type === 'scene_moment')
+          .map((slot) => momentsById.get(Number(slot.owner_id)))
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+      ])
+      const linkedContentUnits = dedupeRecords([
+        ...usages
+          .filter((usage) => usage.owner_type === 'content_unit')
+          .map((usage) => contentUnitsById.get(Number(usage.owner_id)))
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+        ...relatedAssetSlots
+          .filter((slot) => slot.owner_type === 'content_unit')
+          .map((slot) => contentUnitsById.get(Number(slot.owner_id)))
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+      ])
+      const linkedProductions = dedupeRecords([
+        ...linkedSegments
+          .map((segment) => segment.production_id ? productionsById.get(Number(segment.production_id)) : undefined)
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+        ...linkedSceneMoments
+          .map((moment) => moment.production_id ? productionsById.get(Number(moment.production_id)) : undefined)
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+        ...linkedContentUnits
+          .map((unit) => unit.production_id ? productionsById.get(Number(unit.production_id)) : undefined)
+          .filter((item): item is WorkbenchRecord => Boolean(item)),
+      ])
+
+      const title = firstText(record.name, record.title, record.label, record.alias, `${creativeReferenceKindLabel(record.kind)} #${record.ID}`)
+      const hasDescription = Boolean(firstText(record.description, record.content))
+      const hasVisualAnchor = Boolean(firstText(record.visual_intent, record.visual_notes, record.profile_json))
+      const hasState = states.length > 0
+      const hasUsage = usages.length > 0
+      const hasAsset = relatedAssetSlots.length > 0
+      const missing = [
+        hasDescription ? null : '缺设定正文',
+        hasVisualAnchor ? null : '缺视觉锚点',
+        hasState ? null : '缺状态记录',
+        hasUsage ? null : '缺使用上下文',
+        normalizeCreativeReferenceStatus(record.status) === 'draft' ? '待定稿' : null,
+      ].filter(Boolean) as string[]
+      const warnings = [
+        relationships.some((relation) => String(relation.category) === 'conflict') ? '存在冲突关系' : null,
+        usages.length > 0 && normalizeCreativeReferenceStatus(record.status) === 'draft' ? '下游已在使用，建议先补完再定稿' : null,
+      ].filter(Boolean) as string[]
+      const progress = clampProgress(
+        10 +
+        (hasDescription ? 18 : 0) +
+        (hasVisualAnchor ? 20 : 0) +
+        (hasState ? 18 : 0) +
+        (hasUsage ? 18 : 0) +
+        (hasAsset ? 10 : 0) +
+        (normalizeCreativeReferenceStatus(record.status) === 'confirmed' ? 8 : 0) +
+        (normalizeCreativeReferenceStatus(record.status) === 'locked' ? 12 : 0),
+      )
+      const priority: Priority = (usages.length > 0 && missing.length > 0) || warnings.length > 0
+        ? 'high'
+        : usages.length > 0
+          ? 'medium'
+          : 'low'
+      const status = creativeReferenceWorkStatus(record.status)
+      const readinessLabel = missing.length === 0
+        ? normalizeCreativeReferenceStatus(record.status) === 'locked'
+          ? '已锁定，可下游引用'
+          : normalizeCreativeReferenceStatus(record.status) === 'confirmed'
+            ? '已确认，可继续使用'
+            : '可进入确认'
+        : `${missing.length} 个缺口`
+      const scopeParts = [
+        linkedProductions.length > 0 ? `${linkedProductions.length} 个制作` : '未绑定制作',
+        linkedSegments.length > 0 ? `${linkedSegments.length} 个编排段` : '未绑定编排段',
+        linkedSceneMoments.length > 0 ? `${linkedSceneMoments.length} 个情景` : '未绑定情景',
+      ]
+
+      return {
+        id: String(record.ID),
+        title,
+        kind: creativeReferenceKindLabel(record.kind),
+        status,
+        rawStatus: normalizeCreativeReferenceStatus(record.status),
+        priority,
+        progress,
+        readinessLabel,
+        scope: scopeParts.join(' / '),
+        missing,
+        warnings,
+        record,
+        states,
+        usages,
+        relationships,
+        assetSlots: relatedAssetSlots,
+        linkedSegments,
+        linkedSceneMoments,
+        linkedContentUnits,
+        linkedProductions,
+      }
+    })
+}
+
+function buildSettingPrepMetrics(rows: SettingPrepRow[]): WorkbenchMetric[] {
+  const completed = rows.filter((row) => row.missing.length === 0 && (row.rawStatus === 'confirmed' || row.rawStatus === 'locked'))
+  const locked = rows.filter((row) => row.rawStatus === 'locked')
+  const used = rows.filter((row) => row.usages.length > 0)
+  const needingWork = rows.filter((row) => row.missing.length > 0 || row.rawStatus === 'draft')
+  return [
+    { label: '设定资料', value: String(rows.length), detail: '当前项目内的核心设定对象', icon: Sparkles, status: rows.length > 0 ? 'review' : 'blocked' },
+    { label: '待完善', value: String(needingWork.length), detail: '缺口或草稿状态的设定', icon: AlertTriangle, status: needingWork.length > 0 ? 'blocked' : 'ready' },
+    { label: '已可用', value: String(completed.length), detail: '可进入下游使用的设定', icon: CheckCircle2, status: completed.length > 0 ? 'ready' : 'review' },
+    { label: '已锁定', value: String(locked.length), detail: '后续修改需二次确认', icon: LockKeyhole, status: locked.length > 0 ? 'ready' : 'review' },
+    { label: '已使用', value: String(used.length), detail: '已经进入剧本或制作上下文', icon: GitBranch, status: used.length > 0 ? 'ready' : 'review' },
+  ]
+}
+
+function buildSettingPrepAgentMessage(input: {
+  projectName?: string
+  row: SettingPrepRow
+  evidence: string[]
+  missing: string[]
+}) {
+  const profile = parseCreativeProfileJSON(input.row.record.profile_json)
+  return [
+    '你是 MovScript 的设定准备助手。',
+    '你的任务是帮助用户补齐设定、指出冲突、整理可直接用于制作的稳定描述。',
+    '请优先根据下方剧本与制作上下文，输出可执行的补全建议，不要只给空泛建议。',
+    '如果信息足够，请直接给出建议状态；如果不够，请明确指出缺口。',
+    '',
+    `[项目] ${input.projectName || '未命名项目'}`,
+    `[设定资料] ${input.row.title}`,
+    `[类型] ${input.row.kind}`,
+    `[当前状态] ${creativeReferenceStatusLabel(input.row.rawStatus)}`,
+    `[缺口] ${input.missing.length > 0 ? input.missing.join('、') : '无'}`,
+    '',
+    '[剧本 / 制作证据]',
+    ...input.evidence,
+    '',
+    '[当前设定正文]',
+    firstText(input.row.record.description, input.row.record.content, '暂无'),
+    '',
+    '[当前视觉锚点]',
+    firstText(profile.visualIntent, input.row.record.profile_json, '暂无'),
+  ].join('\n')
+}
+
+function SettingPrepStateBadge({ status }: { status?: string }) {
+  return <Badge variant={creativeReferenceStatusVariant(status)}>{creativeReferenceStatusLabel(status)}</Badge>
+}
+
+function SettingPrepHintCard({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-2 text-sm leading-6 text-foreground">{text}</p>
+    </div>
+  )
+}
+
+function SettingPrepTag({ children }: { children: ReactNode }) {
+  return <span className="inline-flex max-w-full items-center rounded border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">{children}</span>
 }
 
 function buildProductionContext(row: ContentGenerationViewRow | null): WorkbenchLinkRow[] {
@@ -732,6 +1524,19 @@ function buildProductionContext(row: ContentGenerationViewRow | null): Workbench
     { label: '关键帧', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个关键帧：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定关键帧', icon: Image },
     { label: '素材需求输入', value: `${row.assetSlots.length} 个素材需求，${row.missingSlots.length} 个缺口`, icon: PackageCheck },
     { label: '生成设置', value: `${unit.kind || '制作项'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `制作 #${unit.production_id}` : '未绑定制作'}`, icon: Settings2 },
+  ]
+}
+
+function buildMomentContext(row: ContentGenerationMomentRow | null): WorkbenchLinkRow[] {
+  if (!row) return []
+  const moment = row.moment
+  return [
+    { label: '情节目标', value: firstText(moment.description, moment.action_text, titleOfRecord(moment)), icon: Target },
+    { label: '时空条件', value: [moment.time_text, moment.location_text].filter(Boolean).join(' / ') || '未填写时间或地点', icon: Route },
+    { label: '动作与情绪', value: [moment.condition_text, moment.action_text, moment.mood].filter(Boolean).join(' / ') || '未填写条件、动作或情绪', icon: Film },
+    { label: '设定资料', value: summarizeRecordNames(row.references, '尚未关联设定资料'), icon: Users },
+    { label: '素材输入', value: summarizeAssetSlots(row.assetSlots, '尚未关联素材输入'), icon: PackageCheck },
+    { label: '镜头制作项', value: row.units.length > 0 ? `${row.units.length} 个，${row.units.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未生成镜头制作项', icon: Boxes },
   ]
 }
 
@@ -747,6 +1552,79 @@ function buildProductionStandards(row: ContentGenerationViewRow | null, jobs: Jo
     { label: '关键帧具备', detail: hasKeyframe ? `${row.keyframes.length} 个关键帧可用` : '建议先生成或绑定关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务或内容已锁定' : '还没有当前项目的视频生成任务', done: hasJob, tone: hasJob ? 'success' : 'warning' },
   ]
+}
+
+function buildMomentStandards(row: ContentGenerationMomentRow | null, jobs: Job[]): WorkbenchGate[] {
+  if (!row) return []
+  const hasStoryContext = Boolean(firstText(row.moment.description, row.moment.action_text) || row.moment.time_text || row.moment.location_text)
+  const hasUnits = row.units.length > 0
+  const hasUnitPrompt = row.units.some((unit) => firstText(unit.description, unit.prompt))
+  const assetsReady = row.units.length > 0 && row.missingSlots.length === 0
+  const hasJob = jobs.length > 0
+  return [
+    { label: '情节上下文明确', detail: hasStoryContext ? '已有情节描述、动作或时空条件' : '需要补齐情节描述、动作、时间或地点', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
+    { label: '镜头入口存在', detail: hasUnits ? `${row.units.length} 个镜头制作项可继续拆分` : '还没有镜头制作项，先手动创建或交给 AI 拆镜', done: hasUnits, tone: hasUnits ? 'success' : 'warning' },
+    { label: '镜头提示可用', detail: hasUnitPrompt ? '已有 description 或 prompt，可直接驱动生成' : '需要为镜头补上生成提示或用途说明', done: hasUnitPrompt, tone: hasUnitPrompt ? 'success' : 'warning' },
+    { label: '素材输入就绪', detail: assetsReady ? '没有未处理的素材缺口' : `${row.missingSlots.length} 个素材缺口仍在阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
+    { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务记录' : '当前项目还没有生成任务记录', done: hasJob, tone: hasJob ? 'success' : 'warning' },
+  ]
+}
+
+function buildGenerationContextStandards(context?: GenerationContext): WorkbenchGate[] {
+  if (!context) return []
+  const target = context.target.content_unit
+  const lockedAssets = context.asset_slots.filter((slot) => isGenerationAssetUsable(slot)).length
+  const missingAssets = context.asset_slots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
+  const hasTargetPrompt = Boolean(firstText(target.prompt, target.description))
+  const hasStoryContext = Boolean(context.scene_moment || context.segment)
+  const hasContinuity = context.creative_references.length > 0
+  const assetsReady = context.asset_slots.length > 0 && missingAssets === 0 && lockedAssets > 0
+  const hasKeyframe = context.keyframes.length > 0
+  return [
+    { label: '目标提示可读', detail: hasTargetPrompt ? firstText(target.prompt, target.description) : '制作项缺少 prompt 或 description，Agent 难以判断画面目标', done: hasTargetPrompt, tone: hasTargetPrompt ? 'success' : 'warning' },
+    { label: '情景上下文存在', detail: hasStoryContext ? [context.segment ? `编排段：${titleOfRecord(context.segment)}` : null, context.scene_moment ? `情景：${titleOfRecord(context.scene_moment)}` : null].filter(Boolean).join(' / ') : '未绑定情景或编排段，生成会缺少时空、动作和情绪约束', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
+    { label: '连续性资料可用', detail: hasContinuity ? `${context.creative_references.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, tone: hasContinuity ? 'success' : 'warning' },
+    { label: '素材输入可用', detail: context.asset_slots.length === 0 ? '未找到素材需求或参考素材' : `${context.asset_slots.length} 个素材输入，${lockedAssets} 个可用，${missingAssets} 个缺失`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
+    { label: '首帧/关键帧', detail: hasKeyframe ? `${context.keyframes.length} 个关键帧可作为视频生成锚点` : '视频生成前建议先生成或绑定关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+  ]
+}
+
+function buildGenerationContextRows(context?: GenerationContext): WorkbenchLinkRow[] {
+  if (!context) return []
+  const target = context.target.content_unit
+  const referenceNames = context.creative_references
+    .map((item) => titleOfRecord(item.state ?? item.reference))
+    .filter(Boolean)
+  const assetSummary = summarizeGenerationAssets(context.asset_slots)
+  return [
+    { label: '后端目标', value: firstText(target.prompt, target.description, titleOfRecord(target)), icon: Target },
+    { label: '情景', value: context.scene_moment ? firstText(context.scene_moment.description, context.scene_moment.action_text, titleOfRecord(context.scene_moment)) : '未绑定情景', icon: Route },
+    { label: '设定引用', value: referenceNames.length > 0 ? referenceNames.slice(0, 4).join('、') : '未找到设定引用', icon: Users },
+    { label: '素材输入', value: assetSummary, icon: PackageCheck },
+    { label: '关键帧', value: context.keyframes.length > 0 ? context.keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到关键帧', icon: Image },
+    { label: '写回范围', value: context.constraints.write_targets.join('、') || '未声明写回范围', icon: ShieldCheck },
+  ]
+}
+
+function summarizeGenerationAssets(slots: SemanticEntityRecord[]) {
+  if (slots.length === 0) return '未找到素材输入'
+  const usable = slots.filter((slot) => isGenerationAssetUsable(slot)).length
+  const missing = slots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
+  return `${slots.length} 个素材输入，${usable} 个可用，${missing} 个缺失`
+}
+
+function isGenerationAssetUsable(slot: SemanticEntityRecord) {
+  const status = normalizeAssetSlotStatus(String(slot.status ?? ''))
+  return status === 'locked' || status === 'waived' || Boolean(slot.resource_id || slot.locked_asset_slot_id)
+}
+
+function apiErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === 'object') {
+    const data = (error as { response?: { data?: { message?: unknown; error?: unknown } } }).response?.data
+    const message = firstText(data?.message, data?.error)
+    if (message) return message
+  }
+  return fallback
 }
 
 function buildProductionCandidateRows(jobs: Job[]) {
@@ -765,6 +1643,15 @@ function firstText(...values: Array<unknown>) {
     if (text) return text
   }
   return ''
+}
+
+function dedupeRecords<T extends { ID: number }>(records: T[]): T[] {
+  const seen = new Set<number>()
+  return records.filter((record) => {
+    if (seen.has(record.ID)) return false
+    seen.add(record.ID)
+    return true
+  })
 }
 
 function trimText(value: unknown, max = 42) {
@@ -789,16 +1676,26 @@ function formatDuration(value?: number) {
   return `${Math.round(next)}s`
 }
 
+function byOrder<T extends { order?: number; ID: number }>(a: T, b: T) {
+  const ao = typeof a.order === 'number' ? a.order : a.ID
+  const bo = typeof b.order === 'number' ? b.order : b.ID
+  return ao - bo
+}
+
+function clampProgress(value: number) {
+  if (!Number.isFinite(value)) return 0
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
 function normalizeAssetSlotStatus(status?: string) {
   if (status === 'candidate' || status === 'locked' || status === 'waived') return status
   return 'missing'
 }
 
-function assetSlotWorkStatus(slot: WorkbenchRecord, candidates: WorkbenchRecord[]): WorkStatus {
+function assetSlotWorkStatus(slot: WorkbenchRecord, lockedSlot?: WorkbenchRecord): WorkStatus {
   const status = normalizeAssetSlotStatus(slot.status)
-  if (status === 'locked' || status === 'waived') return 'ready'
-  if (status === 'candidate' || candidates.length > 0) return 'review'
-  return 'blocked'
+  if (status === 'locked' || status === 'waived' || lockedSlot || slot.resource_id) return 'ready'
+  return 'review'
 }
 
 function contentUnitWorkStatus(unit: WorkbenchRecord, missingSlots: WorkbenchRecord[]): WorkStatus {
@@ -824,6 +1721,67 @@ function contentUnitProgress(unit: WorkbenchRecord, missingSlots: WorkbenchRecor
   if (keyframes.length > 0) score += 20
   if (unit.status === 'locked') score += 10
   return Math.min(100, score)
+}
+
+function momentWorkStatus(moment: WorkbenchRecord, units: WorkbenchRecord[], missingSlots: WorkbenchRecord[]): WorkStatus {
+  if (units.length === 0) return 'blocked'
+  if (missingSlots.length > 0) return 'blocked'
+  if (units.some((unit) => unit.status === 'in_production')) return 'running'
+  if (moment.status === 'confirmed' && units.some((unit) => unit.status === 'confirmed' || unit.status === 'locked')) return 'ready'
+  return 'review'
+}
+
+function momentProgress(
+  moment: WorkbenchRecord,
+  units: WorkbenchRecord[],
+  missingSlots: WorkbenchRecord[],
+  keyframes: WorkbenchRecord[],
+  hasUnitPrompt: boolean,
+) {
+  let score = 15
+  if (firstText(moment.description, moment.action_text) || moment.time_text || moment.location_text) score += 25
+  if (units.length > 0) score += 25
+  if (hasUnitPrompt) score += 15
+  if (missingSlots.length === 0 && units.length > 0) score += 10
+  if (keyframes.length > 0) score += 10
+  return clampProgress(score)
+}
+
+function momentScopeLabel(
+  moment: WorkbenchRecord,
+  segment: WorkbenchRecord | undefined,
+  units: WorkbenchRecord[],
+  keyframes: WorkbenchRecord[],
+  missingSlots: WorkbenchRecord[],
+  productions: WorkbenchRecord[],
+  productionIds: number[],
+) {
+  const productionNames = productionIds
+    .map((id) => productions.find((production) => production.ID === id))
+    .filter(Boolean)
+    .map((production) => titleOfRecord(production))
+  const parts = [
+    productionNames.length > 0 ? `制作 · ${productionNames.slice(0, 2).join('、')}` : '未绑定制作',
+    segment ? `编排段 · ${titleOfRecord(segment)}` : '未绑定编排段',
+    moment.mood || '情绪未定',
+    units.length > 0 ? `${units.length} 镜头` : '待拆镜头',
+    keyframes.length > 0 ? `${keyframes.length} 关键帧` : '无关键帧',
+    missingSlots.length > 0 ? `${missingSlots.length} 缺口` : null,
+  ].filter(Boolean)
+  return parts.join(' / ')
+}
+
+function summarizeRecordNames(records: WorkbenchRecord[], empty = '暂无') {
+  if (records.length === 0) return empty
+  return records.slice(0, 4).map((record) => titleOfRecord(record)).join('、')
+}
+
+function summarizeAssetSlots(records: WorkbenchRecord[], empty = '暂无素材输入') {
+  if (records.length === 0) return empty
+  return records
+    .slice(0, 4)
+    .map((record) => firstText(record.name, record.slot_key, record.kind, titleOfRecord(record)))
+    .join('、')
 }
 
 function priorityFromRecord(priority?: string): Priority {
@@ -868,28 +1826,6 @@ function assetStatusLabel(status?: string) {
   if (normalized === 'candidate') return '候选中'
   if (normalized === 'waived') return '已豁免'
   return '缺口'
-}
-
-function assetSlotScopeLabel(slot: WorkbenchRecord, data?: AssetPrepData) {
-  if (slot.owner_type === 'content_unit' && slot.owner_id) {
-    const unit = data?.contentUnits.find((item) => item.ID === Number(slot.owner_id))
-    return unit ? `制作项 · ${titleOfRecord(unit)}` : `制作项 #${slot.owner_id}`
-  }
-  if (slot.owner_type === 'scene_moment' && slot.owner_id) {
-    const moment = data?.sceneMoments.find((item) => item.ID === Number(slot.owner_id))
-    return moment ? `情景 · ${titleOfRecord(moment)}` : `情景 #${slot.owner_id}`
-  }
-  if (slot.owner_type === 'segment' && slot.owner_id) {
-    const segment = data?.segments.find((item) => item.ID === Number(slot.owner_id))
-    return segment ? `编排段 · ${titleOfRecord(segment)}` : `编排段 #${slot.owner_id}`
-  }
-  if (slot.creative_reference_id) {
-    const reference = data?.creativeReferences.find((item) => item.ID === Number(slot.creative_reference_id))
-    return reference ? `设定资料 · ${titleOfRecord(reference)}` : `设定资料 #${slot.creative_reference_id}`
-  }
-  if (slot.owner_type && slot.owner_id) return `${slot.owner_type} #${slot.owner_id}`
-  if (slot.production_id) return `制作 #${slot.production_id}`
-  return '项目素材需求'
 }
 
 function contentUnitScopeLabel(unit: WorkbenchRecord, keyframes: WorkbenchRecord[], missingSlots: WorkbenchRecord[]) {
@@ -1033,9 +1969,23 @@ function MetricStrip({ metrics }: { metrics: WorkbenchMetric[] }) {
   )
 }
 
-function WorkbenchPanel({ title, icon: Icon, children, action }: { title: string; icon: typeof FileText; children: ReactNode; action?: ReactNode }) {
+function WorkbenchPanel({
+  title,
+  icon: Icon,
+  children,
+  action,
+  className,
+  bodyClassName,
+}: {
+  title: string
+  icon: typeof FileText
+  children: ReactNode
+  action?: ReactNode
+  className?: string
+  bodyClassName?: string
+}) {
   return (
-    <section className="rounded-lg border border-border bg-card">
+    <section className={cn('rounded-lg border border-border bg-card', className)}>
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <Icon size={16} className="shrink-0 text-muted-foreground" />
@@ -1043,23 +1993,30 @@ function WorkbenchPanel({ title, icon: Icon, children, action }: { title: string
         </div>
         {action}
       </div>
-      <div className="p-4">{children}</div>
+      <div className={cn('p-4', bodyClassName)}>{children}</div>
     </section>
   )
 }
 
 function SpecializedQueue({
+  title = '生产队列',
   items,
   selectedId,
   onSelect,
+  className,
+  bodyClassName,
 }: {
+  title?: string
   items: Array<{ id: string; title: string; scope: string; status: WorkStatus; priority: Priority; progress: number; need?: string }>
   selectedId: string
   onSelect: (id: string) => void
+  className?: string
+  bodyClassName?: string
 }) {
   return (
-    <WorkbenchPanel title="生产队列" icon={ListChecks} action={<Badge variant="secondary">{items.length}</Badge>}>
-      <div className="space-y-2">
+    <WorkbenchPanel title={title} icon={ListChecks} action={<Badge variant="secondary">{items.length}</Badge>} className={className} bodyClassName={bodyClassName}>
+      <ScrollArea className="h-full min-h-0">
+        <div className="space-y-2 pr-2">
         {items.map((item) => (
           <button
             key={item.id}
@@ -1082,8 +2039,18 @@ function SpecializedQueue({
             </div>
           </button>
         ))}
-      </div>
+        </div>
+      </ScrollArea>
     </WorkbenchPanel>
+  )
+}
+
+function QueueMiniMetric({ label, value, tone = 'default' }: { label: string; value: number | string; tone?: 'default' | 'warning' }) {
+  return (
+    <div className="min-w-14 rounded-md border border-border bg-background px-2 py-1.5">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className={cn('mt-0.5 text-sm font-semibold tabular-nums', tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>{value}</p>
+    </div>
   )
 }
 
@@ -1125,13 +2092,47 @@ function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
   )
 }
 
+function FilterSelect({
+  label,
+  value,
+  options,
+  placeholder,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: AssetPrepOption[]
+  placeholder: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="h-9">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">{placeholder}</SelectItem>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label} · {option.count}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="truncate text-[11px] text-muted-foreground">{options.length > 0 ? `${options.length} 个可选项` : '暂无可筛选项'}</p>
+    </div>
+  )
+}
+
 function CandidateComparison({
   rows,
   primaryLabel,
   emptyText = '暂无候选',
   rowClassName,
 }: {
-  rows: Array<{ name: string; source: string; fit: string; issue: string; status: WorkStatus }>
+  rows: Array<{ name: string; source: string; fit: string; issue: string; status: WorkStatus; resource?: RawResource }>
   primaryLabel: string
   emptyText?: string
   rowClassName?: string
@@ -1142,7 +2143,16 @@ function CandidateComparison({
   return (
     <div className="space-y-2">
       {rows.map((row) => (
-        <div key={row.name} className={cn('grid gap-3 rounded-md border border-border bg-background px-3 py-3 md:grid-cols-[1fr_1fr_1fr_auto]', rowClassName)}>
+        <div key={`${row.name}:${row.source}`} className={cn('grid gap-3 rounded-md border border-border bg-background px-3 py-3 md:grid-cols-[3rem_1fr_1fr_1fr_auto]', rowClassName)}>
+          <div className="h-12 w-12 overflow-hidden rounded-md border border-border bg-muted">
+            {row.resource ? (
+              <MediaViewer resource={row.resource} className="h-full w-full" lightbox={false} />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                <SquareStack size={14} />
+              </div>
+            )}
+          </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
             <p className="mt-1 truncate text-xs text-muted-foreground">{row.source}</p>
@@ -1166,29 +2176,40 @@ function AssetPreparationWorkbench() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const uploadInputRef = useRef<HTMLInputElement>(null)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['workbench', 'assets', projectId],
     queryFn: () => loadAssetPrepData(projectId!),
     enabled: !!projectId,
   })
   const rows = useMemo(() => buildAssetPrepRows(data), [data])
+  const filterOptions = useMemo(() => buildAssetFilterOptions(rows), [rows])
+  const [assetFilters, setAssetFilters] = useState<AssetPrepFilterState>({
+    sceneMomentId: 'all',
+    segmentId: 'all',
+    contentUnitId: 'all',
+    creativeReferenceId: 'all',
+  })
   const [selectedId, setSelectedId] = useState('')
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
-    if (rows.length === 0) {
+    const nextRows = rows.filter((row) => matchesAssetPrepFilters(row, assetFilters))
+    if (nextRows.length === 0) {
       if (selectedId) setSelectedId('')
       return
     }
-    if (!selectedId || !rows.some((row) => row.id === selectedId)) {
-      setSelectedId(rows[0].id)
+    if (!selectedId || !nextRows.some((row) => row.id === selectedId)) {
+      setSelectedId(nextRows[0].id)
     }
-  }, [rows, selectedId])
+  }, [rows, selectedId, assetFilters])
 
-  const selected = rows.find((item) => item.id === selectedId) ?? rows[0] ?? null
-  const metrics = buildAssetMetrics(rows, data)
+  const filteredRows = useMemo(() => rows.filter((row) => matchesAssetPrepFilters(row, assetFilters)), [rows, assetFilters])
+  const selected = filteredRows.find((item) => item.id === selectedId) ?? filteredRows[0] ?? rows.find((item) => item.id === selectedId) ?? rows[0] ?? null
+  const metrics = buildAssetMetrics(filteredRows, data)
   const candidateRows = buildAssetCandidateRows(selected)
-  const standards = buildAssetStandards(selected)
-  const contextRows = buildAssetContext(selected, data)
+  const contextRows = buildAssetContext(selected)
   const openAssetCanvas = useMutation({
     mutationFn: async (row: AssetPrepViewRow) => {
       if (!projectId) throw new Error('请先选择项目')
@@ -1203,6 +2224,53 @@ function AssetPreparationWorkbench() {
     },
     onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
   })
+  const uploadCandidate = useMutation({
+    mutationFn: async (file: File) => {
+      if (!projectId) throw new Error('请先选择项目')
+      if (!selected) throw new Error('请先选择素材需求')
+      const fd = new FormData()
+      fd.append('file', file)
+      const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
+      await api.post(`/projects/${projectId}/entities/asset-slot-candidates`, {
+        asset_slot_id: selected.slot.ID,
+        resource_id: resource.ID,
+        source_type: 'upload',
+        source_id: resource.ID,
+        score: 0.75,
+        status: 'candidate',
+        note: `手动上传候选：${resource.name}`,
+      })
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['workbench', 'assets', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['resources'] }),
+        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', projectId] }),
+      ])
+      toast.success('候选已上传')
+    },
+      onError: (error) => {
+        toast.error(apiErrorMessage(error, '上传候选失败'))
+      },
+    onSettled: () => {
+      setUploading(false)
+      if (uploadInputRef.current) uploadInputRef.current.value = ''
+    },
+  })
+
+  function triggerUpload() {
+    if (!selected || uploading || uploadCandidate.isPending) return
+    uploadInputRef.current?.click()
+  }
+
+  function handleUpload(file?: File) {
+    if (!file || !selected || uploadCandidate.isPending) return
+    setUploading(true)
+    uploadCandidate.mutate(file)
+  }
+  const filterCountLabel = `${filteredRows.length}/${rows.length}`
+  const hasFilters = hasAssetPrepFilters(assetFilters)
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
@@ -1210,71 +2278,188 @@ function AssetPreparationWorkbench() {
         category="assets"
         kicker="素材准备"
         title="素材准备工作台"
-        description="从素材需求缺口出发，把剧本证据、设定资料约束、参考输入和验收标准放在同一个生产界面里。"
+        description="这里是素材需求的候选集工作台。只要有需求就可以上传、生成和比较候选；场景、设定资料、制作项和编排段只是筛选与追溯上下文。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         {!projectId ? (
-          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目上下文，无法拉取素材需求、候选和生成任务。" />
+          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目信息，无法拉取素材需求、候选和生成任务。" />
         ) : isLoading ? (
           <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载素材数据...</Card>
         ) : isError ? (
           <EmptyWorkbenchState title="素材数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。 " />
         ) : (
           <div className="asset-prep-workbench space-y-5">
+            <section className="rounded-lg border border-border bg-card p-4">
+              <div className="grid gap-3 lg:grid-cols-4">
+                <FilterSelect
+                  label="场景"
+                  value={assetFilters.sceneMomentId}
+                  options={filterOptions.sceneMoments}
+                  placeholder="全部场景"
+                  onChange={(value) => setAssetFilters((prev) => ({ ...prev, sceneMomentId: value }))}
+                />
+                <FilterSelect
+                  label="编排段"
+                  value={assetFilters.segmentId}
+                  options={filterOptions.segments}
+                  placeholder="全部编排段"
+                  onChange={(value) => setAssetFilters((prev) => ({ ...prev, segmentId: value }))}
+                />
+                <FilterSelect
+                  label="制作项"
+                  value={assetFilters.contentUnitId}
+                  options={filterOptions.contentUnits}
+                  placeholder="全部制作项"
+                  onChange={(value) => setAssetFilters((prev) => ({ ...prev, contentUnitId: value }))}
+                />
+                <FilterSelect
+                  label="设定资料"
+                  value={assetFilters.creativeReferenceId}
+                  options={filterOptions.creativeReferences}
+                  placeholder="全部设定资料"
+                  onChange={(value) => setAssetFilters((prev) => ({ ...prev, creativeReferenceId: value }))}
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-muted-foreground">素材需求按场景、编排段、制作项和设定资料筛选，不再以单一归属字段作为入口。</p>
+                <div className="flex items-center gap-2">
+                  {hasFilters ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8"
+                      onClick={() => setAssetFilters({ sceneMomentId: 'all', segmentId: 'all', contentUnitId: 'all', creativeReferenceId: 'all' })}
+                    >
+                      清空筛选
+                    </Button>
+                  ) : null}
+                  <Badge variant="outline">{filterCountLabel} 个素材需求</Badge>
+                </div>
+              </div>
+            </section>
             <MetricStrip metrics={metrics} />
-            <div className="asset-prep-layout grid gap-5">
+            <div className="asset-prep-layout grid items-stretch gap-5">
               <SpecializedQueue
-                items={rows.map((row) => ({
+                title="候选队列"
+                className="flex h-full min-h-[560px] flex-col overflow-hidden"
+                bodyClassName="min-h-0 flex-1 overflow-hidden"
+                items={filteredRows.map((row) => ({
                   id: row.id,
                   title: row.title,
-                  scope: row.scope,
+                  scope: row.contextSummary,
                   status: row.status,
                   priority: row.priority,
                   progress: row.progress,
-                  need: row.need,
+                  need: row.need || row.settingDetail,
                 }))}
                 selectedId={selected?.id ?? ''}
-                onSelect={setSelectedId}
+                onSelect={(id) => {
+                  setSelectedId(id)
+                }}
               />
-              <div className="min-w-0 space-y-5">
-                <WorkbenchPanel title="当前素材上下文" icon={GitBranch}>
-                  {selected ? (
-                    <>
-                      <div className="mb-4 flex items-start justify-between gap-4 rounded-md border border-border bg-background p-3">
-                        <div className="min-w-0">
-                          <p className="text-xs text-muted-foreground">正在准备</p>
-                          <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{selected.title}</h2>
-                          <p className="mt-1 truncate text-sm text-muted-foreground">{selected.scope}</p>
+              <div className="asset-prep-side min-w-0 grid h-full min-h-[560px] gap-5">
+                <div className="asset-prep-workspace min-w-0 grid min-h-0 gap-5">
+                  <WorkbenchPanel
+                    title="当前上下文与素材需求"
+                    icon={GitBranch}
+                    action={selected ? <Badge variant="outline">{selected.contextSummary}</Badge> : undefined}
+                    className="flex min-h-0 flex-col"
+                    bodyClassName="min-h-0 flex-1 overflow-auto"
+                  >
+                    {selected ? (
+                      <>
+                        <div className="mb-4 grid gap-3 rounded-md border border-border bg-background p-3 md:grid-cols-[1fr_auto]">
+                          <div className="min-w-0">
+                            <p className="text-xs text-muted-foreground">当前上下文</p>
+                            <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{selected.contextSummary}</h2>
+                            <p className="mt-1 truncate text-sm text-muted-foreground">{selected.settingDetail}</p>
+                          </div>
+                          <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
                         </div>
-                        <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
-                      </div>
-                      <ContextStack rows={contextRows} />
-                    </>
-                  ) : (
-                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无素材需求</p>
-                  )}
-                </WorkbenchPanel>
+                        <ContextStack rows={contextRows} />
+                      </>
+                    ) : (
+                      <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无可用素材需求</p>
+                    )}
+                  </WorkbenchPanel>
 
-                <WorkbenchPanel title="参考输入与候选素材" icon={SquareStack} action={<Badge variant="outline">{candidateRows.length} 个候选</Badge>}>
-                  <CandidateComparison rows={candidateRows} primaryLabel="可用性" emptyText="当前素材需求还没有候选素材" />
-                </WorkbenchPanel>
-              </div>
-              <div className="asset-prep-side min-w-0 space-y-5">
-                <WorkbenchPanel title="素材验收标准" icon={ShieldCheck}>
-                  <GateChecklist rows={standards} />
-                </WorkbenchPanel>
-                <WorkbenchPanel title="下一步动作" icon={ClipboardCheck}>
-                  <div className="space-y-2">
-                    {assetPrepNextActions(selected).map((action, index) => (
-                      <Button key={action.label} variant={action.primary ? 'primary' : 'outline'} className="w-full justify-start gap-2" onClick={() => action.run()} loading={action.loading}>
-                        {index === 2 ? <LockKeyhole size={15} /> : <ChevronRight size={15} />}
-                        {action.label}
-                      </Button>
-                    ))}
+                  <WorkbenchPanel
+                    title="候选集"
+                    icon={SquareStack}
+                    action={(
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{candidateRows.length} 个候选</Badge>
+                        <Button size="sm" variant="outline" className="h-8 gap-2" onClick={triggerUpload} disabled={!selected || uploadCandidate.isPending || uploading}>
+                          <Upload size={14} />
+                          上传候选
+                        </Button>
+                      </div>
+                    )}
+                    className="flex min-h-0 flex-1 flex-col"
+                    bodyClassName="min-h-0 flex-1 overflow-auto"
+                  >
+                    <div className="mb-3 rounded-md border border-dashed border-border bg-background px-3 py-3 text-xs text-muted-foreground">
+                      这里把当前场景、设定资料、制作项和编排段的候选放在一起看，越贴近当前上下文的候选越应该优先进入这一层。
+                    </div>
+                    <CandidateComparison rows={candidateRows} primaryLabel="可用性" emptyText="当前素材需求还没有候选素材" />
+                  </WorkbenchPanel>
+                </div>
+
+                <WorkbenchPanel
+                  title="编辑区"
+                  icon={Settings2}
+                  action={selected ? (
+                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => navigate(`/asset-slots?asset_slot_id=${selected.slot.ID}`)}>
+                      <ArrowRight size={14} />
+                      详情页
+                    </Button>
+                  ) : undefined}
+                  className="asset-prep-editor-panel flex min-h-0 flex-col"
+                  bodyClassName="min-h-0 flex-1 overflow-auto"
+                >
+                  <div className="space-y-4">
+                    <div className="rounded-md border border-border bg-background px-3 py-3">
+                      <p className="text-xs text-muted-foreground">当前上下文</p>
+                      <p className="mt-1 truncate text-sm font-medium text-foreground">{selected?.contextSummary ?? '请选择一个素材需求'}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{selected?.settingDetail ?? '先选中一个素材需求，再上传候选或执行下一步动作。'}</p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground">手动上传候选</p>
+                          <p className="mt-1 text-xs text-muted-foreground">支持图片、视频、音频和文本文件，上传后直接成为当前素材需求的候选。</p>
+                        </div>
+                        <Button variant="outline" className="h-8 shrink-0 gap-2" onClick={triggerUpload} disabled={!selected || uploading || uploadCandidate.isPending}>
+                          <Upload size={14} />
+                          {uploadCandidate.isPending || uploading ? '上传中' : '选择文件'}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">上传会直接写入当前素材需求下的候选记录。</p>
+                    </div>
+
+                    <div className="space-y-3 border-t border-border pt-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-foreground">下一步动作</p>
+                          <p className="mt-1 text-xs text-muted-foreground">围绕当前素材需求继续生成、锁定或回写资源库。</p>
+                        </div>
+                        <Badge variant="outline">{assetPrepNextActions(selected).length} 个动作</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        {assetPrepNextActions(selected).map((action, index) => (
+                          <Button key={action.label} variant={action.primary ? 'primary' : 'outline'} className="w-full justify-start gap-2" onClick={() => action.run()} loading={action.loading}>
+                            {index === 2 ? <LockKeyhole size={15} /> : <ChevronRight size={15} />}
+                            {action.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </WorkbenchPanel>
               </div>
             </div>
+            <input ref={uploadInputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
           </div>
         )}
       </main>
@@ -1284,7 +2469,6 @@ function AssetPreparationWorkbench() {
   function assetPrepNextActions(row: AssetPrepViewRow | null) {
     const slotId = row?.slot.ID
     return [
-      { label: '上传参考图', run: () => navigate('/resources'), primary: false },
       { label: '生成补充候选', run: () => row ? openAssetCanvas.mutate(row) : navigate('/asset-slots'), primary: !row?.candidates.length, loading: openAssetCanvas.isPending },
       { label: '采用并锁定素材', run: () => navigate(slotId ? `/asset-slots?asset_slot_id=${slotId}` : '/asset-slots'), primary: Boolean(row?.candidates.length) && normalizeAssetSlotStatus(row?.slot.status) !== 'locked' },
       { label: '写回资源库', run: () => navigate('/resources'), primary: false },
@@ -1292,73 +2476,875 @@ function AssetPreparationWorkbench() {
   }
 }
 
-function ContentGenerationWorkbench() {
+function SettingPreparationWorkbench() {
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['workbench', 'production', projectId],
-    queryFn: () => loadProductionWorkbenchData(projectId!),
+    queryKey: ['workbench', 'creative', projectId],
+    queryFn: () => loadSettingPrepData(projectId!),
     enabled: !!projectId,
   })
-  const rows = useMemo(() => buildContentGenerationRows(data), [data])
+  const rows = useMemo(() => buildSettingPrepRows(data), [data])
+  const [kindFilter, setKindFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [selectedId, setSelectedId] = useState('')
+  const [contextMode, setContextMode] = useState<'usage' | 'script' | 'ai'>('usage')
+  const [draft, setDraft] = useState<ReturnType<typeof buildSettingPrepForm> | null>(null)
+
+  const kindOptions = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const row of rows) counts.set(row.kind, (counts.get(row.kind) ?? 0) + 1)
+    return Array.from(counts.entries()).map(([kind, count]) => ({ value: kind, label: creativeReferenceKindLabel(kind), count }))
+  }, [rows])
+  const statusOptions = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const row of rows) counts.set(row.rawStatus, (counts.get(row.rawStatus) ?? 0) + 1)
+    return Array.from(counts.entries()).map(([status, count]) => ({ value: status, label: creativeReferenceStatusLabel(status), count }))
+  }, [rows])
+  const filteredRows = useMemo(() => rows.filter((row) => {
+    if (kindFilter !== 'all' && row.kind !== kindFilter) return false
+    if (statusFilter !== 'all' && row.rawStatus !== statusFilter) return false
+    return true
+  }), [rows, kindFilter, statusFilter])
+  const selected = filteredRows.find((row) => row.id === selectedId) ?? filteredRows[0] ?? rows.find((row) => row.id === selectedId) ?? rows[0] ?? null
+  const metrics = buildSettingPrepMetrics(rows)
+  const evidenceRows = buildSettingPrepEvidenceRows(selected)
+  const contextRows = buildSettingPrepContextRows(selected)
+  const checklist = buildSettingPrepChecklist(selected)
 
   useEffect(() => {
-    if (rows.length === 0) {
+    if (filteredRows.length === 0) {
       if (selectedId) setSelectedId('')
       return
     }
-    if (!selectedId || !rows.some((row) => row.id === selectedId)) {
-      setSelectedId(rows[0].id)
+    if (!selectedId || !filteredRows.some((row) => row.id === selectedId)) {
+      setSelectedId(filteredRows[0].id)
     }
-  }, [rows, selectedId])
+  }, [filteredRows, selectedId])
 
-  const selected = rows.find((item) => item.id === selectedId) ?? rows[0] ?? null
-  const metrics = buildProductionMetrics(rows, data)
-  const candidateRows = buildProductionCandidateRows(data?.jobs ?? [])
-  const standards = buildProductionStandards(selected, data?.jobs ?? [])
-  const contextRows = buildProductionContext(selected)
+  useEffect(() => {
+    if (!selected) {
+      setDraft(null)
+      return
+    }
+    setDraft(buildSettingPrepForm(selected.record))
+  }, [selected?.id, selected?.record.UpdatedAt, selected?.record.status, selected?.record.name, selected?.record.content, selected?.record.profile_json, selected?.record.tags_json])
+
+  const saveReference = useMutation({
+    mutationFn: async () => {
+      if (!projectId || !selected || !draft) throw new Error('请先选择设定资料')
+      return updateSemanticEntity(projectId, semanticEntityConfig('creativeReferences'), selected.record.ID, {
+        name: draft.name,
+        alias: draft.alias,
+        kind: draft.kind,
+        importance: draft.importance,
+        status: draft.status,
+        description: draft.description,
+        content: draft.content,
+        profile_json: composeCreativeProfileJSON(draft.profileJson, draft.visualIntent),
+        tags_json: draft.tagsJson,
+      })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['workbench', 'creative', projectId] })
+      await queryClient.invalidateQueries({ queryKey: ['semantic-creative-references-page', projectId] })
+      toast.success('设定资料已保存')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '保存设定资料失败'))
+    },
+  })
+
+  const updateStatus = useMutation({
+    mutationFn: async (status: string) => {
+      if (!projectId || !selected) throw new Error('请先选择设定资料')
+      return updateSemanticEntity(projectId, semanticEntityConfig('creativeReferences'), selected.record.ID, { status })
+    },
+    onSuccess: async (record) => {
+      setDraft((current) => current ? { ...current, status: normalizeCreativeReferenceStatus(record.status) } : current)
+      await queryClient.invalidateQueries({ queryKey: ['workbench', 'creative', projectId] })
+      await queryClient.invalidateQueries({ queryKey: ['semantic-creative-references-page', projectId] })
+      toast.success('设定状态已更新')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '更新设定状态失败'))
+    },
+  })
+
+  function launchAICompletion() {
+    if (!projectId || !selected) {
+      toast.info('请先选择设定资料')
+      return
+    }
+    const message = buildSettingPrepAgentMessage({
+      projectName: project?.name,
+      row: selected,
+      evidence: evidenceRows,
+      missing: selected.missing,
+    })
+    const requestId = `setting_prep_${selected.record.ID}_${Date.now().toString(36)}`
+    openAgentPanelDraft({
+      requestId,
+      taskType: 'setting_preparation',
+      message,
+      title: `完善设定: ${selected.title}`,
+      mode: 'create',
+      newConversation: true,
+      autoSend: true,
+      projectId,
+      clientInput: buildCommandFirstClientInput({
+        message,
+        labels: ['setting-prep-workbench', 'workbench', 'structured-output'],
+        hints: {
+          projectId,
+          route: { pathname: '/workbench/creative' },
+          selection: {
+            entityType: 'creative_reference',
+            entityId: selected.record.ID,
+            label: selected.title,
+          },
+        },
+      }),
+      renderMode: 'page',
+    })
+    toast.success('已打开 AI 设定完善任务')
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <SpecializedWorkbenchHeader
-        category="production"
-        generationKind="production"
-        kicker="制作项生成"
-        title="制作项生成工作台"
-        description="围绕制作项组织输入完整性、生成上下文、候选版本、返工意见和正式输出。"
+        category="creative"
+        kicker="设定准备"
+        title="设定准备工作台"
+        description="围绕已经被剧本和制作使用到的设定推进完整度：先看上下文，再用 AI 补齐缺口，最后把设定状态确认或锁定。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         {!projectId ? (
-          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目上下文，无法拉取制作项、素材需求和生成任务。" />
+          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用项目，无法读取设定资料和制作上下文。" />
         ) : isLoading ? (
-          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载制作项生成数据...</Card>
+          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载设定准备数据...</Card>
         ) : isError ? (
-          <EmptyWorkbenchState title="制作项生成数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
+          <EmptyWorkbenchState title="设定准备数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
+        ) : rows.length === 0 ? (
+          <EmptyWorkbenchState title="暂无设定资料" text="先从剧本拆解、制作编排或设定资料页创建人物、地点、道具、风格等设定。" />
         ) : (
-          <div className="production-workbench space-y-5">
+          <div className="setting-prep-workbench space-y-5">
+            <section className="rounded-lg border border-border bg-card p-4">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Sparkles size={14} />
+                    <span>{project?.name ?? '当前项目'}</span>
+                    <ChevronRight size={13} />
+                    <span>设定准备</span>
+                    {selected ? (
+                      <>
+                        <ChevronRight size={13} />
+                        <span className="truncate text-foreground">{selected.title}</span>
+                      </>
+                    ) : null}
+                  </div>
+                  <h1 className="mt-2 text-lg font-semibold text-foreground">推进被生产使用的设定完整度</h1>
+                  <p className="mt-1 max-w-4xl text-xs leading-5 text-muted-foreground">
+                    这里按使用上下文组织设定。优先处理被制作、情景、素材需求引用但仍处于草稿或缺口状态的资料。
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <QueueMiniMetric label="制作" value={data?.productions.length ?? 0} />
+                  <QueueMiniMetric label="剧本" value={(data?.scripts.length ?? 0) + (data?.scriptVersions.length ?? 0)} />
+                  <QueueMiniMetric label="情景" value={data?.sceneMoments.length ?? 0} />
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[220px_220px_minmax(0,1fr)]">
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">类型</p>
+                  <Select value={kindFilter} onValueChange={setKindFilter}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="全部类型" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部类型 · {rows.length}</SelectItem>
+                      {kindOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label} · {option.count}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">状态</p>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="全部状态" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部状态 · {rows.length}</SelectItem>
+                      {statusOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>{option.label} · {option.count}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-wrap items-end justify-end gap-2">
+                  <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => { setKindFilter('all'); setStatusFilter('all') }}>
+                    <RefreshCw size={14} />
+                    清空筛选
+                  </Button>
+                  <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => navigate('/creative-references')}>
+                    <ArrowRight size={14} />
+                    设定资料页
+                  </Button>
+                  <Button size="sm" className="h-9 gap-2" onClick={launchAICompletion} disabled={!selected}>
+                    <Wand2 size={14} />
+                    AI 完善当前设定
+                  </Button>
+                </div>
+              </div>
+            </section>
+
             <MetricStrip metrics={metrics} />
-            <div className="production-layout grid gap-5">
+
+            <div className="grid gap-5 2xl:grid-cols-[340px_minmax(0,1fr)_380px]">
               <SpecializedQueue
-                items={rows.map((row) => ({
+                title="待完善设定"
+                className="flex min-h-[720px] flex-col overflow-hidden"
+                bodyClassName="min-h-0 flex-1 overflow-hidden"
+                items={filteredRows.map((row) => ({
                   id: row.id,
                   title: row.title,
                   scope: row.scope,
                   status: row.status,
                   priority: row.priority,
                   progress: row.progress,
-                  need: row.missingSlots.length > 0 ? `${row.missingSlots.length} 个素材需求缺口` : firstText(row.unit.description, row.unit.prompt, '素材需求已齐备'),
+                  need: [row.readinessLabel, ...row.missing.slice(0, 2)].join(' · '),
                 }))}
                 selectedId={selected?.id ?? ''}
-                onSelect={setSelectedId}
+                onSelect={(id) => setSelectedId(id)}
               />
+
               <div className="min-w-0 space-y-5">
-                <WorkbenchPanel title="生成上下文" icon={Layers}>
+                <WorkbenchPanel
+                  title="设定完善面板"
+                  icon={Sparkles}
+                  action={selected ? (
+                    <div className="flex items-center gap-2">
+                      <SettingPrepStateBadge status={draft?.status ?? selected.rawStatus} />
+                      <Badge variant="outline">准备度 {selected.progress}%</Badge>
+                    </div>
+                  ) : undefined}
+                >
+                  {!selected || !draft ? (
+                    <EmptyWorkbenchState title="暂无可编辑设定" text="请选择左侧队列中的设定资料。" />
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_150px]">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">名称</Label>
+                          <Input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">类型</Label>
+                          <Select value={draft.kind} onValueChange={(value) => setDraft({ ...draft, kind: value })}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {['person', 'place', 'prop', 'style', 'world_rule', 'product', 'brand', 'restriction'].map((kind) => (
+                                <SelectItem key={kind} value={kind}>{creativeReferenceKindLabel(kind)}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">重要性</Label>
+                          <Select value={draft.importance} onValueChange={(value) => setDraft({ ...draft, importance: value })}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="main">主要</SelectItem>
+                              <SelectItem value="supporting">辅助</SelectItem>
+                              <SelectItem value="background">背景</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">别名 / 识别词</Label>
+                          <Input value={draft.alias} onChange={(event) => setDraft({ ...draft, alias: event.target.value })} placeholder="可选，用于查重和 AI 识别" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">状态</Label>
+                          <Select value={draft.status} onValueChange={(value) => setDraft({ ...draft, status: value })}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="draft">草稿</SelectItem>
+                              <SelectItem value="confirmed">已确认</SelectItem>
+                              <SelectItem value="locked">已锁定</SelectItem>
+                              <SelectItem value="merged">已合并</SelectItem>
+                              <SelectItem value="ignored">已忽略</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">设定摘要</Label>
+                          <Textarea
+                            value={draft.description}
+                            onChange={(event) => setDraft({ ...draft, description: event.target.value })}
+                            className="min-h-32 resize-none text-sm leading-6"
+                            placeholder="这个设定在故事和制作中是什么。"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">设定正文</Label>
+                          <Textarea
+                            value={draft.content}
+                            onChange={(event) => setDraft({ ...draft, content: event.target.value })}
+                            className="min-h-32 resize-none text-sm leading-6"
+                            placeholder="稳定事实、不可改写项、剧情作用、人物关系等。"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">视觉锚点 / 生成约束</Label>
+                        <Textarea
+                          value={draft.visualIntent}
+                          onChange={(event) => setDraft({ ...draft, visualIntent: event.target.value })}
+                          className="min-h-24 resize-none text-sm leading-6"
+                          placeholder="外观、材质、色彩、风格、禁止项和生成提示词要点。"
+                        />
+                      </div>
+
+                      <div className="grid gap-3 xl:grid-cols-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">档案 JSON</Label>
+                          <Textarea
+                            value={draft.profileJson}
+                            onChange={(event) => setDraft({ ...draft, profileJson: event.target.value })}
+                            className="min-h-24 resize-none font-mono text-xs"
+                            placeholder='{"appearance":"...","rules":["..."]}'
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">标签 JSON</Label>
+                          <Textarea
+                            value={draft.tagsJson}
+                            onChange={(event) => setDraft({ ...draft, tagsJson: event.target.value })}
+                            className="min-h-24 resize-none font-mono text-xs"
+                            placeholder='["主角","雨夜","关键道具"]'
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+                        <div className="flex flex-wrap gap-2">
+                          {selected.missing.map((item) => <SettingPrepTag key={item}>{item}</SettingPrepTag>)}
+                          {selected.warnings.map((item) => <SettingPrepTag key={item}>{item}</SettingPrepTag>)}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button variant="outline" size="sm" className="gap-2" onClick={launchAICompletion}>
+                            <Wand2 size={14} />
+                            AI 补全
+                          </Button>
+                          <Button size="sm" loading={saveReference.isPending} onClick={() => saveReference.mutate()}>
+                            保存设定
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </WorkbenchPanel>
+
+                <WorkbenchPanel title="完成条件" icon={ClipboardCheck} action={selected ? <Badge variant={selected.missing.length > 0 ? 'warning' : 'success'}>{selected.readinessLabel}</Badge> : undefined}>
+                  <GateChecklist rows={checklist} />
+                </WorkbenchPanel>
+              </div>
+
+              <div className="min-w-0 space-y-5">
+                <WorkbenchPanel
+                  title="上下文"
+                  icon={GitBranch}
+                  action={(
+                    <div className="flex items-center gap-1 rounded-md border border-border bg-background p-1">
+                      {[
+                        ['usage', '使用'],
+                        ['script', '剧本'],
+                        ['ai', 'AI'],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setContextMode(value as 'usage' | 'script' | 'ai')}
+                          className={cn(
+                            'rounded px-2 py-1 text-xs transition-colors',
+                            contextMode === value ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground',
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                >
+                  {!selected ? (
+                    <EmptyWorkbenchState title="暂无上下文" text="选择设定资料后查看使用位置、剧本证据和 AI 补全入口。" />
+                  ) : contextMode === 'usage' ? (
+                    <div className="space-y-4">
+                      <ContextStack rows={contextRows} className="grid-cols-1" />
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">使用位置</p>
+                        {selected.usages.length === 0 ? (
+                          <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">这个设定还没有被情景、编排段或镜头引用。</p>
+                        ) : (
+                          selected.usages.slice(0, 6).map((usage) => (
+                            <div key={usage.ID} className="rounded-md border border-border bg-background px-3 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="truncate text-sm font-medium text-foreground">
+                                  {firstText(usage.role, usage.owner_type, '引用')} · #{usage.owner_id}
+                                </p>
+                                <Badge variant={usage.status === 'confirmed' ? 'success' : 'outline'}>{statusLabel(usage.status)}</Badge>
+                              </div>
+                              <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(usage.evidence, usage.source, '暂无证据说明')}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ) : contextMode === 'script' ? (
+                    <div className="space-y-3">
+                      {evidenceRows.map((row) => (
+                        <SettingPrepHintCard key={row} label="剧本 / 编排证据" text={row} />
+                      ))}
+                      <div className="rounded-md border border-border bg-background px-3 py-3">
+                        <p className="text-xs text-muted-foreground">制作上下文</p>
+                        <p className="mt-2 text-sm leading-6 text-foreground">{buildSettingPrepUsageSummary(selected)}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-3">
+                        <p className="text-sm font-medium text-foreground">AI 完善任务</p>
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          AI 会读取当前设定、缺口、使用位置和剧本证据，输出可复制回设定字段的补全建议。
+                        </p>
+                        <Button className="mt-3 w-full justify-start gap-2" onClick={launchAICompletion}>
+                          <Wand2 size={15} />
+                          生成完善建议
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground">建议 AI 优先处理</p>
+                        {(selected.missing.length > 0 ? selected.missing : ['检查设定是否足够进入下游']).map((item) => (
+                          <SettingPrepHintCard key={item} label="待处理" text={item} />
+                        ))}
+                      </div>
+                      <div className="space-y-2 border-t border-border pt-4">
+                        <p className="text-xs font-medium text-muted-foreground">完成后设置状态</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            ['draft', '草稿'],
+                            ['confirmed', '已确认'],
+                            ['locked', '已锁定'],
+                            ['merged', '已合并'],
+                            ['ignored', '已忽略'],
+                          ].map(([status, label]) => (
+                            <Button
+                              key={status}
+                              variant={selected.rawStatus === status ? 'primary' : 'outline'}
+                              size="sm"
+                              className="justify-start gap-2"
+                              loading={updateStatus.isPending && updateStatus.variables === status}
+                              onClick={() => updateStatus.mutate(status)}
+                            >
+                              {status === 'locked' ? <LockKeyhole size={14} /> : status === 'confirmed' ? <CheckCircle2 size={14} /> : <CircleDot size={14} />}
+                              {label}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </WorkbenchPanel>
+
+                <WorkbenchPanel title="下游可用性" icon={ShieldCheck} action={selected ? <Badge variant={selected.progress >= 80 ? 'success' : 'warning'}>{selected.progress}%</Badge> : undefined}>
+                  {!selected ? (
+                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无设定。</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <SettingPrepHintCard label="分镜 / 情节" text={selected.linkedSceneMoments.length > 0 ? `${selected.linkedSceneMoments.length} 个情景会引用这个设定` : '还没有进入情景引用'} />
+                      <SettingPrepHintCard label="素材准备" text={selected.assetSlots.length > 0 ? `${selected.assetSlots.length} 个素材需求依赖这个设定` : '还没有素材需求绑定'} />
+                      <SettingPrepHintCard label="生成约束" text={firstText(draft?.visualIntent, selected.record.description, '补充视觉锚点后可进入提示词和审核标准')} />
+                    </div>
+                  )}
+                </WorkbenchPanel>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  )
+}
+
+function ContentGenerationWorkbench() {
+  const project = useProjectStore((s) => s.current)
+  const projectId = project?.ID
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const uploadInputRef = useRef<HTMLInputElement>(null)
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['workbench', 'production', projectId],
+    queryFn: () => loadProductionWorkbenchData(projectId!),
+    enabled: !!projectId,
+  })
+  const rows = useMemo(() => buildContentGenerationMomentRows(data), [data])
+  const [productionFilter, setProductionFilter] = useState('all')
+  const [segmentFilter, setSegmentFilter] = useState('all')
+  const [selectedId, setSelectedId] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const productionFilteredRows = useMemo(() => {
+    if (productionFilter === 'all') return rows
+    if (productionFilter === 'unassigned') return rows.filter((row) => row.productionIds.length === 0)
+    const productionId = Number(productionFilter)
+    if (!Number.isFinite(productionId) || productionId <= 0) return rows
+    return rows.filter((row) => row.productionIds.includes(productionId))
+  }, [productionFilter, rows])
+  const filteredRows = useMemo(() => {
+    if (segmentFilter === 'all') return productionFilteredRows
+    if (segmentFilter === 'unassigned') return productionFilteredRows.filter((row) => !row.segment?.ID)
+    const segmentId = Number(segmentFilter)
+    if (!Number.isFinite(segmentId) || segmentId <= 0) return productionFilteredRows
+    return productionFilteredRows.filter((row) => row.segment?.ID === segmentId)
+  }, [productionFilteredRows, segmentFilter])
+  const productionFilterOptions = useMemo(() => {
+    const productions = data?.productions ?? []
+    const unassignedCount = rows.filter((row) => row.productionIds.length === 0).length
+    return [
+      { value: 'all', label: '全部制作', count: rows.length },
+      { value: 'unassigned', label: '未绑定制作', count: unassignedCount },
+      ...productions.map((production) => ({
+        value: String(production.ID),
+        label: titleOfRecord(production),
+        count: rows.filter((row) => row.productionIds.includes(production.ID)).length,
+      })),
+    ]
+  }, [data?.productions, rows])
+  const segmentFilterOptions = useMemo(() => {
+    const segmentMap = new Map<string, { value: string; label: string; count: number }>()
+    let unassignedCount = 0
+    for (const row of productionFilteredRows) {
+      if (!row.segment?.ID) {
+        unassignedCount += 1
+        continue
+      }
+      const key = String(row.segment.ID)
+      const existing = segmentMap.get(key)
+      if (existing) existing.count += 1
+      else segmentMap.set(key, { value: key, label: titleOfRecord(row.segment), count: 1 })
+    }
+    return [
+      { value: 'all', label: '全部情绪段', count: productionFilteredRows.length },
+      ...(unassignedCount > 0 ? [{ value: 'unassigned', label: '未绑定情绪段', count: unassignedCount }] : []),
+      ...Array.from(segmentMap.values()).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'zh-Hans-CN')),
+    ]
+  }, [productionFilteredRows])
+  const sceneMomentFilterOptions = useMemo(() => filteredRows.map((row) => ({
+    value: row.id,
+    label: row.title,
+    count: row.units.length,
+  })), [filteredRows])
+
+  useEffect(() => {
+    if (segmentFilter !== 'all' && segmentFilter !== 'unassigned' && !segmentFilterOptions.some((option) => option.value === segmentFilter)) {
+      setSegmentFilter('all')
+    }
+  }, [segmentFilter, segmentFilterOptions])
+
+  useEffect(() => {
+    if (filteredRows.length === 0) {
+      if (selectedId) setSelectedId('')
+      return
+    }
+    if (!selectedId || !filteredRows.some((row) => row.id === selectedId)) {
+      setSelectedId(filteredRows[0].id)
+    }
+  }, [filteredRows, selectedId])
+
+  const selected = filteredRows.find((item) => item.id === selectedId) ?? filteredRows[0] ?? null
+  const selectedUnit = selected?.units.find((unit) => firstText(unit.prompt, unit.description)) ?? selected?.units[0] ?? null
+  const selectedProduction = selected?.productionIds[0]
+    ? data?.productions.find((production) => production.ID === selected.productionIds[0])
+    : null
+  const uploadTargetSlot = selected?.missingSlots[0] ?? selected?.assetSlots[0] ?? null
+  const generationContextQuery = useQuery({
+    queryKey: ['workbench', 'production', 'generation-context', projectId, selectedUnit?.ID],
+    queryFn: () => buildContentUnitGenerationContext(projectId!, selectedUnit!.ID, 'video'),
+    enabled: !!projectId && !!selectedUnit?.ID,
+  })
+  const uploadCandidate = useMutation({
+    mutationFn: async (file: File) => {
+      if (!projectId) throw new Error('请先选择项目')
+      if (!uploadTargetSlot) throw new Error('当前情节没有可挂载候选的素材需求')
+      const fd = new FormData()
+      fd.append('file', file)
+      const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
+      await api.post(`/projects/${projectId}/entities/asset-slot-candidates`, {
+        asset_slot_id: uploadTargetSlot.ID,
+        resource_id: resource.ID,
+        source_type: 'upload',
+        source_id: resource.ID,
+        score: 0.75,
+        status: 'candidate',
+        note: `内容编排主动上传：${resource.name}`,
+      })
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['workbench', 'production', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['workbench', 'assets', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['resources'] }),
+        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', projectId] }),
+      ])
+      toast.success('候选已上传')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '上传候选失败'))
+    },
+    onSettled: () => {
+      setUploading(false)
+      if (uploadInputRef.current) uploadInputRef.current.value = ''
+    },
+  })
+  const openUnitCanvas = useMutation({
+    mutationFn: (unit: WorkbenchRecord) => {
+      if (!projectId) throw new Error('请先选择项目')
+      return api.post('/canvases', {
+        name: `${titleOfRecord(unit)} · 内容编排`,
+        project_id: projectId,
+        canvas_type: 'workflow',
+        stage: 'generation',
+        ref_type: 'content_unit',
+        ref_id: unit.ID,
+      }).then((r) => r.data as Canvas)
+    },
+    onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
+  })
+  const metrics = buildMomentMetrics(filteredRows, data)
+  const candidateRows = buildProductionCandidateRows(data?.jobs ?? [])
+  const standards = generationContextQuery.data
+    ? buildGenerationContextStandards(generationContextQuery.data)
+    : buildMomentStandards(selected, data?.jobs ?? [])
+  const contextRows = buildMomentContext(selected)
+  const generationContextRows = buildGenerationContextRows(generationContextQuery.data)
+  const missingGenerationContext = generationContextQuery.data
+    ? buildGenerationContextStandards(generationContextQuery.data).filter((item) => !item.done)
+    : []
+  const contentSearch = selected
+    ? `?scene_moment_id=${selected.moment.ID}${selected.segment?.ID ? `&segment_id=${selected.segment.ID}` : ''}${selectedUnit?.production_id ? `&production_id=${selectedUnit.production_id}` : selected.segment?.production_id ? `&production_id=${selected.segment.production_id}` : ''}`
+    : ''
+  const productionSearch = selectedUnit?.production_id
+    ? `?productionId=${selectedUnit.production_id}`
+    : selected?.segment?.production_id
+      ? `?productionId=${selected.segment.production_id}`
+      : ''
+
+  function triggerCandidateUpload() {
+    if (!uploadTargetSlot || uploading || uploadCandidate.isPending) return
+    uploadInputRef.current?.click()
+  }
+
+  function handleCandidateUpload(file?: File) {
+    if (!file || !uploadTargetSlot || uploadCandidate.isPending) return
+    setUploading(true)
+    uploadCandidate.mutate(file)
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+      <SpecializedWorkbenchHeader
+        category="production"
+        generationKind="production"
+        kicker="内容编排"
+        title="内容编排工作台"
+        description="先以情节承载上下文，再手动添加制作项或由 AI 规划拆镜，并把设定资料和素材一起带入生成流程。"
+      />
+      <main className="min-h-0 flex-1 overflow-auto p-5">
+        {!projectId ? (
+          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目信息，无法拉取情节、制作项、素材需求和生成任务。" />
+        ) : isLoading ? (
+          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载内容编排数据...</Card>
+        ) : isError ? (
+          <EmptyWorkbenchState title="内容编排数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
+        ) : (
+          <div className="production-workbench space-y-5">
+            <section className="rounded-lg border border-border bg-card">
+              <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                        <ListChecks size={14} />
+                        生产队列
+                      </div>
+                      <p className="mt-1 truncate text-base font-semibold text-foreground">{selected ? selected.title : '暂无情节'}</p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{selected ? selected.scope : '选择制作后查看情节队列'}</p>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <QueueMiniMetric label="情节" value={filteredRows.length} />
+                      <QueueMiniMetric label="单元" value={selected?.units.length ?? 0} />
+                      <QueueMiniMetric label="素材" value={selected?.assetSlots.length ?? 0} />
+                      <QueueMiniMetric label="缺口" value={selected?.missingSlots.length ?? 0} tone={(selected?.missingSlots.length ?? 0) > 0 ? 'warning' : 'default'} />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                    {filteredRows.map((row) => (
+                      <button
+                        key={row.id}
+                        type="button"
+                        onClick={() => setSelectedId(row.id)}
+                        className={cn(
+                          'min-w-[220px] rounded-md border px-3 py-2 text-left transition-colors',
+                          selected?.id === row.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-sm font-medium text-foreground">{row.title}</span>
+                          <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                        </div>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {row.units.length === 0 ? '待添加内容单元' : `${row.units.length} 单元 / ${row.missingSlots.length} 缺口`}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-md border border-border bg-background p-3">
+                  <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <Settings2 size={14} />
+                    入口与筛选
+                  </div>
+                  <Select value={productionFilter} onValueChange={setProductionFilter}>
+                    <SelectTrigger className="mt-3 h-9">
+                      <SelectValue placeholder="选择制作" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {productionFilterOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label} · {option.count}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                    <SelectTrigger className="mt-2 h-9">
+                      <SelectValue placeholder="选择情绪段" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {segmentFilterOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label} · {option.count}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={selected?.id ?? ''} onValueChange={setSelectedId} disabled={sceneMomentFilterOptions.length === 0}>
+                    <SelectTrigger className="mt-2 h-9">
+                      <SelectValue placeholder="选择情节" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sceneMomentFilterOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label} · {option.count} 单元
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
+                    添加单元会写入当前情节：{selected ? titleOfRecord(selected.moment) : '未选择情节'}
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => navigate(`/contents${contentSearch}`)} disabled={!selected}>
+                      <Boxes size={13} />
+                      在情节中添加
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={triggerCandidateUpload} disabled={!uploadTargetSlot || uploading || uploadCandidate.isPending}>
+                      <Upload size={13} />
+                      {uploading || uploadCandidate.isPending ? '上传中' : '上传候选'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+              <WorkbenchPanel
+                title="内容单元列表"
+                icon={Boxes}
+                action={<Badge variant={selected?.units.length ? 'secondary' : 'warning'}>{selected?.units.length ?? 0} 个</Badge>}
+              >
+                {!selected ? (
+                  <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后查看内容单元。</p>
+                ) : selected.units.length === 0 ? (
+                  <div className="rounded-md border border-dashed border-border bg-background px-3 py-8 text-center">
+                    <p className="text-sm font-medium text-foreground">这个情节还没有内容单元</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">先添加镜头、旁白、字幕卡或转场，再进入候选和生成检查。</p>
+                    <Button className="mt-4 gap-2" size="sm" onClick={() => navigate(`/contents${contentSearch}`)}>
+                      <Boxes size={14} />
+                      在当前情节中添加内容单元
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {selected.units.map((unit, index) => {
+                      const unitSlots = selected.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID)
+                      const missingUnitSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+                      const unitStatus = contentUnitWorkStatus(unit, missingUnitSlots)
+                      return (
+                        <button
+                          key={unit.ID}
+                          type="button"
+                          onClick={() => navigate(`/contents?content_unit_id=${unit.ID}&scene_moment_id=${selected.moment.ID}`)}
+                          className={cn(
+                            'w-full rounded-md border px-3 py-3 text-left transition-colors',
+                            selectedUnit?.ID === unit.ID ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[11px] text-muted-foreground">内容单元 {index + 1}</p>
+                              <p className="mt-1 truncate text-sm font-medium text-foreground">{titleOfRecord(unit)}</p>
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(unit.description, unit.prompt, '暂无描述或生成提示')}</p>
+                            </div>
+                            <Badge variant={statusVariant(unitStatus)}>{statusLabel(unitStatus)}</Badge>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Badge variant="outline">{unit.kind || 'shot'}</Badge>
+                            <Badge variant="outline">{formatDuration(unit.duration_sec)}</Badge>
+                            <Badge variant={unitSlots.length > 0 ? 'secondary' : 'warning'}>{unitSlots.length} 素材</Badge>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </WorkbenchPanel>
+
+              <div className="min-w-0 space-y-5">
+                <WorkbenchPanel title="情节上下文" icon={Layers}>
                   {selected ? (
                     <>
                       <div className="mb-4 grid gap-3 rounded-md border border-border bg-background p-3 md:grid-cols-[1fr_auto]">
                         <div className="min-w-0">
-                          <p className="text-xs text-muted-foreground">当前制作项</p>
+                          <p className="text-xs text-muted-foreground">当前情节</p>
                           <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{selected.title}</h2>
                           <p className="mt-1 truncate text-sm text-muted-foreground">{selected.scope}</p>
                         </div>
@@ -1367,33 +3353,96 @@ function ContentGenerationWorkbench() {
                           <Badge variant="outline">准备度 {selected.progress}%</Badge>
                         </div>
                       </div>
-                      <ContextStack rows={contextRows} className="production-context-stack" />
+                      <ContextStack
+                        rows={[
+                          { label: '制作', value: selectedProduction ? titleOfRecord(selectedProduction) : '未绑定制作', icon: Clapperboard },
+                          { label: '情绪段', value: selected.segment ? titleOfRecord(selected.segment) : '未绑定情绪段', icon: GitBranch },
+                          ...contextRows,
+                        ]}
+                        className="production-context-stack"
+                      />
                     </>
                   ) : (
-                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无制作项</p>
+                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无情节</p>
                   )}
                 </WorkbenchPanel>
 
-                <WorkbenchPanel title="候选版本对比" icon={Play} action={<Badge variant="secondary">{candidateRows.length > 0 ? '最新任务' : '暂无任务'}</Badge>}>
-                  <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" rowClassName="production-candidate-row" />
-                </WorkbenchPanel>
-              </div>
-              <div className="production-side min-w-0 space-y-5">
-                <WorkbenchPanel title="采用门禁" icon={ShieldCheck}>
-                  <GateChecklist rows={standards} />
-                </WorkbenchPanel>
-                <WorkbenchPanel title="生成与审核动作" icon={Settings2}>
-                  <div className="space-y-2">
-                    {['生成新版本', '采用版本 B', '请求返工', '创建人工任务'].map((action, index) => (
-                      <Button key={action} variant={index === 1 ? 'primary' : 'outline'} className="w-full justify-start gap-2">
-                        {index === 1 ? <CheckCircle2 size={15} /> : <ChevronRight size={15} />}
-                        {action}
+                <WorkbenchPanel title="候选列表" icon={Play} action={<Badge variant="secondary">{candidateRows.length > 0 ? '最新任务' : `${selected?.assetSlots.length ?? 0} 素材`}</Badge>}>
+                  <div className="space-y-4">
+                    <div className="grid gap-2 md:grid-cols-3">
+                      <Button className="justify-start gap-2" onClick={() => navigate(`/contents${contentSearch}`)} disabled={!selected}>
+                        <Boxes size={15} />
+                        在当前情节中添加单元
                       </Button>
-                    ))}
+                      <Button variant="outline" className="justify-start gap-2" onClick={triggerCandidateUpload} disabled={!uploadTargetSlot || uploading || uploadCandidate.isPending}>
+                        <Upload size={15} />
+                        {uploading || uploadCandidate.isPending ? '上传中' : '主动上传候选'}
+                      </Button>
+                      <Button variant="outline" className="justify-start gap-2" onClick={() => selectedUnit ? openUnitCanvas.mutate(selectedUnit) : navigate(`/contents${contentSearch}`)} loading={openUnitCanvas.isPending} disabled={!selected}>
+                        <Play size={15} />
+                        {selectedUnit ? '打开编排画布' : '先创建内容单元'}
+                      </Button>
+                    </div>
+                    {uploadTargetSlot ? (
+                      <p className="text-xs text-muted-foreground">上传候选会挂到素材需求：{titleOfRecord(uploadTargetSlot)}</p>
+                    ) : (
+                      <p className="text-xs text-amber-700 dark:text-amber-300">当前情节暂无素材需求，先添加素材需求后即可主动上传候选。</p>
+                    )}
+                    <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" rowClassName="production-candidate-row" />
+
+                    <div className="rounded-md border border-border bg-background p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <ClipboardCheck size={15} className="text-muted-foreground" />
+                          生成上下文检查
+                        </div>
+                        {!selectedUnit ? (
+                          <Badge variant="warning">待生成镜头</Badge>
+                        ) : generationContextQuery.isFetching ? (
+                          <Badge variant="secondary">检查中</Badge>
+                        ) : generationContextQuery.isError ? (
+                          <Badge variant="warning">检查失败</Badge>
+                        ) : (
+                          <Badge variant={missingGenerationContext.length > 0 ? 'warning' : 'success'}>
+                            {missingGenerationContext.length > 0 ? `${missingGenerationContext.length} 个缺失` : '上下文可用'}
+                          </Badge>
+                        )}
+                      </div>
+                      {!selected ? (
+                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后检查生成上下文。</p>
+                      ) : !selectedUnit ? (
+                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">当前情节还没有内容单元，暂时不能读取内容单元级生成上下文。</p>
+                      ) : generationContextQuery.isLoading ? (
+                        <p className="rounded-md border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">正在读取后端生成上下文...</p>
+                      ) : generationContextQuery.isError ? (
+                        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-4 text-sm text-amber-800">
+                          {apiErrorMessage(generationContextQuery.error, '后端上下文检查失败，请确认后端已更新并重新加载页面。')}
+                        </p>
+                      ) : generationContextQuery.data ? (
+                        <div className="space-y-4">
+                          <ContextStack rows={generationContextRows} className="production-context-stack" />
+                          {missingGenerationContext.length > 0 ? (
+                            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3">
+                              <p className="text-sm font-medium text-amber-900">生成前建议补齐</p>
+                              <div className="mt-2 space-y-1">
+                                {missingGenerationContext.map((item) => (
+                                  <p key={item.label} className="text-xs leading-5 text-amber-800">{item.label}：{item.detail}</p>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
+                              当前内容单元的后端生成上下文已具备，可以进入生成计划阶段。
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </WorkbenchPanel>
               </div>
             </div>
+            <input ref={uploadInputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleCandidateUpload(e.target.files?.[0])} />
           </div>
         )}
       </main>
@@ -1410,9 +3459,25 @@ interface PreviewPlanSegment {
   status: PreviewPlanStatus
   readiness: number
   duration: string
-  moments: number
-  units: number
+  plots: number
+  shots: number
+  keyframes: number
   gaps: number
+  plotRows: PreviewPlotRow[]
+}
+
+interface PreviewPlotRow {
+  id: string
+  title: string
+  subtitle: string
+  status: PreviewPlanStatus
+  readiness: number
+  duration: string
+  durationSec: number
+  shots: number
+  keyframes: number
+  gaps: number
+  shotRows: PreviewTimelineShot[]
 }
 
 interface PreviewTimelineShot {
@@ -1423,6 +3488,7 @@ interface PreviewTimelineShot {
   camera: string
   status: PreviewPlanStatus
   assets: string
+  keyframes: number
 }
 
 interface PreviewGateRow {
@@ -1467,7 +3533,6 @@ const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
   permissions: ['project.read', 'draft.read', 'draft.write'],
   tools: [
     { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
-    { name: 'movscript_read_project_structure', mode: 'allow', approval: 'never' },
     { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
@@ -1505,7 +3570,7 @@ function numberValue(value: unknown): number | undefined {
 interface PreviewAssetGap {
   name: string
   owner: string
-  priority: '高' | '中'
+  priority: '高' | '中' | '低'
   impact: '影响判断' | '影响最终质量'
   placeholder: string
   detail: string
@@ -1518,261 +3583,824 @@ interface PreviewRunSignal {
   status: PreviewPlanStatus
 }
 
-const previewPlanSegments: PreviewPlanSegment[] = [
-  { id: 'seg-01', title: '雨夜巷口进入', subtitle: '编排段 01 / 开场环境', status: 'ready', readiness: 86, duration: '12s', moments: 2, units: 4, gaps: 0 },
-  { id: 'seg-02', title: '旧伞纸条滑落', subtitle: '编排段 02 / 剧情证据', status: 'attention', readiness: 52, duration: '11s', moments: 2, units: 3, gaps: 2 },
-  { id: 'seg-03', title: '顾言停步对峙', subtitle: '编排段 03 / 情绪转折', status: 'ready', readiness: 68, duration: '9s', moments: 1, units: 3, gaps: 1 },
-  { id: 'seg-04', title: '纸条被雨水浸湿', subtitle: '编排段 04 / 细节收束', status: 'draft', readiness: 34, duration: '6s', moments: 1, units: 2, gaps: 3 },
-]
+function previewProductionLabel(record?: WorkbenchRecord | null) {
+  if (!record) return '未选择制作'
+  return firstText(record.name, record.title, `制作 #${record.ID}`)
+}
 
-const previewTimelineShots: PreviewTimelineShot[] = [
-  { id: 'cu-01', title: '巷口远景建立雨夜空间', source: '编排段 01 / 情景 01', duration: '4s', camera: '广角固定', status: 'ready', assets: '已有 2 个候选' },
-  { id: 'cu-02', title: '林夏撑旧伞进入画面', source: '编排段 01 / 情景 02', duration: '5s', camera: '中景缓推', status: 'ready', assets: '已有 4 个候选' },
-  { id: 'cu-03', title: '旧伞伞骨内侧露出纸条', source: '编排段 02 / 情景 03', duration: '3s', camera: '特写慢推', status: 'attention', assets: '已有候选待处理' },
-  { id: 'cu-04', title: '顾言停步看向纸条', source: '编排段 03 / 情景 04', duration: '4s', camera: '中近景静止', status: 'ready', assets: '已有 3 个候选' },
-  { id: 'cu-05', title: '雨水打湿纸条文字', source: '编排段 04 / 情景 05', duration: '3s', camera: '微距俯拍', status: 'draft', assets: '暂无候选' },
-]
+function previewProductionStatus(record: WorkbenchRecord, data: ProductionPreviewData) {
+  const previewTimelines = previewTimelinesForProduction(record, data)
+  const deliveryVersions = recordsForProduction(data.deliveryVersions, record.ID)
+  if (deliveryVersions.some((item) => item.status === 'exported' || item.status === 'approved')) return 'ready' as const
+  if (previewTimelines.some((item) => item.status === 'confirmed')) return 'ready' as const
+  if (previewTimelines.length > 0) return 'attention' as const
+  return 'draft' as const
+}
 
-const previewGates: PreviewGateRow[] = [
-  { label: '已有候选', detail: '4 个编排段里 3 个已有预演候选', done: true },
-  { label: '候选待处理', detail: '旧伞纸条候选还没有采用或忽略', done: false },
-  { label: '暂无候选', detail: '纸条被雨水浸湿还没有候选', done: false },
-  { label: '候选记录', detail: '采用、忽略、重生成都在这里留下记录', done: true },
-]
+function productionSourceLabel(record: WorkbenchRecord) {
+  if (record.source_type === 'script') return record.source_id ? `剧本 #${record.source_id}` : '剧本创建'
+  if (record.source_type === 'brief') return '简介创建'
+  if (record.source_type === 'preview') return '预演创建'
+  if (record.source_type === 'import') return '导入创建'
+  return '直接创建'
+}
 
-const previewWorkTasks: PreviewWorkTask[] = [
-  {
-    id: 'task-01',
-    title: '审阅旧伞纸条候选',
-    scope: '编排段 02 / 情景 03',
-    status: 'running',
-    priority: 'high',
-    progress: 58,
-    method: '查看预演候选',
-    output: '采用、忽略或重新生成',
-    blocker: '已有候选尚未处理',
-  },
-  {
-    id: 'task-02',
-    title: '为纸条雨滴镜头生成候选',
-    scope: '素材需求 / CU-03',
-    status: 'review',
-    priority: 'high',
-    progress: 32,
-    method: '生成预演候选',
-    output: '新增可审阅候选',
-    blocker: '当前没有候选可看',
-  },
-  {
-    id: 'task-03',
-    title: '挑选顾言停步关键帧',
-    scope: '关键帧候选 / CU-04',
-    status: 'review',
-    priority: 'medium',
-    progress: 74,
-    method: '候选图评审',
-    output: '采用或忽略关键帧候选',
-  },
-  {
-    id: 'task-04',
-    title: '重新生成一版粗预演候选',
-    scope: 'Preview v1 / 全片段',
-    status: 'ready',
-    priority: 'low',
-    progress: 84,
-    method: '占位图 + 临时字幕',
-    output: '产生新的候选版本',
-  },
-]
+function recordsForProduction(records: WorkbenchRecord[], productionId: number) {
+  return records.filter((item) => Number(item.production_id) === productionId)
+}
 
-const previewMissingAssets: PreviewAssetGap[] = [
-  { name: '破损旧伞特写', owner: 'CU-03', priority: '高', impact: '影响判断', placeholder: '可先生成道具候选', detail: '伞骨内侧需要能解释纸条藏匿位置，否则桥段无法判断。' },
-  { name: '顾言雨夜表演状态', owner: 'CU-04', priority: '中', impact: '影响最终质量', placeholder: '可用临时人物状态帧', detail: '需要克制、迟疑，不是惊讶或愤怒。' },
-  { name: '被雨水打湿的纸条', owner: 'CU-05', priority: '高', impact: '影响判断', placeholder: '可先生成文字可读的占位图', detail: '文字需要可读，同时保留被雨水破坏的质感。' },
-]
+function previewTimelinesForProduction(record: WorkbenchRecord, data: ProductionPreviewData) {
+  return data.previewTimelines.filter((item) => Number(item.production_id) === record.ID)
+}
 
-const previewValueChecks = [
-  { label: '已有候选', value: '4 个', detail: '当前可直接打开审阅的预演候选。', status: 'ready' as WorkStatus },
-  { label: '待处理候选', value: '1 个', detail: '旧伞纸条候选还未采用或忽略。', status: 'review' as WorkStatus },
-  { label: '暂无候选', value: '1 个', detail: '纸条雨滴镜头需要先生成候选。', status: 'review' as WorkStatus },
-]
+function previewTimelineItemsForProduction(record: WorkbenchRecord, data: ProductionPreviewData) {
+  const timelineIds = new Set(previewTimelinesForProduction(record, data).map((item) => item.ID))
+  return data.previewTimelineItems.filter((item) => timelineIds.has(Number(item.preview_timeline_id)))
+}
 
-const previewScriptEvidence = [
-  '林夏撑着破损旧伞走进雨夜巷口，雨水沿着伞骨滴落。',
-  '纸条从伞骨夹缝里滑出，被雨水打湿。',
-  '顾言看见纸条后停步，情绪变化需要克制而不是爆发。',
-]
+function relatedSegmentIdsForPreviewProduction(record: WorkbenchRecord, data: ProductionPreviewData) {
+  const ids = new Set<number>()
+  for (const segment of data.segments) {
+    if (Number(segment.production_id) === record.ID) ids.add(segment.ID)
+  }
+  for (const unit of data.contentUnits.filter((item) => Number(item.production_id) === record.ID)) {
+    addRecordId(ids, unit.segment_id)
+    const moment = data.sceneMoments.find((item) => item.ID === Number(unit.scene_moment_id))
+    addRecordId(ids, moment?.segment_id)
+  }
+  for (const slot of data.assetSlots.filter((item) => Number(item.production_id) === record.ID)) {
+    if (slot.owner_type === 'segment') addRecordId(ids, slot.owner_id)
+    if (slot.owner_type === 'scene_moment') {
+      const moment = data.sceneMoments.find((item) => item.ID === Number(slot.owner_id))
+      addRecordId(ids, moment?.segment_id)
+    }
+    if (slot.owner_type === 'content_unit') {
+      const unit = data.contentUnits.find((item) => item.ID === Number(slot.owner_id))
+      addRecordId(ids, unit?.segment_id)
+      const moment = data.sceneMoments.find((item) => item.ID === Number(unit?.scene_moment_id))
+      addRecordId(ids, moment?.segment_id)
+    }
+  }
+  return ids
+}
 
-const previewRunSignals: PreviewRunSignal[] = [
-  { label: '候选覆盖', value: '3/4 段', detail: '已有候选的段落可以直接进入审阅。', status: 'ready' },
-  { label: '待处理', value: '旧伞纸条', detail: '已有候选，但还没有采用或忽略。', status: 'attention' },
-  { label: '需生成', value: '纸条雨滴', detail: '当前没有候选，先生成后再审阅。', status: 'draft' },
-]
+function addRecordId(target: Set<number>, value: unknown) {
+  const id = Number(value)
+  if (Number.isFinite(id) && id > 0) target.add(id)
+}
+
+function relatedSceneMomentIdsForPreviewProduction(segmentIds: Set<number>, record: WorkbenchRecord, data: ProductionPreviewData) {
+  const ids = new Set<number>()
+  for (const moment of data.sceneMoments) {
+    if (segmentIds.has(Number(moment.segment_id))) ids.add(moment.ID)
+  }
+  for (const unit of data.contentUnits.filter((item) => Number(item.production_id) === record.ID)) {
+    addRecordId(ids, unit.scene_moment_id)
+  }
+  for (const slot of data.assetSlots.filter((item) => Number(item.production_id) === record.ID)) {
+    if (slot.owner_type === 'scene_moment') addRecordId(ids, slot.owner_id)
+    if (slot.owner_type === 'content_unit') {
+      const unit = data.contentUnits.find((item) => item.ID === Number(slot.owner_id))
+      addRecordId(ids, unit?.scene_moment_id)
+    }
+  }
+  return ids
+}
+
+function contentUnitsForPreviewProduction(segmentIds: Set<number>, sceneMomentIds: Set<number>, record: WorkbenchRecord, data: ProductionPreviewData) {
+  return data.contentUnits.filter((unit) => (
+    Number(unit.production_id) === record.ID ||
+    segmentIds.has(Number(unit.segment_id)) ||
+    sceneMomentIds.has(Number(unit.scene_moment_id))
+  ))
+}
+
+function assetSlotsForPreviewProduction(segmentIds: Set<number>, sceneMomentIds: Set<number>, contentUnitIds: Set<number>, record: WorkbenchRecord, data: ProductionPreviewData) {
+  return data.assetSlots.filter((slot) => (
+    Number(slot.production_id) === record.ID ||
+    (slot.owner_type === 'segment' && segmentIds.has(Number(slot.owner_id))) ||
+    (slot.owner_type === 'scene_moment' && sceneMomentIds.has(Number(slot.owner_id))) ||
+    (slot.owner_type === 'content_unit' && contentUnitIds.has(Number(slot.owner_id)))
+  ))
+}
+
+function keyframesForPreviewProduction(segmentIds: Set<number>, sceneMomentIds: Set<number>, contentUnitIds: Set<number>, record: WorkbenchRecord, data: ProductionPreviewData) {
+  return data.keyframes.filter((keyframe) => (
+    Number(keyframe.production_id) === record.ID ||
+    segmentIds.has(Number(keyframe.segment_id)) ||
+    sceneMomentIds.has(Number(keyframe.scene_moment_id)) ||
+    contentUnitIds.has(Number(keyframe.content_unit_id))
+  ))
+}
+
+function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPreviewData): PreviewPlanSegment[] {
+  const segmentIds = relatedSegmentIdsForPreviewProduction(record, data)
+  const segments = data.segments
+    .filter((segment) => segmentIds.has(segment.ID) || Number(segment.production_id) === record.ID)
+    .sort(byOrder)
+
+  return segments.map((segment, index) => {
+    const moments = data.sceneMoments.filter((moment) => Number(moment.segment_id) === segment.ID)
+    const orphanUnits = data.contentUnits.filter((unit) => Number(unit.segment_id) === segment.ID && !unit.scene_moment_id).sort(byOrder)
+    const plotRows: PreviewPlotRow[] = moments.map((moment, momentIndex): PreviewPlotRow => {
+      const plotUnits = data.contentUnits.filter((unit) => Number(unit.scene_moment_id) === moment.ID).sort(byOrder)
+      const plotUnitIds = new Set(plotUnits.map((unit) => unit.ID))
+      const plotSlots = data.assetSlots.filter((slot) => (
+        (slot.owner_type === 'scene_moment' && Number(slot.owner_id) === moment.ID) ||
+        (slot.owner_type === 'content_unit' && plotUnitIds.has(Number(slot.owner_id)))
+      ))
+      const plotKeyframes = data.keyframes.filter((keyframe) => (
+        Number(keyframe.scene_moment_id) === moment.ID ||
+        plotUnitIds.has(Number(keyframe.content_unit_id))
+      ))
+      const plotMissingSlots = plotSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
+      const plotMissingShots = plotUnits.filter((unit) => !plotKeyframes.some((keyframe) => Number(keyframe.content_unit_id) === unit.ID)).length
+      const plotGaps = plotMissingSlots + plotMissingShots
+      const shotRows = plotUnits.map((unit) => {
+        const unitKeyframes = plotKeyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+        const unitSlots = plotSlots.filter((slot) => (
+          slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID
+        ))
+        const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing')
+        return {
+          id: `cu-${unit.ID}`,
+          title: titleOfRecord(unit),
+          source: [
+            `编排段 ${titleOfRecord(segment)}`,
+            `情节 ${titleOfRecord(moment)}`,
+          ].join(' / '),
+          duration: formatDuration(Number(unit.duration_sec) || 0),
+          camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
+          status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
+          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+          keyframes: unitKeyframes.length,
+        } satisfies PreviewTimelineShot
+      })
+      const durationSec = plotUnits.reduce((sum, unit) => sum + (Number(unit.duration_sec) || 0), 0)
+      const readiness = clampProgress(
+        Math.round(
+          (plotUnits.length > 0 ? 35 : 8) +
+          (plotKeyframes.length > 0 ? 28 : 0) +
+          (plotMissingSlots === 0 ? 18 : 0) +
+          (plotGaps === 0 ? 19 : 0),
+        ),
+      )
+      return {
+        id: `moment-${moment.ID}`,
+        title: titleOfRecord(moment),
+        subtitle: firstText(moment.action_text, moment.description, moment.time_text, moment.location_text, `情节 ${String(momentIndex + 1).padStart(2, '0')}`),
+        status: plotGaps > 0 ? (plotUnits.length === 0 ? 'draft' : plotMissingSlots > 0 ? 'blocked' : 'attention') : 'ready',
+        readiness,
+        duration: formatDuration(durationSec),
+        durationSec,
+        shots: plotUnits.length,
+        keyframes: plotKeyframes.length,
+        gaps: plotGaps,
+        shotRows,
+      }
+    })
+    if (orphanUnits.length > 0) {
+      const orphanUnitIds = new Set(orphanUnits.map((unit) => unit.ID))
+      const orphanSlots = data.assetSlots.filter((slot) => (
+        slot.owner_type === 'content_unit' && orphanUnitIds.has(Number(slot.owner_id))
+      ))
+      const orphanKeyframes = data.keyframes.filter((keyframe) => orphanUnitIds.has(Number(keyframe.content_unit_id)))
+      const orphanShotRows = orphanUnits.map((unit) => {
+        const unitKeyframes = orphanKeyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+        const unitSlots = orphanSlots.filter((slot) => Number(slot.owner_id) === unit.ID)
+        const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing')
+        return {
+          id: `cu-${unit.ID}`,
+          title: titleOfRecord(unit),
+          source: `编排段 ${titleOfRecord(segment)} / 未归属情节`,
+          duration: formatDuration(Number(unit.duration_sec) || 0),
+          camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
+          status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
+          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+          keyframes: unitKeyframes.length,
+        } satisfies PreviewTimelineShot
+      })
+      plotRows.push({
+        id: `orphan-${segment.ID}`,
+        title: '未归属情节',
+        subtitle: '该段中尚未挂到具体情节的镜头',
+        status: orphanShotRows.some((shot) => shot.status === 'blocked') ? 'blocked' : orphanShotRows.some((shot) => shot.status === 'attention') ? 'attention' : 'ready',
+        durationSec: orphanUnits.reduce((sum, unit) => sum + (Number(unit.duration_sec) || 0), 0),
+        readiness: clampProgress(
+          Math.round(
+            (orphanShotRows.length > 0 ? 28 : 8) +
+            (orphanKeyframes.length > 0 ? 34 : 0) +
+            (orphanSlots.some((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing') ? 0 : 18) +
+            (orphanShotRows.every((shot) => shot.status !== 'blocked') ? 20 : 0),
+          ),
+        ),
+        duration: formatDuration(orphanUnits.reduce((sum, unit) => sum + (Number(unit.duration_sec) || 0), 0)),
+        shots: orphanUnits.length,
+        keyframes: orphanKeyframes.length,
+        gaps: orphanSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length +
+          orphanUnits.filter((unit) => !orphanKeyframes.some((keyframe) => Number(keyframe.content_unit_id) === unit.ID)).length,
+        shotRows: orphanShotRows,
+      })
+    }
+
+    const plotShots = plotRows.reduce((sum, plot) => sum + plot.shots, 0)
+    const plotKeyframes = plotRows.reduce((sum, plot) => sum + plot.keyframes, 0)
+    const gaps = plotRows.reduce((sum, plot) => sum + plot.gaps, 0)
+    const durationSec = plotRows.reduce((sum, plot) => sum + plot.durationSec, 0)
+    const readiness = clampProgress(
+      Math.round(
+        (plotRows.length > 0 ? 22 : 8) +
+        (plotShots > 0 ? 28 : 0) +
+        (plotKeyframes > 0 ? 24 : 0) +
+        (gaps === 0 ? 26 : 0),
+      ),
+    )
+
+    return {
+      id: `seg-${segment.ID}`,
+      title: titleOfRecord(segment),
+      subtitle: firstText(segment.summary, segment.description, segment.content, `编排段 ${String(index + 1).padStart(2, '0')}`),
+      status: gaps > 0 ? (plotRows.length === 0 ? 'draft' : plotRows.some((plot) => plot.status === 'blocked') ? 'blocked' : 'attention') : 'ready',
+      readiness,
+      duration: formatDuration(durationSec),
+      plots: plotRows.length,
+      shots: plotShots,
+      keyframes: plotKeyframes,
+      gaps,
+      plotRows,
+    }
+  })
+}
+
+function buildPreviewTimelineShots(record: WorkbenchRecord, data: ProductionPreviewData): PreviewTimelineShot[] {
+  const segmentIds = relatedSegmentIdsForPreviewProduction(record, data)
+  const sceneMomentIds = relatedSceneMomentIdsForPreviewProduction(segmentIds, record, data)
+  const units = contentUnitsForPreviewProduction(segmentIds, sceneMomentIds, record, data).sort(byOrder)
+  const contentUnitIds = new Set(units.map((unit) => unit.ID))
+  const assetSlots = assetSlotsForPreviewProduction(segmentIds, sceneMomentIds, contentUnitIds, record, data)
+  const keyframes = keyframesForPreviewProduction(segmentIds, sceneMomentIds, contentUnitIds, record, data)
+  const segmentById = new Map(data.segments.map((segment) => [segment.ID, segment]))
+  const momentById = new Map(data.sceneMoments.map((moment) => [moment.ID, moment]))
+
+  return units.map((unit) => {
+    const segment = unit.segment_id ? segmentById.get(Number(unit.segment_id)) : undefined
+    const moment = unit.scene_moment_id ? momentById.get(Number(unit.scene_moment_id)) : undefined
+    const unitKeyframes = keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+    const unitSlots = assetSlots.filter((slot) => (
+      (slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID) ||
+      (slot.owner_type === 'scene_moment' && moment ? Number(slot.owner_id) === moment.ID : false) ||
+      (slot.owner_type === 'segment' && segment ? Number(slot.owner_id) === segment.ID : false) ||
+      Number(slot.production_id) === record.ID
+    ))
+    const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing')
+      return {
+        id: `cu-${unit.ID}`,
+        title: titleOfRecord(unit),
+        source: [
+          segment ? `编排段 ${titleOfRecord(segment)}` : '',
+          moment ? `情节 ${titleOfRecord(moment)}` : '',
+          ].filter(Boolean).join(' / ') || `镜头 #${unit.ID}`,
+        duration: formatDuration(Number(unit.duration_sec) || 0),
+        camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
+        status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
+        assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+        keyframes: unitKeyframes.length,
+      }
+    })
+}
+
+function buildPreviewAssetGaps(record: WorkbenchRecord, data: ProductionPreviewData): PreviewAssetGap[] {
+  const segmentIds = relatedSegmentIdsForPreviewProduction(record, data)
+  const sceneMomentIds = relatedSceneMomentIdsForPreviewProduction(segmentIds, record, data)
+  const units = contentUnitsForPreviewProduction(segmentIds, sceneMomentIds, record, data)
+  const unitIds = new Set(units.map((unit) => unit.ID))
+  const slots = assetSlotsForPreviewProduction(segmentIds, sceneMomentIds, unitIds, record, data)
+  const gaps: PreviewAssetGap[] = slots
+    .filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing')
+    .sort((a, b) => priorityRank(priorityFromRecord(String(b.priority ?? ''))) - priorityRank(priorityFromRecord(String(a.priority ?? ''))) || a.ID - b.ID)
+    .map((slot) => ({
+      name: titleOfRecord(slot),
+      owner: previewAssetSlotScopeLabel(slot, data),
+      priority: slot.priority === 'critical' || slot.priority === 'high' ? '高' : slot.priority === 'low' ? '低' : '中',
+      impact: slot.priority === 'critical' || slot.priority === 'high' ? '影响判断' : '影响最终质量',
+      placeholder: firstText(slot.prompt_hint, slot.description, assetKindLabel(String(slot.kind ?? '')) || '可先补生成候选'),
+      detail: firstText(slot.description, slot.prompt_hint, '当前素材需求仍是缺口。'),
+    }))
+
+  for (const unit of units) {
+    const unitKeyframes = data.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+    if (unitKeyframes.length > 0) continue
+    gaps.push({
+      name: titleOfRecord(unit),
+      owner: `镜头 · ${titleOfRecord(unit)}`,
+      priority: unit.duration_sec && Number(unit.duration_sec) > 10 ? '中' : '低',
+      impact: '影响最终质量',
+      placeholder: '补充关键帧后才能展开真实预演',
+      detail: '当前镜头还没有可展示的关键帧或预演记录。',
+    })
+  }
+
+  return gaps.slice(0, 6)
+}
+
+function previewAssetSlotScopeLabel(slot: WorkbenchRecord, data: ProductionPreviewData) {
+  if (slot.owner_type === 'content_unit' && slot.owner_id) {
+    const unit = data.contentUnits.find((item) => item.ID === Number(slot.owner_id))
+    return unit ? `镜头 · ${titleOfRecord(unit)}` : `镜头 #${slot.owner_id}`
+  }
+  if (slot.owner_type === 'scene_moment' && slot.owner_id) {
+    const moment = data.sceneMoments.find((item) => item.ID === Number(slot.owner_id))
+    return moment ? `情节 · ${titleOfRecord(moment)}` : `情节 #${slot.owner_id}`
+  }
+  if (slot.owner_type === 'segment' && slot.owner_id) {
+    const segment = data.segments.find((item) => item.ID === Number(slot.owner_id))
+    return segment ? `编排段 · ${titleOfRecord(segment)}` : `编排段 #${slot.owner_id}`
+  }
+  if (slot.creative_reference_id) {
+    const reference = data.creativeReferences.find((item) => item.ID === Number(slot.creative_reference_id))
+    return reference ? `设定资料 · ${titleOfRecord(reference)}` : `设定资料 #${slot.creative_reference_id}`
+  }
+  if (slot.owner_type && slot.owner_id) return `${slot.owner_type} #${slot.owner_id}`
+  if (slot.production_id) return `制作 #${slot.production_id}`
+  return '项目素材需求'
+}
+
+function cameraPlanSummary(row: WorkbenchRecord) {
+  return [
+    row.shot_size,
+    row.camera_angle,
+    row.camera_motion,
+    row.motion_intensity,
+    row.camera_speed,
+    row.lens,
+    row.focal_length,
+  ]
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewData, segments: PreviewPlanSegment[], timelineShots: PreviewTimelineShot[], gaps: PreviewAssetGap[]): PreviewWorkTask[] {
+  const firstGap = gaps[0]
+  const firstBlockedShot = timelineShots.find((shot) => shot.status === 'blocked') ?? timelineShots.find((shot) => shot.status === 'attention')
+  const firstReadySegment = segments.find((segment) => segment.status === 'ready') ?? segments[0]
+  const previewTimelines = previewTimelinesForProduction(record, data)
+  const timelineItems = previewTimelineItemsForProduction(record, data)
+
+  return [
+    {
+      id: 'task-gap',
+      title: firstGap ? `补齐 ${firstGap.name}` : '检查制作缺口',
+      scope: firstGap?.owner ?? `制作 #${record.ID}`,
+      status: firstGap ? 'running' : 'ready',
+      priority: firstGap && firstGap.priority === '高' ? 'high' : 'medium',
+      progress: firstGap ? 42 : 88,
+      method: firstGap ? '定位素材需求或关键帧缺口' : '复核当前制作是否可推进',
+      output: firstGap ? '补齐缺口后进入下一轮预演' : '确认制作预演状态',
+      blocker: firstGap?.detail,
+    },
+    {
+      id: 'task-shot',
+      title: firstBlockedShot ? `审阅 ${firstBlockedShot.title}` : '审阅情节镜头流',
+      scope: firstBlockedShot?.source ?? `制作 #${record.ID}`,
+      status: firstBlockedShot ? 'review' : 'ready',
+      priority: firstBlockedShot?.status === 'blocked' ? 'high' : 'medium',
+      progress: firstBlockedShot ? 58 : 76,
+      method: firstBlockedShot ? '查看镜头、关键帧和素材需求状态' : '查看全部情节下的镜头与关键帧',
+      output: firstBlockedShot ? '决定补生成或标记为已处理' : '确认情节展开可读',
+      blocker: firstBlockedShot?.assets?.includes('缺口') ? '当前镜头仍有素材需求缺口' : undefined,
+    },
+    {
+      id: 'task-segment',
+      title: firstReadySegment ? `复核 ${firstReadySegment.title}` : '复核情绪入口',
+      scope: firstReadySegment?.subtitle ?? `制作 #${record.ID}`,
+      status: firstReadySegment ? 'ready' : 'review',
+      priority: firstReadySegment?.gaps ? 'medium' : 'low',
+      progress: firstReadySegment?.readiness ?? 64,
+      method: '检查情绪入口、情节、镜头和关键帧的真实覆盖',
+      output: '确认可以进入下一步制作',
+    },
+    {
+      id: 'task-history',
+      title: previewTimelines.length > 0 ? '复核预演记录' : '建立预演记录',
+      scope: `${previewTimelines.length} 条预演 · ${timelineItems.length} 条记录`,
+      status: previewTimelines.length > 0 ? 'running' : 'review',
+      priority: previewTimelines.length > 0 ? 'medium' : 'low',
+      progress: previewTimelines.length > 0 ? 72 : 18,
+      method: previewTimelines.length > 0 ? '确认预演时间线状态' : '先挂载第一条预演时间线',
+      output: '形成可追踪的预演记录',
+      blocker: timelineItems.length === 0 ? '还没有可展示的预演项' : undefined,
+    },
+  ]
+}
+
+function buildPreviewGateRows(segments: PreviewPlanSegment[], timelineShots: PreviewTimelineShot[], gaps: PreviewAssetGap[]) {
+  return [
+    { label: '情绪入口已接入', detail: `${segments.length} 个编排段已读取真实制作数据`, done: segments.length > 0 },
+    { label: '情节已展开', detail: `${segments.reduce((sum, segment) => sum + segment.plots, 0)} 个情节已挂到入口下面`, done: segments.some((segment) => segment.plots > 0) },
+    { label: '镜头 / 关键帧可看', detail: `${timelineShots.length} 个镜头、${timelineShots.reduce((sum, shot) => sum + shot.keyframes, 0)} 个关键帧已进入预演`, done: timelineShots.length > 0 },
+    { label: '缺口已识别', detail: gaps.length > 0 ? `${gaps.length} 个缺口待处理` : '当前没有明显缺口', done: gaps.length === 0 },
+  ]
+}
 
 function ProductionPreviewWorkspace() {
+  const project = useProjectStore((s) => s.current)
+  const projectId = project?.ID
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [showAllTasks, setShowAllTasks] = useState(false)
-  const [candidateGenerated, setCandidateGenerated] = useState(false)
-  const selectedSegment = previewPlanSegments[1]
-  const selectedTask = previewWorkTasks[0]
-  const activeTasks = showAllTasks
-    ? previewWorkTasks
-    : previewWorkTasks.filter((task) => ['running', 'review'].includes(task.status)).slice(0, 2)
-  const pendingCandidates = previewTimelineShots.filter((shot) => shot.status === 'attention').length
-  const missingCandidates = previewTimelineShots.filter((shot) => shot.status === 'draft').length
-  const totalCandidates = candidateGenerated ? 6 : 4
-  const candidateLabel = candidateGenerated ? '重新生成候选' : '生成候选'
-  const candidateTone: 'warning' | 'outline' = candidateGenerated ? 'warning' : 'outline'
+  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+
+  const { data, isLoading, isFetching, refetch } = useQuery<ProductionPreviewData>({
+    queryKey: ['workbench', 'preview', projectId],
+    queryFn: () => loadProductionPreviewData(projectId!),
+    enabled: !!projectId,
+  })
+
+  const hasProductionParam = searchParams.has('productionId')
+  useEffect(() => {
+    if (!projectId || !data?.productions.length || hasProductionParam) return
+    const next = new URLSearchParams(searchParams)
+    next.set('productionId', String(data.productions[0].ID))
+    setSearchParams(next, { replace: true })
+  }, [data?.productions, hasProductionParam, projectId, searchParams, setSearchParams])
+
+  const selectedProductionId = Number(searchParams.get('productionId')) || data?.productions[0]?.ID || 0
+  const selectedProduction = useMemo(
+    () => {
+      if (!data?.productions.length) return null
+      return data.productions.find((production) => production.ID === selectedProductionId) ?? data.productions[0] ?? null
+    },
+    [data?.productions, selectedProductionId],
+  )
+
+  const previewPlanSegments = useMemo(
+    () => (selectedProduction && data ? buildPreviewPlanSegments(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
+  const previewTimelineShots = useMemo(
+    () => (selectedProduction && data ? buildPreviewTimelineShots(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
+  const previewMissingAssets = useMemo(
+    () => (selectedProduction && data ? buildPreviewAssetGaps(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
+  const previewGates = useMemo(
+    () => buildPreviewGateRows(previewPlanSegments, previewTimelineShots, previewMissingAssets),
+    [previewMissingAssets, previewPlanSegments, previewTimelineShots],
+  )
+  const previewWorkTasks = useMemo(
+    () => (selectedProduction && data ? buildPreviewWorkTasks(selectedProduction, data, previewPlanSegments, previewTimelineShots, previewMissingAssets) : []),
+    [data, previewMissingAssets, previewPlanSegments, previewTimelineShots, selectedProduction],
+  )
+  const previewTimelines = useMemo(
+    () => (selectedProduction && data ? previewTimelinesForProduction(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
+  const previewTimelineItems = useMemo(
+    () => (selectedProduction && data ? previewTimelineItemsForProduction(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
+
+  useEffect(() => {
+    if (!previewPlanSegments.length) {
+      setSelectedSegmentId(null)
+      return
+    }
+    setSelectedSegmentId((current) => (current && previewPlanSegments.some((segment) => segment.id === current) ? current : previewPlanSegments[0].id))
+  }, [previewPlanSegments])
+
+  useEffect(() => {
+    if (!previewWorkTasks.length) {
+      setSelectedTaskId(null)
+      return
+    }
+    setSelectedTaskId((current) => (current && previewWorkTasks.some((task) => task.id === current) ? current : previewWorkTasks[0].id))
+  }, [previewWorkTasks])
+
+  const selectedSegment = previewPlanSegments.find((segment) => segment.id === selectedSegmentId) ?? previewPlanSegments[0] ?? null
+  const selectedTask = previewWorkTasks.find((task) => task.id === selectedTaskId) ?? previewWorkTasks[0] ?? null
+  const selectedProductionStatus = selectedProduction && data ? previewProductionStatus(selectedProduction, data) : 'draft'
+  const readyShots = previewTimelineShots.filter((shot) => shot.status === 'ready').length
+  const pendingShots = previewTimelineShots.filter((shot) => shot.status === 'attention').length
+  const blockedShots = previewTimelineShots.filter((shot) => shot.status === 'blocked').length
+  const totalPlots = previewPlanSegments.reduce((sum, segment) => sum + segment.plots, 0)
+  const totalKeyframes = previewTimelineShots.reduce((sum, shot) => sum + shot.keyframes, 0)
+
+  const previewSignals: PreviewRunSignal[] = [
+    {
+      label: '情绪入口',
+      value: `${previewPlanSegments.length} 段`,
+      detail: selectedProduction ? `${previewProductionLabel(selectedProduction)} 已接入真实数据` : '请选择制作后查看',
+      status: previewPlanSegments.length > 0 ? 'ready' : 'draft',
+    },
+    {
+      label: '情节',
+      value: `${totalPlots} 个`,
+      detail: totalPlots > 0 ? '情节下面承载镜头和关键帧' : '当前还没有情节',
+      status: totalPlots > 0 ? 'ready' : 'draft',
+    },
+    {
+      label: '镜头 / 关键帧',
+      value: `${readyShots}/${previewTimelineShots.length || 0}`,
+      detail: `${totalKeyframes} 个关键帧已接入，${pendingShots + blockedShots} 个镜头待处理`,
+      status: previewTimelineShots.length > 0 ? 'ready' : 'draft',
+    },
+    {
+      label: '预演记录',
+      value: `${previewTimelines.length} 条`,
+      detail: previewTimelineItems.length > 0 ? `${previewTimelineItems.length} 条挂载记录` : '尚未挂载记录',
+      status: previewTimelines.length > 0 ? 'ready' : 'draft',
+    },
+  ]
+
+  const metrics: WorkbenchMetric[] = [
+    {
+      label: '情绪入口',
+      value: String(previewPlanSegments.length),
+      detail: selectedProduction ? `来自 ${selectedProduction.source_type || '当前制作'}` : '未选择制作',
+      icon: Clapperboard,
+      status: previewPlanSegments.length > 0 ? 'ready' : 'blocked',
+    },
+    {
+      label: '情节',
+      value: String(totalPlots),
+      detail: `下挂 ${previewTimelineShots.length} 个镜头，${totalKeyframes} 个关键帧`,
+      icon: GitBranch,
+      status: totalPlots > 0 ? 'review' : 'blocked',
+    },
+    {
+      label: '镜头',
+      value: String(previewTimelineShots.length),
+      detail: `${readyShots} 个可看 · ${pendingShots} 个待处理`,
+      icon: Film,
+      status: previewTimelineShots.length > 0 ? 'review' : 'blocked',
+    },
+    {
+      label: '缺口',
+      value: String(previewMissingAssets.length),
+      detail: previewMissingAssets.length > 0 ? '素材或关键帧仍需补齐' : '当前没有明显缺口',
+      icon: AlertTriangle,
+      status: previewMissingAssets.length > 0 ? 'blocked' : 'ready',
+    },
+  ]
+
+  if (!projectId) {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+        <SpecializedWorkbenchHeader
+          category="preview"
+          kicker="真实数据"
+          title="制作预演"
+          description="制作预演会读取当前项目里的真实制作数据。"
+        />
+        <main className="min-h-0 flex-1 overflow-auto p-5">
+          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目信息，无法读取制作数据。" />
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <SpecializedWorkbenchHeader
         category="preview"
-        kicker="候选检查"
+        kicker="真实数据"
         title="制作预演"
-        description="预演阶段只回答一件事：当前制作有没有候选。候选的采用、忽略和重新生成都在这里处理。"
+        description="制作预演只查看真实制作数据：编排段、情节、镜头、关键帧和素材缺口。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         <div className="space-y-5">
-          <MetricStrip
-            metrics={[
-              { label: '编排覆盖', value: '4 段', detail: '编排段、情景和制作项已串联', icon: Route, status: 'ready' },
-              { label: '候选总数', value: String(totalCandidates), detail: candidateGenerated ? '刚生成了新的候选版本' : '当前可审阅候选', icon: SquareStack, status: totalCandidates > 0 ? 'ready' : 'review' },
-              { label: '需要处理', value: String(pendingCandidates + missingCandidates), detail: `${pendingCandidates} 个待审 · ${missingCandidates} 个无候选`, icon: Boxes, status: pendingCandidates + missingCandidates > 0 ? 'review' : 'ready' },
-            ]}
-          />
+          {isLoading ? (
+            <Card className="rounded-lg border-border bg-card p-6">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 size={14} className="animate-spin" />
+                读取真实制作数据…
+              </div>
+            </Card>
+          ) : !data?.productions.length ? (
+            <EmptyWorkbenchState
+              title="暂无制作"
+              text="先到制作页创建制作，或从制作编排生成制作结构后再来查看预演。"
+            />
+          ) : selectedProduction ? (
+            <>
+              <MetricStrip metrics={metrics} />
 
-          <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]">
-            <div className="min-w-0 space-y-5">
-              <WorkbenchPanel title="本集候选全览" icon={Clapperboard} action={<Badge variant="outline">{totalCandidates} 个候选</Badge>}>
-                <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-3">
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">当前焦点</p>
-                    <p className="truncate text-sm font-medium text-foreground">{selectedSegment.title}</p>
-                  </div>
-                  <Badge variant={previewStatusVariant(selectedSegment.status)}>{previewStatusLabel(selectedSegment.status)}</Badge>
-                </div>
-                <div className="grid gap-3 lg:grid-cols-4">
-                  {previewPlanSegments.map((segment, index) => (
-                    <PreviewOverviewNode key={segment.id} segment={segment} index={index} selected={segment.id === selectedSegment.id} />
-                  ))}
-                </div>
-                <div className="mt-4 grid gap-3 xl:grid-cols-3">
-                  {previewRunSignals.map((signal) => (
-                    <PreviewRunSignalCard key={signal.label} signal={signal} />
-                  ))}
-                </div>
-              </WorkbenchPanel>
-
-              <WorkbenchPanel title="候选时间线" icon={GitBranch} action={<Badge variant="outline">{previewTimelineShots.length} 个颗粒</Badge>}>
-                <p className="mb-3 text-sm font-semibold text-foreground">按时间线查看每个颗粒有没有候选，以及候选是否已经处理。</p>
-                <div className="space-y-2">
-                  {previewTimelineShots.map((shot, index) => (
-                    <PreviewTimelineRow key={shot.id} shot={shot} index={index} />
-                  ))}
-                </div>
-              </WorkbenchPanel>
-            </div>
-
-            <div className="min-w-0 space-y-5">
-              <WorkbenchPanel title="候选状态" icon={Target} action={<Badge variant={candidateTone}>{candidateGenerated ? '新候选' : '当前候选'}</Badge>}>
-                <div className="space-y-4">
-                  <div className="rounded-md border border-border bg-background px-3 py-3">
-                    <p className="text-xs text-muted-foreground">本轮只处理候选</p>
-                    <p className="mt-1 text-sm font-medium leading-6 text-foreground">旧伞纸条已有候选，需要采用、忽略或重新生成。</p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">{selectedTask.blocker ?? '当前只看候选是否存在以及是否已处理。'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    {previewScriptEvidence.map((row) => (
-                      <p key={row} className="rounded border border-border bg-background px-3 py-2 text-xs leading-5 text-muted-foreground">{row}</p>
-                    ))}
-                  </div>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {previewValueChecks.map((check) => (
-                      <div key={check.label} className="rounded-md border border-border bg-background px-3 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium text-foreground">{check.label}</p>
-                          <Badge variant={statusVariant(check.status)}>{check.value}</Badge>
-                        </div>
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">{check.detail}</p>
+              <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]">
+                <div className="min-w-0 space-y-5">
+                  <WorkbenchPanel
+                    title="本集候选全览"
+                    icon={Clapperboard}
+                    action={(
+                      <div className="flex items-center gap-2">
+                        <Select
+                          value={String(selectedProduction.ID)}
+                          onValueChange={(value) => {
+                            const next = new URLSearchParams(searchParams)
+                            next.set('productionId', value)
+                            setSearchParams(next, { replace: true })
+                          }}
+                        >
+                          <SelectTrigger className="h-8 w-[220px] text-xs">
+                            <SelectValue placeholder="选择制作" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {data.productions.map((production) => (
+                              <SelectItem key={production.ID} value={String(production.ID)}>
+                                {previewProductionLabel(production)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => refetch()} disabled={isFetching}>
+                          <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
+                          刷新数据
+                        </Button>
                       </div>
-                    ))}
-                  </div>
-                </div>
-              </WorkbenchPanel>
+                    )}
+                  >
+                    <div className="mb-4 rounded-md border border-border bg-background px-3 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">当前制作</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <p className="truncate text-sm font-medium text-foreground">{previewProductionLabel(selectedProduction)}</p>
+                <Badge variant={previewStatusVariant(selectedProductionStatus)}>{previewStatusLabel(selectedProductionStatus)}</Badge>
+              </div>
+              <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、镜头和关键帧里。')}</p>
+            </div>
+            <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/production-orchestrate?productionId=${selectedProduction.ID}`)}>
+                            <Clapperboard size={14} />
+                            查看编排
+                          </Button>
+                          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/production?productionId=${selectedProduction.ID}`)}>
+                            <Film size={14} />
+                            查看制作
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-2 md:grid-cols-3">
+                        <WorkbenchMiniStat label="情节" value={totalPlots} detail="入口下面的真正内容层" />
+                        <WorkbenchMiniStat label="镜头" value={previewTimelineShots.length} detail="镜头和关键帧的承载层" />
+                        <WorkbenchMiniStat label="缺口" value={previewMissingAssets.length} detail="需要补齐的素材或关键帧" />
+                      </div>
+                    </div>
+                    {selectedSegment ? (
+                      <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground">当前入口</p>
+                          <p className="truncate text-sm font-medium text-foreground">{selectedSegment.title}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{selectedSegment.subtitle}</p>
+                        </div>
+                        <Badge variant={previewStatusVariant(selectedSegment.status)}>{previewStatusLabel(selectedSegment.status)}</Badge>
+                      </div>
+                    ) : null}
+                    <div className="grid gap-3 lg:grid-cols-4">
+                      {previewPlanSegments.map((segment, index) => (
+                        <button
+                          key={segment.id}
+                          type="button"
+                          onClick={() => setSelectedSegmentId(segment.id)}
+                          className="text-left"
+                        >
+                          <PreviewOverviewNode segment={segment} index={index} selected={segment.id === selectedSegment?.id} />
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-4 grid gap-3 xl:grid-cols-4">
+                      {previewSignals.map((signal) => (
+                        <PreviewRunSignalCard key={signal.label} signal={signal} />
+                      ))}
+                    </div>
+                  </WorkbenchPanel>
 
-              <WorkbenchPanel title="无候选清单" icon={ShieldCheck} action={<Badge variant={missingCandidates > 0 ? 'warning' : 'success'}>{missingCandidates} 个无候选</Badge>}>
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    {previewMissingAssets.map((asset) => (
-                      <div key={asset.name} className="rounded-md border border-border bg-background px-3 py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-foreground">{asset.name}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">{asset.owner}</p>
+                  <WorkbenchPanel
+                    title="情节与镜头"
+                    icon={GitBranch}
+                    action={<Badge variant="outline">{totalPlots} 个情节</Badge>}
+                  >
+                    <p className="mb-3 text-sm font-semibold text-foreground">先看情绪入口，再往下展开情节、镜头和关键帧。</p>
+                    {selectedSegment ? (
+                      selectedSegment.plotRows.length === 0 ? (
+                        <EmptyWorkbenchState title="暂无情节" text="当前入口下还没有可展开的情节。" />
+                      ) : (
+                        <div className="space-y-3">
+                          {selectedSegment.plotRows.map((plot, index) => (
+                            <PreviewPlotCard key={plot.id} plot={plot} index={index} />
+                          ))}
+                        </div>
+                      )
+                    ) : (
+                      <EmptyWorkbenchState title="暂无入口" text="先选择一个制作入口，再看它下面的情节和镜头。" />
+                    )}
+                  </WorkbenchPanel>
+                </div>
+
+                <div className="min-w-0 space-y-5">
+                  <WorkbenchPanel
+                    title="缺口清单"
+                    icon={ShieldCheck}
+                    action={<Badge variant={previewMissingAssets.length > 0 ? 'warning' : 'success'}>{previewMissingAssets.length} 个缺口</Badge>}
+                  >
+                    <div className="space-y-3">
+                      {previewMissingAssets.length === 0 ? (
+                        <EmptyWorkbenchState title="暂无缺口" text="当前制作没有明显的素材或关键帧缺口。" />
+                      ) : (
+                        previewMissingAssets.map((asset) => (
+                          <div key={`${asset.owner}-${asset.name}`} className="rounded-md border border-border bg-background px-3 py-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-foreground">{asset.name}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{asset.owner}</p>
+                              </div>
+                              <Badge variant={asset.priority === '高' ? 'danger' : asset.priority === '中' ? 'warning' : 'outline'}>{asset.priority}</Badge>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <Badge variant={asset.impact === '影响判断' ? 'warning' : 'outline'}>{asset.impact === '影响判断' ? '优先处理' : '可稍后处理'}</Badge>
+                              <Badge variant="secondary">{asset.placeholder}</Badge>
+                            </div>
+                            <p className="mt-2 text-xs leading-5 text-muted-foreground">{asset.detail}</p>
                           </div>
-                          <Badge variant={asset.priority === '高' ? 'danger' : 'warning'}>{asset.priority}</Badge>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <Badge variant={asset.impact === '影响判断' ? 'warning' : 'outline'}>{asset.impact === '影响判断' ? '优先生成' : '可稍后生成'}</Badge>
-                          <Badge variant="secondary">{asset.placeholder}</Badge>
-                        </div>
-                        <p className="mt-2 text-xs leading-5 text-muted-foreground">{asset.detail}</p>
+                        ))
+                      )}
+                    </div>
+                    <div className="mt-4">
+                      <GateChecklist rows={previewGates} />
+                    </div>
+                  </WorkbenchPanel>
+
+                  <WorkbenchPanel title="下一步动作" icon={Settings2}>
+                    <div className="space-y-2">
+                      <Button className="w-full justify-start gap-2" onClick={() => navigate(`/production-orchestrate?productionId=${selectedProduction.ID}`)}>
+                        <Clapperboard size={15} />
+                        查看制作编排
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(`/asset-slots?production_id=${selectedProduction.ID}`)}>
+                        <PackageCheck size={15} />
+                        查看素材需求
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(`/contents?production_id=${selectedProduction.ID}`)}>
+                        <Film size={15} />
+                        查看镜头内容
+                      </Button>
+                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(`/delivery/workbench?productionId=${selectedProduction.ID}`)}>
+                        <CheckCircle2 size={15} />
+                        查看成片工作台
+                      </Button>
+                    </div>
+                  </WorkbenchPanel>
+
+                  <WorkbenchPanel title="当前处理" icon={ListChecks} action={<Badge variant="secondary">{previewWorkTasks.length}</Badge>}>
+                    {selectedTask ? (
+                      <div className="mb-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-3">
+                        <p className="text-xs text-muted-foreground">本轮目标</p>
+                        <p className="mt-1 text-sm font-medium leading-6 text-foreground">{selectedTask.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{selectedTask.blocker ?? '当前只看实际制作数据和缺口，不接入 agent。'}</p>
                       </div>
-                    ))}
-                  </div>
-                  <GateChecklist rows={previewGates} />
+                    ) : null}
+                    <div className="space-y-2">
+                      {previewWorkTasks.length === 0 ? (
+                        <EmptyWorkbenchState title="暂无处理任务" text="先选择一个制作后，系统会根据真实数据给出待处理项。" />
+                      ) : (
+                        (showAllTasks ? previewWorkTasks : previewWorkTasks.filter((task) => ['running', 'review'].includes(task.status)).slice(0, 2)).map((task) => (
+                          <PreviewWorkTaskCard
+                            key={task.id}
+                            task={task}
+                            selected={task.id === selectedTask?.id}
+                            compact
+                            onSelect={() => setSelectedTaskId(task.id)}
+                          />
+                        ))
+                      )}
+                    </div>
+                    {previewWorkTasks.length > 2 && (
+                      <Button variant="outline" size="sm" className="mt-3 w-full justify-center gap-2" onClick={() => setShowAllTasks((value) => !value)}>
+                        <ListChecks size={14} />
+                        {showAllTasks ? '收起清单' : '展开完整清单'}
+                      </Button>
+                    )}
+                  </WorkbenchPanel>
                 </div>
-              </WorkbenchPanel>
-
-              <WorkbenchPanel title="下一步动作" icon={Settings2}>
-                <div className="space-y-2">
-                  <Button className="w-full justify-start gap-2" onClick={() => setCandidateGenerated(true)}>
-                    <Wand2 size={15} />
-                    {candidateLabel}
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate('/segments')}>
-                    <Layers size={15} />
-                    查看分镜来源
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate('/contents')}>
-                    <Film size={15} />
-                    查看制作项来源
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start gap-2">
-                    <CheckCircle2 size={15} />
-                    标记候选已处理
-                  </Button>
-                </div>
-              </WorkbenchPanel>
-
-              <WorkbenchPanel title="当前处理" icon={ListChecks} action={<Badge variant="secondary">{activeTasks.length}</Badge>}>
-                <div className="mb-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-3">
-                  <p className="text-xs text-muted-foreground">本轮目标</p>
-                  <p className="mt-1 text-sm font-medium leading-6 text-foreground">先处理“{selectedTask.title}”：采用、忽略或重新生成。</p>
-                </div>
-                <div className="space-y-2">
-                  {activeTasks.map((task) => (
-                    <PreviewWorkTaskCard key={task.id} task={task} selected={task.id === selectedTask.id} compact />
-                  ))}
-                </div>
-                <Button variant="outline" size="sm" className="mt-3 w-full justify-center gap-2" onClick={() => setShowAllTasks((value) => !value)}>
-                  <ListChecks size={14} />
-                  {showAllTasks ? '收起清单' : '展开完整清单'}
-                </Button>
-              </WorkbenchPanel>
-            </div>
-          </div>
+              </div>
+            </>
+          ) : (
+            <EmptyWorkbenchState title="暂无可用制作" text="请选择一个制作后，再查看它的真实预演数据。" />
+          )}
         </div>
       </main>
     </div>
   )
 }
 
-function PreviewWorkTaskCard({ task, selected, compact = false }: { task: PreviewWorkTask; selected: boolean; compact?: boolean }) {
+function PreviewWorkTaskCard({ task, selected, compact = false, onSelect }: { task: PreviewWorkTask; selected: boolean; compact?: boolean; onSelect?: () => void }) {
   return (
     <button
       type="button"
+      onClick={onSelect}
       className={cn(
         'w-full rounded-md border px-3 py-3 text-left transition-colors',
         selected ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
@@ -1816,19 +4444,53 @@ function PreviewOverviewNode({ segment, index, selected }: { segment: PreviewPla
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[11px] tabular-nums text-muted-foreground">段落 {index + 1}</p>
+          <p className="text-[11px] tabular-nums text-muted-foreground">情绪入口 {index + 1}</p>
           <p className="mt-1 truncate text-sm font-medium text-foreground">{segment.title}</p>
           <p className="mt-1 truncate text-xs text-muted-foreground">{segment.subtitle}</p>
         </div>
         <Badge variant={previewStatusVariant(segment.status)}>{previewStatusLabel(segment.status)}</Badge>
       </div>
-      <div className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <span>{segment.duration}</span>
-        <span>{segment.moments} 情景</span>
-        <span>{segment.units} 内容</span>
+        <span>{segment.plots} 情节</span>
+        <span>{segment.shots} 镜头</span>
+        <span>{segment.keyframes} 关键帧</span>
         {segment.gaps > 0 ? <span className="text-amber-600">缺口 {segment.gaps}</span> : null}
       </div>
       <Progress value={segment.readiness} className="mt-3 h-1.5" />
+    </div>
+  )
+}
+
+function PreviewPlotCard({ plot, index }: { plot: PreviewPlotRow; index: number }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] tabular-nums text-muted-foreground">情节 {index + 1}</p>
+          <p className="mt-1 truncate text-sm font-medium text-foreground">{plot.title}</p>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{plot.subtitle}</p>
+        </div>
+        <Badge variant={previewStatusVariant(plot.status)}>{previewStatusLabel(plot.status)}</Badge>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+        <span>{plot.duration}</span>
+        <span>{plot.shots} 镜头</span>
+        <span>{plot.keyframes} 关键帧</span>
+        {plot.gaps > 0 ? <span className="text-amber-600">缺口 {plot.gaps}</span> : null}
+      </div>
+      <Progress value={plot.readiness} className="mt-3 h-1.5" />
+      {plot.shotRows.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {plot.shotRows.map((shot, shotIndex) => (
+            <PreviewTimelineRow key={shot.id} shot={shot} index={shotIndex} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+          当前情节还没有镜头或关键帧。
+        </p>
+      )}
     </div>
   )
 }
@@ -1866,6 +4528,7 @@ function PreviewTimelineRow({ shot, index }: { shot: PreviewTimelineShot; index:
       </div>
       <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
         <p className="truncate text-xs text-muted-foreground md:max-w-40">{shot.assets}</p>
+        <Badge variant={shot.keyframes > 0 ? 'secondary' : 'outline'}>{shot.keyframes} 帧</Badge>
         <Badge variant={previewStatusVariant(shot.status)}>{previewStatusLabel(shot.status)}</Badge>
       </div>
     </div>
@@ -1924,10 +4587,10 @@ const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, {
     icon: PackageCheck,
   },
   production: {
-    title: '制作项生成工作台',
+    title: '内容编排工作台',
     stage: 'generation',
     description: '复用现有画布工作流来串联制作项、提示词、关键帧、视频候选、返工和正式输出。',
-    canvasName: '制作项生成画布',
+    canvasName: '内容编排画布',
     icon: Wand2,
   },
 }
@@ -2171,6 +4834,62 @@ function ScriptSplitWorkbench() {
     return latest.drafts[0] ?? preferred
   }
 
+  async function ensureScriptSplitDraftShell(baseTitle: string, normalized: string): Promise<AgentDraft> {
+    if (!projectId) throw new Error('请先选择项目')
+    const sourceIdentity = getScriptSplitSourceIdentity(baseTitle, sourceFileName, normalized)
+    const pageKey = buildPageKey({
+      route: { pathname: '/workbench/script' },
+      projectId,
+      selection: sourceIdentity,
+      labels: ['script-split-workbench'],
+    })
+    const existing = await localAgentClient.listDrafts({
+      projectId,
+      kind: 'script_split',
+      status: 'draft',
+      pageKey,
+      limit: 1,
+    })
+    if (existing.drafts[0]) return existing.drafts[0]
+
+    const lineCount = Math.max(1, getScriptTextLineCount(normalized))
+    const sourceSummary = `${baseTitle} 待拆分，共 ${lineCount} 行。`
+    return localAgentClient.createDraft({
+      projectId,
+      kind: 'script_split',
+      title: `剧本拆分草稿 - ${baseTitle}`,
+      content: JSON.stringify({
+        schema: 'movscript.script_split_analysis.v1',
+        source_title: baseTitle,
+        source_summary: sourceSummary,
+        source_script: {
+          title: baseTitle,
+          summary: sourceSummary,
+          source_type: 'raw',
+          line_count: lineCount,
+        },
+        global_settings: {},
+        episode_drafts: [],
+        warnings: [],
+        confidence: 0,
+      }, null, 2),
+      source: {
+        entityType: 'script_source',
+        entityId: sourceIdentity.entityId,
+        pageKey,
+        pageType: 'workbench',
+        pageRoute: '/workbench/script',
+        pageEntityType: 'script_source',
+        pageEntityId: sourceIdentity.entityId,
+      },
+      metadata: {
+        pageOwned: true,
+        sourceTitle: baseTitle,
+        sourceLineCount: lineCount,
+      },
+    })
+  }
+
   useEffect(() => {
     return () => scriptSplitToolCleanupRef.current?.()
   }, [])
@@ -2206,6 +4925,7 @@ function ScriptSplitWorkbench() {
     if (!projectId) throw new Error('请先选择项目')
     if (!modelId) throw new Error('请先在右侧 Agent 面板选择一个文本模型')
     const baseTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
+    const draftShell = await ensureScriptSplitDraftShell(baseTitle, normalized)
     const message = buildScriptSplitAgentMessage({
       projectId,
       sourceTitle: baseTitle,
@@ -2217,6 +4937,7 @@ function ScriptSplitWorkbench() {
       labels: ['script-split-workbench', 'structured-output'],
       hints: {
         projectId,
+        draftId: draftShell.id,
         selection: getScriptSplitSourceIdentity(baseTitle, sourceFileName, normalized),
       },
     })
@@ -2942,6 +5663,7 @@ function ScriptSplitWorkbench() {
 function CategoryContent({ category }: { category: WorkbenchCategory }) {
   if (category === 'script') return <ScriptSplitWorkbench />
   if (category === 'assets') return <AssetPreparationWorkbench />
+  if (category === 'creative') return <SettingPreparationWorkbench />
   if (category === 'production') return <ContentGenerationWorkbench />
   if (category === 'reference-relations') return <ReferenceRelationsPage embedded initialView="graph" />
   return <ScenarioWorkspace category={category} />
@@ -2962,6 +5684,7 @@ export function WorkbenchContent({ initialCategory = 'script', showCategoryTabs 
 
   const activeCategory = showCategoryTabs ? category : initialCategory
   const summary = useMemo(() => {
+    if (activeCategory === 'preview') return '真实制作数据 · 先看编排、缺口和预演记录'
     const scenario = scenarios[activeCategory]
     const blocked = scenario.queue.filter((item) => item.status === 'blocked').length
     const review = scenario.queue.filter((item) => item.status === 'review').length

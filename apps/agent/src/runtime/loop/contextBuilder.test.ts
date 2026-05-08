@@ -110,3 +110,55 @@ test('buildContext uses runtime contract for tool schemas without forcing JSON a
   assert.doesNotMatch(built.systemPrompt, /Return only JSON/)
   assert.ok(chatTools.some((tool) => tool.function.name === 'movscript_structured_test_tool' && !!tool.function.parameters))
 })
+
+test('production proposal availability tool exposes proposal-level schema', () => {
+  const tools = {
+    discovered: [],
+    blocked: [],
+    byName: {},
+    available: [{
+      name: 'movscript_check_proposal_is_available',
+      source: 'mcp' as const,
+      registered: true,
+      granted: true,
+      available: true,
+      approval: 'never' as const,
+      requiresApproval: false,
+    }],
+  }
+  const chatTools = buildOpenAIChatTools(tools)
+  const tool = chatTools.find((item) => item.function.name === 'movscript_check_proposal_is_available')
+
+  assert.ok(tool)
+  const parameters = tool.function.parameters as { required?: string[]; properties?: Record<string, unknown> }
+  assert.deepEqual(parameters.required, ['productionId', 'proposal'])
+  assert.ok(parameters.properties?.proposal)
+  assert.equal(parameters.properties?.candidates, undefined)
+  assert.equal(parameters.properties?.scope, undefined)
+})
+
+test('production orchestration diff tool exposes audit schema', () => {
+  const tools = {
+    discovered: [],
+    blocked: [],
+    byName: {},
+    available: [{
+      name: 'movscript_build_orchestration_diff',
+      source: 'mcp' as const,
+      registered: true,
+      granted: true,
+      available: true,
+      approval: 'never' as const,
+      requiresApproval: false,
+    }],
+  }
+  const chatTools = buildOpenAIChatTools(tools)
+  const tool = chatTools.find((item) => item.function.name === 'movscript_build_orchestration_diff')
+
+  assert.ok(tool)
+  const parameters = tool.function.parameters as { required?: string[]; properties?: Record<string, unknown> }
+  assert.deepEqual(parameters.required, ['productionId', 'proposal'])
+  assert.ok(parameters.properties?.proposal)
+  assert.ok(parameters.properties?.currentDraft)
+  assert.equal(parameters.properties?.candidates, undefined)
+})

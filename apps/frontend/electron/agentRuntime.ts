@@ -35,6 +35,7 @@ interface AgentRuntimeHealthCheck {
   ok: boolean
   compatible: boolean
   apiVersion?: number
+  mcpEndpoint?: string
   error?: string
 }
 
@@ -260,10 +261,11 @@ async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealt
         error: 'Agent is running but does not expose /runtime/capabilities.',
       }
     }
-    const capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown } }
+    const capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
     const runtime = capabilities.runtime ?? body.runtime
     const apiVersion = typeof runtime?.apiVersion === 'number' ? runtime.apiVersion : undefined
     const features = Array.isArray(runtime?.features) ? runtime.features : []
+    const mcpEndpoint = typeof capabilities.mcpEndpoint === 'string' ? capabilities.mcpEndpoint.trim() : ''
     const hasRequiredFeatures = features.includes('model-config') && features.includes('runtime-capabilities')
     if (!apiVersion || apiVersion < MIN_AGENT_RUNTIME_API_VERSION || !hasRequiredFeatures) {
       return {
@@ -273,7 +275,25 @@ async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealt
         error: `Agent runtime is incompatible. Required apiVersion>=${MIN_AGENT_RUNTIME_API_VERSION} with model-config/runtime-capabilities features.`,
       }
     }
-    return { ok: true, compatible: true, apiVersion }
+    const expectedMcpEndpoint = (process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT).replace(/\/+$/, '')
+    if (mcpEndpoint && mcpEndpoint !== expectedMcpEndpoint) {
+      return {
+        ok: true,
+        compatible: false,
+        apiVersion,
+        mcpEndpoint,
+        error: `Agent runtime is bound to ${mcpEndpoint} but expected ${expectedMcpEndpoint}. Restart the agent after MCP changes.`,
+      }
+    }
+    if (!mcpEndpoint) {
+      return {
+        ok: true,
+        compatible: false,
+        apiVersion,
+        error: 'Agent runtime did not report its MCP endpoint.',
+      }
+    }
+    return { ok: true, compatible: true, apiVersion, mcpEndpoint }
   } catch {
     return { ok: false, compatible: false }
   }

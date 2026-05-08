@@ -123,6 +123,10 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.asset-prep-side {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .production-layout {
   grid-template-columns: minmax(0, 1fr);
 }
@@ -137,10 +141,6 @@
     grid-template-columns: 340px minmax(0, 1fr);
   }
 
-  .asset-prep-side {
-    grid-column: 2;
-  }
-
   .production-layout {
     grid-template-columns: 340px minmax(0, 1fr);
   }
@@ -152,11 +152,15 @@
 
 @container (min-width: 1380px) {
   .asset-prep-layout {
-    grid-template-columns: 340px minmax(0, 1fr) 360px;
+    grid-template-columns: 340px minmax(0, 1fr);
   }
 
   .asset-prep-side {
-    grid-column: auto;
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+
+  .asset-prep-workspace {
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .production-layout {

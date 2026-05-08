@@ -57,6 +57,7 @@ import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, Select
 
 type EntityFilter = 'all' | 'segments' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
 type AnalysisScope = 'production' | 'segments' | 'segmentAnalysis' | 'sceneMoments' | 'creativeReferences' | 'assetSlots' | 'contentUnits'
+type ProposalReviewTab = 'structure' | 'context' | 'impact'
 type RailItem = {
   id: number
   title: string
@@ -361,7 +362,6 @@ const filterDefs: { key: EntityFilter; label: string; icon: LucideIcon }[] = [
   { key: 'sceneMoments', label: '情景结构', icon: Route },
   { key: 'creativeReferences', label: '设定资料梳理', icon: Sparkles },
   { key: 'assetSlots', label: '素材需求缺口', icon: PackageCheck },
-  { key: 'contentUnits', label: '制作项', icon: Film },
 ]
 
 const statusTone: Record<string, string> = {
@@ -453,6 +453,7 @@ export default function ProductionOrchestratePage() {
   const [proposalPreviewDraft, setProposalPreviewDraft] = useState<ProposalDraftContent | null>(null)
   const [proposalNodeDecisions, setProposalNodeDecisions] = useState<ProposalNodeDecisions>({})
   const [analysisLaunchToken, setAnalysisLaunchToken] = useState(0)
+  const [projectProposalLaunching, setProjectProposalLaunching] = useState(false)
 
   const queryKey = ['production-orchestrate', projectId] as const
   const scriptVersionsQueryKey = ['production-orchestrate-script-versions', projectId] as const
@@ -522,7 +523,14 @@ export default function ProductionOrchestratePage() {
         }
         setProposalPreviewDraft(content)
       } catch {
-        if (!cancelled) setProposalPreviewDraft(null)
+        if (!cancelled) {
+          setProposalPreviewDraft(null)
+          setSearchParams((current) => {
+            const next = new URLSearchParams(current)
+            if (next.get('draftId') === openedDraftId) next.delete('draftId')
+            return next
+          }, { replace: true })
+        }
       }
     })()
     return () => {
@@ -808,6 +816,105 @@ export default function ProductionOrchestratePage() {
       return
     }
     setCreateType(filter)
+  }
+
+  async function startProjectProposalAnalysis() {
+    if (!projectId || !productionId) return
+    setProjectProposalLaunching(true)
+    try {
+      const pageKey = buildPageKey({
+        route: { pathname: '/project-workspace' },
+        projectId,
+        selection: { entityType: 'project', entityId: projectId, label: project?.name ?? `项目 #${projectId}` },
+        labels: ['project-workspace', 'project-proposal'],
+      })
+      const existingDrafts = await localAgentClient.listDrafts({ projectId, kind: 'project_proposal', status: 'draft', pageKey, limit: 1 })
+      const draftShell = existingDrafts.drafts[0] ?? await localAgentClient.createDraft({
+        projectId,
+        kind: 'project_proposal',
+        title: `项目提案草稿 - ${project?.name ?? `#${projectId}`}`,
+        content: JSON.stringify({
+          scope: 'project_proposal',
+          projectId,
+          productionId,
+          summary: '',
+          proposal: {
+            creative_references: [],
+            asset_slots: [],
+          },
+          operations: [],
+          generatedAt: new Date().toISOString(),
+        }, null, 2),
+        source: {
+          entityType: 'project',
+          entityId: projectId,
+          projectId,
+          productionId,
+          pageKey,
+          pageType: 'project_proposal',
+          pageRoute: '/project-workspace',
+        },
+        target: {
+          projectId,
+          entityType: 'project',
+          entityId: projectId,
+          field: 'proposal',
+        },
+        metadata: {
+          pageOwned: true,
+          analysisScope: 'project_proposal',
+          projectId,
+          productionId,
+        },
+      })
+
+      const prompt = buildProjectProposalAnalysisPrompt({
+        projectName: project?.name ?? `项目 #${projectId}`,
+        productionName: selectedProduction ? String(selectedProduction.name ?? `制作 #${productionId}`) : `制作 #${productionId}`,
+        productionId,
+        draftId: draftShell.id,
+        scriptVersionTitle: selectedScriptVersion?.title ?? '',
+        scriptText,
+        projectSnapshot: {
+          references: allCreativeReferences,
+          assetSlots: allAssetSlots,
+          productions,
+        },
+        userPrompt: orchestrationPrompt,
+      })
+
+      openAgentPanelDraft({
+        requestId: `project_proposal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+        taskType: 'project_orchestration',
+        message: `请生成项目提案：${project?.name ?? `#${projectId}`}`,
+        title: `项目提案: ${project?.name ?? `#${projectId}`}`,
+        mode: 'create',
+        newConversation: true,
+        autoSend: true,
+        projectId,
+        clientInput: buildCommandFirstClientInput({
+          message: prompt,
+          labels: ['production-orchestrate', 'project-proposal', 'tool-driven'],
+          hints: {
+            projectId,
+            productionId,
+            draftId: draftShell.id,
+            route: { pathname: '/production-orchestrate', search: `?productionId=${productionId}` },
+            selection: { entityType: 'production', entityId: productionId, label: selectedProduction ? String(selectedProduction.name ?? `制作 #${productionId}`) : `制作 #${productionId}` },
+          },
+        }),
+        agentManifest: PROJECT_PROPOSAL_AGENT_MANIFEST,
+        runPolicy: { maxToolCalls: 36, maxIterations: 20 },
+        timeoutMs: 240_000,
+        renderMode: 'page',
+      })
+
+      toast.info('已打开项目提案会话；生成结果会写入项目提案草稿')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '项目提案启动失败')
+    } finally {
+      setProjectProposalLaunching(false)
+    }
   }
 
   function resolvedCandidateSegmentId(clientId?: string) {
@@ -1150,6 +1257,10 @@ export default function ProductionOrchestratePage() {
               <Wand2 size={13} />
               编排到 AI 面板
             </Button>
+            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={startProjectProposalAnalysis} loading={projectProposalLaunching} disabled={!projectId || !productionId}>
+              <Sparkles size={13} />
+              项目提案
+            </Button>
             <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => refetch()}>
               <RefreshCw size={13} />
               刷新
@@ -1467,20 +1578,6 @@ function ProductionPackageWorkspace({
   const pendingSceneMoments = getPendingCandidatesForFilter('sceneMoments', candidates)
   const pendingCreativeReferences = getPendingCandidatesForFilter('creativeReferences', candidates)
   const pendingAssetSlots = getPendingCandidatesForFilter('assetSlots', candidates)
-  const pendingContentUnits = getPendingCandidatesForFilter('contentUnits', candidates)
-  const contentUnitsByMoment = useMemo(() => {
-    const map = new Map<number, ContentUnitRecord[]>()
-    for (const unit of contentUnits) {
-      if (!unit.scene_moment_id) continue
-      const momentId = Number(unit.scene_moment_id)
-      if (!Number.isFinite(momentId)) continue
-      const list = map.get(momentId) ?? []
-      list.push(unit)
-      map.set(momentId, list)
-    }
-    for (const list of map.values()) list.sort(byOrder)
-    return map
-  }, [contentUnits])
 
   function renderCandidateStrip(label: string, items: TrackedCandidate<Record<string, unknown> & { client_id: string }>[], type: EntityFilter) {
     if (items.length === 0) return null
@@ -1518,7 +1615,6 @@ function ProductionPackageWorkspace({
             <span className="rounded-full border border-border bg-background px-2 py-1">情景 {sceneMoments.length}</span>
             <span className="rounded-full border border-border bg-background px-2 py-1">设定资料 {creativeReferences.length}</span>
             <span className="rounded-full border border-border bg-background px-2 py-1">素材需求 {assetSlots.length}</span>
-            <span className="rounded-full border border-border bg-background px-2 py-1">单元 {contentUnits.length}</span>
           </div>
         </div>
       </section>
@@ -1574,40 +1670,25 @@ function ProductionPackageWorkspace({
       <WorkspaceSection
         icon={Route}
         title="情景链"
-        detail="顺序展开的具体情景与内容单元"
+        detail="顺序展开的具体情景，作为制作工作台的上游约束"
         actions={(
           <div className="flex items-center gap-2">
             <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => onCreateChild('sceneMoments')}>
               <Plus size={12} />
               新增情景
             </Button>
-            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => onCreateChild('contentUnits')}>
-              <Plus size={12} />
-              新增单元
-            </Button>
           </div>
         )}
       >
         {renderCandidateStrip('情节候选', pendingSceneMoments, 'sceneMoments')}
-        {renderCandidateStrip('单元候选', pendingContentUnits, 'contentUnits')}
         {sceneMoments.length === 0 ? (
           <EmptySection text="暂无情节" onAdd={() => onCreateChild('sceneMoments')} />
         ) : (
           <div className="divide-y divide-border/50">
             {sceneMoments.map((moment) => {
-              const units = contentUnitsByMoment.get(moment.ID) ?? []
               return (
                 <div key={moment.ID}>
                   <SceneMomentRow key={moment.ID} moment={moment} segments={segments} {...sharedEntityProps} />
-                  {units.length > 0 && (
-                    <div className="ml-6 border-l border-border/50 pl-3">
-                      <div className="space-y-1.5 py-2">
-                        {units.map((unit) => (
-                          <ContentUnitRow key={unit.ID} unit={unit} segments={segments} sceneMoments={sceneMoments} {...sharedEntityProps} />
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )
             })}
@@ -2063,14 +2144,12 @@ function buildContextOverview(
   if (!selectedRecord) {
     const missingSlots = data.assetSlots.filter((slot) => String(slot.status ?? '') === 'missing')
     const segmentWithoutMoments = data.segments.filter((segment) => !data.sceneMoments.some((moment) => moment.segment_id === segment.ID)).length
-    const momentsWithoutUnits = data.sceneMoments.filter((moment) => !data.contentUnits.some((unit) => unit.scene_moment_id === moment.ID)).length
     const nextStep = [
       pendingLine,
       segmentWithoutMoments > 0 ? `${segmentWithoutMoments} 个编排段还没有情景拆解。` : '',
-      momentsWithoutUnits > 0 ? `${momentsWithoutUnits} 个情景还没有制作项。` : '',
       missingSlots.length > 0 ? `${missingSlots.length} 个素材需求仍是缺口状态。` : '',
       data.segments.length === 0 ? '先从剧本生成第一版结构骨架。' : '',
-      data.segments.length > 0 && data.pendingCount === 0 && segmentWithoutMoments === 0 && momentsWithoutUnits === 0 && missingSlots.length === 0 ? '结构已具备继续进入制作项生产的基础。' : '',
+      data.segments.length > 0 && data.pendingCount === 0 && segmentWithoutMoments === 0 && missingSlots.length === 0 ? '结构已具备进入制作工作台的基础。' : '',
     ].filter(Boolean)
     return {
       position: [
@@ -2083,7 +2162,7 @@ function buildContextOverview(
         data.scriptText ? `剧本文本约 ${data.scriptText.length} 字。` : '暂无可分析剧本文本。',
       ],
       relations: [
-        `${data.segments.length} 段 / ${data.sceneMoments.length} 情景 / ${data.contentUnits.length} 制作项`,
+        `${data.segments.length} 段 / ${data.sceneMoments.length} 情景`,
         `${data.creativeReferences.length} 设定资料 / ${data.assetSlots.length} 素材需求`,
       ],
       nextStep,
@@ -2113,15 +2192,14 @@ function buildContextOverview(
       ].filter(Boolean),
       relations: [
       `${moments.length} 个情景承接这个编排段。`,
-        `${units.length} 个制作项从这里拆出。`,
+        units.length > 0 ? `${units.length} 个下游制作项已从这里拆出。` : '制作项将在制作工作台中拆解。',
         `${slots.length} 个素材需求，其中 ${missingSlots.length} 个缺口。`,
       ],
       nextStep: [
         pendingLine,
         moments.length === 0 ? '补齐情景拆解。' : '',
-        units.length === 0 ? '基于情景生成制作项。' : '',
         missingSlots.length > 0 ? '优先处理缺失素材需求。' : '',
-        moments.length > 0 && units.length > 0 && missingSlots.length === 0 ? '可继续检查单个情景或制作项。' : '',
+        moments.length > 0 && missingSlots.length === 0 ? '可进入制作工作台拆镜头和台词。' : '',
       ].filter(Boolean),
       ...(primaryFromPending ?? {
         primaryActionLabel: moments.length === 0 ? '补齐情景' : '重新分析',
@@ -2153,18 +2231,17 @@ function buildContextOverview(
       ].filter(Boolean),
       relations: [
         `${refs.length} 个设定资料在此情景出现。`,
-        `${units.length} 个制作项承接此情景。`,
+        units.length > 0 ? `${units.length} 个下游制作项承接此情景。` : '制作项将在制作工作台中承接此情景。',
         `${slots.length} 个素材需求，其中 ${missingSlots.length} 个缺口。`,
       ],
       nextStep: [
         pendingLine,
         refs.length === 0 ? '确认人物、地点或道具设定资料。' : '',
-        units.length === 0 ? '生成镜头或制作项。' : '',
         missingSlots.length > 0 ? '补齐此情景下的素材需求。' : '',
-        refs.length > 0 && units.length > 0 && missingSlots.length === 0 ? '可进入制作项检查镜头参数。' : '',
+        refs.length > 0 && missingSlots.length === 0 ? '可进入制作工作台拆镜头、台词和关键帧。' : '',
       ].filter(Boolean),
       ...(primaryFromPending ?? {
-        primaryActionLabel: units.length === 0 ? '生成制作项' : '重新分析',
+        primaryActionLabel: '重新分析',
         primaryActionIcon: Wand2,
       }),
     }
@@ -2657,6 +2734,7 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
   const expandId = `scene_moment-${moment.ID}`
   const expanded = expandedIds.has(expandId)
   const parentSegment = segments.find((s) => s.ID === moment.segment_id)
+  const creativeReferenceLabels = uniqueStrings(referencesForOwner('scene_moment', moment.ID, lookup).map((reference) => titleOfRecord(reference)))
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteSemanticEntity(projectId!, semanticEntityConfig('sceneMoments'), moment.ID),
@@ -2675,6 +2753,7 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
             <span className="text-sm text-foreground">{String(moment.title ?? `情景 #${moment.ID}`)}</span>
             {moment.status && <Badge variant="secondary" className={cn('text-[10px]', statusTone[String(moment.status)])}>{statusLabel[String(moment.status)] ?? String(moment.status)}</Badge>}
             {parentSegment && <span className="text-[10px] text-muted-foreground">编排段: {String(parentSegment.title ?? `#${parentSegment.ID}`)}</span>}
+            {creativeReferenceLabels.length > 0 && <span className="text-[10px] text-muted-foreground">设定资料: {creativeReferenceLabels.length}</span>}
           </div>
           <div className="mt-0.5 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
             {moment.time_text && <span>时间: {String(moment.time_text)}</span>}
@@ -2713,6 +2792,7 @@ function SceneMomentRow({ moment, segments, projectId, queryKey, expandedIds, on
               <p className="mt-0.5 text-xs leading-relaxed text-foreground">{String(moment.description)}</p>
             </div>
           )}
+          <RelationBlock label="引用的设定资料" items={creativeReferenceLabels} />
           {lookup.assetSlotsByOwnerKey.has(ownerKey('scene_moment', moment.ID)) && (
             <RelationBlock
               label="出现的素材需求"
@@ -3337,12 +3417,11 @@ function buildDemoProposalDraft(input: {
   const existingReference = input.creativeReferences[0]
   const secondaryReference = input.creativeReferences[1]
   const existingSlot = input.assetSlots[0]
-  const existingUnit = input.contentUnits[0]
 
   return {
     productionId: input.productionId || 0,
     analysisScope: 'ui-preview',
-    summary: '这是一份用于预览编排审阅体验的示例提案：包含新建情景、复用项目设定资料、更新既有情景和新增素材需求缺口。',
+    summary: '这是一份用于预览编排审阅体验的示例提案：包含编排段、情景、设定引用和素材需求缺口；下游制作细化留给制作工作台继续展开。',
     proposedAt: new Date().toISOString(),
     proposal: {
       segments: [
@@ -3422,21 +3501,6 @@ function buildDemoProposalDraft(input: {
                       priority: 'high',
                     },
               ],
-              content_units: [
-                {
-                  action: existingUnit ? 'update' : 'create',
-                  id: existingUnit?.ID,
-                  client_id: 'demo_unit_update',
-                  title: existingUnit ? titleOfRecord(existingUnit) : '门口停步中景',
-                  kind: String(existingUnit?.kind ?? 'shot'),
-                  description: '中景跟拍主角停下，镜头轻微前推到包裹，制造信息悬念。',
-                  shot_size: 'medium',
-                  camera_angle: 'eye_level',
-                  duration_sec: Number(existingUnit?.duration_sec ?? 3),
-                  order: Number(existingUnit?.order ?? 1),
-                  before: existingUnit ? { description: existingUnit.description, shot_size: existingUnit.shot_size } : undefined,
-                },
-              ],
             },
             {
               action: 'create',
@@ -3475,30 +3539,6 @@ function buildDemoProposalDraft(input: {
                   kind: 'image',
                   description: '需要一张清晰手机屏幕特写，用于关键线索镜头。',
                   priority: 'critical',
-                },
-              ],
-              content_units: [
-                {
-                  action: 'create',
-                  client_id: 'demo_unit_sms',
-                  title: '短信特写',
-                  kind: 'shot',
-                  description: '手机屏幕特写，短信只露出关键半句，保留悬念。',
-                  shot_size: 'close_up',
-                  camera_angle: 'over_shoulder',
-                  duration_sec: 2.5,
-                  order: 1,
-                },
-                {
-                  action: 'create',
-                  client_id: 'demo_unit_reaction',
-                  title: '反应镜头',
-                  kind: 'shot',
-                  description: '主角抬头看向走廊，环境声压低，准备进入下一段行动。',
-                  shot_size: 'medium_close',
-                  camera_angle: 'eye_level',
-                  duration_sec: 3,
-                  order: 2,
                 },
               ],
             },
@@ -3545,19 +3585,6 @@ function buildDemoProposalDraft(input: {
                   priority: 'normal',
                 },
               ],
-              content_units: [
-                {
-                  action: 'create',
-                  client_id: 'demo_unit_corridor',
-                  title: '走廊移动镜头',
-                  kind: 'shot',
-                  description: '手持跟拍主角快步移动，电梯门在背景中关闭。',
-                  shot_size: 'wide',
-                  camera_angle: 'tracking',
-                  duration_sec: 4,
-                  order: 1,
-                },
-              ],
             },
           ],
         },
@@ -3566,28 +3593,38 @@ function buildDemoProposalDraft(input: {
   }
 }
 
-function buildOrchestrationAnalysisPrompt(scriptText: string, productionId?: number): string {
+function buildOrchestrationAnalysisPrompt(scriptText: string, productionId?: number, draftId?: string): string {
   const projectIdNote = productionId
     ? `当前制作 Production ID：${productionId}。`
     : ''
+  const draftIdNote = draftId
+    ? `当前 production_proposal 草稿 ID：${draftId}。所有 production_proposal 工具调用都必须显式带上 proposalRef 或 draftId = ${draftId}。`
+    : '当前 production_proposal 草稿 ID 将由页面上下文提供。'
   return [
     `任务：对以下剧本进行递归、全面的制作编排分析。${projectIdNote}`,
+    draftIdNote,
     '',
-    '执行步骤（必须按顺序，每步都要调用对应工具）：',
+    '执行步骤（按顺序执行；只读 MCP 工具不可用时不要中止，必须基于页面提供的剧本文本和草稿壳继续写入 production_proposal 草稿）：',
     '',
     '1. 如果当前制作 Production ID 缺失或不确定，先调用 movscript_list_productions 列出当前项目的制作并选择目标制作。',
     '   - 参数：projectId（从上下文获取）',
     '   - 目的：避免基于错误制作 production 生成 proposal 草稿',
+    '   - 如果该工具不可用，但上下文已提供 productionId，则使用已提供的 productionId 继续',
     '',
     '2. 调用 movscript_read_current_production 读取当前实际 production、已有草稿对比所需实体和剧本文本。',
     '   - 参数：projectId（从上下文获取）、productionId（从上下文获取）、includeScriptText: true',
-    '   - 目的：了解真实 production 中已有的情节/设定资料/素材需求/制作项/关键帧；这些内容只读，不要直接修改',
+    '   - 目的：了解真实 production 中已有的编排段、情节、设定资料、素材需求，以及下游制作细化结果；这些内容只读，不要直接修改',
+    '   - 如果该工具不可用，则不要停止；基于本消息中的剧本文本和页面草稿上下文继续生成 proposal',
     '',
     '3. 调用 movscript_inspect_production_proposal_context 检查当前 production_proposal 草稿；如果页面还没有提供草稿壳，就等待页面先打开草稿上下文，不要自己新建。',
     '   - production_proposal 草稿是唯一写入目标，页面负责承接它',
     '   - UI 会比较草稿和当前实际 production，并在人工确认后再应用',
+    '   - 如果本消息顶部提供了草稿 ID，调用 inspect、get、submit、upsert proposal 工具时都必须显式传 proposalRef 或 draftId',
+    '   - 如果 inspect 返回 proposalRef/draftId，则必须用该 proposalRef/draftId 写入；不要因为只读 production 工具不可用而暂停',
     '',
-    '4. 先在脑内完成整体分析，优先一次性调用 movscript_submit_production_proposal 写入完整 proposal。',
+    '4. 先在脑内完成整体分析，形成完整 proposal；在 submit 前必须调用 movscript_check_proposal_is_available 校验这棵 proposal。',
+    '   - 如果校验返回 normalizedProposal，必须使用 normalizedProposal 继续 submit',
+    '   - 禁止提交 action 为 reuse/update 但缺少数字 id 的节点；找不到已有 id 时必须改为 create',
     '   - 只有需要修补已有草稿中的少数节点时，才使用 movscript_upsert_proposal_* 细粒度工具',
     '   - 不要为每个节点单独调用工具后再 submit，一次 submit 应该覆盖完整审阅提案',
     '',
@@ -3600,33 +3637,107 @@ function buildOrchestrationAnalysisPrompt(scriptText: string, productionId?: num
     '   - 记录 time_text、location_text、action_text、mood',
     '',
     '7. 扫描全文提取设定资料（人物/地点/道具/产品/品牌/风格/世界规则）。',
-    '   - 设定资料来自项目上下文和当前 production，只读；草稿节点用 create/reuse/update 表达意图',
-    '   - 建立关系：segment_ids、scene_moment_ids、content_unit_ids',
+    '   - 设定资料来自项目信息和当前 production，只读；草稿节点用 create/reuse/update 表达意图',
+    '   - 建立关系：segment_ids、scene_moment_ids',
     '',
     '8. 基于设定资料和情景，推断素材需求（asset_slots）。',
-    '   - 素材需求来自项目上下文和当前 production，只读；草稿节点用 create/reuse/update 表达意图',
+    '   - 素材需求来自项目信息和当前 production，只读；草稿节点用 create/reuse/update 表达意图',
     '   - 每个素材需求必须有 owner_type 和对应 owner client_id',
     '',
-    '9. 对每个情景，递归分析制作项（content_units）。',
-    '   - 每个制作项必须带 segment_id 和 scene_moment_id',
-    '   - 记录 type、shot_size、camera_angle',
-    '   - 关联 creative_reference_ids 和 asset_slot_ids',
+    '9. 不要在编排 proposal 中生成 content_units、keyframes、台词终稿、运镜表或 prompt。',
+    '   - 编排阶段只定情节、设定引用、连续性和素材诉求',
+    '   - 如果需要给制作工作台提示表达方向，只写在 rationale、description 或 directing_intent 类说明字段',
     '',
-    '10. 为需要视觉确认的情景或制作项提取关键帧（keyframes）。',
-    '   - 关键帧必须挂在 scene_moment 或 content_unit 下',
-    '',
-    '11. 写入完成后，调用 movscript_get_production_proposal 或 movscript_list_production_proposal_nodes 复查草稿。',
+    '10. 写入完成后，调用 movscript_get_production_proposal 或 movscript_list_production_proposal_nodes 复查草稿。',
     '   - 不要调用任何直接创建、更新、删除后端 project/production 实体的工具',
     '   - 如果接近工具调用上限，立刻 submit 当前完整 proposal，不要继续细粒度 upsert',
     '',
     '关系完整性要求：',
     '- scene_moment.segment_id → 必须指向有效的 segment client_id',
-    '- content_unit.segment_id + scene_moment_id → 必须指向有效的 client_id',
     '- asset_slot.owner_type + owner_id → 必须指向有效的 client_id',
     '',
     '剧本文本（如果 read_current_production 已返回剧本文本，以工具返回的为准）：',
     scriptText.length > 6000 ? scriptText.slice(0, 6000) + '\n...[剧本过长，已截断，请以工具读取的完整版本为准]' : scriptText,
   ].join('\n')
+}
+
+function buildProjectProposalAnalysisPrompt(input: {
+  projectName: string
+  productionName: string
+  productionId: number
+  draftId: string
+  scriptVersionTitle: string
+  scriptText: string
+  projectSnapshot: {
+    references: SemanticEntityRecord[]
+    assetSlots: SemanticEntityRecord[]
+    productions: SemanticEntityRecord[]
+  }
+  userPrompt: string
+}) {
+  const snapshot = {
+    projectName: input.projectName,
+    productionName: input.productionName,
+    productionId: input.productionId,
+    scriptVersionTitle: input.scriptVersionTitle,
+    scriptTextPreview: input.scriptText.slice(0, 4000),
+    referenceCount: input.projectSnapshot.references.length,
+    assetSlotCount: input.projectSnapshot.assetSlots.length,
+    productionCount: input.projectSnapshot.productions.length,
+    references: input.projectSnapshot.references.slice(0, 60).map((item) => ({
+      id: item.ID,
+      name: titleOfRecord(item),
+      kind: item.kind,
+      status: item.status,
+      description: item.description ?? item.summary ?? item.content ?? '',
+    })),
+    assetSlots: input.projectSnapshot.assetSlots.slice(0, 60).map((item) => ({
+      id: item.ID,
+      name: titleOfRecord(item),
+      kind: item.kind,
+      status: item.status,
+      priority: item.priority,
+      creative_reference_id: item.creative_reference_id,
+      description: item.description ?? item.summary ?? item.content ?? '',
+    })),
+  }
+
+  return [
+    `你是项目提案助手。请基于当前制作和剧本，整理项目级设定与素材需求，并只写入本地 draft：${input.draftId}。`,
+    '',
+    '边界：',
+    '- 这是 project_proposal，不是 production_proposal。',
+    '- 只修改项目级设定资料和项目级素材需求。',
+    '- 不要生成编排段、情景、制作项、关键帧、台词终稿、运镜表或 prompt。',
+    '- 不要直接改正式后端实体；只更新本地 draft，等待用户在项目工作台应用。',
+    '',
+    '建议写入结构：',
+    JSON.stringify({
+      scope: 'project_proposal',
+      summary: '一句话概述本次从当前制作/剧本抽取出的项目治理结论',
+      proposal: {
+        creative_references: [
+          { action: 'create|update|delete|merge', entity: 'creativeReferences', id: 0, target_id: 0, source_ids: [0], payload: {} },
+        ],
+        asset_slots: [
+          { action: 'create|update|delete|lock_asset', entity: 'assetSlots', id: 0, target_id: 0, payload: {} },
+        ],
+      },
+      operations: [],
+    }, null, 2),
+    '',
+    '执行步骤：',
+    '1. 如果上下文里 productionId 不明确，先读当前上下文；必要时列出 productions 再确认目标制作。',
+    '2. 调用 movscript_read_current_production 或 movscript_build_orchestration_diff，提取当前制作、剧本、已有设定和素材需求。',
+    '3. 先判断哪些设定资料可以复用、更新或合并，哪些素材需求是缺口。',
+    '4. 只把会改变项目的操作写入 draft；纯复用既有设定/素材需求时，在 summary 或 payload.rationale 说明，不要提交 reuse action。',
+    '5. 只把项目级结论写入 draft，不要展开制作级结构。',
+    '6. 提交前调用 movscript_validate_draft 检查。',
+    '',
+    input.userPrompt.trim() ? `用户补充要求：\n${input.userPrompt.trim()}` : '',
+    '当前项目快照：',
+    JSON.stringify(snapshot, null, 2),
+  ].filter(Boolean).join('\n')
 }
 
 function attachProposalDraftMeta(content: ProposalDraftContent, draft: AgentDraft): ProposalDraftContent {
@@ -3823,24 +3934,12 @@ function buildLocalAnalysisResult(scriptText: string): AIAnalysisResult {
 
   const creative_references = extractCreativeReferences(scriptText)
   const asset_slots = buildAssetSlots(segments, creative_references)
-  const content_units = segments.map((segment, index) => ({
-    client_id: `cu${index + 1}`,
-    segment_id: segment.client_id,
-    scene_moment_id: `sm${index + 1}`,
-    creative_reference_ids: creative_references.slice(0, 4).map((reference) => reference.client_id),
-    asset_slot_ids: asset_slots.filter((slot) => slot.segment_id === segment.client_id).map((slot) => slot.client_id),
-    order: index + 1,
-    type: 'shot',
-    description: segment.summary,
-    shot_size: inferShotSize(segment.summary),
-    camera_angle: '平视',
-  }))
+  const content_units: AIContentUnitCandidate[] = []
 
   for (const moment of scene_moments) {
     const segmentRefs = creative_references.filter((reference) => scriptText.includes(reference.name)).slice(0, 6)
     moment.creative_reference_ids = segmentRefs.map((reference) => reference.client_id)
     moment.asset_slot_ids = asset_slots.filter((slot) => slot.segment_id === moment.segment_id).map((slot) => slot.client_id)
-    moment.content_unit_ids = content_units.filter((unit) => unit.scene_moment_id === moment.client_id).map((unit) => unit.client_id)
   }
 
   return { segments, scene_moments, creative_references, asset_slots, content_units }
@@ -4143,17 +4242,54 @@ function AgentChatSidebar({
     const productionId = production?.ID ?? 0
     const requestId = `production_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
 
-    // Build a concise prompt that instructs the agent to use its tools
-    const analysisPrompt = buildOrchestrationAnalysisPrompt(
-      [text.trim(), orchestrationPrompt.trim() ? `\n\n用户补充要求：\n${orchestrationPrompt.trim()}` : ''].filter(Boolean).join(''),
-      productionId,
-    )
     const displayMessage = [
       `请执行制作编排分析：${production?.name ?? `#${productionId}`}`,
       `完整剧本文本已通过运行输入发送（${text.trim().length} 字符），面板仅展示摘要以避免冻结。`,
     ].join('\n')
 
     try {
+      const pageKey = buildPageKey({
+        route: { pathname: '/production-orchestrate', search: `?productionId=${productionId}` },
+        projectId,
+        productionId,
+        selection: production?.ID
+          ? { entityType: 'production', entityId: production.ID, label: String(production.name ?? `制作 #${production.ID}`) }
+          : null,
+        labels: ['production-orchestrate'],
+      })
+      const existingProposalDrafts = await client.listDrafts({ projectId, kind: 'production_proposal', status: 'draft', pageKey, limit: 1 })
+      const draftShell = existingProposalDrafts.drafts[0] ?? await localAgentClient.createDraft({
+        projectId,
+        kind: 'production_proposal',
+        title: `制作编排草稿 - ${production?.name ?? `#${productionId}`}`,
+        content: JSON.stringify({
+          productionId,
+          analysisScope: 'production',
+          proposal: { segments: [] },
+          proposedAt: new Date().toISOString(),
+        }, null, 2),
+        source: {
+          entityType: 'production',
+          entityId: productionId,
+          pageKey,
+          pageType: 'production_orchestrate',
+          pageRoute: `/production-orchestrate?productionId=${productionId}`,
+          pageEntityType: 'production',
+          pageEntityId: productionId,
+        },
+        metadata: {
+          pageOwned: true,
+          analysisScope: 'production',
+          productionId,
+        },
+      })
+
+      const analysisPrompt = buildOrchestrationAnalysisPrompt(
+        [text.trim(), orchestrationPrompt.trim() ? `\n\n用户补充要求：\n${orchestrationPrompt.trim()}` : ''].filter(Boolean).join(''),
+        productionId,
+        draftShell.id,
+      )
+
       setReceivedData({
         message: text.trim(),
         context: {
@@ -4241,6 +4377,11 @@ function AgentChatSidebar({
           hints: {
             projectId,
             productionId,
+            draftId: draftShell.id,
+            route: {
+              pathname: '/production-orchestrate',
+              search: `?productionId=${productionId}`,
+            },
             selection: production?.ID
               ? { entityType: 'production', entityId: production.ID, label: String(production.name ?? `制作 #${production.ID}`) }
               : null,
@@ -4375,7 +4516,7 @@ function AgentChatSidebar({
             </div>
             <Textarea
               className="mt-2 min-h-24 resize-none text-xs leading-relaxed"
-              placeholder="补充你希望 AI 遵循的要求，例如：重点补齐缺失情景；保留原编排段名称；制作项先粗分，不生成镜头细节。"
+              placeholder="补充你希望 AI 遵循的要求，例如：重点补齐缺失情景；保留原编排段名称；素材需求只占位不锁定资源。"
               value={orchestrationPrompt}
               onChange={(event) => onOrchestrationPromptChange(event.target.value)}
             />
@@ -4397,7 +4538,6 @@ function AgentChatSidebar({
               <ContextLine icon={Route} label="情景" value={`${outputCounts.sceneMoments}`} />
               <ContextLine icon={Sparkles} label="设定资料" value={`${outputCounts.creativeReferences}`} />
               <ContextLine icon={PackageCheck} label="素材需求" value={`${outputCounts.assetSlots}`} />
-              <ContextLine icon={Film} label="制作项" value={`${outputCounts.contentUnits}`} />
               <ContextLine icon={Sparkle} label="待审候选" value={`${pendingTotal}`} />
             </div>
           </div>
@@ -4490,7 +4630,7 @@ function AgentChatSidebar({
                 )}
                 <Textarea
                   className="min-h-[240px] resize-none font-mono text-xs leading-relaxed"
-                  placeholder="粘贴剧本内容，向导会先拆编排段，再补设定资料、情景、素材需求和制作项。"
+                  placeholder="粘贴剧本内容，向导会先拆编排段，再补设定资料、情景和素材需求。"
                   value={scriptText}
                   onChange={(e) => setScriptText(e.target.value)}
                   autoFocus
@@ -4715,11 +4855,13 @@ function ProposalReviewPanel({
   const [appliedCounts, setAppliedCounts] = useState<Record<string, number> | null>(null)
   const [simulationResult, setSimulationResult] = useState<ProposalSimulationResult | null>(null)
   const [expandedSegments, setExpandedSegments] = useState<Set<string>>(() => new Set(['demo_segment_existing', 'demo_segment_new']))
+  const [reviewTab, setReviewTab] = useState<ProposalReviewTab>('structure')
   const segments = proposalDraft.proposal?.segments ?? []
   const replacementPreview = useMemo(
     () => buildProposalReplacementPreview(proposalDraft, currentEntities),
     [currentEntities, proposalDraft],
   )
+  const proposalContext = useMemo(() => collectProposalContextResources(segments), [segments])
   const totalSceneMoments = segments.reduce((s, seg) => s + (seg.scene_moments?.length ?? 0), 0)
   const totalContentUnits = segments.reduce((s, seg) =>
     s + (seg.scene_moments ?? []).reduce((ss, sm) => ss + (sm.content_units?.length ?? 0), 0), 0)
@@ -4752,6 +4894,15 @@ function ProposalReviewPanel({
     onNodeDecisionsChange((prev) => ({ ...prev, [key]: decision }))
   }
 
+  function setNodeDecisions(keys: string[], decision: 'accepted' | 'rejected') {
+    setSimulationResult(null)
+    onNodeDecisionsChange((prev) => {
+      const next = { ...prev }
+      for (const key of keys) next[key] = decision
+      return next
+    })
+  }
+
   function acceptAllNodes() {
     setSimulationResult(null)
     onNodeDecisionsChange(Object.fromEntries(reviewNodes.map((node) => [node.key, 'accepted'])))
@@ -4765,13 +4916,37 @@ function ProposalReviewPanel({
 
   function buildAcceptedProposal() {
     const acceptedSegments = segments.flatMap((segment, index) => {
-      const segmentKey = nodeDecisionKey('segment', segment.client_id ?? String(index))
+      const segmentKey = proposalNodeDecisionKey('segment', segment, String(index))
       if (nodeDecisions[segmentKey] !== 'accepted') return []
+      const segmentId = proposalNodeIdentity(segment, String(index))
       return [{
         ...segment,
-        scene_moments: (segment.scene_moments ?? []).filter((moment, momentIndex) =>
-          nodeDecisions[nodeDecisionKey('scene_moment', moment.client_id ?? `${segment.client_id ?? String(index)}-${momentIndex}`)] === 'accepted'
-        ),
+        scene_moments: (segment.scene_moments ?? []).flatMap((moment, momentIndex) => {
+          const momentFallback = `${segmentId}-${momentIndex}`
+          if (nodeDecisions[proposalNodeDecisionKey('scene_moment', moment, momentFallback)] !== 'accepted') return []
+          return [{
+            ...moment,
+            creative_references: (moment.creative_references ?? []).filter((reference, referenceIndex) =>
+              nodeDecisions[proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)] === 'accepted',
+            ),
+            asset_slots: (moment.asset_slots ?? []).filter((slot, slotIndex) =>
+              nodeDecisions[proposalNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`)] === 'accepted',
+            ),
+            keyframes: (moment.keyframes ?? []).filter((keyframe, keyframeIndex) =>
+              nodeDecisions[proposalNodeDecisionKey('keyframe', keyframe, `${momentFallback}-keyframe-${keyframeIndex}`)] === 'accepted',
+            ),
+            content_units: (moment.content_units ?? []).flatMap((unit, unitIndex) => {
+              const unitFallback = `${momentFallback}-unit-${unitIndex}`
+              if (nodeDecisions[proposalNodeDecisionKey('content_unit', unit, unitFallback)] !== 'accepted') return []
+              return [{
+                ...unit,
+                keyframes: (unit.keyframes ?? []).filter((keyframe, keyframeIndex) =>
+                  nodeDecisions[proposalNodeDecisionKey('keyframe', keyframe, `${unitFallback}-keyframe-${keyframeIndex}`)] === 'accepted',
+                ),
+              }]
+            }),
+          }]
+        }),
       }]
     })
     return buildProposalReplacementPreview({ ...proposalDraft, proposal: { segments: acceptedSegments } }, currentEntities).proposal
@@ -4848,6 +5023,11 @@ function ProposalReviewPanel({
     const proposal = buildAcceptedProposal()
     if (proposal.segments.length === 0) {
       setApplyError('请至少接受一个段落后再写入项目')
+      return
+    }
+    const missingId = findProposalActionMissingId(proposal)
+    if (missingId) {
+      setApplyError(`${missingId.label} 设置为 ${missingId.action}，但缺少已有实体 ID。请重新生成或改为新建后再写入。`)
       return
     }
     setApplying(true)
@@ -4963,15 +5143,9 @@ function ProposalReviewPanel({
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">编排段 {segments.length}</span>
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">情景 {totalSceneMoments}</span>
           <span className="rounded bg-muted px-1.5 py-1 text-foreground">单元 {totalContentUnits}</span>
-          {totalCreativeRefs > 0 && (
-            <span className="rounded bg-muted px-1.5 py-1 text-foreground">设定资料 {totalCreativeRefs}</span>
-          )}
-          {totalAssetSlots > 0 && (
-            <span className="rounded bg-muted px-1.5 py-1 text-foreground">素材需求 {totalAssetSlots}</span>
-          )}
-          {totalKeyframes > 0 && (
-            <span className="rounded bg-muted px-1.5 py-1 text-foreground">关键帧 {totalKeyframes}</span>
-          )}
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">设定资料 {totalCreativeRefs}</span>
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">素材需求 {totalAssetSlots}</span>
+          <span className="rounded bg-muted px-1.5 py-1 text-foreground">关键帧 {totalKeyframes}</span>
         </div>
       </div>
 
@@ -4979,7 +5153,7 @@ function ProposalReviewPanel({
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold text-foreground">审阅进度</p>
-            <p className="mt-1 text-[11px] text-muted-foreground">{reviewedCount}/{reviewNodes.length} 个结构节点已决策</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{reviewedCount}/{reviewNodes.length} 个提案节点已决策</p>
           </div>
           <Badge variant={unresolvedCount > 0 ? 'warning' : 'success'} className="h-5 rounded-full px-2 text-[10px]">
             {unresolvedCount > 0 ? `${unresolvedCount} 待处理` : '可写入'}
@@ -5003,6 +5177,13 @@ function ProposalReviewPanel({
         </div>
       </div>
 
+      <div className="grid grid-cols-3 rounded-lg bg-muted p-1">
+        <ProposalTabButton active={reviewTab === 'structure'} icon={LayoutList} label="结构" onClick={() => setReviewTab('structure')} />
+        <ProposalTabButton active={reviewTab === 'context'} icon={Sparkles} label="依据" onClick={() => setReviewTab('context')} />
+        <ProposalTabButton active={reviewTab === 'impact'} icon={Target} label="影响" onClick={() => setReviewTab('impact')} />
+      </div>
+
+      {reviewTab === 'impact' && (
       <div className="rounded-lg border border-border bg-background p-3">
         <div className="flex items-center gap-2">
           <Target size={13} className="text-primary" />
@@ -5022,18 +5203,21 @@ function ProposalReviewPanel({
           复用节点引用项目级设定资料或已有素材需求；更新节点会进入二次确认语义，避免直接覆盖已确认内容。
         </p>
       </div>
+      )}
 
       {/* Tree */}
+      {reviewTab === 'structure' && (
       <div className="rounded-lg border border-border">
         <div className="border-b border-border px-3 py-2">
           <span className="text-[11px] font-medium text-foreground">提案结构</span>
         </div>
         <div className="divide-y divide-border">
           {segments.map((seg, i) => {
-            const key = seg.client_id ?? String(i)
+            const key = proposalNodeIdentity(seg, String(i))
+            const segmentDecisionKey = proposalNodeDecisionKey('segment', seg, String(i))
             const expanded = expandedSegments.has(key)
             const smCount = seg.scene_moments?.length ?? 0
-            const decision = nodeDecisions[nodeDecisionKey('segment', key)]
+            const decision = nodeDecisions[segmentDecisionKey]
             return (
               <div key={key}>
                 <button
@@ -5066,21 +5250,22 @@ function ProposalReviewPanel({
                         <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-300">原标题：{String(seg.before?.title)}</p>
                       )}
                       <div className="mt-2 flex gap-1.5">
-                        <Button size="sm" variant={decision === 'accepted' ? 'secondary' : 'outline'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecision(nodeDecisionKey('segment', key), 'accepted')}>
+                        <Button size="sm" variant={decision === 'accepted' ? 'secondary' : 'outline'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecisions(collectSegmentProposalReviewNodes(seg, i).map((node) => node.key), 'accepted')}>
                           接受段落
                         </Button>
-                        <Button size="sm" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecision(nodeDecisionKey('segment', key), 'rejected')}>
+                        <Button size="sm" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecisions(collectSegmentProposalReviewNodes(seg, i).map((node) => node.key), 'rejected')}>
                           删除段落
                         </Button>
                       </div>
                     </div>
                     {(seg.scene_moments ?? []).map((sm, j) => {
-                      const smKey = sm.client_id ?? String(j)
+                      const smFallback = `${key}-${j}`
+                      const smKey = proposalNodeIdentity(sm, smFallback)
                       const cuCount = sm.content_units?.length ?? 0
                       const refCount = sm.creative_references?.length ?? 0
                       const slotCount = sm.asset_slots?.length ?? 0
                       const keyframeCount = (sm.keyframes?.length ?? 0) + (sm.content_units ?? []).reduce((sum, unit) => sum + (unit.keyframes?.length ?? 0), 0)
-                      const smDecision = nodeDecisions[nodeDecisionKey('scene_moment', smKey)]
+                      const smDecision = nodeDecisions[proposalNodeDecisionKey('scene_moment', sm, smFallback)]
                       return (
                         <div key={smKey} className={cn('border-b border-border/50 px-3 py-2 last:border-b-0', smDecision === 'rejected' && 'opacity-50')}>
                           <div className="flex items-center gap-2">
@@ -5127,10 +5312,10 @@ function ProposalReviewPanel({
                             </div>
                           )}
                           <div className="ml-8 mt-2 flex gap-1.5">
-                            <Button size="sm" variant={smDecision === 'accepted' ? 'secondary' : 'outline'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecision(nodeDecisionKey('scene_moment', smKey), 'accepted')}>
+                            <Button size="sm" variant={smDecision === 'accepted' ? 'secondary' : 'outline'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecisions(collectSceneProposalReviewNodes(sm, smFallback).map((node) => node.key), 'accepted')}>
                               接受
                             </Button>
-                            <Button size="sm" variant={smDecision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecision(nodeDecisionKey('scene_moment', smKey), 'rejected')}>
+                            <Button size="sm" variant={smDecision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => setNodeDecisions(collectSceneProposalReviewNodes(sm, smFallback).map((node) => node.key), 'rejected')}>
                               删除
                             </Button>
                           </div>
@@ -5144,6 +5329,15 @@ function ProposalReviewPanel({
           })}
         </div>
       </div>
+      )}
+
+      {reviewTab === 'context' && (
+        <ProposalContextPanel
+          context={proposalContext}
+          decisions={nodeDecisions}
+          onSetDecision={setNodeDecision}
+        />
+      )}
 
       {applyError && (
         <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3 dark:border-rose-800/50 dark:bg-rose-950/30">
@@ -5152,7 +5346,7 @@ function ProposalReviewPanel({
         </div>
       )}
 
-      <div className={cn('grid gap-2', previewOnly ? 'grid-cols-2' : 'grid-cols-3')}>
+      <div className={cn('sticky bottom-0 -mx-4 -mb-4 grid gap-2 border-t border-border bg-card/95 p-3 backdrop-blur', previewOnly ? 'grid-cols-2' : 'grid-cols-3')}>
         <Button
           size="sm"
           variant="outline"
@@ -5212,8 +5406,32 @@ function DecisionBadge({ decision }: { decision: 'accepted' | 'rejected' }) {
   )
 }
 
+function ProposalTabButton({ active, icon: Icon, label, onClick }: { active: boolean; icon: LucideIcon; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors',
+        active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+      )}
+    >
+      <Icon size={12} />
+      {label}
+    </button>
+  )
+}
+
 function nodeDecisionKey(type: string, id: string) {
   return `${type}:${id}`
+}
+
+function proposalNodeIdentity(node: { client_id?: string; id?: number }, fallback: string) {
+  return node.client_id ?? (node.id ? String(node.id) : fallback)
+}
+
+function proposalNodeDecisionKey(type: string, node: { client_id?: string; id?: number }, fallback: string) {
+  return nodeDecisionKey(type, proposalNodeIdentity(node, fallback))
 }
 
 interface ProposalReviewNode {
@@ -5221,16 +5439,229 @@ interface ProposalReviewNode {
   action: string
 }
 
+interface ProposalContextItem {
+  nodeKey: string
+  action?: string
+  title: string
+  detail: string
+  parent: string
+}
+
+interface ProposalContextResources {
+  creativeReferences: ProposalContextItem[]
+  assetSlots: ProposalContextItem[]
+  contentUnits: ProposalContextItem[]
+  keyframes: ProposalContextItem[]
+}
+
 function collectProposalReviewNodes(segments: ProposalSegmentNode[]): ProposalReviewNode[] {
-  return segments.flatMap((segment, index) => {
-    const segmentId = segment.client_id ?? String(index)
-    const segmentNode = { key: nodeDecisionKey('segment', segmentId), action: segment.action ?? 'create' }
-    const sceneNodes = (segment.scene_moments ?? []).map((moment, momentIndex) => ({
-      key: nodeDecisionKey('scene_moment', moment.client_id ?? `${segmentId}-${momentIndex}`),
-      action: moment.action ?? 'create',
-    }))
-    return [segmentNode, ...sceneNodes]
+  return segments.flatMap((segment, index) => collectSegmentProposalReviewNodes(segment, index))
+}
+
+function collectSegmentProposalReviewNodes(segment: ProposalSegmentNode, index: number): ProposalReviewNode[] {
+  const segmentId = proposalNodeIdentity(segment, String(index))
+  return [
+    { key: proposalNodeDecisionKey('segment', segment, String(index)), action: segment.action ?? 'create' },
+    ...(segment.scene_moments ?? []).flatMap((moment, momentIndex) =>
+      collectSceneProposalReviewNodes(moment, `${segmentId}-${momentIndex}`),
+    ),
+  ]
+}
+
+function collectSceneProposalReviewNodes(moment: ProposalSceneMomentNode, fallback: string): ProposalReviewNode[] {
+  return [
+    { key: proposalNodeDecisionKey('scene_moment', moment, fallback), action: moment.action ?? 'create' },
+    ...(moment.creative_references ?? []).map((reference, index) => ({
+      key: proposalNodeDecisionKey('creative_reference', reference, `${fallback}-reference-${index}`),
+      action: reference.action ?? 'create',
+    })),
+    ...(moment.asset_slots ?? []).map((slot, index) => ({
+      key: proposalNodeDecisionKey('asset_slot', slot, `${fallback}-asset-${index}`),
+      action: slot.action ?? 'create',
+    })),
+    ...(moment.keyframes ?? []).map((keyframe, index) => ({
+      key: proposalNodeDecisionKey('keyframe', keyframe, `${fallback}-keyframe-${index}`),
+      action: keyframe.action ?? 'create',
+    })),
+    ...(moment.content_units ?? []).flatMap((unit, unitIndex) => {
+      const unitFallback = `${fallback}-unit-${unitIndex}`
+      return [
+        { key: proposalNodeDecisionKey('content_unit', unit, unitFallback), action: unit.action ?? 'create' },
+        ...(unit.keyframes ?? []).map((keyframe, keyframeIndex) => ({
+          key: proposalNodeDecisionKey('keyframe', keyframe, `${unitFallback}-keyframe-${keyframeIndex}`),
+          action: keyframe.action ?? 'create',
+        })),
+      ]
+    }),
+  ]
+}
+
+function collectProposalContextResources(segments: ProposalSegmentNode[]): ProposalContextResources {
+  const context: ProposalContextResources = {
+    creativeReferences: [],
+    assetSlots: [],
+    contentUnits: [],
+    keyframes: [],
+  }
+
+  segments.forEach((segment, segmentIndex) => {
+    const segmentId = proposalNodeIdentity(segment, String(segmentIndex))
+    const segmentTitle = segment.title || `编排段 ${segmentIndex + 1}`
+    ;(segment.scene_moments ?? []).forEach((moment, momentIndex) => {
+      const momentFallback = `${segmentId}-${momentIndex}`
+      const momentTitle = moment.title || `情景 ${momentIndex + 1}`
+      const parent = `${segmentTitle} / ${momentTitle}`
+
+      ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
+        context.creativeReferences.push({
+          nodeKey: proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`),
+          action: reference.action,
+          title: reference.name || '未命名设定资料',
+          detail: compactParts([reference.kind, reference.role, reference.source_label, stateSummary(reference.state)]),
+          parent,
+        })
+      })
+
+      ;(moment.asset_slots ?? []).forEach((slot, slotIndex) => {
+        context.assetSlots.push({
+          nodeKey: proposalNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`),
+          action: slot.action,
+          title: slot.name || '未命名素材需求',
+          detail: compactParts([slot.kind, slot.priority, slot.source_label, slot.description]),
+          parent,
+        })
+      })
+
+      ;(moment.keyframes ?? []).forEach((keyframe, keyframeIndex) => {
+        context.keyframes.push({
+          nodeKey: proposalNodeDecisionKey('keyframe', keyframe, `${momentFallback}-keyframe-${keyframeIndex}`),
+          action: keyframe.action,
+          title: keyframe.title || '未命名关键帧',
+          detail: compactParts([keyframe.status, keyframe.description, keyframe.prompt]),
+          parent,
+        })
+      })
+
+      ;(moment.content_units ?? []).forEach((unit, unitIndex) => {
+        const unitFallback = `${momentFallback}-unit-${unitIndex}`
+        const unitTitle = unit.title || unit.description || `制作项 ${unitIndex + 1}`
+        context.contentUnits.push({
+          nodeKey: proposalNodeDecisionKey('content_unit', unit, unitFallback),
+          action: unit.action,
+          title: unitTitle,
+          detail: compactParts([unit.kind, unit.shot_size, unit.camera_angle, unit.duration_sec ? `${unit.duration_sec}s` : '', unit.description]),
+          parent,
+        })
+
+        ;(unit.keyframes ?? []).forEach((keyframe, keyframeIndex) => {
+          context.keyframes.push({
+            nodeKey: proposalNodeDecisionKey('keyframe', keyframe, `${unitFallback}-keyframe-${keyframeIndex}`),
+            action: keyframe.action,
+            title: keyframe.title || '未命名关键帧',
+            detail: compactParts([keyframe.status, keyframe.description, keyframe.prompt]),
+            parent: `${parent} / ${unitTitle}`,
+          })
+        })
+      })
+    })
   })
+
+  return context
+}
+
+function compactParts(values: unknown[]) {
+  const text = values
+    .map((value) => String(value ?? '').trim())
+    .filter(Boolean)
+    .join(' · ')
+  return text.length > 120 ? `${text.slice(0, 120)}…` : text
+}
+
+function stateSummary(state?: Record<string, unknown>) {
+  if (!state) return ''
+  return Object.entries(state)
+    .slice(0, 3)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join('，')
+}
+
+function ProposalContextPanel({
+  context,
+  decisions,
+  onSetDecision,
+}: {
+  context: ProposalContextResources
+  decisions: ProposalNodeDecisions
+  onSetDecision: (key: string, decision: 'accepted' | 'rejected') => void
+}) {
+  return (
+    <div className="space-y-3">
+      <ProposalContextGroup icon={Sparkles} title="设定资料" items={context.creativeReferences} empty="本提案没有新增或复用设定资料" decisions={decisions} onSetDecision={onSetDecision} />
+      <ProposalContextGroup icon={PackageCheck} title="素材需求" items={context.assetSlots} empty="本提案没有新增或复用素材需求" decisions={decisions} onSetDecision={onSetDecision} />
+      <ProposalContextGroup icon={Film} title="制作项" items={context.contentUnits} empty="本提案没有制作项" decisions={decisions} onSetDecision={onSetDecision} />
+      <ProposalContextGroup icon={ImageIcon} title="关键帧" items={context.keyframes} empty="本提案没有关键帧" decisions={decisions} onSetDecision={onSetDecision} />
+    </div>
+  )
+}
+
+function ProposalContextGroup({
+  icon: Icon,
+  title,
+  items,
+  empty,
+  decisions,
+  onSetDecision,
+}: {
+  icon: LucideIcon
+  title: string
+  items: ProposalContextItem[]
+  empty: string
+  decisions: ProposalNodeDecisions
+  onSetDecision: (key: string, decision: 'accepted' | 'rejected') => void
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-background">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <span className="flex items-center gap-1.5 text-[11px] font-medium text-foreground">
+          <Icon size={12} />
+          {title}
+        </span>
+        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{items.length}</span>
+      </div>
+      {items.length === 0 ? (
+        <p className="px-3 py-4 text-[11px] text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="divide-y divide-border/60">
+          {items.map((item, index) => {
+            const decision = decisions[item.nodeKey]
+            return (
+              <div key={`${item.nodeKey}-${index}`} className={cn('px-3 py-2', decision === 'rejected' && 'opacity-50')}>
+                <div className="flex items-start gap-2">
+                  <ActionBadge action={item.action} compact />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-[11px] font-medium text-foreground">{item.title}</p>
+                      {decision && <DecisionBadge decision={decision} />}
+                    </div>
+                    <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{item.parent}</p>
+                    {item.detail && <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{item.detail}</p>}
+                  </div>
+                </div>
+                <div className="mt-2 flex gap-1.5 pl-7">
+                  <Button size="sm" variant={decision === 'accepted' ? 'secondary' : 'outline'} className="h-6 px-2 text-[10px]" onClick={() => onSetDecision(item.nodeKey, 'accepted')}>
+                    接受
+                  </Button>
+                  <Button size="sm" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => onSetDecision(item.nodeKey, 'rejected')}>
+                    删除
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function countProposalDecisionSummary(segments: ProposalSegmentNode[], decisions: ProposalNodeDecisions) {
@@ -5267,6 +5698,42 @@ function countProposalActions(segments: ProposalSegmentNode[]) {
   return counts
 }
 
+function findProposalActionMissingId(proposal: { segments: ProposalSegmentNode[] }): { label: string; action: string } | null {
+  function checkNode(label: string, action?: string, id?: number | null) {
+    if ((action === 'reuse' || action === 'update') && id == null) return { label, action }
+    return null
+  }
+  for (const segment of proposal.segments) {
+    const segmentProblem = checkNode(segment.title ?? segment.client_id ?? '编排段', segment.action, segment.id)
+    if (segmentProblem) return segmentProblem
+    for (const moment of segment.scene_moments ?? []) {
+      const momentProblem = checkNode(moment.title ?? moment.client_id ?? '情景', moment.action, moment.id)
+      if (momentProblem) return momentProblem
+      for (const reference of moment.creative_references ?? []) {
+        const referenceProblem = checkNode(reference.name ?? reference.client_id ?? '设定资料', reference.action, reference.id)
+        if (referenceProblem) return referenceProblem
+      }
+      for (const slot of moment.asset_slots ?? []) {
+        const slotProblem = checkNode(slot.name ?? slot.client_id ?? '素材需求', slot.action, slot.id)
+        if (slotProblem) return slotProblem
+      }
+      for (const unit of moment.content_units ?? []) {
+        const unitProblem = checkNode(unit.title ?? unit.client_id ?? '制作项', unit.action, unit.id)
+        if (unitProblem) return unitProblem
+        for (const keyframe of unit.keyframes ?? []) {
+          const keyframeProblem = checkNode(keyframe.title ?? keyframe.client_id ?? '关键帧', keyframe.action, keyframe.id)
+          if (keyframeProblem) return keyframeProblem
+        }
+      }
+      for (const keyframe of moment.keyframes ?? []) {
+        const keyframeProblem = checkNode(keyframe.title ?? keyframe.client_id ?? '关键帧', keyframe.action, keyframe.id)
+        if (keyframeProblem) return keyframeProblem
+      }
+    }
+  }
+  return null
+}
+
 function buildProposalReplacementPreview(proposalDraft: ProposalDraftContent, current: ProposalConflictEntities): ProposalReplacementPreview {
   const segmentByTitle = titleMap(current.segments)
   const sceneMomentByTitle = titleMap(current.sceneMoments)
@@ -5277,59 +5744,59 @@ function buildProposalReplacementPreview(proposalDraft: ProposalDraftContent, cu
 
   const segments = (proposalDraft.proposal?.segments ?? []).map((segment) => {
     const nextSegment = { ...segment }
-    if (nextSegment.action === 'create') {
+    if (nextSegment.action === 'create' || ((nextSegment.action === 'reuse' || nextSegment.action === 'update') && nextSegment.id == null)) {
       const existing = segmentByTitle.get(normalizeTitleKey(nextSegment.title))
       if (existing) {
-        nextSegment.action = 'update'
+        if (nextSegment.action === 'create') nextSegment.action = 'update'
         nextSegment.id = existing.ID
         nextSegment.before = nextSegment.before ?? { title: titleOfRecord(existing), summary: existing.summary ?? existing.content ?? '' }
-        replaced.segments += 1
+        if (segment.action === 'create') replaced.segments += 1
       }
     }
     nextSegment.scene_moments = (nextSegment.scene_moments ?? []).map((moment) => {
       const nextMoment = { ...moment }
-      if (nextMoment.action === 'create') {
+      if (nextMoment.action === 'create' || ((nextMoment.action === 'reuse' || nextMoment.action === 'update') && nextMoment.id == null)) {
         const existing = sceneMomentByTitle.get(normalizeTitleKey(nextMoment.title))
         if (existing) {
-          nextMoment.action = 'update'
+          if (nextMoment.action === 'create') nextMoment.action = 'update'
           nextMoment.id = existing.ID
           nextMoment.before = nextMoment.before ?? { title: titleOfRecord(existing), action_text: existing.action_text ?? existing.description ?? '' }
-          replaced.sceneMoments += 1
+          if (moment.action === 'create') replaced.sceneMoments += 1
         }
       }
       nextMoment.creative_references = (nextMoment.creative_references ?? []).map((reference) => {
         const nextReference = { ...reference }
-        if (nextReference.action === 'create') {
+        if (nextReference.action === 'create' || ((nextReference.action === 'reuse' || nextReference.action === 'update') && nextReference.id == null)) {
           const existing = creativeReferenceByTitle.get(normalizeTitleKey(nextReference.name))
           if (existing) {
-            nextReference.action = 'update'
+            if (nextReference.action === 'create') nextReference.action = 'update'
             nextReference.id = existing.ID
-            replaced.creativeReferences += 1
+            if (reference.action === 'create') replaced.creativeReferences += 1
           }
         }
         return nextReference
       })
       nextMoment.asset_slots = (nextMoment.asset_slots ?? []).map((slot) => {
         const nextSlot = { ...slot }
-        if (nextSlot.action === 'create') {
+        if (nextSlot.action === 'create' || ((nextSlot.action === 'reuse' || nextSlot.action === 'update') && nextSlot.id == null)) {
           const existing = assetSlotByTitle.get(normalizeTitleKey(nextSlot.name))
           if (existing) {
-            nextSlot.action = 'update'
+            if (nextSlot.action === 'create') nextSlot.action = 'update'
             nextSlot.id = existing.ID
-            replaced.assetSlots += 1
+            if (slot.action === 'create') replaced.assetSlots += 1
           }
         }
         return nextSlot
       })
       nextMoment.content_units = (nextMoment.content_units ?? []).map((unit) => {
         const nextUnit = { ...unit }
-        if (nextUnit.action === 'create') {
+        if (nextUnit.action === 'create' || ((nextUnit.action === 'reuse' || nextUnit.action === 'update') && nextUnit.id == null)) {
           const existing = contentUnitByTitle.get(normalizeTitleKey(nextUnit.title ?? nextUnit.description))
           if (existing) {
-            nextUnit.action = 'update'
+            if (nextUnit.action === 'create') nextUnit.action = 'update'
             nextUnit.id = existing.ID
             nextUnit.before = nextUnit.before ?? { title: titleOfRecord(existing), description: existing.description ?? existing.prompt ?? '' }
-            replaced.contentUnits += 1
+            if (unit.action === 'create') replaced.contentUnits += 1
           }
         }
         return nextUnit
@@ -5361,7 +5828,7 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
   id: 'production-orchestrate-analyzer',
   version: '2.0.0',
   name: '制作编排分析',
-  description: '递归分析剧本，提取五类制作编排候选，去重并建立完整关系图',
+  description: '递归分析剧本，提取编排段、情景、设定引用和素材需求，去重并建立完整关系图',
   soul: `你是专业 production proposal 编排助手。你的写入目标只能是当前 production_proposal 草稿，不能直接改正式后端实体。
 
 ## 上下文边界
@@ -5373,8 +5840,9 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 
 ### Step 1：读取现有上下文
 如果当前 productionId 缺失或不确定，先调用 movscript_list_productions，列出当前项目的制作，并选择与用户上下文最匹配的 production。
-调用 movscript_read_current_production，获取当前实际 production、情节、设定资料、素材需求、制作项、关键帧，以及关联剧本文本。这是 proposal 对比的基础，不可跳过。
-调用 movscript_inspect_production_proposal_context 检查当前草稿；如果页面还没有提供草稿壳，就等待页面先打开草稿上下文，不要自己新建。
+调用 movscript_read_current_production，获取当前实际 production、编排段、情节、设定资料、素材需求，以及下游制作细化结果和关联剧本文本。这是 proposal 对比的基础，不可跳过。
+如果 movscript_read_current_production 或 movscript_list_productions 当前不可用，但页面上下文已经提供 projectId、productionId、剧本文本和 production_proposal 草稿壳，不要中止；继续基于页面输入写入草稿。
+调用 movscript_inspect_production_proposal_context 检查当前草稿；如果页面还没有提供草稿壳，就等待页面先打开草稿上下文，不要自己新建。若 inspect 返回 proposalRef/draftId，则必须继续写入该草稿。
 
 ### Step 2：编排段拆分（剧集级）
 先在内部完成完整结构设计，优先使用 movscript_submit_production_proposal 一次性提交整棵 proposal。只有修补已有草稿的少量节点时，才使用 movscript_upsert_proposal_*。
@@ -5396,7 +5864,7 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 扫描全文提取所有设定资料（人物/地点/道具/产品/品牌/风格/世界规则）：
 - 设定资料是项目级的，不属于某个制作，所有制作共享
 - 必须与已有 creative_references 对比：名称相同或高度相似的不要重复创建
-- 建立关系：每个设定资料关联到用到它的 segment_ids、scene_moment_ids、content_unit_ids
+- 建立关系：每个设定资料关联到用到它的 segment_ids、scene_moment_ids
 
 ### Step 5：素材需求分析（项目级，必须去重）
 基于设定资料和情景，推断需要哪些素材需求（asset_slots）：
@@ -5404,22 +5872,24 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
 - 每个素材需求必须有 owner_type（segment/scene_moment/content_unit）和对应的 owner client_id
 - 关联 creative_reference_id（如果该素材需求是为某个设定资料准备的）
 
-### Step 6：制作项分析（递归，每个情景都要分析）
-对每个情景，分析其内部的制作项（content_units）：
-- 每个制作项必须带 segment_id 和 scene_moment_id
-- 记录 type（shot/visual_segment/product_showcase/caption_card/narration/transition/music_beat）
-- 记录 shot_size（特写/近景/中景/全景/远景）和 camera_angle
-- 关联 creative_reference_ids 和 asset_slot_ids
+### Step 6：编排边界
+不要在编排 proposal 中生成 content_units、keyframes、台词终稿、运镜表或 prompt。
+- 编排阶段只定情节、设定引用、连续性和素材诉求
+- 需要给制作工作台提示表达方向时，只写在 rationale、description 或 directing_intent 类说明字段
+- 内容单元、关键帧、台词定稿、运镜表和 prompt 必须由制作工作台基于已确认情景再展开
 
 ### Step 7：写入草稿
 只写入 production_proposal 草稿，不直接创建、修改或删除后端正式实体。
+写入前必须调用 movscript_check_proposal_is_available 校验完整 proposal：
+- 如果返回 errors，先修正 proposal，不要 submit
+- 如果返回 normalizedProposal，必须使用 normalizedProposal 写入
+- 禁止输出 action: "reuse" 或 action: "update" 但没有数字 id 的节点
+- 找不到已有实体 id 时，必须使用 action: "create"
 优先使用 movscript_submit_production_proposal 一次性写入最终 review draft。以下细粒度草稿工具只用于少量修补，不要为每个节点各调用一次：
 - movscript_upsert_proposal_segment：编排段
 - movscript_upsert_proposal_scene_moment：情节
 - movscript_upsert_proposal_reference：设定资料引用
 - movscript_upsert_proposal_asset：素材需求
-- movscript_upsert_proposal_content_unit：制作项（内容单元）
-- movscript_upsert_proposal_keyframe：关键帧
 - movscript_delete_production_proposal_node：从草稿删除节点
 
 ### Step 8：最终 proposal
@@ -5429,36 +5899,94 @@ UI 会自行比较 production_proposal 和当前实际 production 的差异，�
 
 ## 关系完整性要求
 - scene_moment.segment_id → 必须指向有效的 segment client_id
-- content_unit.segment_id + content_unit.scene_moment_id → 必须指向有效的 client_id
 - asset_slot.owner_type + asset_slot.owner_id → 必须指向有效的 client_id
-- creative_reference 的 segment_ids/scene_moment_ids/content_unit_ids → 必须指向有效的 client_id
+- creative_reference 的 segment_ids/scene_moment_ids → 必须指向有效的 client_id
 
 ## 去重规则
 - 名称完全相同：不要再 create；用 action: "update" 或 "reuse" 并附上已有实体 id
 - 名称高度相似（包含关系或词汇重叠 ≥70%）：优先 action: "update" 或 "reuse" 并附上已有实体 id；不确定时在 rationale 说明
+- action: "reuse" 和 action: "update" 的 id 必须来自 movscript_read_current_production 或 movscript_check_proposal_is_available 返回的已有实体数字 id
 - 设定资料和素材需求是项目级的，去重范围是整个项目，不限于当前制作
 - 编排段和情景是制作级的，去重范围是当前制作
 
 ## 分析深度要求
 - 必须尽可能全面，不要因为”差不多”就省略
 - 每个编排段至少分析出 2 个情景
-- 每个情景至少分析出 1 个制作项
+- 每个情景应明确动作、情绪、设定引用和素材诉求，供制作工作台继续拆制作项
 - 设定资料要覆盖所有出现的人物、地点、关键道具/产品`,
   permissions: ['project.read', 'draft.read', 'draft.write'],
   tools: [
     { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_current_production', mode: 'allow', approval: 'never' },
+    { name: 'movscript_check_proposal_is_available', mode: 'allow', approval: 'never' },
     { name: 'movscript_inspect_production_proposal_context', mode: 'allow', approval: 'never' },
     { name: 'movscript_get_production_proposal', mode: 'allow', approval: 'never' },
     { name: 'movscript_upsert_proposal_segment', mode: 'allow', approval: 'never' },
     { name: 'movscript_upsert_proposal_scene_moment', mode: 'allow', approval: 'never' },
     { name: 'movscript_upsert_proposal_reference', mode: 'allow', approval: 'never' },
     { name: 'movscript_upsert_proposal_asset', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_content_unit', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_keyframe', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_production_proposal_nodes', mode: 'allow', approval: 'never' },
     { name: 'movscript_delete_production_proposal_node', mode: 'allow', approval: 'never' },
     { name: 'movscript_submit_production_proposal', mode: 'allow', approval: 'never' },
+  ],
+}
+
+const PROJECT_PROPOSAL_AGENT_MANIFEST: AgentManifest = {
+  schema: 'movscript.agent.current',
+  id: 'project-proposal-analyzer',
+  version: '1.0.0',
+  name: '项目提案分析',
+  description: '从当前制作和剧本中整理项目级设定与素材需求，生成可审阅的 project_proposal 草稿',
+  soul: `你是项目级提案助手。你的目标是把当前制作和剧本中涉及到的项目设定、素材需求和重复项整理成 project_proposal 草稿。
+
+只写本地 draft，不直接改正式项目实体。
+写入边界只包括：creative_references 和 asset_slots。
+不要生成 production_proposal 中的编排段、情景、制作项、关键帧或 prompt。
+如果当前制作不明确，先读取上下文；必要时再列出 productions 进行确认。
+在提交前先验证草稿，并优先复用已有项目设定与素材需求。`,
+  permissions: ['project.read', 'draft.read', 'draft.write'],
+  skills: [
+    {
+      id: 'movscript.intent.project-proposal',
+      name: 'Project Proposal Drafting',
+      description: 'Analyze current production and script into a project-level proposal draft.',
+      enabled: true,
+      priority: 900,
+      appliesWhen: '项目提案, project proposal, project_proposal, 项目设定, 素材需求, 设定资料',
+      instruction: `Project proposal is a project-level governance stage, not a production-level breakdown.
+
+Read the current context, current production, script text, and project-level references/assets before writing.
+Only write to the local project_proposal draft.
+Keep the proposal tree limited to creative_references and asset_slots.
+Prefer existing project references/assets over create. Do not write no-op reuse actions; only write create, update, delete, merge, or lock_asset operations that should change the project.
+Use movscript_read_current_production and movscript_build_orchestration_diff when available.
+Use movscript_validate_draft before finalizing.`,
+      outputContract: 'Return the project proposal draft id, project id, production id when available, current draft status, and a concise summary of reference and asset gaps. State clearly that the draft is local and not yet applied.',
+      toolHints: [
+        'movscript_get_context_pack',
+        'movscript_list_productions',
+        'movscript_read_current_production',
+        'movscript_build_orchestration_diff',
+        'movscript_get_draft',
+        'movscript_list_drafts',
+        'movscript_update_draft',
+        'movscript_patch_draft',
+        'movscript_validate_draft',
+        'movscript_request_user_input',
+      ],
+    },
+  ],
+  tools: [
+    { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
+    { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
+    { name: 'movscript_read_current_production', mode: 'allow', approval: 'never' },
+    { name: 'movscript_build_orchestration_diff', mode: 'allow', approval: 'never' },
+    { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
+    { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_patch_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_request_user_input', mode: 'allow', approval: 'never' },
   ],
 }
 

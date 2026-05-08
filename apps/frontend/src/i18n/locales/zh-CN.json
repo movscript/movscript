@@ -596,7 +596,7 @@
           "lockedAsset": "已锁定素材",
           "lockedAssetHint": "生产阶段会优先读取这里的采用结果。",
           "assetLibrary": "素材库速览",
-          "context": "项目上下文"
+          "context": "项目信息"
         },
         "readiness": {
           "slotConfirmed": "素材需求已确认或处理",
@@ -1034,6 +1034,22 @@
         "more": "+{{count}} 项"
       }
     },
+    "draftHistory": {
+      "title": "AI 新建草稿",
+      "description": "这里只展示 local runtime 中尚未处理的新建草稿。已应用、拒绝或被替换的历史草稿请回到 AI 助手对应会话中查找。",
+      "searchPlaceholder": "搜索标题、内容、thread 或 run",
+      "allProjects": "全部项目",
+      "currentProject": "当前项目",
+      "emptySelection": "选择一个草稿查看详情。",
+      "copyId": "复制 ID",
+      "sourceThread": "来源 thread",
+      "sourceRun": "来源 run",
+      "createdAt": "创建时间",
+      "updatedAt": "更新时间",
+      "content": "草稿内容",
+      "source": "来源",
+      "target": "目标"
+    },
     "chat": {
       "aiAssistant": "AI 助手",
       "agentReady": "{{name}} 已就绪",
@@ -1061,18 +1077,18 @@
       "attachmentOnlyMessage": "请分析这些附件。",
       "attachmentsCount": "{{count}} 个附件",
       "recentResourcesCount": "{{count}} 个最近素材",
-      "projectContext": "项目上下文",
+      "projectContext": "项目信息",
       "currentProject": "当前项目：{{name}}",
       "projectRequiredTitle": "先选择一个项目",
-      "projectRequiredHint": "Agent 会围绕当前项目读取上下文、创建草稿和执行工具。",
+      "projectRequiredHint": "Agent 会围绕当前项目信息读取内容、创建草稿和执行工具。",
       "projectRequiredMessage": "请先选择一个项目，或者在输入框上方创建新项目后再继续。",
       "selectProject": "选择项目",
       "createProjectInline": "创建",
       "projectNamePlaceholder": "项目名称",
       "projectDescriptionPlaceholder": "项目简介（可选）",
       "createAndUseProject": "创建并使用",
-      "resourceContext": "素材上下文",
-      "autoPlan": "自动规划",
+      "resourceContext": "素材库",
+      "autoPlan": "规划模式",
       "hideContext": "隐藏上下文",
       "showContext": "显示上下文",
       "drafts": {
@@ -1099,6 +1115,7 @@
           "pipeline": "流程提案",
           "segment": "编排段提案",
           "scene_moment": "情节提案",
+          "project_proposal": "项目提案",
           "production_proposal": "制作提案"
         }
       },
@@ -1143,11 +1160,13 @@
       "panel": {
         "layers": {
           "productSurface": "产品界面",
+          "pageContext": "页面上下文",
           "runtimeContext": "运行时上下文",
           "capabilities": "能力",
           "prompt": "提示词",
           "execution": "执行",
-          "artifacts": "产物"
+          "artifacts": "草稿",
+          "drafts": "草稿"
         },
         "status": {
           "localRuntimeOnline": "本地 Runtime 已上线",
@@ -1178,14 +1197,31 @@
           "runtimeDefault": "Runtime 默认",
           "runtimeContextTitle": "运行时上下文",
           "productSurface": "产品界面",
+          "pageContext": "页面上下文",
           "prompt": "提示词",
           "execution": "执行",
-          "artifacts": "产物"
+          "artifacts": "草稿"
+        },
+        "pageContext": {
+          "page": "页面",
+          "pageKey": "pageKey",
+          "route": "路由",
+          "entity": "实体",
+          "selection": "选择",
+          "currentDraft": "当前草稿",
+          "unknown": "未知页面",
+          "none": "无实体",
+          "noDraft": "未绑定",
+          "empty": "当前对话没有页面上下文。",
+          "draftHint": "Agent 应在这个页面绑定的草稿里填充、修改或校验内容；应用草稿仍由对应页面处理。",
+          "noDraftHint": "当前上下文没有绑定可写草稿。需要写入类任务时，应先由页面创建草稿壳再交给 Agent。"
         },
         "capabilities": {
           "title": "能力",
           "custom": "自定义",
-          "selectHint": "为当前对话选择 Runtime 技能和工具。",
+          "runtimeDefault": "Runtime 默认",
+          "activeHint": "这里只展示当前对话实际启用的 Runtime skills 和 tools。",
+          "selectHint": "这里只展示当前对话实际启用的 Runtime skills 和 tools。",
           "refresh": "刷新",
           "startHint": "先启动本地 Runtime，才能查看已加载的 skills 和 tools。",
           "loadingCatalog": "正在加载 runtime 目录…",
@@ -1200,6 +1236,7 @@
           "tools": "工具",
           "selected": "已选择",
           "selectedCount": "已选 {{skills}}/{{tools}}",
+          "activeManifest": "当前 active：{{skills}} 个技能 / {{tools}} 个工具。",
           "selectedManifest": "本次对话会发送 {{skills}} 个技能 / {{tools}} 个工具。",
           "noSkillsLoaded": "未加载技能。",
           "noToolsLoaded": "未加载工具。",
@@ -1255,8 +1292,11 @@
           }
         },
         "drafts": {
+          "currentThreadTitle": "当前 thread 草稿",
+          "history": "历史草稿",
           "refresh": "刷新",
           "noOnline": "先启动本地 Runtime，才能查看 Agent 草稿。",
+          "noThread": "当前对话还没有绑定 runtime thread，发送一次消息后这里会显示本 thread 的草稿。",
           "emptyFilter": "没有草稿符合当前筛选条件。",
           "projectBadge": "项目 #{{id}}",
           "openPage": "进入页面",
@@ -2470,9 +2510,9 @@
       "workbench": "剧本拆分",
       "workbenchScript": "剧本拆分",
       "workbenchPreview": "制作预演",
-      "workbenchCreative": "资料确认",
+      "workbenchCreative": "设定准备",
       "workbenchAssets": "素材生成",
-      "workbenchProduction": "生产决策",
+      "workbenchProduction": "内容编排",
       "workbenchDelivery": "交付工作台",
       "deliveryWorkbench": "交付工作台",
       "workbenchReferenceRelations": "关系校正",
@@ -2550,6 +2590,7 @@
       "resources": "资源库",
       "jobs": "生成记录",
       "plugins": "插件",
+      "aiDrafts": "AI 草稿",
       "myAgents": "我的 Agent",
       "agentDebug": "Agent 调试",
       "production": "生产中台",
@@ -2583,14 +2624,14 @@
       "workbench": "剧本拆分",
       "workbenchScript": "剧本拆分",
       "workbenchPreview": "制作预演",
-      "workbenchCreative": "资料确认",
+      "workbenchCreative": "设定准备",
       "workbenchAssets": "素材生成",
       "workbenchProduction": "生产决策",
       "workbenchDelivery": "交付门禁",
       "workbenchReferenceRelations": "关系校正",
       "workbenchProductionPreview": "制作预演",
       "workbenchAssetPreparation": "素材准备",
-      "workbenchContentGeneration": "制作项生成",
+      "workbenchContentGeneration": "内容编排",
       "productionTasks": "任务",
       "delivery": "交付",
       "user": "用户资料",

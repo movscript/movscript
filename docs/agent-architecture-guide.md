@@ -12,8 +12,8 @@ Frontend / Electron
   -> Go backend APIs for formal entity writes after approval
 ```
 
-- 前端负责收集用户输入、当前 route/project/selection 快照，并展示 run、step、approval、draft。
-- `apps/agent` 负责 Thread/Run 生命周期、agentic loop、工具策略、sandbox、草稿、记忆和模型回复。
+- 前端负责收集用户输入、当前 route/project/selection 快照，并展示 run、step、approval、当前 thread 草稿和历史草稿页。前端不是 thread/run/draft 的持久化事实源。
+- `apps/agent` 负责 Thread/Run 生命周期、agentic loop、工具策略、sandbox、草稿、记忆和模型回复，是 thread、message、run、trace、draft、memory 的本地事实源。
 - Agent 动态更新只覆盖 manifest、policy、prompt、tool catalog、skill catalog 等行为配置；runtime code 更新必须走签名应用更新器，详见 `docs/agent-dynamic-update-architecture.md`。
 - Go backend 负责正式项目实体、语义数据、资源和 model gateway。
 
@@ -22,7 +22,7 @@ Frontend / Electron
 - Thread：对话线程，包含多条消息。
 - Run：一次用户消息的执行实例，包含 policy、steps、warnings、pendingApprovals。
 - Step：Run 的可见执行记录，类型只有 `tool_call` 和 `message`。
-- Draft：本地草稿。agent 只负责创建和修改；用户确认后的应用由 UI/应用层 apply API 写入正式实体。
+- Draft：本地草稿。agent 只负责创建和修改；用户确认后的应用由 UI/应用层 apply API 写入正式实体。草稿不属于前端 conversation；AI 面板只展示当前 thread 涉及的草稿，跨 thread 草稿进入独立历史草稿页。
 - Memory：本地记忆，按 global/project/thread 作用域加载和写入。
 - Manifest：定义 agent permissions、tools、skills。
 - Policy：定义审批模式、sandbox、工具调用上限和运行边界。
@@ -66,6 +66,13 @@ Sandbox 会完整运行到结束，但在实际写入前拦截高风险工具：
 ```
 
 草稿 apply 不进入 agent runtime tool 层；它是 UI/应用层的审阅提交动作。
+
+## 前端展示边界
+
+- AI 面板以 `threadId` 为边界，从 runtime 读取当前 thread 的 messages、runs、trace、approvals 和相关 drafts。
+- AI 面板不得持久化历史消息、完整 run、完整 thread 或草稿内容；只能保存输入框、展开状态、选中 id、筛选条件和 streaming 文本等临时 UI 状态。
+- 页面任务桥只能保存 `requestId -> threadId/runId` 的最小索引。恢复任务时必须回读 runtime。
+- 历史草稿页从 `/drafts` 查询跨 thread 草稿库，并提供筛选、预览、打开来源 thread、跳转目标页面、应用、拒绝和归档。
 
 ## 文件入口
 

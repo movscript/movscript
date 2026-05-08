@@ -324,6 +324,7 @@ export interface AgentClientUISnapshot {
     description?: string
   }
   productionId?: number
+  draftId?: string
   selection?: {
     entityType?: string
     entityId?: number | string

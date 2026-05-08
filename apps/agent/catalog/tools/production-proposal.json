@@ -29,6 +29,34 @@
       }
     },
     {
+      "name": "movscript_check_proposal_is_available",
+      "description": "Validate whether a production_proposal tree is available to submit/apply for the selected production. Checks reuse/update ids, project-scoped creative references and asset slots, production-scoped segments and scene moments, and returns suggestions plus a normalized proposal.",
+      "permission": "project.read",
+      "risk": "read",
+      "category": "production_proposal",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_check_proposal_is_available",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
+      "name": "movscript_build_orchestration_diff",
+      "description": "Compare an agent-derived production proposal against the current production and project-level creative references/assets. Returns setting coverage, asset coverage, segment/scene-moment diffs, and review gates before the proposal is written as a draft.",
+      "permission": "project.read",
+      "risk": "read",
+      "category": "production_proposal",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_build_orchestration_diff",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
       "name": "movscript_create_production_proposal",
       "description": "Create an empty local production_proposal review draft for the current production. This does not modify backend project entities.",
       "permission": "draft.write",
@@ -135,7 +163,7 @@
     },
     {
       "name": "movscript_upsert_proposal_content_unit",
-      "description": "Create or update one content unit inside the local production_proposal draft.",
+      "description": "Create or update one downstream production content unit inside a local production_proposal draft. Do not use this in the orchestration workspace; orchestration drafts should stop at segment, scene moment, creative reference usage, and asset need.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",
@@ -150,7 +178,7 @@
     },
     {
       "name": "movscript_upsert_proposal_keyframe",
-      "description": "Create or update one keyframe inside the local production_proposal draft.",
+      "description": "Create or update one downstream production keyframe inside a local production_proposal draft. Do not use this in the orchestration workspace; keyframes belong to the production workspace after scene moments are confirmed.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",

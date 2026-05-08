@@ -65,22 +65,3 @@ export interface MCPContextSnapshot {
   } | null
   updatedAt: string
 }
-
-export type MCPDraftKind = 'script' | 'creative_reference' | 'storyboard' | 'shot' | 'prompt' | 'note' | 'pipeline' | 'segment' | 'scene_moment' | 'production_proposal'
-export type MCPDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
-
-export interface MCPDraft {
-  id: string
-  projectId: number | null
-  kind: MCPDraftKind
-  status: MCPDraftStatus
-  title: string
-  content: string
-  source?: {
-    entityType?: string
-    entityId?: number
-    runId?: string
-  }
-  createdAt: string
-  updatedAt: string
-}

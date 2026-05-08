@@ -66,23 +66,23 @@ export class BackendApplyClient {
     if (!baseURL) {
       return { performed: false, skippedReason: 'backend apply disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
-    const request = buildPatchRequest(review)
+    const request = buildApplyRequest(review)
     const url = `${baseURL}${request.path}`
     const headers = buildHeaders(auth)
 
     const response = await fetch(url, {
-      method: 'PATCH',
+      method: request.method,
       headers,
       body: JSON.stringify(request.payload),
     })
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`backend PATCH ${request.path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new Error(`backend ${request.method} ${request.path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
     }
     return {
       performed: true,
-      method: 'PATCH',
+      method: request.method,
       url,
       payload: request.payload,
       ...(parsed !== undefined ? { response: parsed } : {}),
@@ -151,6 +151,17 @@ export class BackendApplyClient {
 }
 
 export function buildPatchRequest(review: ApplyDraftReview): { path: string; payload: Record<string, JSONValue> } {
+  const request = buildApplyRequest(review)
+  if (request.method !== 'PATCH') {
+    throw new Error(`apply_draft does not support target entity type: ${review.target.entityType ?? 'unknown'}`)
+  }
+  return { path: request.path, payload: request.payload }
+}
+
+function buildApplyRequest(review: ApplyDraftReview): { method: 'PATCH' | 'POST'; path: string; payload: Record<string, JSONValue> } {
+  if (isProjectProposalTarget(review)) {
+    return buildProjectProposalRequest(review)
+  }
   const entityType = review.target.entityType
   const entityId = review.target.entityId
   const field = review.target.field
@@ -169,6 +180,7 @@ export function buildPatchRequest(review: ApplyDraftReview): { path: string; pay
     throw new Error(`apply_draft cannot write field ${field ?? 'unknown'} on ${entityType}`)
   }
   return {
+    method: 'PATCH',
     path: route
       .replace(':projectId', encodeURIComponent(String(projectId)))
       .replace(':id', encodeURIComponent(String(entityId))),
@@ -176,6 +188,42 @@ export function buildPatchRequest(review: ApplyDraftReview): { path: string; pay
       [field]: review.proposedValue,
     },
   }
+}
+
+function buildProjectProposalRequest(review: ApplyDraftReview): { method: 'POST'; path: string; payload: Record<string, JSONValue> } {
+  const projectId = resolveProjectId(review)
+  const payload = normalizeProjectProposalPayload(review.proposedValue)
+  return {
+    method: 'POST',
+    path: `/projects/${encodeURIComponent(String(projectId))}/entities/project-proposals/apply`,
+    payload,
+  }
+}
+
+function isProjectProposalTarget(review: ApplyDraftReview): boolean {
+  return review.target.entityType === 'project' && review.target.field === 'proposal'
+}
+
+function resolveProjectId(review: ApplyDraftReview): string | number {
+  const candidate = review.target.projectId ?? review.target.entityId
+  if ((typeof candidate !== 'string' && typeof candidate !== 'number') || String(candidate).trim() === '') {
+    throw new Error('apply_draft requires projectId for project proposal apply')
+  }
+  return candidate
+}
+
+function normalizeProjectProposalPayload(value: JSONValue): Record<string, JSONValue> {
+  if (typeof value === 'string') {
+    const parsed = parseJSONText(value)
+    if (!isRecord(parsed)) {
+      throw new Error('project proposal draft content must be a JSON object')
+    }
+    return parsed as Record<string, JSONValue>
+  }
+  if (!isRecord(value)) {
+    throw new Error('project proposal draft content must be a JSON object')
+  }
+  return value as Record<string, JSONValue>
 }
 
 function normalizeBaseURL(value: string | undefined): string | undefined {
@@ -198,4 +246,8 @@ function parseJSONText(text: string): JSONValue | undefined {
   } catch {
     return text
   }
+}
+
+function isRecord(value: unknown): value is Record<string, JSONValue> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

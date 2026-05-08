@@ -258,13 +258,13 @@ export function Sidebar() {
           <>
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.workspace')} collapsed={collapsed}>
-              <NavItem to="/project-workspace" icon={Layers3} label={t('sidebar.items.projectWorkspace')} collapsed={collapsed} />
-              <NavItem to="/script-split-workbench" icon={Blocks} label={t('sidebar.items.workbench')} collapsed={collapsed} />
               <NavItem to="/creative-workbench" icon={Lightbulb} label={t('sidebar.items.creativeWorkbench')} collapsed={collapsed} />
+              <NavItem to="/script-split-workbench" icon={Blocks} label={t('sidebar.items.workbench')} collapsed={collapsed} />
+              <NavItem to="/project-workspace" icon={Layers3} label={t('sidebar.items.projectWorkspace')} collapsed={collapsed} />
               <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
-              <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
               <NavItem to="/workbench/assets" icon={Archive} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />
               <NavItem to="/workbench/production" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
+              <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
               <NavItem to="/delivery/workbench" icon={ClipboardCheck} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
             </Section>
           </>
@@ -299,6 +299,7 @@ export function Sidebar() {
 
         {/* Manage */}
         <Section title={t('sidebar.sections.manage')} collapsed={collapsed}>
+          <NavItem to="/agent/drafts" icon={ClipboardCheck} label={t('sidebar.items.aiDrafts')} collapsed={collapsed} />
           <NavItem to="/plugins" icon={Blocks} label={t('sidebar.items.plugins')} collapsed={collapsed} />
           {isOrgAdmin && (
             <NavItem to="/org/settings" icon={Settings} label={t('sidebar.items.orgSettings')} collapsed={collapsed} />

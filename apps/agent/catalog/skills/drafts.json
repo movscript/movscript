@@ -8,7 +8,7 @@
       "category": "drafts",
       "enabled": true,
       "priority": 900,
-      "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer a local draft workflow. Use dedicated structured draft tools when available, for example movscript_submit_script_split_draft for script splitting. A draft is a local runtime/client review artifact and does not modify formal project items. Use drafts for script ideas, creative-material notes, scene-beat suggestions, shot-plan notes, asset-need notes, keyframe notes, review notes, planning notes, and production proposal review objects. If the user explicitly wants a generated script saved as a formal project script, call movscript_create_script only after the content is clear enough to save; the runtime will require user approval before the backend write. Do not claim a draft or formal script has been applied to the project unless the relevant tool result proves it.",
+      "instruction": "For user requests that ask you to create, rewrite, plan, review, or propose project content, prefer a local draft workflow. Use dedicated structured draft tools when available, for example movscript_submit_script_split_draft for script splitting. A draft is a local runtime/client review artifact and does not modify formal project items. Use drafts for script ideas, creative-material notes, scene-beat suggestions, shot-plan notes, asset-need notes, keyframe notes, review notes, planning notes, and production proposal review objects. If the task needs project context, start from the current UI context or the current production-specific business tools rather than generic entity scanning. If the user explicitly wants a generated script saved as a formal project script, call movscript_create_script only after the content is clear enough to save; the runtime will require user approval before the backend write. Do not claim a draft or formal script has been applied to the project unless the relevant tool result proves it.",
       "outputContract": "For any draft creation or modification, include the draftId, draft title, kind, current status, and the next action the user can take. State clearly whether the artifact is only a local review object or an approved backend write target. Keep draft content actionable and scoped. When future edits should continue from this artifact, name that draftId explicitly.",
       "toolHints": [
         "movscript_submit_script_split_draft",
@@ -32,8 +32,7 @@
       "outputContract": "When saving a script, state the title and whether the backend write is pending approval or completed. When only drafting, make clear it is a local draft.",
       "toolHints": [
         "movscript_request_user_input",
-        "movscript_create_script",
-        "movscript_read_project_structure"
+        "movscript_create_script"
       ],
       "metadata": {
         "source": "builtin"
@@ -48,11 +47,10 @@
       "enabled": true,
       "priority": 820,
       "appliesWhen": "进度,progress,总结当前项目,project status,缺口,missing,还差什么",
-      "instruction": "When asked for project progress, inspect available project context and read the compact project structure. Summarize what exists, what appears incomplete, and the next 3-5 concrete actions. If the available context is partial, say so and suggest exactly which focused page or domain context should be opened next.",
+      "instruction": "When asked for project progress, inspect the current context and the relevant production-specific business tools. Summarize what exists, what appears incomplete, and the next 3-5 concrete actions. If the available info is partial, say so and suggest exactly which focused page or business scope should be opened next.",
       "outputContract": "Use three sections: 已确认, 缺口, 下一步. Keep claims tied to read results.",
       "toolHints": [
         "movscript_get_context_pack",
-        "movscript_read_project_structure",
         "movscript_submit_script_split_draft"
       ],
       "metadata": {
@@ -68,10 +66,9 @@
       "enabled": true,
       "priority": 810,
       "appliesWhen": "分镜,storyboard line,镜头,内容单元,content unit,场景缺口,visual gap,审查分镜,检查场景",
-      "instruction": "For visual planning review, read project structure first when the user asks for gaps across a scene moment, segment, content unit, or current project. Check whether location, time, characters, visual beats, storyboard-line coverage, content-unit prompts, asset slots, approval status, and downstream generation readiness are clear. Prefer creating a review draft instead of changing project items.",
+      "instruction": "For visual planning review, start from the current context and the relevant production-specific business tools when the user asks for gaps across a scene moment, segment, content unit, or current project. Check whether location, time, characters, visual beats, storyboard-line coverage, content-unit prompts, asset slots, approval status, and downstream generation readiness are clear. Prefer creating a review draft instead of changing project items.",
       "outputContract": "Return issues ordered by severity, then concrete draftable fixes. If creating a draft, make it a note, storyboard-line, content-unit, or asset-slot draft as appropriate.",
       "toolHints": [
-        "movscript_read_project_structure",
         "movscript_submit_script_split_draft"
       ],
       "metadata": {
@@ -90,7 +87,7 @@
       "instruction": "For content-unit or prompt creation requests, gather any referenced script, segment, scene moment, storyboard line, content unit, and asset-slot context first. Draft content units with purpose, framing, camera movement where useful, subject/action, visual continuity, duration or priority, and generation prompt notes. Keep generated content in the page-owned draft workflow when available; otherwise return inline text instead of creating a generic draft.",
       "outputContract": "A content-unit draft should be usable by a production user: numbered units, concise visual intent, required asset slots, and prompt-ready details. Avoid vague cinematic adjectives without production detail.",
       "toolHints": [
-        "movscript_read_project_structure"
+        "movscript_get_context_pack"
       ],
       "metadata": {
         "source": "builtin"

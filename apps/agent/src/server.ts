@@ -402,6 +402,12 @@ function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0
   const projectId = url.searchParams.get('projectId')
   const kind = normalizeDraftKind(url.searchParams.get('kind'))
   const status = normalizeDraftStatus(url.searchParams.get('status'))
+  const statuses = url.searchParams.getAll('status').flatMap((item) => {
+    const parsed = normalizeDraftStatus(item)
+    return parsed ? [parsed] : []
+  })
+  const threadId = url.searchParams.get('threadId')
+  const runId = url.searchParams.get('runId')
   const sourceEntityType = url.searchParams.get('sourceEntityType')
   const sourceEntityId = url.searchParams.get('sourceEntityId')
   const pageKey = url.searchParams.get('pageKey')
@@ -413,7 +419,9 @@ function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0
   return {
     ...(projectId !== null && Number.isFinite(Number(projectId)) ? { projectId: Number(projectId) } : {}),
     ...(url.searchParams.has('kind') ? { kind } : {}),
-    ...(status ? { status } : {}),
+    ...(statuses.length > 1 ? { statuses: Array.from(new Set(statuses)) } : status ? { status } : {}),
+    ...(threadId ? { threadId } : {}),
+    ...(runId ? { runId } : {}),
     ...(sourceEntityType ? { sourceEntityType } : {}),
     ...(sourceEntityId ? { sourceEntityId } : {}),
     ...(pageKey ? { pageKey } : {}),

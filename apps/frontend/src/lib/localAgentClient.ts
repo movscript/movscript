@@ -264,6 +264,7 @@ export interface AgentClientInput {
       description?: string
     }
     productionId?: number
+    draftId?: string
     selection?: {
       entityType?: string
       entityId?: number | string
@@ -461,6 +462,7 @@ export type AgentDraftKind =
   | 'pipeline'
   | 'segment'
   | 'scene_moment'
+  | 'project_proposal'
   | 'production_proposal'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
@@ -870,11 +872,17 @@ export class LocalAgentClient {
     return this.getJSON(`/memories${params.size ? `?${params.toString()}` : ''}`)
   }
 
-  listDrafts(query: { projectId?: number; kind?: AgentDraftKind; status?: AgentDraftStatus; pageKey?: string; pageType?: string; pageRoute?: string; pageEntityType?: string; pageEntityId?: number | string; limit?: number } = {}): Promise<{ drafts: AgentDraft[] }> {
+  listDrafts(query: { projectId?: number; kind?: AgentDraftKind; status?: AgentDraftStatus | AgentDraftStatus[]; threadId?: string; runId?: string; pageKey?: string; pageType?: string; pageRoute?: string; pageEntityType?: string; pageEntityId?: number | string; limit?: number } = {}): Promise<{ drafts: AgentDraft[] }> {
     const params = new URLSearchParams()
     if (typeof query.projectId === 'number') params.set('projectId', String(query.projectId))
     if (query.kind) params.set('kind', query.kind)
-    if (query.status) params.set('status', query.status)
+    if (Array.isArray(query.status)) {
+      for (const status of query.status) params.append('status', status)
+    } else if (query.status) {
+      params.set('status', query.status)
+    }
+    if (query.threadId) params.set('threadId', query.threadId)
+    if (query.runId) params.set('runId', query.runId)
     if (query.pageKey) params.set('pageKey', query.pageKey)
     if (query.pageType) params.set('pageType', query.pageType)
     if (query.pageRoute) params.set('pageRoute', query.pageRoute)
