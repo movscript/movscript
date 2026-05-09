@@ -13,7 +13,11 @@ import {
 import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
 import type { JSONValue } from './types.js'
 
-export function createAgentRequestListener(context: AgentServerContext): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
+interface AgentRequestListenerOptions {
+  onShutdownRequest?: () => void | Promise<void>
+}
+
+export function createAgentRequestListener(context: AgentServerContext, options: AgentRequestListenerOptions = {}): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     setHeaders(res)
 
@@ -40,6 +44,24 @@ export function createAgentRequestListener(context: AgentServerContext): (req: I
 
       if (req.method === 'GET' && url.pathname === '/runtime/capabilities') {
         writeJSON(res, 200, getAgentRuntimeCapabilities(context))
+        return
+      }
+
+      if (req.method === 'POST' && url.pathname === '/runtime/shutdown') {
+        if (!isLoopbackRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime shutdown is only available from loopback clients' })
+          return
+        }
+        if (isCrossSiteBrowserRequest(req)) {
+          writeJSON(res, 403, { error: 'runtime shutdown rejects cross-site browser requests' })
+          return
+        }
+        writeJSON(res, 202, { ok: true, shuttingDown: true })
+        setTimeout(() => {
+          void Promise.resolve(options.onShutdownRequest?.()).catch((error) => {
+            console.error('[agent] runtime shutdown failed', error)
+          })
+        }, 0)
         return
       }
 
@@ -376,7 +398,15 @@ export function createAgentRequestListener(context: AgentServerContext): (req: I
 }
 
 export function startAgentServer(context = createAgentServerContext()): ReturnType<typeof createServer> {
-  const server = createServer(createAgentRequestListener(context))
+  let server: ReturnType<typeof createServer>
+  server = createServer(createAgentRequestListener(context, {
+    onShutdownRequest: () => {
+      console.info('[agent] shutdown requested by local desktop runtime')
+      const forceExit = setTimeout(() => process.exit(0), 1_000)
+      forceExit.unref()
+      server.close(() => process.exit(0))
+    },
+  }))
   server.listen(context.port, '127.0.0.1', () => logAgentServerStartup(context))
   return server
 }
@@ -593,6 +623,19 @@ function setHeaders(res: ServerResponse): void {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Movscript-Backend-API-Base-URL')
+}
+
+function isLoopbackRequest(req: IncomingMessage): boolean {
+  const remoteAddress = req.socket?.remoteAddress
+  return !remoteAddress
+    || remoteAddress === '127.0.0.1'
+    || remoteAddress === '::1'
+    || remoteAddress === '::ffff:127.0.0.1'
+}
+
+function isCrossSiteBrowserRequest(req: IncomingMessage): boolean {
+  const site = headerValue(req, 'sec-fetch-site')
+  return site === 'cross-site'
 }
 
 function isMainModule(): boolean {

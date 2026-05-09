@@ -21,6 +21,8 @@
 - [Agent architecture guide](agent-architecture-guide.md)
 - [Agent design](agent-design.md)
 - [Agent orchestration design](agent-orchestration-design.md)
+- [Production proposal draft: target snapshot and patch revisions](production-proposal-draft-target-and-patch.md)
+- [Agent proposal workflow direction](agent-proposal-workflow-direction.md)
 - [Agent runtime debug architecture](agent-runtime-debug-architecture.md)
 - [Agent page interaction design](agent-page-interaction-design.md)
 - [Agent dynamic update architecture](agent-dynamic-update-architecture.md)

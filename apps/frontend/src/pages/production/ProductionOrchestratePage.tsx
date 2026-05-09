@@ -46,6 +46,10 @@ import { cn } from '@/lib/utils'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
+import {
+  buildEmptyProjectProposalDraftContent,
+  buildProjectProposalDraftContractPrompt,
+} from '@/lib/projectProposalDraft'
 import { localAgentClient, type AgentDraft, type AgentManifest, type AgentRun, type AgentRunStep } from '@/lib/localAgentClient'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
@@ -833,18 +837,11 @@ export default function ProductionOrchestratePage() {
         projectId,
         kind: 'project_proposal',
         title: `项目提案草稿 - ${project?.name ?? `#${projectId}`}`,
-        content: JSON.stringify({
-          scope: 'project_proposal',
+        content: JSON.stringify(buildEmptyProjectProposalDraftContent({
           projectId,
           productionId,
-          summary: '',
-          proposal: {
-            creative_references: [],
-            asset_slots: [],
-          },
-          operations: [],
-          generatedAt: new Date().toISOString(),
-        }, null, 2),
+          createdAt: new Date().toISOString(),
+        }), null, 2),
         source: {
           entityType: 'project',
           entityId: projectId,
@@ -3705,33 +3702,14 @@ function buildProjectProposalAnalysisPrompt(input: {
   return [
     `你是项目提案助手。请基于当前制作和剧本，整理项目级设定与素材需求，并只写入本地 draft：${input.draftId}。`,
     '',
-    '边界：',
-    '- 这是 project_proposal，不是 production_proposal。',
-    '- 只修改项目级设定资料和项目级素材需求。',
-    '- 不要生成编排段、情景、制作项、关键帧、台词终稿、运镜表或 prompt。',
-    '- 不要直接改正式后端实体；只更新本地 draft，等待用户在项目工作台应用。',
-    '',
-    '建议写入结构：',
-    JSON.stringify({
-      scope: 'project_proposal',
-      summary: '一句话概述本次从当前制作/剧本抽取出的项目治理结论',
-      proposal: {
-        creative_references: [
-          { action: 'create|update|delete|merge', entity: 'creativeReferences', id: 0, target_id: 0, source_ids: [0], payload: {} },
-        ],
-        asset_slots: [
-          { action: 'create|update|delete|lock_asset', entity: 'assetSlots', id: 0, target_id: 0, payload: {} },
-        ],
-      },
-      operations: [],
-    }, null, 2),
+    buildProjectProposalDraftContractPrompt(input.draftId),
     '',
     '执行步骤：',
     '1. 如果上下文里 productionId 不明确，先读当前上下文；必要时列出 productions 再确认目标制作。',
     '2. 调用 movscript_read_current_production 或 movscript_build_orchestration_diff，提取当前制作、剧本、已有设定和素材需求。',
     '3. 先判断哪些设定资料可以复用、更新或合并，哪些素材需求是缺口。',
-    '4. 只把会改变项目的操作写入 draft；纯复用既有设定/素材需求时，在 summary 或 payload.rationale 说明，不要提交 reuse action。',
-    '5. 只把项目级结论写入 draft，不要展开制作级结构。',
+    '4. 只把会改变项目的操作写入 draft；纯复用既有设定/素材需求时，在 summary 或 impact_notes 说明，不要提交 reuse action。',
+    '5. 只把项目级结论写入 draft，不要展开制作级结构，也不要写 operations。',
     '6. 提交前调用 movscript_validate_draft 检查。',
     '',
     input.userPrompt.trim() ? `用户补充要求：\n${input.userPrompt.trim()}` : '',
@@ -4389,7 +4367,6 @@ function AgentChatSidebar({
         }),
         agentManifest: ORCHESTRATE_AGENT_MANIFEST,
         runPolicy: { maxToolCalls: 80, maxIterations: 40 },
-        timeoutMs: 300_000,
         renderMode: 'page',
       })
       toast.info('已打开制作编排会话，请到 AI 面板生成提案，再回到编排面板逐项应用')
@@ -5940,6 +5917,7 @@ const PROJECT_PROPOSAL_AGENT_MANIFEST: AgentManifest = {
   soul: `你是项目级提案助手。你的目标是把当前制作和剧本中涉及到的项目设定、素材需求和重复项整理成 project_proposal 草稿。
 
 只写本地 draft，不直接改正式项目实体。
+draft 是可审阅的提案快照，不是最终结果。
 写入边界只包括：creative_references 和 asset_slots。
 不要生成 production_proposal 中的编排段、情景、制作项、关键帧或 prompt。
 如果当前制作不明确，先读取上下文；必要时再列出 productions 进行确认。
@@ -5958,10 +5936,12 @@ const PROJECT_PROPOSAL_AGENT_MANIFEST: AgentManifest = {
 Read the current context, current production, script text, and project-level references/assets before writing.
 Only write to the local project_proposal draft.
 Keep the proposal tree limited to creative_references and asset_slots.
+Keep operations empty and write changes only in proposal.creative_references or proposal.asset_slots.
 Prefer existing project references/assets over create. Do not write no-op reuse actions; only write create, update, delete, merge, or lock_asset operations that should change the project.
+Do not use placeholder IDs, especially 0.
 Use movscript_read_current_production and movscript_build_orchestration_diff when available.
 Use movscript_validate_draft before finalizing.`,
-      outputContract: 'Return the project proposal draft id, project id, production id when available, current draft status, and a concise summary of reference and asset gaps. State clearly that the draft is local and not yet applied.',
+      outputContract: 'Return the project proposal draft id, project id, production id when available, current draft status, and a concise summary of reference and asset gaps. State clearly that the draft is local, reviewable, and not yet applied.',
       toolHints: [
         'movscript_get_context_pack',
         'movscript_list_productions',

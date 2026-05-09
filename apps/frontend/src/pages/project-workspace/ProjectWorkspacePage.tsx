@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -34,7 +34,13 @@ import {
 } from '@/api/semanticEntities'
 import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrudDialog'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
-import { openAgentPanelDraft } from '@/lib/agentPanelBridge'
+import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
+import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
+import {
+  buildEmptyProjectProposalDraftContent,
+  buildProjectProposalDraftContractPrompt,
+  projectProposalActionLabel,
+} from '@/lib/projectProposalDraft'
 import { localAgentClient, type AgentDraft, type AgentManifest } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
@@ -64,6 +70,29 @@ interface WorkspaceData {
   segments: WorkspaceRecord[]
   sceneMoments: WorkspaceRecord[]
   contentUnits: WorkspaceRecord[]
+}
+
+interface ProjectProposalDraftEntry {
+  action: string
+  label: string
+  detail: string
+  target?: string
+}
+
+interface ProjectProposalDraftView {
+  summary: string
+  creativeReferences: ProjectProposalDraftEntry[]
+  assetSlots: ProjectProposalDraftEntry[]
+  impactNotes: string[]
+  debug: {
+    scope?: string
+    pageKey?: string
+    draftId?: string
+    draftUpdatedAt?: string
+    draftStatus?: string
+    sourceRunId?: string
+    sourceThreadId?: string
+  }
 }
 
 interface StatCardProps {
@@ -105,6 +134,73 @@ function titleOf(record: WorkspaceRecord, fallback: string) {
 
 function bodyOf(record: WorkspaceRecord, fallback = '暂无说明') {
   return textOf(record.description, textOf(record.summary, textOf(record.content, fallback)))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : []
+}
+
+function asString(value: unknown, fallback = '') {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback
+}
+
+function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): ProjectProposalDraftView | null {
+  try {
+    const content = JSON.parse(draft.content) as Record<string, unknown>
+    const proposal = isRecord(content.proposal) ? content.proposal : undefined
+    const creativeReferences = asRecordArray(proposal?.creative_references).map((item, index) => ({
+      action: asString(item.action ?? item.type ?? item.op, 'update'),
+      label: asString(item.title ?? item.name ?? item.label ?? item.entity ?? item.kind, `设定建议 #${index + 1}`),
+      detail: asString(item.description ?? item.note ?? item.reason ?? item.summary ?? item.content, '暂无说明'),
+      target: (() => {
+        const value = item.target_id ?? item.targetId ?? item.id
+        return typeof value === 'number' ? `#${value}` : asString(value, '')
+      })(),
+    }))
+    const assetSlots = asRecordArray(proposal?.asset_slots).map((item, index) => ({
+      action: asString(item.action ?? item.type ?? item.op, 'update'),
+      label: asString(item.title ?? item.name ?? item.label ?? item.entity ?? item.kind, `素材建议 #${index + 1}`),
+      detail: asString(item.description ?? item.note ?? item.reason ?? item.summary ?? item.content, '暂无说明'),
+      target: (() => {
+        const value = item.target_id ?? item.targetId ?? item.id
+        return typeof value === 'number' ? `#${value}` : asString(value, '')
+      })(),
+    }))
+    const impactNotes = [
+      ...asRecordArray(content.impact_notes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
+      ...asRecordArray(content.impactNotes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
+      ...(Array.isArray(content.impact_notes) ? content.impact_notes.map((item) => asString(item)).filter(Boolean) : []),
+      ...(Array.isArray(content.impactNotes) ? content.impactNotes.map((item) => asString(item)).filter(Boolean) : []),
+    ].filter(Boolean)
+
+    return {
+      summary: asString(content.summary, '暂无摘要'),
+      creativeReferences,
+      assetSlots,
+      impactNotes,
+      debug: {
+        scope: asString(content.scope, ''),
+        pageKey,
+        draftId: draft.id,
+        draftUpdatedAt: draft.updatedAt,
+        draftStatus: draft.status,
+        sourceRunId: asString(draft.createdByRunId, asString(content.sourceRunId, '')),
+        sourceThreadId: asString(draft.createdByThreadId, asString(content.sourceThreadId, '')),
+      },
+    }
+  } catch {
+    return null
+  }
+}
+
+function formatDraftEntry(entry: ProjectProposalDraftEntry) {
+  const parts = [projectProposalActionLabel(entry.action), entry.label]
+  if (entry.target) parts.push(entry.target)
+  return parts.join(' · ')
 }
 
 function statusCount(records: WorkspaceRecord[], statuses: string[]) {
@@ -231,6 +327,8 @@ export default function ProjectOrchestrationPage() {
   const queryClient = useQueryClient()
   const project = useProjectStore((s) => s.current)
   const projectId = project?.ID
+  const orchestrationToolCleanupRef = useRef<(() => void) | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [dialog, setDialog] = useState<DialogState>(null)
   const [selectedReferenceId, setSelectedReferenceId] = useState<number | null>(null)
   const [orchestrationPrompt, setOrchestrationPrompt] = useState('')
@@ -241,6 +339,7 @@ export default function ProjectOrchestrationPage() {
   const [dropTargetReferenceId, setDropTargetReferenceId] = useState<number | null>(null)
   const [mergingReferences, setMergingReferences] = useState(false)
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
+  const openedDraftId = searchParams.get('draftId')?.trim() || ''
 
   const queryKey = ['project-workspace', projectId] as const
 
@@ -260,18 +359,28 @@ export default function ProjectOrchestrationPage() {
     })
   }, [project?.name, projectId])
 
+  useEffect(() => {
+    setActiveDraftId(openedDraftId || null)
+  }, [openedDraftId])
+
+  useEffect(() => {
+    return () => orchestrationToolCleanupRef.current?.()
+  }, [])
+
   const draftsQuery = useQuery<AgentDraft[]>({
-    queryKey: ['project-workspace-drafts', projectId, pageKey, activeDraftId],
+    queryKey: ['project-workspace-drafts', projectId, pageKey, activeDraftId, openedDraftId],
     queryFn: async () => {
       if (!projectId || !pageKey) return []
-      if (activeDraftId) {
-        const draft = await localAgentClient.getDraft(activeDraftId)
+      const scopedDraftId = openedDraftId || activeDraftId
+      if (scopedDraftId) {
+        const draft = await localAgentClient.getDraft(scopedDraftId)
         return draft.kind === 'project_proposal' ? [draft] : []
       }
-      return []
+      const { drafts } = await localAgentClient.listDrafts({ projectId, kind: 'project_proposal', pageKey, limit: 20 })
+      return drafts
     },
     enabled: !!projectId && !!pageKey,
-    refetchInterval: activeDraftId ? 1500 : false,
+    refetchInterval: (openedDraftId || activeDraftId) ? 1500 : false,
     refetchIntervalInBackground: false,
   })
 
@@ -334,20 +443,10 @@ export default function ProjectOrchestrationPage() {
         projectId,
         kind: 'project_proposal',
         title: `项目提案草稿 - ${project?.name ?? `#${projectId}`}`,
-        content: JSON.stringify({
-          scope: 'project_proposal',
+        content: JSON.stringify(buildEmptyProjectProposalDraftContent({
           projectId,
-          summary: '',
-          proposal: {
-            creative_references: [],
-            asset_slots: [],
-          },
-          operations: [],
-          reference_changes: [],
-          asset_locks: [],
-          impact_notes: [],
           createdAt: new Date().toISOString(),
-        }, null, 2),
+        }), null, 2),
         source: {
           entityType: 'project',
           entityId: projectId,
@@ -367,6 +466,11 @@ export default function ProjectOrchestrationPage() {
         },
       })
       setActiveDraftId(draftShell.id)
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current)
+        next.set('draftId', draftShell.id)
+        return next
+      }, { replace: true })
 
       const requestId = `project_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
       const prompt = buildProjectOrchestrationPrompt({
@@ -374,6 +478,23 @@ export default function ProjectOrchestrationPage() {
         draftId: draftShell.id,
         userPrompt: orchestrationPrompt,
         data,
+      })
+
+      orchestrationToolCleanupRef.current?.()
+      orchestrationToolCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
+        if (payload.status === 'error' || payload.status === 'cancelled') {
+          await draftsQuery.refetch()
+          return
+        }
+        const latestDraftArtifact = selectLatestDraftArtifact(payload.artifacts, 'project_proposal')
+        const nextDraftId = latestDraftArtifact?.draftId || draftShell.id
+        setActiveDraftId(nextDraftId)
+        setSearchParams((current) => {
+          const next = new URLSearchParams(current)
+          next.set('draftId', nextDraftId)
+          return next
+        }, { replace: true })
+        await draftsQuery.refetch()
       })
 
       openAgentPanelDraft({
@@ -546,6 +667,9 @@ export default function ProjectOrchestrationPage() {
   }
 
   const drafts = draftsQuery.data ?? []
+  const scopedDraftId = openedDraftId || activeDraftId
+  const activeDraft = drafts.find((draft) => draft.id === scopedDraftId) ?? drafts[0] ?? null
+  const activeDraftView = activeDraft ? parseProjectProposalDraft(activeDraft, pageKey) : null
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
@@ -850,6 +974,49 @@ export default function ProjectOrchestrationPage() {
             </div>
 
             <div className="flex flex-col gap-3 p-4">
+              <div className="rounded-lg border border-dashed border-border bg-background p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-foreground">调试信息</p>
+                    <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
+                      这里显示路由、草稿和解析状态，用来确认 draft 是否回流到项目编排页。
+                    </p>
+                  </div>
+                  <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => draftsQuery.refetch()}>
+                    <RefreshCw size={12} />
+                    刷新
+                  </Button>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">pageKey</p>
+                    <p className="mt-0.5 break-all font-mono text-[10px] text-foreground">{pageKey ?? 'n/a'}</p>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">draftId</p>
+                    <p className="mt-0.5 break-all font-mono text-[10px] text-foreground">{scopedDraftId || 'n/a'}</p>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">draftCount</p>
+                    <p className="mt-0.5 font-mono text-[10px] text-foreground">{drafts.length}</p>
+                  </div>
+                  <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5">
+                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">query</p>
+                    <p className="mt-0.5 font-mono text-[10px] text-foreground">{draftsQuery.isFetching ? 'fetching' : 'idle'}</p>
+                  </div>
+                </div>
+                {activeDraftView ? (
+                  <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
+                    当前预览：{activeDraftView.summary}
+                  </p>
+                ) : null}
+                {draftsQuery.error ? (
+                  <p className="mt-2 text-[10px] leading-4 text-destructive">
+                    {draftsQuery.error instanceof Error ? draftsQuery.error.message : String(draftsQuery.error)}
+                  </p>
+                ) : null}
+              </div>
+
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-foreground">AI 草稿应用</p>
                 <Badge variant="secondary" className="text-[10px]">draft {draftCounts.draft}</Badge>
@@ -861,32 +1028,95 @@ export default function ProjectOrchestrationPage() {
                 </div>
               ) : drafts.length === 0 ? (
                 <EmptyBlock title="暂无项目编排草稿" detail="从上方发起项目编排后，AI 的治理建议会进入这里逐项审阅。" />
-              ) : drafts.map((draft) => (
-                <div key={draft.id} className="rounded-lg border border-border bg-background p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold text-foreground">{draft.title}</p>
-                      <p className="mt-1 text-[10px] text-muted-foreground">{formatDate(draft.updatedAt)} · {draft.id}</p>
+              ) : drafts.map((draft) => {
+                const proposalView = parseProjectProposalDraft(draft, pageKey)
+                return (
+                  <div key={draft.id} className="rounded-lg border border-border bg-background p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-foreground">{draft.title}</p>
+                        <p className="mt-1 text-[10px] text-muted-foreground">{formatDate(draft.updatedAt)} · {draft.id}</p>
+                      </div>
+                      <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 text-[10px]">{draftStatusLabel(draft.status)}</Badge>
                     </div>
-                    <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 text-[10px]">{draftStatusLabel(draft.status)}</Badge>
+
+                    {proposalView ? (
+                      <div className="mt-3 space-y-3">
+                        <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] font-medium text-foreground">编排建议</p>
+                            <Badge variant="outline" className="text-[9px]">project_proposal</Badge>
+                          </div>
+                          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{proposalView.summary}</p>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <MiniMetric icon={Sparkles} label="设定建议" value={proposalView.creativeReferences.length} />
+                            <MiniMetric icon={PackageCheck} label="素材建议" value={proposalView.assetSlots.length} />
+                          </div>
+                          {proposalView.creativeReferences.length > 0 ? (
+                            <div className="mt-2 space-y-1 rounded-md border border-border bg-background/70 p-2">
+                              <p className="text-[10px] font-medium text-foreground">设定建议</p>
+                              {proposalView.creativeReferences.slice(0, 4).map((entry, index) => (
+                                <div key={`${draft.id}-ref-${index}`} className="rounded border border-border/70 px-2 py-1 text-[10px] leading-4 text-muted-foreground">
+                                  <span className="font-medium text-foreground">{formatDraftEntry(entry)}</span>
+                                  <span className="block">{entry.detail}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {proposalView.assetSlots.length > 0 ? (
+                            <div className="mt-2 space-y-1 rounded-md border border-border bg-background/70 p-2">
+                              <p className="text-[10px] font-medium text-foreground">素材建议</p>
+                              {proposalView.assetSlots.slice(0, 4).map((entry, index) => (
+                                <div key={`${draft.id}-asset-${index}`} className="rounded border border-border/70 px-2 py-1 text-[10px] leading-4 text-muted-foreground">
+                                  <span className="font-medium text-foreground">{formatDraftEntry(entry)}</span>
+                                  <span className="block">{entry.detail}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                          {proposalView.impactNotes.length > 0 ? (
+                            <div className="mt-2 space-y-1 rounded-md border border-border bg-background/70 p-2">
+                              <p className="text-[10px] font-medium text-foreground">影响说明</p>
+                              {proposalView.impactNotes.slice(0, 4).map((note, index) => (
+                                <p key={`${draft.id}-impact-${index}`} className="text-[10px] leading-4 text-muted-foreground">{note}</p>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                        <details className="rounded-md border border-border bg-background/70 p-2">
+                          <summary className="cursor-pointer text-[10px] font-medium text-foreground">调试原文</summary>
+                          <div className="mt-2 space-y-1 text-[10px] leading-4 text-muted-foreground">
+                            <div>scope: {proposalView.debug.scope || 'n/a'}</div>
+                            <div>sourceRunId: {proposalView.debug.sourceRunId || 'n/a'}</div>
+                            <div>sourceThreadId: {proposalView.debug.sourceThreadId || 'n/a'}</div>
+                            <div>updatedAt: {proposalView.debug.draftUpdatedAt || 'n/a'}</div>
+                          </div>
+                          <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[10px] leading-4 text-muted-foreground">
+                            {draft.content}
+                          </pre>
+                        </details>
+                      </div>
+                    ) : (
+                      <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[10px] leading-4 text-muted-foreground">
+                        {draft.content}
+                      </pre>
+                    )}
+
+                    <div className="mt-3 flex gap-2">
+                      <Button size="sm" className="h-7 flex-1 gap-1.5 text-xs" onClick={() => applyDraft(draft)} loading={applyingDraftId === draft.id} disabled={draft.status === 'applied'}>
+                        <CheckCircle2 size={12} />
+                        应用草稿
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" asChild>
+                        <Link to="/agent/drafts">
+                          <FileText size={12} />
+                          历史
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
-                  <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[10px] leading-4 text-muted-foreground">
-                    {draft.content}
-                  </pre>
-                  <div className="mt-3 flex gap-2">
-                    <Button size="sm" className="h-7 flex-1 gap-1.5 text-xs" onClick={() => applyDraft(draft)} loading={applyingDraftId === draft.id} disabled={draft.status === 'applied'}>
-                      <CheckCircle2 size={12} />
-                      应用草稿
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" asChild>
-                      <Link to="/agent/drafts">
-                        <FileText size={12} />
-                        历史
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
           ) : (
@@ -1025,10 +1255,6 @@ function nullableNumber(value: unknown) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 function buildProjectOrchestrationPrompt(input: {
   projectName: string
   draftId: string
@@ -1065,26 +1291,7 @@ function buildProjectOrchestrationPrompt(input: {
   return [
     `你是项目提案助手。请基于当前项目现状，产出项目级治理草稿，并写入本地 draft：${input.draftId}。`,
     '',
-    '边界：',
-    '- 项目编排负责创建、修改、删除、合并设定，以及锁定项目级素材需求。',
-    '- 如果当前上下文提供了 productionId 或当前制作信息，先读取当前制作和剧本，再回到项目级结论。',
-    '- 制作编排只引用项目设定和素材需求，不在这里展开制作项、镜头、关键帧或 prompt。',
-    '- 不要直接修改正式后端实体；只更新本地 draft，等待用户在编排面板应用。',
-    '',
-    '请把 draft content 更新为 JSON，结构如下：',
-    JSON.stringify({
-      scope: 'project_proposal',
-      summary: '一句话概述项目现状',
-      proposal: {
-        creative_references: [
-          { action: 'create|update|delete|merge', entity: 'creativeReferences', target_id: 0, payload: {} },
-        ],
-        asset_slots: [
-          { action: 'create|update|delete|lock_asset', entity: 'assetSlots', target_id: 0, payload: {} },
-        ],
-      },
-      operations: [],
-    }, null, 2),
+    buildProjectProposalDraftContractPrompt(input.draftId),
     '',
     input.userPrompt.trim() ? `用户补充要求：\n${input.userPrompt.trim()}\n` : '',
     '当前项目快照：',
@@ -1112,6 +1319,7 @@ const PROJECT_ORCHESTRATION_AGENT_MANIFEST: AgentManifest = {
   soul: `你是项目级提案助手。你的目标是帮助用户治理项目设定和素材需求。
 
 只写本地 draft，不直接改正式项目实体。
+draft 是可审阅的提案快照，不是最终结果。
 输出要围绕：创建设定、修改设定、删除设定、合并重复设定、锁定素材需求、说明对制作引用的影响。
 如果当前上下文里有 productionId 或当前制作信息，可以先读取当前制作和剧本，再整理项目级结论。
 不要生成制作项、关键帧、台词终稿、运镜表或 prompt。制作编排只引用项目编排的结果。`,

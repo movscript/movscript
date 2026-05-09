@@ -1,12 +1,14 @@
-import { spawn, type ChildProcess } from 'child_process'
+import { execFile, spawn, type ChildProcess } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
+import { promisify } from 'util'
 import { app } from 'electron'
 
 const DEFAULT_PRODUCTION_RUNTIME_BASE_URL = 'http://127.0.0.1:28765'
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
 const DEFAULT_AGENT_USER_DATA_DIR = 'movscript-agent'
 const MIN_AGENT_RUNTIME_API_VERSION = 1
+const execFileAsync = promisify(execFile)
 
 let proc: ChildProcess | null = null
 let startPromise: Promise<AgentRuntimeStatus> | null = null
@@ -36,6 +38,7 @@ interface AgentRuntimeHealthCheck {
   compatible: boolean
   apiVersion?: number
   mcpEndpoint?: string
+  reason?: 'mcp-endpoint-mismatch'
   error?: string
 }
 
@@ -52,9 +55,22 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}
       pid: proc?.pid,
     }
   }
-  if (health.ok && !health.compatible && proc && !proc.killed) {
-    await stopAgentRuntime()
-    await new Promise((resolve) => setTimeout(resolve, 250))
+  if (health.ok && !health.compatible && health.reason === 'mcp-endpoint-mismatch') {
+    const stopped = proc && !proc.killed
+      ? await stopManagedIncompatibleRuntime()
+      : await stopUnmanagedIncompatibleRuntime(baseURL)
+    if (!stopped) {
+      return {
+        ok: false,
+        running: true,
+        managed: proc !== null && !proc.killed,
+        started: false,
+        baseURL,
+        error: health.error ?? 'Agent runtime is bound to a stale MCP endpoint and could not be restarted.',
+      }
+    }
+  } else if (health.ok && !health.compatible && proc && !proc.killed) {
+    await stopManagedIncompatibleRuntime()
   } else if (health.ok && !health.compatible) {
     return {
       ok: false,
@@ -185,6 +201,74 @@ async function terminateAgentProcess(child: ChildProcess, signal: NodeJS.Signals
   }
 }
 
+async function stopManagedIncompatibleRuntime(): Promise<boolean> {
+  await stopAgentRuntime()
+  await new Promise((resolve) => setTimeout(resolve, 250))
+  return true
+}
+
+async function stopUnmanagedIncompatibleRuntime(baseURL: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${baseURL}/runtime/shutdown`, { method: 'POST' })
+    if (res.ok && await waitForAgentRuntimeToStop(baseURL, 3_000)) return true
+  } catch {
+    // Older runtimes do not expose /runtime/shutdown; fall back to the port owner.
+  }
+
+  if (!await terminateRuntimePortOwner(baseURL)) return false
+  return waitForAgentRuntimeToStop(baseURL, 3_000)
+}
+
+async function waitForAgentRuntimeToStop(baseURL: string, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const health = await getAgentRuntimeHealth(baseURL)
+    if (!health.ok) return true
+    await new Promise((resolve) => setTimeout(resolve, 150))
+  }
+  return false
+}
+
+async function terminateRuntimePortOwner(baseURL: string): Promise<boolean> {
+  if (process.platform === 'win32') return false
+  const port = resolvePort(baseURL)
+  let stdout = ''
+  try {
+    const result = await execFileAsync(resolveLsofCommand(), ['-nP', `-tiTCP:${port}`, '-sTCP:LISTEN'])
+    stdout = result.stdout
+  } catch {
+    return false
+  }
+  const pids = stdout
+    .split(/\s+/)
+    .map((item) => Number(item))
+    .filter((pid) => Number.isInteger(pid) && pid > 0 && pid !== process.pid)
+  if (pids.length === 0) return false
+
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 'SIGTERM')
+    } catch {
+      // The process may have exited after lsof returned it.
+    }
+  }
+  if (await waitForAgentRuntimeToStop(baseURL, 1_500)) return true
+
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 'SIGKILL')
+    } catch {
+      // The process may have exited after the graceful termination window.
+    }
+  }
+  return true
+}
+
+function resolveLsofCommand(): string {
+  if (process.platform === 'darwin' && existsSync('/usr/sbin/lsof')) return '/usr/sbin/lsof'
+  return 'lsof'
+}
+
 function resolveAgentRuntimeLaunch(): AgentRuntimeLaunch {
   const roots = [
     join(app.getAppPath(), '..', 'agent'),
@@ -282,6 +366,7 @@ async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealt
         compatible: false,
         apiVersion,
         mcpEndpoint,
+        reason: 'mcp-endpoint-mismatch',
         error: `Agent runtime is bound to ${mcpEndpoint} but expected ${expectedMcpEndpoint}. Restart the agent after MCP changes.`,
       }
     }

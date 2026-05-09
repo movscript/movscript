@@ -174,6 +174,65 @@ test('draft apply endpoint is an application-layer action outside agent runs', a
   assert.equal(runtime.listRuns().length, 0)
 })
 
+test('runtime shutdown endpoint accepts local non-browser management requests', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    skillCatalog: [],
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  let shutdownRequests = 0
+  const handler = createAgentRequestListener(buildServerContext(runtime), {
+    onShutdownRequest: () => {
+      shutdownRequests += 1
+    },
+  })
+
+  const res = await dispatch(handler, 'POST', '/runtime/shutdown')
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(res.statusCode, 202)
+  assert.deepEqual(JSON.parse(res.body), { ok: true, shuttingDown: true })
+  assert.equal(shutdownRequests, 1)
+})
+
+test('runtime shutdown endpoint rejects cross-site browser requests', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    skillCatalog: [],
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  let shutdownRequests = 0
+  const handler = createAgentRequestListener(buildServerContext(runtime), {
+    onShutdownRequest: () => {
+      shutdownRequests += 1
+    },
+  })
+
+  const res = await dispatch(handler, 'POST', '/runtime/shutdown', undefined, {
+    headers: { 'sec-fetch-site': 'cross-site' },
+  })
+  await new Promise((resolve) => setTimeout(resolve, 10))
+
+  assert.equal(res.statusCode, 403)
+  assert.equal(shutdownRequests, 0)
+})
+
 function buildServerContext(agentRuntime: AgentRuntime): AgentServerContext {
   return {
     port: 0,
@@ -222,6 +281,7 @@ function dispatch(
   method: string,
   path: string,
   body?: unknown,
+  options: { headers?: Record<string, string> } = {},
 ): Promise<{ statusCode: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = new EventEmitter() as unknown as IncomingMessage & {
@@ -232,7 +292,7 @@ function dispatch(
     }
     req.method = method
     req.url = path
-    req.headers = { host: '127.0.0.1' }
+    req.headers = { host: '127.0.0.1', ...options.headers }
     ;(req as any).setEncoding = () => {}
 
     const resBody = new PassThrough()

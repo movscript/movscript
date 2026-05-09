@@ -318,6 +318,8 @@ export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
   }
   if (draft.kind === 'script_split') {
     validateScriptSplitDraft(draft, issues)
+  } else if (draft.kind === 'project_proposal') {
+    validateProjectProposalDraft(draft, issues)
   }
   return {
     ok: !issues.some((issue) => issue.severity === 'error'),
@@ -493,6 +495,177 @@ function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidatio
       issues.push({ path: `${base}/global_context`, message: 'Episode draft requires global_context.', severity: 'error' })
     }
   })
+}
+
+function validateProjectProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(draft.content)
+  } catch {
+    issues.push({ path: '/content', message: 'Project proposal draft content must be valid JSON.', severity: 'error' })
+    return
+  }
+  if (!isRecord(parsed)) {
+    issues.push({ path: '/content', message: 'Project proposal draft content must be a JSON object.', severity: 'error' })
+    return
+  }
+  if (parsed.scope !== 'project_proposal') {
+    issues.push({ path: '/scope', message: 'Project proposal draft scope must be project_proposal.', severity: 'error' })
+  }
+
+  const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
+  if (!proposal) {
+    issues.push({ path: '/proposal', message: 'Project proposal draft requires proposal.', severity: 'error' })
+    return
+  }
+
+  validateProjectProposalOperationArray('creative_references', proposal.creative_references, issues)
+  validateProjectProposalOperationArray('asset_slots', proposal.asset_slots, issues)
+
+  if (Array.isArray(parsed.operations) && parsed.operations.length > 0) {
+    issues.push({
+      path: '/operations',
+      message: 'Project proposal draft should keep operations empty; use proposal.creative_references and proposal.asset_slots instead.',
+      severity: 'warning',
+    })
+    validateProjectProposalOperationsArray(parsed.operations, issues)
+  } else if (parsed.operations !== undefined && !Array.isArray(parsed.operations)) {
+    issues.push({
+      path: '/operations',
+      message: 'Project proposal draft operations must be an array when present.',
+      severity: 'error',
+    })
+  }
+}
+
+function validateProjectProposalOperationArray(
+  key: 'creative_references' | 'asset_slots',
+  value: unknown,
+  issues: AgentDraftValidationIssue[],
+): void {
+  if (!Array.isArray(value)) {
+    issues.push({ path: `/proposal/${key}`, message: `Project proposal draft requires proposal.${key}.`, severity: 'error' })
+    return
+  }
+  value.forEach((item, index) => {
+    const base = `/proposal/${key}/${index}`
+    if (!isRecord(item)) {
+      issues.push({ path: base, message: 'Project proposal node must be an object.', severity: 'error' })
+      return
+    }
+    validateProjectProposalNode(item, key === 'creative_references' ? 'creativeReferences' : 'assetSlots', base, issues)
+  })
+}
+
+function validateProjectProposalNode(
+  node: Record<string, unknown>,
+  expectedEntity: 'creativeReferences' | 'assetSlots' | undefined,
+  basePath: string,
+  issues: AgentDraftValidationIssue[],
+): void {
+  const entity = typeof node.entity === 'string' && node.entity.trim() ? node.entity.trim() : ''
+  const action = typeof node.action === 'string' && node.action.trim() ? node.action.trim() : ''
+  const targetID = numberValue(node.target_id ?? node.targetId ?? node.id)
+  const sourceIDs = projectProposalSourceIDs(node.source_ids ?? node.sourceIds)
+  const payload = isRecord(node.payload) ? node.payload : undefined
+
+  const resolvedKey = entity === 'creativeReferences' || expectedEntity === 'creativeReferences'
+    ? 'creative_references'
+    : entity === 'assetSlots' || expectedEntity === 'assetSlots'
+      ? 'asset_slots'
+      : undefined
+  const allowedActions = resolvedKey === 'creative_references'
+    ? new Set(['create', 'update', 'delete', 'merge', 'reuse'])
+    : resolvedKey === 'asset_slots'
+      ? new Set(['create', 'update', 'delete', 'lock_asset', 'reuse'])
+      : undefined
+
+  if (!entity) {
+    issues.push({ path: `${basePath}/entity`, message: 'Project proposal node requires entity.', severity: 'error' })
+  } else if (expectedEntity && entity !== expectedEntity) {
+    issues.push({ path: `${basePath}/entity`, message: `Project proposal node entity must be ${expectedEntity}.`, severity: 'error' })
+  } else if (!expectedEntity && entity !== 'creativeReferences' && entity !== 'assetSlots') {
+    issues.push({ path: `${basePath}/entity`, message: 'Project proposal node entity must be creativeReferences or assetSlots.', severity: 'error' })
+  }
+
+  if (!action) {
+    issues.push({ path: `${basePath}/action`, message: 'Project proposal node requires action.', severity: 'error' })
+    return
+  }
+
+  if (!allowedActions || !allowedActions.has(action)) {
+    issues.push({ path: `${basePath}/action`, message: `Unsupported project proposal action "${action}".`, severity: 'error' })
+    return
+  }
+
+  if (action === 'reuse') {
+    issues.push({
+      path: `${basePath}/action`,
+      message: 'Project proposal reuse actions are deprecated; describe unchanged items in summary or impact_notes instead.',
+      severity: 'warning',
+    })
+    return
+  }
+
+  const needsTargetID = action === 'update' || action === 'delete' || action === 'merge' || action === 'lock_asset'
+  if (needsTargetID) {
+    if (targetID === undefined || targetID <= 0) {
+      issues.push({ path: `${basePath}/target_id`, message: `Project proposal action "${action}" requires a real target_id.`, severity: 'error' })
+    }
+  } else if (targetID !== undefined) {
+    issues.push({ path: `${basePath}/target_id`, message: 'Project proposal create actions must not include target_id.', severity: 'error' })
+  }
+
+  if (action === 'merge') {
+    if (sourceIDs.length === 0) {
+      issues.push({ path: `${basePath}/source_ids`, message: 'Project proposal merge requires source_ids.', severity: 'error' })
+    }
+    sourceIDs.forEach((sourceID, index) => {
+      if (sourceID <= 0) {
+        issues.push({ path: `${basePath}/source_ids/${index}`, message: 'Project proposal merge source_ids must be positive integers.', severity: 'error' })
+      }
+      if (targetID !== undefined && sourceID === targetID) {
+        issues.push({ path: `${basePath}/source_ids/${index}`, message: 'Project proposal merge source_ids must not include the target_id.', severity: 'error' })
+      }
+    })
+  } else if (sourceIDs.length > 0) {
+    issues.push({ path: `${basePath}/source_ids`, message: `Project proposal action "${action}" must not include source_ids.`, severity: 'error' })
+  }
+
+  if (action === 'create') {
+    if (resolvedKey === 'creative_references') {
+      if (!payloadName(payload)) {
+        issues.push({ path: `${basePath}/payload/name`, message: 'Project proposal creative reference create requires payload.name.', severity: 'error' })
+      }
+    } else if (resolvedKey === 'asset_slots' && !payloadName(payload)) {
+      issues.push({ path: `${basePath}/payload/name`, message: 'Project proposal asset slot create requires payload.name.', severity: 'error' })
+    }
+  }
+
+  if (action === 'lock_asset' && targetID !== undefined && targetID <= 0) {
+    issues.push({ path: `${basePath}/target_id`, message: 'Project proposal lock_asset requires a positive target_id.', severity: 'error' })
+  }
+}
+
+function validateProjectProposalOperationsArray(value: unknown, issues: AgentDraftValidationIssue[]): void {
+  if (!Array.isArray(value)) return
+  value.forEach((item, index) => {
+    const base = `/operations/${index}`
+    if (!isRecord(item)) {
+      issues.push({ path: base, message: 'Project proposal operation must be an object.', severity: 'error' })
+      return
+    }
+    validateProjectProposalNode(item, undefined, base, issues)
+  })
+}
+
+function projectProposalSourceIDs(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item) => numberValue(item)).filter((item): item is number => typeof item === 'number')
+}
+
+function payloadName(payload: Record<string, unknown> | undefined): boolean {
+  return typeof payload?.name === 'string' && payload.name.trim().length > 0
 }
 
 function hasScriptSplitBodyText(value: Record<string, unknown>): boolean {

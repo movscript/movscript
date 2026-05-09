@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { InMemoryAgentDraftStore } from './draftStore.js'
+import { InMemoryAgentDraftStore, validateDraft } from './draftStore.js'
 
 test('listDrafts filters by threadId and runId', () => {
   const store = new InMemoryAgentDraftStore()
@@ -57,4 +57,73 @@ test('listDrafts filters by multiple statuses', () => {
     store.listDrafts({ statuses: ['draft', 'applied'] }).map((draft) => draft.id).sort(),
     [activeDraft.id, appliedDraft.id].sort(),
   )
+})
+
+test('validateDraft accepts canonical project proposal content', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'project_proposal',
+    title: 'project proposal',
+    content: JSON.stringify({
+      schema: 'movscript.project_proposal.v1',
+      scope: 'project_proposal',
+      summary: '整理项目设定与素材需求',
+      proposal: {
+        creative_references: [{
+          action: 'create',
+          entity: 'creativeReferences',
+          payload: { name: '女主', kind: 'person' },
+        }],
+        asset_slots: [{
+          action: 'create',
+          entity: 'assetSlots',
+          payload: { name: '女主参考图', kind: 'image' },
+        }],
+      },
+      operations: [],
+      impact_notes: [],
+      createdAt: '2026-05-08T00:00:00.000Z',
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, true)
+  assert.equal(validation.issues.filter((issue) => issue.severity === 'error').length, 0)
+})
+
+test('validateDraft rejects placeholder project proposal merge ids', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'project_proposal',
+    title: 'project proposal',
+    content: JSON.stringify({
+      schema: 'movscript.project_proposal.v1',
+      scope: 'project_proposal',
+      summary: '整理项目设定与素材需求',
+      proposal: {
+        creative_references: [{
+          action: 'merge',
+          entity: 'creativeReferences',
+          target_id: 0,
+          source_ids: [0],
+          payload: {},
+        }],
+        asset_slots: [],
+      },
+      operations: [{
+        action: 'merge',
+        entity: 'creativeReferences',
+        target_id: 0,
+        source_ids: [0],
+        payload: {},
+      }],
+      impact_notes: [],
+      createdAt: '2026-05-08T00:00:00.000Z',
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, false)
+  assert.match(JSON.stringify(validation.issues), /target_id/)
+  assert.match(JSON.stringify(validation.issues), /source_ids/)
 })
