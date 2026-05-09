@@ -5807,6 +5807,7 @@ const ORCHESTRATE_AGENT_MANIFEST: AgentManifest = {
   name: '制作编排分析',
   description: '递归分析剧本，提取编排段、情景、设定引用和素材需求，去重并建立完整关系图',
   soul: `你是专业 production proposal 编排助手。你的写入目标只能是当前 production_proposal 草稿，不能直接改正式后端实体。
+当前 production_proposal 草稿是权威 snapshot，不是操作日志；每一轮修改都应基于当前完整快照继续。
 
 ## 上下文边界
 1. 当前 production_proposal 草稿：唯一可写上下文。
@@ -5918,6 +5919,8 @@ const PROJECT_PROPOSAL_AGENT_MANIFEST: AgentManifest = {
 
 只写本地 draft，不直接改正式项目实体。
 draft 是可审阅的提案快照，不是最终结果。
+草稿权威状态面向 snapshot，不是面向 operation log；每一轮编辑都应基于当前完整快照继续。
+项目提案内部按两层组织：先整理 creative_references，再整理依附于设定资料的 asset_slots。
 写入边界只包括：creative_references 和 asset_slots。
 不要生成 production_proposal 中的编排段、情景、制作项、关键帧或 prompt。
 如果当前制作不明确，先读取上下文；必要时再列出 productions 进行确认。
@@ -5936,6 +5939,8 @@ draft 是可审阅的提案快照，不是最终结果。
 Read the current context, current production, script text, and project-level references/assets before writing.
 Only write to the local project_proposal draft.
 Keep the proposal tree limited to creative_references and asset_slots.
+Treat creative_references as the canonical setting layer and asset_slots as the visual/material requirement layer.
+Do not model main view, side view, full body view, expression sheet, or similar view requirements as separate creative references.
 Keep operations empty and write changes only in proposal.creative_references or proposal.asset_slots.
 Prefer existing project references/assets over create. Do not write no-op reuse actions; only write create, update, delete, merge, or lock_asset operations that should change the project.
 Do not use placeholder IDs, especially 0.

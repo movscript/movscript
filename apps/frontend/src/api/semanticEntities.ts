@@ -501,9 +501,9 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       area('evidence', '证据'),
       area('metadata_json', '元数据 JSON'),
     ], '创建时需要填写 source_creative_reference_id 和 target_creative_reference_id。'),
-    cfg('assetSlots', 'asset-slots', '素材需求', '正式生产前需要补齐、候选或锁定的素材需求缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
+    cfg('assetSlots', 'asset-slots', '素材需求', '附着于设定资料、设定状态或制作节点的视图/素材需求缺口。', 'text-amber-600', ['name', 'kind', 'priority', 'status'], [
       num('production_id', 'Production ID'),
-      select('owner_type', '归属类型', ['segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'creative_reference_state']),
+      select('owner_type', '归属类型', ['creative_reference', 'segment', 'scene_moment', 'storyboard_line', 'content_unit', 'keyframe', 'creative_reference_state']),
       num('owner_id', '归属对象 ID'),
       num('creative_reference_id', '设定资料'),
       num('creative_reference_state_id', '设定资料状态'),

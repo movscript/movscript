@@ -79,10 +79,17 @@ interface ProjectProposalDraftEntry {
   target?: string
 }
 
+interface ProjectProposalAssetGroup {
+  ownerKey: string
+  ownerLabel: string
+  items: ProjectProposalDraftEntry[]
+}
+
 interface ProjectProposalDraftView {
   summary: string
   creativeReferences: ProjectProposalDraftEntry[]
   assetSlots: ProjectProposalDraftEntry[]
+  assetSlotGroups: ProjectProposalAssetGroup[]
   impactNotes: string[]
   debug: {
     scope?: string
@@ -148,6 +155,11 @@ function asString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
 }
 
+function asKey(value: unknown, fallback = '') {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return asString(value, fallback)
+}
+
 function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): ProjectProposalDraftView | null {
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
@@ -161,6 +173,13 @@ function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): Project
         return typeof value === 'number' ? `#${value}` : asString(value, '')
       })(),
     }))
+    const creativeReferenceLabelByKey = new Map<string, string>()
+    asRecordArray(proposal?.creative_references).forEach((item, index) => {
+      const key = asKey(item.owner_client_id ?? item.ownerClientId ?? item.target_id ?? item.targetId ?? item.id, '')
+      if (!key) return
+      creativeReferenceLabelByKey.set(key, asString(item.title ?? item.name ?? item.label ?? item.entity ?? item.kind, `设定建议 #${index + 1}`))
+    })
+
     const assetSlots = asRecordArray(proposal?.asset_slots).map((item, index) => ({
       action: asString(item.action ?? item.type ?? item.op, 'update'),
       label: asString(item.title ?? item.name ?? item.label ?? item.entity ?? item.kind, `素材建议 #${index + 1}`),
@@ -170,6 +189,37 @@ function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): Project
         return typeof value === 'number' ? `#${value}` : asString(value, '')
       })(),
     }))
+    const assetSlotGroupsMap = new Map<string, ProjectProposalAssetGroup>()
+    asRecordArray(proposal?.asset_slots).forEach((item, index) => {
+      const ownerKey = asKey(
+        item.owner_client_id
+          ?? item.ownerClientId
+          ?? item.owner_id
+          ?? item.ownerId
+          ?? item.creative_reference_id
+          ?? item.creativeReferenceId
+          ?? item.reference_id
+          ?? item.referenceId,
+        '',
+      )
+      const groupKey = ownerKey || 'ungrouped'
+      const ownerLabel = ownerKey
+        ? creativeReferenceLabelByKey.get(ownerKey)
+          ?? asString(item.owner_name ?? item.ownerName ?? item.source_label ?? item.sourceLabel ?? item.name ?? item.label, `关联设定 ${ownerKey}`)
+        : '未绑定设定'
+      const entry = assetSlots[index]
+      if (!entry) return
+      const existing = assetSlotGroupsMap.get(groupKey)
+      if (existing) {
+        existing.items.push(entry)
+      } else {
+        assetSlotGroupsMap.set(groupKey, {
+          ownerKey: groupKey,
+          ownerLabel,
+          items: [entry],
+        })
+      }
+    })
     const impactNotes = [
       ...asRecordArray(content.impact_notes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
       ...asRecordArray(content.impactNotes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
@@ -181,6 +231,7 @@ function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): Project
       summary: asString(content.summary, '暂无摘要'),
       creativeReferences,
       assetSlots,
+      assetSlotGroups: Array.from(assetSlotGroupsMap.values()),
       impactNotes,
       debug: {
         scope: asString(content.scope, ''),
@@ -1065,11 +1116,21 @@ export default function ProjectOrchestrationPage() {
                           ) : null}
                           {proposalView.assetSlots.length > 0 ? (
                             <div className="mt-2 space-y-1 rounded-md border border-border bg-background/70 p-2">
-                              <p className="text-[10px] font-medium text-foreground">素材建议</p>
-                              {proposalView.assetSlots.slice(0, 4).map((entry, index) => (
-                                <div key={`${draft.id}-asset-${index}`} className="rounded border border-border/70 px-2 py-1 text-[10px] leading-4 text-muted-foreground">
-                                  <span className="font-medium text-foreground">{formatDraftEntry(entry)}</span>
-                                  <span className="block">{entry.detail}</span>
+                              <p className="text-[10px] font-medium text-foreground">素材 / 视图需求</p>
+                              {proposalView.assetSlotGroups.slice(0, 4).map((group, groupIndex) => (
+                                <div key={`${draft.id}-asset-group-${groupIndex}`} className="rounded border border-border/70 px-2 py-1 text-[10px] leading-4 text-muted-foreground">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-medium text-foreground">{group.ownerLabel}</span>
+                                    <span className="shrink-0 text-[9px] text-muted-foreground">{group.items.length} 项</span>
+                                  </div>
+                                  <div className="mt-1 space-y-1">
+                                    {group.items.slice(0, 3).map((entry, index) => (
+                                      <div key={`${draft.id}-asset-${groupIndex}-${index}`} className="rounded border border-border/50 bg-background/60 px-2 py-1">
+                                        <span className="font-medium text-foreground">{formatDraftEntry(entry)}</span>
+                                        <span className="block">{entry.detail}</span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -1136,6 +1197,7 @@ export default function ProjectOrchestrationPage() {
             ? {
                 status: 'missing',
                 priority: 'normal',
+                owner_type: 'creative_reference',
                 creative_reference_id: selectedReference?.ID ?? null,
               }
             : undefined}
@@ -1295,6 +1357,7 @@ function buildProjectOrchestrationPrompt(input: {
     '',
     input.userPrompt.trim() ? `用户补充要求：\n${input.userPrompt.trim()}\n` : '',
     '当前项目快照：',
+    '快照分两层：creativeReferences 代表设定本体，assetSlots 代表这些设定需要的视图/素材需求。',
     JSON.stringify(snapshot, null, 2),
   ].filter(Boolean).join('\n')
 }
@@ -1320,6 +1383,8 @@ const PROJECT_ORCHESTRATION_AGENT_MANIFEST: AgentManifest = {
 
 只写本地 draft，不直接改正式项目实体。
 draft 是可审阅的提案快照，不是最终结果。
+草稿权威状态面向 snapshot，不是面向 operation log；每一轮编辑都应基于当前完整快照继续。
+项目提案内部按两层组织：先整理设定资料本体，再整理依附于设定资料的素材/视图需求。
 输出要围绕：创建设定、修改设定、删除设定、合并重复设定、锁定素材需求、说明对制作引用的影响。
 如果当前上下文里有 productionId 或当前制作信息，可以先读取当前制作和剧本，再整理项目级结论。
 不要生成制作项、关键帧、台词终稿、运镜表或 prompt。制作编排只引用项目编排的结果。`,

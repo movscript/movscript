@@ -81,6 +81,9 @@ export function buildProjectProposalDraftContractPrompt(draftId: string) {
   return [
     `目标 draft：${draftId}`,
     'draft 定义：本地可审阅的项目提案快照，不是最终结果；只有用户 apply 后才写入正式后端实体。',
+    '项目提案内部按两层组织：先整理 creative_references，再整理依附于这些设定资料的 asset_slots。',
+    'creative_reference 描述“这个设定是什么”；asset_slot 描述“这个设定需要哪些可复用素材或视图”。',
+    '人物主视图、侧视图、全身图、表情组、服装状态图、道具图等都应该作为 asset_slot，不要再建成新的 creative_reference。',
     '',
     '只允许写入这一种 JSON 结构。数组默认为空；只有存在真实变更时才添加节点：',
     JSON.stringify(PROJECT_PROPOSAL_EMPTY_SHAPE, null, 2),
@@ -92,6 +95,7 @@ export function buildProjectProposalDraftContractPrompt(draftId: string) {
     '- 修改或删除已有实体用 update/delete：target_id 必须是真实存在的正整数。',
     '- 合并已有重复设定用 merge：target_id 是保留设定 ID，source_ids 是被合并设定 ID 数组；两者都必须是真实存在的正整数。',
     '- 锁定已有素材需求用 lock_asset：target_id 必须是真实存在的素材需求 ID；没有已有素材需求时改用 create。',
+    '- 视图或素材要求优先使用 asset_slot 的 payload 字段表达，例如 view_type、owner_type、owner_id、owner_client_id、usage、rationale。',
     '- operations 是兼容字段，保持 []；不要把变更同时写进 operations。',
     '',
     '生成规则：',
