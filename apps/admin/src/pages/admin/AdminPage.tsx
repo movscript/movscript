@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -144,7 +144,7 @@ function CredentialForm({
 }: {
   adapter: AdapterDef
   onBack: () => void
-  onSuccess: () => void
+  onSuccess: (adapterType: string) => void
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -160,7 +160,7 @@ function CredentialForm({
       api.post('/admin/credentials', data).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
-      onSuccess()
+      onSuccess(adapter.adapter_type)
     },
   })
 
@@ -185,7 +185,7 @@ function CredentialForm({
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
       const res = await api.post(`/admin/credentials/${cred.ID}/test`, {}).then((r) => r.data)
       setTestState({ loading: false, result: res })
-      if (res.success) onSuccess()
+      if (res.success) onSuccess(adapter.adapter_type)
     } catch (e: any) {
       setTestState({ loading: false, result: { success: false, message: translateApiError(e?.response?.data), latency_ms: 0 } })
     }
@@ -785,6 +785,7 @@ export function ModelManagementPage() {
   const [viewMode, setViewMode] = useState<'providers' | 'gateway'>('providers')
   const [addStep, setAddStep] = useState<'idle' | 'pick' | 'fill'>('idle')
   const [selectedAdapter, setSelectedAdapter] = useState<AdapterDef | null>(null)
+  const [relayHint, setRelayHint] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [showKey, setShowKey] = useState<Record<number, boolean>>({})
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
@@ -1036,8 +1037,33 @@ export function ModelManagementPage() {
         <CredentialForm
           adapter={selectedAdapter}
           onBack={() => setAddStep('pick')}
-          onSuccess={() => { setAddStep('idle'); setSelectedAdapter(null) }}
+          onSuccess={(adapterType) => {
+            setAddStep('idle')
+            setSelectedAdapter(null)
+            setRelayHint(adapterType === 'volcen' ? adapterType : null)
+          }}
         />
+      )}
+
+      {viewMode === 'providers' && relayHint === 'volcen' && addStep === 'idle' && (
+        <div className="rounded-lg border border-border bg-accent/30 p-4 flex items-start gap-3">
+          <CloudUpload size={16} className="shrink-0 mt-0.5 text-muted-foreground" />
+          <div className="flex-1 space-y-1 min-w-0">
+            <p className="text-sm font-medium">{t('admin.credentials.volcenRelayHintTitle')}</p>
+            <p className="text-xs text-muted-foreground leading-relaxed">{t('admin.credentials.volcenRelayHintBody')}</p>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button size="sm" onClick={() => window.location.assign(adminHref('/cloud-files?type=tos'))}>
+              {t('admin.credentials.volcenRelayHintCta')}
+            </Button>
+            <button
+              onClick={() => setRelayHint(null)}
+              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+            >
+              {t('common.dismiss')}
+            </button>
+          </div>
+        </div>
       )}
 
       {viewMode === 'providers' && (
@@ -2551,15 +2577,31 @@ export function CloudFileConfigPage() {
     queryFn: () => api.get('/admin/cloud-file-configs').then(r => r.data),
   })
 
-  function openCreate() {
+  function openCreate(initialType: string = 's3') {
     setEditingId(null)
-    setFormType('s3')
+    setFormType(initialType)
     setFormName('')
     setFormPriority(configs.length)
     setFormEnabled(true)
     setFormFields({})
     setShowForm(true)
   }
+
+  // Deep-link support: `/cloud-files?type=tos` pre-opens the create form with that type.
+  // Used by the Volcen credential flow to guide admins directly to TOS setup.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const type = params.get('type')
+    if (!type || !CONFIG_TYPE_LABELS[type]) return
+    openCreate(type)
+    params.delete('type')
+    const nextSearch = params.toString()
+    const nextUrl = window.location.pathname + (nextSearch ? `?${nextSearch}` : '') + window.location.hash
+    window.history.replaceState({}, '', nextUrl)
+    // Intentionally omit deps: we only want this to fire once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function openEdit(cfg: CloudFileConfig) {
     setEditingId(cfg.ID)
@@ -2639,7 +2681,7 @@ export function CloudFileConfigPage() {
           <h3 className="text-sm font-semibold">{t('admin.cloudFiles.title')}</h3>
           <p className="text-xs text-muted-foreground mt-0.5">{t('admin.cloudFiles.description')}</p>
         </div>
-        <Button size="sm" onClick={openCreate}>{t('admin.cloudFiles.addConfig')}</Button>
+        <Button size="sm" onClick={() => openCreate()}>{t('admin.cloudFiles.addConfig')}</Button>
       </div>
 
       {configs.length === 0 && !showForm && (

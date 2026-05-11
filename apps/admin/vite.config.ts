@@ -12,6 +12,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@movscript/draft-schemas': resolve(__dirname, '../../packages/draft-schemas/src/index.ts'),
       '@movscript/tokens/theme.css': resolve(__dirname, '../../packages/tokens/src/theme.css'),
       '@movscript/ui/styles.css': resolve(__dirname, '../../packages/ui/src/styles.css'),
       '@movscript/tokens': resolve(__dirname, '../../packages/tokens/src/index.ts'),

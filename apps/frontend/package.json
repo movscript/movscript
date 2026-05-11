@@ -22,6 +22,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@movscript/draft-schemas": "workspace:*",
     "@movscript/tokens": "workspace:*",
     "@movscript/ui": "workspace:*",
     "@radix-ui/react-avatar": "^1.1.11",

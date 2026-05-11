@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  SCRIPT_SPLIT_DRAFT_SCHEMA,
   parseScriptSplitDraftContent,
   type ScriptSplitProductionSummary,
 } from './scriptSplitDraft'
@@ -32,7 +33,7 @@ function makeScript(input: Partial<Script>): Script {
 
 test('parseScriptSplitDraftContent resolves matched production into update metadata', () => {
   const content = JSON.stringify({
-    schema: 'movscript.script_split_analysis.v1',
+    schema: SCRIPT_SPLIT_DRAFT_SCHEMA,
     global_settings: {
       story_world: '近未来都市',
       core_rules: ['线索必须可回收'],

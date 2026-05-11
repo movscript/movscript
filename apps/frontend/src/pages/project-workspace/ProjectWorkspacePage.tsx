@@ -753,7 +753,7 @@ export default function ProjectOrchestrationPage() {
         },
         metadata: {
           pageOwned: true,
-          analysisScope: 'project',
+          proposalScope: 'project',
         },
       })
       setActiveDraftId(draftShell.id)

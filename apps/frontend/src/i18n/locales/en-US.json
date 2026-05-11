@@ -13,6 +13,7 @@
     "creating": "Creating...",
     "delete": "Delete",
     "details": "Details",
+    "dismiss": "Dismiss",
     "emptyTitle": "(Untitled)",
     "emptyDescription": "(No description)",
     "expand": "Expand",
@@ -2313,7 +2314,10 @@
       "filesAPIBaseURLCredential": "Base URL (leave blank to use credential Base URL)",
       "leaveBlankUseCredentialBaseURL": "Leave blank to use credential Base URL",
       "filesAPIKeyCredential": "API Key (leave blank to use the credential primary Key)",
-      "leaveBlankUseMainKey": "Leave blank to use the primary credential Key"
+      "leaveBlankUseMainKey": "Leave blank to use the primary credential Key",
+      "volcenRelayHintTitle": "Configure a public relay for Seedance video generation",
+      "volcenRelayHintBody": "Volcen Ark's Seedance video API only accepts public URLs — base64 is rejected for video inputs. Configure a TOS bucket so the worker can auto-upload local reference images and videos.",
+      "volcenRelayHintCta": "Configure TOS"
     },
     "users": {
       "title": "User Management",

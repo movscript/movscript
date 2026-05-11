@@ -39,6 +39,7 @@ import {
 
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
 import { api } from '@/lib/api'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { buildEmptyAssetProposalDraftContent } from '@/lib/assetProposalDraft'
@@ -5439,7 +5440,7 @@ function ScriptSplitWorkbench() {
       kind: 'script_split',
       title: `一键制作方案 - ${baseTitle}`,
       content: JSON.stringify({
-        schema: 'movscript.script_split_analysis.v1',
+        schema: DRAFT_CONTENT_SCHEMA_IDS.scriptSplit,
         source_title: baseTitle,
         source_summary: sourceSummary,
         source_script: {
@@ -5885,7 +5886,6 @@ function ScriptSplitWorkbench() {
           scenes_desc: draft.globalContext.keyLocations.join('\n'),
           structured_characters: JSON.stringify(draft.globalContext.keyCharacters.map((name) => ({ name, scope: 'global' }))),
           structure_json: JSON.stringify({
-            schema: 'movscript.script_split_episode_context.v1',
             global_context: draft.globalContext,
             episode: {
               order: draft.order,

@@ -7,8 +7,11 @@
     "skipLibCheck": true,
     "declaration": true,
     "sourceMap": true,
-    "outDir": "dist",
-    "rootDir": "src",
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@movscript/draft-schemas": ["../../packages/draft-schemas/src/index.ts"]
+    },
     "types": [
       "node"
     ]

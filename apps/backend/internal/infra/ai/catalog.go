@@ -663,8 +663,20 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, cus
 	if customImageEditField != "" {
 		def.ImageEditField = customImageEditField
 	}
+	if def.ImageEditField == "" && adapterType == AdapterOpenAICompat && hasString(def.Capabilities, CapabilityImageEdit) {
+		def.ImageEditField = "image[]"
+	}
 	def.SupportedParams, def.SupportedParamsExplicit = ResolveEffectiveParams(adapterType, def.Capabilities, customSupportedParams)
 	return def
+}
+
+func hasString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 // ResolveModelID returns the effective API-level model ID.

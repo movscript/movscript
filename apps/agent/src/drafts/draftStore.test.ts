@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
 import { FileAgentDraftStore, InMemoryAgentDraftStore, validateDraft } from './draftStore.js'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 
 test('listDrafts filters by threadId and runId', () => {
   const store = new InMemoryAgentDraftStore()
@@ -88,7 +89,7 @@ test('validateDraft accepts canonical project proposal content', () => {
     kind: 'project_proposal',
     title: 'project proposal',
     content: JSON.stringify({
-      schema: 'movscript.project_proposal.v1',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
       scope: 'project_proposal',
       summary: '整理项目设定与素材需求',
       proposal: {
@@ -117,7 +118,7 @@ test('validateDraft rejects operation-shaped project proposal content', () => {
     kind: 'project_proposal',
     title: 'project proposal',
     content: JSON.stringify({
-      schema: 'movscript.project_proposal.v1',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
       scope: 'project_proposal',
       summary: '整理项目设定与素材需求',
       proposal: {
@@ -150,7 +151,7 @@ test('validateDraft rejects non-snake-case project proposal asset owner type', (
     kind: 'project_proposal',
     title: 'project proposal',
     content: JSON.stringify({
-      schema: 'movscript.project_proposal.v1',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
       scope: 'project_proposal',
       summary: '整理项目设定与素材需求',
       proposal: {
@@ -177,7 +178,7 @@ test('validateDraft accepts production proposal content with content units and k
     kind: 'production_proposal',
     title: 'production proposal',
     content: JSON.stringify({
-      schema: 'movscript.production_proposal_draft.v2',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId: 12,
       proposal: {
         segments: [{
@@ -208,7 +209,7 @@ test('validateDraft accepts canonical asset proposal content', () => {
     kind: 'asset_proposal',
     title: 'asset proposal',
     content: JSON.stringify({
-      schema: 'movscript.asset_proposal.v1',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
       scope: 'asset_proposal',
       projectId: 42,
       assetSlotId: 56,
@@ -247,7 +248,7 @@ test('validateDraft rejects asset proposal with mismatched slot id', () => {
     kind: 'asset_proposal',
     title: 'asset proposal',
     content: JSON.stringify({
-      schema: 'movscript.asset_proposal.v1',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
       scope: 'asset_proposal',
       assetSlotId: 56,
       slot: { id: 57, name: '女主主视图', kind: 'image' },

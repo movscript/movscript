@@ -1,5 +1,7 @@
-export const ASSET_PROPOSAL_DRAFT_SCHEMA = 'movscript.asset_proposal.v1'
-export const ASSET_PROPOSAL_SCOPE = 'asset_proposal'
+import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_SCOPES } from '@movscript/draft-schemas'
+
+export const ASSET_PROPOSAL_DRAFT_SCHEMA = DRAFT_CONTENT_SCHEMA_IDS.assetProposal
+export const ASSET_PROPOSAL_SCOPE = DRAFT_SCOPES.assetProposal
 
 export type AssetProposalOutputKind = 'image' | 'video' | 'audio' | 'text' | 'file'
 

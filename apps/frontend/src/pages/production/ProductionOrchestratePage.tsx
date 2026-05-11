@@ -107,7 +107,7 @@ interface OrchestrationData {
   contentUnits: ContentUnitRecord[]
 }
 
-// AI analysis output types
+// AI proposal output types
 interface AISegmentCandidate { [k: string]: unknown; client_id: string; order: number; title: string; summary: string; source_range?: string }
 interface AISceneMomentCandidate {
   [k: string]: unknown
@@ -242,7 +242,7 @@ interface ProposalSegmentNode {
 }
 interface ProposalDraftContent {
   productionId: number
-  analysisScope?: string
+  proposalScope?: string
   summary?: string
   proposal: { segments: ProposalSegmentNode[] }
   proposedAt?: string
@@ -359,7 +359,7 @@ function parseProductionProposalDraft(draft: AgentDraft): ProposalDraftContent |
 
     return {
       productionId,
-      analysisScope: stringDraftField(content.analysisScope) || stringDraftField(content.analysis_scope) || undefined,
+      proposalScope: stringDraftField(content.proposalScope) || undefined,
       summary: stringDraftField(content.summary),
       proposal: {
         segments: rawSegments.filter(isRecordValue) as unknown as ProposalSegmentNode[],
@@ -970,7 +970,7 @@ export default function ProductionOrchestratePage() {
       },
       metadata: {
         pageOwned: true,
-        analysisScope: 'project',
+        proposalScope: 'project',
         productionId: effectiveProductionId,
         sourceProductionId: effectiveProductionId,
       },
@@ -983,7 +983,7 @@ export default function ProductionOrchestratePage() {
       content: JSON.stringify({
         schema: PRODUCTION_PROPOSAL_DRAFT_SCHEMA,
         productionId: effectiveProductionId,
-        analysisScope: 'production',
+        proposalScope: 'production',
         proposal: { segments: [] },
         proposedAt: new Date().toISOString(),
         projectDraftId: projectDraft.id,
@@ -1008,7 +1008,7 @@ export default function ProductionOrchestratePage() {
       },
       metadata: {
         pageOwned: true,
-        analysisScope: 'production',
+        proposalScope: 'production',
         productionId: effectiveProductionId,
         projectDraftId: projectDraft.id,
       },
@@ -2285,7 +2285,7 @@ function ProposalReviewPanel({
     try {
       const result = await previewProductionProposalApply(projectId, {
         production_id: proposalDraft.productionId,
-        analysis_scope: proposalDraft.analysisScope ?? 'production',
+        proposal_scope: proposalDraft.proposalScope ?? 'production',
         proposal,
       })
       setSimulationResult({
@@ -2347,7 +2347,7 @@ function ProposalReviewPanel({
     try {
       const result = await applyProductionProposal(projectId, {
         production_id: proposalDraft.productionId,
-        analysis_scope: proposalDraft.analysisScope ?? 'production',
+        proposal_scope: proposalDraft.proposalScope ?? 'production',
         proposal,
       })
       if (proposalDraft.draftId) {

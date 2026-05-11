@@ -13,6 +13,7 @@
     "creating": "创建中…",
     "delete": "删除",
     "details": "详情",
+    "dismiss": "忽略",
     "emptyTitle": "（无标题）",
     "emptyDescription": "（无描述）",
     "expand": "展开",
@@ -2197,7 +2198,10 @@
       "filesAPIBaseURLCredential": "Base URL（留空则使用凭据 Base URL）",
       "leaveBlankUseCredentialBaseURL": "留空使用凭据 Base URL",
       "filesAPIKeyCredential": "API Key（留空则使用凭据主 Key）",
-      "leaveBlankUseMainKey": "留空使用主凭据 Key"
+      "leaveBlankUseMainKey": "留空使用主凭据 Key",
+      "volcenRelayHintTitle": "为 Seedance 视频生成配置公网中转",
+      "volcenRelayHintBody": "火山 Ark 的 Seedance 视频接口只接受公网 URL，不支持 Base64 传视频。配置一个 TOS 桶，Worker 会自动把本地参考图/参考视频上传上去。",
+      "volcenRelayHintCta": "去配置 TOS"
     },
     "users": {
       "title": "用户管理",

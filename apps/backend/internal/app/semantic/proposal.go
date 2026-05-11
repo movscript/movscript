@@ -93,9 +93,9 @@ type ProposalAssetSlotNode struct {
 }
 
 type ApplyProductionProposalRequest struct {
-	ProductionID  uint          `json:"production_id" binding:"required"`
-	AnalysisScope string        `json:"analysis_scope"`
-	Proposal      *ProposalTree `json:"proposal"`
+  ProductionID  uint          `json:"production_id" binding:"required"`
+  ProposalScope string        `json:"proposal_scope"`
+  Proposal      *ProposalTree `json:"proposal"`
 }
 
 type ProposalTree struct {

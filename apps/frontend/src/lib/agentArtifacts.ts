@@ -37,6 +37,8 @@ function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
     'asset_proposal',
     'project_proposal',
     'production_proposal',
+    'content_unit_proposal',
+    'content_unit_media_proposal',
   ]
   return allowed.includes(normalized as AgentDraftKind) ? normalized as AgentDraftKind : undefined
 }

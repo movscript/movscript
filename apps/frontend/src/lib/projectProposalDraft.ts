@@ -1,5 +1,7 @@
-export const PROJECT_PROPOSAL_DRAFT_SCHEMA = 'movscript.project_proposal.v1'
-export const PROJECT_PROPOSAL_SCOPE = 'project_proposal'
+import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_SCOPES } from '@movscript/draft-schemas'
+
+export const PROJECT_PROPOSAL_DRAFT_SCHEMA = DRAFT_CONTENT_SCHEMA_IDS.projectProposal
+export const PROJECT_PROPOSAL_SCOPE = DRAFT_SCOPES.projectProposal
 
 export interface ProjectProposalMergeCandidate {
   source_id: number

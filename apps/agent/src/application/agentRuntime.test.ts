@@ -18,6 +18,7 @@ import { StaticAgentRuntimeContractResolver } from '../contracts/runtimeContract
 import { InMemoryAgentCatalogStateStore } from '../manifest/catalogState.js'
 import { loadAgentPluginCatalog } from '../manifest/pluginCatalog.js'
 import { normalizeClientInput } from '../context/normalizeClientInput.js'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 
 process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(mkdtempSync(join(tmpdir(), 'movscript-agent-runtime-test-')), 'model-config.json')
 
@@ -439,7 +440,7 @@ test('runtime can read, edit, and validate a script split draft without backend 
     kind: 'script_split',
     title: '剧本拆分草稿',
     content: JSON.stringify({
-      schema: 'movscript.script_split_analysis.v1',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.scriptSplit,
       source_title: '总稿',
       source_summary: '摘要',
       source_script: {
@@ -810,7 +811,7 @@ test('simulateApplyDraft dry-runs backend apply without marking draft applied', 
     kind: 'project_proposal',
     title: 'Project proposal',
     content: JSON.stringify({
-      schema: 'movscript.project_proposal.v1',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
       scope: 'project_proposal',
       proposal: {
         creative_references: [{ fields: { name: 'Heroine', kind: 'person' } }],
@@ -1573,7 +1574,7 @@ test('script split agent session exposes structured submit tool without forcing 
       const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
       const systemText = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '').join('\n')
       assert.equal(body.response_format, undefined)
-      assert.doesNotMatch(systemText, /movscript\.script_split_analysis\.v1/)
+      assert.doesNotMatch(systemText, /movscript\.script_split_proposal\.v1/)
       return new Response(JSON.stringify({
         choices: [{
           message: {
@@ -1714,7 +1715,7 @@ test('script split structured submit tool writes a normalized script_split draft
   assert.equal(client.calls.some((call) => call.name === 'movscript_submit_script_split_draft'), false)
   assert.equal(draft?.kind, 'script_split')
   assert.equal(draft?.title, '剧本拆分草稿 - 总稿')
-  assert.equal(parsed.schema, 'movscript.script_split_analysis.v1')
+  assert.equal(parsed.schema, DRAFT_CONTENT_SCHEMA_IDS.scriptSplit)
   assert.equal(parsed.source_title, '总稿')
   assert.equal(parsed.global_settings?.story_world, '雨夜城市')
   assert.deepEqual(parsed.global_settings?.core_rules, ['不能复制正文'])
@@ -1973,7 +1974,7 @@ test('create_proposal creates a local proposal draft from conversation context',
         kind: 'project_proposal',
         projectId: 42,
         content: JSON.stringify({
-          schema: 'movscript.project_proposal.v1',
+          schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
           scope: 'project_proposal',
           summary: '整理项目设定和素材需求',
           proposal: {
@@ -2187,7 +2188,7 @@ test('production proposal creation recovers from stale page draft id', async () 
       args: {
         projectId: 42,
         productionId: 4,
-        analysisScope: 'production',
+        proposalScope: 'production',
       },
     },
   })
@@ -2214,9 +2215,9 @@ test('production proposal submit preserves the page-owned draft shell', async ()
     kind: 'production_proposal',
     title: '页面草稿壳',
     content: JSON.stringify({
-      schema: 'movscript.production_proposal_draft.v2',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId: 4,
-      analysisScope: 'production',
+      proposalScope: 'production',
       proposal: { segments: [] },
     }),
     source: {
@@ -2236,7 +2237,7 @@ test('production proposal submit preserves the page-owned draft shell', async ()
     title: '旧草稿',
     content: JSON.stringify({
       productionId: 4,
-      analysisScope: 'production',
+      proposalScope: 'production',
       proposal: { segments: [] },
     }),
     source: { entityType: 'production', entityId: 4 },
@@ -2267,7 +2268,7 @@ test('production proposal submit preserves the page-owned draft shell', async ()
       args: {
         projectId: 42,
         productionId: 4,
-        analysisScope: 'production',
+        proposalScope: 'production',
         proposal: {
           segments: [{ client_id: 's1', order: 1, title: '开场', summary: '建立情景片气质' }],
         },
@@ -2568,9 +2569,9 @@ test('business production proposal tools upsert orchestration nodes only', async
     kind: 'production_proposal',
     title: '业务编排提案',
     content: JSON.stringify({
-      schema: 'movscript.production_proposal_draft.v2',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId: 4,
-      analysisScope: 'production',
+      proposalScope: 'production',
       proposal: {
         segments: [],
       },
@@ -2646,9 +2647,9 @@ test('production proposal inspect uses page context draft id when args omit prop
     kind: 'production_proposal',
     title: '页面草稿壳',
     content: JSON.stringify({
-      schema: 'movscript.production_proposal_draft.v2',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId: 4,
-      analysisScope: 'production',
+      proposalScope: 'production',
       proposal: {
         segments: [{ client_id: 's1', title: '开场', scene_moments: [] }],
       },
@@ -2698,9 +2699,9 @@ test('production proposal upsert uses page context draft id when args omit propo
     kind: 'production_proposal',
     title: '页面草稿壳',
     content: JSON.stringify({
-      schema: 'movscript.production_proposal_draft.v2',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId: 4,
-      analysisScope: 'production',
+      proposalScope: 'production',
       proposal: { segments: [] },
     }),
     source: { entityType: 'production', entityId: 4, pageKey },

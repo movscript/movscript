@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { JSONValue } from '../types.js'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
-import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_KIND_VALUES, type DraftKindValue } from './draftSchemas.js'
+import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_KIND_VALUES, type DraftKindValue } from '@movscript/draft-schemas'
 
 // AgentDraft is a local runtime/client review artifact. It is the protocol shape
 // used to pass proposed changes to the UI for preview, revision, approval, or
@@ -486,8 +486,12 @@ export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
     validateScriptSplitDraft(draft, issues)
   } else if (draft.kind === 'project_proposal') {
     validateProjectProposalDraft(draft, issues)
+  } else if (draft.kind === 'content_unit_proposal') {
+    validateContentUnitProposalDraft(draft, issues)
   } else if (draft.kind === 'asset_proposal') {
     validateAssetProposalDraft(draft, issues)
+  } else if (draft.kind === 'content_unit_media_proposal') {
+    validateContentUnitMediaProposalDraft(draft, issues)
   } else if (draft.kind === 'production_proposal') {
     validateProductionProposalDraft(draft, issues)
   }
@@ -797,6 +801,101 @@ function validateAssetProposalDraft(draft: AgentDraft, issues: AgentDraftValidat
     const modelCapability = typeof plan.model_capability === 'string' ? plan.model_capability : ''
     if (modelCapability && !['image', 'image_edit', 'video', 'video_i2v'].includes(modelCapability)) {
       issues.push({ path: `${base}/model_capability`, message: 'Asset proposal model_capability must be image, image_edit, video, or video_i2v.', severity: 'error' })
+    }
+  })
+}
+
+function validateContentUnitProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(draft.content)
+  } catch {
+    issues.push({ path: '/content', message: 'Content unit proposal draft content must be valid JSON.', severity: 'error' })
+    return
+  }
+  if (!isRecord(parsed)) {
+    issues.push({ path: '/content', message: 'Content unit proposal draft content must be a JSON object.', severity: 'error' })
+    return
+  }
+  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.contentUnitProposal) {
+    issues.push({ path: '/schema', message: `Content unit proposal draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.contentUnitProposal}.`, severity: 'error' })
+  }
+  if (parsed.scope !== 'content_unit_proposal') {
+    issues.push({ path: '/scope', message: 'Content unit proposal draft scope must be content_unit_proposal.', severity: 'error' })
+  }
+  if (numberValue(parsed.productionId ?? parsed.production_id) === undefined) {
+    issues.push({ path: '/productionId', message: 'Content unit proposal draft requires productionId.', severity: 'error' })
+  }
+  const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
+  if (!proposal) {
+    issues.push({ path: '/proposal', message: 'Content unit proposal draft requires proposal.', severity: 'error' })
+    return
+  }
+  const units = Array.isArray(proposal.units) ? proposal.units : []
+  if (units.length === 0) {
+    issues.push({ path: '/proposal/units', message: 'Content unit proposal draft requires at least one content unit.', severity: 'error' })
+    return
+  }
+  const allowedKinds = new Set(['shot', 'visual_segment', 'caption_card', 'narration', 'transition', 'music_beat', 'product_showcase'])
+  units.forEach((unit, index) => {
+    const base = `/proposal/units/${index}`
+    if (!isRecord(unit)) {
+      issues.push({ path: base, message: 'Content unit proposal unit must be an object.', severity: 'error' })
+      return
+    }
+    if (typeof unit.title !== 'string' || !unit.title.trim()) {
+      issues.push({ path: `${base}/title`, message: 'Content unit proposal unit requires title.', severity: 'error' })
+    }
+    const kind = typeof unit.kind === 'string' ? unit.kind.trim() : ''
+    if (!allowedKinds.has(kind)) {
+      issues.push({ path: `${base}/kind`, message: 'Content unit proposal unit kind must be shot, visual_segment, caption_card, narration, transition, music_beat, or product_showcase.', severity: 'error' })
+    }
+  })
+}
+
+function validateContentUnitMediaProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(draft.content)
+  } catch {
+    issues.push({ path: '/content', message: 'Content unit media proposal draft content must be valid JSON.', severity: 'error' })
+    return
+  }
+  if (!isRecord(parsed)) {
+    issues.push({ path: '/content', message: 'Content unit media proposal draft content must be a JSON object.', severity: 'error' })
+    return
+  }
+  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.contentUnitMediaProposal) {
+    issues.push({ path: '/schema', message: `Content unit media proposal draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.contentUnitMediaProposal}.`, severity: 'error' })
+  }
+  if (parsed.scope !== 'content_unit_media_proposal') {
+    issues.push({ path: '/scope', message: 'Content unit media proposal draft scope must be content_unit_media_proposal.', severity: 'error' })
+  }
+  if (numberValue(parsed.contentUnitId ?? parsed.content_unit_id) === undefined) {
+    issues.push({ path: '/contentUnitId', message: 'Content unit media proposal draft requires contentUnitId.', severity: 'error' })
+  }
+  const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
+  if (!proposal) {
+    issues.push({ path: '/proposal', message: 'Content unit media proposal draft requires proposal.', severity: 'error' })
+    return
+  }
+  const outputs = Array.isArray(proposal.outputs) ? proposal.outputs : []
+  if (outputs.length === 0) {
+    issues.push({ path: '/proposal/outputs', message: 'Content unit media proposal draft requires at least one output plan.', severity: 'error' })
+    return
+  }
+  outputs.forEach((output, index) => {
+    const base = `/proposal/outputs/${index}`
+    if (!isRecord(output)) {
+      issues.push({ path: base, message: 'Content unit media output plan must be an object.', severity: 'error' })
+      return
+    }
+    const outputKind = typeof output.output_kind === 'string' ? output.output_kind.trim() : ''
+    if (!['image', 'video'].includes(outputKind)) {
+      issues.push({ path: `${base}/output_kind`, message: 'Content unit media output kind must be image or video.', severity: 'error' })
+    }
+    if (typeof output.prompt !== 'string' || !output.prompt.trim()) {
+      issues.push({ path: `${base}/prompt`, message: 'Content unit media output plan requires prompt.', severity: 'error' })
     }
   })
 }

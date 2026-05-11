@@ -22,7 +22,7 @@ Frontend / Electron
 - Thread：对话线程，包含多条消息。
 - Run：一次用户消息的执行实例，包含 policy、steps、warnings、pendingApprovals。
 - Step：Run 的可见执行记录，类型只有 `tool_call` 和 `message`。
-- Draft：本地草稿。agent 只负责创建和修改；用户确认后的应用由 UI/应用层 apply API 写入正式实体。草稿不属于前端 conversation；AI 面板只展示当前 thread 涉及的草稿，跨 thread 草稿进入独立历史草稿页。
+- Draft / Proposal：本地可审阅提案。agent 只负责创建和修改；用户确认后的应用由 UI/应用层 apply API 写入正式实体。草稿不属于前端 conversation；AI 面板只展示当前 thread 涉及的草稿，跨 thread 草稿进入独立历史草稿页。proposal kind 和 schema id 来自共享 draft schema registry，skills/tools 只引用它，不拥有 schema。
 - Memory：本地记忆，按 global/project/thread 作用域加载和写入。
 - Manifest：定义 agent permissions、tools、skills。
 - Policy：定义审批模式、sandbox、工具调用上限和运行边界。

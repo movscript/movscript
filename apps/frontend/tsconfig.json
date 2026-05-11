@@ -17,6 +17,7 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
+      "@movscript/draft-schemas": ["../../packages/draft-schemas/src/index.ts"],
       "@movscript/tokens": ["../../packages/tokens/src/index.ts"],
       "@movscript/ui": ["../../packages/ui/src/index.ts"],
       "@runtime": ["./src/runtime/community.tsx"],

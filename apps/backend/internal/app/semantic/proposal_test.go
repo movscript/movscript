@@ -19,7 +19,7 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 
 	resp, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
 		ProductionID:  production.ID,
-		AnalysisScope: "production",
+		ProposalScope: "production",
 		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
 			Action:   "create",
 			ClientID: "segment-1",

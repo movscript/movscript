@@ -3,7 +3,7 @@ import type { JSONValue } from '../state/types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
 import { buildApplyDraftPreview } from '../drafts/draftApply.js'
 import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftSource, type AgentDraftStatus, type AgentDraftStore, type AgentDraftTarget } from '../drafts/draftStore.js'
-import { DRAFT_CONTENT_SCHEMA_IDS } from '../drafts/draftSchemas.js'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import { BackendApplyHTTPError, type BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
@@ -233,8 +233,7 @@ async function callRuntimeTool(
     const payload: Record<string, JSONValue> = {
       production_id: content.productionId,
       productionId: content.productionId,
-      analysis_scope: content.analysisScope ?? stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production',
-      analysisScope: content.analysisScope ?? stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production',
+      proposal_scope: content.proposalScope ?? stringField(args.proposalScope) ?? stringField(args.proposal_scope) ?? 'production',
       proposal: content.proposal,
     }
     if (content.summary) payload.summary = content.summary
@@ -275,13 +274,13 @@ async function callRuntimeTool(
     const productionId = numberField(args.productionId) ?? numberField(args.production_id)
     if (projectId === undefined) throw new Error('create_production_proposal requires projectId')
     if (productionId === undefined) throw new Error('create_production_proposal requires productionId')
-    const analysisScope = stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production'
+    const proposalScope = stringField(args.proposalScope) ?? stringField(args.proposal_scope) ?? 'production'
     const summary = stringField(args.summary)
     const now = new Date().toISOString()
     const content = {
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId,
-      analysisScope,
+      proposalScope,
       ...(summary ? { summary } : {}),
       proposal: { segments: [] },
       proposedAt: now,
@@ -292,11 +291,11 @@ async function callRuntimeTool(
         const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id, pageDraftId)
         const draft = draftStore.updateDraft(existingDraft.id, {
           status: 'draft',
-          title: stringField(args.title) ?? `制作编排提案 - ${analysisScope}`,
+          title: stringField(args.title) ?? `制作编排提案 - ${proposalScope}`,
           content: JSON.stringify(content),
           metadata: {
             ...(existingDraft.metadata ?? {}),
-            analysisScope,
+            proposalScope,
             productionId,
             supersededDraftIds,
           },
@@ -316,7 +315,7 @@ async function callRuntimeTool(
     const draft = draftStore.createDraft({
       projectId,
       kind: 'production_proposal',
-      title: stringField(args.title) ?? `制作编排提案 - ${analysisScope}`,
+      title: stringField(args.title) ?? `制作编排提案 - ${proposalScope}`,
       content: JSON.stringify(content),
       source: {
         entityType: 'production',
@@ -328,7 +327,7 @@ async function callRuntimeTool(
       createdByRunId: run.id,
       createdByThreadId: run.threadId,
       metadata: {
-        analysisScope,
+        proposalScope,
         productionId,
         supersededDraftIds,
         ...(pageDraftId ? { stalePageDraftId: pageDraftId } : {}),
@@ -438,14 +437,14 @@ async function callRuntimeTool(
     if (projectId === undefined) throw new Error('create_production_proposal_from_items requires projectId')
     if (productionId === undefined) throw new Error('create_production_proposal_from_items requires productionId')
 
-    const analysisScope = stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production'
+    const proposalScope = stringField(args.proposalScope) ?? stringField(args.proposal_scope) ?? 'production'
     const normalizedProposal = normalizeProductionProposal(args.proposal, args.candidates)
     const summary = stringField(args.summary) ?? inferProductionProposalSummary(args.proposal)
     const now = new Date().toISOString()
     const content = {
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId,
-      analysisScope,
+      proposalScope,
       ...(summary ? { summary } : {}),
       proposal: normalizedProposal,
       proposedAt: now,
@@ -456,11 +455,11 @@ async function callRuntimeTool(
         const supersededDraftIds = supersedeProductionProposalDrafts(draftStore, projectId, productionId, run.id, pageDraftId)
         const draft = draftStore.updateDraft(existingDraft.id, {
           status: 'draft',
-          title: `制作编排提案 - ${analysisScope}`,
+          title: `制作编排提案 - ${proposalScope}`,
           content: JSON.stringify(content),
           metadata: {
             ...(existingDraft.metadata ?? {}),
-            analysisScope,
+            proposalScope,
             productionId,
             supersededDraftIds,
           },
@@ -483,7 +482,7 @@ async function callRuntimeTool(
     const draft = draftStore.createDraft({
       projectId,
       kind: 'production_proposal',
-      title: `制作编排提案 - ${analysisScope}`,
+      title: `制作编排提案 - ${proposalScope}`,
       content: JSON.stringify(content),
       source: {
         entityType: 'production',
@@ -495,7 +494,7 @@ async function callRuntimeTool(
       createdByRunId: run.id,
       createdByThreadId: run.threadId,
       metadata: {
-        analysisScope,
+        proposalScope,
         productionId,
         supersededDraftIds,
         ...(pageDraftId ? { stalePageDraftId: pageDraftId } : {}),
@@ -738,7 +737,7 @@ function submitScriptSplitDraft(
       content: JSON.stringify(content, null, 2),
       metadata: {
         ...(existingDraft.metadata ?? {}),
-        analysisScope: 'script_split',
+        proposalScope: 'script_split',
         sourceTitle,
         sourceSummary,
         episodeCount: normalizedEpisodes.length,
@@ -1230,7 +1229,7 @@ type ProductionProposalNodeType = 'segment' | 'scene_moment' | 'content_unit' | 
 interface ProductionProposalDraftContent {
   schema: string
   productionId: number
-  analysisScope?: string
+  proposalScope?: string
   summary?: string
   proposal: Record<string, JSONValue>
   proposedAt?: string
@@ -1278,7 +1277,7 @@ function parseProductionProposalDraftContent(draft: { content: string }): Produc
   return {
     schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
     productionId,
-    ...(stringField(parsed.analysisScope) ?? stringField(parsed.analysis_scope) ? { analysisScope: stringField(parsed.analysisScope) ?? stringField(parsed.analysis_scope) } : {}),
+    ...(stringField(parsed.proposalScope) ? { proposalScope: stringField(parsed.proposalScope) } : {}),
     ...(stringField(parsed.summary) ? { summary: stringField(parsed.summary) } : {}),
     proposal,
     ...(stringField(parsed.proposedAt) ?? stringField(parsed.proposed_at) ? { proposedAt: stringField(parsed.proposedAt) ?? stringField(parsed.proposed_at) } : {}),

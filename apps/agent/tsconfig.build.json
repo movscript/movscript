@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@movscript/draft-schemas": ["../../packages/draft-schemas/dist/index.d.ts"]
+    }
+  }
+}

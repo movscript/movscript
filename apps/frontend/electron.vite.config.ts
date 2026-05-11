@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
 const alias = {
+  '@movscript/draft-schemas': resolve('../../packages/draft-schemas/src/index.ts'),
   '@movscript/tokens/theme.css': resolve('../../packages/tokens/src/theme.css'),
   '@movscript/ui/styles.css': resolve('../../packages/ui/src/styles.css'),
   '@movscript/tokens': resolve('../../packages/tokens/src/index.ts'),

@@ -3,6 +3,7 @@ import electronPath from 'electron'
 import { resolve } from 'node:path'
 
 import { E2E_BOOTSTRAP_STORAGE_KEY } from '@/lib/e2eBootstrap'
+import { PROJECT_PROPOSAL_DRAFT_SCHEMA } from '@/lib/projectProposalDraft'
 import { buildGenerationAppBootstrap } from './generationAppSeed'
 import { mockGenerationAppShell } from './generationAppShell'
 
@@ -16,7 +17,7 @@ const PROJECT_PROPOSAL_DRAFT = {
   kind: 'project_proposal',
   title: 'Electron 项目提案草稿',
   content: JSON.stringify({
-    schema: 'movscript.project_proposal.v1',
+    schema: PROJECT_PROPOSAL_DRAFT_SCHEMA,
     scope: 'project_proposal',
     projectId: PROJECT_ID,
     summary: '整理角色设定和角色主视图素材需求。',

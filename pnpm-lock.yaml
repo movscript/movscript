@@ -10,6 +10,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@movscript/draft-schemas':
+        specifier: workspace:*
+        version: link:../../packages/draft-schemas
       '@movscript/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
@@ -89,6 +92,9 @@ importers:
       '@langchain/langgraph':
         specifier: ^1.2.9
         version: 1.2.9(@langchain/core@1.1.44)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(zod@4.4.2)
+      '@movscript/draft-schemas':
+        specifier: workspace:*
+        version: link:../../packages/draft-schemas
       zod:
         specifier: ^4.4.2
         version: 4.4.2
@@ -108,6 +114,9 @@ importers:
 
   apps/frontend:
     dependencies:
+      '@movscript/draft-schemas':
+        specifier: workspace:*
+        version: link:../../packages/draft-schemas
       '@movscript/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
@@ -274,6 +283,15 @@ importers:
         version: 4.21.0
       typescript:
         specifier: ^5.0.0
+        version: 5.9.3
+
+  packages/draft-schemas:
+    devDependencies:
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@1.21.7)(postcss@8.5.12)(tsx@4.21.0)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.8.0
         version: 5.9.3
 
   packages/plugin-sdk:

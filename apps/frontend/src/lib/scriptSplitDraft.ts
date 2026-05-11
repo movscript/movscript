@@ -1,5 +1,8 @@
 import { localAgentClient, type AgentDraft, type AgentDraftValidationResult } from '@/lib/localAgentClient'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import type { Script } from '@/types'
+
+export const SCRIPT_SPLIT_DRAFT_SCHEMA = DRAFT_CONTENT_SCHEMA_IDS.scriptSplit
 
 export interface ScriptSplitDraft {
   id: string
@@ -312,7 +315,7 @@ function firstText(...values: Array<string | undefined>): string {
 export function parseScriptSplitDraftDocument(content: string): ScriptSplitAgentResult {
   const parsed = parseJSONFromDraftContent(content) as ScriptSplitAgentResult | undefined
   if (!parsed || typeof parsed !== 'object') throw new Error('草稿没有返回有效 JSON')
-  if (parsed.schema !== 'movscript.script_split_analysis.v1') throw new Error('草稿 schema 不匹配')
+  if (parsed.schema !== SCRIPT_SPLIT_DRAFT_SCHEMA) throw new Error('草稿 schema 不匹配')
   return parsed
 }
 
@@ -418,12 +421,12 @@ export function buildScriptSplitDraftContent(input: {
   sourceTitle: string
   sourceText: string
 }): string {
-  let base: ScriptSplitAgentResult = { schema: 'movscript.script_split_analysis.v1' }
+  let base: ScriptSplitAgentResult = { schema: SCRIPT_SPLIT_DRAFT_SCHEMA }
   if (input.agentDraft?.content) {
     try {
       base = parseScriptSplitDraftDocument(input.agentDraft.content)
     } catch {
-      base = { schema: 'movscript.script_split_analysis.v1' }
+      base = { schema: SCRIPT_SPLIT_DRAFT_SCHEMA }
     }
   }
   const globalContext = input.drafts.reduce<ScriptSplitGlobalContext | null>((merged, draft) => {
@@ -432,7 +435,7 @@ export function buildScriptSplitDraftContent(input: {
   }, null)
   const nextDocument = {
     ...base,
-    schema: 'movscript.script_split_analysis.v1',
+    schema: SCRIPT_SPLIT_DRAFT_SCHEMA,
     source_title: stringValue(base.source_title ?? base.sourceTitle).trim() || input.sourceTitle,
     source_summary: stringValue(base.source_summary ?? base.sourceSummary).trim() || summarizeText(input.sourceText, 160),
     source_script: {

@@ -79,7 +79,7 @@ Runtime behavior:
 4. Apply tool policy, approval gates, and sandbox interception.
 5. Return assistant content as JSON when the executed input starts with `/production_plan`.
 
-`/project_plan` is kept as a compatibility alias, but `/production_plan` is the preferred command name because it describes the short-drama production workflow rather than only project metadata.
+`/production_plan` is the only supported command name here. It describes the short-drama production workflow rather than only project metadata.
 
 Output contract:
 

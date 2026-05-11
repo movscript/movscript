@@ -12,15 +12,10 @@ func (w *Worker) runVideoJob(ctx context.Context, debugCtx context.Context, job 
 	if dur == 0 {
 		dur = params.Int("duration")
 	}
+	// Volcen's Seedance video API rejects base64 for video_url; for reference
+	// images and videos alike we need a provider-reachable public URL.
+	w.prepareVideoInputReferences(job, imageData, videoData)
 	req := w.buildVideoRequest(job, params, dur, imageData, videoData)
-	w.preparePublicMediaReferences(job, req.InputImageDataList)
-	if req.InputVideoData != nil {
-		if cloudResult, _ := w.ensureCloudUpload(job, *req.InputVideoData, true); cloudResult.URL != "" {
-			req.InputVideoData.PresignedURL = cloudResult.URL
-		} else {
-			req.InputVideoData.PresignedURL = ""
-		}
-	}
 	if job.ProviderTaskID != "" {
 		return w.pollVideoProviderTask(ctx, debugCtx, job, dur, sm, debugResult)
 	}

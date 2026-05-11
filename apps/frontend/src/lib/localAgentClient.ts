@@ -473,6 +473,8 @@ export type AgentDraftKind =
   | 'asset_proposal'
   | 'project_proposal'
   | 'production_proposal'
+  | 'content_unit_proposal'
+  | 'content_unit_media_proposal'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentMemory {

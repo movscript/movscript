@@ -733,7 +733,7 @@ const CREATE_PRODUCTION_PROPOSAL_TOOL_SCHEMA = {
       type: 'number',
       description: 'Business reference for the production/episode this review proposal belongs to.',
     },
-    analysisScope: {
+    proposalScope: {
       type: 'string',
       description: 'Business scope label for the UI, normally production.',
     },
@@ -773,7 +773,7 @@ const PREVIEW_PRODUCTION_PROPOSAL_APPLY_TOOL_SCHEMA = {
     proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
     draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
     productionId: { type: 'number', description: 'Optional explicit production id. The runtime usually reads this from the draft content.' },
-    analysisScope: { type: 'string', description: 'Optional explicit analysis scope. The runtime usually reads this from the draft content.' },
+    proposalScope: { type: 'string', description: 'Optional explicit proposal scope. The runtime usually reads this from the draft content.' },
   },
 } satisfies Record<string, unknown>
 
@@ -910,7 +910,7 @@ const CREATE_PRODUCTION_PROPOSAL_FROM_ITEMS_TOOL_SCHEMA = {
       type: 'number',
       description: 'Business reference for the production/episode this review proposal belongs to.',
     },
-    analysisScope: {
+    proposalScope: {
       type: 'string',
       description: 'Scope label for the UI, normally production.',
     },

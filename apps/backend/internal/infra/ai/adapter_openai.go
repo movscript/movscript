@@ -387,7 +387,7 @@ func stringPtrValue(value *string) string {
 }
 
 func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (ImageResponse, error) {
-	hasInputImage := len(req.InputImageBytes) > 0 || req.InputImage != "" || req.CloudFileID != ""
+	hasInputImage := len(req.InputImageDataList) > 0 || len(req.InputImageBytes) > 0 || req.InputImage != "" || req.CloudFileID != ""
 	if hasInputImage {
 		return a.imageEdit(ctx, req)
 	}
@@ -472,45 +472,71 @@ func (a *OpenAIAdapter) ImageGenerate(ctx context.Context, req ImageRequest) (Im
 // imageEdit calls POST /images/edits.
 //
 // Priority order for the input image:
-//  1. CloudFileID  — passes the provider file ID via JSON body (no binary upload)
+//  1. InputImageDataList — sends ordered resource bytes as multipart
 //  2. InputImageBytes — sends raw bytes as multipart
 //  3. InputImage URL — downloads the image bytes and sends as multipart
+//  4. CloudFileID — fallback for providers that accept file IDs
 func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageResponse, error) {
-	if req.CloudFileID != "" {
-		return a.imageEditByFileID(ctx, req)
-	}
 	if req.Size == "" && req.AspectRatio != "" {
 		req.Size = aspectRatioToOpenAIImageSize(req.Model, req.AspectRatio)
 	}
 
 	var imgData []byte
 	var mimeType string
+	var readers []io.Reader
+	var debugImages []string
 
-	if len(req.InputImageBytes) > 0 {
+	for _, media := range req.InputImageDataList {
+		if len(media.Bytes) == 0 {
+			continue
+		}
+		mediaMime := media.MimeType
+		if mediaMime == "" {
+			mediaMime = "image/png"
+		}
+		readers = append(readers, bytes.NewReader(media.Bytes))
+		debugImages = append(debugImages, fmt.Sprintf("(binary %s, %d bytes)", mediaMime, len(media.Bytes)))
+		if imgData == nil {
+			imgData = media.Bytes
+			mimeType = mediaMime
+		}
+	}
+
+	if len(readers) > 0 {
+		// Use custom multipart when the provider requires a non-standard field name (e.g. xAI "image[]").
+		if req.ImageFieldName != "" && req.ImageFieldName != "image" {
+			return a.imageEditMultipartCustomField(ctx, req, req.InputImageDataList)
+		}
+	} else if len(req.InputImageBytes) > 0 {
 		imgData = req.InputImageBytes
 		mimeType = req.InputImageMime
 		if mimeType == "" {
 			mimeType = "image/png"
 		}
+		readers = []io.Reader{bytes.NewReader(imgData)}
+		debugImages = []string{fmt.Sprintf("(binary %s, %d bytes)", mimeType, len(imgData))}
 	} else {
+		if req.InputImage == "" && req.CloudFileID != "" {
+			return a.imageEditByFileID(ctx, req)
+		}
 		var err error
 		imgData, mimeType, err = fetchURLBytes(ctx, req.InputImage, "")
 		if err != nil {
 			return ImageResponse{}, fmt.Errorf("fetch input image: %w", err)
 		}
+		readers = []io.Reader{bytes.NewReader(imgData)}
+		debugImages = []string{fmt.Sprintf("(binary %s, %d bytes)", mimeType, len(imgData))}
 	}
 
 	// Use custom multipart when the provider requires a non-standard field name (e.g. xAI "image[]").
 	if req.ImageFieldName != "" && req.ImageFieldName != "image" {
-		return a.imageEditMultipartCustomField(ctx, req, imgData, mimeType)
+		return a.imageEditMultipartCustomField(ctx, req, []MediaData{{Bytes: imgData, MimeType: mimeType}})
 	}
 
 	params := openai.ImageEditParams{
 		Model:  req.Model,
 		Prompt: req.Prompt,
-		Image: openai.ImageEditParamsImageUnion{
-			OfFile: bytes.NewReader(imgData),
-		},
+		Image:  openAIImageEditInput(readers),
 	}
 	if req.Size != "" {
 		params.Size = openai.ImageEditParamsSize(req.Size)
@@ -525,7 +551,7 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 	debugBody := map[string]any{
 		"model":  req.Model,
 		"prompt": req.Prompt,
-		"image":  fmt.Sprintf("(binary %s, %d bytes)", mimeType, len(imgData)),
+		"image":  debugImages,
 	}
 	if req.Size != "" {
 		debugBody["size"] = req.Size
@@ -555,6 +581,13 @@ func (a *OpenAIAdapter) imageEdit(ctx context.Context, req ImageRequest) (ImageR
 		}
 	}
 	return ImageResponse{URLs: urls, Debug: takeDebug(ctx)}, nil
+}
+
+func openAIImageEditInput(readers []io.Reader) openai.ImageEditParamsImageUnion {
+	if len(readers) == 1 {
+		return openai.ImageEditParamsImageUnion{OfFile: readers[0]}
+	}
+	return openai.ImageEditParamsImageUnion{OfFileArray: readers}
 }
 
 // imageEditByFileID sends POST /images/edits with a JSON body referencing a provider file ID.
@@ -615,23 +648,34 @@ func (a *OpenAIAdapter) imageEditByFileID(ctx context.Context, req ImageRequest)
 
 // imageEditMultipartCustomField is a raw-HTTP fallback for providers that require
 // a non-standard multipart field name for the image (e.g. xAI uses "image[]").
-func (a *OpenAIAdapter) imageEditMultipartCustomField(ctx context.Context, req ImageRequest, imgData []byte, mimeType string) (ImageResponse, error) {
-	ext := imageExtFromMime(mimeType)
-	if mimeType == "" {
-		mimeType = "image/png"
-	}
-
+func (a *OpenAIAdapter) imageEditMultipartCustomField(ctx context.Context, req ImageRequest, mediaList []MediaData) (ImageResponse, error) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	fieldName := req.ImageFieldName
 	if fieldName == "" {
 		fieldName = "image"
 	}
-	partHeader := textproto.MIMEHeader{}
-	partHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="image.%s"`, fieldName, ext))
-	partHeader.Set("Content-Type", mimeType)
-	fw, _ := w.CreatePart(partHeader)
-	_, _ = fw.Write(imgData)
+	imageCount := 0
+	for _, media := range mediaList {
+		if len(media.Bytes) == 0 {
+			continue
+		}
+		mimeType := media.MimeType
+		if mimeType == "" {
+			mimeType = "image/png"
+		}
+		ext := imageExtFromMime(mimeType)
+		partHeader := textproto.MIMEHeader{}
+		partHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="image-%d.%s"`, fieldName, imageCount+1, ext))
+		partHeader.Set("Content-Type", mimeType)
+		fw, _ := w.CreatePart(partHeader)
+		_, _ = fw.Write(media.Bytes)
+		imageCount++
+	}
+	if imageCount == 0 {
+		_ = w.Close()
+		return ImageResponse{}, fmt.Errorf("image edit requires at least one image")
+	}
 	_ = w.WriteField("model", req.Model)
 	_ = w.WriteField("prompt", req.Prompt)
 	if req.Size != "" {
@@ -651,7 +695,7 @@ func (a *OpenAIAdapter) imageEditMultipartCustomField(ctx context.Context, req I
 		"Content-Type":  w.FormDataContentType(),
 		"Authorization": "Bearer " + maskKey(a.APIKey),
 	}
-	editBody := fmt.Sprintf("(multipart: model=%s prompt=%q)", req.Model, req.Prompt)
+	editBody := fmt.Sprintf("(multipart: model=%s prompt=%q image_field=%s images=%d)", req.Model, req.Prompt, fieldName, imageCount)
 	editStart := time.Now()
 	resp, err := a.rawHTTP.Do(httpReq)
 	editLatency := time.Since(editStart).Milliseconds()
@@ -808,11 +852,18 @@ func (a *OpenAIAdapter) VideoStart(ctx context.Context, req VideoRequest) (Video
 		}
 	}
 	for i, md := range refImages {
-		if i >= 5 {
+		if i >= 7 {
 			break
 		}
-		ext := imageExtFromMime(md.MimeType)
-		fw, err := w.CreateFormFile("input_reference", fmt.Sprintf("ref%d.%s", i, ext))
+		mimeType := md.MimeType
+		if mimeType == "" {
+			mimeType = "image/png"
+		}
+		ext := imageExtFromMime(mimeType)
+		partHeader := textproto.MIMEHeader{}
+		partHeader.Set("Content-Disposition", fmt.Sprintf(`form-data; name="input_reference[]"; filename="ref%d.%s"`, i, ext))
+		partHeader.Set("Content-Type", mimeType)
+		fw, err := w.CreatePart(partHeader)
 		if err != nil {
 			return VideoResponse{}, err
 		}

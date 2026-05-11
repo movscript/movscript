@@ -2,7 +2,7 @@
 
 > 本文档定义 MovScript agent 的定位、交互模型、架构原则和重构路线图。面向产品和工程决策，可直接作为重构 `apps/production-runtime/` → `apps/agent/` 的实施依据。
 
-> 更新：Agent 的上层产品模型已经收敛为 proposal-first。任何 Agent 都可以在对话中直接创建一个或多个 proposal；workflow、页面按钮和插件只是 proposal producer。完整设计见 [Proposal-first Agent Design](proposal-first-agent-design.md)。本文中的“草稿优先”应理解为 proposal-first 的兼容阶段：正式写入仍必须经过 review 和 apply。
+> 更新：Agent 的上层产品模型已经收敛为 proposal-first。任何 Agent 都可以在对话中直接创建一个或多个 proposal；workflow、页面按钮和插件只是 proposal producer。完整设计见 [Proposal-first Agent Design](proposal-first-agent-design.md)。本文中较早的“草稿预览”“确认”“应用”示例，都应按 `proposal -> review -> apply preview -> apply` 解释；Agent 不直接修改正式项目数据。
 
 ---
 
@@ -129,31 +129,31 @@ Agent 启动时自动获取最小上下文：
 
 其他数据（实体内容、项目结构等）通过工具调用按需获取，不在启动时一次性加载。
 
-### 3.3 草稿优先：所有写操作先生成本地协议草稿
+### 3.3 Proposal-first：所有写操作先进入可审阅提案
 
-页面或应用层先生成本地 `AgentDraft`，Agent 只在已有草稿上修改、补丁或校验，不负责替页面创建草稿壳。
+Agent、页面按钮、workflow、插件或批处理都可以作为 producer 创建本地 proposal draft。页面预置草稿壳可以提升体验，但不是创建 proposal 的硬前置。
 
 ```
-生成草稿 → 用户预览 → [修改草稿] → 用户确认 → 写入
+producer → proposal draft → review → apply preview → apply
 ```
 
-这里的草稿是 runtime 和客户端之间的审阅协议对象，不是后端正式领域实体。它是本地的，不影响正式数据。用户可以拒绝草稿，什么都不会发生。
+这里的 proposal draft 是 runtime 和客户端之间的审阅协议对象，不是后端正式领域实体。它是本地的，不影响正式数据。用户可以拒绝 proposal，什么都不会发生。
 
-这个机制适用于所有写操作：创建实体、修改内容、批量操作。草稿创建本身属于页面/应用层的职责。
+这个机制适用于所有正式写入：创建实体、修改内容、批量操作和跨实体合并。Agent 可以创建和修改 proposal，但最终 apply 是 UI/应用层在用户确认后的动作。
 
-AI 面板和页面任务里的 artifact/产物在当前阶段不表示另一套实体。`AgentTaskArtifactRef` 只是指向 `AgentDraft` 的轻量引用，用来把一次 run 和页面可审阅草稿关联起来。产品界面应优先使用“草稿”或具体业务名词；只有未来出现非草稿输出（图片、文件、生成任务结果等）时，才把 artifact 扩展为真正的多类型产物集合。
+AI 面板和页面任务里的 artifact/产物在当前阶段不表示另一套实体。`AgentTaskArtifactRef` 只是指向本地 proposal draft 的轻量引用，用来把一次 run 和页面可审阅提案关联起来。产品界面应优先使用“提案”或具体业务名词；只有未来出现非提案输出（图片、文件、生成任务结果等）时，才把 artifact 扩展为真正的多类型产物集合。
 
-默认一个页面任务只绑定一个主草稿。批量变更应进入一个复合草稿，例如编排工作台的 `production_proposal` 内部承载多个 segment、scene moment、creative reference usage 和 asset need 节点；内容单元、关键帧、台词定稿和运镜表属于下游制作工作台，不要默认让 Agent 在编排草稿里一起写入，以免用户面对应用顺序、部分失败和撤销边界不清的问题。
+默认一个页面任务只绑定一个主 proposal，但一个 thread 可以产生多个 proposal。批量变更应进入一个复合 proposal，例如 `production_proposal` 内部承载多个 segment、scene moment、creative reference usage 和 asset need 节点；内容单元、关键帧、台词定稿和运镜表属于下游制作工作台，不要默认让 Agent 在编排 proposal 里一起写入，以免用户面对应用顺序、部分失败和撤销边界不清的问题。
 
-草稿不属于 AI 面板会话，也不属于前端 conversation。草稿是 local runtime 持久化的审阅协议对象，应通过项目、类型、状态、来源 thread/run、目标实体和页面上下文来定位。AI 面板只展示当前 thread 涉及的草稿；跨 thread 的历史草稿必须进入独立的 AI 历史草稿页。
+Proposal draft 不属于 AI 面板会话，也不属于前端 conversation。它是 local runtime 持久化的审阅协议对象，应通过项目、类型、状态、来源 thread/run、目标实体和页面上下文来定位。AI 面板只展示当前 thread 涉及的 proposal；跨 thread 的历史 proposal 必须进入独立的 Proposal Center 或历史草稿页。
 
-当前 thread 涉及的草稿包括：
+当前 thread 涉及的 proposal 包括：
 
 - `createdByThreadId` 或 `sourceThreadId` 等于当前 thread。
 - `createdByRunId` 或 `sourceRunId` 属于当前 thread 的 run。
 - `source`、`target`、`metadata` 明确引用当前页面上下文，并且该引用来自当前 run。
 
-AI 历史草稿页是跨 thread 的草稿资产库，负责筛选、预览、打开来源 thread、跳转目标页面、应用、拒绝和归档。AI 面板可以提供入口链接，但不能把历史草稿库合并进聊天面板，也不能把草稿内容保存到前端持久化 store。
+Proposal Center / AI 历史草稿页是跨 thread 的提案资产库，负责筛选、预览、打开来源 thread、跳转目标页面、apply preview、应用、拒绝和归档。AI 面板可以提供入口链接，但不能把历史 proposal 库合并进聊天面板，也不能把 proposal 内容保存到前端持久化 store。
 
 ### 3.4 AI 面板、Thread 和持久化边界
 

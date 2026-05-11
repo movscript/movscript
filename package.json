@@ -8,7 +8,7 @@
     "build:backend": "cd apps/backend && go build -o bin/server ./cmd/server",
     "build:backend:with-admin": "pnpm run build:admin && pnpm run build:backend && rm -rf apps/backend/bin/admin && cp -R apps/admin/dist apps/backend/bin/admin",
     "build:admin": "pnpm --filter movscript-admin build",
-    "build:packages": "pnpm --filter @movscript/tokens build && pnpm --filter @movscript/ui build && pnpm --filter @movscript/plugin-sdk build",
+    "build:packages": "pnpm --filter @movscript/tokens build && pnpm --filter @movscript/ui build && pnpm --filter @movscript/plugin-sdk build && pnpm --filter @movscript/draft-schemas build",
     "build:agent": "pnpm --filter movscript-agent build",
     "build:agent:deploy": "node scripts/prepare-agent-deploy.mjs",
     "build:apps": "pnpm --filter movcli build && pnpm --filter movscript-frontend build && pnpm --filter movscript-admin build",

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@movscript/draft-schemas": "workspace:*",
     "@movscript/tokens": "workspace:*",
     "@movscript/ui": "workspace:*",
     "@radix-ui/react-toast": "^1.2.4",

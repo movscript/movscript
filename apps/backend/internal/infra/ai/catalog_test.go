@@ -52,6 +52,18 @@ func TestResolveModelDefUsesAdapterDefaultTextParams(t *testing.T) {
 	}
 }
 
+func TestResolveModelDefDefaultsOpenAICompatImageEditField(t *testing.T) {
+	def := ResolveModelDef(
+		"custom-image-edit", AdapterOpenAICompat,
+		"Custom Image Edit", CapabilityImageEdit, string(PricingPerImage),
+		true, 1, 0,
+		"", "",
+	)
+	if def.ImageEditField != "image[]" {
+		t.Fatalf("ImageEditField = %q, want image[]", def.ImageEditField)
+	}
+}
+
 func TestResolveModelDefAllowsEmptyModelParamOverride(t *testing.T) {
 	def := ResolveModelDef(
 		"restricted-video", AdapterVolcen,

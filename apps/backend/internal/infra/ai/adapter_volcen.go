@@ -392,9 +392,19 @@ func (a *VolcenAdapter) VideoGenerate(ctx context.Context, req VideoRequest) (Vi
 }
 
 func (a *VolcenAdapter) VideoStart(ctx context.Context, req VideoRequest) (VideoResponse, error) {
-	createReq, debugBody := buildVolcenVideoTaskRequest(req)
+	createReq, debugBody, buildErr := buildVolcenVideoTaskRequest(req)
 	debugBodyJSON, _ := json.Marshal(debugBody)
 	debugEndpoint := a.baseURL + "/contents/generations/tasks"
+
+	if buildErr != nil {
+		recordDebugIfEmpty(ctx, DebugCallResult{
+			Success: false, ModelID: req.Model,
+			Endpoint: debugEndpoint, Method: "POST",
+			RequestBody: string(debugBodyJSON),
+			Error:       buildErr.Error(),
+		})
+		return VideoResponse{}, buildErr
+	}
 
 	start := time.Now()
 	taskResp, err := a.client.CreateContentGenerationTask(ctx, createReq)
@@ -523,7 +533,7 @@ func (a *VolcenAdapter) VideoCancel(ctx context.Context, req VideoCancelRequest)
 	return VideoResponse{TaskID: req.TaskID, TaskKind: req.TaskKind, Status: VideoStatusCancelled, Message: "video task cancelled", Debug: takeDebug(ctx)}, nil
 }
 
-func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenerationTaskRequest, map[string]any) {
+func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenerationTaskRequest, map[string]any, error) {
 	prompt := req.Prompt
 	content := []*arkmodel.CreateContentGenerationContentItem{
 		{Type: arkmodel.ContentGenerationContentItemTypeText, Text: &prompt},
@@ -552,7 +562,10 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 		if vd.PresignedURL != "" {
 			videoURL = vd.PresignedURL
 		} else if len(vd.Bytes) > 0 {
-			videoURL = "data:" + vd.MimeType + ";base64," + base64Encode(vd.Bytes)
+			// Volcen's contents/generations/tasks endpoint does not accept base64
+			// data URLs for video_url. If we reach this branch, the worker failed
+			// to upload the reference video to a public object relay (e.g. TOS).
+			return arkmodel.CreateContentGenerationTaskRequest{}, nil, fmt.Errorf("volcen video reference requires a public URL; configure a cloud file relay (TOS/S3/OSS) for this credential")
 		}
 	}
 	if videoURL != "" {
@@ -660,7 +673,7 @@ func buildVolcenVideoTaskRequest(req VideoRequest) (arkmodel.CreateContentGenera
 	if req.WebSearch {
 		debugBody["tools"] = []map[string]any{{"type": "web_search"}}
 	}
-	return createReq, debugBody
+	return createReq, debugBody, nil
 }
 
 func buildVolcenImageInput(req ImageRequest) any {

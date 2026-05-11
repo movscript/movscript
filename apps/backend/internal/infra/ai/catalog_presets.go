@@ -56,7 +56,7 @@ var modelPresetSources = []ModelDef{
 	{ID: "openai:gpt-image-1-edit", ModelID: "gpt-image-1",
 		DisplayName: "GPT Image 1 (图像编辑)", Capabilities: []string{CapabilityImageEdit},
 		PricingMode: PricingPerImage, AdapterType: AdapterOpenAICompat,
-		AcceptsImageInput: true, MaxInputImages: 1,
+		AcceptsImageInput: true, MaxInputImages: 1, ImageEditField: "image[]",
 		RefUSDPerImage: 0.040,
 		SupportedParams: []ParamDef{
 			{Key: "size", Label: "尺寸", Type: "select",
