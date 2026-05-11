@@ -66,7 +66,7 @@ function semanticPreviewFields(kind?: CanvasDomainEntityKind) {
     return ['name', 'kind', 'status', 'priority', 'description', 'slot_key', 'prompt_hint', 'candidates', 'resource_id', 'locked_asset_slot_id', 'creative_reference_id', 'image', 'video', 'audio', 'reference']
   }
   if (kind === 'content_unit') {
-    return ['title', 'kind', 'status', 'segment_id', 'scene_moment_id', 'order', 'duration_sec', 'description', 'prompt', 'result', 'image', 'video', 'audio']
+    return ['title', 'kind', 'status', 'segment_id', 'scene_moment_id', 'order', 'duration_sec', 'description', 'prompt', 'generated_media', 'result', 'image', 'video', 'audio']
   }
   return []
 }

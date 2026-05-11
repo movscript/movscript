@@ -1,18 +1,19 @@
 import { MCPClient } from '../mcpClient.js'
-import { AgentRuntime, loadAgentPluginCatalog } from '../runtime/agentRuntime.js'
-import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from '../runtime/store/fileStore.js'
-import { FileAgentDraftStore, resolveAgentDraftPath } from '../runtime/store/draftStore.js'
-import { BackendApplyClient } from '../runtime/store/backendApplyClient.js'
-import { FileAgentMemoryStore } from '../runtime/memory/fileMemoryStore.js'
+import { AgentRuntime, loadAgentPluginCatalog } from '../application/agentRuntime.js'
+import { FileAgentStore, resolveAgentMemoryPath, resolveAgentStatePath } from '../state/fileStore.js'
+import { FileAgentDraftStore, resolveAgentDraftPath } from '../drafts/draftStore.js'
+import { BackendApplyClient } from '../drafts/backendApplyClient.js'
+import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
+import { FileAgentMemoryStore } from '../memory/fileMemoryStore.js'
 import { FileAgentCatalogStateStore, resolveAgentCatalogStatePath } from '../manifest/catalogState.js'
-import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from '../runtime/modelConfig.js'
+import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from '../model/modelConfig.js'
 import {
   StaticAgentRuntimeContractResolver,
-} from '../runtime/contracts/runtimeContract.js'
+} from '../contracts/runtimeContract.js'
 import {
   SCRIPT_SPLIT_RUNTIME_CONTRACT,
-} from '../runtime/contracts/scriptSplitContract.js'
-import { buildAgentUpdateState } from '../runtime/updates/updatePolicy.js'
+} from '../contracts/scriptSplitContract.js'
+import { buildAgentUpdateState } from '../updates/updatePolicy.js'
 
 const DEFAULT_AGENT_PORT = 28765
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
@@ -77,7 +78,6 @@ export function createAgentServerContext(): AgentServerContext {
   const draftPath = resolveAgentDraftPath(statePath)
   const catalogStatePath = resolveAgentCatalogStatePath(statePath)
   const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
-  const backendApplyClient = new BackendApplyClient()
   const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
   const pluginCatalog = loadAgentPluginCatalog()
   const catalogStateStore = new FileAgentCatalogStateStore(catalogStatePath)
@@ -102,6 +102,7 @@ export function createAgentServerContext(): AgentServerContext {
     ],
   })
   const client = new MCPClient({ endpoint: mcpEndpoint })
+  const backendApplyClient = new MCPBackendApplyClient(client)
   const runtimeContractResolver = new StaticAgentRuntimeContractResolver([
     SCRIPT_SPLIT_RUNTIME_CONTRACT,
   ])

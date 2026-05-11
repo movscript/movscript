@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { atomicWriteJSON, resolveAgentMemoryPath } from '../runtime/store/fileStore.js'
+import { atomicWriteJSON, resolveAgentMemoryPath } from '../state/fileStore.js'
 import type { AgentMemory, CreateMemoryInput } from './types.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from './memoryStore.js'
 

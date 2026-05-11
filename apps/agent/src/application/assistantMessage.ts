@@ -366,34 +366,54 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
     return `创建本地草稿${draftId}。`
   }
-  if (call.name === 'movscript_get_draft') {
-    const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
-    return `读取本地草稿${draftId}。`
+  if (call.name === 'movscript_read_draft') {
+    const draftPath = isRecord(parsed) && typeof parsed.filePath === 'string' ? ` ${parsed.filePath}` : ''
+    return `读取本地草稿文件${draftPath}。`
   }
   if (call.name === 'movscript_list_drafts') {
     const count = isRecord(parsed) && Array.isArray(parsed.drafts) ? parsed.drafts.length : undefined
     return `列出本地草稿${count === undefined ? '' : `，共 ${count} 条`}。`
   }
-  if (call.name === 'movscript_update_draft') {
-    const draft = isRecord(parsed) && isRecord(parsed.draft) ? parsed.draft : parsed
-    const draftId = isRecord(draft) && typeof draft.id === 'string' ? ` ${draft.id}` : ''
-    return `更新本地草稿${draftId}。`
+  if (call.name === 'movscript_edit_draft') {
+    const count = isRecord(parsed) && typeof parsed.replacementCount === 'number' ? `，替换 ${parsed.replacementCount} 处` : ''
+    return `编辑本地草稿文件${count}。`
   }
-  if (call.name === 'movscript_patch_draft') {
-    const paths = isRecord(parsed) && Array.isArray(parsed.changedPaths) ? parsed.changedPaths.length : undefined
-    return `细粒度修改本地草稿${paths === undefined ? '' : `，变更 ${paths} 个路径`}。`
-  }
-  if (call.name === 'movscript_validate_draft') {
+  if (call.name === 'movscript_dry_apply_draft') {
     const ok = isRecord(parsed) && parsed.ok === true
-    const issues = isRecord(parsed) && Array.isArray(parsed.issues) ? parsed.issues.length : undefined
-    return `校验本地草稿${ok ? '通过' : '未通过'}${issues === undefined ? '' : `，问题 ${issues} 个`}。`
+    return `草稿 dry apply${ok ? '通过' : '未通过'}。`
   }
   if (call.name === 'movscript_create_generation_job') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
     const outputResourceId = isRecord(parsed) && typeof parsed.output_resource_id === 'number'
       ? `，输出资源 #${parsed.output_resource_id}`
       : ''
-    return `生成任务已执行（${status}${outputResourceId}）。`
+    const jobId = isRecord(parsed) && typeof parsed.jobId === 'number' ? `Job #${parsed.jobId}` : '生成任务'
+    const terminal = isRecord(parsed) && parsed.terminal === true
+    if (!terminal && !outputResourceId) return `${jobId} 已创建，当前状态：${status}。`
+    return `${jobId} 已执行（${status}${outputResourceId}）。`
+  }
+  if (call.name === 'movscript_get_generation_job') {
+    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
+    const jobId = isRecord(parsed) && typeof parsed.jobId === 'number' ? `Job #${parsed.jobId}` : '生成任务'
+    const outputResourceId = isRecord(parsed) && typeof parsed.output_resource_id === 'number'
+      ? `，输出资源 #${parsed.output_resource_id}`
+      : ''
+    const progress = isRecord(parsed) && typeof parsed.progress === 'number' ? `，进度 ${parsed.progress}%` : ''
+    const error = isRecord(parsed) && typeof parsed.error === 'string' && parsed.error ? `：${parsed.error}` : ''
+    if (status === 'succeeded') return `${jobId} 生成完成${outputResourceId}。`
+    if (status === 'failed') return `${jobId} 生成失败${error}。`
+    if (status === 'cancelled') return `${jobId} 已取消。`
+    return `${jobId} 仍在运行（${status}${progress}）。`
+  }
+  if (call.name === 'movscript_list_generation_jobs') {
+    const count = isRecord(parsed) && typeof parsed.count === 'number' ? parsed.count : undefined
+    const active = isRecord(parsed) && typeof parsed.active === 'number' ? parsed.active : undefined
+    return `查看生成任务${count === undefined ? '' : `，返回 ${count} 条`}${active === undefined ? '' : `，运行中 ${active} 条`}。`
+  }
+  if (call.name === 'movscript_cancel_generation_job') {
+    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
+    const jobId = isRecord(parsed) && typeof parsed.jobId === 'number' ? `Job #${parsed.jobId}` : '生成任务'
+    return `${jobId} 已请求取消，当前状态：${status}。`
   }
   return `调用 ${call.name}。`
 }

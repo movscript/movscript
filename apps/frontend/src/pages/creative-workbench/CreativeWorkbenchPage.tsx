@@ -273,11 +273,11 @@ export default function CreativeWorkbenchPage() {
     setAgentRequestId(requestId)
     registerAgentPanelPageTool(requestId, (payload) => {
       setAgentRequestId(null)
-      if (payload.status === 'error') {
-        toast.error(payload.error || '头脑风暴失败')
+      if (payload.run?.status === 'failed') {
+        toast.error(payload.run.error || payload.error || '头脑风暴失败')
         return
       }
-      if (payload.status === 'cancelled') {
+      if (payload.run?.status === 'cancelled') {
         toast.info('头脑风暴已停止')
         return
       }

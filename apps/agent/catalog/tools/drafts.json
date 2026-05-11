@@ -11,15 +11,15 @@
       "requiresApprovalByDefault": false
     },
     {
-      "name": "movscript_get_draft",
-      "description": "Read one local draft artifact by reference.",
+      "name": "movscript_read_draft",
+      "description": "Read one local draft file by path before editing it.",
       "permission": "draft.read",
       "risk": "read",
       "source": "runtime",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_get_draft",
+        "name": "movscript_read_draft",
         "mode": "allow",
         "approval": "never"
       }
@@ -39,43 +39,29 @@
       }
     },
     {
-      "name": "movscript_update_draft",
-      "description": "Update local draft title, content, target, status, or metadata without writing formal project items.",
+      "name": "movscript_edit_draft",
+      "description": "Edit a local draft file by replacing a unique old string with a new string.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_update_draft",
+        "name": "movscript_edit_draft",
         "mode": "allow",
         "approval": "never"
       }
     },
     {
-      "name": "movscript_patch_draft",
-      "description": "Apply JSON Pointer patch operations to a JSON draft content field without writing formal project items.",
-      "permission": "draft.write",
-      "risk": "draft",
-      "source": "runtime",
-      "projectScoped": false,
-      "requiresApprovalByDefault": false,
-      "defaultGrant": {
-        "name": "movscript_patch_draft",
-        "mode": "allow",
-        "approval": "never"
-      }
-    },
-    {
-      "name": "movscript_validate_draft",
-      "description": "Validate one local draft artifact and return structured issues for UI review.",
+      "name": "movscript_dry_apply_draft",
+      "description": "Validate a local draft file and run backend apply preview without writing permanent project data.",
       "permission": "draft.read",
       "risk": "read",
       "source": "runtime",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_validate_draft",
+        "name": "movscript_dry_apply_draft",
         "mode": "allow",
         "approval": "never"
       }

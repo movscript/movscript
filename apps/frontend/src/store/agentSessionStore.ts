@@ -3,7 +3,7 @@ import type { AgentWorkMode } from '@/store/agentStore'
 import type { AgentClientInput, AgentManifest, AgentRun, AgentRunPolicy, AgentThread } from '@/lib/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
-export type AgentPageTaskStatus = 'queued' | 'claimed' | 'building' | 'running' | 'completed' | 'cancelled' | 'error'
+export type AgentPageTaskStatus = 'queued' | 'claimed' | 'running'
 export type AgentTaskRenderMode = 'chat' | 'panel' | 'page'
 
 export interface AgentPageTaskPayload {
@@ -83,7 +83,7 @@ interface AgentSessionStore {
   claimNextQueuedPageTask: () => (AgentPageTaskPayload & { requestId: string; taskType: string }) | null
   attachPageTaskConversation: (requestId: string, conversationId: string) => void
   setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; run?: AgentRun; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
-  settlePageTask: (payload: { requestId?: string; status: 'completed' | 'error' | 'cancelled'; run?: AgentRun; thread?: AgentThread; error?: string; artifacts?: AgentTaskArtifactRef[] }) => void
+  updatePageTaskFromRuntime: (payload: { requestId?: string; run?: AgentRun; thread?: AgentThread; error?: string; artifacts?: AgentTaskArtifactRef[] }) => void
 
   setConversationRuntime: (conversationId: string, patch: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>) => void
@@ -112,13 +112,6 @@ function inferTaskType(payload: AgentPageTaskPayload): string {
   if (known) return known
   if (payload.title?.trim()) return payload.title.trim().split(':')[0] || 'agent_task'
   return 'agent_task'
-}
-
-function taskStatusFromRun(run: AgentRun): AgentPageTaskStatus {
-  if (run.status === 'cancelled') return 'cancelled'
-  if (run.status === 'failed') return 'error'
-  if (run.status === 'completed' || run.status === 'completed_with_warnings') return 'completed'
-  return 'running'
 }
 
 function compactRun(run: AgentRun | undefined): AgentRun | undefined {
@@ -164,7 +157,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               [normalized.requestId]: {
                 requestId: normalized.requestId,
                 taskType: normalized.taskType,
-                status: existing?.status && existing.status !== 'error' ? existing.status : 'queued',
+                status: existing?.status ?? 'queued',
                 payload: normalized,
                 conversationId: existing?.conversationId,
                 threadId: existing?.threadId,
@@ -229,7 +222,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
                 runId: run?.id ?? task.runId,
                 run,
                 artifacts: patch.artifacts ?? task.artifacts,
-                status: run ? taskStatusFromRun(run) : 'running',
+                status: 'running',
                 updatedAt: Date.now(),
               },
             },
@@ -237,7 +230,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         })
       },
 
-      settlePageTask: (payload) => {
+      updatePageTaskFromRuntime: (payload) => {
         if (!payload.requestId) return
         set((state) => {
           const task = state.pageTasks[payload.requestId!]
@@ -248,7 +241,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
               ...state.pageTasks,
               [payload.requestId!]: {
                 ...task,
-                status: payload.status,
+                status: task.status === 'queued' ? 'claimed' : task.status,
                 run: payload.run ?? task.run,
                 thread: payload.thread ?? task.thread,
                 runId: payload.run?.id ?? task.runId,
@@ -256,7 +249,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
                 artifacts: payload.artifacts ?? task.artifacts,
                 error: payload.error,
                 updatedAt: now,
-                settledAt: now,
+                settledAt: payload.run && isRuntimeTerminalRun(payload.run) ? now : task.settledAt,
               },
             },
           }
@@ -374,3 +367,10 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
       }),
     }),
 )
+
+function isRuntimeTerminalRun(run: AgentRun): boolean {
+  return run.status === 'completed'
+    || run.status === 'completed_with_warnings'
+    || run.status === 'failed'
+    || run.status === 'cancelled'
+}

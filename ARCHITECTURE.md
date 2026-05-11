@@ -71,7 +71,17 @@ apps/frontend/
 
 apps/agent/
   src/server.ts            Local agent HTTP server
-  src/runtime/             Thread/run lifecycle, planner, policy, memory, manifest logic
+  src/application/         Agent runtime facade and use cases
+  src/orchestration/       Agent loop, prompt, context, tool execution
+  src/state/               Run/thread/store/state primitives
+  src/context/             Input normalization and runtime context shaping
+  src/drafts/              Local draft lifecycle and apply preview
+  src/memory/              Memory store and manager
+  src/manifest/            Agent manifest and plugin catalog
+  src/model/               Model config and router
+  src/tools/               Tool registry and policy
+  src/contracts/           Runtime extension contracts
+  src/updates/             Update policy
 
 apps/movcli/
   src/commands/            CLI commands for plugins and local agent smoke tests
@@ -193,4 +203,4 @@ The local agent owns thread/run lifecycle, policy checks, tool metadata, skill c
 | Change i18n copy | `apps/frontend/src/i18n/locales/*.json` |
 | Change canvas behavior | `apps/frontend/src/pages/canvas/*`, `apps/backend/internal/interfaces/http/handler/canvas*.go` |
 | Change plugin manifest/runtime behavior | `apps/backend/internal/infra/pluginkit/*`, `apps/frontend/src/lib/*Plugin*`, `docs/plugins.md` |
-| Change local agent behavior | `apps/agent/src/runtime/*`, `apps/agent/src/server.ts` |
+| Change local agent behavior | `apps/agent/src/application/*`, `apps/agent/src/orchestration/*`, `apps/agent/src/state/*`, `apps/agent/src/context/*`, `apps/agent/src/drafts/*`, `apps/agent/src/memory/*`, `apps/agent/src/manifest/*`, `apps/agent/src/model/*`, `apps/agent/src/tools/*`, `apps/agent/src/contracts/*`, `apps/agent/src/updates/*`, `apps/agent/src/server.ts` |

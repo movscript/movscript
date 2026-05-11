@@ -4,15 +4,22 @@ export interface PublicModel {
   capability: string
 }
 
-export interface GenerateImageRequest {
+export type GenerateMediaJobType = 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
+
+export interface GenerateMediaRequest {
   model_config_id: number
   prompt: string
-  job_type?: 'image' | 'image_edit'
+  job_type?: GenerateMediaJobType
   feature_key?: string
   input_resource_ids?: number[]
   extra_params?: Record<string, unknown>
   aspect_ratio?: string
+  duration?: number
   timeout_ms?: number
+}
+
+export type GenerateImageRequest = GenerateMediaRequest & {
+  job_type?: 'image' | 'image_edit'
 }
 
 export type ExecutableCapability =
@@ -136,6 +143,8 @@ export interface MovRuntime {
   /** Fetch all platform model configs — use this to let users pick a model. */
   modelConfigs(): Promise<PublicModel[]>
   resources(): Promise<unknown[]>
+  generateMedia(req: GenerateMediaRequest): Promise<unknown>
+  /** @deprecated Use generateMedia for new image and video plugins. */
   generateImage(req: GenerateImageRequest): Promise<unknown>
   sleep(ms: number): Promise<void>
   mcp: McpTools

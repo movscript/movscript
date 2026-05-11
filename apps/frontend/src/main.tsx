@@ -6,8 +6,10 @@ import { initTheme } from './hooks/useTheme'
 import App from './App'
 import './index.css'
 import './i18n'
+import { applyE2EBootstrapSeedFromStorage } from './lib/e2eBootstrap'
 
 initTheme()
+applyE2EBootstrapSeedFromStorage()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

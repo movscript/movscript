@@ -7,10 +7,47 @@ import {
   MCPResource,
   MCPTool,
 } from './types'
+import {
+  generationJobMessage,
+  getJobId,
+  isTerminalGenerationStatus,
+  normalizeGenerationJob,
+  stringValue,
+} from './generation'
 
 const DEFAULT_PORT = 18765
 const MAX_PORT_PROBES = 20
 let apiBaseURL = normalizeAPIBaseURL(process.env.MOVSCRIPT_API_BASE_URL || 'http://localhost:8765')
+
+const PATCH_ROUTES: Record<string, string> = {
+  script: '/scripts/:id',
+  asset_slot: '/projects/:projectId/entities/asset-slots/:id',
+  segment: '/projects/:projectId/entities/segments/:id',
+  scene_moment: '/projects/:projectId/entities/scene-moments/:id',
+  storyboard_script: '/projects/:projectId/entities/storyboard-scripts/:id',
+  storyboard_line: '/projects/:projectId/entities/storyboard-lines/:id',
+  content_unit: '/projects/:projectId/entities/content-units/:id',
+  keyframe: '/projects/:projectId/entities/keyframes/:id',
+  preview_timeline: '/projects/:projectId/entities/preview-timelines/:id',
+  delivery_version: '/projects/:projectId/entities/delivery-versions/:id',
+}
+
+const FIELD_ALLOWLIST: Record<string, Set<string>> = {
+  script: new Set([
+    'title', 'description', 'content', 'status', 'summary', 'characters', 'character_profiles',
+    'character_relationships', 'core_settings', 'background', 'scenes_desc', 'hook', 'plot_summary',
+    'script_points',
+  ]),
+  asset_slot: new Set(['name', 'kind', 'description', 'prompt_hint', 'priority', 'resource_id', 'locked_asset_slot_id', 'status', 'metadata_json']),
+  segment: new Set(['title', 'kind', 'summary', 'content', 'production_id', 'text_block_id', 'status', 'metadata_json']),
+  scene_moment: new Set(['title', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status', 'metadata_json']),
+  storyboard_script: new Set(['name', 'description', 'is_primary', 'status', 'metadata_json']),
+  storyboard_line: new Set(['title', 'kind', 'description', 'dialogue', 'visual_intent', 'duration_sec', 'status', 'metadata_json']),
+  content_unit: new Set(['title', 'kind', 'description', 'prompt', 'duration_sec', 'status', 'metadata_json']),
+  keyframe: new Set(['title', 'description', 'prompt', 'resource_id', 'status', 'metadata_json']),
+  preview_timeline: new Set(['name', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
+  delivery_version: new Set(['name', 'description', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
+}
 
 const contextSnapshot: MCPContextSnapshot = {
   route: { pathname: '/', search: '', hash: '' },
@@ -383,6 +420,18 @@ function listTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_list_models',
+      description: 'List enabled AI models for a capability or feature, including supported parameters, so the agent can choose a valid model before generation.',
+      inputSchema: objectSchema(
+        {
+          capability: { type: 'string', description: 'Optional capability filter such as text, image, image_edit, video, video_i2v, or video_v2v.' },
+          feature: { type: 'string', description: 'Optional feature key filter. Takes precedence over capability when provided.' },
+          provider_variants: { type: 'boolean', description: 'When true, include provider-specific model variants.' },
+          include_provider_variants: { type: 'boolean', description: 'Alias for provider_variants.' },
+        }
+      ),
+    },
+    {
       name: 'movscript_create_generation_job',
       description: 'Create and wait for an AI image or video generation job through the MovScript backend. Returns the completed job and output_resource for direct chat display. This is cost-bearing and should only run after explicit user approval.',
       inputSchema: objectSchema(
@@ -402,6 +451,74 @@ function listTools(): MCPTool[] {
           poll_interval_ms: { type: 'number', description: 'Polling interval. Defaults to 2500.' },
         },
         ['prompt']
+      ),
+    },
+    {
+      name: 'movscript_get_generation_job',
+      description: 'Inspect one AI image or video generation job. Returns status, progress hints, output resource, and media preview data when available.',
+      inputSchema: objectSchema(
+        {
+          jobId: { type: 'number', description: 'Generation job ID.' },
+          projectId: { type: 'number' },
+        },
+        ['jobId']
+      ),
+    },
+    {
+      name: 'movscript_list_generation_jobs',
+      description: 'List recent AI image or video generation jobs for the current project so the agent can monitor queued and running work.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number' },
+          status: { type: 'string', description: 'Optional job status filter, such as pending, running, succeeded, failed, or cancelled.' },
+          job_type: { type: 'string', description: 'Optional job type filter, such as image, image_edit, video, video_i2v, or video_v2v.' },
+          limit: { type: 'number', description: 'Maximum number of jobs to return. Defaults to 20.' },
+        }
+      ),
+    },
+    {
+      name: 'movscript_cancel_generation_job',
+      description: 'Cancel a running video generation job. This is cost/state affecting and should only run after explicit user approval.',
+      inputSchema: objectSchema(
+        {
+          jobId: { type: 'number', description: 'Generation job ID.' },
+          projectId: { type: 'number' },
+        },
+        ['jobId']
+      ),
+    },
+    {
+      name: 'movscript_apply_draft_review',
+      description: 'Apply an approved local draft review to the formal MovScript backend entity. This writes backend state and must only run after UI approval.',
+      inputSchema: objectSchema(
+        {
+          review: { type: 'object' },
+          userId: { type: 'number' },
+        },
+        ['review']
+      ),
+    },
+    {
+      name: 'movscript_preview_apply_draft_review',
+      description: 'Preview backend effects for applying a local draft review without writing final entity state when the backend supports dry run.',
+      inputSchema: objectSchema(
+        {
+          review: { type: 'object' },
+          userId: { type: 'number' },
+        },
+        ['review']
+      ),
+    },
+    {
+      name: 'movscript_create_script_backend',
+      description: 'Create a formal backend script record from an approved agent script payload. This is an internal approval-backed write tool.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number' },
+          payload: { type: 'object' },
+          userId: { type: 'number' },
+        },
+        ['projectId', 'payload']
       ),
     },
   ]
@@ -439,8 +556,22 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await checkProposalIsAvailable(args))
     case 'movscript_build_orchestration_diff':
       return toolText(await buildOrchestrationDiff(args))
+    case 'movscript_list_models':
+      return toolText(await listModels(args))
     case 'movscript_create_generation_job':
       return toolText(await createGenerationJob(args))
+    case 'movscript_get_generation_job':
+      return toolText(await getGenerationJob(args))
+    case 'movscript_list_generation_jobs':
+      return toolText(await listGenerationJobs(args))
+    case 'movscript_cancel_generation_job':
+      return toolText(await cancelGenerationJob(args))
+    case 'movscript_apply_draft_review':
+      return toolText(await applyDraftReview(args))
+    case 'movscript_preview_apply_draft_review':
+      return toolText(await previewApplyDraftReview(args))
+    case 'movscript_create_script_backend':
+      return toolText(await createScriptBackend(args))
     default:
       throw new Error(`Unknown tool: ${name}`)
   }
@@ -481,6 +612,38 @@ async function listProjects(args: Record<string, unknown>): Promise<unknown> {
   return {
     count: projects.length,
     projects: projects.slice(0, limit).map(summarizeProject),
+  }
+}
+
+async function listModels(args: Record<string, unknown>): Promise<unknown> {
+  const feature = getOptionalString(args, 'feature') ?? getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey')
+  const capability = getOptionalString(args, 'capability')
+  const providerVariants = args.provider_variants === true || args.include_provider_variants === true
+
+  const queries = feature
+    ? [{ label: `feature:${feature}`, path: `/models?feature=${encodeURIComponent(feature)}${providerVariants ? '&provider_variants=true' : ''}` }]
+    : capability
+      ? [{ label: `capability:${capability}`, path: `/models?capability=${encodeURIComponent(capability)}${providerVariants ? '&provider_variants=true' : ''}` }]
+      : ['text', 'image', 'image_edit', 'video', 'video_i2v', 'video_v2v'].map((item) => ({
+        label: `capability:${item}`,
+        path: `/models?capability=${encodeURIComponent(item)}${providerVariants ? '&provider_variants=true' : ''}`,
+      }))
+
+  const byId = new Map<number, any>()
+  for (const query of queries) {
+    const models = await backendList(query.path)
+    for (const model of models) {
+      const id = Number(model?.id ?? model?.ID)
+      if (Number.isFinite(id) && id > 0 && !byId.has(id)) {
+        byId.set(id, model)
+      }
+    }
+  }
+
+  return {
+    count: byId.size,
+    queries: queries.map((query) => query.label),
+    models: Array.from(byId.values()),
   }
 }
 
@@ -584,10 +747,16 @@ async function createGenerationJob(args: Record<string, unknown>): Promise<unkno
 
   const initialJobId = getJobId(job)
   if (!wait) {
+    const normalized = normalizeGenerationJob(job)
     return {
       status: 'queued',
-      job,
+      job: normalized.job,
       jobId: initialJobId,
+      monitor: {
+        tool: 'movscript_get_generation_job',
+        args: initialJobId ? { jobId: initialJobId, ...(projectId ? { projectId } : {}) } : undefined,
+        message: 'Generation is asynchronous. Inspect this job until it reaches a terminal status before claiming completion.',
+      },
       message: `生成任务已创建${initialJobId ? `（Job #${initialJobId}）` : ''}。`,
     }
   }
@@ -596,32 +765,207 @@ async function createGenerationJob(args: Record<string, unknown>): Promise<unkno
   const timeoutMs = getOptionalNumeric(args, 'timeout_ms') ?? (jobType.startsWith('video') ? 600_000 : 180_000)
   const pollIntervalMs = clampNumber(getOptionalNumeric(args, 'poll_interval_ms') ?? 2500, 500, 15_000)
   const finalJob = await waitForGenerationJob(initialJobId, timeoutMs, pollIntervalMs)
-  const outputResourceId = isRecord(finalJob) && typeof finalJob.output_resource_id === 'number' ? finalJob.output_resource_id : undefined
-  const outputResource = isRecord(finalJob) && isRecord(finalJob.output_resource)
-    ? finalJob.output_resource
-    : outputResourceId
-      ? await findRawResourceById(outputResourceId)
-      : undefined
-  const finalStatus = isRecord(finalJob) && typeof finalJob.status === 'string' ? finalJob.status : 'unknown'
+  const normalized = normalizeGenerationJob(finalJob)
+  const finalStatus = stringValue(normalized.status) ?? 'unknown'
+  const outputResourceId = typeof normalized.output_resource_id === 'number' ? normalized.output_resource_id : undefined
+  const outputResource = isRecord(normalized.output_resource) ? normalized.output_resource : undefined
+  const media = isRecord(normalized.media) ? normalized.media : undefined
 
   return {
     status: finalStatus,
-    job: finalJob,
+    job: normalized.job,
     jobId: initialJobId,
-    output_resource: outputResource,
+    ...(outputResource ? { output_resource: outputResource } : {}),
     ...(outputResourceId ? { output_resource_id: outputResourceId } : {}),
-    media: outputResource ? {
-      id: outputResourceId ?? getRawResourceId(outputResource),
-      type: outputResource.type,
-      name: outputResource.name,
-      url: outputResource.url,
-      direct_url: outputResource.direct_url,
-      mime_type: outputResource.mime_type,
-    } : undefined,
+    ...(media ? { media } : {}),
+    terminal: isTerminalGenerationStatus(finalStatus),
     message: finalStatus === 'succeeded'
       ? `生成完成${outputResourceId ? `，输出资源 #${outputResourceId}` : ''}。`
       : `生成任务结束，状态：${finalStatus}。`,
   }
+}
+
+async function getGenerationJob(args: Record<string, unknown>): Promise<unknown> {
+  const jobId = getRequiredNumber(args, 'jobId')
+  const rawJob = await backendGet(`/jobs/${jobId}`)
+  const normalized = normalizeGenerationJob(rawJob)
+  const status = stringValue(normalized.status) ?? 'unknown'
+  return {
+    ...normalized,
+    jobId,
+    terminal: isTerminalGenerationStatus(status),
+    message: generationJobMessage(jobId, normalized),
+  }
+}
+
+async function listGenerationJobs(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getOptionalNumeric(args, 'projectId') ?? contextSnapshot.project?.id
+  const limit = clampNumber(Math.floor(getOptionalNumeric(args, 'limit') ?? 20), 1, 100)
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (projectId) query.set('project_id', String(projectId))
+  const status = getOptionalString(args, 'status')
+  if (status) query.set('status', status)
+  const jobType = getOptionalString(args, 'job_type') ?? getOptionalString(args, 'jobType')
+  if (jobType) {
+    query.set('exact_type', '1')
+    query.set('type', jobType)
+  }
+
+  const raw = await backendGet(`/jobs?${query.toString()}`)
+  const jobs = Array.isArray(raw)
+    ? raw
+    : isRecord(raw) && Array.isArray(raw.items)
+      ? raw.items
+      : []
+  const normalizedJobs = jobs.map((job) => normalizeGenerationJob(job))
+  return {
+    projectId,
+    count: normalizedJobs.length,
+    jobs: normalizedJobs,
+    active: normalizedJobs.filter((item) => !isTerminalGenerationStatus(stringValue(item.status) ?? 'unknown')).length,
+  }
+}
+
+async function cancelGenerationJob(args: Record<string, unknown>): Promise<unknown> {
+  const jobId = getRequiredNumber(args, 'jobId')
+  const rawJob = await backendPost(`/jobs/${jobId}/cancel`, {})
+  const normalized = normalizeGenerationJob(rawJob)
+  const status = stringValue(normalized.status) ?? 'unknown'
+  return {
+    ...normalized,
+    jobId,
+    terminal: isTerminalGenerationStatus(status),
+    message: `生成任务 Job #${jobId} 已请求取消，当前状态：${status}。`,
+  }
+}
+
+async function applyDraftReview(args: Record<string, unknown>): Promise<unknown> {
+  const review = getReviewParam(args)
+  const request = buildApplyRequest(review)
+  const response = request.method === 'PATCH'
+    ? await backendPatch(request.path, request.payload, args.userId)
+    : await backendPost(request.path, request.payload, args.userId)
+  return {
+    performed: true,
+    method: request.method,
+    url: `${apiBaseURL}${request.path}`,
+    payload: request.payload,
+    response,
+  }
+}
+
+async function previewApplyDraftReview(args: Record<string, unknown>): Promise<unknown> {
+  const review = getReviewParam(args)
+  const request = buildApplyRequest(review)
+  if (!isProjectProposalTarget(review)) {
+    return {
+      performed: false,
+      skippedReason: 'backend apply preview is only implemented for project_proposal drafts',
+    }
+  }
+  const path = request.path.replace(/\/apply$/, '/apply-preview')
+  const response = await backendPost(path, request.payload, args.userId)
+  return {
+    performed: true,
+    method: request.method,
+    url: `${apiBaseURL}${path}`,
+    payload: request.payload,
+    response,
+  }
+}
+
+async function createScriptBackend(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = getRequiredNumber(args, 'projectId')
+  const payload = getObjectParamValue(args, 'payload')
+  const path = `/projects/${encodeURIComponent(String(projectId))}/scripts`
+  const response = await backendPost(path, payload, args.userId)
+  return {
+    performed: true,
+    method: 'POST',
+    url: `${apiBaseURL}${path}`,
+    payload,
+    response,
+  }
+}
+
+function getReviewParam(args: Record<string, unknown>): Record<string, unknown> {
+  return getObjectParamValue(args, 'review')
+}
+
+function buildApplyRequest(review: Record<string, unknown>): { method: 'PATCH' | 'POST'; path: string; payload: Record<string, unknown> } {
+  if (isProjectProposalTarget(review)) {
+    return buildProjectProposalRequest(review)
+  }
+  const target = getObjectValue(review.target, 'target')
+  const entityType = stringValue(target.entityType)
+  const entityId = target.entityId
+  const field = stringValue(target.field)
+  if (!entityType || !(entityType in PATCH_ROUTES)) {
+    throw new Error(`apply_draft does not support target entity type: ${entityType ?? 'unknown'}`)
+  }
+  if (entityId === undefined || entityId === null || String(entityId).trim() === '') {
+    throw new Error('apply_draft requires target entity id')
+  }
+  const route = PATCH_ROUTES[entityType]
+  const projectId = target.projectId
+  if (route.includes(':projectId') && (projectId === undefined || projectId === null || String(projectId).trim() === '')) {
+    throw new Error(`apply_draft requires projectId for target entity type: ${entityType}`)
+  }
+  if (!field || !FIELD_ALLOWLIST[entityType]?.has(field)) {
+    throw new Error(`apply_draft cannot write field ${field ?? 'unknown'} on ${entityType}`)
+  }
+  return {
+    method: 'PATCH',
+    path: route
+      .replace(':projectId', encodeURIComponent(String(projectId)))
+      .replace(':id', encodeURIComponent(String(entityId))),
+    payload: {
+      [field]: toMCPJSONValue(review.proposedValue),
+    } as Record<string, unknown>,
+  }
+}
+
+function buildProjectProposalRequest(review: Record<string, unknown>): { method: 'POST'; path: string; payload: Record<string, unknown> } {
+  const projectId = resolveProjectId(review)
+  return {
+    method: 'POST',
+    path: `/projects/${encodeURIComponent(String(projectId))}/entities/project-proposals/apply`,
+    payload: normalizeProjectProposalPayload(review.proposedValue),
+  }
+}
+
+function isProjectProposalTarget(review: Record<string, unknown>): boolean {
+  const target = isRecord(review.target) ? review.target : {}
+  return target.entityType === 'project' && target.field === 'proposal'
+}
+
+function resolveProjectId(review: Record<string, unknown>): string | number {
+  const target = getObjectValue(review.target, 'target')
+  const candidate = target.projectId ?? target.entityId
+  if ((typeof candidate !== 'string' && typeof candidate !== 'number') || String(candidate).trim() === '') {
+    throw new Error('apply_draft requires projectId for project proposal apply')
+  }
+  return candidate
+}
+
+function normalizeProjectProposalPayload(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value)
+      if (isRecord(parsed)) return parsed
+    } catch {
+      // handled below
+    }
+    throw new Error('project proposal draft content must be a JSON object')
+  }
+  if (!isRecord(value)) {
+    throw new Error('project proposal draft content must be a JSON object')
+  }
+  return value
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
 function inferGenerationJobType(args: Record<string, unknown>, inputResourceIds: number[]): string {
@@ -690,17 +1034,6 @@ async function waitForGenerationJob(jobId: number, timeoutMs: number, pollInterv
     await sleep(pollIntervalMs)
   }
   throw new Error(`generation job ${jobId} did not finish within ${timeoutMs}ms`)
-}
-
-function getJobId(job: unknown): number | undefined {
-  if (!isRecord(job)) return undefined
-  const id = Number(job.ID ?? job.id)
-  return Number.isFinite(id) && id > 0 ? id : undefined
-}
-
-function getRawResourceId(resource: Record<string, unknown>): number | undefined {
-  const id = Number(resource.ID ?? resource.id)
-  return Number.isFinite(id) && id > 0 ? id : undefined
 }
 
 async function findRawResourceById(resourceId: number): Promise<Record<string, unknown> | undefined> {
@@ -1554,9 +1887,10 @@ async function backendGet(path: string): Promise<any> {
   return res.json()
 }
 
-async function backendPost(path: string, body: Record<string, unknown>): Promise<any> {
+async function backendPost(path: string, body: Record<string, unknown>, userId?: unknown): Promise<any> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (contextAuthToken) headers.Authorization = `Bearer ${contextAuthToken}`
+  if (typeof userId === 'number' || typeof userId === 'string') headers['X-User-ID'] = String(userId)
 
   const res = await fetch(`${apiBaseURL}${path}`, {
     method: 'POST',
@@ -1568,6 +1902,24 @@ async function backendPost(path: string, body: Record<string, unknown>): Promise
     throw new Error(`Backend POST ${path} failed: HTTP ${res.status} ${text}`)
   }
   return res.json()
+}
+
+async function backendPatch(path: string, body: Record<string, unknown>, userId?: unknown): Promise<any> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (contextAuthToken) headers.Authorization = `Bearer ${contextAuthToken}`
+  if (typeof userId === 'number' || typeof userId === 'string') headers['X-User-ID'] = String(userId)
+
+  const res = await fetch(`${apiBaseURL}${path}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(`Backend PATCH ${path} failed: HTTP ${res.status} ${text}`)
+  }
+  const text = await res.text()
+  return text.trim() ? JSON.parse(text) : null
 }
 
 function normalizeAPIBaseURL(value: string): string {
@@ -1770,7 +2122,7 @@ function renderInlineMarkdownValue(value: unknown): string {
 }
 
 function toMCPJSONValue(value: unknown): MCPJSONValue {
-  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value as MCPJSONValue
   if (Array.isArray(value)) return value.map(toMCPJSONValue)
   if (!isRecord(value)) return String(value)
   const obj: Record<string, MCPJSONValue> = {}
@@ -1834,6 +2186,17 @@ function getObjectParam(params: MCPJSONValue | undefined, key: string): Record<s
   const obj = getObject(params)
   const value = obj[key]
   return isRecord(value) ? value : {}
+}
+
+function getObjectParamValue(args: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = args[key]
+  if (!isRecord(value)) throw new Error(`${key} is required`)
+  return value
+}
+
+function getObjectValue(value: unknown, label: string): Record<string, unknown> {
+  if (!isRecord(value)) throw new Error(`${label} is required`)
+  return value
 }
 
 function getObject(value: MCPJSONValue | undefined): Record<string, unknown> {

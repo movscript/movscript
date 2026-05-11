@@ -75,15 +75,22 @@ export interface ClientPluginResult {
   isError?: boolean
 }
 
-export interface GenerateImageRequest {
+export type GenerateMediaJobType = 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
+
+export interface GenerateMediaRequest {
   model_config_id: number
   prompt: string
-  job_type?: 'image' | 'image_edit'
+  job_type?: GenerateMediaJobType
   feature_key?: string
   input_resource_ids?: number[]
   extra_params?: Record<string, unknown>
   aspect_ratio?: string
+  duration?: number
   timeout_ms?: number
+}
+
+export type GenerateImageRequest = GenerateMediaRequest & {
+  job_type?: 'image' | 'image_edit'
 }
 
 export interface ClientPluginRuntime {
@@ -94,6 +101,7 @@ export interface ClientPluginRuntime {
   models: (capability: string) => Promise<PublicModel[]>
   modelConfigs: () => Promise<PublicModel[]>
   resources: () => Promise<RawResource[]>
+  generateMedia: (req: GenerateMediaRequest) => Promise<unknown>
   generateImage: (req: GenerateImageRequest) => Promise<unknown>
   sleep: (ms: number) => Promise<void>
   mcp: McpTools
@@ -384,6 +392,7 @@ function createRuntime(): ClientPluginRuntime {
     models: (capability) => api.get(`/models?capability=${encodeURIComponent(capability)}`).then((r) => r.data),
     modelConfigs: () => api.get('/models?capability=image').then((r) => r.data),
     resources: () => api.get('/resources').then((r) => r.data),
+    generateMedia: generateMediaViaRuntime,
     generateImage: generateImageViaRuntime,
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     mcp: createMcpTools(),
@@ -391,18 +400,24 @@ function createRuntime(): ClientPluginRuntime {
 }
 
 export async function generateImageViaRuntime(req: GenerateImageRequest): Promise<unknown> {
+  return generateMediaViaRuntime(req)
+}
+
+export async function generateMediaViaRuntime(req: GenerateMediaRequest): Promise<unknown> {
   const inputIDs = req.input_resource_ids ?? []
+  const jobType = req.job_type ?? (inputIDs.length > 0 ? 'image_edit' : 'image')
   const created = await api.post('/jobs', {
     model_config_id: req.model_config_id,
-    job_type: req.job_type ?? (inputIDs.length > 0 ? 'image_edit' : 'image'),
+    job_type: jobType,
     feature_key: req.feature_key ?? 'client_plugin',
     prompt: req.prompt,
     input_resource_ids: inputIDs,
     aspect_ratio: req.aspect_ratio,
+    ...(req.duration !== undefined ? { duration: req.duration } : {}),
     extra_params: JSON.stringify(req.extra_params ?? {}),
   }).then((r) => r.data as { ID: number })
 
-  const timeout = req.timeout_ms ?? 180_000
+  const timeout = req.timeout_ms ?? (jobType.startsWith('video') ? 600_000 : 180_000)
   const started = Date.now()
   for (;;) {
     const job = await api.get(`/jobs/${created.ID}`).then((r) => r.data as { status: string; error_msg?: string })

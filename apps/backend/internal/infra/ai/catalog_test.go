@@ -134,6 +134,33 @@ func TestValidateAndNormalizeGenerationParamsReturnsCanonicalKeys(t *testing.T) 
 	}
 }
 
+func TestValidateAndNormalizeGenerationParamsIgnoresJobMetadata(t *testing.T) {
+	def := ResolveModelDef(
+		"grok-imagine-image-edit", AdapterOpenAICompat,
+		"Grok Imagine Image Edit", CapabilityImageEdit, string(PricingPerImage),
+		true, 1, 0,
+		"image[]", `[
+			{"key":"image_size","label":"尺寸","type":"select","options":["1024x1024"]},
+			{"key":"quality","label":"质量","type":"select","options":["standard"]}
+		]`,
+	)
+	params, err := ValidateAndNormalizeGenerationParams(def, CapabilityImageEdit, `{
+		"source":"asset_slot_one_click",
+		"asset_slot_id":123,
+		"asset_kind":"image",
+		"quality":"standard"
+	}`, "", 0)
+	if err != nil {
+		t.Fatalf("expected metadata params to be ignored: %v", err)
+	}
+	if _, ok := params["source"]; ok {
+		t.Fatalf("expected source to be removed, got %#v", params)
+	}
+	if params["quality"] != "standard" {
+		t.Fatalf("expected quality to be preserved, got %#v", params)
+	}
+}
+
 func TestTextRequestParamsForValidation(t *testing.T) {
 	req := TextRequest{
 		MaxTokens:   512,

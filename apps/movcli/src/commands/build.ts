@@ -91,6 +91,7 @@ function buildOutputManifest(m: MovJson, hasUi: boolean) {
     ...(m.homepage ? { homepage: m.homepage } : {}),
     ...(m.permissions?.length ? { permissions: m.permissions } : {}),
     ...(m.inputSchema ? { inputSchema: m.inputSchema } : {}),
+    ...(m.contributes ? { contributes: m.contributes } : {}),
     ...(m.hasCompile ? { hasCompile: true } : {}),
   }
   return base

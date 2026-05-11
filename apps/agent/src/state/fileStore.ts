@@ -100,6 +100,16 @@ function normalizeThread(thread: AgentThread): AgentThread {
   return {
     ...thread,
     archived: thread.archived === true,
+    status: thread.status ?? threadStatusFromRunStatus(thread.lastRunStatus),
     messages: Array.isArray(thread.messages) ? thread.messages : [],
   }
+}
+
+function threadStatusFromRunStatus(status: AgentThread['lastRunStatus']): AgentThread['status'] {
+  if (!status) return 'idle'
+  if (status === 'queued' || status === 'in_progress') return 'running'
+  if (status === 'requires_action') return 'requires_action'
+  if (status === 'failed') return 'failed'
+  if (status === 'cancelled') return 'cancelled'
+  return 'completed'
 }

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowRight,
+  Bot,
   Boxes,
   CheckCircle2,
   ChevronRight,
@@ -40,6 +41,8 @@ import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelatio
 import { api } from '@/lib/api'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
+import { ASSET_PROPOSAL_AGENT_MANIFEST, buildAssetProposalAssistantMessage } from '@/lib/agentGenerationArtifacts'
+import { buildEmptyAssetProposalDraftContent } from '@/lib/assetProposalDraft'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
 import {
@@ -57,6 +60,7 @@ import {
   scriptSplitDraftStatusLabel,
   scriptSplitDraftStatusVariant,
   type ScriptSplitDraft,
+  type ScriptSplitProductionSummary,
   type ScriptSplitResult,
 } from '@/lib/scriptSplitDraft'
 import { localAgentClient, type AgentDraft, type AgentDraftValidationResult, type AgentManifest, type AgentRun } from '@/lib/localAgentClient'
@@ -68,14 +72,20 @@ import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import type { Canvas, CanvasStage, Job, PublicModel, RawResource } from '@/types'
 import type { Script } from '@/types'
-import { Badge, Button, Card, Progress, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
+import { Badge, Button, Card, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Progress, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { Input, Label, Textarea } from '@movscript/ui'
+import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
+import { ModelSelector } from '@/components/shared/ModelSelector'
+import { runRuntimeMessage } from '@/lib/runtimeChat'
+import { formatLocalAgentAssistantContent } from '@/components/agent/localRuntime'
 import {
   buildContentUnitGenerationContext,
+  createSemanticEntity,
   listSemanticEntities,
   semanticEntityConfig,
   updateSemanticEntity,
   type GenerationContext,
+  type SemanticEntityPayload,
   type SemanticEntityRecord,
 } from '@/api/semanticEntities'
 import {
@@ -88,6 +98,7 @@ import { MediaViewer } from '@/components/shared/MediaViewer'
 export type WorkbenchMode = 'free'
 type WorkStatus = 'blocked' | 'review' | 'ready' | 'running'
 type Priority = 'high' | 'medium' | 'low'
+type AssetCandidateGenerationKind = 'image' | 'video'
 
 interface WorkbenchContentProps {
   mode: WorkbenchMode
@@ -621,6 +632,18 @@ interface AssetPrepFilterState {
   segmentId: string
   contentUnitId: string
   creativeReferenceId: string
+}
+
+interface AiUnitSuggestion {
+  client_id: string
+  title: string
+  kind: string
+  description?: string
+  prompt?: string
+  duration_sec?: number
+  shot_size?: string
+  camera_angle?: string
+  camera_motion?: string
 }
 
 interface ContentGenerationViewRow {
@@ -1166,6 +1189,21 @@ function buildAssetCandidateRows(row: AssetPrepViewRow | null) {
   return candidateRows
 }
 
+function assetPrepReferenceResourceIds(row: AssetPrepViewRow) {
+  const ids: number[] = []
+  const add = (id?: number) => {
+    if (id && Number.isFinite(id) && !ids.includes(id)) ids.push(id)
+  }
+  add(row.lockedSlot?.resource?.ID ?? row.lockedSlot?.resource_id)
+  add(row.slot.resource?.ID ?? row.slot.resource_id)
+  for (const candidate of row.candidates) {
+    const candidateSlot = candidate.candidate_asset_slot
+    add(candidateSlot?.resource?.ID ?? candidateSlot?.resource_id)
+    if (ids.length >= 3) break
+  }
+  return ids
+}
+
 function normalizeCreativeReferenceStatus(status?: string) {
   if (status === 'confirmed' || status === 'locked' || status === 'ignored' || status === 'merged') return status
   return 'draft'
@@ -1652,12 +1690,94 @@ function buildProductionCandidateRows(jobs: Job[]) {
   }))
 }
 
+function parseAiUnitSuggestions(raw: string): AiUnitSuggestion[] {
+  if (!raw || !raw.trim()) return []
+  const jsonPayload = extractJsonBlock(raw)
+  if (!jsonPayload) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsonPayload)
+  } catch {
+    return []
+  }
+  const arr = Array.isArray(parsed)
+    ? parsed
+    : Array.isArray((parsed as { units?: unknown })?.units)
+      ? (parsed as { units: unknown[] }).units
+      : []
+  const items: AiUnitSuggestion[] = []
+  const validKinds = new Set(['shot', 'visual_segment', 'caption_card', 'narration', 'transition', 'music_beat', 'product_showcase'])
+  arr.forEach((entry, index) => {
+    if (!entry || typeof entry !== 'object') return
+    const record = entry as Record<string, unknown>
+    const title = String(record.title ?? '').trim()
+    if (!title) return
+    const rawKind = String(record.kind ?? 'shot').trim()
+    const kind = validKinds.has(rawKind) ? rawKind : 'shot'
+    items.push({
+      client_id: `ai_${index}_${Math.random().toString(36).slice(2, 7)}`,
+      title,
+      kind,
+      description: optionalString(record.description),
+      prompt: optionalString(record.prompt),
+      duration_sec: optionalNumber(record.duration_sec),
+      shot_size: optionalString(record.shot_size),
+      camera_angle: optionalString(record.camera_angle),
+      camera_motion: optionalString(record.camera_motion),
+    })
+  })
+  return items
+}
+
+function extractJsonBlock(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed)
+  if (fenced) return fenced[1].trim()
+  const first = trimmed.indexOf('{')
+  const last = trimmed.lastIndexOf('}')
+  if (first >= 0 && last > first) return trimmed.slice(first, last + 1)
+  return trimmed
+}
+
+function optionalString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const text = value.trim()
+  return text ? text : undefined
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return Math.round(value)
+  if (typeof value === 'string' && value.trim()) {
+    const num = Number(value)
+    if (Number.isFinite(num) && num > 0) return Math.round(num)
+  }
+  return undefined
+}
+
+
 function firstText(...values: Array<unknown>) {
   for (const value of values) {
     const text = String(value ?? '').trim()
     if (text) return text
   }
   return ''
+}
+
+function normalizeEntityTitleKey(value: unknown) {
+  return firstText(value).replace(/\s+/g, '').toLowerCase()
+}
+
+function mergeMetadataJSON(value: unknown, patch: Record<string, unknown>) {
+  if (typeof value !== 'string' || !value.trim()) return patch
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? { ...parsed as Record<string, unknown>, ...patch }
+      : patch
+  } catch {
+    return patch
+  }
 }
 
 function dedupeRecords<T extends { ID: number }>(records: T[]): T[] {
@@ -2208,6 +2328,11 @@ function AssetPreparationWorkbench() {
   })
   const [selectedId, setSelectedId] = useState('')
   const [uploading, setUploading] = useState(false)
+  const assetAssistantCleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => () => {
+    assetAssistantCleanupRef.current?.()
+  }, [])
 
   useEffect(() => {
     const nextRows = rows.filter((row) => matchesAssetPrepFilters(row, assetFilters))
@@ -2265,12 +2390,127 @@ function AssetPreparationWorkbench() {
       ])
       toast.success('候选已上传')
     },
-      onError: (error) => {
-        toast.error(apiErrorMessage(error, '上传候选失败'))
-      },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '上传候选失败'))
+    },
     onSettled: () => {
       setUploading(false)
       if (uploadInputRef.current) uploadInputRef.current.value = ''
+    },
+  })
+
+  const generateCandidate = useMutation({
+    mutationFn: async ({ row, kind }: { row: AssetPrepViewRow; kind: AssetCandidateGenerationKind }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      const referenceIds = assetPrepReferenceResourceIds(row)
+      const draftShell = await localAgentClient.createDraft({
+        projectId,
+        kind: 'asset_proposal',
+        title: `素材候选提案 - ${row.title}`,
+        content: JSON.stringify(buildEmptyAssetProposalDraftContent({
+          projectId,
+          assetSlotId: row.slot.ID,
+          slotName: row.title,
+          slotKind: String(row.slot.kind ?? 'image'),
+          description: row.need,
+          promptHint: String(row.slot.prompt_hint ?? ''),
+          ownerLabel: row.contextSummary,
+          referenceResourceIds: referenceIds,
+          createdAt: new Date().toISOString(),
+        }), null, 2),
+        source: {
+          entityType: 'asset_slot',
+          entityId: row.slot.ID,
+          pageType: 'asset_proposal',
+          pageRoute: '/workbench/assets',
+        },
+        target: {
+          projectId,
+          entityType: 'asset_slot',
+          entityId: row.slot.ID,
+          field: 'candidate_generation_plan',
+        },
+        metadata: {
+          pageOwned: true,
+          assetSlotId: row.slot.ID,
+          requestedOutputKind: kind,
+          referenceResourceIds: referenceIds,
+          sceneMomentLabel: row.sceneMomentLabel,
+          contentUnitLabel: row.contentUnitLabel,
+        },
+      })
+      const requestId = `asset_workbench_proposal_${row.slot.ID}_${Date.now().toString(36)}`
+      const message = buildAssetProposalAssistantMessage({
+        draftId: draftShell.id,
+        assetSlotId: row.slot.ID,
+        slotName: row.title,
+        slotKind: String(row.slot.kind ?? 'image'),
+        description: [
+          row.need ? `需求说明：${row.need}` : '',
+          row.contextSummary ? `当前上下文：${row.contextSummary}` : '',
+          row.settingDetail ? `设定依据：${row.settingDetail}` : '',
+          row.sceneMomentLabel && row.sceneMomentLabel !== '未关联情景' ? `情景：${row.sceneMomentLabel}` : '',
+          row.contentUnitLabel && row.contentUnitLabel !== '未关联制作项' ? `制作项：${row.contentUnitLabel}` : '',
+        ].filter(Boolean).join('\n'),
+        promptHint: String(row.slot.prompt_hint ?? ''),
+        ownerLabel: row.contextSummary,
+        referenceResourceIds: referenceIds,
+        candidateCount: row.candidates.length,
+      })
+
+      assetAssistantCleanupRef.current?.()
+      assetAssistantCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
+        if (payload.run?.status === 'failed') {
+          toast.error(payload.run.error || payload.error || '素材候选提案生成失败')
+          assetAssistantCleanupRef.current?.()
+          assetAssistantCleanupRef.current = null
+          return
+        }
+        if (payload.run?.status === 'cancelled') {
+          toast.info('素材候选提案已停止')
+          assetAssistantCleanupRef.current?.()
+          assetAssistantCleanupRef.current = null
+          return
+        }
+        if (!payload.run || (payload.run.status !== 'completed' && payload.run.status !== 'completed_with_warnings')) return
+        const latestDraft = selectLatestDraftArtifact(payload.artifacts, 'asset_proposal')
+        const draftId = latestDraft?.draftId || draftShell.id
+        toast.success(`素材候选提案已准备，可在 AI 草稿中审阅：${draftId}`)
+        assetAssistantCleanupRef.current?.()
+        assetAssistantCleanupRef.current = null
+      })
+
+      openAgentPanelDraft({
+        requestId,
+        taskType: 'asset_candidate_proposal',
+        message: `请准备素材候选提案：${row.title}`,
+        title: `素材提案: ${row.title}`,
+        mode: 'create',
+        newConversation: true,
+        autoSend: true,
+        projectId,
+        clientInput: buildCommandFirstClientInput({
+          message,
+          labels: ['asset-workbench', 'asset-proposal', 'draft-application'],
+          hints: {
+            projectId,
+            draftId: draftShell.id,
+            route: { pathname: '/workbench/assets' },
+            selection: { entityType: 'asset_slot', entityId: row.slot.ID, label: row.title },
+          },
+        }),
+        agentManifest: ASSET_PROPOSAL_AGENT_MANIFEST,
+        runPolicy: { maxToolCalls: 12, maxIterations: 8 },
+        timeoutMs: 300_000,
+        renderMode: 'chat',
+      })
+      return draftShell
+    },
+    onSuccess: () => {
+      toast.success('已打开 AI 素材候选提案助手')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '准备素材候选提案失败'))
     },
   })
 
@@ -2284,6 +2524,37 @@ function AssetPreparationWorkbench() {
     setUploading(true)
     uploadCandidate.mutate(file)
   }
+
+  function openAssetAssistant(row: AssetPrepViewRow | null) {
+    if (!projectId || !row) {
+      toast.info('请先选择素材需求')
+      return
+    }
+    generateCandidate.mutate({ row, kind: row.slot.kind === 'video' ? 'video' : 'image' })
+  }
+
+  const selectedSlotId = selected?.slot.ID
+  const selectedPreferredKind: AssetCandidateGenerationKind = selected?.slot.kind === 'video' ? 'video' : 'image'
+  const assetNextActions = [
+    {
+      label: `生成${selectedPreferredKind === 'video' ? '视频' : '图片'}提案`,
+      run: () => selected ? generateCandidate.mutate({ row: selected, kind: selectedPreferredKind }) : navigate('/asset-slots'),
+      primary: !selected?.candidates.length,
+      loading: generateCandidate.isPending && generateCandidate.variables?.kind === selectedPreferredKind,
+      icon: Wand2,
+    },
+    {
+      label: selectedPreferredKind === 'video' ? '生成图片提案' : '生成视频提案',
+      run: () => selected ? generateCandidate.mutate({ row: selected, kind: selectedPreferredKind === 'video' ? 'image' : 'video' }) : navigate('/asset-slots'),
+      primary: false,
+      loading: generateCandidate.isPending && generateCandidate.variables?.kind !== selectedPreferredKind,
+      icon: selectedPreferredKind === 'video' ? Image : Film,
+    },
+    { label: 'AI 助手准备提案', run: () => openAssetAssistant(selected), primary: false, icon: Bot },
+    { label: '画布编排生成', run: () => selected ? openAssetCanvas.mutate(selected) : navigate('/asset-slots'), primary: false, loading: openAssetCanvas.isPending, icon: Sparkles },
+    { label: '采用并锁定素材', run: () => navigate(selectedSlotId ? `/asset-slots?asset_slot_id=${selectedSlotId}` : '/asset-slots'), primary: Boolean(selected?.candidates.length) && normalizeAssetSlotStatus(selected?.slot.status) !== 'locked' },
+    { label: '写回资源库', run: () => navigate('/resources'), primary: false },
+  ]
   const filterCountLabel = `${filteredRows.length}/${rows.length}`
   const hasFilters = hasAssetPrepFilters(assetFilters)
 
@@ -2459,12 +2730,12 @@ function AssetPreparationWorkbench() {
                           <p className="text-xs font-medium text-foreground">下一步动作</p>
                           <p className="mt-1 text-xs text-muted-foreground">围绕当前素材需求继续生成、锁定或回写资源库。</p>
                         </div>
-                        <Badge variant="outline">{assetPrepNextActions(selected).length} 个动作</Badge>
+                        <Badge variant="outline">{assetNextActions.length} 个动作</Badge>
                       </div>
                       <div className="space-y-2">
-                        {assetPrepNextActions(selected).map((action, index) => (
+                        {assetNextActions.map((action, index) => (
                           <Button key={action.label} variant={action.primary ? 'primary' : 'outline'} className="w-full justify-start gap-2" onClick={() => action.run()} loading={action.loading}>
-                            {index === 2 ? <LockKeyhole size={15} /> : <ChevronRight size={15} />}
+                            {action.icon ? <action.icon size={15} /> : index === 4 ? <LockKeyhole size={15} /> : <ChevronRight size={15} />}
                             {action.label}
                           </Button>
                         ))}
@@ -2481,14 +2752,6 @@ function AssetPreparationWorkbench() {
     </div>
   )
 
-  function assetPrepNextActions(row: AssetPrepViewRow | null) {
-    const slotId = row?.slot.ID
-    return [
-      { label: '生成补充候选', run: () => row ? openAssetCanvas.mutate(row) : navigate('/asset-slots'), primary: !row?.candidates.length, loading: openAssetCanvas.isPending },
-      { label: '采用并锁定素材', run: () => navigate(slotId ? `/asset-slots?asset_slot_id=${slotId}` : '/asset-slots'), primary: Boolean(row?.candidates.length) && normalizeAssetSlotStatus(row?.slot.status) !== 'locked' },
-      { label: '写回资源库', run: () => navigate('/resources'), primary: false },
-    ]
-  }
 }
 
 function SettingPreparationWorkbench() {
@@ -3026,6 +3289,15 @@ function ContentGenerationWorkbench() {
   const [segmentFilter, setSegmentFilter] = useState('all')
   const [selectedId, setSelectedId] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [creatingUnit, setCreatingUnit] = useState(false)
+  const [aiSuggestOpen, setAiSuggestOpen] = useState(false)
+  const [aiSuggestRunning, setAiSuggestRunning] = useState(false)
+  const [aiSuggestError, setAiSuggestError] = useState<string | null>(null)
+  const [aiSuggestions, setAiSuggestions] = useState<AiUnitSuggestion[]>([])
+  const [aiSuggestSelected, setAiSuggestSelected] = useState<Set<string>>(new Set())
+  const [aiSuggestBrief, setAiSuggestBrief] = useState('')
+  const [aiModelId, setAiModelId] = useState<number | null>(null)
+  const [aiModelName, setAiModelName] = useState<string | undefined>(undefined)
   const productionFilteredRows = useMemo(() => {
     if (productionFilter === 'all') return rows
     if (productionFilter === 'unassigned') return rows.filter((row) => row.productionIds.length === 0)
@@ -3163,14 +3435,6 @@ function ContentGenerationWorkbench() {
   const missingGenerationContext = generationContextQuery.data
     ? buildGenerationContextStandards(generationContextQuery.data).filter((item) => !item.done)
     : []
-  const contentSearch = selected
-    ? `?scene_moment_id=${selected.moment.ID}${selected.segment?.ID ? `&segment_id=${selected.segment.ID}` : ''}${selectedUnit?.production_id ? `&production_id=${selectedUnit.production_id}` : selected.segment?.production_id ? `&production_id=${selected.segment.production_id}` : ''}`
-    : ''
-  const productionSearch = selectedUnit?.production_id
-    ? `?productionId=${selectedUnit.production_id}`
-    : selected?.segment?.production_id
-      ? `?productionId=${selected.segment.production_id}`
-      : ''
 
   function triggerCandidateUpload() {
     if (!uploadTargetSlot || uploading || uploadCandidate.isPending) return
@@ -3181,6 +3445,164 @@ function ContentGenerationWorkbench() {
     if (!file || !uploadTargetSlot || uploadCandidate.isPending) return
     setUploading(true)
     uploadCandidate.mutate(file)
+  }
+
+  const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
+  const productionWorkbenchQueryKey = ['workbench', 'production', projectId] as const
+  const unitCandidates = useMemo(() => {
+    if (!selected) return [] as WorkbenchRecord[]
+    return selected.units.filter((unit) => {
+      const status = String(unit.status ?? '').toLowerCase()
+      return status === '' || status === 'draft' || status === 'candidate'
+    })
+  }, [selected])
+  const confirmCandidate = useMutation({
+    mutationFn: async ({ unitId, next }: { unitId: number; next: 'confirmed' | 'ignored' }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      await updateSemanticEntity(projectId, contentUnitConfig, unitId, { status: next })
+    },
+    onSuccess: async (_data, variables) => {
+      await queryClient.invalidateQueries({ queryKey: productionWorkbenchQueryKey })
+      toast.success(variables.next === 'confirmed' ? '候选已确认' : '候选已忽略')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '候选状态更新失败'))
+    },
+  })
+  const createUnitsFromAI = useMutation({
+    mutationFn: async (items: AiUnitSuggestion[]) => {
+      if (!projectId) throw new Error('请先选择项目')
+      if (!selected) throw new Error('请先选择情节')
+      const baseOrder = selected.units.length
+      const segmentId = selected.segment?.ID ?? null
+      const momentId = selected.moment.ID
+      const productionId = selectedUnit?.production_id ?? selected.segment?.production_id ?? null
+      const created: SemanticEntityRecord[] = []
+      for (let i = 0; i < items.length; i += 1) {
+        const suggestion = items[i]
+        const payload: SemanticEntityPayload = {
+          title: suggestion.title,
+          kind: suggestion.kind || 'shot',
+          order: baseOrder + i + 1,
+          status: 'candidate',
+          segment_id: segmentId,
+          scene_moment_id: momentId,
+          production_id: productionId,
+        }
+        if (suggestion.description) payload.description = suggestion.description
+        if (suggestion.prompt) payload.prompt = suggestion.prompt
+        if (suggestion.duration_sec) payload.duration_sec = suggestion.duration_sec
+        if (suggestion.shot_size) payload.shot_size = suggestion.shot_size
+        if (suggestion.camera_angle) payload.camera_angle = suggestion.camera_angle
+        if (suggestion.camera_motion) payload.camera_motion = suggestion.camera_motion
+        const saved = await createSemanticEntity(projectId, contentUnitConfig, payload)
+        created.push(saved)
+      }
+      return created
+    },
+    onSuccess: async (records) => {
+      await queryClient.invalidateQueries({ queryKey: productionWorkbenchQueryKey })
+      toast.success(`已加入 ${records.length} 个候选单元`)
+      setAiSuggestions([])
+      setAiSuggestSelected(new Set())
+      setAiSuggestOpen(false)
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '候选单元创建失败'))
+    },
+  })
+
+  async function runAiSuggest() {
+    if (!projectId || !selected) return
+    if (!aiModelId) {
+      toast.error('请选择文本模型')
+      return
+    }
+    setAiSuggestRunning(true)
+    setAiSuggestError(null)
+    try {
+      const productionTitle = selectedProduction ? titleOfRecord(selectedProduction) : '未绑定'
+      const segmentTitle = selected.segment ? titleOfRecord(selected.segment) : '未绑定'
+      const existingTitles = selected.units.map((unit) => titleOfRecord(unit)).slice(0, 12).join('、') || '（无）'
+      const brief = aiSuggestBrief.trim()
+      const context = [
+        `当前制作：${productionTitle}`,
+        `情绪段：${segmentTitle}`,
+        `情节：${selected.title}`,
+        `情节范围：${selected.scope || '暂无描述'}`,
+        `已有内容单元：${existingTitles}`,
+        brief ? `创作者补充：${brief}` : '创作者补充：无',
+      ].join('\n')
+      const prompt = [
+        '你是一位分镜导演助理。请基于当前情节的上下文，建议 3-6 条尚未创建的内容单元（镜头 / 字幕卡 / 旁白 / 转场皆可），用于推进该情节的表达。',
+        context,
+        '',
+        '只返回 JSON，不要任何 Markdown 代码块或多余文字。JSON schema:',
+        '{',
+        '  "units": [',
+        '    {',
+        '      "title": "镜头标题",',
+        '      "kind": "shot|visual_segment|caption_card|narration|transition|music_beat|product_showcase",',
+        '      "description": "要做什么（可选，120 字内）",',
+        '      "prompt": "生成提示词（可选）",',
+        '      "duration_sec": 数字（可选）,',
+        '      "shot_size": "extreme_wide|wide|full|medium|medium_close|close_up|extreme_close_up|detail 之一（可选）",',
+        '      "camera_angle": "eye_level|high_angle|low_angle|over_shoulder|pov 之一（可选）",',
+        '      "camera_motion": "static|pan|tilt|dolly_in|dolly_out|tracking|orbit|handheld|zoom 之一（可选）"',
+        '    }',
+        '  ]',
+        '}',
+        '避免与已有内容单元标题重复；每条聚焦一个清晰动作或情绪节拍。',
+      ].join('\n')
+      const { run, thread } = await runRuntimeMessage({
+        message: prompt,
+        title: '内容单元 AI 建议',
+        modelConfigId: aiModelId,
+        modelName: aiModelName,
+        timeoutMs: 90_000,
+        pollMs: 500,
+        sessionId: `content_unit_suggest_${projectId}_${selected.moment.ID}_${Date.now()}`,
+        sessionTaskType: 'content_unit_suggest',
+      })
+      const raw = formatLocalAgentAssistantContent(run, thread)
+      const parsed = parseAiUnitSuggestions(raw)
+      if (parsed.length === 0) {
+        setAiSuggestError('模型没有返回可解析的候选单元，请重试或调整补充说明。')
+      } else {
+        setAiSuggestions(parsed)
+        setAiSuggestSelected(new Set(parsed.map((item) => item.client_id)))
+      }
+    } catch (error) {
+      setAiSuggestError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setAiSuggestRunning(false)
+    }
+  }
+
+  function toggleAiSuggestion(clientId: string) {
+    setAiSuggestSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(clientId)) next.delete(clientId)
+      else next.add(clientId)
+      return next
+    })
+  }
+
+  function acceptAiSuggestions() {
+    const items = aiSuggestions.filter((item) => aiSuggestSelected.has(item.client_id))
+    if (items.length === 0) {
+      toast.error('至少勾选一条候选单元')
+      return
+    }
+    createUnitsFromAI.mutate(items)
+  }
+
+  function openAiSuggest() {
+    if (!selected) return
+    setAiSuggestError(null)
+    setAiSuggestions([])
+    setAiSuggestSelected(new Set())
+    setAiSuggestOpen(true)
   }
 
   return (
@@ -3287,13 +3709,13 @@ function ContentGenerationWorkbench() {
                     添加单元会写入当前情节：{selected ? titleOfRecord(selected.moment) : '未选择情节'}
                   </p>
                   <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => navigate(`/contents${contentSearch}`)} disabled={!selected}>
+                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => setCreatingUnit(true)} disabled={!selected}>
                       <Boxes size={13} />
-                      在情节中添加
+                      添加内容单元
                     </Button>
-                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={triggerCandidateUpload} disabled={!uploadTargetSlot || uploading || uploadCandidate.isPending}>
-                      <Upload size={13} />
-                      {uploading || uploadCandidate.isPending ? '上传中' : '上传候选'}
+                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={openAiSuggest} disabled={!selected || aiSuggestRunning}>
+                      <Sparkles size={13} />
+                      AI 建议
                     </Button>
                   </div>
                 </div>
@@ -3312,10 +3734,16 @@ function ContentGenerationWorkbench() {
                   <div className="rounded-md border border-dashed border-border bg-background px-3 py-8 text-center">
                     <p className="text-sm font-medium text-foreground">这个情节还没有内容单元</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">先添加镜头、旁白、字幕卡或转场，再进入候选和生成检查。</p>
-                    <Button className="mt-4 gap-2" size="sm" onClick={() => navigate(`/contents${contentSearch}`)}>
-                      <Boxes size={14} />
-                      在当前情节中添加内容单元
-                    </Button>
+                    <div className="mt-4 flex items-center justify-center gap-2">
+                      <Button size="sm" className="gap-2" onClick={() => setCreatingUnit(true)}>
+                        <Boxes size={14} />
+                        添加内容单元
+                      </Button>
+                      <Button size="sm" variant="outline" className="gap-2" onClick={openAiSuggest}>
+                        <Sparkles size={14} />
+                        AI 建议
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -3382,28 +3810,109 @@ function ContentGenerationWorkbench() {
                   )}
                 </WorkbenchPanel>
 
-                <WorkbenchPanel title="候选列表" icon={Play} action={<Badge variant="secondary">{candidateRows.length > 0 ? '最新任务' : `${selected?.assetSlots.length ?? 0} 素材`}</Badge>}>
+                <WorkbenchPanel
+                  title="内容单元候选"
+                  icon={Play}
+                  action={<Badge variant={unitCandidates.length > 0 ? 'secondary' : 'outline'}>{unitCandidates.length} 条待确认</Badge>}
+                >
                   <div className="space-y-4">
                     <div className="grid gap-2 md:grid-cols-3">
-                      <Button className="justify-start gap-2" onClick={() => navigate(`/contents${contentSearch}`)} disabled={!selected}>
+                      <Button className="justify-start gap-2" onClick={() => setCreatingUnit(true)} disabled={!selected}>
                         <Boxes size={15} />
-                        在当前情节中添加单元
+                        添加内容单元
                       </Button>
-                      <Button variant="outline" className="justify-start gap-2" onClick={triggerCandidateUpload} disabled={!uploadTargetSlot || uploading || uploadCandidate.isPending}>
-                        <Upload size={15} />
-                        {uploading || uploadCandidate.isPending ? '上传中' : '主动上传候选'}
+                      <Button variant="outline" className="justify-start gap-2" onClick={openAiSuggest} disabled={!selected || aiSuggestRunning}>
+                        <Sparkles size={15} />
+                        {aiSuggestRunning ? 'AI 建议中' : 'AI 建议'}
                       </Button>
-                      <Button variant="outline" className="justify-start gap-2" onClick={() => selectedUnit ? openUnitCanvas.mutate(selectedUnit) : navigate(`/contents${contentSearch}`)} loading={openUnitCanvas.isPending} disabled={!selected}>
+                      <Button variant="outline" className="justify-start gap-2" onClick={() => selectedUnit ? openUnitCanvas.mutate(selectedUnit) : setCreatingUnit(true)} loading={openUnitCanvas.isPending} disabled={!selected}>
                         <Play size={15} />
                         {selectedUnit ? '打开编排画布' : '先创建内容单元'}
                       </Button>
                     </div>
-                    {uploadTargetSlot ? (
-                      <p className="text-xs text-muted-foreground">上传候选会挂到素材需求：{titleOfRecord(uploadTargetSlot)}</p>
+                    {!selected ? (
+                      <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后查看候选单元。</p>
+                    ) : unitCandidates.length === 0 ? (
+                      <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+                        当前情节没有待确认的候选单元。通过「添加内容单元」或「AI 建议」可新增候选。
+                      </p>
                     ) : (
-                      <p className="text-xs text-amber-700 dark:text-amber-300">当前情节暂无素材需求，先添加素材需求后即可主动上传候选。</p>
+                      <div className="space-y-2">
+                        {unitCandidates.map((unit) => {
+                          const isDraft = String(unit.status ?? '').toLowerCase() === 'draft'
+                          return (
+                            <div key={unit.ID} className="rounded-md border border-border bg-background p-3">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="truncate text-sm font-medium text-foreground">{titleOfRecord(unit)}</p>
+                                    <Badge variant={isDraft ? 'outline' : 'secondary'}>{isDraft ? '草稿' : '候选'}</Badge>
+                                    <Badge variant="outline">{unit.kind || 'shot'}</Badge>
+                                  </div>
+                                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                                    {firstText(unit.description, unit.prompt, '暂无描述或生成提示')}
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                                    <span>时长 {formatDuration(unit.duration_sec)}</span>
+                                    {unit.shot_size ? <span>景别 {unit.shot_size}</span> : null}
+                                    {unit.camera_angle ? <span>机位 {unit.camera_angle}</span> : null}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-1"
+                                    onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'ignored' })}
+                                    disabled={confirmCandidate.isPending}
+                                  >
+                                    忽略
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="h-8 gap-1"
+                                    onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'confirmed' })}
+                                    disabled={confirmCandidate.isPending}
+                                  >
+                                    <CheckCircle2 size={13} />
+                                    确认
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
                     )}
-                    <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" rowClassName="production-candidate-row" />
+
+                    <div className="rounded-md border border-border bg-background p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Upload size={15} className="text-muted-foreground" />
+                          素材候选上传
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-2"
+                          onClick={triggerCandidateUpload}
+                          disabled={!uploadTargetSlot || uploading || uploadCandidate.isPending}
+                        >
+                          <Upload size={13} />
+                          {uploading || uploadCandidate.isPending ? '上传中' : '上传素材候选'}
+                        </Button>
+                      </div>
+                      {uploadTargetSlot ? (
+                        <p className="text-xs text-muted-foreground">会挂到素材需求：{titleOfRecord(uploadTargetSlot)}</p>
+                      ) : (
+                        <p className="text-xs text-amber-700 dark:text-amber-300">当前情节暂无素材需求，先添加素材需求后即可上传素材候选。</p>
+                      )}
+                      {candidateRows.length > 0 ? (
+                        <div className="mt-3">
+                          <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" rowClassName="production-candidate-row" />
+                        </div>
+                      ) : null}
+                    </div>
 
                     <div className="rounded-md border border-border bg-background p-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
@@ -3461,6 +3970,137 @@ function ContentGenerationWorkbench() {
           </div>
         )}
       </main>
+
+      <Dialog open={creatingUnit} onOpenChange={(open) => { if (!open) setCreatingUnit(false) }}>
+        <DialogContent className="max-h-[88vh] w-[min(760px,calc(100vw-32px))] overflow-auto p-0">
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle>添加内容单元</DialogTitle>
+            <DialogDescription>
+              {selected ? `将作为候选加入当前情节：${selected.title}` : '请先选择情节再添加内容单元。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-5">
+            {selected ? (
+              <SemanticEntityInlineEditor
+                projectId={projectId}
+                config={contentUnitConfig}
+                record={null}
+                defaults={{
+                  segment_id: selected.segment?.ID ?? null,
+                  scene_moment_id: selected.moment.ID,
+                  production_id: selectedUnit?.production_id ?? selected.segment?.production_id ?? null,
+                  order: selected.units.length + 1,
+                  kind: 'shot',
+                  status: 'candidate',
+                }}
+                queryKey={productionWorkbenchQueryKey}
+                title="新建内容单元"
+                description="填写制作项基本信息后保存，加入当前情节候选。"
+                onSaved={() => {
+                  setCreatingUnit(false)
+                }}
+              />
+            ) : (
+              <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+                请先在左侧筛选中选择情节。
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={aiSuggestOpen} onOpenChange={(open) => { if (!open) setAiSuggestOpen(false) }}>
+        <DialogContent className="max-h-[88vh] w-[min(720px,calc(100vw-32px))] overflow-auto p-0">
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle>AI 建议内容单元</DialogTitle>
+            <DialogDescription>
+              {selected ? `基于情节「${selected.title}」生成候选单元，勾选后批量加入。` : '请先选择情节再使用 AI 建议。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 p-5">
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">文本模型</Label>
+              <ModelSelector
+                capability="text"
+                value={aiModelId}
+                onChange={(id) => setAiModelId(id)}
+                onModelChange={(model) => setAiModelName(model?.short_name || model?.display_name || model?.logical_model_id || undefined)}
+                disabled={aiSuggestRunning}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">补充说明（可选）</Label>
+              <Textarea
+                value={aiSuggestBrief}
+                onChange={(e) => setAiSuggestBrief(e.target.value)}
+                placeholder="例如：强调情绪反差、突出产品细节、加一条旁白..."
+                rows={3}
+                disabled={aiSuggestRunning}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-muted-foreground">
+                {aiSuggestions.length > 0
+                  ? `已生成 ${aiSuggestions.length} 条候选，勾选后加入`
+                  : aiSuggestRunning ? '正在生成候选...' : '点击生成后将获得 3-6 条候选单元'}
+              </p>
+              <Button size="sm" className="gap-2" onClick={runAiSuggest} loading={aiSuggestRunning} disabled={!selected || !aiModelId}>
+                <Sparkles size={14} />
+                {aiSuggestions.length > 0 ? '重新生成' : '生成候选'}
+              </Button>
+            </div>
+            {aiSuggestError ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{aiSuggestError}</p>
+            ) : null}
+            {aiSuggestions.length > 0 ? (
+              <div className="space-y-2">
+                {aiSuggestions.map((item) => {
+                  const checked = aiSuggestSelected.has(item.client_id)
+                  return (
+                    <label
+                      key={item.client_id}
+                      className={cn(
+                        'flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3 transition-colors',
+                        checked ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1"
+                        checked={checked}
+                        onChange={() => toggleAiSuggestion(item.client_id)}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">{item.title}</span>
+                          <Badge variant="outline">{item.kind}</Badge>
+                          {item.duration_sec ? <Badge variant="outline">{item.duration_sec}s</Badge> : null}
+                          {item.shot_size ? <Badge variant="outline">{item.shot_size}</Badge> : null}
+                          {item.camera_angle ? <Badge variant="outline">{item.camera_angle}</Badge> : null}
+                        </div>
+                        {item.description ? (
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p>
+                        ) : null}
+                        {item.prompt ? (
+                          <p className="mt-1 text-[11px] leading-5 text-muted-foreground">提示词：{item.prompt}</p>
+                        ) : null}
+                      </div>
+                    </label>
+                  )
+                })}
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button size="sm" variant="outline" onClick={() => setAiSuggestOpen(false)}>
+                    取消
+                  </Button>
+                  <Button size="sm" onClick={acceptAiSuggestions} loading={createUnitsFromAI.isPending} disabled={aiSuggestSelected.size === 0}>
+                    加入 {aiSuggestSelected.size} 条候选
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -3528,21 +4168,22 @@ const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
   schema: 'movscript.agent.current',
   id: 'script-split-agent',
   version: '1.0.0',
-  name: '剧本拆分 Agent',
-  description: '把多集总稿拆分为可写入 MovScript 的总稿和制作剧本草稿。',
+  name: '一键制作 Agent',
+  description: '把剧本或提示词转成可写入 MovScript 的制作方案、设定上下文和制作决策草稿。',
   soul: [
-    '你是 MovScript 的剧本拆分专用 Agent 会话。',
-    '你的任务是把用户提供的一份总稿拆成多个独立制作剧本草稿。',
+    '你是 MovScript 的一键制作专用 Agent 会话。',
+    '你的任务是把用户提供的剧本、brief 或提示词拆成可制作的剧本段，并判断每一段是否应该新建、更新或跳过一个制作。',
     '必须优先依据剧本里的明确集标题、场次边界、叙事段落和上下文；不要编造原文没有的剧情。',
     '如果文本只有一集或没有明确制作标题，也要返回一个 episode_drafts 项。',
     '必须抽取总稿级 global_settings，并在每一个 episode_drafts 项里重复一份本集可用的 global_context。',
     'global_context 要包含故事世界、核心规则、人物关系、关键人物、关键场景、关键道具和连续性约束，保证后续编排只读取单集也能理解全局设定。',
-    '已有剧本清单只用于判断 action 和 existing_script_id；不要直接调用正式 Script 写入工具。',
-    '必须调用 movscript_submit_script_split_draft 提交结构化拆分结果；不要把结构化数据作为 assistant 正文返回。',
+    '已有剧本清单只用于判断 action 和 existing_script_id；已有制作清单只用于判断 productionAction 和 existingProductionId；不要直接调用正式 Script 或 Production 写入工具。',
+    '必须调用 movscript_submit_script_split_draft 提交结构化制作方案；不要把结构化数据作为 assistant 正文返回。',
     'sourceScript 只保留标题、摘要、来源类型和总行数，不要回传全文。',
     'episodeDrafts 必须使用 startLine/endLine 表示本集正文覆盖的行号区间；不要返回 content。',
-    '如果需要修正已有拆分结果，只调用 movscript_get_draft、movscript_update_draft、movscript_patch_draft、movscript_validate_draft 修改草稿。',
-    '不要调用正式写入工具；正式 Script 创建和覆盖由 UI 在用户确认后处理。',
+    'episodeDrafts 里每一项还要写 productionAction、existingProductionId、productionTitle 和 productionSummary，用来指示是否新建或更新制作。',
+    '如果需要修正已有制作方案，只调用 movscript_get_draft、movscript_update_draft、movscript_patch_draft、movscript_validate_draft 修改草稿。',
+    '不要调用正式写入工具；正式 Script 和 Production 创建和覆盖由 UI 在用户确认后处理。',
   ].join('\n'),
   skills: [],
   permissions: ['project.read', 'draft.read', 'draft.write'],
@@ -4776,6 +5417,11 @@ function ScriptSplitWorkbench() {
     queryFn: () => api.get(`/projects/${projectId}/scripts`).then((r) => r.data),
     enabled: !!projectId,
   })
+  const { data: productions = [] } = useQuery<ScriptSplitProductionSummary[]>({
+    queryKey: ['workbench-script-productions', projectId],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('productions')) as Promise<ScriptSplitProductionSummary[]>,
+    enabled: !!projectId,
+  })
   const { data: textModels = [] } = useQuery<PublicModel[]>({
     queryKey: ['models', 'text'],
     queryFn: () => api.get('/models?capability=text').then((r) => r.data),
@@ -4868,11 +5514,11 @@ function ScriptSplitWorkbench() {
     if (existing.drafts[0]) return existing.drafts[0]
 
     const lineCount = Math.max(1, getScriptTextLineCount(normalized))
-    const sourceSummary = `${baseTitle} 待拆分，共 ${lineCount} 行。`
+    const sourceSummary = `${baseTitle} 待生成制作方案，共 ${lineCount} 行。`
     return localAgentClient.createDraft({
       projectId,
       kind: 'script_split',
-      title: `剧本拆分草稿 - ${baseTitle}`,
+      title: `一键制作方案 - ${baseTitle}`,
       content: JSON.stringify({
         schema: 'movscript.script_split_analysis.v1',
         source_title: baseTitle,
@@ -4946,6 +5592,7 @@ function ScriptSplitWorkbench() {
       sourceTitle: baseTitle,
       sourceText: normalized,
       scripts: sortedScripts,
+      productions,
     })
     const clientInput = buildCommandFirstClientInput({
       message,
@@ -4958,22 +5605,22 @@ function ScriptSplitWorkbench() {
     })
     const requestId = `script_split_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
     const displayMessage = [
-      `请拆分剧本《${baseTitle}》。`,
+      `请为《${baseTitle}》生成一键制作方案。`,
       `完整正文已随本地运行输入发送（${normalized.length} 字符），对话面板仅展示摘要以避免卡顿。`,
     ].join('\n')
 
     scriptSplitToolCleanupRef.current?.()
     scriptSplitToolCleanupRef.current = registerAgentPanelPageTool(requestId, async (detail) => {
-      if (detail.status === 'error') {
-        toast.error(detail.error || 'Agent 拆分会话运行失败')
-        return
-      }
-      if (detail.status === 'cancelled') {
-        toast.info('Agent 拆分会话已停止')
-        return
-      }
       const run = detail.run
       const thread = detail.thread
+      if (run?.status === 'failed') {
+        toast.error(run.error || detail.error || '一键制作方案生成失败')
+        return
+      }
+      if (run?.status === 'cancelled') {
+        toast.info('一键制作方案生成已停止')
+        return
+      }
       if (!run || !thread || (run.status !== 'completed' && run.status !== 'completed_with_warnings')) return
       try {
         const task = useAgentSessionStore.getState().pageTasks[requestId]
@@ -4981,7 +5628,7 @@ function ScriptSplitWorkbench() {
         if (!artifact) return
         const latest = await getLatestWritableScriptSplitDraft(artifact.draftId)
         if (!latest) return
-        const nextDrafts = parseScriptSplitDraftContent(latest.content, sortedScripts, normalized)
+        const nextDrafts = parseScriptSplitDraftContent(latest.content, sortedScripts, normalized, productions)
         syncDrafts(nextDrafts)
         setAgentDraft(latest)
         setAgentDraftDirty(false)
@@ -5001,10 +5648,13 @@ function ScriptSplitWorkbench() {
           createdCount: 0,
           updatedCount: 0,
           episodeCount: nextDrafts.length,
+          productionCreatedCount: 0,
+          productionUpdatedCount: 0,
+          productionSkippedCount: 0,
           agentRunId: run.id,
           agentDraftId: latest.id,
         })
-        toast.success(`Agent 已给出拆分结论：${nextDrafts.length} 集`)
+        toast.success(`制作方案已准备好：${nextDrafts.length} 个制作入口`)
       } catch {
         // This response may still be part of the conversation. Wait for a later structured conclusion.
       }
@@ -5014,7 +5664,7 @@ function ScriptSplitWorkbench() {
       requestId,
       taskType: 'script_split',
       message: displayMessage,
-      title: `剧本拆分: ${baseTitle}`,
+      title: `一键制作: ${baseTitle}`,
       mode: 'create',
       newConversation: true,
       autoSend: true,
@@ -5044,7 +5694,7 @@ function ScriptSplitWorkbench() {
     try {
       const text = await readScriptDocument(file)
       const normalized = text.trim()
-      if (!normalized) throw new Error('文件里没有可拆分的文本')
+      if (!normalized) throw new Error('文件里没有可分析的文本')
       setSourceText(text)
       setSourceFileName(file.name)
       setSourceTitle((current) => current.trim() || scriptDocumentTitleFromName(file.name))
@@ -5062,14 +5712,14 @@ function ScriptSplitWorkbench() {
     mutationFn: async () => {
       if (!projectId) throw new Error('请先选择项目')
       const normalized = sourceText.trim()
-      if (!normalized) throw new Error('请先粘贴剧本文本')
+      if (!normalized) throw new Error('请先粘贴剧本或提示词')
       return openScriptSplitAgentSession(normalized)
     },
     onSuccess: () => {
-      toast.success('已打开剧本拆分会话，请在右侧对话框协作并让 Agent 产出 Draft')
+      toast.success('已启动一键制作，请在右侧会话等待 Agent 产出制作方案')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Agent 拆分失败')
+      toast.error(error instanceof Error ? error.message : '一键制作失败')
     },
   })
 
@@ -5122,7 +5772,7 @@ function ScriptSplitWorkbench() {
     setDraftSyncing(true)
     try {
       const latest = await localAgentClient.getDraft(agentDraft.id)
-      const nextDrafts = parseScriptSplitDraftContent(latest.content, sortedScripts, sourceText.trim())
+      const nextDrafts = parseScriptSplitDraftContent(latest.content, sortedScripts, sourceText.trim(), productions)
       setAgentDraft(latest)
       syncDrafts(nextDrafts)
       setAgentDraftDirty(false)
@@ -5139,7 +5789,7 @@ function ScriptSplitWorkbench() {
     if (!agentDraft) return
     setDraftRejecting(true)
     try {
-      const rejected = await localAgentClient.rejectDraft(agentDraft.id, '用户在剧本拆分页面删除了该提案')
+      const rejected = await localAgentClient.rejectDraft(agentDraft.id, '用户在一键制作页面删除了该提案')
       setAgentDraft(rejected)
       setAgentDraftDirty(false)
       toast.success('已删除 Agent Draft')
@@ -5201,21 +5851,78 @@ function ScriptSplitWorkbench() {
     return api.post<Script>(`/projects/${projectId}/scripts`, body).then((r) => r.data)
   }
 
+  function findProductionForDraft(draft: ScriptSplitDraft) {
+    if (draft.productionAction !== 'update') return null
+    if (draft.existingProductionId) {
+      const byId = productions.find((production) => production.ID === draft.existingProductionId)
+      if (byId) return byId
+    }
+    const titleKey = normalizeEntityTitleKey(draft.productionTitle)
+    return productions.find((production) => normalizeEntityTitleKey(firstText(production.name, production.title)) === titleKey) ?? null
+  }
+
+  async function upsertProductionForDraft(input: {
+    draft: ScriptSplitDraft
+    sourceScriptTitle: string
+    sourceScriptId: number | null
+    savedScriptId?: number | null
+    agentDraftId?: string
+  }) {
+    if (!projectId) throw new Error('请先选择项目')
+    const { draft } = input
+    if (draft.productionAction === 'skip') return { record: null, action: 'skip' as const }
+
+    const existing = findProductionForDraft(draft)
+    const metadata = mergeMetadataJSON(existing?.metadata_json, {
+      source: 'workbench.script_split',
+      source_title: input.sourceScriptTitle,
+      source_script_id: input.sourceScriptId,
+      saved_script_id: input.savedScriptId ?? null,
+      agent_draft_id: input.agentDraftId ?? agentDraft?.id ?? null,
+      episode_order: draft.order,
+      episode_title: draft.title,
+      script_line_range: {
+        start_line: draft.startLine,
+        end_line: draft.endLine,
+      },
+      production_decision: draft.productionAction,
+    })
+    const payload: SemanticEntityPayload = {
+      name: draft.productionTitle || draft.title,
+      description: draft.productionSummary || draft.summary,
+      source_type: 'script',
+      owner_label: '导演组',
+      metadata_json: JSON.stringify(metadata),
+    }
+
+    if (existing) {
+      const record = await updateSemanticEntity(projectId, semanticEntityConfig('productions'), existing.ID, payload)
+      return { record, action: 'update' as const }
+    }
+
+    const record = await createSemanticEntity(projectId, semanticEntityConfig('productions'), {
+      ...payload,
+      status: 'planning',
+      progress: 0,
+    })
+    return { record, action: 'create' as const }
+  }
+
   const createAll = useMutation({
     mutationFn: async () => {
       if (!projectId) throw new Error('请先选择项目')
       const normalized = sourceText.trim()
-      if (!normalized) throw new Error('请先粘贴剧本文本')
+      if (!normalized) throw new Error('请先粘贴剧本或提示词')
 
       let agentRunId = lastAgentRunId ?? undefined
       let nextDrafts = drafts
       if (nextDrafts.length === 0) {
-        throw new Error('请先通过右侧 Agent 会话完成拆分，并生成 Agent Draft')
+        throw new Error('请先通过一键制作生成制作方案，并生成 Agent Draft')
       }
-      if (nextDrafts.length === 0) throw new Error('没有可拆分的剧本内容')
-      if (!agentDraft) throw new Error('当前拆分结果没有关联的 Agent Draft，请重新运行 Agent 拆分')
+      if (nextDrafts.length === 0) throw new Error('没有可制作的内容')
+      if (!agentDraft) throw new Error('当前制作方案没有关联的 Agent Draft，请重新运行一键制作')
       if (agentDraft.status === 'rejected') throw new Error('当前 Agent Draft 已删除，不能写入')
-      if (agentDraft.status === 'applied') throw new Error('当前 Agent Draft 已写入，请重新生成新的拆分提案')
+      if (agentDraft.status === 'applied') throw new Error('当前 Agent Draft 已写入，请重新生成新的制作方案')
 
       let sourceScriptId: number | null = null
       const sourceScriptTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
@@ -5233,10 +5940,10 @@ function ScriptSplitWorkbench() {
         const sourceScript = await upsertScript({
           existingScriptId: null,
           title: sourceScriptTitle,
-          description: `自动拆分为 ${nextDrafts.length} 集`,
+          description: `一键制作方案自动拆分为 ${nextDrafts.length} 段`,
           content: normalized,
           raw_source: normalized,
-          summary: `自动拆分为 ${nextDrafts.length} 集`,
+          summary: `一键制作方案自动拆分为 ${nextDrafts.length} 段`,
           script_type: 'main',
           source_type: 'raw',
           order: 0,
@@ -5296,6 +6003,29 @@ function ScriptSplitWorkbench() {
         else createdCount += 1
       }
 
+      let productionCreatedCount = 0
+      let productionUpdatedCount = 0
+      let productionSkippedCount = 0
+      const savedScriptByTitle = new Map(createdScripts.map((script) => [normalizeEntityTitleKey(script.title), script]))
+      const savedProductions: SemanticEntityRecord[] = []
+      for (const draft of nextDrafts) {
+        const savedScript = savedScriptByTitle.get(normalizeEntityTitleKey(draft.title))
+        const productionResult = await upsertProductionForDraft({
+          draft,
+          sourceScriptTitle,
+          sourceScriptId,
+          savedScriptId: savedScript?.ID ?? null,
+          agentDraftId: syncedDraft?.id,
+        })
+        if (productionResult.action === 'skip') {
+          productionSkippedCount += 1
+          continue
+        }
+        if (productionResult.record) savedProductions.push(productionResult.record)
+        if (productionResult.action === 'update') productionUpdatedCount += 1
+        else productionCreatedCount += 1
+      }
+
       let appliedDraft = syncedDraft
       if (syncedDraft) {
         appliedDraft = await localAgentClient.updateDraft(syncedDraft.id, {
@@ -5305,8 +6035,12 @@ function ScriptSplitWorkbench() {
             appliedAt: new Date().toISOString(),
             sourceScriptId,
             savedScriptIds: createdScripts.map((script) => script.ID),
+            savedProductionIds: savedProductions.map((production) => production.ID),
             createdCount,
             updatedCount,
+            productionCreatedCount,
+            productionUpdatedCount,
+            productionSkippedCount,
           },
         })
         setAgentDraft(appliedDraft)
@@ -5319,6 +6053,9 @@ function ScriptSplitWorkbench() {
         createdCount,
         updatedCount,
         episodeCount: createdScripts.length,
+        productionCreatedCount,
+        productionUpdatedCount,
+        productionSkippedCount,
         agentRunId,
         agentDraftId: appliedDraft?.id ?? result?.agentDraftId,
         savedScripts: createdScripts,
@@ -5328,17 +6065,64 @@ function ScriptSplitWorkbench() {
       setResult(next)
       queryClient.invalidateQueries({ queryKey: ['scripts', projectId] })
       queryClient.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
-      toast.success(`已处理 ${next.episodeCount} 集剧本`)
+      queryClient.invalidateQueries({ queryKey: ['workbench-script-productions', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['production-frame', projectId] })
+      toast.success(`已启动 ${next.episodeCount} 个制作入口，${(next.productionCreatedCount ?? 0) + (next.productionUpdatedCount ?? 0)} 个制作决策已写入`)
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : '剧本拆分失败')
+      toast.error(error instanceof Error ? error.message : '开始制作失败')
     },
   })
 
-  const selectedAction = selectedDraft ? (selectedDraft.action === 'update' ? '将更新已有剧本' : '将创建新剧本') : '先拆分，再批量创建'
+  const selectedScriptAction = selectedDraft ? (selectedDraft.action === 'update' ? '将更新已有剧本' : '将创建新剧本') : ''
+  const selectedProductionAction = selectedDraft
+    ? selectedDraft.productionAction === 'skip'
+      ? '不创建制作'
+      : selectedDraft.productionAction === 'update'
+        ? '将更新已有制作'
+        : '将创建新制作'
+    : ''
+  const selectedAction = selectedDraft ? `${selectedScriptAction} · ${selectedProductionAction}` : '先生成制作方案，再开始生成'
   const agentDraftWriteBlocked = !agentDraft || agentDraft.status === 'rejected' || agentDraft.status === 'applied' || agentDraft.status === 'superseded'
   const writeDisabled = !sourceText.trim() || drafts.length === 0 || agentDraftWriteBlocked || createAll.isPending || importingFile || splitWithAgent.isPending || draftSyncing
   const validationErrors = agentDraftValidation?.issues.filter((issue) => issue.severity === 'error') ?? []
+  const hasSourceInput = Boolean(sourceText.trim())
+  const hasPlan = drafts.length > 0
+  const hasStartedProduction = Boolean(result) || agentDraft?.status === 'applied'
+  const hasModel = Boolean(modelId)
+  const selectedAssetHints = selectedDraft
+    ? [
+      ...selectedDraft.globalContext.keyCharacters.slice(0, 3).map((name) => `角色 · ${name}`),
+      ...selectedDraft.globalContext.keyLocations.slice(0, 2).map((name) => `场景 · ${name}`),
+      ...selectedDraft.globalContext.keyProps.slice(0, 3).map((name) => `道具 · ${name}`),
+    ].slice(0, 6)
+    : []
+  const selectedSettingHints = selectedDraft
+    ? [
+      firstText(selectedDraft.globalContext.storyWorld, '故事世界待补充'),
+      ...selectedDraft.globalContext.coreRules,
+      ...selectedDraft.globalContext.continuityNotes,
+    ].filter(Boolean).slice(0, 4)
+    : []
+  const oneClickFlow = [
+    { label: '输入剧本/提示词', detail: sourceTitleLabel, done: hasSourceInput, active: !hasSourceInput, icon: ScrollText },
+    { label: '生成制作方案', detail: hasPlan ? `${drafts.length} 个制作入口` : '自动拆解设定、段落和制作主体', done: hasPlan, active: hasSourceInput && !hasPlan, icon: Bot },
+    { label: '轻确认', detail: selectedDraft ? selectedAction : '确认风格、素材缺口和制作决策', done: hasPlan && !validationErrors.length, active: hasPlan && !hasStartedProduction, icon: ClipboardCheck },
+    { label: '开始生成', detail: hasStartedProduction ? '制作入口已写入' : '写入剧本与制作主体', done: hasStartedProduction, active: hasPlan && !hasStartedProduction, icon: Wand2 },
+    { label: '进入预演', detail: '从制作编排继续验证镜头和缺口', done: false, active: hasStartedProduction, icon: Play },
+  ]
+  const primaryActionLabel = !hasPlan
+    ? splitWithAgent.isPending ? '生成方案中' : '一键制作'
+    : createAll.isPending ? '开始生成中' : draftSyncing ? '同步方案中' : '开始生成'
+  const primaryActionDisabled = !hasSourceInput || importingFile || splitWithAgent.isPending || createAll.isPending || (hasPlan && writeDisabled)
+
+  function handlePrimaryProductionAction() {
+    if (!hasPlan) {
+      handleSplit()
+      return
+    }
+    createAll.mutate()
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
@@ -5346,38 +6130,15 @@ function ScriptSplitWorkbench() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ScrollText size={14} />
-              <span>剧本拆分</span>
+              <Wand2 size={14} />
+              <span>一键制作</span>
               <ChevronRight size={13} />
-              <span>总稿拆分</span>
+              <span>方案 · 生成 · 预演</span>
             </div>
-            <h1 className="mt-1 text-lg font-semibold text-foreground">剧本拆分</h1>
+            <h1 className="mt-1 text-lg font-semibold text-foreground">一键制作</h1>
             <p className="mt-1 max-w-4xl text-xs leading-5 text-muted-foreground">
-              把一份多集总稿拆成多个剧本，自动识别集标题后批量创建为独立剧本，并保留一份总稿作为来源。
+              输入剧本、brief 或提示词，自动生成制作设定、素材需求线索和制作入口；确认后写入项目，并直接进入预演验证。
             </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()} disabled={importingFile}>
-              {importingFile ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-              {importingFile ? '导入中' : '导入文档'}
-            </Button>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate('/scripts')}>
-              <FileText size={14} />
-              剧本管理
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={handleSplit}
-              disabled={!sourceText.trim() || createAll.isPending || importingFile || splitWithAgent.isPending}
-            >
-              {splitWithAgent.isPending ? <Loader2 size={14} className="animate-spin" /> : <Scissors size={14} />}
-              {splitWithAgent.isPending ? 'Agent 拆分中' : 'Agent 拆分'}
-            </Button>
-            <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={writeDisabled}>
-              {createAll.isPending ? '写入中' : draftSyncing ? '同步草稿中' : '确认写入'}
-            </Button>
           </div>
         </div>
       </header>
@@ -5395,57 +6156,122 @@ function ScriptSplitWorkbench() {
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <main className="min-w-0 flex-1 overflow-y-auto bg-muted/20 p-5">
-          <section className="mb-5 rounded-lg border border-border bg-card p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-foreground">拆分概览</p>
-                <p className="mt-1 text-xs text-muted-foreground">先确认当前总稿、Agent Draft 和项目内已有剧本状态，再处理拆分结果。</p>
+          <section className="one-click-workbench mb-5 rounded-lg border border-border bg-card p-4">
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">制作流</p>
+                    <p className="mt-1 text-xs text-muted-foreground">把分析藏到后台，把用户路径收敛成输入、确认、生成和预演。</p>
+                  </div>
+                  {scriptsLoading ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本 · {productions.length} 个制作</Badge>}
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-5">
+                  {oneClickFlow.map((step, index) => {
+                    const Icon = step.icon
+                    return (
+                      <div
+                        key={step.label}
+                        className={cn(
+                          'rounded-md border px-3 py-3',
+                          step.done ? 'border-emerald-500/30 bg-emerald-500/5' : step.active ? 'border-primary/40 bg-primary/5' : 'border-border bg-background',
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={cn(
+                            'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
+                            step.done ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : step.active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
+                          )}>
+                            <Icon size={15} />
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">0{index + 1}</span>
+                        </div>
+                        <p className="mt-3 truncate text-sm font-medium text-foreground">{step.label}</p>
+                        <p className="mt-1 line-clamp-2 min-h-8 text-xs leading-4 text-muted-foreground">{step.detail}</p>
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-              {scriptsLoading ? <Loader2 size={13} className="animate-spin text-muted-foreground" /> : <Badge variant="outline">{sortedScripts.length} 个剧本</Badge>}
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-              <WorkbenchMiniStat label="总稿" value={saveSourceScript ? '保存' : '不保存'} detail={sourceTitleLabel} />
-              <WorkbenchMiniStat label="拆制作数" value={drafts.length || '0'} detail="自动识别出来的制作数量" />
-              <WorkbenchMiniStat label="Agent" value={lastAgentRunId ? '已运行' : '待运行'} detail={lastAgentRunId ? `run ${lastAgentRunId}` : '使用现有本地 Agent 会话'} />
-              <WorkbenchMiniStat label="Draft" value={agentDraftDirty ? '待同步' : scriptSplitDraftStatusLabel(agentDraft?.status)} detail={agentDraft?.id ?? '尚未生成'} />
-              <WorkbenchMiniStat label="已有主剧本" value={mainScripts.length} detail="当前项目内的主剧本数量" />
-              <WorkbenchMiniStat label="已有制作剧本" value={episodeScripts.length} detail="当前项目内的制作脚本数量" />
+              <div className="rounded-md border border-border bg-background p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">当前主动作</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{hasPlan ? '确认方案并开始生成' : '从剧本/提示词生成方案'}</p>
+                  </div>
+                  <Badge variant={hasStartedProduction ? 'success' : hasPlan ? 'warning' : 'outline'}>
+                    {hasStartedProduction ? '已启动' : hasPlan ? '待确认' : '待输入'}
+                  </Badge>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-md border border-border px-2 py-2">
+                    <p className="text-muted-foreground">制作入口</p>
+                    <p className="mt-1 text-lg font-semibold text-foreground">{drafts.length}</p>
+                  </div>
+                  <div className="rounded-md border border-border px-2 py-2">
+                    <p className="text-muted-foreground">模型</p>
+                    <p className="mt-1 truncate text-sm font-medium text-foreground">{hasModel ? '可用' : '待配置'}</p>
+                  </div>
+                  <div className="rounded-md border border-border px-2 py-2">
+                    <p className="text-muted-foreground">Agent Draft</p>
+                    <p className="mt-1 truncate text-sm font-medium text-foreground">{agentDraftDirty ? '待同步' : scriptSplitDraftStatusLabel(agentDraft?.status)}</p>
+                  </div>
+                  <div className="rounded-md border border-border px-2 py-2">
+                    <p className="text-muted-foreground">总稿</p>
+                    <p className="mt-1 truncate text-sm font-medium text-foreground">{saveSourceScript ? '保存' : '不保存'}</p>
+                  </div>
+                </div>
+                <Button className="mt-3 w-full justify-center gap-2" onClick={handlePrimaryProductionAction} disabled={primaryActionDisabled}>
+                  {splitWithAgent.isPending || createAll.isPending || draftSyncing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                  {primaryActionLabel}
+                </Button>
+              </div>
             </div>
           </section>
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
             <section className="rounded-lg border border-border bg-card p-4">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">总稿输入</p>
-                  <p className="mt-1 text-xs text-muted-foreground">复用现有本地 Agent Runtime，输出结构化制作草稿后再写入剧本。</p>
+                  <p className="text-sm font-semibold text-foreground">剧本 / 提示词输入</p>
+                  <p className="mt-1 text-xs text-muted-foreground">支持完整剧本、广告 brief、短片想法或一句提示词；系统会自动补齐制作方案。</p>
                 </div>
-                <Badge variant="outline">{sourceText.length} 字</Badge>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant="outline">{sourceText.length} 字</Badge>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => fileInputRef.current?.click()} disabled={importingFile}>
+                    {importingFile ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    {importingFile ? '导入中' : '导入文档'}
+                  </Button>
+                  <Button size="sm" className="gap-1.5" onClick={handlePrimaryProductionAction} disabled={primaryActionDisabled}>
+                    {splitWithAgent.isPending || createAll.isPending || draftSyncing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                    {primaryActionLabel}
+                  </Button>
+                </div>
               </div>
               <div className="mt-4 grid gap-4">
                 <div>
-                  <Label className="mb-1 text-xs text-muted-foreground">总稿标题</Label>
+                  <Label className="mb-1 text-xs text-muted-foreground">项目标题</Label>
                   <Input
                     value={sourceTitle}
                     onChange={(event) => setSourceTitle(event.target.value)}
-                    placeholder="例如：XX 剧集总稿"
+                    placeholder="例如：雨夜旧伞 / 30 秒产品短片"
                   />
                   <p className="mt-1 text-[11px] text-muted-foreground">来源: {sourceTitleLabel}</p>
                 </div>
                 <div>
-                  <Label className="mb-1 text-xs text-muted-foreground">剧本文本</Label>
+                  <Label className="mb-1 text-xs text-muted-foreground">剧本或提示词</Label>
                   <Textarea
                     className="min-h-[420px] resize-none font-mono text-xs leading-relaxed"
                     value={sourceText}
                     onChange={(event) => handleSourceTextChange(event.target.value)}
-                    placeholder="把总剧本贴在这里，或先导入 `.docx` / `.txt` 文档。工作台会按集标题拆分成多个剧本。"
+                    placeholder="粘贴剧本，或直接描述你想制作的视频。例如：一个 30 秒悬疑短片，主角在雨夜旧伞里发现一张来自未来的纸条。"
                   />
                 </div>
                 <div className="rounded-md border border-border bg-background">
                   <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-foreground">行号预览</p>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">按最终拆分后的源文本行号显示。</p>
+                      <p className="text-xs font-medium text-foreground">来源定位</p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">用于回看方案对应的原文范围，避免生成结果失去依据。</p>
                     </div>
                     <Badge variant={selectedDraft ? 'secondary' : 'outline'} className="shrink-0">
                       {selectedDraft ? `第 ${selectedDraft.startLine}-${selectedDraft.endLine} 行` : `${sourceLineCount} 行`}
@@ -5471,17 +6297,9 @@ function ScriptSplitWorkbench() {
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setSourceText(''); setSourceTitle(''); setSourceFileName(''); setSourceFileError(''); resetAgentDrafts() }}>
                       清空
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={handleSplit}
-                      disabled={!sourceText.trim() || createAll.isPending || importingFile || splitWithAgent.isPending}
-                    >
-                      {splitWithAgent.isPending ? 'Agent 拆分中' : 'Agent 拆分'}
-                    </Button>
-                    <Button size="sm" className="gap-1.5" onClick={() => createAll.mutate()} disabled={writeDisabled}>
-                      {createAll.isPending ? '写入中' : draftSyncing ? '同步中' : '确认写入'}
+                    <Button size="sm" className="gap-1.5" onClick={handlePrimaryProductionAction} disabled={primaryActionDisabled}>
+                      {splitWithAgent.isPending || createAll.isPending || draftSyncing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                      {primaryActionLabel}
                     </Button>
                   </div>
                 </div>
@@ -5492,10 +6310,10 @@ function ScriptSplitWorkbench() {
             <section className="rounded-lg border border-border bg-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-foreground">拆分结果</p>
-                  <p className="mt-1 text-xs text-muted-foreground">先拆分，再确认每一集的标题和正文。</p>
+                  <p className="text-sm font-semibold text-foreground">制作方案</p>
+                  <p className="mt-1 text-xs text-muted-foreground">轻确认设定、素材线索和制作入口后，再让系统写入并进入预演。</p>
                 </div>
-                <Badge variant={drafts.length > 0 ? 'success' : 'outline'}>{drafts.length || 0} 集</Badge>
+                <Badge variant={drafts.length > 0 ? 'success' : 'outline'}>{drafts.length || 0} 个入口</Badge>
               </div>
               <div className="mt-4 rounded-md border border-border bg-background px-3 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -5507,7 +6325,7 @@ function ScriptSplitWorkbench() {
                       </Badge>
                     </div>
                     <p className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
-                      {agentDraft?.id ?? '运行 Agent 后会生成可审阅的 script_split draft'}
+                      {agentDraft?.id ?? '一键制作后会生成可审阅的 production plan draft'}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -5552,11 +6370,16 @@ function ScriptSplitWorkbench() {
               <div className="mt-4 space-y-3">
                 {drafts.length === 0 ? (
                   <div className="rounded-md border border-dashed border-border bg-background px-4 py-10 text-center text-xs text-muted-foreground">
-                    还没有拆分结果
+                    还没有制作方案
                   </div>
                 ) : (
                   drafts.map((draft) => {
                     const active = selectedDraftId === draft.id
+                    const productionBadgeVariant = draft.productionAction === 'update'
+                      ? 'warning'
+                      : draft.productionAction === 'skip'
+                        ? 'outline'
+                        : 'success'
                     return (
                       <button
                         key={draft.id}
@@ -5570,9 +6393,12 @@ function ScriptSplitWorkbench() {
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-foreground">第 {draft.order} 集</span>
+                              <span className="text-sm font-medium text-foreground">入口 {draft.order}</span>
                               <Badge variant={draft.action === 'update' ? 'warning' : 'outline'}>
                                 {draft.action === 'update' ? '更新已有' : '新建'}
+                              </Badge>
+                              <Badge variant={productionBadgeVariant as 'warning' | 'outline' | 'success'}>
+                                {draft.productionAction === 'update' ? '更新制作' : draft.productionAction === 'skip' ? '跳过制作' : '新建制作'}
                               </Badge>
                               <Badge variant="secondary" className="font-mono text-[10px]">
                                 {draft.startLine}-{draft.endLine} 行
@@ -5597,12 +6423,45 @@ function ScriptSplitWorkbench() {
                       <p className="mt-1 text-[11px] text-muted-foreground">
                         覆盖行号：第 {selectedDraft.startLine}-{selectedDraft.endLine} 行
                       </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge variant={selectedDraft.action === 'update' ? 'warning' : 'outline'}>{selectedDraft.action === 'update' ? '更新剧本' : '新建剧本'}</Badge>
+                        <Badge variant={selectedDraft.productionAction === 'update' ? 'warning' : selectedDraft.productionAction === 'skip' ? 'outline' : 'success'}>
+                          {selectedDraft.productionAction === 'update' ? '更新制作' : selectedDraft.productionAction === 'skip' ? '跳过制作' : '新建制作'}
+                        </Badge>
+                        <Badge variant="outline" className="font-mono text-[10px]">
+                          {selectedDraft.existingProductionId ? `制作 #${selectedDraft.existingProductionId}` : '未绑定制作'}
+                        </Badge>
+                      </div>
                     </div>
                     <Badge variant={selectedDraft.action === 'update' ? 'warning' : 'success'}>{selectedDraft.action === 'update' ? '更新' : '创建'}</Badge>
                   </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-md border border-border px-3 py-3">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Sparkles size={14} />
+                        <span>设定线索</span>
+                      </div>
+                      <div className="mt-2 space-y-1.5">
+                        {selectedSettingHints.length > 0 ? selectedSettingHints.map((item) => (
+                          <p key={item} className="line-clamp-2 text-xs leading-5 text-foreground">{item}</p>
+                        )) : <p className="text-xs text-muted-foreground">等待 Agent 补齐风格、世界观和连续性约束。</p>}
+                      </div>
+                    </div>
+                    <div className="rounded-md border border-border px-3 py-3">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <PackageCheck size={14} />
+                        <span>素材需求线索</span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {selectedAssetHints.length > 0 ? selectedAssetHints.map((item) => (
+                          <Badge key={item} variant="outline">{item}</Badge>
+                        )) : <p className="text-xs text-muted-foreground">方案生成后会列出角色、场景、道具等素材输入。</p>}
+                      </div>
+                    </div>
+                  </div>
                   <div className="mt-3 space-y-3">
                     <div>
-                      <Label className="mb-1 text-xs text-muted-foreground">剧本标题</Label>
+                      <Label className="mb-1 text-xs text-muted-foreground">制作入口标题</Label>
                       <Input
                         value={selectedDraft.title}
                         onChange={(event) => updateEpisodeDraftState(selectedDraft.id, { title: event.target.value })}
@@ -5610,7 +6469,7 @@ function ScriptSplitWorkbench() {
                       />
                     </div>
                     <div>
-                      <Label className="mb-1 text-xs text-muted-foreground">正文</Label>
+                      <Label className="mb-1 text-xs text-muted-foreground">源内容 / 分段正文</Label>
                       <Textarea
                         className="min-h-52 resize-none font-mono text-xs leading-relaxed"
                         value={selectedDraft.content}
@@ -5619,6 +6478,42 @@ function ScriptSplitWorkbench() {
                           bodyContent: event.target.value,
                           summary: summarizeText(event.target.value, 120),
                         })}
+                        disabled={agentDraft?.status === 'applied' || agentDraft?.status === 'rejected' || agentDraft?.status === 'superseded'}
+                      />
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <div>
+                        <Label className="mb-1 text-xs text-muted-foreground">制作标题</Label>
+                        <Input
+                          value={selectedDraft.productionTitle}
+                          onChange={(event) => updateEpisodeDraftState(selectedDraft.id, { productionTitle: event.target.value })}
+                          disabled={agentDraft?.status === 'applied' || agentDraft?.status === 'rejected' || agentDraft?.status === 'superseded'}
+                        />
+                      </div>
+                      <div>
+                        <Label className="mb-1 text-xs text-muted-foreground">制作决策</Label>
+                        <Select
+                          value={selectedDraft.productionAction}
+                          onValueChange={(value) => updateEpisodeDraftState(selectedDraft.id, { productionAction: value as ScriptSplitDraft['productionAction'] })}
+                          disabled={agentDraft?.status === 'applied' || agentDraft?.status === 'rejected' || agentDraft?.status === 'superseded'}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="create">新建制作</SelectItem>
+                            <SelectItem value="update">更新制作</SelectItem>
+                            <SelectItem value="skip">跳过制作</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="mb-1 text-xs text-muted-foreground">制作摘要与预演意图</Label>
+                      <Textarea
+                        className="min-h-28 resize-none text-xs leading-relaxed"
+                        value={selectedDraft.productionSummary}
+                        onChange={(event) => updateEpisodeDraftState(selectedDraft.id, { productionSummary: event.target.value })}
                         disabled={agentDraft?.status === 'applied' || agentDraft?.status === 'rejected' || agentDraft?.status === 'superseded'}
                       />
                     </div>
@@ -5632,23 +6527,35 @@ function ScriptSplitWorkbench() {
         {result && (
           <aside className="w-80 shrink-0 overflow-y-auto border-l border-border bg-card p-4">
             <section className="rounded-md border border-border bg-background p-3">
-              <p className="text-sm font-semibold text-foreground">最近一次结果</p>
+              <p className="text-sm font-semibold text-foreground">最近一次制作启动</p>
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-md border border-border px-2 py-2">
-                  <p className="text-muted-foreground">总稿</p>
+                  <p className="text-muted-foreground">项目</p>
                   <p className="mt-1 truncate text-foreground">{result.sourceTitle}</p>
                 </div>
                 <div className="rounded-md border border-border px-2 py-2">
-                  <p className="text-muted-foreground">集数</p>
+                  <p className="text-muted-foreground">入口</p>
                   <p className="mt-1 text-foreground">{result.episodeCount}</p>
                 </div>
                 <div className="rounded-md border border-border px-2 py-2">
-                  <p className="text-muted-foreground">创建</p>
+                  <p className="text-muted-foreground">剧本创建</p>
                   <p className="mt-1 text-foreground">{result.createdCount}</p>
                 </div>
                 <div className="rounded-md border border-border px-2 py-2">
-                  <p className="text-muted-foreground">更新</p>
+                  <p className="text-muted-foreground">剧本更新</p>
                   <p className="mt-1 text-foreground">{result.updatedCount}</p>
+                </div>
+                <div className="rounded-md border border-border px-2 py-2">
+                  <p className="text-muted-foreground">制作新建</p>
+                  <p className="mt-1 text-foreground">{result.productionCreatedCount ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-border px-2 py-2">
+                  <p className="text-muted-foreground">制作更新</p>
+                  <p className="mt-1 text-foreground">{result.productionUpdatedCount ?? 0}</p>
+                </div>
+                <div className="rounded-md border border-border px-2 py-2">
+                  <p className="text-muted-foreground">制作跳过</p>
+                  <p className="mt-1 text-foreground">{result.productionSkippedCount ?? 0}</p>
                 </div>
                 {result.agentRunId && (
                   <div className="col-span-2 rounded-md border border-border px-2 py-2">
@@ -5663,9 +6570,16 @@ function ScriptSplitWorkbench() {
                   </div>
                 )}
               </div>
-              <Button variant="outline" size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate('/scripts')}>
-                <ArrowRight size={13} />
-                去剧本管理
+              <div className="mt-3 rounded-md border border-border px-3 py-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Play size={14} />
+                  <span>下一步</span>
+                </div>
+                <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或制作预演，继续检查镜头、关键帧、素材缺口和预演记录。</p>
+              </div>
+              <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate('/workbench/production-plan')}>
+                <Play size={13} />
+                开始预演
               </Button>
             </section>
           </aside>

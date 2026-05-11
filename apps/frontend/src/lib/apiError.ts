@@ -2,8 +2,8 @@ import i18n from '@/i18n'
 
 export interface APIErrorBody {
   code?: string
-  message?: string
-  error?: string
+  message?: unknown
+  error?: unknown
   action?: string
   debug?: unknown
 }
@@ -77,6 +77,10 @@ const EXACT_KEYS: Record<string, string> = {
   'capability or feature query param required': 'apiErrors.capabilityOrFeatureRequired',
   'this provider does not support model listing': 'apiErrors.modelListingUnsupported',
   'custom_capabilities is required (e.g. "text" or "image")': 'apiErrors.customCapabilitiesRequired',
+  'payment config missing': 'apiErrors.paymentConfigMissing',
+  'payment provider is not available for this product': 'apiErrors.paymentProviderInvalid',
+  'order access denied': 'apiErrors.orderAccessDenied',
+  'order state does not allow this action': 'apiErrors.orderStateInvalid',
 }
 
 const PREFIX_KEYS: Array<[string, string]> = [
@@ -87,13 +91,14 @@ const PREFIX_KEYS: Array<[string, string]> = [
   ['provider cancellation failed:', 'apiErrors.providerCancellationFailed'],
   ['no AI provider available:', 'apiErrors.noAIProviderAvailable'],
   ['encrypt config:', 'apiErrors.encryptConfigFailed'],
+  ['payment provider failed:', 'apiErrors.paymentProviderFailed'],
   ['AI 分析失败:', 'apiErrors.aiAnalyzeFailed'],
   ['job cannot be cancelled from status', 'apiErrors.cancelStatusInvalid'],
 ]
 
 export function translateApiError(input: unknown, fallbackKey = 'common.requestFailed'): string {
   const body = input as APIErrorBody | undefined
-  const raw = body?.message ?? body?.error
+  const raw = stringErrorValue(body?.message) ?? stringErrorValue(body?.error)
 
   if (raw && isGenerationContextDebug(body?.debug)) {
     return raw
@@ -115,6 +120,13 @@ export function translateApiError(input: unknown, fallbackKey = 'common.requestF
   }
 
   return raw
+}
+
+function stringErrorValue(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as Record<string, unknown>
+  return stringErrorValue(record.message) ?? stringErrorValue(record.error) ?? stringErrorValue(record.detail)
 }
 
 function isGenerationContextDebug(value: unknown): value is { code: string } {

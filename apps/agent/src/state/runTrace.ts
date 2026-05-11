@@ -1,5 +1,5 @@
 import type { AgentRun, AgentRunStep, AgentTraceEvent, AgentTraceEventKind, JSONValue } from './types.js'
-import type { AgentRunRoundInfo } from '../runtime/input/normalizeRunInput.js'
+import type { AgentRunRoundInfo } from '../context/normalizeRunInput.js'
 
 export interface BuildRunStepInput {
   id: string
@@ -72,7 +72,7 @@ export function appendTraceEvent(input: AppendTraceEventInput): AgentTraceEvent 
 
 function toJSONValue(value: unknown): JSONValue {
   if (value === undefined) return null
-  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value as JSONValue
   if (Array.isArray(value)) return value.map(toJSONValue)
   if (!isRecord(value)) return String(value)
   const out: Record<string, JSONValue> = {}

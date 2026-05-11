@@ -14,6 +14,11 @@
     "dist:win": "pnpm run build && electron-builder --win --x64",
     "dist:win:arm64": "pnpm run build && electron-builder --win --arm64",
     "preview": "electron-vite preview",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\" \"electron/**/*.test.ts\"",
+    "test:generation-replay": "node --import tsx --test \"src/lib/agentGenerationTraceFixtures.test.ts\"",
+    "test:generation-ui": "node --import tsx --test \"src/lib/agentGenerationUiContract.test.tsx\"",
+    "test:generation-e2e": "playwright test --project=chromium",
+    "test:generation-electron": "playwright test --project=electron",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -40,6 +45,7 @@
     "i18next": "^26.0.8",
     "jszip": "^3.10.1",
     "lucide-react": "^0.468.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^17.0.4",
@@ -51,6 +57,7 @@
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^3.0.0",
+    "@playwright/test": "^1.59.1",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
@@ -61,6 +68,7 @@
     "electron-vite": "^2.3.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.21"
   }

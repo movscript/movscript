@@ -9,7 +9,7 @@ import {
   type AgentSkillManifest,
   type AgentToolGrant,
 } from './agentManifest.js'
-import { resolveAgentStatePath } from '../runtime/store/fileStore.js'
+import { resolveAgentStatePath } from '../state/fileStore.js'
 import {
   DEFAULT_TOOL_REGISTRY,
   StaticToolRegistry,

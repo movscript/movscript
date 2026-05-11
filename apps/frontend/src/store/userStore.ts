@@ -8,6 +8,7 @@ interface UserStore {
   tokenExpiresAt: string | null
   orgMemberships: OrgMembership[]
   currentOrgID: number | null
+  hydrated: boolean
   setSession: (session: AuthSession | null) => void
   setCurrentUser: (u: User | null) => void
   setOrgMemberships: (memberships: OrgMembership[], preferredOrgId?: number | null) => void
@@ -52,6 +53,7 @@ export const useUserStore = create<UserStore>()(
       tokenExpiresAt: null,
       orgMemberships: [],
       currentOrgID: null,
+      hydrated: false,
       setSession: (session) => {
         if (!session) {
           set({ currentUser: null, token: null, tokenExpiresAt: null, orgMemberships: [], currentOrgID: null })
@@ -81,6 +83,9 @@ export const useUserStore = create<UserStore>()(
     }),
     {
       name: 'movscript-user',
+      onRehydrateStorage: () => (state) => {
+        if (state) state.hydrated = true
+      },
     }
   )
 )

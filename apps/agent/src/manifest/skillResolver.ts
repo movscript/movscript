@@ -1,5 +1,5 @@
 import type { AgentManifest } from './agentManifest.js'
-import type { ResolvedAgentSkill } from '../runtime/types.js'
+import type { ResolvedAgentSkill } from '../state/types.js'
 
 export function resolveAgentSkills(
   manifest: AgentManifest,

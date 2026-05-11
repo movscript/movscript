@@ -10,7 +10,7 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
-import { runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
+import { runtimeEdition, runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
@@ -74,6 +74,8 @@ const PRICING_LABEL_KEYS: Record<string, string> = {
   per_second: 'admin.pricingMode.perSecond',
   per_call: 'admin.pricingMode.perCall',
 }
+
+const isEnterpriseRuntime = runtimeEdition === 'enterprise'
 
 type PriceDef = {
   pricing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call' | string
@@ -372,6 +374,12 @@ function PriceFields({ def, form, onChange }: { def: PriceDef; form: PriceForm; 
       )}
     </div>
   )
+}
+
+function inferPricingMode(caps: string[]) {
+  if (caps.some((c) => c === 'image' || c === 'image_edit')) return 'per_image'
+  if (caps.some((c) => c.startsWith('video'))) return 'per_second'
+  return 'per_token'
 }
 
 function parseParamDefs(value: string): ParamDef[] {
@@ -939,6 +947,9 @@ export function ModelManagementPage() {
     setShowPresets(false)
   }
 
+  const addEffectivePricingMode = isEnterpriseRuntime ? addPricingMode : inferPricingMode(addCapabilities)
+  const editEffectivePricingMode = isEnterpriseRuntime ? editForm.pricing_mode : inferPricingMode(editForm.capabilities)
+
   function closeAddPanel() {
     setAddingFor(null)
     setRemoteModels([])
@@ -1219,17 +1230,6 @@ export function ModelManagementPage() {
                       text: t('admin.capabilities.text'), reasoning: t('admin.capabilities.reasoning'), image: t('admin.capabilities.image'), image_edit: t('admin.capabilities.imageEdit'),
                       video: t('admin.capabilities.video'), video_i2v: t('admin.capabilities.videoI2V'), video_v2v: t('admin.capabilities.videoV2V'),
                     }
-                    const pricingOptions = [
-                      { value: 'per_token', label: t('admin.pricingMode.perToken') },
-                      { value: 'per_image', label: t('admin.pricingMode.perImage') },
-                      { value: 'per_second', label: t('admin.pricingMode.perSecond') },
-                      { value: 'per_call', label: t('admin.pricingMode.perCall') },
-                    ]
-                    const inferPricing = (caps: string[]) => {
-                      if (caps.some(c => c === 'image' || c === 'image_edit')) return 'per_image'
-                      if (caps.some(c => c.startsWith('video'))) return 'per_second'
-                      return 'per_token'
-                    }
                     // Filter presets to this credential's adapter type.
                     const credAdapter = cred.adapter_type
                     const currentAdapter = adapters.find((a) => a.adapter_type === credAdapter)
@@ -1240,7 +1240,7 @@ export function ModelManagementPage() {
                       setAddDisplayName(preset.display_name)
                       setAddShortName('')
                       setAddCapabilities(preset.capabilities)
-                      setAddPricingMode(preset.pricing_mode ?? 'per_token')
+                      setAddPricingMode(preset.pricing_mode ?? inferPricingMode(preset.capabilities))
                       setAddAcceptsImage(preset.accepts_image_input ?? false)
                       setAddMaxInputImages(preset.max_input_images ?? 0)
                       setAddMaxInputVideos(preset.max_input_videos ?? 0)
@@ -1353,7 +1353,7 @@ export function ModelManagementPage() {
                                     : [...addCapabilities, cap]
                                   if (next.length > 0) {
                                     setAddCapabilities(next)
-                                    setAddPricingMode(inferPricing(next))
+                                    setAddPricingMode(inferPricingMode(next))
                                     const needsImage = next.some(c => c === 'image_edit' || c === 'video_i2v' || c === 'video_v2v')
                                     setAddAcceptsImage(needsImage)
                                     setAddSupportedParams('')
@@ -1372,25 +1372,32 @@ export function ModelManagementPage() {
                           </div>
                         </div>
 
-                        <div>
-                          <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
-                          <div className="flex gap-2 flex-wrap">
-                            {pricingOptions.map(opt => (
-                              <button
-                                key={opt.value}
-                                onClick={() => setAddPricingMode(opt.value)}
-                                className={cn(
-                                  'text-xs px-2 py-0.5 rounded border transition-colors',
-                                  addPricingMode === opt.value
-                                    ? 'border-ring bg-accent text-foreground'
-                                    : 'border-border text-muted-foreground hover:border-ring/50'
-                                )}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
+                        {isEnterpriseRuntime && (
+                          <div>
+                            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
+                            <div className="flex gap-2 flex-wrap">
+                              {([
+                                { value: 'per_token', label: t('admin.pricingMode.perToken') },
+                                { value: 'per_image', label: t('admin.pricingMode.perImage') },
+                                { value: 'per_second', label: t('admin.pricingMode.perSecond') },
+                                { value: 'per_call', label: t('admin.pricingMode.perCall') },
+                              ]).map(opt => (
+                                <button
+                                  key={opt.value}
+                                  onClick={() => setAddPricingMode(opt.value)}
+                                  className={cn(
+                                    'text-xs px-2 py-0.5 rounded border transition-colors',
+                                    addPricingMode === opt.value
+                                      ? 'border-ring bg-accent text-foreground'
+                                      : 'border-border text-muted-foreground hover:border-ring/50'
+                                  )}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         {/* Image/video input config */}
                         <div className="flex flex-wrap gap-3 items-center">
@@ -1433,10 +1440,7 @@ export function ModelManagementPage() {
                           adapterParams={adapterParamsForCapabilities(currentAdapter, addCapabilities)}
                         />
 
-                        {(() => {
-                          const fakeDef = { pricing_mode: addPricingMode }
-                          return <PriceFields def={fakeDef} form={addPriceForm} onChange={setAddPriceForm} />
-                        })()}
+                        <PriceFields def={{ pricing_mode: addEffectivePricingMode }} form={addPriceForm} onChange={setAddPriceForm} />
 
                         {addModel.isError && (
                           <p className="text-xs text-destructive">{translateApiError((addModel.error as any)?.response?.data)}</p>
@@ -1450,7 +1454,7 @@ export function ModelManagementPage() {
                               displayName: addDisplayName.trim(),
                               shortName: addShortName.trim(),
                               capabilities: addCapabilities,
-                              pricingMode: addPricingMode,
+                              pricingMode: addEffectivePricingMode,
                               acceptsImage: addAcceptsImage,
                               maxInputImages: addMaxInputImages,
                               maxInputVideos: addMaxInputVideos,
@@ -1608,10 +1612,16 @@ export function ModelManagementPage() {
                                 })}
                               </div>
                             </div>
+                          {isEnterpriseRuntime && (
                             <div>
                               <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
                               <div className="flex gap-1.5 flex-wrap">
-                                {([{ value: 'per_token', label: t('admin.pricingMode.perToken') }, { value: 'per_image', label: t('admin.pricingMode.perImage') }, { value: 'per_second', label: t('admin.pricingMode.perSecond') }, { value: 'per_call', label: t('admin.pricingMode.perCall') }]).map((opt) => (
+                                {([
+                                  { value: 'per_token', label: t('admin.pricingMode.perToken') },
+                                  { value: 'per_image', label: t('admin.pricingMode.perImage') },
+                                  { value: 'per_second', label: t('admin.pricingMode.perSecond') },
+                                  { value: 'per_call', label: t('admin.pricingMode.perCall') },
+                                ]).map((opt) => (
                                   <button
                                     key={opt.value}
                                     onClick={() => setEditForm((f) => ({ ...f, pricing_mode: opt.value }))}
@@ -1625,14 +1635,21 @@ export function ModelManagementPage() {
                                 ))}
                               </div>
                             </div>
-                            <ParamConfigBuilder
+                          )}
+                          <ParamConfigBuilder
                               value={editForm.supported_params}
                               onChange={(next) => setEditForm((f) => ({ ...f, supported_params: next }))}
                               adapterParams={adapterParamsForCapabilities(adapter, editForm.capabilities)}
                             />
                             <div className="flex gap-2">
                               <Button
-                                onClick={() => updateModelConfig.mutate({ modelId: cfg.ID, data: editForm })}
+                                onClick={() => updateModelConfig.mutate({
+                                  modelId: cfg.ID,
+                                  data: {
+                                    ...editForm,
+                                    pricing_mode: isEnterpriseRuntime ? editForm.pricing_mode : editEffectivePricingMode,
+                                  },
+                                })}
                                 disabled={updateModelConfig.isPending}
                                 size="sm"
                                 className="flex-1"

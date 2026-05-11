@@ -1,5 +1,6 @@
 const TOOL_NAME_ALIASES: Record<string, string> = {
   movscript_propose_production_entities: 'movscript_create_production_proposal_from_items',
+  movscript_preview_production_proposal_apply: 'movscript_preview_production_proposal_apply',
 }
 
 const RUNTIME_TOOL_NAME_ALIASES: Record<string, string> = Object.fromEntries(

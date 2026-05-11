@@ -39,7 +39,7 @@ export function registerAgentPanelPageTool(requestId: string, tool: AgentPanelPa
 }
 
 export function notifyAgentPanelRunSettled(payload: AgentPanelRunSettledPayload) {
-  useAgentSessionStore.getState().settlePageTask(payload)
+  useAgentSessionStore.getState().updatePageTaskFromRuntime(payload)
   window.dispatchEvent(new CustomEvent<AgentPanelRunSettledPayload>(AGENT_PANEL_RUN_SETTLED_EVENT, { detail: payload }))
   if (!payload.requestId) return
   const tool = pageToolsByRequestId.get(payload.requestId)

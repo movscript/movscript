@@ -67,7 +67,7 @@ export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult
     }
   }
 
-  const job = await mov.generateImage({
+  const job = await mov.generateMedia({
     model_config_id: modelConfigId,
     job_type: isEdit ? 'image_edit' : 'image',
     feature_key: 'plugin.image_generator',

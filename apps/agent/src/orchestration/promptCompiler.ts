@@ -48,6 +48,19 @@ export function compilePromptPreview(input: CompileAgentPromptInput): CompiledPr
     ].filter(Boolean).join('\n'),
   })
 
+  debugParts.push({
+    id: 'policy.generation-monitoring',
+    kind: 'policy',
+    title: 'Generation monitoring',
+    content: [
+      '图片和视频生成是异步任务。创建 generation job 只代表任务已提交，不代表生成完成。',
+      '当用户要求生成并查看结果时，创建任务后必须继续使用可用的 generation job 查询工具观察状态，直到 succeeded、failed、cancelled 或达到合理超时。',
+      '只在任务创建、状态变化、关键进度或阶段变化、完成、失败、取消、长时间仍运行这些节点给用户简短反馈，避免无意义刷屏。',
+      '只有工具结果包含 output_resource、output_resource_id 或 media 时，才能声明已生成结果；否则要说明当前 jobId 和状态。',
+      '取消生成任务属于写入/成本相关操作，必须得到用户明确确认。',
+    ].join('\n'),
+  })
+
   if (input.manifest.soul) {
     debugParts.push({
       id: 'agent.soul',

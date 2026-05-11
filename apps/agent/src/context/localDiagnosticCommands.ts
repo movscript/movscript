@@ -13,7 +13,7 @@ import type { AgentManifest } from '../manifest/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
-import { buildContext } from '../runtime/loop/contextBuilder.js'
+import { buildContext } from '../orchestration/contextBuilder.js'
 
 export function isLocalDiagnosticCommand(name: string): boolean {
   return name === 'context' || name === 'memory'
@@ -156,7 +156,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toJSONValue(value: unknown): JSONValue {
   if (value === undefined) return null
-  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value as JSONValue
   if (Array.isArray(value)) return value.map(toJSONValue)
   if (!isRecord(value)) return String(value)
   const out: Record<string, JSONValue> = {}

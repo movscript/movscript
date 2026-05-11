@@ -8,6 +8,20 @@ type resourceBindingProjection struct {
 	ResourceID uint
 }
 
+type resourceBindingDetailProjection struct {
+	ID           uint
+	ResourceID   uint
+	ResourceType string
+	ResourceName string
+	ResourceMime string
+	OwnerType    string
+	OwnerID      uint
+	Role         string
+	Slot         string
+	Status       string
+	SourceType   string
+}
+
 type scriptComputedProjection struct {
 	Characters        string
 	CharacterProfiles string
@@ -89,9 +103,61 @@ func (r *gormRepository) FirstBindingByRole(ctx context.Context, ownerType strin
 	return resourceBindingProjection{ResourceID: binding.ResourceID}, binding.ResourceID != 0, nil
 }
 
+func (r *gormRepository) ListBindingsBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) ([]resourceBindingDetailProjection, error) {
+	rows := make([]resourceBindingDetailProjection, 0)
+	err := r.db.WithContext(ctx).
+		Table("resource_bindings AS b").
+		Select(`
+			b.id,
+			b.resource_id,
+			b.owner_type,
+			b.owner_id,
+			b.role,
+			b.slot,
+			b.status,
+			b.source_type,
+			r.type AS resource_type,
+			r.name AS resource_name,
+			r.mime_type AS resource_mime
+		`).
+		Joins("LEFT JOIN raw_resources AS r ON r.id = b.resource_id").
+		Where("b.owner_type = ? AND b.owner_id = ?", ownerType, ownerID).
+		Where("b.slot = ?", slot).
+		Order("b.is_primary desc, b.updated_at desc, b.id desc").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	items := make([]resourceBindingDetailProjection, 0, len(rows))
+	for _, row := range rows {
+		item := resourceBindingDetailProjection{
+			ID:           row.ID,
+			ResourceID:   row.ResourceID,
+			ResourceType: row.ResourceType,
+			ResourceName: row.ResourceName,
+			ResourceMime: row.ResourceMime,
+			OwnerType:    row.OwnerType,
+			OwnerID:      row.OwnerID,
+			Role:         row.Role,
+			Slot:         row.Slot,
+			Status:       row.Status,
+			SourceType:   row.SourceType,
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
 func (r *gormRepository) LoadEntityRow(ctx context.Context, table string, columns []string, id uint) (EntityRow, error) {
 	row := map[string]any{}
-	if err := r.db.WithContext(ctx).Table(table).Select(columns).Where("id = ?", id).Take(&row).Error; err != nil {
+	selectColumns := make([]string, 0, len(columns))
+	for _, column := range columns {
+		if strings.TrimSpace(column) == "" {
+			continue
+		}
+		selectColumns = append(selectColumns, fmt.Sprintf("`%s`", column))
+	}
+	if err := r.db.WithContext(ctx).Table(table).Select(selectColumns).Where("id = ?", id).Take(&row).Error; err != nil {
 		return EntityRow{}, err
 	}
 	return newEntityRow(row), nil

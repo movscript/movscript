@@ -14,15 +14,18 @@ Movscript supports local plugins for extending the desktop production workspace.
 | Frontend plugin surfaces | `apps/frontend/src/pages/plugins` and `apps/frontend/src/lib` |
 | First-party examples | `plugins/` |
 
-## Example Plugin
+## First-Party Plugins
 
-The first-party image generator plugin lives at:
+The first-party generator plugins live at:
 
 ```text
 plugins/image-generator
+plugins/video-generator
 ```
 
-Use first-party examples as the starting point for manifest shape, package scripts, and runtime expectations.
+Use first-party examples as the starting point for manifest shape, package scripts, runtime expectations, and canvas node contributions.
+
+The image generator calls `mov.generateMedia()` for `image` and `image_edit` jobs. The video generator calls the same SDK entrypoint for `video` and `video_i2v` jobs. Both plugins should package `contributes.canvasNodes` so they appear as local plugin cards on the canvas after installation.
 
 ## Development Workflow
 
@@ -34,6 +37,8 @@ make dev-movcli
 ```
 
 Use `apps/movcli` for plugin packaging and smoke tests as the CLI matures.
+
+`apps/movcli/registry-example.json` lists the expected registry shape for the first-party image and video generator packages. Registry entries used by `movcli install` must include `package_url`; entries shown by `movcli list` may also include `description` and `manifest_url`.
 
 ## Plugin Documentation Expectations
 

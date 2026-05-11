@@ -27,6 +27,9 @@ func CanonicalizeGenerationParams(params map[string]any) map[string]any {
 	}
 	out := make(map[string]any, len(params))
 	for k, v := range params {
+		if isGenerationMetadataParam(k) {
+			continue
+		}
 		out[k] = v
 	}
 	moveParamAlias(out, "aspect_ratio", "ratio")
@@ -37,6 +40,15 @@ func CanonicalizeGenerationParams(params map[string]any) map[string]any {
 	moveParamAlias(out, "fixed_camera", "camera_fixed")
 	moveParamAlias(out, "audio", "generate_audio")
 	return out
+}
+
+func isGenerationMetadataParam(key string) bool {
+	switch key {
+	case "source", "asset_slot_id", "asset_kind":
+		return true
+	default:
+		return false
+	}
 }
 
 func NormalizeParamDefsForUI(params []ParamDef) []ParamDef {

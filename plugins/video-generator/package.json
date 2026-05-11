@@ -1,0 +1,15 @@
+{
+  "name": "@movscript/plugin-video-generator",
+  "version": "1.0.0",
+  "description": "Movscript video generation plugin — text-to-video and reference-to-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsx ../../apps/movcli/src/index.ts build"
+  },
+  "devDependencies": {
+    "@movscript/plugin-sdk": "workspace:*",
+    "tsx": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

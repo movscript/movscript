@@ -15,6 +15,12 @@ import { executeTool, type AgentCatalogToolManager } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { formatToolNameForDisplay } from '../tools/toolNames.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
+import {
+  buildGenerationEvent,
+  buildGenerationTimeoutEvent,
+  extractGenerationMonitorRequest,
+  type GenerationEvent,
+} from '../generation/generationEvents.js'
 
 export interface AgentGraphTraceInput {
   kind: AgentTraceEventKind
@@ -70,6 +76,7 @@ export interface AgentGraphInput {
     warnings: string[]
   }>
   onTrace: (input: AgentGraphTraceInput) => void
+  onGenerationEvent?: (event: GenerationEvent, trace: Omit<AgentGraphTraceInput, 'kind' | 'title' | 'summary' | 'status' | 'data'>) => void
   onStepCreate: (type: 'tool_call' | 'message', roundIndex: number, roundLabel: string, roundSource: AgentGraphTraceInput['roundSource'], toolName?: string) => string
   onStepComplete: (stepId: string, result?: JSONValue, error?: string, sandboxed?: boolean) => void
 }
@@ -578,6 +585,27 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         toolName: call.name,
         data: { source: execResult.source, result: execResult.result, sandboxed: execResult.sandboxed },
       })
+      const generationEvent = buildGenerationEvent(call, execResult.result)
+      if (generationEvent && input.onGenerationEvent) {
+        input.onGenerationEvent(generationEvent, {
+          roundIndex: currentRoundIndex,
+          roundLabel,
+          roundSource: effectiveRoundSource,
+          stepId,
+          toolName: call.name,
+        })
+        const monitorRequest = extractGenerationMonitorRequest(call, execResult.result, generationEvent)
+        if (monitorRequest) {
+          await monitorGenerationJob(monitorRequest, generationEvent, input, {
+            roundIndex: currentRoundIndex,
+            roundLabel,
+            roundSource: effectiveRoundSource,
+            stepId,
+            toolName: call.name,
+          })
+          throwIfAborted(input.signal)
+        }
+      }
       return {
         outcome: { call, ...(execResult.error ? { error: execResult.error } : { result: execResult.result }) },
         turnResult: {
@@ -693,6 +721,78 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
     toolCallCount: state.toolCallCount + requestedCalls.length,
     roundIndex: currentRoundIndex + 1,
   }
+}
+
+async function monitorGenerationJob(
+  request: NonNullable<ReturnType<typeof extractGenerationMonitorRequest>>,
+  initialEvent: GenerationEvent,
+  input: AgentGraphInput,
+  trace: Omit<AgentGraphTraceInput, 'kind' | 'title' | 'summary' | 'status' | 'data'>,
+): Promise<void> {
+  if (!input.onGenerationEvent || request.timeoutMs <= 0) return
+  const deadline = Date.now() + request.timeoutMs
+  let previousKey = generationEventChangeKey(initialEvent)
+  let lastEmittedAt = Date.now()
+  const heartbeatMs = request.heartbeatMs > 0 ? request.heartbeatMs : Number.POSITIVE_INFINITY
+  while (true) {
+    throwIfAborted(input.signal)
+    const execResult = await executeTool({ name: request.toolName, args: request.args }, {
+      run: input.run,
+      mcpClient: input.mcpClient,
+      draftStore: input.draftStore,
+      backendApplyClient: input.backendApplyClient,
+      registry: input.registry,
+      memoryManager: input.memoryManager,
+      catalogManager: input.catalogManager,
+      sandboxMode: input.policy.sandboxMode === true,
+      signal: input.signal,
+    })
+    const event = buildGenerationEvent({ name: request.toolName, args: request.args }, execResult.result)
+    if (!event) continue
+    const nextKey = generationEventChangeKey(event)
+    const now = Date.now()
+    const timedOut = now >= deadline
+    if (event.terminal || nextKey !== previousKey || (!timedOut && now - lastEmittedAt >= heartbeatMs)) {
+      input.onGenerationEvent(event, trace)
+      previousKey = nextKey
+      lastEmittedAt = now
+    }
+    if (event.terminal) return
+    if (timedOut) break
+    await sleep(Math.min(request.pollIntervalMs, Math.max(0, deadline - now)), input.signal)
+  }
+  input.onGenerationEvent(buildGenerationTimeoutEvent(initialEvent), trace)
+}
+
+function generationEventChangeKey(event: GenerationEvent): string {
+  return [
+    event.stage,
+    event.status,
+    event.progress ?? '',
+    event.outputResourceId ?? '',
+  ].join(':')
+}
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortErrorFromSignal(signal))
+      return
+    }
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => {
+      clearTimeout(timer)
+      reject(abortErrorFromSignal(signal))
+    }, { once: true })
+  })
+}
+
+function abortErrorFromSignal(signal?: AbortSignal): Error {
+  const reason = signal?.reason
+  if (reason instanceof Error) return reason
+  const error = new Error(typeof reason === 'string' ? reason : 'Run was cancelled.')
+  error.name = 'AbortError'
+  return error
 }
 
 function canExecuteConcurrently(call: ToolCall, registry: ToolRegistry): boolean {

@@ -34,6 +34,7 @@ function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
     'pipeline',
     'segment',
     'scene_moment',
+    'asset_proposal',
     'project_proposal',
     'production_proposal',
   ]

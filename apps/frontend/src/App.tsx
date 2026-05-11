@@ -49,6 +49,7 @@ import AIDraftsPage from './pages/agent/AIDraftsPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 import { Loader2 } from 'lucide-react'
+import { runtimeRoutes } from '@runtime'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -134,15 +135,28 @@ function BackendBootOverlay() {
   )
 }
 
+function LoadingScreen({ fullScreen = false }: { fullScreen?: boolean }) {
+  return (
+    <div className={fullScreen ? 'fixed inset-0 flex items-center justify-center bg-background text-sm text-muted-foreground' : 'flex h-full items-center justify-center text-sm text-muted-foreground'}>
+      <Loader2 size={16} className="mr-2 animate-spin" />
+      {i18n.t('common.loading')}
+    </div>
+  )
+}
+
 function ProjectGuard({ children }: { children: React.ReactNode }) {
   const current = useProjectStore((s) => s.current)
+  const hydrated = useProjectStore((s) => s.hydrated)
+  if (!hydrated) return <LoadingScreen />
   if (!current) return <Navigate to="/projects" replace />
   return <>{children}</>
 }
 
 function OrgAdminGuard({ children }: { children: React.ReactNode }) {
+  const hydrated = useUserStore((s) => s.hydrated)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const memberships = useUserStore((s) => s.orgMemberships)
+  if (!hydrated) return <LoadingScreen fullScreen />
   const membership = memberships.find((m) => m.org_id === currentOrgID)
   if (!membership || !['owner', 'admin'].includes(membership.role)) {
     return <Navigate to="/projects" replace />
@@ -151,8 +165,10 @@ function OrgAdminGuard({ children }: { children: React.ReactNode }) {
 }
 
 function OrgGuard({ children }: { children: React.ReactNode }) {
+  const hydrated = useUserStore((s) => s.hydrated)
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const memberships = useUserStore((s) => s.orgMemberships)
+  if (!hydrated) return <LoadingScreen fullScreen />
   const currentMembership = memberships.find((m) => m.org_id === currentOrgID)
   if (!currentMembership) return <Navigate to="/org/select" replace />
   return <>{children}</>
@@ -177,21 +193,26 @@ function LegacyDeliveryWorkbenchRedirect() {
   return <Navigate to={`/delivery/workbench${search}`} replace />
 }
 
+function LegacyContentUnitOrchestrateRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/content-unit-orchestrate${search}`} replace />
+}
+
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const shell = (
     <div className="fixed inset-0 flex overflow-hidden bg-background text-foreground">
       <RedirectListener />
       <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="relative flex flex-col flex-1 min-w-0 overflow-hidden">
         <Header />
-        <main className="min-w-0 flex-1 min-h-0 overflow-hidden bg-muted/20 p-3">
-          <div className="flex h-full min-h-0 min-w-0 overflow-hidden gap-3">
-            <div className="flex-1 min-w-0 overflow-hidden rounded-md border border-border bg-background">
-              <RouteErrorBoundary>{children}</RouteErrorBoundary>
+        <main className="relative min-w-0 flex-1 min-h-0 overflow-hidden bg-muted/20">
+          <div className="flex h-full min-h-0 min-w-0 overflow-hidden">
+            <div className="min-w-0 flex-1 overflow-hidden p-3">
+              <div className="h-full min-h-0 min-w-0 overflow-y-auto rounded-md border border-border bg-background">
+                <RouteErrorBoundary>{children}</RouteErrorBoundary>
+              </div>
             </div>
-            <div className="h-full min-h-0 min-w-0 shrink-0 overflow-hidden rounded-md border border-border bg-background shadow-sm">
-              <AIAgentPanel />
-            </div>
+            <AIAgentPanel />
           </div>
         </main>
       </div>
@@ -226,7 +247,12 @@ const AppRouter = typeof window !== 'undefined' && window.location.protocol === 
 
 export default function App() {
   const user = useUserStore((s) => s.currentUser)
+  const settingsHydrated = useAppSettingsStore((s) => s.hydrated)
   const onboardingCompleted = useAppSettingsStore((s) => s.settings.onboardingCompleted)
+
+  if (!settingsHydrated) {
+    return <LoadingScreen fullScreen />
+  }
 
   if (!user) {
     return (
@@ -308,13 +334,21 @@ export default function App() {
               <Route path="/workbench/preview" element={<ProjectGuard><Navigate to="/workbench/production-plan" replace /></ProjectGuard>} />
               <Route path="/workbench/creative" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="creative" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/assets" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="assets" showCategoryTabs={false} /></ProjectGuard>} />
-              <Route path="/workbench/production" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path="/content-unit-orchestrate" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path="/workbench/production" element={<ProjectGuard><LegacyContentUnitOrchestrateRedirect /></ProjectGuard>} />
               <Route path="/workbench/delivery" element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
               <Route path="/workbench/object" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
               <Route path="/workbench/reference-relations" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="reference-relations" showCategoryTabs={false} /></ProjectGuard>} />
 
               {/* 用户 */}
               <Route path="/user" element={<Padded><UserProfilePage /></Padded>} />
+              {runtimeRoutes.map((route) => {
+                let element = route.element
+                if (route.requireProject) element = <ProjectGuard>{element}</ProjectGuard>
+                if (route.requireOrgAdmin) element = <OrgAdminGuard>{element}</OrgAdminGuard>
+                if (route.padded ?? true) element = <Padded>{element}</Padded>
+                return <Route key={route.path} path={route.path} element={element} />
+              })}
 
               {/* 组织 */}
               <Route path="/org/settings" element={<OrgAdminGuard><Padded><OrgSettingsPage /></Padded></OrgAdminGuard>} />

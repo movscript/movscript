@@ -13,6 +13,7 @@ export type { JSONValue, MCPResource, MCPTool } from '../types.js'
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled'
+export type AgentThreadStatus = 'idle' | 'running' | 'requires_action' | 'completed' | 'failed' | 'cancelled'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
@@ -32,6 +33,9 @@ export interface AgentThread {
   projectId?: number
   metadata?: Record<string, JSONValue>
   archived?: boolean
+  status?: AgentThreadStatus
+  activeRunId?: string
+  lastRunId?: string
   lastRunStatus?: AgentRunStatus
   createdAt: string
   updatedAt: string
@@ -44,6 +48,9 @@ export interface AgentThreadSummary {
   projectId?: number
   metadata?: Record<string, JSONValue>
   archived: boolean
+  status?: AgentThreadStatus
+  activeRunId?: string
+  lastRunId?: string
   lastRunStatus?: AgentRunStatus
   createdAt: string
   updatedAt: string
@@ -144,7 +151,7 @@ export type AgentRunStreamEvent =
     type: 'trace'
     runId: string
     event: AgentTraceEvent
-    run: AgentRunStreamRun
+    run?: AgentRunStreamRun
   }
   | {
     type: 'assistant_delta'

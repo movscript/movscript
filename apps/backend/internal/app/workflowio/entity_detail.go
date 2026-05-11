@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
@@ -203,6 +204,38 @@ func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string,
 			}
 			items = append(items, item)
 		}
+		return items, nil
+	}
+	if kind == domainworkflow.EntityKindContentUnit && field.ID == "generated_media" {
+		bindings, err := s.repo.ListBindingsBySlot(ctx, kind, id, "generated_media")
+		if err != nil {
+			return nil, err
+		}
+		items := make([]map[string]any, 0, len(bindings))
+		for _, binding := range bindings {
+			item := map[string]any{
+				"ID":          binding.ID,
+				"resource_id": binding.ResourceID,
+				"owner_type":  binding.OwnerType,
+				"owner_id":    binding.OwnerID,
+				"role":        binding.Role,
+				"slot":        binding.Slot,
+				"status":      binding.Status,
+				"source_type": binding.SourceType,
+			}
+			if binding.ResourceID > 0 {
+				item["resource"] = map[string]any{
+					"ID":   binding.ResourceID,
+					"type": binding.ResourceType,
+					"name": binding.ResourceName,
+					"mime_type": binding.ResourceMime,
+				}
+			}
+			items = append(items, item)
+		}
+		sort.SliceStable(items, func(i, j int) bool {
+			return fmt.Sprint(items[i]["ID"]) > fmt.Sprint(items[j]["ID"])
+		})
 		return items, nil
 	}
 	return []map[string]any{}, nil

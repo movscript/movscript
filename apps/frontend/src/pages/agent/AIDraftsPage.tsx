@@ -21,7 +21,7 @@ import {
 import { useProjectStore } from '@/store/projectStore'
 import { cn } from '@/lib/utils'
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'project_proposal', 'production_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal']
 
 type ProjectFilter = 'all' | 'current'
 
@@ -272,6 +272,13 @@ function buildDraftOpenPath(draft: AgentDraft): string | null {
 
   if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
     return `/project-workspace?draftId=${encodeURIComponent(draft.id)}`
+  }
+
+  if (draft.kind === 'asset_proposal' || sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
+    const assetSlotId = sourceEntityId ?? targetEntityId
+    const params = new URLSearchParams({ draftId: draft.id })
+    if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
+    return `/asset-slots?${params.toString()}`
   }
 
   const productionId = sourceEntityId ?? targetEntityId

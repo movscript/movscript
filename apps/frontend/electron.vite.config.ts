@@ -7,8 +7,13 @@ const alias = {
   '@movscript/ui/styles.css': resolve('../../packages/ui/src/styles.css'),
   '@movscript/tokens': resolve('../../packages/tokens/src/index.ts'),
   '@movscript/ui': resolve('../../packages/ui/src/index.ts'),
+  '@runtime': process.env.MOVSCRIPT_FRONTEND_RUNTIME_ENTRY
+    ? resolve(process.env.MOVSCRIPT_FRONTEND_RUNTIME_ENTRY)
+    : resolve('src/runtime/community.tsx'),
   '@': resolve('src')
 }
+
+const rendererPort = Number(process.env.MOVSCRIPT_FRONTEND_PORT ?? '5173')
 
 export default defineConfig({
   main: {
@@ -33,6 +38,11 @@ export default defineConfig({
   renderer: {
     plugins: [react()],
     root: '.',
+    server: {
+      host: '127.0.0.1',
+      port: rendererPort,
+      strictPort: true,
+    },
     optimizeDeps: {
       force: true,
     },

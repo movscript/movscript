@@ -57,6 +57,21 @@
       }
     },
     {
+      "name": "movscript_preview_production_proposal_apply",
+      "description": "Run backend dry-run apply for the current production_proposal draft and return semantic changes plus warnings without writing project entities.",
+      "permission": "draft.read",
+      "risk": "read",
+      "source": "runtime",
+      "category": "production_proposal",
+      "projectScoped": true,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_preview_production_proposal_apply",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
       "name": "movscript_create_production_proposal",
       "description": "Create an empty local production_proposal review draft for the current production. This does not modify backend project entities.",
       "permission": "draft.write",
@@ -163,7 +178,7 @@
     },
     {
       "name": "movscript_upsert_proposal_content_unit",
-      "description": "Create or update one downstream production content unit inside a local production_proposal draft. Do not use this in the orchestration workspace; orchestration drafts should stop at segment, scene moment, creative reference usage, and asset need.",
+      "description": "Create or update one content unit under a scene moment inside the local production_proposal draft. Use this to split one scene moment into multiple reviewable visual, narration, caption, transition, or music beats.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",
@@ -178,7 +193,7 @@
     },
     {
       "name": "movscript_upsert_proposal_keyframe",
-      "description": "Create or update one downstream production keyframe inside a local production_proposal draft. Do not use this in the orchestration workspace; keyframes belong to the production workspace after scene moments are confirmed.",
+      "description": "Create or update one keyframe intent under a scene moment or content unit inside the local production_proposal draft. This records visual anchors and prompt intent, not generated media.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",

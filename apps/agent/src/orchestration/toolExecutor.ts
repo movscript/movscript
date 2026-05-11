@@ -1,8 +1,9 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../state/types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
+import { buildApplyDraftPreview } from '../drafts/draftApply.js'
 import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftStatus, type AgentDraftStore } from '../drafts/draftStore.js'
-import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
+import { BackendApplyHTTPError, type BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentMemoryKind } from '../memory/types.js'
@@ -120,57 +121,146 @@ async function callRuntimeTool(
     }) as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_submit_script_split_draft') {
-    return submitScriptSplitDraft(draftStore, run, args) as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_get_draft') {
-    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
-    if (!draftId) throw new Error('get_draft requires draftRef')
-    const draft = draftStore.getDraft(draftId)
-    if (!draft) throw new Error(`draft not found: ${draftId}`)
-    return draft as unknown as JSONValue
-  }
-
-  if (toolName === 'movscript_update_draft') {
-    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
-    if (!draftId) throw new Error('update_draft requires draftRef')
-    const status = normalizeDraftStatus(args.status)
-    const draft = draftStore.updateDraft(draftId, {
-      ...(status ? { status } : {}),
-      ...(typeof args.title === 'string' ? { title: args.title } : {}),
-      ...(typeof args.content === 'string' ? { content: args.content } : {}),
-      ...(isRecord(args.target) ? { target: args.target } : {}),
-      ...(isRecord(args.metadata) ? { metadata: args.metadata as Record<string, JSONValue> } : {}),
-    })
+  if (toolName === 'movscript_read_draft') {
+    const filePath = draftFilePathArg(args, draftStore)
+    if (!filePath) throw new Error('read_draft requires file_path')
+    const result = draftStore.readDraftFile(filePath)
     return {
-      status: 'updated',
-      draft,
-      validation: validateDraft(draft),
+      file_path: result.filePath,
+      filePath: result.filePath,
+      draft: result.draft,
+      content: result.content,
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_patch_draft') {
-    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
-    if (!draftId) throw new Error('patch_draft requires draftRef')
-    const result = draftStore.patchDraft(draftId, {
-      ops: args.ops,
-      expectedUpdatedAt: args.expectedUpdatedAt ?? args.expected_updated_at,
-      metadata: args.metadata,
+  if (toolName === 'movscript_edit_draft') {
+    const filePath = draftFilePathArg(args, draftStore)
+    if (!filePath) throw new Error('edit_draft requires file_path')
+    const result = draftStore.editDraftFile(filePath, {
+      oldString: args.old_string ?? args.oldString,
+      newString: args.new_string ?? args.newString,
+      replaceAll: args.replace_all ?? args.replaceAll,
     })
     return {
-      status: 'patched',
-      ...result,
+      status: 'edited',
+      file_path: result.filePath,
+      filePath: result.filePath,
+      replacementCount: result.replacementCount,
+      draft: result.draft,
       validation: validateDraft(result.draft),
     } as unknown as JSONValue
   }
 
-  if (toolName === 'movscript_validate_draft') {
-    const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
-    if (!draftId) throw new Error('validate_draft requires draftRef')
-    const draft = draftStore.getDraft(draftId)
-    if (!draft) throw new Error(`draft not found: ${draftId}`)
-    return validateDraft(draft) as unknown as JSONValue
+  if (toolName === 'movscript_dry_apply_draft') {
+    const filePath = draftFilePathArg(args, draftStore)
+    if (!filePath) throw new Error('dry_apply_draft requires file_path')
+    const readResult = draftStore.readDraftFile(filePath)
+    const draft = readResult.draft
+    const validation = validateDraft(draft)
+    if (!validation.ok) {
+      return {
+        ok: false,
+        stage: 'local_validation',
+        file_path: readResult.filePath,
+        filePath: readResult.filePath,
+        draftId: draft.id,
+        validation,
+        message: 'Draft failed local validation. Edit the draft and dry apply again.',
+      } as unknown as JSONValue
+    }
+    if (draft.kind === 'asset_proposal') {
+      return {
+        ok: true,
+        stage: 'local_validation',
+        file_path: readResult.filePath,
+        filePath: readResult.filePath,
+        draftId: draft.id,
+        validation,
+        message: 'Asset proposal draft is locally valid. It is a planning artifact; backend apply is intentionally not performed.',
+      } as unknown as JSONValue
+    }
+    try {
+      const preview = buildApplyDraftPreview(draftStore, {
+        draftId: draft.id,
+        target: isRecord(args.target) ? args.target : draft.target,
+        targetEntityType: args.targetEntityType ?? args.target_entity_type,
+        targetEntityId: args.targetEntityId ?? args.target_entity_id,
+        targetField: args.targetField ?? args.target_field,
+        currentValue: args.currentValue ?? args.current_value,
+        proposedValue: args.proposedValue ?? args.proposed_value,
+      })
+      const backendApply = await backendApplyClient.previewApplyReview(preview.review)
+      return {
+        ok: true,
+        stage: 'backend_apply_preview',
+        file_path: readResult.filePath,
+        filePath: readResult.filePath,
+        draftId: draft.id,
+        validation,
+        review: preview.review,
+        backendApply: backendApply as unknown as JSONValue,
+      } as unknown as JSONValue
+    } catch (error) {
+      return {
+        ok: false,
+        stage: 'backend_apply_preview',
+        file_path: readResult.filePath,
+        filePath: readResult.filePath,
+        draftId: draft.id,
+        validation,
+        error: error instanceof Error ? error.message : String(error),
+        ...(error instanceof BackendApplyHTTPError ? { backendError: error.detail as unknown as JSONValue } : {}),
+        message: 'Backend apply preview failed. Edit the draft and dry apply again.',
+      } as unknown as JSONValue
+    }
+  }
+
+  if (toolName === 'movscript_submit_script_split_draft') {
+    return submitScriptSplitDraft(draftStore, run, args) as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_preview_production_proposal_apply') {
+    const proposalRef = proposalRefArgWithPageContext(args, run)
+    const draft = requireProductionProposalDraft(draftStore, proposalRef)
+    const content = parseProductionProposalDraftContent(draft)
+    const projectId = numberField(args.projectId) ?? numberField(args.project_id) ?? draft.projectId
+    if (projectId === undefined) throw new Error('preview_production_proposal_apply requires projectId')
+    const payload: Record<string, JSONValue> = {
+      production_id: content.productionId,
+      productionId: content.productionId,
+      analysis_scope: content.analysisScope ?? stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production',
+      analysisScope: content.analysisScope ?? stringField(args.analysisScope) ?? stringField(args.analysis_scope) ?? 'production',
+      proposal: content.proposal,
+    }
+    if (content.summary) payload.summary = content.summary
+    try {
+      const backendApply = await backendApplyClient.previewProductionProposalApply(projectId, payload, {
+        ...(typeof run.metadata?.backendAuthToken === 'string' ? { backendAuthToken: run.metadata.backendAuthToken } : {}),
+        ...(typeof run.metadata?.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: run.metadata.backendAPIBaseURL } : {}),
+      })
+      return {
+        ok: true,
+        stage: 'backend_apply_preview',
+        draftId: draft.id,
+        proposalRef: draft.id,
+        projectId,
+        productionId: content.productionId,
+        backendApply,
+        message: 'Production proposal backend preview completed.',
+      } as unknown as JSONValue
+    } catch (error) {
+      return {
+        ok: false,
+        stage: 'backend_apply_preview',
+        draftId: draft.id,
+        proposalRef: draft.id,
+        projectId,
+        productionId: content.productionId,
+        error: error instanceof Error ? error.message : String(error),
+        ...(error instanceof BackendApplyHTTPError ? { backendError: error.detail as unknown as JSONValue } : {}),
+        message: 'Production proposal backend preview failed. Patch the draft and simulate again.',
+      } as unknown as JSONValue
+    }
   }
 
   if (toolName === 'movscript_create_production_proposal') {
@@ -710,6 +800,11 @@ function normalizeScriptSplitEpisodeDraft(value: unknown, index: number, sourceL
   const globalContext = isRecord(value.globalContext) ? value.globalContext : isRecord(value.global_context) ? value.global_context : undefined
   const action = value.action === 'update' ? 'update' : 'create'
   const existingScriptId = numberField(value.existingScriptId) ?? numberField(value.existing_script_id) ?? null
+  const existingProductionId = numberField(value.existingProductionId) ?? numberField(value.existing_production_id) ?? null
+  const productionActionValue = stringField(value.productionAction) ?? stringField(value.production_action) ?? ''
+  const productionAction = productionActionValue === 'update' || productionActionValue === 'skip' ? productionActionValue : 'create'
+  const productionTitle = stringField(value.productionTitle) ?? stringField(value.production_title) ?? title
+  const productionSummary = stringField(value.productionSummary) ?? stringField(value.production_summary) ?? summary
   const startLine = normalizeLineNumber(value.startLine ?? value.start_line ?? value.start) ?? index + 1
   const endLine = normalizeLineNumber(value.endLine ?? value.end_line ?? value.end)
   if (!endLine) throw new Error(`submit_script_split_draft episodeDrafts[${index}] requires endLine`)
@@ -722,6 +817,10 @@ function normalizeScriptSplitEpisodeDraft(value: unknown, index: number, sourceL
     end_line: clampLineNumber(Math.max(startLine, endLine), sourceLineCount),
     action,
     existing_script_id: existingScriptId,
+    production_action: productionAction,
+    existing_production_id: existingProductionId,
+    production_title: productionTitle,
+    production_summary: productionSummary,
   }
 }
 
@@ -1113,6 +1212,14 @@ function draftRefArg(args: Record<string, JSONValue>): unknown {
     ?? stringField(args.id)
 }
 
+function draftFilePathArg(args: Record<string, JSONValue>, draftStore: AgentDraftStore): string | undefined {
+  const filePath = stringField(args.file_path)
+    ?? stringField(args.filePath)
+  if (filePath) return filePath
+  const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
+  return draftId ? draftStore.getDraftFilePath(draftId) : undefined
+}
+
 function listProductionProposalNodes(proposal: Record<string, JSONValue>): ProductionProposalNodeSummary[] {
   const nodes: ProductionProposalNodeSummary[] = []
   const segments = getRecordArrayValue(proposal.segments)
@@ -1409,6 +1516,7 @@ function isDraftKind(value: JSONValue | undefined): value is AgentDraftKind {
     || value === 'pipeline'
     || value === 'segment'
     || value === 'scene_moment'
+    || value === 'asset_proposal'
     || value === 'project_proposal'
     || value === 'production_proposal'
 }

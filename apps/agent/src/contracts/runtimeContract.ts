@@ -1,5 +1,5 @@
-import type { AgentCommandRuntime } from '../runtime/commands/commandRouter.js'
-import type { AgentManifest } from '../runtime/manifest/agentManifest.js'
+import type { AgentCommandRuntime } from '../context/commandRouter.js'
+import type { AgentManifest } from '../manifest/agentManifest.js'
 import type { JSONValue } from '../types.js'
 
 export interface AgentRuntimeContract {

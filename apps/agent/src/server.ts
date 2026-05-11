@@ -2,8 +2,8 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { resolve } from 'node:path'
-import { AgentRuntime } from './runtime/agentRuntime.js'
-import { normalizeDraftKind, normalizeDraftStatus } from './runtime/store/draftStore.js'
+import { AgentRuntime } from './application/agentRuntime.js'
+import { normalizeDraftKind, normalizeDraftStatus } from './drafts/draftStore.js'
 import {
   createAgentServerContext,
   type AgentServerContext,
@@ -222,6 +222,16 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       writeJSON(res, 200, context.agentRuntime.previewApplyDraft({
         draftId: draftApplyPreviewMatch[1],
         ...body,
+      }))
+      return
+    }
+
+    const draftApplySimulateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-simulate$/)
+    if (draftApplySimulateMatch && req.method === 'POST') {
+      const body = normalizeOptionalObject(await readJSON(req), 'apply simulate body')
+      writeJSON(res, 200, await context.agentRuntime.simulateApplyDraft({
+        draftId: draftApplySimulateMatch[1],
+        ...withRequestAuth(body, req),
       }))
       return
     }

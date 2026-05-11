@@ -276,7 +276,7 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
     owner: 'apps/agent',
     entrypoints: [
       'apps/agent/src/server.ts',
-      'apps/agent/src/runtime/agentRuntime.ts',
+      'apps/agent/src/application/agentRuntime.ts',
     ],
     runtimeArtifacts: ['thread', 'message', 'run', 'policy', 'steps', 'approval requests', 'memories', 'drafts'],
     debugVisibility: ['Overview', 'Manifest', 'Skills', 'Tools', 'Prompt', 'Run Timeline', 'Raw JSON'],
@@ -300,8 +300,8 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
     scope: 'MCP/runtime/plugin 工具解析、授权和执行',
     owner: 'runtime tool registry + MCP tool server',
     entrypoints: [
-      'apps/agent/src/runtime/toolRegistry.ts',
-      'apps/agent/src/runtime/toolPolicy.ts',
+      'apps/agent/src/tools/toolRegistry.ts',
+      'apps/agent/src/tools/toolPolicy.ts',
       'apps/agent/catalog/tools',
     ],
     runtimeArtifacts: ['resolved tool catalog', 'blocked tools', 'tool calls', 'tool outcomes'],
@@ -313,8 +313,8 @@ const AGENT_ARCHITECTURE_LAYERS: AgentArchitectureLayer[] = [
     scope: '最终聊天回复模型和 backend model gateway 配置',
     owner: 'Backend AI model config',
     entrypoints: [
-      'apps/agent/src/runtime/modelConfig.ts',
-      'apps/agent/src/runtime/assistantMessage.ts',
+      'apps/agent/src/model/modelConfig.ts',
+      'apps/agent/src/application/assistantMessage.ts',
     ],
     runtimeArtifacts: ['compiled prompt', 'assistant message'],
     debugVisibility: ['Model Connection', 'Prompt tab', 'final assistant message'],

@@ -1,12 +1,12 @@
-import type { ToolCall } from '../runtime/types.js'
+import type { ToolCall } from '../state/types.js'
 import {
   DEFAULT_AGENT_MANIFEST,
   findToolGrant,
   manifestAllowsPermission,
   type AgentManifest,
-} from '../runtime/manifest/agentManifest.js'
+} from '../manifest/agentManifest.js'
 import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from './toolRegistry.js'
-import type { ResolvedToolCatalog } from '../runtime/types.js'
+import type { ResolvedToolCatalog } from '../state/types.js'
 
 export interface ToolPolicyResult {
   toolCalls: ToolCall[]

@@ -219,10 +219,9 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_delete_memory') return MEMORY_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_create_draft') return CREATE_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_submit_script_split_draft') return SCRIPT_SPLIT_SUBMIT_DRAFT_TOOL_SCHEMA
-  if (tool.name === 'movscript_get_draft') return DRAFT_ID_TOOL_SCHEMA
-  if (tool.name === 'movscript_update_draft') return UPDATE_DRAFT_TOOL_SCHEMA
-  if (tool.name === 'movscript_patch_draft') return PATCH_DRAFT_TOOL_SCHEMA
-  if (tool.name === 'movscript_validate_draft') return DRAFT_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_read_draft') return DRAFT_FILE_PATH_TOOL_SCHEMA
+  if (tool.name === 'movscript_edit_draft') return EDIT_DRAFT_TOOL_SCHEMA
+  if (tool.name === 'movscript_dry_apply_draft') return DRY_APPLY_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_list_agent_bundles') return EMPTY_OBJECT_TOOL_SCHEMA
   if (tool.name === 'movscript_inspect_agent_bundle') return AGENT_BUNDLE_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_enable_agent_bundle') return ENABLE_AGENT_BUNDLE_TOOL_SCHEMA
@@ -235,6 +234,7 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_create_production_proposal') return CREATE_PRODUCTION_PROPOSAL_TOOL_SCHEMA
   if (tool.name === 'movscript_inspect_production_proposal_context') return INSPECT_PRODUCTION_PROPOSAL_CONTEXT_TOOL_SCHEMA
   if (tool.name === 'movscript_get_production_proposal') return PRODUCTION_PROPOSAL_DRAFT_ID_TOOL_SCHEMA
+  if (tool.name === 'movscript_preview_production_proposal_apply') return PREVIEW_PRODUCTION_PROPOSAL_APPLY_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_segment') return UPSERT_PROPOSAL_SEGMENT_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_scene_moment') return UPSERT_PROPOSAL_SCENE_MOMENT_TOOL_SCHEMA
   if (tool.name === 'movscript_upsert_proposal_reference') return UPSERT_PROPOSAL_REFERENCE_TOOL_SCHEMA
@@ -290,7 +290,7 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
   properties: {
     kind: {
       type: 'string',
-      enum: ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'project_proposal', 'production_proposal'],
+      enum: ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal'],
     },
     title: { type: 'string' },
     content: { type: 'string', description: 'Draft content. Prefer valid JSON for structured drafts.' },
@@ -348,6 +348,10 @@ const SCRIPT_SPLIT_EPISODE_DRAFT_TOOL_SCHEMA = {
     endLine: { type: 'number', minimum: 1, description: 'Last source line included in this episode. Use line numbers only; do not pass body text.' },
     action: { type: 'string', enum: ['create', 'update'] },
     existingScriptId: { type: ['number', 'null'] },
+    productionAction: { type: 'string', enum: ['create', 'update', 'skip'] },
+    existingProductionId: { type: ['number', 'null'] },
+    productionTitle: { type: 'string', description: 'Title for the production decision. Do not include body text.' },
+    productionSummary: { type: 'string', description: 'Short production summary. Focus on the script segment this production should cover.' },
   },
 } satisfies Record<string, unknown>
 
@@ -367,62 +371,54 @@ const SCRIPT_SPLIT_SUBMIT_DRAFT_TOOL_SCHEMA = {
       type: 'array',
       minItems: 1,
       items: SCRIPT_SPLIT_EPISODE_DRAFT_TOOL_SCHEMA,
-      description: 'Each episode provides metadata and startLine/endLine. Never include content, text, body, or original lines.',
+      description: 'Each episode provides metadata and startLine/endLine. Never include content, text, body, or original lines. Each episode also carries a production decision.',
     },
     warnings: { type: 'array', items: { type: 'string' } },
     confidence: { type: 'number' },
   },
 } satisfies Record<string, unknown>
 
-const DRAFT_ID_TOOL_SCHEMA = {
+const DRAFT_FILE_PATH_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['draftRef'],
+  required: ['file_path'],
   properties: {
-    draftRef: { type: 'string', description: 'Draft reference.' },
-    draftId: { type: 'string', description: 'Compatibility alias for draftRef.' },
+    file_path: { type: 'string', description: 'Absolute draft file path returned by draft listings or read results.' },
+    draft_id: { type: 'string', description: 'Compatibility alias for file_path when the runtime can resolve a draft id to a file path.' },
+    draftId: { type: 'string', description: 'Compatibility alias for draft_id.' },
   },
 } satisfies Record<string, unknown>
 
-const UPDATE_DRAFT_TOOL_SCHEMA = {
+const EDIT_DRAFT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['draftRef'],
+  required: ['file_path', 'old_string', 'new_string'],
   properties: {
-    draftRef: { type: 'string', description: 'Draft reference.' },
-    draftId: { type: 'string', description: 'Compatibility alias for draftRef.' },
-    title: { type: 'string' },
-    content: { type: 'string' },
-    status: { type: 'string', enum: ['draft', 'accepted', 'rejected', 'applied', 'superseded'] },
+    file_path: { type: 'string', description: 'Absolute draft file path.' },
+    draft_id: { type: 'string', description: 'Compatibility alias for file_path when the runtime can resolve a draft id to a file path.' },
+    draftId: { type: 'string', description: 'Compatibility alias for draft_id.' },
+    old_string: { type: 'string', description: 'Exact text to replace. It must match uniquely unless replace_all is true.' },
+    new_string: { type: 'string', description: 'Replacement text. It must differ from old_string.' },
+    replace_all: { type: 'boolean', description: 'When true, replace every occurrence of old_string.' },
+  },
+} satisfies Record<string, unknown>
+
+const DRY_APPLY_DRAFT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['file_path'],
+  properties: {
+    file_path: { type: 'string', description: 'Absolute draft file path.' },
+    draft_id: { type: 'string', description: 'Compatibility alias for file_path when the runtime can resolve a draft id to a file path.' },
+    draftId: { type: 'string', description: 'Compatibility alias for draft_id.' },
     target: { type: 'object', additionalProperties: true },
-    metadata: { type: 'object', additionalProperties: true },
-  },
-} satisfies Record<string, unknown>
-
-const PATCH_DRAFT_TOOL_SCHEMA = {
-  type: 'object',
-  additionalProperties: false,
-  required: ['draftRef', 'ops'],
-  properties: {
-    draftRef: { type: 'string', description: 'Draft reference.' },
-    draftId: { type: 'string', description: 'Compatibility alias for draftRef.' },
-    expectedUpdatedAt: { type: 'string' },
-    metadata: { type: 'object', additionalProperties: true },
-    ops: {
-      type: 'array',
-      minItems: 1,
-      maxItems: 50,
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        required: ['op', 'path'],
-        properties: {
-          op: { type: 'string', enum: ['add', 'replace', 'remove'] },
-          path: { type: 'string', description: 'JSON Pointer path, for example /episode_drafts/0/summary.' },
-          value: {},
-        },
-      },
-    },
+    targetEntityType: { type: 'string' },
+    targetEntityId: { type: ['number', 'string'] },
+    targetField: { type: 'string' },
+    currentValue: {},
+    current_value: {},
+    proposedValue: {},
+    proposed_value: {},
   },
 } satisfies Record<string, unknown>
 
@@ -665,7 +661,7 @@ const BUILD_ORCHESTRATION_DIFF_TOOL_SCHEMA = {
     },
     proposal: {
       ...PRODUCTION_PROPOSAL_TREE_SCHEMA,
-      description: 'Agent-derived orchestration tree before it is written to a draft. Include segment rhythm, scene moments, setting usage, and asset needs only.',
+      description: 'Agent-derived orchestration tree before it is written to a draft. Include segment rhythm, scene moments, content-unit storyboard beats, keyframe intent, setting usage, and asset needs.',
     },
     currentDraft: {
       ...PRODUCTION_PROPOSAL_TREE_SCHEMA,
@@ -745,6 +741,19 @@ const INSPECT_PRODUCTION_PROPOSAL_CONTEXT_TOOL_SCHEMA = {
       type: 'string',
       enum: ['segment', 'scene_moment', 'content_unit', 'creative_reference', 'asset_slot', 'keyframe'],
     },
+  },
+} satisfies Record<string, unknown>
+
+const PREVIEW_PRODUCTION_PROPOSAL_APPLY_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['projectId', 'proposalRef'],
+  properties: {
+    projectId: { type: 'number', description: 'Current project id for backend dry-run.' },
+    proposalRef: { type: 'string', description: 'Proposal reference returned when the review proposal was created.' },
+    draftId: { type: 'string', description: 'Compatibility alias for proposalRef.' },
+    productionId: { type: 'number', description: 'Optional explicit production id. The runtime usually reads this from the draft content.' },
+    analysisScope: { type: 'string', description: 'Optional explicit analysis scope. The runtime usually reads this from the draft content.' },
   },
 } satisfies Record<string, unknown>
 

@@ -15,9 +15,13 @@ import { getAPIBaseURL, getAPIV1BaseURL } from '@/lib/config'
 import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSettled, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, buildPageContext, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
+import { generationProgressFromEvents, replayGenerationTrace, type GenerationProgressState, type GenerationTraceEventLike, type GenerationTraceReplay } from '@/lib/agentGenerationMedia'
+import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel, type GenerationJobBadgeTone } from '@/lib/agentGenerationDisplay'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
+import { GenerationJobSummaryCard, GenerationProgressCard, GenerationTraceSummaryCard } from '@/components/agent/GenerationCards'
+import { GeneratedResultCard } from '@/components/agent/GeneratedResultCard'
 import {
   formatLocalAgentAssistantContent,
   LocalAgentWorkflowPanel,
@@ -81,6 +85,7 @@ import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import {
   useAgentStore,
+  type ChatGenerationJob,
   type ChatMessage,
   type ChatRunActivity,
   type ChatRunActivityEvent,
@@ -240,9 +245,9 @@ function AttachmentPreview({ attachment, compact = false }: { attachment: AgentA
       compact ? 'w-28' : 'w-full'
     )}>
       {attachment.type === 'image' && url ? (
-        <AuthedImage src={url} alt={attachment.name} className="h-20 w-full object-cover bg-muted" />
+        <AuthedImage src={url} alt={attachment.name} className={cn(compact ? 'h-20' : 'h-56 max-h-[45vh]', 'w-full object-contain bg-muted')} />
       ) : attachment.type === 'video' && url ? (
-        <AuthedVideo src={url} className="h-20 w-full object-cover bg-black" muted controls />
+        <AuthedVideo src={url} className={cn(compact ? 'h-20' : 'h-56 max-h-[45vh]', 'w-full object-contain bg-black')} muted controls />
       ) : (
         <div className="h-12 flex items-center justify-center text-muted-foreground bg-muted/40">
           <AttachmentIcon type={attachment.type} size={16} />
@@ -418,82 +423,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
-function rawResourceFromUnknown(value: unknown): RawResource | undefined {
-  if (!isRecord(value)) return undefined
-  const id = Number(value.ID ?? value.id)
-  const rawType = value.type
-  if (!Number.isFinite(id) || id <= 0) return undefined
-  if (rawType !== 'image' && rawType !== 'video' && rawType !== 'audio' && rawType !== 'text' && rawType !== 'file') return undefined
-  const type: RawResource['type'] = rawType
-  return {
-    ID: id,
-    owner_id: Number(value.owner_id ?? value.ownerId ?? 0),
-    type,
-    name: typeof value.name === 'string' && value.name.trim() ? value.name : `resource-${id}`,
-    url: typeof value.url === 'string' && value.url ? value.url : `/api/v1/resources/${id}/file`,
-    size: typeof value.size === 'number' ? value.size : 0,
-    mime_type: typeof value.mime_type === 'string'
-      ? value.mime_type
-      : typeof value.mimeType === 'string'
-        ? value.mimeType
-        : type === 'video' ? 'video/mp4' : type === 'image' ? 'image/png' : 'application/octet-stream',
-    ...(typeof value.direct_url === 'string' ? { direct_url: value.direct_url } : {}),
-    ...(typeof value.storage_backend === 'string' ? { storage_backend: value.storage_backend } : {}),
-    ...(typeof value.storage_key === 'string' ? { storage_key: value.storage_key } : {}),
-  }
+async function generationReplayFromRun(run: AgentRun, liveEvents: GenerationTraceEventLike[] = []): Promise<GenerationTraceReplay> {
+  const traceEvents = [
+    ...(run.steps ?? []).map((step) => ({ data: step.result, createdAt: step.createdAt, completedAt: step.completedAt })),
+    ...(run.traceEvents ?? []),
+    ...liveEvents,
+    ...await fetchRunTraceEventsForGeneratedAttachments(run.id),
+  ]
+  return replayGenerationTrace(traceEvents)
 }
 
-function collectGeneratedMediaHints(value: unknown, resources: Map<number, RawResource>, ids: Set<number>, depth = 0): void {
-  if (value === undefined || value === null || depth > 7) return
-  if (Array.isArray(value)) {
-    for (const item of value) collectGeneratedMediaHints(item, resources, ids, depth + 1)
-    return
-  }
-  if (!isRecord(value)) return
-
-  const resource = rawResourceFromUnknown(value)
-  if (resource && (resource.type === 'image' || resource.type === 'video')) {
-    resources.set(resource.ID, resource)
-  }
-
-  for (const key of ['output_resource', 'outputResource', 'media']) {
-    const nested = value[key]
-    const nestedResource = rawResourceFromUnknown(nested)
-    if (nestedResource && (nestedResource.type === 'image' || nestedResource.type === 'video')) {
-      resources.set(nestedResource.ID, nestedResource)
-    } else {
-      collectGeneratedMediaHints(nested, resources, ids, depth + 1)
-    }
-  }
-
-  for (const key of ['output_resources', 'outputResources']) {
-    collectGeneratedMediaHints(value[key], resources, ids, depth + 1)
-  }
-
-  const outputId = Number(value.output_resource_id ?? value.outputResourceId)
-  if (Number.isInteger(outputId) && outputId > 0) ids.add(outputId)
-  const outputIds = value.output_resource_ids ?? value.outputResourceIds
-  if (Array.isArray(outputIds)) {
-    for (const id of outputIds) {
-      const numeric = Number(id)
-      if (Number.isInteger(numeric) && numeric > 0) ids.add(numeric)
-    }
-  }
-
-  const data = value.data
-  if (data !== value) collectGeneratedMediaHints(data, resources, ids, depth + 1)
-  const job = value.job
-  if (job !== value) collectGeneratedMediaHints(job, resources, ids, depth + 1)
-}
-
-async function generatedAttachmentsFromRun(run: AgentRun): Promise<AgentAttachment[]> {
-  if (run.streamPartial) return []
-  const resources = new Map<number, RawResource>()
-  const ids = new Set<number>()
-  for (const step of run.steps ?? []) {
-    collectGeneratedMediaHints(step.result, resources, ids)
-  }
-  for (const id of ids) {
+async function generatedAttachmentsFromReplay(replay: GenerationTraceReplay): Promise<AgentAttachment[]> {
+  const resources = new Map<number, RawResource>(replay.outputResources.map((resource) => [resource.ID, resource]))
+  for (const id of replay.outputResourceIds) {
     if (!resources.has(id)) {
       const found = await fetchResourceById(id)
       if (found && (found.type === 'image' || found.type === 'video')) resources.set(id, found)
@@ -504,7 +446,17 @@ async function generatedAttachmentsFromRun(run: AgentRun): Promise<AgentAttachme
     .map((resource) => ({
       ...attachmentFromResource(resource),
       id: `generated-${resource.ID}`,
+      ...(replay.metadataByResourceId.has(resource.ID) ? { generated: replay.metadataByResourceId.get(resource.ID) } : {}),
     }))
+}
+
+async function fetchRunTraceEventsForGeneratedAttachments(runId: string): Promise<GenerationTraceEventLike[]> {
+  try {
+    const response = await localAgentClient.getRunTraceEvents(runId, { limit: 200, kind: 'tool_call' })
+    return response.events
+  } catch {
+    return []
+  }
 }
 
 async function fetchResourceById(id: number): Promise<RawResource | undefined> {
@@ -521,6 +473,19 @@ async function fetchResourceById(id: number): Promise<RawResource | undefined> {
 
 function withGeneratedAttachments(attachments: AgentAttachment[]): { attachments?: AgentAttachment[] } {
   return attachments.length > 0 ? { attachments } : {}
+}
+
+async function assistantResultPayloadForRun(run: AgentRun, liveEvents: GenerationTraceEventLike[] = []) {
+  const replay = await generationReplayFromRun(run, liveEvents)
+  const attachments = run.streamPartial ? [] : await generatedAttachmentsFromReplay(replay)
+  const generationJobs = replay.jobs
+  return {
+    ...withGeneratedAttachments(attachments),
+    meta: {
+      contextLabels: [`run ${run.status}`],
+      ...(generationJobs.length > 0 ? { generationJobs } : {}),
+    },
+  }
 }
 
 function attachmentPromptBlock(attachments: AgentAttachment[]) {
@@ -1427,6 +1392,12 @@ function runTouchesAgentCatalog(run: AgentRun | null | undefined): boolean {
   return run.steps.some((step) => step.type === 'tool_call' && step.toolName && AGENT_CATALOG_TOOL_NAMES.has(step.toolName))
 }
 
+function panelRunSettledStatusFromRun(run: AgentRun): 'completed' | 'error' | 'cancelled' {
+  if (run.status === 'failed') return 'error'
+  if (run.status === 'cancelled') return 'cancelled'
+  return 'completed'
+}
+
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
@@ -1472,6 +1443,16 @@ function toolNameFromToolCallStreamEvent(event: ChatRunActivityEvent): string | 
   const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
   const toolCall = stream?.toolCall && typeof stream.toolCall === 'object' ? stream.toolCall as Record<string, unknown> : undefined
   return typeof toolCall?.name === 'string' && toolCall.name.trim() ? toolCall.name.trim() : undefined
+}
+
+async function cancelGenerationJobIfActive(state: GenerationProgressState | null): Promise<void> {
+  if (!state || state.terminal || state.jobId === undefined) return
+  try {
+    await api.post(`/jobs/${state.jobId}/cancel`)
+  } catch {
+    // Stopping the agent run should still proceed if the backend job has already finished
+    // or the generation provider cannot accept cancellation.
+  }
 }
 
 function getThinkingBubbleState(run: AgentRun | null, events: ChatRunActivityEvent[]): ThinkingBubbleState {
@@ -1527,6 +1508,23 @@ function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentRun | nu
   )
 }
 
+function GenerationProgressBubble({ state }: { state: GenerationProgressState }) {
+  return (
+    <AgentChatMessage
+      role="assistant"
+      avatar={<Bot size={13} />}
+      author="MovScript Agent"
+      footer={(
+        <Badge variant={state.terminal ? 'outline' : 'secondary'} className="text-[9px] leading-4 px-1.5 py-0">
+          {state.terminal ? '生成已结束' : '生成监控中'}
+        </Badge>
+      )}
+    >
+      <GenerationProgressCard state={state} />
+    </AgentChatMessage>
+  )
+}
+
 function formatActivityTime(value: string | undefined, locale: string) {
   if (!value) return ''
   const date = new Date(value)
@@ -1566,6 +1564,29 @@ function formatToolCallStreamDetail(event: ChatRunActivityEvent) {
     parseStatus,
     args,
     parsedArgs,
+  }
+}
+
+function formatGenerationTraceDetail(event: ChatRunActivityEvent) {
+  const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
+  const generation = data?.generation && typeof data.generation === 'object' ? data.generation as Record<string, unknown> : undefined
+  if (!generation) return null
+  const jobId = typeof generation.jobId === 'number' ? generation.jobId : undefined
+  const status = typeof generation.status === 'string' ? generation.status : 'unknown'
+  const stage = typeof generation.stage === 'string' ? generation.stage : undefined
+  const progress = typeof generation.progress === 'number' ? generation.progress : undefined
+  const outputResourceId = typeof generation.outputResourceId === 'number' ? generation.outputResourceId : undefined
+  const message = typeof generation.message === 'string' ? generation.message : undefined
+  return {
+    label: jobId !== undefined ? `Generation Job #${jobId}` : 'Generation job',
+    summary: [
+      stage ? stage.replace(/_/g, ' ') : undefined,
+      status.replace(/_/g, ' '),
+      progress !== undefined ? `${progress}%` : undefined,
+      outputResourceId !== undefined ? `resource #${outputResourceId}` : undefined,
+    ].filter(Boolean).join(' · '),
+    message,
+    generation,
   }
 }
 
@@ -1631,16 +1652,19 @@ function RunActivityPanel({
     })),
     ...displayData.events.map((event) => {
       const streamToolCall = formatToolCallStreamDetail(event)
+      const generationTrace = formatGenerationTraceDetail(event)
       return {
         id: event.id,
         kind: event.kind,
-        title: streamToolCall ? streamToolCall.label : event.toolName ? `${event.title}: ${event.toolName}` : event.title,
+        title: generationTrace ? generationTrace.label : streamToolCall ? streamToolCall.label : event.toolName ? `${event.title}: ${event.toolName}` : event.title,
         status: event.status,
         time: formatActivityTime(event.createdAt, locale),
         duration: durationLabel(event.createdAt, event.completedAt),
-        summary: streamToolCall ? `preparing args: ${streamToolCall.parseStatus} (${streamToolCall.args.length} chars)` : event.summary,
+        summary: generationTrace
+          ? generationTrace.message ?? generationTrace.summary
+          : streamToolCall ? `preparing args: ${streamToolCall.parseStatus} (${streamToolCall.args.length} chars)` : event.summary,
         args: undefined,
-        result: streamToolCall ? (streamToolCall.parsedArgs ?? streamToolCall.args) : event.data,
+        result: generationTrace ? generationTrace.generation : streamToolCall ? (streamToolCall.parsedArgs ?? streamToolCall.args) : event.data,
         error: event.status === 'failed' || event.status === 'blocked' ? event.summary : undefined,
       }
     }),
@@ -1716,12 +1740,15 @@ function RunActivityPanel({
 
 // ── Message bubble ────────────────────────────────────────────────────────────
 
-function MessageBubble({ msg }: { msg: ChatMessage }) {
+function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: number }) {
   const { i18n } = useTranslation()
   const [copied, setCopied] = useState(false)
   const isUser = msg.role === 'user'
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const time = new Date(msg.timestamp).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+  const mediaAttachments = (msg.attachments ?? []).filter((attachment) => attachment.type === 'image' || attachment.type === 'video')
+  const otherAttachments = (msg.attachments ?? []).filter((attachment) => attachment.type !== 'image' && attachment.type !== 'video')
+  const showLargeMedia = !isUser && mediaAttachments.some((attachment) => attachment.id.startsWith('generated-'))
 
   function copy() {
     navigator.clipboard.writeText(msg.content)
@@ -1762,9 +1789,19 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       )}
     >
       <MarkdownContent text={msg.content} attachments={msg.attachments} />
-      {msg.attachments && msg.attachments.length > 0 && (
-        <div className={cn('mt-2 grid gap-1.5', msg.attachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
-          {msg.attachments.map((attachment) => (
+      {!isUser && <GenerationTraceSummaryCard jobs={msg.meta?.generationJobs} />}
+      {!isUser && <GenerationJobSummaryCard jobs={msg.meta?.generationJobs} />}
+      {showLargeMedia && mediaAttachments.length > 0 && (
+        <div className={cn('mt-2 grid gap-2', mediaAttachments.length > 1 ? 'sm:grid-cols-2' : 'grid-cols-1')}>
+          {mediaAttachments.map((attachment) => (
+            <AttachmentPreview key={attachment.id} attachment={attachment} />
+          ))}
+        </div>
+      )}
+      {showLargeMedia && <GeneratedResultCard attachments={mediaAttachments} projectId={projectId} />}
+      {((showLargeMedia ? otherAttachments : msg.attachments) ?? []).length > 0 && (
+        <div className={cn('mt-2 grid gap-1.5', (showLargeMedia ? otherAttachments : msg.attachments)!.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+          {(showLargeMedia ? otherAttachments : msg.attachments)!.map((attachment) => (
             <AttachmentPreview key={attachment.id} attachment={attachment} compact />
           ))}
         </div>
@@ -1839,6 +1876,13 @@ function buildDraftOpenPath(draft: AgentDraft): string | null {
 
   if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
     return `/project-workspace?draftId=${encodeURIComponent(draft.id)}`
+  }
+
+  if (draft.kind === 'asset_proposal' || sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
+    const assetSlotId = sourceEntityId ?? targetEntityId
+    const params = new URLSearchParams({ draftId: draft.id })
+    if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
+    return `/asset-slots?${params.toString()}`
   }
 
   const productionId = sourceEntityId ?? targetEntityId
@@ -2390,7 +2434,7 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'project_proposal', 'production_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 const DRAFT_REFRESH_INTERVAL_MS = 1500
 
@@ -2399,6 +2443,9 @@ function inferScopedDraftKind(pageContext?: PageContextSummary): AgentDraftKind 
   if (pageContext.pageType === 'production_orchestrate') return 'production_proposal'
   if (pageContext.pageType === 'project_proposal' || pageContext.labels.some((label) => /project-(workspace|orchestration|proposal)/i.test(label))) {
     return 'project_proposal'
+  }
+  if (pageContext.pageType === 'asset_proposal' || pageContext.labels.some((label) => /asset-(slots|proposal)|asset_proposal/i.test(label))) {
+    return 'asset_proposal'
   }
   return undefined
 }
@@ -2786,6 +2833,7 @@ function ChatView({
   const [streamingAssistantText, setStreamingAssistantText] = useState('')
   const [liveTraceEvents, setLiveTraceEvents] = useState<ChatRunActivityEvent[]>([])
   const [pendingAssistantState, setPendingAssistantState] = useState<ThinkingBubbleState | null>(null)
+  const liveTraceEventsRef = useRef<ChatRunActivityEvent[]>([])
   const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
   const streamingAssistantMessageIdRef = useRef<string | null>(null)
   const streamingAssistantTextRef = useRef('')
@@ -2813,6 +2861,7 @@ function ChatView({
   useEffect(() => { inputRef.current?.focus() }, [conv.id])
   useEffect(() => {
     shouldAutoScrollRef.current = true
+    liveTraceEventsRef.current = []
     setLiveTraceEvents([])
   }, [conv.id])
   useEffect(() => () => {
@@ -2877,9 +2926,16 @@ function ChatView({
   const loading = conversationRuntime?.loading ?? false
   const hasStreamingAssistantContent = !!streamingAssistantMessageId || !!streamingAssistantText.trim()
   const thinkingState = pendingAssistantState ?? getThinkingBubbleState(activeLocalRun, liveTraceEvents)
+  const generationTraceEvents = liveTraceEvents.length > 0 ? liveTraceEvents : (activeLocalRun?.traceEvents ?? [])
+  const generationProgressState = generationProgressFromEvents(generationTraceEvents)
+  const showGenerationProgressBubble = !!generationProgressState
+    && (loading || buildingSendDraft || activeLocalRun?.status === 'in_progress' || activeLocalRun?.status === 'queued')
+    && !hasStreamingAssistantContent
+    && !pendingSendDraft
   const showThinkingBubble = (loading || buildingSendDraft || !!pendingAssistantState)
     && !hasStreamingAssistantContent
     && !pendingSendDraft
+    && !showGenerationProgressBubble
   const showLocalWorkflow = activeLocalRun?.status === 'requires_action'
     && (
       (activeLocalRun.pendingApprovals ?? []).some((approval) => approval.status === 'pending')
@@ -2894,7 +2950,7 @@ function ChatView({
     const thread = threadRef.current
     if (!thread || !shouldAutoScrollRef.current) return
     thread.scrollTo({ top: thread.scrollHeight, behavior: 'auto' })
-  }, [conv.id, conv.messages.length, loading, buildingSendDraft, hasStreamingAssistantContent, streamingAssistantText, pendingAssistantState])
+  }, [conv.id, conv.messages.length, loading, buildingSendDraft, hasStreamingAssistantContent, streamingAssistantText, pendingAssistantState, generationProgressState])
   const contextLabels = [
     t('agents.chat.localRuntime'),
     activeConversationManifest ? t('agents.chat.panel.capabilities.custom') : null,
@@ -3239,9 +3295,23 @@ function ChatView({
       const next = existingIndex >= 0
         ? current.map((candidate, index) => index === existingIndex ? item : candidate)
         : [...current, item]
-      return next.slice(-16)
+      const sliced = next.slice(-16)
+      liveTraceEventsRef.current = sliced
+      return sliced
     })
   }, [])
+
+  const streamFollowUpRun = useCallback(async (runId: string) => {
+    return await localAgentClient.streamRun(runId, {
+      timeoutMs: 900_000,
+      pollMs: 1000,
+      onRunUpdate: (nextRun) => setConversationRun(conv.id, nextRun, { approving: true, loading: true }),
+      onStreamEvent: recordLiveTraceEvent,
+      onAssistantDelta: (event) => {
+        updateStreamingAssistantText(event.runId, event.accumulated)
+      },
+    })
+  }, [conv.id, recordLiveTraceEvent, setConversationRun, updateStreamingAssistantText])
 
   const approveActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = activeLocalRun
@@ -3251,20 +3321,15 @@ function ChatView({
     try {
       const approvedRun = await localAgentClient.approveRun(run.id, { approvalIds })
       setConversationRun(conv.id, approvedRun, { approving: true, loading: true })
-      const finalRun = await localAgentClient.waitForRun(approvedRun.id, {
-        onRunUpdate: (nextRun) => setConversationRun(conv.id, nextRun, { approving: true, loading: true }),
-        timeoutMs: 900_000,
-        pollMs: 1000,
-      })
+      const finalRun = await streamFollowUpRun(approvedRun.id)
       const thread = await localAgentClient.getThread(finalRun.threadId)
       if (finalRun.status !== 'requires_action') {
         const content = formatLocalAgentAssistantContent(finalRun, thread)
-        const generatedAttachments = await generatedAttachmentsFromRun(finalRun)
+        const resultPayload = await assistantResultPayloadForRun(finalRun, liveTraceEventsRef.current)
         addMessage(userId, conv.id, {
           role: 'assistant',
           content,
-          ...withGeneratedAttachments(generatedAttachments),
-          meta: { contextLabels: [`run ${finalRun.status}`] },
+          ...resultPayload,
         })
       }
       if (runTouchesAgentCatalog(finalRun)) refreshAgentCatalogContext()
@@ -3277,7 +3342,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
 
   const rejectActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = activeLocalRun
@@ -3314,19 +3379,14 @@ function ChatView({
     try {
       const answeredRun = await localAgentClient.answerRunInput(run.id, { requestId, ...answer })
       setConversationRun(conv.id, answeredRun, { approving: true, loading: true })
-      const finalRun = await localAgentClient.waitForRun(answeredRun.id, {
-        onRunUpdate: (nextRun) => setConversationRun(conv.id, nextRun, { approving: true, loading: true }),
-        timeoutMs: 900_000,
-        pollMs: 1000,
-      })
+      const finalRun = await streamFollowUpRun(answeredRun.id)
       const thread = await localAgentClient.getThread(finalRun.threadId)
       if (finalRun.status !== 'requires_action') {
-        const generatedAttachments = await generatedAttachmentsFromRun(finalRun)
+        const resultPayload = await assistantResultPayloadForRun(finalRun, liveTraceEventsRef.current)
         addMessage(userId, conv.id, {
           role: 'assistant',
           content: formatLocalAgentAssistantContent(finalRun, thread),
-          ...withGeneratedAttachments(generatedAttachments),
-          meta: { contextLabels: [`run ${finalRun.status}`] },
+          ...resultPayload,
         })
       }
       if (runTouchesAgentCatalog(finalRun)) refreshAgentCatalogContext()
@@ -3339,7 +3399,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext])
+  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
 
   const stopActiveLocalRun = useCallback(async () => {
     const run = activeLocalRun
@@ -3353,6 +3413,7 @@ function ChatView({
 
     setConversationRuntime(conv.id, { stopping: true, loading: true, stopRequested: stopRequestedBeforeRun })
     try {
+      await cancelGenerationJobIfActive(generationProgressState)
       const cancelledRun = await localAgentClient.cancelRun(run.id, { reason: '用户停止了当前会话。' })
       const finishedBeforeCancel = isTerminalAgentRun(cancelledRun) && cancelledRun.status !== 'cancelled'
       setConversationRun(conv.id, cancelledRun, {
@@ -3362,10 +3423,11 @@ function ChatView({
       })
       if (!loading) {
         const thread = await localAgentClient.getThread(cancelledRun.threadId)
+        const resultPayload = await assistantResultPayloadForRun(cancelledRun, liveTraceEventsRef.current)
         addMessage(userId, conv.id, {
           role: 'assistant',
           content: formatLocalAgentAssistantContent(cancelledRun, thread),
-          meta: { contextLabels: [`run ${cancelledRun.status}`] },
+          ...resultPayload,
         })
       }
     } catch (e) {
@@ -3384,7 +3446,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false })
     }
-  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
+  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, generationProgressState, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
 
   const buildSendDraft = useCallback(async (options: {
     includeRuntimePreview?: boolean
@@ -3571,6 +3633,7 @@ function ChatView({
     setMentionRange(null)
     setConversationRuntime(conv.id, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
     cancelRequestedRunIdsRef.current.clear()
+    liveTraceEventsRef.current = []
     setLiveTraceEvents([])
     setPendingAssistantState({ status: 'preparing_request' })
     addMessage(userId, conv.id, {
@@ -3638,6 +3701,7 @@ function ChatView({
           const nextRuntime = useAgentSessionStore.getState().conversationRuntimes[conv.id]
           if (nextRuntime?.stopRequested && isStoppableAgentRun(nextRun) && !cancelRequestedRunIdsRef.current.has(nextRun.id)) {
             cancelRequestedRunIdsRef.current.add(nextRun.id)
+            void cancelGenerationJobIfActive(generationProgressFromEvents(liveTraceEventsRef.current))
             void localAgentClient.cancelRun(nextRun.id, { reason: '用户停止了当前会话。' })
               .then((cancelledRun) => {
                 const finishedBeforeCancel = isTerminalAgentRun(cancelledRun) && cancelledRun.status !== 'cancelled'
@@ -3675,7 +3739,7 @@ function ChatView({
       if (draft.localRuntime?.requestId) setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id, run, threadId: thread.id, artifacts })
       setConversationRun(conv.id, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
       const content = formatLocalAgentAssistantContent(run, thread)
-      const generatedAttachments = await generatedAttachmentsFromRun(run)
+      const resultPayload = await assistantResultPayloadForRun(run, liveTraceEventsRef.current)
       const streamingMessageId = streamingAssistantMessageIdRef.current
       setPendingAssistantState(null)
       resetStreamingAssistant()
@@ -3683,21 +3747,19 @@ function ChatView({
         upsertMessage(userId, conv.id, streamingMessageId, {
           role: 'assistant',
           content,
-          ...withGeneratedAttachments(generatedAttachments),
-          meta: { contextLabels: [`run ${run.status}`] },
+          ...resultPayload,
         })
       } else {
         addMessage(userId, conv.id, {
           role: 'assistant',
           content,
-          ...withGeneratedAttachments(generatedAttachments),
-          meta: { contextLabels: [`run ${run.status}`] },
+          ...resultPayload,
         })
       }
       if (runTouchesAgentCatalog(run)) refreshAgentCatalogContext()
       notifyAgentPanelRunSettled({
         requestId: draft.localRuntime?.requestId,
-        status: run.status === 'cancelled' ? 'cancelled' : 'completed',
+        status: panelRunSettledStatusFromRun(run),
         run,
         thread,
         artifacts,
@@ -3905,8 +3967,11 @@ function ChatView({
                 </AgentSuggestions>
               </AgentEmpty>
             )}
-            {conv.messages.map((m) => <MessageBubble key={m.id} msg={m} />)}
+            {conv.messages.map((m) => <MessageBubble key={m.id} msg={m} projectId={currentProject?.ID} />)}
             <StreamingAssistantBubble content={streamingAssistantText} />
+            {showGenerationProgressBubble && (
+              <GenerationProgressBubble state={generationProgressState} />
+            )}
             {showThinkingBubble && <ThinkingBubble run={activeLocalRun} state={thinkingState} />}
             <div ref={bottomRef} />
           </AgentThread>
@@ -4521,7 +4586,11 @@ function BuiltinChat({ userId }: { userId: string }) {
 export function AIAgentPanel() {
   const { t } = useTranslation()
   const [open, setOpen] = useState(true)
-  const [panelWidth, setPanelWidth] = useState(420)
+  const [panelWidth, setPanelWidth] = useState(() => {
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
+    return viewportWidth < 1280 ? 360 : 420
+  })
+  const [dockLayout, setDockLayout] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 960 : true)
   const currentUser = useUserStore((s) => s.currentUser)
   const userId = currentUser ? String(currentUser.ID) : ''
   const panelRef = useRef<HTMLDivElement | null>(null)
@@ -4537,6 +4606,18 @@ export function AIAgentPanel() {
     return () => window.removeEventListener(AGENT_PANEL_DRAFT_EVENT, handleDraft)
   }, [])
 
+  useEffect(() => {
+    function updateDockLayout() {
+      const viewportWidth = window.innerWidth
+      setDockLayout(viewportWidth >= 960)
+      setPanelWidth((current) => viewportWidth < 1280 ? Math.min(current, 360) : current)
+    }
+
+    updateDockLayout()
+    window.addEventListener('resize', updateDockLayout)
+    return () => window.removeEventListener('resize', updateDockLayout)
+  }, [])
+
   function toggleOpen() {
     setOpen((v) => {
       const next = !v
@@ -4550,7 +4631,10 @@ export function AIAgentPanel() {
     event.stopPropagation()
     const startWidth = panelWidth
     const startX = event.clientX
-    const maxWidth = Math.min(760, Math.max(320, window.innerWidth - 280))
+    const viewportWidth = window.innerWidth
+    const maxWidth = viewportWidth >= 1440
+      ? 760
+      : Math.min(520, Math.max(320, Math.round(viewportWidth * 0.42)))
     panelResizeStateRef.current = { startX, startWidth, latestWidth: startWidth, maxWidth }
     document.body.classList.add('ai-agent-panel-resizing', 'ai-agent-panel-resizing--x')
 
@@ -4590,10 +4674,18 @@ export function AIAgentPanel() {
 
   return (
     <div ref={panelRef} className={cn(
-      'ai-agent-panel relative h-full min-w-0 shrink-0 bg-background flex flex-col overflow-hidden transition-[width] duration-200',
-      open ? 'w-[var(--ai-agent-panel-width)]' : 'w-11',
+      'ai-agent-panel z-20 flex min-h-0 min-w-0 bg-background flex-col overflow-hidden transition-[width] duration-200',
+      dockLayout
+        ? cn(
+            'relative h-full shrink-0 border-l border-border',
+            open ? 'w-[var(--ai-agent-panel-width)]' : 'w-11',
+          )
+        : cn(
+            'fixed right-3 top-3 h-[calc(100vh-1.5rem)] rounded-md border border-border shadow-lg',
+            open ? 'w-[min(420px,calc(100vw-1.5rem))]' : 'w-11',
+          ),
     )} style={{ ['--ai-agent-panel-width' as string]: `${panelWidth}px` }}>
-      {open && (
+      {dockLayout && open && (
         <div
           role="separator"
           aria-orientation="vertical"
@@ -4604,7 +4696,7 @@ export function AIAgentPanel() {
           <div className="absolute left-1/2 top-1/2 h-10 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/80" />
         </div>
       )}
-      <div className="flex items-center h-11 border-b border-border shrink-0 px-2.5 gap-2 pl-3">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-2.5 pl-3">
         <button
           onClick={toggleOpen}
           title={open ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')}

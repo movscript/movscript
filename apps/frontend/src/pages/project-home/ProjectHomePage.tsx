@@ -502,7 +502,7 @@ export default function ProjectHomePage() {
         progress: contentProgress,
         state: contentTotal === 0 ? (planProgress > 0 ? 'active' : 'empty') : contentProgress >= 70 ? 'ready' : 'active',
         href: '/contents',
-        workbenchHref: '/workbench/production',
+        workbenchHref: '/content-unit-orchestrate',
         icon: Wand2,
       },
       {

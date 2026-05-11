@@ -2,6 +2,8 @@
 
 > 本文档定义 MovScript agent 的定位、交互模型、架构原则和重构路线图。面向产品和工程决策，可直接作为重构 `apps/production-runtime/` → `apps/agent/` 的实施依据。
 
+> 更新：Agent 的上层产品模型已经收敛为 proposal-first。任何 Agent 都可以在对话中直接创建一个或多个 proposal；workflow、页面按钮和插件只是 proposal producer。完整设计见 [Proposal-first Agent Design](proposal-first-agent-design.md)。本文中的“草稿优先”应理解为 proposal-first 的兼容阶段：正式写入仍必须经过 review 和 apply。
+
 ---
 
 ## 一、Agent 是什么

@@ -28,6 +28,26 @@ func (h *SemanticEntityHandler) ApplyProductionProposal(c *gin.Context) {
 	c.JSON(http.StatusCreated, resp)
 }
 
+func (h *SemanticEntityHandler) PreviewProductionProposalApply(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req semanticapp.ApplyProductionProposalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if req.Proposal == nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("proposal is required"))
+		return
+	}
+
+	resp, err := h.semantic.PreviewProductionProposalApply(c.Request.Context(), projectID, req)
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *SemanticEntityHandler) ApplyProjectProposal(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.ApplyProjectProposalRequest
@@ -35,7 +55,7 @@ func (h *SemanticEntityHandler) ApplyProjectProposal(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
 	}
-	if req.Proposal == nil && len(req.Operations) == 0 {
+	if req.Proposal == nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput("proposal is required"))
 		return
 	}
@@ -46,4 +66,28 @@ func (h *SemanticEntityHandler) ApplyProjectProposal(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusCreated, resp)
+}
+
+func (h *SemanticEntityHandler) PreviewProjectProposalApply(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req semanticapp.ApplyProjectProposalRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	if req.Proposal == nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("proposal is required"))
+		return
+	}
+
+	resp, err := h.semantic.PreviewProjectProposalApply(c.Request.Context(), projectID, req)
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":      "ok",
+		"dry_run":     true,
+		"would_apply": resp,
+	})
 }

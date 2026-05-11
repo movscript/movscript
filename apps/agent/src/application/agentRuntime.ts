@@ -7,7 +7,7 @@ import {
 } from '../manifest/catalogState.js'
 import { loadAgentPluginCatalog as loadCatalogSnapshot, type AgentPluginBundle } from '../manifest/pluginCatalog.js'
 import { extractAgentContext } from '../context/runtimeContext.js'
-import { resolveAgentCapabilities } from '../runtime/tools/capabilityResolver.js'
+import { resolveAgentCapabilities } from '../tools/capabilityResolver.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from '../memory/types.js'
@@ -24,7 +24,8 @@ import {
   type AgentDraftStore,
 } from '../drafts/draftStore.js'
 import { buildApplyDraftPreview, markDraftApplied, rejectDraft, type ApplyDraftInput } from '../drafts/draftApply.js'
-import { BackendApplyClient, type BackendApplyResult } from '../drafts/backendApplyClient.js'
+import { BackendApplyClient, BackendApplyHTTPError, type BackendApplyResult } from '../drafts/backendApplyClient.js'
+import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
 import { runAgentGraph } from '../orchestration/agentGraph.js'
 import { buildPromptPreview } from '../orchestration/contextBuilder.js'
 import {
@@ -84,7 +85,7 @@ import {
 } from '../context/normalizeRunInput.js'
 import { buildDebugContext, buildDebugTrace } from '../context/debugContext.js'
 import { parseAgentCommand } from '../context/commandRouter.js'
-import { planPreviewToolRequests } from '../runtime/preview/previewPlanner.js'
+import { planPreviewToolRequests } from '../orchestration/previewPlanner.js'
 import {
   buildLocalDiagnosticFallbackContextResult,
   isLocalDiagnosticCommand,
@@ -194,7 +195,7 @@ export class AgentRuntime {
     this.mcpClient = options.mcpClient
     this.store = options.store ?? new InMemoryAgentStore()
     this.draftStore = options.draftStore ?? new InMemoryAgentDraftStore()
-    this.backendApplyClient = options.backendApplyClient ?? new BackendApplyClient()
+    this.backendApplyClient = options.backendApplyClient ?? new MCPBackendApplyClient(this.mcpClient)
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
     const builtinCatalog = !options.pluginCatalogLoader
@@ -363,6 +364,7 @@ export class AgentRuntime {
       ...(typeof input.projectId === 'number' && Number.isFinite(input.projectId) ? { projectId: input.projectId } : {}),
       ...(isRecord(input.metadata) ? { metadata: input.metadata as Record<string, JSONValue> } : {}),
       archived: input.archived === true,
+      status: 'idle',
       createdAt: now,
       updatedAt: now,
       messages: [],
@@ -447,7 +449,7 @@ export class AgentRuntime {
       ...(initialUser ? { initialUserMessageId: initialUser.id } : {}),
     })
     this.store.createRun(run)
-    thread.lastRunStatus = run.status
+    this.applyThreadRunProjection(thread, run)
     thread.updatedAt = now
     this.store.updateThread(thread)
     this.rememberRunAuth(run.id, input)
@@ -494,7 +496,7 @@ export class AgentRuntime {
       ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
     })
     this.store.createRun(run)
-    thread.lastRunStatus = run.status
+    this.applyThreadRunProjection(thread, run)
     thread.updatedAt = now
     this.store.updateThread(thread)
     this.rememberRunAuth(run.id, input)
@@ -683,7 +685,8 @@ export class AgentRuntime {
       },
     })
     this.store.updateRun(run)
-    this.updateThreadRunStatus(run.threadId, run.status)
+    this.updateThreadRunStatus(run.threadId, run.status, run.id)
+    this.emitRunSnapshot(run)
     this.rememberRunAuth(run.id, input)
     this.startRunExecution(run.id)
     return run
@@ -718,7 +721,7 @@ export class AgentRuntime {
     const assistant = this.createMessage(thread.id, 'assistant', `已取消需要确认的工具调用。\n\n${warning}`, run.id)
     thread.messages.push(assistant)
     thread.updatedAt = assistant.createdAt
-    thread.lastRunStatus = run.status
+    this.applyThreadRunProjection(thread, run)
     run.assistantMessageId = assistant.id
     const step = this.createStep(run, 'message')
     step.status = 'completed'
@@ -726,6 +729,7 @@ export class AgentRuntime {
     step.completedAt = now
     this.store.updateThread(thread)
     this.store.updateRun(run)
+    this.emitRunSnapshot(run, { done: true })
     return run
   }
 
@@ -785,9 +789,10 @@ export class AgentRuntime {
     const answerMessage = this.createMessage(thread.id, 'user', formatInputAnswerMessage(request, choiceIds, text))
     thread.messages.push(answerMessage)
     thread.updatedAt = answerMessage.createdAt
-    thread.lastRunStatus = run.status
+    this.applyThreadRunProjection(thread, run)
     this.store.updateThread(thread)
     this.store.updateRun(run)
+    this.emitRunSnapshot(run)
     this.rememberRunAuth(run.id, input)
     this.startRunExecution(run.id)
     return run
@@ -907,6 +912,62 @@ export class AgentRuntime {
     return buildApplyDraftPreview(this.draftStore, input) as unknown as JSONValue
   }
 
+  async simulateApplyDraft(input: {
+    draftId?: unknown
+    target?: unknown
+    targetEntityType?: unknown
+    targetEntityId?: unknown
+    targetField?: unknown
+    currentValue?: unknown
+    proposedValue?: unknown
+    backendAuthToken?: unknown
+    backendAPIBaseURL?: unknown
+  }): Promise<JSONValue> {
+    const preview = buildApplyDraftPreview(this.draftStore, input)
+    const validation = validateDraft(preview.draft)
+    if (!validation.ok) {
+      return {
+        ok: false,
+        stage: 'local_validation',
+        draftId: preview.draft.id,
+        validation,
+        message: 'Draft failed local validation. Patch the draft and validate again before simulating backend apply.',
+      } as unknown as JSONValue
+    }
+    if (preview.draft.kind === 'asset_proposal') {
+      return {
+        ok: true,
+        stage: 'local_validation',
+        draftId: preview.draft.id,
+        validation,
+        message: 'Asset proposal draft is locally valid. It is a planning artifact; backend apply is intentionally not performed.',
+      } as unknown as JSONValue
+    }
+    try {
+      const backendApply = await this.backendApplyClient.previewApplyReview(preview.review, {
+        ...(typeof input.backendAuthToken === 'string' ? { backendAuthToken: input.backendAuthToken } : {}),
+        ...(typeof input.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: input.backendAPIBaseURL } : {}),
+      })
+      return {
+        ok: true,
+        stage: 'backend_apply_preview',
+        draftId: preview.draft.id,
+        validation,
+        backendApply,
+      } as unknown as JSONValue
+    } catch (error) {
+      return {
+        ok: false,
+        stage: 'backend_apply_preview',
+        draftId: preview.draft.id,
+        validation,
+        error: error instanceof Error ? error.message : String(error),
+        ...(error instanceof BackendApplyHTTPError ? { backendError: error.detail as unknown as JSONValue } : {}),
+        message: 'Backend apply preview failed. Use backendError.response or backendError.responseText to patch the draft, then simulate again.',
+      } as unknown as JSONValue
+    }
+  }
+
   async applyDraftFromUI(input: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }): Promise<JSONValue> {
     const preview = buildApplyDraftPreview(this.draftStore, input)
     const appliedByUserId = input.appliedByUserId
@@ -985,7 +1046,8 @@ export class AgentRuntime {
       data: { policy: run.policy, manifestId: run.agentManifest?.id, sandboxMode: run.policy.sandboxMode === true },
     })
     this.store.updateRun(run)
-    this.updateThreadRunStatus(run.threadId, run.status)
+    this.updateThreadRunStatus(run.threadId, run.status, run.id)
+    this.emitRunSnapshot(run)
 
     try {
       this.throwIfRunCancelled(run.id, signal)
@@ -1226,7 +1288,7 @@ export class AgentRuntime {
           round: finalRound,
           data: { status: run.status, warningCount: run.warnings?.length ?? 0, modelGatewayCalled: false },
         })
-        thread.lastRunStatus = run.status
+        this.applyThreadRunProjection(thread, run)
         thread.updatedAt = run.updatedAt
         this.store.updateThread(thread)
         this.store.updateRun(run)
@@ -1319,6 +1381,21 @@ export class AgentRuntime {
           })
           this.store.updateRun(run)
         },
+        onGenerationEvent: (event, trace) => {
+          this.recordTraceEvent(run, {
+            kind: 'tool_call',
+            title: `Generation ${event.stage}: ${event.jobId !== undefined ? `Job #${event.jobId}` : event.toolName}`,
+            summary: event.message,
+            status: event.stage === 'failed' ? 'failed' : event.terminal ? 'completed' : 'info',
+            round: { roundId: `round_${trace.roundIndex}`, roundIndex: trace.roundIndex, roundLabel: trace.roundLabel, roundSource: trace.roundSource },
+            stepId: trace.stepId,
+            toolName: trace.toolName,
+            data: {
+              generation: event,
+            },
+          })
+          this.store.updateRun(run)
+        },
         onStepCreate: (type, roundIndex, roundLabel, roundSource, toolName) => {
           const step = this.createStep(run, type, { roundId: `round_${roundIndex}`, roundIndex, roundLabel, roundSource }, toolName)
           return step.id
@@ -1333,6 +1410,7 @@ export class AgentRuntime {
           step.completedAt = isoNow()
           run.updatedAt = step.completedAt
           this.store.updateRun(run)
+          this.emitRunSnapshot(run)
         },
       })
       this.throwIfRunCancelled(run.id, signal)
@@ -1355,7 +1433,8 @@ export class AgentRuntime {
           data: { approvals: loopResult.pendingApprovals, inputRequests: run.pendingInputRequests },
         })
         this.store.updateRun(run)
-        this.updateThreadRunStatus(run.threadId, run.status)
+        this.updateThreadRunStatus(run.threadId, run.status, run.id)
+        this.emitRunSnapshot(run, { done: true })
         return
       }
 
@@ -1424,10 +1503,11 @@ export class AgentRuntime {
         round: finalRound,
         data: { status: run.status, warningCount: loopResult.warnings.length, stepCount: run.steps.length, toolResultCount: loopResult.toolOutcomes.length },
       })
-      thread.lastRunStatus = run.status
+      this.applyThreadRunProjection(thread, run)
       thread.updatedAt = run.updatedAt
       this.store.updateThread(thread)
       this.store.updateRun(run)
+      this.emitRunSnapshot(run, { done: true })
     } catch (error) {
       if (this.isAbortError(error) || this.isRunCancelled(runId)) {
         this.markRunCancelled(this.store.getRun(runId) ?? run)
@@ -1445,13 +1525,13 @@ export class AgentRuntime {
         data: { error: run.error },
       })
       this.store.updateRun(run)
-      this.updateThreadRunStatus(run.threadId, run.status)
+      this.updateThreadRunStatus(run.threadId, run.status, run.id)
       const thread = this.store.getThread(run.threadId)
       if (thread) {
         const assistant = this.createMessage(thread.id, 'assistant', `运行失败：${run.error}`, run.id)
         thread.messages.push(assistant)
         thread.updatedAt = assistant.createdAt
-        thread.lastRunStatus = run.status
+        this.applyThreadRunProjection(thread, run)
         run.assistantMessageId = assistant.id
         const step = this.createStep(run, 'message')
         step.status = 'completed'
@@ -1470,6 +1550,7 @@ export class AgentRuntime {
         this.store.updateThread(thread)
         this.store.updateRun(run)
       }
+      this.emitRunSnapshot(run, { done: true })
     }
   }
 
@@ -1508,6 +1589,7 @@ export class AgentRuntime {
     run.steps.push(step)
     run.updatedAt = step.createdAt
     this.store.updateRun(run)
+    this.emitRunSnapshot(run)
     return step
   }
 
@@ -1544,19 +1626,14 @@ export class AgentRuntime {
       ...(input.completedAt ? { completedAt: input.completedAt } : {}),
     })
     this.store.appendTraceEvent(event)
-    const streamRun = toStreamRun(run)
-    this.emitRunStreamEvent(run.id, { type: 'trace', runId: run.id, event, run: streamRun })
+    this.emitRunStreamEvent(run.id, { type: 'trace', runId: run.id, event })
     const assistantDelta = assistantDeltaFromTraceEvent(event)
     if (assistantDelta) {
-      this.emitRunStreamEvent(run.id, { ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt, run: streamRun })
+      this.emitRunStreamEvent(run.id, { ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt })
     }
     const assistantMessage = assistantMessageFromTraceEvent(this.store.getThread(run.threadId) ?? undefined, event)
     if (assistantMessage) {
-      this.emitRunStreamEvent(run.id, { type: 'assistant_message', runId: run.id, message: assistantMessage, run: streamRun })
-    }
-    this.emitRunStreamEvent(run.id, { type: 'run', run: streamRun })
-    if (isTerminalRunStatus(run.status)) {
-      this.emitRunStreamEvent(run.id, { type: 'done', run: streamRun })
+      this.emitRunStreamEvent(run.id, { type: 'assistant_message', runId: run.id, message: assistantMessage, run: toStreamRun(run) })
     }
     return event
   }
@@ -1587,7 +1664,7 @@ export class AgentRuntime {
       ...(input.data !== undefined ? { data: input.data as JSONValue } : {}),
     }
     if (input.kind === 'tool_call') {
-      this.emitRunStreamEvent(run.id, { type: 'trace', runId: run.id, event, run: toStreamRun(run) })
+      this.emitRunStreamEvent(run.id, { type: 'trace', runId: run.id, event })
     }
     const assistantDelta = assistantDeltaFromTraceEvent(event)
     if (assistantDelta) {
@@ -1605,10 +1682,10 @@ export class AgentRuntime {
     listener({ type: 'run', run: streamRun })
     const traceEvents = this.store.listRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     for (const event of traceEvents) {
-      listener({ type: 'trace', runId: run.id, event, run: streamRun })
+      listener({ type: 'trace', runId: run.id, event })
       const assistantDelta = assistantDeltaFromTraceEvent(event)
       if (assistantDelta) {
-        listener({ ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt, run: streamRun })
+        listener({ ...assistantDelta, runId: run.id, traceEventId: event.id, createdAt: event.createdAt })
       }
     }
     const assistantMessage = assistantMessageForRun(this.store.getThread(run.threadId), run)
@@ -1627,6 +1704,14 @@ export class AgentRuntime {
       }
     }
     if (event.type === 'done') this.runStreamSubscribers.delete(runId)
+  }
+
+  private emitRunSnapshot(run: AgentRun, options: { done?: boolean } = {}): void {
+    const streamRun = toStreamRun(run)
+    this.emitRunStreamEvent(run.id, { type: 'run', run: streamRun })
+    if (options.done) {
+      this.emitRunStreamEvent(run.id, { type: 'done', run: streamRun })
+    }
   }
 
   private createMessage(threadId: string, role: AgentMessageRole, content: string, runId?: string): AgentMessage {
@@ -1689,7 +1774,7 @@ export class AgentRuntime {
       const assistant = this.createMessage(thread.id, 'assistant', `已停止当前会话。\n\n${reason ?? '用户停止了当前会话。'}`, current.id)
       thread.messages.push(assistant)
       thread.updatedAt = assistant.createdAt
-      thread.lastRunStatus = current.status
+      this.applyThreadRunProjection(thread, current)
       current.assistantMessageId = assistant.id
       const step = this.createStep(current, 'message')
       step.status = 'completed'
@@ -1698,16 +1783,31 @@ export class AgentRuntime {
       this.store.updateThread(thread)
     }
     this.store.updateRun(current)
-    this.updateThreadRunStatus(current.threadId, current.status)
+    this.updateThreadRunStatus(current.threadId, current.status, current.id)
+    this.emitRunSnapshot(current, { done: true })
     return current
   }
 
-  private updateThreadRunStatus(threadId: string, status: AgentRun['status']): void {
+  private updateThreadRunStatus(threadId: string, status: AgentRun['status'], runId?: string): void {
     const thread = this.store.getThread(threadId)
     if (!thread) return
+    if (runId) {
+      thread.lastRunId = runId
+      if (isActiveRunStatus(status)) thread.activeRunId = runId
+      else if (thread.activeRunId === runId) delete thread.activeRunId
+    }
     thread.lastRunStatus = status
+    thread.status = threadStatusFromRunStatus(status)
     thread.updatedAt = isoNow()
     this.store.updateThread(thread)
+  }
+
+  private applyThreadRunProjection(thread: AgentThread, run: AgentRun): void {
+    thread.lastRunId = run.id
+    thread.lastRunStatus = run.status
+    thread.status = threadStatusFromRunStatus(run.status)
+    if (isActiveRunStatus(run.status)) thread.activeRunId = run.id
+    else if (thread.activeRunId === run.id) delete thread.activeRunId
   }
 
   private formatFinalAssistantContent(
@@ -1810,6 +1910,18 @@ function extractContextPackTimings(value: unknown): { totalMs?: number; projects
 
 function isFinishedRunStatus(status: AgentRun['status']): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'failed'
+}
+
+function isActiveRunStatus(status: AgentRun['status']): boolean {
+  return status === 'queued' || status === 'in_progress' || status === 'requires_action'
+}
+
+function threadStatusFromRunStatus(status: AgentRun['status']): AgentThread['status'] {
+  if (status === 'queued' || status === 'in_progress') return 'running'
+  if (status === 'requires_action') return 'requires_action'
+  if (status === 'failed') return 'failed'
+  if (status === 'cancelled') return 'cancelled'
+  return 'completed'
 }
 
 function toStreamRun(run: AgentRun): AgentRunStreamRun {

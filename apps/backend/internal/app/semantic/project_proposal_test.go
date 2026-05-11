@@ -8,28 +8,26 @@ import (
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-func TestApplyProjectProposalCreatesProjectOwnedReferencesAndAssets(t *testing.T) {
+func TestApplyProjectProposalMergesPartialReferencesAndAssets(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)
 
 	resp, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
 		Proposal: &ProjectProposalTree{
-			CreativeReferences: []ProjectProposalOperation{{
-				Action: "create",
-				Entity: "creativeReferences",
-				Payload: map[string]any{
+			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
+				ClientID: "cr_lin_xia",
+				Fields: map[string]any{
 					"name":   "Lin Xia",
 					"kind":   "person",
 					"status": "confirmed",
 				},
 			}},
-			AssetSlots: []ProjectProposalOperation{{
-				Action: "create",
-				Entity: "assetSlots",
-				Payload: map[string]any{
-					"name":     "Lin Xia portrait",
-					"kind":     "image",
-					"priority": "high",
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				Fields: map[string]any{
+					"name":            "Lin Xia portrait",
+					"kind":            "image",
+					"priority":        "high",
+					"owner_client_id": "cr_lin_xia",
 				},
 			}},
 		},
@@ -42,19 +40,96 @@ func TestApplyProjectProposalCreatesProjectOwnedReferencesAndAssets(t *testing.T
 	}
 
 	var reference model.CreativeReference
-	if err := db.First(&reference).Error; err != nil {
+	if err := db.Where("project_id = ? AND name = ?", 1, "Lin Xia").First(&reference).Error; err != nil {
 		t.Fatalf("load creative reference: %v", err)
 	}
-	if reference.ProjectID != 1 || reference.Name != "Lin Xia" || reference.Kind != "person" {
+	if reference.Kind != "person" || reference.Status != "confirmed" {
 		t.Fatalf("unexpected creative reference: %+v", reference)
 	}
 
 	var slot model.AssetSlot
-	if err := db.First(&slot).Error; err != nil {
+	if err := db.Where("project_id = ? AND name = ?", 1, "Lin Xia portrait").First(&slot).Error; err != nil {
 		t.Fatalf("load asset slot: %v", err)
 	}
-	if slot.ProjectID != 1 || slot.Name != "Lin Xia portrait" || slot.Priority != "high" {
-		t.Fatalf("unexpected asset slot: %+v", slot)
+	if slot.Priority != "high" {
+		t.Fatalf("asset slot priority = %q, want high", slot.Priority)
+	}
+	if slot.CreativeReferenceID == nil || *slot.CreativeReferenceID != reference.ID {
+		t.Fatalf("asset slot creative_reference_id = %v, want %d", slot.CreativeReferenceID, reference.ID)
+	}
+	if slot.OwnerType != "creative_reference" || slot.OwnerID == nil || *slot.OwnerID != reference.ID {
+		t.Fatalf("asset slot owner = %s/%v, want creative_reference/%d", slot.OwnerType, slot.OwnerID, reference.ID)
+	}
+}
+
+func TestApplyProjectProposalOnlyPatchesMentionedFields(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+
+	reference := model.CreativeReference{
+		ProjectID:   1,
+		Name:        "Old name",
+		Kind:        "person",
+		Description: "Original description",
+		Importance:  "high",
+		Status:      "confirmed",
+	}
+	if err := db.Create(&reference).Error; err != nil {
+		t.Fatalf("create reference: %v", err)
+	}
+	slot := model.AssetSlot{
+		ProjectID:   1,
+		Name:        "Old asset",
+		Kind:        "image",
+		Description: "Keep description",
+		Priority:    "medium",
+		Status:      "missing",
+	}
+	if err := db.Create(&slot).Error; err != nil {
+		t.Fatalf("create asset slot: %v", err)
+	}
+
+	_, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Proposal: &ProjectProposalTree{
+			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
+				ID: &reference.ID,
+				Fields: map[string]any{
+					"name": "New name",
+				},
+			}},
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				ID: &slot.ID,
+				Owner: &ProjectProposalOwnerRef{
+					Type: "creative_reference",
+					ID:   &reference.ID,
+				},
+				Fields: map[string]any{
+					"priority": "high",
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply project proposal: %v", err)
+	}
+
+	var updatedReference model.CreativeReference
+	if err := db.First(&updatedReference, reference.ID).Error; err != nil {
+		t.Fatalf("load updated reference: %v", err)
+	}
+	if updatedReference.Name != "New name" || updatedReference.Description != "Original description" || updatedReference.Importance != "high" {
+		t.Fatalf("unexpected partial reference patch: %+v", updatedReference)
+	}
+
+	var updatedSlot model.AssetSlot
+	if err := db.First(&updatedSlot, slot.ID).Error; err != nil {
+		t.Fatalf("load updated slot: %v", err)
+	}
+	if updatedSlot.Priority != "high" || updatedSlot.Description != "Keep description" || updatedSlot.Status != "missing" {
+		t.Fatalf("unexpected partial asset patch: %+v", updatedSlot)
+	}
+	if updatedSlot.OwnerType != "creative_reference" || updatedSlot.OwnerID == nil || *updatedSlot.OwnerID != reference.ID {
+		t.Fatalf("asset slot owner = %s/%v, want creative_reference/%d", updatedSlot.OwnerType, updatedSlot.OwnerID, reference.ID)
 	}
 }
 
@@ -73,10 +148,8 @@ func TestApplyProjectProposalRejectsAssetSlotReferenceOutsideProjectAndRollsBack
 
 	_, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
 		Proposal: &ProjectProposalTree{
-			AssetSlots: []ProjectProposalOperation{{
-				Action: "create",
-				Entity: "assetSlots",
-				Payload: map[string]any{
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				Fields: map[string]any{
 					"name":                  "Foreign portrait",
 					"kind":                  "image",
 					"creative_reference_id": float64(foreignReference.ID),
@@ -97,65 +170,61 @@ func TestApplyProjectProposalRejectsAssetSlotReferenceOutsideProjectAndRollsBack
 	}
 }
 
-func TestApplyProjectProposalTreatsReuseAsNoop(t *testing.T) {
+func TestApplyProjectProposalMergesCreativeReferenceCandidate(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)
 
-	reference := model.CreativeReference{
-		ProjectID: 1,
-		Name:      "Existing",
-		Kind:      "person",
-		Status:    "confirmed",
+	target := model.CreativeReference{ProjectID: 1, Name: "Heroine", Kind: "person", Status: "confirmed"}
+	source := model.CreativeReference{ProjectID: 1, Name: "Heroine duplicate", Kind: "person", Status: "confirmed"}
+	if err := db.Create(&target).Error; err != nil {
+		t.Fatalf("create target: %v", err)
 	}
-	if err := db.Create(&reference).Error; err != nil {
-		t.Fatalf("create reference: %v", err)
+	if err := db.Create(&source).Error; err != nil {
+		t.Fatalf("create source: %v", err)
 	}
-
-	asset := model.AssetSlot{
-		ProjectID:            1,
-		CreativeReferenceID:  &reference.ID,
-		Name:                 "Existing asset",
-		Kind:                 "image",
-		Status:               "missing",
+	slot := model.AssetSlot{
+		ProjectID:           1,
+		CreativeReferenceID: &source.ID,
+		OwnerType:           "creative_reference",
+		OwnerID:             &source.ID,
+		Name:                "Source view",
+		Kind:                "image",
+		Status:              "missing",
 	}
-	if err := db.Create(&asset).Error; err != nil {
-		t.Fatalf("create asset slot: %v", err)
+	if err := db.Create(&slot).Error; err != nil {
+		t.Fatalf("create source slot: %v", err)
 	}
 
 	resp, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
 		Proposal: &ProjectProposalTree{
-			CreativeReferences: []ProjectProposalOperation{{
-				Action: "reuse",
-				Entity: "creativeReferences",
-				ID:     &reference.ID,
-			}},
-			AssetSlots: []ProjectProposalOperation{{
-				Action: "reuse",
-				Entity: "assetSlots",
-				ID:     &asset.ID,
+			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
+				ID: &target.ID,
+				MergeCandidates: []ProjectProposalMergeCandidate{{
+					SourceID: &source.ID,
+					Reason:   "same character",
+				}},
 			}},
 		},
 	})
 	if err != nil {
-		t.Fatalf("apply project proposal reuse noop: %v", err)
+		t.Fatalf("apply project proposal merge: %v", err)
 	}
-	if resp.Counts.CreativeReferencesCreated != 0 || resp.Counts.CreativeReferencesUpdated != 0 || resp.Counts.AssetSlotsCreated != 0 || resp.Counts.AssetSlotsUpdated != 0 {
-		t.Fatalf("unexpected counts for reuse noop: %+v", resp.Counts)
-	}
-
-	var referenceCount int64
-	if err := db.Model(&model.CreativeReference{}).Where("project_id = ? AND status <> ?", 1, "merged").Count(&referenceCount).Error; err != nil {
-		t.Fatalf("count creative references: %v", err)
-	}
-	if referenceCount != 1 {
-		t.Fatalf("creative references = %d, want 1", referenceCount)
+	if resp.Counts.CreativeReferencesMerged != 1 || resp.Counts.AssetSlotsReassigned != 1 {
+		t.Fatalf("unexpected counts: %+v", resp.Counts)
 	}
 
-	var assetCount int64
-	if err := db.Model(&model.AssetSlot{}).Where("project_id = ?", 1).Count(&assetCount).Error; err != nil {
-		t.Fatalf("count asset slots: %v", err)
+	var updatedSource model.CreativeReference
+	if err := db.First(&updatedSource, source.ID).Error; err != nil {
+		t.Fatalf("load source: %v", err)
 	}
-	if assetCount != 1 {
-		t.Fatalf("asset slots = %d, want 1", assetCount)
+	if updatedSource.Status != "merged" {
+		t.Fatalf("source status = %q, want merged", updatedSource.Status)
+	}
+	var updatedSlot model.AssetSlot
+	if err := db.First(&updatedSlot, slot.ID).Error; err != nil {
+		t.Fatalf("load slot: %v", err)
+	}
+	if updatedSlot.CreativeReferenceID == nil || *updatedSlot.CreativeReferenceID != target.ID {
+		t.Fatalf("slot creative_reference_id = %v, want %d", updatedSlot.CreativeReferenceID, target.ID)
 	}
 }

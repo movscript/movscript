@@ -29,9 +29,14 @@ func TestBuildProductionOrchestrationPromptUsesPlainTextContext(t *testing.T) {
 		t.Fatalf("expected system + user messages, got %d", len(prompt.Messages))
 	}
 	user := prompt.Messages[1].Content
-	for _, want := range []string{"project_id: 12", "project_name: 雨夜剧院", "production_id: 34", "production_name: 第一集制作", "剧本文本", "主角在雨夜进入废弃剧院。"} {
+	for _, want := range []string{"兼容入口", "project_id: 12", "project_name: 雨夜剧院", "production_id: 34", "production_name: 第一集制作", "backend_prompt_deprecated"} {
 		if !strings.Contains(user, want) {
 			t.Fatalf("user prompt missing %q:\n%s", want, user)
+		}
+	}
+	for _, unwanted := range []string{"剧本文本", "主角在雨夜进入废弃剧院。", "编排段功能名", "scene_moments", "content_units"} {
+		if strings.Contains(user, unwanted) {
+			t.Fatalf("compat prompt should not keep orchestration instructions %q:\n%s", unwanted, user)
 		}
 	}
 	if strings.Contains(user, `{"project_id"`) {

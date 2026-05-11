@@ -1,0 +1,74 @@
+import type { MCPClient } from '../mcpClient.js'
+import type { JSONValue } from '../types.js'
+import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from './backendApplyClient.js'
+import type { ApplyDraftReview } from './draftApply.js'
+
+type BackendApplyMCPClient = Pick<MCPClient, 'initialize' | 'callTool'>
+
+export class MCPBackendApplyClient extends BackendApplyClient {
+  private readonly mcpClient: BackendApplyMCPClient
+
+  constructor(mcpClient: BackendApplyMCPClient) {
+    super()
+    this.mcpClient = mcpClient
+  }
+
+  override isEnabled(): boolean {
+    return true
+  }
+
+  override async applyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    return this.callBackendApplyTool('movscript_apply_draft_review', {
+      review: review as unknown as JSONValue,
+      ...authArgs(auth),
+    })
+  }
+
+  override async previewApplyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    return this.callBackendApplyTool('movscript_preview_apply_draft_review', {
+      review: review as unknown as JSONValue,
+      ...authArgs(auth),
+    })
+  }
+
+  override async previewProductionProposalApply(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    return this.callBackendApplyTool('movscript_preview_production_proposal_apply', {
+      projectId,
+      payload,
+      ...authArgs(auth),
+    })
+  }
+
+  override async createScript(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    return this.callBackendApplyTool('movscript_create_script_backend', {
+      projectId,
+      payload,
+      ...authArgs(auth),
+    })
+  }
+
+  private async callBackendApplyTool(name: string, args: Record<string, JSONValue>): Promise<BackendApplyResult> {
+    await this.mcpClient.initialize()
+    const raw = await this.mcpClient.callTool(name, args)
+    const data = unwrapToolData(raw)
+    if (!isRecord(data)) {
+      throw new Error(`${name} returned invalid backend apply result`)
+    }
+    return data as unknown as BackendApplyResult
+  }
+}
+
+function authArgs(auth?: BackendApplyAuthContext): Record<string, JSONValue> {
+  return {
+    ...(auth?.userId !== undefined ? { userId: auth.userId } : {}),
+  }
+}
+
+function unwrapToolData(value: JSONValue): JSONValue {
+  if (isRecord(value) && value.data !== undefined) return value.data as JSONValue
+  return value
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}

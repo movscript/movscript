@@ -1,0 +1,258 @@
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { File, FileText, Image, Mic, Sparkles, Video } from 'lucide-react'
+
+import { listSemanticEntities, semanticEntityConfig } from '@/api/semanticEntities'
+import { api } from '@/lib/api'
+import {
+  GENERATED_BINDING_TARGETS,
+  generatedBindingErrorMessage,
+  generatedBindingTargetLabel,
+  generatedTargetRecordDescription,
+  generatedTargetRecordLabel,
+  generatedTargetRecordMeta,
+  generatedTargetSearchText,
+  type GeneratedBindingTarget,
+} from '@/lib/agentGeneratedResourceBinding'
+import { cn } from '@/lib/utils'
+import type { AgentAttachment } from '@/store/agentStore'
+import type { ResourceBinding } from '@/types'
+import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
+
+export function GeneratedResultCard({ attachments, projectId }: { attachments: AgentAttachment[]; projectId?: number }) {
+  const [copiedResourceId, setCopiedResourceId] = useState<number | null>(null)
+  const generated = attachments.filter((attachment) => attachment.resourceId !== undefined)
+  if (generated.length === 0) return null
+
+  function copyResourceMention(resourceId: number) {
+    navigator.clipboard.writeText(resourceMentionToken(resourceId))
+    setCopiedResourceId(resourceId)
+    setTimeout(() => setCopiedResourceId(null), 1500)
+  }
+
+  return (
+    <div data-testid="agent-generated-result-card" className="mt-2 rounded-md border border-border bg-background/70 p-2">
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Sparkles size={12} className="shrink-0 text-primary" />
+          <span className="truncate text-[11px] font-medium text-foreground">生成结果</span>
+        </div>
+        <Badge variant="secondary" className="shrink-0 text-[9px] leading-4 px-1.5 py-0">
+          {generated.length} 个资源
+        </Badge>
+      </div>
+      <div className="space-y-1.5">
+        {generated.map((attachment) => (
+          <div key={attachment.id} className="rounded border border-border/70 bg-muted/20 px-2 py-1.5">
+            <div className="flex min-w-0 items-center gap-2">
+              <AttachmentIcon type={attachment.type} size={12} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[10px] font-medium text-foreground">{attachment.name}</p>
+                <p className="truncate text-[9px] text-muted-foreground">
+                  #{attachment.resourceId} · {attachment.type} · {attachment.mimeType || 'unknown'} · {formatBytes(attachment.size)}
+                </p>
+                {attachment.generated && (
+                  <p className="truncate text-[9px] text-muted-foreground">
+                    {[
+                      attachment.generated.jobId !== undefined ? `Job #${attachment.generated.jobId}` : undefined,
+                      attachment.generated.jobType,
+                      attachment.generated.providerName,
+                      attachment.generated.modelDisplay ?? attachment.generated.modelIdentifier,
+                      attachment.generated.status,
+                      attachment.generated.stage,
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
+              {attachment.url && (
+                <a
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 rounded px-1.5 py-1 text-[9px] text-muted-foreground hover:bg-background hover:text-foreground"
+                >
+                  打开
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => attachment.resourceId !== undefined && copyResourceMention(attachment.resourceId)}
+                className="shrink-0 rounded px-1.5 py-1 text-[9px] text-muted-foreground hover:bg-background hover:text-foreground"
+              >
+                {copiedResourceId === attachment.resourceId ? '已复制' : '复制引用'}
+              </button>
+            </div>
+            <GeneratedResourceBindingControl attachment={attachment} projectId={projectId} />
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+        可在后续消息中粘贴资源引用，或到素材/画布工作流中选择该资源继续绑定。
+      </p>
+    </div>
+  )
+}
+
+function GeneratedResourceBindingControl({ attachment, projectId }: { attachment: AgentAttachment; projectId?: number }) {
+  const [targetType, setTargetType] = useState<GeneratedBindingTarget>('asset_slot')
+  const [targetIdText, setTargetIdText] = useState('')
+  const [targetQuery, setTargetQuery] = useState('')
+  const [bindingStatus, setBindingStatus] = useState<'idle' | 'binding' | 'bound' | 'error'>('idle')
+  const [bindingMessage, setBindingMessage] = useState('')
+  const targetConfig = GENERATED_BINDING_TARGETS.find((target) => target.value === targetType) ?? GENERATED_BINDING_TARGETS[0]
+  const { data: targetRecords = [], isFetching: loadingTargets } = useQuery({
+    queryKey: ['agent-generated-binding-targets', projectId, targetConfig.entityKind],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig(targetConfig.entityKind)),
+    enabled: !!projectId,
+    staleTime: 30_000,
+  })
+  if (attachment.resourceId === undefined) return null
+  const targetId = Number(targetIdText.trim())
+  const canBind = !!projectId && Number.isInteger(targetId) && targetId > 0 && bindingStatus !== 'binding'
+  const normalizedQuery = targetQuery.trim().toLowerCase()
+  const filteredTargets = targetRecords
+    .filter((record) => !normalizedQuery || generatedTargetSearchText(record).includes(normalizedQuery))
+    .slice(0, 5)
+  const selectedTarget = Number.isInteger(targetId) ? targetRecords.find((record) => record.ID === targetId) : undefined
+  const selectedTargetDescription = selectedTarget ? generatedTargetRecordDescription(selectedTarget) : ''
+  const selectedTargetMeta = selectedTarget ? generatedTargetRecordMeta(selectedTarget) : []
+
+  async function bindResource() {
+    if (!projectId || !canBind || attachment.resourceId === undefined) return
+    setBindingStatus('binding')
+    setBindingMessage('')
+    try {
+      const metadata = {
+        origin: 'agent_generated_result_card',
+        ...(attachment.generated ? { generation: attachment.generated } : {}),
+      }
+      const response = await api.post<ResourceBinding>(`/projects/${projectId}/resource-bindings`, {
+        resource_id: attachment.resourceId,
+        owner_type: targetType,
+        owner_id: targetId,
+        role: targetType === 'content_unit' ? 'candidate' : 'output',
+        slot: targetConfig.slot,
+        status: 'selected',
+        source_type: attachment.generated?.jobId !== undefined ? 'job' : 'manual',
+        ...(attachment.generated?.jobId !== undefined ? { source_id: attachment.generated.jobId } : {}),
+        metadata_json: JSON.stringify(metadata),
+      })
+      setBindingStatus('bound')
+      const targetLabel = selectedTarget ? generatedTargetRecordLabel(selectedTarget) : `${generatedBindingTargetLabel(targetType)} #${targetId}`
+      setBindingMessage(`${targetLabel} 已绑定资源 #${response.data.resource_id}`)
+    } catch (error) {
+      setBindingStatus('error')
+      setBindingMessage(generatedBindingErrorMessage(error))
+    }
+  }
+
+  return (
+    <div data-testid="agent-generated-resource-binding" className="mt-1.5 grid gap-1.5 rounded border border-border/60 bg-background/50 p-1.5">
+      <div className="grid grid-cols-[minmax(0,1fr)_64px_auto] gap-1">
+        <Select value={targetType} onValueChange={(value) => {
+          setTargetType(value as GeneratedBindingTarget)
+          setTargetIdText('')
+          setTargetQuery('')
+          if (bindingStatus !== 'binding') setBindingStatus('idle')
+        }}>
+          <SelectTrigger className="h-7 text-[10px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GENERATED_BINDING_TARGETS.map((target) => (
+              <SelectItem key={target.value} value={target.value}>{target.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <input
+          value={targetIdText}
+          onChange={(event) => {
+            setTargetIdText(event.target.value.replace(/[^\d]/g, ''))
+            if (bindingStatus !== 'binding') setBindingStatus('idle')
+          }}
+          placeholder="ID"
+          inputMode="numeric"
+          className="h-7 min-w-0 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        <Button type="button" size="xs" variant="secondary" disabled={!canBind} onClick={bindResource} className="h-7 px-2 text-[10px]">
+          {bindingStatus === 'binding' ? '绑定中' : '绑定'}
+        </Button>
+      </div>
+      <input
+        value={targetQuery}
+        onChange={(event) => setTargetQuery(event.target.value)}
+        placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetType)}，或直接填写 ID`}
+        disabled={!projectId}
+        className="h-7 min-w-0 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
+      />
+      {projectId && filteredTargets.length > 0 && (
+        <div className="grid gap-1">
+          {filteredTargets.map((record) => (
+            <button
+              key={`${targetType}-${record.ID}`}
+              type="button"
+              onClick={() => {
+                setTargetIdText(String(record.ID))
+                setTargetQuery(generatedTargetRecordLabel(record))
+                if (bindingStatus !== 'binding') setBindingStatus('idle')
+              }}
+              className={cn(
+                'min-w-0 rounded border px-2 py-1 text-left text-[9px] hover:border-primary/50 hover:bg-background',
+                Number(targetIdText) === record.ID ? 'border-primary/60 bg-primary/5 text-foreground' : 'border-border/60 text-muted-foreground',
+              )}
+            >
+              <span className="block truncate">{generatedTargetRecordLabel(record)}</span>
+              <span className="block text-[8px] text-muted-foreground">#{record.ID}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {projectId && normalizedQuery && !loadingTargets && filteredTargets.length === 0 && (
+        <p className="rounded border border-dashed border-border/70 px-2 py-1 text-[9px] leading-relaxed text-muted-foreground">
+          没有匹配的目标对象；如果你知道准确 ID，仍然可以直接填写并绑定。
+        </p>
+      )}
+      {selectedTarget && (
+        <div className="rounded border border-primary/20 bg-primary/5 px-2 py-1.5">
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <p className="min-w-0 truncate text-[9px] font-medium text-foreground">{generatedTargetRecordLabel(selectedTarget)}</p>
+            <span className="shrink-0 text-[8px] text-muted-foreground">#{selectedTarget.ID}</span>
+          </div>
+          {selectedTargetMeta.length > 0 && (
+            <p className="mt-0.5 truncate text-[8px] text-muted-foreground">{selectedTargetMeta.join(' · ')}</p>
+          )}
+          {selectedTargetDescription && (
+            <p className="mt-1 line-clamp-2 text-[8px] leading-relaxed text-muted-foreground">{selectedTargetDescription}</p>
+          )}
+        </div>
+      )}
+      {projectId && Number.isInteger(targetId) && targetId > 0 && !selectedTarget && !loadingTargets && (
+        <p className="rounded border border-border/60 px-2 py-1 text-[9px] leading-relaxed text-muted-foreground">
+          当前列表未加载到 #{targetId}；绑定时会由后端校验目标是否存在。
+        </p>
+      )}
+      <p className={cn('text-[9px] leading-relaxed', bindingStatus === 'error' ? 'text-destructive' : bindingStatus === 'bound' ? 'text-green-700' : 'text-muted-foreground')}>
+        {bindingMessage || (projectId ? '选择目标对象或输入 ID 后，将生成资源绑定为该对象的 selected output。' : '请选择项目后再绑定生成资源。')}
+      </p>
+    </div>
+  )
+}
+
+function AttachmentIcon({ type, size = 12 }: { type: AgentAttachment['type']; size?: number }) {
+  if (type === 'image') return <Image size={size} />
+  if (type === 'video') return <Video size={size} />
+  if (type === 'audio') return <Mic size={size} />
+  if (type === 'text') return <FileText size={size} />
+  return <File size={size} />
+}
+
+function formatBytes(bytes: number) {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${(bytes / Math.pow(1024, idx)).toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`
+}
+
+function resourceMentionToken(resourceId: number) {
+  return `@[resource:${resourceId}]`
+}

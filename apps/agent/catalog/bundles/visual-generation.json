@@ -7,6 +7,10 @@
     "movscript.intent.visual-generation"
   ],
   "tools": [
-    "movscript_create_generation_job"
+    "movscript_list_models",
+    "movscript_create_generation_job",
+    "movscript_get_generation_job",
+    "movscript_list_generation_jobs",
+    "movscript_cancel_generation_job"
   ]
 }

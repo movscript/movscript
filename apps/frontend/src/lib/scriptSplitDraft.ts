@@ -14,6 +14,10 @@ export interface ScriptSplitDraft {
   endLine: number
   existingScriptId: number | null
   action: 'create' | 'update'
+  productionAction: 'create' | 'update' | 'skip'
+  existingProductionId: number | null
+  productionTitle: string
+  productionSummary: string
 }
 
 export interface ScriptTextLineEntry {
@@ -27,6 +31,9 @@ export interface ScriptSplitResult {
   createdCount: number
   updatedCount: number
   episodeCount: number
+  productionCreatedCount?: number
+  productionUpdatedCount?: number
+  productionSkippedCount?: number
   agentRunId?: string
   agentDraftId?: string
   savedScripts?: Script[]
@@ -48,6 +55,26 @@ export interface ScriptSplitAgentEpisode {
   action?: unknown
   existing_script_id?: unknown
   existingScriptId?: unknown
+  production_action?: unknown
+  productionAction?: unknown
+  existing_production_id?: unknown
+  existingProductionId?: unknown
+  production_title?: unknown
+  productionTitle?: unknown
+  production_summary?: unknown
+  productionSummary?: unknown
+}
+
+export interface ScriptSplitProductionSummary {
+  ID: number
+  name?: string
+  title?: string
+  description?: string
+  status?: string
+  source_type?: string
+  script_version_id?: number
+  preview_timeline_id?: number
+  metadata_json?: string
 }
 
 export interface ScriptSplitGlobalContext {
@@ -259,6 +286,15 @@ export function findScriptByIdAndType(scripts: Script[], scriptId: number | null
   return scripts.find((script) => script.ID === scriptId && normalizeScriptType(script.script_type) === type) ?? null
 }
 
+function findMatchingProductionById(productions: ScriptSplitProductionSummary[], productionId: number) {
+  return productions.find((production) => production.ID === productionId) ?? null
+}
+
+function findMatchingProduction(productions: ScriptSplitProductionSummary[], title: string) {
+  const titleKey = normalizeScriptTitleKey(title)
+  return productions.find((production) => normalizeScriptTitleKey(firstText(production.name, production.title)) === titleKey) ?? null
+}
+
 function normalizeScriptTitleKey(value: string) {
   return String(value ?? '').replace(/\s+/g, '').trim().toLowerCase()
 }
@@ -278,6 +314,7 @@ export function buildScriptSplitAgentMessage(input: {
   sourceTitle: string
   sourceText: string
   scripts: Script[]
+  productions: ScriptSplitProductionSummary[]
 }) {
   const existingEpisodes = input.scripts
     .filter((script) => normalizeScriptType(script.script_type) === 'episode')
@@ -288,8 +325,19 @@ export function buildScriptSplitAgentMessage(input: {
       order: script.order,
       summary: script.summary || script.description || '',
     }))
+  const existingProductions = input.productions
+    .slice(0, 120)
+    .map((production) => ({
+      id: production.ID,
+      name: production.name || production.title || `制作 #${production.ID}`,
+      description: production.description || '',
+      status: production.status || '',
+      sourceType: production.source_type || '',
+      scriptVersionId: production.script_version_id ?? null,
+      previewTimelineId: production.preview_timeline_id ?? null,
+    }))
   return [
-    '请把下面这份总稿拆分为 MovScript 制作剧本。',
+    '请把下面这份总稿分析为 MovScript 的剧本与制作决策草稿。',
     '',
     '[项目]',
     `projectId: ${input.projectId}`,
@@ -300,15 +348,22 @@ export function buildScriptSplitAgentMessage(input: {
     '[已有制作剧本，用于判断 create/update]',
     JSON.stringify(existingEpisodes, null, 2),
     '',
+    '[已有制作，用于判断 create/update/skip]',
+    JSON.stringify(existingProductions, null, 2),
+    '',
     '[工具要求]',
     '必须调用 movscript_submit_script_split_draft 提交结构化拆分草稿，而不是把结构化数据写在 assistant 正文。',
     'sourceScript 只保留标题、摘要、来源类型和总行数，不要回传全文。',
     'globalSettings 必须包含 storyWorld、coreRules、characterRelationships、keyCharacters、keyLocations、keyProps、continuityNotes。',
     'episodeDrafts 中每一集必须包含 order、title、summary、globalContext、startLine、endLine、action、existingScriptId。',
+    '每一集还必须包含 productionAction、existingProductionId、productionTitle、productionSummary。',
     '每一集的 globalContext 字段同 globalSettings，另加 episodeRelevance，说明哪些全局设定会影响本集编排。',
+    'productionAction 取 create、update 或 skip；如果该集不需要新建或更新制作，就填 skip。',
+    'productionTitle 和 productionSummary 要描述这一个制作准备专注的剧本段，不要写成整部总稿摘要。',
     '不要返回 content；只用 startLine/endLine 表示该集正文覆盖的行号区间，行号从 1 开始。',
     '每集的行号区间尽量连续并完整覆盖正文；无法精确时优先扩大到能完整覆盖该集的最小连续区间。',
     '如果标题与已有制作高度一致，action=update 并填写 existingScriptId；否则 action=create 且 existingScriptId=null。',
+    '如果该集适合对应一个已有制作，productionAction=update 并填写 existingProductionId；如果需要新建制作，productionAction=create 且 existingProductionId=null；如果无需生成制作，productionAction=skip。',
     '',
     '[总稿正文，按行编号]',
     formatScriptTextAsLineBlocks(input.sourceText),
@@ -322,7 +377,12 @@ export function parseScriptSplitDraftDocument(content: string): ScriptSplitAgent
   return parsed
 }
 
-export function parseScriptSplitDraftContent(content: string, scripts: Script[], fallbackText: string): ScriptSplitDraft[] {
+export function parseScriptSplitDraftContent(
+  content: string,
+  scripts: Script[],
+  fallbackText: string,
+  productions: ScriptSplitProductionSummary[] = [],
+): ScriptSplitDraft[] {
   const parsed = parseScriptSplitDraftDocument(content)
   const globalSettings = normalizeGlobalContext(parsed.global_settings ?? parsed.globalSettings)
   const rawEpisodes = Array.isArray(parsed.episode_drafts)
@@ -330,7 +390,14 @@ export function parseScriptSplitDraftContent(content: string, scripts: Script[],
     : Array.isArray(parsed.episodes)
       ? parsed.episodes
       : []
-  const drafts = rawEpisodes.flatMap((episode, index) => normalizeAgentEpisodeDraft(episode as ScriptSplitAgentEpisode, index, scripts, fallbackText, globalSettings))
+  const drafts = rawEpisodes.flatMap((episode, index) => normalizeAgentEpisodeDraft(
+    episode as ScriptSplitAgentEpisode,
+    index,
+    scripts,
+    productions,
+    fallbackText,
+    globalSettings,
+  ))
   if (drafts.length === 0) throw new Error('草稿没有可写入的制作内容')
   return drafts
 }
@@ -354,6 +421,7 @@ function normalizeAgentEpisodeDraft(
   episode: ScriptSplitAgentEpisode,
   index: number,
   scripts: Script[],
+  productions: ScriptSplitProductionSummary[],
   fallbackText: string,
   globalSettings: ScriptSplitGlobalContext,
 ): ScriptSplitDraft[] {
@@ -370,6 +438,20 @@ function normalizeAgentEpisodeDraft(
   const existing = existingId
     ? findScriptByIdAndType(scripts, existingId, 'episode') ?? findMatchingScript(scripts, title, 'episode')
     : findMatchingScript(scripts, title, 'episode')
+  const productionTitle = stringValue(episode.production_title ?? episode.productionTitle).trim() || title
+  const explicitProductionId = numberValue(episode.existing_production_id ?? episode.existingProductionId)
+  const matchedProduction = explicitProductionId
+    ? findMatchingProductionById(productions, explicitProductionId) ?? findMatchingProduction(productions, productionTitle)
+    : findMatchingProduction(productions, productionTitle)
+  const productionAction = normalizeProductionAction(
+    episode.production_action ?? episode.productionAction,
+    'create',
+    matchedProduction,
+  )
+  const resolvedProductionAction = productionAction === 'skip'
+    ? 'skip'
+    : (productionAction === 'update' || matchedProduction ? 'update' : 'create')
+  const productionSummary = stringValue(episode.production_summary ?? episode.productionSummary).trim() || summarizeText(rawContent, 120)
   const action = episode.action === 'update' || existing ? 'update' : 'create'
   return [{
     id: `agent-episode-${numberValue(episode.order) ?? index + 1}-${index}`,
@@ -384,6 +466,10 @@ function normalizeAgentEpisodeDraft(
     endLine,
     existingScriptId: existing?.ID ?? null,
     action,
+    productionAction: resolvedProductionAction,
+    existingProductionId: matchedProduction?.ID ?? explicitProductionId ?? null,
+    productionTitle,
+    productionSummary,
   }]
 }
 
@@ -435,6 +521,10 @@ function serializeScriptSplitEpisodeDraft(draft: ScriptSplitDraft, sourceText: s
     end_line: draft.endLine,
     action: draft.action,
     existing_script_id: draft.existingScriptId,
+    production_action: draft.productionAction,
+    existing_production_id: draft.existingProductionId,
+    production_title: draft.productionTitle,
+    production_summary: draft.productionSummary,
   }
   if (normalizeWhitespace(draft.bodyContent) && normalizeWhitespace(draft.bodyContent) !== normalizeWhitespace(sourceBody)) {
     payload.content = draft.bodyContent.trim()
@@ -603,6 +693,17 @@ function normalizeSourceType(value: unknown): string {
   const type = String(value ?? '').trim().toLowerCase()
   if (type === 'raw' || type === 'adapted' || type === 'revised') return type
   return 'raw'
+}
+
+function normalizeProductionAction(
+  value: unknown,
+  fallback: 'create' | 'update',
+  matchedProduction?: ScriptSplitProductionSummary | null,
+): 'create' | 'update' | 'skip' {
+  const type = String(value ?? '').trim().toLowerCase()
+  if (type === 'create' || type === 'update' || type === 'skip') return type
+  if (matchedProduction) return 'update'
+  return fallback
 }
 
 function normalizeWhitespace(value: string): string {

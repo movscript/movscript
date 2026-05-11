@@ -2,10 +2,20 @@
   "version": "1",
   "plugins": [
     {
-      "id": "refgen-image",
-      "name": "参考图生成",
-      "version": "2.0.0",
-      "manifest_url": "https://registry.movscript.com/plugins/refgen-image/manifest.json"
+      "id": "com.movscript.image-generator",
+      "name": "图像生成器",
+      "version": "1.0.0",
+      "description": "文生图和参考图生图，输出资源可进入素材库和画布流程。",
+      "manifest_url": "https://registry.movscript.com/plugins/com.movscript.image-generator/manifest.json",
+      "package_url": "https://registry.movscript.com/plugins/com.movscript.image-generator/com.movscript.image-generator-1.0.0.movpkg"
+    },
+    {
+      "id": "com.movscript.video-generator",
+      "name": "视频生成器",
+      "version": "1.0.0",
+      "description": "文生视频和参考图生视频，支持异步生成任务和资源输出。",
+      "manifest_url": "https://registry.movscript.com/plugins/com.movscript.video-generator/manifest.json",
+      "package_url": "https://registry.movscript.com/plugins/com.movscript.video-generator/com.movscript.video-generator-1.0.0.movpkg"
     }
   ]
 }

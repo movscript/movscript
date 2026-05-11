@@ -88,5 +88,43 @@
         "default": 180000
       }
     }
-  }
+  },
+  "contributes": {
+    "canvasNodes": [
+      {
+        "type": "com.movscript.image-generator.image_generator",
+        "title": "图像生成器",
+        "description": "文生图或参考图生图节点。",
+        "category": "ai",
+        "icon": "image",
+        "inputs": [
+          {
+            "id": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "references",
+            "label": "参考图",
+            "type": "image",
+            "maxCount": 8
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "label": "生成图片",
+            "type": "image"
+          }
+        ],
+        "defaultData": {
+          "source": "ai",
+          "label": "图像生成器",
+          "outputType": "image"
+        }
+      }
+    ]
+  },
+  "hasCompile": true
 }

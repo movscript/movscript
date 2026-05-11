@@ -473,7 +473,7 @@ export default function ContentsPage() {
               </Link>
             </Button>
             <Button className="gap-2" asChild>
-              <Link to="/workbench/production">
+              <Link to="/content-unit-orchestrate">
                 <Wand2 size={15} />
                 制作项生成
               </Link>

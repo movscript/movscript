@@ -60,6 +60,7 @@ import { Avatar, AvatarFallback } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui'
 import { loadClientPlugins } from '@/lib/clientPlugins'
+import { runtimeNavItems } from '@runtime'
 
 const SIDEBAR_COLLAPSED_KEY = 'movscript-sidebar-collapsed'
 const PLUGIN_NAV_ICONS: LucideIcon[] = [
@@ -263,7 +264,7 @@ export function Sidebar() {
               <NavItem to="/project-workspace" icon={Layers3} label={t('sidebar.items.projectWorkspace')} collapsed={collapsed} />
               <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
               <NavItem to="/workbench/assets" icon={Archive} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />
-              <NavItem to="/workbench/production" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
+              <NavItem to="/content-unit-orchestrate" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
               <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
               <NavItem to="/delivery/workbench" icon={ClipboardCheck} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
             </Section>
@@ -301,6 +302,9 @@ export function Sidebar() {
         <Section title={t('sidebar.sections.manage')} collapsed={collapsed}>
           <NavItem to="/agent/drafts" icon={ClipboardCheck} label={t('sidebar.items.aiDrafts')} collapsed={collapsed} />
           <NavItem to="/plugins" icon={Blocks} label={t('sidebar.items.plugins')} collapsed={collapsed} />
+          {runtimeNavItems.filter((item) => (item.section ?? 'manage') === 'manage').map((item) => (
+            <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} collapsed={collapsed} />
+          ))}
           {isOrgAdmin && (
             <NavItem to="/org/settings" icon={Settings} label={t('sidebar.items.orgSettings')} collapsed={collapsed} />
           )}

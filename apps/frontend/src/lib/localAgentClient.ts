@@ -3,6 +3,7 @@ import { getAPIV1BaseURL } from '@/lib/config'
 
 export type AgentMessageRole = 'system' | 'user' | 'assistant'
 export type AgentRunStatus = 'queued' | 'in_progress' | 'requires_action' | 'completed' | 'completed_with_warnings' | 'failed' | 'cancelled'
+export type AgentThreadStatus = 'idle' | 'running' | 'requires_action' | 'completed' | 'failed' | 'cancelled'
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
 
@@ -21,6 +22,9 @@ export interface AgentThread {
   projectId?: number
   metadata?: Record<string, unknown>
   archived?: boolean
+  status?: AgentThreadStatus
+  activeRunId?: string
+  lastRunId?: string
   lastRunStatus?: AgentRunStatus
   createdAt: string
   updatedAt: string
@@ -33,6 +37,9 @@ export interface AgentThreadSummary {
   projectId?: number
   metadata?: Record<string, unknown>
   archived: boolean
+  status?: AgentThreadStatus
+  activeRunId?: string
+  lastRunId?: string
   lastRunStatus?: AgentRunStatus
   createdAt: string
   updatedAt: string
@@ -462,6 +469,7 @@ export type AgentDraftKind =
   | 'pipeline'
   | 'segment'
   | 'scene_moment'
+  | 'asset_proposal'
   | 'project_proposal'
   | 'production_proposal'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
@@ -558,7 +566,7 @@ export type AgentRunStreamEvent =
     type: 'trace'
     runId: string
     event: AgentTraceEvent
-    run: AgentRun
+    run?: AgentRun
   }
   | {
     type: 'assistant_delta'
@@ -763,6 +771,7 @@ export class LocalAgentClient {
     const controller = new AbortController()
     let timedOut = false
     let lastKnownRun: AgentRun | undefined
+    const timeoutMs = options.timeoutMs ?? 30_000
     const fullRunOrLatest = async (run: AgentRun): Promise<AgentRun> => {
       if (run.streamPartial) {
         const fullRun = await this.getRun(run.id).catch(() => undefined)
@@ -774,7 +783,7 @@ export class LocalAgentClient {
       ? globalThis.setTimeout(() => {
         timedOut = true
         controller.abort()
-      }, options.timeoutMs)
+      }, timeoutMs)
       : undefined
     try {
       const res = await fetch(`${this.baseURL}/runs/${encodeURIComponent(runId)}/stream`, {
@@ -803,7 +812,7 @@ export class LocalAgentClient {
           latestRun = event.run
           lastKnownRun = event.run
         }
-        if (event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') {
+        if ((event.type === 'run' || event.type === 'done' || event.type === 'assistant_message') && event.run) {
           options.onRunUpdate?.(event.run)
         }
         if (event.type === 'assistant_delta') {
@@ -845,7 +854,8 @@ export class LocalAgentClient {
       if (timedOut) {
         const latestRun = await this.getRun(runId).catch(() => undefined)
         if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
-        throw new Error(`local runtime run ${runId} did not finish within ${options.timeoutMs}ms`)
+        if (latestRun) options.onRunUpdate?.(latestRun)
+        throw new Error(`local runtime stream for run ${runId} timed out after ${timeoutMs}ms`)
       }
       const latestRun = lastKnownRun ?? await this.getRun(runId).catch(() => undefined)
       if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return await fullRunOrLatest(latestRun)

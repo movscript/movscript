@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { translateApiError } from '@/lib/apiError'
@@ -7,7 +7,7 @@ import {
   Loader2, AlertCircle, CheckCircle2, Clock,
   Image as ImageIcon, Video, Wand2,
   LayoutGrid, List, ChevronDown, ChevronRight,
-  ChevronLeft, XCircle,
+  ChevronLeft, Eye, RefreshCw, XCircle,
 } from 'lucide-react'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 import { JobContextSummary, PromptText } from '@/components/shared/GenResultCard'
@@ -32,11 +32,21 @@ type Category = {
   icon: React.ReactNode
 }
 
-type StatusFilter = 'all' | 'succeeded'
+type StatusFilter = 'all' | 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 type JobsQueryResult = {
   jobs: Job[]
   total: number
+}
+
+type JobStateTraceEntry = {
+  state: string
+  status: 'running' | 'succeeded' | 'failed'
+  message?: string
+  error?: string
+  started_at: string
+  finished_at?: string
+  duration_ms?: number
 }
 
 const CATEGORIES: Category[] = [
@@ -47,6 +57,15 @@ const CATEGORIES: Category[] = [
   { key: 'video_i2v',     labelKey: 'pages.jobs.categories.videoI2V', icon: <Video size={13} /> },
   { key: 'video_v2v',     labelKey: 'pages.jobs.categories.videoV2V', icon: <Video size={13} /> },
   { key: 'canvas',        labelKey: 'header.titles.canvases',         icon: <LayoutGrid size={13} /> },
+]
+
+const STATUS_FILTERS: Array<{ key: StatusFilter; labelKey: string }> = [
+  { key: 'all', labelKey: 'pages.jobs.allStatuses' },
+  { key: 'pending', labelKey: 'pages.jobs.status.pending' },
+  { key: 'running', labelKey: 'pages.jobs.status.running' },
+  { key: 'succeeded', labelKey: 'pages.jobs.status.succeeded' },
+  { key: 'failed', labelKey: 'pages.jobs.status.failed' },
+  { key: 'cancelled', labelKey: 'pages.jobs.status.cancelled' },
 ]
 
 function getJobCategory(job: Job): string {
@@ -99,16 +118,144 @@ function StatusBadge({ status }: { status: Job['status'] }) {
   }
 }
 
+function parseJobStateTrace(value?: string): JobStateTraceEntry[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((item): item is JobStateTraceEntry =>
+      !!item
+      && typeof item === 'object'
+      && typeof (item as Record<string, unknown>).state === 'string'
+      && typeof (item as Record<string, unknown>).status === 'string'
+      && typeof (item as Record<string, unknown>).started_at === 'string',
+    )
+  } catch {
+    return []
+  }
+}
+
+function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
+  const { t, i18n } = useTranslation()
+  const stateTrace = parseJobStateTrace(job.state_trace)
+
+  return (
+    <div data-testid="job-detail-card" className="rounded-lg border border-border bg-background shadow-sm">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <Eye size={13} className="text-muted-foreground" />
+            <p className="truncate text-sm font-semibold text-foreground">{job.prompt || t('pages.jobs.noPrompt')}</p>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {job.job_type} · #{job.ID} · {job.provider_name ?? job.model_display ?? t('pages.jobs.generating')}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={job.status} />
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            {t('common.close')}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-3 px-4 py-3">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <KeyValue label={t('pages.jobs.status.running')} value={job.provider_task_status ?? job.status} />
+          <KeyValue label={t('pages.jobs.status.succeeded')} value={job.finished_at ? formatTime(job.finished_at, i18n.language, t) : '—'} />
+          <KeyValue label={t('pages.jobs.time.justNow')} value={job.started_at ? formatTime(job.started_at, i18n.language, t) : '—'} />
+          <KeyValue label={t('pages.jobs.cancelTask')} value={job.provider_task_id ?? '—'} />
+        </div>
+
+        {stateTrace.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-semibold text-foreground">状态轨迹</p>
+            <div className="space-y-2">
+              {stateTrace.map((entry, index) => (
+                <div key={`${entry.state}-${entry.started_at}-${index}`} className="rounded-md border border-border bg-muted/20 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-foreground">{entry.state}</p>
+                    <span className="text-[10px] text-muted-foreground">{entry.status}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{entry.message ?? entry.error ?? '—'}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground/70">
+                    {formatTime(entry.started_at, i18n.language, t)}
+                    {entry.finished_at ? ` → ${formatTime(entry.finished_at, i18n.language, t)}` : ''}
+                    {typeof entry.duration_ms === 'number' ? ` · ${entry.duration_ms}ms` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {job.provider_task_history && (
+          <div>
+            <p className="mb-2 text-xs font-semibold text-foreground">Provider 历史</p>
+            <pre className="max-h-56 overflow-auto rounded-md border border-border bg-muted/20 p-3 text-[11px] leading-relaxed text-muted-foreground whitespace-pre-wrap break-all">
+              {job.provider_task_history}
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function KeyValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate text-xs text-foreground">{value}</p>
+    </div>
+  )
+}
+
 // ── List view card ────────────────────────────────────────────────────────────
 
-function JobListCard({ job, onCancel, cancelling }: { job: Job; onCancel: (id: number) => void; cancelling: boolean }) {
+function JobListCard({
+  job,
+  onCancel,
+  onRetry,
+  onSelect,
+  cancelling,
+  retrying,
+  selected,
+}: {
+  job: Job
+  onCancel: (id: number) => void
+  onRetry: (id: number) => void
+  onSelect: (id: number) => void
+  cancelling: boolean
+  retrying: boolean
+  selected: boolean
+}) {
   const { t, i18n } = useTranslation()
   const isActive = job.status === 'pending' || job.status === 'running'
+  const canRetry = job.status === 'failed' || job.status === 'cancelled'
   const out = job.output_resource as RawResource | undefined
   const canCancel = isActive && job.job_type.startsWith('video')
 
   return (
-    <div className="bg-background rounded-xl border border-border shadow-sm overflow-hidden">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(job.ID)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect(job.ID)
+        }
+      }}
+      className={cn(
+        'bg-background rounded-xl border shadow-sm overflow-hidden transition-colors',
+        selected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-foreground/20',
+      )}
+    >
       <div className="px-4 py-3 border-b border-border flex items-start gap-3">
         <div className="shrink-0 mt-0.5">
           {job.job_type.startsWith('video') ? (
@@ -122,15 +269,42 @@ function JobListCard({ job, onCancel, cancelling }: { job: Job; onCancel: (id: n
         </p>
         <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={job.status} />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onSelect(job.ID)
+            }}
+            className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Eye size={10} /> {t('common.details')}
+          </button>
           {canCancel && (
             <button
               type="button"
-              onClick={() => onCancel(job.ID)}
+              onClick={(event) => {
+                event.stopPropagation()
+                onCancel(job.ID)
+              }}
               disabled={cancelling}
               className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive hover:bg-destructive/15 disabled:opacity-50"
               title={t('pages.jobs.cancelTask')}
             >
               <XCircle size={10} /> {t('common.cancel')}
+            </button>
+          )}
+          {canRetry && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onRetry(job.ID)
+              }}
+              disabled={retrying}
+              className="relative z-10 inline-flex items-center gap-1 rounded-full bg-foreground/5 px-2 py-0.5 text-xs text-foreground hover:bg-foreground/10 disabled:opacity-50"
+              title={t('common.retry')}
+            >
+              <RefreshCw size={10} className={cn(retrying && 'animate-spin')} /> {t('common.retry')}
             </button>
           )}
           <span className="text-xs text-muted-foreground/50">{formatTime(job.CreatedAt, i18n.language, t)}</span>
@@ -177,41 +351,99 @@ function JobListCard({ job, onCancel, cancelling }: { job: Job; onCancel: (id: n
 
 // ── Grid view thumbnail ───────────────────────────────────────────────────────
 
-function JobGridThumb({ job, onCancel, cancelling }: { job: Job; onCancel: (id: number) => void; cancelling: boolean }) {
+function JobGridThumb({
+  job,
+  onCancel,
+  onRetry,
+  onSelect,
+  cancelling,
+  retrying,
+  selected,
+}: {
+  job: Job
+  onCancel: (id: number) => void
+  onRetry: (id: number) => void
+  onSelect: (id: number) => void
+  cancelling: boolean
+  retrying: boolean
+  selected: boolean
+}) {
   const { t, i18n } = useTranslation()
   const isActive = job.status === 'pending' || job.status === 'running'
+  const canRetry = job.status === 'failed' || job.status === 'cancelled'
   const out = job.output_resource as RawResource | undefined
   const canCancel = isActive && job.job_type.startsWith('video')
 
   return (
-    <div className="bg-background rounded-lg border border-border overflow-hidden">
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(job.ID)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect(job.ID)
+        }
+      }}
+      className={cn(
+        'bg-background rounded-lg border overflow-hidden transition-colors',
+        selected ? 'border-primary/60 bg-primary/5' : 'border-border hover:border-foreground/20',
+      )}
+    >
       {/* 4:3 media area */}
       <div className="relative w-full aspect-[4/3] bg-muted">
         {isActive && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground">
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-muted-foreground">
             <Loader2 size={18} className="animate-spin" />
             <p className="text-[10px]">{job.status === 'pending' ? t('pages.jobs.status.pending') : t('pages.jobs.status.running')}</p>
           </div>
         )}
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            onSelect(job.ID)
+          }}
+          className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-foreground shadow-sm hover:bg-background"
+        >
+          <Eye size={11} /> {t('common.details')}
+        </button>
         {canCancel && (
           <button
             type="button"
-            onClick={() => onCancel(job.ID)}
+            onClick={(event) => {
+              event.stopPropagation()
+              onCancel(job.ID)
+            }}
             disabled={cancelling}
-            className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-destructive shadow-sm hover:bg-background disabled:opacity-50"
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-destructive shadow-sm hover:bg-background disabled:opacity-50"
             title={t('pages.jobs.cancelTask')}
           >
             <XCircle size={11} /> {t('common.cancel')}
           </button>
         )}
+        {canRetry && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onRetry(job.ID)
+            }}
+            disabled={retrying}
+            className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-background/90 px-2 py-1 text-[10px] text-foreground shadow-sm hover:bg-background disabled:opacity-50"
+            title={t('common.retry')}
+          >
+            <RefreshCw size={11} className={cn(retrying && 'animate-spin')} /> {t('common.retry')}
+          </button>
+        )}
         {!isActive && job.status === 'failed' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-destructive">
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-destructive">
             <AlertCircle size={16} />
             <p className="text-[10px]">{t('pages.jobs.status.failed')}</p>
           </div>
         )}
         {!isActive && job.status === 'cancelled' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-muted-foreground">
             <XCircle size={16} />
             <p className="text-[10px]">{t('pages.jobs.status.cancelled')}</p>
           </div>
@@ -240,13 +472,21 @@ function CategorySection({
   jobs,
   viewMode,
   onCancel,
+  onRetry,
+  onSelect,
   cancellingId,
+  retryingId,
+  selectedJobId,
 }: {
   label: string
   jobs: Job[]
   viewMode: 'grid' | 'list'
   onCancel: (id: number) => void
+  onRetry: (id: number) => void
+  onSelect: (id: number) => void
   cancellingId?: number
+  retryingId?: number
+  selectedJobId?: number | null
 }) {
   const [open, setOpen] = useState(true)
 
@@ -264,11 +504,33 @@ function CategorySection({
       {open && (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {jobs.map((job) => <JobGridThumb key={job.ID} job={job} onCancel={onCancel} cancelling={cancellingId === job.ID} />)}
+            {jobs.map((job) => (
+              <JobGridThumb
+                key={job.ID}
+                job={job}
+                onCancel={onCancel}
+                onRetry={onRetry}
+                onSelect={onSelect}
+                cancelling={cancellingId === job.ID}
+                retrying={retryingId === job.ID}
+                selected={selectedJobId === job.ID}
+              />
+            ))}
           </div>
         ) : (
           <div className="space-y-3">
-            {jobs.map((job) => <JobListCard key={job.ID} job={job} onCancel={onCancel} cancelling={cancellingId === job.ID} />)}
+            {jobs.map((job) => (
+              <JobListCard
+                key={job.ID}
+                job={job}
+                onCancel={onCancel}
+                onRetry={onRetry}
+                onSelect={onSelect}
+                cancelling={cancellingId === job.ID}
+                retrying={retryingId === job.ID}
+                selected={selectedJobId === job.ID}
+              />
+            ))}
           </div>
         )
       )}
@@ -285,6 +547,7 @@ export default function JobsPage() {
   const [activeCategory, setActiveCategory] = useState('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [page, setPage] = useState(1)
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null)
 
   const hasActiveJobs = (jobs: Job[]) =>
     jobs.some((j) => j.status === 'pending' || j.status === 'running')
@@ -300,7 +563,7 @@ export default function JobsPage() {
         params.set('type', activeCategory)
         params.set('exact_type', '1')
       }
-      if (statusFilter === 'succeeded') params.set('status', 'succeeded')
+      if (statusFilter !== 'all') params.set('status', statusFilter)
 
       const res = await api.get<Job[]>(`/jobs?${params.toString()}`)
       const total = Number(res.headers['x-total-count'] ?? res.data.length)
@@ -321,10 +584,23 @@ export default function JobsPage() {
       alert(translateApiError(err?.response?.data, 'pages.jobs.cancelFailed'))
     },
   })
+  const retryMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/jobs/${id}/retry`).then((r) => r.data as Job),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['jobs'] })
+    },
+    onError: (err: any) => {
+      alert(translateApiError(err?.response?.data, 'pages.jobs.retryFailed'))
+    },
+  })
 
   const jobs = data?.jobs ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const selectedJob = useMemo(
+    () => jobs.find((job) => job.ID === selectedJobId) ?? null,
+    [jobs, selectedJobId],
+  )
 
   useEffect(() => {
     setPage(1)
@@ -388,18 +664,18 @@ export default function JobsPage() {
       {/* Category tabs */}
       <div className="flex items-center gap-3 px-5 py-2 border-b border-border bg-background shrink-0 overflow-x-auto">
         <div className="flex items-center gap-1 shrink-0">
-          {(['all', 'succeeded'] as StatusFilter[]).map((s) => (
+          {STATUS_FILTERS.map((filter) => (
             <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
+              key={filter.key}
+              onClick={() => setStatusFilter(filter.key)}
               className={cn(
                 'px-2.5 py-1 rounded-full text-xs whitespace-nowrap transition-colors',
-                statusFilter === s
+                statusFilter === filter.key
                   ? 'bg-foreground text-background'
                   : 'bg-muted text-muted-foreground hover:text-foreground'
               )}
             >
-              {s === 'all' ? t('pages.jobs.allStatuses') : t('pages.jobs.succeededOnly')}
+              {t(filter.labelKey)}
             </button>
           ))}
         </div>
@@ -429,6 +705,12 @@ export default function JobsPage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-5 py-5">
+        {selectedJob && (
+          <div className="mb-4">
+            <JobDetailCard job={selectedJob} onClose={() => setSelectedJobId(null)} />
+          </div>
+        )}
+
         {isLoading ? (
           <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">{t('common.loadingShort')}</div>
         ) : total === 0 ? (
@@ -447,17 +729,43 @@ export default function JobsPage() {
                 jobs={g.jobs}
                 viewMode={viewMode}
                 onCancel={(id) => cancelMutation.mutate(id)}
+                onRetry={(id) => retryMutation.mutate(id)}
+                onSelect={setSelectedJobId}
                 cancellingId={cancelMutation.variables}
+                retryingId={retryMutation.variables}
+                selectedJobId={selectedJobId}
               />
             ))}
           </div>
         ) : viewMode === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {jobs.map((job) => <JobGridThumb key={job.ID} job={job} onCancel={(id) => cancelMutation.mutate(id)} cancelling={cancelMutation.variables === job.ID} />)}
+            {jobs.map((job) => (
+              <JobGridThumb
+                key={job.ID}
+                job={job}
+                onCancel={(id) => cancelMutation.mutate(id)}
+                onRetry={(id) => retryMutation.mutate(id)}
+                onSelect={setSelectedJobId}
+                cancelling={cancelMutation.variables === job.ID}
+                retrying={retryMutation.variables === job.ID}
+                selected={selectedJobId === job.ID}
+              />
+            ))}
           </div>
         ) : (
           <div className="space-y-4">
-            {jobs.map((job) => <JobListCard key={job.ID} job={job} onCancel={(id) => cancelMutation.mutate(id)} cancelling={cancelMutation.variables === job.ID} />)}
+            {jobs.map((job) => (
+              <JobListCard
+                key={job.ID}
+                job={job}
+                onCancel={(id) => cancelMutation.mutate(id)}
+                onRetry={(id) => retryMutation.mutate(id)}
+                onSelect={setSelectedJobId}
+                cancelling={cancelMutation.variables === job.ID}
+                retrying={retryMutation.variables === job.ID}
+                selected={selectedJobId === job.ID}
+              />
+            ))}
           </div>
         )}
       </div>

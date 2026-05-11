@@ -139,6 +139,7 @@
 @container (min-width: 920px) {
   .asset-prep-layout {
     grid-template-columns: 340px minmax(0, 1fr);
+    height: clamp(560px, calc(100vh - 340px), 680px);
   }
 
   .production-layout {

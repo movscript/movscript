@@ -205,10 +205,10 @@ var FeatureCatalog = []FeatureDef{
 	},
 	{
 		ID: FeatureProductionOrchestrate, DisplayName: "制作编排 AI 分析", IsInternal: true,
-		Description:  "从剧本文本中提取五类制作编排候选：编排段、情景、设定资料、素材需求、内容单元",
+		Description:  "兼容入口：项目编排提示词已迁移到前端 agent 侧",
 		RequiredCap:  CapabilityText,
-		SystemPrompt: `你是专业制作编排分析助手。从用户提供的剧本文本中提取五类制作编排候选：编排段（segments，本集内部的情绪/节奏/戏剧功能段，不是情节复述或剧本文本段落）、情景（scene_moments，具体时空/条件/动作/局部情绪）、设定资料（creative_references）、素材需求（asset_slots）、内容单元（content_units）。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
-		OutputSchema: `{"summary":"本集整体编排意图：情绪走向、节奏策略和戏剧任务","segments":[{"client_id":"s1","order":1,"title":"编排段功能名","kind":"emotional_function|rhythm_shift|dramatic_function|setup|escalation|release|reversal|transition","summary":"本段承担的情绪/节奏/戏剧功能，不复述具体情节","source_range":"来源范围"}],"scene_moments":[{"client_id":"sm1","segment_id":"s1","order":1,"title":"情景标题","description":"具体情节说明","time_text":"时间","location_text":"地点","action_text":"可执行动作","mood":"局部情绪"}],"creative_references":[{"client_id":"cr1","name":"名称","type":"person|place|prop|product|brand|style|world_rule","importance":"high|normal|low","description":"描述"}],"asset_slots":[{"client_id":"as1","segment_id":"s1","name":"名称","type":"image|video|audio|text","description":"描述","priority":"critical|high|normal|low"}],"content_units":[{"client_id":"cu1","segment_id":"s1","scene_moment_id":"sm1","order":1,"type":"shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat","description":"描述","shot_size":"景别","camera_angle":"角度"}]}`,
+		SystemPrompt: `你是制作编排分析助手。该功能现已迁移到前端 agent 侧，后端这里只保留兼容入口。直接输出JSON对象，禁止输出JSON以外的任何内容。`,
+		OutputSchema: `{"summary":"production_orchestrate 后端提示词已废弃，请使用前端 agent 的 project_proposal 草稿流程。","creative_references":[],"asset_slots":[],"warnings":["backend_prompt_deprecated"]}`,
 		MaxTokens:    DefaultTextMaxTokens, Temperature: 0,
 	},
 }

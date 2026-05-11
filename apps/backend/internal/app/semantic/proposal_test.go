@@ -155,6 +155,60 @@ func TestApplyProductionProposalRejectsReuseWithoutIDAndRollsBack(t *testing.T) 
 	}
 }
 
+func TestPreviewProductionProposalApplyRollsBack(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+	production := createProposalTestProduction(t, db, 1)
+
+	resp, err := service.PreviewProductionProposalApply(ctx, 1, ApplyProductionProposalRequest{
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			Action:   "create",
+			ClientID: "segment-preview",
+			Title:    "Preview segment",
+			SceneMoments: []ProposalSceneMomentNode{{
+				Action:   "create",
+				ClientID: "scene-preview",
+				Title:    "Preview scene",
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("preview proposal: %v", err)
+	}
+	if !resp.DryRun || resp.Status != "ok" || resp.WouldApply == nil {
+		t.Fatalf("unexpected preview envelope: %+v", resp)
+	}
+	if resp.WouldApply.Counts.SegmentsCreated != 1 || resp.WouldApply.Counts.SceneMomentsCreated != 1 {
+		t.Fatalf("unexpected preview counts: %+v", resp.WouldApply.Counts)
+	}
+	if len(resp.SemanticChanges) != 2 {
+		t.Fatalf("semantic changes = %d, want 2: %+v", len(resp.SemanticChanges), resp.SemanticChanges)
+	}
+	if resp.SemanticChanges[0].Kind != "segment" || resp.SemanticChanges[1].Kind != "scene_moment" {
+		t.Fatalf("unexpected semantic changes: %+v", resp.SemanticChanges)
+	}
+	if len(resp.Warnings) == 0 {
+		t.Fatalf("expected preview warnings for sparse scene context")
+	}
+
+	var segments int64
+	if err := db.Model(&model.Segment{}).Where("project_id = ?", 1).Count(&segments).Error; err != nil {
+		t.Fatalf("count segments: %v", err)
+	}
+	if segments != 0 {
+		t.Fatalf("segments after preview = %d, want 0", segments)
+	}
+	var moments int64
+	if err := db.Model(&model.SceneMoment{}).Where("project_id = ?", 1).Count(&moments).Error; err != nil {
+		t.Fatalf("count scene moments: %v", err)
+	}
+	if moments != 0 {
+		t.Fatalf("scene moments after preview = %d, want 0", moments)
+	}
+}
+
 func TestApplyProductionProposalRequiresProposal(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)
@@ -188,6 +242,7 @@ func newProposalTestDB(t *testing.T) *gorm.DB {
 		&model.CreativeReference{},
 		&model.CreativeReferenceState{},
 		&model.CreativeReferenceUsage{},
+		&model.CreativeRelationship{},
 		&model.AssetSlot{},
 	); err != nil {
 		t.Fatalf("migrate: %v", err)

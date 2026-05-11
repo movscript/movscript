@@ -11,6 +11,7 @@ import {
 interface AppSettingsStore {
   settings: AppSettings
   savedAt: string | null
+  hydrated: boolean
   completeOnboarding: (settings: Partial<AppSettings>) => void
   setLaunchMode: (launchMode: AppSettings['launchMode']) => void
   setAPIBaseURL: (apiBaseURL: string) => void
@@ -44,6 +45,7 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
     (set) => ({
       settings: defaultSettings,
       savedAt: null,
+      hydrated: false,
       completeOnboarding: (partial) => {
         const next = normalizeSettings({
           ...useAppSettingsStore.getState().settings,
@@ -83,11 +85,13 @@ export const useAppSettingsStore = create<AppSettingsStore>()(
           ...currentState,
           ...persisted,
           settings,
+          hydrated: true,
         }
       },
       onRehydrateStorage: () => (state) => {
         if (!state) return
         state.settings = normalizeSettings(state.settings)
+        state.hydrated = true
         syncElectronSettings(state.settings)
       },
     }

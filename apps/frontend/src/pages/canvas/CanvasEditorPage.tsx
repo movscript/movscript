@@ -579,8 +579,8 @@ function defaultPortsForDomainEntity(kind: CanvasEntityKind, assetSlotKind?: str
   }
   if (kind === 'content_unit') {
     return {
-      inputs: [port('result', 'resource', '生产结果'), port('image', 'image', '图片结果'), port('video', 'video', '视频结果'), port('audio', 'audio', '音频结果')],
-      outputs: [port('result', 'resource', '生产结果'), port('image', 'image', '图片结果'), port('video', 'video', '视频结果'), port('audio', 'audio', '音频结果')],
+      inputs: [port('generated_media', assetSlotCandidatePortType(assetSlotKind), '生成媒体候选'), port('result', 'resource', '生产结果'), port('image', 'image', '图片结果'), port('video', 'video', '视频结果'), port('audio', 'audio', '音频结果')],
+      outputs: [port('generated_media', assetSlotCandidatePortType(assetSlotKind), '生成媒体候选'), port('result', 'resource', '生产结果'), port('image', 'image', '图片结果'), port('video', 'video', '视频结果'), port('audio', 'audio', '音频结果')],
     }
   }
   return {
@@ -604,7 +604,7 @@ function readonlyPortsForEntitySchema(schema?: EntityWorkflowSchema): { inputs: 
 function productionPortsForEntitySchema(schema?: EntityWorkflowSchema): { inputs: CanvasPortDef[]; outputs: CanvasPortDef[] } | undefined {
   const ports = portsForEntitySchema(schema)
   if (!ports) return undefined
-  const writable = new Set(['result', 'image', 'video', 'audio'])
+  const writable = new Set(['generated_media', 'result', 'image', 'video', 'audio'])
   return {
     inputs: ports.inputs.filter((port) => writable.has(port.id)),
     outputs: ports.outputs,

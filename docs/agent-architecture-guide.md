@@ -79,17 +79,17 @@ Sandbox 会完整运行到结束，但在实际写入前拦截高风险工具：
 | 文件 | 作用 |
 | --- | --- |
 | `apps/agent/src/server.ts` | HTTP API |
-| `apps/agent/src/runtime/agentRuntime.ts` | Run 生命周期和 agentic loop |
-| `apps/agent/src/runtime/types.ts` | Agent API 类型 |
-| `apps/agent/src/runtime/promptCompiler.ts` | 系统提示和 prompt preview |
-| `apps/agent/src/runtime/assistantMessage.ts` | Assistant 回复生成 |
-| `apps/agent/src/runtime/toolRegistry.ts` | 工具注册和风险级别 |
-| `apps/agent/src/runtime/toolPolicy.ts` | 授权、审批和 projectId 注入 |
-| `apps/agent/src/runtime/draftStore.ts` | 草稿存储 |
-| `apps/agent/src/runtime/draftApply.ts` | 草稿 apply preview 和生命周期 |
-| `apps/agent/src/runtime/backendApplyClient.ts` | 后端 PATCH 写入客户端 |
-| `apps/agent/src/runtime/fileStore.ts` | Run/Thread 文件存储 |
-| `apps/agent/src/runtime/memory/` | 记忆系统 |
+| `apps/agent/src/application/agentRuntime.ts` | Run 生命周期和 agentic loop |
+| `apps/agent/src/state/types.ts` | Agent API 类型 |
+| `apps/agent/src/orchestration/promptCompiler.ts` | 系统提示和 prompt preview |
+| `apps/agent/src/application/assistantMessage.ts` | Assistant 回复生成 |
+| `apps/agent/src/tools/toolRegistry.ts` | 工具注册和风险级别 |
+| `apps/agent/src/tools/toolPolicy.ts` | 授权、审批和 projectId 注入 |
+| `apps/agent/src/drafts/draftStore.ts` | 草稿存储 |
+| `apps/agent/src/drafts/draftApply.ts` | 草稿 apply preview 和生命周期 |
+| `apps/agent/src/drafts/backendApplyClient.ts` | 后端 PATCH 写入客户端 |
+| `apps/agent/src/state/fileStore.ts` | Run/Thread 文件存储 |
+| `apps/agent/src/memory/` | 记忆系统 |
 
 ## 状态路径
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { JSONValue } from '../types.js'
-import { atomicWriteJSON, resolveAgentStatePath } from '../runtime/store/fileStore.js'
+import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
 
 export interface AgentCatalogState {
   version: 1

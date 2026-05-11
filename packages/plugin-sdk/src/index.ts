@@ -8,6 +8,8 @@ export type {
   AnyPluginManifest,
   PluginInputSchema,
   PluginInputProperty,
+  GenerateMediaJobType,
+  GenerateMediaRequest,
   GenerateImageRequest,
   ExecutableCapability,
   ExecutableSpec,

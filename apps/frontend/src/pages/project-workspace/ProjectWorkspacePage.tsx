@@ -6,23 +6,18 @@ import {
   ArrowRight,
   CheckCircle2,
   ChevronRight,
-  ClipboardCheck,
   FileText,
-  GitMerge,
+  GitBranch,
   Layers3,
   Loader2,
   Lock,
   PackageCheck,
-  PanelRightClose,
-  Pencil,
-  Plus,
   RefreshCw,
   Route,
   Sparkles,
-  Trash2,
   Wand2,
 } from 'lucide-react'
-import { Badge, Button, Card, Textarea } from '@movscript/ui'
+import { Badge, Button, Card } from '@movscript/ui'
 
 import {
   listSemanticEntities,
@@ -39,7 +34,6 @@ import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
 import {
   buildEmptyProjectProposalDraftContent,
   buildProjectProposalDraftContractPrompt,
-  projectProposalActionLabel,
 } from '@/lib/projectProposalDraft'
 import { localAgentClient, type AgentDraft, type AgentManifest } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
@@ -73,10 +67,16 @@ interface WorkspaceData {
 }
 
 interface ProjectProposalDraftEntry {
-  action: string
+  key: string
+  kind: 'creative_references' | 'asset_slots'
+  index: number
+  changeType: 'added' | 'modified'
+  applied: boolean
   label: string
   detail: string
   target?: string
+  ownerKey?: string
+  raw: Record<string, unknown>
 }
 
 interface ProjectProposalAssetGroup {
@@ -100,6 +100,16 @@ interface ProjectProposalDraftView {
     sourceRunId?: string
     sourceThreadId?: string
   }
+}
+
+type ProjectProposalEntryDecision = 'rejected' | 'submitted'
+type ProjectProposalEntryDecisions = Record<string, ProjectProposalEntryDecision>
+
+interface ProjectProposalDiffRow {
+  label: string
+  before?: string
+  after: string
+  tone: 'added' | 'modified'
 }
 
 interface StatCardProps {
@@ -160,52 +170,82 @@ function asKey(value: unknown, fallback = '') {
   return asString(value, fallback)
 }
 
+function nestedFields(item: Record<string, unknown>): Record<string, unknown> {
+  return isRecord(item.fields) ? item.fields : {}
+}
+
+function proposalField(item: Record<string, unknown>, keys: string[]): unknown {
+  const fields = nestedFields(item)
+  for (const key of keys) {
+    if (item[key] !== undefined) return item[key]
+    if (fields[key] !== undefined) return fields[key]
+  }
+  return undefined
+}
+
+function draftAppliedEntryKeySet(draft: AgentDraft) {
+  const metadata = isRecord(draft.metadata) ? draft.metadata : {}
+  const appliedEntryKeys = Array.isArray(metadata.appliedEntryKeys) ? metadata.appliedEntryKeys : []
+  return new Set(appliedEntryKeys.map((value) => asKey(value, '')).filter(Boolean))
+}
+
+function isProjectProposalHelperDraft(draft: AgentDraft) {
+  if (draft.kind !== 'project_proposal') return false
+  const metadata = isRecord(draft.metadata) ? draft.metadata : {}
+  return typeof metadata.sourceDraftId === 'string' && metadata.sourceDraftId.trim().length > 0
+}
+
 function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): ProjectProposalDraftView | null {
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
     const proposal = isRecord(content.proposal) ? content.proposal : undefined
+    const appliedEntryKeys = draftAppliedEntryKeySet(draft)
     const creativeReferences = asRecordArray(proposal?.creative_references).map((item, index) => ({
-      action: asString(item.action ?? item.type ?? item.op, 'update'),
-      label: asString(item.title ?? item.name ?? item.label ?? item.entity ?? item.kind, `设定建议 #${index + 1}`),
-      detail: asString(item.description ?? item.note ?? item.reason ?? item.summary ?? item.content, '暂无说明'),
+      key: `${draft.id}:creative_references:${index}`,
+      kind: 'creative_references' as const,
+      index,
+      changeType: typeof item.id === 'number' ? 'modified' as const : 'added' as const,
+      applied: appliedEntryKeys.has(`${draft.id}:creative_references:${index}`),
+      label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `设定建议 #${index + 1}`),
+      detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
       target: (() => {
-        const value = item.target_id ?? item.targetId ?? item.id
-        return typeof value === 'number' ? `#${value}` : asString(value, '')
+        const value = item.id
+        return typeof value === 'number' ? `合并到 #${value}` : '新增候选'
       })(),
+      raw: item,
     }))
     const creativeReferenceLabelByKey = new Map<string, string>()
     asRecordArray(proposal?.creative_references).forEach((item, index) => {
-      const key = asKey(item.owner_client_id ?? item.ownerClientId ?? item.target_id ?? item.targetId ?? item.id, '')
+      const key = asKey(item.client_id ?? item.id, '')
       if (!key) return
-      creativeReferenceLabelByKey.set(key, asString(item.title ?? item.name ?? item.label ?? item.entity ?? item.kind, `设定建议 #${index + 1}`))
+      creativeReferenceLabelByKey.set(key, asString(proposalField(item, ['title', 'name', 'label', 'kind']), `设定建议 #${index + 1}`))
     })
 
     const assetSlots = asRecordArray(proposal?.asset_slots).map((item, index) => ({
-      action: asString(item.action ?? item.type ?? item.op, 'update'),
-      label: asString(item.title ?? item.name ?? item.label ?? item.entity ?? item.kind, `素材建议 #${index + 1}`),
-      detail: asString(item.description ?? item.note ?? item.reason ?? item.summary ?? item.content, '暂无说明'),
+      key: `${draft.id}:asset_slots:${index}`,
+      kind: 'asset_slots' as const,
+      index,
+      changeType: typeof item.id === 'number' ? 'modified' as const : 'added' as const,
+      applied: appliedEntryKeys.has(`${draft.id}:asset_slots:${index}`),
+      label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `素材建议 #${index + 1}`),
+      detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
       target: (() => {
-        const value = item.target_id ?? item.targetId ?? item.id
-        return typeof value === 'number' ? `#${value}` : asString(value, '')
+        const value = item.id
+        return typeof value === 'number' ? `调整 #${value}` : '新增候选'
       })(),
+      ownerKey: asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), ''),
+      raw: item,
     }))
     const assetSlotGroupsMap = new Map<string, ProjectProposalAssetGroup>()
     asRecordArray(proposal?.asset_slots).forEach((item, index) => {
       const ownerKey = asKey(
-        item.owner_client_id
-          ?? item.ownerClientId
-          ?? item.owner_id
-          ?? item.ownerId
-          ?? item.creative_reference_id
-          ?? item.creativeReferenceId
-          ?? item.reference_id
-          ?? item.referenceId,
+        isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']),
         '',
       )
       const groupKey = ownerKey || 'ungrouped'
       const ownerLabel = ownerKey
         ? creativeReferenceLabelByKey.get(ownerKey)
-          ?? asString(item.owner_name ?? item.ownerName ?? item.source_label ?? item.sourceLabel ?? item.name ?? item.label, `关联设定 ${ownerKey}`)
+          ?? asString(proposalField(item, ['owner_name', 'source_label', 'name', 'label']), `关联设定 ${ownerKey}`)
         : '未绑定设定'
       const entry = assetSlots[index]
       if (!entry) return
@@ -249,9 +289,162 @@ function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): Project
 }
 
 function formatDraftEntry(entry: ProjectProposalDraftEntry) {
-  const parts = [projectProposalActionLabel(entry.action), entry.label]
+  const parts = [entry.label]
   if (entry.target) parts.push(entry.target)
   return parts.join(' · ')
+}
+
+function projectProposalEntryKey(draftId: string, kind: 'creative_references' | 'asset_slots', index: number) {
+  return `${draftId}:${kind}:${index}`
+}
+
+function buildDraftContentForEntryKeys(
+  draft: AgentDraft,
+  entries: ProjectProposalDraftEntry[],
+  summary?: string,
+) {
+  const content = JSON.parse(draft.content) as Record<string, unknown>
+  const proposal = isRecord(content.proposal) ? { ...content.proposal } : {}
+  const allowedKeys = new Set(entries.map((entry) => entry.key))
+  const filterItems = (kind: 'creative_references' | 'asset_slots') => asRecordArray(proposal[kind]).flatMap((item, index) => {
+    const key = projectProposalEntryKey(draft.id, kind, index)
+    if (!allowedKeys.has(key)) return []
+    return [item]
+  })
+
+  return JSON.stringify({
+    ...content,
+    ...(summary ? { summary } : {}),
+    proposal: {
+      ...proposal,
+      creative_references: filterItems('creative_references'),
+      asset_slots: filterItems('asset_slots'),
+    },
+  }, null, 2)
+}
+
+function draftEntryLabel(entry: ProjectProposalDraftEntry) {
+  return entry.kind === 'creative_references' ? '设定资料' : '素材需求'
+}
+
+function draftEntryChangeLabel(entry: ProjectProposalDraftEntry) {
+  return entry.changeType === 'added' ? '新增' : '修改'
+}
+
+function draftEntryCurrentRecord(entry: ProjectProposalDraftEntry, data: WorkspaceData) {
+  const id = numberOf(entry.raw.id)
+  if (id <= 0) return null
+  if (entry.kind === 'creative_references') {
+    return data.creativeReferences.find((record) => record.ID === id) ?? null
+  }
+  return data.assetSlots.find((record) => record.ID === id) ?? null
+}
+
+function draftEntryFieldText(value: unknown) {
+  if (value === undefined || value === null) return ''
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value) || isRecord(value)) {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return String(value)
+}
+
+function draftEntryOwnerLabel(entry: ProjectProposalDraftEntry, referenceLabels: Map<string, string>, rawOwnerValue?: string) {
+  if (rawOwnerValue) return referenceLabels.get(rawOwnerValue) ?? rawOwnerValue
+  if (entry.ownerKey) return referenceLabels.get(entry.ownerKey) ?? entry.ownerKey
+  return '未绑定设定'
+}
+
+function buildProjectProposalEntryDiffRows(
+  entry: ProjectProposalDraftEntry,
+  data: WorkspaceData,
+  referenceLabels: Map<string, string>,
+): ProjectProposalDiffRow[] {
+  const current = draftEntryCurrentRecord(entry, data)
+  const rows: ProjectProposalDiffRow[] = []
+
+  const pushField = (label: string, beforeValue: unknown, afterValue: unknown) => {
+    const afterText = draftEntryFieldText(afterValue)
+    const beforeText = draftEntryFieldText(beforeValue)
+    const changed = entry.changeType === 'added' || beforeText !== afterText
+    if (!changed) return
+    rows.push({
+      label,
+      before: entry.changeType === 'added' ? '' : beforeText,
+      after: afterText || '未填写',
+      tone: entry.changeType === 'added' ? 'added' : 'modified',
+    })
+  }
+
+  const currentFields = current ? { ...current } as Record<string, unknown> : {}
+  const currentNestedFields = current ? nestedFields(current as Record<string, unknown>) : {}
+  const currentField = (keys: string[]) => {
+    for (const key of keys) {
+      if (currentFields[key] !== undefined) return currentFields[key]
+      if (currentNestedFields[key] !== undefined) return currentNestedFields[key]
+    }
+    return undefined
+  }
+
+  const item = entry.raw
+  const proposedField = (keys: string[]) => proposalField(item, keys)
+
+  if (entry.kind === 'creative_references') {
+    pushField('名称', currentField(['name', 'title', 'label']), proposedField(['name', 'title', 'label']))
+    pushField('类型', currentField(['kind']), proposedField(['kind']))
+    pushField('说明', currentField(['description', 'summary', 'content', 'rationale']), proposedField(['description', 'summary', 'content', 'rationale']))
+    pushField('别名', currentField(['alias']), proposedField(['alias']))
+    pushField('重要度', currentField(['importance']), proposedField(['importance']))
+    pushField('状态', currentField(['status']), proposedField(['status']))
+    pushField('画像', currentField(['profile_json']), proposedField(['profile_json']))
+    pushField('标签', currentField(['tags_json']), proposedField(['tags_json']))
+    const mergeCandidates = Array.isArray(item.merge_candidates) ? item.merge_candidates.filter(isRecord) : []
+    for (const [index, candidate] of mergeCandidates.entries()) {
+      const sourceId = draftEntryFieldText(candidate.source_id)
+      const reason = draftEntryFieldText(candidate.reason)
+      rows.push({
+        label: `合并候选 #${index + 1}`,
+        before: '',
+        after: [sourceId ? `来源 #${sourceId}` : '来源未标注', reason ? `原因：${reason}` : ''].filter(Boolean).join(' · '),
+        tone: 'added',
+      })
+    }
+  } else {
+    pushField('名称', currentField(['name', 'title', 'label']), proposedField(['name', 'title', 'label']))
+    pushField('类型', currentField(['kind']), proposedField(['kind']))
+    pushField('说明', currentField(['description', 'summary', 'content', 'rationale']), proposedField(['description', 'summary', 'content', 'rationale']))
+    pushField('用途', currentField(['usage', 'prompt_hint']), proposedField(['usage', 'prompt_hint']))
+    pushField('优先级', currentField(['priority']), proposedField(['priority']))
+    pushField('状态', currentField(['status']), proposedField(['status']))
+    pushField('资源 ID', currentField(['resource_id']), proposedField(['resource_id']))
+    pushField('锁定素材', currentField(['locked_asset_slot_id']), proposedField(['locked_asset_slot_id']))
+
+    const currentOwnerId = current
+      ? asKey(isRecord(current.owner) ? current.owner.client_id ?? current.owner.id : proposalField(current, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), '')
+      : ''
+    const currentOwnerLabel = draftEntryOwnerLabel(entry, referenceLabels, currentOwnerId)
+    const proposedOwnerId = asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), '')
+    const proposedOwnerLabel = draftEntryOwnerLabel(entry, referenceLabels, proposedOwnerId)
+    if (entry.changeType === 'added' || currentOwnerLabel !== proposedOwnerLabel) {
+      rows.push({
+        label: '归属',
+        before: entry.changeType === 'added' ? '' : currentOwnerLabel,
+        after: proposedOwnerLabel,
+        tone: entry.changeType === 'added' ? 'added' : 'modified',
+      })
+    }
+
+    const currentMetadata = currentField(['metadata_json'])
+    const proposedMetadata = proposedField(['metadata_json'])
+    pushField('元数据', currentMetadata, proposedMetadata)
+  }
+
+  return rows
 }
 
 function statusCount(records: WorkspaceRecord[], statuses: string[]) {
@@ -382,10 +575,12 @@ export default function ProjectOrchestrationPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [dialog, setDialog] = useState<DialogState>(null)
   const [selectedReferenceId, setSelectedReferenceId] = useState<number | null>(null)
+  const [selectedAssetSlotId, setSelectedAssetSlotId] = useState<number | null>(null)
   const [orchestrationPrompt, setOrchestrationPrompt] = useState('')
   const [launching, setLaunching] = useState(false)
+  const [workspaceView, setWorkspaceView] = useState<'structure' | 'review'>('structure')
   const [applyingDraftId, setApplyingDraftId] = useState<string | null>(null)
-  const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [draftEntryDecisions, setDraftEntryDecisions] = useState<ProjectProposalEntryDecisions>({})
   const [draggingReferenceId, setDraggingReferenceId] = useState<number | null>(null)
   const [dropTargetReferenceId, setDropTargetReferenceId] = useState<number | null>(null)
   const [mergingReferences, setMergingReferences] = useState(false)
@@ -412,6 +607,7 @@ export default function ProjectOrchestrationPage() {
 
   useEffect(() => {
     setActiveDraftId(openedDraftId || null)
+    if (openedDraftId) setWorkspaceView('review')
   }, [openedDraftId])
 
   useEffect(() => {
@@ -434,6 +630,14 @@ export default function ProjectOrchestrationPage() {
     refetchInterval: (openedDraftId || activeDraftId) ? 1500 : false,
     refetchIntervalInBackground: false,
   })
+
+  useEffect(() => {
+    if (openedDraftId || activeDraftId) return
+    const firstProjectProposalDraft = draftsQuery.data?.find((draft) => draft.kind === 'project_proposal')
+    if (!firstProjectProposalDraft) return
+    setActiveDraftId(firstProjectProposalDraft.id)
+    setWorkspaceView('review')
+  }, [activeDraftId, draftsQuery.data, openedDraftId])
 
   const derived = useMemo(() => {
     const activeReferences = data.creativeReferences.filter((item) => !['ignored', 'merged'].includes(String(item.status ?? '')))
@@ -464,6 +668,19 @@ export default function ProjectOrchestrationPage() {
     return data.assetSlots.filter((item) => numberOf(item.creative_reference_id) === selectedReference.ID)
   }, [data.assetSlots, selectedReference])
 
+  const selectedAssetSlot = useMemo(() => {
+    if (!selectedAssetSlotId) return null
+    return data.assetSlots.find((item) => item.ID === selectedAssetSlotId) ?? null
+  }, [data.assetSlots, selectedAssetSlotId])
+
+  useEffect(() => {
+    if (!selectedAssetSlot) return
+    const ownerId = numberOf(selectedAssetSlot.creative_reference_id)
+    if (ownerId > 0 && selectedReference?.ID !== ownerId) {
+      setSelectedAssetSlotId(null)
+    }
+  }, [selectedAssetSlot, selectedReference?.ID])
+
   const selectedReferenceUsageCount = useMemo(() => {
     if (!selectedReference) return 0
     return data.creativeReferenceUsages.filter((usage) => numberOf(usage.creative_reference_id) === selectedReference.ID).length
@@ -478,16 +695,42 @@ export default function ProjectOrchestrationPage() {
     return Array.from(groups.values()).filter((items) => items.length > 1).slice(0, 4)
   }, [derived.activeReferences])
 
+  const assetGroups = useMemo(() => {
+    const references = new Map<number, WorkspaceRecord>()
+    for (const reference of derived.activeReferences) references.set(reference.ID, reference)
+
+    const grouped = new Map<number, WorkspaceRecord[]>()
+    const unbound: WorkspaceRecord[] = []
+
+    for (const slot of data.assetSlots) {
+      const referenceId = numberOf(slot.creative_reference_id)
+      if (referenceId > 0 && references.has(referenceId)) {
+        const current = grouped.get(referenceId) ?? []
+        current.push(slot)
+        grouped.set(referenceId, current)
+      } else {
+        unbound.push(slot)
+      }
+    }
+
+    return {
+      grouped,
+      unbound,
+      total: data.assetSlots.length,
+    }
+  }, [data.assetSlots, derived.activeReferences])
+
   const draftCounts = useMemo(() => {
-    const drafts = draftsQuery.data ?? []
+    const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectProposalHelperDraft(draft))
     return {
       draft: drafts.filter((item) => item.status === 'draft').length,
       applied: drafts.filter((item) => item.status === 'applied').length,
     }
   }, [draftsQuery.data])
 
-  async function startProjectOrchestration() {
+  async function startProjectOrchestration(promptOverride?: string) {
     if (!projectId || !pageKey) return
+    const requestedPrompt = typeof promptOverride === 'string' ? promptOverride : orchestrationPrompt
     setLaunching(true)
     try {
       const draftShell = await localAgentClient.createDraft({
@@ -517,6 +760,7 @@ export default function ProjectOrchestrationPage() {
         },
       })
       setActiveDraftId(draftShell.id)
+      setWorkspaceView('review')
       setSearchParams((current) => {
         const next = new URLSearchParams(current)
         next.set('draftId', draftShell.id)
@@ -527,13 +771,13 @@ export default function ProjectOrchestrationPage() {
       const prompt = buildProjectOrchestrationPrompt({
         projectName: project?.name ?? `项目 #${projectId}`,
         draftId: draftShell.id,
-        userPrompt: orchestrationPrompt,
+        userPrompt: requestedPrompt,
         data,
       })
 
       orchestrationToolCleanupRef.current?.()
       orchestrationToolCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
-        if (payload.status === 'error' || payload.status === 'cancelled') {
+        if (payload.run?.status === 'failed' || payload.run?.status === 'cancelled') {
           await draftsQuery.refetch()
           return
         }
@@ -572,7 +816,7 @@ export default function ProjectOrchestrationPage() {
         timeoutMs: 180_000,
         renderMode: 'page',
       })
-      toast.info('已打开项目提案会话；AI 生成的草稿会回到右侧面板审阅')
+      toast.info('已打开项目提案会话；AI 生成的草稿会回到提案审阅区')
       await draftsQuery.refetch()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '项目提案启动失败')
@@ -581,10 +825,32 @@ export default function ProjectOrchestrationPage() {
     }
   }
 
-  async function applyDraft(draft: AgentDraft) {
-    if (!projectId) return
-    setApplyingDraftId(draft.id)
+  function draftMetadataWithAppliedEntries(draft: AgentDraft, entryKeys: string[]) {
+    const metadata = isRecord(draft.metadata) ? draft.metadata : {}
+    const appliedEntryKeys = new Set([
+      ...draftAppliedEntryKeySet(draft),
+      ...entryKeys,
+    ])
+    return {
+      ...metadata,
+      reviewedFrom: 'project-workspace',
+      reviewedAt: new Date().toISOString(),
+      appliedEntryKeys: Array.from(appliedEntryKeys),
+    }
+  }
+
+  async function applyDraftEntries(
+    draft: AgentDraft,
+    entries: ProjectProposalDraftEntry[],
+    lockId: string = draft.id,
+    proposedValueOverride?: string,
+  ): Promise<boolean> {
+    if (!projectId || entries.length === 0) return false
+    setApplyingDraftId(lockId)
     try {
+      const proposedValue = proposedValueOverride ?? buildDraftContentForEntryKeys(draft, entries, entries.length === 1
+        ? `单项提交：${formatDraftEntry(entries[0])}`
+        : `批量提交：${entries.length} 项`)
       const result = await localAgentClient.applyDraft(draft.id, {
         target: {
           projectId,
@@ -593,18 +859,93 @@ export default function ProjectOrchestrationPage() {
           field: 'proposal',
         },
         currentValue: summarizeCurrentState(data),
-        proposedValue: draft.content,
+        proposedValue,
       })
       const writeCount = projectProposalBackendWriteCount(result.backendApply)
-      toast.success(writeCount > 0 ? `草稿已应用，写入 ${writeCount} 项变更` : '草稿已标记应用')
+      await localAgentClient.updateDraft(draft.id, {
+        metadata: draftMetadataWithAppliedEntries(draft, entries.map((entry) => entry.key)),
+      })
+      toast.success(writeCount > 0
+        ? entries.length === 1
+          ? `已提交此项，写入 ${writeCount} 项变更`
+          : `草稿已应用，写入 ${writeCount} 项变更`
+        : entries.length === 1
+          ? '已提交此项'
+          : '草稿已标记应用')
       await queryClient.invalidateQueries({ queryKey })
       await refetch()
       await draftsQuery.refetch()
+      return true
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '草稿应用失败')
+      return false
     } finally {
       setApplyingDraftId(null)
     }
+  }
+
+  async function applyDraftEntry(draft: AgentDraft, entry: ProjectProposalDraftEntry, proposalView?: ProjectProposalDraftView | null) {
+    const view = proposalView ?? parseProjectProposalDraft(draft, pageKey)
+    if (entry.kind === 'asset_slots') {
+      const ownerKey = entry.ownerKey
+      const ownerLooksNumeric = typeof ownerKey === 'string' && /^[0-9]+$/.test(ownerKey)
+      const referencedCreative = view?.creativeReferences.find((item) => item.raw.client_id && asKey(item.raw.client_id, '') === ownerKey)
+      if (ownerKey && !ownerLooksNumeric && referencedCreative) {
+        toast.error('这条素材需求依赖草稿里的新设定，先批量提交或改成已有设定后再单项提交')
+        return
+      }
+    }
+
+    try {
+      const proposedValue = buildDraftContentForEntryKeys(draft, [entry], `单项提交：${formatDraftEntry(entry)}`)
+      const helperDraft = await localAgentClient.createDraft({
+        projectId,
+        kind: 'project_proposal',
+        title: `单项提交 - ${formatDraftEntry(entry)}`,
+        content: proposedValue,
+        source: {
+          ...(isRecord(draft.source) ? draft.source : {}),
+          sourceDraftId: draft.id,
+          sourceEntryKey: entry.key,
+          sourceEntryLabel: entry.label,
+        },
+        target: {
+          projectId,
+          entityType: 'project',
+          entityId: projectId,
+          field: 'proposal',
+        },
+        metadata: {
+          helperDraft: true,
+          sourceDraftId: draft.id,
+          sourceEntryKey: entry.key,
+        },
+      })
+      const applied = await applyDraftEntries(helperDraft, [entry], draft.id, proposedValue)
+      if (!applied) return
+      await localAgentClient.updateDraft(draft.id, {
+        metadata: draftMetadataWithAppliedEntries(draft, [entry.key]),
+      })
+      setDraftEntryDecision(entry.key, 'submitted')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '草稿应用失败')
+    }
+  }
+
+  async function applyDraft(draft: AgentDraft) {
+    if (!projectId) return
+    const proposalView = parseProjectProposalDraft(draft, pageKey)
+    const allEntries = [
+      ...(proposalView?.creativeReferences ?? []),
+      ...(proposalView?.assetSlots ?? []),
+    ]
+    const pendingEntries = allEntries.filter((entry) => draftEntryDecisions[entry.key] !== 'rejected' && !entry.applied)
+    if (pendingEntries.length === 0) {
+      toast.error('没有可提交的变更')
+      return
+    }
+    const applied = await applyDraftEntries(draft, pendingEntries)
+    if (!applied) return
   }
 
   function refreshAll() {
@@ -717,10 +1058,34 @@ export default function ProjectOrchestrationPage() {
     }
   }
 
-  const drafts = draftsQuery.data ?? []
-  const scopedDraftId = openedDraftId || activeDraftId
-  const activeDraft = drafts.find((draft) => draft.id === scopedDraftId) ?? drafts[0] ?? null
-  const activeDraftView = activeDraft ? parseProjectProposalDraft(activeDraft, pageKey) : null
+  const drafts = (draftsQuery.data ?? []).filter((draft) => !isProjectProposalHelperDraft(draft))
+
+  function setDraftEntryDecision(key: string, decision: ProjectProposalEntryDecision) {
+    setDraftEntryDecisions((current) => ({ ...current, [key]: decision }))
+  }
+
+  function clearDraftEntryDecision(key: string) {
+    setDraftEntryDecisions((current) => {
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
+
+  function draftReferenceOptions(view: ProjectProposalDraftView) {
+    return [
+      ...derived.activeReferences.map((reference) => ({
+        value: String(reference.ID),
+        label: titleOf(reference, `设定 #${reference.ID}`),
+        numericId: reference.ID,
+      })),
+      ...view.creativeReferences.map((reference) => ({
+        value: reference.raw.client_id ? String(reference.raw.client_id) : reference.key,
+        label: reference.label,
+        numericId: undefined,
+      })),
+    ]
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-background">
@@ -740,9 +1105,9 @@ export default function ProjectOrchestrationPage() {
             <h1 className="mt-1 truncate text-xl font-semibold tracking-normal text-foreground">项目编排</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={startProjectOrchestration} loading={launching} disabled={!projectId}>
+            <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration()} loading={launching} disabled={!projectId}>
               <Wand2 size={13} />
-              编排到 AI 面板
+              发起提案
             </Button>
             <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={refreshAll}>
               <RefreshCw size={13} className={isFetching || draftsQuery.isFetching ? 'animate-spin' : undefined} />
@@ -760,91 +1125,172 @@ export default function ProjectOrchestrationPage() {
               加载项目现状…
             </div>
           ) : (
-            <div className="mx-auto flex w-full min-w-[980px] max-w-[1360px] flex-col gap-4 p-5">
+            <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 lg:p-5">
               <section className="grid gap-3 sm:grid-cols-2">
                 <StatCard title="项目设定" value={derived.activeReferences.length} detail={`${derived.lockedReferences} 个已确认或锁定`} icon={Sparkles} />
-                <StatCard title="素材需求" value={data.assetSlots.length} detail={`${derived.lockedAssets} 个已锁定或豁免`} icon={PackageCheck} />
+                <StatCard title="素材需求" value={assetGroups.total} detail={`${derived.lockedAssets} 个已锁定或豁免`} icon={PackageCheck} />
               </section>
 
-              <section className="grid min-w-0 gap-4 xl:h-[560px] xl:grid-cols-[minmax(0,1fr)_320px]">
-                  <Card className="flex min-h-0 flex-col overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h2 className="text-sm font-semibold text-foreground">当前设定</h2>
-                        <p className="mt-1 text-xs text-muted-foreground">直接修改、删除，或处理重复设定。</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setDialog({ mode: 'create', kind: 'creativeReferences' })}>
-                          <Plus size={12} />
-                          新建设定
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => selectedReference && setDialog({ mode: 'edit', kind: 'creativeReferences', record: selectedReference })} disabled={!selectedReference}>
-                          <Pencil size={12} />
-                          修改
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" asChild>
-                          <Link to="/creative-references">
-                            全部设定
-                            <ArrowRight size={12} />
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
+              <div className="sticky top-0 z-10 -mx-4 border-b border-border bg-muted/90 px-4 py-3 backdrop-blur lg:-mx-5 lg:px-5">
+                <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-1 rounded-full border border-border bg-background p-1">
+                    <Button
+                      size="sm"
+                      variant={workspaceView === 'structure' ? 'secondary' : 'ghost'}
+                      className="h-7 gap-1.5 rounded-full px-3 text-xs"
+                      onClick={() => setWorkspaceView('structure')}
+                    >
+                      <Route size={13} />
+                      结构
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={workspaceView === 'review' ? 'secondary' : 'ghost'}
+                      className="h-7 gap-1.5 rounded-full px-3 text-xs"
+                      onClick={() => setWorkspaceView('review')}
+                    >
+                      <GitBranch size={13} />
+                      审阅
+                      <Badge variant="secondary" className="h-5 rounded-full px-1.5 text-[10px]">{draftCounts.draft}</Badge>
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <Badge variant={workspaceView === 'review' ? 'secondary' : 'outline'} className="h-6 rounded-full px-2 text-[10px]">
+                      {workspaceView === 'review' ? '提案审阅' : '项目结构'}
+                    </Badge>
+                    <span>{workspaceView === 'review' ? '先看设定和素材的 Git diff 决策' : '先整理设定，再进入提案审阅'}</span>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(220px,300px)_minmax(0,1fr)]">
-                      <div className="min-h-0 space-y-2 overflow-y-auto pr-1">
+              {workspaceView === 'structure' && (
+                <>
+                  <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+                    <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h2 className="text-sm font-semibold text-foreground">项目结构树</h2>
+                          <p className="mt-1 text-xs text-muted-foreground">树形结构负责浏览和选择，整理与补齐交给右侧 AI 助手。</p>
+                        </div>
+                        <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration('请帮我梳理当前项目的设定树和素材缩略卡片，找出重复项、归属不清和缺失项，并给出整理建议。')}>
+                          <Wand2 size={12} />
+                          让 AI 整理
+                        </Button>
+                      </div>
+                      <div className="mt-3 space-y-2">
                         {derived.activeReferences.length === 0 ? (
-                          <EmptyBlock title="暂无项目设定" detail="在这里创建人物、场景、道具和风格后，制作编排只引用这些设定。" />
-                        ) : derived.activeReferences.map((reference) => (
-                          <button
-                            key={reference.ID}
-                            type="button"
-                            draggable={!mergingReferences}
-                            onDragStart={(event) => {
-                              setDraggingReferenceId(reference.ID)
-                              event.dataTransfer.effectAllowed = 'move'
-                              event.dataTransfer.setData('text/plain', String(reference.ID))
-                            }}
-                            onDragEnd={() => {
-                              setDraggingReferenceId(null)
-                              setDropTargetReferenceId(null)
-                            }}
-                            onDragOver={(event) => {
-                              if (!draggingReferenceId || draggingReferenceId === reference.ID) return
-                              event.preventDefault()
-                              event.dataTransfer.dropEffect = 'move'
-                              setDropTargetReferenceId(reference.ID)
-                            }}
-                            onDragLeave={() => {
-                              setDropTargetReferenceId((current) => current === reference.ID ? null : current)
-                            }}
-                            onDrop={(event) => {
-                              event.preventDefault()
-                              const sourceId = numberOf(event.dataTransfer.getData('text/plain')) || draggingReferenceId
-                              if (!sourceId) return
-                              void mergeReferences(sourceId, reference.ID)
-                            }}
-                            onClick={() => setSelectedReferenceId(reference.ID)}
-                            className={cn(
-                              'w-full rounded-md border px-3 py-2.5 text-left transition-colors',
-                              selectedReference?.ID === reference.ID ? 'border-primary/50 bg-primary/5' : 'border-border bg-background hover:bg-muted/40',
-                              draggingReferenceId === reference.ID && 'opacity-50',
-                              dropTargetReferenceId === reference.ID && draggingReferenceId !== reference.ID && 'border-emerald-500 bg-emerald-500/10',
-                            )}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <p className="truncate text-sm font-medium text-foreground">{titleOf(reference, `设定 #${reference.ID}`)}</p>
-                              <Badge variant={statusVariant(reference.status)} className="shrink-0 text-[10px]">{statusLabel(reference.status)}</Badge>
-                            </div>
-                            <p className="mt-1 truncate text-xs text-muted-foreground">
-                              {referenceKindLabel(reference.kind)} · {dropTargetReferenceId === reference.ID && draggingReferenceId !== reference.ID ? '松开合并到此设定' : bodyOf(reference)}
-                            </p>
-                          </button>
-                        ))}
+                          <EmptyBlock title="暂无项目设定" detail="在这里创建人物、场景、道具和风格后，项目编排就能按树形结构展开。" />
+                        ) : derived.activeReferences.map((reference) => {
+                          const slots = assetGroups.grouped.get(reference.ID) ?? []
+                          const selected = selectedReference?.ID === reference.ID
+                          return (
+                            <button
+                              key={reference.ID}
+                              type="button"
+                              draggable={!mergingReferences}
+                              onDragStart={(event) => {
+                                setDraggingReferenceId(reference.ID)
+                                event.dataTransfer.effectAllowed = 'move'
+                                event.dataTransfer.setData('text/plain', String(reference.ID))
+                              }}
+                              onDragEnd={() => {
+                                setDraggingReferenceId(null)
+                                setDropTargetReferenceId(null)
+                              }}
+                              onDragOver={(event) => {
+                                if (!draggingReferenceId || draggingReferenceId === reference.ID) return
+                                event.preventDefault()
+                                event.dataTransfer.dropEffect = 'move'
+                                setDropTargetReferenceId(reference.ID)
+                              }}
+                              onDragLeave={() => {
+                                setDropTargetReferenceId((current) => current === reference.ID ? null : current)
+                              }}
+                              onDrop={(event) => {
+                                event.preventDefault()
+                                const sourceId = numberOf(event.dataTransfer.getData('text/plain')) || draggingReferenceId
+                                if (!sourceId) return
+                                void mergeReferences(sourceId, reference.ID)
+                              }}
+                              onClick={() => {
+                                setSelectedReferenceId(reference.ID)
+                                setSelectedAssetSlotId(null)
+                              }}
+                              className={cn(
+                                'w-full rounded-lg border p-3 text-left transition-colors',
+                                selected ? 'border-primary/50 bg-primary/5' : 'border-border bg-background hover:bg-muted/40',
+                                draggingReferenceId === reference.ID && 'opacity-50',
+                                dropTargetReferenceId === reference.ID && draggingReferenceId !== reference.ID && 'border-emerald-500 bg-emerald-500/10',
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <p className="truncate text-sm font-medium text-foreground">{titleOf(reference, `设定 #${reference.ID}`)}</p>
+                                  <p className="mt-1 truncate text-xs text-muted-foreground">{referenceKindLabel(reference.kind)} · {bodyOf(reference)}</p>
+                                </div>
+                                <Badge variant={statusVariant(reference.status)} className="shrink-0 text-[10px]">{statusLabel(reference.status)}</Badge>
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
+                                <span className="rounded-full bg-muted px-2 py-0.5">{slots.length} 个素材缩略卡片</span>
+                                <span className="rounded-full bg-muted px-2 py-0.5">{data.creativeReferenceUsages.filter((usage) => numberOf(usage.creative_reference_id) === reference.ID).length} 次引用</span>
+                                <span className="rounded-full bg-muted px-2 py-0.5">拖动可合并</span>
+                              </div>
+                              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                {slots.slice(0, 3).map((slot) => (
+                                  <button
+                                    key={slot.ID}
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      setSelectedReferenceId(reference.ID)
+                                      setSelectedAssetSlotId(slot.ID)
+                                    }}
+                                    className="rounded-md border border-border/70 bg-card p-2 text-left hover:bg-muted/40"
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <p className="truncate text-[11px] font-medium text-foreground">{titleOf(slot, `素材需求 #${slot.ID}`)}</p>
+                                      <Badge variant={statusVariant(slot.status)} className="shrink-0 text-[9px]">{statusLabel(slot.status)}</Badge>
+                                    </div>
+                                    <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{bodyOf(slot)}</p>
+                                  </button>
+                                ))}
+                                {slots.length > 3 ? (
+                                  <div className="rounded-md border border-dashed border-border bg-background p-2 text-[10px] text-muted-foreground">
+                                    +{slots.length - 3} 个缩略卡片
+                                  </div>
+                                ) : null}
+                              </div>
+                            </button>
+                          )
+                        })}
                       </div>
+                    </Card>
 
-                      <div className="min-h-0 min-w-0 overflow-y-auto rounded-lg border border-border bg-background p-4">
-                        {selectedReference ? (
+                    <div className="min-h-0 space-y-4">
+                      <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                        {selectedAssetSlot ? (
+                          <>
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="truncate text-base font-semibold text-foreground">{titleOf(selectedAssetSlot, `素材需求 #${selectedAssetSlot.ID}`)}</h3>
+                                  <Badge variant={statusVariant(selectedAssetSlot.status)}>{statusLabel(selectedAssetSlot.status)}</Badge>
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">{selectedReference ? titleOf(selectedReference, `设定 #${selectedReference.ID}`) : '未绑定设定'} · 详情预览</p>
+                              </div>
+                              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration(`请根据当前选中的素材需求「${titleOf(selectedAssetSlot, `素材需求 #${selectedAssetSlot.ID}`)}」补齐说明、关联和执行建议。`)}>
+                                <Wand2 size={12} />
+                                让 AI 补齐
+                              </Button>
+                            </div>
+                            <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-foreground">{bodyOf(selectedAssetSlot, '这个素材需求还没有补充说明。')}</p>
+                            <div className="mt-4 grid gap-2 md:grid-cols-3">
+                              <MiniMetric icon={PackageCheck} label="所属设定" value={selectedReference ? titleOf(selectedReference, `设定 #${selectedReference.ID}`) : '未绑定'} />
+                              <MiniMetric icon={Lock} label="状态" value={statusLabel(selectedAssetSlot.status)} />
+                              <MiniMetric icon={Route} label="优先级" value={String(selectedAssetSlot.priority ?? 'normal')} />
+                            </div>
+                          </>
+                        ) : selectedReference ? (
                           <>
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -852,18 +1298,12 @@ export default function ProjectOrchestrationPage() {
                                   <h3 className="truncate text-base font-semibold text-foreground">{titleOf(selectedReference, `设定 #${selectedReference.ID}`)}</h3>
                                   <Badge variant={statusVariant(selectedReference.status)}>{statusLabel(selectedReference.status)}</Badge>
                                 </div>
-                                <p className="mt-1 text-xs text-muted-foreground">{referenceKindLabel(selectedReference.kind)} · ID {selectedReference.ID}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{referenceKindLabel(selectedReference.kind)} · 详情预览</p>
                               </div>
-                              <div className="flex gap-2">
-                                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setDialog({ mode: 'edit', kind: 'creativeReferences', record: selectedReference })}>
-                                  <Pencil size={12} />
-                                  编辑
-                                </Button>
-                                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setDialog({ mode: 'edit', kind: 'creativeReferences', record: selectedReference })}>
-                                  <Trash2 size={12} />
-                                  删除
-                                </Button>
-                              </div>
+                              <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => startProjectOrchestration(`请以当前选中的设定「${titleOf(selectedReference, `设定 #${selectedReference.ID}`)}」为中心，判断重复、边界和素材缺口，并给出整理建议。`)}>
+                                <Wand2 size={12} />
+                                让 AI 整理
+                              </Button>
                             </div>
                             <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-foreground">{bodyOf(selectedReference, '这个设定还没有补充说明。')}</p>
                             <div className="mt-4 grid gap-2 md:grid-cols-3">
@@ -871,319 +1311,259 @@ export default function ProjectOrchestrationPage() {
                               <MiniMetric icon={PackageCheck} label="素材需求" value={selectedReferenceAssets.length} />
                               <MiniMetric icon={Lock} label="锁定素材" value={statusCount(selectedReferenceAssets, ['locked', 'waived'])} />
                             </div>
-                            <div className="mt-4">
-                              <div className="mb-2 flex items-center justify-between gap-2">
-                                <p className="text-xs font-semibold text-foreground">关联素材需求</p>
-                                <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => setDialog({ mode: 'create', kind: 'assetSlots' })}>
-                                  <Plus size={12} />
-                                  锁定需求
-                                </Button>
-                              </div>
-                              <div className="grid gap-2 md:grid-cols-2">
-                                {selectedReferenceAssets.length === 0 ? (
-                                  <div className="rounded-md border border-dashed border-border px-3 py-4 text-xs text-muted-foreground md:col-span-2">这个设定还没有素材需求。</div>
-                                ) : selectedReferenceAssets.slice(0, 4).map((slot) => (
-                                  <button
-                                    key={slot.ID}
-                                    type="button"
-                                    onClick={() => setDialog({ mode: 'edit', kind: 'assetSlots', record: slot })}
-                                    className="rounded-md border border-border bg-card px-3 py-2 text-left transition-colors hover:bg-muted/40"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="truncate text-xs font-medium text-foreground">{titleOf(slot, `素材需求 #${slot.ID}`)}</p>
-                                      <Badge variant={statusVariant(slot.status)} className="shrink-0 text-[10px]">{statusLabel(slot.status)}</Badge>
-                                    </div>
-                                    <p className="mt-1 truncate text-[11px] text-muted-foreground">{bodyOf(slot)}</p>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
                           </>
                         ) : (
-                          <EmptyBlock title="未选择设定" detail="选择一个设定查看引用、素材需求和治理操作。" />
+                          <EmptyBlock title="未选择设定" detail="先点左侧树节点或缩略卡片，右侧会显示当前选择的详情预览。" />
                         )}
+                      </Card>
+
+                      <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h2 className="text-sm font-semibold text-foreground">缩略卡片</h2>
+                            <p className="mt-1 text-xs text-muted-foreground">点击缩略卡片切换详情预览，整理动作仍然由 AI 助手处理。</p>
+                          </div>
+                          <Badge variant="secondary" className="text-[10px]">{selectedReference ? `${selectedReferenceAssets.length} 项` : '全局视图'}</Badge>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {(selectedReference ? selectedReferenceAssets : assetGroups.unbound).slice(0, 6).map((slot) => (
+                            <button
+                              key={slot.ID}
+                              type="button"
+                              onClick={() => {
+                                const nextReferenceId = numberOf(slot.creative_reference_id) || selectedReference?.ID || null
+                                setSelectedReferenceId(nextReferenceId)
+                                setSelectedAssetSlotId(slot.ID)
+                              }}
+                              className={cn(
+                                'rounded-lg border p-2 text-left transition-colors',
+                                selectedAssetSlot?.ID === slot.ID ? 'border-primary/50 bg-primary/5' : 'border-border bg-background hover:bg-muted/40',
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="truncate text-[11px] font-medium text-foreground">{titleOf(slot, `素材需求 #${slot.ID}`)}</p>
+                                <Badge variant={statusVariant(slot.status)} className="shrink-0 text-[9px]">{statusLabel(slot.status)}</Badge>
+                              </div>
+                              <p className="mt-1 line-clamp-3 text-[10px] leading-4 text-muted-foreground">{bodyOf(slot)}</p>
+                            </button>
+                          ))}
+                          {selectedReference ? (
+                            <button
+                              type="button"
+                              onClick={() => startProjectOrchestration(`请围绕「${titleOf(selectedReference, `设定 #${selectedReference.ID}`)}」下的素材缩略卡片，补齐缺失素材、调整归属并给出执行建议。`)}
+                              className="rounded-lg border border-dashed border-border bg-background p-2 text-left transition-colors hover:bg-muted/40"
+                            >
+                              <p className="text-[11px] font-medium text-foreground">交给 AI 助手</p>
+                              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">把当前选择和上下文一起发给右侧 AI。</p>
+                            </button>
+                          ) : null}
+                        </div>
+                      </Card>
+                    </div>
+                  </section>
+                </>
+              )}
+
+              {workspaceView === 'review' && (
+                <section className="min-w-0 space-y-4">
+                  <Card className="min-h-0 overflow-hidden rounded-lg border-border bg-card p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <h2 className="text-sm font-semibold text-foreground">提案审阅</h2>
+                        <p className="mt-1 text-xs text-muted-foreground">这里只显示增量，不展开整份草稿；每个条目都可以单独提交。</p>
                       </div>
+                      <Badge variant="secondary" className="text-[10px]">draft {draftCounts.draft}</Badge>
+                    </div>
+
+                    <div className="mt-3 min-h-0 space-y-3 overflow-y-auto">
+                      {draftsQuery.isLoading ? (
+                        <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-3 text-xs text-muted-foreground">
+                          <Loader2 size={12} className="animate-spin" />
+                          读取草稿…
+                        </div>
+                      ) : drafts.length === 0 ? (
+                        <EmptyBlock title="暂无项目编排草稿" detail="从上方发起项目编排后，AI 对设定资料和素材需求的局部修改会进入这里逐项审阅。" />
+                      ) : drafts.map((draft) => {
+                        const proposalView = parseProjectProposalDraft(draft, pageKey)
+                        const referenceEntries = proposalView?.creativeReferences ?? []
+                        const assetEntries = proposalView?.assetSlots ?? []
+                        const allEntries = [...referenceEntries, ...assetEntries]
+                        const referenceOptions = proposalView ? draftReferenceOptions(proposalView) : []
+                        const referenceLabels = new Map(referenceOptions.map((option) => [option.value, option.label]))
+                        const pendingEntries = allEntries.filter((entry) => draftEntryDecisions[entry.key] !== 'rejected' && !entry.applied)
+                        const submittedEntries = allEntries.filter((entry) => draftEntryDecisions[entry.key] === 'submitted' || entry.applied)
+                        const rejectedEntries = allEntries.filter((entry) => draftEntryDecisions[entry.key] === 'rejected')
+                        const addedEntries = allEntries.filter((entry) => entry.changeType === 'added')
+                        const modifiedEntries = allEntries.filter((entry) => entry.changeType === 'modified')
+
+                        return (
+                          <div key={draft.id} className="rounded-lg border border-border bg-background p-3 last:mb-0">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-semibold text-foreground">{draft.title}</p>
+                                <p className="mt-1 text-[10px] text-muted-foreground">{formatDate(draft.updatedAt)} · {draft.id}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 text-[10px]">{draftStatusLabel(draft.status)}</Badge>
+                                <Badge variant="outline" className="text-[10px]">{allEntries.length} 条变更</Badge>
+                              </div>
+                            </div>
+
+                            {proposalView ? (
+                              <div className="mt-3 space-y-3">
+                                <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2.5">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <p className="text-[10px] font-medium text-foreground">项目提案差异</p>
+                                      <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{proposalView.summary}</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                      <Badge variant="secondary" className="h-5 rounded-full px-1.5">{addedEntries.length} 新增</Badge>
+                                      <Badge variant="outline" className="h-5 rounded-full px-1.5">{modifiedEntries.length} 修改</Badge>
+                                      <Badge variant="success" className="h-5 rounded-full px-1.5">{submittedEntries.length} 已提交</Badge>
+                                      {rejectedEntries.length > 0 ? <Badge variant="destructive" className="h-5 rounded-full px-1.5">{rejectedEntries.length} 已忽略</Badge> : null}
+                                    </div>
+                                  </div>
+                                  <div className="mt-2 flex items-center justify-between gap-2">
+                                    <p className="text-[10px] text-muted-foreground">条目只显示字段差异，不展开全量内容。</p>
+                                    <div className="flex gap-1.5">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={() => setDraftEntryDecisions((current) => {
+                                          const next = { ...current }
+                                          for (const entry of allEntries) delete next[entry.key]
+                                          return next
+                                        })}
+                                      >
+                                        重置状态
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px]"
+                                        onClick={() => applyDraft(draft)}
+                                        loading={applyingDraftId === draft.id}
+                                        disabled={draft.status === 'applied' || pendingEntries.length === 0}
+                                      >
+                                        <CheckCircle2 size={12} />
+                                        提交剩余
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {allEntries.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {allEntries.map((entry) => {
+                                      const isSubmitted = entry.applied || draftEntryDecisions[entry.key] === 'submitted'
+                                      const isRejected = draftEntryDecisions[entry.key] === 'rejected'
+                                      const rows = buildProjectProposalEntryDiffRows(entry, data, referenceLabels)
+                                      return (
+                                        <div key={entry.key} className="rounded-md border border-border/70 bg-card px-2.5 py-2">
+                                          <div className="flex flex-wrap items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                              <div className="flex flex-wrap items-center gap-1.5">
+                                                <span className="text-[10px] font-medium text-foreground">{formatDraftEntry(entry)}</span>
+                                                <Badge variant={entry.changeType === 'added' ? 'secondary' : 'outline'} className="h-5 rounded-full px-1.5 text-[9px]">
+                                                  {draftEntryChangeLabel(entry)}
+                                                </Badge>
+                                                <Badge variant="outline" className="h-5 rounded-full px-1.5 text-[9px]">{draftEntryLabel(entry)}</Badge>
+                                                {isSubmitted ? <Badge variant="success" className="h-5 rounded-full px-1.5 text-[9px]">已提交</Badge> : null}
+                                                {isRejected ? <Badge variant="destructive" className="h-5 rounded-full px-1.5 text-[9px]">已忽略</Badge> : null}
+                                              </div>
+                                              <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{entry.detail}</p>
+                                            </div>
+                                            <div className="flex shrink-0 items-center gap-1.5">
+                                              {isSubmitted ? null : (
+                                                <Button
+                                                  size="sm"
+                                                  className="h-6 px-2 text-[10px]"
+                                                  loading={applyingDraftId === draft.id}
+                                                  disabled={draft.status === 'applied'}
+                                                  onClick={() => void applyDraftEntry(draft, entry, proposalView)}
+                                                >
+                                                  提交此项
+                                                </Button>
+                                              )}
+                                              {isRejected ? (
+                                                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => clearDraftEntryDecision(entry.key)}>
+                                                  恢复
+                                                </Button>
+                                              ) : (
+                                                <Button size="sm" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => setDraftEntryDecision(entry.key, 'rejected')}>
+                                                  忽略
+                                                </Button>
+                                              )}
+                                            </div>
+                                          </div>
+
+                                          {rows.length > 0 ? (
+                                            <div className="mt-2 space-y-1 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1">
+                                              {rows.map((row, index) => (
+                                                <div key={`${entry.key}-${row.label}-${index}`} className="flex items-start gap-1.5 text-[10px] leading-4">
+                                                  <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-muted-foreground">{row.label}</span>
+                                                  <span className={cn('min-w-0 flex-1 truncate', row.before ? 'line-through text-muted-foreground' : 'text-muted-foreground')}>
+                                                    {row.before || '新增'}
+                                                  </span>
+                                                  <ArrowRight size={9} className="mt-0.5 shrink-0 text-muted-foreground" />
+                                                  <span className={cn('min-w-0 flex-1 truncate', row.tone === 'added' ? 'text-emerald-700 dark:text-emerald-300' : 'text-foreground')}>
+                                                    {row.after || '未填写'}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          ) : (
+                                            <div className="mt-2 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+                                              没有可展示的字段差异。
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-[10px] text-muted-foreground">
+                                    这份草稿没有可展示的 diff。
+                                  </div>
+                                )}
+
+                                {proposalView.impactNotes.length > 0 ? (
+                                  <div className="space-y-1 rounded-md border border-border bg-background/70 p-2">
+                                    <p className="text-[10px] font-medium text-foreground">影响说明</p>
+                                    {proposalView.impactNotes.slice(0, 4).map((note, index) => (
+                                      <p key={`${draft.id}-impact-${index}`} className="text-[10px] leading-4 text-muted-foreground">{note}</p>
+                                    ))}
+                                  </div>
+                                ) : null}
+
+                                <div className="rounded-md border border-border bg-muted/20 p-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[10px] font-medium text-foreground">历史</p>
+                                    <Button size="sm" variant="outline" className="h-6 gap-1.5 px-2 text-[10px]" asChild>
+                                      <Link to="/agent/drafts">
+                                        <FileText size={12} />
+                                        查看全部
+                                      </Link>
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="mt-3 rounded-md border border-dashed border-border bg-background px-3 py-4 text-[10px] text-muted-foreground">
+                                无法解析这份草稿的差异。
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   </Card>
-
-                  <div className="flex h-full min-w-0 flex-col gap-4">
-                    <Card className="min-h-0 flex-1 overflow-y-auto rounded-lg border-border bg-card p-4 shadow-sm">
-                      <div className="mb-3 flex items-start justify-between gap-3">
-                        <div>
-                          <h2 className="text-sm font-semibold text-foreground">合并候选</h2>
-                          <p className="mt-1 text-xs text-muted-foreground">同名同类设定集中处理。</p>
-                        </div>
-                        <GitMerge size={16} className="text-muted-foreground" />
-                      </div>
-                      <div className="space-y-2">
-                        {mergeCandidates.length === 0 ? (
-                          <EmptyBlock title="暂无明显重复" detail="后续可以在这里承接 AI 的合并建议。" compact />
-                        ) : mergeCandidates.map((items) => (
-                          <div key={items.map((item) => item.ID).join('-')} className="rounded-md border border-border bg-background p-3">
-                            <p className="truncate text-xs font-medium text-foreground">{titleOf(items[0], `设定 #${items[0].ID}`)}</p>
-                            <p className="mt-1 text-[11px] text-muted-foreground">{items.length} 个同名设定</p>
-                            <Button size="sm" variant="outline" className="mt-2 h-7 gap-1.5 text-xs" onClick={() => setDialog({ mode: 'edit', kind: 'creativeReferences', record: items[0] })}>
-                              处理合并
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  </div>
-              </section>
+                </section>
+              )}
             </div>
           )}
         </main>
-
-        <aside className={cn(
-          'flex h-full min-h-0 shrink-0 flex-col border-l border-border bg-card transition-all duration-200',
-          panelCollapsed ? 'w-[52px]' : 'w-[420px]',
-        )}>
-          <div className={cn(
-            'flex shrink-0 items-center border-b border-border py-3',
-            panelCollapsed ? 'justify-center px-0' : 'justify-between px-4',
-          )}>
-            {panelCollapsed ? (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="relative h-8 w-8"
-                title="展开编排面板"
-                onClick={() => setPanelCollapsed(false)}
-              >
-                <Sparkles size={15} className="text-primary" />
-                {draftCounts.draft > 0 ? (
-                  <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">
-                    {draftCounts.draft}
-                  </span>
-                ) : null}
-              </Button>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <PanelRightClose size={15} className="text-muted-foreground" />
-                  <Sparkles size={15} className="text-primary" />
-                  <span className="text-sm font-semibold text-foreground">编排面板</span>
-                  {draftsQuery.isFetching ? <Loader2 size={12} className="animate-spin text-muted-foreground" /> : null}
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => draftsQuery.refetch()}>
-                    <RefreshCw size={12} />
-                    草稿
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-7 w-7"
-                    title="收起编排面板"
-                    onClick={() => setPanelCollapsed(true)}
-                  >
-                    <ChevronRight size={14} />
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-
-          {!panelCollapsed ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <div className="border-b border-border px-4 py-3">
-              <div className="rounded-lg border border-border bg-background p-3">
-                <p className="text-xs font-semibold text-foreground">{project?.name ?? '当前项目'}</p>
-                <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
-                  项目编排负责创建、修改、删除、合并设定，并锁定项目级素材需求；制作编排只引用这些结果。
-                </p>
-              </div>
-              <div className="mt-3 rounded-lg border border-border bg-background p-3">
-                <div className="flex items-center gap-2">
-                  <Wand2 size={14} className="text-primary" />
-                  <p className="text-xs font-semibold text-foreground">编排要求</p>
-                </div>
-                <Textarea
-                  className="mt-2 min-h-24 resize-none text-xs leading-relaxed"
-                  placeholder="补充项目级编排要求，例如：合并重复人物设定；锁定主角素材需求；清理未被制作引用的道具设定。"
-                  value={orchestrationPrompt}
-                  onChange={(event) => setOrchestrationPrompt(event.target.value)}
-                />
-                <Button className="mt-3 h-8 w-full gap-1.5 text-xs" onClick={startProjectOrchestration} loading={launching} disabled={!projectId}>
-                  <Wand2 size={13} />
-                  重新发起项目编排
-                </Button>
-              </div>
-              <div className="mt-3 rounded-lg border border-border bg-background p-3">
-                <div className="flex items-center gap-2">
-                  <ClipboardCheck size={14} className="text-primary" />
-                  <p className="text-xs font-semibold text-foreground">当前结构</p>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <ContextLine icon={Sparkles} label="设定" value={`${derived.activeReferences.length}`} />
-                  <ContextLine icon={PackageCheck} label="素材需求" value={`${data.assetSlots.length}`} />
-                  <ContextLine icon={Route} label="制作" value={`${data.productions.length}`} />
-                  <ContextLine icon={GitMerge} label="合并候选" value={`${mergeCandidates.length}`} />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-3 p-4">
-              <div className="rounded-lg border border-dashed border-border bg-background p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold text-foreground">调试信息</p>
-                    <p className="mt-1 text-[10px] leading-4 text-muted-foreground">
-                      这里显示路由、草稿和解析状态，用来确认 draft 是否回流到项目编排页。
-                    </p>
-                  </div>
-                  <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => draftsQuery.refetch()}>
-                    <RefreshCw size={12} />
-                    刷新
-                  </Button>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5">
-                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">pageKey</p>
-                    <p className="mt-0.5 break-all font-mono text-[10px] text-foreground">{pageKey ?? 'n/a'}</p>
-                  </div>
-                  <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5">
-                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">draftId</p>
-                    <p className="mt-0.5 break-all font-mono text-[10px] text-foreground">{scopedDraftId || 'n/a'}</p>
-                  </div>
-                  <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5">
-                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">draftCount</p>
-                    <p className="mt-0.5 font-mono text-[10px] text-foreground">{drafts.length}</p>
-                  </div>
-                  <div className="rounded-md border border-border bg-muted/20 px-2 py-1.5">
-                    <p className="text-[9px] uppercase tracking-wide text-muted-foreground">query</p>
-                    <p className="mt-0.5 font-mono text-[10px] text-foreground">{draftsQuery.isFetching ? 'fetching' : 'idle'}</p>
-                  </div>
-                </div>
-                {activeDraftView ? (
-                  <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-                    当前预览：{activeDraftView.summary}
-                  </p>
-                ) : null}
-                {draftsQuery.error ? (
-                  <p className="mt-2 text-[10px] leading-4 text-destructive">
-                    {draftsQuery.error instanceof Error ? draftsQuery.error.message : String(draftsQuery.error)}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-foreground">AI 草稿应用</p>
-                <Badge variant="secondary" className="text-[10px]">draft {draftCounts.draft}</Badge>
-              </div>
-              {draftsQuery.isLoading ? (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-3 text-xs text-muted-foreground">
-                  <Loader2 size={12} className="animate-spin" />
-                  读取草稿…
-                </div>
-              ) : drafts.length === 0 ? (
-                <EmptyBlock title="暂无项目编排草稿" detail="从上方发起项目编排后，AI 的治理建议会进入这里逐项审阅。" />
-              ) : drafts.map((draft) => {
-                const proposalView = parseProjectProposalDraft(draft, pageKey)
-                return (
-                  <div key={draft.id} className="rounded-lg border border-border bg-background p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-foreground">{draft.title}</p>
-                        <p className="mt-1 text-[10px] text-muted-foreground">{formatDate(draft.updatedAt)} · {draft.id}</p>
-                      </div>
-                      <Badge variant={draftStatusVariant(draft.status)} className="shrink-0 text-[10px]">{draftStatusLabel(draft.status)}</Badge>
-                    </div>
-
-                    {proposalView ? (
-                      <div className="mt-3 space-y-3">
-                        <div className="rounded-md border border-sky-500/20 bg-sky-500/5 p-2.5">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] font-medium text-foreground">编排建议</p>
-                            <Badge variant="outline" className="text-[9px]">project_proposal</Badge>
-                          </div>
-                          <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{proposalView.summary}</p>
-                          <div className="mt-2 grid grid-cols-2 gap-2">
-                            <MiniMetric icon={Sparkles} label="设定建议" value={proposalView.creativeReferences.length} />
-                            <MiniMetric icon={PackageCheck} label="素材建议" value={proposalView.assetSlots.length} />
-                          </div>
-                          {proposalView.creativeReferences.length > 0 ? (
-                            <div className="mt-2 space-y-1 rounded-md border border-border bg-background/70 p-2">
-                              <p className="text-[10px] font-medium text-foreground">设定建议</p>
-                              {proposalView.creativeReferences.slice(0, 4).map((entry, index) => (
-                                <div key={`${draft.id}-ref-${index}`} className="rounded border border-border/70 px-2 py-1 text-[10px] leading-4 text-muted-foreground">
-                                  <span className="font-medium text-foreground">{formatDraftEntry(entry)}</span>
-                                  <span className="block">{entry.detail}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                          {proposalView.assetSlots.length > 0 ? (
-                            <div className="mt-2 space-y-1 rounded-md border border-border bg-background/70 p-2">
-                              <p className="text-[10px] font-medium text-foreground">素材 / 视图需求</p>
-                              {proposalView.assetSlotGroups.slice(0, 4).map((group, groupIndex) => (
-                                <div key={`${draft.id}-asset-group-${groupIndex}`} className="rounded border border-border/70 px-2 py-1 text-[10px] leading-4 text-muted-foreground">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="font-medium text-foreground">{group.ownerLabel}</span>
-                                    <span className="shrink-0 text-[9px] text-muted-foreground">{group.items.length} 项</span>
-                                  </div>
-                                  <div className="mt-1 space-y-1">
-                                    {group.items.slice(0, 3).map((entry, index) => (
-                                      <div key={`${draft.id}-asset-${groupIndex}-${index}`} className="rounded border border-border/50 bg-background/60 px-2 py-1">
-                                        <span className="font-medium text-foreground">{formatDraftEntry(entry)}</span>
-                                        <span className="block">{entry.detail}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                          {proposalView.impactNotes.length > 0 ? (
-                            <div className="mt-2 space-y-1 rounded-md border border-border bg-background/70 p-2">
-                              <p className="text-[10px] font-medium text-foreground">影响说明</p>
-                              {proposalView.impactNotes.slice(0, 4).map((note, index) => (
-                                <p key={`${draft.id}-impact-${index}`} className="text-[10px] leading-4 text-muted-foreground">{note}</p>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                        <details className="rounded-md border border-border bg-background/70 p-2">
-                          <summary className="cursor-pointer text-[10px] font-medium text-foreground">调试原文</summary>
-                          <div className="mt-2 space-y-1 text-[10px] leading-4 text-muted-foreground">
-                            <div>scope: {proposalView.debug.scope || 'n/a'}</div>
-                            <div>sourceRunId: {proposalView.debug.sourceRunId || 'n/a'}</div>
-                            <div>sourceThreadId: {proposalView.debug.sourceThreadId || 'n/a'}</div>
-                            <div>updatedAt: {proposalView.debug.draftUpdatedAt || 'n/a'}</div>
-                          </div>
-                          <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[10px] leading-4 text-muted-foreground">
-                            {draft.content}
-                          </pre>
-                        </details>
-                      </div>
-                    ) : (
-                      <pre className="mt-3 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[10px] leading-4 text-muted-foreground">
-                        {draft.content}
-                      </pre>
-                    )}
-
-                    <div className="mt-3 flex gap-2">
-                      <Button size="sm" className="h-7 flex-1 gap-1.5 text-xs" onClick={() => applyDraft(draft)} loading={applyingDraftId === draft.id} disabled={draft.status === 'applied'}>
-                        <CheckCircle2 size={12} />
-                        应用草稿
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" asChild>
-                        <Link to="/agent/drafts">
-                          <FileText size={12} />
-                          历史
-                        </Link>
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-          ) : (
-            <div className="flex-1" />
-          )}
-        </aside>
       </div>
 
       {dialog ? (
@@ -1228,18 +1608,6 @@ function MiniMetric({ icon: Icon, label, value }: { icon: LucideIcon; label: str
         {label}
       </div>
       <p className="mt-1 text-lg font-semibold tabular-nums text-foreground">{value}</p>
-    </div>
-  )
-}
-
-function ContextLine({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border bg-card px-2.5 py-2">
-      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-        <Icon size={11} />
-        {label}
-      </div>
-      <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p>
     </div>
   )
 }
@@ -1351,13 +1719,13 @@ function buildProjectOrchestrationPrompt(input: {
   }
 
   return [
-    `你是项目提案助手。请基于当前项目现状，产出项目级治理草稿，并写入本地 draft：${input.draftId}。`,
+    `你是项目提案助手。请基于当前项目现状，产出项目级设定与素材草稿，并写入本地 draft：${input.draftId}。`,
     '',
     buildProjectProposalDraftContractPrompt(input.draftId),
     '',
     input.userPrompt.trim() ? `用户补充要求：\n${input.userPrompt.trim()}\n` : '',
     '当前项目快照：',
-    '快照分两层：creativeReferences 代表设定本体，assetSlots 代表这些设定需要的视图/素材需求。',
+    '快照分两层：creativeReferences 代表设定本体，assetSlots 代表这些设定需要的视图/素材需求；关系调整要落到单条资产槽的归属字段上。',
     JSON.stringify(snapshot, null, 2),
   ].filter(Boolean).join('\n')
 }
@@ -1378,14 +1746,15 @@ const PROJECT_ORCHESTRATION_AGENT_MANIFEST: AgentManifest = {
   id: 'project-orchestration-workbench',
   version: '1.0.0',
   name: '项目提案助手',
-  description: '整理项目级设定、素材需求和跨制作引用，生成可审阅的项目提案草稿',
-  soul: `你是项目级提案助手。你的目标是帮助用户治理项目设定和素材需求。
+  description: '整理项目级设定、素材需求和跨制作引用，生成可审阅的设定/素材草稿',
+  soul: `你是项目级提案助手。你的目标是帮助用户治理项目设定和素材需求，并把最终草稿收敛为可审阅的设定/素材提案。
 
 只写本地 draft，不直接改正式项目实体。
-draft 是可审阅的提案快照，不是最终结果。
-草稿权威状态面向 snapshot，不是面向 operation log；每一轮编辑都应基于当前完整快照继续。
+draft 是可审阅的局部语义补丁，不是最终结果，也不是 operation log。
+draft 会通过 merge 机制应用；没有写进 draft 的实体和字段不会被修改。
 项目提案内部按两层组织：先整理设定资料本体，再整理依附于设定资料的素材/视图需求。
-输出要围绕：创建设定、修改设定、删除设定、合并重复设定、锁定素材需求、说明对制作引用的影响。
+输出只围绕设定资料和素材需求的新增、局部修改、设定资料合并建议，以及素材需求归属调整。
+不要要求删除、锁定或生成执行类 operation；不需要改的内容写进 summary/impact_notes，不要复制到 proposal 节点里。
 如果当前上下文里有 productionId 或当前制作信息，可以先读取当前制作和剧本，再整理项目级结论。
 不要生成制作项、关键帧、台词终稿、运镜表或 prompt。制作编排只引用项目编排的结果。`,
   permissions: ['project.read', 'draft.read', 'draft.write'],
@@ -1399,6 +1768,7 @@ draft 是可审阅的提案快照，不是最终结果。
     { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_patch_draft', mode: 'allow', approval: 'never' },
     { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
+    { name: 'movscript_simulate_draft_apply', mode: 'allow', approval: 'never' },
     { name: 'movscript_request_user_input', mode: 'allow', approval: 'never' },
   ],
 }

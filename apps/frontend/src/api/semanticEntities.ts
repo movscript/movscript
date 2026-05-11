@@ -203,6 +203,39 @@ export async function applyProductionProposal(
   return data
 }
 
+export interface PreviewProductionProposalApplyResponse {
+  status: string
+  dry_run: boolean
+  would_apply: ApplyProductionProposalResponse
+  semantic_changes?: ProductionProposalPreviewSemanticChange[]
+  warnings?: ProductionProposalPreviewWarning[]
+}
+
+export interface ProductionProposalPreviewSemanticChange {
+  kind: string
+  action: string
+  title: string
+  parent?: string
+  client_id?: string
+  id?: number
+}
+
+export interface ProductionProposalPreviewWarning {
+  code: string
+  message: string
+}
+
+export async function previewProductionProposalApply(
+  projectId: number,
+  payload: Record<string, unknown>,
+): Promise<PreviewProductionProposalApplyResponse> {
+  const { data } = await api.post<PreviewProductionProposalApplyResponse>(
+    `/projects/${projectId}/entities/production-proposals/apply-preview`,
+    payload,
+  )
+  return data
+}
+
 function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
   return [
     cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是编排段和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [

@@ -12,11 +12,10 @@
     "movscript.policy.approval-boundaries"
   ],
   "tools": [
-    "movscript_get_draft",
+    "movscript_read_draft",
     "movscript_list_drafts",
-    "movscript_update_draft",
-    "movscript_patch_draft",
-    "movscript_validate_draft",
+    "movscript_edit_draft",
+    "movscript_dry_apply_draft",
     "movscript_request_user_input",
     "movscript_create_script"
   ]

@@ -1,7 +1,7 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import type { JSONValue } from '../types.js'
-import { atomicWriteJSON, resolveAgentStatePath } from '../runtime/store/fileStore.js'
+import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
 
 // AgentDraft is a local runtime/client review artifact. It is the protocol shape
 // used to pass proposed changes to the UI for preview, revision, approval, or
@@ -18,6 +18,7 @@ export type AgentDraftKind =
   | 'pipeline'
   | 'segment'
   | 'scene_moment'
+  | 'asset_proposal'
   | 'project_proposal'
   | 'production_proposal'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
@@ -46,6 +47,7 @@ export interface AgentDraftTarget {
 
 export interface AgentDraft {
   id: string
+  filePath?: string
   projectId?: number
   kind: AgentDraftKind
   title: string
@@ -122,6 +124,24 @@ export interface AgentDraftPatchResult {
   changedPaths: string[]
 }
 
+export interface ReadAgentDraftResult {
+  draft: AgentDraft
+  filePath: string
+  content: string
+}
+
+export interface EditAgentDraftInput {
+  oldString?: unknown
+  newString?: unknown
+  replaceAll?: unknown
+}
+
+export interface EditAgentDraftResult {
+  draft: AgentDraft
+  filePath: string
+  replacementCount: number
+}
+
 export interface AgentDraftValidationIssue {
   path: string
   message: string
@@ -139,17 +159,23 @@ export interface AgentDraftStore {
   createDraft(input: CreateAgentDraftInput): AgentDraft
   updateDraft(id: string, input: UpdateAgentDraftInput): AgentDraft
   patchDraft(id: string, input: PatchAgentDraftInput): AgentDraftPatchResult
+  getDraftFilePath(id: string): string
+  readDraftFile(filePath: string): ReadAgentDraftResult
+  editDraftFile(filePath: string, input: EditAgentDraftInput): EditAgentDraftResult
   getDraft(id: string): AgentDraft | undefined
   listDrafts(query?: ListAgentDraftsQuery): AgentDraft[]
 }
 
 export class InMemoryAgentDraftStore implements AgentDraftStore {
   private readonly drafts = new Map<string, AgentDraft>()
+  protected readonly lastReadContentByPath = new Map<string, string>()
 
   createDraft(input: CreateAgentDraftInput): AgentDraft {
     const now = new Date().toISOString()
+    const draftId = makeDraftId()
     const draft: AgentDraft = {
-      id: makeDraftId(),
+      id: draftId,
+      filePath: this.getDraftFilePath(draftId),
       ...(typeof input.projectId === 'number' && Number.isFinite(input.projectId) ? { projectId: input.projectId } : {}),
       kind: normalizeDraftKind(input.kind),
       title: normalizeTitle(input.title),
@@ -172,6 +198,7 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
     if (!current) throw new Error(`draft not found: ${id}`)
     const updated: AgentDraft = {
       ...current,
+      filePath: current.filePath ?? this.getDraftFilePath(current.id),
       ...(input.status ? { status: input.status } : {}),
       ...(typeof input.title === 'string' ? { title: normalizeTitle(input.title) } : {}),
       ...(typeof input.content === 'string' ? { content: input.content } : {}),
@@ -215,6 +242,55 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
     return draft ? clone(draft) : undefined
   }
 
+  getDraftFilePath(id: string): string {
+    return resolve('/movscript-agent/drafts', `${id}.draft`)
+  }
+
+  readDraftFile(filePath: string): ReadAgentDraftResult {
+    const draft = this.requireDraftByFilePath(filePath)
+    const normalizedPath = normalizeFilePath(filePath)
+    this.lastReadContentByPath.set(normalizedPath, draft.content)
+    return {
+      draft: clone(draft),
+      filePath: normalizedPath,
+      content: draft.content,
+    }
+  }
+
+  editDraftFile(filePath: string, input: EditAgentDraftInput): EditAgentDraftResult {
+    const draft = this.requireDraftByFilePath(filePath)
+    const normalizedPath = normalizeFilePath(filePath)
+    const lastReadContent = this.lastReadContentByPath.get(normalizedPath)
+    if (lastReadContent === undefined) {
+      throw new Error(`edit_draft requires reading the file first: ${normalizedPath}`)
+    }
+    if (lastReadContent !== draft.content) {
+      throw new Error(`edit_draft cannot edit stale content; read the file again: ${normalizedPath}`)
+    }
+
+    const oldString = normalizeEditString(input.oldString, 'old_string')
+    const newString = normalizeEditString(input.newString, 'new_string')
+    if (oldString === newString) throw new Error('edit_draft requires new_string to differ from old_string')
+    const replaceAll = input.replaceAll === true
+    const matches = countOccurrences(draft.content, oldString)
+    if (replaceAll) {
+      if (matches === 0) throw new Error('edit_draft old_string was not found')
+    } else if (matches !== 1) {
+      throw new Error(`edit_draft old_string must match exactly once; found ${matches}`)
+    }
+
+    const updatedContent = replaceAll
+      ? draft.content.split(oldString).join(newString)
+      : draft.content.replace(oldString, newString)
+    const updated = this.updateDraft(draft.id, { content: updatedContent })
+    this.lastReadContentByPath.delete(normalizedPath)
+    return {
+      draft: updated,
+      filePath: normalizedPath,
+      replacementCount: matches,
+    }
+  }
+
   listDrafts(query: ListAgentDraftsQuery = {}): AgentDraft[] {
     const limit = typeof query.limit === 'number' && Number.isFinite(query.limit)
       ? Math.max(1, Math.min(Math.floor(query.limit), 100))
@@ -237,11 +313,13 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map((draft) => clone(draft))
   }
-}
 
-interface DraftStateFile {
-  version: 1
-  drafts: AgentDraft[]
+  protected requireDraftByFilePath(filePath: string): AgentDraft {
+    const normalizedPath = normalizeFilePath(filePath)
+    const draft = Array.from(this.drafts.values()).find((candidate) => normalizeFilePath(candidate.filePath ?? this.getDraftFilePath(candidate.id)) === normalizedPath)
+    if (!draft) throw new Error(`draft file not found: ${normalizedPath}`)
+    return clone(draft)
+  }
 }
 
 export class FileAgentDraftStore extends InMemoryAgentDraftStore {
@@ -271,17 +349,82 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
     return result
   }
 
+  override getDraftFilePath(id: string): string {
+    return contentFilePath(this.filePath, id)
+  }
+
+  override readDraftFile(filePath: string): ReadAgentDraftResult {
+    const draft = this.requireDraftByFilePath(filePath)
+    const normalizedPath = normalizeFilePath(filePath)
+    const content = readDraftContent(normalizedPath, draft.content)
+    this.lastReadContentByPath.set(normalizedPath, content)
+    return {
+      draft: clone({ ...draft, content }),
+      filePath: normalizedPath,
+      content,
+    }
+  }
+
+  override editDraftFile(filePath: string, input: EditAgentDraftInput): EditAgentDraftResult {
+    const normalizedPath = normalizeFilePath(filePath)
+    const draft = this.requireDraftByFilePath(normalizedPath)
+    const currentContent = readDraftContent(normalizedPath, draft.content)
+    const lastReadContent = this.lastReadContentByPath.get(normalizedPath)
+    if (lastReadContent === undefined) {
+      throw new Error(`edit_draft requires reading the file first: ${normalizedPath}`)
+    }
+    if (lastReadContent !== currentContent) {
+      throw new Error(`edit_draft cannot edit stale content; read the file again: ${normalizedPath}`)
+    }
+    const oldString = normalizeEditString(input.oldString, 'old_string')
+    const newString = normalizeEditString(input.newString, 'new_string')
+    if (oldString === newString) throw new Error('edit_draft requires new_string to differ from old_string')
+    const replaceAll = input.replaceAll === true
+    const matches = countOccurrences(currentContent, oldString)
+    if (replaceAll) {
+      if (matches === 0) throw new Error('edit_draft old_string was not found')
+    } else if (matches !== 1) {
+      throw new Error(`edit_draft old_string must match exactly once; found ${matches}`)
+    }
+
+    const updatedContent = replaceAll
+      ? currentContent.split(oldString).join(newString)
+      : currentContent.replace(oldString, newString)
+    writeDraftContent(normalizedPath, updatedContent)
+    const updated = super.updateDraft(draft.id, { content: updatedContent })
+    this.lastReadContentByPath.delete(normalizedPath)
+    this.persist()
+    return {
+      draft: updated,
+      filePath: normalizedPath,
+      replacementCount: matches,
+    }
+  }
+
   private load(): void {
     if (!existsSync(this.filePath)) return
-    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<DraftStateFile>
-    this.loadDrafts(Array.isArray(parsed.drafts) ? parsed.drafts : [])
+    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as { version?: number; drafts?: unknown[] }
+    const drafts = Array.isArray(parsed.drafts) ? parsed.drafts.flatMap((draft) => normalizeStoredDraftRecord(draft)) : []
+    this.loadDrafts(drafts.map((draft) => {
+      const filePath = this.getDraftFilePath(draft.id)
+      const fileContent = readDraftContent(filePath, draft.content)
+      return {
+        ...draft,
+        filePath,
+        content: fileContent,
+      }
+    }))
   }
 
   private persist(): void {
     atomicWriteJSON(this.filePath, {
-      version: 1,
+      version: 2,
       drafts: this.allDrafts(),
-    } satisfies DraftStateFile)
+    })
+    mkdirSync(dirname(this.filePath), { recursive: true })
+    for (const draft of this.allDrafts()) {
+      writeDraftContent(this.getDraftFilePath(draft.id), draft.content)
+    }
   }
 }
 
@@ -289,6 +432,52 @@ export function resolveAgentDraftPath(statePath = resolveAgentStatePath()): stri
   if (process.env.MOVSCRIPT_AGENT_DRAFT_PATH) return process.env.MOVSCRIPT_AGENT_DRAFT_PATH
   if (statePath.endsWith('.json')) return statePath.replace(/\.json$/, '.drafts.json')
   return join(statePath, 'drafts.json')
+}
+
+function contentFilePath(indexFilePath: string, draftId: string): string {
+  return join(dirname(indexFilePath), 'draft-files', `${draftId}.draft`)
+}
+
+function readDraftContent(filePath: string, fallback: string): string {
+  if (!existsSync(filePath)) {
+    writeDraftContent(filePath, fallback)
+    return fallback
+  }
+  return readFileSync(filePath, 'utf8')
+}
+
+function writeDraftContent(filePath: string, content: string): void {
+  mkdirSync(dirname(filePath), { recursive: true })
+  writeFileSync(filePath, content, 'utf8')
+}
+
+function normalizeFilePath(filePath: string): string {
+  return resolve(filePath)
+}
+
+function normalizeEditString(value: unknown, field: 'old_string' | 'new_string'): string {
+  if (typeof value !== 'string') throw new Error(`edit_draft requires ${field}`)
+  return value
+}
+
+function normalizeStoredDraftRecord(value: unknown): AgentDraft[] {
+  if (!isRecord(value) || typeof value.id !== 'string' || !value.id.trim()) return []
+  return [normalizeStoredDraft({
+    ...(value as unknown as AgentDraft),
+    id: value.id.trim(),
+  })]
+}
+
+function countOccurrences(text: string, needle: string): number {
+  if (needle === '') return 0
+  let count = 0
+  let index = 0
+  while (true) {
+    const next = text.indexOf(needle, index)
+    if (next === -1) return count
+    count += 1
+    index = next + needle.length
+  }
 }
 
 export function normalizeDraftKind(value: unknown): AgentDraftKind {
@@ -302,6 +491,7 @@ export function normalizeDraftKind(value: unknown): AgentDraftKind {
     || value === 'pipeline'
     || value === 'segment'
     || value === 'scene_moment'
+    || value === 'asset_proposal'
     || value === 'project_proposal'
     || value === 'production_proposal'
     ? value
@@ -320,6 +510,10 @@ export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
     validateScriptSplitDraft(draft, issues)
   } else if (draft.kind === 'project_proposal') {
     validateProjectProposalDraft(draft, issues)
+  } else if (draft.kind === 'asset_proposal') {
+    validateAssetProposalDraft(draft, issues)
+  } else if (draft.kind === 'production_proposal') {
+    validateProductionProposalDraft(draft, issues)
   }
   return {
     ok: !issues.some((issue) => issue.severity === 'error'),
@@ -494,6 +688,19 @@ function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidatio
     if (!isRecord(episode.global_context)) {
       issues.push({ path: `${base}/global_context`, message: 'Episode draft requires global_context.', severity: 'error' })
     }
+    const productionAction = typeof episode.production_action === 'string'
+      ? episode.production_action
+      : typeof episode.productionAction === 'string'
+        ? episode.productionAction
+        : ''
+    if (productionAction && !['create', 'update', 'skip'].includes(productionAction)) {
+      issues.push({ path: `${base}/production_action`, message: 'Episode draft production_action must be create, update, or skip.', severity: 'error' })
+    }
+    const explicitProductionId = episode.existing_production_id ?? episode.existingProductionId
+    const existingProductionId = numberValue(explicitProductionId)
+    if (explicitProductionId !== undefined && explicitProductionId !== null && (existingProductionId === undefined || existingProductionId <= 0)) {
+      issues.push({ path: `${base}/existing_production_id`, message: 'Episode draft existing_production_id must be a positive id or null.', severity: 'error' })
+    }
   })
 }
 
@@ -519,26 +726,205 @@ function validateProjectProposalDraft(draft: AgentDraft, issues: AgentDraftValid
     return
   }
 
-  validateProjectProposalOperationArray('creative_references', proposal.creative_references, issues)
-  validateProjectProposalOperationArray('asset_slots', proposal.asset_slots, issues)
+  validateProjectProposalPatchArray('creative_references', proposal.creative_references, issues)
+  validateProjectProposalPatchArray('asset_slots', proposal.asset_slots, issues)
 
-  if (Array.isArray(parsed.operations) && parsed.operations.length > 0) {
+  if (parsed.operations !== undefined) {
     issues.push({
       path: '/operations',
-      message: 'Project proposal draft should keep operations empty; use proposal.creative_references and proposal.asset_slots instead.',
-      severity: 'warning',
-    })
-    validateProjectProposalOperationsArray(parsed.operations, issues)
-  } else if (parsed.operations !== undefined && !Array.isArray(parsed.operations)) {
-    issues.push({
-      path: '/operations',
-      message: 'Project proposal draft operations must be an array when present.',
+      message: 'Project proposal drafts must not include operations; they are partial merge patches over creative_references and asset_slots.',
       severity: 'error',
     })
   }
 }
 
-function validateProjectProposalOperationArray(
+function validateAssetProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(draft.content)
+  } catch {
+    issues.push({ path: '/content', message: 'Asset proposal draft content must be valid JSON.', severity: 'error' })
+    return
+  }
+  if (!isRecord(parsed)) {
+    issues.push({ path: '/content', message: 'Asset proposal draft content must be a JSON object.', severity: 'error' })
+    return
+  }
+  if (parsed.schema !== undefined && parsed.schema !== 'movscript.asset_proposal.v1') {
+    issues.push({ path: '/schema', message: 'Asset proposal draft schema must be movscript.asset_proposal.v1.', severity: 'error' })
+  }
+  if (parsed.scope !== 'asset_proposal') {
+    issues.push({ path: '/scope', message: 'Asset proposal draft scope must be asset_proposal.', severity: 'error' })
+  }
+  const assetSlotId = numberValue(parsed.assetSlotId ?? parsed.asset_slot_id)
+  if (assetSlotId === undefined || assetSlotId <= 0) {
+    issues.push({ path: '/assetSlotId', message: 'Asset proposal draft requires a positive assetSlotId.', severity: 'error' })
+  }
+  const slot = isRecord(parsed.slot) ? parsed.slot : undefined
+  if (!slot) {
+    issues.push({ path: '/slot', message: 'Asset proposal draft requires slot.', severity: 'error' })
+  } else {
+    const slotId = numberValue(slot.id ?? slot.ID)
+    if (slotId === undefined || slotId <= 0) {
+      issues.push({ path: '/slot/id', message: 'Asset proposal slot requires a positive id.', severity: 'error' })
+    }
+    if (assetSlotId !== undefined && slotId !== undefined && assetSlotId !== slotId) {
+      issues.push({ path: '/slot/id', message: 'Asset proposal slot.id must match assetSlotId.', severity: 'error' })
+    }
+    if (typeof slot.name !== 'string' || !slot.name.trim()) {
+      issues.push({ path: '/slot/name', message: 'Asset proposal slot requires name.', severity: 'error' })
+    }
+    if (typeof slot.kind !== 'string' || !slot.kind.trim()) {
+      issues.push({ path: '/slot/kind', message: 'Asset proposal slot requires kind.', severity: 'error' })
+    }
+  }
+
+  const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
+  if (!proposal) {
+    issues.push({ path: '/proposal', message: 'Asset proposal draft requires proposal.', severity: 'error' })
+    return
+  }
+  const plans = proposal.candidate_plans
+  if (!Array.isArray(plans)) {
+    issues.push({ path: '/proposal/candidate_plans', message: 'Asset proposal draft requires proposal.candidate_plans.', severity: 'error' })
+    return
+  }
+  plans.forEach((plan, index) => {
+    const base = `/proposal/candidate_plans/${index}`
+    if (!isRecord(plan)) {
+      issues.push({ path: base, message: 'Asset proposal candidate plan must be an object.', severity: 'error' })
+      return
+    }
+    const outputKind = typeof plan.output_kind === 'string' ? plan.output_kind : ''
+    if (!['image', 'video', 'audio', 'text', 'file'].includes(outputKind)) {
+      issues.push({ path: `${base}/output_kind`, message: 'Asset proposal candidate plan output_kind must be image, video, audio, text, or file.', severity: 'error' })
+    }
+    if (typeof plan.prompt !== 'string' || !plan.prompt.trim()) {
+      issues.push({ path: `${base}/prompt`, message: 'Asset proposal candidate plan requires prompt.', severity: 'error' })
+    }
+    if (!Array.isArray(plan.input_resource_ids)) {
+      issues.push({ path: `${base}/input_resource_ids`, message: 'Asset proposal candidate plan requires input_resource_ids array.', severity: 'error' })
+    } else {
+      plan.input_resource_ids.forEach((value, resourceIndex) => {
+        const resourceId = numberValue(value)
+        if (resourceId === undefined || resourceId <= 0) {
+          issues.push({ path: `${base}/input_resource_ids/${resourceIndex}`, message: 'Asset proposal input resource ids must be positive numbers.', severity: 'error' })
+        }
+      })
+    }
+    if (!Array.isArray(plan.acceptance_criteria) || plan.acceptance_criteria.length === 0) {
+      issues.push({ path: `${base}/acceptance_criteria`, message: 'Asset proposal candidate plan requires acceptance_criteria.', severity: 'warning' })
+    }
+    const modelCapability = typeof plan.model_capability === 'string' ? plan.model_capability : ''
+    if (modelCapability && !['image', 'image_edit', 'video', 'video_i2v'].includes(modelCapability)) {
+      issues.push({ path: `${base}/model_capability`, message: 'Asset proposal model_capability must be image, image_edit, video, or video_i2v.', severity: 'error' })
+    }
+  })
+}
+
+function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(draft.content)
+  } catch {
+    issues.push({ path: '/content', message: 'Production proposal draft content must be valid JSON.', severity: 'error' })
+    return
+  }
+  if (!isRecord(parsed)) {
+    issues.push({ path: '/content', message: 'Production proposal draft content must be a JSON object.', severity: 'error' })
+    return
+  }
+  if (numberValue(parsed.productionId ?? parsed.production_id) === undefined) {
+    issues.push({ path: '/productionId', message: 'Production proposal draft requires productionId.', severity: 'error' })
+  }
+  const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
+  if (!proposal) {
+    issues.push({ path: '/proposal', message: 'Production proposal draft requires proposal.', severity: 'error' })
+    return
+  }
+  const segments = Array.isArray(proposal.segments) ? proposal.segments : []
+  if (segments.length === 0) {
+    issues.push({ path: '/proposal/segments', message: 'Production proposal draft requires at least one segment.', severity: 'error' })
+    return
+  }
+  segments.forEach((segment, segmentIndex) => {
+    const base = `/proposal/segments/${segmentIndex}`
+    if (!isRecord(segment)) {
+      issues.push({ path: base, message: 'Production proposal segment must be an object.', severity: 'error' })
+      return
+    }
+    if (typeof segment.action !== 'string' || !segment.action.trim()) {
+      issues.push({ path: `${base}/action`, message: 'Production proposal segment requires action.', severity: 'error' })
+    }
+    if (typeof segment.title !== 'string' || !segment.title.trim()) {
+      issues.push({ path: `${base}/title`, message: 'Production proposal segment requires title.', severity: 'error' })
+    }
+    const sceneMoments = Array.isArray(segment.scene_moments) ? segment.scene_moments : []
+    if (sceneMoments.length === 0) {
+      issues.push({ path: `${base}/scene_moments`, message: 'Production proposal segment requires at least one scene moment.', severity: 'warning' })
+    }
+    sceneMoments.forEach((sceneMoment, sceneIndex) => {
+      const sceneBase = `${base}/scene_moments/${sceneIndex}`
+      if (!isRecord(sceneMoment)) {
+        issues.push({ path: sceneBase, message: 'Scene moment must be an object.', severity: 'error' })
+        return
+      }
+      if (typeof sceneMoment.action !== 'string' || !sceneMoment.action.trim()) {
+        issues.push({ path: `${sceneBase}/action`, message: 'Scene moment requires action.', severity: 'error' })
+      }
+      if (typeof sceneMoment.title !== 'string' || !sceneMoment.title.trim()) {
+        issues.push({ path: `${sceneBase}/title`, message: 'Scene moment requires title.', severity: 'error' })
+      }
+      validateProductionProposalContentUnits(sceneMoment.content_units, `${sceneBase}/content_units`, issues)
+      validateProductionProposalKeyframes(sceneMoment.keyframes, `${sceneBase}/keyframes`, issues)
+    })
+  })
+}
+
+function validateProductionProposalContentUnits(value: unknown, basePath: string, issues: AgentDraftValidationIssue[]): void {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    issues.push({ path: basePath, message: 'Production proposal content_units must be an array.', severity: 'error' })
+    return
+  }
+  value.forEach((item, index) => {
+    const path = `${basePath}/${index}`
+    if (!isRecord(item)) {
+      issues.push({ path, message: 'Production proposal content unit must be an object.', severity: 'error' })
+      return
+    }
+    if (typeof item.action !== 'string' || !item.action.trim()) {
+      issues.push({ path: `${path}/action`, message: 'Production proposal content unit requires action.', severity: 'error' })
+    }
+    if (typeof item.title !== 'string' || !item.title.trim()) {
+      issues.push({ path: `${path}/title`, message: 'Production proposal content unit requires title.', severity: 'error' })
+    }
+    validateProductionProposalKeyframes(item.keyframes, `${path}/keyframes`, issues)
+  })
+}
+
+function validateProductionProposalKeyframes(value: unknown, basePath: string, issues: AgentDraftValidationIssue[]): void {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    issues.push({ path: basePath, message: 'Production proposal keyframes must be an array.', severity: 'error' })
+    return
+  }
+  value.forEach((item, index) => {
+    const path = `${basePath}/${index}`
+    if (!isRecord(item)) {
+      issues.push({ path, message: 'Production proposal keyframe must be an object.', severity: 'error' })
+      return
+    }
+    if (typeof item.action !== 'string' || !item.action.trim()) {
+      issues.push({ path: `${path}/action`, message: 'Production proposal keyframe requires action.', severity: 'error' })
+    }
+    if (typeof item.title !== 'string' || !item.title.trim()) {
+      issues.push({ path: `${path}/title`, message: 'Production proposal keyframe requires title.', severity: 'error' })
+    }
+  })
+}
+
+function validateProjectProposalPatchArray(
   key: 'creative_references' | 'asset_slots',
   value: unknown,
   issues: AgentDraftValidationIssue[],
@@ -553,119 +939,107 @@ function validateProjectProposalOperationArray(
       issues.push({ path: base, message: 'Project proposal node must be an object.', severity: 'error' })
       return
     }
-    validateProjectProposalNode(item, key === 'creative_references' ? 'creativeReferences' : 'assetSlots', base, issues)
+    validateProjectProposalPatchNode(item, key, base, issues)
   })
 }
 
-function validateProjectProposalNode(
+function validateProjectProposalPatchNode(
   node: Record<string, unknown>,
-  expectedEntity: 'creativeReferences' | 'assetSlots' | undefined,
+  key: 'creative_references' | 'asset_slots',
   basePath: string,
   issues: AgentDraftValidationIssue[],
 ): void {
-  const entity = typeof node.entity === 'string' && node.entity.trim() ? node.entity.trim() : ''
-  const action = typeof node.action === 'string' && node.action.trim() ? node.action.trim() : ''
-  const targetID = numberValue(node.target_id ?? node.targetId ?? node.id)
-  const sourceIDs = projectProposalSourceIDs(node.source_ids ?? node.sourceIds)
-  const payload = isRecord(node.payload) ? node.payload : undefined
-
-  const resolvedKey = entity === 'creativeReferences' || expectedEntity === 'creativeReferences'
-    ? 'creative_references'
-    : entity === 'assetSlots' || expectedEntity === 'assetSlots'
-      ? 'asset_slots'
-      : undefined
-  const allowedActions = resolvedKey === 'creative_references'
-    ? new Set(['create', 'update', 'delete', 'merge', 'reuse'])
-    : resolvedKey === 'asset_slots'
-      ? new Set(['create', 'update', 'delete', 'lock_asset', 'reuse'])
-      : undefined
-
-  if (!entity) {
-    issues.push({ path: `${basePath}/entity`, message: 'Project proposal node requires entity.', severity: 'error' })
-  } else if (expectedEntity && entity !== expectedEntity) {
-    issues.push({ path: `${basePath}/entity`, message: `Project proposal node entity must be ${expectedEntity}.`, severity: 'error' })
-  } else if (!expectedEntity && entity !== 'creativeReferences' && entity !== 'assetSlots') {
-    issues.push({ path: `${basePath}/entity`, message: 'Project proposal node entity must be creativeReferences or assetSlots.', severity: 'error' })
-  }
-
-  if (!action) {
-    issues.push({ path: `${basePath}/action`, message: 'Project proposal node requires action.', severity: 'error' })
-    return
-  }
-
-  if (!allowedActions || !allowedActions.has(action)) {
-    issues.push({ path: `${basePath}/action`, message: `Unsupported project proposal action "${action}".`, severity: 'error' })
-    return
-  }
-
-  if (action === 'reuse') {
-    issues.push({
-      path: `${basePath}/action`,
-      message: 'Project proposal reuse actions are deprecated; describe unchanged items in summary or impact_notes instead.',
-      severity: 'warning',
-    })
-    return
-  }
-
-  const needsTargetID = action === 'update' || action === 'delete' || action === 'merge' || action === 'lock_asset'
-  if (needsTargetID) {
-    if (targetID === undefined || targetID <= 0) {
-      issues.push({ path: `${basePath}/target_id`, message: `Project proposal action "${action}" requires a real target_id.`, severity: 'error' })
-    }
-  } else if (targetID !== undefined) {
-    issues.push({ path: `${basePath}/target_id`, message: 'Project proposal create actions must not include target_id.', severity: 'error' })
-  }
-
-  if (action === 'merge') {
-    if (sourceIDs.length === 0) {
-      issues.push({ path: `${basePath}/source_ids`, message: 'Project proposal merge requires source_ids.', severity: 'error' })
-    }
-    sourceIDs.forEach((sourceID, index) => {
-      if (sourceID <= 0) {
-        issues.push({ path: `${basePath}/source_ids/${index}`, message: 'Project proposal merge source_ids must be positive integers.', severity: 'error' })
-      }
-      if (targetID !== undefined && sourceID === targetID) {
-        issues.push({ path: `${basePath}/source_ids/${index}`, message: 'Project proposal merge source_ids must not include the target_id.', severity: 'error' })
-      }
-    })
-  } else if (sourceIDs.length > 0) {
-    issues.push({ path: `${basePath}/source_ids`, message: `Project proposal action "${action}" must not include source_ids.`, severity: 'error' })
-  }
-
-  if (action === 'create') {
-    if (resolvedKey === 'creative_references') {
-      if (!payloadName(payload)) {
-        issues.push({ path: `${basePath}/payload/name`, message: 'Project proposal creative reference create requires payload.name.', severity: 'error' })
-      }
-    } else if (resolvedKey === 'asset_slots' && !payloadName(payload)) {
-      issues.push({ path: `${basePath}/payload/name`, message: 'Project proposal asset slot create requires payload.name.', severity: 'error' })
+  const allowedKeys = key === 'creative_references'
+    ? new Set(['client_id', 'id', 'fields', 'merge_candidates'])
+    : new Set(['client_id', 'id', 'owner', 'fields'])
+  for (const nodeKey of Object.keys(node)) {
+    if (!allowedKeys.has(nodeKey)) {
+      issues.push({
+        path: `${basePath}/${nodeKey}`,
+        message: 'Project proposal nodes only allow client_id, id, fields, owner, and merge_candidates according to node type.',
+        severity: 'error',
+      })
     }
   }
-
-  if (action === 'lock_asset' && targetID !== undefined && targetID <= 0) {
-    issues.push({ path: `${basePath}/target_id`, message: 'Project proposal lock_asset requires a positive target_id.', severity: 'error' })
+  for (const forbidden of ['action', 'entity', 'target_id', 'targetId', 'source_ids', 'sourceIds', 'payload']) {
+    if (node[forbidden] !== undefined) {
+      issues.push({
+        path: `${basePath}/${forbidden}`,
+        message: 'Project proposal nodes are partial merge patches; do not use operation fields.',
+        severity: 'error',
+      })
+    }
+  }
+  const id = numberValue(node.id)
+  if (node.id !== undefined && (id === undefined || id <= 0)) {
+    issues.push({ path: `${basePath}/id`, message: 'Project proposal id must be a positive existing entity id when present.', severity: 'error' })
+  }
+  const fields = isRecord(node.fields) ? node.fields : undefined
+  if (node.fields !== undefined && !fields) {
+    issues.push({ path: `${basePath}/fields`, message: 'Project proposal fields must be an object.', severity: 'error' })
+  }
+  if (id === undefined && !patchFieldsName(fields)) {
+    issues.push({ path: `${basePath}/fields/name`, message: `New project proposal ${key} entries require fields.name.`, severity: 'error' })
+  }
+  if (key === 'creative_references') {
+    validateProjectProposalMergeCandidates(node.merge_candidates, id, basePath, issues)
+  }
+  if (key === 'asset_slots') {
+    validateProjectProposalOwner(node.owner, basePath, issues)
+    const ownerType = isRecord(node.owner) ? node.owner.type : fields?.owner_type
+    if (typeof ownerType === 'string' && ownerType.trim() && ownerType.trim() !== 'creative_reference') {
+      issues.push({
+        path: isRecord(node.owner) ? `${basePath}/owner/type` : `${basePath}/fields/owner_type`,
+        message: 'Project proposal asset slot owner type must use backend snake_case, usually creative_reference.',
+        severity: 'error',
+      })
+    }
   }
 }
 
-function validateProjectProposalOperationsArray(value: unknown, issues: AgentDraftValidationIssue[]): void {
-  if (!Array.isArray(value)) return
-  value.forEach((item, index) => {
-    const base = `/operations/${index}`
-    if (!isRecord(item)) {
-      issues.push({ path: base, message: 'Project proposal operation must be an object.', severity: 'error' })
+function validateProjectProposalMergeCandidates(value: unknown, targetID: number | undefined, basePath: string, issues: AgentDraftValidationIssue[]): void {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    issues.push({ path: `${basePath}/merge_candidates`, message: 'Project proposal merge_candidates must be an array.', severity: 'error' })
+    return
+  }
+  if (targetID === undefined) {
+    issues.push({ path: `${basePath}/merge_candidates`, message: 'Project proposal merge_candidates require the target creative reference id on the same node.', severity: 'error' })
+  }
+  value.forEach((candidate, index) => {
+    const path = `${basePath}/merge_candidates/${index}`
+    if (!isRecord(candidate)) {
+      issues.push({ path, message: 'Project proposal merge candidate must be an object.', severity: 'error' })
       return
     }
-    validateProjectProposalNode(item, undefined, base, issues)
+    const sourceID = numberValue(candidate.source_id)
+    if (sourceID === undefined || sourceID <= 0) {
+      issues.push({ path: `${path}/source_id`, message: 'Project proposal merge candidate requires a positive source_id.', severity: 'error' })
+    }
+    if (targetID !== undefined && sourceID === targetID) {
+      issues.push({ path: `${path}/source_id`, message: 'Project proposal merge candidate source_id must not equal the target id.', severity: 'error' })
+    }
   })
 }
 
-function projectProposalSourceIDs(value: unknown): number[] {
-  if (!Array.isArray(value)) return []
-  return value.map((item) => numberValue(item)).filter((item): item is number => typeof item === 'number')
+function validateProjectProposalOwner(value: unknown, basePath: string, issues: AgentDraftValidationIssue[]): void {
+  if (value === undefined) return
+  if (!isRecord(value)) {
+    issues.push({ path: `${basePath}/owner`, message: 'Project proposal owner must be an object.', severity: 'error' })
+    return
+  }
+  const id = numberValue(value.id)
+  const clientID = typeof value.client_id === 'string' && value.client_id.trim() ? value.client_id.trim() : ''
+  if (value.id !== undefined && (id === undefined || id <= 0)) {
+    issues.push({ path: `${basePath}/owner/id`, message: 'Project proposal owner.id must be a positive id when present.', severity: 'error' })
+  }
+  if (id === undefined && !clientID) {
+    issues.push({ path: `${basePath}/owner`, message: 'Project proposal owner requires id or client_id when present.', severity: 'error' })
+  }
 }
 
-function payloadName(payload: Record<string, unknown> | undefined): boolean {
-  return typeof payload?.name === 'string' && payload.name.trim().length > 0
+function patchFieldsName(fields: Record<string, unknown> | undefined): boolean {
+  return typeof fields?.name === 'string' && fields.name.trim().length > 0
 }
 
 function hasScriptSplitBodyText(value: Record<string, unknown>): boolean {
@@ -677,6 +1051,7 @@ function normalizeStoredDraft(draft: AgentDraft): AgentDraft {
   const now = new Date().toISOString()
   return {
     ...draft,
+    filePath: draft.filePath ?? resolve('/movscript-agent/drafts', `${draft.id}.draft`),
     kind: normalizeDraftKind(draft.kind),
     title: normalizeTitle(draft.title),
     content: typeof draft.content === 'string' ? draft.content : '',

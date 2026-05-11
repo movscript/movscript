@@ -366,6 +366,57 @@ func TestWritePortsSyncsAssetCandidateRelationsWithoutHooks(t *testing.T) {
 	assertRelationWithMetadataExists(t, db, "resource_binding_id", result.BindingIDs[0])
 }
 
+func TestWriteAndReadContentUnitGeneratedMediaBindings(t *testing.T) {
+	db := newWorkflowIOTestDB(t)
+	ctx := context.Background()
+	projectID := uint(1)
+	unit := model.ContentUnit{
+		ProjectID: projectID,
+		Kind:      "shot",
+		Title:     "开场镜头",
+		Status:    "draft",
+	}
+	if err := db.Create(&unit).Error; err != nil {
+		t.Fatalf("create content unit: %v", err)
+	}
+	resource1 := model.RawResource{OwnerID: 1, Type: "image", Name: "frame-a.png", FilePath: "/tmp/frame-a.png"}
+	resource2 := model.RawResource{OwnerID: 1, Type: "video", Name: "frame-b.mp4", FilePath: "/tmp/frame-b.mp4"}
+	if err := db.Create(&resource1).Error; err != nil {
+		t.Fatalf("create resource1: %v", err)
+	}
+	if err := db.Create(&resource2).Error; err != nil {
+		t.Fatalf("create resource2: %v", err)
+	}
+
+	svc := NewEntityIOService(db.Session(&gorm.Session{SkipHooks: true}))
+	if _, err := svc.WritePorts(ctx, "content_unit", unit.ID, map[string]EntityPortValue{
+		"generated_media": {Type: "resource", ResourceIDs: []uint{resource1.ID, resource2.ID}},
+	}, EntityWriteMeta{ProjectID: uintPtr(projectID), SourceType: "job", UserID: 2}); err != nil {
+		t.Fatalf("write content unit generated media: %v", err)
+	}
+
+	portValues, err := svc.ReadPorts(ctx, "content_unit", unit.ID)
+	if err != nil {
+		t.Fatalf("read content unit ports: %v", err)
+	}
+	generated := portValues["generated_media"]
+	if len(generated.ResourceIDs) != 2 {
+		t.Fatalf("expected two generated media bindings, got %#v", generated.ResourceIDs)
+	}
+
+	detail, err := svc.ReadDetailValues(ctx, "content_unit", unit.ID)
+	if err != nil {
+		t.Fatalf("read content unit detail: %v", err)
+	}
+	items, ok := detail.Values["generated_media"].([]map[string]any)
+	if !ok {
+		t.Fatalf("expected generated_media related list, got %#v", detail.Values["generated_media"])
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected two generated media items, got %#v", items)
+	}
+}
+
 func TestAttachAssetSlotCandidateSyncsRelationsWithoutHooks(t *testing.T) {
 	db := newWorkflowIOTestDB(t)
 	ctx := context.Background()
@@ -464,6 +515,7 @@ func newWorkflowIOTestDB(t *testing.T) *gorm.DB {
 		&model.EntityRelation{},
 		&model.AssetSlot{},
 		&model.AssetSlotCandidate{},
+		&model.ContentUnit{},
 		&model.ResourceBinding{},
 		&model.RawResource{},
 		&model.CanvasEntityWriteAudit{},

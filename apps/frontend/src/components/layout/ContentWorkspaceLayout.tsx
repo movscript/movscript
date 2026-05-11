@@ -17,6 +17,7 @@ interface ContentWorkspaceLayoutProps {
   detailWidth?: string
   coreMinWidth?: number
   className?: string
+  flow?: boolean
 }
 
 export function ContentWorkspaceLayout({
@@ -34,6 +35,7 @@ export function ContentWorkspaceLayout({
   detailWidth = 'minmax(0, 1fr)',
   coreMinWidth = 1160,
   className,
+  flow = false,
 }: ContentWorkspaceLayoutProps) {
   const contentStyle = {
     minWidth,
@@ -42,14 +44,14 @@ export function ContentWorkspaceLayout({
   } as CSSProperties
 
   return (
-    <div className={cn('content-workspace-shell h-full overflow-auto bg-background', className)}>
+    <div className={cn('content-workspace-shell bg-background', flow ? '' : 'h-full overflow-auto', className)}>
       <div className="space-y-3 p-4" style={contentStyle}>
         <section className="content-workspace-header">{header}</section>
         <section className="content-workspace-overview">{overview}</section>
         {filters ? <section>{filters}</section> : null}
-        <section className="content-workspace-core grid h-[min(640px,74vh)] min-h-[420px] gap-4 overflow-hidden">
-          <div className="content-workspace-column min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">{list}</div>
-          <div className="content-workspace-column min-h-0 min-w-0 space-y-4 overflow-y-auto pr-1">
+        <section className={cn('content-workspace-core grid gap-4', flow ? '' : 'h-[min(820px,82vh)] min-h-[560px] overflow-hidden')}>
+          <div className={cn('content-workspace-column min-w-0', flow ? 'space-y-4' : 'min-h-0 space-y-4 overflow-y-auto pr-1')}>{list}</div>
+          <div className={cn('content-workspace-column min-w-0', flow ? 'flex flex-col gap-4' : 'min-h-0 space-y-4 overflow-y-auto pr-1')}>
             {detail}
             {preview}
           </div>

@@ -139,13 +139,13 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
 export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
   {
     value: 'script',
-    title: '剧本拆分',
-    shortTitle: '拆分',
+    title: '一键制作',
+    shortTitle: '制作',
     href: '/workbench/script',
-    icon: BookOpenCheck,
-    purpose: '把总稿拆成可独立使用的制作剧本。',
-    decision: '识别制作边界、调整标题、合并或忽略片段。',
-    output: '多份可直接创建和复用的制作脚本。',
+    icon: Wand2,
+    purpose: '用剧本、brief 或提示词启动制作，自动生成设定上下文、素材需求线索、制作入口和预演前置方案。',
+    decision: '轻确认风格、素材缺口、制作主体和是否复用已有制作，再把方案写入项目。',
+    output: '可继续生成、编排和预演的一键制作方案。',
   },
   {
     value: 'preview',
@@ -191,7 +191,7 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
     value: 'production',
     title: '内容编排工作台',
     shortTitle: '编排',
-    href: '/workbench/production',
+    href: '/content-unit-orchestrate',
     icon: Wand2,
     purpose: '先围绕情节组织制作项，并把相关设定资料和素材输入放进生成上下文。',
     decision: '手动添加制作项、让 AI 规划制作项、打开生成画布或查看任务记录。',

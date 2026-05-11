@@ -44,6 +44,16 @@ export interface AgentAttachment {
   url?: string
   previewUrl?: string
   resourceId?: number
+  generated?: {
+    jobId?: number
+    jobType?: string
+    providerName?: string
+    modelDisplay?: string
+    modelIdentifier?: string
+    modelConfigId?: number
+    status?: string
+    stage?: string
+  }
 }
 
 export interface ChatMessageMeta {
@@ -52,7 +62,26 @@ export interface ChatMessageMeta {
   mode?: AgentWorkMode
   permissionMode?: AgentPermissionMode
   contextLabels?: string[]
+  generationJobs?: ChatGenerationJob[]
   localRunActivity?: ChatRunActivity
+}
+
+export interface ChatGenerationJob {
+  jobId?: number
+  jobType?: string
+  providerName?: string
+  modelDisplay?: string
+  modelIdentifier?: string
+  modelConfigId?: number
+  status: string
+  stage?: string
+  progress?: number
+  terminal: boolean
+  outputResourceId?: number
+  message?: string
+  firstSeenAt?: string
+  updatedAt?: string
+  completedAt?: string
 }
 
 export interface ChatRunActivity {

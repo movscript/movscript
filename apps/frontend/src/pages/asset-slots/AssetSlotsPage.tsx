@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronRight, CircleDashed, Database, FileAudio, FileText, Image, Lock, Package, PackageCheck, Plus, Sparkles, Video, Wand2, type LucideIcon } from 'lucide-react'
+import { Bot, ChevronRight, CircleDashed, Database, FileAudio, FileText, Image, Lock, Package, PackageCheck, Plus, Sparkles, Video, Wand2, type LucideIcon } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
@@ -10,8 +10,14 @@ import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityIn
 import { createSemanticEntity, listSemanticEntities, updateSemanticEntity, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
+import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { ASSET_PROPOSAL_AGENT_MANIFEST, buildAssetProposalAssistantMessage } from '@/lib/agentGenerationArtifacts'
+import { buildEmptyAssetProposalDraftContent } from '@/lib/assetProposalDraft'
 import { api } from '@/lib/api'
 import { API_BASE_URL } from '@/lib/config'
+import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
+import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
+import { localAgentClient } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
@@ -20,6 +26,7 @@ import { Badge, Button } from '@movscript/ui'
 
 type SlotStatus = 'missing' | 'candidate' | 'locked' | 'waived'
 type AssetKind = 'all' | 'image' | 'video' | 'audio' | 'text' | 'brand_pack' | 'reference' | 'other'
+type CandidateGenerationKind = 'image' | 'video'
 
 type AssetSlotRecord = SemanticEntityRecord & {
   owner_type?: string
@@ -184,6 +191,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const assetAssistantCleanupRef = useRef<(() => void) | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const [newSlotEditId, setNewSlotEditId] = useState<number | null>(null)
   const selectedId = readNumberParam(searchParams, 'asset_slot_id') ?? readNumberParam(searchParams, 'selected')
@@ -212,6 +220,10 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
     }).then((r) => r.data),
     enabled: !!projectId,
   })
+
+  useEffect(() => () => {
+    assetAssistantCleanupRef.current?.()
+  }, [])
 
   const updateSlotMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: Record<string, string | number | boolean | null> }) =>
@@ -261,6 +273,118 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
     },
     onSuccess: (canvas) => {
       navigate(`/canvases/${canvas.ID}`)
+    },
+  })
+
+  const generateCandidateMutation = useMutation({
+    mutationFn: async ({ row, kind }: { row: AssetSlotViewModel; kind: CandidateGenerationKind }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      const referenceIds = candidateReferenceResourceIds(row)
+      const slotName = row.slot.name || `素材需求 #${row.slot.ID}`
+      const draftShell = await localAgentClient.createDraft({
+        projectId,
+        kind: 'asset_proposal',
+        title: `素材候选提案 - ${slotName}`,
+        content: JSON.stringify(buildEmptyAssetProposalDraftContent({
+          projectId,
+          assetSlotId: row.slot.ID,
+          slotName,
+          slotKind: row.kind,
+          description: row.slot.description,
+          promptHint: row.slot.prompt_hint,
+          ownerLabel: slotScopeLabel(row.slot),
+          referenceResourceIds: referenceIds,
+          createdAt: new Date().toISOString(),
+        }), null, 2),
+        source: {
+          entityType: 'asset_slot',
+          entityId: row.slot.ID,
+          pageType: 'asset_proposal',
+          pageRoute: '/asset-slots',
+        },
+        target: {
+          projectId,
+          entityType: 'asset_slot',
+          entityId: row.slot.ID,
+          field: 'candidate_generation_plan',
+        },
+        metadata: {
+          pageOwned: true,
+          assetSlotId: row.slot.ID,
+          requestedOutputKind: kind,
+          referenceResourceIds: referenceIds,
+        },
+      })
+      const requestId = `asset_proposal_${row.slot.ID}_${Date.now().toString(36)}`
+      const message = buildAssetProposalAssistantMessage({
+        draftId: draftShell.id,
+        assetSlotId: row.slot.ID,
+        slotName,
+        slotKind: row.kind,
+        description: row.slot.description,
+        promptHint: row.slot.prompt_hint,
+        ownerLabel: slotScopeLabel(row.slot),
+        referenceResourceIds: referenceIds,
+        candidateCount: row.candidates.length,
+      })
+
+      assetAssistantCleanupRef.current?.()
+      assetAssistantCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
+        if (payload.run?.status === 'failed') {
+          toast.error(payload.run.error || payload.error || '素材候选提案生成失败')
+          assetAssistantCleanupRef.current?.()
+          assetAssistantCleanupRef.current = null
+          return
+        }
+        if (payload.run?.status === 'cancelled') {
+          toast.info('素材候选提案已停止')
+          assetAssistantCleanupRef.current?.()
+          assetAssistantCleanupRef.current = null
+          return
+        }
+        if (!payload.run || (payload.run.status !== 'completed' && payload.run.status !== 'completed_with_warnings')) return
+        const latestDraft = selectLatestDraftArtifact(payload.artifacts, 'asset_proposal')
+        const draftId = latestDraft?.draftId || draftShell.id
+        toast.success(`素材候选提案已准备，可在 AI 草稿中审阅：${draftId}`)
+        assetAssistantCleanupRef.current?.()
+        assetAssistantCleanupRef.current = null
+      })
+
+      openAgentPanelDraft({
+        requestId,
+        taskType: 'asset_candidate_proposal',
+        message: `请准备素材候选提案：${slotName}`,
+        title: `素材提案: ${slotName}`,
+        mode: 'create',
+        newConversation: true,
+        autoSend: true,
+        projectId,
+        clientInput: buildCommandFirstClientInput({
+          message,
+          labels: ['asset-slots', 'asset-proposal', 'draft-application'],
+          hints: {
+            projectId,
+            draftId: draftShell.id,
+            route: { pathname: '/asset-slots' },
+            selection: {
+              entityType: 'asset_slot',
+              entityId: row.slot.ID,
+              label: slotName,
+            },
+          },
+        }),
+        agentManifest: ASSET_PROPOSAL_AGENT_MANIFEST,
+        runPolicy: { maxToolCalls: 12, maxIterations: 8 },
+        timeoutMs: 300_000,
+        renderMode: 'chat',
+      })
+      return { draft: draftShell }
+    },
+    onSuccess: () => {
+      toast.success('已打开 AI 素材候选提案助手')
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : '准备素材候选提案失败')
     },
   })
 
@@ -317,10 +441,24 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
     })
   }
 
+  function generateCandidate(kind: CandidateGenerationKind) {
+    if (!selected) return
+    generateCandidateMutation.mutate({ row: selected, kind })
+  }
+
+  function openAssistantForSlot() {
+    if (!projectId || !selected) {
+      toast.info('请先选择素材需求')
+      return
+    }
+    generateCandidateMutation.mutate({ row: selected, kind: selected.kind === 'video' ? 'video' : 'image' })
+  }
+
   return (
     <ContentWorkspaceLayout
+      flow
       header={(
-        <header className="flex items-start justify-between gap-4">
+        <header className="flex items-center justify-between gap-4">
           <div className="min-w-0">
             {!compact ? (
               <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
@@ -350,7 +488,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
             <AssetMetric icon={Sparkles} label="候选中" value={candidateCount} detail="可作为候选素材" />
             <AssetMetric icon={Lock} label="已锁定" value={lockedCount} detail={`${waivedCount} 个已豁免`} />
         </section>
-      ) : <div />}
+      ) : null}
       filters={(
         <ContentFilterBar
           query={query}
@@ -379,13 +517,13 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
       )}
       list={(
         <section className="rounded-lg border border-border bg-card">
-          <div className="max-h-[760px] overflow-y-auto p-4">
+          <div className="p-4">
             {isLoading ? (
               <p className="py-12 text-center text-xs text-muted-foreground">{t('common.loadingShort', '加载中')}</p>
             ) : filtered.length === 0 ? (
               <EmptyPreview title="暂无素材需求" description="从内容、情景或设定资料页面创建素材需求，或手动新建一个候选素材需求。" />
             ) : (
-              <div className="grid gap-4">
+              <div className="grid gap-2">
                 {filtered.map((row) => (
                   <AssetSlotCard key={row.slot.ID} row={row} selected={row.slot.ID === selected?.slot.ID} onSelect={() => setFilter({ asset_slot_id: row.slot.ID })} />
                 ))}
@@ -395,7 +533,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
         </section>
       )}
       detail={(
-        <>
+        <div className="flex-1">
           <SemanticEntityInlineEditor
             projectId={projectId}
             config={slotConfig}
@@ -428,17 +566,22 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
               setFilter({ asset_slot_id: null, selected: null })
             }}
           />
-        </>
+        </div>
       )}
       preview={(
+        <div>
           <AssetSlotDetail
             row={selected}
             candidateResources={candidateResources}
             onLock={lockToSlot}
             onAddCandidate={addCandidate}
-            onGenerate={() => selected && openCanvasMutation.mutate(selected)}
-            busy={updateSlotMutation.isPending || addCandidateMutation.isPending || openCanvasMutation.isPending}
+            onGenerateCandidate={generateCandidate}
+            onOpenAssistant={openAssistantForSlot}
+            onOpenCanvas={() => selected && openCanvasMutation.mutate(selected)}
+            busy={updateSlotMutation.isPending || addCandidateMutation.isPending || openCanvasMutation.isPending || generateCandidateMutation.isPending}
+            generatingKind={generateCandidateMutation.variables?.kind}
           />
+        </div>
       )}
       upstream={<div />}
       downstream={<div />}
@@ -455,7 +598,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
           </AssetInfoPanel>
           <AssetInfoPanel title="锁定素材" icon={Lock}>
             <AssetInfoRow label="锁定状态" value={selected?.lockedSlot?.name || (selected?.slot.locked_asset_slot_id ? `#${selected.slot.locked_asset_slot_id}` : '未锁定')} />
-            <AssetInfoRow label="状态" value={selected ? normalizeSlotStatus(selected.slot.status) : '未选择'} />
+            <AssetInfoRow label="状态" value={selected ? slotStatusLabel(normalizeSlotStatus(selected.slot.status)) : '未选择'} />
           </AssetInfoPanel>
           <AssetInfoPanel title="资源状态" icon={PackageCheck}>
             <AssetInfoRow label="资源文件" value={selected?.hasResource ? '已关联' : '未关联'} />
@@ -471,44 +614,31 @@ function AssetSlotCard({ row, selected, onSelect }: { row: AssetSlotViewModel; s
   const slot = row.slot
   const kindMeta = assetKindMeta[row.kind]
   const KindIcon = kindMeta.icon
-  const kindCountLabel = `${kindMeta.label} · ${row.candidates.length} 个候选`
   return (
     <button
       onClick={onSelect}
       className={cn(
-        'overflow-hidden rounded-lg border bg-background text-left transition-all hover:border-primary/50 hover:shadow-sm',
+        'flex w-full items-center gap-2 overflow-hidden rounded-md border bg-background p-2 text-left transition-all hover:border-primary/50 hover:shadow-sm',
         selected ? 'border-primary ring-1 ring-primary/40' : 'border-border',
       )}
     >
-      <div className="relative overflow-hidden border-b border-border">
-        <SlotThumb slot={slot} className="aspect-[4/3] w-full" />
-        <div className={cn('absolute inset-0 bg-gradient-to-br opacity-90', kindMeta.accent)} />
-        <div className="absolute inset-0 flex flex-col justify-between p-3">
-          <div className="flex items-start justify-between gap-2">
-            <span className={cn('flex h-9 w-9 items-center justify-center rounded-md bg-background/80', kindMeta.soft)}>
-              <KindIcon size={18} className={kindMeta.text} />
-            </span>
-            <SlotStatusBadge status={normalizeSlotStatus(slot.status)} />
-          </div>
-          <div className="space-y-1">
-            <p className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-foreground drop-shadow-sm">{slot.name || `素材需求 #${slot.ID}`}</p>
-            <p className="truncate text-xs text-muted-foreground">{slotScopeLabel(slot)}</p>
-          </div>
+      <div className="relative h-9 w-12 shrink-0 overflow-hidden rounded border border-border">
+        <SlotThumb slot={slot} className="h-full w-full" />
+        <div className={cn('absolute inset-0 bg-gradient-to-br opacity-40', kindMeta.accent)} />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className={cn('flex h-5 w-5 items-center justify-center rounded', kindMeta.soft)}>
+            <KindIcon size={10} className={kindMeta.text} />
+          </span>
         </div>
       </div>
-      <div className="space-y-2 p-3">
-        <p className="line-clamp-2 min-h-10 text-[11px] leading-4 text-muted-foreground">{slot.description || slot.prompt_hint || '暂无描述'}</p>
-        {row.candidates.length ? (
-          <div className="flex -space-x-2 overflow-hidden">
-            {row.candidates.slice(0, 5).map((candidate) => (
-              <SlotThumb key={candidate.ID} slot={candidate.candidate_asset_slot} className="h-8 w-8 rounded border border-background shadow-sm" />
-            ))}
-          </div>
-        ) : null}
-        <div className="flex flex-wrap gap-1.5">
-          <Badge variant="outline" className="text-[10px]">{kindCountLabel}</Badge>
-          {row.hasResource ? <Badge variant="outline" className="text-[10px]">资源文件</Badge> : null}
-          {slot.priority ? <Badge variant="outline" className="text-[10px]">{slot.priority}</Badge> : null}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-1.5">
+          <p className="truncate text-xs font-medium text-foreground">{slot.name || `素材需求 #${slot.ID}`}</p>
+          <SlotStatusBadge status={normalizeSlotStatus(slot.status)} />
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          <Badge variant="outline" className="text-[10px]">{kindMeta.label} · {row.candidates.length} 候选</Badge>
+          {row.hasResource ? <Badge variant="outline" className="text-[10px]">资源</Badge> : null}
         </div>
       </div>
     </button>
@@ -520,18 +650,26 @@ function AssetSlotDetail({
   candidateResources,
   onLock,
   onAddCandidate,
-  onGenerate,
+  onGenerateCandidate,
+  onOpenAssistant,
+  onOpenCanvas,
   busy,
+  generatingKind,
 }: {
   row: AssetSlotViewModel | null
   candidateResources: RawResource[]
   onLock: (candidateSlotID: number) => void
   onAddCandidate: (resourceID: number) => void
-  onGenerate: () => void
+  onGenerateCandidate: (kind: CandidateGenerationKind) => void
+  onOpenAssistant: () => void
+  onOpenCanvas: () => void
   busy: boolean
+  generatingKind?: CandidateGenerationKind
 }) {
   if (!row) return <EmptyPreview title="选择素材需求" description="查看缺口、候选和已锁定素材需求。" />
   const slot = row.slot
+  const preferredKind: CandidateGenerationKind = row.kind === 'video' ? 'video' : 'image'
+  const canGenerate = row.kind === 'image' || row.kind === 'video'
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3">
@@ -545,22 +683,47 @@ function AssetSlotDetail({
       <SlotThumb slot={row.lockedSlot ?? slot} className="aspect-video w-full rounded-md border border-border" />
 
       <div className="grid grid-cols-2 gap-2">
-        <MiniStat label="状态" value={normalizeSlotStatus(slot.status)} />
+        <MiniStat label="状态" value={slotStatusLabel(normalizeSlotStatus(slot.status))} />
         <MiniStat label="类型" value={assetKindLabel(row.kind)} />
         <MiniStat label="优先级" value={slot.priority || 'normal'} />
-        <MiniStat label="锁定素材需求" value={row.lockedSlot?.name || (slot.locked_asset_slot_id ? `#${slot.locked_asset_slot_id}` : '未锁定')} />
+        <MiniStat label="锁定至" value={row.lockedSlot?.name || (slot.locked_asset_slot_id ? `#${slot.locked_asset_slot_id}` : '未锁定')} />
       </div>
 
       <section>
         <div className="mb-2 flex items-center justify-between gap-3">
           <p className="text-xs font-medium text-foreground">候选素材</p>
-          <Button size="sm" disabled={busy} onClick={onGenerate}>
-            <Wand2 size={13} />
-            去生成
-          </Button>
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {canGenerate ? (
+              <>
+                <Button size="sm" disabled={busy} onClick={() => onGenerateCandidate(preferredKind)}>
+                  <Wand2 size={13} />
+                  {busy && generatingKind === preferredKind ? '准备中' : `${preferredKind === 'video' ? '视频' : '图片'}提案`}
+                </Button>
+                {preferredKind === 'image' ? (
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => onGenerateCandidate('video')}>
+                    <Video size={13} />
+                    视频提案
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => onGenerateCandidate('image')}>
+                    <Image size={13} />
+                    图片提案
+                  </Button>
+                )}
+              </>
+            ) : null}
+            <Button size="sm" variant="outline" disabled={busy} onClick={onOpenAssistant}>
+              <Bot size={13} />
+              AI 助手
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={onOpenCanvas}>
+              <Sparkles size={13} />
+              画布
+            </Button>
+          </div>
         </div>
         <div className="space-y-2">
-          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description="点击去生成会直接打开当前素材需求的灵感激发画布。" /> : null}
+          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description={canGenerate ? '先生成素材候选提案，审阅提示词、参考素材和候选计划后再执行生成。' : '通过 AI 助手或从下方素材库加入候选。'} /> : null}
           {row.candidates.map((candidate) => (
             <CandidateRow
               key={candidate.ID}
@@ -597,7 +760,7 @@ function CandidateRow({ candidate, selected, onConfirm, busy }: { candidate: Ass
         <SlotThumb slot={slot} className="h-14 w-20 rounded border border-border" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{slot?.name || `素材需求 #${candidate.candidate_asset_slot_id}`}</p>
-          <p className="truncate text-xs text-muted-foreground">{candidate.note || candidate.source_type || 'candidate'}</p>
+          <p className="truncate text-xs text-muted-foreground">{candidate.note || sourceTypeLabel(candidate.source_type)}</p>
         </div>
       </div>
       <Button size="sm" className="mt-2 w-full" disabled={selected || busy || !candidate.candidate_asset_slot_id} onClick={onConfirm}>
@@ -627,6 +790,20 @@ function isResourceCompatibleWithSlot(resource: RawResource, kind: Exclude<Asset
   if (kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'text') return resource.type === kind
   if (kind === 'brand_pack' || kind === 'reference' || kind === 'other') return true
   return true
+}
+
+function candidateReferenceResourceIds(row: AssetSlotViewModel) {
+  const ids: number[] = []
+  const add = (id?: number) => {
+    if (id && Number.isFinite(id) && !ids.includes(id)) ids.push(id)
+  }
+  add(row.lockedSlot?.resource?.ID ?? row.lockedSlot?.resource_id)
+  add(row.slot.resource?.ID ?? row.slot.resource_id)
+  for (const candidate of row.candidates) {
+    add(candidate.candidate_asset_slot?.resource?.ID ?? candidate.candidate_asset_slot?.resource_id)
+    if (ids.length >= 3) break
+  }
+  return ids
 }
 
 function assetKindLabel(kind: Exclude<AssetKind, 'all'>) {
@@ -671,10 +848,52 @@ function normalizeSlotStatus(status?: string): SlotStatus {
 }
 
 function slotScopeLabel(slot: AssetSlotRecord) {
-  if (slot.owner_type && slot.owner_id) return `${slot.owner_type} #${slot.owner_id}`
+  if (slot.owner_type && slot.owner_id) {
+    const label = ownerTypeLabels[slot.owner_type] ?? slot.owner_type
+    return `${label} #${slot.owner_id}`
+  }
   if (slot.creative_reference_id) return `设定资料 #${slot.creative_reference_id}`
   if (slot.resource_id) return `资源 #${slot.resource_id}`
   return '项目素材需求'
+}
+
+const ownerTypeLabels: Record<string, string> = {
+  scene: '分场',
+  storyboard: '分镜',
+  storyboard_script: '分镜脚本',
+  storyboard_line: '分镜行',
+  segment: '编排段',
+  scene_moment: '场景时刻',
+  content_unit: '制作项',
+  script: '剧本',
+  script_version: '剧本版本',
+  keyframe: '关键帧',
+  delivery_version: '交付版本',
+  canvas: '画布',
+  asset_slot: '素材需求',
+}
+
+function slotStatusLabel(status: SlotStatus): string {
+  const labels: Record<SlotStatus, string> = {
+    missing: '缺口',
+    candidate: '候选',
+    locked: '已锁定',
+    waived: '已豁免',
+  }
+  return labels[status]
+}
+
+function sourceTypeLabel(sourceType?: string): string {
+  if (!sourceType) return '候选'
+  const labels: Record<string, string> = {
+    manual: '手动添加',
+    ai: 'AI 生成',
+    ai_agent: 'AI 助手生成',
+    upload: '上传',
+    job: '任务生成',
+    canvas: '画布生成',
+  }
+  return labels[sourceType] ?? sourceType
 }
 
 function AssetMetric({ icon: Icon, label, value, detail }: { icon: LucideIcon; label: string; value: number; detail: string }) {
@@ -719,7 +938,7 @@ function CandidateInfoCard({ candidate }: { candidate: AssetSlotCandidateRecord 
         <SlotThumb slot={slot} className="h-12 w-16 rounded border border-border" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium text-foreground">{slot?.resource?.name || slot?.name || `候选 #${candidate.candidate_asset_slot_id}`}</p>
-          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{candidate.note || candidate.status || 'candidate'}</p>
+          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{candidate.note || sourceTypeLabel(candidate.source_type)}</p>
         </div>
       </div>
     </div>

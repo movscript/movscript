@@ -277,6 +277,7 @@ func EntitySemanticSchemas() []EntitySemanticSchema {
 			Kind: EntityKindContentUnit, LabelKey: "canvas.entityTypes.contentUnit", FallbackLabel: "Content Unit",
 			Sections: []EntitySemanticSection{section("content_unit", "canvas.entityTypes.contentUnit", "Content Unit", []EntitySemanticField{
 				resourceField("result", "details.attachments", "Result", "result", "output", false),
+				candidateResourceField("generated_media", "details.generatedMedia", "Generated Media"),
 				mediaField("image", "canvas.outputTypes.image", "Image", "image", "image", "output", false),
 				mediaField("video", "canvas.outputTypes.video", "Video", "video", "video", "output", false),
 				mediaField("audio", "canvas.outputTypes.audio", "Audio", "audio", "audio", "output", false),

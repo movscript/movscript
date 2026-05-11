@@ -1,6 +1,6 @@
 import type { JSONValue } from '../types.js'
-import { parseToolResult } from '../runtime/context.js'
-import type { AgentRun, AgentMessage, ToolCallOutcome } from '../runtime/types.js'
+import { parseToolResult } from '../context/runtimeContext.js'
+import type { AgentRun, AgentMessage, ToolCallOutcome } from '../state/types.js'
 import type { AgentMemory, AgentMemoryKind, CreateMemoryInput } from './types.js'
 import type { AgentMemoryStore } from './memoryStore.js'
 import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'

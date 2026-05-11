@@ -2,6 +2,8 @@
 
 > 本文档记录 MovScript agent 与前端制作编排功能的对接设计，供后续会话直接执行。
 
+> 更新：编排能力不再被视为独立工作流入口，而是 proposal-first 体系中的 producer 和 proposal kind。更上层的统一设计见 [Proposal-first Agent Design](proposal-first-agent-design.md)。本文仍用于说明 `project_proposal`、`production_proposal` 和制作编排实体的具体边界。
+
 ---
 
 ## 一、背景与目标
@@ -48,7 +50,7 @@ Production（制作）
 - `movscript.check_proposal_is_available` — 检查提案是否可提交并返回归一化建议
 - `movscript.create_production_proposal` / `movscript.upsert_proposal_*` — 写入可审阅的草稿提案
 
-**Draft 系统（`apps/agent/src/runtime/store/draftStore.ts`）：**
+**Draft 系统（`apps/agent/src/drafts/draftStore.ts`）：**
 - `AgentDraftKind`: `script | asset_slot | storyboard_line | content_unit | prompt | note | pipeline | segment | scene_moment | project_proposal | production_proposal`
 - `AgentDraftStatus`: `draft | accepted | rejected | applied | superseded`
 - `BackendApplyClient` 支持字段级 PATCH，也支持提案级 POST：`project_proposal` 走项目提案 apply，`production_proposal` 走制作提案 apply
@@ -229,10 +231,10 @@ Production（制作）
 |---|---|
 | `apps/agent/catalog/tools/movscript-mcp-tools.json` | Agent 工具定义 |
 | `apps/agent/catalog/skills/movscript-platform.json` | Agent 技能定义 |
-| `apps/agent/src/runtime/agentRuntime.ts` | Agent 运行时主入口 |
-| `apps/agent/src/runtime/store/draftStore.ts` | Draft 存储，含 AgentDraftKind |
-| `apps/agent/src/runtime/store/backendApplyClient.ts` | 后端写入客户端，含 FIELD_ALLOWLIST |
-| `apps/agent/src/runtime/store/draftApply.ts` | Draft 应用逻辑 |
+| `apps/agent/src/application/agentRuntime.ts` | Agent 运行时主入口 |
+| `apps/agent/src/drafts/draftStore.ts` | Draft 存储，含 AgentDraftKind |
+| `apps/agent/src/drafts/backendApplyClient.ts` | 后端写入客户端，含 FIELD_ALLOWLIST |
+| `apps/agent/src/drafts/draftApply.ts` | Draft 应用逻辑 |
 | `apps/backend/internal/domain/model/semantic_creative.go` | CreativeReference / State / Usage 模型 |
 | `apps/backend/internal/domain/model/semantic_production.go` | AssetSlot / CandidateDecision 模型 |
 | `apps/backend/internal/domain/model/semantic_structure.go` | Segment / SceneMoment / ContentUnit 模型 |

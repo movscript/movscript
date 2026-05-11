@@ -5,6 +5,7 @@ import { useProjectStore } from '@/store/projectStore'
 import { useTheme } from '@/hooks/useTheme'
 import { Button } from '@movscript/ui'
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
+import { runtimeTitleKeys } from '@runtime'
 
 const titleKeys: Record<string, string> = {
   '/projects': 'header.titles.projects',
@@ -18,6 +19,7 @@ const titleKeys: Record<string, string> = {
   '/workbench/preview': 'header.titles.workbenchPreview',
   '/workbench/creative': 'header.titles.workbenchCreative',
   '/workbench/assets': 'header.titles.workbenchAssets',
+  '/content-unit-orchestrate': 'header.titles.workbenchProduction',
   '/workbench/production': 'header.titles.workbenchProduction',
   '/workbench/delivery': 'header.titles.workbenchDelivery',
   '/delivery/workbench': 'header.titles.deliveryWorkbench',
@@ -45,7 +47,7 @@ export function Header() {
   const current = useProjectStore((s) => s.current)
   const { theme, toggleTheme } = useTheme()
   const { t, i18n } = useTranslation()
-  const title = t(titleKeys[pathname] ?? 'header.titles.default')
+  const title = t(runtimeTitleKeys[pathname] ?? titleKeys[pathname] ?? 'header.titles.default')
 
   return (
     <header className="h-14 border-b border-border flex items-center px-6 bg-background gap-2 shrink-0">

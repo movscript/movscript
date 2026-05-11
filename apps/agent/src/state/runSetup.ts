@@ -1,11 +1,11 @@
 import type { JSONValue } from '../types.js'
 import type { AgentManifest } from '../manifest/agentManifest.js'
-import type { AgentCommandRuntime } from '../runtime/commands/commandRouter.js'
-import type { NormalizedClientInput } from '../runtime/input/normalizeClientInput.js'
-import type { AgentContext } from '../runtime/context.js'
+import type { AgentCommandRuntime } from '../context/commandRouter.js'
+import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
+import type { AgentContext } from '../context/runtimeContext.js'
 import type { AgentCapabilitiesResponse, AgentRun, ResolvedAgentSkill } from './types.js'
 import type { AgentMemory } from '../memory/types.js'
-import { buildDebugContext, buildDebugTrace } from '../runtime/debug/debugContext.js'
+import { buildDebugContext, buildDebugTrace } from '../context/debugContext.js'
 
 export interface BuildRunSetupMetadataInput {
   run: AgentRun

@@ -2,7 +2,7 @@
   "tools": [
     {
       "name": "movscript_submit_script_split_draft",
-      "description": "Create a structured script_split review draft from production analysis and store it as a local runtime artifact. The tool accepts structured fields and does not require the model to stringify JSON into assistant content.",
+      "description": "Create a structured script_split review draft from script and production analysis and store it as a local runtime artifact. The tool accepts structured fields and does not require the model to stringify JSON into assistant content.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",
@@ -209,6 +209,28 @@
                     "number",
                     "null"
                   ]
+                },
+                "productionAction": {
+                  "type": "string",
+                  "enum": [
+                    "create",
+                    "update",
+                    "skip"
+                  ]
+                },
+                "existingProductionId": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "productionTitle": {
+                  "type": "string",
+                  "description": "Production title only. Do not include body text."
+                },
+                "productionSummary": {
+                  "type": "string",
+                  "description": "Short production summary focused on the script segment."
                 }
               }
             }

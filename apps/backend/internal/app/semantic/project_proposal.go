@@ -2,35 +2,54 @@ package semantic
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
-	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 )
 
+var errProjectProposalPreviewRollback = errors.New("project proposal apply preview rollback")
+
 type ApplyProjectProposalRequest struct {
-	Scope      string                     `json:"scope"`
-	Summary    string                     `json:"summary"`
-	Proposal   *ProjectProposalTree       `json:"proposal"`
-	Operations []ProjectProposalOperation `json:"operations"`
+	Scope    string               `json:"scope"`
+	Summary  string               `json:"summary"`
+	Proposal *ProjectProposalTree `json:"proposal"`
 }
 
 type ProjectProposalTree struct {
-	CreativeReferences []ProjectProposalOperation `json:"creative_references"`
-	AssetSlots         []ProjectProposalOperation `json:"asset_slots"`
+	CreativeReferences []ProjectProposalCreativeReferencePatch `json:"creative_references"`
+	AssetSlots         []ProjectProposalAssetSlotPatch         `json:"asset_slots"`
 }
 
-type ProjectProposalOperation struct {
-	Action    string         `json:"action"`
-	Entity    string         `json:"entity"`
-	ID        *uint          `json:"id"`
-	TargetID  *uint          `json:"target_id"`
-	SourceIDs []uint         `json:"source_ids"`
-	Payload   map[string]any `json:"payload"`
+type ProjectProposalCreativeReferencePatch struct {
+	ClientID        string                          `json:"client_id"`
+	ID              *uint                           `json:"id"`
+	Fields          map[string]any                  `json:"fields"`
+	MergeCandidates []ProjectProposalMergeCandidate `json:"merge_candidates"`
+}
+
+type ProjectProposalAssetSlotPatch struct {
+	ClientID string                   `json:"client_id"`
+	ID       *uint                    `json:"id"`
+	Owner    *ProjectProposalOwnerRef `json:"owner"`
+	Fields   map[string]any           `json:"fields"`
+}
+
+type ProjectProposalOwnerRef struct {
+	Type     string `json:"type"`
+	ID       *uint  `json:"id"`
+	ClientID string `json:"client_id"`
+}
+
+type ProjectProposalMergeCandidate struct {
+	SourceID *uint  `json:"source_id"`
+	Reason   string `json:"reason"`
+}
+
+type projectProposalApplyState struct {
+	creativeReferenceIDByClientID map[string]uint
 }
 
 type ApplyProjectProposalResponse struct {
@@ -41,12 +60,9 @@ type ApplyProjectProposalResponse struct {
 type ProjectProposalApplyCounts struct {
 	CreativeReferencesCreated int `json:"creative_references_created"`
 	CreativeReferencesUpdated int `json:"creative_references_updated"`
-	CreativeReferencesDeleted int `json:"creative_references_deleted"`
 	CreativeReferencesMerged  int `json:"creative_references_merged"`
 	AssetSlotsCreated         int `json:"asset_slots_created"`
 	AssetSlotsUpdated         int `json:"asset_slots_updated"`
-	AssetSlotsDeleted         int `json:"asset_slots_deleted"`
-	AssetSlotsLocked          int `json:"asset_slots_locked"`
 	AssetSlotsReassigned      int `json:"asset_slots_reassigned"`
 	CreativeReferenceUsages   int `json:"creative_reference_usages"`
 	CreativeRelationships     int `json:"creative_relationships"`
@@ -56,35 +72,11 @@ func (s *Service) ApplyProjectProposal(ctx context.Context, projectID uint, req 
 	if projectID == 0 {
 		return nil, ErrInvalidInput{Err: errors.New("project id is required")}
 	}
-	if req.Proposal == nil && len(req.Operations) == 0 {
+	if req.Proposal == nil {
 		return nil, ErrInvalidInput{Err: errors.New("proposal is required")}
 	}
 
-	resp := &ApplyProjectProposalResponse{ProjectID: projectID}
-	operations := collectProjectProposalOperations(req)
-
-	err := s.repo.WithTx(ctx, func(txRepo repository) error {
-		txSvc := &Service{repo: txRepo, cache: s.cache}
-		for _, op := range operations {
-			entityKind, err := normalizeProjectProposalEntityKind(op.Entity)
-			if err != nil {
-				return err
-			}
-			switch entityKind {
-			case "creativeReferences":
-				if err := txSvc.applyProjectCreativeReferenceProposal(ctx, projectID, op, resp); err != nil {
-					return err
-				}
-			case "assetSlots":
-				if err := txSvc.applyProjectAssetSlotProposal(ctx, projectID, op, resp); err != nil {
-					return err
-				}
-			default:
-				return ErrInvalidInput{Err: fmt.Errorf("unsupported project proposal entity %q", op.Entity)}
-			}
-		}
-		return nil
-	})
+	resp, err := s.applyProjectProposalInTx(ctx, projectID, req)
 	if err != nil {
 		return nil, err
 	}
@@ -93,61 +85,69 @@ func (s *Service) ApplyProjectProposal(ctx context.Context, projectID uint, req 
 	return resp, nil
 }
 
-func collectProjectProposalOperations(req ApplyProjectProposalRequest) []ProjectProposalOperation {
-	operations := make([]ProjectProposalOperation, 0, len(req.Operations))
-	operations = append(operations, req.Operations...)
-	if req.Proposal != nil {
-		for _, op := range req.Proposal.CreativeReferences {
-			if strings.TrimSpace(op.Entity) == "" {
-				op.Entity = "creativeReferences"
-			}
-			operations = append(operations, op)
+func (s *Service) PreviewProjectProposalApply(ctx context.Context, projectID uint, req ApplyProjectProposalRequest) (*ApplyProjectProposalResponse, error) {
+	if projectID == 0 {
+		return nil, ErrInvalidInput{Err: errors.New("project id is required")}
+	}
+	if req.Proposal == nil {
+		return nil, ErrInvalidInput{Err: errors.New("proposal is required")}
+	}
+
+	var resp *ApplyProjectProposalResponse
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := &Service{repo: txRepo, cache: s.cache}
+		var err error
+		resp, err = txSvc.applyProjectProposalInTx(ctx, projectID, req)
+		if err != nil {
+			return err
 		}
-		for _, op := range req.Proposal.AssetSlots {
-			if strings.TrimSpace(op.Entity) == "" {
-				op.Entity = "assetSlots"
+		return errProjectProposalPreviewRollback
+	})
+	if errors.Is(err, errProjectProposalPreviewRollback) {
+		return resp, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, req ApplyProjectProposalRequest) (*ApplyProjectProposalResponse, error) {
+	resp := &ApplyProjectProposalResponse{ProjectID: projectID}
+	state := projectProposalApplyState{
+		creativeReferenceIDByClientID: make(map[string]uint),
+	}
+
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := &Service{repo: txRepo, cache: s.cache}
+		for _, patch := range req.Proposal.CreativeReferences {
+			if err := txSvc.applyProjectCreativeReferencePatch(ctx, projectID, patch, resp, &state); err != nil {
+				return err
 			}
-			operations = append(operations, op)
 		}
-	}
-	return operations
-}
-
-func normalizeProjectProposalEntityKind(value string) (string, error) {
-	normalized := strings.TrimSpace(value)
-	switch normalized {
-	case "creativeReferences", "creative_reference", "creative-reference", "reference":
-		return "creativeReferences", nil
-	case "assetSlots", "asset_slot", "asset-slot", "asset":
-		return "assetSlots", nil
-	default:
-		return "", ErrInvalidInput{Err: fmt.Errorf("unsupported project proposal entity %q", value)}
-	}
-}
-
-func normalizeProjectProposalAction(action string) string {
-	normalized := strings.ToLower(strings.TrimSpace(action))
-	if normalized == "" {
-		return "create"
-	}
-	return normalized
-}
-
-func (s *Service) applyProjectCreativeReferenceProposal(ctx context.Context, projectID uint, op ProjectProposalOperation, resp *ApplyProjectProposalResponse) error {
-	payload := op.payload()
-	action := normalizeProjectProposalAction(op.Action)
-	targetID := firstProjectProposalID(op.TargetID, op.ID)
-
-	switch action {
-	case "reuse":
+		for _, patch := range req.Proposal.AssetSlots {
+			if err := txSvc.applyProjectAssetSlotPatch(ctx, projectID, patch, resp, &state); err != nil {
+				return err
+			}
+		}
 		return nil
-	case "create":
-		input, err := creativeReferenceInputFromProposalPayload(payload)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projectID uint, patch ProjectProposalCreativeReferencePatch, resp *ApplyProjectProposalResponse, state *projectProposalApplyState) error {
+	fields := patch.fields()
+	if patch.ID == nil {
+		input, err := creativeReferenceInputFromProposalFields(fields)
 		if err != nil {
 			return err
 		}
 		if strings.TrimSpace(input.Name) == "" {
-			return ErrInvalidInput{Err: errors.New("creative reference proposal requires name")}
+			return ErrInvalidInput{Err: errors.New("creative reference patch requires fields.name for new references")}
 		}
 		if strings.TrimSpace(input.Kind) == "" {
 			input.Kind = "character"
@@ -155,60 +155,42 @@ func (s *Service) applyProjectCreativeReferenceProposal(ctx context.Context, pro
 		if strings.TrimSpace(input.Status) == "" {
 			input.Status = domainsemantic.ProposalDraftStatusValue
 		}
-		if _, err := s.CreateCreativeReference(ctx, projectID, input); err != nil {
-			return err
-		}
-		resp.Counts.CreativeReferencesCreated++
-		return nil
-	case "update":
-		if targetID == nil {
-			return missingProjectProposalID("creative_reference", op)
-		}
-		input, err := creativeReferenceInputFromProposalPayload(payload)
+		created, err := s.CreateCreativeReference(ctx, projectID, input)
 		if err != nil {
 			return err
 		}
-		if _, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(*targetID), input); err != nil {
+		rememberProjectProposalCreativeReferenceID(state, patch.ClientID, fields, created.ID)
+		resp.Counts.CreativeReferencesCreated++
+		return nil
+	}
+	if len(fields) > 0 {
+		input, err := creativeReferenceInputFromProposalFields(fields)
+		if err != nil {
+			return err
+		}
+		if _, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(*patch.ID), input); err != nil {
 			return err
 		}
 		resp.Counts.CreativeReferencesUpdated++
-		return nil
-	case "delete":
-		if targetID == nil {
-			return missingProjectProposalID("creative_reference", op)
+	} else if _, err := s.repo.LoadCreativeReference(ctx, projectID, fmt.Sprint(*patch.ID)); err != nil {
+		return err
+	}
+	rememberProjectProposalCreativeReferenceID(state, patch.ClientID, fields, *patch.ID)
+	for _, candidate := range patch.MergeCandidates {
+		if candidate.SourceID == nil || *candidate.SourceID == 0 {
+			return ErrInvalidInput{Err: errors.New("creative reference merge candidate requires source_id")}
 		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindCreativeReference, fmt.Sprint(*targetID)); err != nil {
-			return err
-		}
-		resp.Counts.CreativeReferencesDeleted++
-		return nil
-	case "merge":
-		if targetID == nil {
-			return missingProjectProposalID("creative_reference", op)
-		}
-		if err := s.applyProjectCreativeReferenceMerge(ctx, projectID, *targetID, op.SourceIDs, payload, resp); err != nil {
+		if err := s.applyProjectCreativeReferenceMerge(ctx, projectID, *patch.ID, []uint{*candidate.SourceID}, resp); err != nil {
 			return err
 		}
 		resp.Counts.CreativeReferencesMerged++
-		return nil
-	default:
-		return ErrInvalidInput{Err: fmt.Errorf("creative reference proposal %q has unsupported action %q", op.Entity, op.Action)}
 	}
+	return nil
 }
 
-func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projectID uint, targetID uint, sourceIDs []uint, payload map[string]any, resp *ApplyProjectProposalResponse) error {
+func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projectID uint, targetID uint, sourceIDs []uint, resp *ApplyProjectProposalResponse) error {
 	if len(sourceIDs) == 0 {
-		return ErrInvalidInput{Err: errors.New("creative reference merge requires source_ids")}
-	}
-	if len(payload) > 0 {
-		input, err := creativeReferenceInputFromProposalPayload(payload)
-		if err != nil {
-			return err
-		}
-		if _, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(targetID), input); err != nil {
-			return err
-		}
-		resp.Counts.CreativeReferencesUpdated++
+		return ErrInvalidInput{Err: errors.New("creative reference merge candidate requires source_id")}
 	}
 
 	targetSlots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, IncludeInternal: "true"})
@@ -351,21 +333,15 @@ func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projec
 	return nil
 }
 
-func (s *Service) applyProjectAssetSlotProposal(ctx context.Context, projectID uint, op ProjectProposalOperation, resp *ApplyProjectProposalResponse) error {
-	payload := op.payload()
-	action := normalizeProjectProposalAction(op.Action)
-	targetID := firstProjectProposalID(op.TargetID, op.ID)
-
-	switch action {
-	case "reuse":
-		return nil
-	case "create":
-		input, err := assetSlotInputFromProposalPayload(payload)
+func (s *Service) applyProjectAssetSlotPatch(ctx context.Context, projectID uint, patch ProjectProposalAssetSlotPatch, resp *ApplyProjectProposalResponse, state *projectProposalApplyState) error {
+	fields := resolveProjectProposalAssetSlotFields(patch.fields(), patch.Owner, state)
+	if patch.ID == nil {
+		input, err := assetSlotInputFromProposalFields(fields)
 		if err != nil {
 			return err
 		}
 		if strings.TrimSpace(input.Name) == "" {
-			return ErrInvalidInput{Err: errors.New("asset slot proposal requires name")}
+			return ErrInvalidInput{Err: errors.New("asset slot patch requires fields.name for new asset slots")}
 		}
 		if strings.TrimSpace(input.Kind) == "" {
 			input.Kind = "image"
@@ -378,112 +354,149 @@ func (s *Service) applyProjectAssetSlotProposal(ctx context.Context, projectID u
 		}
 		resp.Counts.AssetSlotsCreated++
 		return nil
-	case "update":
-		if targetID == nil {
-			return missingProjectProposalID("asset_slot", op)
+	}
+	input, err := assetSlotPatchInputFromProposalFields(fields)
+	if err != nil {
+		return err
+	}
+	if _, err := s.PatchAssetSlot(ctx, projectID, fmt.Sprint(*patch.ID), input); err != nil {
+		return err
+	}
+	resp.Counts.AssetSlotsUpdated++
+	return nil
+}
+
+func rememberProjectProposalCreativeReferenceID(state *projectProposalApplyState, clientID string, fields map[string]any, id uint) {
+	if state == nil || id == 0 {
+		return
+	}
+	for _, key := range []string{
+		clientID,
+		fieldString(fields, "client_id"),
+		fieldString(fields, "owner_client_id"),
+	} {
+		normalized := strings.TrimSpace(key)
+		if normalized != "" {
+			state.creativeReferenceIDByClientID[normalized] = id
 		}
-		input, err := assetSlotPatchInputFromProposalPayload(payload)
-		if err != nil {
-			return err
-		}
-		if _, err := s.PatchAssetSlot(ctx, projectID, fmt.Sprint(*targetID), input); err != nil {
-			return err
-		}
-		resp.Counts.AssetSlotsUpdated++
-		return nil
-	case "delete":
-		if targetID == nil {
-			return missingProjectProposalID("asset_slot", op)
-		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindAssetSlot, fmt.Sprint(*targetID)); err != nil {
-			return err
-		}
-		resp.Counts.AssetSlotsDeleted++
-		return nil
-	case "lock_asset":
-		if targetID == nil {
-			return missingProjectProposalID("asset_slot", op)
-		}
-		input, err := assetSlotPatchInputFromProposalPayload(payload)
-		if err != nil {
-			return err
-		}
-		input.Status = domainsemantic.AssetSlotStatusLocked
-		if _, err := s.PatchAssetSlot(ctx, projectID, fmt.Sprint(*targetID), input); err != nil {
-			return err
-		}
-		resp.Counts.AssetSlotsLocked++
-		return nil
-	default:
-		return ErrInvalidInput{Err: fmt.Errorf("asset slot proposal %q has unsupported action %q", op.Entity, op.Action)}
 	}
 }
 
-func (op ProjectProposalOperation) payload() map[string]any {
-	if len(op.Payload) > 0 {
-		return op.Payload
+func resolveProjectProposalAssetSlotFields(fields map[string]any, owner *ProjectProposalOwnerRef, state *projectProposalApplyState) map[string]any {
+	next := make(map[string]any, len(fields)+3)
+	for key, value := range fields {
+		next[key] = value
+	}
+	if owner != nil {
+		if strings.TrimSpace(owner.Type) != "" {
+			next["owner_type"] = normalizeProjectProposalOwnerType(owner.Type)
+		}
+		if owner.ID != nil && *owner.ID > 0 {
+			next["owner_id"] = *owner.ID
+			if normalizeProjectProposalOwnerType(owner.Type) == "creative_reference" {
+				next["creative_reference_id"] = *owner.ID
+			}
+		}
+		if strings.TrimSpace(owner.ClientID) != "" {
+			next["owner_client_id"] = owner.ClientID
+		}
+	}
+	clientID := firstFieldString(next, "owner_client_id", "creative_reference_client_id", "reference_client_id")
+	if clientID == "" {
+		return next
+	}
+	if state == nil || len(state.creativeReferenceIDByClientID) == 0 {
+		return next
+	}
+	resolvedID, ok := state.creativeReferenceIDByClientID[clientID]
+	if !ok || resolvedID == 0 {
+		return next
+	}
+	next["creative_reference_id"] = resolvedID
+	next["owner_type"] = "creative_reference"
+	next["owner_id"] = resolvedID
+	return next
+}
+
+func normalizeProjectProposalOwnerType(value string) string {
+	switch strings.TrimSpace(value) {
+	default:
+		return strings.TrimSpace(value)
+	}
+}
+
+func (patch ProjectProposalCreativeReferencePatch) fields() map[string]any {
+	if len(patch.Fields) > 0 {
+		return patch.Fields
 	}
 	return map[string]any{}
 }
 
-func creativeReferenceInputFromProposalPayload(payload map[string]any) (CreativeReferenceInput, error) {
+func (patch ProjectProposalAssetSlotPatch) fields() map[string]any {
+	if len(patch.Fields) > 0 {
+		return patch.Fields
+	}
+	return map[string]any{}
+}
+
+func creativeReferenceInputFromProposalFields(fields map[string]any) (CreativeReferenceInput, error) {
 	return CreativeReferenceInput{
-		SourceScriptID:   payloadUint(payload, "source_script_id"),
-		SourceAnalysisID: payloadUint(payload, "source_analysis_id"),
-		Kind:             payloadString(payload, "kind"),
-		Name:             payloadString(payload, "name"),
-		Alias:            payloadString(payload, "alias"),
-		Description:      payloadString(payload, "description"),
-		Content:          payloadString(payload, "content"),
-		Importance:       payloadString(payload, "importance"),
-		Status:           payloadString(payload, "status"),
-		ProfileJSON:      payloadString(payload, "profile_json"),
-		TagsJSON:         payloadString(payload, "tags_json"),
+		SourceScriptID:   fieldUint(fields, "source_script_id"),
+		SourceAnalysisID: fieldUint(fields, "source_analysis_id"),
+		Kind:             fieldString(fields, "kind"),
+		Name:             fieldString(fields, "name"),
+		Alias:            fieldString(fields, "alias"),
+		Description:      fieldString(fields, "description"),
+		Content:          fieldString(fields, "content"),
+		Importance:       fieldString(fields, "importance"),
+		Status:           fieldString(fields, "status"),
+		ProfileJSON:      fieldString(fields, "profile_json"),
+		TagsJSON:         fieldString(fields, "tags_json"),
 	}, nil
 }
 
-func assetSlotInputFromProposalPayload(payload map[string]any) (AssetSlotInput, error) {
+func assetSlotInputFromProposalFields(fields map[string]any) (AssetSlotInput, error) {
 	return AssetSlotInput{
-		ProductionID:             payloadUint(payload, "production_id"),
-		CreativeReferenceID:      payloadUint(payload, "creative_reference_id"),
-		CreativeReferenceStateID: payloadUint(payload, "creative_reference_state_id"),
-		OwnerType:                payloadString(payload, "owner_type"),
-		OwnerID:                  payloadUint(payload, "owner_id"),
-		Kind:                     payloadString(payload, "kind"),
-		Name:                     payloadString(payload, "name"),
-		Description:              payloadString(payload, "description"),
-		SlotKey:                  payloadString(payload, "slot_key"),
-		PromptHint:               payloadString(payload, "prompt_hint"),
-		Status:                   payloadString(payload, "status"),
-		Priority:                 payloadString(payload, "priority"),
-		ResourceID:               payloadUint(payload, "resource_id"),
-		LockedAssetSlotID:        payloadUint(payload, "locked_asset_slot_id"),
-		MetadataJSON:             payloadString(payload, "metadata_json"),
+		ProductionID:             fieldUint(fields, "production_id"),
+		CreativeReferenceID:      fieldUint(fields, "creative_reference_id"),
+		CreativeReferenceStateID: fieldUint(fields, "creative_reference_state_id"),
+		OwnerType:                normalizeProjectProposalOwnerType(fieldString(fields, "owner_type")),
+		OwnerID:                  fieldUint(fields, "owner_id"),
+		Kind:                     fieldString(fields, "kind"),
+		Name:                     fieldString(fields, "name"),
+		Description:              fieldString(fields, "description"),
+		SlotKey:                  fieldString(fields, "slot_key"),
+		PromptHint:               fieldString(fields, "prompt_hint"),
+		Status:                   fieldString(fields, "status"),
+		Priority:                 fieldString(fields, "priority"),
+		ResourceID:               fieldUint(fields, "resource_id"),
+		LockedAssetSlotID:        fieldUint(fields, "locked_asset_slot_id"),
+		MetadataJSON:             fieldString(fields, "metadata_json"),
 	}, nil
 }
 
-func assetSlotPatchInputFromProposalPayload(payload map[string]any) (PatchAssetSlotInput, error) {
+func assetSlotPatchInputFromProposalFields(fields map[string]any) (PatchAssetSlotInput, error) {
 	return PatchAssetSlotInput{
-		ProductionID:             payloadUint(payload, "production_id"),
-		CreativeReferenceID:      payloadUint(payload, "creative_reference_id"),
-		CreativeReferenceStateID: payloadUint(payload, "creative_reference_state_id"),
-		OwnerType:                payloadString(payload, "owner_type"),
-		OwnerID:                  payloadUint(payload, "owner_id"),
-		Kind:                     payloadString(payload, "kind"),
-		Name:                     payloadString(payload, "name"),
-		Description:              payloadString(payload, "description"),
-		SlotKey:                  payloadString(payload, "slot_key"),
-		PromptHint:               payloadString(payload, "prompt_hint"),
-		Status:                   payloadString(payload, "status"),
-		Priority:                 payloadString(payload, "priority"),
-		ResourceID:               payloadUint(payload, "resource_id"),
-		LockedAssetSlotID:        payloadUint(payload, "locked_asset_slot_id"),
-		MetadataJSON:             payloadString(payload, "metadata_json"),
+		ProductionID:             fieldUint(fields, "production_id"),
+		CreativeReferenceID:      fieldUint(fields, "creative_reference_id"),
+		CreativeReferenceStateID: fieldUint(fields, "creative_reference_state_id"),
+		OwnerType:                normalizeProjectProposalOwnerType(fieldString(fields, "owner_type")),
+		OwnerID:                  fieldUint(fields, "owner_id"),
+		Kind:                     fieldString(fields, "kind"),
+		Name:                     fieldString(fields, "name"),
+		Description:              fieldString(fields, "description"),
+		SlotKey:                  fieldString(fields, "slot_key"),
+		PromptHint:               fieldString(fields, "prompt_hint"),
+		Status:                   fieldString(fields, "status"),
+		Priority:                 fieldString(fields, "priority"),
+		ResourceID:               fieldUint(fields, "resource_id"),
+		LockedAssetSlotID:        fieldUint(fields, "locked_asset_slot_id"),
+		MetadataJSON:             fieldString(fields, "metadata_json"),
 	}, nil
 }
 
-func payloadString(payload map[string]any, key string) string {
-	value, ok := payload[key]
+func fieldString(fields map[string]any, key string) string {
+	value, ok := fields[key]
 	if !ok || value == nil {
 		return ""
 	}
@@ -507,8 +520,17 @@ func payloadString(payload map[string]any, key string) string {
 	}
 }
 
-func payloadUint(payload map[string]any, key string) *uint {
-	value, ok := payload[key]
+func firstFieldString(fields map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := strings.TrimSpace(fieldString(fields, key)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func fieldUint(fields map[string]any, key string) *uint {
+	value, ok := fields[key]
 	if !ok || value == nil {
 		return nil
 	}
@@ -561,38 +583,6 @@ func payloadUint(payload map[string]any, key string) *uint {
 	}
 }
 
-func payloadUintSlice(payload map[string]any, key string) []uint {
-	value, ok := payload[key]
-	if !ok || value == nil {
-		return nil
-	}
-	items, ok := value.([]any)
-	if !ok {
-		return nil
-	}
-	result := make([]uint, 0, len(items))
-	for _, item := range items {
-		wrapper := map[string]any{"value": item}
-		if parsed := payloadUint(wrapper, "value"); parsed != nil {
-			result = append(result, *parsed)
-		}
-	}
-	return result
-}
-
-func firstProjectProposalID(values ...*uint) *uint {
-	for _, value := range values {
-		if value != nil && *value > 0 {
-			return value
-		}
-	}
-	return nil
-}
-
-func missingProjectProposalID(kind string, op ProjectProposalOperation) error {
-	return ErrInvalidInput{Err: fmt.Errorf("%s proposal %q requires id for action %q", kind, op.Entity, op.Action)}
-}
-
 func assetSlotMergeKey(slot domainsemantic.AssetSlot) string {
 	ownerID := ""
 	if slot.OwnerID != nil {
@@ -604,58 +594,4 @@ func assetSlotMergeKey(slot domainsemantic.AssetSlot) string {
 		strings.ToLower(strings.TrimSpace(slot.OwnerType)),
 		ownerID,
 	}, ":")
-}
-
-func (op *ProjectProposalOperation) UnmarshalJSON(data []byte) error {
-	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-	targetID := payloadUint(raw, "target_id")
-	if targetID == nil {
-		targetID = payloadUint(raw, "targetId")
-	}
-	sourceIDs := payloadUintSlice(raw, "source_ids")
-	if len(sourceIDs) == 0 {
-		sourceIDs = payloadUintSlice(raw, "sourceIds")
-	}
-	*op = ProjectProposalOperation{
-		Action:    payloadString(raw, "action"),
-		Entity:    payloadString(raw, "entity"),
-		ID:        payloadUint(raw, "id"),
-		TargetID:  targetID,
-		SourceIDs: sourceIDs,
-	}
-	if payload, ok := raw["payload"].(map[string]any); ok {
-		op.Payload = payload
-	}
-	if len(op.Payload) > 0 {
-		return nil
-	}
-	for _, key := range []string{"action", "entity", "id", "target_id", "targetId", "source_ids", "sourceIds", "payload"} {
-		delete(raw, key)
-	}
-	if len(raw) > 0 {
-		op.Payload = raw
-	}
-	return nil
-}
-
-func (op ProjectProposalOperation) MarshalJSON() ([]byte, error) {
-	type alias struct {
-		Action    string         `json:"action"`
-		Entity    string         `json:"entity"`
-		ID        *uint          `json:"id,omitempty"`
-		TargetID  *uint          `json:"target_id,omitempty"`
-		SourceIDs []uint         `json:"source_ids,omitempty"`
-		Payload   map[string]any `json:"payload,omitempty"`
-	}
-	return json.Marshal(alias{
-		Action:    op.Action,
-		Entity:    op.Entity,
-		ID:        op.ID,
-		TargetID:  op.TargetID,
-		SourceIDs: op.SourceIDs,
-		Payload:   op.Payload,
-	})
 }

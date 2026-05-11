@@ -20,6 +20,24 @@ export interface BackendApplyResult {
   skippedReason?: string
 }
 
+export interface BackendApplyErrorDetail {
+  method: 'PATCH' | 'POST'
+  path: string
+  status: number
+  responseText: string
+  response?: JSONValue
+}
+
+export class BackendApplyHTTPError extends Error {
+  readonly detail: BackendApplyErrorDetail
+
+  constructor(message: string, detail: BackendApplyErrorDetail) {
+    super(message)
+    this.name = 'BackendApplyHTTPError'
+    this.detail = detail
+  }
+}
+
 const PATCH_ROUTES: Record<string, string> = {
   script: '/scripts/:id',
   asset_slot: '/projects/:projectId/entities/asset-slots/:id',
@@ -78,7 +96,13 @@ export class BackendApplyClient {
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`backend ${request.method} ${request.path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new BackendApplyHTTPError(`backend ${request.method} ${request.path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
+        method: request.method,
+        path: request.path,
+        status: response.status,
+        responseText,
+        ...(parsed !== undefined ? { response: parsed } : {}),
+      })
     }
     return {
       performed: true,
@@ -106,7 +130,13 @@ export class BackendApplyClient {
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new BackendApplyHTTPError(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
+        method: 'POST',
+        path,
+        status: response.status,
+        responseText,
+        ...(parsed !== undefined ? { response: parsed } : {}),
+      })
     }
     return {
       performed: true,
@@ -134,7 +164,83 @@ export class BackendApplyClient {
     const responseText = await response.text()
     const parsed = parseJSONText(responseText)
     if (!response.ok) {
-      throw new Error(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`)
+      throw new BackendApplyHTTPError(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
+        method: 'POST',
+        path,
+        status: response.status,
+        responseText,
+        ...(parsed !== undefined ? { response: parsed } : {}),
+      })
+    }
+    return {
+      performed: true,
+      method: 'POST',
+      url,
+      payload,
+      ...(parsed !== undefined ? { response: parsed } : {}),
+    }
+  }
+
+  async previewApplyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    const baseURL = this.resolveBaseURL(auth)
+    if (!baseURL) {
+      return { performed: false, skippedReason: 'backend apply preview disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
+    }
+    const request = buildApplyRequest(review)
+    if (!isProjectProposalTarget(review)) {
+      return { performed: false, skippedReason: 'backend apply preview is only implemented for project_proposal drafts' }
+    }
+    const path = request.path.replace(/\/apply$/, '/apply-preview')
+    const url = `${baseURL}${path}`
+    const response = await fetch(url, {
+      method: request.method,
+      headers: buildHeaders(auth),
+      body: JSON.stringify(request.payload),
+    })
+    const responseText = await response.text()
+    const parsed = parseJSONText(responseText)
+    if (!response.ok) {
+      throw new BackendApplyHTTPError(`backend ${request.method} ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
+        method: request.method,
+        path,
+        status: response.status,
+        responseText,
+        ...(parsed !== undefined ? { response: parsed } : {}),
+      })
+    }
+    return {
+      performed: true,
+      method: request.method,
+      url,
+      payload: request.payload,
+      ...(parsed !== undefined ? { response: parsed } : {}),
+    }
+  }
+
+  async previewProductionProposalApply(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
+    const baseURL = this.resolveBaseURL(auth)
+    if (!baseURL) {
+      return { performed: false, skippedReason: 'backend apply preview disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
+    }
+    const path = `/projects/${encodeURIComponent(String(projectId))}/entities/production-proposals/apply-preview`
+    const url = `${baseURL}${path}`
+    const headers = buildHeaders(auth)
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    })
+    const responseText = await response.text()
+    const parsed = parseJSONText(responseText)
+    if (!response.ok) {
+      throw new BackendApplyHTTPError(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
+        method: 'POST',
+        path,
+        status: response.status,
+        responseText,
+        ...(parsed !== undefined ? { response: parsed } : {}),
+      })
     }
     return {
       performed: true,

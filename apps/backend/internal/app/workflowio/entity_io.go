@@ -74,6 +74,25 @@ func (s *EntityIOService) ReadPortsByIDs(ctx context.Context, kind string, id ui
 		if !ok || !field.Workflow.Readable || field.Binding == nil {
 			return
 		}
+		if field.Binding.Multiple {
+			bindings, err := s.repo.ListBindingsBySlot(ctx, kind, id, field.Binding.Slot)
+			if err != nil {
+				return
+			}
+			resourceIDs := make([]uint, 0, len(bindings))
+			seen := map[uint]bool{}
+			for _, binding := range bindings {
+				if binding.ResourceID == 0 || seen[binding.ResourceID] {
+					continue
+				}
+				seen[binding.ResourceID] = true
+				resourceIDs = append(resourceIDs, binding.ResourceID)
+			}
+			if len(resourceIDs) > 0 {
+				values[portID] = EntityPortValue{Type: field.ValueType, ResourceIDs: resourceIDs}
+			}
+			return
+		}
 		if binding, ok, _ := s.repo.FirstBindingBySlot(ctx, kind, id, field.Binding.Slot); ok {
 			values[portID] = EntityPortValue{Type: field.ValueType, ResourceIDs: []uint{binding.ResourceID}}
 			return

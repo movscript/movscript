@@ -44,11 +44,11 @@ export function getDefaultAPIBaseURL(): string {
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
     return normalizeAPIBaseURL(window.location.origin)
   }
-  return normalizeAPIBaseURL(import.meta.env.VITE_API_BASE_URL || DEFAULT_API_ORIGIN)
+  return normalizeAPIBaseURL(readImportMetaEnv().VITE_API_BASE_URL || DEFAULT_API_ORIGIN)
 }
 
 export function getLocalAPIBaseURL(): string {
-  return normalizeAPIBaseURL(import.meta.env.VITE_LOCAL_API_BASE_URL || LOCAL_API_ORIGIN)
+  return normalizeAPIBaseURL(readImportMetaEnv().VITE_LOCAL_API_BASE_URL || LOCAL_API_ORIGIN)
 }
 
 export function getAPIBaseURL(): string {
@@ -61,3 +61,7 @@ export function getAPIV1BaseURL(): string {
 
 export const API_BASE_URL = getAPIBaseURL()
 export const API_V1_BASE_URL = getAPIV1BaseURL()
+
+function readImportMetaEnv(): Record<string, string | undefined> {
+  return (import.meta as { env?: Record<string, string | undefined> }).env ?? {}
+}

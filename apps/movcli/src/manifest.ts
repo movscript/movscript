@@ -18,6 +18,7 @@ export interface MovJson {
   hasCompile?: boolean
   /** Path to logo image relative to project root. */
   logo?: string
+  contributes?: Record<string, unknown>
   inputSchema?: {
     type?: string
     properties?: Record<string, {

@@ -18,14 +18,17 @@
 
 ## Agent
 
+- [Proposal-first Agent Design](proposal-first-agent-design.md)
 - [Agent architecture guide](agent-architecture-guide.md)
 - [Agent design](agent-design.md)
 - [Agent orchestration design](agent-orchestration-design.md)
 - [Production proposal draft: target snapshot and patch revisions](production-proposal-draft-target-and-patch.md)
+- [项目提案草稿契约](project-proposal-draft-contract.md)
 - [Agent proposal workflow direction](agent-proposal-workflow-direction.md)
 - [Agent runtime debug architecture](agent-runtime-debug-architecture.md)
 - [Agent page interaction design](agent-page-interaction-design.md)
 - [Agent dynamic update architecture](agent-dynamic-update-architecture.md)
+- [Agent visual generation](agent-visual-generation.md)
 - [Claude Code integration plan](claude-code-integration-plan.md)
 
 ## 产品与商业规划

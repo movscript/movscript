@@ -27,3 +27,5 @@ export interface AdminSectionCard {
   icon: LucideIcon
   href: string
 }
+
+export type AdminRuntimeEdition = 'community' | 'enterprise'

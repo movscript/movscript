@@ -1,0 +1,121 @@
+{
+  "schema": "movscript.clientPlugin.v1",
+  "id": "com.movscript.video-generator",
+  "name": "视频生成器",
+  "version": "1.0.0",
+  "description": "文生视频与参考图生视频。自动选择可用视频模型，支持画幅、时长、质量等参数。",
+  "author": "Movscript",
+  "homepage": "https://github.com/migua/movscript",
+  "permissions": [
+    "model.video.generate",
+    "resource.read"
+  ],
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "prompt"
+    ],
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "title": "提示词",
+        "description": "描述要生成的视频内容、运动、镜头与风格"
+      },
+      "model_config_id": {
+        "type": "number",
+        "title": "模型配置",
+        "description": "可选，不填时自动选择可用视频模型",
+        "x-widget": "model-selector",
+        "x-capability": "video"
+      },
+      "reference_resource_ids": {
+        "type": "string",
+        "title": "参考资源 ID",
+        "description": "可选，多个 ID 用英文逗号分隔，填写后切换为参考图/视频生成模式"
+      },
+      "aspect_ratio": {
+        "type": "string",
+        "title": "画幅比例",
+        "enum": [
+          "16:9",
+          "9:16",
+          "1:1",
+          "4:3",
+          "3:4"
+        ],
+        "default": "16:9"
+      },
+      "duration": {
+        "type": "number",
+        "title": "时长（秒）",
+        "default": 5
+      },
+      "quality": {
+        "type": "string",
+        "title": "质量",
+        "enum": [
+          "auto",
+          "standard",
+          "high",
+          "medium",
+          "low"
+        ],
+        "default": "standard"
+      },
+      "fps": {
+        "type": "number",
+        "title": "帧率",
+        "description": "可选，部分模型支持"
+      },
+      "seed": {
+        "type": "number",
+        "title": "随机种子",
+        "description": "可选，固定种子可复现结果"
+      },
+      "timeout_ms": {
+        "type": "number",
+        "title": "超时（毫秒）",
+        "description": "默认 600000（10 分钟）",
+        "default": 600000
+      }
+    }
+  },
+  "contributes": {
+    "canvasNodes": [
+      {
+        "type": "com.movscript.video-generator.video_generator",
+        "title": "视频生成器",
+        "description": "文生视频或参考图生视频节点。",
+        "category": "ai",
+        "icon": "video",
+        "inputs": [
+          {
+            "id": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "references",
+            "label": "参考图/视频",
+            "type": "resource",
+            "maxCount": 4
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "label": "生成视频",
+            "type": "video"
+          }
+        ],
+        "defaultData": {
+          "source": "ai",
+          "label": "视频生成器",
+          "outputType": "video"
+        }
+      }
+    ]
+  },
+  "hasCompile": true
+}
