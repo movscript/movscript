@@ -218,6 +218,7 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_create_memory') return CREATE_MEMORY_TOOL_SCHEMA
   if (tool.name === 'movscript_delete_memory') return MEMORY_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_create_draft') return CREATE_DRAFT_TOOL_SCHEMA
+  if (tool.name === 'movscript_create_proposal') return CREATE_PROPOSAL_TOOL_SCHEMA
   if (tool.name === 'movscript_submit_script_split_draft') return SCRIPT_SPLIT_SUBMIT_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_read_draft') return DRAFT_FILE_PATH_TOOL_SCHEMA
   if (tool.name === 'movscript_edit_draft') return EDIT_DRAFT_TOOL_SCHEMA
@@ -298,6 +299,25 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
     source: { type: 'object', additionalProperties: true },
     target: { type: 'object', additionalProperties: true },
     metadata: { type: 'object', additionalProperties: true },
+  },
+} satisfies Record<string, unknown>
+
+const CREATE_PROPOSAL_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['kind', 'content'],
+  properties: {
+    kind: {
+      type: 'string',
+      enum: ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal'],
+    },
+    title: { type: 'string' },
+    content: { type: 'string', description: 'Proposal body. Use text or JSON stringified content.' },
+    projectId: { type: 'number' },
+    target: { type: 'object', additionalProperties: true },
+    source: { type: 'object', additionalProperties: true },
+    metadata: { type: 'object', additionalProperties: true },
+    productionId: { type: 'number', description: 'Optional hint for production_proposal drafts.' },
   },
 } satisfies Record<string, unknown>
 

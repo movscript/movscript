@@ -59,6 +59,7 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
     } : uiSelection && typeof uiSelection.entityType === 'string' && (typeof uiSelection.entityId === 'number' || typeof uiSelection.entityId === 'string') ? {
       selection: { entityType: uiSelection.entityType, entityId: uiSelection.entityId, ...(typeof uiSelection.label === 'string' ? { label: uiSelection.label } : {}) },
     } : { selection: null }),
+    ...(typeof ui?.mode === 'string' && ui.mode.trim() ? { mode: ui.mode.trim() } : {}),
     recentResources: mergeDebugResources(
       normalizeDebugResources(isRecord(snapshot) ? snapshot.recentResources : undefined),
       ui?.recentResources ?? [],

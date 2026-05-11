@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
-  buildScriptSplitAgentMessage,
   parseScriptSplitDraftContent,
   type ScriptSplitProductionSummary,
 } from './scriptSplitDraft'
@@ -30,24 +29,6 @@ function makeScript(input: Partial<Script>): Script {
     ...input,
   }
 }
-
-test('script split agent message includes existing productions for create/update decisions', () => {
-  const productions: ScriptSplitProductionSummary[] = [
-    { ID: 42, name: '火种制作', description: '围绕第一集的制作计划', status: 'draft' },
-  ]
-
-  const message = buildScriptSplitAgentMessage({
-    projectId: 7,
-    sourceTitle: '短剧总稿',
-    sourceText: '第一集 火种\n主角发现线索。',
-    scripts: [makeScript({ ID: 11, title: '第一集 火种' })],
-    productions,
-  })
-
-  assert.match(message, /已有制作，用于判断 create\/update\/skip/)
-  assert.match(message, /火种制作/)
-  assert.match(message, /productionAction/)
-})
 
 test('parseScriptSplitDraftContent resolves matched production into update metadata', () => {
   const content = JSON.stringify({

@@ -11,7 +11,7 @@
       "instruction": "MovScript is a local-first short-drama production workspace. Treat a project as the top-level scope. Core business work is: source script, creative materials, scene beats, content units, asset needs, keyframes, review drafts, and delivery review. For progress, gap review, or planning, start from the current UI context and use focused domain tools when available; when script facts or screenplay text are needed, call movscript_read_project_scripts instead of assuming the project has no scripts. Do not scan backend entity collections through generic read/search tools. Use the business flow Project -> Production -> Script/Creative Material -> Segment/Scene Beat -> Content Unit -> Asset Need/Keyframe -> Review/Delivery.",
       "outputContract": "When answering about project state, state what was read. Separate facts from recommendations. Do not invent references, statuses, or approvals.",
       "toolHints": [
-        "movscript_get_context_pack",
+        "movscript_get_current_context",
         "movscript_list_projects",
         "movscript_read_project_scripts"
       ],

@@ -11,6 +11,20 @@
       "requiresApprovalByDefault": false
     },
     {
+      "name": "movscript_create_proposal",
+      "description": "Create a local proposal review draft directly from a conversation. Use this to start project or production proposals without a page-owned shell first.",
+      "permission": "draft.write",
+      "risk": "draft",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_create_proposal",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
       "name": "movscript_read_draft",
       "description": "Read one local draft file by path before editing it.",
       "permission": "draft.read",

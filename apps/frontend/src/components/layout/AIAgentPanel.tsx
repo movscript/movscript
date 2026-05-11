@@ -506,32 +506,8 @@ function buildAgentContext(options: {
   includeProjectContext: boolean
   includeRecentResources: boolean
 }) {
-  const modeGuidance: Record<AgentWorkMode, string> = {
-    chat: '以项目超级员工的方式直接协作，先给可执行建议，再补必要解释。',
-    plan: '先拆解目标、依赖、风险和下一步行动；涉及执行动作时给出清晰计划。',
-    create: '偏向产出可直接使用的创意、文案、镜头、资产或任务草稿。',
-    review: '优先发现问题、缺口、风险和返工点，并给出修改建议。',
-  }
-  const permissionGuidance: Record<AgentPermissionMode, string> = {
-    ask: '涉及改动项目数据、创建任务、生成成本或外部调用时，先请求确认。',
-    suggest: '只提出建议和草稿，不默认执行项目改动。',
-    auto: '可在低风险范围内主动推进，但必须说明做了什么和为什么。',
-  }
-  const sections = [
-    '[Agent 工作模式]',
-    modeGuidance[options.mode],
-    `[权限边界] ${permissionGuidance[options.permissionMode]}`,
-  ]
-  if (options.autoPlan) {
-    sections.push('[计划要求] 对复杂请求先给 2-5 步简短计划；执行后同步状态和结果。')
-  }
-  if (options.includeProjectContext && options.project) {
-    sections.push(`[项目信息]\n名称：${options.project.name}\n状态：${options.project.status || '未指定'}\n简介：${options.project.description || '无'}`)
-  }
-  if (options.includeRecentResources && options.recentResources.length > 0) {
-    sections.push(`[最近素材]\n${options.recentResources.slice(0, 8).map((r) => `- #${r.ID} ${r.name} (${r.type}, ${formatBytes(r.size)})`).join('\n')}`)
-  }
-  return sections.join('\n\n')
+  void options
+  return ''
 }
 
 type AgentSendRoute = 'local-runtime'
@@ -650,6 +626,7 @@ function buildAgentClientInput(options: {
   productionId?: number
   draftId?: string
   selection?: { entityType?: string; entityId?: number | string; label?: string } | null
+  mode?: string
 }): AgentClientInput {
   const input = buildCommandFirstClientInput({
     message: options.message,
@@ -661,6 +638,7 @@ function buildAgentClientInput(options: {
       size: attachment.size,
       ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
     })),
+    ...(options.mode ? { mode: options.mode } : {}),
     labels: options.labels,
     hints: {
       ...(options.projectId ? { projectId: options.projectId } : {}),
@@ -3478,6 +3456,7 @@ function ChatView({
       attachments: sentAttachments,
       projectId: options.projectId ?? currentProject?.ID,
       labels: contextLabels,
+      mode: settings.mode,
     })
     const agentContext = buildAgentContext({
       mode: settings.mode,

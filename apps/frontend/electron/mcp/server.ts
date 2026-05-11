@@ -311,7 +311,7 @@ function projectEndpoint(projectId: number, kind: string): string {
 function listTools(): MCPTool[] {
   return [
     {
-      name: 'movscript_get_context_pack',
+      name: 'movscript_get_current_context',
       description: 'Return the current route, project, user, selection, and available resources.',
       inputSchema: objectSchema({}),
     },
@@ -538,7 +538,7 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
   const args = getObjectParam(params, 'arguments')
 
   switch (name) {
-    case 'movscript_get_context_pack':
+    case 'movscript_get_current_context':
       return toolText(await getContextPack())
     case 'movscript_list_projects':
       return toolText(await listProjects(args))
@@ -584,23 +584,29 @@ async function getContextPack(): Promise<unknown> {
     const projectsResult = await listProjects({})
     const projects = isRecord(projectsResult) && Array.isArray(projectsResult.projects) ? projectsResult.projects : []
     const projectsMs = Date.now() - projectsStartedAt
+    const resources = listResources()
+    const contextPackMs = Date.now() - startedAt
     return {
       snapshot: contextSnapshot,
       projects,
-      resources: listResources(),
+      resources,
       timings: {
-        totalMs: Date.now() - startedAt,
+        totalMs: contextPackMs,
+        contextPackMs,
         projectsMs,
       },
     }
   } catch (error) {
+    const resources = listResources()
+    const contextPackMs = Date.now() - startedAt
     return {
       snapshot: contextSnapshot,
       projects: [],
       projectsError: error instanceof Error ? error.message : String(error),
-      resources: listResources(),
+      resources,
       timings: {
-        totalMs: Date.now() - startedAt,
+        totalMs: contextPackMs,
+        contextPackMs,
       },
     }
   }

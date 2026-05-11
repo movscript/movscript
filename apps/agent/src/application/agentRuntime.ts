@@ -1,12 +1,13 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../types.js'
 import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest, type AgentManifest } from '../manifest/agentManifest.js'
+import { resolveModeAgentManifest } from '../manifest/modeRegistry.js'
 import {
   InMemoryAgentCatalogStateStore,
   type AgentCatalogStateStore,
 } from '../manifest/catalogState.js'
 import { loadAgentPluginCatalog as loadCatalogSnapshot, type AgentPluginBundle } from '../manifest/pluginCatalog.js'
-import { extractAgentContext } from '../context/runtimeContext.js'
+import { extractAgentContext, parseToolResult } from '../context/runtimeContext.js'
 import { resolveAgentCapabilities } from '../tools/capabilityResolver.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
@@ -28,6 +29,7 @@ import { BackendApplyClient, BackendApplyHTTPError, type BackendApplyResult } fr
 import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
 import { runAgentGraph } from '../orchestration/agentGraph.js'
 import { buildPromptPreview } from '../orchestration/contextBuilder.js'
+import { filterPromptMemories } from '../context/promptHygiene.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
   type AgentRuntimeContractResolver,
@@ -432,7 +434,7 @@ export class AgentRuntime {
       this.store.updateThread(thread)
     }
     const now = isoNow()
-    const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
+    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput)
     const runtimeContract = this.contractResolver.find(agentManifest)
     const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true, policy: input.policy })
@@ -480,7 +482,7 @@ export class AgentRuntime {
     this.store.updateThread(thread)
     const now = isoNow()
     const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
-    const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
+    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput)
     const runtimeContract = this.contractResolver.find(agentManifest)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true, policy: input.policy })
     const run = buildAgentRun({
@@ -522,14 +524,14 @@ export class AgentRuntime {
     const command = parseAgentCommand(message)
 
     const now = isoNow()
-    const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
+    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput)
     await this.mcpClient.initialize()
-    const contextResult = await this.mcpClient.callTool('movscript_get_context_pack', {})
+    const contextResult = await this.mcpClient.callTool('movscript_get_current_context', {})
     const context = extractAgentContext(contextResult)
-    const memories = this.memoryManager.loadRelevantMemories({
+    const memories = filterPromptMemories(this.memoryManager.loadRelevantMemories({
       ...(typeof context.currentProjectId === 'number' ? { projectId: context.currentProjectId } : {}),
       query: message,
-    })
+    }))
     const skills = resolveAgentSkills(agentManifest, message, this.skillCatalog)
     const capabilities = await resolveAgentCapabilities({
       mcpClient: this.mcpClient,
@@ -1076,7 +1078,7 @@ export class AgentRuntime {
       const contextStartedAt = Date.now()
       try {
         await this.mcpClient.initialize({ signal })
-        contextResult = await this.mcpClient.callTool('movscript_get_context_pack', {}, { signal })
+        contextResult = await this.mcpClient.callTool('movscript_get_current_context', {}, { signal })
       } catch (error) {
         contextError = error instanceof Error ? error.message : String(error)
         const contextDurationMs = Date.now() - contextStartedAt
@@ -1088,7 +1090,7 @@ export class AgentRuntime {
           round: setupRound,
           data: {
             source: 'mcp_context_pack',
-            endpoint: 'movscript_get_context_pack',
+            endpoint: 'movscript_get_current_context',
             error: contextError,
             durationMs: contextDurationMs,
             startedAt: new Date(contextStartedAt).toISOString(),
@@ -1108,10 +1110,10 @@ export class AgentRuntime {
         this.store.updateThread(thread)
       }
       const memoryStartedAt = Date.now()
-      const memories = this.memoryManager.loadRelevantMemories({
+      const memories = filterPromptMemories(this.memoryManager.loadRelevantMemories({
         projectId: context.currentProjectId,
         query: lastUser.content,
-      })
+      }))
       const memoryLoadedAt = Date.now()
       this.recordTraceEvent(run, {
         kind: 'memory',
@@ -1378,6 +1380,7 @@ export class AgentRuntime {
             stepId: traceInput.stepId,
             toolName: traceInput.toolName,
             data: traceInput.data,
+            durationMs: traceInput.durationMs,
           })
           this.store.updateRun(run)
         },
@@ -1408,6 +1411,7 @@ export class AgentRuntime {
           if (error) step.error = error
           if (sandboxed) step.sandboxed = sandboxed
           step.completedAt = isoNow()
+          step.durationMs = durationBetweenMs(step.createdAt, step.completedAt)
           run.updatedAt = step.completedAt
           this.store.updateRun(run)
           this.emitRunSnapshot(run)
@@ -1537,21 +1541,18 @@ export class AgentRuntime {
         step.status = 'completed'
         step.result = { messageId: assistant.id }
         step.completedAt = isoNow()
-        if (typeof thread.projectId === 'number') {
-          this.memoryStore.createMemory({
-            projectId: thread.projectId,
-            title: '警告：运行失败',
-            kind: 'warning',
-            content: run.error ?? 'run failed',
-            sourceThreadId: thread.id,
-            sourceRunId: run.id,
-          })
-        }
         this.store.updateThread(thread)
         this.store.updateRun(run)
       }
       this.emitRunSnapshot(run, { done: true })
     }
+  }
+
+  private resolveAgentManifest(inputManifest: unknown, clientInput?: ReturnType<typeof normalizeClientInput>): AgentManifest {
+    const explicit = normalizeAgentManifest(inputManifest ?? this.defaultAgentManifest)
+    const mode = typeof clientInput?.uiSnapshot?.mode === 'string' ? clientInput.uiSnapshot.mode : undefined
+    const resolved = resolveModeAgentManifest(mode, explicit)
+    return resolved ?? explicit
   }
 
   private rememberRunAuth(runId: string, value: unknown): void {
@@ -1606,6 +1607,7 @@ export class AgentRuntime {
       stepId?: string
       toolName?: string
       data?: unknown
+      durationMs?: number
       completedAt?: string
     },
   ): AgentTraceEvent {
@@ -1623,6 +1625,7 @@ export class AgentRuntime {
       ...(input.stepId ? { stepId: input.stepId } : {}),
       ...(input.toolName ? { toolName: input.toolName } : {}),
       ...(input.data !== undefined ? { data: input.data } : {}),
+      ...(typeof input.durationMs === 'number' && Number.isFinite(input.durationMs) ? { durationMs: input.durationMs } : {}),
       ...(input.completedAt ? { completedAt: input.completedAt } : {}),
     })
     this.store.appendTraceEvent(event)
@@ -1899,11 +1902,17 @@ function isTerminalRunStatus(status: AgentRun['status']): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'requires_action' || status === 'failed' || status === 'cancelled'
 }
 
-function extractContextPackTimings(value: unknown): { totalMs?: number; projectsMs?: number } | undefined {
-  if (!isRecord(value) || !isRecord(value.timings)) return undefined
-  const timings = value.timings
-  const result: { totalMs?: number; projectsMs?: number } = {}
+function extractContextPackTimings(value: unknown): { totalMs?: number; contextPackMs?: number; projectsMs?: number } | undefined {
+  const parsed = parseToolResult(value as JSONValue)
+  if (!isRecord(parsed) || !isRecord(parsed.timings)) return undefined
+  const timings = parsed.timings
+  const result: { totalMs?: number; contextPackMs?: number; projectsMs?: number } = {}
   if (typeof timings.totalMs === 'number' && Number.isFinite(timings.totalMs)) result.totalMs = timings.totalMs
+  if (typeof timings.contextPackMs === 'number' && Number.isFinite(timings.contextPackMs)) {
+    result.contextPackMs = timings.contextPackMs
+  } else if (typeof timings.totalMs === 'number' && Number.isFinite(timings.totalMs)) {
+    result.contextPackMs = timings.totalMs
+  }
   if (typeof timings.projectsMs === 'number' && Number.isFinite(timings.projectsMs)) result.projectsMs = timings.projectsMs
   return Object.keys(result).length > 0 ? result : undefined
 }
@@ -1952,12 +1961,13 @@ function toStreamRun(run: AgentRun): AgentRunStreamRun {
       ...(step.roundLabel ? { roundLabel: step.roundLabel } : {}),
       ...(step.roundSource ? { roundSource: step.roundSource } : {}),
       ...(step.title ? { title: step.title } : {}),
-      ...(step.toolName ? { toolName: step.toolName } : {}),
-      ...(step.error ? { error: step.error } : {}),
-      ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
-      createdAt: step.createdAt,
-      ...(step.completedAt ? { completedAt: step.completedAt } : {}),
-    })),
+    ...(step.toolName ? { toolName: step.toolName } : {}),
+    ...(step.error ? { error: step.error } : {}),
+    ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
+    ...(typeof step.durationMs === 'number' ? { durationMs: step.durationMs } : {}),
+    createdAt: step.createdAt,
+    ...(step.completedAt ? { completedAt: step.completedAt } : {}),
+  })),
     traceEvents: [],
     streamPartial: true,
   }
@@ -1992,6 +2002,14 @@ function makeId(prefix: string): string {
 
 function isoNow(): string {
   return new Date().toISOString()
+}
+
+function durationBetweenMs(start: string, end: string): number | undefined {
+  const startedAt = new Date(start).getTime()
+  const completedAt = new Date(end).getTime()
+  if (!Number.isFinite(startedAt) || !Number.isFinite(completedAt)) return undefined
+  const durationMs = completedAt - startedAt
+  return durationMs >= 0 && Number.isFinite(durationMs) ? durationMs : undefined
 }
 
 function createAbortError(message = 'Run was cancelled.'): Error {

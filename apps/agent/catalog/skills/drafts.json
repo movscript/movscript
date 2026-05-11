@@ -21,6 +21,29 @@
       }
     },
     {
+      "id": "movscript.intent.proposal-first",
+      "name": "Proposal First",
+      "description": "Start proposals directly in chat and keep page-owned shells optional.",
+      "version": "0.1.0",
+      "category": "drafts",
+      "enabled": true,
+      "priority": 910,
+      "appliesWhen": "提案, proposal, project proposal, production proposal, 提案草稿, review draft, proposal-first",
+      "instruction": "When the user wants a proposal, start from the conversation itself. Do not require a dedicated page or prebuilt UI shell before creating the review draft. Use movscript_create_proposal to create the local proposal draft, then continue refining it with focused questions or patch/edit tools until it is reviewable. If the user is missing a required project or target, ask for it only when it cannot be inferred from current context. Treat the created proposal as a local review artifact, not applied project data.",
+      "outputContract": "Return the proposal kind, draftId, projectId when known, target when known, current status, and the next refinement step. State explicitly that the result is a local proposal draft created from the conversation.",
+      "toolHints": [
+        "movscript_create_proposal",
+        "movscript_list_drafts",
+        "movscript_read_draft",
+        "movscript_edit_draft",
+        "movscript_dry_apply_draft",
+        "movscript_request_user_input"
+      ],
+      "metadata": {
+        "source": "builtin"
+      }
+    },
+    {
       "id": "movscript.intent.script-writing",
       "name": "Script Writing",
       "description": "Brainstorm, draft, revise, and save source scripts with the user.",
@@ -51,7 +74,7 @@
       "instruction": "When asked for project progress, inspect the current context and the relevant production-specific business tools. Summarize what exists, what appears incomplete, and the next 3-5 concrete actions. If the available info is partial, say so and suggest exactly which focused page or business scope should be opened next.",
       "outputContract": "Use three sections: 已确认, 缺口, 下一步. Keep claims tied to read results.",
       "toolHints": [
-        "movscript_get_context_pack"
+        "movscript_get_current_context"
       ],
       "metadata": {
         "source": "builtin"
@@ -69,7 +92,7 @@
       "instruction": "For visual planning review, start from the current context and the relevant production-specific business tools when the user asks for gaps across a scene moment, segment, content unit, or current project. Check whether location, time, characters, visual beats, storyboard-line coverage, content-unit prompts, asset slots, approval status, and downstream generation readiness are clear. Prefer creating a review draft instead of changing project items.",
       "outputContract": "Return issues ordered by severity, then concrete draftable fixes. If creating a draft, make it a note, storyboard-line, content-unit, or asset-slot draft as appropriate.",
       "toolHints": [
-        "movscript_get_context_pack"
+        "movscript_get_current_context"
       ],
       "metadata": {
         "source": "builtin"
@@ -87,7 +110,7 @@
       "instruction": "For content-unit or prompt creation requests, gather any referenced script, segment, scene moment, storyboard line, content unit, and asset-slot context first. Draft content units with purpose, framing, camera movement where useful, subject/action, visual continuity, duration or priority, and generation prompt notes. Keep generated content inline unless the user explicitly asks to edit an existing draft file; otherwise do not create a generic draft.",
       "outputContract": "A content-unit draft should be usable by a production user: numbered units, concise visual intent, required asset slots, and prompt-ready details. Avoid vague cinematic adjectives without production detail.",
       "toolHints": [
-        "movscript_get_context_pack"
+        "movscript_get_current_context"
       ],
       "metadata": {
         "source": "builtin"

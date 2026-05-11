@@ -250,7 +250,8 @@ export interface AgentClientInput {
     size?: number
     resourceId?: number
   }>
-  uiSnapshot?: {
+    uiSnapshot?: {
+    mode?: string
     route?: {
       pathname?: string
       search?: string

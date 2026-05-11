@@ -4,6 +4,7 @@ import type { AgentRun, AgentMessage, ToolCallOutcome } from '../state/types.js'
 import type { AgentMemory, AgentMemoryKind, CreateMemoryInput } from './types.js'
 import type { AgentMemoryStore } from './memoryStore.js'
 import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
+import { isRuntimeFailureText } from '../context/promptHygiene.js'
 
 export interface RelevantMemoryContext {
   projectId?: number
@@ -135,6 +136,7 @@ export class MemoryManager {
     }
 
     for (const warning of input.warnings) {
+      if (isRuntimeFailureText(warning)) continue
       writes.push({
         projectId: input.projectId,
         title: buildMemoryTitle('warning', warning),

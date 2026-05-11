@@ -59,7 +59,7 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
       enabled: true,
       priority: 100,
       instruction: '优先读取当前项目信息；涉及剧本事实、正文、拆分或编排时，先使用 movscript_read_project_scripts 查看当前项目剧本，再判断是否缺少剧本。需要修改本地审阅草稿文件时，先用 movscript_read_draft 读取，再用 movscript_edit_draft 做精确文本替换，最后用 movscript_dry_apply_draft 验证。不直接修改既有正式项目内容。正式写入、应用、生成任务和项目创建必须由 UI 或明确审批流程接管。',
-      toolHints: ['movscript_get_context_pack', 'movscript_list_projects', 'movscript_read_project_scripts', 'movscript_read_draft', 'movscript_list_drafts', 'movscript_edit_draft', 'movscript_dry_apply_draft', 'movscript_list_memories', 'movscript_search_memories', 'movscript_get_memory', 'movscript_create_memory', 'movscript_delete_memory'],
+      toolHints: ['movscript_get_current_context', 'movscript_list_projects', 'movscript_read_project_scripts', 'movscript_read_draft', 'movscript_list_drafts', 'movscript_edit_draft', 'movscript_dry_apply_draft', 'movscript_list_memories', 'movscript_search_memories', 'movscript_get_memory', 'movscript_create_memory', 'movscript_delete_memory'],
     },
   ],
   permissions: [
@@ -73,7 +73,7 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
     'agent.input',
   ],
   tools: [
-    { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
+    { name: 'movscript_get_current_context', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_projects', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },

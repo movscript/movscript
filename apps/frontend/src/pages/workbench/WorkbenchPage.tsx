@@ -41,12 +41,10 @@ import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelatio
 import { api } from '@/lib/api'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
-import { ASSET_PROPOSAL_AGENT_MANIFEST, buildAssetProposalAssistantMessage } from '@/lib/agentGenerationArtifacts'
 import { buildEmptyAssetProposalDraftContent } from '@/lib/assetProposalDraft'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
 import {
-  buildScriptSplitAgentMessage,
   buildScriptSplitDraftContent,
   getScriptTextLineCount,
   getScriptTextLineEntries,
@@ -63,7 +61,7 @@ import {
   type ScriptSplitProductionSummary,
   type ScriptSplitResult,
 } from '@/lib/scriptSplitDraft'
-import { localAgentClient, type AgentDraft, type AgentDraftValidationResult, type AgentManifest, type AgentRun } from '@/lib/localAgentClient'
+import { localAgentClient, type AgentDraft, type AgentDraftValidationResult, type AgentRun } from '@/lib/localAgentClient'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
@@ -1528,28 +1526,14 @@ function buildSettingPrepAgentMessage(input: {
   evidence: string[]
   missing: string[]
 }) {
-  const profile = parseCreativeProfileJSON(input.row.record.profile_json)
   return [
-    '你是 MovScript 的设定准备助手。',
-    '你的任务是帮助用户补齐设定、指出冲突、整理可直接用于制作的稳定描述。',
-    '请优先根据下方剧本与制作上下文，输出可执行的补全建议，不要只给空泛建议。',
-    '如果信息足够，请直接给出建议状态；如果不够，请明确指出缺口。',
-    '',
-    `[项目] ${input.projectName || '未命名项目'}`,
-    `[设定资料] ${input.row.title}`,
-    `[类型] ${input.row.kind}`,
-    `[当前状态] ${creativeReferenceStatusLabel(input.row.rawStatus)}`,
-    `[缺口] ${input.missing.length > 0 ? input.missing.join('、') : '无'}`,
-    '',
-    '[剧本 / 制作证据]',
-    ...input.evidence,
-    '',
-    '[当前设定正文]',
-    firstText(input.row.record.description, input.row.record.content, '暂无'),
-    '',
-    '[当前视觉锚点]',
-    firstText(profile.visualIntent, input.row.record.profile_json, '暂无'),
-  ].join('\n')
+    `请完善设定资料：${input.row.title}`,
+    input.projectName ? `项目：${input.projectName}` : undefined,
+    `类型：${input.row.kind}`,
+    `状态：${creativeReferenceStatusLabel(input.row.rawStatus)}`,
+    input.missing.length > 0 ? `缺口：${input.missing.join('、')}` : undefined,
+    input.evidence.length > 0 ? `证据：${input.evidence.join('；')}` : undefined,
+  ].filter(Boolean).join('\n')
 }
 
 function SettingPrepStateBadge({ status }: { status?: string }) {
@@ -2152,28 +2136,28 @@ function SpecializedQueue({
     <WorkbenchPanel title={title} icon={ListChecks} action={<Badge variant="secondary">{items.length}</Badge>} className={className} bodyClassName={bodyClassName}>
       <ScrollArea className="h-full min-h-0">
         <div className="space-y-2 pr-2">
-        {items.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onSelect(item.id)}
-            className={cn(
-              'w-full rounded-md border px-3 py-3 text-left transition-colors',
-              selectedId === item.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
-            )}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <span className="min-w-0 truncate text-sm font-medium text-foreground">{item.title}</span>
-              <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
-            </div>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{item.scope}</p>
-            {item.need ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.need}</p> : null}
-            <div className="mt-3 flex items-center gap-2">
-              <Badge variant={item.priority === 'high' ? 'danger' : item.priority === 'medium' ? 'warning' : 'outline'}>{priorityLabel(item.priority)}</Badge>
-              <Progress value={item.progress} className="h-1.5" />
-            </div>
-          </button>
-        ))}
+          {items.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onSelect(item.id)}
+              className={cn(
+                'w-full rounded-md border px-3 py-3 text-left transition-colors',
+                selectedId === item.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-sm font-medium text-foreground">{item.title}</span>
+                <Badge variant={statusVariant(item.status)}>{statusLabel(item.status)}</Badge>
+              </div>
+              <p className="mt-1 truncate text-xs text-muted-foreground">{item.scope}</p>
+              {item.need ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.need}</p> : null}
+              <div className="mt-3 flex items-center gap-2">
+                <Badge variant={item.priority === 'high' ? 'danger' : item.priority === 'medium' ? 'warning' : 'outline'}>{priorityLabel(item.priority)}</Badge>
+                <Progress value={item.progress} className="h-1.5" />
+              </div>
+            </button>
+          ))}
         </div>
       </ScrollArea>
     </WorkbenchPanel>
@@ -2440,24 +2424,6 @@ function AssetPreparationWorkbench() {
         },
       })
       const requestId = `asset_workbench_proposal_${row.slot.ID}_${Date.now().toString(36)}`
-      const message = buildAssetProposalAssistantMessage({
-        draftId: draftShell.id,
-        assetSlotId: row.slot.ID,
-        slotName: row.title,
-        slotKind: String(row.slot.kind ?? 'image'),
-        description: [
-          row.need ? `需求说明：${row.need}` : '',
-          row.contextSummary ? `当前上下文：${row.contextSummary}` : '',
-          row.settingDetail ? `设定依据：${row.settingDetail}` : '',
-          row.sceneMomentLabel && row.sceneMomentLabel !== '未关联情景' ? `情景：${row.sceneMomentLabel}` : '',
-          row.contentUnitLabel && row.contentUnitLabel !== '未关联制作项' ? `制作项：${row.contentUnitLabel}` : '',
-        ].filter(Boolean).join('\n'),
-        promptHint: String(row.slot.prompt_hint ?? ''),
-        ownerLabel: row.contextSummary,
-        referenceResourceIds: referenceIds,
-        candidateCount: row.candidates.length,
-      })
-
       assetAssistantCleanupRef.current?.()
       assetAssistantCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
         if (payload.run?.status === 'failed') {
@@ -2490,7 +2456,8 @@ function AssetPreparationWorkbench() {
         autoSend: true,
         projectId,
         clientInput: buildCommandFirstClientInput({
-          message,
+          message: `请为当前素材需求生成一份可审阅的素材候选提案：${row.title}`,
+          mode: 'asset-proposal',
           labels: ['asset-workbench', 'asset-proposal', 'draft-application'],
           hints: {
             projectId,
@@ -2499,7 +2466,6 @@ function AssetPreparationWorkbench() {
             selection: { entityType: 'asset_slot', entityId: row.slot.ID, label: row.title },
           },
         }),
-        agentManifest: ASSET_PROPOSAL_AGENT_MANIFEST,
         runPolicy: { maxToolCalls: 12, maxIterations: 8 },
         timeoutMs: 300_000,
         renderMode: 'chat',
@@ -2873,7 +2839,8 @@ function SettingPreparationWorkbench() {
       autoSend: true,
       projectId,
       clientInput: buildCommandFirstClientInput({
-        message,
+        message: `请完善设定资料：${selected.title}`,
+        mode: 'setting-prep',
         labels: ['setting-prep-workbench', 'workbench', 'structured-output'],
         hints: {
           projectId,
@@ -3521,44 +3488,30 @@ function ContentGenerationWorkbench() {
     setAiSuggestRunning(true)
     setAiSuggestError(null)
     try {
-      const productionTitle = selectedProduction ? titleOfRecord(selectedProduction) : '未绑定'
-      const segmentTitle = selected.segment ? titleOfRecord(selected.segment) : '未绑定'
-      const existingTitles = selected.units.map((unit) => titleOfRecord(unit)).slice(0, 12).join('、') || '（无）'
       const brief = aiSuggestBrief.trim()
-      const context = [
-        `当前制作：${productionTitle}`,
-        `情绪段：${segmentTitle}`,
-        `情节：${selected.title}`,
-        `情节范围：${selected.scope || '暂无描述'}`,
-        `已有内容单元：${existingTitles}`,
-        brief ? `创作者补充：${brief}` : '创作者补充：无',
-      ].join('\n')
-      const prompt = [
-        '你是一位分镜导演助理。请基于当前情节的上下文，建议 3-6 条尚未创建的内容单元（镜头 / 字幕卡 / 旁白 / 转场皆可），用于推进该情节的表达。',
-        context,
-        '',
-        '只返回 JSON，不要任何 Markdown 代码块或多余文字。JSON schema:',
-        '{',
-        '  "units": [',
-        '    {',
-        '      "title": "镜头标题",',
-        '      "kind": "shot|visual_segment|caption_card|narration|transition|music_beat|product_showcase",',
-        '      "description": "要做什么（可选，120 字内）",',
-        '      "prompt": "生成提示词（可选）",',
-        '      "duration_sec": 数字（可选）,',
-        '      "shot_size": "extreme_wide|wide|full|medium|medium_close|close_up|extreme_close_up|detail 之一（可选）",',
-        '      "camera_angle": "eye_level|high_angle|low_angle|over_shoulder|pov 之一（可选）",',
-        '      "camera_motion": "static|pan|tilt|dolly_in|dolly_out|tracking|orbit|handheld|zoom 之一（可选）"',
-        '    }',
-        '  ]',
-        '}',
-        '避免与已有内容单元标题重复；每条聚焦一个清晰动作或情绪节拍。',
-      ].join('\n')
+      const prompt = brief
+        ? `请基于当前情节建议 3-6 条尚未创建的内容单元。\n创作者补充：${brief}`
+        : '请基于当前情节建议 3-6 条尚未创建的内容单元。'
       const { run, thread } = await runRuntimeMessage({
         message: prompt,
         title: '内容单元 AI 建议',
         modelConfigId: aiModelId,
         modelName: aiModelName,
+        clientInput: buildCommandFirstClientInput({
+          message: prompt,
+          mode: 'content-unit-suggest',
+          labels: ['workbench', 'content-unit-suggest'],
+          hints: {
+            projectId,
+            productionId: selectedProduction?.ID,
+            route: { pathname: '/workbench/production' },
+            selection: {
+              entityType: 'scene_moment',
+              entityId: selected.moment.ID,
+              label: selected.title,
+            },
+          },
+        }),
         timeoutMs: 90_000,
         pollMs: 500,
         sessionId: `content_unit_suggest_${projectId}_${selected.moment.ID}_${Date.now()}`,
@@ -4164,40 +4117,6 @@ interface PreviewWorkTask {
   blocker?: string
 }
 
-const SCRIPT_SPLIT_AGENT_MANIFEST: AgentManifest = {
-  schema: 'movscript.agent.current',
-  id: 'script-split-agent',
-  version: '1.0.0',
-  name: '一键制作 Agent',
-  description: '把剧本或提示词转成可写入 MovScript 的制作方案、设定上下文和制作决策草稿。',
-  soul: [
-    '你是 MovScript 的一键制作专用 Agent 会话。',
-    '你的任务是把用户提供的剧本、brief 或提示词拆成可制作的剧本段，并判断每一段是否应该新建、更新或跳过一个制作。',
-    '必须优先依据剧本里的明确集标题、场次边界、叙事段落和上下文；不要编造原文没有的剧情。',
-    '如果文本只有一集或没有明确制作标题，也要返回一个 episode_drafts 项。',
-    '必须抽取总稿级 global_settings，并在每一个 episode_drafts 项里重复一份本集可用的 global_context。',
-    'global_context 要包含故事世界、核心规则、人物关系、关键人物、关键场景、关键道具和连续性约束，保证后续编排只读取单集也能理解全局设定。',
-    '已有剧本清单只用于判断 action 和 existing_script_id；已有制作清单只用于判断 productionAction 和 existingProductionId；不要直接调用正式 Script 或 Production 写入工具。',
-    '必须调用 movscript_submit_script_split_draft 提交结构化制作方案；不要把结构化数据作为 assistant 正文返回。',
-    'sourceScript 只保留标题、摘要、来源类型和总行数，不要回传全文。',
-    'episodeDrafts 必须使用 startLine/endLine 表示本集正文覆盖的行号区间；不要返回 content。',
-    'episodeDrafts 里每一项还要写 productionAction、existingProductionId、productionTitle 和 productionSummary，用来指示是否新建或更新制作。',
-    '如果需要修正已有制作方案，只调用 movscript_get_draft、movscript_update_draft、movscript_patch_draft、movscript_validate_draft 修改草稿。',
-    '不要调用正式写入工具；正式 Script 和 Production 创建和覆盖由 UI 在用户确认后处理。',
-  ].join('\n'),
-  skills: [],
-  permissions: ['project.read', 'draft.read', 'draft.write'],
-  tools: [
-    { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
-    { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
-    { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_patch_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
-  ],
-}
-
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -4509,20 +4428,20 @@ function buildPreviewTimelineShots(record: WorkbenchRecord, data: ProductionPrev
       Number(slot.production_id) === record.ID
     ))
     const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing')
-      return {
-        id: `cu-${unit.ID}`,
-        title: titleOfRecord(unit),
-        source: [
-          segment ? `编排段 ${titleOfRecord(segment)}` : '',
-          moment ? `情节 ${titleOfRecord(moment)}` : '',
-          ].filter(Boolean).join(' / ') || `镜头 #${unit.ID}`,
-        duration: formatDuration(Number(unit.duration_sec) || 0),
-        camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
-        status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
-        assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
-        keyframes: unitKeyframes.length,
-      }
-    })
+    return {
+      id: `cu-${unit.ID}`,
+      title: titleOfRecord(unit),
+      source: [
+        segment ? `编排段 ${titleOfRecord(segment)}` : '',
+        moment ? `情节 ${titleOfRecord(moment)}` : '',
+      ].filter(Boolean).join(' / ') || `镜头 #${unit.ID}`,
+      duration: formatDuration(Number(unit.duration_sec) || 0),
+      camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
+      status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
+      assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+      keyframes: unitKeyframes.length,
+    }
+  })
 }
 
 function buildPreviewAssetGaps(record: WorkbenchRecord, data: ProductionPreviewData): PreviewAssetGap[] {
@@ -4879,16 +4798,16 @@ function ProductionPreviewWorkspace() {
                     )}
                   >
                     <div className="mb-4 rounded-md border border-border bg-background px-3 py-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs text-muted-foreground">当前制作</p>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <p className="truncate text-sm font-medium text-foreground">{previewProductionLabel(selectedProduction)}</p>
-                <Badge variant={previewStatusVariant(selectedProductionStatus)}>{previewStatusLabel(selectedProductionStatus)}</Badge>
-              </div>
-              <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、镜头和关键帧里。')}</p>
-            </div>
-            <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs text-muted-foreground">当前制作</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <p className="truncate text-sm font-medium text-foreground">{previewProductionLabel(selectedProduction)}</p>
+                            <Badge variant={previewStatusVariant(selectedProductionStatus)}>{previewStatusLabel(selectedProductionStatus)}</Badge>
+                          </div>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、镜头和关键帧里。')}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
                           <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/production-orchestrate?productionId=${selectedProduction.ID}`)}>
                             <Clapperboard size={14} />
                             查看编排
@@ -5587,15 +5506,9 @@ function ScriptSplitWorkbench() {
     if (!modelId) throw new Error('请先在右侧 Agent 面板选择一个文本模型')
     const baseTitle = sourceTitle.trim() || inferSourceScriptTitle(normalized)
     const draftShell = await ensureScriptSplitDraftShell(baseTitle, normalized)
-    const message = buildScriptSplitAgentMessage({
-      projectId,
-      sourceTitle: baseTitle,
-      sourceText: normalized,
-      scripts: sortedScripts,
-      productions,
-    })
     const clientInput = buildCommandFirstClientInput({
-      message,
+      message: normalized,
+      mode: 'script-split',
       labels: ['script-split-workbench', 'structured-output'],
       hints: {
         projectId,
@@ -5670,7 +5583,6 @@ function ScriptSplitWorkbench() {
       autoSend: true,
       projectId,
       clientInput,
-      agentManifest: SCRIPT_SPLIT_AGENT_MANIFEST,
       timeoutMs: 900_000,
       renderMode: 'page',
     })

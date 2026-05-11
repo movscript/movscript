@@ -31,11 +31,8 @@ import { SemanticEntityCrudDialog } from '@/components/shared/SemanticEntityCrud
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
-import {
-  buildEmptyProjectProposalDraftContent,
-  buildProjectProposalDraftContractPrompt,
-} from '@/lib/projectProposalDraft'
-import { localAgentClient, type AgentDraft, type AgentManifest } from '@/lib/localAgentClient'
+import { buildEmptyProjectProposalDraftContent } from '@/lib/projectProposalDraft'
+import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
@@ -245,7 +242,7 @@ function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string): Project
       const groupKey = ownerKey || 'ungrouped'
       const ownerLabel = ownerKey
         ? creativeReferenceLabelByKey.get(ownerKey)
-          ?? asString(proposalField(item, ['owner_name', 'source_label', 'name', 'label']), `关联设定 ${ownerKey}`)
+        ?? asString(proposalField(item, ['owner_name', 'source_label', 'name', 'label']), `关联设定 ${ownerKey}`)
         : '未绑定设定'
       const entry = assetSlots[index]
       if (!entry) return
@@ -768,12 +765,7 @@ export default function ProjectOrchestrationPage() {
       }, { replace: true })
 
       const requestId = `project_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-      const prompt = buildProjectOrchestrationPrompt({
-        projectName: project?.name ?? `项目 #${projectId}`,
-        draftId: draftShell.id,
-        userPrompt: requestedPrompt,
-        data,
-      })
+      const userMessage = requestedPrompt || `请执行项目提案：${project?.name ?? `#${projectId}`}`
 
       orchestrationToolCleanupRef.current?.()
       orchestrationToolCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
@@ -802,7 +794,8 @@ export default function ProjectOrchestrationPage() {
         autoSend: true,
         projectId,
         clientInput: buildCommandFirstClientInput({
-          message: prompt,
+          message: userMessage,
+          mode: 'project-orchestration',
           labels: ['project-workspace', 'project-orchestration', 'draft-application'],
           hints: {
             projectId,
@@ -811,7 +804,6 @@ export default function ProjectOrchestrationPage() {
             selection: { entityType: 'project', entityId: projectId, label: project?.name ?? `项目 #${projectId}` },
           },
         }),
-        agentManifest: PROJECT_ORCHESTRATION_AGENT_MANIFEST,
         runPolicy: { maxToolCalls: 30, maxIterations: 18 },
         timeoutMs: 180_000,
         renderMode: 'page',
@@ -1575,11 +1567,11 @@ export default function ProjectOrchestrationPage() {
           record={dialog.mode === 'edit' ? dialog.record : undefined}
           defaults={dialog.mode === 'create' && dialog.kind === 'assetSlots'
             ? {
-                status: 'missing',
-                priority: 'normal',
-                owner_type: 'creative_reference',
-                creative_reference_id: selectedReference?.ID ?? null,
-              }
+              status: 'missing',
+              priority: 'normal',
+              owner_type: 'creative_reference',
+              creative_reference_id: selectedReference?.ID ?? null,
+            }
             : undefined}
           queryKey={queryKey}
           title={dialog.mode === 'create'
@@ -1685,51 +1677,6 @@ function nullableNumber(value: unknown) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null
 }
 
-function buildProjectOrchestrationPrompt(input: {
-  projectName: string
-  draftId: string
-  userPrompt: string
-  data: WorkspaceData
-}) {
-  const snapshot = {
-    projectName: input.projectName,
-    counts: summarizeCurrentState(input.data),
-    references: input.data.creativeReferences.slice(0, 80).map((item) => ({
-      id: item.ID,
-      name: titleOf(item, `设定 #${item.ID}`),
-      kind: item.kind,
-      status: item.status,
-      description: bodyOf(item, ''),
-    })),
-    assetSlots: input.data.assetSlots.slice(0, 80).map((item) => ({
-      id: item.ID,
-      name: titleOf(item, `素材需求 #${item.ID}`),
-      kind: item.kind,
-      status: item.status,
-      priority: item.priority,
-      creative_reference_id: item.creative_reference_id,
-      description: bodyOf(item, ''),
-    })),
-    productions: input.data.productions.slice(0, 30).map((item) => ({
-      id: item.ID,
-      name: titleOf(item, `制作 #${item.ID}`),
-      status: item.status,
-      description: bodyOf(item, ''),
-    })),
-  }
-
-  return [
-    `你是项目提案助手。请基于当前项目现状，产出项目级设定与素材草稿，并写入本地 draft：${input.draftId}。`,
-    '',
-    buildProjectProposalDraftContractPrompt(input.draftId),
-    '',
-    input.userPrompt.trim() ? `用户补充要求：\n${input.userPrompt.trim()}\n` : '',
-    '当前项目快照：',
-    '快照分两层：creativeReferences 代表设定本体，assetSlots 代表这些设定需要的视图/素材需求；关系调整要落到单条资产槽的归属字段上。',
-    JSON.stringify(snapshot, null, 2),
-  ].filter(Boolean).join('\n')
-}
-
 function dedupeDrafts(drafts: AgentDraft[]) {
   const seen = new Set<string>()
   const result: AgentDraft[] = []
@@ -1739,36 +1686,4 @@ function dedupeDrafts(drafts: AgentDraft[]) {
     result.push(draft)
   }
   return result
-}
-
-const PROJECT_ORCHESTRATION_AGENT_MANIFEST: AgentManifest = {
-  schema: 'movscript.agent.current',
-  id: 'project-orchestration-workbench',
-  version: '1.0.0',
-  name: '项目提案助手',
-  description: '整理项目级设定、素材需求和跨制作引用，生成可审阅的设定/素材草稿',
-  soul: `你是项目级提案助手。你的目标是帮助用户治理项目设定和素材需求，并把最终草稿收敛为可审阅的设定/素材提案。
-
-只写本地 draft，不直接改正式项目实体。
-draft 是可审阅的局部语义补丁，不是最终结果，也不是 operation log。
-draft 会通过 merge 机制应用；没有写进 draft 的实体和字段不会被修改。
-项目提案内部按两层组织：先整理设定资料本体，再整理依附于设定资料的素材/视图需求。
-输出只围绕设定资料和素材需求的新增、局部修改、设定资料合并建议，以及素材需求归属调整。
-不要要求删除、锁定或生成执行类 operation；不需要改的内容写进 summary/impact_notes，不要复制到 proposal 节点里。
-如果当前上下文里有 productionId 或当前制作信息，可以先读取当前制作和剧本，再整理项目级结论。
-不要生成制作项、关键帧、台词终稿、运镜表或 prompt。制作编排只引用项目编排的结果。`,
-  permissions: ['project.read', 'draft.read', 'draft.write'],
-  tools: [
-    { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
-    { name: 'movscript_read_current_production', mode: 'allow', approval: 'never' },
-    { name: 'movscript_build_orchestration_diff', mode: 'allow', approval: 'never' },
-    { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
-    { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_patch_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_simulate_draft_apply', mode: 'allow', approval: 'never' },
-    { name: 'movscript_request_user_input', mode: 'allow', approval: 'never' },
-  ],
 }

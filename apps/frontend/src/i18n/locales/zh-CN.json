@@ -1414,6 +1414,7 @@
           "approve": "通过",
           "timing": "时序",
           "contextPackProjectsFetch": "上下文打包项目拉取：{{ms}}ms",
+          "contextPackTotal": "上下文打包总耗时：{{ms}}ms",
           "failed": "运行失败：{{error}}",
           "cancelledMessage": "当前对话已停止。",
           "needsInput": "执行前需要补充信息：\n{{items}}",

@@ -1530,6 +1530,7 @@
           "approve": "Approve",
           "timing": "Timing",
           "contextPackProjectsFetch": "context pack projects fetch: {{ms}}ms",
+          "contextPackTotal": "context pack total: {{ms}}ms",
           "failed": "Run failed: {{error}}",
           "cancelledMessage": "This conversation has been stopped.",
           "needsInput": "Additional information is required before execution:\n{{items}}",

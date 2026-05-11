@@ -23,7 +23,7 @@ class StubMCPClient {
   }
 
   async callTool(name: string): Promise<JSONValue> {
-    if (name === 'movscript_get_context_pack') return { content: [{ type: 'text', text: JSON.stringify({ snapshot: { project: { id: 42, name: 'Project A' } } }) }] }
+    if (name === 'movscript_get_current_context') return { content: [{ type: 'text', text: JSON.stringify({ snapshot: { project: { id: 42, name: 'Project A' } } }) }] }
     return { ok: true }
   }
 
@@ -293,7 +293,7 @@ function dispatch(
     req.method = method
     req.url = path
     req.headers = { host: '127.0.0.1', ...options.headers }
-    ;(req as any).setEncoding = () => {}
+      ; (req as any).setEncoding = () => { }
 
     const resBody = new PassThrough()
     let statusCode = 0
@@ -301,7 +301,7 @@ function dispatch(
       writeHead(code: number) {
         statusCode = code
       },
-      setHeader() {},
+      setHeader() { },
       end(chunk?: string) {
         if (chunk) resBody.end(chunk)
         else resBody.end()

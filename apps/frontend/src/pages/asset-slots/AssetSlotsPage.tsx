@@ -11,7 +11,6 @@ import { createSemanticEntity, listSemanticEntities, updateSemanticEntity, seman
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readNumberParam, readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
-import { ASSET_PROPOSAL_AGENT_MANIFEST, buildAssetProposalAssistantMessage } from '@/lib/agentGenerationArtifacts'
 import { buildEmptyAssetProposalDraftContent } from '@/lib/assetProposalDraft'
 import { api } from '@/lib/api'
 import { API_BASE_URL } from '@/lib/config'
@@ -316,18 +315,6 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
         },
       })
       const requestId = `asset_proposal_${row.slot.ID}_${Date.now().toString(36)}`
-      const message = buildAssetProposalAssistantMessage({
-        draftId: draftShell.id,
-        assetSlotId: row.slot.ID,
-        slotName,
-        slotKind: row.kind,
-        description: row.slot.description,
-        promptHint: row.slot.prompt_hint,
-        ownerLabel: slotScopeLabel(row.slot),
-        referenceResourceIds: referenceIds,
-        candidateCount: row.candidates.length,
-      })
-
       assetAssistantCleanupRef.current?.()
       assetAssistantCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
         if (payload.run?.status === 'failed') {
@@ -360,7 +347,8 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
         autoSend: true,
         projectId,
         clientInput: buildCommandFirstClientInput({
-          message,
+          message: `请为当前素材需求编写一份可审阅的素材候选生成提案：${slotName}`,
+          mode: 'asset-proposal',
           labels: ['asset-slots', 'asset-proposal', 'draft-application'],
           hints: {
             projectId,
@@ -373,7 +361,6 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
             },
           },
         }),
-        agentManifest: ASSET_PROPOSAL_AGENT_MANIFEST,
         runPolicy: { maxToolCalls: 12, maxIterations: 8 },
         timeoutMs: 300_000,
         renderMode: 'chat',

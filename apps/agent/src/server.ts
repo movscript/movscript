@@ -137,21 +137,21 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-    const bundleMatch = url.pathname.match(/^\/agent-catalog\/bundles\/([^/]+)$/)
+      const bundleMatch = url.pathname.match(/^\/agent-catalog\/bundles\/([^/]+)$/)
       if (bundleMatch && req.method === 'GET') {
         writeJSON(res, 200, context.agentRuntime.inspectAgentBundle({ bundleId: decodeURIComponent(bundleMatch[1]) }))
         return
       }
 
-    const bundleEnableMatch = url.pathname.match(/^\/agent-catalog\/bundles\/([^/]+)\/enable$/)
+      const bundleEnableMatch = url.pathname.match(/^\/agent-catalog\/bundles\/([^/]+)\/enable$/)
       if (bundleEnableMatch && req.method === 'POST') {
-      const body = normalizeOptionalObject(await readJSON(req), 'agent catalog enable body')
+        const body = normalizeOptionalObject(await readJSON(req), 'agent catalog enable body')
         writeJSON(res, 200, context.agentRuntime.enableAgentBundle({
-        ...body,
-        bundleId: decodeURIComponent(bundleEnableMatch[1]),
-      }))
-      return
-    }
+          ...body,
+          bundleId: decodeURIComponent(bundleEnableMatch[1]),
+        }))
+        return
+      }
 
       if (req.method === 'POST' && url.pathname === '/agent-catalog/reload') {
         writeJSON(res, 200, context.agentRuntime.reloadAgentCatalog())
@@ -165,7 +165,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'GET' && url.pathname === '/context') {
         await context.client.initialize()
-        writeJSON(res, 200, await context.client.callTool('movscript_get_context_pack'))
+        writeJSON(res, 200, await context.client.callTool('movscript_get_current_context'))
         return
       }
 
@@ -181,80 +181,80 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-    const draftMatch = url.pathname.match(/^\/drafts\/([^/]+)$/)
-    if (draftMatch && req.method === 'GET') {
-      const draft = context.agentRuntime.getDraft(draftMatch[1])
-      if (!draft) {
-        writeJSON(res, 404, { error: 'draft not found' })
+      const draftMatch = url.pathname.match(/^\/drafts\/([^/]+)$/)
+      if (draftMatch && req.method === 'GET') {
+        const draft = context.agentRuntime.getDraft(draftMatch[1])
+        if (!draft) {
+          writeJSON(res, 404, { error: 'draft not found' })
+          return
+        }
+        writeJSON(res, 200, draft)
         return
       }
-      writeJSON(res, 200, draft)
-      return
-    }
-    if (draftMatch && req.method === 'PATCH') {
-      const body = normalizeOptionalObject(await readJSON(req), 'draft update body')
-      writeJSON(res, 200, context.agentRuntime.updateDraft({
-        draftId: draftMatch[1],
-        ...body,
-      }))
-      return
-    }
+      if (draftMatch && req.method === 'PATCH') {
+        const body = normalizeOptionalObject(await readJSON(req), 'draft update body')
+        writeJSON(res, 200, context.agentRuntime.updateDraft({
+          draftId: draftMatch[1],
+          ...body,
+        }))
+        return
+      }
 
-    const draftPatchMatch = url.pathname.match(/^\/drafts\/([^/]+)\/patch$/)
-    if (draftPatchMatch && req.method === 'POST') {
-      const body = normalizeOptionalObject(await readJSON(req), 'draft patch body')
-      writeJSON(res, 200, context.agentRuntime.patchDraft({
-        draftId: draftPatchMatch[1],
-        ...body,
-      }))
-      return
-    }
+      const draftPatchMatch = url.pathname.match(/^\/drafts\/([^/]+)\/patch$/)
+      if (draftPatchMatch && req.method === 'POST') {
+        const body = normalizeOptionalObject(await readJSON(req), 'draft patch body')
+        writeJSON(res, 200, context.agentRuntime.patchDraft({
+          draftId: draftPatchMatch[1],
+          ...body,
+        }))
+        return
+      }
 
-    const draftValidateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/validate$/)
-    if (draftValidateMatch && req.method === 'POST') {
-      writeJSON(res, 200, context.agentRuntime.validateDraft({ draftId: draftValidateMatch[1] }))
-      return
-    }
+      const draftValidateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/validate$/)
+      if (draftValidateMatch && req.method === 'POST') {
+        writeJSON(res, 200, context.agentRuntime.validateDraft({ draftId: draftValidateMatch[1] }))
+        return
+      }
 
-    const draftApplyPreviewMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-preview$/)
-    if (draftApplyPreviewMatch && req.method === 'POST') {
-      const body = normalizeOptionalObject(await readJSON(req), 'apply preview body')
-      writeJSON(res, 200, context.agentRuntime.previewApplyDraft({
-        draftId: draftApplyPreviewMatch[1],
-        ...body,
-      }))
-      return
-    }
+      const draftApplyPreviewMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-preview$/)
+      if (draftApplyPreviewMatch && req.method === 'POST') {
+        const body = normalizeOptionalObject(await readJSON(req), 'apply preview body')
+        writeJSON(res, 200, context.agentRuntime.previewApplyDraft({
+          draftId: draftApplyPreviewMatch[1],
+          ...body,
+        }))
+        return
+      }
 
-    const draftApplySimulateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-simulate$/)
-    if (draftApplySimulateMatch && req.method === 'POST') {
-      const body = normalizeOptionalObject(await readJSON(req), 'apply simulate body')
-      writeJSON(res, 200, await context.agentRuntime.simulateApplyDraft({
-        draftId: draftApplySimulateMatch[1],
-        ...withRequestAuth(body, req),
-      }))
-      return
-    }
+      const draftApplySimulateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-simulate$/)
+      if (draftApplySimulateMatch && req.method === 'POST') {
+        const body = normalizeOptionalObject(await readJSON(req), 'apply simulate body')
+        writeJSON(res, 200, await context.agentRuntime.simulateApplyDraft({
+          draftId: draftApplySimulateMatch[1],
+          ...withRequestAuth(body, req),
+        }))
+        return
+      }
 
-    const draftApplyMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply$/)
-    if (draftApplyMatch && req.method === 'POST') {
-      const body = normalizeOptionalObject(await readJSON(req), 'draft apply body')
-      writeJSON(res, 200, await context.agentRuntime.applyDraftFromUI({
-        draftId: draftApplyMatch[1],
-        ...withRequestAuth(body, req),
-      }))
-      return
-    }
+      const draftApplyMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply$/)
+      if (draftApplyMatch && req.method === 'POST') {
+        const body = normalizeOptionalObject(await readJSON(req), 'draft apply body')
+        writeJSON(res, 200, await context.agentRuntime.applyDraftFromUI({
+          draftId: draftApplyMatch[1],
+          ...withRequestAuth(body, req),
+        }))
+        return
+      }
 
-    const draftRejectMatch = url.pathname.match(/^\/drafts\/([^/]+)\/reject$/)
-    if (draftRejectMatch && req.method === 'POST') {
-      const body = normalizeOptionalObject(await readJSON(req), 'draft rejection body')
-      writeJSON(res, 200, context.agentRuntime.rejectDraft({
-        draftId: draftRejectMatch[1],
-        reason: body.reason,
-      }))
-      return
-    }
+      const draftRejectMatch = url.pathname.match(/^\/drafts\/([^/]+)\/reject$/)
+      if (draftRejectMatch && req.method === 'POST') {
+        const body = normalizeOptionalObject(await readJSON(req), 'draft rejection body')
+        writeJSON(res, 200, context.agentRuntime.rejectDraft({
+          draftId: draftRejectMatch[1],
+          reason: body.reason,
+        }))
+        return
+      }
 
       if (req.method === 'POST' && url.pathname === '/threads') {
         const body = await readJSON(req)
@@ -267,28 +267,28 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-    const threadMatch = url.pathname.match(/^\/threads\/([^/]+)$/)
-    if (threadMatch && req.method === 'GET') {
-      const thread = context.agentRuntime.getThread(threadMatch[1])
-      if (!thread) {
-        writeJSON(res, 404, { error: 'thread not found' })
+      const threadMatch = url.pathname.match(/^\/threads\/([^/]+)$/)
+      if (threadMatch && req.method === 'GET') {
+        const thread = context.agentRuntime.getThread(threadMatch[1])
+        if (!thread) {
+          writeJSON(res, 404, { error: 'thread not found' })
+          return
+        }
+        writeJSON(res, 200, thread)
         return
       }
-      writeJSON(res, 200, thread)
-      return
-    }
-    if (threadMatch && req.method === 'PATCH') {
-      const body = await readJSON(req)
-      writeJSON(res, 200, context.agentRuntime.updateThread(threadMatch[1], normalizeOptionalObject(body, 'thread update body')))
-      return
-    }
+      if (threadMatch && req.method === 'PATCH') {
+        const body = await readJSON(req)
+        writeJSON(res, 200, context.agentRuntime.updateThread(threadMatch[1], normalizeOptionalObject(body, 'thread update body')))
+        return
+      }
 
-    const messagesMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages$/)
-    if (messagesMatch && req.method === 'POST') {
-      const body = await readJSON(req)
-      writeJSON(res, 201, context.agentRuntime.addMessage(messagesMatch[1], normalizeOptionalObject(body, 'message body')))
-      return
-    }
+      const messagesMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages$/)
+      if (messagesMatch && req.method === 'POST') {
+        const body = await readJSON(req)
+        writeJSON(res, 201, context.agentRuntime.addMessage(messagesMatch[1], normalizeOptionalObject(body, 'message body')))
+        return
+      }
 
       if (req.method === 'POST' && url.pathname === '/runs') {
         const body = await readJSON(req)
@@ -296,111 +296,111 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-    if (req.method === 'POST' && url.pathname === '/runs/tool') {
-      const body = await readJSON(req)
-      writeJSON(res, 201, context.agentRuntime.createToolRun(withRequestAuth(normalizeOptionalObject(body, 'tool run body'), req)))
-      return
-    }
-
-    if (req.method === 'POST' && url.pathname === '/runs/preview') {
-      const body = await readJSON(req)
-      writeJSON(res, 200, await context.agentRuntime.previewRun(withRequestAuth(normalizeOptionalObject(body, 'run preview body'), req)))
-      return
-    }
-
-    if (req.method === 'GET' && url.pathname === '/runs') {
-      writeJSON(res, 200, { runs: context.agentRuntime.listRuns() })
-      return
-    }
-
-    const runMatch = url.pathname.match(/^\/runs\/([^/]+)$/)
-    if (runMatch && req.method === 'GET') {
-      const run = context.agentRuntime.getRun(runMatch[1])
-      if (!run) {
-        writeJSON(res, 404, { error: 'run not found' })
+      if (req.method === 'POST' && url.pathname === '/runs/tool') {
+        const body = await readJSON(req)
+        writeJSON(res, 201, context.agentRuntime.createToolRun(withRequestAuth(normalizeOptionalObject(body, 'tool run body'), req)))
         return
       }
-      writeJSON(res, 200, run)
-      return
-    }
 
-    const runTraceSummaryMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/summary$/)
-    if (runTraceSummaryMatch && req.method === 'GET') {
-      writeJSON(res, 200, context.agentRuntime.getRunTraceSummary(runTraceSummaryMatch[1]))
-      return
-    }
+      if (req.method === 'POST' && url.pathname === '/runs/preview') {
+        const body = await readJSON(req)
+        writeJSON(res, 200, await context.agentRuntime.previewRun(withRequestAuth(normalizeOptionalObject(body, 'run preview body'), req)))
+        return
+      }
 
-    const runTraceMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace$/)
-    if (runTraceMatch && req.method === 'GET') {
-      writeJSON(res, 200, {
-        runId: runTraceMatch[1],
-        events: context.agentRuntime.getRunTraceEvents(runTraceMatch[1], normalizeTraceQuery(url)),
-      })
-      return
-    }
+      if (req.method === 'GET' && url.pathname === '/runs') {
+        writeJSON(res, 200, { runs: context.agentRuntime.listRuns() })
+        return
+      }
 
-    const runStreamMatch = url.pathname.match(/^\/runs\/([^/]+)\/stream$/)
-    if (runStreamMatch && req.method === 'GET') {
-      streamRunEvents(req, res, context.agentRuntime, runStreamMatch[1])
-      return
-    }
+      const runMatch = url.pathname.match(/^\/runs\/([^/]+)$/)
+      if (runMatch && req.method === 'GET') {
+        const run = context.agentRuntime.getRun(runMatch[1])
+        if (!run) {
+          writeJSON(res, 404, { error: 'run not found' })
+          return
+        }
+        writeJSON(res, 200, run)
+        return
+      }
 
-    const runApproveMatch = url.pathname.match(/^\/runs\/([^/]+)\/approve$/)
-    if (runApproveMatch && req.method === 'POST') {
-      const body = await readJSON(req)
-      writeJSON(res, 202, context.agentRuntime.approveRun(runApproveMatch[1], withRequestAuth(normalizeOptionalObject(body, 'approval body'), req)))
-      return
-    }
+      const runTraceSummaryMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/summary$/)
+      if (runTraceSummaryMatch && req.method === 'GET') {
+        writeJSON(res, 200, context.agentRuntime.getRunTraceSummary(runTraceSummaryMatch[1]))
+        return
+      }
 
-    const runCancelMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel$/)
-    if (runCancelMatch && req.method === 'POST') {
-      const body = await readJSON(req)
-      writeJSON(res, 200, context.agentRuntime.cancelRun(runCancelMatch[1], normalizeOptionalObject(body, 'cancel body')))
-      return
-    }
+      const runTraceMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace$/)
+      if (runTraceMatch && req.method === 'GET') {
+        writeJSON(res, 200, {
+          runId: runTraceMatch[1],
+          events: context.agentRuntime.getRunTraceEvents(runTraceMatch[1], normalizeTraceQuery(url)),
+        })
+        return
+      }
 
-    const runRejectMatch = url.pathname.match(/^\/runs\/([^/]+)\/reject$/)
-    if (runRejectMatch && req.method === 'POST') {
-      const body = await readJSON(req)
-      writeJSON(res, 200, context.agentRuntime.rejectRun(runRejectMatch[1], normalizeOptionalObject(body, 'rejection body')))
-      return
-    }
+      const runStreamMatch = url.pathname.match(/^\/runs\/([^/]+)\/stream$/)
+      if (runStreamMatch && req.method === 'GET') {
+        streamRunEvents(req, res, context.agentRuntime, runStreamMatch[1])
+        return
+      }
 
-    const runInputMatch = url.pathname.match(/^\/runs\/([^/]+)\/input$/)
-    if (runInputMatch && req.method === 'POST') {
-      const body = await readJSON(req)
-      writeJSON(res, 202, context.agentRuntime.answerRunInputRequest(runInputMatch[1], withRequestAuth(normalizeOptionalObject(body, 'input answer body'), req)))
-      return
-    }
+      const runApproveMatch = url.pathname.match(/^\/runs\/([^/]+)\/approve$/)
+      if (runApproveMatch && req.method === 'POST') {
+        const body = await readJSON(req)
+        writeJSON(res, 202, context.agentRuntime.approveRun(runApproveMatch[1], withRequestAuth(normalizeOptionalObject(body, 'approval body'), req)))
+        return
+      }
 
-    if (req.method === 'GET' && url.pathname === '/memories') {
-      const query = normalizeMemoryQuery(url)
-      writeJSON(res, 200, { memories: query ? context.agentRuntime.listMemorySummaries(query) : [] })
-      return
-    }
+      const runCancelMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel$/)
+      if (runCancelMatch && req.method === 'POST') {
+        const body = await readJSON(req)
+        writeJSON(res, 200, context.agentRuntime.cancelRun(runCancelMatch[1], normalizeOptionalObject(body, 'cancel body')))
+        return
+      }
 
-    if (req.method === 'POST' && url.pathname === '/memories') {
-      const body = normalizeOptionalObject(await readJSON(req), 'memory body')
-      writeJSON(res, 201, context.agentRuntime.createMemory(normalizeMemoryBody(body)))
-      return
-    }
+      const runRejectMatch = url.pathname.match(/^\/runs\/([^/]+)\/reject$/)
+      if (runRejectMatch && req.method === 'POST') {
+        const body = await readJSON(req)
+        writeJSON(res, 200, context.agentRuntime.rejectRun(runRejectMatch[1], normalizeOptionalObject(body, 'rejection body')))
+        return
+      }
 
-    const memoryMatch = url.pathname.match(/^\/memories\/([^/]+)$/)
-    if (memoryMatch && req.method === 'GET') {
-      const projectId = normalizeMemoryProjectId(url)
-      const memory = typeof projectId === 'number' ? context.agentRuntime.getMemory(projectId, memoryMatch[1]) : undefined
-      writeJSON(res, memory ? 200 : 404, memory ? { memory } : { error: 'memory not found' })
-      return
-    }
+      const runInputMatch = url.pathname.match(/^\/runs\/([^/]+)\/input$/)
+      if (runInputMatch && req.method === 'POST') {
+        const body = await readJSON(req)
+        writeJSON(res, 202, context.agentRuntime.answerRunInputRequest(runInputMatch[1], withRequestAuth(normalizeOptionalObject(body, 'input answer body'), req)))
+        return
+      }
 
-    if (memoryMatch && req.method === 'DELETE') {
-      const projectId = normalizeMemoryProjectId(url)
-      const deleted = typeof projectId === 'number' ? context.agentRuntime.deleteMemory(projectId, memoryMatch[1]) : false
-      writeJSON(res, deleted ? 200 : 404, deleted ? { deleted: true } : { error: 'memory not found' })
-      return
-    }
+      if (req.method === 'GET' && url.pathname === '/memories') {
+        const query = normalizeMemoryQuery(url)
+        writeJSON(res, 200, { memories: query ? context.agentRuntime.listMemorySummaries(query) : [] })
+        return
+      }
 
-    writeJSON(res, 404, { error: 'not found' })
+      if (req.method === 'POST' && url.pathname === '/memories') {
+        const body = normalizeOptionalObject(await readJSON(req), 'memory body')
+        writeJSON(res, 201, context.agentRuntime.createMemory(normalizeMemoryBody(body)))
+        return
+      }
+
+      const memoryMatch = url.pathname.match(/^\/memories\/([^/]+)$/)
+      if (memoryMatch && req.method === 'GET') {
+        const projectId = normalizeMemoryProjectId(url)
+        const memory = typeof projectId === 'number' ? context.agentRuntime.getMemory(projectId, memoryMatch[1]) : undefined
+        writeJSON(res, memory ? 200 : 404, memory ? { memory } : { error: 'memory not found' })
+        return
+      }
+
+      if (memoryMatch && req.method === 'DELETE') {
+        const projectId = normalizeMemoryProjectId(url)
+        const deleted = typeof projectId === 'number' ? context.agentRuntime.deleteMemory(projectId, memoryMatch[1]) : false
+        writeJSON(res, deleted ? 200 : 404, deleted ? { deleted: true } : { error: 'memory not found' })
+        return
+      }
+
+      writeJSON(res, 404, { error: 'not found' })
     } catch (error) {
       writeJSON(res, 500, { error: error instanceof Error ? error.message : String(error) })
     }
@@ -579,7 +579,7 @@ function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: Age
   res.write(': connected\n\n')
 
   let closed = false
-  let unsubscribe = () => {}
+  let unsubscribe = () => { }
   let subscribed = false
   let closeAfterSubscribe = false
   const heartbeat = setInterval(() => {

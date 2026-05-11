@@ -2,6 +2,8 @@ package workflowio
 
 import (
 	"context"
+	"fmt"
+	"strings"
 )
 
 type resourceBindingProjection struct {

@@ -177,6 +177,7 @@ test('validateDraft accepts production proposal content with content units and k
     kind: 'production_proposal',
     title: 'production proposal',
     content: JSON.stringify({
+      schema: 'movscript.production_proposal_draft.v2',
       productionId: 12,
       proposal: {
         segments: [{

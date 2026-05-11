@@ -23,6 +23,7 @@ export function buildCommandFirstClientInput(input: {
   message: string
   attachments?: AgentClientInput['attachments']
   labels?: string[]
+  mode?: string
   hints?: {
     projectId?: number
     productionId?: number
@@ -43,8 +44,9 @@ export function buildCommandFirstClientInput(input: {
   return {
     message: input.message,
     ...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
-    ...((input.labels?.length || input.hints) ? {
+    ...((input.mode || input.labels?.length || input.hints) ? {
       uiSnapshot: {
+        ...(input.mode ? { mode: input.mode } : {}),
         ...(pageContext ? { pageContext } : {}),
         ...(input.hints?.projectId !== undefined ? { project: { id: input.hints.projectId } } : {}),
         ...(input.hints?.productionId !== undefined ? { productionId: input.hints.productionId } : {}),

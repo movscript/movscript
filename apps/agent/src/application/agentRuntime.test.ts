@@ -161,8 +161,8 @@ function installDefaultModelFetch(): void {
 
     // No tool calls — return a contextual text reply
     const content = /记住|remember/i.test(userMsg)
-        ? `已记录您的偏好。已参考 ${memoryCount} 条记忆。`
-        : '好的，已完成。'
+      ? `已记录您的偏好。已参考 ${memoryCount} 条记忆。`
+      : '好的，已完成。'
     return new Response(JSON.stringify({ choices: [{ message: { content }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
   }) as typeof fetch
 }
@@ -207,11 +207,16 @@ class FakeMCPClient {
     if (this.failTools.has(name)) {
       throw new Error(`${name} failed`)
     }
-    if (name === 'movscript_get_context_pack') {
+    if (name === 'movscript_get_current_context' || name === 'movscript_get_context_pack') {
       return toolText({
         snapshot: {
           project: this.projectId === null ? null : { id: this.projectId, name: 'Test Project' },
           user: this.userId === null ? null : { id: this.userId, username: 'tester' },
+        },
+        timings: {
+          contextPackMs: 12,
+          totalMs: 12,
+          projectsMs: 4,
         },
       })
     }
@@ -327,7 +332,7 @@ test('previews plan and policy without creating a run or executing planned tools
   assert.equal(preview.toolCalls.length, 0)
   assert.equal(runtime.listRuns().length, 0)
   assert.equal(client.calls.some((call) => call.name === 'movscript_create_script'), false)
-  assert.deepEqual(client.calls.map((call) => call.name), ['movscript_get_context_pack'])
+  assert.ok(client.calls.some((call) => call.name === 'movscript_get_context_pack' || call.name === 'movscript_get_current_context'))
 })
 
 test('runtime builds envelope context from client input without frontend prompt assembly', async () => {
@@ -465,10 +470,10 @@ test('runtime can read, edit, and validate a script split draft without backend 
           key_props: [],
           continuity_notes: [],
           episode_relevance: [],
-	        },
-	        start_line: 1,
-	        end_line: 3,
-	        action: 'create',
+        },
+        start_line: 1,
+        end_line: 3,
+        action: 'create',
         existing_script_id: null,
       }],
       warnings: [],
@@ -532,6 +537,21 @@ test('explicit write agent can create_project without a current project after ap
   assert.equal(resumed.status, 'completed')
   assert.equal(call?.args.name, '测试项目')
   assert.equal(call?.args.projectId, undefined)
+  const contextTrace = runtime.getRunTraceEvents(resumed.id, { kind: 'context' }).find((event) => event.title === 'Runtime context resolved')
+  const contextTraceData = isTestRecord(contextTrace?.data) ? contextTrace.data : undefined
+  const contextPackTimingsValue = contextTraceData && !Array.isArray(contextTraceData)
+    ? (contextTraceData as Record<string, unknown>).contextPackTimings
+    : undefined
+  const contextPackTimings = isTestRecord(contextPackTimingsValue)
+    ? (contextPackTimingsValue as Record<string, unknown>)
+    : undefined
+  assert.equal(contextPackTimings?.contextPackMs, 12)
+  const toolTrace = runtime.getRunTraceEvents(resumed.id, { kind: 'tool_call' }).find((event) => event.toolName === 'movscript_create_project' && event.status === 'completed')
+  assert.equal(typeof toolTrace?.durationMs, 'number')
+  assert.ok((toolTrace?.durationMs ?? -1) >= 0)
+  const toolStep = runtime.getRun(resumed.id)?.steps.find((step) => step.toolName === 'movscript_create_project' && step.status === 'completed')
+  assert.equal(typeof toolStep?.durationMs, 'number')
+  assert.ok((toolStep?.durationMs ?? -1) >= 0)
 })
 
 test('create_script requires approval and creates a backend script after approval', async () => {
@@ -1580,8 +1600,9 @@ test('script split agent session exposes structured submit tool without forcing 
         name: '剧本拆分 Agent',
         soul: '通过工具或草稿把结构化结果交给 UI；assistant 正文只做简短说明。',
         permissions: ['project.read', 'draft.write'],
-      tools: [
+        tools: [
           { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
+          { name: 'movscript_get_current_context', mode: 'allow', approval: 'never' },
           { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
         ],
       },
@@ -1640,7 +1661,7 @@ test('script split structured submit tool writes a normalized script_split draft
         { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
       ],
     },
-      toolCall: {
+    toolCall: {
       name: 'movscript_submit_script_split_draft',
       args: {
         projectId: 42,
@@ -1932,6 +1953,48 @@ test('create_draft success writes draft memory', async () => {
   assert.equal(runtime.listMemories({ kind: 'draft', projectId: 42 }).length, 0)
 })
 
+test('create_proposal creates a local proposal draft from conversation context', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  const draftStore = new InMemoryAgentDraftStore()
+  const runtime = createTestRuntime({ mcpClient: client, draftStore })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '帮我开一个项目提案' }] })
+
+  const run = runtime.createToolRun({
+    threadId: thread.id,
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: ['draft.write'],
+      tools: [{ name: 'movscript_create_proposal', mode: 'allow', approval: 'never' }],
+    },
+    toolCall: {
+      name: 'movscript_create_proposal',
+      args: {
+        kind: 'project_proposal',
+        projectId: 42,
+        content: JSON.stringify({
+          schema: 'movscript.project_proposal.v1',
+          scope: 'project_proposal',
+          summary: '整理项目设定和素材需求',
+          proposal: {
+            creative_references: [],
+            asset_slots: [],
+          },
+          impact_notes: [],
+        }),
+      },
+    },
+  })
+
+  const finished = await waitForRun(runtime, run.id)
+  const draft = finished.steps.find((step) => step.toolName === 'movscript_create_proposal')?.result as any
+
+  assert.equal(finished.status, 'completed')
+  assert.equal(draft?.status, 'created')
+  assert.equal(typeof draft?.draftId, 'string')
+  assert.equal(runtime.listDrafts({ kind: 'project_proposal' }).length, 1)
+})
+
 test('script split submit tool writes local draft lifecycle metadata and list_drafts returns it', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
@@ -2151,6 +2214,7 @@ test('production proposal submit preserves the page-owned draft shell', async ()
     kind: 'production_proposal',
     title: '页面草稿壳',
     content: JSON.stringify({
+      schema: 'movscript.production_proposal_draft.v2',
       productionId: 4,
       analysisScope: 'production',
       proposal: { segments: [] },
@@ -2504,6 +2568,7 @@ test('business production proposal tools upsert orchestration nodes only', async
     kind: 'production_proposal',
     title: '业务编排提案',
     content: JSON.stringify({
+      schema: 'movscript.production_proposal_draft.v2',
       productionId: 4,
       analysisScope: 'production',
       proposal: {
@@ -2581,6 +2646,7 @@ test('production proposal inspect uses page context draft id when args omit prop
     kind: 'production_proposal',
     title: '页面草稿壳',
     content: JSON.stringify({
+      schema: 'movscript.production_proposal_draft.v2',
       productionId: 4,
       analysisScope: 'production',
       proposal: {
@@ -2632,6 +2698,7 @@ test('production proposal upsert uses page context draft id when args omit propo
     kind: 'production_proposal',
     title: '页面草稿壳',
     content: JSON.stringify({
+      schema: 'movscript.production_proposal_draft.v2',
       productionId: 4,
       analysisScope: 'production',
       proposal: { segments: [] },

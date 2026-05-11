@@ -41,6 +41,7 @@ export interface AppendTraceEventInput {
   stepId?: string
   toolName?: string
   data?: unknown
+  durationMs?: number
   completedAt?: string
 }
 
@@ -64,6 +65,7 @@ export function appendTraceEvent(input: AppendTraceEventInput): AgentTraceEvent 
     ...(input.stepId ? { stepId: input.stepId } : {}),
     ...(input.toolName ? { toolName: input.toolName } : {}),
     ...(input.data !== undefined ? { data: toJSONValue(input.data) } : {}),
+    ...(typeof input.durationMs === 'number' && Number.isFinite(input.durationMs) ? { durationMs: input.durationMs } : {}),
     ...(input.completedAt ? { completedAt: input.completedAt } : {}),
   }
   input.run.updatedAt = event.completedAt ?? event.createdAt

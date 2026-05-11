@@ -73,6 +73,7 @@ export interface AgentRunStep {
   result?: JSONValue
   error?: string
   sandboxed?: boolean
+  durationMs?: number
   createdAt: string
   completedAt?: string
 }
@@ -112,6 +113,7 @@ export interface AgentTraceEvent {
   stepId?: string
   toolName?: string
   data?: JSONValue
+  durationMs?: number
   createdAt: string
   completedAt?: string
 }
@@ -238,6 +240,7 @@ export interface AgentInputRequest {
 }
 
 export interface AgentDebugContextPanel {
+  mode?: string
   route: {
     pathname: string
     search?: string
@@ -311,6 +314,7 @@ export interface AgentClientResourceRef {
 }
 
 export interface AgentClientUISnapshot {
+  mode?: string
   route?: {
     pathname?: string
     search?: string

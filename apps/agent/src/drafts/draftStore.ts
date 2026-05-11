@@ -2,25 +2,13 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { JSONValue } from '../types.js'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
+import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_KIND_VALUES, type DraftKindValue } from './draftSchemas.js'
 
 // AgentDraft is a local runtime/client review artifact. It is the protocol shape
 // used to pass proposed changes to the UI for preview, revision, approval, or
 // rejection. It is not a formal backend domain entity until a separate apply
 // flow writes accepted content to backend APIs.
-export type AgentDraftKind =
-  | 'script_split'
-  | 'script'
-  | 'asset_slot'
-  | 'storyboard_line'
-  | 'content_unit'
-  | 'prompt'
-  | 'note'
-  | 'pipeline'
-  | 'segment'
-  | 'scene_moment'
-  | 'asset_proposal'
-  | 'project_proposal'
-  | 'production_proposal'
+export type AgentDraftKind = DraftKindValue
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentDraftSource {
@@ -481,20 +469,8 @@ function countOccurrences(text: string, needle: string): number {
 }
 
 export function normalizeDraftKind(value: unknown): AgentDraftKind {
-  return value === 'script_split'
-    || value === 'script'
-    || value === 'asset_slot'
-    || value === 'storyboard_line'
-    || value === 'content_unit'
-    || value === 'prompt'
-    || value === 'note'
-    || value === 'pipeline'
-    || value === 'segment'
-    || value === 'scene_moment'
-    || value === 'asset_proposal'
-    || value === 'project_proposal'
-    || value === 'production_proposal'
-    ? value
+  return typeof value === 'string' && (DRAFT_KIND_VALUES as readonly string[]).includes(value)
+    ? value as AgentDraftKind
     : 'note'
 }
 
@@ -642,8 +618,8 @@ function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidatio
     issues.push({ path: '/content', message: 'Script split draft content must be a JSON object.', severity: 'error' })
     return
   }
-  if (parsed.schema !== 'movscript.script_split_analysis.v1') {
-    issues.push({ path: '/schema', message: 'Script split draft schema must be movscript.script_split_analysis.v1.', severity: 'error' })
+  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.scriptSplit) {
+    issues.push({ path: '/schema', message: `Script split draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.scriptSplit}.`, severity: 'error' })
   }
   if (!isRecord(parsed.global_settings)) {
     issues.push({ path: '/global_settings', message: 'Script split draft requires global_settings.', severity: 'error' })
@@ -716,6 +692,9 @@ function validateProjectProposalDraft(draft: AgentDraft, issues: AgentDraftValid
     issues.push({ path: '/content', message: 'Project proposal draft content must be a JSON object.', severity: 'error' })
     return
   }
+  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.projectProposal) {
+    issues.push({ path: '/schema', message: `Project proposal draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.projectProposal}.`, severity: 'error' })
+  }
   if (parsed.scope !== 'project_proposal') {
     issues.push({ path: '/scope', message: 'Project proposal draft scope must be project_proposal.', severity: 'error' })
   }
@@ -750,8 +729,8 @@ function validateAssetProposalDraft(draft: AgentDraft, issues: AgentDraftValidat
     issues.push({ path: '/content', message: 'Asset proposal draft content must be a JSON object.', severity: 'error' })
     return
   }
-  if (parsed.schema !== undefined && parsed.schema !== 'movscript.asset_proposal.v1') {
-    issues.push({ path: '/schema', message: 'Asset proposal draft schema must be movscript.asset_proposal.v1.', severity: 'error' })
+  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.assetProposal) {
+    issues.push({ path: '/schema', message: `Asset proposal draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.assetProposal}.`, severity: 'error' })
   }
   if (parsed.scope !== 'asset_proposal') {
     issues.push({ path: '/scope', message: 'Asset proposal draft scope must be asset_proposal.', severity: 'error' })
@@ -833,6 +812,9 @@ function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftVa
   if (!isRecord(parsed)) {
     issues.push({ path: '/content', message: 'Production proposal draft content must be a JSON object.', severity: 'error' })
     return
+  }
+  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.productionProposal) {
+    issues.push({ path: '/schema', message: `Production proposal draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.productionProposal}.`, severity: 'error' })
   }
   if (numberValue(parsed.productionId ?? parsed.production_id) === undefined) {
     issues.push({ path: '/productionId', message: 'Production proposal draft requires productionId.', severity: 'error' })

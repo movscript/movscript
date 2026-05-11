@@ -366,6 +366,10 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
     return `创建本地草稿${draftId}。`
   }
+  if (call.name === 'movscript_create_proposal') {
+    const draftId = isRecord(parsed) && typeof parsed.draftId === 'string' ? ` ${parsed.draftId}` : ''
+    return `创建对话提案草稿${draftId}。`
+  }
   if (call.name === 'movscript_read_draft') {
     const draftPath = isRecord(parsed) && typeof parsed.filePath === 'string' ? ` ${parsed.filePath}` : ''
     return `读取本地草稿文件${draftPath}。`

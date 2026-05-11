@@ -1,14 +1,14 @@
 {
   "tools": [
     {
-      "name": "movscript_get_context_pack",
+      "name": "movscript_get_current_context",
       "description": "Return current MovScript UI route, selected project, current user, selected project item, available project resources, and local draft count. Use this before project-specific work.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_get_context_pack",
+        "name": "movscript_get_current_context",
         "mode": "allow",
         "approval": "never"
       }

@@ -15,6 +15,7 @@ import { executeTool, type AgentCatalogToolManager } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { formatToolNameForDisplay } from '../tools/toolNames.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
+import { filterPromptHistory, filterPromptMemories } from '../context/promptHygiene.js'
 import {
   buildGenerationEvent,
   buildGenerationTimeoutEvent,
@@ -33,6 +34,7 @@ export interface AgentGraphTraceInput {
   stepId?: string
   toolName?: string
   data?: unknown
+  durationMs?: number
   volatile?: boolean
   volatileKey?: string
 }
@@ -231,11 +233,11 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       ...supplementalUserMessages.map((message) => message.content),
     ].join('\n')
     : lastUser.content
-  const promptHistory: AgentMessage[] = input.threadMessages.filter((message, index) => (
+  const promptHistory: AgentMessage[] = filterPromptHistory(input.threadMessages.filter((message, index) => (
     message.role !== 'system'
     && message.id !== lastUser.id
     && (rootIndex < 0 || index <= rootIndex || message.role !== 'user')
-  ))
+  )))
 
   if (currentRoundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0) {
     const forcedToolCalls = input.forcedToolCalls.map(normalizeToolCall)
@@ -269,7 +271,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     context: input.context,
     tools: input.capabilities,
     policy: input.policy,
-    memories: input.memories,
+    memories: filterPromptMemories(input.memories),
     warnings: state.warnings,
     history: promptHistory,
     userMessage: effectiveUserMessage,
@@ -559,6 +561,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
 
   const executeOne = async (call: ToolCall): Promise<{ outcome: ToolCallOutcome; turnResult: { toolCall: ToolCall; content: string }; warning?: string }> => {
     const stepId = input.onStepCreate('tool_call', currentRoundIndex, roundLabel, effectiveRoundSource, call.name)
+    const startedAt = Date.now()
     try {
       const execResult = await executeTool(call, {
         run: input.run,
@@ -572,18 +575,20 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         signal: input.signal,
       })
       throwIfAborted(input.signal)
+      const durationMs = Date.now() - startedAt
       input.onStepComplete(stepId, execResult.result, undefined, execResult.sandboxed)
       input.onTrace({
         kind: 'tool_call',
         title: execResult.sandboxed ? `Tool sandboxed: ${call.name}` : `Tool completed: ${call.name}`,
-        summary: summarizeResult(execResult.result),
+        summary: `${summarizeResult(execResult.result)} (${durationMs}ms)`,
         status: 'completed',
         roundIndex: currentRoundIndex,
         roundLabel,
         roundSource: effectiveRoundSource,
         stepId,
         toolName: call.name,
-        data: { source: execResult.source, result: execResult.result, sandboxed: execResult.sandboxed },
+        data: { source: execResult.source, result: execResult.result, sandboxed: execResult.sandboxed, durationMs },
+        durationMs,
       })
       const generationEvent = buildGenerationEvent(call, execResult.result)
       if (generationEvent && input.onGenerationEvent) {
@@ -616,18 +621,20 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
     } catch (error) {
       if (isAbortError(error) || input.signal?.aborted) throw error
       const message = error instanceof Error ? error.message : String(error)
+      const durationMs = Date.now() - startedAt
       input.onStepComplete(stepId, undefined, message)
       input.onTrace({
         kind: 'tool_call',
         title: `Tool call failed: ${call.name}`,
-        summary: message,
+        summary: `${message} (${durationMs}ms)`,
         status: 'failed',
         roundIndex: currentRoundIndex,
         roundLabel,
         roundSource: effectiveRoundSource,
         stepId,
         toolName: call.name,
-        data: { error: message },
+        data: { error: message, durationMs },
+        durationMs,
       })
       return {
         outcome: { call, error: message },

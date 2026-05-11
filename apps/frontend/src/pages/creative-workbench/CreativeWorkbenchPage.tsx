@@ -149,26 +149,6 @@ function formatDate(ts: number) {
   return new Date(ts).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-function buildCreativeWorkbenchAgentMessage(input: {
-  projectName?: string
-  title: string
-  fixedMaterial: string
-}) {
-  return [
-    '你是 MovScript 项目头脑风暴助手。',
-    '请先和用户多轮讨论、追问、收敛创意；不要急着改页面。',
-    '只有当用户明确要求“写入页面 / 应用 / 定稿 / 使用这个版本”时，才输出下面的 JSON 结论，页面会据此渲染故事素材。',
-    'JSON 结论不能包在 markdown 围栏里，格式为：',
-    '{"schema":"movscript.creative_workbench.material.v1","fixed_material":"整理后的故事素材正文"}',
-    '',
-    `[项目] ${input.projectName || '未命名项目'}`,
-    `[灵感标题] ${input.title || '未命名灵感'}`,
-    '',
-    '[当前故事素材]',
-    input.fixedMaterial || '暂无',
-  ].join('\n')
-}
-
 function parseCreativeMaterialConclusion(content: string): string | null {
   const trimmed = content.trim()
   if (!trimmed) return null
@@ -264,12 +244,6 @@ export default function CreativeWorkbenchPage() {
   function brainstormWithAgent() {
     if (!selected || !projectId) return
     const requestId = `creative_workbench_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-    const message = buildCreativeWorkbenchAgentMessage({
-      projectName: current?.name,
-      title: selected.title,
-      fixedMaterial: selected.fixedMaterial,
-    })
-
     setAgentRequestId(requestId)
     registerAgentPanelPageTool(requestId, (payload) => {
       setAgentRequestId(null)
@@ -314,14 +288,15 @@ export default function CreativeWorkbenchPage() {
     openAgentPanelDraft({
       requestId,
       taskType: 'creative_brainstorm',
-      message,
+      message: `请整理并发散当前故事素材：${selected.title || current?.name || '故事素材'}`,
       title: `头脑风暴: ${selected.title || current?.name || '故事素材'}`,
       mode: 'create',
       newConversation: true,
       autoSend: true,
       projectId,
       clientInput: buildCommandFirstClientInput({
-        message,
+        message: selected.fixedMaterial || selected.title || '请整理并发散当前故事素材。',
+        mode: 'creative-workbench',
         labels: ['creative-workbench', 'brainstorm', 'page-tool-render'],
         hints: {
           projectId,

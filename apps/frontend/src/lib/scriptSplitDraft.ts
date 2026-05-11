@@ -309,67 +309,6 @@ function firstText(...values: Array<string | undefined>): string {
   return values.find((value) => typeof value === 'string' && value.trim())?.trim() ?? ''
 }
 
-export function buildScriptSplitAgentMessage(input: {
-  projectId: number
-  sourceTitle: string
-  sourceText: string
-  scripts: Script[]
-  productions: ScriptSplitProductionSummary[]
-}) {
-  const existingEpisodes = input.scripts
-    .filter((script) => normalizeScriptType(script.script_type) === 'episode')
-    .slice(0, 120)
-    .map((script) => ({
-      id: script.ID,
-      title: script.title,
-      order: script.order,
-      summary: script.summary || script.description || '',
-    }))
-  const existingProductions = input.productions
-    .slice(0, 120)
-    .map((production) => ({
-      id: production.ID,
-      name: production.name || production.title || `制作 #${production.ID}`,
-      description: production.description || '',
-      status: production.status || '',
-      sourceType: production.source_type || '',
-      scriptVersionId: production.script_version_id ?? null,
-      previewTimelineId: production.preview_timeline_id ?? null,
-    }))
-  return [
-    '请把下面这份总稿分析为 MovScript 的剧本与制作决策草稿。',
-    '',
-    '[项目]',
-    `projectId: ${input.projectId}`,
-    '',
-    '[总稿标题]',
-    input.sourceTitle,
-    '',
-    '[已有制作剧本，用于判断 create/update]',
-    JSON.stringify(existingEpisodes, null, 2),
-    '',
-    '[已有制作，用于判断 create/update/skip]',
-    JSON.stringify(existingProductions, null, 2),
-    '',
-    '[工具要求]',
-    '必须调用 movscript_submit_script_split_draft 提交结构化拆分草稿，而不是把结构化数据写在 assistant 正文。',
-    'sourceScript 只保留标题、摘要、来源类型和总行数，不要回传全文。',
-    'globalSettings 必须包含 storyWorld、coreRules、characterRelationships、keyCharacters、keyLocations、keyProps、continuityNotes。',
-    'episodeDrafts 中每一集必须包含 order、title、summary、globalContext、startLine、endLine、action、existingScriptId。',
-    '每一集还必须包含 productionAction、existingProductionId、productionTitle、productionSummary。',
-    '每一集的 globalContext 字段同 globalSettings，另加 episodeRelevance，说明哪些全局设定会影响本集编排。',
-    'productionAction 取 create、update 或 skip；如果该集不需要新建或更新制作，就填 skip。',
-    'productionTitle 和 productionSummary 要描述这一个制作准备专注的剧本段，不要写成整部总稿摘要。',
-    '不要返回 content；只用 startLine/endLine 表示该集正文覆盖的行号区间，行号从 1 开始。',
-    '每集的行号区间尽量连续并完整覆盖正文；无法精确时优先扩大到能完整覆盖该集的最小连续区间。',
-    '如果标题与已有制作高度一致，action=update 并填写 existingScriptId；否则 action=create 且 existingScriptId=null。',
-    '如果该集适合对应一个已有制作，productionAction=update 并填写 existingProductionId；如果需要新建制作，productionAction=create 且 existingProductionId=null；如果无需生成制作，productionAction=skip。',
-    '',
-    '[总稿正文，按行编号]',
-    formatScriptTextAsLineBlocks(input.sourceText),
-  ].join('\n')
-}
-
 export function parseScriptSplitDraftDocument(content: string): ScriptSplitAgentResult {
   const parsed = parseJSONFromDraftContent(content) as ScriptSplitAgentResult | undefined
   if (!parsed || typeof parsed !== 'object') throw new Error('草稿没有返回有效 JSON')
@@ -627,24 +566,6 @@ function withGlobalContextSection(content: string, globalContextText: string): s
   if (!globalContextText) return trimmed
   if (/^#{0,6}\s*全局设定上下文\b/m.test(trimmed) || /^【全局设定上下文】/m.test(trimmed)) return trimmed
   return ['【全局设定上下文】', globalContextText, '', '【本集正文】', trimmed].join('\n')
-}
-
-function formatScriptTextAsLineBlocks(text: string, blockSize = 40): string {
-  const lines = splitScriptLines(text)
-  if (lines.length === 0) return ''
-  const width = String(lines.length).length
-  const blocks: string[] = []
-  for (let offset = 0; offset < lines.length; offset += blockSize) {
-    const startLine = offset + 1
-    const endLine = Math.min(lines.length, offset + blockSize)
-    blocks.push(`【${startLine}-${endLine}】`)
-    for (let lineNo = startLine; lineNo <= endLine; lineNo += 1) {
-      const line = lines[lineNo - 1] ?? ''
-      blocks.push(`${String(lineNo).padStart(width, '0')} | ${line}`)
-    }
-    blocks.push('')
-  }
-  return blocks.join('\n').trim()
 }
 
 function splitScriptLines(text: string): string[] {

@@ -7,7 +7,7 @@
     "movscript.platform.concepts"
   ],
   "tools": [
-    "movscript_get_context_pack",
+    "movscript_get_current_context",
     "movscript_list_projects",
     "movscript_read_project_scripts",
     "movscript_create_project",

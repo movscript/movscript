@@ -77,6 +77,7 @@ function normalizeClientUISnapshot(value: unknown): AgentClientUISnapshot | unde
   const recentResources = normalizeClientResources(value.recentResources)
   const labels = normalizeStringArray(value.labels)
   const snapshot: AgentClientUISnapshot = {
+    ...(typeof value.mode === 'string' && value.mode.trim() ? { mode: value.mode.trim() } : {}),
     ...(route ? { route: { ...(typeof route.pathname === 'string' && route.pathname.trim() ? { pathname: route.pathname.trim() } : {}), ...(typeof route.search === 'string' ? { search: route.search } : {}), ...(typeof route.hash === 'string' ? { hash: route.hash } : {}) } } : {}),
     ...(pageContext ? {
       pageContext: {

@@ -53,9 +53,9 @@ import { translateApiError, type APIErrorBody } from '@/lib/apiError'
 import { listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
 import {
   buildEmptyProjectProposalDraftContent,
-  buildProjectProposalDraftContractPrompt,
 } from '@/lib/projectProposalDraft'
-import { localAgentClient, type AgentDraft, type AgentManifest, type AgentRun, type AgentRunStep } from '@/lib/localAgentClient'
+import { PRODUCTION_PROPOSAL_DRAFT_SCHEMA } from '@/lib/productionProposalDraft'
+import { localAgentClient, type AgentDraft, type AgentRun, type AgentRunStep } from '@/lib/localAgentClient'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Textarea } from '@movscript/ui'
@@ -343,6 +343,7 @@ interface ProposalReplacementPreview {
 function parseProductionProposalDraft(draft: AgentDraft): ProposalDraftContent | null {
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
+    if (content.schema !== PRODUCTION_PROPOSAL_DRAFT_SCHEMA) return null
     const proposal = isRecordValue(content.proposal) ? content.proposal : {}
     const rawSegments = Array.isArray(proposal.segments)
       ? proposal.segments
@@ -463,15 +464,15 @@ const filterDefs: { key: EntityFilter; label: string; icon: LucideIcon }[] = [
 
 const statusTone: Record<string, string> = {
   confirmed: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  locked:    'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  accepted:  'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
-  active:    'bg-blue-500/10 text-blue-700 dark:text-blue-300',
-  draft:     'bg-muted text-muted-foreground',
+  locked: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  accepted: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
+  active: 'bg-blue-500/10 text-blue-700 dark:text-blue-300',
+  draft: 'bg-muted text-muted-foreground',
   candidate: 'bg-sky-500/10 text-sky-700 dark:text-sky-300',
-  missing:   'bg-amber-500/10 text-amber-700 dark:text-amber-300',
-  ignored:   'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300',
-  rejected:  'bg-rose-500/10 text-rose-700 dark:text-rose-300',
-  blocked:   'bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  missing: 'bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  ignored: 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300',
+  rejected: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
+  blocked: 'bg-rose-500/10 text-rose-700 dark:text-rose-300',
   in_production: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300',
 }
 
@@ -830,8 +831,8 @@ export default function ProductionOrchestratePage() {
 
   const pendingCandidateCount = candidates
     ? countPending(candidates.segments) + countPending(candidates.scene_moments) +
-      countPending(candidates.creative_references) + countPending(candidates.asset_slots) +
-      countPending(candidates.content_units)
+    countPending(candidates.creative_references) + countPending(candidates.asset_slots) +
+    countPending(candidates.content_units)
     : 0
   const guideCounts: GuideCounts = {
     segments: allSegments.length,
@@ -980,6 +981,7 @@ export default function ProductionOrchestratePage() {
       kind: 'production_proposal',
       title: `制作提案草稿 - ${selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}`,
       content: JSON.stringify({
+        schema: PRODUCTION_PROPOSAL_DRAFT_SCHEMA,
         productionId: effectiveProductionId,
         analysisScope: 'production',
         proposal: { segments: [] },
@@ -1030,37 +1032,6 @@ export default function ProductionOrchestratePage() {
     const drafts = await ensureDualProposalDrafts(target)
     if (!drafts) return
 
-    const projectPrompt = buildProjectProposalAnalysisPrompt({
-      projectName: project?.name ?? `项目 #${projectId}`,
-      productionName: selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`,
-      productionId: effectiveProductionId,
-      draftId: drafts.projectDraft.id,
-      productionDraftId: drafts.productionDraft.id,
-      scriptVersionTitle: selectedScriptVersion?.title ?? '',
-      scriptText,
-      projectSnapshot: {
-        references: allCreativeReferences,
-        assetSlots: allAssetSlots,
-        productions,
-      },
-      userPrompt: target.scope === 'segmentAnalysis' && target.entityId
-        ? `请围绕当前选中的编排段 #${target.entityId} 先整理项目级设定和素材，再同步补齐制作提案。`
-        : '请先完成项目提案，再同步更新制作提案，避免制作草稿出现悬垂引用。',
-    })
-    const productionPrompt = buildProductionProposalAnalysisPrompt({
-      projectName: project?.name ?? `项目 #${projectId}`,
-      productionName: selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`,
-      productionId: effectiveProductionId,
-      draftId: drafts.productionDraft.id,
-      projectDraftId: drafts.projectDraft.id,
-      scriptVersionTitle: selectedScriptVersion?.title ?? '',
-      scriptText,
-      projectProposalSummary: generatedProjectProposalDraftId ? `上游项目草稿：${generatedProjectProposalDraftId}` : '',
-      userPrompt: target.scope === 'segmentAnalysis' && target.entityId
-        ? `请围绕当前选中的编排段 #${target.entityId} 生成制作提案，并同步约束对上游项目提案的引用。`
-        : '请继续生成制作提案，并把设定和素材需求约束同步回上游项目提案。',
-    })
-
     const requestId = `production_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
     setOrchestrationStage('production')
     orchestrationCleanupRef.current?.()
@@ -1095,12 +1066,10 @@ export default function ProductionOrchestratePage() {
       autoSend: true,
       projectId,
       clientInput: buildCommandFirstClientInput({
-        message: [
-          projectPrompt,
-          '',
-          '--- 制作提案阶段 ---',
-          productionPrompt,
-        ].join('\n'),
+        message: target.scope === 'segmentAnalysis' && target.entityId
+          ? `请围绕当前选中的编排段 #${target.entityId} 完成双阶段提案。`
+          : '请先完成项目提案，再继续生成制作提案。',
+        mode: 'dual-orchestration',
         labels: ['production-orchestrate', 'project-orchestration', 'production-orchestration', 'draft-application'],
         hints: {
           projectId,
@@ -1114,7 +1083,6 @@ export default function ProductionOrchestratePage() {
           },
         },
       }),
-      agentManifest: DUAL_ORCHESTRATION_AGENT_MANIFEST,
       runPolicy: { maxToolCalls: 50, maxIterations: 24 },
       timeoutMs: 180_000,
       renderMode: 'page',
@@ -2005,116 +1973,6 @@ function renderReferenceAssetSlots(reference: CreativeReferenceRecord, lookup: O
       ))}
     </div>
   )
-}
-
-function buildProjectProposalAnalysisPrompt(input: {
-  projectName: string
-  productionName: string
-  productionId: number
-  draftId: string
-  productionDraftId: string
-  scriptVersionTitle: string
-  scriptText: string
-  projectSnapshot: {
-    references: SemanticEntityRecord[]
-    assetSlots: SemanticEntityRecord[]
-    productions: SemanticEntityRecord[]
-  }
-  userPrompt: string
-}) {
-  const snapshot = {
-    projectName: input.projectName,
-    productionName: input.productionName,
-    productionId: input.productionId,
-    scriptVersionTitle: input.scriptVersionTitle,
-    productionDraftId: input.productionDraftId,
-    scriptTextPreview: input.scriptText.slice(0, 4000),
-    referenceCount: input.projectSnapshot.references.length,
-    assetSlotCount: input.projectSnapshot.assetSlots.length,
-    productionCount: input.projectSnapshot.productions.length,
-    references: input.projectSnapshot.references.slice(0, 60).map((item) => ({
-      id: item.ID,
-      name: titleOfRecord(item),
-      kind: item.kind,
-      status: item.status,
-      description: item.description ?? item.summary ?? item.content ?? '',
-    })),
-    assetSlots: input.projectSnapshot.assetSlots.slice(0, 60).map((item) => ({
-      id: item.ID,
-      name: titleOfRecord(item),
-      kind: item.kind,
-      status: item.status,
-      priority: item.priority,
-      creative_reference_id: item.creative_reference_id,
-      description: item.description ?? item.summary ?? item.content ?? '',
-    })),
-  }
-
-  return [
-    `你是项目提案助手。请基于当前制作和剧本，整理项目级设定与素材需求，并只写入本地 draft：${input.draftId}。最终草稿只保留设定资料和素材需求，不展开制作级结构。`,
-    '',
-    buildProjectProposalDraftContractPrompt(input.draftId),
-    '',
-    '执行步骤：',
-    '1. 如果上下文里 productionId 不明确，先读当前上下文；必要时列出 productions 再确认目标制作。',
-    '2. 调用 movscript_read_current_production 或 movscript_build_orchestration_diff，提取当前制作、剧本、已有设定和素材需求。',
-    '3. 先判断哪些设定资料需要新增或局部修正，哪些已有设定资料建议合并，哪些素材需求是缺口或需要调整归属关系。',
-    '4. draft 是局部语义补丁：只写本轮需要 merge 的 creative_references / asset_slots；未提到的正式内容不会被修改。',
-    '5. 写入前做具体性检查：每个设定要能回答“它是谁/是什么、承担什么叙事或制作功能、有哪些可见特征、适用边界是什么”；每个素材需求要能回答“要交付什么视图/素材、给谁用、在哪些场景复用、判断完成的依据是什么”。',
-    '6. 只把项目级结论写入 draft，不要展开制作级结构，也不要写 action、entity、target_id、source_ids、payload 或 operations。',
-    '7. 提交前先调用 movscript_validate_draft，再调用 movscript_simulate_draft_apply；如果模拟写入失败，按返回的 validation/backendError 修改 draft 后重试。',
-    '',
-    input.userPrompt.trim() ? `用户补充要求：\n${input.userPrompt.trim()}` : '',
-    '当前项目快照：',
-    JSON.stringify(snapshot, null, 2),
-  ].filter(Boolean).join('\n')
-}
-
-function buildProductionProposalAnalysisPrompt(input: {
-  projectName: string
-  productionName: string
-  productionId: number
-  draftId: string
-  projectDraftId: string
-  scriptVersionTitle: string
-  scriptText: string
-  projectProposalSummary?: string
-  userPrompt: string
-}) {
-  const snapshot = {
-    projectName: input.projectName,
-    productionName: input.productionName,
-    productionId: input.productionId,
-    projectDraftId: input.projectDraftId,
-    scriptVersionTitle: input.scriptVersionTitle,
-    scriptTextPreview: input.scriptText.slice(0, 4000),
-    projectProposalSummary: input.projectProposalSummary ?? '',
-  }
-
-  return [
-    `你是制作提案助手。现在处于双阶段提案流程的第二步，目标 draft：${input.draftId}。`,
-    `先读取上游 project_proposal 草稿：${input.projectDraftId}。它是项目级设定与素材索引，必须先读再写制作提案。`,
-    '如果上游 project_proposal 草稿缺失、不可读或不是最新版本，不要继续编写 production_proposal；先提示用户回到项目编排补齐。',
-    '',
-    '写作边界：',
-    '- 只写 production_proposal，本阶段处理情绪段、情节、内容分镜、关键帧意图、设定引用和素材需求引用。',
-    '- 一个情节可以拆成多个 content_units；每个 content_unit 用结构化字段描述内容类型、画面意图、景别、角度、时长和顺序。',
-    '- keyframes 只写视觉锚点和 prompt 意图，不直接生成图片或视频资源。',
-    '- 不要创建或修改 project_proposal 中的设定资料本体或素材需求本体。',
-    '- project_proposal 只作为可复用的项目级索引和约束来源。',
-    '',
-    '执行步骤：',
-    '1. 先调用 movscript_get_draft 读取上游 project_proposal 草稿，再调用 movscript_read_current_production 读取当前制作。',
-    '2. 如果 productionId 不明确，先读当前上下文，必要时列出 productions 再确认目标制作。',
-    '3. 调用 movscript_build_orchestration_diff，检查当前制作和上游项目索引之间的差异、覆盖和悬垂引用风险。',
-    '4. 对每个情节先判断需要几个内容单元来表达；通常按信息揭示、动作推进、情绪反应、转场/字幕/旁白拆分，而不是把整段情节塞进一个节点。',
-    '5. 只把制作级结构、内容分镜和引用关系写进 production_proposal，不要把 project_proposal 的实体本体复制成新的项目级节点。',
-    '6. 提交前调用 movscript_check_proposal_is_available 和 movscript_preview_production_proposal_apply，确认当前 draft 可以安全写入。',
-    '',
-    input.userPrompt.trim() ? `用户补充要求：\n${input.userPrompt.trim()}` : '',
-    '当前上下文：',
-    JSON.stringify(snapshot, null, 2),
-  ].filter(Boolean).join('\n')
 }
 
 function ProposalReviewPanel({
@@ -4250,200 +4108,16 @@ function buildProductionCurrentOverview(input: {
 }
 
 
-const PROJECT_PROPOSAL_AGENT_MANIFEST: AgentManifest = {
-  schema: 'movscript.agent.current',
-  id: 'project-proposal-analyzer',
-  version: '1.0.0',
-  name: '项目提案分析',
-  description: '从当前制作和剧本中整理项目级设定与素材需求，生成可审阅的设定/素材草稿',
-  soul: `你是项目级提案助手。你的目标是把当前制作和剧本中涉及到的项目设定、素材需求和重复项整理成 project_proposal 草稿，并把最终结果收敛为设定/素材草稿。
-
-只写本地 draft，不直接改正式项目实体。
-draft 是可审阅的提案快照，不是最终结果。
-草稿权威状态是局部语义补丁，不是 operation log；draft 通过 merge 应用，未提到的实体和字段不会被修改。
-项目提案内部按两层组织：先整理 creative_references，再整理依附于设定资料的 asset_slots。
-写入边界只包括：creative_references 和 asset_slots。
-设定资料和素材需求只写本轮需要新增或局部修正的节点；设定资料合并写在已有 creative_reference 节点的 merge_candidates 里。
-设定资料必须是清晰定位，不是氛围词堆叠：写清名称、类型、身份/功能、可观察特征、使用边界，以及它和当前制作/剧本的关系。
-素材需求必须是清晰交付项：写清对象、视图或用途、可复用场景、约束和验收依据，并归属到具体 creative_reference。
-不要把“高级感、神秘感、氛围感、年轻化、有张力、独特、电影感、赛博感”等词单独当成设定；如果使用这些词，必须同时给出具体可见元素。
-不要生成制作级编排段、情景、下游内容、关键帧或 prompt。
-如果当前制作不明确，先读取上下文；必要时再列出 productions 进行确认。
-在提交前先验证草稿，并优先让素材需求归属到已有项目设定。`,
-  permissions: ['project.read', 'draft.read', 'draft.write'],
-  skills: [
-    {
-      id: 'movscript.intent.project-proposal',
-      name: 'Project Proposal Drafting',
-      description: 'Analyze current production and script into a project-level proposal draft.',
-      enabled: true,
-      priority: 900,
-      appliesWhen: '项目提案, project proposal, project_proposal, 项目设定, 素材需求, 设定资料',
-      instruction: `Project proposal is a project-level governance stage, not a production-level breakdown.
-
-Read the current context, current production, script text, and project-level references/assets before writing.
-Only write to the local project_proposal draft.
-Keep the proposal tree limited to creative_references and asset_slots as partial merge patches.
-Treat creative_references as the canonical setting layer and asset_slots as the visual/material requirement layer.
-Write precise positioning, not vague mood labels. Each new or revised creative_reference must make clear what the setting is, its type, story/use function, observable traits, boundaries, and why it belongs to the current production/script.
-Each asset_slot must make clear the target object, view or deliverable, reusable use case, constraints, and acceptance basis, then attach it to a concrete creative_reference owner.
-Do not use vague words such as premium, mysterious, atmospheric, youthful, tense, unique, cinematic, or cyberpunk as standalone settings. If a style word is useful, pair it with visible concrete details.
-If the script/context does not support a precise positioning, ask the user or record the missing information in impact_notes instead of inventing generic descriptions.
-Do not model main view, side view, full body view, expression sheet, or similar view requirements as separate creative references.
-Never write action, entity, target_id, source_ids, payload, or operations.
-Only mention nodes and fields that should be merged; unmentioned existing project data remains unchanged.
-Use id when merging fields into an existing reference or asset slot. Omit id only for a new candidate and provide fields.name.
-Express creative reference merge suggestions with merge_candidates on the retained creative_reference node.
-Adjust reference-to-asset relationships with asset slot owner { type: "creative_reference", id/client_id } or fields.creative_reference_id, not by duplicating references.
-Do not use placeholder IDs, especially 0.
-Use movscript_read_current_production and movscript_build_orchestration_diff when available.
-Use movscript_validate_draft and movscript_simulate_draft_apply before finalizing. If simulation fails, patch the draft from validation/backendError and retry.`,
-      outputContract: 'Return the project proposal draft id, project id, production id when available, current draft status, and a concise summary of reference and asset gaps. State clearly that the draft is local, reviewable, and not yet applied.',
-      toolHints: [
-        'movscript_get_context_pack',
-        'movscript_list_productions',
-        'movscript_read_current_production',
-        'movscript_build_orchestration_diff',
-        'movscript_get_draft',
-        'movscript_list_drafts',
-        'movscript_update_draft',
-        'movscript_patch_draft',
-        'movscript_validate_draft',
-        'movscript_simulate_draft_apply',
-        'movscript_request_user_input',
-      ],
-    },
-  ],
-  tools: [
-    { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
-    { name: 'movscript_read_current_production', mode: 'allow', approval: 'never' },
-    { name: 'movscript_build_orchestration_diff', mode: 'allow', approval: 'never' },
-    { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
-    { name: 'movscript_update_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_patch_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_validate_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_simulate_draft_apply', mode: 'allow', approval: 'never' },
-    { name: 'movscript_request_user_input', mode: 'allow', approval: 'never' },
-  ],
-}
-
-const PRODUCTION_PROPOSAL_AGENT_MANIFEST: AgentManifest = {
-  schema: 'movscript.agent.current',
-  id: 'production-proposal-analyzer',
-  version: '1.0.0',
-  name: '制作提案分析',
-  description: '在项目提案之后生成可审阅的制作结构草稿',
-  soul: `你是制作级提案助手。你的职责是把当前制作拆成情绪段、情节树和可审阅的内容分镜，并把每个情节引用到项目级设定和素材需求上。
-
-这是双阶段提案流程的第二阶段。第一阶段 project_proposal 负责设定资料和素材需求本体；第二阶段 production_proposal 只消费项目编排结果。
-必须先读取上游 project_proposal draft，再读取当前制作和剧本上下文，然后才能写 production_proposal。
-如果发现需要新增或修正项目级设定、项目级素材需求，不要在 production_proposal 里直接创建；应提示用户回到项目编排或使用上游项目提案处理。
-production_proposal 只能写本地 draft，不直接改正式项目实体。
-允许在情节下生成 content_units 和 keyframes 作为可审阅的内容分镜 proposal：它们描述内容类型、画面意图、景别、角度、时长、顺序、关键视觉锚点和 prompt 意图。不要生成最终媒体资源、台词定稿或运镜执行表。
-每个制作节点使用 action: create | reuse | update；reuse/update 必须带已有实体 ID。
-提交前必须检查悬垂引用和后端 dry-run 预览。`,
-  permissions: ['project.read', 'draft.read', 'draft.write'],
-  skills: [
-    {
-      id: 'movscript.intent.production-proposal',
-      name: 'Production Proposal Drafting',
-      description: 'Analyze one production into a UI-reviewable production proposal draft.',
-      enabled: true,
-      priority: 830,
-      appliesWhen: '制作编排, production proposal, production_proposal, 拆分情节, 情绪段, 情节树',
-      instruction: `Read the upstream project_proposal draft first. Treat it as the project-level index for creative references and asset slots.
-Then read the current production and script context.
-Only write production_proposal nodes: segments, scene moments, content units, keyframe intent nodes, creative reference usages, reference state notes, and asset usage/gap references.
-For each scene moment, split the moment into as many content_units as needed to express the information, action, emotion, transition, narration, caption, or visual beat clearly.
-Do not create project-level creative references or asset slots inside production_proposal.
-Use movscript_build_orchestration_diff before writing the final proposal when available.
-Use movscript_check_proposal_is_available and movscript_preview_production_proposal_apply before finalizing.
-If a reference or asset need cannot be resolved to the project layer, record the risk in the answer and avoid emitting a dangling accepted reference.`,
-      outputContract: 'Return the production proposal draft id, the upstream project proposal draft id, production id, project id, draft status, counts by segment, scene moment, content unit, keyframe, and any unresolved reference/asset risks.',
-      toolHints: [
-        'movscript_get_draft',
-        'movscript_list_drafts',
-        'movscript_list_productions',
-        'movscript_read_current_production',
-        'movscript_build_orchestration_diff',
-        'movscript_check_proposal_is_available',
-        'movscript_create_production_proposal',
-        'movscript_inspect_production_proposal_context',
-        'movscript_get_production_proposal',
-        'movscript_upsert_proposal_segment',
-        'movscript_upsert_proposal_scene_moment',
-        'movscript_upsert_proposal_content_unit',
-        'movscript_upsert_proposal_keyframe',
-        'movscript_upsert_proposal_reference',
-        'movscript_upsert_proposal_asset',
-        'movscript_submit_production_proposal',
-        'movscript_preview_production_proposal_apply',
-      ],
-    },
-  ],
-  tools: [
-    { name: 'movscript_get_draft', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },
-    { name: 'movscript_list_productions', mode: 'allow', approval: 'never' },
-    { name: 'movscript_read_current_production', mode: 'allow', approval: 'never' },
-    { name: 'movscript_build_orchestration_diff', mode: 'allow', approval: 'never' },
-    { name: 'movscript_check_proposal_is_available', mode: 'allow', approval: 'never' },
-    { name: 'movscript_create_production_proposal', mode: 'allow', approval: 'never' },
-    { name: 'movscript_inspect_production_proposal_context', mode: 'allow', approval: 'never' },
-    { name: 'movscript_get_production_proposal', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_segment', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_scene_moment', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_content_unit', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_keyframe', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_reference', mode: 'allow', approval: 'never' },
-    { name: 'movscript_upsert_proposal_asset', mode: 'allow', approval: 'never' },
-    { name: 'movscript_submit_production_proposal', mode: 'allow', approval: 'never' },
-    { name: 'movscript_preview_production_proposal_apply', mode: 'allow', approval: 'never' },
-  ],
-}
-
-const DUAL_ORCHESTRATION_AGENT_MANIFEST: AgentManifest = {
-  schema: 'movscript.agent.current',
-  id: 'dual-orchestration-workbench',
-  version: '1.0.0',
-  name: '双阶段提案助手',
-  description: '先项目后制作，同时维护项目提案和制作提案草稿',
-  soul: `你是双阶段提案助手。你必须同时维护两个本地草稿：project_proposal 和 production_proposal。
-
-project_proposal 负责项目级设定资料和素材需求本体，production_proposal 负责制作级情绪段和情节树。
-两份草稿都存放在本地数据库中，必须先读取再修改，不能假设它们不存在。
-先把项目级索引整理清楚，再把制作级结构建立在这个索引之上。
-不要把 project_proposal 的设定本体复制到 production_proposal，不要在 production_proposal 中创建项目级设定本体。
-如果 production_proposal 发现项目级缺口，应把风险写回 project_proposal 或在回答中明确指出。
-两个草稿都应该保持可审阅、可回滚、可继续迭代。`,
-  permissions: ['project.read', 'draft.read', 'draft.write'],
-  skills: [
-    {
-      ...PROJECT_PROPOSAL_AGENT_MANIFEST.skills![0],
-      appliesWhen: `${PROJECT_PROPOSAL_AGENT_MANIFEST.skills![0].appliesWhen}, 双阶段提案, dual proposal, project_proposal`,
-    },
-    {
-      ...PRODUCTION_PROPOSAL_AGENT_MANIFEST.skills![0],
-      appliesWhen: `${PRODUCTION_PROPOSAL_AGENT_MANIFEST.skills![0].appliesWhen}, 双阶段提案, dual proposal, production_proposal`,
-    },
-  ],
-  tools: Array.from(new Map([
-    ...PROJECT_PROPOSAL_AGENT_MANIFEST.tools,
-    ...PRODUCTION_PROPOSAL_AGENT_MANIFEST.tools,
-  ].map((tool) => [tool.name, tool]))).map(([, tool]) => tool),
-}
 
 function AgentRunStatusBadge({ status }: { status: AgentRun['status'] }) {
   const map: Record<AgentRun['status'], { label: string; cls: string }> = {
-    queued:                  { label: '排队中', cls: 'bg-slate-500/10 text-slate-600' },
-    in_progress:             { label: '运行中', cls: 'bg-blue-500/10 text-blue-600' },
-    requires_action:         { label: '等待确认', cls: 'bg-amber-500/10 text-amber-600' },
-    completed:               { label: '已完成', cls: 'bg-emerald-500/10 text-emerald-600' },
+    queued: { label: '排队中', cls: 'bg-slate-500/10 text-slate-600' },
+    in_progress: { label: '运行中', cls: 'bg-blue-500/10 text-blue-600' },
+    requires_action: { label: '等待确认', cls: 'bg-amber-500/10 text-amber-600' },
+    completed: { label: '已完成', cls: 'bg-emerald-500/10 text-emerald-600' },
     completed_with_warnings: { label: '完成(有警告)', cls: 'bg-amber-500/10 text-amber-600' },
-    failed:                  { label: '失败', cls: 'bg-rose-500/10 text-rose-600' },
-    cancelled:               { label: '已停止', cls: 'bg-muted text-muted-foreground' },
+    failed: { label: '失败', cls: 'bg-rose-500/10 text-rose-600' },
+    cancelled: { label: '已停止', cls: 'bg-muted text-muted-foreground' },
   }
   const meta = map[status] ?? { label: status, cls: 'bg-muted text-muted-foreground' }
   return <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-medium', meta.cls)}>{meta.label}</span>

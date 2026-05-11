@@ -2,7 +2,8 @@ import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../state/types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
 import { buildApplyDraftPreview } from '../drafts/draftApply.js'
-import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftStatus, type AgentDraftStore } from '../drafts/draftStore.js'
+import { normalizeDraftStatus, validateDraft, type AgentDraftKind, type AgentDraftSource, type AgentDraftStatus, type AgentDraftStore, type AgentDraftTarget } from '../drafts/draftStore.js'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '../drafts/draftSchemas.js'
 import { BackendApplyHTTPError, type BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
@@ -119,6 +120,10 @@ async function callRuntimeTool(
       createdByThreadId: run.threadId,
       metadata: isRecord(args.metadata) ? args.metadata : undefined,
     }) as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_create_proposal') {
+    return createProposalDraft(draftStore, run, args) as unknown as JSONValue
   }
 
   if (toolName === 'movscript_read_draft') {
@@ -274,6 +279,7 @@ async function callRuntimeTool(
     const summary = stringField(args.summary)
     const now = new Date().toISOString()
     const content = {
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId,
       analysisScope,
       ...(summary ? { summary } : {}),
@@ -437,6 +443,7 @@ async function callRuntimeTool(
     const summary = stringField(args.summary) ?? inferProductionProposalSummary(args.proposal)
     const now = new Date().toISOString()
     const content = {
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
       productionId,
       analysisScope,
       ...(summary ? { summary } : {}),
@@ -712,7 +719,7 @@ function submitScriptSplitDraft(
   if (normalizedEpisodes.length === 0) throw new Error('submit_script_split_draft requires at least one valid episodeDraft')
 
   const content = {
-    schema: 'movscript.script_split_analysis.v1',
+    schema: DRAFT_CONTENT_SCHEMA_IDS.scriptSplit,
     source_title: sourceTitle,
     source_summary: sourceSummary,
     source_script: normalizeScriptSplitSourceScript(sourceScript ?? {}, sourceTitle, sourceSummary, sourceLineCount),
@@ -888,6 +895,129 @@ function numberField(value: JSONValue | undefined): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined
   }
   return undefined
+}
+
+function normalizeProposalDraftKind(value: JSONValue | undefined): AgentDraftKind | undefined {
+  return value === 'script_split'
+    || value === 'script'
+    || value === 'asset_slot'
+    || value === 'storyboard_line'
+    || value === 'content_unit'
+    || value === 'prompt'
+    || value === 'note'
+    || value === 'pipeline'
+    || value === 'segment'
+    || value === 'scene_moment'
+    || value === 'asset_proposal'
+    || value === 'project_proposal'
+    || value === 'production_proposal'
+    ? value
+    : undefined
+}
+
+function normalizeProposalDraftContent(value: JSONValue | undefined): string | undefined {
+  if (typeof value === 'string' && value.trim().length > 0) return value.trim()
+  if (value === null) return 'null'
+  if (typeof value === 'number' || typeof value === 'boolean') return JSON.stringify(value)
+  if (Array.isArray(value) || isRecord(value)) return JSON.stringify(value, null, 2)
+  return undefined
+}
+
+function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: string): void {
+  const requiredSchema = kind === 'script_split'
+    ? DRAFT_CONTENT_SCHEMA_IDS.scriptSplit
+    : kind === 'project_proposal'
+      ? DRAFT_CONTENT_SCHEMA_IDS.projectProposal
+      : kind === 'production_proposal'
+        ? DRAFT_CONTENT_SCHEMA_IDS.productionProposal
+        : kind === 'asset_proposal'
+          ? DRAFT_CONTENT_SCHEMA_IDS.assetProposal
+          : undefined
+  if (!requiredSchema) return
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content)
+  } catch {
+    throw new Error(`create_proposal ${kind} content must be canonical JSON with schema ${requiredSchema}`)
+  }
+  if (!isRecord(parsed) || parsed.schema !== requiredSchema) {
+    throw new Error(`create_proposal ${kind} content must include schema ${requiredSchema}`)
+  }
+}
+
+function normalizeProposalDraftTarget(value: unknown): AgentDraftTarget | undefined {
+  if (!isRecord(value)) return undefined
+  const target: AgentDraftTarget = {
+    ...(typeof value.entityType === 'string' && value.entityType.trim() ? { entityType: value.entityType.trim() } : {}),
+    ...(typeof value.entityId === 'number' || typeof value.entityId === 'string' ? { entityId: value.entityId } : {}),
+    ...(typeof value.projectId === 'number' || typeof value.projectId === 'string' ? { projectId: value.projectId } : {}),
+    ...(typeof value.field === 'string' && value.field.trim() ? { field: value.field.trim() } : {}),
+  }
+  return Object.keys(target).length > 0 ? target : undefined
+}
+
+function inferProposalDraftTarget(
+  kind: AgentDraftKind,
+  projectId: number | undefined,
+  context: Record<string, JSONValue> | undefined,
+  pageContext: Record<string, JSONValue>,
+  args: Record<string, JSONValue>,
+): AgentDraftTarget | undefined {
+  const productionId = numberField(args.productionId)
+    ?? numberField(args.production_id)
+    ?? numberField(context?.productionId)
+    ?? numberField(pageContext.pageEntityType === 'production' ? pageContext.pageEntityId : undefined)
+  if (kind === 'project_proposal') {
+    return {
+      ...(projectId !== undefined ? { projectId } : {}),
+      entityType: 'project',
+      ...(projectId !== undefined ? { entityId: projectId } : {}),
+      field: 'proposal',
+    }
+  }
+  if (kind === 'production_proposal') {
+    return {
+      ...(projectId !== undefined ? { projectId } : {}),
+      entityType: 'production',
+      ...(productionId !== undefined ? { entityId: productionId } : {}),
+      field: 'proposal',
+    }
+  }
+  return projectId !== undefined ? { projectId } : undefined
+}
+
+function normalizeProposalDraftSource(
+  value: unknown,
+  run: AgentRun,
+  context: Record<string, JSONValue> | undefined,
+  pageContext: Record<string, JSONValue>,
+): AgentDraftSource {
+  const source = isRecord(value) ? { ...value } : {}
+  const contextProject = isRecord(context?.project) ? context.project : undefined
+  const projectId = numberField(contextProject?.id)
+    ?? numberField(pageContext.pageEntityType === 'project' ? pageContext.pageEntityId : undefined)
+  return {
+    ...source,
+    runId: run.id,
+    threadId: run.threadId,
+    ...(projectId !== undefined ? { projectId } : {}),
+    ...extractPageContext(run),
+    producer: 'conversation',
+  }
+}
+
+function defaultProposalDraftTitle(
+  kind: AgentDraftKind,
+  projectId: number | undefined,
+  target: AgentDraftTarget | undefined,
+): string {
+  const projectLabel = projectId !== undefined ? `#${projectId}` : 'conversation'
+  if (kind === 'project_proposal') return `项目提案 - ${projectLabel}`
+  if (kind === 'production_proposal') {
+    const targetLabel = target?.entityId !== undefined ? `#${String(target.entityId)}` : projectLabel
+    return `制作提案 - ${targetLabel}`
+  }
+  return `提案草稿 - ${kind}`
 }
 
 function normalizeLineNumber(value: JSONValue | undefined): number | undefined {
@@ -1098,6 +1228,7 @@ function countProductionProposalNodes(proposal: Record<string, JSONValue>): Reco
 type ProductionProposalNodeType = 'segment' | 'scene_moment' | 'content_unit' | 'creative_reference' | 'asset_slot' | 'keyframe'
 
 interface ProductionProposalDraftContent {
+  schema: string
   productionId: number
   analysisScope?: string
   summary?: string
@@ -1137,11 +1268,15 @@ function parseProductionProposalDraftContent(draft: { content: string }): Produc
     throw new Error('production_proposal draft content must be JSON')
   }
   if (!isRecord(parsed)) throw new Error('production_proposal draft content must be an object')
+  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.productionProposal) {
+    throw new Error(`production_proposal draft content requires schema ${DRAFT_CONTENT_SCHEMA_IDS.productionProposal}`)
+  }
   const productionId = numberField(parsed.productionId) ?? numberField(parsed.production_id)
   if (productionId === undefined) throw new Error('production_proposal draft content requires productionId')
   const proposal = isRecord(parsed.proposal) ? parsed.proposal : { segments: [] }
   if (!Array.isArray(proposal.segments)) proposal.segments = []
   return {
+    schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
     productionId,
     ...(stringField(parsed.analysisScope) ?? stringField(parsed.analysis_scope) ? { analysisScope: stringField(parsed.analysisScope) ?? stringField(parsed.analysis_scope) } : {}),
     ...(stringField(parsed.summary) ? { summary: stringField(parsed.summary) } : {}),
@@ -1218,6 +1353,59 @@ function draftFilePathArg(args: Record<string, JSONValue>, draftStore: AgentDraf
   if (filePath) return filePath
   const draftId = stringField(draftRefArg(args) as JSONValue | undefined)
   return draftId ? draftStore.getDraftFilePath(draftId) : undefined
+}
+
+function createProposalDraft(
+  draftStore: AgentDraftStore,
+  run: AgentRun,
+  args: Record<string, JSONValue>,
+): JSONValue {
+  const kind = normalizeProposalDraftKind(args.kind)
+  if (!kind) throw new Error('create_proposal requires kind')
+  const context = isRecord(run.metadata?.context) ? run.metadata.context as Record<string, JSONValue> : undefined
+  const pageContext = extractPageContext(run)
+  const contextProject = isRecord(context?.project) ? context.project : undefined
+  const projectId = numberField(args.projectId)
+    ?? numberField(args.project_id)
+    ?? numberField(contextProject?.id)
+    ?? numberField(pageContext.pageEntityType === 'project' ? pageContext.pageEntityId : undefined)
+  if (kind === 'project_proposal' && projectId === undefined) {
+    throw new Error('create_proposal requires projectId for project_proposal')
+  }
+  const target = normalizeProposalDraftTarget(args.target)
+    ?? inferProposalDraftTarget(kind, projectId, context, pageContext, args)
+  const title = stringField(args.title) ?? defaultProposalDraftTitle(kind, projectId, target)
+  const content = normalizeProposalDraftContent(args.content)
+  if (content === undefined) throw new Error('create_proposal requires content')
+  validateStructuredProposalDraftContent(kind, content)
+  const source = normalizeProposalDraftSource(args.source, run, context, pageContext)
+  const draft = draftStore.createDraft({
+    projectId,
+    kind,
+    title,
+    content,
+    source,
+    target,
+    createdByRunId: run.id,
+    createdByThreadId: run.threadId,
+    metadata: {
+      ...(isRecord(args.metadata) ? args.metadata : {}),
+      proposal: true,
+      proposalKind: kind,
+      producer: 'conversation',
+      ...(projectId !== undefined ? { projectId } : {}),
+      ...(isRecord(target) ? { target } : {}),
+      ...(typeof source.pageKey === 'string' ? { pageKey: source.pageKey } : {}),
+    },
+  })
+  return {
+    proposalRef: draft.id,
+    draftRef: draft.id,
+    draftId: draft.id,
+    draft: draft as unknown as JSONValue,
+    status: 'created',
+    message: 'Created a local proposal review draft from the conversation.',
+  } as unknown as JSONValue
 }
 
 function listProductionProposalNodes(proposal: Record<string, JSONValue>): ProductionProposalNodeSummary[] {
@@ -1315,6 +1503,7 @@ function upsertProductionProposalBusinessNode(
   const parent = isRecord(rawParent) ? rawParent : undefined
   const content = parseProductionProposalDraftContent(draft)
   const upsert = upsertProductionProposalNode(content.proposal, nodeType, node, parent, numberField(args.position))
+  content.schema = DRAFT_CONTENT_SCHEMA_IDS.productionProposal
   const updated = draftStore.updateDraft(draft.id, {
     content: JSON.stringify(content),
     metadata: {
