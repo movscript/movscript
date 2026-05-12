@@ -143,17 +143,34 @@ test('model param contract audit reports malformed array fields without throwing
       key: 'resolution',
       label: 'Resolution',
       type: 'select',
+      options: [480],
+      conflicts_with: [1],
+      conditional_enum: ['draft'],
+      json_schema: [],
+    },
+  ]), [])
+
+  assert.equal(audit.errors.some((error) => error.includes('options[0] must be a string')), true)
+  assert.equal(audit.errors.some((error) => error.includes('conflicts_with[0] must be a string')), true)
+  assert.equal(audit.errors.some((error) => error.includes('conditional_enum[0] must be an object')), true)
+  assert.equal(audit.errors.some((error) => error.includes('json_schema must be an object')), true)
+})
+
+test('model param contract audit reports non-array fields without throwing', () => {
+  const audit = buildParamContractAudit(JSON.stringify([
+    {
+      key: 'resolution',
+      label: 'Resolution',
+      type: 'select',
       options: '480p',
       conflicts_with: 'frames',
       conditional_enum: { when_param: 'draft', when_value: true, options: ['480p'] },
-      json_schema: [],
     },
   ]), [])
 
   assert.equal(audit.errors.some((error) => error.includes('options must be an array')), true)
   assert.equal(audit.errors.some((error) => error.includes('conflicts_with must be an array')), true)
   assert.equal(audit.errors.some((error) => error.includes('conditional_enum must be an array')), true)
-  assert.equal(audit.errors.some((error) => error.includes('json_schema must be an object')), true)
 })
 
 test('model param contract audit keeps params with missing labels so errors are visible', () => {

@@ -1,4 +1,4 @@
-import type { AdminDashboardCard, AdminNavItem, AdminRouteItem, AdminRuntimeEdition, AdminSectionCard } from './contract'
+import type { AdminDashboardCard, AdminNavItem, AdminRouteItem, AdminRuntimeCapabilities, AdminSectionCard } from './contract'
 
 export const runtimeNavItems: AdminNavItem[] = []
 
@@ -8,4 +8,6 @@ export const runtimeOverviewCards: AdminDashboardCard[] = []
 
 export const runtimeSectionCards: AdminSectionCard[] = []
 
-export const runtimeEdition: AdminRuntimeEdition = 'community'
+export const runtimeCapabilities: AdminRuntimeCapabilities = {
+  customPricingMode: false,
+}

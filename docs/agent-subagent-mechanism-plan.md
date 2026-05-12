@@ -179,6 +179,8 @@ Plan overview 面板当前支持：
 - 任务行可展开查看 worker run 详情，包括 run id、parent/task、状态、进度、step 数、最近 steps、时间戳、error 和 warnings。
 - Worker run 详情可按需加载 trace summary，展示 trace event 总数、按 kind 统计和最新事件，默认不增加 plan 轮询成本。
 - Worker run 详情可按需加载最近 trace events，展示 event kind、title、status、tool、step、时间和 summary，支持按 kind 过滤和 Load more 分页追加。
+- Worker run 详情可跳转到 `/agent/runs/:runId` 完整运行视图。
+- `/agent/runs/:runId` 可查看 run 基本信息、trace summary、trace events、kind 过滤和分页。
 - Plan overview 顶部提供 plan-level artifact summary，可按类型快速看聚合数量、按 artifact type 过滤、按最近产物浏览跨任务输出，并可从产物跳转到 owning task。
 - 当前 active run 是 worker 时，前端仍会解析到 plan root planner run，避免 UI 被某个 worker 接管。
 - 只要 plan 未终态，或 snapshot 里仍有 active worker run，就继续轮询 plan snapshot。
@@ -259,6 +261,7 @@ Planner prompt 还会带上 plan artifact references，摘要包含：
 - 前端 plan task view 会保留 worker run 详情和最近 step 摘要，用于解释 worker 生命周期和排查失败。
 - 前端 worker 详情可按需调用 run trace summary endpoint，辅助 drilldown。
 - 前端 worker 详情可按需调用 run trace events endpoint，查看最近事件列表、按 event kind 过滤，并用 cursor 追加更多事件。
+- 前端提供 `/agent/runs/:runId` 完整运行视图，并可从 Plan overview worker detail 进入。
 - 前端 artifact summary 会对整个 plan 的产物做按类型统计、按时间排序、按类型过滤，并保留 owning task id/title 用于 UI 跳转。
 - subagent 工具结果契约覆盖 `spawn/list/wait/cancel` 的顶层字段、target、snapshot 和 name-first worker summary。
 - `needs_review` 任务可通过 replan 重置为 pending，并保留 previous status / owner 后重新派发 worker。
@@ -272,6 +275,6 @@ Planner prompt 还会带上 plan artifact references，摘要包含：
 
 ## 剩余演进方向
 
-- 将 plan/task/subagent 状态做成更完整的 UI，包括跳转到完整运行视图。
+- 将 plan/task/subagent 状态做成更完整的 UI，包括完整运行视图里的 trace event 搜索和深链接。
 - 支持更细的 task-level override，例如某类 worker 使用独立 timeout / retry 策略。
 - 继续增强 artifact browser 和子 agent 详情的联动能力。

@@ -165,6 +165,9 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","label":"Resolution","type":"select","options":"480p"}]`); err == nil {
 		t.Fatal("expected non-array options to be rejected")
 	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","label":"Resolution","type":"select","options":[480]}]`); err == nil {
+		t.Fatal("expected non-string options item to be rejected")
+	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","label":"Frames","type":"number","json_schema":[]}]`); err == nil {
 		t.Fatal("expected non-object json_schema to be rejected")
 	}
@@ -176,6 +179,9 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"conflicts_with":["frames"]}]`); err == nil {
 		t.Fatal("expected unknown conflict target to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"conflicts_with":[1]}]`); err == nil {
+		t.Fatal("expected non-string conflicts_with item to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"default":"10"}]`); err == nil {
 		t.Fatal("expected select default outside options to be rejected")
@@ -272,6 +278,12 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":{"when_param":"draft","when_value":true,"options":["480p"]}}
 	]`); err == nil {
 		t.Fatal("expected non-array conditional_enum to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":["draft"]}
+	]`); err == nil {
+		t.Fatal("expected non-object conditional_enum item to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
 		{"key":"draft","type":"boolean"},

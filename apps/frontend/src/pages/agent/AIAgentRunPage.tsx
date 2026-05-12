@@ -9,6 +9,7 @@ export default function AIAgentRunPage() {
   const navigate = useNavigate()
   const { runId = '' } = useParams()
   const [eventKind, setEventKind] = useState<'all' | AgentTraceEventKind>('all')
+  const [eventSearch, setEventSearch] = useState('')
   const [events, setEvents] = useState<AgentTraceEvent[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [loadingEvents, setLoadingEvents] = useState(false)
@@ -27,7 +28,14 @@ export default function AIAgentRunPage() {
     enabled: !!runId,
     retry: false,
   })
-  const visibleEvents = useMemo(() => eventKind === 'all' ? events : events.filter((event) => event.kind === eventKind), [eventKind, events])
+  const visibleEvents = useMemo(() => {
+    const needle = eventSearch.trim().toLowerCase()
+    return events.filter((event) => {
+      if (eventKind !== 'all' && event.kind !== eventKind) return false
+      if (!needle) return true
+      return traceEventSearchText(event).includes(needle)
+    })
+  }, [eventKind, eventSearch, events])
   const eventKinds = useMemo(() => Array.from(new Set(events.map((event) => event.kind))).sort(), [events])
 
   async function loadEvents(mode: 'initial' | 'more' = 'initial') {
@@ -98,6 +106,12 @@ export default function AIAgentRunPage() {
               ))}
             </div>
             <div className="flex items-center gap-2">
+              <input
+                value={eventSearch}
+                onChange={(event) => setEventSearch(event.target.value)}
+                placeholder="Search events"
+                className="h-8 w-44 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              />
               <Select value={eventKind} onValueChange={(next) => setEventKind(next as 'all' | AgentTraceEventKind)}>
                 <SelectTrigger size="sm" className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -129,6 +143,7 @@ export default function AIAgentRunPage() {
               </div>
             ))}
             {events.length === 0 && <p className="text-xs text-muted-foreground">No trace events loaded.</p>}
+            {events.length > 0 && visibleEvents.length === 0 && <p className="text-xs text-muted-foreground">No events match the current filter.</p>}
             {hasMore && (
               <Button type="button" size="sm" variant="ghost" onClick={() => loadEvents('more')} disabled={loadingEvents}>
                 {loadingEvents ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
@@ -140,6 +155,20 @@ export default function AIAgentRunPage() {
       </main>
     </div>
   )
+}
+
+function traceEventSearchText(event: AgentTraceEvent): string {
+  return [
+    event.id,
+    event.kind,
+    event.title,
+    event.summary,
+    event.status,
+    event.toolName,
+    event.stepId,
+    event.roundLabel,
+    event.roundSource,
+  ].filter(Boolean).join(' ').toLowerCase()
 }
 
 function Info({ label, value }: { label: string; value: string }) {

@@ -28,4 +28,6 @@ export interface AdminSectionCard {
   href: string
 }
 
-export type AdminRuntimeEdition = 'community' | 'enterprise'
+export interface AdminRuntimeCapabilities {
+  customPricingMode: boolean
+}

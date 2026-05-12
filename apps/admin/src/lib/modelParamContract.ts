@@ -340,6 +340,8 @@ function validateRawParamDefObject(param: Record<string, unknown>, label: string
   ;(['options', 'conflicts_with', 'conditional_enum', 'conditional_const', 'requires_value'] as const).forEach((field) => {
     if (param[field] !== undefined && !Array.isArray(param[field])) errors.push(`${label}.${field} must be an array.`)
   })
+  validateRawStringArray(param.options, `${label}.options`, errors)
+  validateRawStringArray(param.conflicts_with, `${label}.conflicts_with`, errors)
   if (param.json_schema !== undefined && (!param.json_schema || Array.isArray(param.json_schema) || typeof param.json_schema !== 'object')) {
     errors.push(`${label}.json_schema must be an object.`)
   }
@@ -352,10 +354,20 @@ function validateRawRuleObjects(value: unknown, label: string, allowedFields: st
   if (!Array.isArray(value)) return
   const allowed = new Set(allowedFields)
   value.forEach((item, index) => {
-    if (!item || Array.isArray(item) || typeof item !== 'object') return
+    if (!item || Array.isArray(item) || typeof item !== 'object') {
+      errors.push(`${label}[${index}] must be an object.`)
+      return
+    }
     Object.keys(item as Record<string, unknown>).forEach((field) => {
       if (!allowed.has(field)) errors.push(`${label}[${index}] contains unknown field "${field}".`)
     })
+  })
+}
+
+function validateRawStringArray(value: unknown, label: string, errors: string[]) {
+  if (!Array.isArray(value)) return
+  value.forEach((item, index) => {
+    if (typeof item !== 'string') errors.push(`${label}[${index}] must be a string.`)
   })
 }
 

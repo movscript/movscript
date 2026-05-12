@@ -197,8 +197,16 @@ func validateRawParamKnownFields(param map[string]any, path string) error {
 func validateRawParamFieldTypes(param map[string]any, path string) error {
 	for _, field := range []string{"options", "conflicts_with", "conditional_enum", "conditional_const", "requires_value"} {
 		if value, exists := param[field]; exists {
-			if _, ok := value.([]any); !ok {
+			items, ok := value.([]any)
+			if !ok {
 				return fmt.Errorf("%s.%s must be an array", path, field)
+			}
+			if field == "options" || field == "conflicts_with" {
+				for i, item := range items {
+					if _, ok := item.(string); !ok {
+						return fmt.Errorf("%s.%s[%d] must be a string", path, field, i)
+					}
+				}
 			}
 		}
 	}
@@ -234,7 +242,7 @@ func validateRawObjectArrayFields(value any, path string, allowed map[string]boo
 	for i, item := range items {
 		obj, ok := item.(map[string]any)
 		if !ok {
-			continue
+			return fmt.Errorf("%s[%d] must be an object", path, i)
 		}
 		for field := range obj {
 			if !allowed[field] {

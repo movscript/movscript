@@ -10,7 +10,7 @@ import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
-import { runtimeEdition, runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
+import { runtimeCapabilities, runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
@@ -88,7 +88,7 @@ const PRICING_LABEL_KEYS: Record<string, string> = {
   per_call: 'admin.pricingMode.perCall',
 }
 
-const isEnterpriseRuntime = runtimeEdition === 'enterprise'
+const canUseCustomPricingMode = runtimeCapabilities.customPricingMode
 
 type PriceDef = {
   pricing_mode: 'per_token' | 'per_image' | 'per_second' | 'per_call' | string
@@ -882,8 +882,8 @@ export function ModelManagementPage() {
     setShowPresets(false)
   }
 
-  const addEffectivePricingMode = isEnterpriseRuntime ? addPricingMode : inferPricingMode(addCapabilities)
-  const editEffectivePricingMode = isEnterpriseRuntime ? editForm.pricing_mode : inferPricingMode(editForm.capabilities)
+  const addEffectivePricingMode = canUseCustomPricingMode ? addPricingMode : inferPricingMode(addCapabilities)
+  const editEffectivePricingMode = canUseCustomPricingMode ? editForm.pricing_mode : inferPricingMode(editForm.capabilities)
 
   function closeAddPanel() {
     setAddingFor(null)
@@ -1333,7 +1333,7 @@ export function ModelManagementPage() {
                           </div>
                         </div>
 
-                        {isEnterpriseRuntime && (
+                        {canUseCustomPricingMode && (
                           <div>
                             <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
                             <div className="flex gap-2 flex-wrap">
@@ -1576,7 +1576,7 @@ export function ModelManagementPage() {
                                 })}
                               </div>
                             </div>
-                          {isEnterpriseRuntime && (
+                          {canUseCustomPricingMode && (
                             <div>
                               <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.pricingMode')}</Label>
                               <div className="flex gap-1.5 flex-wrap">
@@ -1613,7 +1613,7 @@ export function ModelManagementPage() {
                                   modelId: cfg.ID,
                                   data: {
                                     ...editForm,
-                                    pricing_mode: isEnterpriseRuntime ? editForm.pricing_mode : editEffectivePricingMode,
+                                    pricing_mode: canUseCustomPricingMode ? editForm.pricing_mode : editEffectivePricingMode,
                                   },
                                 })}
                                 disabled={updateModelConfig.isPending || (editParamAudit?.errors.length ?? 0) > 0}

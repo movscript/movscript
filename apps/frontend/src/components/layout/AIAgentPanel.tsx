@@ -2005,6 +2005,7 @@ function PlanOverviewPanel({
   dispatchSettings?: PlanDispatchSettings
   onDispatchSettingsChange?: (settings: PlanDispatchSettings) => void
 }) {
+  const navigate = useNavigate()
   const [artifactTypeFilter, setArtifactTypeFilter] = useState<'all' | string>('all')
   const [traceSummaries, setTraceSummaries] = useState<Record<string, AgentRunTraceSummary>>({})
   const [loadingTraceSummaryRunId, setLoadingTraceSummaryRunId] = useState<string | null>(null)
@@ -2298,6 +2299,16 @@ function PlanOverviewPanel({
                           </div>
                         )}
                         <div className="flex flex-wrap items-center gap-1">
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            className="h-5 px-1.5 text-[9px]"
+                            onClick={() => navigate(`/agent/runs/${encodeURIComponent(view.worker!.id)}`)}
+                          >
+                            <Route size={9} />
+                            Open run
+                          </Button>
                           <Button
                             type="button"
                             size="xs"

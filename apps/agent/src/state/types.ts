@@ -500,6 +500,7 @@ export type ToolUnavailableReason =
   | 'approval_required'
   | 'schema_invalid'
   | 'wrong_run_role'
+  | 'workflow_scope'
 
 export interface AgentDebugTool {
   name: string
