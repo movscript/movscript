@@ -2,18 +2,29 @@ import type { JSONValue } from '../types.js'
 
 export type ToolRiskLevel = 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
 
+export interface ToolDefaults {
+  grant: 'allow' | 'deny'
+  approval: 'never' | 'always' | 'on_write'
+  timeoutMs?: number
+}
+
 export interface RegisteredTool {
   name: string
   description: string
   permission: string
   risk: ToolRiskLevel
-  source?: 'runtime' | 'plugin'
+  source?: 'runtime' | 'plugin' | 'mcp'
   category?: string
   categories?: string[]
   appliesWhen?: string
   inputSchema?: JSONValue
   projectScoped: boolean
   requiresApprovalByDefault: boolean
+  defaults?: ToolDefaults
+  capability?: string
+  pluginId?: string
+  mcpServerId?: string
+  errorCodes?: string[]
 }
 
 export interface RegisteredToolBundle {
@@ -65,13 +76,18 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     description,
     permission,
     risk,
-    source: input.source === 'runtime' ? 'runtime' : 'plugin',
+    ...(input.source === 'runtime' || input.source === 'plugin' || input.source === 'mcp' ? { source: input.source } : {}),
     ...(nonEmptyString(input.category) ? { category: nonEmptyString(input.category) } : {}),
     ...(stringArray(input.categories).length > 0 ? { categories: stringArray(input.categories) } : {}),
     ...(nonEmptyString(input.appliesWhen) ? { appliesWhen: nonEmptyString(input.appliesWhen) } : {}),
     ...(isJSONValue(input.inputSchema) ? { inputSchema: input.inputSchema } : {}),
     projectScoped: input.projectScoped === true,
     requiresApprovalByDefault: input.requiresApprovalByDefault === true,
+    ...(normalizeToolDefaults(input.defaults) ? { defaults: normalizeToolDefaults(input.defaults) } : {}),
+    ...(nonEmptyString(input.capability) ? { capability: nonEmptyString(input.capability) } : {}),
+    ...(nonEmptyString(input.pluginId) ? { pluginId: nonEmptyString(input.pluginId) } : {}),
+    ...(nonEmptyString(input.mcpServerId) ? { mcpServerId: nonEmptyString(input.mcpServerId) } : {}),
+    ...(stringArray(input.errorCodes).length > 0 ? { errorCodes: stringArray(input.errorCodes) } : {}),
   }
 }
 
@@ -132,6 +148,20 @@ function nonEmptyString(value: unknown): string | undefined {
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())))
+}
+
+function normalizeToolDefaults(value: unknown): ToolDefaults | undefined {
+  if (!isRecord(value)) return undefined
+  const grant = value.grant === 'deny' ? 'deny' : value.grant === 'allow' ? 'allow' : undefined
+  const approval = value.approval === 'never' || value.approval === 'always' || value.approval === 'on_write'
+    ? value.approval
+    : undefined
+  if (!grant || !approval) return undefined
+  return {
+    grant,
+    approval,
+    ...(typeof value.timeoutMs === 'number' && Number.isFinite(value.timeoutMs) ? { timeoutMs: value.timeoutMs } : {}),
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

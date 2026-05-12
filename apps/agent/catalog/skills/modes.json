@@ -1,0 +1,217 @@
+{
+  "skills": [
+    {
+      "id": "movscript.intent.mode.plan",
+      "name": "Plan Mode",
+      "description": "Provide concise implementation or project plans.",
+      "version": "0.1.0",
+      "category": "mode",
+      "enabled": true,
+      "priority": 100,
+      "instruction": "先拆解目标、依赖、风险和下一步行动；需要执行时，明确列出将要做什么。",
+      "outputContract": "Use concise steps and call out blockers explicitly.",
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.mode.create",
+      "name": "Create Mode",
+      "description": "Generate concrete drafts and ready-to-use content.",
+      "version": "0.1.0",
+      "category": "mode",
+      "enabled": true,
+      "priority": 100,
+      "instruction": "偏向产出可直接使用的内容、草稿、文案或结构化结果。",
+      "outputContract": "Return a concrete draft or the smallest useful actionable result.",
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.mode.review",
+      "name": "Review Mode",
+      "description": "Critique inputs and identify missing or risky parts.",
+      "version": "0.1.0",
+      "category": "mode",
+      "enabled": true,
+      "priority": 100,
+      "instruction": "优先发现问题、缺口、风险和返工点，并给出修改建议。",
+      "outputContract": "Return findings first, then concrete fixes.",
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.project-proposal",
+      "name": "Project Proposal",
+      "description": "Draft project-level setting and asset proposals.",
+      "version": "0.1.0",
+      "category": "project_proposal",
+      "enabled": true,
+      "priority": 900,
+      "appliesWhen": "project-orchestration, project proposal, project_proposal, 项目提案, 项目设定, 素材需求",
+      "instruction": "Produce or edit a local project_proposal draft as a partial merge patch over project-level creative_references and asset_slots. Do not write final project entities.\n\nWorkflow:\n1. Read context with movscript_get_current_context; ask via movscript_request_user_input only when required fields (projectId, productionId) are missing and cannot be inferred.\n2. Locate an existing draft with movscript_list_drafts (filter by kind=project_proposal); read it with movscript_get_draft, or create a new one with movscript_create_draft using kind='project_proposal' and proposal=true. The content payload must be valid JSON with schema 'movscript.draft.project_proposal.v1' and top-level shape { proposal: { creative_references: [...], asset_slots: [...] }, impact_notes?, summary? }.\n3. Edit with movscript_update_draft using action='patch_content' (JSON Pointer ops add/replace/remove) or action='replace_text' for small textual fixes.\n4. Run dry-run self-healing: call movscript_update_draft with action='preview_apply'. If the result has ok=false, read the validation.errors or backendError details, patch the draft accordingly, and preview again. Do not finalize until preview_apply returns ok=true.\n5. Creative_references are the canonical setting layer. Asset_slots are the visual/material requirement layer; each slot must own a creative_reference via fields.creative_reference_id or owner={type:'creative_reference', id|client_id}.\n6. For merges of existing settings, include merge_candidates on the retained creative_reference node. Use id to patch an existing setting; omit id for new candidates with fields.name.\n7. Avoid vague style words as standalone settings (cinematic, atmospheric, premium, etc.); pair any style word with visible concrete traits. If information is insufficient, record gaps in impact_notes rather than inventing details.",
+      "outputContract": "Return the draft id, project id, production id when available, current draft status, the last preview_apply ok/stage, and a concise summary of reference and asset gaps.",
+      "toolHints": [
+        "movscript_get_current_context",
+        "movscript_create_draft",
+        "movscript_get_draft",
+        "movscript_list_drafts",
+        "movscript_update_draft",
+        "movscript_read_draft",
+        "movscript_request_user_input"
+      ],
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.production-proposal",
+      "name": "Production Proposal",
+      "description": "Draft production-level structure proposals.",
+      "version": "0.1.0",
+      "category": "production_proposal",
+      "enabled": true,
+      "priority": 830,
+      "appliesWhen": "production-orchestration, production proposal, production_proposal, 制作提案, 制作编排, 情节",
+      "instruction": "Mission: produce or edit one local production_proposal draft that orchestrates a single production into segments → scene_moments, referencing upstream project_proposal entities by id. Never write backend project entities.\n\nREQUIRED INPUTS\n- projectId, productionId. If either is missing after movscript_get_current_context, call movscript_request_user_input and pause until answered.\n\nDRAFT CONTENT (schema 'movscript.draft.production_proposal.v1')\n{\n  \"productionId\": <number>, \"proposalScope\": \"production\",\n  \"proposal\": { \"segments\": [{\n    \"client_id\": \"s1\", \"action\": \"create\"|\"reuse\"|\"update\", \"title\": \"...\",\n    \"scene_moments\": [{\n      \"client_id\": \"m1\", \"action\": \"...\", \"title\": \"...\",\n      \"creative_references\": [{ \"client_id\": \"ref1\", \"action\": \"reuse\", \"id\": <number>, \"role\": \"...\" }],\n      \"asset_slots\": [{ \"client_id\": \"a1\", \"action\": \"create\", \"name\": \"...\", \"kind\": \"image|video|...\" }]\n    }]\n  }]}\n}\nRules: reuse/update MUST include the existing entity id. Do not include content_units, keyframes, media plans, dialogue, or camera tables — those belong to other proposal kinds.\n\nWORKFLOW\n1. movscript_get_current_context → verify projectId + productionId.\n2. Read upstream: movscript_list_drafts({kind:'project_proposal'}) → movscript_get_draft(id). Collect reusable creative_reference and asset_slot ids.\n3. Find or create the production_proposal draft: movscript_list_drafts filtered by productionId; either movscript_get_draft it, or movscript_create_draft({kind:'production_proposal', proposal:true, content:<initial JSON>}).\n4. Edit with movscript_update_draft({action:'patch_content', ops:[{op,path,value}]}) using JSON Pointer paths like '/proposal/segments/-' to append, or action:'replace_text' for small fixes. After each batch, run action:'validate'.\n5. Dry-run finalize: movscript_update_draft({action:'preview_apply'}).\n\nSELF-HEALING DECISIONS\n- ok=true → done; report.\n- validation.errors → patch the offending JSON Pointer paths → validate → preview again.\n- backendError 'unknown entity id' → that reuse id is stale; re-read upstream, fix the id, or switch the node to action:'create'.\n- Transient network/timeout → retry once; otherwise report and stop.\n- User answer to request_user_input contradicts draft state → patch the draft to match the answer before continuing.",
+      "outputContract": "Reply with proposalRef/draftId, productionId, projectId (when known), draft status, last preview_apply ok/stage, and counts for segments + scene moments.",
+      "toolHints": [
+        "movscript_get_current_context",
+        "movscript_create_draft",
+        "movscript_get_draft",
+        "movscript_list_drafts",
+        "movscript_update_draft",
+        "movscript_read_draft",
+        "movscript_request_user_input"
+      ],
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.dual-orchestration",
+      "name": "Dual Orchestration",
+      "description": "Coordinate project and production proposal drafts in one flow.",
+      "version": "0.1.0",
+      "category": "dual_orchestration",
+      "enabled": true,
+      "priority": 920,
+      "appliesWhen": "dual-orchestration, 双阶段提案, project_proposal, production_proposal, project proposal, production proposal",
+      "instruction": "Maintain both project_proposal and production_proposal drafts in one flow. Write the project_proposal first; use it as the read-only basis for production planning.\n\nFor each draft:\n1. Locate an existing draft with movscript_list_drafts, read via movscript_get_draft, or create with movscript_create_draft (kind='project_proposal' or 'production_proposal', proposal=true). Content must match the corresponding draft schema.\n2. Edit with movscript_update_draft action='patch_content' or action='replace_text'. Run action='validate' between batches.\n3. Finalize each draft via movscript_update_draft action='preview_apply'. If ok=false, inspect validation/backendError, patch the draft, and preview again until ok=true.\n\nProject_proposal content shape: { proposal: { creative_references: [...], asset_slots: [...] }, impact_notes?, summary? } with schema 'movscript.draft.project_proposal.v1'. Production_proposal content shape: { productionId, proposalScope: 'production', proposal: { segments: [...] } } with schema 'movscript.draft.production_proposal.v1'; nested scene_moments carry creative_references and asset_slots that should reuse project_proposal entities by id.",
+      "outputContract": "Return both draft ids, their current statuses, last preview_apply ok/stage for each, and a concise summary of what each draft covers.",
+      "toolHints": [
+        "movscript_get_current_context",
+        "movscript_create_draft",
+        "movscript_get_draft",
+        "movscript_list_drafts",
+        "movscript_update_draft",
+        "movscript_read_draft",
+        "movscript_request_user_input"
+      ],
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.asset-proposal",
+      "name": "Asset Candidate Proposal",
+      "description": "Plan reviewable asset candidate generation before any media job is created.",
+      "version": "0.1.0",
+      "category": "asset_proposal",
+      "enabled": true,
+      "priority": 860,
+      "appliesWhen": "asset-proposal, asset proposal, asset_proposal, 素材提案, 素材候选, 生成候选, 图片候选, 视频候选",
+      "instruction": "Read and edit the page-owned asset_proposal draft. Produce concrete candidate plans with prompts, reference resources, model capability recommendations, risks, and acceptance criteria. Do not create generation jobs.",
+      "outputContract": "Return the asset proposal draft id, asset slot id, planned candidate count, recommended output kinds, unresolved risks, and state that the draft is local and reviewable.",
+      "toolHints": [
+        "movscript_get_current_context",
+        "movscript_read_draft",
+        "movscript_request_user_input"
+      ],
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.asset-candidate-generation",
+      "name": "Asset Candidate Generation",
+      "description": "Generate reviewable visual candidates for asset slots.",
+      "version": "0.1.0",
+      "category": "asset_candidate_generation",
+      "enabled": true,
+      "priority": 780,
+      "appliesWhen": "asset-candidate, asset candidate, 生成素材, 图片候选, 视频候选",
+      "instruction": "Use visual generation tools to create a resource for the selected asset slot. Do not mark the asset as locked; the UI will bind the generated resource as a candidate after the run completes.",
+      "outputContract": "Return the final generation status, jobId, output_resource_id, and a concise reason why the candidate fits the asset slot.",
+      "toolHints": [
+        "movscript_create_generation_job",
+        "movscript_get_generation_job",
+        "movscript_list_generation_jobs",
+        "movscript_cancel_generation_job"
+      ],
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.creative-workbench",
+      "name": "Creative Workbench",
+      "description": "Refine and expand story material in the creative workbench.",
+      "version": "0.1.0",
+      "category": "creative_workbench",
+      "enabled": true,
+      "priority": 740,
+      "appliesWhen": "creative-workbench, brainstorm, 故事素材, 头脑风暴",
+      "instruction": "Help the user expand and refine the current story material, then return a concise reusable text block.",
+      "outputContract": "Return the refined story material and a short note on what changed.",
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.script-split",
+      "name": "Script Split",
+      "description": "Split source scripts into production-ready drafts.",
+      "version": "0.1.0",
+      "category": "script_split",
+      "enabled": true,
+      "priority": 800,
+      "appliesWhen": "script-split, script split, 一键制作, 剧本拆分, 制作方案",
+      "instruction": "Produce a local script_split_proposal draft from the source script. The draft is a structured line-number split — never include script body text inside the draft.\n\nWorkflow:\n1. Read context with movscript_get_current_context; require projectId (ask via movscript_request_user_input if missing).\n2. Create the draft with movscript_create_draft using kind='script_split_proposal' and proposal=true. Content JSON shape (schema 'movscript.draft.script_split_proposal.v1'):\n   {\n     \"schema\": \"movscript.draft.script_split_proposal.v1\",\n     \"source_title\": \"<source script title>\",\n     \"source_summary\": \"<short summary, no body text>\",\n     \"source_script\": { \"title\": \"...\", \"summary\": \"...\", \"source_type\": \"raw\", \"line_count\": <n> },\n     \"global_settings\": { \"story_world\": \"...\", \"core_rules\": [], \"character_relationships\": [], \"key_characters\": [], \"key_locations\": [], \"key_props\": [], \"continuity_notes\": [] },\n     \"episode_drafts\": [\n       {\n         \"order\": 1, \"title\": \"第1集 ...\", \"summary\": \"<short, no body>\",\n         \"global_context\": { \"story_world\": \"...\", \"episode_relevance\": [], ... },\n         \"start_line\": 1, \"end_line\": 20,\n         \"action\": \"create\" | \"update\",\n         \"existing_script_id\": null | <number>,\n         \"production_action\": \"create\" | \"update\" | \"skip\",\n         \"existing_production_id\": null | <number>,\n         \"production_title\": \"...\",\n         \"production_summary\": \"...\"\n       }\n     ],\n     \"warnings\": [],\n     \"confidence\": 0.0-1.0\n   }\n   Use line numbers only; never copy body text, raw_text, or content fields into any node.\n3. Edit with movscript_update_draft action='patch_content' (JSON Pointer) or action='replace_text'. Run action='validate' after edits.\n4. Finalize with movscript_update_draft action='preview_apply'. If ok=false, read validation.errors, patch the draft, and preview again until ok=true.",
+      "outputContract": "Return the draft id, source title, current draft status, last preview_apply ok/stage, and the number of draft episodes or productions discovered.",
+      "toolHints": [
+        "movscript_get_current_context",
+        "movscript_create_draft",
+        "movscript_get_draft",
+        "movscript_list_drafts",
+        "movscript_update_draft",
+        "movscript_read_draft",
+        "movscript_request_user_input"
+      ],
+      "metadata": {
+        "source": "mode"
+      }
+    },
+    {
+      "id": "movscript.intent.setting-prep",
+      "name": "Setting Prep",
+      "description": "Review and improve a single creative reference.",
+      "version": "0.1.0",
+      "category": "setting_prep",
+      "enabled": true,
+      "priority": 760,
+      "appliesWhen": "setting-prep, 设定准备, 设定完善, creative reference",
+      "instruction": "Prioritize concrete missing information and give a short, actionable completion suggestion.",
+      "outputContract": "Return the improvement suggestion and any missing data points.",
+      "toolHints": [
+        "movscript_get_current_context",
+        "movscript_request_user_input"
+      ],
+      "metadata": {
+        "source": "mode"
+      }
+    }
+  ]
+}

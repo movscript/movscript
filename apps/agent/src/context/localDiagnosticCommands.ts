@@ -140,7 +140,7 @@ export interface GenerationDebugCommandSpec {
   prompt: string
   outputType: 'image' | 'video'
   jobType: 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
-  aspectRatio: string
+  aspectRatio?: string
   duration?: number
   featureKey: string
   timeoutMs: number
@@ -159,12 +159,11 @@ export function parseGenerationDebugCommand(command: AgentCommandRuntime): Gener
     jobType: outputType === 'image'
       ? (referenceResourceIds.length > 0 ? 'image_edit' : 'image')
       : (referenceResourceIds.length > 0 ? 'video_i2v' : 'video'),
-    aspectRatio: extractAspectRatio(command.payload) ?? '16:9',
+    ...(outputType === 'video' ? { aspectRatio: extractAspectRatio(command.payload) ?? '16:9' } : {}),
     ...(outputType === 'video' ? { duration: extractDuration(command.payload) ?? 5 } : {}),
     featureKey: outputType === 'image' ? 'plugin.image_generator' : 'plugin.video_generator',
     timeoutMs: 600_000,
     extraParams: {
-      quality: 'standard',
       ...(outputType === 'video' && extractFps(command.payload) !== undefined ? { fps: extractFps(command.payload) } : {}),
     },
     referenceResourceIds,

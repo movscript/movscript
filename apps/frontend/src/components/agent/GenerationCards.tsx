@@ -1,5 +1,5 @@
 import { AlertCircle, Check, Loader2, Wand2 } from 'lucide-react'
-import type { ChatGenerationJob } from '@/store/agentStore'
+import type { ChatGenerationJob, ChatGenerationParamAudit } from '@/store/agentStore'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel, type GenerationJobBadgeTone } from '@/lib/agentGenerationDisplay'
 import { cn } from '@/lib/utils'
@@ -121,6 +121,65 @@ export function GenerationJobSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] 
               )}
               {timing && (
                 <p className="mt-1 text-[9px] text-muted-foreground/80">{timing}</p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationParamAudit[] }) {
+  if (!audits?.length) return null
+  return (
+    <div data-testid="agent-generation-param-audit" className="mt-2 rounded-md border border-border bg-background/70 p-2">
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <Wand2 size={12} className="shrink-0 text-primary" />
+          <span className="truncate text-[11px] font-medium text-foreground">参数校验</span>
+        </div>
+        <span className="shrink-0 rounded border border-transparent bg-secondary px-1.5 py-0 text-[9px] leading-4 text-secondary-foreground">
+          {audits.length} 次提交
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {audits.map((audit, index) => {
+          const droppedCount = audit.droppedExtraParams.length + audit.droppedTopLevelParams.length
+          return (
+            <div key={audit.stepId ?? `audit-${index}`} className="rounded border border-border/70 bg-muted/20 px-2 py-1.5">
+              <div className="flex min-w-0 items-center justify-between gap-2">
+                <p className="min-w-0 truncate text-[10px] font-medium text-foreground">
+                  {audit.jobId !== undefined ? `Job #${audit.jobId}` : `生成提交 ${index + 1}`}
+                  {audit.modelConfigId !== undefined ? ` · model #${audit.modelConfigId}` : ''}
+                </p>
+                <span className={cn('shrink-0 rounded border px-1.5 py-0 text-[9px] leading-4', droppedCount > 0 ? 'border-amber-500/30 bg-amber-500/10 text-amber-700' : 'border-green-500/30 bg-green-500/10 text-green-700')}>
+                  {droppedCount > 0 ? `过滤 ${droppedCount}` : '已匹配'}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
+                模型合约：{audit.modelContractLoaded ? '已加载' : '未加载'}
+                {audit.supportedParams.length > 0 ? ` · ${audit.supportedParams.length} 个参数` : ''}
+              </p>
+              {audit.submittedExtraParams.length > 0 && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
+                  提交：{audit.submittedExtraParams.join('、')}
+                </p>
+              )}
+              {audit.droppedExtraParams.length > 0 && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  过滤 extra_params：{audit.droppedExtraParams.join('、')}
+                </p>
+              )}
+              {audit.droppedTopLevelParams.length > 0 && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  过滤顶层参数：{audit.droppedTopLevelParams.join('、')}
+                </p>
+              )}
+              {audit.extraParamsParseError && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-destructive">
+                  extra_params 解析失败：{audit.extraParamsParseError}
+                </p>
               )}
             </div>
           )

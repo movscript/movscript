@@ -308,8 +308,60 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
+      if (req.method === 'POST' && url.pathname === '/plans') {
+        const body = await readJSON(req)
+        writeJSON(res, 201, await context.agentRuntime.createPlan(withRequestAuth(normalizeOptionalObject(body, 'plan body'), req)))
+        return
+      }
+
+      if (req.method === 'GET' && url.pathname === '/plans') {
+        writeJSON(res, 200, { plans: context.agentRuntime.listPlans() })
+        return
+      }
+
+      const planMatch = url.pathname.match(/^\/plans\/([^/]+)$/)
+      if (planMatch && req.method === 'GET') {
+        writeJSON(res, 200, context.agentRuntime.getPlanSnapshot(planMatch[1]))
+        return
+      }
+
+      const planTasksMatch = url.pathname.match(/^\/plans\/([^/]+)\/tasks$/)
+      if (planTasksMatch && req.method === 'GET') {
+        writeJSON(res, 200, {
+          planId: planTasksMatch[1],
+          tasks: context.agentRuntime.getTaskTree(planTasksMatch[1]),
+        })
+        return
+      }
+
+      const planDispatchMatch = url.pathname.match(/^\/plans\/([^/]+)\/dispatch$/)
+      if (planDispatchMatch && req.method === 'POST') {
+        const body = await readJSON(req)
+        writeJSON(res, 202, context.agentRuntime.dispatchPlan({
+          ...withRequestAuth(normalizeOptionalObject(body, 'plan dispatch body'), req),
+          planId: planDispatchMatch[1],
+        }))
+        return
+      }
+
+      const planStreamMatch = url.pathname.match(/^\/plans\/([^/]+)\/stream$/)
+      if (planStreamMatch && req.method === 'GET') {
+        streamPlanEvents(req, res, context.agentRuntime, planStreamMatch[1])
+        return
+      }
+
+      const taskMatch = url.pathname.match(/^\/tasks\/([^/]+)$/)
+      if (taskMatch && req.method === 'PATCH') {
+        const body = await readJSON(req)
+        writeJSON(res, 200, context.agentRuntime.updateTask(taskMatch[1], normalizeOptionalObject(body, 'task update body')))
+        return
+      }
+
       if (req.method === 'GET' && url.pathname === '/runs') {
-        writeJSON(res, 200, { runs: context.agentRuntime.listRuns() })
+        const parentRunId = url.searchParams.get('parentRunId')
+        writeJSON(res, 200, {
+          runs: parentRunId ? context.agentRuntime.listRunsByParent(parentRunId) : context.agentRuntime.listRuns(),
+        })
         return
       }
 
@@ -327,6 +379,15 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const runTraceSummaryMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/summary$/)
       if (runTraceSummaryMatch && req.method === 'GET') {
         writeJSON(res, 200, context.agentRuntime.getRunTraceSummary(runTraceSummaryMatch[1]))
+        return
+      }
+
+      const runChildrenMatch = url.pathname.match(/^\/runs\/([^/]+)\/children$/)
+      if (runChildrenMatch && req.method === 'GET') {
+        writeJSON(res, 200, {
+          runId: runChildrenMatch[1],
+          children: context.agentRuntime.getChildRuns(runChildrenMatch[1]),
+        })
         return
       }
 
@@ -356,6 +417,29 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       if (runCancelMatch && req.method === 'POST') {
         const body = await readJSON(req)
         writeJSON(res, 200, context.agentRuntime.cancelRun(runCancelMatch[1], normalizeOptionalObject(body, 'cancel body')))
+        return
+      }
+
+      const runCancelTreeMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel-tree$/)
+      if (runCancelTreeMatch && req.method === 'POST') {
+        const body = await readJSON(req)
+        writeJSON(res, 200, context.agentRuntime.cancelSubtree(runCancelTreeMatch[1], normalizeOptionalObject(body, 'cancel tree body')))
+        return
+      }
+
+      const runReplanMatch = url.pathname.match(/^\/runs\/([^/]+)\/replan$/)
+      if (runReplanMatch && req.method === 'POST') {
+        const run = context.agentRuntime.getRun(runReplanMatch[1])
+        if (!run?.planId) {
+          writeJSON(res, run ? 400 : 404, { error: run ? 'run is not attached to a plan' : 'run not found' })
+          return
+        }
+        const body = await readJSON(req)
+        writeJSON(res, 202, context.agentRuntime.replanRun(runReplanMatch[1], {
+          ...withRequestAuth(normalizeOptionalObject(body, 'replan body'), req),
+          planId: run.planId,
+          plannerRunId: run.role === 'planner' ? run.id : run.parentRunId,
+        }))
         return
       }
 
@@ -417,12 +501,36 @@ export function startAgentServer(context = createAgentServerContext()): ReturnTy
       server.close(() => process.exit(0))
     },
   }))
+  server.on('error', (error) => {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'EADDRINUSE') {
+      console.error(`[agent] FATAL: port ${context.port} is already in use (set MOVSCRIPT_AGENT_PORT or stop the conflicting process). 127.0.0.1:${context.port} is taken.`)
+    } else if (code === 'EACCES') {
+      console.error(`[agent] FATAL: not permitted to bind 127.0.0.1:${context.port} (${code}).`)
+    } else {
+      console.error('[agent] FATAL: agent HTTP server error', error)
+    }
+    process.exit(1)
+  })
   server.listen(context.port, '127.0.0.1', () => logAgentServerStartup(context))
   return server
 }
 
 if (isMainModule()) {
-  startAgentServer()
+  process.on('uncaughtException', (error) => {
+    console.error('[agent] FATAL uncaughtException during startup', error)
+    process.exit(1)
+  })
+  process.on('unhandledRejection', (error) => {
+    console.error('[agent] FATAL unhandledRejection during startup', error)
+    process.exit(1)
+  })
+  try {
+    startAgentServer()
+  } catch (error) {
+    console.error('[agent] FATAL: startAgentServer threw before listen', error)
+    process.exit(1)
+  }
 }
 
 function normalizeDraftBody(body: unknown): Record<string, JSONValue> {
@@ -595,6 +703,50 @@ function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: Age
   }
 
   unsubscribe = runtime.subscribeRunStream(runId, (event) => {
+    if (closed || res.writableEnded) return
+    writeSSE(res, event.type, event)
+    if (event.type === 'done') {
+      if (subscribed) cleanup(true)
+      else closeAfterSubscribe = true
+    }
+  })
+  subscribed = true
+  if (closeAfterSubscribe) cleanup(true)
+
+  req.on('close', () => cleanup(false))
+}
+
+function streamPlanEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, planId: string): void {
+  if (!runtime.getPlan(planId)) {
+    writeJSON(res, 404, { error: 'plan not found' })
+    return
+  }
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+  res.write(': connected\n\n')
+
+  let closed = false
+  let unsubscribe = () => { }
+  let subscribed = false
+  let closeAfterSubscribe = false
+  const heartbeat = setInterval(() => {
+    if (!closed && !res.writableEnded) res.write(': keep-alive\n\n')
+  }, 15_000)
+
+  const cleanup = (end: boolean) => {
+    if (closed) return
+    closed = true
+    clearInterval(heartbeat)
+    unsubscribe()
+    if (end && !res.writableEnded) res.end()
+  }
+
+  unsubscribe = runtime.subscribePlanStream(planId, (event) => {
     if (closed || res.writableEnded) return
     writeSSE(res, event.type, event)
     if (event.type === 'done') {

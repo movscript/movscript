@@ -1,4 +1,4 @@
-import type { MCPClient } from '../mcpClient.js'
+import { MCPError, type MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../state/types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
 import { buildApplyDraftPreview } from '../drafts/draftApply.js'
@@ -68,9 +68,81 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
   throwIfAborted(options.signal)
   await mcpClient.initialize({ signal: options.signal })
   throwIfAborted(options.signal)
-  const result = await mcpClient.callTool(runtimeToolName(call.name), translateToolArgsForRuntime(call.name, args), { signal: options.signal })
+  const runtimeName = runtimeToolName(call.name)
+  const runtimeArgs = translateToolArgsForRuntime(call.name, args)
+  const result = await callMCPToolWithGenerationRepair(mcpClient, runtimeName, runtimeArgs, { signal: options.signal })
   throwIfAborted(options.signal)
   return { call, result, source: 'mcp' }
+}
+
+async function callMCPToolWithGenerationRepair(
+  mcpClient: Pick<MCPClient, 'callTool'>,
+  toolName: string,
+  args: Record<string, JSONValue>,
+  options: { signal?: AbortSignal },
+): Promise<JSONValue> {
+  try {
+    return await mcpClient.callTool(toolName, args, options)
+  } catch (error) {
+    const repairedArgs = generationRepairArgs(toolName, args, error)
+    if (!repairedArgs) throw error
+    return mcpClient.callTool(toolName, repairedArgs, options)
+  }
+}
+
+function generationRepairArgs(toolName: string, args: Record<string, JSONValue>, error: unknown): Record<string, JSONValue> | undefined {
+  if (toolName !== 'movscript_create_generation_job') return undefined
+  if (!(error instanceof MCPError)) return undefined
+  const data = isRecord(error.data) ? error.data : undefined
+  if (!data || data.type !== 'backend_http_error' || data.status !== 400) return undefined
+  const suggestedFix = isRecord(data.suggested_fix) ? data.suggested_fix : undefined
+  if (!suggestedFix) return undefined
+  const repaired = applyGenerationSuggestedFix(args, suggestedFix)
+  if (!repaired) return undefined
+  return {
+    ...repaired,
+    repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
+  }
+}
+
+function applyGenerationSuggestedFix(args: Record<string, JSONValue>, suggestedFix: Record<string, JSONValue>): Record<string, JSONValue> | undefined {
+  let changed = false
+  const next: Record<string, JSONValue> = { ...args }
+  const extraParams = isRecord(args.extra_params) ? { ...args.extra_params } : {}
+
+  for (const [key, value] of Object.entries(suggestedFix)) {
+    if (!isGenerationRepairValue(value)) continue
+    switch (key) {
+      case 'aspect_ratio':
+        if (next.aspect_ratio !== value) {
+          next.aspect_ratio = value
+          changed = true
+        }
+        break
+      case 'duration':
+        if (next.duration !== value) {
+          next.duration = value
+          changed = true
+        }
+        break
+      default:
+        if (extraParams[key] !== value) {
+          extraParams[key] = value
+          changed = true
+        }
+        break
+    }
+  }
+
+  if (!changed) return undefined
+  if (Object.keys(extraParams).length > 0) {
+    next.extra_params = extraParams
+  }
+  return next
+}
+
+function isGenerationRepairValue(value: JSONValue): value is string | number | boolean {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
 }
 
 async function callRuntimeTool(

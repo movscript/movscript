@@ -15,6 +15,11 @@ import type {
   ToolUnavailableReason,
 } from '../state/types.js'
 
+// activeSkills and userMessage are accepted for backward-compatible call sites,
+// but tool visibility is no longer gated by skill/category/appliesWhen intersection —
+// any tool that is registered, MCP-reachable, manifest-granted, and permission-passing
+// is exposed to the model. Approval policy (never/always/on_write) still applies.
+
 export interface CapabilityMCPClient {
   initialize(): Promise<unknown>
   listTools(): Promise<MCPTool[]>
@@ -103,17 +108,13 @@ export function resolveToolCatalog(options: {
     const registeredTool = registry.get(name)
     const grant = findManifestToolGrant(options.manifest, name)
     const approval = grant?.approval ?? defaultApproval(registeredTool)
-    const explicitGrant = findManifestToolGrant(options.manifest, name)
     const unavailableReason = getUnavailableReason({
       name,
       mcpTool,
       registeredTool,
-      explicitGrant: !!explicitGrant && explicitGrant.mode !== 'deny',
       manifest: options.manifest,
       currentProjectId: options.currentProjectId,
       mcpConnected: options.mcpConnected ?? true,
-      activeSkills: options.activeSkills,
-      userMessage: options.userMessage,
     })
     const tool: AgentDebugTool = {
       name,
@@ -145,16 +146,12 @@ function getUnavailableReason(options: {
   name: string
   mcpTool?: MCPTool
   registeredTool?: RegisteredTool
-  explicitGrant: boolean
   manifest: AgentManifest
   currentProjectId?: number
   mcpConnected: boolean
-  activeSkills?: ResolvedAgentSkill[]
-  userMessage?: string
 }): ToolUnavailableReason | undefined {
   if (!options.registeredTool) return 'unregistered'
   if (!options.mcpTool && options.registeredTool.source !== 'runtime') return 'mcp_unavailable'
-  if (!options.explicitGrant && !toolIsActive(options.registeredTool, options.activeSkills, options.userMessage)) return 'inactive'
   const grant = findManifestToolGrant(options.manifest, options.name)
   if (grant?.mode === 'deny') return 'denied'
   if (!grant) return 'not_granted'
@@ -180,21 +177,3 @@ function requiresApproval(tool: RegisteredTool | undefined, grantApproval: Agent
   return tool.risk === 'write' || tool.risk === 'generate' || tool.risk === 'destructive'
 }
 
-function toolIsActive(tool: RegisteredTool, activeSkills: ResolvedAgentSkill[] | undefined, userMessage: string | undefined): boolean {
-  if (tool.appliesWhen && !messageMatches(userMessage ?? '', tool.appliesWhen)) return false
-  const toolCategories = tool.categories ?? (tool.category ? [tool.category] : [])
-  if (toolCategories.length === 0 || !activeSkills) return true
-  const activeToolHints = new Set(activeSkills.flatMap((skill) => skill.toolHints ?? []))
-  if (activeToolHints.has(tool.name)) return true
-  const activeCategories = new Set(activeSkills.flatMap((skill) => skill.categories ?? (skill.category ? [skill.category] : [])))
-  return toolCategories.some((category) => activeCategories.has(category))
-}
-
-function messageMatches(message: string, appliesWhen: string): boolean {
-  const normalized = message.toLowerCase()
-  return appliesWhen
-    .split(/[,\n]/)
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean)
-    .some((item) => normalized.includes(item))
-}

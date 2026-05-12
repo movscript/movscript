@@ -25,10 +25,12 @@ function buildRequest(args: PluginArgs) {
   const isEdit = refIds.length > 0
   const aspectRatio = String(args.aspect_ratio ?? '1:1')
   const imageSize = String(args.image_size ?? '1024x1024')
-  const quality = String(args.quality ?? 'standard')
   const timeoutMs = Number(args.timeout_ms ?? 180_000)
 
-  const extraParams: Record<string, unknown> = { image_size: imageSize, quality }
+  const extraParams: Record<string, unknown> = { image_size: imageSize }
+  if (args.quality !== undefined && args.quality !== null && String(args.quality).trim() !== '') {
+    extraParams.quality = String(args.quality)
+  }
   if (args.negative_prompt) extraParams.negative_prompt = String(args.negative_prompt)
   if (args.steps) extraParams.steps = Number(args.steps)
   if (args.seed) extraParams.seed = Number(args.seed)

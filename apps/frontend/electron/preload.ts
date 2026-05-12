@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('api', {
   openFile: () => ipcRenderer.invoke('dialog:openFile'),
   saveFile: (defaultPath?: string) => ipcRenderer.invoke('dialog:saveFile', defaultPath),
   updateMCPContext: (snapshot: unknown) => ipcRenderer.invoke('mcp:update-context', snapshot),
+  getMCPStatus: () => ipcRenderer.invoke('mcp:get-status'),
   setAppSettings: (settings: AppSettings) => ipcRenderer.invoke('app:set-settings', settings),
   onBackendStatus: (handler: (status: unknown) => void) => {
     const listener = (_event: unknown, status: unknown) => handler(status)

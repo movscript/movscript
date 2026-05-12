@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import type { AgentRun } from './localAgentClient'
-import { selectLatestGeneratedResource } from './agentGenerationArtifacts'
+import { generationParamAuditsFromRun, selectLatestGeneratedResource } from './agentGenerationArtifacts'
 
 function runWithResults(results: unknown[]): AgentRun {
   return {
@@ -51,4 +51,35 @@ test('selectLatestGeneratedResource uses the latest generation result', () => {
     jobId: 102,
     outputResourceId: 202,
   })
+})
+
+test('generationParamAuditsFromRun extracts MCP model contract audit data', () => {
+  const run = runWithResults([
+    {
+      data: {
+        jobId: 101,
+        param_validation: {
+          model_config_id: 42,
+          model_contract_loaded: true,
+          supported_params: ['duration', 'resolution'],
+          provided_extra_params: ['duration', 'resolution', 'unsupported_flag'],
+          submitted_extra_params: ['duration', 'resolution'],
+          dropped_extra_params: ['unsupported_flag'],
+          dropped_top_level_params: ['aspect_ratio'],
+        },
+      },
+    },
+  ])
+
+  assert.deepEqual(generationParamAuditsFromRun(run), [{
+    stepId: 'step_0',
+    jobId: 101,
+    modelConfigId: 42,
+    modelContractLoaded: true,
+    supportedParams: ['duration', 'resolution'],
+    providedExtraParams: ['duration', 'resolution', 'unsupported_flag'],
+    submittedExtraParams: ['duration', 'resolution'],
+    droppedExtraParams: ['unsupported_flag'],
+    droppedTopLevelParams: ['aspect_ratio'],
+  }])
 })

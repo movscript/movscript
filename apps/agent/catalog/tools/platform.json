@@ -2,7 +2,7 @@
   "tools": [
     {
       "name": "movscript_get_current_context",
-      "description": "Return current MovScript UI route, selected project, current user, selected project item, available project resources, and local draft count. Use this before project-specific work.",
+      "description": "Return current MovScript UI route, selected project, current user, selected project item, available project resources, and local draft count.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": false,
@@ -54,7 +54,7 @@
     },
     {
       "name": "movscript_search_memories",
-      "description": "Search local agent memories in the current project by query and optional kind. Use when older preferences, decisions, warnings, item references, or draft notes may matter.",
+      "description": "Search local agent memories in the current project by query and optional kind, including older preferences, decisions, warnings, item references, and draft notes.",
       "permission": "memory.read",
       "risk": "read",
       "source": "runtime",

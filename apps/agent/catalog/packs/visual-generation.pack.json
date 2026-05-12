@@ -1,0 +1,24 @@
+{
+  "id": "movscript.pack.visual-generation",
+  "version": "1.0.0",
+  "name": "Visual Generation",
+  "description": "Image and video generation workflows and tools.",
+  "source": "builtin",
+  "schemas": [],
+  "tools": [
+    "movscript_list_models",
+    "movscript_create_generation_job",
+    "movscript_get_generation_job",
+    "movscript_list_generation_jobs",
+    "movscript_cancel_generation_job"
+  ],
+  "skills": [
+    "movscript.workflow.visual-generation",
+    "movscript.workflow.asset-candidate-generation"
+  ],
+  "requires": {
+    "packs": {
+      "movscript.pack.core": ">=1.0.0"
+    }
+  }
+}

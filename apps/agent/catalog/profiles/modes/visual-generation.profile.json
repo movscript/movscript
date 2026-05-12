@@ -1,0 +1,24 @@
+{
+  "schema": "movscript.agent.profile.v1",
+  "id": "movscript.profile.visual-generation",
+  "version": "1.0.0",
+  "name": "Visual Generation Agent",
+  "description": "Creates and monitors image or video generation jobs.",
+  "modeAlias": "visual-generation",
+  "enabledPacks": ["movscript.pack.core", "movscript.pack.visual-generation"],
+  "persona": "movscript.persona.visual-director",
+  "enabledWorkflows": ["movscript.workflow.visual-generation"],
+  "enabledPolicies": [
+    "movscript.policy.approval-boundaries",
+    "movscript.policy.platform-concepts"
+  ],
+  "toolGrants": [
+    { "name": "movscript_get_current_context", "mode": "allow", "approval": "never" },
+    { "name": "movscript_list_models", "mode": "allow", "approval": "never" },
+    { "name": "movscript_create_generation_job", "mode": "allow", "approval": "always" },
+    { "name": "movscript_get_generation_job", "mode": "allow", "approval": "never" },
+    { "name": "movscript_list_generation_jobs", "mode": "allow", "approval": "never" },
+    { "name": "movscript_cancel_generation_job", "mode": "allow", "approval": "always" }
+  ],
+  "limits": { "maxActiveWorkflows": 1, "maxToolCallsPerTurn": 18, "systemPromptCharLimit": 32000 }
+}

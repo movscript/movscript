@@ -1,0 +1,33 @@
+{
+  "id": "movscript.pack.drafts",
+  "version": "1.0.0",
+  "name": "Drafts",
+  "description": "Local review draft editing, validation, and user input tools.",
+  "source": "builtin",
+  "schemas": [
+    "movscript.project_proposal.v1",
+    "movscript.production_proposal.v1",
+    "movscript.content_unit_proposal.v1",
+    "movscript.content_unit_media_proposal.v1",
+    "movscript.asset_proposal.v1",
+    "movscript.script_split_proposal.v1"
+  ],
+  "tools": [
+    "movscript_read_draft",
+    "movscript_list_drafts",
+    "movscript_get_draft",
+    "movscript_create_draft",
+    "movscript_update_draft",
+    "movscript_request_user_input",
+    "movscript_create_script"
+  ],
+  "skills": [
+    "movscript.policy.safe-drafts",
+    "movscript.policy.approval-boundaries",
+    "movscript.workflow.proposal-first",
+    "movscript.workflow.script-writing",
+    "movscript.workflow.project-progress",
+    "movscript.workflow.storyboard-gap-review",
+    "movscript.workflow.creative-workbench"
+  ]
+}

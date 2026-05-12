@@ -265,7 +265,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     }
   }
 
-  const { messages: baseMessages } = buildContext({
+  const builtContext = buildContext({
     manifest: input.manifest,
     skills: input.skills,
     context: input.context,
@@ -278,6 +278,24 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     ...(input.command ? { command: input.command } : {}),
     ...(input.contractResolver ? { contractResolver: input.contractResolver } : {}),
   })
+  input.onTrace({
+    kind: 'prompt',
+    title: 'Prompt composed',
+    summary: `${builtContext.systemPrompt.length} system prompt chars, ${input.skills.length} active skill(s).`,
+    status: 'completed',
+    roundIndex: currentRoundIndex,
+    roundLabel,
+    roundSource: 'model',
+    data: {
+      eventType: 'prompt.composed',
+      charCount: builtContext.systemPrompt.length,
+      skillIds: input.skills.map((skill) => skill.id),
+      availableToolNames: input.capabilities.available.map((tool) => tool.name),
+      blockedToolCount: input.capabilities.blocked.length,
+      debugPartIds: builtContext.debugParts.map((part) => part.id),
+    },
+  })
+  const { messages: baseMessages } = builtContext
   const messages = [
     ...baseMessages.slice(0, -1),
     ...state.history,
@@ -462,13 +480,35 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
     roundLabel,
     roundSource: 'model',
     data: {
+      eventType: 'tool.call.policy_decision',
       allowed: policyResult.toolCalls.map((c) => c.name),
       blocked: policyResult.blockedToolCalls.map((b) => ({ name: b.call.name, reason: b.reason })),
+      decision: policyResult.blockedToolCalls.some((b) => b.reason === 'approval_required')
+        ? 'approval_required'
+        : policyResult.blockedToolCalls.length > 0 ? 'deny' : 'allow',
     },
   })
 
   const approvalBlocked = policyResult.blockedToolCalls.filter((b) => b.reason === 'approval_required')
   if (approvalBlocked.length > 0) {
+    input.onTrace({
+      kind: 'approval',
+      title: 'Approval requested',
+      summary: approvalBlocked.map((blocked) => blocked.call.name).join(', '),
+      status: 'blocked',
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: 'approval',
+      data: {
+        eventType: 'approval.requested',
+        tools: approvalBlocked.map((blocked) => ({
+          name: blocked.call.name,
+          reason: blocked.message,
+          risk: blocked.tool?.risk,
+          permission: blocked.tool?.permission,
+        })),
+      },
+    })
     return {
       pendingApprovals: approvalBlocked.map((blocked) => ({
         id: makeId('approval'),

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { File, FileText, Image, Mic, Sparkles, Video } from 'lucide-react'
 
 import { listSemanticEntities, semanticEntityConfig } from '@/api/semanticEntities'
+import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { api } from '@/lib/api'
 import {
   GENERATED_BINDING_TARGETS,
@@ -44,6 +45,7 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
       <div className="space-y-1.5">
         {generated.map((attachment) => (
           <div key={attachment.id} className="rounded border border-border/70 bg-muted/20 px-2 py-1.5">
+            <GeneratedMediaPreview attachment={attachment} />
             <div className="flex min-w-0 items-center gap-2">
               <AttachmentIcon type={attachment.type} size={12} />
               <div className="min-w-0 flex-1">
@@ -91,6 +93,31 @@ export function GeneratedResultCard({ attachments, projectId }: { attachments: A
       </p>
     </div>
   )
+}
+
+function GeneratedMediaPreview({ attachment }: { attachment: AgentAttachment }) {
+  const url = attachment.previewUrl ?? attachment.url
+  if (attachment.type === 'image' && url) {
+    return (
+      <a
+        data-testid="agent-generated-media-preview"
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="mb-2 block overflow-hidden rounded-md border border-border/70 bg-muted"
+      >
+        <AuthedImage src={url} alt={attachment.name} className="h-56 max-h-[45vh] w-full object-contain" />
+      </a>
+    )
+  }
+  if (attachment.type === 'video' && url) {
+    return (
+      <div data-testid="agent-generated-media-preview" className="mb-2 overflow-hidden rounded-md border border-border/70 bg-black">
+        <AuthedVideo src={url} className="h-56 max-h-[45vh] w-full object-contain" controls playsInline preload="metadata" />
+      </div>
+    )
+  }
+  return null
 }
 
 function GeneratedResourceBindingControl({ attachment, projectId }: { attachment: AgentAttachment; projectId?: number }) {

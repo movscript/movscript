@@ -19,14 +19,82 @@ This note records the product contract for Agent-driven image and video generati
 
 ## Runtime Flow
 
-1. The Agent calls `movscript_create_generation_job`.
-2. The MCP tool returns a normalized job payload and a `monitor` instruction for `movscript_get_generation_job`.
-3. `agentGraph` runs an automatic monitor loop and emits `GenerationEvent` records when state, progress, output, or the monitor heartbeat changes.
-4. `agentRuntime` persists those records as trace events.
-5. `AIAgentPanel` renders progress from live trace events and resolves final media attachments and job summaries through the shared trace replay helper using run steps, live events, and persisted trace events.
-6. For accepted outputs, the user can bind the generated resource to a production object from the generated-result card. The binding is explicit; the Agent does not silently write generated media into production entities.
-7. Frontend trace replay helpers can summarize persisted/live generation trace events into jobs, resources, provider metadata, timing, and terminal counts for UI rendering, regression tests, and provider replay debugging.
-8. Provider replay fixtures cover representative generation lifecycles (`running -> succeeded`, `failed`, `timeout`) and include sanitized provider-shaped traces for success-with-media and terminal failure. New providers must add sanitized replay traces before they are considered covered.
+1. The Agent calls `movscript_list_models` for the target capability or feature.
+2. The MCP tool returns resolved model capability data from the backend, including `capabilities`, `input_requirements`, `supported_params`, and `params_schema`.
+3. The Agent calls `movscript_create_generation_job` with only parameters supported by the selected model.
+4. If backend validation returns a structured `suggested_fix`, the Agent may retry `movscript_create_generation_job` once with that fix applied. Only generation parameter fixes are applied automatically; write targets, resource IDs, model IDs, and approval-sensitive fields are not changed by repair.
+5. The MCP tool returns a normalized job payload, `param_validation` audit data, and a `monitor` instruction for `movscript_get_generation_job`.
+6. `agentGraph` runs an automatic monitor loop and emits `GenerationEvent` records when state, progress, output, or the monitor heartbeat changes.
+7. `agentRuntime` persists those records as trace events.
+8. `AIAgentPanel` renders progress from live trace events and resolves final media attachments and job summaries through the shared trace replay helper using run steps, live events, and persisted trace events.
+9. For accepted outputs, the user can bind the generated resource to a production object from the generated-result card. The binding is explicit; the Agent does not silently write generated media into production entities.
+10. Frontend trace replay helpers can summarize persisted/live generation trace events into jobs, resources, provider metadata, timing, and terminal counts for UI rendering, regression tests, and provider replay debugging.
+11. Provider replay fixtures cover representative generation lifecycles (`running -> succeeded`, `failed`, `timeout`) and include sanitized provider-shaped traces for success-with-media and terminal failure. New providers must add sanitized replay traces before they are considered covered.
+
+## Model Capability Contract
+
+Every enabled generation model is exposed through `/models` and `movscript_list_models` as a resolved model contract. Runtime callers should treat this response as the source of truth instead of relying on provider names or hardcoded plugin fields.
+
+Required fields for agent-facing model selection:
+
+- `capabilities`: canonical task support such as `image`, `image_edit`, `video`, `video_i2v`, or `video_v2v`.
+- `input_requirements`: image/video input minimums and maximums. A max value of `-1` means unlimited.
+- `supported_params`: UI-oriented parameter controls resolved from adapter defaults plus model-specific overrides.
+- `params_schema`: JSON Schema generated from `supported_params`, with `additionalProperties: false`. Cross-parameter rules are exposed through `allOf` where they can be declared from the model contract, such as `duration` conflicting with `frames` or `resolution` being restricted when `draft=true`.
+- `model_config_id`: the backend model config ID used by `movscript_create_generation_job`.
+
+Model capability resolution lives in:
+
+- `apps/backend/internal/infra/ai/catalog.go` for adapter defaults, `ModelDef`, and `ModelParamProfile`.
+- `apps/backend/internal/infra/ai/param_schema.go` for `ParamDef` to JSON Schema conversion.
+- `apps/backend/internal/infra/ai/service.go` for `PublicModel` response assembly.
+
+## Validation And Repair
+
+Generation requests are preflighted before a backend job is created. The backend validates:
+
+- task capability against the selected model;
+- required image/video inputs and model input limits;
+- model-supported parameter keys;
+- parameter types, enum options, numeric ranges, and integer requirements;
+- declared cross-parameter rules from the model contract, such as conflicts and conditional enum restrictions;
+- backend-only cross-parameter rules that are not yet declarative.
+
+Structured validation errors use this shape:
+
+```json
+{
+  "error": "parameter \"duration\" must be one of [5, 10]",
+  "code": "INVALID_PARAMETER_OPTION",
+  "field": "duration",
+  "allowed_values": ["5", "10"],
+  "suggested_fix": { "duration": "5" },
+  "details": {
+    "code": "INVALID_PARAMETER_OPTION",
+    "message": "parameter \"duration\" must be one of [5, 10]",
+    "field": "duration",
+    "allowed_values": ["5", "10"],
+    "suggested_fix": { "duration": "5" }
+  }
+}
+```
+
+The Electron MCP bridge preserves this structure in JSON-RPC `error.data`. The local Agent recognizes backend validation errors for `movscript_create_generation_job` and performs at most one automatic retry when `suggested_fix` is present. Repair is intentionally narrow:
+
+- `aspect_ratio` updates the top-level `aspect_ratio` argument;
+- `duration` updates the top-level `duration` argument;
+- other scalar suggested values update `extra_params`;
+- non-scalar values are ignored;
+- the model ID, prompt, project, resources, approval state, and output target are never modified by automatic repair.
+
+Successful MCP generation calls also return `param_validation` audit data. It records whether the selected model contract was loaded, which `supported_params` were visible to MCP, which `extra_params` were submitted, and which unsupported top-level or extra params were dropped before the backend request. This audit object is part of the tool result, is extracted into assistant message metadata as `generationParamAudits`, and is rendered by the chat UI's generation parameter audit card even when no validation error occurs.
+
+Implementation points:
+
+- Backend structured errors: `apps/backend/internal/infra/ai/validation_error.go`.
+- HTTP expansion: `apps/backend/internal/interfaces/http/handler/job_create.go`.
+- MCP preservation: `apps/frontend/electron/mcp/server.ts`.
+- Agent repair retry: `apps/agent/src/orchestration/toolExecutor.ts`.
 
 ## Plugin Contract
 
@@ -42,6 +110,20 @@ First-party plugins:
 - `plugins/video-generator`
 
 `movcli build` must preserve plugin `contributes` metadata so installed plugins keep their canvas node definitions.
+
+Plugin `inputSchema` may expose common controls, but model-specific parameter truth comes from `mov.models(capability)` / `movscript_list_models`. New plugins should avoid hardcoding provider-specific parameter assumptions without checking the selected model's resolved `supported_params`.
+
+## Developer Checklist
+
+When adding or changing a model/provider:
+
+1. Add or update adapter defaults in `AdapterDefs.ParamSets`.
+2. Use `CustomSupportedParams` / `ModelParamProfile` for model-specific allow, deny, override, or add behavior.
+3. Confirm `/models?capability=<capability>` exposes accurate `supported_params`, `params_schema`, and `input_requirements`.
+4. Add backend validator tests for new parameter types, enum options, aliases, and cross-parameter rules.
+5. Add or update MCP/Agent tests if the new rule should produce a structured `suggested_fix`.
+6. Add sanitized provider replay fixtures when provider status/progress or output shape changes.
+7. Run the verification commands for this area before shipping.
 
 ## Verification
 

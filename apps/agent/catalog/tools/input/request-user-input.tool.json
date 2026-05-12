@@ -1,0 +1,25 @@
+{
+  "name": "movscript_request_user_input",
+  "description": "Pause the current agent run and ask the user for missing context, a choice, confirmation, or free-form input.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["question"],
+    "properties": {
+      "question": { "type": "string" },
+      "expectedAnswer": { "enum": ["text", "enum", "number", "boolean"] },
+      "choices": { "type": "array", "items": { "type": "string" } },
+      "placeholder": { "type": "string" }
+    }
+  },
+  "permission": "agent.input",
+  "risk": "ui",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "Ask the user for missing information and resume the run with the answer.",
+  "errorCodes": ["user_denied", "approval_timeout"]
+}

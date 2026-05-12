@@ -25,14 +25,24 @@ const (
 // The frontend renders these as form controls so users can tune generation without
 // relying on hidden backend defaults.
 type ParamDef struct {
-	Key     string      `json:"key"`
-	Label   string      `json:"label"`
-	Type    string      `json:"type"`              // "select" | "number" | "boolean"
-	Options []string    `json:"options,omitempty"` // for type=select
-	Default interface{} `json:"default,omitempty"`
-	Min     float64     `json:"min,omitempty"`
-	Max     float64     `json:"max,omitempty"`
-	Step    float64     `json:"step,omitempty"`
+	Key             string                 `json:"key"`
+	Label           string                 `json:"label"`
+	Type            string                 `json:"type"`              // "select" | "number" | "boolean"
+	Options         []string               `json:"options,omitempty"` // for type=select
+	Default         interface{}            `json:"default,omitempty"`
+	Min             float64                `json:"min,omitempty"`
+	Max             float64                `json:"max,omitempty"`
+	Step            float64                `json:"step,omitempty"`
+	ConflictsWith   []string               `json:"conflicts_with,omitempty"`   // params that cannot be used with this param
+	ConditionalEnum []ParamConditionalEnum `json:"conditional_enum,omitempty"` // enum restrictions activated by another param
+}
+
+// ParamConditionalEnum declares a cross-parameter enum restriction for params_schema.
+// Example: resolution is only ["480p"] when draft=true.
+type ParamConditionalEnum struct {
+	WhenParam string   `json:"when_param"`
+	WhenValue any      `json:"when_value"`
+	Options   []string `json:"options"`
 }
 
 // ModelParamProfile describes a model-specific delta on top of adapter params.
@@ -215,12 +225,13 @@ func volcenImageParams() []ParamDef {
 func volcenVideoParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",
-			Options: []string{"-1", "2", "4", "5", "10", "12", "15"}, Default: "5"},
-		{Key: "frames", Label: "帧数", Type: "number", Min: 29, Max: 289, Step: 4},
+			Options: []string{"-1", "2", "4", "5", "10", "12", "15"}, Default: "5", ConflictsWith: []string{"frames"}},
+		{Key: "frames", Label: "帧数", Type: "number", Min: 29, Max: 289, Step: 4, ConflictsWith: []string{"duration"}},
 		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
 			Options: []string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"}, Default: "16:9"},
 		{Key: "resolution", Label: "清晰度", Type: "select",
-			Options: []string{"480p", "720p", "1080p"}, Default: "720p"},
+			Options: []string{"480p", "720p", "1080p"}, Default: "720p",
+			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}},
 		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 4294967295, Step: 1},
 		{Key: "fixed_camera", Label: "固定镜头", Type: "boolean", Default: false},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
@@ -359,7 +370,8 @@ func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []str
 	params := []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select", Options: durationOptions, Default: "5"},
 		{Key: "aspect_ratio", Label: "画面比例", Type: "select", Options: ratioOptions, Default: ratioOptions[0]},
-		{Key: "resolution", Label: "分辨率", Type: "select", Options: resolutionOptions, Default: "720p"},
+		{Key: "resolution", Label: "分辨率", Type: "select", Options: resolutionOptions, Default: "720p",
+			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}},
 		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 4294967295, Step: 1},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
 	}
@@ -557,6 +569,12 @@ func mergeParamDef(base, patch ParamDef) ParamDef {
 	if patch.Step != 0 {
 		out.Step = patch.Step
 	}
+	if patch.ConflictsWith != nil {
+		out.ConflictsWith = append([]string{}, patch.ConflictsWith...)
+	}
+	if patch.ConditionalEnum != nil {
+		out.ConditionalEnum = cloneParamConditionalEnums(patch.ConditionalEnum)
+	}
 	return out
 }
 
@@ -564,7 +582,24 @@ func cloneParamDef(p ParamDef) ParamDef {
 	if len(p.Options) > 0 {
 		p.Options = append([]string{}, p.Options...)
 	}
+	if len(p.ConflictsWith) > 0 {
+		p.ConflictsWith = append([]string{}, p.ConflictsWith...)
+	}
+	if len(p.ConditionalEnum) > 0 {
+		p.ConditionalEnum = cloneParamConditionalEnums(p.ConditionalEnum)
+	}
 	return p
+}
+
+func cloneParamConditionalEnums(items []ParamConditionalEnum) []ParamConditionalEnum {
+	out := make([]ParamConditionalEnum, len(items))
+	for i, item := range items {
+		out[i] = item
+		if len(item.Options) > 0 {
+			out[i].Options = append([]string{}, item.Options...)
+		}
+	}
+	return out
 }
 
 func normalizeParamDefKey(p ParamDef) ParamDef {

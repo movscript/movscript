@@ -2,6 +2,7 @@ package ai
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -127,6 +128,29 @@ func TestResolveModelDefAppliesModelParamProfile(t *testing.T) {
 	}
 }
 
+func TestValidateGenerationParamsReturnsStructuredOptionError(t *testing.T) {
+	def := ResolveModelDef(
+		"profile-video", AdapterVolcen,
+		"Profile Video", CapabilityVideo, string(PricingPerSecond),
+		false, 0, 0,
+		"", `{"allow":["duration"],"override":{"duration":{"type":"select","options":["5","10"],"default":"5"}}}`,
+	)
+	err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"6"}`, "", 0)
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T %[1]v", err)
+	}
+	if validationErr.Code != "INVALID_PARAMETER_OPTION" || validationErr.Field != "duration" {
+		t.Fatalf("unexpected validation error: %#v", validationErr)
+	}
+	if len(validationErr.AllowedValues) != 2 || validationErr.AllowedValues[0] != "5" || validationErr.AllowedValues[1] != "10" {
+		t.Fatalf("unexpected allowed values: %#v", validationErr.AllowedValues)
+	}
+	if validationErr.SuggestedFix["duration"] != "5" {
+		t.Fatalf("expected suggested duration fix, got %#v", validationErr.SuggestedFix)
+	}
+}
+
 func TestValidateAndNormalizeGenerationParamsReturnsCanonicalKeys(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image", AdapterVolcen,
@@ -173,6 +197,87 @@ func TestValidateAndNormalizeGenerationParamsIgnoresJobMetadata(t *testing.T) {
 	}
 }
 
+func TestParamsSchemaExposesResolvedParamDefs(t *testing.T) {
+	schema := ParamsSchema([]ParamDef{
+		{Key: "duration", Label: "时长", Type: "select", Options: []string{"5", "10"}, Default: "5", ConflictsWith: []string{"frames"}},
+		{Key: "frames", Label: "帧数", Type: "number", Min: 29, Max: 289, Step: 4},
+		{Key: "resolution", Label: "分辨率", Type: "select", Options: []string{"480p", "720p"}, Default: "720p",
+			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}},
+		{Key: "seed", Label: "种子", Type: "number", Min: -1, Max: 100, Step: 1},
+		{Key: "audio", Label: "音频", Type: "boolean", Default: true},
+		{Key: "draft", Label: "样片", Type: "boolean", Default: false},
+	})
+	if schema["type"] != "object" {
+		t.Fatalf("expected object schema, got %#v", schema)
+	}
+	props, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected properties map, got %#v", schema["properties"])
+	}
+	duration, ok := props["duration"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected duration property, got %#v", props["duration"])
+	}
+	if duration["type"] != "string" {
+		t.Fatalf("expected select params to become string enum, got %#v", duration)
+	}
+	if schema["additionalProperties"] != false {
+		t.Fatalf("expected additionalProperties=false, got %#v", schema)
+	}
+	allOf, ok := schema["allOf"].([]any)
+	if !ok || len(allOf) != 2 {
+		t.Fatalf("expected two cross-param schema rules, got %#v", schema["allOf"])
+	}
+	if !schemaRuleHasKey(allOf, "not") {
+		t.Fatalf("expected conflict rule in allOf, got %#v", allOf)
+	}
+	if !schemaRuleHasKey(allOf, "if") {
+		t.Fatalf("expected conditional enum rule in allOf, got %#v", allOf)
+	}
+}
+
+func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
+	def := &ModelDef{
+		ID:           "declared-rules",
+		DisplayName:  "Declared Rules",
+		Capabilities: []string{CapabilityVideo},
+		SupportedParams: []ParamDef{
+			{Key: "duration", Type: "select", Options: []string{"5", "10"}, ConflictsWith: []string{"frames"}},
+			{Key: "frames", Type: "number", Min: 29, Max: 289, Step: 4},
+			{Key: "draft", Type: "boolean"},
+			{Key: "resolution", Type: "select", Options: []string{"480p", "720p"}, ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}},
+		},
+		SupportedParamsExplicit: true,
+	}
+	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5","frames":29}`, "", 0); err == nil {
+		t.Fatal("expected declared conflict rule to reject duration + frames")
+	}
+	err := ValidateGenerationParams(def, CapabilityVideo, `{"draft":true,"resolution":"720p"}`, "", 0)
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T %[1]v", err)
+	}
+	if validationErr.SuggestedFix["resolution"] != "480p" {
+		t.Fatalf("expected resolution suggested fix, got %#v", validationErr.SuggestedFix)
+	}
+}
+
+func TestModelInputsForDefReflectsTaskRequirements(t *testing.T) {
+	def := ResolveModelDef(
+		"custom-i2v", AdapterVolcen,
+		"Custom I2V", CapabilityVideoI2V, string(PricingPerSecond),
+		true, 2, 0,
+		"", "",
+	)
+	inputs := modelInputsForDef(def)
+	if inputs.Image.Min != 1 || inputs.Image.Max != 2 {
+		t.Fatalf("expected i2v image input min=1 max=2, got %#v", inputs.Image)
+	}
+	if inputs.Video.Min != 0 || inputs.Video.Max != 0 {
+		t.Fatalf("expected no video input requirement, got %#v", inputs.Video)
+	}
+}
+
 func TestTextRequestParamsForValidation(t *testing.T) {
 	req := TextRequest{
 		MaxTokens:   512,
@@ -196,6 +301,17 @@ func hasParam(params []ParamDef, key string) bool {
 	for _, p := range params {
 		if p.Key == key {
 			return true
+		}
+	}
+	return false
+}
+
+func schemaRuleHasKey(rules []any, key string) bool {
+	for _, rule := range rules {
+		if m, ok := rule.(map[string]any); ok {
+			if _, exists := m[key]; exists {
+				return true
+			}
 		}
 	}
 	return false

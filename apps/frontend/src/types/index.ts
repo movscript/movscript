@@ -284,6 +284,14 @@ export interface ParamDef {
   min?: number
   max?: number
   step?: number
+  conflicts_with?: string[]
+  conditional_enum?: ParamConditionalEnum[]
+}
+
+export interface ParamConditionalEnum {
+  when_param: string
+  when_value: string | number | boolean
+  options: string[]
 }
 
 export interface ModelParamProfile {
@@ -291,6 +299,16 @@ export interface ModelParamProfile {
   deny?: string[]
   override?: Record<string, ParamDef>
   add?: ParamDef[]
+}
+
+export interface ModelInputRequirement {
+  min: number
+  max: number
+}
+
+export interface ModelInputRequirements {
+  image: ModelInputRequirement
+  video: ModelInputRequirement
 }
 
 // PublicModel is the user-facing model representation.
@@ -308,6 +326,8 @@ export interface PublicModel {
   model_def_id?: string
   model_id_override?: string   // actual model ID sent to API if overridden
   supported_params?: ParamDef[]
+  input_requirements?: ModelInputRequirements
+  params_schema?: Record<string, unknown>
 }
 
 // FeatureConfig controls which AI models are available for each named feature.

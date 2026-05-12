@@ -87,8 +87,7 @@
       "quality": {
         "type": "string",
         "title": "质量",
-        "enum": ["auto", "standard", "hd", "high", "medium", "low"],
-        "default": "standard"
+        "enum": ["auto", "standard", "hd", "high", "medium", "low"]
       },
       "steps": {
         "type": "number",

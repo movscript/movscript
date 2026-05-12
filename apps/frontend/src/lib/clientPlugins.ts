@@ -464,7 +464,7 @@ export const SAMPLE_REF_IMAGE_PLUGIN = JSON.stringify({
       reference_resource_ids: { type: 'string', title: '参考资源 ID', description: '可选。多个 ID 用英文逗号分隔' },
       aspect_ratio: { type: 'string', title: '画幅', enum: ['1:1', '16:9', '9:16', '4:3', '3:4'], default: '1:1' },
       image_size: { type: 'string', title: '尺寸', default: '1024x1024' },
-      quality: { type: 'string', title: '质量', enum: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'standard' },
+      quality: { type: 'string', title: '质量', enum: ['auto', 'standard', 'hd', 'high', 'medium', 'low'] },
     },
   },
   script: `async function run(mov, args) {
@@ -482,7 +482,10 @@ export const SAMPLE_REF_IMAGE_PLUGIN = JSON.stringify({
     prompt: String(args.prompt || ''),
     input_resource_ids: refIds,
     aspect_ratio: String(args.aspect_ratio || '1:1'),
-    extra_params: { image_size: args.image_size || '1024x1024', quality: args.quality || 'standard' },
+    extra_params: {
+      image_size: args.image_size || '1024x1024',
+      ...(args.quality ? { quality: args.quality } : {}),
+    },
   })
   return { content: [{ type: 'text', text: '图像生成完成' }], data: job }
 }`,

@@ -1,13 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
-import type { AgentRun, AgentThread, AgentTraceEvent } from './types.js'
+import type { AgentPlan, AgentRun, AgentTask, AgentThread, AgentTraceEvent } from './types.js'
 import { InMemoryAgentStore, type AgentStore } from './store.js'
 
 interface AgentStateFile {
-  version: 1 | 2
+  version: 1 | 2 | 3
   threads: AgentThread[]
   runs: AgentRun[]
+  plans?: AgentPlan[]
+  tasks?: AgentTask[]
   traceEvents?: AgentTraceEvent[]
 }
 
@@ -40,6 +42,26 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     this.persist()
   }
 
+  override createPlan(plan: AgentPlan): void {
+    super.createPlan(plan)
+    this.persist()
+  }
+
+  override updatePlan(plan: AgentPlan): void {
+    super.updatePlan(plan)
+    this.persist()
+  }
+
+  override createTask(task: AgentTask): void {
+    super.createTask(task)
+    this.persist()
+  }
+
+  override updateTask(task: AgentTask): void {
+    super.updateTask(task)
+    this.persist()
+  }
+
   override appendTraceEvent(event: AgentTraceEvent): void {
     super.appendTraceEvent(event)
     this.persist()
@@ -54,6 +76,12 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     for (const run of parsed.runs ?? []) {
       super.createRun(run)
     }
+    for (const plan of parsed.plans ?? []) {
+      super.createPlan(plan)
+    }
+    for (const task of parsed.tasks ?? []) {
+      super.createTask(task)
+    }
     for (const event of parsed.traceEvents ?? []) {
       super.appendTraceEvent(event)
     }
@@ -62,9 +90,11 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
   private persist(): void {
     const runs = this.listRuns()
     const state: AgentStateFile = {
-      version: 2,
+      version: 3,
       threads: this.listThreads(),
       runs,
+      plans: this.listPlans(),
+      tasks: this.listTasks(),
       traceEvents: runs.flatMap((run) => this.listRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })),
     }
     atomicWriteJSON(this.filePath, state)

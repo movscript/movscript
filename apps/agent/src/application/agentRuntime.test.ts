@@ -6,17 +6,15 @@ import test from 'node:test'
 import { AgentRuntime, type AgentRun } from './agentRuntime.js'
 import type { JSONValue } from '../types.js'
 import { FileAgentStore } from '../state/fileStore.js'
+import { InMemoryAgentStore } from '../state/store.js'
 import { FileAgentDraftStore, InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
 import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
 import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from '../drafts/backendApplyClient.js'
 import type { ApplyDraftReview } from '../drafts/draftApply.js'
-import {
-  SCRIPT_SPLIT_RUNTIME_CONTRACT,
-} from '../contracts/scriptSplitContract.js'
-import { StaticAgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import { InMemoryAgentCatalogStateStore } from '../manifest/catalogState.js'
 import { loadAgentPluginCatalog } from '../manifest/pluginCatalog.js'
+import { StaticToolRegistry } from '../tools/toolRegistry.js'
 import { normalizeClientInput } from '../context/normalizeClientInput.js'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 
@@ -39,7 +37,6 @@ const WRITE_AGENT_MANIFEST = {
 }
 
 // Default model fetch: returns tool calls based on message content, then a final text reply
-const _originalFetch = globalThis.fetch
 function installDefaultModelFetch(): void {
   globalThis.fetch = (async (_url: string, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
@@ -509,6 +506,13 @@ test('explicit write agent can create_project without a current project after ap
   assert.equal(run.status, 'requires_action')
   assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_create_project')
   assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
+  assertRunTraceEventTypes(runtime, run.id, [
+    'profile.resolved',
+    'trigger.evaluated',
+    'prompt.composed',
+    'tool.call.policy_decision',
+    'approval.requested',
+  ])
 
   runtime.approveRun(run.id)
   const resumed = await waitForRun(runtime, run.id)
@@ -941,7 +945,7 @@ test('file store writes valid JSON atomically enough to recover state', () => {
     })
 
     const parsed = JSON.parse(readFileSync(statePath, 'utf8'))
-    assert.equal(parsed.version, 2)
+    assert.equal(parsed.version, 3)
     assert.equal(parsed.threads[0].id, 'thread_atomic')
     assert.deepEqual(parsed.traceEvents, [])
     assert.equal(new FileAgentStore(statePath).getThread('thread_atomic')?.id, 'thread_atomic')
@@ -1024,6 +1028,11 @@ test('records backend model gateway HTTP request and response in run trace', asy
     assert.equal(responseData.response.parsedBody.id, 'chatcmpl_trace_test')
     assert.equal(responseData.response.content, 'trace reply')
     assert.equal(typeof responseData.latencyMs, 'number')
+    assertRunTraceEventTypes(runtime, run.id, [
+      'profile.resolved',
+      'trigger.evaluated',
+      'prompt.composed',
+    ])
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -1389,7 +1398,10 @@ test('/image command forces a generation tool call and returns the generated job
   const finalThread = runtime.getThread(thread.id)
   const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
   assert.ok(run.status === 'completed' || run.status === 'completed_with_warnings')
-  assert.equal(client.calls.filter((call) => call.name === 'movscript_create_generation_job').length, 1)
+  const generationCalls = client.calls.filter((call) => call.name === 'movscript_create_generation_job')
+  assert.equal(generationCalls.length, 1)
+  assert.deepEqual(generationCalls[0]?.args.extra_params, undefined)
+  assert.equal(generationCalls[0]?.args.aspect_ratio, undefined)
   assert.match(assistant?.content ?? '', /\/image/)
   assert.match(assistant?.content ?? '', /Output resource: #654/)
 })
@@ -1911,6 +1923,42 @@ test('runtime can enable a local agent bundle and use its tools in later runs', 
   }
 })
 
+test('reloadAgentCatalog rolls back when catalog linter reports errors', () => {
+  let loadCount = 0
+  const goodCatalog = loadAgentPluginCatalog({
+    enabledBundleIds: [],
+  })
+  const badCatalog = {
+    ...goodCatalog,
+    catalogIssues: [{
+      level: 'error' as const,
+      code: 'catalog.lint.fail',
+      message: 'broken candidate',
+      resourceId: 'studio.bundle.broken',
+    }],
+    registry: new StaticToolRegistry([]),
+    skills: [],
+    warnings: [],
+  }
+  const runtime = createTestRuntime({
+    mcpClient: new FakeMCPClient(),
+    pluginCatalogLoader: () => {
+      loadCount += 1
+      return loadCount === 1 ? goodCatalog : badCatalog
+    },
+  })
+
+  assert.ok(runtime.listRegisteredTools().length > 0)
+  const beforeCount = runtime.listRegisteredTools().length
+  const result = runtime.reloadAgentCatalog() as any
+
+  assert.equal(result.status, 'rolled_back')
+  assert.equal(result.eventType, 'catalog.reload')
+  assert.equal(result.outcome, 'rolled_back')
+  assert.equal(result.reason, 'catalog.lint.fail')
+  assert.equal(runtime.listRegisteredTools().length, beforeCount)
+})
+
 test('agent loop refreshes tools after enabling a bundle in the same run', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-same-run-catalog-'))
   const skillsDir = join(dir, 'skills')
@@ -2048,6 +2096,318 @@ test('file draft store persists drafts across runtime rebuilds', () => {
   }
 })
 
+test('runtime tracks plan tasks and parent child worker runs', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '好的' }] })
+
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Subagent rollout',
+    tasks: [
+      { title: 'Define task model' },
+      { title: 'Spawn worker', deps: ['task-model'] },
+    ],
+  })
+
+  assert.equal(plan.plan.status, 'pending')
+  assert.equal(plan.tasks.length, 2)
+
+  const planner = await createAndWaitForRun(runtime, thread.id, {
+    role: 'planner',
+    planId: plan.plan.id,
+  })
+  const worker = await createAndWaitForRun(runtime, thread.id, {
+    role: 'worker',
+    parentRunId: planner.id,
+    planId: plan.plan.id,
+    taskId: plan.tasks[0].id,
+    progress: 0.25,
+  })
+
+  assert.equal(planner.role, 'planner')
+  assert.equal(worker.role, 'worker')
+  assert.equal(worker.parentRunId, planner.id)
+  assert.deepEqual(runtime.getChildRuns(planner.id).map((run) => run.id), [worker.id])
+  assert.deepEqual(runtime.listRunsByParent(planner.id).map((run) => run.id), [worker.id])
+
+  const updatedTask = runtime.updateTask(plan.tasks[0].id, {
+    status: 'done',
+    progress: 1,
+    ownerRunId: worker.id,
+    artifacts: [{ type: 'run', title: 'Worker run', uri: `agent-run:${worker.id}` }],
+  })
+  assert.equal(updatedTask.status, 'done')
+  assert.equal(updatedTask.ownerRunId, worker.id)
+  assert.equal(updatedTask.artifacts.some((artifact) => artifact.uri === `agent-run:${worker.id}`), true)
+  assert.equal(runtime.getPlanSnapshot(plan.plan.id).runs.length, 2)
+})
+
+test('plan agent bootstrap creates a structured fallback DAG from a goal', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '开始子agent架构改造' }] })
+
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Subagent architecture',
+    goal: '推进 plan agent 和 worker subagent 架构',
+  })
+
+  assert.equal(plan.plan.status, 'pending')
+  assert.equal(plan.plan.metadata?.goal, '推进 plan agent 和 worker subagent 架构')
+  assert.equal(plan.plan.metadata?.plannerSource, 'fallback')
+  assert.equal(plan.tasks.length, 1)
+  assert.equal(plan.tasks[0]?.id, 'task_execute_goal')
+  assert.equal(plan.tasks[0]?.description, '推进 plan agent 和 worker subagent 架构')
+})
+
+test('supervisor dispatch spawns worker runs and syncs task status from child completion', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Supervisor rollout',
+    tasks: [
+      { id: 'task_a', title: 'Implement base state' },
+      { id: 'task_b', title: 'Wire supervisor', deps: ['task_a'] },
+    ],
+  })
+  const planner = runtime.createRun({
+    threadId: thread.id,
+    role: 'planner',
+    planId: plan.plan.id,
+  })
+  const finishedPlanner = await waitForRun(runtime, planner.id)
+
+  const firstDispatch = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: finishedPlanner.id,
+    maxWorkers: 2,
+  })
+  assert.equal(firstDispatch.spawnedRuns.length, 1)
+  assert.deepEqual(firstDispatch.blockedTaskIds, ['task_b'])
+  assert.equal(firstDispatch.spawnedRuns[0]?.role, 'worker')
+  assert.equal(firstDispatch.spawnedRuns[0]?.parentRunId, finishedPlanner.id)
+  assert.equal(firstDispatch.spawnedRuns[0]?.taskId, 'task_a')
+
+  const firstWorker = await waitForRun(runtime, firstDispatch.spawnedRuns[0]!.id)
+  assert.ok(firstWorker.status === 'completed' || firstWorker.status === 'completed_with_warnings')
+  const afterFirstWorker = runtime.getPlanSnapshot(plan.plan.id)
+  assert.equal(afterFirstWorker.tasks.find((task) => task.id === 'task_a')?.status, 'done')
+  assert.equal(afterFirstWorker.tasks.find((task) => task.id === 'task_a')?.progress, 1)
+
+  const secondDispatch = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: finishedPlanner.id,
+    maxWorkers: 2,
+  })
+  assert.equal(secondDispatch.spawnedRuns.length, 1)
+  assert.equal(secondDispatch.spawnedRuns[0]?.taskId, 'task_b')
+
+  const secondWorker = await waitForRun(runtime, secondDispatch.spawnedRuns[0]!.id)
+  assert.ok(secondWorker.status === 'completed' || secondWorker.status === 'completed_with_warnings')
+  const donePlan = runtime.getPlanSnapshot(plan.plan.id)
+  assert.equal(donePlan.plan.status, 'done')
+  assert.equal(donePlan.plan.progress, 1)
+  assert.equal(donePlan.tasks.every((task) => task.status === 'done'), true)
+})
+
+test('plan stream replays snapshots and emits task run lifecycle events', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Streamed supervisor rollout',
+    tasks: [{ id: 'task_stream', title: 'Stream task state' }],
+  })
+  const planner = await createAndWaitForRun(runtime, thread.id, {
+    role: 'planner',
+    planId: plan.plan.id,
+  })
+  const events: string[] = []
+  const unsubscribe = runtime.subscribePlanStream(plan.plan.id, (event) => {
+    events.push(event.type)
+  })
+
+  const dispatched = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: planner.id,
+  })
+  await waitForRun(runtime, dispatched.spawnedRuns[0]!.id)
+
+  assert.equal(events[0], 'snapshot')
+  assert.equal(events.includes('task'), true)
+  assert.equal(events.includes('run'), true)
+  assert.equal(events.at(-1), 'done')
+  unsubscribe()
+})
+
+test('supervisor retries failed tasks within the configured attempt limit', async () => {
+  const client = new FakeMCPClient()
+  const store = new InMemoryAgentStore()
+  const runtime = createTestRuntime({ mcpClient: client, store, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Retry rollout',
+    tasks: [{ id: 'task_retry', title: 'Retry task' }],
+  })
+  const planner = await createAndWaitForRun(runtime, thread.id, {
+    role: 'planner',
+    planId: plan.plan.id,
+  })
+
+  const now = new Date().toISOString()
+  const firstRun: AgentRun = {
+    id: 'run_retry_1',
+    threadId: thread.id,
+    status: 'failed',
+    role: 'worker',
+    parentRunId: planner.id,
+    planId: plan.plan.id,
+    taskId: 'task_retry',
+    agentManifest: DEFAULT_AGENT_MANIFEST,
+    policy: planner.policy,
+    createdAt: now,
+    updatedAt: now,
+    failedAt: now,
+    error: 'synthetic failure',
+    steps: [],
+    traceEvents: [],
+  }
+  store.createRun(firstRun)
+  runtime.updateTask('task_retry', {
+    status: 'failed',
+    progress: 0.2,
+    ownerRunId: firstRun.id,
+    blockedReason: 'synthetic failure',
+  })
+
+  const secondDispatch = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: planner.id,
+    retryFailed: true,
+    maxTaskAttempts: 2,
+  })
+  assert.deepEqual(secondDispatch.retriedTaskIds, ['task_retry'])
+  assert.equal(secondDispatch.spawnedRuns.length, 1)
+  assert.notEqual(secondDispatch.spawnedRuns[0]?.id, firstRun.id)
+  assert.equal(secondDispatch.spawnedRuns[0]?.taskId, 'task_retry')
+
+  runtime.updateTask('task_retry', {
+    status: 'failed',
+    progress: 0.4,
+    ownerRunId: secondDispatch.spawnedRuns[0]!.id,
+    blockedReason: 'second synthetic failure',
+  })
+  const thirdDispatch = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: planner.id,
+    retryFailed: true,
+    maxTaskAttempts: 2,
+  })
+  assert.deepEqual(thirdDispatch.retriedTaskIds, [])
+  assert.equal(thirdDispatch.spawnedRuns.length, 0)
+})
+
+test('supervisor cancels timed out worker runs before dispatching more work', async () => {
+  const client = new FakeMCPClient()
+  const store = new InMemoryAgentStore()
+  const runtime = createTestRuntime({ mcpClient: client, store, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Timeout rollout',
+    tasks: [{ id: 'task_timeout', title: 'Timeout task' }],
+  })
+  const planner = await createAndWaitForRun(runtime, thread.id, {
+    role: 'planner',
+    planId: plan.plan.id,
+  })
+  const staleStartedAt = new Date(Date.now() - 60_000).toISOString()
+  const run: AgentRun = {
+    id: 'run_timeout_1',
+    threadId: thread.id,
+    status: 'in_progress',
+    role: 'worker',
+    parentRunId: planner.id,
+    planId: plan.plan.id,
+    taskId: 'task_timeout',
+    agentManifest: DEFAULT_AGENT_MANIFEST,
+    policy: planner.policy,
+    createdAt: staleStartedAt,
+    updatedAt: staleStartedAt,
+    startedAt: staleStartedAt,
+    steps: [],
+    traceEvents: [],
+  }
+  store.createRun(run)
+  runtime.updateTask('task_timeout', {
+    status: 'running',
+    progress: 0.1,
+    ownerRunId: run.id,
+  })
+
+  const dispatch = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: planner.id,
+    workerTimeoutMs: 1,
+  })
+  assert.deepEqual(dispatch.timedOutRunIds, [run.id])
+  assert.equal(runtime.getRun(run.id)?.status, 'cancelled')
+  assert.equal(runtime.getPlanSnapshot(plan.plan.id).tasks.find((task) => task.id === 'task_timeout')?.status, 'cancelled')
+})
+
+test('replan updates the task graph, resets blocked work, and dispatches runnable workers', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Replan rollout',
+    tasks: [
+      { id: 'task_blocked', title: 'Blocked task' },
+      { id: 'task_followup', title: 'Follow up', deps: ['task_blocked'] },
+    ],
+  })
+  const planner = await createAndWaitForRun(runtime, thread.id, {
+    role: 'planner',
+    planId: plan.plan.id,
+  })
+  runtime.updateTask('task_blocked', {
+    status: 'blocked',
+    progress: 0.25,
+    blockedReason: 'needs smaller task graph',
+  })
+
+  const replan = runtime.replanRun(planner.id, {
+    tasks: [
+      { id: 'task_followup', description: 'Run after the recovered blocked task and added audit task.' },
+      { id: 'task_audit', title: 'Audit new path', deps: ['task_blocked'] },
+    ],
+    resetBlocked: true,
+    maxWorkers: 2,
+  })
+
+  assert.deepEqual(replan.createdTaskIds, ['task_audit'])
+  assert.deepEqual(replan.updatedTaskIds, ['task_followup'])
+  assert.deepEqual(replan.resetTaskIds, ['task_blocked'])
+  assert.equal(replan.dispatch?.spawnedRuns.length, 1)
+  assert.equal(replan.dispatch?.spawnedRuns[0]?.taskId, 'task_blocked')
+
+  const snapshot = runtime.getPlanSnapshot(plan.plan.id)
+  assert.equal(snapshot.tasks.find((task) => task.id === 'task_blocked')?.status, 'running')
+  assert.equal(snapshot.tasks.find((task) => task.id === 'task_blocked')?.blockedReason, undefined)
+  assert.equal(
+    snapshot.tasks.find((task) => task.id === 'task_followup')?.description,
+    'Run after the recovered blocked task and added audit task.',
+  )
+  assert.equal(snapshot.tasks.find((task) => task.id === 'task_audit')?.status, 'pending')
+})
+
 async function createAndWaitForRun(
   runtime: AgentRuntime,
   threadId: string,
@@ -2087,7 +2447,25 @@ function runHasTool(run: AgentRun, toolName: string): boolean {
   return run.steps.some((step) => step.toolName === toolName)
 }
 
+function assertRunTraceEventTypes(runtime: AgentRuntime, runId: string, expected: string[]): void {
+  const actual = new Set(
+    runtime.getRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER })
+      .map((event) => {
+        const data = event.data
+        return isPlainTestRecord(data) ? data.eventType : undefined
+      })
+      .filter((eventType): eventType is string => typeof eventType === 'string'),
+  )
+  for (const eventType of expected) {
+    assert.equal(actual.has(eventType), true, `missing trace eventType ${eventType}`)
+  }
+}
+
 function isTestRecord(value: unknown): value is Record<string, any> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isPlainTestRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 

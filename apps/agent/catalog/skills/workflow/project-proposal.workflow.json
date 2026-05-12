@@ -1,0 +1,28 @@
+{
+  "id": "movscript.workflow.project-proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Project Proposal",
+  "description": "Draft project-level creative reference and asset-slot proposals as local merge patches.",
+  "priority": 900,
+  "enabled": true,
+  "triggers": [
+    { "kind": "intent", "id": "project_proposal" },
+    { "kind": "context", "selector": { "mode": ["project-orchestration"] } },
+    { "kind": "keyword", "any": ["项目提案", "项目设定", "素材需求", "project proposal", "project_proposal"] }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_current_context",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.project_proposal.v1"
+  ],
+  "instructionTemplate": "Goal: produce or edit one local project_proposal draft as a partial merge patch over project-level creative_references and asset_slots. Do not write final project entities.\n\nDraft schema: {{schema:movscript.project_proposal.v1.id}}\n\n{{schema:movscript.project_proposal.v1}}\n\nTool reference:\n- Context: {{tool:movscript_get_current_context}}\n- Draft creation/editing: {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}\n- User input: {{tool:movscript_request_user_input}}\n\nWorkflow:\n1. Read current context. If projectId is missing and cannot be inferred, ask with movscript_request_user_input.\n2. Find an existing project_proposal draft; otherwise create one with proposal=true.\n3. Patch content with JSON Pointer operations. Validate before summarizing.\n4. Run preview_apply for dry-run finalization. If validation or backend errors appear, patch and preview again.\n5. Keep creative_references as the setting layer and asset_slots as owned material requirements.",
+  "outputContract": "Reply with draftId, projectId, productionId when available, draft status, last preview_apply ok/stage, and concise setting/asset gaps."
+}

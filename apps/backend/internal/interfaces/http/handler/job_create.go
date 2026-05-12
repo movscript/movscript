@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	jobapp "github.com/movscript/movscript/internal/app/job"
 	domainjob "github.com/movscript/movscript/internal/domain/job"
+	"github.com/movscript/movscript/internal/infra/ai"
 )
 
 // Create enqueues a new generation job and returns immediately with status=pending.
@@ -60,7 +61,24 @@ func (h *JobHandler) Create(c *gin.Context) {
 }
 
 func (h *JobHandler) writeJobCreateError(c *gin.Context, err error) {
+	var validationErr *ai.ValidationError
 	switch {
+	case errors.As(err, &validationErr):
+		body := gin.H{
+			"error":   validationErr.Message,
+			"code":    validationErr.Code,
+			"details": validationErr,
+		}
+		if validationErr.Field != "" {
+			body["field"] = validationErr.Field
+		}
+		if len(validationErr.AllowedValues) > 0 {
+			body["allowed_values"] = validationErr.AllowedValues
+		}
+		if len(validationErr.SuggestedFix) > 0 {
+			body["suggested_fix"] = validationErr.SuggestedFix
+		}
+		c.JSON(http.StatusBadRequest, body)
 	case errors.Is(err, jobapp.ErrJobTypeRequired), errors.Is(err, jobapp.ErrInvalidJobType):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	case errors.Is(err, jobapp.ErrProjectNotFound):

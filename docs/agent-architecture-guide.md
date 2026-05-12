@@ -16,6 +16,7 @@ Frontend / Electron
 - `apps/agent` 负责 Thread/Run 生命周期、agentic loop、工具策略、sandbox、草稿、记忆和模型回复，是 thread、message、run、trace、draft、memory 的本地事实源。
 - Agent 动态更新只覆盖 manifest、policy、prompt、tool catalog、skill catalog 等行为配置；runtime code 更新必须走签名应用更新器，详见 `docs/agent-dynamic-update-architecture.md`。
 - Go backend 负责正式项目实体、语义数据、资源和 model gateway。
+- 子 Agent 机制的实现规划见 [Agent subagent mechanism plan](agent-subagent-mechanism-plan.md)。
 
 ## 核心概念
 

@@ -68,8 +68,7 @@
           "high",
           "medium",
           "low"
-        ],
-        "default": "standard"
+        ]
       },
       "steps": {
         "type": "number",
@@ -89,5 +88,43 @@
       }
     }
   },
-  "bundle": "\"use strict\";var __movPlugin__=(()=>{var g=Object.defineProperty;var y=Object.getOwnPropertyDescriptor;var w=Object.getOwnPropertyNames;var P=Object.prototype.hasOwnProperty;var R=(t,e)=>{for(var n in e)g(t,n,{get:e[n],enumerable:!0})},h=(t,e,n,r)=>{if(e&&typeof e==\"object\"||typeof e==\"function\")for(let i of w(e))!P.call(t,i)&&i!==n&&g(t,i,{get:()=>e[i],enumerable:!(r=y(e,i))||r.enumerable});return t};var k=t=>h(g({},\"__esModule\",{value:!0}),t);var x={};R(x,{run:()=>I});async function I(t,e){let n=String(e.prompt??\"\").trim();if(!n)throw new Error(\"prompt \\u4E0D\\u80FD\\u4E3A\\u7A7A\");let r=String(e.reference_resource_ids??\"\").split(\",\").map(s=>Number(s.trim())).filter(s=>Number.isFinite(s)&&s>0),i=r.length>0,o=Number(e.model_config_id);if(!o||!Number.isFinite(o)){let s=i?\"image_edit\":\"image\",c=await t.models(s);if(c.length===0){let p=await t.models(i?\"image\":\"image_edit\");if(p.length===0)throw new Error(\"\\u6CA1\\u6709\\u53EF\\u7528\\u7684\\u56FE\\u50CF\\u6A21\\u578B\\u914D\\u7F6E\\uFF0C\\u8BF7\\u5728\\u7BA1\\u7406\\u540E\\u53F0\\u6DFB\\u52A0\");o=p[0].id}else o=c[0].id}let d=String(e.aspect_ratio??\"1:1\"),_=String(e.image_size??\"1024x1024\"),l=String(e.quality??\"standard\"),f=Number(e.timeout_ms??18e4),a={image_size:_,quality:l};e.negative_prompt&&(a.negative_prompt=String(e.negative_prompt)),e.steps&&(a.steps=Number(e.steps)),e.seed&&(a.seed=Number(e.seed));let m=await t.generateImage({model_config_id:o,job_type:i?\"image_edit\":\"image\",feature_key:\"plugin.image_generator\",prompt:n,input_resource_ids:r,aspect_ratio:d,extra_params:a,timeout_ms:f}),b=m.output_resource_ids?.length??0,u=[`\\u56FE\\u50CF\\u751F\\u6210\\u5B8C\\u6210 (Job #${m.ID})`,`\\u72B6\\u6001: ${m.status}`];return b>0&&u.push(`\\u8F93\\u51FA\\u8D44\\u6E90 ID: ${m.output_resource_ids.join(\", \")}`),i&&u.push(`\\u53C2\\u8003\\u56FE: ${r.join(\", \")}`),{content:[{type:\"text\",text:u.join(`\n`)}],data:m}}return k(x);})();\n\nvar run = __movPlugin__.run;"
+  "contributes": {
+    "canvasNodes": [
+      {
+        "type": "com.movscript.image-generator.image_generator",
+        "title": "图像生成器",
+        "description": "文生图或参考图生图节点。",
+        "category": "ai",
+        "icon": "image",
+        "inputs": [
+          {
+            "id": "prompt",
+            "label": "提示词",
+            "type": "text",
+            "required": true
+          },
+          {
+            "id": "references",
+            "label": "参考图",
+            "type": "image",
+            "maxCount": 8
+          }
+        ],
+        "outputs": [
+          {
+            "id": "result",
+            "label": "生成图片",
+            "type": "image"
+          }
+        ],
+        "defaultData": {
+          "source": "ai",
+          "label": "图像生成器",
+          "outputType": "image"
+        }
+      }
+    ]
+  },
+  "hasCompile": true,
+  "bundle": "/* movscript-plugin: com.movscript.image-generator */\n\"use strict\";var __movPlugin__=(()=>{var c=Object.defineProperty;var f=Object.getOwnPropertyDescriptor;var b=Object.getOwnPropertyNames;var y=Object.prototype.hasOwnProperty;var x=(e,t)=>{for(var n in t)c(e,n,{get:t[n],enumerable:!0})},I=(e,t,n,o)=>{if(t&&typeof t==\"object\"||typeof t==\"function\")for(let i of b(t))!y.call(e,i)&&i!==n&&c(e,i,{get:()=>t[i],enumerable:!(o=f(t,i))||o.enumerable});return e};var R=e=>I(c({},\"__esModule\",{value:!0}),e);var h={};x(h,{compile:()=>S,run:()=>N});function g(e){let t=String(e.prompt??\"\").trim();if(!t)throw new Error(\"prompt \\u4E0D\\u80FD\\u4E3A\\u7A7A\");let n=String(e.reference_resource_ids??\"\").split(\",\").map(r=>Number(r.trim())).filter(r=>Number.isFinite(r)&&r>0),o=n.length>0,i=String(e.aspect_ratio??\"1:1\"),m=String(e.image_size??\"1024x1024\"),u=Number(e.timeout_ms??18e4),s={image_size:m};return e.quality!==void 0&&e.quality!==null&&String(e.quality).trim()!==\"\"&&(s.quality=String(e.quality)),e.negative_prompt&&(s.negative_prompt=String(e.negative_prompt)),e.steps&&(s.steps=Number(e.steps)),e.seed&&(s.seed=Number(e.seed)),{prompt:t,refIds:n,isEdit:o,aspectRatio:i,timeoutMs:u,extraParams:s}}function S(e){let{prompt:t,refIds:n,isEdit:o,aspectRatio:i,extraParams:m}=g(e),u=Number(e.model_config_id);return{executor:\"ai_model\",capability:o?\"image_edit\":\"image\",featureKey:\"plugin.image_generator\",modelDbId:Number.isFinite(u)?u:void 0,prompt:t,inputResourceIds:n,aspectRatio:i,params:m}}async function N(e,t){let{prompt:n,refIds:o,isEdit:i,aspectRatio:m,timeoutMs:u,extraParams:s}=g(t),r=Number(t.model_config_id);if(!r||!Number.isFinite(r)){let _=i?\"image_edit\":\"image\",d=await e.models(_);if(d.length===0){let l=await e.models(i?\"image\":\"image_edit\");if(l.length===0)throw new Error(\"\\u6CA1\\u6709\\u53EF\\u7528\\u7684\\u56FE\\u50CF\\u6A21\\u578B\\u914D\\u7F6E\\uFF0C\\u8BF7\\u5728\\u7BA1\\u7406\\u540E\\u53F0\\u6DFB\\u52A0\");r=l[0].id}else r=d[0].id}let a=await e.generateMedia({model_config_id:r,job_type:i?\"image_edit\":\"image\",feature_key:\"plugin.image_generator\",prompt:n,input_resource_ids:o,aspect_ratio:m,extra_params:s,timeout_ms:u}),p=[`\\u56FE\\u50CF\\u751F\\u6210\\u5B8C\\u6210 (Job #${a.ID})`,`\\u72B6\\u6001: ${a.status}`];return a.output_resource_ids?.length&&p.push(`\\u8F93\\u51FA\\u8D44\\u6E90 ID: ${a.output_resource_ids.join(\", \")}`),i&&p.push(`\\u53C2\\u8003\\u56FE: ${o.join(\", \")}`),{content:[{type:\"text\",text:p.join(`\n`)}],data:a}}return R(h);})();\nvar run = __movPlugin__.run; var compile = __movPlugin__.compile;\n"
 }

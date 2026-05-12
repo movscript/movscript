@@ -8,11 +8,8 @@ import { FileAgentMemoryStore } from '../memory/fileMemoryStore.js'
 import { FileAgentCatalogStateStore, resolveAgentCatalogStatePath } from '../manifest/catalogState.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from '../model/modelConfig.js'
 import {
-  StaticAgentRuntimeContractResolver,
+  EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
 } from '../contracts/runtimeContract.js'
-import {
-  SCRIPT_SPLIT_RUNTIME_CONTRACT,
-} from '../contracts/scriptSplitContract.js'
 import { buildAgentUpdateState } from '../updates/updatePolicy.js'
 
 const DEFAULT_AGENT_PORT = 28765
@@ -103,9 +100,7 @@ export function createAgentServerContext(): AgentServerContext {
   })
   const client = new MCPClient({ endpoint: mcpEndpoint })
   const backendApplyClient = new MCPBackendApplyClient(client)
-  const runtimeContractResolver = new StaticAgentRuntimeContractResolver([
-    SCRIPT_SPLIT_RUNTIME_CONTRACT,
-  ])
+  const runtimeContractResolver = EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
 
   const agentRuntime = new AgentRuntime({
     mcpClient: client,

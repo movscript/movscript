@@ -63,6 +63,7 @@ export interface ChatMessageMeta {
   permissionMode?: AgentPermissionMode
   contextLabels?: string[]
   generationJobs?: ChatGenerationJob[]
+  generationParamAudits?: ChatGenerationParamAudit[]
   localRunActivity?: ChatRunActivity
 }
 
@@ -82,6 +83,19 @@ export interface ChatGenerationJob {
   firstSeenAt?: string
   updatedAt?: string
   completedAt?: string
+}
+
+export interface ChatGenerationParamAudit {
+  stepId?: string
+  jobId?: number
+  modelConfigId?: number
+  modelContractLoaded: boolean
+  supportedParams: string[]
+  providedExtraParams: string[]
+  submittedExtraParams: string[]
+  droppedExtraParams: string[]
+  droppedTopLevelParams: string[]
+  extraParamsParseError?: string
 }
 
 export interface ChatRunActivity {

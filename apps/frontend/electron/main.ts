@@ -3,7 +3,7 @@ import { existsSync } from 'fs'
 import { join } from 'path'
 import { getBackendLaunchPolicy, getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
 import { ensureAgentRuntimeRunning, getAgentRuntimeLaunchPolicy, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
-import { setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
+import { getMCPServerStatus, setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
 
 function resolvePreloadPath(): string {
@@ -78,12 +78,18 @@ async function startAgentRuntimeOnAppReady(): Promise<void> {
     console.info('[agent] launch policy=external; not spawning local agent runtime')
     return
   }
+  await ensureMCPServerReady()
   const status = await ensureAgentRuntimeRunning()
   if (!status.ok) {
     console.warn(`[agent] auto-start failed: ${status.error ?? 'unknown error'}`)
     return
   }
   console.info(`[agent] auto-start ${status.started ? 'started' : 'ready'} at ${status.baseURL}${status.pid ? ` pid=${status.pid}` : ''}`)
+}
+
+async function ensureMCPServerReady(): Promise<void> {
+  const port = await startMCPServer()
+  console.info(`[bootstrap] MCP server ready at http://127.0.0.1:${port}/mcp`)
 }
 
 async function bootstrapBackendBeforeAgent(): Promise<boolean> {
@@ -104,7 +110,7 @@ async function bootstrapBackendBeforeAgent(): Promise<boolean> {
 }
 
 app.whenReady().then(async () => {
-  await startMCPServer()
+  await ensureMCPServerReady()
   if (await bootstrapBackendBeforeAgent()) {
     void startAgentRuntimeOnAppReady()
   }
@@ -153,6 +159,10 @@ ipcMain.handle('mcp:update-context', (_e, snapshot: MCPContextSnapshot) => {
   updateMCPContextSnapshot(snapshot)
 })
 
+ipcMain.handle('mcp:get-status', () => {
+  return getMCPServerStatus()
+})
+
 ipcMain.handle('backend:get-status', () => {
   return getBackendStatus()
 })
@@ -168,10 +178,12 @@ ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; 
   setMCPAPIBaseURL(settings.apiBaseURL)
   await setAgentRuntimeAPIBaseURL(settings.apiBaseURL)
   if (getAgentRuntimeLaunchPolicy() !== 'external') {
+    await ensureMCPServerReady()
     await ensureAgentRuntimeRunning()
   }
 })
 
-ipcMain.handle('agent:ensure-running', (_e, input?: { baseURL?: string }) => {
+ipcMain.handle('agent:ensure-running', async (_e, input?: { baseURL?: string }) => {
+  await ensureMCPServerReady()
   return ensureAgentRuntimeRunning(input)
 })

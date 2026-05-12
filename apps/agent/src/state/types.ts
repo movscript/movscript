@@ -3,7 +3,6 @@ import type { JSONValue, MCPResource, MCPTool } from '../types.js'
 import type { AgentManifest, AgentSkillManifest } from '../manifest/agentManifest.js'
 import type { RegisteredTool, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { AgentCatalogStateStore } from '../manifest/catalogState.js'
-import type { AgentPluginBundle } from '../manifest/pluginCatalog.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
@@ -17,6 +16,9 @@ export type AgentThreadStatus = 'idle' | 'running' | 'requires_action' | 'comple
 export type AgentStepStatus = 'in_progress' | 'completed' | 'failed'
 export type AgentApprovalStatus = 'pending' | 'approved' | 'rejected'
 export type AgentInputRequestStatus = 'pending' | 'answered' | 'cancelled'
+export type AgentRunRole = 'planner' | 'worker'
+export type AgentPlanStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
+export type AgentTaskStatus = 'pending' | 'running' | 'blocked' | 'needs_review' | 'done' | 'failed' | 'cancelled'
 
 export interface AgentMessage {
   id: string
@@ -95,6 +97,8 @@ export type AgentTraceEventKind =
   | 'approval'
   | 'input'
   | 'assistant'
+  | 'task'
+  | 'plan'
   | 'error'
 
 export interface AgentTraceEvent {
@@ -122,6 +126,12 @@ export interface AgentRun {
   id: string
   threadId: string
   status: AgentRunStatus
+  role?: AgentRunRole
+  parentRunId?: string
+  planId?: string
+  taskId?: string
+  progress?: number
+  blockedReason?: string
   agentManifest?: AgentManifest
   pendingApprovals?: AgentApprovalRequest[]
   pendingInputRequests?: AgentInputRequest[]
@@ -140,9 +150,90 @@ export interface AgentRun {
   traceEvents?: AgentTraceEvent[]
 }
 
+export interface AgentPlan {
+  id: string
+  threadId: string
+  rootRunId?: string
+  title: string
+  status: AgentPlanStatus
+  progress: number
+  blockedReason?: string
+  metadata?: Record<string, JSONValue>
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+  failedAt?: string
+  cancelledAt?: string
+}
+
+export interface AgentTaskArtifact {
+  id: string
+  type: string
+  title?: string
+  uri?: string
+  metadata?: Record<string, JSONValue>
+  createdAt: string
+}
+
+export interface AgentTask {
+  id: string
+  planId: string
+  parentId?: string
+  deps: string[]
+  title: string
+  description?: string
+  status: AgentTaskStatus
+  progress: number
+  ownerRunId?: string
+  blockedReason?: string
+  artifacts: AgentTaskArtifact[]
+  metadata?: Record<string, JSONValue>
+  createdAt: string
+  updatedAt: string
+  startedAt?: string
+  completedAt?: string
+  failedAt?: string
+  cancelledAt?: string
+}
+
+export interface AgentPlanSnapshot {
+  plan: AgentPlan
+  tasks: AgentTask[]
+  runs: AgentRun[]
+}
+
 export type AgentRunStreamRun = AgentRun & {
   streamPartial?: true
 }
+
+export type AgentPlanStreamEvent =
+  | {
+    type: 'snapshot'
+    snapshot: AgentPlanSnapshot
+  }
+  | {
+    type: 'task'
+    planId: string
+    task: AgentTask
+    snapshot: AgentPlanSnapshot
+  }
+  | {
+    type: 'run'
+    planId: string
+    run: AgentRunStreamRun
+    snapshot: AgentPlanSnapshot
+  }
+  | {
+    type: 'trace'
+    planId: string
+    runId: string
+    event: AgentTraceEvent
+    snapshot: AgentPlanSnapshot
+  }
+  | {
+    type: 'done'
+    snapshot: AgentPlanSnapshot
+  }
 
 export type AgentRunStreamEvent =
   | {
@@ -455,6 +546,7 @@ export interface AgentCapabilitiesResponse {
     bundleCount?: number
     activeBundleIds?: string[]
     availableBundleIds?: string[]
+    metadata?: Record<string, JSONValue>
   }
   mcp: {
     connected: boolean
@@ -477,21 +569,7 @@ export interface AgentRuntimeOptions {
   skillCatalog?: AgentSkillManifest[]
   toolRegistry?: import('../tools/toolRegistry.js').ToolRegistry
   catalogStateStore?: AgentCatalogStateStore
-  pluginCatalogLoader?: (options?: { enabledBundleIds?: string[] }) => {
-    manifest: AgentManifest
-    skills: AgentSkillManifest[]
-    registry: import('../tools/toolRegistry.js').ToolRegistry
-    warnings: string[]
-    skillsDir: string
-    toolsDir: string
-    builtinSkillsDir: string
-    builtinToolsDir: string
-    bundlesDir: string
-    builtinBundlesDir: string
-    bundles: AgentPluginBundle[]
-    activeBundleIds: string[]
-    availableBundleIds: string[]
-  }
+  pluginCatalogLoader?: (options?: { enabledBundleIds?: string[] }) => import('../manifest/pluginCatalog.js').AgentPluginCatalog
   contractResolver?: AgentRuntimeContractResolver
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
@@ -521,6 +599,12 @@ export interface CreateRunInput {
   backendAuthToken?: unknown
   backendAPIBaseURL?: unknown
   sandboxMode?: unknown
+  role?: unknown
+  parentRunId?: unknown
+  planId?: unknown
+  taskId?: unknown
+  progress?: unknown
+  blockedReason?: unknown
 }
 
 export interface CreateToolRunInput {
@@ -535,6 +619,12 @@ export interface CreateToolRunInput {
   backendAuthToken?: unknown
   backendAPIBaseURL?: unknown
   sandboxMode?: unknown
+  role?: unknown
+  parentRunId?: unknown
+  planId?: unknown
+  taskId?: unknown
+  progress?: unknown
+  blockedReason?: unknown
 }
 
 export interface PreviewRunInput {
@@ -562,6 +652,90 @@ export interface RejectRunInput {
 
 export interface CancelRunInput {
   reason?: unknown
+}
+
+export interface CreatePlanInput {
+  threadId?: unknown
+  title?: unknown
+  goal?: unknown
+  message?: unknown
+  tasks?: unknown
+  maxTasks?: unknown
+  metadata?: unknown
+  createPlannerRun?: unknown
+  agentManifest?: unknown
+  clientInput?: unknown
+  policy?: unknown
+  approvedToolNames?: unknown
+  backendAuthToken?: unknown
+  backendAPIBaseURL?: unknown
+  sandboxMode?: unknown
+}
+
+export interface DispatchPlanInput {
+  planId?: unknown
+  plannerRunId?: unknown
+  maxWorkers?: unknown
+  maxTaskAttempts?: unknown
+  retryFailed?: unknown
+  workerTimeoutMs?: unknown
+  agentManifest?: unknown
+  approvedToolNames?: unknown
+  policy?: unknown
+  backendAuthToken?: unknown
+  backendAPIBaseURL?: unknown
+  sandboxMode?: unknown
+}
+
+export interface DispatchPlanResult {
+  plan: AgentPlan
+  spawnedRuns: AgentRun[]
+  blockedTaskIds: string[]
+  retriedTaskIds: string[]
+  timedOutRunIds: string[]
+}
+
+export interface ReplanRunInput extends DispatchPlanInput {
+  tasks?: unknown
+  addTasks?: unknown
+  updates?: unknown
+  updateTasks?: unknown
+  resetTaskIds?: unknown
+  resetBlocked?: unknown
+  resetFailed?: unknown
+  resetCancelled?: unknown
+  dispatch?: unknown
+}
+
+export interface ReplanRunResult {
+  plan: AgentPlan
+  createdTaskIds: string[]
+  updatedTaskIds: string[]
+  resetTaskIds: string[]
+  dispatch?: DispatchPlanResult
+}
+
+export interface CreatePlanTaskInput {
+  id?: unknown
+  parentId?: unknown
+  deps?: unknown
+  title?: unknown
+  description?: unknown
+  metadata?: unknown
+}
+
+export interface UpdatePlanTaskInput {
+  id?: unknown
+  parentId?: unknown
+  deps?: unknown
+  title?: unknown
+  description?: unknown
+  status?: unknown
+  progress?: unknown
+  ownerRunId?: unknown
+  blockedReason?: unknown
+  artifacts?: unknown
+  metadata?: unknown
 }
 
 export interface AnswerRunInputRequestInput {

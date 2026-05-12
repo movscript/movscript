@@ -10,21 +10,81 @@ import (
 
 // PublicModel is the user-facing model representation.
 type PublicModel struct {
-	ID                uint       `json:"id"`            // AIModelConfig primary key
-	CredentialID      uint       `json:"credential_id"` // parent AICredential ID (for admin edit)
-	DisplayName       string     `json:"display_name"`
-	ShortName         string     `json:"short_name,omitempty"`
-	ProviderName      string     `json:"provider_name,omitempty"` // credential display_name; admin/provider-variant views only
-	Capabilities      []string   `json:"capabilities"`            // e.g. ["text"], ["image"], ["video_i2v"]
-	AcceptsImageInput bool       `json:"accepts_image_input"`     // true for image_edit and i2v models
-	IsDefault         bool       `json:"is_default,omitempty"`    // true when this is the admin-pinned default for a feature
-	LogicalModelID    string     `json:"logical_model_id,omitempty"`
-	ProviderVariants  int        `json:"provider_variant_count,omitempty"`
-	ModelDefID        string     `json:"model_def_id"`
-	ModelIDOverride   string     `json:"model_id_override,omitempty"` // actual model ID sent to API if overridden
-	SupportedParams   []ParamDef `json:"supported_params,omitempty"`
+	ID                uint           `json:"id"`            // AIModelConfig primary key
+	CredentialID      uint           `json:"credential_id"` // parent AICredential ID (for admin edit)
+	DisplayName       string         `json:"display_name"`
+	ShortName         string         `json:"short_name,omitempty"`
+	ProviderName      string         `json:"provider_name,omitempty"` // credential display_name; admin/provider-variant views only
+	Capabilities      []string       `json:"capabilities"`            // e.g. ["text"], ["image"], ["video_i2v"]
+	AcceptsImageInput bool           `json:"accepts_image_input"`     // true for image_edit and i2v models
+	IsDefault         bool           `json:"is_default,omitempty"`    // true when this is the admin-pinned default for a feature
+	LogicalModelID    string         `json:"logical_model_id,omitempty"`
+	ProviderVariants  int            `json:"provider_variant_count,omitempty"`
+	ModelDefID        string         `json:"model_def_id"`
+	ModelIDOverride   string         `json:"model_id_override,omitempty"` // actual model ID sent to API if overridden
+	SupportedParams   []ParamDef     `json:"supported_params,omitempty"`
+	InputRequirements ModelInputs    `json:"input_requirements"`
+	ParamsSchema      map[string]any `json:"params_schema,omitempty"`
 
 	providerVariantIDs []uint
+}
+
+type ModelInputRequirement struct {
+	Min int `json:"min"`
+	Max int `json:"max"` // -1 means unlimited.
+}
+
+type ModelInputs struct {
+	Image ModelInputRequirement `json:"image"`
+	Video ModelInputRequirement `json:"video"`
+}
+
+func modelInputsForDef(def *ModelDef) ModelInputs {
+	var out ModelInputs
+	if def == nil {
+		return out
+	}
+	out.Image.Max = def.MaxInputImages
+	out.Video.Max = def.MaxInputVideos
+	if out.Image.Max < 0 {
+		out.Image.Max = -1
+	}
+	if out.Video.Max < 0 {
+		out.Video.Max = -1
+	}
+	if hasCap(def, CapabilityImageEdit) || hasCap(def, CapabilityVideoI2V) {
+		out.Image.Min = 1
+		if out.Image.Max == 0 {
+			out.Image.Max = 1
+		}
+	}
+	if hasCap(def, CapabilityVideoV2V) {
+		out.Video.Min = 1
+		if out.Video.Max == 0 {
+			out.Video.Max = 1
+		}
+	}
+	return out
+}
+
+func mergeModelInputs(left, right ModelInputs) ModelInputs {
+	return ModelInputs{
+		Image: mergeModelInputRequirement(left.Image, right.Image),
+		Video: mergeModelInputRequirement(left.Video, right.Video),
+	}
+}
+
+func mergeModelInputRequirement(left, right ModelInputRequirement) ModelInputRequirement {
+	out := ModelInputRequirement{Min: left.Min, Max: left.Max}
+	if right.Min < out.Min {
+		out.Min = right.Min
+	}
+	if out.Max == -1 || right.Max == -1 {
+		out.Max = -1
+	} else if right.Max > out.Max {
+		out.Max = right.Max
+	}
+	return out
 }
 
 // AIService is the unified entry point for all AI calls.
@@ -214,6 +274,8 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 			LogicalModelID:    logicalModelID(row.AIModelConfig, def),
 			ModelDefID:        def.ID,
 			SupportedParams:   def.SupportedParams,
+			InputRequirements: modelInputsForDef(def),
+			ParamsSchema:      ParamsSchema(def.SupportedParams),
 			ProviderVariants:  1,
 			providerVariantIDs: []uint{
 				row.ID,
@@ -234,6 +296,7 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 			result[idx].providerVariantIDs = append(result[idx].providerVariantIDs, row.ID)
 			result[idx].Capabilities = mergeCapabilities(result[idx].Capabilities, def.Capabilities)
 			result[idx].AcceptsImageInput = result[idx].AcceptsImageInput || def.AcceptsImageInput
+			result[idx].InputRequirements = mergeModelInputs(result[idx].InputRequirements, modelInputsForDef(def))
 			continue
 		}
 		groupIndex[key] = len(result)

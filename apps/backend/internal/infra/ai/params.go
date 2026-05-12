@@ -86,6 +86,12 @@ func NormalizeParamDefsForUI(params []ParamDef) []ParamDef {
 				p.Label = "生成音频"
 			}
 		}
+		for i, key := range p.ConflictsWith {
+			p.ConflictsWith[i] = normalizeParamKey(key)
+		}
+		for i := range p.ConditionalEnum {
+			p.ConditionalEnum[i].WhenParam = normalizeParamKey(p.ConditionalEnum[i].WhenParam)
+		}
 		out = append(out, p)
 	}
 	return out

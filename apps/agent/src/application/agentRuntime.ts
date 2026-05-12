@@ -6,7 +6,7 @@ import {
   InMemoryAgentCatalogStateStore,
   type AgentCatalogStateStore,
 } from '../manifest/catalogState.js'
-import { loadAgentPluginCatalog as loadCatalogSnapshot, type AgentPluginBundle } from '../manifest/pluginCatalog.js'
+import { loadAgentPluginCatalog as loadCatalogSnapshot, type AgentPluginBundle, type AgentPluginCatalog } from '../manifest/pluginCatalog.js'
 import { extractAgentContext, parseToolResult } from '../context/runtimeContext.js'
 import { resolveAgentCapabilities } from '../tools/capabilityResolver.js'
 import { MemoryManager } from '../memory/memoryManager.js'
@@ -20,14 +20,14 @@ import {
   normalizeDraftStatus,
   validateDraft,
   type AgentDraft,
-  type AgentDraftKind,
-  type AgentDraftStatus,
   type AgentDraftStore,
 } from '../drafts/draftStore.js'
 import { buildApplyDraftPreview, markDraftApplied, rejectDraft, type ApplyDraftInput } from '../drafts/draftApply.js'
 import { BackendApplyClient, BackendApplyHTTPError, type BackendApplyResult } from '../drafts/backendApplyClient.js'
 import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
 import { runAgentGraph } from '../orchestration/agentGraph.js'
+import { planSupervisorDispatch } from '../orchestration/supervisorGraph.js'
+import { generatePlanTasks } from '../orchestration/planGenerator.js'
 import { buildPromptPreview } from '../orchestration/contextBuilder.js'
 import { filterPromptMemories } from '../context/promptHygiene.js'
 import {
@@ -39,6 +39,12 @@ import { appendTraceEvent, buildRunStep } from '../state/runTrace.js'
 import { buildRunSetupMetadata } from '../state/runSetup.js'
 import type {
   AgentApprovalRequest,
+  AgentPlan,
+  AgentPlanSnapshot,
+  AgentPlanStreamEvent,
+  AgentRunRole,
+  AgentTask,
+  AgentTaskArtifact,
   AgentInputRequest,
   AgentMessage,
   AgentMessageRole,
@@ -59,13 +65,20 @@ import type {
   CancelRunInput,
   AnswerRunInputRequestInput,
   CreateMessageInput,
+  CreatePlanInput,
+  CreatePlanTaskInput,
   CreateRunInput,
   CreateToolRunInput,
   CreateThreadInput,
+  DispatchPlanInput,
+  DispatchPlanResult,
   PreviewRunInput,
   RejectRunInput,
+  ReplanRunInput,
+  ReplanRunResult,
   ToolCallOutcome,
   ToolCall,
+  UpdatePlanTaskInput,
   UpdateThreadInput,
 } from '../state/types.js'
 import { normalizeClientInput, buildRuntimeUserMessage } from '../context/normalizeClientInput.js'
@@ -101,7 +114,11 @@ import { buildGenerationEvent } from '../generation/generationEvents.js'
 export type {
   AgentMessage,
   AgentMessageRole,
+  AgentPlan,
+  AgentPlanSnapshot,
+  AgentPlanStreamEvent,
   AgentRun,
+  AgentRunRole,
   AgentRunPreview,
   AgentRunStatus,
   AgentRunStreamEvent,
@@ -120,17 +137,23 @@ export type {
   CancelRunInput,
   AnswerRunInputRequestInput,
   CreateMessageInput,
+  CreatePlanInput,
+  CreatePlanTaskInput,
   CreateRunInput,
   CreateToolRunInput,
   CreateThreadInput,
+  DispatchPlanInput,
+  DispatchPlanResult,
   PreviewRunInput,
   RejectRunInput,
   UpdateThreadInput,
   ToolCall,
   ToolCallOutcome,
+  UpdatePlanTaskInput,
 } from '../state/types.js'
 export type { AgentMemory, AgentMemoryKind, MemoryQuery } from '../memory/types.js'
 export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from '../manifest/agentManifest.js'
+export type { AgentPluginCatalog } from '../manifest/pluginCatalog.js'
 export type {
   AgentUpdateCandidate,
   AgentUpdateChannel,
@@ -195,6 +218,7 @@ export class AgentRuntime {
   private readonly runControllers = new Map<string, AbortController>()
   private readonly runAuth = new Map<string, { backendAuthToken?: string; backendAPIBaseURL?: string }>()
   private readonly runStreamSubscribers = new Map<string, Set<(event: AgentRunStreamEvent) => void>>()
+  private readonly planStreamSubscribers = new Map<string, Set<(event: AgentPlanStreamEvent) => void>>()
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
@@ -332,6 +356,19 @@ export class AgentRuntime {
     }
     const state = this.catalogStateStore.load()
     const catalog = this.pluginCatalogLoader({ enabledBundleIds: state.enabledBundleIds })
+    const lintErrors = (catalog.catalogIssues ?? []).filter(isBlockingCatalogIssue)
+    if (lintErrors.length > 0) {
+      return {
+        status: 'rolled_back',
+        eventType: 'catalog.reload',
+        outcome: 'rolled_back',
+        catalogVersion: this.pluginCatalogInfo?.metadata?.catalogVersion ?? null,
+        reason: 'catalog.lint.fail',
+        lintErrors,
+        skillCount: this.skillCatalog.length,
+        toolCount: this.toolRegistry.list().length,
+      } as unknown as JSONValue
+    }
     this.defaultAgentManifest = catalog.manifest
     this.skillCatalog = catalog.skills
     this.toolRegistry = catalog.registry
@@ -349,15 +386,23 @@ export class AgentRuntime {
       bundleCount: catalog.bundles.length,
       activeBundleIds: catalog.activeBundleIds,
       availableBundleIds: catalog.availableBundleIds,
+      metadata: {
+        catalogVersion: catalog.layeredRegistry?.version ?? isoNow(),
+        catalogIssueCount: catalog.catalogIssues?.length ?? 0,
+      },
     }
     return {
       status: 'reloaded',
+      eventType: 'catalog.reload',
+      outcome: 'ok',
+      catalogVersion: this.pluginCatalogInfo.metadata?.catalogVersion ?? null,
       enabledBundleIds: state.enabledBundleIds ?? null,
       activeBundleIds: catalog.activeBundleIds,
       availableBundleIds: catalog.availableBundleIds,
       skillCount: catalog.skills.length,
       toolCount: catalog.registry.list().length,
       warnings: catalog.warnings,
+      catalogIssueCount: catalog.catalogIssues?.length ?? 0,
     } as unknown as JSONValue
   }
 
@@ -452,6 +497,7 @@ export class AgentRuntime {
       ...(approvedToolNames.length > 0 ? { approvedToolNames } : {}),
       ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
       ...(initialUser ? { initialUserMessageId: initialUser.id } : {}),
+      ...normalizeRunHierarchyInput(input),
     })
     this.store.createRun(run)
     this.applyThreadRunProjection(thread, run)
@@ -499,6 +545,7 @@ export class AgentRuntime {
       runtimeContract,
       ...(approvedToolNames.length > 0 ? { approvedToolNames } : {}),
       ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
+      ...normalizeRunHierarchyInput(input, { defaultRole: 'worker' }),
     })
     this.store.createRun(run)
     this.applyThreadRunProjection(thread, run)
@@ -614,9 +661,291 @@ export class AgentRuntime {
     return this.store.listRuns().map(toProductRun)
   }
 
+  listRunsByParent(parentRunId: string): AgentRun[] {
+    return this.store.listRuns({ parentRunId }).map(toProductRun)
+  }
+
   getRun(id: string): AgentRun | undefined {
     const run = this.store.getRun(id)
     return run ? toProductRun(run) : undefined
+  }
+
+  getChildRuns(parentRunId: string): AgentRun[] {
+    this.requireRun(parentRunId)
+    return this.store.listChildRuns(parentRunId).map(toProductRun)
+  }
+
+  async createPlan(input: CreatePlanInput): Promise<AgentPlanSnapshot> {
+    const threadId = typeof input.threadId === 'string' && input.threadId.trim() ? input.threadId.trim() : undefined
+    if (!threadId) throw new Error('threadId is required')
+    const thread = this.requireThread(threadId)
+    const now = isoNow()
+    let tasksInput = normalizePlanTaskInputs(input.tasks)
+    const planGoal = normalizeNonEmptyString(input.goal) ?? normalizeNonEmptyString(input.message)
+    const plannerWarnings: string[] = []
+    let plannerSource: string | undefined
+    if (tasksInput.length === 0 && planGoal) {
+      const generated = await generatePlanTasks({
+        goal: planGoal,
+        title: normalizeNonEmptyString(input.title),
+        maxTasks: normalizePositiveInteger(input.maxTasks),
+        auth: {
+          ...normalizeBackendAuthToken(input.backendAuthToken),
+          ...normalizeBackendAPIBaseURL(input.backendAPIBaseURL),
+        },
+      })
+      tasksInput = generated.tasks
+      plannerSource = generated.source
+      plannerWarnings.push(...generated.warnings)
+    }
+    const plan: AgentPlan = {
+      id: makeId('plan'),
+      threadId: thread.id,
+      title: typeof input.title === 'string' && input.title.trim() ? input.title.trim() : thread.title ?? 'Agent plan',
+      status: tasksInput.length > 0 ? 'pending' : 'blocked',
+      progress: 0,
+      metadata: {
+        ...(isJSONRecord(input.metadata) ? input.metadata : {}),
+        ...(planGoal ? { goal: planGoal } : {}),
+        ...(plannerSource ? { plannerSource } : {}),
+        ...(plannerWarnings.length > 0 ? { plannerWarnings } : {}),
+      },
+      createdAt: now,
+      updatedAt: now,
+    }
+    this.store.createPlan(plan)
+    for (const taskInput of tasksInput) {
+      const task = buildAgentTask(plan.id, taskInput, now)
+      this.store.createTask(task)
+      this.recordTaskProtocolEvents(task)
+    }
+
+    let rootRun: AgentRun | undefined
+    if (input.createPlannerRun === true) {
+      rootRun = this.createRun({
+        ...input,
+        threadId: thread.id,
+        role: 'planner',
+        planId: plan.id,
+        progress: 0,
+      })
+      plan.rootRunId = rootRun.id
+      plan.status = 'running'
+      plan.updatedAt = isoNow()
+      this.store.updatePlan(plan)
+    }
+
+    return this.getPlanSnapshot(plan.id)
+  }
+
+  listPlans(): AgentPlan[] {
+    return this.store.listPlans()
+  }
+
+  getPlan(id: string): AgentPlan | undefined {
+    return this.store.getPlan(id)
+  }
+
+  getPlanSnapshot(planId: string): AgentPlanSnapshot {
+    const plan = this.store.getPlan(planId)
+    if (!plan) throw new Error(`plan not found: ${planId}`)
+    return {
+      plan,
+      tasks: this.store.listTasks(planId),
+      runs: this.store.listRuns({ planId }).map(toProductRun),
+    }
+  }
+
+  getTaskTree(planId: string): AgentTask[] {
+    this.requirePlan(planId)
+    return this.store.listTasks(planId)
+  }
+
+  updateTask(taskId: string, input: UpdatePlanTaskInput): AgentTask {
+    const task = this.requireTask(taskId)
+    const previousTask = { ...task, deps: [...task.deps], artifacts: [...task.artifacts] }
+    const now = isoNow()
+    const nextStatus = normalizeTaskStatus(input.status)
+    if (nextStatus) {
+      task.status = nextStatus
+      if (nextStatus === 'running' && !task.startedAt) task.startedAt = now
+      if (nextStatus === 'done') task.completedAt = now
+      if (nextStatus === 'failed') task.failedAt = now
+      if (nextStatus === 'cancelled') task.cancelledAt = now
+    }
+    const parentId = normalizeNonEmptyString(input.parentId)
+    if (parentId) task.parentId = parentId
+    if (Array.isArray(input.deps)) task.deps = normalizeStringList(input.deps)
+    const title = normalizeNonEmptyString(input.title)
+    if (title) task.title = title
+    if (typeof input.description === 'string') {
+      const description = input.description.trim()
+      if (description) task.description = description
+      else delete task.description
+    }
+    const progress = normalizeProgress(input.progress)
+    if (progress !== undefined) task.progress = progress
+    const ownerRunId = typeof input.ownerRunId === 'string' && input.ownerRunId.trim() ? input.ownerRunId.trim() : undefined
+    if (ownerRunId) task.ownerRunId = ownerRunId
+    if (typeof input.blockedReason === 'string') {
+      const blockedReason = input.blockedReason.trim()
+      if (blockedReason) task.blockedReason = blockedReason
+      else delete task.blockedReason
+    }
+    const artifacts = normalizeTaskArtifacts(input.artifacts, now)
+    if (artifacts.length > 0) task.artifacts = [...task.artifacts, ...artifacts]
+    if (isJSONRecord(input.metadata)) task.metadata = { ...(task.metadata ?? {}), ...input.metadata }
+    task.updatedAt = now
+    this.store.updateTask(task)
+    this.recomputePlanStatus(task.planId)
+    this.recordTaskProtocolEvents(task, previousTask)
+    this.emitPlanTaskEvent(task.planId, task)
+    return task
+  }
+
+  cancelSubtree(runId: string, input: CancelRunInput = {}): { cancelledRunIds: string[] } {
+    this.requireRun(runId)
+    const reason = typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim() : 'Run subtree was cancelled.'
+    const runIds = this.collectSubtreeRunIds(runId)
+    const cancelledRunIds: string[] = []
+    for (const id of runIds.reverse()) {
+      const run = this.store.getRun(id)
+      if (!run || isFinishedOrCancelledRunStatus(run.status)) continue
+      this.cancelRun(id, { reason })
+      cancelledRunIds.push(id)
+    }
+    return { cancelledRunIds }
+  }
+
+  dispatchPlan(input: DispatchPlanInput): DispatchPlanResult {
+    const planId = typeof input.planId === 'string' && input.planId.trim() ? input.planId.trim() : undefined
+    if (!planId) throw new Error('planId is required')
+    const plan = this.requirePlan(planId)
+    const plannerRunId = typeof input.plannerRunId === 'string' && input.plannerRunId.trim()
+      ? input.plannerRunId.trim()
+      : plan.rootRunId
+    if (!plannerRunId) throw new Error(`plan ${planId} has no plannerRunId`)
+    const plannerRun = this.requireRun(plannerRunId)
+    const maxTaskAttempts = normalizePositiveInteger(input.maxTaskAttempts) ?? 1
+    const workerTimeoutMs = normalizePositiveInteger(input.workerTimeoutMs)
+    const timedOutRunIds = workerTimeoutMs ? this.cancelTimedOutPlanWorkers(plan.id, workerTimeoutMs) : []
+    const retriedTaskIds = input.retryFailed === true ? this.resetRetryablePlanTasks(plan.id, maxTaskAttempts) : []
+    const tasks = this.store.listTasks(plan.id)
+    const runs = this.store.listRuns({ planId: plan.id })
+    const decision = planSupervisorDispatch({
+      plan,
+      tasks,
+      runs,
+      maxWorkers: normalizePositiveInteger(input.maxWorkers),
+    })
+    const now = isoNow()
+    for (const blocked of decision.blockedTasks) {
+      const current = this.store.getTask(blocked.task.id)
+      if (!current || current.blockedReason === blocked.blockedReason) continue
+      current.blockedReason = blocked.blockedReason
+      current.updatedAt = now
+      this.store.updateTask(current)
+      this.emitPlanTaskEvent(plan.id, current)
+    }
+
+    const spawnedRuns: AgentRun[] = []
+    for (const task of decision.runnableTasks) {
+      const workerMessage = this.createMessage(plan.threadId, 'user', formatWorkerTaskMessage(plan, task), undefined)
+      const thread = this.requireThread(plan.threadId)
+      thread.messages.push(workerMessage)
+      thread.updatedAt = workerMessage.createdAt
+      this.store.updateThread(thread)
+
+      const run = this.createRun({
+        threadId: plan.threadId,
+        role: 'worker',
+        parentRunId: plannerRun.id,
+        planId: plan.id,
+        taskId: task.id,
+        progress: 0,
+        agentManifest: input.agentManifest ?? plannerRun.agentManifest,
+        approvedToolNames: input.approvedToolNames,
+        policy: input.policy ?? plannerRun.policy,
+        backendAuthToken: input.backendAuthToken,
+        backendAPIBaseURL: input.backendAPIBaseURL,
+        sandboxMode: input.sandboxMode,
+      })
+      const currentTask = this.requireTask(task.id)
+      const previousTask = { ...currentTask, deps: [...currentTask.deps], artifacts: [...currentTask.artifacts] }
+      currentTask.status = 'running'
+      currentTask.progress = 0
+      currentTask.ownerRunId = run.id
+      currentTask.startedAt = now
+      currentTask.updatedAt = now
+      delete currentTask.blockedReason
+      this.store.updateTask(currentTask)
+      this.recordTaskProtocolEvents(currentTask, previousTask)
+      this.emitPlanTaskEvent(plan.id, currentTask)
+      spawnedRuns.push(run)
+    }
+    this.recomputePlanStatus(plan.id)
+    return {
+      plan: this.requirePlan(plan.id),
+      spawnedRuns,
+      blockedTaskIds: decision.blockedTasks.map((item) => item.task.id),
+      retriedTaskIds,
+      timedOutRunIds,
+    }
+  }
+
+  replanRun(runId: string, input: ReplanRunInput = {}): ReplanRunResult {
+    const run = this.requireRun(runId)
+    if (!run.planId) throw new Error(`run ${runId} is not attached to a plan`)
+    const plan = this.requirePlan(run.planId)
+    const plannerRunId = normalizeNonEmptyString(input.plannerRunId)
+      ?? (run.role === 'planner' ? run.id : run.parentRunId)
+      ?? plan.rootRunId
+    if (!plannerRunId) throw new Error(`plan ${plan.id} has no plannerRunId`)
+    this.requireRun(plannerRunId)
+
+    const now = isoNow()
+    const taskInputs = this.normalizeReplanTaskInputsForPlan(plan.id, input.tasks, input.addTasks)
+    const createdTaskIds: string[] = []
+    for (const taskInput of taskInputs.creates) {
+      const task = buildAgentTask(plan.id, taskInput, now)
+      if (this.store.getTask(task.id)) throw new Error(`task already exists: ${task.id}`)
+      this.store.createTask(task)
+      this.recordTaskProtocolEvents(task)
+      this.emitPlanTaskEvent(plan.id, task)
+      createdTaskIds.push(task.id)
+    }
+
+    const updatedTaskIds: string[] = []
+    for (const update of [
+      ...taskInputs.updates,
+      ...normalizePlanTaskUpdateInputs(input.updates),
+      ...normalizePlanTaskUpdateInputs(input.updateTasks),
+    ]) {
+      const taskId = normalizeNonEmptyString(update.id)
+      if (!taskId) throw new Error('task update id is required')
+      const task = this.requireTask(taskId)
+      if (task.planId !== plan.id) throw new Error(`task ${taskId} does not belong to plan ${plan.id}`)
+      this.updateTask(taskId, update)
+      updatedTaskIds.push(taskId)
+    }
+
+    const resetTaskIds = this.resetPlanTasksForReplan(plan.id, input)
+    this.recomputePlanStatus(plan.id)
+    const shouldDispatch = input.dispatch !== false
+    const dispatch = shouldDispatch
+      ? this.dispatchPlan({
+        ...input,
+        planId: plan.id,
+        plannerRunId,
+      })
+      : undefined
+    return {
+      plan: this.requirePlan(plan.id),
+      createdTaskIds,
+      updatedTaskIds: uniqueStrings(updatedTaskIds),
+      resetTaskIds,
+      ...(dispatch ? { dispatch } : {}),
+    }
   }
 
   getRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
@@ -657,6 +986,23 @@ export class AgentRuntime {
       if (!current) return
       current.delete(listener)
       if (current.size === 0) this.runStreamSubscribers.delete(runId)
+    }
+  }
+
+  subscribePlanStream(planId: string, listener: (event: AgentPlanStreamEvent) => void): () => void {
+    this.requirePlan(planId)
+    let subscribers = this.planStreamSubscribers.get(planId)
+    if (!subscribers) {
+      subscribers = new Set()
+      this.planStreamSubscribers.set(planId, subscribers)
+    }
+    subscribers.add(listener)
+    this.replayPlanStream(planId, listener)
+    return () => {
+      const current = this.planStreamSubscribers.get(planId)
+      if (!current) return
+      current.delete(listener)
+      if (current.size === 0) this.planStreamSubscribers.delete(planId)
     }
   }
 
@@ -1028,6 +1374,7 @@ export class AgentRuntime {
       if (this.runControllers.get(runId) === controller) {
         this.runControllers.delete(runId)
       }
+      this.syncTaskFromRun(runId)
     })
   }
 
@@ -1191,7 +1538,14 @@ export class AgentRuntime {
         summary: `${agentManifest.name} (${agentManifest.id}@${agentManifest.version})`,
         status: 'completed',
         round: setupRound,
-        data: { id: agentManifest.id, version: agentManifest.version, permissions: agentManifest.permissions, toolGrants: agentManifest.tools.map((t) => ({ name: t.name, mode: t.mode, approval: t.approval })) },
+        data: {
+          eventType: 'profile.resolved',
+          id: agentManifest.id,
+          version: agentManifest.version,
+          mode: agentManifest.metadata?.mode,
+          permissions: agentManifest.permissions,
+          toolGrants: agentManifest.tools.map((t) => ({ name: t.name, mode: t.mode, approval: t.approval })),
+        },
       })
       this.recordTraceEvent(run, {
         kind: 'skill',
@@ -1199,7 +1553,10 @@ export class AgentRuntime {
         summary: skills.length > 0 ? skills.map((s) => s.name).join(', ') : 'No skills activated.',
         status: 'completed',
         round: setupRound,
-        data: { skills: skills.map((s) => ({ id: s.id, name: s.name, activationReason: s.activationReason, priority: s.resolvedPriority, warnings: s.warnings })) },
+        data: {
+          eventType: 'trigger.evaluated',
+          skills: skills.map((s) => ({ id: s.id, name: s.name, activationReason: s.activationReason, priority: s.resolvedPriority, warnings: s.warnings })),
+        },
       })
       this.recordTraceEvent(run, {
         kind: 'tool_catalog',
@@ -1323,7 +1680,7 @@ export class AgentRuntime {
           prompt: generationCommand.prompt,
           output_type: generationCommand.outputType,
           job_type: generationCommand.jobType,
-          aspect_ratio: generationCommand.aspectRatio,
+          ...(generationCommand.aspectRatio ? { aspect_ratio: generationCommand.aspectRatio } : {}),
           ...(generationCommand.duration !== undefined ? { duration: generationCommand.duration } : {}),
           feature_key: generationCommand.featureKey,
           timeout_ms: generationCommand.timeoutMs,
@@ -1690,7 +2047,7 @@ export class AgentRuntime {
   private resolveAgentManifest(inputManifest: unknown, clientInput?: ReturnType<typeof normalizeClientInput>): AgentManifest {
     const explicit = normalizeAgentManifest(inputManifest ?? this.defaultAgentManifest)
     const mode = typeof clientInput?.uiSnapshot?.mode === 'string' ? clientInput.uiSnapshot.mode : undefined
-    const resolved = resolveModeAgentManifest(mode, explicit)
+    const resolved = resolveModeAgentManifest(mode, explicit, this.skillCatalog)
     return resolved ?? explicit
   }
 
@@ -1837,6 +2194,131 @@ export class AgentRuntime {
 
   private emitRunStreamEvent(runId: string, event: AgentRunStreamEvent): void {
     const subscribers = this.runStreamSubscribers.get(runId)
+    if (subscribers && subscribers.size > 0) {
+      for (const subscriber of [...subscribers]) {
+        try {
+          subscriber(event)
+        } catch {
+          subscribers.delete(subscriber)
+        }
+      }
+      if (event.type === 'done') this.runStreamSubscribers.delete(runId)
+    }
+    this.emitPlanRunStreamEvent(event)
+  }
+
+  private emitRunSnapshot(run: AgentRun, options: { done?: boolean } = {}): void {
+    const streamRun = toStreamRun(run)
+    this.emitRunStreamEvent(run.id, { type: 'run', run: streamRun })
+    if (options.done) {
+      this.emitRunStreamEvent(run.id, { type: 'done', run: streamRun })
+    }
+  }
+
+  private replayPlanStream(planId: string, listener: (event: AgentPlanStreamEvent) => void): void {
+    const snapshot = this.getPlanSnapshot(planId)
+    listener({ type: 'snapshot', snapshot })
+    if (isTerminalPlanStatus(snapshot.plan.status)) listener({ type: 'done', snapshot })
+  }
+
+  private emitPlanRunStreamEvent(event: AgentRunStreamEvent): void {
+    const run = event.type === 'run' || event.type === 'done'
+      ? event.run
+      : 'run' in event && event.run
+        ? event.run
+        : event.type === 'trace' || event.type === 'assistant_delta' || event.type === 'assistant_message'
+          ? this.store.getRun(event.runId)
+          : undefined
+    if (!run?.planId) return
+    const planId = run.planId
+    if (!this.planStreamSubscribers.has(planId)) return
+    if (event.type === 'trace') {
+      this.emitPlanStreamEvent(planId, {
+        type: 'trace',
+        planId,
+        runId: event.runId,
+        event: event.event,
+        snapshot: this.getPlanSnapshot(planId),
+      })
+      return
+    }
+    if (event.type === 'run' || event.type === 'done') {
+      this.emitPlanStreamEvent(planId, {
+        type: 'run',
+        planId,
+        run: toStreamRun(run),
+        snapshot: this.getPlanSnapshot(planId),
+      })
+    }
+  }
+
+  private emitPlanTaskEvent(planId: string, task: AgentTask): void {
+    if (!this.planStreamSubscribers.has(planId)) return
+    this.emitPlanStreamEvent(planId, {
+      type: 'task',
+      planId,
+      task,
+      snapshot: this.getPlanSnapshot(planId),
+    })
+  }
+
+  private recordTaskProtocolEvents(task: AgentTask, previous?: AgentTask): void {
+    const run = this.resolveTaskProtocolRun(task)
+    if (!run) return
+    const baseData = {
+      planId: task.planId,
+      taskId: task.id,
+      taskStatus: task.status,
+      progress: task.progress,
+      ...(task.ownerRunId ? { ownerRunId: task.ownerRunId } : {}),
+      ...(task.blockedReason ? { blockedReason: task.blockedReason } : {}),
+    }
+    const emitTaskTrace = (eventType: string, title: string, status: AgentTraceEvent['status'], summary?: string, data?: Record<string, unknown>) => {
+      this.recordTraceEvent(run, {
+        kind: 'task',
+        title,
+        ...(summary ? { summary } : {}),
+        status,
+        data: {
+          ...baseData,
+          eventType,
+          ...(data ?? {}),
+        },
+      })
+    }
+
+    if (!previous) {
+      emitTaskTrace('task_created', 'Task created', 'info', task.title)
+      return
+    }
+    if (previous.status !== task.status) {
+      const event = taskStatusProtocolEvent(task.status)
+      emitTaskTrace(event.eventType, event.title, event.status, task.blockedReason ?? task.title)
+    }
+    if (previous.progress !== task.progress) {
+      emitTaskTrace('progress_update', 'Task progress updated', 'info', `${Math.round(task.progress * 100)}%`, {
+        previousProgress: previous.progress,
+      })
+    }
+    for (const artifact of task.artifacts) {
+      if (previous.artifacts.some((item) => item.id === artifact.id)) continue
+      emitTaskTrace('artifact_created', 'Task artifact created', 'completed', artifact.title ?? artifact.uri ?? artifact.type, {
+        artifact,
+      })
+    }
+  }
+
+  private resolveTaskProtocolRun(task: AgentTask): AgentRun | undefined {
+    if (task.ownerRunId) {
+      const ownerRun = this.store.getRun(task.ownerRunId)
+      if (ownerRun) return ownerRun
+    }
+    const plan = this.store.getPlan(task.planId)
+    return plan?.rootRunId ? this.store.getRun(plan.rootRunId) : undefined
+  }
+
+  private emitPlanStreamEvent(planId: string, event: AgentPlanStreamEvent): void {
+    const subscribers = this.planStreamSubscribers.get(planId)
     if (!subscribers || subscribers.size === 0) return
     for (const subscriber of [...subscribers]) {
       try {
@@ -1845,14 +2327,16 @@ export class AgentRuntime {
         subscribers.delete(subscriber)
       }
     }
-    if (event.type === 'done') this.runStreamSubscribers.delete(runId)
-  }
-
-  private emitRunSnapshot(run: AgentRun, options: { done?: boolean } = {}): void {
-    const streamRun = toStreamRun(run)
-    this.emitRunStreamEvent(run.id, { type: 'run', run: streamRun })
-    if (options.done) {
-      this.emitRunStreamEvent(run.id, { type: 'done', run: streamRun })
+    if (event.type === 'done' || isTerminalPlanStatus(event.snapshot.plan.status)) {
+      const snapshot = event.snapshot
+      for (const subscriber of [...subscribers]) {
+        try {
+          subscriber({ type: 'done', snapshot })
+        } catch {
+          subscribers.delete(subscriber)
+        }
+      }
+      this.planStreamSubscribers.delete(planId)
     }
   }
 
@@ -1870,6 +2354,18 @@ export class AgentRuntime {
     const run = this.store.getRun(id)
     if (!run) throw new Error(`run not found: ${id}`)
     return run
+  }
+
+  private requirePlan(id: string): AgentPlan {
+    const plan = this.store.getPlan(id)
+    if (!plan) throw new Error(`plan not found: ${id}`)
+    return plan
+  }
+
+  private requireTask(id: string): AgentTask {
+    const task = this.store.getTask(id)
+    if (!task) throw new Error(`task not found: ${id}`)
+    return task
   }
 
   private isRunCancelled(runId: string): boolean {
@@ -1928,6 +2424,186 @@ export class AgentRuntime {
     this.updateThreadRunStatus(current.threadId, current.status, current.id)
     this.emitRunSnapshot(current, { done: true })
     return current
+  }
+
+  private collectSubtreeRunIds(rootRunId: string): string[] {
+    const result: string[] = []
+    const visit = (runId: string) => {
+      result.push(runId)
+      for (const child of this.store.listChildRuns(runId)) visit(child.id)
+    }
+    visit(rootRunId)
+    return result
+  }
+
+  private syncTaskFromRun(runId: string): void {
+    const run = this.store.getRun(runId)
+    if (!run?.planId || !run.taskId) return
+    const task = this.store.getTask(run.taskId)
+    if (!task) return
+    const previousTask = { ...task, deps: [...task.deps], artifacts: [...task.artifacts] }
+    const now = isoNow()
+    if (run.status === 'completed' || run.status === 'completed_with_warnings') {
+      task.status = 'done'
+      task.progress = 1
+      task.completedAt = run.completedAt ?? now
+      task.artifacts = appendUniqueTaskArtifact(task.artifacts, {
+        id: `artifact_${run.id}`,
+        type: 'run',
+        title: run.status === 'completed_with_warnings' ? 'Worker run completed with warnings' : 'Worker run completed',
+        uri: `agent-run:${run.id}`,
+        createdAt: run.completedAt ?? now,
+      })
+    } else if (run.status === 'requires_action') {
+      task.status = 'blocked'
+      task.progress = typeof run.progress === 'number' ? run.progress : Math.max(task.progress, 0.5)
+      task.blockedReason = run.pendingInputRequests?.some((request) => request.status === 'pending')
+        ? 'Worker run needs user input.'
+        : 'Worker run needs approval.'
+    } else if (run.status === 'failed') {
+      task.status = 'failed'
+      task.blockedReason = run.error ?? 'Worker run failed.'
+      task.failedAt = run.failedAt ?? now
+    } else if (run.status === 'cancelled') {
+      task.status = 'cancelled'
+      task.blockedReason = run.warnings?.at(-1) ?? 'Worker run was cancelled.'
+      task.cancelledAt = run.cancelledAt ?? now
+    } else {
+      return
+    }
+    task.updatedAt = now
+    this.store.updateTask(task)
+    this.recomputePlanStatus(run.planId)
+    this.recordTaskProtocolEvents(task, previousTask)
+    this.emitPlanTaskEvent(run.planId, task)
+  }
+
+  private cancelTimedOutPlanWorkers(planId: string, timeoutMs: number): string[] {
+    const nowMs = Date.now()
+    const timedOutRunIds: string[] = []
+    for (const run of this.store.listRuns({ planId, role: 'worker' })) {
+      if (run.status !== 'queued' && run.status !== 'in_progress') continue
+      const startedAt = new Date(run.startedAt ?? run.createdAt).getTime()
+      if (!Number.isFinite(startedAt) || nowMs - startedAt < timeoutMs) continue
+      this.cancelRun(run.id, { reason: `Worker run timed out after ${timeoutMs}ms.` })
+      this.syncTaskFromRun(run.id)
+      timedOutRunIds.push(run.id)
+    }
+    return timedOutRunIds
+  }
+
+  private resetRetryablePlanTasks(planId: string, maxTaskAttempts: number): string[] {
+    const retriedTaskIds: string[] = []
+    const now = isoNow()
+    for (const task of this.store.listTasks(planId)) {
+      if (task.status !== 'failed' && task.status !== 'cancelled') continue
+      const attempts = this.store.listRuns({ planId, taskId: task.id, role: 'worker' }).length
+      if (attempts >= maxTaskAttempts) continue
+      task.status = 'pending'
+      task.progress = 0
+      task.metadata = {
+        ...(task.metadata ?? {}),
+        retryAttempt: attempts + 1,
+        previousOwnerRunId: task.ownerRunId ?? null,
+      }
+      delete task.ownerRunId
+      delete task.blockedReason
+      task.updatedAt = now
+      this.store.updateTask(task)
+      this.emitPlanTaskEvent(planId, task)
+      retriedTaskIds.push(task.id)
+    }
+    if (retriedTaskIds.length > 0) this.recomputePlanStatus(planId)
+    return retriedTaskIds
+  }
+
+  private resetPlanTasksForReplan(planId: string, input: ReplanRunInput): string[] {
+    const explicitTaskIds = new Set(normalizeStringList(input.resetTaskIds))
+    const resetBlocked = input.resetBlocked === true
+    const resetFailed = input.resetFailed === true
+    const resetCancelled = input.resetCancelled === true
+    const resetTaskIds: string[] = []
+    if (explicitTaskIds.size === 0 && !resetBlocked && !resetFailed && !resetCancelled) return resetTaskIds
+
+    const now = isoNow()
+    for (const task of this.store.listTasks(planId)) {
+      const shouldReset = explicitTaskIds.has(task.id)
+        || (resetBlocked && task.status === 'blocked')
+        || (resetFailed && task.status === 'failed')
+        || (resetCancelled && task.status === 'cancelled')
+      if (!shouldReset) continue
+      if (task.status !== 'blocked' && task.status !== 'failed' && task.status !== 'cancelled' && !explicitTaskIds.has(task.id)) continue
+      const previousStatus = task.status
+      task.status = 'pending'
+      task.progress = 0
+      task.metadata = {
+        ...(task.metadata ?? {}),
+        replannedAt: now,
+        previousOwnerRunId: task.ownerRunId ?? null,
+        previousStatus,
+      }
+      delete task.ownerRunId
+      delete task.blockedReason
+      delete task.startedAt
+      delete task.completedAt
+      delete task.failedAt
+      delete task.cancelledAt
+      task.updatedAt = now
+      this.store.updateTask(task)
+      this.emitPlanTaskEvent(planId, task)
+      resetTaskIds.push(task.id)
+    }
+    return resetTaskIds
+  }
+
+  private normalizeReplanTaskInputsForPlan(planId: string, tasks: unknown, addTasks: unknown): {
+    creates: CreatePlanTaskInput[]
+    updates: UpdatePlanTaskInput[]
+  } {
+    const creates: CreatePlanTaskInput[] = [...normalizePlanTaskInputs(addTasks)]
+    const updates: UpdatePlanTaskInput[] = []
+    for (const item of normalizePlanTaskInputs(tasks)) {
+      const taskId = normalizeNonEmptyString(item.id)
+      const existing = taskId ? this.store.getTask(taskId) : undefined
+      if (existing) {
+        if (existing.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+        updates.push(item)
+      } else {
+        creates.push(item)
+      }
+    }
+    return { creates, updates }
+  }
+
+  private recomputePlanStatus(planId: string): void {
+    const plan = this.store.getPlan(planId)
+    if (!plan) return
+    const tasks = this.store.listTasks(planId)
+    const now = isoNow()
+    const progress = tasks.length === 0
+      ? plan.progress
+      : tasks.reduce((sum, task) => sum + normalizeProgress(task.progress)!, 0) / tasks.length
+    const statuses = new Set(tasks.map((task) => task.status))
+    const nextStatus: AgentPlan['status'] =
+      statuses.has('failed') ? 'failed'
+        : statuses.has('cancelled') && tasks.every((task) => task.status === 'cancelled') ? 'cancelled'
+          : statuses.has('blocked') ? 'blocked'
+            : statuses.has('needs_review') ? 'needs_review'
+              : tasks.length > 0 && tasks.every((task) => task.status === 'done') ? 'done'
+                : statuses.has('running') ? 'running'
+                  : tasks.length > 0 && tasks.every((task) => task.status === 'pending') ? 'pending'
+                    : tasks.length > 0 ? 'running'
+                      : plan.status
+    plan.progress = Math.max(0, Math.min(1, progress))
+    plan.status = nextStatus
+    plan.updatedAt = now
+    if (nextStatus === 'done' && !plan.completedAt) plan.completedAt = now
+    if (nextStatus === 'failed' && !plan.failedAt) plan.failedAt = now
+    if (nextStatus === 'cancelled' && !plan.cancelledAt) plan.cancelledAt = now
+    const firstBlocked = tasks.find((task) => task.status === 'blocked' && task.blockedReason)
+    if (firstBlocked?.blockedReason) plan.blockedReason = firstBlocked.blockedReason
+    else delete plan.blockedReason
+    this.store.updatePlan(plan)
   }
 
   private updateThreadRunStatus(threadId: string, status: AgentRun['status'], runId?: string): void {
@@ -2005,6 +2681,20 @@ function isMessageRole(value: unknown): value is AgentMessageRole {
   return value === 'system' || value === 'user' || value === 'assistant'
 }
 
+function taskStatusProtocolEvent(status: AgentTask['status']): {
+  eventType: string
+  title: string
+  status: AgentTraceEvent['status']
+} {
+  if (status === 'running') return { eventType: 'task_started', title: 'Task started', status: 'started' }
+  if (status === 'blocked') return { eventType: 'blocked', title: 'Task blocked', status: 'blocked' }
+  if (status === 'needs_review') return { eventType: 'needs_review', title: 'Task needs review', status: 'blocked' }
+  if (status === 'done') return { eventType: 'task_completed', title: 'Task completed', status: 'completed' }
+  if (status === 'failed') return { eventType: 'task_failed', title: 'Task failed', status: 'failed' }
+  if (status === 'cancelled') return { eventType: 'task_cancelled', title: 'Task cancelled', status: 'failed' }
+  return { eventType: 'task_pending', title: 'Task pending', status: 'info' }
+}
+
 function assistantDeltaFromTraceEvent(event: AgentTraceEvent): Omit<Extract<AgentRunStreamEvent, { type: 'assistant_delta' }>, 'runId' | 'traceEventId' | 'createdAt' | 'run'> | undefined {
   const data = isRecord(event.data) ? event.data : undefined
   const stream = isRecord(data?.stream) ? data.stream : undefined
@@ -2042,6 +2732,10 @@ function isTerminalRunStatus(status: AgentRun['status']): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'requires_action' || status === 'failed' || status === 'cancelled'
 }
 
+function isTerminalPlanStatus(status: AgentPlan['status']): boolean {
+  return status === 'done' || status === 'failed' || status === 'cancelled'
+}
+
 function extractContextPackTimings(value: unknown): { totalMs?: number; contextPackMs?: number; projectsMs?: number } | undefined {
   const parsed = parseToolResult(value as JSONValue)
   if (!isRecord(parsed) || !isRecord(parsed.timings)) return undefined
@@ -2061,6 +2755,10 @@ function isFinishedRunStatus(status: AgentRun['status']): boolean {
   return status === 'completed' || status === 'completed_with_warnings' || status === 'failed'
 }
 
+function isFinishedOrCancelledRunStatus(status: AgentRun['status']): boolean {
+  return isFinishedRunStatus(status) || status === 'cancelled'
+}
+
 function isActiveRunStatus(status: AgentRun['status']): boolean {
   return status === 'queued' || status === 'in_progress' || status === 'requires_action'
 }
@@ -2078,6 +2776,12 @@ function toStreamRun(run: AgentRun): AgentRunStreamRun {
     id: run.id,
     threadId: run.threadId,
     status: run.status,
+    ...(run.role ? { role: run.role } : {}),
+    ...(run.parentRunId ? { parentRunId: run.parentRunId } : {}),
+    ...(run.planId ? { planId: run.planId } : {}),
+    ...(run.taskId ? { taskId: run.taskId } : {}),
+    ...(typeof run.progress === 'number' ? { progress: run.progress } : {}),
+    ...(run.blockedReason ? { blockedReason: run.blockedReason } : {}),
     agentManifest: run.agentManifest,
     policy: run.policy,
     ...(run.pendingApprovals ? { pendingApprovals: run.pendingApprovals } : {}),
@@ -2118,6 +2822,149 @@ function toProductRun(run: AgentRun): AgentRun {
     ...run,
     traceEvents: [],
   }
+}
+
+function normalizeRunHierarchyInput(input: {
+  role?: unknown
+  parentRunId?: unknown
+  planId?: unknown
+  taskId?: unknown
+  progress?: unknown
+  blockedReason?: unknown
+}, options: { defaultRole?: AgentRunRole } = {}): {
+  role?: AgentRunRole
+  parentRunId?: string
+  planId?: string
+  taskId?: string
+  progress?: number
+  blockedReason?: string
+} {
+  const role = normalizeRunRole(input.role) ?? options.defaultRole
+  const parentRunId = normalizeNonEmptyString(input.parentRunId)
+  const planId = normalizeNonEmptyString(input.planId)
+  const taskId = normalizeNonEmptyString(input.taskId)
+  const progress = normalizeProgress(input.progress)
+  const blockedReason = normalizeNonEmptyString(input.blockedReason)
+  return {
+    ...(role ? { role } : {}),
+    ...(parentRunId ? { parentRunId } : {}),
+    ...(planId ? { planId } : {}),
+    ...(taskId ? { taskId } : {}),
+    ...(progress !== undefined ? { progress } : {}),
+    ...(blockedReason ? { blockedReason } : {}),
+  }
+}
+
+function normalizeRunRole(value: unknown): AgentRunRole | undefined {
+  return value === 'planner' || value === 'worker' ? value : undefined
+}
+
+function normalizeTaskStatus(value: unknown): AgentTask['status'] | undefined {
+  return value === 'pending'
+    || value === 'running'
+    || value === 'blocked'
+    || value === 'needs_review'
+    || value === 'done'
+    || value === 'failed'
+    || value === 'cancelled'
+    ? value
+    : undefined
+}
+
+function normalizeProgress(value: unknown): number | undefined {
+  if (value === undefined) return undefined
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(number)) return undefined
+  return Math.max(0, Math.min(1, number))
+}
+
+function normalizePositiveInteger(value: unknown): number | undefined {
+  if (value === undefined) return undefined
+  const number = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(number)) return undefined
+  return Math.max(1, Math.floor(number))
+}
+
+function formatWorkerTaskMessage(plan: AgentPlan, task: AgentTask): string {
+  return [
+    `Plan: ${plan.title}`,
+    `Task: ${task.title}`,
+    task.description ? `Description: ${task.description}` : undefined,
+    task.deps.length > 0 ? `Dependencies: ${task.deps.join(', ')}` : undefined,
+    '',
+    'Execute this worker task and report durable artifacts, blockers, and completion status.',
+  ].filter((line): line is string => line !== undefined).join('\n')
+}
+
+function normalizeNonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => typeof item === 'string' && item.trim() ? [item.trim()] : [])
+}
+
+function normalizePlanTaskInputs(value: unknown): CreatePlanTaskInput[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => isRecord(item) ? [item] : [])
+}
+
+function normalizePlanTaskUpdateInputs(value: unknown): UpdatePlanTaskInput[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => isRecord(item) ? [item] : [])
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values))
+}
+
+function buildAgentTask(planId: string, input: CreatePlanTaskInput, now: string): AgentTask {
+  const title = normalizeNonEmptyString(input.title)
+  if (!title) throw new Error('task title is required')
+  return {
+    id: normalizeNonEmptyString(input.id) ?? makeId('task'),
+    planId,
+    ...(normalizeNonEmptyString(input.parentId) ? { parentId: normalizeNonEmptyString(input.parentId) } : {}),
+    deps: normalizeStringList(input.deps),
+    title,
+    ...(normalizeNonEmptyString(input.description) ? { description: normalizeNonEmptyString(input.description) } : {}),
+    status: 'pending',
+    progress: 0,
+    artifacts: [],
+    ...(isJSONRecord(input.metadata) ? { metadata: input.metadata } : {}),
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+function normalizeTaskArtifacts(value: unknown, now: string): AgentTaskArtifact[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const type = normalizeNonEmptyString(item.type)
+    if (!type) return []
+    return [{
+      id: normalizeNonEmptyString(item.id) ?? makeId('artifact'),
+      type,
+      ...(normalizeNonEmptyString(item.title) ? { title: normalizeNonEmptyString(item.title) } : {}),
+      ...(normalizeNonEmptyString(item.uri) ? { uri: normalizeNonEmptyString(item.uri) } : {}),
+      ...(isJSONRecord(item.metadata) ? { metadata: item.metadata } : {}),
+      createdAt: normalizeNonEmptyString(item.createdAt) ?? now,
+    }]
+  })
+}
+
+function appendUniqueTaskArtifact(artifacts: AgentTaskArtifact[], artifact: AgentTaskArtifact): AgentTaskArtifact[] {
+  if (artifacts.some((item) => item.id === artifact.id)) return artifacts
+  return [...artifacts, artifact]
+}
+
+function isBlockingCatalogIssue(issue: { level: string; code: string; resourceId?: string }): boolean {
+  if (issue.level !== 'error') return false
+  if (issue.resourceId === 'movscript.profile.default') return false
+  if (issue.resourceId === 'movscript.default.safe-project-assistant') return false
+  return true
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

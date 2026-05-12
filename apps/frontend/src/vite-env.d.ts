@@ -9,12 +9,21 @@ type BackendStatus = {
   message?: string
 }
 
+type MCPServerStatus = {
+  ok: boolean
+  listening: boolean
+  endpoint: string
+  port?: number
+  error?: string
+}
+
 declare global {
   interface Window {
     api?: {
       openFile?: () => Promise<string | null>
       saveFile?: (defaultPath?: string) => Promise<string | null>
       updateMCPContext?: (snapshot: unknown) => Promise<void>
+      getMCPStatus?: () => Promise<MCPServerStatus>
       setAppSettings?: (settings: AppSettings) => Promise<void>
       onBackendStatus?: (handler: (status: BackendStatus) => void) => () => void
       getBackendStatus?: () => Promise<BackendStatus>

@@ -414,7 +414,16 @@ function ResourceCard({
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <div className="group relative flex flex-col gap-1.5">
+    <div
+      className="group relative flex cursor-grab flex-col gap-1.5 active:cursor-grabbing"
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData('application/resource-id', String(resource.ID))
+        event.dataTransfer.setData('application/canvas-resource', JSON.stringify(resource))
+        event.dataTransfer.effectAllowed = 'copy'
+      }}
+      title={t('shared.resourcePanel.previewDragTitle')}
+    >
       {/* Preview */}
       <div className="aspect-square relative">
         {resource.type === 'image' || resource.type === 'video' || resource.type === 'audio' || resource.type === 'text' ? (
@@ -825,6 +834,7 @@ export default function ResourcesPage() {
                   key={r.ID}
                   resource={r}
                   thumbSize="md"
+                  draggable
                   trailing={
                     <DropdownMenu.Root>
                       <DropdownMenu.Trigger asChild>

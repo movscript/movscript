@@ -18,18 +18,24 @@ let parentTimer = null
 
 function startAgent() {
   if (stopped) return
-  console.info('[agent:dev] starting node --import tsx src/server.ts')
+  console.info(`[agent:dev] starting ${process.execPath} --import tsx src/server.ts (cwd=${process.cwd()} agentPort=${process.env.MOVSCRIPT_AGENT_PORT || 'unset'} mcpEndpoint=${process.env.MOVSCRIPT_MCP_ENDPOINT || 'unset'})`)
   const startedAt = Date.now()
   child = spawn(process.execPath, ['--import', 'tsx', 'src/server.ts'], {
     cwd: process.cwd(),
     env: process.env,
     stdio: 'inherit',
   })
+  console.info(`[agent:dev] child pid=${child.pid ?? 'unknown'}`)
   child.on('exit', (code, signal) => {
-    if (stopped) return
-    console.info(`[agent:dev] child exited code=${code ?? 'null'} signal=${signal ?? 'null'}; waiting for file changes`)
+    const elapsedMs = Date.now() - startedAt
+    if (stopped) {
+      console.info(`[agent:dev] child exited code=${code ?? 'null'} signal=${signal ?? 'null'} elapsedMs=${elapsedMs} (shutdown in progress)`)
+      return
+    }
+    console.info(`[agent:dev] child exited code=${code ?? 'null'} signal=${signal ?? 'null'} elapsedMs=${elapsedMs}; waiting for file changes`)
     child = null
-    if (!restarting && code && Date.now() - startedAt < 3_000) {
+    if (!restarting && code && elapsedMs < 3_000) {
+      console.warn(`[agent:dev] child exited with code=${code} after only ${elapsedMs}ms; propagating exit (no restart). Inspect the agent stdout/stderr above for the real cause.`)
       stopped = true
       if (timer) clearInterval(timer)
       process.exit(code)

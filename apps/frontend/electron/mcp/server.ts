@@ -17,7 +17,9 @@ import {
 
 const DEFAULT_PORT = 18765
 const MAX_PORT_PROBES = 20
+const MCP_DEBUG = process.env.MOVSCRIPT_MCP_DEBUG === '1'
 let apiBaseURL = normalizeAPIBaseURL(process.env.MOVSCRIPT_API_BASE_URL || 'http://localhost:8765')
+let nextHTTPRequestId = 1
 
 const PATCH_ROUTES: Record<string, string> = {
   script: '/scripts/:id',
@@ -60,6 +62,26 @@ const contextSnapshot: MCPContextSnapshot = {
 let server: Server | null = null
 let contextAuthToken = ''
 
+export interface MCPServerStatus {
+  ok: boolean
+  listening: boolean
+  endpoint: string
+  port?: number
+  health?: {
+    ok: boolean
+    status?: number
+    error?: string
+  }
+  initialize?: {
+    ok: boolean
+    status?: number
+    elapsedMs?: number
+    serverInfo?: unknown
+    error?: string
+  }
+  error?: string
+}
+
 export function updateMCPContextSnapshot(next: MCPContextSnapshot & { auth?: { token: string } | null }): void {
   contextSnapshot.route = next.route
   contextSnapshot.project = next.project
@@ -77,6 +99,77 @@ export function getMCPContextSnapshot(): MCPContextSnapshot {
   return { ...contextSnapshot }
 }
 
+export async function getMCPServerStatus(): Promise<MCPServerStatus> {
+  const endpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || `http://127.0.0.1:${DEFAULT_PORT}/mcp`
+  const port = server ? addressPort(server) ?? Number(new URL(endpoint).port || DEFAULT_PORT) : Number(new URL(endpoint).port || DEFAULT_PORT)
+  if (!server?.listening) {
+    return {
+      ok: false,
+      listening: false,
+      endpoint,
+      port,
+      error: 'MCP server is not running',
+    }
+  }
+
+  try {
+    const healthURL = new URL(endpoint)
+    healthURL.pathname = '/health'
+    healthURL.search = ''
+    healthURL.hash = ''
+    const controller = new AbortController()
+    const timer = globalThis.setTimeout(() => controller.abort(), 1500)
+    try {
+      const res = await fetch(healthURL.toString(), {
+        signal: controller.signal,
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        return {
+          ok: false,
+          listening: true,
+          endpoint,
+          port,
+          health: { ok: false, status: res.status },
+          error: `MCP health check returned HTTP ${res.status}`,
+        }
+      }
+      const body = await res.json() as { ok?: unknown }
+      if (body.ok !== true) {
+        return {
+          ok: false,
+          listening: true,
+          endpoint,
+          port,
+          health: { ok: false, status: res.status },
+          error: 'MCP health check did not report ok',
+        }
+      }
+      const initialize = await probeMCPInitialize(endpoint)
+      return {
+        ok: initialize.ok,
+        listening: true,
+        endpoint,
+        port,
+        health: { ok: true, status: res.status },
+        initialize,
+        ...(initialize.ok ? {} : { error: initialize.error ?? 'MCP initialize probe failed' }),
+      }
+    } finally {
+      globalThis.clearTimeout(timer)
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      listening: true,
+      endpoint,
+      port,
+      health: { ok: false, error: error instanceof Error ? error.message : String(error) },
+      error: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
 export async function startMCPServer(): Promise<number> {
   if (server?.listening) return addressPort(server) ?? DEFAULT_PORT
 
@@ -87,6 +180,11 @@ export async function startMCPServer(): Promise<number> {
   let lastError: unknown
   for (const port of ports) {
     const nextServer = createServer(handleHTTP)
+    // Keep-alive intentionally disabled: clients (movscript-agent) may otherwise reuse a half-open
+    // socket after Electron main-process restarts (dev hot reload) and observe a 3ms ECONNRESET.
+    // Pair with the per-response `Connection: close` header in writeJSON so every fetch opens a
+    // fresh TCP connection.
+    nextServer.keepAliveTimeout = 0
     try {
       await listenOnPort(nextServer, port)
       server = nextServer
@@ -132,41 +230,110 @@ function isAddressInUseError(error: unknown): boolean {
   return !!error && typeof error === 'object' && 'code' in error && error.code === 'EADDRINUSE'
 }
 
+async function probeMCPInitialize(endpoint: string): Promise<NonNullable<MCPServerStatus['initialize']>> {
+  const startedAt = Date.now()
+  const controller = new AbortController()
+  const timer = globalThis.setTimeout(() => controller.abort(), 1500)
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 'status-probe',
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          clientInfo: { name: 'movscript-desktop-status', version: '0.1.0' },
+          capabilities: {},
+        },
+      }),
+      signal: controller.signal,
+      cache: 'no-store',
+    })
+    const elapsedMs = Date.now() - startedAt
+    const text = await res.text()
+    if (!res.ok) {
+      return { ok: false, status: res.status, elapsedMs, error: `HTTP ${res.status}: ${truncate(text, 500)}` }
+    }
+    const body = JSON.parse(text) as JSONRPCResponse
+    if (body.error) {
+      return { ok: false, status: res.status, elapsedMs, error: `JSON-RPC ${body.error.code}: ${body.error.message}` }
+    }
+    const result = isRecord(body.result) ? body.result : {}
+    return { ok: true, status: res.status, elapsedMs, serverInfo: result.serverInfo }
+  } catch (error) {
+    return { ok: false, elapsedMs: Date.now() - startedAt, error: error instanceof Error ? error.message : String(error) }
+  } finally {
+    globalThis.clearTimeout(timer)
+  }
+}
+
+function debugHTTPStart(requestId: number, req: IncomingMessage): void {
+  if (!MCP_DEBUG) return
+  console.info([
+    `[mcp] http start requestId=${requestId}`,
+    `method=${req.method ?? ''}`,
+    `url=${req.url ?? ''}`,
+    `remote=${req.socket.remoteAddress ?? ''}:${req.socket.remotePort ?? ''}`,
+    `contentLength=${req.headers['content-length'] ?? ''}`,
+  ].join(' '))
+}
+
 async function handleHTTP(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const requestId = nextHTTPRequestId++
+  const startedAt = Date.now()
+  res.on('finish', () => {
+    if (MCP_DEBUG) {
+      console.info(`[mcp] http finish requestId=${requestId} method=${req.method ?? ''} url=${req.url ?? ''} status=${res.statusCode} elapsedMs=${Date.now() - startedAt}`)
+    }
+  })
   setCORSHeaders(res)
 
   if (req.method === 'OPTIONS') {
+    debugHTTPStart(requestId, req)
     res.writeHead(204)
     res.end()
     return
   }
 
   if (req.url === '/health') {
+    debugHTTPStart(requestId, req)
     writeJSON(res, 200, { ok: true, service: 'movscript-mcp', updatedAt: contextSnapshot.updatedAt })
     return
   }
 
   if (req.url !== '/mcp' || req.method !== 'POST') {
+    debugHTTPStart(requestId, req)
     writeJSON(res, 404, { error: 'not found' })
     return
   }
 
   try {
+    debugHTTPStart(requestId, req)
     const body = await readBody(req)
+    if (MCP_DEBUG) {
+      console.info(`[mcp] http body requestId=${requestId} bytes=${body.length}`)
+    }
     const payload = JSON.parse(body) as JSONRPCRequest | JSONRPCRequest[]
     if (Array.isArray(payload)) {
-      const responses = await Promise.all(payload.map(handleJSONRPC))
+      const responses = await Promise.all(payload.map((item) => handleJSONRPC(item, requestId)))
       writeJSON(res, 200, responses)
     } else {
-      writeJSON(res, 200, await handleJSONRPC(payload))
+      writeJSON(res, 200, await handleJSONRPC(payload, requestId))
     }
   } catch (error) {
+    console.error(`[mcp] http error requestId=${requestId} method=${req.method ?? ''} url=${req.url ?? ''} elapsedMs=${Date.now() - startedAt}`, error)
     writeJSON(res, 200, makeError(null, -32700, 'Parse error', String(error)))
   }
 }
 
-async function handleJSONRPC(req: JSONRPCRequest): Promise<JSONRPCResponse> {
+async function handleJSONRPC(req: JSONRPCRequest, httpRequestId?: number): Promise<JSONRPCResponse> {
+  const startedAt = Date.now()
   const id = req.id ?? null
+  if (MCP_DEBUG) {
+    console.info(`[mcp] rpc start httpRequestId=${httpRequestId ?? 'n/a'} rpcId=${String(id)} method=${req.method ?? ''}`)
+  }
   if (req.jsonrpc !== '2.0' || !req.method) {
     return makeError(id, -32600, 'Invalid Request')
   }
@@ -194,7 +361,12 @@ async function handleJSONRPC(req: JSONRPCRequest): Promise<JSONRPCResponse> {
         return makeError(id, -32601, `Method not found: ${req.method}`)
     }
   } catch (error) {
-    return makeError(id, -32000, error instanceof Error ? error.message : String(error))
+    console.error(`[mcp] rpc error httpRequestId=${httpRequestId ?? 'n/a'} rpcId=${String(id)} method=${req.method} elapsedMs=${Date.now() - startedAt}`, error)
+    return makeError(id, -32000, error instanceof Error ? error.message : String(error), errorData(error))
+  } finally {
+    if (MCP_DEBUG) {
+      console.info(`[mcp] rpc finish httpRequestId=${httpRequestId ?? 'n/a'} rpcId=${String(id)} method=${req.method ?? ''} elapsedMs=${Date.now() - startedAt}`)
+    }
   }
 }
 
@@ -364,7 +536,7 @@ function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_create_generation_job',
-      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Returns the completed job and output_resource for direct chat display. This is cost-bearing and should only run after explicit user approval.',
+      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Before choosing model_config_id or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Returns the completed job, output_resource, and param_validation audit data for direct chat display. This is cost-bearing and should only run after explicit user approval.',
       inputSchema: objectSchema(
         {
           prompt: { type: 'string' },
@@ -375,7 +547,11 @@ function listTools(): MCPTool[] {
           input_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Optional reference image/video resource IDs.' },
           aspect_ratio: { type: 'string', description: 'Optional aspect ratio such as 1:1, 16:9, or 9:16.' },
           duration: { type: 'number', description: 'Optional video duration in seconds.' },
-          extra_params: { type: 'object', description: 'Optional provider/model-specific generation parameters.' },
+          extra_params: {
+            type: 'object',
+            description: 'Optional model-specific generation parameters. Keys must come from the selected model returned by movscript_list_models.supported_params / params_schema. Unsupported keys are omitted before submission and reported in param_validation.dropped_extra_params.',
+            additionalProperties: true,
+          },
           feature_key: { type: 'string', description: 'Optional feature key for routing/audit. Defaults to agent.chat_generation.' },
           projectId: { type: 'number' },
           wait: { type: 'boolean', description: 'Defaults to true. When false, returns after enqueueing the job.' },
@@ -638,10 +814,19 @@ async function createGenerationJob(args: Record<string, unknown>): Promise<unkno
     ?? await pickGenerationModelConfigId(jobType)
   const projectId = getOptionalNumeric(args, 'projectId') ?? contextSnapshot.project?.id
   const wait = args.wait !== false
-  const aspectRatio = getOptionalString(args, 'aspect_ratio')
+  let aspectRatio = getOptionalString(args, 'aspect_ratio')
   const duration = getOptionalNumeric(args, 'duration')
   const featureKey = getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey') ?? 'agent.chat_generation'
-  const extraParams = normalizeGenerationExtraParams(args.extra_params)
+  const modelParams = await getGenerationModelSupportedParamKeys(modelConfigId, jobType)
+  const extraParamAudit = normalizeGenerationExtraParams(args.extra_params, modelParams)
+  const extraParams = extraParamAudit.extraParams
+  if (aspectRatio && modelParams && !modelParams.has('aspect_ratio')) {
+    aspectRatio = undefined
+  }
+  const paramValidation = buildGenerationParamValidationAudit(modelConfigId, modelParams, extraParamAudit, {
+    aspectRatioRequested: getOptionalString(args, 'aspect_ratio'),
+    aspectRatioSubmitted: aspectRatio,
+  })
   const title = getOptionalString(args, 'title') ?? defaultGenerationJobTitle(jobType)
 
   const job = await backendPost('/jobs', {
@@ -669,6 +854,7 @@ async function createGenerationJob(args: Record<string, unknown>): Promise<unkno
         args: initialJobId ? { jobId: initialJobId, ...(projectId ? { projectId } : {}) } : undefined,
         message: 'Generation is asynchronous. Inspect this job until it reaches a terminal status before claiming completion.',
       },
+      param_validation: paramValidation,
       message: `生成任务已创建${initialJobId ? `（Job #${initialJobId}）` : ''}。`,
     }
   }
@@ -690,6 +876,7 @@ async function createGenerationJob(args: Record<string, unknown>): Promise<unkno
     ...(outputResource ? { output_resource: outputResource } : {}),
     ...(outputResourceId ? { output_resource_id: outputResourceId } : {}),
     ...(media ? { media } : {}),
+    param_validation: paramValidation,
     terminal: isTerminalGenerationStatus(finalStatus),
     message: finalStatus === 'succeeded'
       ? `生成完成${outputResourceId ? `，输出资源 #${outputResourceId}` : ''}。`
@@ -936,11 +1123,91 @@ function modelCapabilityCandidates(jobType: string): string[] {
   }
 }
 
-function normalizeGenerationExtraParams(value: unknown): string | undefined {
-  if (value === undefined || value === null) return undefined
-  if (typeof value === 'string') return value.trim() || undefined
-  if (isRecord(value)) return JSON.stringify(value)
+async function getGenerationModelSupportedParamKeys(modelConfigId: number, jobType: string): Promise<Set<string> | undefined> {
+  for (const capability of modelCapabilityCandidates(jobType)) {
+    const models = await backendList(`/models?capability=${encodeURIComponent(capability)}`)
+    const model = models.find((item) => Number(item?.id ?? item?.ID) === modelConfigId)
+    const params = Array.isArray(model?.supported_params) ? model.supported_params : undefined
+    if (params) {
+      return new Set(params.flatMap((param: unknown) => {
+        if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) return []
+        return [param.key.trim()]
+      }))
+    }
+  }
   return undefined
+}
+
+interface GenerationExtraParamAudit {
+  extraParams?: string
+  providedKeys: string[]
+  submittedKeys: string[]
+  droppedKeys: string[]
+  parseError?: string
+}
+
+function normalizeGenerationExtraParams(value: unknown, supportedParamKeys?: Set<string>): GenerationExtraParamAudit {
+  if (value === undefined || value === null) {
+    return { providedKeys: [], submittedKeys: [], droppedKeys: [] }
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return { providedKeys: [], submittedKeys: [], droppedKeys: [] }
+    try {
+      const parsed = JSON.parse(trimmed) as unknown
+      if (isRecord(parsed)) return normalizeGenerationExtraParams(parsed, supportedParamKeys)
+    } catch (error) {
+      return {
+        extraParams: trimmed,
+        providedKeys: [],
+        submittedKeys: [],
+        droppedKeys: [],
+        parseError: error instanceof Error ? error.message : String(error),
+      }
+    }
+    return {
+      extraParams: trimmed,
+      providedKeys: [],
+      submittedKeys: [],
+      droppedKeys: [],
+    }
+  }
+  if (isRecord(value)) {
+    const providedKeys = Object.keys(value)
+    const params = supportedParamKeys
+      ? Object.fromEntries(Object.entries(value).filter(([key]) => supportedParamKeys.has(key)))
+      : value
+    const submittedKeys = Object.keys(params)
+    return {
+      extraParams: submittedKeys.length > 0 ? JSON.stringify(params) : undefined,
+      providedKeys,
+      submittedKeys,
+      droppedKeys: supportedParamKeys ? providedKeys.filter((key) => !supportedParamKeys.has(key)) : [],
+    }
+  }
+  return { providedKeys: [], submittedKeys: [], droppedKeys: [] }
+}
+
+export function buildGenerationParamValidationAudit(
+  modelConfigId: number,
+  supportedParamKeys: Set<string> | undefined,
+  extraParamAudit: GenerationExtraParamAudit,
+  options: { aspectRatioRequested?: string, aspectRatioSubmitted?: string },
+): Record<string, unknown> {
+  const droppedTopLevelParams: string[] = []
+  if (options.aspectRatioRequested && !options.aspectRatioSubmitted) {
+    droppedTopLevelParams.push('aspect_ratio')
+  }
+  return {
+    model_config_id: modelConfigId,
+    model_contract_loaded: supportedParamKeys !== undefined,
+    ...(supportedParamKeys ? { supported_params: Array.from(supportedParamKeys).sort() } : {}),
+    submitted_extra_params: extraParamAudit.submittedKeys.sort(),
+    ...(extraParamAudit.providedKeys.length > 0 ? { provided_extra_params: extraParamAudit.providedKeys.sort() } : {}),
+    ...(extraParamAudit.droppedKeys.length > 0 ? { dropped_extra_params: extraParamAudit.droppedKeys.sort() } : {}),
+    ...(droppedTopLevelParams.length > 0 ? { dropped_top_level_params: droppedTopLevelParams } : {}),
+    ...(extraParamAudit.parseError ? { extra_params_parse_error: extraParamAudit.parseError } : {}),
+  }
 }
 
 async function waitForGenerationJob(jobId: number, timeoutMs: number, pollIntervalMs: number): Promise<unknown> {
@@ -995,8 +1262,7 @@ async function backendGet(path: string): Promise<any> {
 
   const res = await fetch(`${apiBaseURL}${path}`, { headers })
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Backend GET ${path} failed: HTTP ${res.status} ${text}`)
+    throw await BackendHTTPError.fromResponse('GET', path, res)
   }
   return res.json()
 }
@@ -1012,8 +1278,7 @@ async function backendPost(path: string, body: Record<string, unknown>, userId?:
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Backend POST ${path} failed: HTTP ${res.status} ${text}`)
+    throw await BackendHTTPError.fromResponse('POST', path, res)
   }
   return res.json()
 }
@@ -1029,11 +1294,67 @@ async function backendPatch(path: string, body: Record<string, unknown>, userId?
     body: JSON.stringify(body),
   })
   if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Backend PATCH ${path} failed: HTTP ${res.status} ${text}`)
+    throw await BackendHTTPError.fromResponse('PATCH', path, res)
   }
   const text = await res.text()
   return text.trim() ? JSON.parse(text) : null
+}
+
+class BackendHTTPError extends Error {
+  constructor(
+    public readonly method: string,
+    public readonly path: string,
+    public readonly status: number,
+    public readonly body: unknown,
+    rawBody: string,
+  ) {
+    super(`Backend ${method} ${path} failed: HTTP ${status} ${backendErrorMessage(body, rawBody)}`)
+    this.name = 'BackendHTTPError'
+  }
+
+  static async fromResponse(method: string, path: string, res: Response): Promise<BackendHTTPError> {
+    const rawBody = await res.text()
+    return new BackendHTTPError(method, path, res.status, parseJSONBody(rawBody), rawBody)
+  }
+
+  toJSON(): Record<string, unknown> {
+    return normalizeBackendHTTPErrorForMCP(this.method, this.path, this.status, this.body)
+  }
+}
+
+export function normalizeBackendHTTPErrorForMCP(method: string, path: string, status: number, body: unknown): Record<string, unknown> {
+  const bodyRecord = isRecord(body) ? body : undefined
+  return {
+    type: 'backend_http_error',
+    method,
+    path,
+    status,
+    ...(bodyRecord ? { body: bodyRecord } : {}),
+    ...(bodyRecord && typeof bodyRecord.code === 'string' ? { code: bodyRecord.code } : {}),
+    ...(bodyRecord && typeof bodyRecord.field === 'string' ? { field: bodyRecord.field } : {}),
+    ...(bodyRecord && Array.isArray(bodyRecord.allowed_values) ? { allowed_values: bodyRecord.allowed_values } : {}),
+    ...(bodyRecord && isRecord(bodyRecord.suggested_fix) ? { suggested_fix: bodyRecord.suggested_fix } : {}),
+    ...(bodyRecord && isRecord(bodyRecord.details) ? { details: bodyRecord.details } : {}),
+  }
+}
+
+function parseJSONBody(rawBody: string): unknown {
+  if (!rawBody.trim()) return undefined
+  try {
+    return JSON.parse(rawBody)
+  } catch {
+    return rawBody
+  }
+}
+
+function backendErrorMessage(body: unknown, rawBody: string): string {
+  if (isRecord(body) && typeof body.error === 'string') return body.error
+  return rawBody
+}
+
+function errorData(error: unknown): unknown {
+  if (error instanceof BackendHTTPError) return error.toJSON()
+  return undefined
 }
 
 function normalizeAPIBaseURL(value: string): string {
@@ -1252,7 +1573,7 @@ function makeError(id: string | number | null, code: number, message: string, da
     error: {
       code,
       message,
-      data: data === undefined ? undefined : String(data),
+      ...(data === undefined ? {} : { data }),
     },
   }
 }
@@ -1274,7 +1595,10 @@ function readBody(req: IncomingMessage): Promise<string> {
 }
 
 function writeJSON(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    Connection: 'close',
+  })
   res.end(JSON.stringify(body))
 }
 
@@ -1328,6 +1652,10 @@ function getRequiredNumber(args: Record<string, unknown>, key: string): number {
 function getOptionalNumber(args: Record<string, unknown>, key: string): number | undefined {
   const value = args[key]
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function truncate(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

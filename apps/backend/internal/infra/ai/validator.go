@@ -116,7 +116,7 @@ func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, a
 	if len(def.SupportedParams) == 0 {
 		if def.SupportedParamsExplicit {
 			for key := range params {
-				return nil, fmt.Errorf("parameter %q is not supported by model %q", key, def.DisplayName)
+				return nil, unsupportedParameterError(key, def.DisplayName)
 			}
 		}
 		return params, nil
@@ -130,13 +130,16 @@ func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, a
 	for key, val := range params {
 		p, ok := supported[key]
 		if !ok {
-			return nil, fmt.Errorf("parameter %q is not supported by model %q", key, def.DisplayName)
+			return nil, unsupportedParameterError(key, def.DisplayName)
 		}
 		if err := validateParamValue(p, val); err != nil {
 			return nil, err
 		}
 	}
 
+	if err := validateDeclaredParamRules(params, supported); err != nil {
+		return nil, err
+	}
 	if err := validateCrossParamRules(params); err != nil {
 		return nil, err
 	}
@@ -197,28 +200,28 @@ func validateParamValue(p ParamDef, val any) error {
 	case "select":
 		s, ok := stringValue(val)
 		if !ok {
-			return fmt.Errorf("parameter %q must be a string option", p.Key)
+			return invalidParamTypeError(p.Key, "a string option")
 		}
 		if len(p.Options) > 0 && !containsString(p.Options, s) {
-			return fmt.Errorf("parameter %q must be one of [%s]", p.Key, strings.Join(p.Options, ", "))
+			return invalidParamOptionError(p.Key, p.Options)
 		}
 	case "number":
 		n, ok := numberValue(val)
 		if !ok {
-			return fmt.Errorf("parameter %q must be a number", p.Key)
+			return invalidParamTypeError(p.Key, "a number")
 		}
 		if p.Min != 0 && n < p.Min {
-			return fmt.Errorf("parameter %q must be >= %v", p.Key, p.Min)
+			return invalidParamRangeError(p.Key, ">=", p.Min)
 		}
 		if p.Max != 0 && n > p.Max {
-			return fmt.Errorf("parameter %q must be <= %v", p.Key, p.Max)
+			return invalidParamRangeError(p.Key, "<=", p.Max)
 		}
 		if p.Step >= 1 && !isWholeNumber(n) {
-			return fmt.Errorf("parameter %q must be an integer", p.Key)
+			return invalidParamTypeError(p.Key, "an integer")
 		}
 	case "boolean":
 		if _, ok := boolValue(val); !ok {
-			return fmt.Errorf("parameter %q must be a boolean", p.Key)
+			return invalidParamTypeError(p.Key, "a boolean")
 		}
 	default:
 		if p.Key == "size" || p.Key == "image_size" {
@@ -237,36 +240,102 @@ func validateCrossParamRules(params map[string]any) error {
 	if hasFrames && hasDuration {
 		if frames, ok := numberValue(params["frames"]); ok && frames != 0 {
 			if duration, ok := numberValue(params["duration"]); ok && duration != 0 {
-				return fmt.Errorf("parameters \"frames\" and \"duration\" cannot be used together")
+				return invalidParamCombinationError("parameters \"frames\" and \"duration\" cannot be used together", "frames", "duration")
 			}
 		}
 	}
 
 	if draft, ok := boolValue(params["draft"]); ok && draft {
 		if lastFrame, ok := boolValue(params["return_last_frame"]); ok && lastFrame {
-			return fmt.Errorf("parameter \"return_last_frame\" cannot be true when \"draft\" is true")
+			return invalidParamCombinationError("parameter \"return_last_frame\" cannot be true when \"draft\" is true", "return_last_frame", "draft")
 		}
 		if tier, ok := stringValue(params["service_tier"]); ok && tier == "flex" {
-			return fmt.Errorf("parameter \"service_tier\" cannot be flex when \"draft\" is true")
+			return invalidParamCombinationError("parameter \"service_tier\" cannot be flex when \"draft\" is true", "service_tier", "draft")
 		}
 		if resolution, ok := stringValue(params["resolution"]); ok && resolution != "" && resolution != "480p" {
-			return fmt.Errorf("parameter \"resolution\" must be 480p when \"draft\" is true")
+			err := invalidParamCombinationError("parameter \"resolution\" must be 480p when \"draft\" is true", "resolution", "draft")
+			err.AllowedValues = []string{"480p"}
+			err.SuggestedFix = map[string]any{"resolution": "480p"}
+			return err
 		}
 	}
 
 	if maxImages, ok := numberValue(params["image_count"]); ok && maxImages > 0 {
 		mode, _ := stringValue(params["sequential_image_generation"])
 		if mode != "auto" {
-			return fmt.Errorf("parameter \"image_count\" only applies when \"sequential_image_generation\" is auto")
+			err := invalidParamCombinationError("parameter \"image_count\" only applies when \"sequential_image_generation\" is auto", "image_count", "sequential_image_generation")
+			err.SuggestedFix = map[string]any{"sequential_image_generation": "auto"}
+			return err
 		}
 	}
 
 	if frames, ok := numberValue(params["frames"]); ok && frames != 0 {
 		if !isWholeNumber(frames) || frames < 29 || frames > 289 || int64(frames-25)%4 != 0 {
-			return fmt.Errorf("parameter \"frames\" must be in [29,289] and match 25 + 4n")
+			return invalidParamCombinationError("parameter \"frames\" must be in [29,289] and match 25 + 4n", "frames")
 		}
 	}
 	return nil
+}
+
+func validateDeclaredParamRules(params map[string]any, supported map[string]ParamDef) error {
+	for key, p := range supported {
+		if !paramHasNonZeroValue(params[key]) {
+			continue
+		}
+		for _, other := range p.ConflictsWith {
+			if paramHasNonZeroValue(params[other]) {
+				return invalidParamCombinationError("parameters \""+key+"\" and \""+other+"\" cannot be used together", key, other)
+			}
+		}
+		for _, item := range p.ConditionalEnum {
+			if !conditionalParamMatches(params[item.WhenParam], item.WhenValue) {
+				continue
+			}
+			value, ok := stringValue(params[key])
+			if !ok || value == "" || containsString(item.Options, value) {
+				continue
+			}
+			err := invalidParamCombinationError("parameter \""+key+"\" must be one of the allowed values for \""+item.WhenParam+"\"", key, item.WhenParam)
+			err.AllowedValues = append([]string{}, item.Options...)
+			if len(item.Options) > 0 {
+				err.SuggestedFix = map[string]any{key: item.Options[0]}
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func paramHasNonZeroValue(value any) bool {
+	switch v := value.(type) {
+	case nil:
+		return false
+	case string:
+		return v != ""
+	case bool:
+		return v
+	default:
+		if n, ok := numberValue(value); ok {
+			return n != 0
+		}
+		return true
+	}
+}
+
+func conditionalParamMatches(actual, expected any) bool {
+	if expectedBool, ok := expected.(bool); ok {
+		actualBool, actualOK := boolValue(actual)
+		return actualOK && actualBool == expectedBool
+	}
+	if expectedString, ok := stringValue(expected); ok {
+		actualString, actualOK := stringValue(actual)
+		return actualOK && actualString == expectedString
+	}
+	if expectedNumber, ok := numberValue(expected); ok {
+		actualNumber, actualOK := numberValue(actual)
+		return actualOK && actualNumber == expectedNumber
+	}
+	return actual == expected
 }
 
 var sizePattern = regexp.MustCompile(`^\d+x\d+$`)

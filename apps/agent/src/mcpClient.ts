@@ -1,8 +1,31 @@
 import type { JSONRPCRequest, JSONRPCResponse, JSONValue, MCPClientOptions, MCPResource, MCPTool } from './types.js'
 
+const TRANSIENT_ERROR_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+])
+
+const RETRY_BACKOFF_MS = [50, 200] as const
+
+export class MCPError extends Error {
+  constructor(
+    message: string,
+    public readonly code: number,
+    public readonly data: JSONValue | undefined,
+  ) {
+    super(message)
+    this.name = 'MCPError'
+  }
+}
+
 export class MCPClient {
   private nextId = 1
   private readonly endpoint: string
+  private readonly debug = process.env.MOVSCRIPT_MCP_DEBUG === '1'
 
   constructor(options: MCPClientOptions) {
     this.endpoint = options.endpoint
@@ -41,31 +64,86 @@ export class MCPClient {
       method,
       params,
     }
+    const requestId = payload.id
+    const startedAt = Date.now()
+    const body = JSON.stringify(payload)
+
+    if (this.debug) {
+      console.info(`[mcp-client] request id=${requestId} method=${method} endpoint=${this.endpoint} bytes=${body.length}`)
+    }
 
     let res: Response
-    try {
-      res = await fetch(this.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: options.signal,
-      })
-    } catch (error) {
-      throw new Error(`MCP request failed (${method} ${this.endpoint}): ${formatError(error)}`)
+    let attempt = 0
+    while (true) {
+      try {
+        res = await fetch(this.endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          signal: options.signal,
+        })
+        break
+      } catch (error) {
+        const transient = isTransientFetchError(error) && !options.signal?.aborted
+        if (!transient || attempt >= RETRY_BACKOFF_MS.length) {
+          const elapsedMs = Date.now() - startedAt
+          throw new Error(`MCP request failed (${method} ${this.endpoint} requestId=${requestId} elapsedMs=${elapsedMs}): ${formatError(error)}`)
+        }
+        const delayMs = RETRY_BACKOFF_MS[attempt]
+        attempt++
+        if (this.debug) {
+          console.warn(`[mcp-client] retry id=${requestId} method=${method} attempt=${attempt} delayMs=${delayMs} reason=${formatError(error)}`)
+        }
+        // Pre-response transport failures mean the server never produced a reply, so retrying does
+        // not duplicate side effects. Common cause: Electron main-process restart in dev mode
+        // killing the MCP listener mid-keep-alive (3ms ECONNRESET).
+        await delay(delayMs, options.signal)
+      }
+    }
+
+    const elapsedMs = Date.now() - startedAt
+    if (this.debug) {
+      console.info(`[mcp-client] response id=${requestId} method=${method} status=${res.status} elapsedMs=${elapsedMs}`)
     }
 
     if (!res.ok) {
-      throw new Error(`MCP HTTP ${res.status}: ${await res.text()}`)
+      throw new Error(`MCP HTTP ${res.status} (${method} ${this.endpoint} requestId=${requestId} elapsedMs=${elapsedMs}): ${await safeReadResponseText(res)}`)
     }
 
-    const json = await res.json() as JSONRPCResponse<T>
+    let json: JSONRPCResponse<T>
+    try {
+      json = await res.json() as JSONRPCResponse<T>
+    } catch (error) {
+      throw new Error(`MCP invalid JSON (${method} ${this.endpoint} requestId=${requestId} elapsedMs=${Date.now() - startedAt}): ${formatError(error)}`)
+    }
     if (json.error) {
-      throw new Error(`MCP ${json.error.code}: ${json.error.message}`)
+      throw new MCPError(
+        `MCP ${json.error.code} (${method} ${this.endpoint} requestId=${requestId} elapsedMs=${Date.now() - startedAt}): ${json.error.message}${json.error.data !== undefined ? `; data=${formatJSONValue(json.error.data)}` : ''}`,
+        json.error.code,
+        json.error.data,
+      )
     }
     if (json.result === undefined) {
-      throw new Error(`MCP ${method} returned no result`)
+      throw new Error(`MCP ${method} returned no result (${this.endpoint} requestId=${requestId} elapsedMs=${Date.now() - startedAt})`)
     }
     return json.result
+  }
+}
+
+function formatJSONValue(value: JSONValue): string {
+  if (typeof value === 'string') return value
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+async function safeReadResponseText(res: Response): Promise<string> {
+  try {
+    return await res.text()
+  } catch (error) {
+    return `failed to read response body: ${formatError(error)}`
   }
 }
 
@@ -137,4 +215,36 @@ function summarizeCause(error: Error): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isTransientFetchError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false
+  const candidates: unknown[] = [error]
+  const cause = (error as Error & { cause?: unknown }).cause
+  if (cause !== undefined) candidates.push(cause)
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') continue
+    const record = candidate as { code?: unknown; message?: unknown }
+    if (typeof record.code === 'string' && TRANSIENT_ERROR_CODES.has(record.code)) return true
+    if (typeof record.message === 'string' && /socket hang up/i.test(record.message)) return true
+  }
+  return false
+}
+
+function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('aborted'))
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = (): void => {
+      clearTimeout(timer)
+      reject(new Error('aborted'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
 }

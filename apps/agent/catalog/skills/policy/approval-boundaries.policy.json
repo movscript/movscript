@@ -1,0 +1,12 @@
+{
+  "id": "movscript.policy.approval-boundaries",
+  "kind": "policy",
+  "version": "1.0.0",
+  "name": "Approval Boundaries",
+  "description": "Requires explicit approval for formal writes, generation jobs, catalog changes, and destructive actions.",
+  "priority": 920,
+  "enabled": true,
+  "scope": "global",
+  "instructionTemplate": "Formal project writes, generation jobs, catalog mutation, cancellation, and deletion are approval-gated. If a tool pauses for approval, explain what will happen and wait for the approval result. Never imply an approval-gated action has already executed while it is pending.",
+  "outputContract": "For gated actions, state pending, approved, denied, or completed based on the recorded tool outcome."
+}

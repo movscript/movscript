@@ -6,6 +6,7 @@ import { app } from 'electron'
 
 const DEFAULT_PRODUCTION_RUNTIME_BASE_URL = 'http://127.0.0.1:28765'
 const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
+const DEFAULT_BACKEND_API_BASE_URL = 'http://localhost:8765'
 const DEFAULT_AGENT_USER_DATA_DIR = 'movscript-agent'
 const MIN_AGENT_RUNTIME_API_VERSION = 1
 const execFileAsync = promisify(execFile)
@@ -13,7 +14,12 @@ export type AgentRuntimeLaunchPolicy = 'spawn' | 'external'
 
 let proc: ChildProcess | null = null
 let startPromise: Promise<AgentRuntimeStatus> | null = null
-let backendAPIBaseURL = normalizeBackendAPIBaseURL(process.env.MOVSCRIPT_BACKEND_API_BASE_URL || process.env.MOVSCRIPT_API_BASE_URL || '')
+let backendAPIBaseURL = normalizeBackendAPIBaseURL(
+  process.env.MOVSCRIPT_BACKEND_API_BASE_URL
+    || process.env.MOVSCRIPT_API_BASE_URL
+    || process.env.VITE_API_BASE_URL
+    || DEFAULT_BACKEND_API_BASE_URL
+)
 const supportsProcessGroups = process.platform !== 'win32'
 const shouldDetachAgentRuntime = app.isPackaged && supportsProcessGroups
 
@@ -45,8 +51,29 @@ interface AgentRuntimeHealthCheck {
   compatible: boolean
   apiVersion?: number
   mcpEndpoint?: string
-  reason?: 'mcp-endpoint-mismatch'
+  reason?:
+    | 'fetch-failed'
+    | 'health-non-200'
+    | 'health-body-not-ok'
+    | 'capabilities-non-200'
+    | 'capabilities-fetch-failed'
+    | 'incompatible-api-version'
+    | 'missing-features'
+    | 'mcp-endpoint-mismatch'
+    | 'mcp-endpoint-missing'
   error?: string
+}
+
+function summarizeHealthCheck(health: AgentRuntimeHealthCheck): string {
+  const parts: string[] = [
+    `ok=${health.ok}`,
+    `compatible=${health.compatible}`,
+  ]
+  if (health.reason) parts.push(`reason=${health.reason}`)
+  if (health.apiVersion !== undefined) parts.push(`apiVersion=${health.apiVersion}`)
+  if (health.mcpEndpoint) parts.push(`mcpEndpoint=${health.mcpEndpoint}`)
+  if (health.error) parts.push(`error=${health.error}`)
+  return parts.join(' ')
 }
 
 export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}): Promise<AgentRuntimeStatus> {
@@ -124,10 +151,14 @@ export async function setAgentRuntimeAPIBaseURL(apiBaseURL: string): Promise<voi
 }
 
 async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
+  const spawnStartedAt = Date.now()
   try {
     const launch = resolveAgentRuntimeLaunch()
     const port = resolvePort(baseURL)
+    const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT
+    const agentUserDataDir = process.env.MOVSCRIPT_AGENT_USER_DATA_DIR || join(app.getPath('userData'), DEFAULT_AGENT_USER_DATA_DIR)
     console.info(`[agent] spawning ${launch.command} ${launch.args.join(' ')} cwd=${launch.cwd}`)
+    console.info(`[agent] spawn env MOVSCRIPT_AGENT_PORT=${port} MOVSCRIPT_MCP_ENDPOINT=${mcpEndpoint} MOVSCRIPT_BACKEND_API_BASE_URL=${backendAPIBaseURL || '(unset)'} MOVSCRIPT_AGENT_USER_DATA_DIR=${agentUserDataDir} parentPid=${process.pid}`)
     const child = spawn(launch.command, launch.args, {
       cwd: launch.cwd,
       detached: shouldDetachAgentRuntime,
@@ -135,8 +166,8 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
         ...process.env,
         ...launch.env,
         MOVSCRIPT_AGENT_PORT: String(port),
-        MOVSCRIPT_MCP_ENDPOINT: process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT,
-        MOVSCRIPT_AGENT_USER_DATA_DIR: process.env.MOVSCRIPT_AGENT_USER_DATA_DIR || join(app.getPath('userData'), DEFAULT_AGENT_USER_DATA_DIR),
+        MOVSCRIPT_MCP_ENDPOINT: mcpEndpoint,
+        MOVSCRIPT_AGENT_USER_DATA_DIR: agentUserDataDir,
         ...(backendAPIBaseURL ? {
           MOVSCRIPT_BACKEND_API_BASE_URL: backendAPIBaseURL,
           MOVSCRIPT_API_BASE_URL: backendAPIBaseURL,
@@ -150,7 +181,7 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
 
     child.on('error', (err) => console.error('[agent]', err))
     child.on('exit', (code, signal) => {
-      console.info(`[agent] movscript-agent exited code=${code ?? 'null'} signal=${signal ?? 'null'}`)
+      console.info(`[agent] movscript-agent exited code=${code ?? 'null'} signal=${signal ?? 'null'} pid=${child.pid ?? 'unknown'} elapsedMs=${Date.now() - spawnStartedAt}`)
       if (proc === child) proc = null
     })
 
@@ -340,66 +371,145 @@ function resolveAgentRuntimeLaunch(): AgentRuntimeLaunch {
 }
 
 async function waitForAgentRuntime(baseURL: string, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs
+  const startedAt = Date.now()
+  const deadline = startedAt + timeoutMs
+  let lastHealth: AgentRuntimeHealthCheck = { ok: false, compatible: false, reason: 'fetch-failed', error: 'no health probe yet' }
+  let lastProgressLogAt = 0
   while (Date.now() < deadline) {
     const health = await getAgentRuntimeHealth(baseURL)
-    if (health.ok && health.compatible) return
+    if (health.ok && health.compatible) {
+      console.info(`[agent] health ok at ${baseURL} after ${Date.now() - startedAt}ms`)
+      return
+    }
+    lastHealth = health
+    const now = Date.now()
+    if (now - lastProgressLogAt >= 1000) {
+      lastProgressLogAt = now
+      console.info(`[agent] still waiting for runtime at ${baseURL} (elapsed=${now - startedAt}ms, ${summarizeHealthCheck(health)})`)
+    }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error(`movscript-agent did not become compatible at ${baseURL} within ${timeoutMs}ms`)
+  throw new Error(`movscript-agent did not become compatible at ${baseURL} within ${timeoutMs}ms; last health: ${summarizeHealthCheck(lastHealth)}`)
 }
 
 async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealthCheck> {
+  let res: Response
   try {
-    const res = await fetch(`${baseURL}/health`)
-    if (!res.ok) return { ok: false, compatible: false }
-    const body = await res.json() as { ok?: unknown; runtime?: { apiVersion?: unknown; features?: unknown } }
-    if (body.ok !== true) return { ok: false, compatible: false }
-    const capabilityRes = await fetch(`${baseURL}/runtime/capabilities`)
-    if (!capabilityRes.ok) {
-      return {
-        ok: true,
-        compatible: false,
-        error: 'Agent is running but does not expose /runtime/capabilities.',
-      }
+    res = await fetch(`${baseURL}/health`)
+  } catch (error) {
+    return {
+      ok: false,
+      compatible: false,
+      reason: 'fetch-failed',
+      error: describeFetchError(error),
     }
-    const capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
-    const runtime = capabilities.runtime ?? body.runtime
-    const apiVersion = typeof runtime?.apiVersion === 'number' ? runtime.apiVersion : undefined
-    const features = Array.isArray(runtime?.features) ? runtime.features : []
-    const mcpEndpoint = typeof capabilities.mcpEndpoint === 'string' ? capabilities.mcpEndpoint.trim() : ''
-    const hasRequiredFeatures = features.includes('model-config') && features.includes('runtime-capabilities')
-    if (!apiVersion || apiVersion < MIN_AGENT_RUNTIME_API_VERSION || !hasRequiredFeatures) {
-      return {
-        ok: true,
-        compatible: false,
-        apiVersion,
-        error: `Agent runtime is incompatible. Required apiVersion>=${MIN_AGENT_RUNTIME_API_VERSION} with model-config/runtime-capabilities features.`,
-      }
-    }
-    const expectedMcpEndpoint = (process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT).replace(/\/+$/, '')
-    if (mcpEndpoint && mcpEndpoint !== expectedMcpEndpoint) {
-      return {
-        ok: true,
-        compatible: false,
-        apiVersion,
-        mcpEndpoint,
-        reason: 'mcp-endpoint-mismatch',
-        error: `Agent runtime is bound to ${mcpEndpoint} but expected ${expectedMcpEndpoint}. Restart the agent after MCP changes.`,
-      }
-    }
-    if (!mcpEndpoint) {
-      return {
-        ok: true,
-        compatible: false,
-        apiVersion,
-        error: 'Agent runtime did not report its MCP endpoint.',
-      }
-    }
-    return { ok: true, compatible: true, apiVersion, mcpEndpoint }
-  } catch {
-    return { ok: false, compatible: false }
   }
+  if (!res.ok) {
+    return {
+      ok: false,
+      compatible: false,
+      reason: 'health-non-200',
+      error: `GET ${baseURL}/health returned HTTP ${res.status}`,
+    }
+  }
+  let body: { ok?: unknown; runtime?: { apiVersion?: unknown; features?: unknown } }
+  try {
+    body = await res.json() as typeof body
+  } catch (error) {
+    return {
+      ok: false,
+      compatible: false,
+      reason: 'health-non-200',
+      error: `GET ${baseURL}/health returned invalid JSON: ${describeFetchError(error)}`,
+    }
+  }
+  if (body.ok !== true) {
+    return {
+      ok: false,
+      compatible: false,
+      reason: 'health-body-not-ok',
+      error: `GET ${baseURL}/health body did not report ok=true`,
+    }
+  }
+  let capabilityRes: Response
+  try {
+    capabilityRes = await fetch(`${baseURL}/runtime/capabilities`)
+  } catch (error) {
+    return {
+      ok: true,
+      compatible: false,
+      reason: 'capabilities-fetch-failed',
+      error: `GET ${baseURL}/runtime/capabilities failed: ${describeFetchError(error)}`,
+    }
+  }
+  if (!capabilityRes.ok) {
+    return {
+      ok: true,
+      compatible: false,
+      reason: 'capabilities-non-200',
+      error: `GET ${baseURL}/runtime/capabilities returned HTTP ${capabilityRes.status}`,
+    }
+  }
+  const capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
+  const runtime = capabilities.runtime ?? body.runtime
+  const apiVersion = typeof runtime?.apiVersion === 'number' ? runtime.apiVersion : undefined
+  const features = Array.isArray(runtime?.features) ? runtime.features : []
+  const mcpEndpoint = typeof capabilities.mcpEndpoint === 'string' ? capabilities.mcpEndpoint.trim() : ''
+  const hasRequiredFeatures = features.includes('model-config') && features.includes('runtime-capabilities')
+  if (!apiVersion || apiVersion < MIN_AGENT_RUNTIME_API_VERSION) {
+    return {
+      ok: true,
+      compatible: false,
+      apiVersion,
+      reason: 'incompatible-api-version',
+      error: `apiVersion=${apiVersion ?? 'unset'} but required apiVersion>=${MIN_AGENT_RUNTIME_API_VERSION}`,
+    }
+  }
+  if (!hasRequiredFeatures) {
+    return {
+      ok: true,
+      compatible: false,
+      apiVersion,
+      reason: 'missing-features',
+      error: `runtime features ${JSON.stringify(features)} missing model-config and/or runtime-capabilities`,
+    }
+  }
+  const expectedMcpEndpoint = (process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT).replace(/\/+$/, '')
+  if (mcpEndpoint && mcpEndpoint !== expectedMcpEndpoint) {
+    return {
+      ok: true,
+      compatible: false,
+      apiVersion,
+      mcpEndpoint,
+      reason: 'mcp-endpoint-mismatch',
+      error: `Agent runtime is bound to ${mcpEndpoint} but expected ${expectedMcpEndpoint}. Restart the agent after MCP changes.`,
+    }
+  }
+  if (!mcpEndpoint) {
+    return {
+      ok: true,
+      compatible: false,
+      apiVersion,
+      reason: 'mcp-endpoint-missing',
+      error: 'Agent runtime did not report its MCP endpoint.',
+    }
+  }
+  return { ok: true, compatible: true, apiVersion, mcpEndpoint }
+}
+
+function describeFetchError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
+  const parts: string[] = [error.message]
+  const anyError = error as Error & { code?: unknown; cause?: unknown }
+  if (typeof anyError.code === 'string') parts.push(`code=${anyError.code}`)
+  if (anyError.cause && typeof anyError.cause === 'object') {
+    const cause = anyError.cause as { code?: unknown; address?: unknown; port?: unknown; syscall?: unknown }
+    if (typeof cause.code === 'string') parts.push(`causeCode=${cause.code}`)
+    if (typeof cause.syscall === 'string') parts.push(`syscall=${cause.syscall}`)
+    if (typeof cause.address === 'string') parts.push(`address=${cause.address}`)
+    if (typeof cause.port === 'number' || typeof cause.port === 'string') parts.push(`port=${cause.port}`)
+  }
+  return parts.join(' ')
 }
 
 function normalizeBaseURL(value?: string): string {

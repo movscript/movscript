@@ -96,6 +96,7 @@ export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValu
 
 function unwrapToolPayload(result: JSONValue | undefined): JSONValue | undefined {
   if (!isRecord(result)) return result
+  if (isJSONValue(result.data)) return result.data
   if (Array.isArray(result.content)) {
     const text = result.content
       .map((item) => isRecord(item) && typeof item.text === 'string' ? item.text : undefined)

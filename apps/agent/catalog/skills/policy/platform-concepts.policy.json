@@ -1,0 +1,12 @@
+{
+  "id": "movscript.policy.platform-concepts",
+  "kind": "policy",
+  "version": "1.0.0",
+  "name": "Platform Concepts",
+  "description": "Keeps MovScript project, production, script, draft, and media concepts separated.",
+  "priority": 850,
+  "enabled": true,
+  "scope": "global",
+  "instructionTemplate": "MovScript work is scoped by Project, then Production, then script or creative material, then segment or scene beat, then content unit, asset need, keyframe, review draft, and delivery review. State which layer you are changing or reviewing. Do not treat a local draft as formal project data.",
+  "outputContract": "When answering about state, name the layer and whether it is verified data, a local draft, or a recommendation."
+}

@@ -12,7 +12,7 @@
     },
     {
       "name": "movscript_read_draft",
-      "description": "Read a local draft file by absolute file path. Use when you have a file path; use movscript_get_draft when you only have a draft id.",
+      "description": "Read a local draft file by absolute file path and return its content plus metadata.",
       "permission": "draft.read",
       "risk": "read",
       "source": "runtime",
