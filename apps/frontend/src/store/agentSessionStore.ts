@@ -83,7 +83,7 @@ interface AgentSessionStore {
   claimNextQueuedPageTask: () => (AgentPageTaskPayload & { requestId: string; taskType: string }) | null
   attachPageTaskConversation: (requestId: string, conversationId: string) => void
   setPageTaskRunning: (requestId: string | undefined, patch: { conversationId?: string; run?: AgentRun; threadId?: string; artifacts?: AgentTaskArtifactRef[] }) => void
-  updatePageTaskFromRuntime: (payload: { requestId?: string; run?: AgentRun; thread?: AgentThread; error?: string; artifacts?: AgentTaskArtifactRef[] }) => void
+  updatePageTaskFromRuntime: (payload: { requestId?: string; run?: AgentRun; thread?: AgentThread; error?: string; artifacts?: AgentTaskArtifactRef[]; status?: 'completed' | 'error' | 'cancelled' }) => void
 
   setConversationRuntime: (conversationId: string, patch: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'updatedAt'>>) => void
   setConversationRun: (conversationId: string, run: AgentRun, patch?: Partial<Omit<AgentConversationRuntimeState, 'conversationId' | 'run' | 'runId' | 'threadId' | 'status' | 'updatedAt'>>) => void
@@ -249,7 +249,7 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
                 artifacts: payload.artifacts ?? task.artifacts,
                 error: payload.error,
                 updatedAt: now,
-                settledAt: payload.run && isRuntimeTerminalRun(payload.run) ? now : task.settledAt,
+                settledAt: payload.status !== undefined || (payload.run && isRuntimeTerminalRun(payload.run)) ? now : task.settledAt,
               },
             },
           }

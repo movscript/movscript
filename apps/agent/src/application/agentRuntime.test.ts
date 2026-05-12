@@ -196,9 +196,7 @@ class FakeMCPClient {
   async listTools(): Promise<any[]> {
     return [
       { name: 'movscript_create_project', description: 'Create a project.', inputSchema: {} },
-      { name: 'movscript_list_productions', description: 'List productions.', inputSchema: {} },
-      { name: 'movscript_read_current_production', description: 'Read current production context.', inputSchema: {} },
-      { name: 'movscript_check_proposal_is_available', description: 'Check proposal availability.', inputSchema: {} },
+      { name: 'movscript_read_project_scripts', description: 'Read project scripts.', inputSchema: {} },
       ...this.extraTools,
     ]
   }
@@ -225,25 +223,6 @@ class FakeMCPClient {
     if (handler) return toolText(handler(args))
     if (this.toolResults.has(name)) {
       return toolText(this.toolResults.get(name))
-    }
-    if (name === 'movscript_read_current_production') {
-      return toolText({
-        production: { id: 4, title: 'Episode 4' },
-        counts: {
-          segments: 1,
-          sceneMoments: 2,
-          creativeReferences: 0,
-          assetSlots: 2,
-          contentUnits: 3,
-          keyframes: 1,
-        },
-        segments: [],
-        sceneMoments: [],
-        creativeReferences: [],
-        assetSlots: [],
-        contentUnits: [],
-        keyframes: [],
-      })
     }
     return toolText({ ok: true })
   }
@@ -403,14 +382,14 @@ test('capabilities distinguish available and blocked tools', async () => {
     currentProjectId: 42,
     agentManifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['project.read'],
-      tools: [{ name: 'movscript_list_productions', mode: 'allow' }],
+      permissions: ['project.read', 'project.write'],
+      tools: [{ name: 'movscript_create_project', mode: 'allow' }],
     },
   })
 
   assert.equal(capabilities.mcp.connected, true)
-  assert.ok(capabilities.resolvedTools.available.some((tool) => tool.name === 'movscript_list_productions'))
-  assert.equal(capabilities.resolvedTools.byName['movscript_create_draft'], undefined)
+  assert.ok(capabilities.resolvedTools.available.some((tool) => tool.name === 'movscript_create_project'))
+  assert.equal(capabilities.resolvedTools.byName['movscript_create_draft']?.available, false)
 })
 
 test('runtime draft tools are available without MCP tool discovery except draft creation', async () => {
@@ -421,10 +400,9 @@ test('runtime draft tools are available without MCP tool discovery except draft 
   const capabilities = await runtime.getCapabilities({ currentProjectId: 42 })
 
   assert.equal(capabilities.resolvedTools.byName['movscript_read_draft']?.available, true)
-  assert.equal(capabilities.resolvedTools.byName['movscript_edit_draft']?.available, true)
-  assert.equal(capabilities.resolvedTools.byName['movscript_dry_apply_draft']?.available, true)
+  assert.equal(capabilities.resolvedTools.byName['movscript_update_draft']?.available, true)
   assert.equal(capabilities.resolvedTools.byName['movscript_list_drafts']?.available, true)
-  assert.equal(capabilities.resolvedTools.byName['movscript_create_draft'], undefined)
+  assert.equal(capabilities.resolvedTools.byName['movscript_create_draft']?.available, false)
   assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.source, 'runtime')
   assert.equal(capabilities.resolvedTools.byName['movscript_create_script']?.available, true)
 })
@@ -437,7 +415,7 @@ test('runtime can read, edit, and validate a script split draft without backend 
   const thread = runtime.createThread({ messages: [{ role: 'user', content: '请细化草稿' }] })
   const draft = draftStore.createDraft({
     projectId: 42,
-    kind: 'script_split',
+    kind: 'script_split_proposal',
     title: '剧本拆分草稿',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.scriptSplit,
@@ -499,11 +477,12 @@ test('runtime can read, edit, and validate a script split draft without backend 
     title: 'Edit draft',
     message: 'Edit draft',
     toolCall: {
-      name: 'movscript_edit_draft',
+      name: 'movscript_update_draft',
       args: {
-        file_path: draft.filePath,
-        old_string: '"summary":"旧摘要"',
-        new_string: '"summary":"新摘要"',
+        draftId: draft.id,
+        action: 'replace_text',
+        oldString: '"summary":"旧摘要"',
+        newString: '"summary":"新摘要"',
       },
     },
   })
@@ -516,7 +495,7 @@ test('runtime can read, edit, and validate a script split draft without backend 
   assert.equal(completed.status, 'completed')
   assert.equal(parsed.episode_drafts?.[0]?.summary, '新摘要')
   assert.equal(validation.ok, true)
-  assert.equal(client.calls.some((call) => call.name === 'movscript_edit_draft'), false)
+  assert.equal(client.calls.some((call) => call.name === 'movscript_update_draft'), false)
 })
 
 test('explicit write agent can create_project without a current project after approval', async () => {
@@ -593,7 +572,7 @@ test('run agentManifest limits tool execution', async () => {
     agentManifest: {
       ...DEFAULT_AGENT_MANIFEST,
       permissions: ['project.read'],
-      tools: [{ name: 'movscript_list_productions', mode: 'allow', approval: 'never' }],
+      tools: [{ name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' }],
     },
   })
 
@@ -1381,6 +1360,40 @@ test('generation tool results emit structured generation trace events', async ()
   assert.equal(completed.terminal, true)
 })
 
+test('/image command forces a generation tool call and returns the generated job summary', async () => {
+  const client = new FakeMCPClient()
+  client.projectId = 42
+  client.extraTools.push({ name: 'movscript_create_generation_job', description: 'Create generation job.', inputSchema: {} })
+  client.extraTools.push({ name: 'movscript_get_generation_job', description: 'Inspect generation job.', inputSchema: {} })
+  client.toolResults.set('movscript_create_generation_job', {
+    status: 'succeeded',
+    jobId: 321,
+    terminal: true,
+    output_resource_id: 654,
+    media: { id: 654, type: 'image', url: '/api/v1/resources/654/file', mime_type: 'image/png' },
+    message: '图片生成完成，输出资源 #654。',
+  })
+  const runtime = createTestRuntime({ mcpClient: client })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '/image 一张雨夜便利店概念图' }] })
+  const run = await createAndWaitForRun(runtime, thread.id, {
+    agentManifest: {
+      ...DEFAULT_AGENT_MANIFEST,
+      permissions: [...DEFAULT_AGENT_MANIFEST.permissions, 'generation.create'],
+      tools: [
+        ...DEFAULT_AGENT_MANIFEST.tools,
+        { name: 'movscript_create_generation_job', mode: 'allow', approval: 'never' },
+      ],
+    },
+  })
+
+  const finalThread = runtime.getThread(thread.id)
+  const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
+  assert.ok(run.status === 'completed' || run.status === 'completed_with_warnings')
+  assert.equal(client.calls.filter((call) => call.name === 'movscript_create_generation_job').length, 1)
+  assert.match(assistant?.content ?? '', /\/image/)
+  assert.match(assistant?.content ?? '', /Output resource: #654/)
+})
+
 test('generation monitor emits failed and cancelled terminal events', async () => {
   for (const terminalStatus of ['failed', 'cancelled'] as const) {
     const client = new FakeMCPClient()
@@ -1558,286 +1571,6 @@ test('context command returns fallback diagnostics when MCP context pack is unav
   }
 })
 
-test('script split agent session exposes structured submit tool without forcing JSON assistant output', async () => {
-  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-script-split-json-'))
-  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
-  const originalFetch = globalThis.fetch
-  const requests: Array<Record<string, unknown>> = []
-  try {
-    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
-    const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
-    new RuntimeModelConfigStore().save({ modelConfigId: 22, model: 'model_config:22' })
-
-    globalThis.fetch = (async (_url, init) => {
-      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
-      requests.push(body)
-      const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
-      const systemText = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '').join('\n')
-      assert.equal(body.response_format, undefined)
-      assert.doesNotMatch(systemText, /movscript\.script_split_proposal\.v1/)
-      return new Response(JSON.stringify({
-        choices: [{
-          message: {
-            content: '我会通过工具或草稿把结构化数据交给 UI，聊天正文不进行 JSON 收口。',
-          },
-          finish_reason: 'stop',
-        }],
-      }), { status: 200, headers: { 'content-type': 'application/json' } })
-    }) as typeof fetch
-
-    const client = new FakeMCPClient()
-    client.projectId = 42
-    const runtime = createTestRuntime({
-      mcpClient: client,
-      contractResolver: new StaticAgentRuntimeContractResolver([
-        SCRIPT_SPLIT_RUNTIME_CONTRACT,
-      ]),
-    })
-    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请拆分：第1集 雨夜\n便利店相遇。\n\n第2集 旧信\n旧信浮出水面。' }] })
-    const run = await createAndWaitForRun(runtime, thread.id, {
-      agentManifest: {
-        ...DEFAULT_AGENT_MANIFEST,
-        id: 'script-split-agent',
-        name: '剧本拆分 Agent',
-        soul: '通过工具或草稿把结构化结果交给 UI；assistant 正文只做简短说明。',
-        permissions: ['project.read', 'draft.write'],
-        tools: [
-          { name: 'movscript_get_context_pack', mode: 'allow', approval: 'never' },
-          { name: 'movscript_get_current_context', mode: 'allow', approval: 'never' },
-          { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
-        ],
-      },
-    })
-    const finalThread = runtime.getThread(thread.id)
-    const assistant = finalThread?.messages.find((message) => message.id === run.assistantMessageId)
-
-    assert.equal(run.warnings?.join('\n') ?? '', '')
-    assert.equal(requests.length, 1)
-    assert.equal(run.metadata?.runtimeContractId, 'script-split-agent')
-    const tools = requests[0]?.tools as Array<{ function?: { name?: string; parameters?: Record<string, unknown> } }> | undefined
-    assert.equal(requests[0]?.response_format, undefined)
-    const submitTool = tools?.find((tool) => tool.function?.name === 'movscript_submit_script_split_draft')
-    assert.equal(!!submitTool, true)
-    assert.equal(tools?.some((tool) => tool.function?.name === 'movscript_create_draft'), false)
-    const submitParameters = submitTool?.function?.parameters as Record<string, any> | undefined
-    const sourceScriptSchema = submitParameters?.properties?.sourceScript as Record<string, any> | undefined
-    const episodeSchema = submitParameters?.properties?.episodeDrafts?.items as Record<string, any> | undefined
-    assert.equal(submitParameters?.type, 'object')
-    assert.equal('sourceSummary' in (submitParameters?.properties ?? {}), true)
-    assert.equal('globalSettings' in (submitParameters?.properties ?? {}), true)
-    assert.equal('summary' in (sourceScriptSchema?.properties ?? {}), true)
-    assert.equal('content' in (sourceScriptSchema?.properties ?? {}), false)
-    assert.equal('summary' in (episodeSchema?.properties ?? {}), true)
-    assert.equal('globalContext' in (episodeSchema?.properties ?? {}), true)
-    assert.equal('content' in (episodeSchema?.properties ?? {}), false)
-    assert.equal('startLine' in (episodeSchema?.properties ?? {}), true)
-    assert.equal('productionAction' in (episodeSchema?.properties ?? {}), true)
-    assert.equal('existingProductionId' in (episodeSchema?.properties ?? {}), true)
-    assert.equal('productionTitle' in (episodeSchema?.properties ?? {}), true)
-    assert.match(assistant?.content ?? '', /聊天正文不进行 JSON 收口/)
-  } finally {
-    globalThis.fetch = originalFetch
-    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
-    rmSync(modelConfigDir, { recursive: true, force: true })
-  }
-})
-
-test('script split structured submit tool writes a normalized script_split draft', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const runtime = createTestRuntime({
-    mcpClient: client,
-    draftStore,
-  })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '提交结构化剧本拆分草稿' }] })
-
-  const run = runtime.createToolRun({
-    threadId: thread.id,
-    agentManifest: {
-      ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['project.read', 'draft.write'],
-      tools: [
-        ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
-      ],
-    },
-    toolCall: {
-      name: 'movscript_submit_script_split_draft',
-      args: {
-        projectId: 42,
-        draftTitle: '剧本拆分草稿 - 总稿',
-        sourceTitle: '总稿',
-        sourceSummary: '雨夜便利店总稿按行号拆分。',
-        lineCount: 4,
-        globalSettings: {
-          storyWorld: '雨夜城市',
-          coreRules: ['不能复制正文'],
-          characterRelationships: ['甲乙相遇'],
-          keyCharacters: ['甲', '乙'],
-          keyLocations: ['便利店'],
-          keyProps: ['旧信'],
-          continuityNotes: ['旧信后续追踪'],
-        },
-        episodeDrafts: [{
-          order: 1,
-          title: '第1集 雨夜便利店',
-          summary: '甲乙在雨夜便利店相遇。',
-          globalContext: {
-            storyWorld: '雨夜城市',
-            keyCharacters: ['甲', '乙'],
-            keyLocations: ['便利店'],
-            episodeRelevance: ['建立相遇关系'],
-          },
-          startLine: 1,
-          endLine: 2,
-          productionAction: 'create',
-          existingProductionId: null,
-          productionTitle: '第1集 雨夜便利店制作',
-          productionSummary: '围绕第1集雨夜便利店段落创建制作。',
-        }],
-        warnings: ['需复核'],
-        confidence: 0.82,
-      },
-    },
-  })
-  const completed = await waitForRun(runtime, run.id)
-  const draft = runtime.listDrafts({ projectId: 42, kind: 'script_split' })[0]
-  const parsed = JSON.parse(draft?.content ?? '{}') as {
-    schema?: string
-    source_title?: string
-    source_script?: { line_count?: number }
-    global_settings?: { story_world?: string; core_rules?: string[] }
-    episode_drafts?: Array<{ existing_script_id?: number | null; start_line?: number; end_line?: number; content?: string; title?: string; summary?: string; global_context?: { episode_relevance?: string[] }; production_action?: string; existing_production_id?: number | null; production_title?: string; production_summary?: string }>
-  }
-
-  assert.equal(completed.status, 'completed')
-  assert.equal(client.calls.some((call) => call.name === 'movscript_submit_script_split_draft'), false)
-  assert.equal(draft?.kind, 'script_split')
-  assert.equal(draft?.title, '剧本拆分草稿 - 总稿')
-  assert.equal(parsed.schema, DRAFT_CONTENT_SCHEMA_IDS.scriptSplit)
-  assert.equal(parsed.source_title, '总稿')
-  assert.equal(parsed.global_settings?.story_world, '雨夜城市')
-  assert.deepEqual(parsed.global_settings?.core_rules, ['不能复制正文'])
-  assert.equal(parsed.source_script?.line_count, 4)
-  assert.equal(parsed.episode_drafts?.[0]?.existing_script_id, null)
-  assert.equal(parsed.episode_drafts?.[0]?.title, '第1集 雨夜便利店')
-  assert.equal(parsed.episode_drafts?.[0]?.summary, '甲乙在雨夜便利店相遇。')
-  assert.deepEqual(parsed.episode_drafts?.[0]?.global_context?.episode_relevance, ['建立相遇关系'])
-  assert.equal(parsed.episode_drafts?.[0]?.start_line, 1)
-  assert.equal(parsed.episode_drafts?.[0]?.end_line, 2)
-  assert.equal(parsed.episode_drafts?.[0]?.production_action, 'create')
-  assert.equal(parsed.episode_drafts?.[0]?.existing_production_id, null)
-  assert.equal(parsed.episode_drafts?.[0]?.production_title, '第1集 雨夜便利店制作')
-  assert.equal(parsed.episode_drafts?.[0]?.production_summary, '围绕第1集雨夜便利店段落创建制作。')
-  assert.equal('content' in (parsed.episode_drafts?.[0] ?? {}), false)
-})
-
-test('script split submit tool supersedes older active draft for same source', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const runtime = createTestRuntime({
-    mcpClient: client,
-    draftStore,
-  })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '提交两次剧本拆分草稿' }] })
-  const manifest = {
-    ...DEFAULT_AGENT_MANIFEST,
-    permissions: ['project.read', 'draft.write'],
-    tools: [
-      ...DEFAULT_AGENT_MANIFEST.tools,
-      { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' as const },
-    ],
-  }
-
-  const firstRun = runtime.createToolRun({
-    threadId: thread.id,
-    agentManifest: manifest,
-    toolCall: {
-      name: 'movscript_submit_script_split_draft',
-      args: {
-        projectId: 42,
-        sourceTitle: '总稿',
-        lineCount: 4,
-        episodeDrafts: [{ order: 1, title: '第1集', startLine: 1, endLine: 2 }],
-      },
-    },
-  })
-  await waitForRun(runtime, firstRun.id)
-  const firstDraft = runtime.listDrafts({ projectId: 42, kind: 'script_split' })[0]
-
-  const secondRun = runtime.createToolRun({
-    threadId: thread.id,
-    agentManifest: manifest,
-    toolCall: {
-      name: 'movscript_submit_script_split_draft',
-      args: {
-        projectId: 42,
-        sourceTitle: '总稿',
-        lineCount: 4,
-        episodeDrafts: [{ order: 1, title: '第1集 修订', startLine: 1, endLine: 3 }],
-      },
-    },
-  })
-  const completed = await waitForRun(runtime, secondRun.id)
-  const drafts = runtime.listDrafts({ projectId: 42, kind: 'script_split', limit: 10 })
-  const activeDrafts = runtime.listDrafts({ projectId: 42, kind: 'script_split', status: 'draft', limit: 10 })
-  const superseded = runtime.getDraft(firstDraft.id)
-  const step = completed.steps.find((item) => item.toolName === 'movscript_submit_script_split_draft')
-  const result = step?.result as { supersededDraftIds?: string[] } | undefined
-
-  assert.equal(completed.status, 'completed')
-  assert.equal(drafts.length, 2)
-  assert.equal(activeDrafts.length, 1)
-  assert.equal(superseded?.status, 'superseded')
-  assert.deepEqual(result?.supersededDraftIds, [firstDraft.id])
-})
-
-test('script split submit tool rejects script body text in arguments', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const runtime = createTestRuntime({
-    mcpClient: client,
-    draftStore: new InMemoryAgentDraftStore(),
-  })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '提交带正文的错误剧本拆分草稿' }] })
-
-  const run = runtime.createToolRun({
-    threadId: thread.id,
-    agentManifest: {
-      ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['project.read', 'draft.write'],
-      tools: [
-        ...DEFAULT_AGENT_MANIFEST.tools,
-        { name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' },
-      ],
-    },
-    toolCall: {
-      name: 'movscript_submit_script_split_draft',
-      args: {
-        projectId: 42,
-        sourceTitle: '总稿',
-        lineCount: 4,
-        episodeDrafts: [{
-          order: 1,
-          title: '第1集',
-          content: '第1集 雨夜\n便利店相遇。',
-          startLine: 1,
-          endLine: 2,
-        }],
-      },
-    },
-  })
-  const completed = await waitForRun(runtime, run.id)
-  const step = completed.steps.find((item) => item.toolName === 'movscript_submit_script_split_draft')
-
-  assert.equal(completed.status, 'completed_with_warnings')
-  assert.equal(step?.status, 'failed')
-  assert.match(step?.error ?? '', /content is not allowed; use lineCount\/startLine\/endLine instead of passing long text/)
-  assert.equal(runtime.listDrafts({ projectId: 42, kind: 'script_split' }).length, 0)
-})
-
 test('memory command returns opened memory file refs without content or model gateway call', async () => {
   const client = new FakeMCPClient()
   client.projectId = 42
@@ -1892,7 +1625,7 @@ test('production orchestrate requests include productionId in runtime context', 
         ...DEFAULT_AGENT_MANIFEST,
         tools: [
           ...DEFAULT_AGENT_MANIFEST.tools,
-          { name: 'movscript_read_current_production', mode: 'allow', approval: 'never' },
+          { name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' },
         ],
       },
       clientInput: {
@@ -1966,13 +1699,14 @@ test('create_proposal creates a local proposal draft from conversation context',
     agentManifest: {
       ...DEFAULT_AGENT_MANIFEST,
       permissions: ['draft.write'],
-      tools: [{ name: 'movscript_create_proposal', mode: 'allow', approval: 'never' }],
+      tools: [{ name: 'movscript_create_draft', mode: 'allow', approval: 'never' }],
     },
     toolCall: {
-      name: 'movscript_create_proposal',
+      name: 'movscript_create_draft',
       args: {
         kind: 'project_proposal',
         projectId: 42,
+        proposal: true,
         content: JSON.stringify({
           schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
           scope: 'project_proposal',
@@ -1988,146 +1722,12 @@ test('create_proposal creates a local proposal draft from conversation context',
   })
 
   const finished = await waitForRun(runtime, run.id)
-  const draft = finished.steps.find((step) => step.toolName === 'movscript_create_proposal')?.result as any
+  const draft = finished.steps.find((step) => step.toolName === 'movscript_create_draft')?.result as any
 
   assert.equal(finished.status, 'completed')
   assert.equal(draft?.status, 'created')
   assert.equal(typeof draft?.draftId, 'string')
   assert.equal(runtime.listDrafts({ kind: 'project_proposal' }).length, 1)
-})
-
-test('script split submit tool writes local draft lifecycle metadata and list_drafts returns it', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请细化草稿' }] })
-
-  const run = runtime.createToolRun({
-    threadId: thread.id,
-    agentManifest: {
-      ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['project.read', 'draft.write'],
-      tools: [{ name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' }],
-    },
-    toolCall: {
-      name: 'movscript_submit_script_split_draft',
-      args: {
-        projectId: 42,
-        draftTitle: '剧本拆分草稿 - 总稿',
-        sourceTitle: '总稿',
-        sourceSummary: '雨夜便利店总稿按行号拆分。',
-        lineCount: 4,
-        globalSettings: {
-          storyWorld: '雨夜城市',
-          coreRules: ['不能复制正文'],
-          characterRelationships: ['甲乙相遇'],
-          keyCharacters: ['甲', '乙'],
-          keyLocations: ['便利店'],
-          keyProps: ['旧信'],
-          continuityNotes: ['旧信后续追踪'],
-        },
-        episodeDrafts: [{
-          order: 1,
-          title: '第1集 雨夜便利店',
-          summary: '甲乙在雨夜便利店相遇。',
-          globalContext: {
-            storyWorld: '雨夜城市',
-            keyCharacters: ['甲', '乙'],
-            keyLocations: ['便利店'],
-            episodeRelevance: ['建立相遇关系'],
-          },
-          startLine: 1,
-          endLine: 2,
-        }],
-        warnings: ['需复核'],
-        confidence: 0.82,
-      },
-    },
-  })
-  const completed = await waitForRun(runtime, run.id)
-  const draft = runtime.listDrafts({ projectId: 42, kind: 'script_split' })[0]
-
-  assert.equal(completed.status, 'completed')
-  assert.ok(draft)
-  assert.equal(draft.status, 'draft')
-  assert.equal(draft.kind, 'script_split')
-  assert.equal(draft.createdByRunId, completed.id)
-  assert.equal(draft.createdByThreadId, thread.id)
-  assert.equal(draft.source?.runId, completed.id)
-  assert.equal(client.calls.some((call) => call.name === 'movscript_submit_script_split_draft'), false)
-
-  runtime.addMessage(thread.id, { role: 'user', content: '列出当前项目已有的 Agent 草稿。' })
-  await createAndWaitForRun(runtime, thread.id)
-  assert.equal(client.calls.some((call) => call.name === 'movscript_list_drafts'), false)
-})
-
-test('script split submit tool preserves page context from client input', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const thread = runtime.createThread({
-    messages: [{
-      role: 'user',
-      content: '请细化草稿',
-    }],
-  })
-
-  const run = runtime.createToolRun({
-    threadId: thread.id,
-    clientInput: {
-      message: '请细化草稿',
-      uiSnapshot: {
-        route: { pathname: '/production-orchestrate', search: '?productionId=4' },
-        pageContext: {
-          pageKey: 'production_orchestrate|/production-orchestrate?productionId=4|production|4',
-          pageType: 'production_orchestrate',
-          pageRoute: '/production-orchestrate?productionId=4',
-          pageEntityType: 'production',
-          pageEntityId: 4,
-        },
-        project: { id: 42, name: 'Test Project' },
-        productionId: 4,
-        selection: { entityType: 'production', entityId: 4, label: '制作 4' },
-        labels: ['production-orchestrate'],
-      },
-    },
-    agentManifest: {
-      ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['project.read', 'draft.write'],
-      tools: [{ name: 'movscript_submit_script_split_draft', mode: 'allow', approval: 'never' }],
-    },
-    toolCall: {
-      name: 'movscript_submit_script_split_draft',
-      args: {
-        projectId: 42,
-        draftTitle: '剧本拆分草稿 - 总稿',
-        sourceTitle: '总稿',
-        sourceSummary: '雨夜便利店总稿按行号拆分。',
-        lineCount: 4,
-        globalSettings: {},
-        episodeDrafts: [{
-          order: 1,
-          title: '第1集 雨夜便利店',
-          summary: '甲乙在雨夜便利店相遇。',
-          startLine: 1,
-          endLine: 2,
-        }],
-        warnings: [],
-        confidence: 0.82,
-      },
-    },
-  })
-
-  const completed = await waitForRun(runtime, run.id)
-
-  assert.equal(completed.status, 'completed')
-  assert.equal(completed.metadata?.clientInput === undefined, false)
-  const clientInput = completed.metadata?.clientInput as any
-  assert.equal(clientInput?.uiSnapshot?.pageContext?.pageKey, 'production_orchestrate|/production-orchestrate?productionId=4|production|4')
-  const draft = runtime.listDrafts({ projectId: 42, kind: 'script_split' })[0]
-  assert.equal(draft?.source?.pageKey, 'production_orchestrate|/production-orchestrate?productionId=4|production|4')
 })
 
 test('drafts can be scoped by page key', async () => {
@@ -2154,142 +1754,6 @@ test('drafts can be scoped by page key', async () => {
   const drafts = runtime.listDrafts({ projectId: 42, kind: 'production_proposal', status: 'draft', pageKey })
   assert.equal(drafts.length, 1)
   assert.equal(drafts[0]?.title, 'Scoped draft')
-})
-
-test('production proposal creation recovers from stale page draft id', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const staleDraftId = 'draft_missing'
-  const pageKey = 'production_orchestrate|/production-orchestrate?productionId=4|production|4'
-
-  const run = runtime.createToolRun({
-    clientInput: {
-      message: '创建制作编排提案',
-      uiSnapshot: {
-        route: { pathname: '/production-orchestrate', search: '?productionId=4' },
-        pageContext: {
-          pageKey,
-          pageType: 'production_orchestrate',
-          pageRoute: '/production-orchestrate?productionId=4',
-          pageEntityType: 'production',
-          pageEntityId: 4,
-          draftId: staleDraftId,
-        },
-        project: { id: 42, name: 'Test Project' },
-        productionId: 4,
-        selection: { entityType: 'production', entityId: 4, label: '制作 4' },
-        labels: ['production-orchestrate'],
-      },
-    },
-    toolCall: {
-      name: 'movscript_create_production_proposal',
-      args: {
-        projectId: 42,
-        productionId: 4,
-        proposalScope: 'production',
-      },
-    },
-  })
-
-  const completed = await waitForRun(runtime, run.id)
-  const drafts = runtime.listDrafts({ projectId: 42, kind: 'production_proposal', status: 'draft', pageKey })
-  const result = completed.steps[0]?.result as { draftId?: string; status?: string }
-
-  assert.equal(completed.status, 'completed')
-  assert.equal(result?.status, 'created')
-  assert.equal(drafts.length, 1)
-  assert.equal(drafts[0]?.source?.pageKey, pageKey)
-  assert.equal(drafts[0]?.metadata?.stalePageDraftId, staleDraftId)
-  assert.notEqual(drafts[0]?.id, staleDraftId)
-})
-
-test('production proposal submit preserves the page-owned draft shell', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const pageKey = 'production_orchestrate|/production-orchestrate?productionId=4|production|4'
-  const pageDraft = draftStore.createDraft({
-    projectId: 42,
-    kind: 'production_proposal',
-    title: '页面草稿壳',
-    content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
-      productionId: 4,
-      proposalScope: 'production',
-      proposal: { segments: [] },
-    }),
-    source: {
-      entityType: 'production',
-      entityId: 4,
-      pageKey,
-      pageType: 'production_orchestrate',
-      pageRoute: '/production-orchestrate?productionId=4',
-      pageEntityType: 'production',
-      pageEntityId: 4,
-    },
-    metadata: { pageOwned: true },
-  })
-  const oldDraft = draftStore.createDraft({
-    projectId: 42,
-    kind: 'production_proposal',
-    title: '旧草稿',
-    content: JSON.stringify({
-      productionId: 4,
-      proposalScope: 'production',
-      proposal: { segments: [] },
-    }),
-    source: { entityType: 'production', entityId: 4 },
-  })
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-
-  const run = runtime.createToolRun({
-    clientInput: {
-      message: '提交制作编排提案',
-      uiSnapshot: {
-        route: { pathname: '/production-orchestrate', search: '?productionId=4' },
-        pageContext: {
-          pageKey,
-          pageType: 'production_orchestrate',
-          pageRoute: '/production-orchestrate?productionId=4',
-          pageEntityType: 'production',
-          pageEntityId: 4,
-          draftId: pageDraft.id,
-        },
-        project: { id: 42, name: 'Test Project' },
-        productionId: 4,
-        selection: { entityType: 'production', entityId: 4, label: '制作 4' },
-        labels: ['production-orchestrate'],
-      },
-    },
-    toolCall: {
-      name: 'movscript_submit_production_proposal',
-      args: {
-        projectId: 42,
-        productionId: 4,
-        proposalScope: 'production',
-        proposal: {
-          segments: [{ client_id: 's1', order: 1, title: '开场', summary: '建立情景片气质' }],
-        },
-      },
-    },
-  })
-
-  const completed = await waitForRun(runtime, run.id)
-  const result = completed.steps[0]?.result as { draftId?: string; supersededDraftIds?: string[] } | undefined
-  const updatedPageDraft = runtime.getDraft(pageDraft.id)
-  const supersededOldDraft = runtime.getDraft(oldDraft.id)
-  const activeDrafts = runtime.listDrafts({ projectId: 42, kind: 'production_proposal', status: 'draft', pageKey })
-
-  assert.equal(completed.status, 'completed')
-  assert.equal(result?.draftId, pageDraft.id)
-  assert.deepEqual(result?.supersededDraftIds, [oldDraft.id])
-  assert.equal(updatedPageDraft?.status, 'draft')
-  assert.equal(supersededOldDraft?.status, 'superseded')
-  assert.equal(activeDrafts.length, 1)
-  assert.equal(activeDrafts[0]?.id, pageDraft.id)
-  assert.equal(JSON.parse(updatedPageDraft!.content).proposal.segments[0].client_id, 's1')
 })
 
 test('runtime list_drafts filters by kind and status locally', async () => {
@@ -2558,188 +2022,6 @@ test('agent loop refreshes tools after enabling a bundle in the same run', async
     globalThis.fetch = originalFetch
     rmSync(dir, { recursive: true, force: true })
   }
-})
-
-test('business production proposal tools upsert orchestration nodes only', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const draft = draftStore.createDraft({
-    projectId: 42,
-    kind: 'production_proposal',
-    title: '业务编排提案',
-    content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
-      productionId: 4,
-      proposalScope: 'production',
-      proposal: {
-        segments: [],
-      },
-    }),
-    source: { entityType: 'production', entityId: 4 },
-  })
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-  const calls = [
-    {
-      name: 'movscript_upsert_proposal_segment',
-      args: {
-        draftId: draft.id,
-        segment: { client_id: 'segment-1', action: 'create', title: '开场' },
-      },
-    },
-    {
-      name: 'movscript_upsert_proposal_scene_moment',
-      args: {
-        draftId: draft.id,
-        segment: { client_id: 'segment-1' },
-        sceneMoment: { client_id: 'scene-1', action: 'create', title: '雨夜相遇' },
-      },
-    },
-    {
-      name: 'movscript_upsert_proposal_asset',
-      args: {
-        draftId: draft.id,
-        sceneMoment: { client_id: 'scene-1' },
-        asset: { client_id: 'asset-1', action: 'create', name: '雨夜街道参考图', kind: 'image' },
-      },
-    },
-    {
-      name: 'movscript_upsert_proposal_reference',
-      args: {
-        draftId: draft.id,
-        sceneMoment: { client_id: 'scene-1' },
-        reference: { client_id: 'ref-1', action: 'create', name: '林夏', kind: 'character', role: 'protagonist' },
-      },
-    },
-  ]
-
-  for (const toolCall of calls) {
-    const run = runtime.createToolRun({ message: 'production proposal 制作编排', toolCall })
-    const completed = await waitForRun(runtime, run.id)
-    assert.equal(completed.warnings?.join('\n') ?? '', '')
-    assert.equal(completed.status, 'completed')
-  }
-
-  const inspectRun = runtime.createToolRun({
-    message: 'production proposal 制作编排',
-    toolCall: { name: 'movscript_inspect_production_proposal_context', args: { draftId: draft.id, includeNodes: true } },
-  })
-  const inspected = await waitForRun(runtime, inspectRun.id)
-  const inspectResult = inspected.steps[0]?.result as any
-  const content = JSON.parse(runtime.getDraft(draft.id)!.content)
-
-  assert.equal(inspected.status, 'completed')
-  assert.equal(content.proposal.segments[0].client_id, 'segment-1')
-  assert.equal(content.proposal.segments[0].scene_moments[0].asset_slots[0].client_id, 'asset-1')
-  assert.equal(content.proposal.segments[0].scene_moments[0].creative_references[0].client_id, 'ref-1')
-  assert.equal(inspectResult.counts.keyframes, 0)
-  assert.equal(inspectResult.counts.scene_moments, 1)
-  assert.equal(inspectResult.nodes.some((node: any) => node.nodeType === 'creative_reference' && node.client_id === 'ref-1'), true)
-})
-
-test('production proposal inspect uses page context draft id when args omit proposalRef', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const pageKey = 'production_orchestrate|/production-orchestrate?productionId=4|production|4'
-  const draft = draftStore.createDraft({
-    projectId: 42,
-    kind: 'production_proposal',
-    title: '页面草稿壳',
-    content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
-      productionId: 4,
-      proposalScope: 'production',
-      proposal: {
-        segments: [{ client_id: 's1', title: '开场', scene_moments: [] }],
-      },
-    }),
-    source: { entityType: 'production', entityId: 4, pageKey },
-  })
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-
-  const run = runtime.createToolRun({
-    clientInput: {
-      message: '检查当前 production proposal 草稿',
-      uiSnapshot: {
-        route: { pathname: '/production-orchestrate', search: '?productionId=4' },
-        pageContext: {
-          pageKey,
-          pageType: 'production_orchestrate',
-          pageRoute: '/production-orchestrate?productionId=4',
-          pageEntityType: 'production',
-          pageEntityId: 4,
-          draftId: draft.id,
-        },
-        project: { id: 42, name: 'Test Project' },
-        productionId: 4,
-        selection: { entityType: 'production', entityId: 4, label: '制作 4' },
-        labels: ['production-orchestrate'],
-      },
-    },
-    toolCall: { name: 'movscript_inspect_production_proposal_context', args: { includeNodes: true } },
-  })
-
-  const completed = await waitForRun(runtime, run.id)
-  const inspectResult = completed.steps[0]?.result as { proposalRef?: string | null; draft?: { id?: string } | null; counts?: { segments?: number } | null } | undefined
-
-  assert.equal(completed.status, 'completed')
-  assert.equal(inspectResult?.proposalRef, draft.id)
-  assert.equal(inspectResult?.draft?.id, draft.id)
-  assert.equal(inspectResult?.counts?.segments, 1)
-})
-
-test('production proposal upsert uses page context draft id when args omit proposalRef', async () => {
-  const client = new FakeMCPClient()
-  client.projectId = 42
-  const draftStore = new InMemoryAgentDraftStore()
-  const pageKey = 'production_orchestrate|/production-orchestrate?productionId=4|production|4'
-  const draft = draftStore.createDraft({
-    projectId: 42,
-    kind: 'production_proposal',
-    title: '页面草稿壳',
-    content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
-      productionId: 4,
-      proposalScope: 'production',
-      proposal: { segments: [] },
-    }),
-    source: { entityType: 'production', entityId: 4, pageKey },
-  })
-  const runtime = createTestRuntime({ mcpClient: client, draftStore })
-
-  const run = runtime.createToolRun({
-    clientInput: {
-      message: '在当前 production proposal 草稿里写入段落',
-      uiSnapshot: {
-        route: { pathname: '/production-orchestrate', search: '?productionId=4' },
-        pageContext: {
-          pageKey,
-          pageType: 'production_orchestrate',
-          pageRoute: '/production-orchestrate?productionId=4',
-          pageEntityType: 'production',
-          pageEntityId: 4,
-          draftId: draft.id,
-        },
-        project: { id: 42, name: 'Test Project' },
-        productionId: 4,
-        selection: { entityType: 'production', entityId: 4, label: '制作 4' },
-        labels: ['production-orchestrate'],
-      },
-    },
-    toolCall: {
-      name: 'movscript_upsert_proposal_segment',
-      args: {
-        segment: { client_id: 's1', action: 'create', title: '开场' },
-      },
-    },
-  })
-
-  const completed = await waitForRun(runtime, run.id)
-  const content = JSON.parse(runtime.getDraft(draft.id)!.content)
-
-  assert.equal(completed.status, 'completed')
-  assert.equal(content.proposal.segments[0].client_id, 's1')
 })
 
 test('file draft store persists drafts across runtime rebuilds', () => {

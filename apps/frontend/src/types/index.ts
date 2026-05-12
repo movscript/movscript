@@ -517,6 +517,7 @@ export interface Job {
   model_identifier?: string
   job_type: string  // image | image_edit | video | video_i2v | video_v2v
   feature_key?: string  // tool feature key e.g. ref_image_gen, ref_video_gen, canvas
+  title?: string
   status: JobStatus
   prompt: string
   extra_params?: string // JSON: size, quality, style, etc.

@@ -40,7 +40,7 @@ test('normalizes structured skills from manifest current', () => {
         enabled: true,
         priority: 10,
         instruction: 'Create draft-first output.',
-        toolHints: ['movscript_submit_script_split_draft'],
+        toolHints: ['movscript_create_draft'],
       },
     ],
   })
@@ -48,7 +48,7 @@ test('normalizes structured skills from manifest current', () => {
   assert.equal(manifest.skills.length, 1)
   assert.equal(manifest.skills[0].id, 'drafting')
   assert.equal(manifest.skills[0].instruction, 'Create draft-first output.')
-  assert.deepEqual(manifest.skills[0].toolHints, ['movscript_submit_script_split_draft'])
+  assert.deepEqual(manifest.skills[0].toolHints, ['movscript_create_draft'])
 })
 
 test('default manifest does not grant generic draft creation', () => {
@@ -60,8 +60,7 @@ test('draft skill guidance stays scoped to file-level draft editing', () => {
   const draftSkill = DEFAULT_AGENT_MANIFEST.skills.find((skill) => skill.id === 'movscript.default.safe-project-assistant')
   assert.ok(draftSkill)
   assert.equal(draftSkill?.toolHints?.includes('movscript_read_draft'), true)
-  assert.equal(draftSkill?.toolHints?.includes('movscript_edit_draft'), true)
-  assert.equal(draftSkill?.toolHints?.includes('movscript_dry_apply_draft'), true)
+  assert.equal(draftSkill?.toolHints?.includes('movscript_update_draft'), true)
   assert.equal(draftSkill?.toolHints?.includes('ReadDraft'), false)
   assert.equal(draftSkill?.toolHints?.includes('EditDraft'), false)
   assert.equal(draftSkill?.toolHints?.includes('DryApplyDraft'), false)

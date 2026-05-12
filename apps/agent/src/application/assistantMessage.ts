@@ -363,12 +363,10 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   const parsed = parseToolResult(result)
   const toolName = publicToolName(call.name)
   if (call.name === 'movscript_create_draft') {
-    const draftId = isRecord(parsed) && typeof parsed.id === 'string' ? ` ${parsed.id}` : ''
-    return `创建本地草稿${draftId}。`
-  }
-  if (call.name === 'movscript_create_proposal') {
-    const draftId = isRecord(parsed) && typeof parsed.draftId === 'string' ? ` ${parsed.draftId}` : ''
-    return `创建对话提案草稿${draftId}。`
+    const draftId = isRecord(parsed) && (typeof parsed.draftId === 'string' ? parsed.draftId : typeof parsed.id === 'string' ? parsed.id : '')
+    const label = typeof draftId === 'string' && draftId.length > 0 ? ` ${draftId}` : ''
+    const isProposal = isRecord(parsed) && typeof parsed.proposalRef === 'string'
+    return isProposal ? `创建对话提案草稿${label}。` : `创建本地草稿${label}。`
   }
   if (call.name === 'movscript_read_draft') {
     const draftPath = isRecord(parsed) && typeof parsed.filePath === 'string' ? ` ${parsed.filePath}` : ''
@@ -378,13 +376,13 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
     const count = isRecord(parsed) && Array.isArray(parsed.drafts) ? parsed.drafts.length : undefined
     return `列出本地草稿${count === undefined ? '' : `，共 ${count} 条`}。`
   }
-  if (call.name === 'movscript_edit_draft') {
+  if (call.name === 'movscript_update_draft') {
+    const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : undefined
     const count = isRecord(parsed) && typeof parsed.replacementCount === 'number' ? `，替换 ${parsed.replacementCount} 处` : ''
-    return `编辑本地草稿文件${count}。`
-  }
-  if (call.name === 'movscript_dry_apply_draft') {
-    const ok = isRecord(parsed) && parsed.ok === true
-    return `草稿 dry apply${ok ? '通过' : '未通过'}。`
+    if (status === 'validated') return '校验本地草稿。'
+    if (status === 'patched') return '更新本地草稿 JSON。'
+    if (isRecord(parsed) && 'ok' in parsed) return `草稿 apply preview${parsed.ok === true ? '通过' : '未通过'}。`
+    return `更新本地草稿${count}。`
   }
   if (call.name === 'movscript_create_generation_job') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'

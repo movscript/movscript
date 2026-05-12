@@ -9,6 +9,7 @@ const DEFAULT_MCP_ENDPOINT = 'http://127.0.0.1:18765/mcp'
 const DEFAULT_AGENT_USER_DATA_DIR = 'movscript-agent'
 const MIN_AGENT_RUNTIME_API_VERSION = 1
 const execFileAsync = promisify(execFile)
+export type AgentRuntimeLaunchPolicy = 'spawn' | 'external'
 
 let proc: ChildProcess | null = null
 let startPromise: Promise<AgentRuntimeStatus> | null = null
@@ -24,6 +25,12 @@ export interface AgentRuntimeStatus {
   baseURL: string
   pid?: number
   error?: string
+}
+
+export function getAgentRuntimeLaunchPolicy(): AgentRuntimeLaunchPolicy {
+  const raw = (process.env.MOVSCRIPT_AGENT_POLICY || '').trim().toLowerCase()
+  if (raw === 'external' || raw === 'spawn') return raw
+  return 'spawn'
 }
 
 interface AgentRuntimeLaunch {
@@ -44,6 +51,7 @@ interface AgentRuntimeHealthCheck {
 
 export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}): Promise<AgentRuntimeStatus> {
   const baseURL = normalizeBaseURL(input.baseURL)
+  const policy = getAgentRuntimeLaunchPolicy()
   const health = await getAgentRuntimeHealth(baseURL)
   if (health.ok && health.compatible) {
     return {
@@ -53,6 +61,16 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}
       started: false,
       baseURL,
       pid: proc?.pid,
+    }
+  }
+  if (policy === 'external') {
+    return {
+      ok: false,
+      running: health.ok,
+      managed: false,
+      started: false,
+      baseURL,
+      error: health.error ?? `Agent runtime is not available at ${baseURL}. Start it separately or set MOVSCRIPT_AGENT_POLICY=spawn.`,
     }
   }
   if (health.ok && !health.compatible && health.reason === 'mcp-endpoint-mismatch') {

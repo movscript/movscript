@@ -79,6 +79,7 @@ export type GenerateMediaJobType = 'image' | 'image_edit' | 'video' | 'video_i2v
 
 export interface GenerateMediaRequest {
   model_config_id: number
+  title?: string
   prompt: string
   job_type?: GenerateMediaJobType
   feature_key?: string
@@ -406,10 +407,14 @@ export async function generateImageViaRuntime(req: GenerateImageRequest): Promis
 export async function generateMediaViaRuntime(req: GenerateMediaRequest): Promise<unknown> {
   const inputIDs = req.input_resource_ids ?? []
   const jobType = req.job_type ?? (inputIDs.length > 0 ? 'image_edit' : 'image')
+  const title = typeof req.title === 'string' && req.title.trim()
+    ? req.title.trim()
+    : defaultGenerationJobTitle(jobType)
   const created = await api.post('/jobs', {
     model_config_id: req.model_config_id,
     job_type: jobType,
     feature_key: req.feature_key ?? 'client_plugin',
+    title,
     prompt: req.prompt,
     input_resource_ids: inputIDs,
     aspect_ratio: req.aspect_ratio,
@@ -428,6 +433,17 @@ export async function generateMediaViaRuntime(req: GenerateMediaRequest): Promis
     if (Date.now() - started > timeout) throw new Error('generation job timed out')
     await new Promise((resolve) => setTimeout(resolve, 2000))
   }
+}
+
+function defaultGenerationJobTitle(jobType: GenerateMediaJobType): string {
+  const labels: Record<GenerateMediaJobType, string> = {
+    image: '文生图',
+    image_edit: '参考生图',
+    video: '文生视频',
+    video_i2v: '参考生视频',
+    video_v2v: '视频迁移',
+  }
+  return `${labels[jobType]}-${Math.floor(1000 + Math.random() * 9000)}`
 }
 
 // ── Sample plugin ─────────────────────────────────────────────────────────────
@@ -460,6 +476,7 @@ export const SAMPLE_REF_IMAGE_PLUGIN = JSON.stringify({
   if (!modelConfigId) throw new Error('没有可用的图像模型配置')
   const job = await mov.generateImage({
     model_config_id: modelConfigId,
+    title: '参考生图-' + Math.floor(1000 + Math.random() * 9000),
     job_type: refIds.length > 0 ? 'image_edit' : 'image',
     feature_key: 'client_plugin.ref_image',
     prompt: String(args.prompt || ''),

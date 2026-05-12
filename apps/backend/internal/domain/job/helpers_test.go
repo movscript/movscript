@@ -36,6 +36,7 @@ func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 		UserID:        1,
 		ModelConfigID: 2,
 		JobType:       CapabilityImage,
+		Title:         "参考生图-1234",
 		Prompt:        "draw",
 	})
 	if job.Status != StatusPending {
@@ -44,13 +45,13 @@ func TestNewQueuedJobAppliesDomainDefaults(t *testing.T) {
 	if job.MaxAttempts != DefaultMaxAttempts {
 		t.Fatalf("max attempts = %d, want %d", job.MaxAttempts, DefaultMaxAttempts)
 	}
-	if job.UserID != 1 || job.ModelConfigID != 2 || job.Prompt != "draw" {
+	if job.UserID != 1 || job.ModelConfigID != 2 || job.Title != "参考生图-1234" || job.Prompt != "draw" {
 		t.Fatalf("unexpected job: %+v", job)
 	}
 	modelJob := job.ToModel()
 	modelJob.ID = 14
 	roundTrip := JobFromModel(modelJob)
-	if roundTrip.ID != 14 || roundTrip.Status != StatusPending || roundTrip.MaxAttempts != DefaultMaxAttempts {
+	if roundTrip.ID != 14 || roundTrip.Status != StatusPending || roundTrip.MaxAttempts != DefaultMaxAttempts || roundTrip.Title != "参考生图-1234" {
 		t.Fatalf("unexpected job round-trip: %+v", roundTrip)
 	}
 }

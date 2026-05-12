@@ -1,0 +1,18 @@
+{
+  "id": "movscript.bundle.content-unit-proposal",
+  "name": "Content Unit Proposal",
+  "description": "Reviewable content-unit proposal bundle for downstream expression planning.",
+  "category": "content_unit_proposal",
+  "skills": [
+    "movscript.intent.content-unit-proposal"
+  ],
+  "tools": [
+    "movscript_get_current_context",
+    "movscript_create_draft",
+    "movscript_get_draft",
+    "movscript_list_drafts",
+    "movscript_update_draft",
+    "movscript_read_draft",
+    "movscript_request_user_input"
+  ]
+}

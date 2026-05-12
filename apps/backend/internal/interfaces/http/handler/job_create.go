@@ -22,6 +22,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 		ModelConfigID    uint   `json:"model_config_id" binding:"required"`
 		JobType          string `json:"job_type"` // image | image_edit | video | video_i2v | video_v2v
 		FeatureKey       string `json:"feature_key"`
+		Title            string `json:"title"`
 		Prompt           string `json:"prompt"`
 		ExtraParams      string `json:"extra_params"`
 		AspectRatio      string `json:"aspect_ratio"`
@@ -41,6 +42,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 		ModelConfigID:    req.ModelConfigID,
 		JobType:          req.JobType,
 		FeatureKey:       req.FeatureKey,
+		Title:            req.Title,
 		Prompt:           req.Prompt,
 		ExtraParams:      req.ExtraParams,
 		AspectRatio:      req.AspectRatio,

@@ -15,6 +15,7 @@ type Job struct {
 	ModelConfigID       uint       `gorm:"not null" json:"model_config_id"`
 	JobType             string     `gorm:"not null" json:"job_type"`
 	FeatureKey          string     `gorm:"index;default:''" json:"feature_key,omitempty"`
+	Title               string     `gorm:"index;default:''" json:"title,omitempty"`
 	Status              string     `gorm:"not null;default:'pending'" json:"status"`
 	AttemptCount        int        `gorm:"not null;default:0" json:"attempt_count"`
 	MaxAttempts         int        `gorm:"not null;default:3" json:"max_attempts"`

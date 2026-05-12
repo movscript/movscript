@@ -8,12 +8,11 @@
       "category": "drafts",
       "enabled": true,
       "priority": 900,
-      "instruction": "For requests that need a local review artifact or a file-level draft edit, use the local draft workflow. Read the draft file first with movscript_read_draft, then make exact unique-string replacements with movscript_edit_draft, and finish with movscript_dry_apply_draft to validate the change. Keep this skill limited to local draft-file editing and validation; do not use it to decide among domain-specific authoring or review skills. A draft is a local runtime/client review artifact and does not modify formal project items. Do not claim a draft has been applied to the project unless the relevant tool result proves it.",
+      "instruction": "For requests that need a local review artifact or draft edit, use the local draft workflow. Read the draft when needed, then use movscript_update_draft with an explicit action such as replace_text, patch_content, validate, or preview_apply. Keep this skill limited to local draft editing and validation; do not use it to decide among domain-specific authoring or review skills. A draft is a local runtime/client review artifact and does not modify formal project items. Do not claim a draft has been applied to the project unless the relevant tool result proves it.",
       "outputContract": "For any draft creation or modification, include the draftId, draft title, kind, current status, and the next action the user can take. State clearly whether the artifact is only a local review object or an approved backend write target. Keep draft content actionable and scoped. When future edits should continue from this artifact, name that draftId explicitly.",
       "toolHints": [
         "movscript_read_draft",
-        "movscript_edit_draft",
-        "movscript_dry_apply_draft",
+        "movscript_update_draft",
         "movscript_list_drafts"
       ],
       "metadata": {
@@ -29,14 +28,13 @@
       "enabled": true,
       "priority": 910,
       "appliesWhen": "提案, proposal, project proposal, production proposal, 提案草稿, review draft, proposal-first",
-      "instruction": "When the user wants a proposal, start from the conversation itself. Do not require a dedicated page or prebuilt UI shell before creating the review draft. Use movscript_create_proposal to create the local proposal draft, then continue refining it with focused questions or patch/edit tools until it is reviewable. If the user is missing a required project or target, ask for it only when it cannot be inferred from current context. Treat the created proposal as a local review artifact, not applied project data.",
+      "instruction": "When the user wants a proposal, start from the conversation itself. Do not require a dedicated page or prebuilt UI shell before creating the review draft. Use movscript_create_draft to create the local proposal draft, then continue refining it with focused questions or patch/edit tools until it is reviewable. If the user is missing a required project or target, ask for it only when it cannot be inferred from current context. Treat the created proposal as a local review artifact, not applied project data.",
       "outputContract": "Return the proposal kind, draftId, projectId when known, target when known, current status, and the next refinement step. State explicitly that the result is a local proposal draft created from the conversation.",
       "toolHints": [
-        "movscript_create_proposal",
+        "movscript_create_draft",
         "movscript_list_drafts",
         "movscript_read_draft",
-        "movscript_edit_draft",
-        "movscript_dry_apply_draft",
+        "movscript_update_draft",
         "movscript_request_user_input"
       ],
       "metadata": {
@@ -99,18 +97,48 @@
       }
     },
     {
-      "id": "movscript.intent.content-unit-draft-creation",
-      "name": "Content Unit Draft Creation",
-      "description": "Generate content-unit or prompt drafts from story context without applying them to formal data.",
+      "id": "movscript.intent.content-unit-proposal",
+      "name": "Content Unit Proposal",
+      "description": "Generate reviewable content-unit proposals from story context without applying them to formal data.",
       "version": "0.1.0",
-      "category": "content_unit",
+      "category": "content_unit_proposal",
       "enabled": true,
       "priority": 800,
-      "appliesWhen": "内容单元草稿,content unit draft,content unit list,镜头清单,分镜提示词,提示词草稿,asset slot draft,资产槽草稿",
-      "instruction": "For content-unit or prompt creation requests, gather any referenced script, segment, scene moment, storyboard line, content unit, and asset-slot context first. Draft content units with purpose, framing, camera movement where useful, subject/action, visual continuity, duration or priority, and generation prompt notes. Keep generated content inline unless the user explicitly asks to edit an existing draft file; otherwise do not create a generic draft.",
-      "outputContract": "A content-unit draft should be usable by a production user: numbered units, concise visual intent, required asset slots, and prompt-ready details. Avoid vague cinematic adjectives without production detail.",
+      "appliesWhen": "内容单元提案,content unit proposal,content-unit-proposal,镜头提案,内容表达提案,scene moment proposal",
+      "instruction": "For content-unit proposal requests, gather any referenced script, segment, scene moment, storyboard line, content unit, and asset-slot context first. Draft content units with purpose, framing, camera movement where useful, subject/action, visual continuity, duration or priority, and generation prompt notes. Keep the result local and reviewable.",
+      "outputContract": "A content-unit proposal should be usable by a production user: numbered units, concise visual intent, required asset slots, and prompt-ready details. Avoid vague cinematic adjectives without production detail.",
       "toolHints": [
-        "movscript_get_current_context"
+        "movscript_get_current_context",
+        "movscript_create_draft",
+        "movscript_get_draft",
+        "movscript_list_drafts",
+        "movscript_update_draft",
+        "movscript_read_draft",
+        "movscript_request_user_input"
+      ],
+      "metadata": {
+        "source": "builtin"
+      }
+    },
+    {
+      "id": "movscript.intent.content-unit-media-proposal",
+      "name": "Content Unit Media Proposal",
+      "description": "Generate reviewable keyframe or video plans for one content unit.",
+      "version": "0.1.0",
+      "category": "content_unit_media_proposal",
+      "enabled": true,
+      "priority": 790,
+      "appliesWhen": "内容单元媒体提案,content unit media proposal,content-unit-media-proposal,关键帧提案,视频计划,表达成片",
+      "instruction": "For content-unit media proposal requests, gather the selected content unit, scene context, and existing media plans first. Draft keyframe or video plans with prompt intent, reference resources, constraints, and acceptance criteria. Keep the result local and reviewable.",
+      "outputContract": "Return the content-unit media proposal draft id, the related contentUnitId when known, the planned media count, and unresolved risks.",
+      "toolHints": [
+        "movscript_get_current_context",
+        "movscript_create_draft",
+        "movscript_get_draft",
+        "movscript_list_drafts",
+        "movscript_update_draft",
+        "movscript_read_draft",
+        "movscript_request_user_input"
       ],
       "metadata": {
         "source": "builtin"

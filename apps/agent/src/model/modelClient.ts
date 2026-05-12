@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from 'node:timers/promises'
 import type {
   RuntimeModelChatMessage,
   RuntimeModelChatTool,
@@ -23,6 +24,13 @@ export interface ModelCallInput {
   jsonMode?: boolean
   onTrace?: RuntimeModelTraceCallback
   signal?: AbortSignal
+  retry?: ModelCallRetryOptions
+}
+
+export interface ModelCallRetryOptions {
+  maxAttempts?: number
+  initialDelayMs?: number
+  maxDelayMs?: number
 }
 
 export interface ModelCallResult {
@@ -35,6 +43,28 @@ export interface ModelCallResult {
 }
 
 export async function callModel(input: ModelCallInput): Promise<ModelCallResult> {
+  const retry = normalizeModelCallRetryOptions(input.retry)
+  let attempt = 1
+  let lastError: unknown
+
+  while (attempt <= retry.maxAttempts) {
+    try {
+      return await callModelOnce(input)
+    } catch (error) {
+      lastError = error
+      if (!shouldRetryModelCall(error) || attempt >= retry.maxAttempts) {
+        throw error
+      }
+      throwIfAborted(input.signal)
+      await sleep(getRetryDelayMs(attempt, retry))
+      attempt++
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError))
+}
+
+async function callModelOnce(input: ModelCallInput): Promise<ModelCallResult> {
   const { config, auth = {}, messages, tools = [], toolChoice, temperature, jsonMode, onTrace } = input
 
   const request = buildBackendGatewayChatRequest(config, messages, auth, {
@@ -72,6 +102,7 @@ export async function callModel(input: ModelCallInput): Promise<ModelCallResult>
       publicRequest,
       responseHeaders,
       onTrace,
+      signal: input.signal,
     })
     : await response.text()
   const latencyMs = Date.now() - started
@@ -122,6 +153,30 @@ export async function callModel(input: ModelCallInput): Promise<ModelCallResult>
   return { content, tool_calls: rawToolCalls, finish_reason: finishReason, usage, rawAssistantMessage, trace }
 }
 
+function shouldRetryModelCall(error: unknown): boolean {
+  return error instanceof Error
+    && error.message === 'backend model gateway returned no assistant content and no tool calls'
+}
+
+function normalizeModelCallRetryOptions(input?: ModelCallRetryOptions): Required<ModelCallRetryOptions> {
+  return {
+    maxAttempts: Math.max(1, Math.trunc(input?.maxAttempts ?? 3)),
+    initialDelayMs: Math.max(0, Math.trunc(input?.initialDelayMs ?? 1000)),
+    maxDelayMs: Math.max(0, Math.trunc(input?.maxDelayMs ?? 30000)),
+  }
+}
+
+function getRetryDelayMs(attempt: number, retry: Required<ModelCallRetryOptions>): number {
+  const delay = retry.initialDelayMs * (2 ** (attempt - 1))
+  return Math.min(delay, retry.maxDelayMs)
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw signal.reason ?? new DOMException('Aborted', 'AbortError')
+  }
+}
+
 interface OpenAIChatCompletionResponse {
   choices?: Array<{
     message?: {
@@ -159,6 +214,7 @@ async function readStreamingSSEModelResponse(
     publicRequest: RuntimeModelRequestSnapshot
     responseHeaders: Record<string, string>
     onTrace?: RuntimeModelTraceCallback
+    signal?: AbortSignal
   },
 ): Promise<string> {
   if (!response.body) return await response.text()
@@ -241,22 +297,33 @@ async function readStreamingSSEModelResponse(
     }
   }
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const text = decoder.decode(value, { stream: true })
-    responseText += text
-    buffer += text
+  try {
+    while (true) {
+      throwIfAborted(input.signal)
+      const { done, value } = await reader.read()
+      throwIfAborted(input.signal)
+      if (done) break
+      const text = decoder.decode(value, { stream: true })
+      responseText += text
+      buffer += text
 
-    let normalized = buffer.replace(/\r\n/g, '\n')
-    let separatorIndex = normalized.indexOf('\n\n')
-    while (separatorIndex >= 0) {
-      const block = normalized.slice(0, separatorIndex)
-      processBlock(block)
-      normalized = normalized.slice(separatorIndex + 2)
-      separatorIndex = normalized.indexOf('\n\n')
+      let normalized = buffer.replace(/\r\n/g, '\n')
+      let separatorIndex = normalized.indexOf('\n\n')
+      while (separatorIndex >= 0) {
+        throwIfAborted(input.signal)
+        const block = normalized.slice(0, separatorIndex)
+        processBlock(block)
+        normalized = normalized.slice(separatorIndex + 2)
+        separatorIndex = normalized.indexOf('\n\n')
+      }
+      buffer = normalized
     }
-    buffer = normalized
+  } catch (error) {
+    if (input.signal?.aborted) {
+      await reader.cancel().catch(() => undefined)
+      throw input.signal.reason ?? error
+    }
+    throw error
   }
 
   const tail = decoder.decode()

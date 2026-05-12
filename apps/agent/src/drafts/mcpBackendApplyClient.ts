@@ -5,6 +5,12 @@ import type { ApplyDraftReview } from './draftApply.js'
 
 type BackendApplyMCPClient = Pick<MCPClient, 'initialize' | 'callTool'>
 
+const BACKEND_APPLY_MCP_TOOLS = {
+  applyReview: 'movscript_apply_draft_review',
+  previewApplyReview: 'movscript_preview_apply_draft_review',
+  createScript: 'movscript_create_script_backend',
+} as const
+
 export class MCPBackendApplyClient extends BackendApplyClient {
   private readonly mcpClient: BackendApplyMCPClient
 
@@ -18,29 +24,21 @@ export class MCPBackendApplyClient extends BackendApplyClient {
   }
 
   override async applyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    return this.callBackendApplyTool('movscript_apply_draft_review', {
+    return this.callBackendApplyTool(BACKEND_APPLY_MCP_TOOLS.applyReview, {
       review: review as unknown as JSONValue,
       ...authArgs(auth),
     })
   }
 
   override async previewApplyReview(review: ApplyDraftReview, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    return this.callBackendApplyTool('movscript_preview_apply_draft_review', {
+    return this.callBackendApplyTool(BACKEND_APPLY_MCP_TOOLS.previewApplyReview, {
       review: review as unknown as JSONValue,
       ...authArgs(auth),
     })
   }
 
-  override async previewProductionProposalApply(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    return this.callBackendApplyTool('movscript_preview_production_proposal_apply', {
-      projectId,
-      payload,
-      ...authArgs(auth),
-    })
-  }
-
   override async createScript(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    return this.callBackendApplyTool('movscript_create_script_backend', {
+    return this.callBackendApplyTool(BACKEND_APPLY_MCP_TOOLS.createScript, {
       projectId,
       payload,
       ...authArgs(auth),

@@ -9,15 +9,16 @@
     "movscript.intent.script-writing",
     "movscript.intent.project-progress",
     "movscript.intent.storyboard-gap-review",
-    "movscript.intent.content-unit-draft-creation",
+    "movscript.intent.content-unit-proposal",
+    "movscript.intent.content-unit-media-proposal",
     "movscript.policy.approval-boundaries"
   ],
   "tools": [
     "movscript_read_draft",
     "movscript_list_drafts",
-    "movscript_create_proposal",
-    "movscript_edit_draft",
-    "movscript_dry_apply_draft",
+    "movscript_get_draft",
+    "movscript_create_draft",
+    "movscript_update_draft",
     "movscript_request_user_input",
     "movscript_create_script"
   ]

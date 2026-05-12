@@ -217,40 +217,6 @@ export class BackendApplyClient {
     }
   }
 
-  async previewProductionProposalApply(projectId: number, payload: Record<string, JSONValue>, auth?: BackendApplyAuthContext): Promise<BackendApplyResult> {
-    const baseURL = this.resolveBaseURL(auth)
-    if (!baseURL) {
-      return { performed: false, skippedReason: 'backend apply preview disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
-    }
-    const path = `/projects/${encodeURIComponent(String(projectId))}/entities/production-proposals/apply-preview`
-    const url = `${baseURL}${path}`
-    const headers = buildHeaders(auth)
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    })
-    const responseText = await response.text()
-    const parsed = parseJSONText(responseText)
-    if (!response.ok) {
-      throw new BackendApplyHTTPError(`backend POST ${path} failed: HTTP ${response.status}${responseText ? ` ${responseText}` : ''}`, {
-        method: 'POST',
-        path,
-        status: response.status,
-        responseText,
-        ...(parsed !== undefined ? { response: parsed } : {}),
-      })
-    }
-    return {
-      performed: true,
-      method: 'POST',
-      url,
-      payload,
-      ...(parsed !== undefined ? { response: parsed } : {}),
-    }
-  }
-
   private resolveBaseURL(auth?: BackendApplyAuthContext): string | undefined {
     return normalizeBaseURL(auth?.backendAPIBaseURL) ?? this.baseURL
   }

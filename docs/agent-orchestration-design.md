@@ -21,7 +21,7 @@
 项目编排和制作编排拆成两条提案通道：
 
 - `project_proposal`：项目级治理提案，只应用 `creative_reference` 和 `asset_slot`。它负责创建设定资料、修改设定资料、删除/合并重复设定、创建或锁定项目级素材需求。用户确认后走 `POST /projects/:id/entities/project-proposals/apply`。
-- `production_proposal`：制作级结构提案，只应用制作结构和制作使用关系。它负责 `segment`、`scene_moment`，以及在情景下提出设定引用和素材需求使用；内容单元、关键帧、台词定稿、运镜表和 prompt 仍属于下游制作工作台。用户确认后走 `POST /projects/:id/entities/production-proposals/apply`。
+- `production_proposal`：制作级结构提案，只应用制作结构和制作使用关系。它负责 `segment`、`scene_moment`，以及在情景下提出设定引用和素材需求使用；内容单元、关键帧、台词定稿、运镜表和 prompt 仍属于下游制作工作台，不进入这个 proposal。用户确认后走 `POST /projects/:id/entities/production-proposals/apply`。
 - 制作侧可以读取项目侧的设定资料和素材需求用于复用、去重和引用，但不直接拥有这些实体；项目侧是它们的最终 owner。
 
 分析产出的实体层级：
@@ -48,7 +48,7 @@ Production（制作）
 **Agent 工具（`apps/agent/catalog/tools/*.json`）：**
 - `movscript.read_production_context` — 读取完整制作编排上下文
 - `movscript.check_proposal_is_available` — 检查提案是否可提交并返回归一化建议
-- `movscript.create_production_proposal` / `movscript.upsert_proposal_*` — 写入可审阅的草稿提案
+- `movscript.create_production_proposal` / `movscript.create_proposal` / `movscript.update_draft` — 写入可审阅的草稿提案
 
 **Draft 系统（`apps/agent/src/drafts/draftStore.ts`）：**
 - `AgentDraftKind`: `script | asset_slot | storyboard_line | content_unit | prompt | note | pipeline | segment | scene_moment | project_proposal | production_proposal`

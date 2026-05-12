@@ -460,7 +460,7 @@ export interface RuntimeModelTestResult {
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
 export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
 export type AgentDraftKind =
-  | 'script_split'
+  | 'script_split_proposal'
   | 'script'
   | 'asset_slot'
   | 'storyboard_line'
@@ -613,6 +613,7 @@ export interface RunMessageOptions {
   pollMs?: number
   agentManifest?: AgentManifest
   runPolicy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
+  signal?: AbortSignal
 }
 
 const DEFAULT_LOCAL_AGENT_BASE_URL = 'http://127.0.0.1:28765'
@@ -660,24 +661,24 @@ export class LocalAgentClient {
     }
   }
 
-  createThread(input: { title?: string; projectId?: number } = {}): Promise<AgentThread> {
-    return this.postJSON('/threads', input)
+  createThread(input: { title?: string; projectId?: number } = {}, signal?: AbortSignal): Promise<AgentThread> {
+    return this.postJSON('/threads', input, signal)
   }
 
   listThreads(): Promise<{ threads: AgentThreadSummary[] }> {
     return this.getJSON('/threads')
   }
 
-  addMessage(threadId: string, content: string, clientInput?: AgentClientInput): Promise<AgentMessage> {
+  addMessage(threadId: string, content: string, clientInput?: AgentClientInput, signal?: AbortSignal): Promise<AgentMessage> {
     return this.postJSON(`/threads/${encodeURIComponent(threadId)}/messages`, {
       role: 'user',
       content,
       ...(clientInput ? { clientInput } : {}),
-    })
+    }, signal)
   }
 
-  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> } = {}): Promise<AgentRun> {
-    return this.postJSON('/runs', { threadId, ...input })
+  createRun(threadId: string, input: { agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> } = {}, signal?: AbortSignal): Promise<AgentRun> {
+    return this.postJSON('/runs', { threadId, ...input }, signal)
   }
 
   listRuns(): Promise<{ runs: AgentRun[] }> {
@@ -693,12 +694,12 @@ export class LocalAgentClient {
     approvedToolNames?: string[]
     clientInput?: AgentClientInput
     policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>>
-  }): Promise<AgentRun> {
-    return this.postJSON('/runs/tool', input)
+  }, signal?: AbortSignal): Promise<AgentRun> {
+    return this.postJSON('/runs/tool', input, signal)
   }
 
-  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> }): Promise<AgentRunPreview> {
-    return this.postJSON('/runs/preview', input)
+  previewRun(input: { threadId?: string; message?: string; agentManifest?: AgentManifest; approvedToolNames?: string[]; clientInput?: AgentClientInput; policy?: Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> }, signal?: AbortSignal): Promise<AgentRunPreview> {
+    return this.postJSON('/runs/preview', input, signal)
   }
 
   getCapabilities(query: { projectId?: number } = {}): Promise<AgentCapabilitiesResponse> {
@@ -724,20 +725,20 @@ export class LocalAgentClient {
     return withRuntimeModelConfigError(this.postJSON('/model-config/test', input))
   }
 
-  approveRun(runId: string, input: { approvedToolNames?: string[]; approvalIds?: string[] } = {}): Promise<AgentRun> {
-    return this.postJSON(`/runs/${encodeURIComponent(runId)}/approve`, input)
+  approveRun(runId: string, input: { approvedToolNames?: string[]; approvalIds?: string[] } = {}, signal?: AbortSignal): Promise<AgentRun> {
+    return this.postJSON(`/runs/${encodeURIComponent(runId)}/approve`, input, signal)
   }
 
-  rejectRun(runId: string, input: { approvalIds?: string[] } = {}): Promise<AgentRun> {
-    return this.postJSON(`/runs/${encodeURIComponent(runId)}/reject`, input)
+  rejectRun(runId: string, input: { approvalIds?: string[] } = {}, signal?: AbortSignal): Promise<AgentRun> {
+    return this.postJSON(`/runs/${encodeURIComponent(runId)}/reject`, input, signal)
   }
 
-  cancelRun(runId: string, input: { reason?: string } = {}): Promise<AgentRun> {
-    return this.postJSON(`/runs/${encodeURIComponent(runId)}/cancel`, input)
+  cancelRun(runId: string, input: { reason?: string } = {}, signal?: AbortSignal): Promise<AgentRun> {
+    return this.postJSON(`/runs/${encodeURIComponent(runId)}/cancel`, input, signal)
   }
 
-  getRun(runId: string): Promise<AgentRun> {
-    return this.getJSON(`/runs/${encodeURIComponent(runId)}`)
+  getRun(runId: string, signal?: AbortSignal): Promise<AgentRun> {
+    return this.getJSON(`/runs/${encodeURIComponent(runId)}`, { signal })
   }
 
   getRunTraceEvents(runId: string, query: { cursor?: string; limit?: number; kind?: AgentTraceEventKind } = {}): Promise<AgentRunTraceResponse> {
@@ -752,21 +753,21 @@ export class LocalAgentClient {
     return this.getJSON(`/runs/${encodeURIComponent(runId)}/trace/summary`)
   }
 
-  answerRunInput(runId: string, input: { requestId?: string; choiceIds?: string[]; text?: string }): Promise<AgentRun> {
-    return this.postJSON(`/runs/${encodeURIComponent(runId)}/input`, input)
+  answerRunInput(runId: string, input: { requestId?: string; choiceIds?: string[]; text?: string }, signal?: AbortSignal): Promise<AgentRun> {
+    return this.postJSON(`/runs/${encodeURIComponent(runId)}/input`, input, signal)
   }
 
-  async waitForRun(runId: string, options: { timeoutMs?: number; pollMs?: number; onRunUpdate?: (run: AgentRun) => void } = {}): Promise<AgentRun> {
+  async waitForRun(runId: string, options: { timeoutMs?: number; pollMs?: number; onRunUpdate?: (run: AgentRun) => void; signal?: AbortSignal } = {}): Promise<AgentRun> {
     const timeoutMs = options.timeoutMs ?? 30_000
     const pollMs = options.pollMs ?? 300
     const deadline = Date.now() + timeoutMs
 
     while (true) {
-      const run = await this.getRun(runId)
+      const run = await this.getRun(runId, options.signal)
       options.onRunUpdate?.(run)
       if (TERMINAL_RUN_STATUSES.has(run.status)) return run
       if (Date.now() > deadline) throw new Error(`local runtime run ${runId} did not finish within ${timeoutMs}ms`)
-      await new Promise((resolve) => setTimeout(resolve, pollMs))
+      await sleepWithAbort(pollMs, options.signal)
     }
   }
 
@@ -775,9 +776,15 @@ export class LocalAgentClient {
     let timedOut = false
     let lastKnownRun: AgentRun | undefined
     const timeoutMs = options.timeoutMs ?? 30_000
+    const externalSignal = options.signal
+    const abortFromExternal = () => {
+      if (!controller.signal.aborted) controller.abort(externalSignal?.reason)
+    }
+    if (externalSignal?.aborted) abortFromExternal()
+    else externalSignal?.addEventListener('abort', abortFromExternal, { once: true })
     const fullRunOrLatest = async (run: AgentRun): Promise<AgentRun> => {
       if (run.streamPartial) {
-        const fullRun = await this.getRun(run.id).catch(() => undefined)
+        const fullRun = await this.getRun(run.id, controller.signal).catch(() => undefined)
         if (fullRun) return fullRun
       }
       return run
@@ -794,9 +801,9 @@ export class LocalAgentClient {
         signal: controller.signal,
       })
       if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
-      if (!res.body) return await this.waitForRun(runId, options)
+      if (!res.body) return await this.waitForRun(runId, { ...options, signal: controller.signal })
 
-      let latestRun = await this.getRun(runId)
+      let latestRun = await this.getRun(runId, controller.signal)
       lastKnownRun = latestRun
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -855,25 +862,26 @@ export class LocalAgentClient {
       return latestRun
     } catch (error) {
       if (timedOut) {
-        const latestRun = await this.getRun(runId).catch(() => undefined)
+        const latestRun = await this.getRun(runId, controller.signal).catch(() => undefined)
         if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return latestRun
         if (latestRun) options.onRunUpdate?.(latestRun)
         throw new Error(`local runtime stream for run ${runId} timed out after ${timeoutMs}ms`)
       }
-      const latestRun = lastKnownRun ?? await this.getRun(runId).catch(() => undefined)
+      const latestRun = lastKnownRun ?? await this.getRun(runId, controller.signal).catch(() => undefined)
       if (latestRun && TERMINAL_RUN_STATUSES.has(latestRun.status)) return await fullRunOrLatest(latestRun)
       throw error
     } finally {
       if (timeout !== undefined) globalThis.clearTimeout(timeout)
+      externalSignal?.removeEventListener('abort', abortFromExternal)
     }
   }
 
-  getThread(threadId: string): Promise<AgentThread> {
-    return this.getJSON(`/threads/${encodeURIComponent(threadId)}`)
+  getThread(threadId: string, signal?: AbortSignal): Promise<AgentThread> {
+    return this.getJSON(`/threads/${encodeURIComponent(threadId)}`, { signal })
   }
 
-  updateThread(threadId: string, input: { title?: string; archived?: boolean; metadata?: Record<string, unknown> }): Promise<AgentThread> {
-    return this.patchJSON(`/threads/${encodeURIComponent(threadId)}`, input)
+  updateThread(threadId: string, input: { title?: string; archived?: boolean; metadata?: Record<string, unknown> }, signal?: AbortSignal): Promise<AgentThread> {
+    return this.patchJSON(`/threads/${encodeURIComponent(threadId)}`, input, signal)
   }
 
   listMemories(query: { scope?: AgentMemoryScope; projectId?: number; threadId?: string; kind?: AgentMemoryKind } = {}): Promise<{ memories: AgentMemory[] }> {
@@ -941,82 +949,88 @@ export class LocalAgentClient {
     return this.postJSON('/memories', input)
   }
 
-  deleteMemory(memoryId: string): Promise<{ deleted: true }> {
-    return this.deleteJSON(`/memories/${encodeURIComponent(memoryId)}`)
+  deleteMemory(memoryId: string, signal?: AbortSignal): Promise<{ deleted: true }> {
+    return this.deleteJSON(`/memories/${encodeURIComponent(memoryId)}`, signal)
   }
 
   async runMessage(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
-    const thread = input.threadId ? await this.getThreadOrCreate(input.threadId) : await this.createThread({ title: input.title, projectId: input.projectId })
-    await this.addMessage(thread.id, input.message, input.clientInput)
+    const thread = input.threadId ? await this.getThreadOrCreate(input.threadId, options.signal) : await this.createThread({ title: input.title, projectId: input.projectId }, options.signal)
+    await this.addMessage(thread.id, input.message, input.clientInput, options.signal)
     const run = await this.createRun(thread.id, {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
       ...(options.runPolicy ? { policy: options.runPolicy } : {}),
-    })
+    }, options.signal)
     options.onRunUpdate?.(run)
     const finalRun = await this.waitForRun(run.id, {
       timeoutMs: options.timeoutMs,
       pollMs: options.pollMs,
       onRunUpdate: options.onRunUpdate,
+      signal: options.signal,
     })
     const finalThread = await this.getThread(thread.id)
     return { run: finalRun, thread: finalThread }
   }
 
   async runMessageStream(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
-    const thread = input.threadId ? await this.getThreadOrCreate(input.threadId) : await this.createThread({ title: input.title, projectId: input.projectId })
-    await this.addMessage(thread.id, input.message, input.clientInput)
+    const thread = input.threadId ? await this.getThreadOrCreate(input.threadId, options.signal) : await this.createThread({ title: input.title, projectId: input.projectId }, options.signal)
+    await this.addMessage(thread.id, input.message, input.clientInput, options.signal)
     const run = await this.createRun(thread.id, {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
       ...(input.clientInput ? { clientInput: input.clientInput } : {}),
       ...(options.runPolicy ? { policy: options.runPolicy } : {}),
-    })
+    }, options.signal)
     options.onRunUpdate?.(run)
     const finalRun = await this.streamRun(run.id, options)
     const finalThread = await this.getThread(thread.id)
     return { run: finalRun, thread: finalThread }
   }
 
-  private async getThreadOrCreate(threadId: string): Promise<AgentThread> {
+  private async getThreadOrCreate(threadId: string, signal?: AbortSignal): Promise<AgentThread> {
     try {
-      return await this.getThread(threadId)
+      return await this.getThread(threadId, signal)
     } catch {
-      return await this.createThread()
+      if (signal?.aborted) throw signal.reason ?? createLocalAgentAbortError()
+      return await this.createThread({}, signal)
     }
   }
 
-  private async getJSON<T>(path: string, options: { auth?: boolean } = {}): Promise<T> {
+  private async getJSON<T>(path: string, options: { auth?: boolean; signal?: AbortSignal } = {}): Promise<T> {
     const res = await fetch(`${this.baseURL}${path}`, {
       headers: options.auth === false ? {} : this.authHeaders(),
+      signal: options.signal,
     })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
     return await res.json() as T
   }
 
-  private async postJSON<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  private async postJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
     const res = await fetch(`${this.baseURL}${path}`, {
       method: 'POST',
       headers: this.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(this.withBackendContext(body)),
+      signal,
     })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
     return await res.json() as T
   }
 
-  private async patchJSON<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  private async patchJSON<T>(path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
     const res = await fetch(`${this.baseURL}${path}`, {
       method: 'PATCH',
       headers: this.authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(this.withBackendContext(body)),
+      signal,
     })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
     return await res.json() as T
   }
 
-  private async deleteJSON<T>(path: string): Promise<T> {
+  private async deleteJSON<T>(path: string, signal?: AbortSignal): Promise<T> {
     const res = await fetch(`${this.baseURL}${path}`, {
       method: 'DELETE',
       headers: this.authHeaders(),
+      signal,
     })
     if (!res.ok) throw new Error(`local agent returned ${res.status}: ${await res.text()}`)
     return await res.json() as T
@@ -1064,4 +1078,28 @@ function parseSSEBlock(block: string): { event?: string; data: string } | undefi
   }
   if (dataLines.length === 0) return undefined
   return { event, data: dataLines.join('\n').trim() }
+}
+
+function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? createLocalAgentAbortError())
+      return
+    }
+    const timer = globalThis.setTimeout(resolve, ms)
+    signal?.addEventListener('abort', () => {
+      globalThis.clearTimeout(timer)
+      reject(signal.reason ?? createLocalAgentAbortError())
+    }, { once: true })
+  })
+}
+
+function createLocalAgentAbortError(): Error {
+  try {
+    return new DOMException('Aborted', 'AbortError')
+  } catch {
+    const error = new Error('Aborted')
+    error.name = 'AbortError'
+    return error
+  }
 }

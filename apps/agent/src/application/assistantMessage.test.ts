@@ -21,66 +21,63 @@ test('assistant message describes successful and failed tool outcomes', () => {
   assert.match(content, /movscript\.create_draft 未完成：create failed/)
 })
 
-test('assistant message describes current production reads', () => {
-  const content = buildAssistantContent('/production_plan 第一场', [
+test('assistant message describes tool reads', () => {
+  const content = buildAssistantContent('/plan 第一场', [
     {
-      call: { name: 'movscript_read_current_production', args: { projectId: 42, productionId: 4 } },
-      result: toolText({ counts: { segments: 1, sceneMoments: 2 } }),
+      call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+      result: toolText({ counts: { scripts: 3 } }),
     },
   ], [], [], makeRun())
 
   assert.throws(() => JSON.parse(content))
-  assert.match(content, /read_current_production/i)
+  assert.match(content, /read_project_scripts/i)
 })
 
 test('assistant message extracts tool calls from model JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_calls: [
       {
-        name: 'movscript_read_current_production',
-        parameters: { production_id: 4, project_id: 1 },
+        name: 'movscript_read_project_scripts',
+        parameters: { project_id: 1 },
       },
     ],
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_read_current_production')
-  assert.equal(toolCalls[0].args?.production_id, 4)
+  assert.equal(toolCalls[0].name, 'movscript_read_project_scripts')
+  assert.equal(toolCalls[0].args?.project_id, 1)
 })
 
 test('assistant message extracts a single tool call returned as JSON content', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
-    name: 'movscript_submit_production_proposal',
+    name: 'movscript_create_draft',
     args: {
       projectId: 1,
-      productionId: 4,
-      proposal: {
-        segments: [{ client_id: 'segment_001', action: 'create', title: '开场' }],
-      },
+      kind: 'production_proposal',
+      proposal: true,
+      content: JSON.stringify({ proposal: { segments: [] } }),
     },
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_submit_production_proposal')
+  assert.equal(toolCalls[0].name, 'movscript_create_draft')
   assert.equal(toolCalls[0].args?.projectId, 1)
-  assert.equal(toolCalls[0].args?.productionId, 4)
+  assert.equal(toolCalls[0].args?.kind, 'production_proposal')
 })
 
 test('assistant message extracts model-emitted single tool_call wrapper', () => {
   const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
     tool_call: {
-      tool_name: 'movscript_inspect_production_proposal_context',
+      tool_name: 'movscript_get_draft',
       parameters: {
-        proposalRef: 'draft_1',
-        includeNodes: true,
+        draftId: 'draft_1',
       },
     },
   }))
 
   assert.equal(toolCalls.length, 1)
-  assert.equal(toolCalls[0].name, 'movscript_inspect_production_proposal_context')
-  assert.equal(toolCalls[0].args?.proposalRef, 'draft_1')
-  assert.equal(toolCalls[0].args?.includeNodes, true)
+  assert.equal(toolCalls[0].name, 'movscript_get_draft')
+  assert.equal(toolCalls[0].args?.draftId, 'draft_1')
 })
 
 function toolText(value: unknown): JSONValue {
@@ -126,8 +123,8 @@ function makeRun(): AgentRun {
         runId: 'run_test',
       type: 'tool_call',
       status: 'completed',
-      toolName: 'movscript_read_current_production',
-      args: { projectId: 42, productionId: 4 },
+      toolName: 'movscript_read_project_scripts',
+      args: { projectId: 42 },
       createdAt: '2026-05-03T00:00:00.000Z',
       completedAt: '2026-05-03T00:00:00.000Z',
     },

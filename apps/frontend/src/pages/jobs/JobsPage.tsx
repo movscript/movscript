@@ -73,6 +73,10 @@ function getJobCategory(job: Job): string {
   return job.job_type
 }
 
+function getJobTitle(job: Job): string {
+  return job.title?.trim() || job.prompt?.trim() || '未命名任务'
+}
+
 function filterJobs(jobs: Job[], category: string): Job[] {
   if (category === 'all') return jobs
   if (category === 'canvas') return jobs.filter((j) => j.job_type === 'canvas')
@@ -145,8 +149,11 @@ function JobDetailCard({ job, onClose }: { job: Job; onClose: () => void }) {
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Eye size={13} className="text-muted-foreground" />
-            <p className="truncate text-sm font-semibold text-foreground">{job.prompt || t('pages.jobs.noPrompt')}</p>
+            <p className="truncate text-sm font-semibold text-foreground">{getJobTitle(job)}</p>
           </div>
+          {job.title && job.prompt ? (
+            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{job.prompt}</p>
+          ) : null}
           <p className="mt-1 text-xs text-muted-foreground">
             {job.job_type} · #{job.ID} · {job.provider_name ?? job.model_display ?? t('pages.jobs.generating')}
           </p>
@@ -264,9 +271,14 @@ function JobListCard({
             <ImageIcon size={14} className="text-muted-foreground" />
           )}
         </div>
-        <p className="text-sm text-foreground flex-1 leading-relaxed whitespace-pre-wrap line-clamp-3">
-          {job.prompt ? <PromptText text={job.prompt} /> : t('pages.jobs.noPrompt')}
-        </p>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-foreground">{getJobTitle(job)}</p>
+          {job.prompt ? (
+            <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+              <PromptText text={job.prompt} />
+            </p>
+          ) : null}
+        </div>
         <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={job.status} />
           <button
@@ -455,9 +467,12 @@ function JobGridThumb({
 
       {/* Caption */}
       <div className="px-2 py-1.5">
-        <p className="text-[10px] text-muted-foreground truncate">
-          {job.prompt ? <PromptText text={job.prompt} /> : t('pages.jobs.noPrompt')}
-        </p>
+        <p className="truncate text-[10px] font-medium text-foreground">{getJobTitle(job)}</p>
+        {job.prompt ? (
+          <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+            <PromptText text={job.prompt} />
+          </p>
+        ) : null}
         <JobContextSummary job={job} className="mt-1" />
         <p className="text-[9px] text-muted-foreground/50 mt-0.5">{formatTime(job.CreatedAt, i18n.language, t)}</p>
       </div>

@@ -5395,7 +5395,7 @@ function ScriptSplitWorkbench() {
     })
     const pageScoped = await localAgentClient.listDrafts({
       projectId,
-      kind: 'script_split',
+      kind: 'script_split_proposal',
       status: 'draft',
       pageKey,
       limit: 5,
@@ -5405,10 +5405,10 @@ function ScriptSplitWorkbench() {
     const preferred = preferredDraftId
       ? await localAgentClient.getDraft(preferredDraftId).catch(() => null)
       : null
-    if (preferred && preferred.kind === 'script_split' && preferred.status !== 'superseded') return preferred
+    if (preferred && preferred.kind === 'script_split_proposal' && preferred.status !== 'superseded') return preferred
     const latest = await localAgentClient.listDrafts({
       projectId,
-      kind: 'script_split',
+      kind: 'script_split_proposal',
       status: 'draft',
       limit: 1,
     })
@@ -5426,7 +5426,7 @@ function ScriptSplitWorkbench() {
     })
     const existing = await localAgentClient.listDrafts({
       projectId,
-      kind: 'script_split',
+      kind: 'script_split_proposal',
       status: 'draft',
       pageKey,
       limit: 1,
@@ -5437,7 +5437,7 @@ function ScriptSplitWorkbench() {
     const sourceSummary = `${baseTitle} 待生成制作方案，共 ${lineCount} 行。`
     return localAgentClient.createDraft({
       projectId,
-      kind: 'script_split',
+      kind: 'script_split_proposal',
       title: `一键制作方案 - ${baseTitle}`,
       content: JSON.stringify({
         schema: DRAFT_CONTENT_SCHEMA_IDS.scriptSplit,
@@ -5481,7 +5481,7 @@ function ScriptSplitWorkbench() {
     void (async () => {
       try {
         const draft = await localAgentClient.getDraft(openedDraftId)
-        if (cancelled || draft.kind !== 'script_split') return
+        if (cancelled || draft.kind !== 'script_split_proposal') return
         setAgentDraft(draft)
         setAgentDraftDirty(false)
         setLastAgentRunId(draft.createdByRunId ?? null)
@@ -5538,7 +5538,7 @@ function ScriptSplitWorkbench() {
       if (!run || !thread || (run.status !== 'completed' && run.status !== 'completed_with_warnings')) return
       try {
         const task = useAgentSessionStore.getState().pageTasks[requestId]
-        const artifact = selectLatestDraftArtifact(task?.artifacts, 'script_split')
+        const artifact = selectLatestDraftArtifact(task?.artifacts, 'script_split_proposal')
         if (!artifact) return
         const latest = await getLatestWritableScriptSplitDraft(artifact.draftId)
         if (!latest) return
@@ -5576,7 +5576,7 @@ function ScriptSplitWorkbench() {
 
     openAgentPanelDraft({
       requestId,
-      taskType: 'script_split',
+      taskType: 'script_split_proposal',
       message: displayMessage,
       title: `一键制作: ${baseTitle}`,
       mode: 'create',
@@ -5787,7 +5787,7 @@ function ScriptSplitWorkbench() {
 
     const existing = findProductionForDraft(draft)
     const metadata = mergeMetadataJSON(existing?.metadata_json, {
-      source: 'workbench.script_split',
+      source: 'workbench.script_split_proposal',
       source_title: input.sourceScriptTitle,
       source_script_id: input.sourceScriptId,
       saved_script_id: input.savedScriptId ?? null,
@@ -5943,7 +5943,7 @@ function ScriptSplitWorkbench() {
         appliedDraft = await localAgentClient.updateDraft(syncedDraft.id, {
           status: 'applied',
           metadata: {
-            appliedFrom: 'workbench.script_split',
+            appliedFrom: 'workbench.script_split_proposal',
             appliedAt: new Date().toISOString(),
             sourceScriptId,
             savedScriptIds: createdScripts.map((script) => script.ID),

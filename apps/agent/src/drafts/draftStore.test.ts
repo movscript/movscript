@@ -12,7 +12,7 @@ test('listDrafts filters by threadId and runId', () => {
 
   const threadDraft = store.createDraft({
     projectId: 1,
-    kind: 'script_split',
+    kind: 'script_split_proposal',
     title: 'thread draft',
     content: '{}',
     createdByThreadId: 'thread-1',
@@ -172,7 +172,7 @@ test('validateDraft rejects non-snake-case project proposal asset owner type', (
   assert.match(JSON.stringify(validation.issues), /creative_reference/)
 })
 
-test('validateDraft accepts production proposal content with content units and keyframes', () => {
+test('validateDraft rejects downstream content units and keyframes in production proposal content', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
     kind: 'production_proposal',
@@ -199,8 +199,8 @@ test('validateDraft accepts production proposal content with content units and k
   })
 
   const validation = validateDraft(draft)
-  assert.equal(validation.ok, true)
-  assert.equal(validation.issues.filter((issue) => issue.severity === 'error').length, 0)
+  assert.equal(validation.ok, false)
+  assert.match(JSON.stringify(validation.issues), /content_units/)
 })
 
 test('validateDraft accepts canonical asset proposal content', () => {

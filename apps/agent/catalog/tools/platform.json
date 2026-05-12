@@ -28,7 +28,7 @@
     },
     {
       "name": "movscript_read_project_scripts",
-      "description": "Read scripts in the current or specified project, optionally including script body text for planning, splitting, or orchestration work.",
+      "description": "Read scripts in the current or specified project, optionally including script body text.",
       "permission": "project.read",
       "risk": "read",
       "projectScoped": true,
@@ -62,20 +62,6 @@
       "requiresApprovalByDefault": false,
       "defaultGrant": {
         "name": "movscript_search_memories",
-        "mode": "allow",
-        "approval": "never"
-      }
-    },
-    {
-      "name": "movscript_list_memories",
-      "description": "List local agent memory titles in the current project.",
-      "permission": "memory.read",
-      "risk": "read",
-      "source": "runtime",
-      "projectScoped": true,
-      "requiresApprovalByDefault": false,
-      "defaultGrant": {
-        "name": "movscript_list_memories",
         "mode": "allow",
         "approval": "never"
       }

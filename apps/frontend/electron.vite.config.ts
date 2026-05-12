@@ -15,6 +15,7 @@ const alias = {
 }
 
 const rendererPort = Number(process.env.MOVSCRIPT_FRONTEND_PORT ?? '5173')
+const disableRendererHmr = process.env.MOVSCRIPT_FRONTEND_NO_HMR === '1'
 
 export default defineConfig({
   main: {
@@ -43,6 +44,7 @@ export default defineConfig({
       host: '127.0.0.1',
       port: rendererPort,
       strictPort: true,
+      hmr: disableRendererHmr ? false : undefined,
     },
     optimizeDeps: {
       force: true,

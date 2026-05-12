@@ -166,6 +166,7 @@ type NewQueuedJobSpec struct {
 	ModelConfigID      uint
 	JobType            string
 	FeatureKey         string
+	Title              string
 	Prompt             string
 	ExtraParams        string
 	AspectRatio        string
@@ -184,6 +185,7 @@ type Job struct {
 	ModelConfigID       uint         `json:"model_config_id"`
 	JobType             string       `json:"job_type"`
 	FeatureKey          string       `json:"feature_key,omitempty"`
+	Title               string       `json:"title,omitempty"`
 	Status              string       `json:"status"`
 	AttemptCount        int          `json:"attempt_count"`
 	MaxAttempts         int          `json:"max_attempts"`
@@ -283,6 +285,7 @@ func NewQueuedJob(spec NewQueuedJobSpec) Job {
 		ModelConfigID:      spec.ModelConfigID,
 		JobType:            spec.JobType,
 		FeatureKey:         spec.FeatureKey,
+		Title:              spec.Title,
 		Status:             StatusPending,
 		MaxAttempts:        DefaultMaxAttempts,
 		Prompt:             spec.Prompt,

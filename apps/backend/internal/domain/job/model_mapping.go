@@ -12,6 +12,7 @@ func JobFromModel(job persistencemodel.Job) Job {
 		ModelConfigID:       job.ModelConfigID,
 		JobType:             job.JobType,
 		FeatureKey:          job.FeatureKey,
+		Title:               job.Title,
 		Status:              job.Status,
 		AttemptCount:        job.AttemptCount,
 		MaxAttempts:         job.MaxAttempts,
@@ -66,6 +67,7 @@ func (job Job) ApplyToModel(target *persistencemodel.Job) {
 	target.ModelConfigID = job.ModelConfigID
 	target.JobType = job.JobType
 	target.FeatureKey = job.FeatureKey
+	target.Title = job.Title
 	target.Status = job.Status
 	target.AttemptCount = job.AttemptCount
 	target.MaxAttempts = job.MaxAttempts

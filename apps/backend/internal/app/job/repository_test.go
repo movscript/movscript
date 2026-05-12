@@ -22,6 +22,7 @@ func TestGormRepositoryRetryPersistsDomainTransitionZeroValues(t *testing.T) {
 		UserID:              1,
 		ModelConfigID:       2,
 		JobType:             domainjob.CapabilityImage,
+		Title:               "参考生图-1234",
 		Status:              domainjob.StatusFailed,
 		AttemptCount:        2,
 		MaxAttempts:         0,
@@ -55,6 +56,9 @@ func TestGormRepositoryRetryPersistsDomainTransitionZeroValues(t *testing.T) {
 	if stored.Status != domainjob.StatusPending || stored.AttemptCount != 0 || stored.MaxAttempts != domainjob.DefaultMaxAttempts {
 		t.Fatalf("unexpected stored retry counters: %+v", stored)
 	}
+	if stored.Title != row.Title {
+		t.Fatalf("title = %q, want %q", stored.Title, row.Title)
+	}
 	if stored.ErrorMsg != "" || stored.OutputResourceID != nil || stored.ProviderTaskID != "" || stored.ProviderTaskHistory != "" {
 		t.Fatalf("provider fields were not cleared: %+v", stored)
 	}
@@ -81,6 +85,7 @@ func TestGormRepositoryDeleteCancelsPendingAndDeletesFinished(t *testing.T) {
 		UserID:             1,
 		ModelConfigID:      2,
 		JobType:            domainjob.CapabilityImage,
+		Title:              "参考生图-5678",
 		Status:             domainjob.StatusPending,
 		Prompt:             "draw",
 		UsageReservationID: &reservationID,
@@ -89,6 +94,7 @@ func TestGormRepositoryDeleteCancelsPendingAndDeletesFinished(t *testing.T) {
 		UserID:        1,
 		ModelConfigID: 2,
 		JobType:       domainjob.CapabilityImage,
+		Title:         "参考生图-9012",
 		Status:        domainjob.StatusSucceeded,
 		Prompt:        "draw",
 	}

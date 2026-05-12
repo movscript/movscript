@@ -3,7 +3,7 @@
   "tools": [
     {
       "name": "movscript_create_draft",
-      "description": "Create a local runtime/client review artifact for compatibility or explicitly granted debug workflows. Page-owned product flows should create draft shells before agent runs.",
+      "description": "Create a local draft. Set proposal:true to enter the proposal workflow: schema validation runs automatically, target/source are inferred, and the draft becomes eligible for the dry-run apply loop (movscript_update_draft action='preview_apply'). Without proposal:true creates a plain draft. The kind field selects the draft schema.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",
@@ -11,22 +11,8 @@
       "requiresApprovalByDefault": false
     },
     {
-      "name": "movscript_create_proposal",
-      "description": "Create a local proposal review draft directly from a conversation. Use this to start project or production proposals without a page-owned shell first.",
-      "permission": "draft.write",
-      "risk": "draft",
-      "source": "runtime",
-      "projectScoped": false,
-      "requiresApprovalByDefault": false,
-      "defaultGrant": {
-        "name": "movscript_create_proposal",
-        "mode": "allow",
-        "approval": "never"
-      }
-    },
-    {
       "name": "movscript_read_draft",
-      "description": "Read one local draft file by path before editing it.",
+      "description": "Read a local draft file by absolute file path. Use when you have a file path; use movscript_get_draft when you only have a draft id.",
       "permission": "draft.read",
       "risk": "read",
       "source": "runtime",
@@ -39,8 +25,22 @@
       }
     },
     {
+      "name": "movscript_get_draft",
+      "description": "Read a local draft by id. Returns content, metadata, status, and the local validation result.",
+      "permission": "draft.read",
+      "risk": "read",
+      "source": "runtime",
+      "projectScoped": false,
+      "requiresApprovalByDefault": false,
+      "defaultGrant": {
+        "name": "movscript_get_draft",
+        "mode": "allow",
+        "approval": "never"
+      }
+    },
+    {
       "name": "movscript_list_drafts",
-      "description": "List local runtime/client review artifacts for the current or specified project. Use to review previous agent proposals before any backend write flow.",
+      "description": "List local drafts for the current or specified project, optionally filtered by kind or status. Use to find an existing draft before creating a new one.",
       "permission": "draft.read",
       "risk": "read",
       "source": "runtime",
@@ -53,29 +53,15 @@
       }
     },
     {
-      "name": "movscript_edit_draft",
-      "description": "Edit a local draft file by replacing a unique old string with a new string.",
+      "name": "movscript_update_draft",
+      "description": "Edit, validate, or dry-run one local draft. Actions: 'patch_content' (JSON Pointer add/replace/remove), 'replace_text' (old/new string), 'replace_content' (full body), 'replace_fields' (title/status/metadata), 'set_status', 'validate' (local schema only), and 'preview_apply' (dry-run that surfaces local validation errors plus backend apply diffs/errors). The recommended self-healing loop: edit -> preview_apply -> inspect validation/backendError -> patch and re-preview until ok=true.",
       "permission": "draft.write",
       "risk": "draft",
       "source": "runtime",
       "projectScoped": false,
       "requiresApprovalByDefault": false,
       "defaultGrant": {
-        "name": "movscript_edit_draft",
-        "mode": "allow",
-        "approval": "never"
-      }
-    },
-    {
-      "name": "movscript_dry_apply_draft",
-      "description": "Validate a local draft file and run backend apply preview without writing permanent project data.",
-      "permission": "draft.read",
-      "risk": "read",
-      "source": "runtime",
-      "projectScoped": false,
-      "requiresApprovalByDefault": false,
-      "defaultGrant": {
-        "name": "movscript_dry_apply_draft",
+        "name": "movscript_update_draft",
         "mode": "allow",
         "approval": "never"
       }

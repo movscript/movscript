@@ -165,6 +165,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.RawResource{})
 			},
 		},
+		{
+			Version: "000013",
+			Name:    "add_job_title",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.Job{})
+			},
+		},
 	}
 	return core
 }

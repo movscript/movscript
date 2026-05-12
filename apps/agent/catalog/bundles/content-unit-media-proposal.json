@@ -1,0 +1,18 @@
+{
+  "id": "movscript.bundle.content-unit-media-proposal",
+  "name": "Content Unit Media Proposal",
+  "description": "Reviewable keyframe and video-plan bundle for a selected content unit.",
+  "category": "content_unit_media_proposal",
+  "skills": [
+    "movscript.intent.content-unit-media-proposal"
+  ],
+  "tools": [
+    "movscript_get_current_context",
+    "movscript_create_draft",
+    "movscript_get_draft",
+    "movscript_list_drafts",
+    "movscript_update_draft",
+    "movscript_read_draft",
+    "movscript_request_user_input"
+  ]
+}

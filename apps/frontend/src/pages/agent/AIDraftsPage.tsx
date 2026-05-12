@@ -21,7 +21,7 @@ import {
 import { useProjectStore } from '@/store/projectStore'
 import { cn } from '@/lib/utils'
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['script_split_proposal', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal', 'content_unit_media_proposal']
 
 type ProjectFilter = 'all' | 'current'
 
@@ -266,7 +266,7 @@ function buildDraftOpenPath(draft: AgentDraft): string | null {
   const sourceEntityId = numberValue(source?.entityId)
   const targetEntityId = numberValue(target?.entityId)
 
-  if (draft.kind === 'script_split') {
+  if (draft.kind === 'script_split_proposal') {
     return `/workbench/script?draftId=${encodeURIComponent(draft.id)}`
   }
 

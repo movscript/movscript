@@ -24,7 +24,7 @@ function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
   const normalized = value.trim()
   if (!normalized) return undefined
   const allowed: AgentDraftKind[] = [
-    'script_split',
+    'script_split_proposal',
     'script',
     'asset_slot',
     'storyboard_line',

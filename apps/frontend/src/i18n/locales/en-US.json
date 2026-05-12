@@ -1125,7 +1125,10 @@
           "scene_moment": "Scene moment proposal",
           "asset_proposal": "Asset candidate proposal",
           "project_proposal": "Project proposal",
-          "production_proposal": "Production proposal"
+          "production_proposal": "Production proposal",
+          "content_unit_proposal": "Content unit proposal",
+          "content_unit_media_proposal": "Content unit media proposal",
+          "script_split_proposal": "Script split proposal"
         }
       },
       "modes": {

@@ -55,6 +55,17 @@ function buildCurl(d: DebugCallResult): string {
   return `curl -X ${d.method} '${d.endpoint}' \\\n  ${headers}${body}`
 }
 
+function buildGenerationJobTitle(jobType: string): string {
+  const labels: Record<string, string> = {
+    image: '文生图',
+    image_edit: '参考生图',
+    video: '文生视频',
+    video_i2v: '参考生视频',
+    video_v2v: '视频迁移',
+  }
+  return `${labels[jobType] ?? '生成任务'}-${Math.floor(1000 + Math.random() * 9000)}`
+}
+
 // ── DebugPanel ────────────────────────────────────────────────────────────────
 
 function DebugPanel({ job }: { job: Job }) {
@@ -402,6 +413,7 @@ export function ToolDialog({
       const job = await api.post('/jobs', {
         model_config_id: selectedModelId,
         job_type: effectiveJobType,
+        title: buildGenerationJobTitle(effectiveJobType),
         prompt: prompt.trim(),
         aspect_ratio: aspect_ratio ?? undefined,
         duration: Number.isFinite(durationValue) ? durationValue : undefined,

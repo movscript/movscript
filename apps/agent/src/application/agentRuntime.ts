@@ -91,9 +91,12 @@ import { planPreviewToolRequests } from '../orchestration/previewPlanner.js'
 import {
   buildLocalDiagnosticFallbackContextResult,
   isLocalDiagnosticCommand,
+  parseGenerationDebugCommand,
   renderLocalDiagnosticCommand,
   renderLocalFinalAssistantContent,
 } from '../context/localDiagnosticCommands.js'
+import { executeTool } from '../orchestration/toolExecutor.js'
+import { buildGenerationEvent } from '../generation/generationEvents.js'
 
 export type {
   AgentMessage,
@@ -1297,6 +1300,142 @@ export class AgentRuntime {
         return
       }
 
+      if ((command.name === 'image' || command.name === 'video') && !run.metadata?.forcedToolCall) {
+        const generationCommand = parseGenerationDebugCommand(command)
+        if (!generationCommand) throw new Error('generation command could not be parsed')
+        const localRound = buildRunRound(1, 'Runtime command', 'runtime_rule')
+        this.recordTraceEvent(run, {
+          kind: 'policy',
+          title: `${command.name === 'image' ? 'Image' : 'Video'} command handled locally`,
+          summary: `${command.rawName ?? `/${command.name}`} forces a generation tool call for chain debugging.`,
+          status: 'completed',
+          round: localRound,
+          data: {
+            command,
+            modelGatewayCalled: false,
+            reason: `${command.name} is a deterministic generation debug command`,
+            generation: generationCommand,
+          },
+        })
+
+        const finalRound = buildRunRound(999, 'Final response', 'final')
+        const toolArgs = {
+          prompt: generationCommand.prompt,
+          output_type: generationCommand.outputType,
+          job_type: generationCommand.jobType,
+          aspect_ratio: generationCommand.aspectRatio,
+          ...(generationCommand.duration !== undefined ? { duration: generationCommand.duration } : {}),
+          feature_key: generationCommand.featureKey,
+          timeout_ms: generationCommand.timeoutMs,
+          wait: true,
+          ...(generationCommand.referenceResourceIds.length > 0
+            ? { input_resource_ids: generationCommand.referenceResourceIds }
+            : {}),
+          ...(Object.keys(generationCommand.extraParams).length > 0
+            ? { extra_params: generationCommand.extraParams }
+            : {}),
+        }
+        const forcedCall = { name: 'movscript_create_generation_job', args: toolArgs }
+        run.metadata = {
+          ...(run.metadata ?? {}),
+          forcedToolCall: forcedCall as unknown as JSONValue,
+        }
+        this.store.updateRun(run)
+
+        const toolStep = this.createStep(run, 'tool_call', localRound, 'movscript_create_generation_job')
+        const startedAt = Date.now()
+        const execResult = await executeTool({
+          name: 'movscript_create_generation_job',
+          args: toolArgs as Record<string, JSONValue>,
+        }, {
+          run,
+          mcpClient: this.mcpClient,
+          draftStore: this.draftStore,
+          backendApplyClient: this.backendApplyClient,
+          registry: this.toolRegistry,
+          memoryManager: this.memoryManager,
+          catalogManager: this,
+          sandboxMode: run.policy.sandboxMode === true,
+          signal,
+        })
+        const durationMs = Date.now() - startedAt
+        toolStep.status = execResult.error ? 'failed' : 'completed'
+        toolStep.result = execResult.result
+        toolStep.error = execResult.error
+        toolStep.completedAt = isoNow()
+        toolStep.durationMs = durationMs
+        this.store.updateRun(run)
+        this.recordTraceEvent(run, {
+          kind: 'tool_call',
+          title: execResult.error ? 'Tool call failed: movscript_create_generation_job' : 'Tool completed: movscript_create_generation_job',
+          summary: `${execResult.error ?? 'generation job finished'} (${durationMs}ms)`,
+          status: execResult.error ? 'failed' : 'completed',
+          round: localRound,
+          stepId: toolStep.id,
+          toolName: 'movscript_create_generation_job',
+          data: { source: execResult.source, result: execResult.result, error: execResult.error, sandboxed: execResult.sandboxed, durationMs },
+          durationMs,
+        })
+        const generationEvent = buildGenerationEvent({ name: 'movscript_create_generation_job', args: toolArgs as Record<string, JSONValue> }, execResult.result)
+        if (generationEvent) {
+          this.recordTraceEvent(run, {
+            kind: 'tool_call',
+            title: `Generation ${generationEvent.stage}: ${generationEvent.jobId !== undefined ? `Job #${generationEvent.jobId}` : generationEvent.toolName}`,
+            summary: generationEvent.message,
+            status: generationEvent.stage === 'failed' ? 'failed' : generationEvent.terminal ? 'completed' : 'info',
+            round: localRound,
+            stepId: toolStep.id,
+            toolName: 'movscript_create_generation_job',
+            data: { generation: generationEvent },
+          })
+        }
+        const assistantContent = this.formatFinalAssistantContent(lastUser.content, '', [{
+          call: { name: 'movscript_create_generation_job', args: toolArgs as Record<string, JSONValue> },
+          ...(execResult.error ? { error: execResult.error } : { result: execResult.result }),
+        }], capabilities.warnings, memories, run)
+        const assistant = this.createMessage(thread.id, 'assistant', assistantContent || '（无内容）', run.id)
+        thread.messages.push(assistant)
+        thread.updatedAt = assistant.createdAt
+
+        const step = this.createStep(run, 'message', finalRound)
+        step.status = 'completed'
+        step.result = { messageId: assistant.id, localCommand: command.name }
+        step.completedAt = isoNow()
+        this.recordTraceEvent(run, {
+          kind: 'assistant',
+          title: 'Assistant message created',
+          summary: assistant.content.slice(0, 180),
+          status: 'completed',
+          round: finalRound,
+          stepId: step.id,
+          data: { messageId: assistant.id, chars: assistant.content.length, source: 'runtime_rule' },
+        })
+
+        run.assistantMessageId = assistant.id
+        run.warnings = capabilities.warnings.length > 0 ? [...capabilities.warnings] : undefined
+        run.metadata = {
+          ...(run.metadata ?? {}),
+          memoryIds: memories.map((m) => m.id),
+          writtenMemoryIds: [],
+        }
+        run.status = run.warnings && run.warnings.length > 0 ? 'completed_with_warnings' : 'completed'
+        run.completedAt = isoNow()
+        run.updatedAt = run.completedAt
+        this.recordTraceEvent(run, {
+          kind: 'run',
+          title: 'Run finished',
+          summary: `Run ${run.status} after forced video generation.`,
+          status: run.warnings && run.warnings.length > 0 ? 'info' : 'completed',
+          round: finalRound,
+          data: { status: run.status, warningCount: run.warnings?.length ?? 0, modelGatewayCalled: false, toolResultCount: 1 },
+        })
+        this.applyThreadRunProjection(thread, run)
+        thread.updatedAt = run.updatedAt
+        this.store.updateThread(thread)
+        this.store.updateRun(run)
+        return
+      }
+
       const setupCompletedAt = Date.now()
       this.recordTraceEvent(run, {
         kind: 'model_call',
@@ -1828,6 +1967,7 @@ export class AgentRuntime {
       context: isRecord(run.metadata?.context) ? run.metadata.context : undefined,
       warnings,
       memories,
+      toolResults,
       memoryStorePath: this.getMemoryStorePath(),
       modelContent,
     })

@@ -1364,6 +1364,23 @@ function isTerminalAgentRun(run: AgentRun | null | undefined): run is AgentRun {
   return !!run && TERMINAL_AGENT_RUN_STATUSES.has(run.status)
 }
 
+function createLocalAgentStopAbortError(): Error {
+  try {
+    return new DOMException('用户停止了当前会话。', 'AbortError')
+  } catch {
+    const error = new Error('用户停止了当前会话。')
+    error.name = 'AbortError'
+    return error
+  }
+}
+
+function isLocalAgentAbortError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') return true
+  if (!(error instanceof Error)) return false
+  return error.name === 'AbortError'
+    || /aborted|abort|用户停止了当前会话|Run was cancelled/i.test(error.message)
+}
+
 function runTouchesAgentCatalog(run: AgentRun | null | undefined): boolean {
   if (!run) return false
   if (run.streamPartial) return false
@@ -1848,7 +1865,7 @@ function buildDraftOpenPath(draft: AgentDraft): string | null {
   const sourceEntityId = source ? numberValue(source.entityId) : undefined
   const targetEntityId = target ? numberValue(target.entityId) : undefined
 
-  if (draft.kind === 'script_split') {
+  if (draft.kind === 'script_split_proposal') {
     return `/workbench/script?draftId=${encodeURIComponent(draft.id)}`
   }
 
@@ -2412,7 +2429,7 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script_split', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['script_split_proposal', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal', 'content_unit_media_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 const DRAFT_REFRESH_INTERVAL_MS = 1500
 
@@ -2813,6 +2830,7 @@ function ChatView({
   const [pendingAssistantState, setPendingAssistantState] = useState<ThinkingBubbleState | null>(null)
   const liveTraceEventsRef = useRef<ChatRunActivityEvent[]>([])
   const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
+  const activeSendAbortControllerRef = useRef<AbortController | null>(null)
   const streamingAssistantMessageIdRef = useRef<string | null>(null)
   const streamingAssistantTextRef = useRef('')
   const streamingFlushTimerRef = useRef<number | null>(null)
@@ -3381,33 +3399,66 @@ function ChatView({
 
   const stopActiveLocalRun = useCallback(async () => {
     const run = activeLocalRun
+    const sendController = activeSendAbortControllerRef.current
+    if (sendController && !sendController.signal.aborted) {
+      sendController.abort(createLocalAgentStopAbortError())
+    }
+    setPendingAssistantState(null)
+    resetStreamingAssistant()
     if (!isStoppableAgentRun(run)) {
       if ((loading || buildingSendDraft) && !stoppingLocalRun) {
-        setConversationRuntime(conv.id, { stopRequested: true, stopping: true, loading: true })
+        setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false, building: false })
       }
       return
     }
     if (stoppingLocalRun && !stopRequestedBeforeRun) return
 
-    setConversationRuntime(conv.id, { stopping: true, loading: true, stopRequested: stopRequestedBeforeRun })
+    const now = new Date().toISOString()
+    const cancelledRun = {
+      ...run,
+      status: 'cancelled' as const,
+      cancelledAt: run.cancelledAt ?? now,
+      completedAt: run.completedAt ?? now,
+      updatedAt: now,
+      warnings: Array.from(new Set([...(run.warnings ?? []), '用户停止了当前会话。'])),
+    }
+    setConversationRun(conv.id, cancelledRun, {
+      stopping: false,
+      loading: false,
+      stopRequested: false,
+    })
+    setConversationRuntime(conv.id, { stopping: false, loading: false, stopRequested: false })
     try {
-      await cancelGenerationJobIfActive(generationProgressState)
-      const cancelledRun = await localAgentClient.cancelRun(run.id, { reason: '用户停止了当前会话。' })
-      const finishedBeforeCancel = isTerminalAgentRun(cancelledRun) && cancelledRun.status !== 'cancelled'
-      setConversationRun(conv.id, cancelledRun, {
-        stopping: finishedBeforeCancel ? false : true,
-        loading: finishedBeforeCancel ? false : true,
-        stopRequested: false,
-      })
-      if (!loading) {
-        const thread = await localAgentClient.getThread(cancelledRun.threadId)
-        const resultPayload = await assistantResultPayloadForRun(cancelledRun, liveTraceEventsRef.current)
-        addMessage(userId, conv.id, {
-          role: 'assistant',
-          content: formatLocalAgentAssistantContent(cancelledRun, thread),
-          ...resultPayload,
+      void cancelGenerationJobIfActive(generationProgressState)
+      void localAgentClient.cancelRun(run.id, { reason: '用户停止了当前会话。' })
+        .then(async (nextRun) => {
+          setConversationRun(conv.id, nextRun, {
+            stopping: false,
+            loading: false,
+            stopRequested: false,
+          })
+          const thread = await localAgentClient.getThread(nextRun.threadId)
+          const resultPayload = await assistantResultPayloadForRun(nextRun, liveTraceEventsRef.current)
+          addMessage(userId, conv.id, {
+            role: 'assistant',
+            content: formatLocalAgentAssistantContent(nextRun, thread),
+            ...resultPayload,
+          })
         })
-      }
+        .catch(async (error) => {
+          const message = error instanceof Error ? error.message : String(error)
+          if (/already finished/i.test(message)) {
+            const latestRun = await localAgentClient.getRun(run.id).catch(() => undefined)
+            if (latestRun) {
+              setConversationRun(conv.id, latestRun, { stopRequested: false, stopping: false, loading: false })
+            }
+            return
+          }
+          addMessage(userId, conv.id, {
+            role: 'assistant',
+            content: `停止当前会话失败：${message}`,
+          })
+        })
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       if (/already finished/i.test(message)) {
@@ -3422,9 +3473,9 @@ function ChatView({
         content: `停止当前会话失败：${message}`,
       })
     } finally {
-      setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false })
+      setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false, building: false })
     }
-  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, generationProgressState, addMessage, conv.id, userId, setConversationRun, setConversationRuntime])
+  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, generationProgressState, addMessage, conv.id, userId, resetStreamingAssistant, setConversationRun, setConversationRuntime])
 
   const buildSendDraft = useCallback(async (options: {
     includeRuntimePreview?: boolean
@@ -3635,14 +3686,19 @@ function ChatView({
       setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id })
     }
     resetStreamingAssistant()
+    const sendController = new AbortController()
+    activeSendAbortControllerRef.current = sendController
 
     try {
       if (!localAgentOnline) {
         await localAgentClient.ensureRunning()
+        if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
         await refetchLocalAgentHealth()
+        if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
       }
       setPendingAssistantState({ status: 'thinking' })
       await syncRuntimeModelConfig(draft.model.id, draft.model.name)
+      if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
       const runResult = await localAgentClient.runMessageStream({
         threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
         message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
@@ -3654,7 +3710,9 @@ function ChatView({
         ...(draft.localRuntime?.runPolicy ? { runPolicy: draft.localRuntime.runPolicy } : {}),
         ...(draft.localRuntime?.timeoutMs ? { timeoutMs: draft.localRuntime.timeoutMs } : {}),
         pollMs: 120,
+        signal: sendController.signal,
         onRunUpdate: (nextRun) => {
+          if (sendController.signal.aborted) return
           const artifacts = extractAgentTaskArtifacts(nextRun)
           if (nextRun.status === 'in_progress' || nextRun.status === 'queued') {
             const nextThinkingState = getThinkingBubbleState(nextRun, [])
@@ -3705,10 +3763,15 @@ function ChatView({
           }
         },
         onAssistantDelta: (event) => {
+          if (sendController.signal.aborted) return
           updateStreamingAssistantText(event.runId, event.accumulated)
         },
-        onStreamEvent: recordLiveTraceEvent,
+        onStreamEvent: (event) => {
+          if (sendController.signal.aborted) return
+          recordLiveTraceEvent(event)
+        },
       })
+      if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
       const { thread } = runResult
       const run = runResult.run.streamPartial
         ? await localAgentClient.getRun(runResult.run.id).catch(() => runResult.run)
@@ -3745,6 +3808,19 @@ function ChatView({
       })
     } catch (e: any) {
       const message = e instanceof Error ? e.message : String(e)
+      if (isLocalAgentAbortError(e) || sendController.signal.aborted) {
+        const streamingMessageId = streamingAssistantMessageIdRef.current
+        if (streamingMessageId) removeMessage(userId, conv.id, streamingMessageId)
+        setPendingAssistantState(null)
+        resetStreamingAssistant()
+        setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false, building: false })
+        notifyAgentPanelRunSettled({
+          requestId: draft.localRuntime?.requestId,
+          status: 'cancelled',
+          error: message,
+        })
+        return
+      }
       const streamingMessageId = streamingAssistantMessageIdRef.current
       if (streamingMessageId) removeMessage(userId, conv.id, streamingMessageId)
       setPendingAssistantState(null)
@@ -3760,6 +3836,9 @@ function ChatView({
         error: message,
       })
     } finally {
+      if (activeSendAbortControllerRef.current === sendController) {
+        activeSendAbortControllerRef.current = null
+      }
       cancelRequestedRunIdsRef.current.clear()
       setPendingAssistantState(null)
       resetStreamingAssistant()

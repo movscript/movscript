@@ -12,7 +12,6 @@
     "movscript_read_project_scripts",
     "movscript_create_project",
     "movscript_search_memories",
-    "movscript_list_memories",
     "movscript_get_memory",
     "movscript_create_memory",
     "movscript_delete_memory",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
@@ -88,6 +89,7 @@ type CreateInput struct {
 	ModelConfigID      uint
 	JobType            string
 	FeatureKey         string
+	Title              string
 	Prompt             string
 	ExtraParams        string
 	AspectRatio        string
@@ -105,6 +107,7 @@ type EnqueueInput struct {
 	ModelConfigID    uint
 	JobType          string
 	FeatureKey       string
+	Title            string
 	Prompt           string
 	ExtraParams      string
 	AspectRatio      string
@@ -136,6 +139,7 @@ func (s *Service) GetCredential(ctx context.Context, id uint) (domainjob.AICrede
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (domainjob.Job, error) {
+	input.Title = strings.TrimSpace(input.Title)
 	job := domainjob.NewQueuedJob(domainjob.NewQueuedJobSpec(input))
 	return s.repo.Create(ctx, job)
 }
@@ -233,6 +237,7 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		ModelConfigID:      preflight.Config.ID,
 		JobType:            input.JobType,
 		FeatureKey:         input.FeatureKey,
+		Title:              strings.TrimSpace(input.Title),
 		Prompt:             input.Prompt,
 		ExtraParams:        input.ExtraParams,
 		AspectRatio:        input.AspectRatio,

@@ -482,7 +482,7 @@ export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
   if (!draft.content.trim()) {
     issues.push({ path: '/content', message: 'Draft content is required.', severity: 'error' })
   }
-  if (draft.kind === 'script_split') {
+  if (draft.kind === 'script_split_proposal') {
     validateScriptSplitDraft(draft, issues)
   } else if (draft.kind === 'project_proposal') {
     validateProjectProposalDraft(draft, issues)
@@ -956,52 +956,18 @@ function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftVa
       if (typeof sceneMoment.title !== 'string' || !sceneMoment.title.trim()) {
         issues.push({ path: `${sceneBase}/title`, message: 'Scene moment requires title.', severity: 'error' })
       }
-      validateProductionProposalContentUnits(sceneMoment.content_units, `${sceneBase}/content_units`, issues)
-      validateProductionProposalKeyframes(sceneMoment.keyframes, `${sceneBase}/keyframes`, issues)
+      forbidProductionProposalDownstreamNode(sceneMoment.content_units, `${sceneBase}/content_units`, 'content_units', issues)
+      forbidProductionProposalDownstreamNode(sceneMoment.keyframes, `${sceneBase}/keyframes`, 'keyframes', issues)
     })
   })
 }
 
-function validateProductionProposalContentUnits(value: unknown, basePath: string, issues: AgentDraftValidationIssue[]): void {
+function forbidProductionProposalDownstreamNode(value: unknown, basePath: string, fieldName: 'content_units' | 'keyframes', issues: AgentDraftValidationIssue[]): void {
   if (value === undefined) return
-  if (!Array.isArray(value)) {
-    issues.push({ path: basePath, message: 'Production proposal content_units must be an array.', severity: 'error' })
-    return
-  }
-  value.forEach((item, index) => {
-    const path = `${basePath}/${index}`
-    if (!isRecord(item)) {
-      issues.push({ path, message: 'Production proposal content unit must be an object.', severity: 'error' })
-      return
-    }
-    if (typeof item.action !== 'string' || !item.action.trim()) {
-      issues.push({ path: `${path}/action`, message: 'Production proposal content unit requires action.', severity: 'error' })
-    }
-    if (typeof item.title !== 'string' || !item.title.trim()) {
-      issues.push({ path: `${path}/title`, message: 'Production proposal content unit requires title.', severity: 'error' })
-    }
-    validateProductionProposalKeyframes(item.keyframes, `${path}/keyframes`, issues)
-  })
-}
-
-function validateProductionProposalKeyframes(value: unknown, basePath: string, issues: AgentDraftValidationIssue[]): void {
-  if (value === undefined) return
-  if (!Array.isArray(value)) {
-    issues.push({ path: basePath, message: 'Production proposal keyframes must be an array.', severity: 'error' })
-    return
-  }
-  value.forEach((item, index) => {
-    const path = `${basePath}/${index}`
-    if (!isRecord(item)) {
-      issues.push({ path, message: 'Production proposal keyframe must be an object.', severity: 'error' })
-      return
-    }
-    if (typeof item.action !== 'string' || !item.action.trim()) {
-      issues.push({ path: `${path}/action`, message: 'Production proposal keyframe requires action.', severity: 'error' })
-    }
-    if (typeof item.title !== 'string' || !item.title.trim()) {
-      issues.push({ path: `${path}/title`, message: 'Production proposal keyframe requires title.', severity: 'error' })
-    }
+  issues.push({
+    path: basePath,
+    message: `Production proposal must not contain ${fieldName}; use content_unit_proposal or content_unit_media_proposal instead.`,
+    severity: 'error',
   })
 }
 

@@ -31,7 +31,7 @@ export const DRAFT_SCHEMA_REGISTRY = {
   },
   scriptSplit: {
     id: 'movscript.script_split_proposal.v1',
-    kind: 'script_split',
+    kind: 'script_split_proposal',
     category: 'script',
     title: 'Script Split Proposal',
   },
@@ -57,11 +57,11 @@ export const DRAFT_SCOPES = {
   contentUnitProposal: 'content_unit_proposal',
   assetProposal: 'asset_proposal',
   contentUnitMediaProposal: 'content_unit_media_proposal',
-  scriptSplit: 'script_split',
+  scriptSplit: 'script_split_proposal',
 } as const
 
 export const DRAFT_KIND_VALUES = [
-  'script_split',
+  'script_split_proposal',
   'script',
   'asset_slot',
   'storyboard_line',

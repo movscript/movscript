@@ -8,10 +8,12 @@ import type {
   AgentRunPolicy,
   ResolvedAgentSkill,
   ResolvedToolCatalog,
+  ToolCallOutcome,
 } from '../state/types.js'
 import type { AgentManifest } from '../manifest/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
+import { parseToolResult } from './runtimeContext.js'
 import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
 import { buildContext } from '../orchestration/contextBuilder.js'
 
@@ -98,6 +100,7 @@ export function renderLocalFinalAssistantContent(input: {
   context: Record<string, unknown> | undefined
   warnings: string[]
   memories: AgentMemory[]
+  toolResults?: ToolCallOutcome[]
   memoryStorePath?: string
   modelContent: string
 }): string {
@@ -112,7 +115,121 @@ export function renderLocalFinalAssistantContent(input: {
   if (input.command.name === 'memory') {
     return renderMemoryFilesText(input.memories, input.memoryStorePath)
   }
+  if (input.command.name === 'image') {
+    return renderLocalGenerationCommand({
+      command: input.command.rawName ?? '/image',
+      run: input.run,
+      warnings: input.warnings,
+      toolResults: input.toolResults ?? [],
+      modelContent: input.modelContent,
+    })
+  }
+  if (input.command.name === 'video') {
+    return renderLocalGenerationCommand({
+      command: input.command.rawName ?? '/video',
+      run: input.run,
+      warnings: input.warnings,
+      toolResults: input.toolResults ?? [],
+      modelContent: input.modelContent,
+    })
+  }
   return input.modelContent
+}
+
+export interface GenerationDebugCommandSpec {
+  prompt: string
+  outputType: 'image' | 'video'
+  jobType: 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
+  aspectRatio: string
+  duration?: number
+  featureKey: string
+  timeoutMs: number
+  extraParams: Record<string, JSONValue>
+  referenceResourceIds: number[]
+}
+
+export function parseGenerationDebugCommand(command: AgentCommandRuntime): GenerationDebugCommandSpec | undefined {
+  if (command.name !== 'image' && command.name !== 'video') return undefined
+  const prompt = command.payload.trim() || '一段电影感的动态镜头，强调运动、光影和节奏。'
+  const referenceResourceIds = extractReferenceResourceIds(command.payload)
+  const outputType = command.name === 'image' ? 'image' : 'video'
+  return {
+    prompt,
+    outputType,
+    jobType: outputType === 'image'
+      ? (referenceResourceIds.length > 0 ? 'image_edit' : 'image')
+      : (referenceResourceIds.length > 0 ? 'video_i2v' : 'video'),
+    aspectRatio: extractAspectRatio(command.payload) ?? '16:9',
+    ...(outputType === 'video' ? { duration: extractDuration(command.payload) ?? 5 } : {}),
+    featureKey: outputType === 'image' ? 'plugin.image_generator' : 'plugin.video_generator',
+    timeoutMs: 600_000,
+    extraParams: {
+      quality: 'standard',
+      ...(outputType === 'video' && extractFps(command.payload) !== undefined ? { fps: extractFps(command.payload) } : {}),
+    },
+    referenceResourceIds,
+  }
+}
+
+function renderLocalGenerationCommand(input: {
+  command: string
+  run: AgentRun
+  warnings: string[]
+  toolResults: ToolCallOutcome[]
+  modelContent: string
+}): string {
+  const toolOutcome = input.toolResults[0]
+  const parsed = toolOutcome && !toolOutcome.error && isRecord(parseToolResult(toolOutcome.result ?? null))
+    ? parseToolResult(toolOutcome.result ?? null)
+    : undefined
+  const parsedRecord = isRecord(parsed) ? parsed : undefined
+  const jobId = typeof parsedRecord?.jobId === 'number' ? parsedRecord.jobId : undefined
+  const status = typeof parsedRecord?.status === 'string' ? parsedRecord.status : undefined
+  const outputResourceId = typeof parsedRecord?.output_resource_id === 'number'
+    ? parsedRecord.output_resource_id
+    : typeof parsedRecord?.outputResourceId === 'number'
+      ? parsedRecord.outputResourceId
+      : undefined
+  const lines = [
+    `Command: ${input.command}`,
+    `Run: ${input.run.id}`,
+    `Thread: ${input.run.threadId}`,
+    '',
+    jobId !== undefined ? `Job #${jobId}` : 'No job id was returned.',
+    status ? `Status: ${status}` : undefined,
+    outputResourceId !== undefined ? `Output resource: #${outputResourceId}` : undefined,
+    toolOutcome?.error ? `Error: ${toolOutcome.error}` : undefined,
+    input.modelContent.trim() ? input.modelContent.trim() : undefined,
+  ]
+  if (input.warnings.length > 0) {
+    lines.push('', 'Warnings:', ...input.warnings.map((warning) => `- ${warning}`))
+  }
+  return lines.filter((line): line is string => typeof line === 'string' && line.length > 0).join('\n')
+}
+
+function extractReferenceResourceIds(text: string): number[] {
+  const matches = text.match(/(?:ref|reference|资源|资源id|resource)\s*[:=]?\s*([0-9,\s]+)/i)
+  if (!matches?.[1]) return []
+  return matches[1]
+    .split(',')
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isFinite(value) && value > 0)
+}
+
+function extractAspectRatio(text: string): string | undefined {
+  return text.match(/(16:9|9:16|1:1|4:3|3:4)/)?.[1]
+}
+
+function extractDuration(text: string): number | undefined {
+  const match = text.match(/(\d+(?:\.\d+)?)\s*(?:s|秒)/i)
+  const value = match ? Number(match[1]) : undefined
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
+}
+
+function extractFps(text: string): number | undefined {
+  const match = text.match(/fps\s*[:=]?\s*(\d+(?:\.\d+)?)/i)
+  const value = match ? Number(match[1]) : undefined
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined
 }
 
 function renderLocalContextCommand(input: {

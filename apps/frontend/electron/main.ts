@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { getBackendLaunchPolicy, getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
-import { ensureAgentRuntimeRunning, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
+import { ensureAgentRuntimeRunning, getAgentRuntimeLaunchPolicy, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
 import { setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
 
@@ -74,6 +74,10 @@ async function shutdownFromSignal(signal: NodeJS.Signals): Promise<void> {
 }
 
 async function startAgentRuntimeOnAppReady(): Promise<void> {
+  if (getAgentRuntimeLaunchPolicy() === 'external') {
+    console.info('[agent] launch policy=external; not spawning local agent runtime')
+    return
+  }
   const status = await ensureAgentRuntimeRunning()
   if (!status.ok) {
     console.warn(`[agent] auto-start failed: ${status.error ?? 'unknown error'}`)
@@ -163,7 +167,9 @@ ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; 
   if (!settings?.apiBaseURL) return
   setMCPAPIBaseURL(settings.apiBaseURL)
   await setAgentRuntimeAPIBaseURL(settings.apiBaseURL)
-  await ensureAgentRuntimeRunning()
+  if (getAgentRuntimeLaunchPolicy() !== 'external') {
+    await ensureAgentRuntimeRunning()
+  }
 })
 
 ipcMain.handle('agent:ensure-running', (_e, input?: { baseURL?: string }) => {

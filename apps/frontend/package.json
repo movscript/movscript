@@ -7,6 +7,7 @@
   "scripts": {
     "prebuild": "node ../../scripts/prepare-agent-deploy.mjs",
     "dev": "electron-vite dev",
+    "dev:no-hmr": "MOVSCRIPT_FRONTEND_NO_HMR=1 electron-vite dev",
     "build": "electron-vite build",
     "pack": "pnpm run build && electron-builder --dir",
     "dist": "pnpm run build && electron-builder",
