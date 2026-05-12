@@ -2085,7 +2085,8 @@
       "controlTypes": {
         "select": "下拉选项",
         "number": "数字输入",
-        "boolean": "开关"
+        "boolean": "开关",
+        "string": "文本输入"
       },
       "options": "可选值",
       "defaultValue": "默认值",

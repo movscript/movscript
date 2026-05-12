@@ -14,7 +14,7 @@ Frontend / Electron
 
 - 前端负责收集用户输入、当前 route/project/selection 快照，并展示 run、step、approval、当前 thread 草稿和历史草稿页。前端不是 thread/run/draft 的持久化事实源。
 - `apps/agent` 负责 Thread/Run 生命周期、agentic loop、工具策略、sandbox、草稿、记忆和模型回复，是 thread、message、run、trace、draft、memory 的本地事实源。
-- Agent 动态更新只覆盖 manifest、policy、prompt、tool catalog、skill catalog 等行为配置；runtime code 更新必须走签名应用更新器，详见 `docs/agent-dynamic-update-architecture.md`。
+- Agent 动态更新只覆盖 profile、policy、prompt、tool catalog、skill catalog 等行为配置；runtime code 更新必须走签名应用更新器，详见 `docs/agent-dynamic-update-architecture.md`。
 - Go backend 负责正式项目实体、语义数据、资源和 model gateway。
 - 子 Agent 机制的实现规划见 [Agent subagent mechanism plan](agent-subagent-mechanism-plan.md)。
 
@@ -24,17 +24,18 @@ Frontend / Electron
 - Run：一次用户消息的执行实例，包含 policy、steps、warnings、pendingApprovals。
 - Step：Run 的可见执行记录，类型只有 `tool_call` 和 `message`。
 - Draft / Proposal：本地可审阅提案。agent 只负责创建和修改；用户确认后的应用由 UI/应用层 apply API 写入正式实体。草稿不属于前端 conversation；AI 面板只展示当前 thread 涉及的草稿，跨 thread 草稿进入独立历史草稿页。proposal kind 和 schema id 来自共享 draft schema registry，skills/tools 只引用它，不拥有 schema。
-- Memory：本地记忆，按 global/project/thread 作用域加载和写入。
-- Manifest：定义 agent permissions、tools、skills。
+- Memory：本地记忆，按 global/project/thread 作用域加载和写入。默认 prompt 只携带短索引；正文需要通过 memory tools 检索。
+- Profile：运行时绑定 persona、always-on policies、候选 workflows、tool grants、model preference 和 prompt limits。
+- Manifest：运行时 tool grants/model 的投影。`skills` 只作为历史输入字段保留，不参与正常 skill 选择。
 - Policy：定义审批模式、sandbox、工具调用上限和运行边界。
 - Update Policy：定义 agent 行为配置更新的分级、签名、审计和回滚要求。
 
 ## Run 流程
 
 1. `createRun()` 创建 Run，保存 `AgentRunPolicy`。
-2. `executeRun()` 调用 `movscript.get_context_pack` 获取最小上下文。
-3. 加载相关 memories，解析 manifest/skills/tools/capabilities。
-4. `compilePromptPreview()` 生成面向 agentic loop 的系统提示和 debug prompt。
+2. `executeRun()` 调用 `movscript_get_current_context` 获取紧凑上下文包。
+3. 加载 memory 短索引，解析 profile、layered catalog、triggered workflows、tools/capabilities。
+4. `contextBuilder.buildContext()` 生成分层 system messages 和 debug prompt stats。
 5. agentic loop 选择下一批 tool calls。
 6. `applyToolPolicy()` 注入 projectId，检查授权和审批。
 7. sandbox 模式拦截 `write`、`generate`、`destructive` 风险工具并记录 `sandboxed: true`。
@@ -82,7 +83,11 @@ Sandbox 会完整运行到结束，但在实际写入前拦截高风险工具：
 | `apps/agent/src/server.ts` | HTTP API |
 | `apps/agent/src/application/agentRuntime.ts` | Run 生命周期和 agentic loop |
 | `apps/agent/src/state/types.ts` | Agent API 类型 |
-| `apps/agent/src/orchestration/promptCompiler.ts` | 系统提示和 prompt preview |
+| `apps/agent/src/orchestration/contextBuilder.ts` | 分层系统提示、tool schemas 和 prompt preview |
+| `apps/agent/src/skills/runtimeLayerResolver.ts` | profile 解析和按 trigger 激活 skills |
+| `apps/agent/src/skills/triggerEvaluator.ts` | workflow trigger 评估和 trace |
+| `apps/agent/src/catalog/loader.ts` | layered catalog 加载 |
+| `apps/agent/src/profiles/resolveProfile.ts` | profile/mode alias 解析 |
 | `apps/agent/src/application/assistantMessage.ts` | Assistant 回复生成 |
 | `apps/agent/src/tools/toolRegistry.ts` | 工具注册和风险级别 |
 | `apps/agent/src/tools/toolPolicy.ts` | 授权、审批和 projectId 注入 |

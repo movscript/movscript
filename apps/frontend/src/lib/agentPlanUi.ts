@@ -22,6 +22,7 @@ export interface AgentPlanTaskView {
   subagentName?: string
   ownerLabel?: string
   ownerRun?: AgentRun
+  worker?: AgentPlanWorkerView
   waitingInputCount: number
   waitingApprovalCount: number
   pendingInputs: AgentPlanInputView[]
@@ -35,6 +36,36 @@ export interface AgentPlanTaskView {
   timedOutRunId?: string
   workerTimeoutMs?: number
   blocker?: string
+}
+
+export interface AgentPlanWorkerView {
+  id: string
+  status: AgentRun['status']
+  role?: AgentRun['role']
+  parentRunId?: string
+  taskId?: string
+  progress?: number
+  startedAt?: string
+  completedAt?: string
+  failedAt?: string
+  cancelledAt?: string
+  updatedAt: string
+  error?: string
+  warnings: string[]
+  stepCount: number
+  recentSteps: AgentPlanWorkerStepView[]
+}
+
+export interface AgentPlanWorkerStepView {
+  id: string
+  type: string
+  status: string
+  title: string
+  toolName?: string
+  error?: string
+  sandboxed?: boolean
+  createdAt: string
+  completedAt?: string
 }
 
 export interface AgentPlanInputView {
@@ -58,6 +89,8 @@ export interface AgentPlanArtifactView {
   id: string
   label: string
   type: string
+  taskId?: string
+  taskTitle?: string
   uri?: string
   sourceRunId?: string
   sourceTaskId?: string
@@ -84,7 +117,7 @@ export function buildPlanTaskViews(snapshot: AgentPlanSnapshot): AgentPlanTaskVi
       const ownerRun = task.ownerRunId ? runsById.get(task.ownerRunId) : undefined
       const pendingInputs = ownerRun?.pendingInputRequests?.filter((request) => request.status === 'pending') ?? []
       const pendingApprovals = ownerRun?.pendingApprovals?.filter((approval) => approval.status === 'pending') ?? []
-      const artifactDetails = task.artifacts.map(formatArtifactView).filter((artifact): artifact is AgentPlanArtifactView => !!artifact)
+      const artifactDetails = task.artifacts.map((artifact) => formatArtifactView(artifact, task)).filter((artifact): artifact is AgentPlanArtifactView => !!artifact)
       const artifactLabels = artifactDetails.map((artifact) => artifact.label).slice(0, 2)
       const retryAttempt = positiveInteger(task.metadata?.retryAttempt)
       const previousOwnerRunId = nonEmptyString(task.metadata?.previousOwnerRunId)
@@ -96,6 +129,7 @@ export function buildPlanTaskViews(snapshot: AgentPlanSnapshot): AgentPlanTaskVi
         subagentName,
         ownerLabel: subagentName ?? task.ownerRunId,
         ownerRun,
+        worker: ownerRun ? formatWorkerView(ownerRun) : undefined,
         waitingInputCount: pendingInputs.length,
         waitingApprovalCount: pendingApprovals.length,
         pendingInputs: pendingInputs.map((request) => ({
@@ -126,15 +160,49 @@ export function buildPlanTaskViews(snapshot: AgentPlanSnapshot): AgentPlanTaskVi
     })
 }
 
+function formatWorkerView(run: AgentRun): AgentPlanWorkerView {
+  return {
+    id: run.id,
+    status: run.status,
+    role: run.role,
+    parentRunId: run.parentRunId,
+    taskId: run.taskId,
+    progress: run.progress,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    failedAt: run.failedAt,
+    cancelledAt: run.cancelledAt,
+    updatedAt: run.updatedAt,
+    error: run.error,
+    warnings: run.warnings ?? [],
+    stepCount: run.steps.length,
+    recentSteps: [...run.steps]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 3)
+      .map((step) => ({
+        id: step.id,
+        type: step.type,
+        status: step.status,
+        title: step.title ?? step.toolName ?? step.type,
+        toolName: step.toolName,
+        error: step.error,
+        sandboxed: step.sandboxed,
+        createdAt: step.createdAt,
+        completedAt: step.completedAt,
+      })),
+  }
+}
+
 export function buildPlanArtifactSummary(snapshot: AgentPlanSnapshot): AgentPlanArtifactSummary {
   const artifacts = [...snapshot.tasks]
     .flatMap((task) => task.artifacts
       .map((artifact) => ({
         artifact,
+        task,
         createdAt: artifact.createdAt,
       })))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map(({ artifact }) => formatArtifactView(artifact))
+    .map(({ artifact, task }) => formatArtifactView(artifact, task))
     .filter((artifact): artifact is AgentPlanArtifactView => !!artifact)
   const counts = new Map<string, number>()
   for (const artifact of artifacts) counts.set(artifact.type, (counts.get(artifact.type) ?? 0) + 1)
@@ -166,7 +234,7 @@ export function runNeedsUserAction(run: AgentRun): boolean {
     )
 }
 
-function formatArtifactView(artifact: AgentTask['artifacts'][number]): AgentPlanArtifactView | undefined {
+function formatArtifactView(artifact: AgentTask['artifacts'][number], task?: AgentTask): AgentPlanArtifactView | undefined {
   const base = artifact.title || artifact.type || artifact.uri
   if (!base) return undefined
   const metadata = artifact.metadata
@@ -180,6 +248,8 @@ function formatArtifactView(artifact: AgentTask['artifacts'][number]): AgentPlan
     id: artifact.id,
     label: source ? `${base} · ${source}` : base,
     type: artifact.type,
+    taskId: task?.id,
+    taskTitle: task?.title,
     uri: artifact.uri,
     sourceRunId,
     sourceTaskId,

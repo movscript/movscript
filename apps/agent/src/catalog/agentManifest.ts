@@ -49,17 +49,7 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
   version: '0.1.0',
   name: 'MovScript Local Agent',
   description: 'Default local agent with project read and local draft update permissions.',
-  skills: [
-    {
-      id: 'movscript.default.safe-project-assistant',
-      name: 'Safe Project Assistant',
-      description: 'Read project info and update local drafts without changing existing project data.',
-      enabled: true,
-      priority: 100,
-      instruction: '优先读取当前项目信息；涉及剧本事实、正文、拆分或编排时，先使用 movscript_read_project_scripts 查看当前项目剧本，再判断是否缺少剧本。需要修改、校验或预览本地审阅草稿时，使用 movscript_update_draft 并明确 action。不直接修改既有正式项目内容。正式写入、应用、生成任务和项目创建必须由 UI 或明确审批流程接管。',
-      toolHints: ['movscript_get_current_context', 'movscript_list_projects', 'movscript_read_project_scripts', 'movscript_read_draft', 'movscript_list_drafts', 'movscript_update_draft', 'movscript_search_memories', 'movscript_get_memory', 'movscript_create_memory', 'movscript_delete_memory'],
-    },
-  ],
+  skills: [],
   tools: [
     { name: 'movscript_get_current_context', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_projects', mode: 'allow', approval: 'never' },
@@ -105,14 +95,8 @@ export function normalizeAgentManifest(input: unknown): AgentManifest {
 }
 
 export function mergeAgentManifestSkills(manifest: AgentManifest, skills: AgentSkillManifest[]): AgentManifest {
-  if (skills.length === 0) return manifest
-  const byId = new Map<string, AgentSkillManifest>()
-  for (const skill of manifest.skills) byId.set(skill.id, skill)
-  for (const skill of skills) byId.set(skill.id, skill)
-  return {
-    ...manifest,
-    skills: Array.from(byId.values()),
-  }
+  void skills
+  return manifest
 }
 
 export function findToolGrant(manifest: AgentManifest, toolName: string): AgentToolGrant | undefined {

@@ -50,6 +50,8 @@ import {
   type AgentRunPolicy,
   type AgentRunPreview,
   type AgentRunStreamEvent,
+  type AgentRunTraceSummary,
+  type AgentTraceEvent,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
 import { actionableRunForPlan, buildPlanArtifactSummary, buildPlanTaskViews, plannerRunIdForPlanAction, shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
@@ -2004,6 +2006,14 @@ function PlanOverviewPanel({
   onDispatchSettingsChange?: (settings: PlanDispatchSettings) => void
 }) {
   const [artifactTypeFilter, setArtifactTypeFilter] = useState<'all' | string>('all')
+  const [traceSummaries, setTraceSummaries] = useState<Record<string, AgentRunTraceSummary>>({})
+  const [loadingTraceSummaryRunId, setLoadingTraceSummaryRunId] = useState<string | null>(null)
+  const [traceSummaryErrors, setTraceSummaryErrors] = useState<Record<string, string>>({})
+  const [traceEventsByRunId, setTraceEventsByRunId] = useState<Record<string, AgentTraceEvent[]>>({})
+  const [traceEventHasMoreByRunId, setTraceEventHasMoreByRunId] = useState<Record<string, boolean>>({})
+  const [loadingTraceEventsRunId, setLoadingTraceEventsRunId] = useState<string | null>(null)
+  const [traceEventErrors, setTraceEventErrors] = useState<Record<string, string>>({})
+  const [traceEventKindFilters, setTraceEventKindFilters] = useState<Record<string, 'all' | AgentTraceEvent['kind']>>({})
   if (!snapshot) return null
   const taskViews = buildPlanTaskViews(snapshot)
   const artifactSummary = buildPlanArtifactSummary(snapshot)
@@ -2024,6 +2034,52 @@ function PlanOverviewPanel({
   const settings = dispatchSettings ?? DEFAULT_PLAN_DISPATCH_SETTINGS
   const updateSettings = (patch: Partial<PlanDispatchSettings>) => {
     onDispatchSettingsChange?.({ ...settings, ...patch })
+  }
+  const scrollToTask = (taskId: string | undefined) => {
+    if (!taskId || typeof document === 'undefined') return
+    document.getElementById(`agent-plan-task-${taskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  const loadTraceSummary = async (runId: string) => {
+    if (traceSummaries[runId] || loadingTraceSummaryRunId === runId) return
+    setLoadingTraceSummaryRunId(runId)
+    setTraceSummaryErrors((current) => {
+      const next = { ...current }
+      delete next[runId]
+      return next
+    })
+    try {
+      const summary = await localAgentClient.getRunTraceSummary(runId)
+      setTraceSummaries((current) => ({ ...current, [runId]: summary }))
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      setTraceSummaryErrors((current) => ({ ...current, [runId]: message }))
+    } finally {
+      setLoadingTraceSummaryRunId(null)
+    }
+  }
+  const loadTraceEvents = async (runId: string, mode: 'initial' | 'more' = 'initial') => {
+    if ((mode === 'initial' && traceEventsByRunId[runId]) || loadingTraceEventsRunId === runId) return
+    setLoadingTraceEventsRunId(runId)
+    setTraceEventErrors((current) => {
+      const next = { ...current }
+      delete next[runId]
+      return next
+    })
+    try {
+      const currentEvents = traceEventsByRunId[runId] ?? []
+      const cursor = mode === 'more' ? currentEvents.at(-1)?.id : undefined
+      const response = await localAgentClient.getRunTraceEvents(runId, { limit: 8, ...(cursor ? { cursor } : {}) })
+      setTraceEventsByRunId((current) => ({
+        ...current,
+        [runId]: mode === 'more' ? [...(current[runId] ?? []), ...response.events] : response.events,
+      }))
+      setTraceEventHasMoreByRunId((current) => ({ ...current, [runId]: response.events.length >= 8 }))
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      setTraceEventErrors((current) => ({ ...current, [runId]: message }))
+    } finally {
+      setLoadingTraceEventsRunId(null)
+    }
   }
   return (
     <div className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 text-xs">
@@ -2135,10 +2191,18 @@ function PlanOverviewPanel({
               <div key={artifact.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <span className="truncate font-medium text-foreground">{artifact.label}</span>
-                  <span className="shrink-0">{artifact.type}</span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {artifact.taskId && (
+                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(artifact.taskId)}>
+                        Jump
+                      </Button>
+                    )}
+                    <span>{artifact.type}</span>
+                  </div>
                 </div>
                 <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
                   {artifact.uri && <span className="truncate">uri {artifact.uri}</span>}
+                  {artifact.taskTitle && <span className="truncate">task {artifact.taskTitle}</span>}
                   {artifact.sourceRunId && <span className="truncate">run {artifact.sourceRunId}</span>}
                   {artifact.sourceTaskId && <span className="truncate">task {artifact.sourceTaskId}</span>}
                   {artifact.subagentName && <span className="truncate">agent {artifact.subagentName}</span>}
@@ -2155,7 +2219,7 @@ function PlanOverviewPanel({
           {taskViews.map((view) => {
             const task = view.task
             return (
-              <div key={task.id} className="flex min-w-0 items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5">
+              <div id={`agent-plan-task-${task.id}`} key={task.id} className="flex min-w-0 scroll-mt-4 items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5">
                 <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', workflowDotClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : 'in_progress'))} />
                 <div className="min-w-0 flex-1">
                   <div className="flex min-w-0 items-center justify-between gap-2">
@@ -2180,6 +2244,180 @@ function PlanOverviewPanel({
                   </div>
                   {view.blocker && (
                     <p className="mt-1 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">{view.blocker}</p>
+                  )}
+                  {view.worker && (
+                    <details className="mt-1 rounded border border-border/60 bg-muted/10">
+                      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-1.5 py-1 text-[9px] font-medium text-foreground">
+                        <Bot size={10} />
+                        <span className="truncate">Worker {view.subagentName ?? view.worker.id}</span>
+                        <Badge variant={runStatusVariant(view.worker.status)} className="text-[8px] leading-3 px-1 py-0">
+                          {view.worker.status.replace(/_/g, ' ')}
+                        </Badge>
+                      </summary>
+                      <div className="space-y-1 border-t border-border/60 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
+                        <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                          <span className="truncate">run {view.worker.id}</span>
+                          {view.worker.parentRunId && <span className="truncate">parent {view.worker.parentRunId}</span>}
+                          {view.worker.taskId && <span className="truncate">task {view.worker.taskId}</span>}
+                          {typeof view.worker.progress === 'number' && <span>{Math.round(Math.max(0, Math.min(1, view.worker.progress)) * 100)}%</span>}
+                          <span>{view.worker.stepCount} step{view.worker.stepCount === 1 ? '' : 's'}</span>
+                        </div>
+                        <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                          {view.worker.startedAt && <span className="truncate">started {view.worker.startedAt}</span>}
+                          {view.worker.completedAt && <span className="truncate">completed {view.worker.completedAt}</span>}
+                          {view.worker.failedAt && <span className="truncate">failed {view.worker.failedAt}</span>}
+                          {view.worker.cancelledAt && <span className="truncate">cancelled {view.worker.cancelledAt}</span>}
+                          <span className="truncate">updated {view.worker.updatedAt}</span>
+                        </div>
+                        {view.worker.error && (
+                          <p className="text-destructive">{view.worker.error}</p>
+                        )}
+                        {view.worker.warnings.length > 0 && (
+                          <div className="space-y-0.5 text-amber-700 dark:text-amber-300">
+                            {view.worker.warnings.slice(0, 3).map((warning) => <div key={warning}>{warning}</div>)}
+                          </div>
+                        )}
+                        {view.worker.recentSteps.length > 0 && (
+                          <div className="space-y-1">
+                            {view.worker.recentSteps.map((step) => (
+                              <div key={step.id} className="rounded bg-background/80 px-1.5 py-1">
+                                <div className="flex min-w-0 items-center justify-between gap-2">
+                                  <span className="truncate font-medium text-foreground">{step.title}</span>
+                                  <span className="shrink-0">{step.status.replace(/_/g, ' ')}</span>
+                                </div>
+                                <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                                  <span>{step.type}</span>
+                                  {step.toolName && <span className="truncate">tool {step.toolName}</span>}
+                                  {step.sandboxed && <span>sandboxed</span>}
+                                  <span className="truncate">created {step.createdAt}</span>
+                                  {step.completedAt && <span className="truncate">completed {step.completedAt}</span>}
+                                </div>
+                                {step.error && <p className="mt-0.5 text-destructive">{step.error}</p>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-wrap items-center gap-1">
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            className="h-5 px-1.5 text-[9px]"
+                            disabled={loadingTraceSummaryRunId === view.worker.id}
+                            onClick={() => loadTraceSummary(view.worker!.id)}
+                          >
+                            {loadingTraceSummaryRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <ListChecks size={9} />}
+                            Trace summary
+                          </Button>
+                          <Button
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            className="h-5 px-1.5 text-[9px]"
+                            disabled={loadingTraceEventsRunId === view.worker.id}
+                            onClick={() => loadTraceEvents(view.worker!.id)}
+                          >
+                            {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <History size={9} />}
+                            Trace events
+                          </Button>
+                        </div>
+                        {traceSummaries[view.worker.id] && (
+                          <div className="rounded bg-background/80 px-1.5 py-1">
+                            <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                              <span>{traceSummaries[view.worker.id].total} trace events</span>
+                              {Object.entries(traceSummaries[view.worker.id].byKind).slice(0, 6).map(([kind, count]) => (
+                                <Badge key={kind} variant="outline" className="text-[8px] leading-3 px-1 py-0">
+                                  {kind} {count}
+                                </Badge>
+                              ))}
+                            </div>
+                            {traceSummaries[view.worker.id].latestEvent && (
+                              <div className="mt-0.5 text-muted-foreground">
+                                latest {traceSummaries[view.worker.id].latestEvent?.title}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {traceSummaryErrors[view.worker.id] && (
+                          <p className="text-destructive">{traceSummaryErrors[view.worker.id]}</p>
+                        )}
+                        {traceEventsByRunId[view.worker.id]?.length > 0 && (
+                          <div className="space-y-1">
+                            {(() => {
+                              const events = traceEventsByRunId[view.worker!.id] ?? []
+                              const kinds = Array.from(new Set(events.map((event) => event.kind))).sort()
+                              const requestedKind = traceEventKindFilters[view.worker!.id] ?? 'all'
+                              const activeKind = requestedKind === 'all' || kinds.includes(requestedKind) ? requestedKind : 'all'
+                              const visibleEvents = activeKind === 'all' ? events : events.filter((event) => event.kind === activeKind)
+                              return (
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-[9px] text-muted-foreground">
+                                    Showing {visibleEvents.length}/{events.length}
+                                  </span>
+                                  <Select
+                                    value={activeKind}
+                                    onValueChange={(next) => {
+                                      const filter = next === 'all' || kinds.includes(next as AgentTraceEvent['kind'])
+                                        ? next as 'all' | AgentTraceEvent['kind']
+                                        : 'all'
+                                      setTraceEventKindFilters((current) => ({ ...current, [view.worker!.id]: filter }))
+                                    }}
+                                  >
+                                    <SelectTrigger size="sm" className="h-6 w-32 max-w-full text-[9px]">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="all">all events</SelectItem>
+                                      {kinds.map((kind) => (
+                                        <SelectItem key={kind} value={kind}>{kind}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )
+                            })()}
+                            {(() => {
+                              const events = traceEventsByRunId[view.worker!.id] ?? []
+                              const kinds = Array.from(new Set(events.map((event) => event.kind)))
+                              const requestedKind = traceEventKindFilters[view.worker!.id] ?? 'all'
+                              const activeKind = requestedKind === 'all' || kinds.includes(requestedKind) ? requestedKind : 'all'
+                              return (activeKind === 'all' ? events : events.filter((event) => event.kind === activeKind)).map((event) => (
+                              <div key={event.id} className="rounded bg-background/80 px-1.5 py-1">
+                                <div className="flex min-w-0 items-center justify-between gap-2">
+                                  <span className="truncate font-medium text-foreground">{event.title}</span>
+                                  <span className="shrink-0">{event.status.replace(/_/g, ' ')}</span>
+                                </div>
+                                <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                                  <span>{event.kind}</span>
+                                  {event.toolName && <span className="truncate">tool {event.toolName}</span>}
+                                  {event.stepId && <span className="truncate">step {event.stepId}</span>}
+                                  <span className="truncate">created {event.createdAt}</span>
+                                  {event.completedAt && <span className="truncate">completed {event.completedAt}</span>}
+                                </div>
+                                {event.summary && <p className="mt-0.5 text-muted-foreground">{event.summary}</p>}
+                              </div>
+                              ))
+                            })()}
+                            {traceEventHasMoreByRunId[view.worker.id] && (
+                              <Button
+                                type="button"
+                                size="xs"
+                                variant="ghost"
+                                className="h-5 px-1.5 text-[9px]"
+                                disabled={loadingTraceEventsRunId === view.worker.id}
+                                onClick={() => loadTraceEvents(view.worker!.id, 'more')}
+                              >
+                                {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <History size={9} />}
+                                Load more
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        {traceEventErrors[view.worker.id] && (
+                          <p className="text-destructive">{traceEventErrors[view.worker.id]}</p>
+                        )}
+                      </div>
+                    </details>
                   )}
                   {(view.pendingInputs.length > 0 || view.pendingApprovals.length > 0) && (
                     <details className="mt-1 rounded border border-amber-500/25 bg-amber-500/5">

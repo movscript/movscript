@@ -22,7 +22,7 @@ test('normalizes a valid current agent manifest', () => {
   assert.equal(manifest.metadata?.owner, 'studio')
 })
 
-test('normalizes structured skills from manifest current', () => {
+test('normalizes manifest skills as inert historical input', () => {
   const manifest = normalizeAgentManifest({
     schema: 'movscript.agent.current',
     id: 'studio.writer',
@@ -50,17 +50,7 @@ test('normalizes structured skills from manifest current', () => {
 
 test('default manifest does not grant generic draft creation', () => {
   assert.equal(DEFAULT_AGENT_MANIFEST.tools.some((tool) => tool.name === 'movscript_create_draft'), false)
-  assert.equal(DEFAULT_AGENT_MANIFEST.skills.some((skill) => skill.toolHints?.includes('movscript_create_draft')), false)
-})
-
-test('draft skill guidance stays scoped to file-level draft editing', () => {
-  const draftSkill = DEFAULT_AGENT_MANIFEST.skills.find((skill) => skill.id === 'movscript.default.safe-project-assistant')
-  assert.ok(draftSkill)
-  assert.equal(draftSkill?.toolHints?.includes('movscript_read_draft'), true)
-  assert.equal(draftSkill?.toolHints?.includes('movscript_update_draft'), true)
-  assert.equal(draftSkill?.toolHints?.includes('ReadDraft'), false)
-  assert.equal(draftSkill?.toolHints?.includes('EditDraft'), false)
-  assert.equal(draftSkill?.toolHints?.includes('DryApplyDraft'), false)
+  assert.deepEqual(DEFAULT_AGENT_MANIFEST.skills, [])
 })
 
 test('falls back to default manifest for unsupported input', () => {

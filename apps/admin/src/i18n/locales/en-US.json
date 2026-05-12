@@ -2201,7 +2201,8 @@
       "controlTypes": {
         "select": "Select",
         "number": "Number Input",
-        "boolean": "Toggle"
+        "boolean": "Toggle",
+        "string": "Text Input"
       },
       "options": "Options",
       "defaultValue": "Default",

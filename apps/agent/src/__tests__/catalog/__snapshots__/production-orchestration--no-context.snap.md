@@ -42,7 +42,7 @@ Rules:
 - reuse/update nodes must include existing ids.
 - Reference project-level creative references and asset slots; do not create final project entities.
 
-Use context and draft tools: Return current MovScript UI route, selected project, current user, selected project item, available project resources, and local draft count. Create a local draft. Set proposal:true to enter the proposal workflow: schema validation runs automatically, target/source are inferred, and the draft becomes eligible for the dry-run apply loop (movscript_update_draft action='preview_apply'). Without proposal:true creates a plain draft. The kind field selects the draft schema. Edit, validate, or dry-run one local draft. Actions: 'patch_content' (JSON Pointer add/replace/remove), 'replace_text' (old/new string), 'replace_content' (full body), 'replace_fields' (title/status/metadata), 'set_status', 'validate' (local schema only), and 'preview_apply' (dry-run that surfaces local validation errors plus backend apply diffs/errors). The recommended self-healing loop: edit -> preview_apply -> inspect validation/backendError -> patch and re-preview until ok=true.. Ask for projectId or productionId only when missing and necessary: Ask the user for missing information and resume the run with the answer..
+Use context and draft tools: Read the current UI route, project, selection, user, resource summary, and draft count. Create a local review draft or proposal draft for the selected schema kind. Patch, replace, validate, or dry-run preview_apply for one local draft.. Ask for projectId or productionId only when missing and necessary: Ask the user for missing information and resume the run with the answer..
 
 Workflow: verify context, read any upstream project_proposal draft, find or create the production_proposal draft, patch with JSON Pointer operations, validate, then run preview_apply. If validation or backend errors appear, patch the specific paths and preview again.
 
@@ -56,7 +56,7 @@ Output contract:
 Return the selected draft or recommended draft kind and the next review action.
 
 ## Script Writing
-Produce script content in the response first. Save it with Create a formal script record in the current project after user approval. Use this only when the user wants the generated script saved into the project. only when the user explicitly wants a formal script record and the approval flow completes.
+Produce script content in the response first. Save it with Create a formal script record in the current project after approval. only when the user explicitly wants a formal script record and the approval flow completes.
 
 Output contract:
 Return the script status, created script id when available, and whether the save was approved.

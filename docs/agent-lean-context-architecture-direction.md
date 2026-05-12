@@ -249,19 +249,19 @@ The model should retrieve:
 
 This means context tools need clear descriptions and stable business-oriented outputs. If retrieval tools are weak, the model will pressure the system prompt to become heavy again.
 
-## 10. Legacy Compatibility Direction
+## 10. No Legacy Skill Path
 
-The current runtime still has legacy manifest-driven skills. This should become a compatibility layer, not the primary architecture.
+The runtime should not keep a manifest-driven skill path. Manifest skills may be parsed as inert historical input, but they must not become active runtime behavior.
 
 Target state:
 
 - layered catalog is the source of truth for persona, policy, workflow, tools, packs, and profiles
-- `AgentManifest.skills` is accepted only for old catalogs or tests
-- layered skills are not converted back into legacy skills for normal runtime selection
+- `AgentManifest.skills` is not used for normal runtime selection
+- layered skills are not converted back into manifest skills
 - runtime resolves profile first, then resolves active skills from layered catalog
 - traces record profile id, persona id, policy ids, workflow ids, and trigger reasons
 
-This transition can be incremental, but the architecture should avoid adding new behavior to the legacy path.
+New behavior must not be added through manifest skill bodies, legacy bundle files, old mode registries, or `appliesWhen` strings.
 
 ## 11. Expected Benefits
 

@@ -11,7 +11,6 @@ import { resolveAgentCapabilities } from '../tools/capabilityResolver.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from '../memory/types.js'
-import { resolveAgentSkills } from '../skills/manifestSkillResolver.js'
 import { InMemoryAgentStore, type AgentStore, type AgentTraceQuery } from '../state/store.js'
 import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from '../tools/toolRegistry.js'
 import {
@@ -736,7 +735,7 @@ export class AgentRuntime {
         history: thread?.messages ?? [],
       })
     const activeManifest = layers?.manifest ?? agentManifest
-    const skills = layers?.skills ?? resolveAgentSkills(agentManifest, message, catalogSnapshot.skillCatalog)
+    const skills = layers?.skills ?? []
     const capabilities = await resolveAgentCapabilities({
       mcpClient: this.mcpClient,
       manifest: activeManifest,
@@ -1733,7 +1732,7 @@ export class AgentRuntime {
       const activeManifest = layers?.manifest ?? agentManifest
       run.agentManifest = activeManifest
       const runtimeContract = this.contractResolver.find(activeManifest)
-      const skills = layers?.skills ?? resolveAgentSkills(agentManifest, lastUser.content, catalogSnapshot.skillCatalog)
+      const skills = layers?.skills ?? []
       const capabilityStartedAt = Date.now()
       const capabilities = await resolveAgentCapabilities({
         mcpClient: this.mcpClient,
@@ -2111,7 +2110,7 @@ export class AgentRuntime {
             : undefined
           const refreshedManifest = refreshedLayers?.manifest ?? refreshedBaseManifest
           run.agentManifest = refreshedManifest
-          const refreshedSkills = refreshedLayers?.skills ?? resolveAgentSkills(refreshedManifest, lastUser.content, catalogSnapshot.skillCatalog)
+          const refreshedSkills = refreshedLayers?.skills ?? []
           const refreshedCapabilities = await resolveAgentCapabilities({
             mcpClient: this.mcpClient,
             manifest: refreshedManifest,
@@ -3687,7 +3686,6 @@ function appendUniqueTaskArtifact(artifacts: AgentTaskArtifact[], artifact: Agen
 function isBlockingCatalogIssue(issue: { level: string; code: string; resourceId?: string }): boolean {
   if (issue.level !== 'error') return false
   if (issue.resourceId === 'movscript.profile.default') return false
-  if (issue.resourceId === 'movscript.default.safe-project-assistant') return false
   return true
 }
 

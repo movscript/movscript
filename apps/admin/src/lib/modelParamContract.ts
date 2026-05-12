@@ -1,4 +1,4 @@
-import type { AdapterDef, ModelParamProfile, ParamDef } from '@/types'
+import type { AdapterDef, ModelParamProfile, ParamConditionalConst, ParamConditionalEnum, ParamDef, ParamRequiresValue } from '@/types'
 
 export type ParamContractAudit = {
   mode: 'inherit' | 'profile' | 'override' | 'none'
@@ -42,7 +42,7 @@ export function parseParamDefs(value: string): ParamDef[] {
     const parsed = JSON.parse(value)
     if (!Array.isArray(parsed)) return []
     return parsed
-      .filter((p) => p && typeof p.key === 'string' && typeof p.label === 'string')
+      .filter((p) => p && typeof p.key === 'string')
       .map(normalizeParamDefForAdmin)
   } catch {
     return []
@@ -201,6 +201,7 @@ export function buildParamContractAudit(value: string, adapterParams: ParamDef[]
   if (mode === 'inherit') {
     params = adapterParams.map(normalizeParamDefForAdmin)
   } else if (mode === 'override') {
+    validateRawParamDefFields(value, 'custom_supported_params', errors)
     params = parseParamDefs(value)
     if (value.trim() && params.length === 0) errors.push('custom_supported_params must be a ParamDef array or ModelParamProfile object.')
   } else if (mode === 'profile') {
@@ -258,6 +259,10 @@ function validateRawProfileShape(value: string, errors: string[]) {
     const parsed = JSON.parse(value)
     if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return
     const profile = parsed as Record<string, unknown>
+    const allowedFields = new Set(['allow', 'deny', 'override', 'add'])
+    Object.keys(profile).forEach((field) => {
+      if (!allowedFields.has(field)) errors.push(`Profile contains unknown field "${field}".`)
+    })
     ;(['allow', 'deny'] as const).forEach((field) => {
       const raw = profile[field]
       if (raw === undefined) return
@@ -283,6 +288,8 @@ function validateRawProfileShape(value: string, errors: string[]) {
         Object.entries(override as Record<string, unknown>).forEach(([key, item]) => {
           if (!item || Array.isArray(item) || typeof item !== 'object') {
             errors.push(`Profile override.${key} must be a parameter definition object.`)
+          } else {
+            validateRawParamDefObject(item as Record<string, unknown>, `Profile override.${key}`, errors)
           }
         })
       }
@@ -297,6 +304,8 @@ function validateRawProfileShape(value: string, errors: string[]) {
         add.forEach((item, index) => {
           if (!item || Array.isArray(item) || typeof item !== 'object') {
             errors.push(`Profile add[${index}] must be a parameter definition object.`)
+          } else {
+            validateRawParamDefObject(item as Record<string, unknown>, `Profile add[${index}]`, errors)
           }
         })
       }
@@ -304,6 +313,50 @@ function validateRawProfileShape(value: string, errors: string[]) {
   } catch {
     // Syntax errors are reported by the generic override/parser branch.
   }
+}
+
+function validateRawParamDefFields(value: string, label: string, errors: string[]) {
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return
+    parsed.forEach((item, index) => {
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        validateRawParamDefObject(item as Record<string, unknown>, `${label}[${index}]`, errors)
+      }
+    })
+  } catch {
+    // Syntax errors are reported by the generic override/parser branch.
+  }
+}
+
+function validateRawParamDefObject(param: Record<string, unknown>, label: string, errors: string[]) {
+  const allowedFields = new Set([
+    'key', 'label', 'type', 'options', 'default', 'min', 'max', 'step',
+    'json_schema', 'conflicts_with', 'conditional_enum', 'conditional_const', 'requires_value',
+  ])
+  Object.keys(param).forEach((field) => {
+    if (!allowedFields.has(field)) errors.push(`${label} contains unknown field "${field}".`)
+  })
+  ;(['options', 'conflicts_with', 'conditional_enum', 'conditional_const', 'requires_value'] as const).forEach((field) => {
+    if (param[field] !== undefined && !Array.isArray(param[field])) errors.push(`${label}.${field} must be an array.`)
+  })
+  if (param.json_schema !== undefined && (!param.json_schema || Array.isArray(param.json_schema) || typeof param.json_schema !== 'object')) {
+    errors.push(`${label}.json_schema must be an object.`)
+  }
+  validateRawRuleObjects(param.conditional_enum, `${label}.conditional_enum`, ['when_param', 'when_value', 'options'], errors)
+  validateRawRuleObjects(param.conditional_const, `${label}.conditional_const`, ['when_param', 'when_value', 'value'], errors)
+  validateRawRuleObjects(param.requires_value, `${label}.requires_value`, ['param', 'value'], errors)
+}
+
+function validateRawRuleObjects(value: unknown, label: string, allowedFields: string[], errors: string[]) {
+  if (!Array.isArray(value)) return
+  const allowed = new Set(allowedFields)
+  value.forEach((item, index) => {
+    if (!item || Array.isArray(item) || typeof item !== 'object') return
+    Object.keys(item as Record<string, unknown>).forEach((field) => {
+      if (!allowed.has(field)) errors.push(`${label}[${index}] contains unknown field "${field}".`)
+    })
+  })
 }
 
 export function splitOptions(value: string): string[] {
@@ -389,35 +442,45 @@ function validateResolvedParams(params: ParamDef[], errors: string[]) {
     if (key && seen.has(key)) errors.push(`Parameter "${key}" is duplicated.`)
     if (key) seen.add(key)
     if (!['select', 'number', 'boolean', 'string'].includes(param.type)) errors.push(`Parameter "${key || index + 1}" has unsupported type "${param.type}".`)
-    if (param.type === 'select' && (!param.options || param.options.length === 0)) errors.push(`Select parameter "${key}" needs at least one option.`)
-    if (param.type === 'select') validateStringOptions(param.options ?? [], `Select parameter "${key}" options`, errors)
+    const options = stringArrayField(param.options)
+    if (param.type === 'select' && options.length === 0) errors.push(`Select parameter "${key}" needs at least one option.`)
+    if (param.type === 'select') validateStringOptions(options, `Select parameter "${key}" options`, errors)
     if (param.type === 'number' && param.min !== undefined && param.max !== undefined && Number(param.min) > Number(param.max)) errors.push(`Number parameter "${key}" has min greater than max.`)
     if (param.type === 'number' && param.step !== undefined && Number(param.step) < 0) errors.push(`Number parameter "${key}" has negative step.`)
     validateParamDefault(param, key, errors)
     validateParamJSONSchema(param, key, errors)
-    ;(param.conflicts_with ?? []).forEach((other) => {
+    stringArrayField(param.conflicts_with).forEach((other) => {
       if (!keys.has(normalizeAdminParamKey(other))) errors.push(`Parameter "${key}" conflicts with unknown parameter "${other}".`)
     })
-    ;(param.conditional_enum ?? []).forEach((rule) => {
+    arrayField<ParamConditionalEnum>(param.conditional_enum).forEach((rule) => {
       const whenKey = normalizeAdminParamKey(rule.when_param)
       if (!keys.has(whenKey)) errors.push(`Parameter "${key}" conditional enum references unknown parameter "${rule.when_param}".`)
       else validateParamRuleValue(byKey.get(whenKey), rule.when_value, `Parameter "${key}" conditional enum when_value`, errors)
       if (!rule.options?.length) errors.push(`Parameter "${key}" conditional enum needs options.`)
-      validateStringOptions(rule.options ?? [], `Parameter "${key}" conditional enum options`, errors)
-      ;(rule.options ?? []).forEach((option) => validateParamRuleValue(param, option, `Parameter "${key}" conditional enum option`, errors))
+      const ruleOptions = stringArrayField(rule.options)
+      validateStringOptions(ruleOptions, `Parameter "${key}" conditional enum options`, errors)
+      ruleOptions.forEach((option) => validateParamRuleValue(param, option, `Parameter "${key}" conditional enum option`, errors))
     })
-    ;(param.conditional_const ?? []).forEach((rule) => {
+    arrayField<ParamConditionalConst>(param.conditional_const).forEach((rule) => {
       const whenKey = normalizeAdminParamKey(rule.when_param)
       if (!keys.has(whenKey)) errors.push(`Parameter "${key}" conditional const references unknown parameter "${rule.when_param}".`)
       else validateParamRuleValue(byKey.get(whenKey), rule.when_value, `Parameter "${key}" conditional const when_value`, errors)
       validateParamRuleValue(param, rule.value, `Parameter "${key}" conditional const value`, errors)
     })
-    ;(param.requires_value ?? []).forEach((rule) => {
+    arrayField<ParamRequiresValue>(param.requires_value).forEach((rule) => {
       const requiredKey = normalizeAdminParamKey(rule.param)
       if (!keys.has(requiredKey)) errors.push(`Parameter "${key}" requires unknown parameter "${rule.param}".`)
       else validateParamRuleValue(byKey.get(requiredKey), rule.value, `Parameter "${key}" requires_value value`, errors)
     })
   })
+}
+
+function arrayField<T>(value: unknown): T[] {
+  return Array.isArray(value) ? value as T[] : []
+}
+
+function stringArrayField(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
 function validateStringOptions(options: string[], label: string, errors: string[]) {

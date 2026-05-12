@@ -81,12 +81,14 @@ test('model param profile audit reports unknown and conflicting allow deny keys'
 
 test('model param profile audit reports invalid profile field shapes', () => {
   const audit = buildParamContractAudit(JSON.stringify({
+    alow: ['duration'],
     allow: 'duration',
     deny: [1],
     override: { duration: '5' },
     add: ['web_search'],
   }), [])
 
+  assert.equal(audit.errors.some((error) => error.includes('unknown field "alow"')), true)
   assert.equal(audit.errors.some((error) => error.includes('allow must be an array')), true)
   assert.equal(audit.errors.some((error) => error.includes('deny[0] must be a parameter key string')), true)
   assert.equal(audit.errors.some((error) => error.includes('override.duration must be a parameter definition object')), true)
@@ -108,7 +110,7 @@ test('model param profile audit allows allow list to reference added params', ()
 
 test('model param contract audit reports invalid control shapes and rule refs', () => {
   const audit = buildParamContractAudit(JSON.stringify([
-    { key: 'duration', label: 'Duration', type: 'select', options: [], conflicts_with: ['frames'] },
+    { key: 'duration', label: 'Duration', type: 'select', options: [], conflicts_with: ['frames'], defualt: '5' },
     { key: 'resolution', label: 'Resolution', type: 'select', options: ['720p', '720p'] },
     { key: 'quality', label: 'Quality', type: 'select', options: [''] },
     { key: 'negative_prompt', label: '', type: 'string' },
@@ -117,6 +119,7 @@ test('model param contract audit reports invalid control shapes and rule refs', 
   ]), [])
 
   assert.equal(audit.errors.some((error) => error.includes('needs at least one option')), true)
+  assert.equal(audit.errors.some((error) => error.includes('unknown field "defualt"')), true)
   assert.equal(audit.errors.some((error) => error.includes('duplicate option')), true)
   assert.equal(audit.errors.some((error) => error.includes('empty option')), true)
   assert.equal(audit.errors.some((error) => error.includes('label is required')), true)
@@ -124,6 +127,42 @@ test('model param contract audit reports invalid control shapes and rule refs', 
   assert.equal(audit.errors.some((error) => error.includes('min greater than max')), true)
   assert.equal(audit.errors.some((error) => error.includes('negative step')), true)
   assert.equal(audit.errors.some((error) => error.includes('unknown parameter')), true)
+})
+
+test('model param profile audit reports unknown param fields', () => {
+  const audit = buildParamContractAudit(JSON.stringify({
+    add: [{ key: 'negative_prompt', label: 'Negative Prompt', type: 'string', defualt: 'low quality' }],
+  }), [])
+
+  assert.equal(audit.errors.some((error) => error.includes('Profile add[0]') && error.includes('unknown field "defualt"')), true)
+})
+
+test('model param contract audit reports malformed array fields without throwing', () => {
+  const audit = buildParamContractAudit(JSON.stringify([
+    {
+      key: 'resolution',
+      label: 'Resolution',
+      type: 'select',
+      options: '480p',
+      conflicts_with: 'frames',
+      conditional_enum: { when_param: 'draft', when_value: true, options: ['480p'] },
+      json_schema: [],
+    },
+  ]), [])
+
+  assert.equal(audit.errors.some((error) => error.includes('options must be an array')), true)
+  assert.equal(audit.errors.some((error) => error.includes('conflicts_with must be an array')), true)
+  assert.equal(audit.errors.some((error) => error.includes('conditional_enum must be an array')), true)
+  assert.equal(audit.errors.some((error) => error.includes('json_schema must be an object')), true)
+})
+
+test('model param contract audit keeps params with missing labels so errors are visible', () => {
+  const audit = buildParamContractAudit(JSON.stringify([
+    { key: 'custom_text', type: 'string' },
+  ]), [])
+
+  assert.deepEqual(audit.params.map((param) => param.key), ['custom_text'])
+  assert.equal(audit.errors.some((error) => error.includes('custom_text') && error.includes('label is required')), true)
 })
 
 test('model param contract audit reports invalid default values', () => {
@@ -155,11 +194,15 @@ test('model param contract audit reports invalid json schema keywords', () => {
 test('model param contract audit reports invalid rule values', () => {
   const audit = buildParamContractAudit(JSON.stringify([
     { key: 'draft', label: 'Draft', type: 'boolean' },
-    { key: 'resolution', label: 'Resolution', type: 'select', options: ['480p'], conditional_enum: [{ when_param: 'draft', when_value: 'true', options: ['720p', '720p'] }] },
+    { key: 'resolution', label: 'Resolution', type: 'select', options: ['480p'], conditional_enum: [{ when_param: 'draft', when_value: 'true', options: ['720p', '720p'], whenParam: 'draft' }] },
+    { key: 'return_last_frame', label: 'Return Last Frame', type: 'boolean', conditional_const: [{ when_param: 'draft', when_value: true, vale: false }] },
     { key: 'sequential_image_generation', label: 'Sequential', type: 'select', options: ['disabled', 'auto'] },
-    { key: 'image_count', label: 'Image Count', type: 'number', min: 1, max: 15, requires_value: [{ param: 'sequential_image_generation', value: 'enabled' }] },
+    { key: 'image_count', label: 'Image Count', type: 'number', min: 1, max: 15, requires_value: [{ param: 'sequential_image_generation', value: 'enabled', parameter: 'sequential_image_generation' }] },
   ]), [])
 
+  assert.equal(audit.errors.some((error) => error.includes('conditional_enum[0]') && error.includes('unknown field "whenParam"')), true)
+  assert.equal(audit.errors.some((error) => error.includes('conditional_const[0]') && error.includes('unknown field "vale"')), true)
+  assert.equal(audit.errors.some((error) => error.includes('requires_value[0]') && error.includes('unknown field "parameter"')), true)
   assert.equal(audit.errors.some((error) => error.includes('conditional enum when_value') && error.includes('boolean')), true)
   assert.equal(audit.errors.some((error) => error.includes('conditional enum option') && error.includes('options')), true)
   assert.equal(audit.errors.some((error) => error.includes('conditional enum options') && error.includes('duplicate option')), true)

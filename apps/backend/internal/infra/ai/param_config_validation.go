@@ -63,6 +63,15 @@ func validateRawParamNullFields(raw any) error {
 			if err := validateRawParamNullField(param, fmt.Sprintf("custom_supported_params[%d]", i)); err != nil {
 				return err
 			}
+			if err := validateRawParamKnownFields(param, fmt.Sprintf("custom_supported_params[%d]", i)); err != nil {
+				return err
+			}
+			if err := validateRawParamFieldTypes(param, fmt.Sprintf("custom_supported_params[%d]", i)); err != nil {
+				return err
+			}
+			if err := validateRawParamRuleFields(param, fmt.Sprintf("custom_supported_params[%d]", i)); err != nil {
+				return err
+			}
 		}
 	case map[string]any:
 		for _, field := range []string{"allow", "deny", "override", "add"} {
@@ -79,6 +88,15 @@ func validateRawParamNullFields(raw any) error {
 				if err := validateRawParamNullField(param, fmt.Sprintf("custom_supported_params.override.%s", key)); err != nil {
 					return err
 				}
+				if err := validateRawParamKnownFields(param, fmt.Sprintf("custom_supported_params.override.%s", key)); err != nil {
+					return err
+				}
+				if err := validateRawParamFieldTypes(param, fmt.Sprintf("custom_supported_params.override.%s", key)); err != nil {
+					return err
+				}
+				if err := validateRawParamRuleFields(param, fmt.Sprintf("custom_supported_params.override.%s", key)); err != nil {
+					return err
+				}
 			}
 		}
 		if add, ok := value["add"].([]any); ok {
@@ -90,6 +108,15 @@ func validateRawParamNullFields(raw any) error {
 				if err := validateRawParamNullField(param, fmt.Sprintf("custom_supported_params.add[%d]", i)); err != nil {
 					return err
 				}
+				if err := validateRawParamKnownFields(param, fmt.Sprintf("custom_supported_params.add[%d]", i)); err != nil {
+					return err
+				}
+				if err := validateRawParamFieldTypes(param, fmt.Sprintf("custom_supported_params.add[%d]", i)); err != nil {
+					return err
+				}
+				if err := validateRawParamRuleFields(param, fmt.Sprintf("custom_supported_params.add[%d]", i)); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -97,6 +124,12 @@ func validateRawParamNullFields(raw any) error {
 }
 
 func validateRawProfileShape(profile map[string]any) error {
+	allowedFields := map[string]bool{"allow": true, "deny": true, "override": true, "add": true}
+	for field := range profile {
+		if !allowedFields[field] {
+			return fmt.Errorf("custom_supported_params profile contains unknown field %q", field)
+		}
+	}
 	for _, field := range []string{"allow", "deny"} {
 		if value, exists := profile[field]; exists {
 			items, ok := value.([]any)
@@ -142,6 +175,71 @@ func validateRawParamNullField(param map[string]any, path string) error {
 	} {
 		if value, exists := param[field]; exists && value == nil {
 			return fmt.Errorf("%s.%s must not be null", path, field)
+		}
+	}
+	return nil
+}
+
+func validateRawParamKnownFields(param map[string]any, path string) error {
+	allowedFields := map[string]bool{
+		"key": true, "label": true, "type": true, "options": true, "default": true,
+		"min": true, "max": true, "step": true, "json_schema": true,
+		"conflicts_with": true, "conditional_enum": true, "conditional_const": true, "requires_value": true,
+	}
+	for field := range param {
+		if !allowedFields[field] {
+			return fmt.Errorf("%s contains unknown field %q", path, field)
+		}
+	}
+	return nil
+}
+
+func validateRawParamFieldTypes(param map[string]any, path string) error {
+	for _, field := range []string{"options", "conflicts_with", "conditional_enum", "conditional_const", "requires_value"} {
+		if value, exists := param[field]; exists {
+			if _, ok := value.([]any); !ok {
+				return fmt.Errorf("%s.%s must be an array", path, field)
+			}
+		}
+	}
+	if value, exists := param["json_schema"]; exists {
+		if _, ok := value.(map[string]any); !ok {
+			return fmt.Errorf("%s.json_schema must be an object", path)
+		}
+	}
+	return nil
+}
+
+func validateRawParamRuleFields(param map[string]any, path string) error {
+	if err := validateRawObjectArrayFields(param["conditional_enum"], path+".conditional_enum", map[string]bool{
+		"when_param": true, "when_value": true, "options": true,
+	}); err != nil {
+		return err
+	}
+	if err := validateRawObjectArrayFields(param["conditional_const"], path+".conditional_const", map[string]bool{
+		"when_param": true, "when_value": true, "value": true,
+	}); err != nil {
+		return err
+	}
+	return validateRawObjectArrayFields(param["requires_value"], path+".requires_value", map[string]bool{
+		"param": true, "value": true,
+	})
+}
+
+func validateRawObjectArrayFields(value any, path string, allowed map[string]bool) error {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	for i, item := range items {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		for field := range obj {
+			if !allowed[field] {
+				return fmt.Errorf("%s[%d] contains unknown field %q", path, i, field)
+			}
 		}
 	}
 	return nil

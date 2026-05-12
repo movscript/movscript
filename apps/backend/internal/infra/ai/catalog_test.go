@@ -138,8 +138,14 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"","type":"boolean"}]}`); err == nil {
 		t.Fatal("expected empty param key to be rejected")
 	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"alow":["duration"]}`); err == nil {
+		t.Fatal("expected unknown profile field to be rejected")
+	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":"Negative Prompt"}]`); err == nil {
 		t.Fatal("expected missing param type to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":"Negative Prompt","type":"string","defualt":"low quality"}]`); err == nil {
+		t.Fatal("expected unknown param field to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","type":"string"}]`); err == nil {
 		t.Fatal("expected missing param label to be rejected")
@@ -147,11 +153,20 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"negative_prompt","type":"string"}]}`); err == nil {
 		t.Fatal("expected missing profile add label to be rejected")
 	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"negative_prompt","label":"Negative Prompt","type":"string","defualt":"low quality"}]}`); err == nil {
+		t.Fatal("expected unknown profile add param field to be rejected")
+	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"ratio","type":"select","options":["16:9"]}]`); err != nil {
 		t.Fatalf("expected known alias to receive normalized label: %v", err)
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","type":"select"}]`); err == nil {
 		t.Fatal("expected select without options to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","label":"Resolution","type":"select","options":"480p"}]`); err == nil {
+		t.Fatal("expected non-array options to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","label":"Frames","type":"number","json_schema":[]}]`); err == nil {
+		t.Fatal("expected non-object json_schema to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"resolution","type":"select","options":["720p","720p"]}]`); err == nil {
 		t.Fatal("expected duplicate select options to be rejected")
@@ -254,9 +269,27 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
 		{"key":"draft","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":{"when_param":"draft","when_value":true,"options":["480p"]}}
+	]`); err == nil {
+		t.Fatal("expected non-array conditional_enum to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"whenParam":"draft","when_value":true,"options":["480p"]}]}
+	]`); err == nil {
+		t.Fatal("expected unknown conditional_enum field to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":true,"options":["720p"]}]}
 	]`); err == nil {
 		t.Fatal("expected conditional enum option outside target options to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
+		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"draft","when_value":true,"vale":false}]}
+	]`); err == nil {
+		t.Fatal("expected unknown conditional_const field to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
 		{"key":"draft","type":"boolean"},
@@ -270,6 +303,13 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 		{"key":"seed","type":"number","requires_value":[{"param":"sequential_image_generation","value":"enabled"}]}
 	]`); err == nil {
 		t.Fatal("expected requires_value with invalid target value to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"image_count","type":"number","min":1,"max":15},
+		{"key":"sequential_image_generation","type":"select","options":["disabled","auto"]},
+		{"key":"seed","type":"number","requires_value":[{"parameter":"sequential_image_generation","value":"auto"}]}
+	]`); err == nil {
+		t.Fatal("expected unknown requires_value field to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["missing_param"]}`); err == nil {
 		t.Fatal("expected unknown allow param to be rejected")

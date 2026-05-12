@@ -48,7 +48,7 @@ Output contract:
 Return the selected draft or recommended draft kind and the next review action.
 
 ## Script Writing
-Produce script content in the response first. Save it with Create a formal script record in the current project after user approval. Use this only when the user wants the generated script saved into the project. only when the user explicitly wants a formal script record and the approval flow completes.
+Produce script content in the response first. Save it with Create a formal script record in the current project after approval. only when the user explicitly wants a formal script record and the approval flow completes.
 
 Output contract:
 Return the script status, created script id when available, and whether the save was approved.

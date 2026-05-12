@@ -102,15 +102,20 @@ test('linter rejects missing refs and old profile permissions field', () => {
       skills: [],
       tools: [],
     },
-    skills: [{
-      id: 'movscript.intent.broken',
+    skills: [],
+    tools: [],
+    layeredSkills: [{
+      id: 'movscript.workflow.broken',
+      kind: 'workflow',
+      version: '1.0.0',
       name: 'Broken',
       description: 'Broken workflow',
+      priority: 100,
       enabled: true,
-      instruction: 'Use {{tool:missing_tool}} and {{schema:missing.schema.v1}}.',
-      toolHints: ['missing_tool'],
+      instructionTemplate: 'Use {{tool:missing_tool}} and {{schema:missing.schema.v1}}.',
+      triggers: [{ kind: 'intent', id: 'broken' }],
+      toolRefs: ['tool://missing_tool'],
     }],
-    tools: [],
   })
   registry.profiles.set('movscript.profile.broken', {
     schema: 'movscript.agent.profile.v1',
@@ -129,6 +134,32 @@ test('linter rejects missing refs and old profile permissions field', () => {
   assert.ok(issues.some((issue) => issue.code === 'skill.tool_ref.missing'))
   assert.ok(issues.some((issue) => issue.code === 'skill.placeholder.schema_missing'))
   assert.ok(issues.some((issue) => issue.code === 'profile.permissions.present'))
+})
+
+test('linter flags workflow language in tool descriptions', () => {
+  const registry = buildLayeredCatalogRegistry({
+    manifest: {
+      schema: 'movscript.agent.current',
+      id: 'test',
+      version: '1.0.0',
+      name: 'Test',
+      skills: [],
+      tools: [],
+    },
+    skills: [],
+    tools: [{
+      name: 'studio_create_draft',
+      description: 'Create a draft. Use this only when the user asks for a proposal workflow.',
+      permission: 'draft.write',
+      risk: 'draft',
+      projectScoped: true,
+      requiresApprovalByDefault: false,
+      source: 'runtime',
+    }],
+  })
+
+  const issues = lintCatalog(registry)
+  assert.ok(issues.some((issue) => issue.code === 'tool.description.polluted'))
 })
 
 test('profile resolution, trigger selection, prompt refs, and tool scope work together', () => {

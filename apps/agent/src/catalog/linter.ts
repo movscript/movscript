@@ -90,7 +90,7 @@ function lintTool(tool: ToolDefinition, issues: CatalogIssue[]): void {
   if (!tool.inputSchema || typeof tool.inputSchema !== 'object') {
     error(issues, 'tool.input_schema.missing', `tool ${tool.name} must declare inputSchema`, tool.name)
   }
-  if (/(use when|do not use|when the user asks)/i.test(tool.description)) {
+  if (/(use when|do not use|when the user asks|use this only|only when the user|recommended .*loop|enter the .*workflow)/i.test(tool.description)) {
     warning(issues, 'tool.description.polluted', `tool ${tool.name} description includes workflow language`, tool.name)
   }
   if ((tool.source === 'plugin' || tool.source === 'mcp') && !tool.pluginId && tool.source === 'plugin') {

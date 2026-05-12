@@ -23,8 +23,14 @@ function run(input: Partial<AgentRun> & { id: string }): AgentRun {
       allowNetwork: false,
       allowFileBytes: false,
     },
-    steps: [],
+    steps: input.steps ?? [],
     metadata: input.metadata,
+    startedAt: input.startedAt,
+    completedAt: input.completedAt,
+    failedAt: input.failedAt,
+    cancelledAt: input.cancelledAt,
+    error: input.error,
+    warnings: input.warnings,
     createdAt: '2026-05-12T00:00:00.000Z',
     updatedAt: '2026-05-12T00:00:00.000Z',
   }
@@ -126,6 +132,14 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
         planId: 'plan_1',
         taskId: 'task_named',
         blockedReason: 'Worker blocked',
+        progress: 0.5,
+        startedAt: '2026-05-12T00:00:00.000Z',
+        completedAt: '2026-05-12T00:03:00.000Z',
+        warnings: ['Needs review soon'],
+        steps: [
+          { id: 'step_1', runId: 'run_worker', type: 'message', status: 'completed', title: 'Initial note', createdAt: '2026-05-12T00:00:01.000Z' },
+          { id: 'step_2', runId: 'run_worker', type: 'tool_call', status: 'failed', toolName: 'tool_write', error: 'Denied', sandboxed: true, createdAt: '2026-05-12T00:02:01.000Z' },
+        ],
         pendingInputRequests: [
           { id: 'input_1', runId: 'run_worker', title: 'Question', question: 'Continue?', inputType: 'choice', choices: [{ id: 'yes', label: 'Yes' }], allowCustomAnswer: true, status: 'pending', createdAt: '2026-05-12T00:00:00.000Z', updatedAt: '2026-05-12T00:00:00.000Z' },
         ],
@@ -140,6 +154,39 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
 
   assert.equal(view?.subagentName, '爱因斯坦')
   assert.equal(view?.ownerLabel, '爱因斯坦')
+  assert.deepEqual(view?.worker && {
+    id: view.worker.id,
+    status: view.worker.status,
+    parentRunId: view.worker.parentRunId,
+    taskId: view.worker.taskId,
+    progress: view.worker.progress,
+    startedAt: view.worker.startedAt,
+    completedAt: view.worker.completedAt,
+    warningCount: view.worker.warnings.length,
+    stepCount: view.worker.stepCount,
+    recentSteps: view.worker.recentSteps.map((step) => ({
+      id: step.id,
+      title: step.title,
+      toolName: step.toolName,
+      status: step.status,
+      error: step.error,
+      sandboxed: step.sandboxed,
+    })),
+  }, {
+    id: 'run_worker',
+    status: 'requires_action',
+    parentRunId: undefined,
+    taskId: 'task_named',
+    progress: 0.5,
+    startedAt: '2026-05-12T00:00:00.000Z',
+    completedAt: '2026-05-12T00:03:00.000Z',
+    warningCount: 1,
+    stepCount: 2,
+    recentSteps: [
+      { id: 'step_2', title: 'tool_write', toolName: 'tool_write', status: 'failed', error: 'Denied', sandboxed: true },
+      { id: 'step_1', title: 'Initial note', toolName: undefined, status: 'completed', error: undefined, sandboxed: undefined },
+    ],
+  })
   assert.equal(view?.waitingInputCount, 1)
   assert.equal(view?.waitingApprovalCount, 1)
   assert.deepEqual(view?.pendingInputs.map((input) => ({
@@ -207,6 +254,8 @@ test('buildPlanArtifactSummary aggregates plan artifacts by recency and type', (
   ])
   assert.deepEqual(summary.artifacts.map((artifact) => artifact.id), ['artifact_policy', 'artifact_new', 'artifact_old'])
   assert.equal(summary.artifacts[0]?.policy, 'manual_compensation')
+  assert.equal(summary.artifacts[0]?.taskId, 'task_b')
+  assert.equal(summary.artifacts[0]?.taskTitle, 'Second')
 })
 
 test('actionableRunForPlan selects a blocked worker when the planner is active', () => {

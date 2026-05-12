@@ -1,6 +1,6 @@
 {
   "name": "movscript_create_script",
-  "description": "Create a formal script record in the current project after user approval. Use this only when the user wants the generated script saved into the project.",
+  "description": "Create a formal script record in the current project after user approval.",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,

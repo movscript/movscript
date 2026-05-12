@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend
@@ -48,5 +52,8 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+      - name: Unit tests
+        run: pnpm --filter movscript-agent test && pnpm --filter movscript-frontend test && pnpm --filter movscript-admin test
+
       - name: Build
-        run: pnpm run build:packages && pnpm run build:apps && pnpm run build:plugins
+        run: pnpm run build:packages && pnpm run build:agent && pnpm run build:apps && pnpm run build:plugins
