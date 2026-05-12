@@ -30,6 +30,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 
 	// flat model-config patch (no credential_id in path — used by feature config tab)
 	admin.PATCH("/model-configs/:id", h.ai.PatchModelConfig)
+	admin.POST("/model-configs/preview-contract", h.ai.PreviewModelConfigContract)
 
 	// feature model config
 	admin.GET("/feature-defs", h.feature.ListDefs)

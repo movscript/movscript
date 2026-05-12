@@ -92,6 +92,12 @@ func NormalizeParamDefsForUI(params []ParamDef) []ParamDef {
 		for i := range p.ConditionalEnum {
 			p.ConditionalEnum[i].WhenParam = normalizeParamKey(p.ConditionalEnum[i].WhenParam)
 		}
+		for i := range p.ConditionalConst {
+			p.ConditionalConst[i].WhenParam = normalizeParamKey(p.ConditionalConst[i].WhenParam)
+		}
+		for i := range p.RequiresValue {
+			p.RequiresValue[i].Param = normalizeParamKey(p.RequiresValue[i].Param)
+		}
 		out = append(out, p)
 	}
 	return out

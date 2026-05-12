@@ -1,4 +1,5 @@
 import type { JSONValue } from '../types.js'
+import type { AgentRunRole } from '../state/types.js'
 
 export type ToolRiskLevel = 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
 
@@ -16,7 +17,6 @@ export interface RegisteredTool {
   source?: 'runtime' | 'plugin' | 'mcp'
   category?: string
   categories?: string[]
-  appliesWhen?: string
   inputSchema?: JSONValue
   projectScoped: boolean
   requiresApprovalByDefault: boolean
@@ -25,15 +25,7 @@ export interface RegisteredTool {
   pluginId?: string
   mcpServerId?: string
   errorCodes?: string[]
-}
-
-export interface RegisteredToolBundle {
-  tools: RegisteredTool[]
-  grants: Array<{
-    name: string
-    mode: 'allow' | 'deny'
-    approval?: 'never' | 'always' | 'on_write'
-  }>
+  allowedRunRoles?: AgentRunRole[]
 }
 
 export interface ToolRegistry {
@@ -79,7 +71,6 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     ...(input.source === 'runtime' || input.source === 'plugin' || input.source === 'mcp' ? { source: input.source } : {}),
     ...(nonEmptyString(input.category) ? { category: nonEmptyString(input.category) } : {}),
     ...(stringArray(input.categories).length > 0 ? { categories: stringArray(input.categories) } : {}),
-    ...(nonEmptyString(input.appliesWhen) ? { appliesWhen: nonEmptyString(input.appliesWhen) } : {}),
     ...(isJSONValue(input.inputSchema) ? { inputSchema: input.inputSchema } : {}),
     projectScoped: input.projectScoped === true,
     requiresApprovalByDefault: input.requiresApprovalByDefault === true,
@@ -88,45 +79,59 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     ...(nonEmptyString(input.pluginId) ? { pluginId: nonEmptyString(input.pluginId) } : {}),
     ...(nonEmptyString(input.mcpServerId) ? { mcpServerId: nonEmptyString(input.mcpServerId) } : {}),
     ...(stringArray(input.errorCodes).length > 0 ? { errorCodes: stringArray(input.errorCodes) } : {}),
+    ...(runRoleArray(input.allowedRunRoles).length > 0 ? { allowedRunRoles: runRoleArray(input.allowedRunRoles) } : {}),
   }
 }
 
 export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
   {
-    name: 'movscript_list_agent_bundles',
-    description: 'List locally available agent capability bundles, including their skill and tool references and whether they are enabled.',
-    permission: 'agent.catalog.read',
-    risk: 'read',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_inspect_agent_bundle',
-    description: 'Inspect one locally available agent capability bundle before enabling it.',
-    permission: 'agent.catalog.read',
-    risk: 'read',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: false,
-  },
-  {
-    name: 'movscript_enable_agent_bundle',
-    description: 'Enable one locally available agent capability bundle. The refreshed skills and tools are available to the current or next agent run.',
-    permission: 'agent.catalog.write',
-    risk: 'write',
-    source: 'runtime',
-    projectScoped: false,
-    requiresApprovalByDefault: true,
-  },
-  {
     name: 'movscript_reload_agent_catalog',
-    description: 'Reload local agent skills, tools, and bundles from configured catalog directories.',
+    description: 'Reload local agent skills, tools, packs, and profiles from configured catalog directories.',
     permission: 'agent.catalog.write',
     risk: 'write',
     source: 'runtime',
     projectScoped: false,
     requiresApprovalByDefault: true,
+  },
+  {
+    name: 'movscript_spawn_subagent',
+    description: 'Planner-only tool. Create or dispatch one or more worker subagent runs for plan tasks that need separate execution.',
+    permission: 'agent.subagent.write',
+    risk: 'write',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+    allowedRunRoles: ['planner'],
+  },
+  {
+    name: 'movscript_list_subagents',
+    description: 'Planner-only tool. List worker subagents and task status for the current plan.',
+    permission: 'agent.subagent.read',
+    risk: 'read',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+    allowedRunRoles: ['planner'],
+  },
+  {
+    name: 'movscript_wait_subagent',
+    description: 'Planner-only tool. Check whether a worker subagent, task, or plan has finished, returning the latest structured snapshot.',
+    permission: 'agent.subagent.read',
+    risk: 'read',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+    allowedRunRoles: ['planner'],
+  },
+  {
+    name: 'movscript_cancel_subagent',
+    description: 'Planner-only tool. Cancel a child worker subagent subtree owned by the current planner run.',
+    permission: 'agent.subagent.write',
+    risk: 'write',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+    allowedRunRoles: ['planner'],
   },
 ])
 
@@ -148,6 +153,11 @@ function nonEmptyString(value: unknown): string | undefined {
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())))
+}
+
+function runRoleArray(value: unknown): AgentRunRole[] {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value.filter((item): item is AgentRunRole => item === 'planner' || item === 'worker')))
 }
 
 function normalizeToolDefaults(value: unknown): ToolDefaults | undefined {

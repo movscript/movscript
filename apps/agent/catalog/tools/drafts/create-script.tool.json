@@ -1,0 +1,94 @@
+{
+  "name": "movscript_create_script",
+  "description": "Create a formal script record in the current project after user approval. Use this only when the user wants the generated script saved into the project.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "title",
+      "content"
+    ],
+    "properties": {
+      "projectId": {
+        "type": "number"
+      },
+      "title": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string"
+      },
+      "raw_source": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "script_type": {
+        "type": "string"
+      },
+      "source_type": {
+        "type": "string",
+        "enum": [
+          "raw",
+          "adapted",
+          "revised"
+        ]
+      },
+      "summary": {
+        "type": "string"
+      },
+      "characters": {
+        "type": "string"
+      },
+      "core_settings": {
+        "type": "string"
+      },
+      "hook": {
+        "type": "string"
+      },
+      "plot_summary": {
+        "type": "string"
+      },
+      "script_points": {
+        "type": "string"
+      },
+      "planned_scene_count": {
+        "type": "number"
+      },
+      "planned_character_count": {
+        "type": "number"
+      },
+      "time_text": {
+        "type": "string"
+      },
+      "location_text": {
+        "type": "string"
+      },
+      "structured_characters": {
+        "type": "string"
+      },
+      "plot_beats": {
+        "type": "string"
+      },
+      "atmosphere": {
+        "type": "string"
+      },
+      "structure_json": {
+        "type": "string"
+      },
+      "order": {
+        "type": "number"
+      }
+    }
+  },
+  "permission": "project.write",
+  "risk": "write",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "always"
+  },
+  "source": "runtime",
+  "capability": "Create a formal script record in the current project after approval."
+}

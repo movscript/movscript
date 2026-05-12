@@ -3,6 +3,7 @@ package aiadmin
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/movscript/movscript/internal/app/dto"
@@ -31,11 +32,31 @@ type PatchModelConfigInput struct {
 	CustomSupportedParams *string
 }
 
+type PreviewModelConfigContractInput struct {
+	AdapterType           string
+	CustomCapabilities    string
+	CustomSupportedParams string
+}
+
+type ModelConfigContractPreview struct {
+	Capabilities          []string       `json:"capabilities"`
+	SupportedParams       []ai.ParamDef  `json:"supported_params"`
+	ParamsSchema          map[string]any `json:"params_schema"`
+	ParamsSchemaRuleCount int            `json:"params_schema_rule_count"`
+}
+
 func (s *Service) ListModelConfigs(ctx context.Context, credentialID string) ([]domainaiadmin.ModelConfig, error) {
 	return s.repo.ListModelConfigs(ctx, credentialID)
 }
 
 func (s *Service) CreateModelConfig(ctx context.Context, credentialID uint, input dto.AIModelConfigInput) (domainaiadmin.ModelConfig, error) {
+	adapterType, err := s.adapterTypeForCredential(ctx, credentialID)
+	if err != nil {
+		return domainaiadmin.ModelConfig{}, err
+	}
+	if err := validateModelConfigInput(adapterType, "", input); err != nil {
+		return domainaiadmin.ModelConfig{}, err
+	}
 	cfg := newModelConfig(credentialID, input)
 	if err := s.repo.CreateModelConfig(ctx, &cfg); err != nil {
 		return cfg, err
@@ -46,6 +67,13 @@ func (s *Service) CreateModelConfig(ctx context.Context, credentialID uint, inpu
 func (s *Service) UpdateModelConfig(ctx context.Context, id string, input dto.AIModelConfigInput) (domainaiadmin.ModelConfig, error) {
 	cfg, err := s.GetModelConfig(ctx, id)
 	if err != nil {
+		return cfg, err
+	}
+	adapterType, err := s.adapterTypeForCredential(ctx, cfg.CredentialID)
+	if err != nil {
+		return cfg, err
+	}
+	if err := validateModelConfigInput(adapterType, cfg.CustomSupportedParams, input); err != nil {
 		return cfg, err
 	}
 	applyModelConfigInput(&cfg, input)
@@ -94,6 +122,13 @@ func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigIn
 	if input.CustomSupportedParams != nil {
 		cfg.CustomSupportedParams = *input.CustomSupportedParams
 	}
+	adapterType, err := s.adapterTypeForCredential(ctx, cfg.CredentialID)
+	if err != nil {
+		return cfg, err
+	}
+	if err := validateStoredModelConfig(adapterType, cfg); err != nil {
+		return cfg, err
+	}
 	if input.IsEnabled != nil {
 		cfg.IsEnabled = *input.IsEnabled
 	}
@@ -123,6 +158,24 @@ func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigIn
 
 func (s *Service) GetModelConfig(ctx context.Context, id string) (domainaiadmin.ModelConfig, error) {
 	return s.repo.GetModelConfig(ctx, id)
+}
+
+func (s *Service) PreviewModelConfigContract(input PreviewModelConfigContractInput) (ModelConfigContractPreview, error) {
+	capabilities := ai.SplitCapabilities(input.CustomCapabilities)
+	if len(capabilities) == 0 {
+		return ModelConfigContractPreview{}, fmt.Errorf("%w: custom_capabilities is required", ErrInvalidModelConfig)
+	}
+	if err := ai.ValidateModelParamConfig(input.AdapterType, capabilities, input.CustomSupportedParams); err != nil {
+		return ModelConfigContractPreview{}, fmt.Errorf("%w: %v", ErrInvalidModelConfig, err)
+	}
+	params, _ := ai.ResolveEffectiveParams(input.AdapterType, capabilities, input.CustomSupportedParams)
+	schema := ai.ParamsSchema(params)
+	return ModelConfigContractPreview{
+		Capabilities:          capabilities,
+		SupportedParams:       params,
+		ParamsSchema:          schema,
+		ParamsSchemaRuleCount: schemaRuleCount(schema),
+	}, nil
 }
 
 func (s *Service) TestModelConfig(ctx context.Context, id string) (TestResult, error) {
@@ -220,4 +273,42 @@ func applyModelConfigInput(cfg *domainaiadmin.ModelConfig, input dto.AIModelConf
 	if input.IsEnabled != nil {
 		cfg.IsEnabled = *input.IsEnabled
 	}
+}
+
+func (s *Service) adapterTypeForCredential(ctx context.Context, credentialID uint) (string, error) {
+	cred, err := s.GetCredential(ctx, credentialID)
+	if err != nil {
+		return "", fmt.Errorf("credential not found: %w", err)
+	}
+	return cred.AdapterType, nil
+}
+
+func validateModelConfigInput(adapterType string, existingSupportedParams string, input dto.AIModelConfigInput) error {
+	supportedParams := input.CustomSupportedParams
+	if supportedParams == "" {
+		supportedParams = existingSupportedParams
+	}
+	capabilities := ai.SplitCapabilities(input.CustomCapabilities)
+	if err := ai.ValidateModelParamConfig(adapterType, capabilities, supportedParams); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidModelConfig, err)
+	}
+	return nil
+}
+
+func validateStoredModelConfig(adapterType string, cfg domainaiadmin.ModelConfig) error {
+	if strings.TrimSpace(cfg.CustomCapabilities) == "" {
+		return fmt.Errorf("%w: custom_capabilities is required", ErrInvalidModelConfig)
+	}
+	capabilities := ai.SplitCapabilities(cfg.CustomCapabilities)
+	if err := ai.ValidateModelParamConfig(adapterType, capabilities, cfg.CustomSupportedParams); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidModelConfig, err)
+	}
+	return nil
+}
+
+func schemaRuleCount(schema map[string]any) int {
+	if items, ok := schema["allOf"].([]any); ok {
+		return len(items)
+	}
+	return 0
 }

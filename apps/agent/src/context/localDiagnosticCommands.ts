@@ -10,7 +10,7 @@ import type {
   ResolvedToolCatalog,
   ToolCallOutcome,
 } from '../state/types.js'
-import type { AgentManifest } from '../manifest/agentManifest.js'
+import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import { parseToolResult } from './runtimeContext.js'

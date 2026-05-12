@@ -1,8 +1,8 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue, MCPResource, MCPTool } from '../types.js'
-import type { AgentManifest, AgentSkillManifest } from '../manifest/agentManifest.js'
+import type { AgentManifest, AgentSkillManifest } from '../catalog/agentManifest.js'
 import type { RegisteredTool, ToolRiskLevel } from '../tools/toolRegistry.js'
-import type { AgentCatalogStateStore } from '../manifest/catalogState.js'
+import type { AgentCatalogStateStore } from '../catalog/state.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
@@ -385,6 +385,46 @@ export interface AgentDebugContextPanel {
   labels: string[]
   statusDigest?: string[]
   rawContextHints?: string[]
+  agentPlan?: {
+    id: string
+    title: string
+    status: AgentPlanStatus
+    progress: number
+    role?: AgentRunRole
+    currentTaskId?: string
+    rootRunId?: string
+    tasks: Array<{
+      id: string
+      subagentName?: string
+      title: string
+      status: AgentTaskStatus
+      progress: number
+      deps: string[]
+      ownerRunId?: string
+      blockedReason?: string
+    }>
+    workers: Array<{
+      id: string
+      subagentName?: string
+      status: AgentRunStatus
+      taskId?: string
+      parentRunId?: string
+      progress?: number
+      blockedReason?: string
+    }>
+    artifacts: Array<{
+      id: string
+      type: string
+      title?: string
+      uri?: string
+      taskId: string
+      subagentName?: string
+      sourceRunId?: string
+      sourceTaskId?: string
+      toolName?: string
+      policy?: string
+    }>
+  }
 }
 
 export interface AgentClientAttachmentRef {
@@ -444,7 +484,7 @@ export interface AgentClientInput {
 
 export interface ResolvedAgentSkill extends AgentSkillManifest {
   resolvedPriority: number
-  activationReason: 'manifest' | 'applies_when' | 'user_selected' | 'default'
+  activationReason: 'manifest' | 'user_selected' | 'default'
   compiledInstruction: string
   warnings: string[]
 }
@@ -459,6 +499,7 @@ export type ToolUnavailableReason =
   | 'missing_project'
   | 'approval_required'
   | 'schema_invalid'
+  | 'wrong_run_role'
 
 export interface AgentDebugTool {
   name: string
@@ -516,6 +557,11 @@ export interface CompiledPromptPreview {
     title: string
     content: string
   }>
+  promptStats?: {
+    totalChars: number
+    parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
+    byLayer: Record<string, number>
+  }
 }
 
 export interface AgentRunDebugTrace {
@@ -529,6 +575,22 @@ export interface AgentRunDebugTrace {
   }>
   promptPartIds: string[]
   model?: AgentManifest['model']
+  layerTrace?: {
+    profileId: string
+    profileVersion: string
+    profileLayers: Array<{ source: string; id: string; version: string }>
+    personaId?: string
+    policyIds: string[]
+    workflowIds: string[]
+    workflowTriggers?: Array<{
+      id: string
+      matched: boolean
+      matchedTriggerKind?: string
+      priority: number
+      selected: boolean
+      reason: string
+    }>
+  }
 }
 
 export interface AgentCapabilitiesResponse {
@@ -539,13 +601,8 @@ export interface AgentCapabilitiesResponse {
     toolsDir: string
     builtinSkillsDir?: string
     builtinToolsDir?: string
-    bundlesDir?: string
-    builtinBundlesDir?: string
     skillCount: number
     toolCount: number
-    bundleCount?: number
-    activeBundleIds?: string[]
-    availableBundleIds?: string[]
     metadata?: Record<string, JSONValue>
   }
   mcp: {
@@ -569,7 +626,7 @@ export interface AgentRuntimeOptions {
   skillCatalog?: AgentSkillManifest[]
   toolRegistry?: import('../tools/toolRegistry.js').ToolRegistry
   catalogStateStore?: AgentCatalogStateStore
-  pluginCatalogLoader?: (options?: { enabledBundleIds?: string[] }) => import('../manifest/pluginCatalog.js').AgentPluginCatalog
+  pluginCatalogLoader?: (options?: Record<string, never>) => import('../catalog/loader.js').AgentPluginCatalog
   contractResolver?: AgentRuntimeContractResolver
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   pluginWarnings?: string[]
@@ -605,6 +662,7 @@ export interface CreateRunInput {
   taskId?: unknown
   progress?: unknown
   blockedReason?: unknown
+  metadata?: unknown
 }
 
 export interface CreateToolRunInput {
@@ -675,6 +733,7 @@ export interface CreatePlanInput {
 export interface DispatchPlanInput {
   planId?: unknown
   plannerRunId?: unknown
+  taskIds?: unknown
   maxWorkers?: unknown
   maxTaskAttempts?: unknown
   retryFailed?: unknown
@@ -702,6 +761,7 @@ export interface ReplanRunInput extends DispatchPlanInput {
   updateTasks?: unknown
   resetTaskIds?: unknown
   resetBlocked?: unknown
+  resetNeedsReview?: unknown
   resetFailed?: unknown
   resetCancelled?: unknown
   dispatch?: unknown
@@ -721,6 +781,8 @@ export interface CreatePlanTaskInput {
   deps?: unknown
   title?: unknown
   description?: unknown
+  subagentName?: unknown
+  subagentNames?: unknown
   metadata?: unknown
 }
 
@@ -762,4 +824,13 @@ export interface ToolCallOutcome {
   call: ToolCall
   result?: JSONValue
   error?: string
+  rollback?: ToolCallRollbackRecord
+}
+
+export interface ToolCallRollbackRecord {
+  policy: 'not_applicable' | 'manual_compensation' | 'reversible'
+  reason: string
+  artifactType?: string
+  artifactUri?: string
+  metadata?: Record<string, JSONValue>
 }

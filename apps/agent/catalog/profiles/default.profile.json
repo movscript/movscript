@@ -1,6 +1,6 @@
 {
   "schema": "movscript.agent.profile.v1",
-  "id": "movscript.profile.catalog-default",
+  "id": "movscript.profile.default",
   "version": "1.0.0",
   "name": "MovScript Default Profile",
   "description": "Default task-driven MovScript agent profile backed by target-state packs.",
@@ -27,15 +27,17 @@
     { "name": "movscript_list_drafts", "mode": "allow", "approval": "never" },
     { "name": "movscript_read_draft", "mode": "allow", "approval": "never" },
     { "name": "movscript_get_draft", "mode": "allow", "approval": "never" },
+    { "name": "movscript_create_draft", "mode": "allow", "approval": "never" },
     { "name": "movscript_update_draft", "mode": "allow", "approval": "never" },
     { "name": "movscript_search_memories", "mode": "allow", "approval": "never" },
     { "name": "movscript_get_memory", "mode": "allow", "approval": "never" },
     { "name": "movscript_create_memory", "mode": "allow", "approval": "never" },
     { "name": "movscript_delete_memory", "mode": "allow", "approval": "always" },
-    { "name": "movscript_list_agent_bundles", "mode": "allow", "approval": "never" },
-    { "name": "movscript_inspect_agent_bundle", "mode": "allow", "approval": "never" },
-    { "name": "movscript_enable_agent_bundle", "mode": "allow", "approval": "always" },
     { "name": "movscript_reload_agent_catalog", "mode": "allow", "approval": "always" },
+    { "name": "movscript_spawn_subagent", "mode": "allow", "approval": "never" },
+    { "name": "movscript_list_subagents", "mode": "allow", "approval": "never" },
+    { "name": "movscript_wait_subagent", "mode": "allow", "approval": "never" },
+    { "name": "movscript_cancel_subagent", "mode": "allow", "approval": "never" },
     { "name": "movscript_request_user_input", "mode": "allow", "approval": "never" }
   ],
   "limits": {

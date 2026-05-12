@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
+import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { resolveToolCatalog } from './capabilityResolver.js'
 import { StaticToolRegistry } from './toolRegistry.js'
 
@@ -28,7 +28,6 @@ test('resolveToolCatalog keeps explicitly granted categorized tools available', 
   ])
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    permissions: ['project.read'],
     tools: [
       { name: 'studio.production_context', mode: 'allow' as const, approval: 'never' as const },
       { name: 'studio.general_context', mode: 'allow' as const, approval: 'never' as const },
@@ -60,7 +59,7 @@ test('resolveToolCatalog keeps explicitly granted categorized tools available', 
       category: 'production_proposal',
       instruction: '',
       resolvedPriority: 1,
-      activationReason: 'applies_when',
+      activationReason: 'manifest',
       compiledInstruction: '',
       warnings: [],
     }],

@@ -1,0 +1,41 @@
+{
+  "name": "movscript_create_memory",
+  "description": "Create a local agent memory in the current project.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "title",
+      "kind",
+      "content"
+    ],
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "preference",
+          "fact",
+          "item_ref",
+          "entity_ref",
+          "draft",
+          "decision",
+          "warning"
+        ]
+      },
+      "content": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "memory.write",
+  "risk": "draft",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

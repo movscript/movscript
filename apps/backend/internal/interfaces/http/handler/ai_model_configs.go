@@ -35,7 +35,7 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 
 	cfg, err := h.service.CreateModelConfig(c.Request.Context(), parseUint(c.Param("id")), req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeModelConfigError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, cfg)
@@ -118,6 +118,28 @@ func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, cfg)
 }
 
+func (h *AIHandler) PreviewModelConfigContract(c *gin.Context) {
+	var req struct {
+		AdapterType           string `json:"adapter_type"`
+		CustomCapabilities    string `json:"custom_capabilities"`
+		CustomSupportedParams string `json:"custom_supported_params"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	result, err := h.service.PreviewModelConfigContract(aiadminapp.PreviewModelConfigContractInput{
+		AdapterType:           req.AdapterType,
+		CustomCapabilities:    req.CustomCapabilities,
+		CustomSupportedParams: req.CustomSupportedParams,
+	})
+	if err != nil {
+		writeModelConfigError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 // TestModelConfig runs a minimal generation to verify a model config works.
 func (h *AIHandler) TestModelConfig(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
@@ -150,8 +172,12 @@ func (h *AIHandler) DebugModelConfig(c *gin.Context) {
 
 func writeModelConfigError(c *gin.Context, err error) {
 	if errors.Is(err, aiadminapp.ErrNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": err.Error(), "error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	if errors.Is(err, aiadminapp.ErrInvalidModelConfig) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_MODEL_CONFIG", "message": err.Error(), "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error(), "error": err.Error()})
 }

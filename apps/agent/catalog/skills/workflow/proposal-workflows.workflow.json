@@ -9,9 +9,27 @@
       "priority": 860,
       "enabled": true,
       "triggers": [
-        { "kind": "intent", "id": "production_proposal" },
-        { "kind": "context", "selector": { "mode": ["production-orchestration"] } },
-        { "kind": "keyword", "any": ["制作提案", "制作编排", "production proposal", "production_proposal"] }
+        {
+          "kind": "intent",
+          "id": "production_proposal"
+        },
+        {
+          "kind": "context",
+          "selector": {
+            "mode": [
+              "production-orchestration"
+            ]
+          }
+        },
+        {
+          "kind": "keyword",
+          "any": [
+            "制作提案",
+            "制作编排",
+            "production proposal",
+            "production_proposal"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -22,9 +40,11 @@
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "schemaRefs": ["schema://movscript.production_proposal.v1"],
-      "instructionTemplate": "Goal: produce or edit one local production_proposal draft for a single production. Do not create formal production entities.\n\nDraft schema: {{schema:movscript.production_proposal.v1.id}}\n\n{{schema:movscript.production_proposal.v1}}\n\nUse context and draft tools: {{tool:movscript_get_current_context}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}. Ask for projectId or productionId only when missing and necessary: {{tool:movscript_request_user_input}}.\n\nWorkflow: verify context, read any upstream project_proposal draft, find or create the production_proposal draft, patch with JSON Pointer operations, validate, then run preview_apply. If validation or backend errors appear, patch the specific paths and preview again.",
-      "outputContract": "Reply with draftId, projectId, productionId, draft status, last preview_apply ok/stage, and counts for segments and scene moments."
+      "schemaRefs": [
+        "schema://movscript.production_proposal.v1"
+      ],
+      "outputContract": "Reply with draftId, projectId, productionId, draft status, last preview_apply ok/stage, and counts for segments and scene moments.",
+      "instructionTemplatePath": "production-proposal.workflow.md"
     },
     {
       "id": "movscript.workflow.dual-orchestration",
@@ -35,9 +55,26 @@
       "priority": 910,
       "enabled": true,
       "triggers": [
-        { "kind": "intent", "id": "dual_orchestration" },
-        { "kind": "context", "selector": { "mode": ["dual-orchestration"] } },
-        { "kind": "keyword", "any": ["双阶段提案", "项目和制作", "dual orchestration"] }
+        {
+          "kind": "intent",
+          "id": "dual_orchestration"
+        },
+        {
+          "kind": "context",
+          "selector": {
+            "mode": [
+              "dual-orchestration"
+            ]
+          }
+        },
+        {
+          "kind": "keyword",
+          "any": [
+            "双阶段提案",
+            "项目和制作",
+            "dual orchestration"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -52,8 +89,8 @@
         "schema://movscript.project_proposal.v1",
         "schema://movscript.production_proposal.v1"
       ],
-      "instructionTemplate": "Goal: maintain project_proposal first, then production_proposal from that upstream basis. Both artifacts remain local review drafts.\n\nProject schema: {{schema:movscript.project_proposal.v1.id}}\n{{schema:movscript.project_proposal.v1}}\n\nProduction schema: {{schema:movscript.production_proposal.v1.id}}\n{{schema:movscript.production_proposal.v1}}\n\nUse draft tools to find, create, patch, validate, and preview each draft. Preview the project draft before using its references in the production draft. If either preview fails, repair that draft before summarizing completion.",
-      "outputContract": "Return both draft ids, preview status for each, and a short dependency note showing how production references the project proposal."
+      "outputContract": "Return both draft ids, preview status for each, and a short dependency note showing how production references the project proposal.",
+      "instructionTemplatePath": "dual-orchestration.workflow.md"
     },
     {
       "id": "movscript.workflow.asset-proposal",
@@ -64,9 +101,27 @@
       "priority": 850,
       "enabled": true,
       "triggers": [
-        { "kind": "intent", "id": "asset_proposal" },
-        { "kind": "context", "selector": { "mode": ["asset-proposal"] } },
-        { "kind": "keyword", "any": ["素材提案", "素材候选", "asset proposal", "asset_proposal"] }
+        {
+          "kind": "intent",
+          "id": "asset_proposal"
+        },
+        {
+          "kind": "context",
+          "selector": {
+            "mode": [
+              "asset-proposal"
+            ]
+          }
+        },
+        {
+          "kind": "keyword",
+          "any": [
+            "素材提案",
+            "素材候选",
+            "asset proposal",
+            "asset_proposal"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -77,9 +132,11 @@
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "schemaRefs": ["schema://movscript.asset_proposal.v1"],
-      "instructionTemplate": "Goal: produce or edit a local asset_proposal draft for review before any generation job.\n\nDraft schema: {{schema:movscript.asset_proposal.v1.id}}\n\n{{schema:movscript.asset_proposal.v1}}\n\nPlan concrete candidate prompts, references, model needs, risks, and acceptance criteria. Use draft tools only; do not create generation jobs in this workflow.",
-      "outputContract": "Return draftId, asset slot or selected target when known, candidate count, unresolved risks, and review status."
+      "schemaRefs": [
+        "schema://movscript.asset_proposal.v1"
+      ],
+      "outputContract": "Return draftId, asset slot or selected target when known, candidate count, unresolved risks, and review status.",
+      "instructionTemplatePath": "asset-proposal.workflow.md"
     },
     {
       "id": "movscript.workflow.content-unit-proposal",
@@ -90,9 +147,26 @@
       "priority": 830,
       "enabled": true,
       "triggers": [
-        { "kind": "intent", "id": "content_unit_proposal" },
-        { "kind": "context", "selector": { "mode": ["content-unit-proposal"] } },
-        { "kind": "keyword", "any": ["内容单元", "content unit", "content_unit_proposal"] }
+        {
+          "kind": "intent",
+          "id": "content_unit_proposal"
+        },
+        {
+          "kind": "context",
+          "selector": {
+            "mode": [
+              "content-unit-proposal"
+            ]
+          }
+        },
+        {
+          "kind": "keyword",
+          "any": [
+            "内容单元",
+            "content unit",
+            "content_unit_proposal"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -103,9 +177,11 @@
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "schemaRefs": ["schema://movscript.content_unit_proposal.v1"],
-      "instructionTemplate": "Goal: produce or edit a local content_unit_proposal draft for scene or content-unit structure.\n\nDraft schema: {{schema:movscript.content_unit_proposal.v1.id}}\n\n{{schema:movscript.content_unit_proposal.v1}}\n\nKeep structure, media plans, and generated assets separate. Patch the draft, validate, and preview_apply before summarizing.",
-      "outputContract": "Return draftId, productionId when known, content unit count, preview status, and structural gaps."
+      "schemaRefs": [
+        "schema://movscript.content_unit_proposal.v1"
+      ],
+      "outputContract": "Return draftId, productionId when known, content unit count, preview status, and structural gaps.",
+      "instructionTemplatePath": "content-unit-proposal.workflow.md"
     },
     {
       "id": "movscript.workflow.content-unit-media-proposal",
@@ -116,9 +192,27 @@
       "priority": 820,
       "enabled": true,
       "triggers": [
-        { "kind": "intent", "id": "content_unit_media_proposal" },
-        { "kind": "context", "selector": { "mode": ["content-unit-media-proposal"] } },
-        { "kind": "keyword", "any": ["媒体方案", "关键帧", "content unit media", "content_unit_media_proposal"] }
+        {
+          "kind": "intent",
+          "id": "content_unit_media_proposal"
+        },
+        {
+          "kind": "context",
+          "selector": {
+            "mode": [
+              "content-unit-media-proposal"
+            ]
+          }
+        },
+        {
+          "kind": "keyword",
+          "any": [
+            "媒体方案",
+            "关键帧",
+            "content unit media",
+            "content_unit_media_proposal"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -129,9 +223,11 @@
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "schemaRefs": ["schema://movscript.content_unit_media_proposal.v1"],
-      "instructionTemplate": "Goal: produce or edit a local content_unit_media_proposal draft for media, shots, or keyframes.\n\nDraft schema: {{schema:movscript.content_unit_media_proposal.v1.id}}\n\n{{schema:movscript.content_unit_media_proposal.v1}}\n\nReference existing content units and asset needs. Do not launch generation jobs here; keep this workflow as media planning and review.",
-      "outputContract": "Return draftId, content unit targets, planned media/keyframe count, preview status, and open decisions."
+      "schemaRefs": [
+        "schema://movscript.content_unit_media_proposal.v1"
+      ],
+      "outputContract": "Return draftId, content unit targets, planned media/keyframe count, preview status, and open decisions.",
+      "instructionTemplatePath": "content-unit-media-proposal.workflow.md"
     },
     {
       "id": "movscript.workflow.script-split",
@@ -142,9 +238,27 @@
       "priority": 800,
       "enabled": true,
       "triggers": [
-        { "kind": "intent", "id": "script_split" },
-        { "kind": "context", "selector": { "mode": ["script-split"] } },
-        { "kind": "keyword", "any": ["剧本拆分", "一键制作", "script split", "script_split"] }
+        {
+          "kind": "intent",
+          "id": "script_split"
+        },
+        {
+          "kind": "context",
+          "selector": {
+            "mode": [
+              "script-split"
+            ]
+          }
+        },
+        {
+          "kind": "keyword",
+          "any": [
+            "剧本拆分",
+            "一键制作",
+            "script split",
+            "script_split"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -155,9 +269,11 @@
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "schemaRefs": ["schema://movscript.script_split_proposal.v1"],
-      "instructionTemplate": "Goal: create or edit a local script_split_proposal draft using source summaries and line ranges, not copied script body text.\n\nDraft schema: {{schema:movscript.script_split_proposal.v1.id}}\n\n{{schema:movscript.script_split_proposal.v1}}\n\nUse context and draft tools to create, patch, validate, and preview_apply. Keep warnings for uncertain line ranges or missing source metadata.",
-      "outputContract": "Return draftId, source title, episode or production count, preview status, warnings, and confidence."
+      "schemaRefs": [
+        "schema://movscript.script_split_proposal.v1"
+      ],
+      "outputContract": "Return draftId, source title, episode or production count, preview status, warnings, and confidence.",
+      "instructionTemplatePath": "script-split.workflow.md"
     },
     {
       "id": "movscript.workflow.setting-prep",
@@ -168,17 +284,34 @@
       "priority": 760,
       "enabled": true,
       "triggers": [
-        { "kind": "intent", "id": "setting_prep" },
-        { "kind": "context", "selector": { "mode": ["setting-prep"] } },
-        { "kind": "keyword", "any": ["设定准备", "设定完善", "creative reference"] }
+        {
+          "kind": "intent",
+          "id": "setting_prep"
+        },
+        {
+          "kind": "context",
+          "selector": {
+            "mode": [
+              "setting-prep"
+            ]
+          }
+        },
+        {
+          "kind": "keyword",
+          "any": [
+            "设定准备",
+            "设定完善",
+            "creative reference"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "instructionTemplate": "Goal: improve a selected creative reference or identify the minimum missing facts needed to make it production-ready. Use current context and ask the user only when the selected target is ambiguous.",
-      "outputContract": "Return the improvement suggestion, missing data points, and whether a proposal draft is needed next."
+      "outputContract": "Return the improvement suggestion, missing data points, and whether a proposal draft is needed next.",
+      "instructionTemplatePath": "setting-prep.workflow.md"
     }
   ]
 }

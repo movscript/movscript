@@ -3,7 +3,7 @@ import type { AgentMemory } from '../memory/types.js'
 
 export function renderDebugContextText(context: AgentDebugContextPanel): string {
   const lines: string[] = [
-    'Current work context is described with business names and short summaries. Use tool references only when a tool requires them; do not treat references as the meaning of the work.',
+    'Current context is a compact execution envelope. Retrieve lists or details with tools when they matter.',
     '',
     '### Screen',
     `- Location: ${context.route.pathname}${context.route.search ?? ''}${context.route.hash ?? ''}`,
@@ -16,20 +16,8 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
   if (context.project?.status) lines.push(`- Status: ${context.project.status}`)
   if (context.project) lines.push(`- Business reference: project#${context.project.id}`)
   if (context.productionId !== undefined) lines.push(`- Active production business reference: production#${context.productionId}`)
-  lines.push('', '### All Projects')
-  if (context.projects.length === 0) {
-    lines.push(context.projectsError ? `- Project list unavailable: ${context.projectsError}` : '- No projects found.')
-  } else {
-    context.projects.slice(0, 50).forEach((project, index) => {
-      const details = [
-        project.description,
-        project.status ? `状态：${project.status}` : undefined,
-        typeof project.totalEpisodes === 'number' ? `集数：${project.totalEpisodes}` : undefined,
-      ].filter(Boolean).join('；')
-      lines.push(`${index + 1}. 项目${index + 1}的名字${project.name}${details ? `，${details}` : ''}`)
-      lines.push(`   Business reference: project#${project.id}`)
-    })
-  }
+  if (!context.project && context.projectsError) lines.push(`- Project list status: unavailable (${context.projectsError})`)
+  else if (!context.project && context.projects.length > 0) lines.push(`- Project list status: ${context.projects.length} visible project(s); call movscript_list_projects if selection is needed.`)
   lines.push('', '### Selection')
   lines.push(context.selection
     ? `- Title: ${context.selection.label ?? businessReferenceLabel(context.selection.entityType, context.selection.entityId)}`
@@ -37,7 +25,62 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
   if (context.selection) lines.push(`- Business area: ${businessKindLabel(context.selection.entityType)}`, `- Business reference: ${businessReferenceLabel(context.selection.entityType, context.selection.entityId)}`)
   if (context.statusDigest && context.statusDigest.length > 0) {
     lines.push('', '### Current Status Digest')
-    for (const item of context.statusDigest.slice(0, 20)) lines.push(`- ${item}`)
+    for (const item of context.statusDigest.slice(0, 6)) lines.push(`- ${item}`)
+  }
+  if (context.agentPlan) {
+    lines.push('', '### Agent Plan')
+    lines.push(`- Plan: ${context.agentPlan.title}`)
+    lines.push(`- Plan reference: plan#${context.agentPlan.id}`)
+    lines.push(`- Status: ${context.agentPlan.status}`)
+    lines.push(`- Progress: ${Math.round(context.agentPlan.progress * 100)}%`)
+    if (context.agentPlan.role) lines.push(`- Current agent role: ${context.agentPlan.role}`)
+    if (context.agentPlan.currentTaskId) lines.push(`- Current task reference: task#${context.agentPlan.currentTaskId}`)
+    if (context.agentPlan.rootRunId) lines.push(`- Planner run reference: run#${context.agentPlan.rootRunId}`)
+    if (context.agentPlan.tasks.length > 0) {
+      lines.push('', '#### Plan Tasks')
+      for (const task of context.agentPlan.tasks.slice(0, 8)) {
+        const details = [
+          `status=${task.status}`,
+          `progress=${Math.round(task.progress * 100)}%`,
+          task.subagentName ? `taskRef=task#${task.id}` : undefined,
+          task.ownerRunId ? `owner=run#${task.ownerRunId}` : undefined,
+          task.deps.length > 0 ? `deps=${task.deps.map((dep) => `task#${dep}`).join(',')}` : undefined,
+          task.blockedReason ? `blocked=${task.blockedReason}` : undefined,
+        ].filter(Boolean).join('; ')
+        const label = task.subagentName ? `${task.subagentName}: ${task.title}` : `task#${task.id}: ${task.title}`
+        lines.push(`- ${label}${details ? ` (${details})` : ''}`)
+      }
+    }
+    if (context.agentPlan.workers.length > 0) {
+      lines.push('', '#### Worker Subagents')
+      for (const worker of context.agentPlan.workers.slice(0, 8)) {
+        const details = [
+          worker.subagentName ? `runRef=run#${worker.id}` : undefined,
+          worker.taskId ? `task=task#${worker.taskId}` : undefined,
+          worker.parentRunId ? `parent=run#${worker.parentRunId}` : undefined,
+          typeof worker.progress === 'number' ? `progress=${Math.round(worker.progress * 100)}%` : undefined,
+          worker.blockedReason ? `blocked=${worker.blockedReason}` : undefined,
+        ].filter(Boolean).join('; ')
+        const label = worker.subagentName ?? `run#${worker.id}`
+        lines.push(`- ${label}: ${worker.status}${details ? ` (${details})` : ''}`)
+      }
+    }
+    if (context.agentPlan.artifacts.length > 0) {
+      lines.push('', '#### Plan Artifact References')
+      for (const artifact of context.agentPlan.artifacts.slice(0, 12)) {
+        const details = [
+          `type=${artifact.type}`,
+          artifact.subagentName ? `subagent=${artifact.subagentName}` : undefined,
+          `task=task#${artifact.taskId}`,
+          artifact.sourceRunId ? `run=run#${artifact.sourceRunId}` : undefined,
+          artifact.sourceTaskId ? `sourceTask=task#${artifact.sourceTaskId}` : undefined,
+          artifact.toolName ? `tool=${artifact.toolName}` : undefined,
+          artifact.policy ? `policy=${artifact.policy}` : undefined,
+          artifact.uri ? `ref=${artifact.uri}` : undefined,
+        ].filter(Boolean).join('; ')
+        lines.push(`- ${artifact.title ?? artifact.id}${details ? ` (${details})` : ''}`)
+      }
+    }
   }
   if (context.user) {
     lines.push('', '### User')
@@ -47,35 +90,27 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
   }
   if (context.recentResources.length > 0) {
     lines.push('', '### Recent Resources')
-    for (const resource of context.recentResources.slice(0, 12)) {
-      lines.push(`- Title: ${resource.name}`)
-      lines.push(`  Summary: ${resource.type}${resource.mimeType ? `, ${resource.mimeType}` : ''}${resource.size ? `, ${resource.size} bytes` : ''}`)
-      lines.push(`  Business reference: resource#${resource.id}`)
-    }
+    lines.push(`- ${context.recentResources.length} recent resource(s) visible; call context/resource tools for details when needed.`)
   }
   if (context.attachments.length > 0) {
     lines.push('', '### Message Attachments')
-    for (const attachment of context.attachments) {
-      lines.push(`- Title: ${attachment.name}`)
-      lines.push(`  Summary: ${attachment.type}`)
-      if (attachment.resourceId !== undefined) lines.push(`  Business reference: resource#${attachment.resourceId}`)
+    for (const attachment of context.attachments.slice(0, 6)) {
+      const reference = attachment.resourceId !== undefined ? `; resource#${attachment.resourceId}` : ''
+      lines.push(`- ${attachment.name} (${attachment.type}${reference})`)
     }
+    if (context.attachments.length > 6) lines.push(`- ${context.attachments.length - 6} more attachment(s) omitted from the default envelope.`)
   }
   if (context.labels.length > 0) lines.push('', '### Labels', ...context.labels.map((label) => `- ${label}`))
-  if (context.rawContextHints && context.rawContextHints.length > 0) {
-    lines.push('', '### Available Context Fields')
-    for (const hint of context.rawContextHints.slice(0, 20)) lines.push(`- ${hint}`)
-  }
   return lines.join('\n')
 }
 
 export function renderMemoriesText(memories: AgentMemory[]): string {
   if (memories.length === 0) return 'No relevant memories.'
   return [
-    'Startup memories:',
-    ...memories.slice(0, 12).map((memory) => `- [${memory.kind}] ${memory.title}: ${truncate(memory.content, 120)}`),
+    'Startup memory index:',
+    ...memories.slice(0, 12).map((memory) => `- [${memory.kind}] ${memory.title} (memory#${memory.id})`),
     '',
-    'Use movscript_search_memories for more memory context when needed.',
+    'This is only an index. Use movscript_search_memories or movscript_get_memory before relying on memory content.',
   ].join('\n')
 }
 
@@ -92,18 +127,16 @@ export function renderMemoryFilesText(memories: AgentMemory[], memoryStorePath?:
 
 export function renderToolCatalogText(catalog: ResolvedToolCatalog): string {
   const lines = [
-    'Available tools:',
-    'Tool names are execution handles. Choose tools by business intent and description; avoid generic edit utilities when a concrete business tool exists.',
+    'Use model tool schemas as the source of truth for parameters and detailed descriptions.',
+    'Choose tools by business intent. If a needed capability is absent, inspect catalog/retrieval tools before saying it is missing.',
   ]
-  if (catalog.available.length === 0) lines.push('- none')
-  for (const tool of catalog.available) {
-    lines.push(`- ${tool.name} (${tool.risk ?? 'unknown'}): ${tool.description ?? ''}`)
-  }
+  lines.push(`Available tool handles: ${catalog.available.length > 0 ? catalog.available.map((tool) => tool.name).join(', ') : 'none'}`)
   if (catalog.blocked.length > 0) {
-    lines.push('', 'Blocked tools:')
-    for (const tool of catalog.blocked) {
+    lines.push('Blocked tool handles:')
+    for (const tool of catalog.blocked.slice(0, 12)) {
       lines.push(`- ${tool.name}: ${tool.unavailableReason ?? 'blocked'}`)
     }
+    if (catalog.blocked.length > 12) lines.push(`- ${catalog.blocked.length - 12} more blocked tool(s) omitted.`)
   }
   return lines.join('\n')
 }

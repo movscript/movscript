@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
+import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { StaticToolRegistry } from '../tools/toolRegistry.js'
 import { EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER } from '../contracts/runtimeContract.js'
@@ -22,7 +22,6 @@ test('planPreviewToolRequests predicts approval-gated write calls without draft 
   const draftStore = new InMemoryAgentDraftStore()
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    permissions: ['project.write'],
     tools: [{ name: 'movscript_create_script', mode: 'allow' as const, approval: 'always' as const }],
   }
 

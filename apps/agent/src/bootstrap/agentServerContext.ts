@@ -5,7 +5,7 @@ import { FileAgentDraftStore, resolveAgentDraftPath } from '../drafts/draftStore
 import { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
 import { FileAgentMemoryStore } from '../memory/fileMemoryStore.js'
-import { FileAgentCatalogStateStore, resolveAgentCatalogStatePath } from '../manifest/catalogState.js'
+import { FileAgentCatalogStateStore, resolveAgentCatalogStatePath } from '../catalog/state.js'
 import { RuntimeModelConfigStore, resolveRuntimeModelConfigPath } from '../model/modelConfig.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
@@ -48,13 +48,8 @@ export interface AgentRuntimeCapabilities {
     toolsDir: string
     builtinSkillsDir: string
     builtinToolsDir: string
-    bundlesDir: string
-    builtinBundlesDir: string
     skillCount: number
     toolCount: number
-    bundleCount: number
-    activeBundleIds: string[]
-    availableBundleIds: string[]
     warnings: string[]
   }
   paths: AgentServerContext['paths']
@@ -119,13 +114,8 @@ export function createAgentServerContext(): AgentServerContext {
       toolsDir: pluginCatalog.toolsDir,
       builtinSkillsDir: pluginCatalog.builtinSkillsDir,
       builtinToolsDir: pluginCatalog.builtinToolsDir,
-      bundlesDir: pluginCatalog.bundlesDir,
-      builtinBundlesDir: pluginCatalog.builtinBundlesDir,
       skillCount: pluginCatalog.skills.length,
       toolCount: pluginCatalog.tools.length,
-      bundleCount: pluginCatalog.bundles.length,
-      activeBundleIds: pluginCatalog.activeBundleIds,
-      availableBundleIds: pluginCatalog.availableBundleIds,
     },
     pluginWarnings: pluginCatalog.warnings,
     updateState,
@@ -183,13 +173,8 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
       toolsDir: pluginCatalog.toolsDir,
       builtinSkillsDir: pluginCatalog.builtinSkillsDir,
       builtinToolsDir: pluginCatalog.builtinToolsDir,
-      bundlesDir: pluginCatalog.bundlesDir,
-      builtinBundlesDir: pluginCatalog.builtinBundlesDir,
       skillCount: pluginCatalog.skills.length,
       toolCount: pluginCatalog.tools.length,
-      bundleCount: pluginCatalog.bundles.length,
-      activeBundleIds: pluginCatalog.activeBundleIds,
-      availableBundleIds: pluginCatalog.availableBundleIds,
       warnings: pluginCatalog.warnings,
     },
     paths,

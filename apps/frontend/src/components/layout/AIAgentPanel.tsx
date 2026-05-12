@@ -8,7 +8,7 @@ import {
   Image, Video, FileText, Mic, File, Workflow,
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
   Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
-  SlidersHorizontal, Wrench, Route,
+  SlidersHorizontal, Wrench, Route, PlayIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getAPIBaseURL, getAPIV1BaseURL } from '@/lib/config'
@@ -52,6 +52,7 @@ import {
   type AgentRunStreamEvent,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
+import { actionableRunForPlan, buildPlanArtifactSummary, buildPlanTaskViews, plannerRunIdForPlanAction, shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
 import {
   AgentBody,
   AgentChatMessage,
@@ -171,6 +172,16 @@ function MarkdownContent({ text, attachments }: { text: string; attachments?: Ag
       })}
     </div>
   )
+}
+
+function hideGeneratedResultTechnicalSummary(text: string) {
+  const hiddenLine = /^(?:Command:\s*\/(?:image|video)\b|Run:\s*\S+|Thread:\s*\S+|Job\s+#\d+|Status:\s*\S+|Output resources?:\s*#?\d+(?:\s*,\s*#?\d+)*)\s*$/i
+  return text
+    .split('\n')
+    .filter((line) => !hiddenLine.test(line.trim()))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 function formatBytes(bytes: number) {
@@ -1745,6 +1756,34 @@ function durationLabel(start: string | undefined, end: string | undefined) {
   return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`
 }
 
+function formatDurationLabel(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return ''
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
+  return `${Math.round(ms / 60_000)}m`
+}
+
+type PlanDispatchSettings = {
+  maxWorkers: number
+  maxTaskAttempts: number
+  workerTimeoutMs: number
+}
+
+const DEFAULT_PLAN_DISPATCH_SETTINGS: PlanDispatchSettings = {
+  maxWorkers: 2,
+  maxTaskAttempts: 2,
+  workerTimeoutMs: 15 * 60_000,
+}
+
+const PLAN_MAX_WORKER_OPTIONS = [1, 2, 3, 4]
+const PLAN_MAX_TASK_ATTEMPT_OPTIONS = [1, 2, 3]
+const PLAN_WORKER_TIMEOUT_OPTIONS = [
+  { label: '5m', value: 5 * 60_000 },
+  { label: '15m', value: 15 * 60_000 },
+  { label: '30m', value: 30 * 60_000 },
+  { label: '1h', value: 60 * 60_000 },
+]
+
 function activitySummary(activity: ChatRunActivity) {
   const toolCount = activity.steps.length
   const completedCount = activity.steps.filter((step) => step.status === 'completed').length
@@ -1941,11 +1980,51 @@ function RunActivityPanel({
   )
 }
 
-function PlanOverviewPanel({ snapshot }: { snapshot?: AgentPlanSnapshot }) {
+function PlanOverviewPanel({
+  snapshot,
+  busy,
+  onDispatch,
+  onReplan,
+  onCancelTree,
+  onAcceptReview,
+  onReworkReview,
+  onRejectReview,
+  dispatchSettings,
+  onDispatchSettingsChange,
+}: {
+  snapshot?: AgentPlanSnapshot
+  busy?: boolean
+  onDispatch?: () => void
+  onReplan?: () => void
+  onCancelTree?: () => void
+  onAcceptReview?: (taskId: string) => void
+  onReworkReview?: (taskId: string) => void
+  onRejectReview?: (taskId: string) => void
+  dispatchSettings?: PlanDispatchSettings
+  onDispatchSettingsChange?: (settings: PlanDispatchSettings) => void
+}) {
+  const [artifactTypeFilter, setArtifactTypeFilter] = useState<'all' | string>('all')
   if (!snapshot) return null
-  const tasks = [...snapshot.tasks].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  const taskViews = buildPlanTaskViews(snapshot)
+  const artifactSummary = buildPlanArtifactSummary(snapshot)
+  const availableArtifactTypes = new Set(artifactSummary.byType.map((item) => item.type))
+  const activeArtifactTypeFilter = artifactTypeFilter === 'all' || availableArtifactTypes.has(artifactTypeFilter)
+    ? artifactTypeFilter
+    : 'all'
+  const visiblePlanArtifacts = activeArtifactTypeFilter === 'all'
+    ? artifactSummary.artifacts
+    : artifactSummary.artifacts.filter((artifact) => artifact.type === activeArtifactTypeFilter)
+  const tasks = taskViews.map((view) => view.task)
   const completed = tasks.filter((task) => task.status === 'done').length
   const activeRuns = snapshot.runs.filter((run) => run.status === 'queued' || run.status === 'in_progress' || run.status === 'requires_action').length
+  const rootRun = snapshot.runs.find((run) => run.id === snapshot.plan.rootRunId)
+  const canDispatch = activeRuns === 0 && tasks.some((task) => task.status === 'pending')
+  const canReplan = tasks.some((task) => task.status === 'blocked' || task.status === 'failed' || task.status === 'cancelled')
+  const canCancel = activeRuns > 0 || (rootRun && !isTerminalAgentRun(rootRun))
+  const settings = dispatchSettings ?? DEFAULT_PLAN_DISPATCH_SETTINGS
+  const updateSettings = (patch: Partial<PlanDispatchSettings>) => {
+    onDispatchSettingsChange?.({ ...settings, ...patch })
+  }
   return (
     <div className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 text-xs">
       <div className="flex min-w-0 items-center justify-between gap-2">
@@ -1962,34 +2041,234 @@ function PlanOverviewPanel({ snapshot }: { snapshot?: AgentPlanSnapshot }) {
           {snapshot.plan.status.replace(/_/g, ' ')}
         </Badge>
       </div>
+      {(onDispatch || onReplan || onCancelTree) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1">
+          {onDispatch && (
+            <Button type="button" size="xs" variant="outline" className="h-6 px-1.5 text-[9px]" disabled={busy || !canDispatch} onClick={onDispatch}>
+              {busy ? <Loader2 size={10} className="animate-spin" /> : <PlayIcon size={10} />}
+              Dispatch
+            </Button>
+          )}
+          {onReplan && (
+            <Button type="button" size="xs" variant="outline" className="h-6 px-1.5 text-[9px]" disabled={busy || !canReplan} onClick={onReplan}>
+              {busy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+              Replan
+            </Button>
+          )}
+          {onCancelTree && (
+            <Button type="button" size="xs" variant="ghost" className="h-6 px-1.5 text-[9px] text-destructive hover:text-destructive" disabled={busy || !canCancel} onClick={onCancelTree}>
+              {busy ? <Loader2 size={10} className="animate-spin" /> : <CircleStop size={10} />}
+              Cancel tree
+            </Button>
+          )}
+        </div>
+      )}
+      {onDispatchSettingsChange && (
+        <div className="mt-2 grid grid-cols-3 gap-1">
+          <Select value={String(settings.maxWorkers)} onValueChange={(next) => updateSettings({ maxWorkers: Number(next) })}>
+            <SelectTrigger size="sm" className="h-6 min-w-0 text-[9px]" disabled={busy}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PLAN_MAX_WORKER_OPTIONS.map((value) => (
+                <SelectItem key={value} value={String(value)}>{value} worker{value === 1 ? '' : 's'}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={String(settings.maxTaskAttempts)} onValueChange={(next) => updateSettings({ maxTaskAttempts: Number(next) })}>
+            <SelectTrigger size="sm" className="h-6 min-w-0 text-[9px]" disabled={busy}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PLAN_MAX_TASK_ATTEMPT_OPTIONS.map((value) => (
+                <SelectItem key={value} value={String(value)}>{value} attempt{value === 1 ? '' : 's'}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={String(settings.workerTimeoutMs)} onValueChange={(next) => updateSettings({ workerTimeoutMs: Number(next) })}>
+            <SelectTrigger size="sm" className="h-6 min-w-0 text-[9px]" disabled={busy}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PLAN_WORKER_TIMEOUT_OPTIONS.map((item) => (
+                <SelectItem key={item.value} value={String(item.value)}>{item.label} timeout</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full bg-primary"
           style={{ width: `${Math.round(Math.max(0, Math.min(1, snapshot.plan.progress)) * 100)}%` }}
         />
       </div>
+      {artifactSummary.totalCount > 0 && (
+        <details className="mt-2 rounded border border-border/70 bg-muted/10">
+          <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-2 py-1.5 text-[9px] font-medium text-foreground">
+            <FileText size={10} />
+            <span>{artifactSummary.totalCount} plan artifact{artifactSummary.totalCount === 1 ? '' : 's'}</span>
+            {artifactSummary.byType.slice(0, 3).map((item) => (
+              <Badge key={item.type} variant="outline" className="text-[8px] leading-3 px-1 py-0">
+                {item.type} {item.count}
+              </Badge>
+            ))}
+          </summary>
+          <div className="space-y-1 border-t border-border/60 px-2 py-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[9px] text-muted-foreground">
+                Showing {Math.min(visiblePlanArtifacts.length, 6)}/{visiblePlanArtifacts.length}
+              </span>
+              <Select value={activeArtifactTypeFilter} onValueChange={(next) => setArtifactTypeFilter(next)}>
+                <SelectTrigger size="sm" className="h-6 w-32 max-w-full text-[9px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">all types</SelectItem>
+                  {artifactSummary.byType.map((item) => (
+                    <SelectItem key={item.type} value={item.type}>{item.type} ({item.count})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {visiblePlanArtifacts.slice(0, 6).map((artifact) => (
+              <div key={artifact.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
+                <div className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate font-medium text-foreground">{artifact.label}</span>
+                  <span className="shrink-0">{artifact.type}</span>
+                </div>
+                <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                  {artifact.uri && <span className="truncate">uri {artifact.uri}</span>}
+                  {artifact.sourceRunId && <span className="truncate">run {artifact.sourceRunId}</span>}
+                  {artifact.sourceTaskId && <span className="truncate">task {artifact.sourceTaskId}</span>}
+                  {artifact.subagentName && <span className="truncate">agent {artifact.subagentName}</span>}
+                  {artifact.toolName && <span className="truncate">tool {artifact.toolName}</span>}
+                  {artifact.policy && <span className="truncate">policy {artifact.policy}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
       {tasks.length > 0 && (
         <div className="mt-2 space-y-1">
-          {tasks.map((task) => (
-            <div key={task.id} className="flex min-w-0 items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5">
-              <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', workflowDotClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : 'in_progress'))} />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center justify-between gap-2">
-                  <span className="truncate text-[10px] font-medium text-foreground">{task.title}</span>
-                  <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[9px]', workflowStatusClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'failed' : 'in_progress'))}>
-                    {task.status.replace(/_/g, ' ')}
-                  </span>
+          {taskViews.map((view) => {
+            const task = view.task
+            return (
+              <div key={task.id} className="flex min-w-0 items-start gap-1.5 rounded border border-border/70 bg-background px-2 py-1.5">
+                <span className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', workflowDotClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : 'in_progress'))} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex min-w-0 items-center justify-between gap-2">
+                    <span className="truncate text-[10px] font-medium text-foreground">{task.title}</span>
+                    <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[9px]', workflowStatusClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'failed' : 'in_progress'))}>
+                      {task.status.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] text-muted-foreground">
+                    <span>{Math.round(Math.max(0, Math.min(1, task.progress)) * 100)}%</span>
+                    {view.ownerLabel ? (
+                      <span className={cn('truncate', view.subagentName ? 'font-medium text-foreground' : '')}>{view.ownerLabel}</span>
+                    ) : null}
+                    {view.waitingInputCount > 0 && <span>{view.waitingInputCount} input</span>}
+                    {view.waitingApprovalCount > 0 && <span>{view.waitingApprovalCount} approval</span>}
+                    {view.retryAttempt && <span>attempt {view.retryAttempt}</span>}
+                    {view.previousStatus && <span>from {view.previousStatus.replace(/_/g, ' ')}</span>}
+                    {view.workerTimeoutMs && <span>timeout {formatDurationLabel(view.workerTimeoutMs)}</span>}
+                    {view.timedOutRunId && <span className="truncate">timed out {view.timedOutRunId}</span>}
+                    {view.previousOwnerRunId && <span className="truncate">prev {view.previousOwnerRunId}</span>}
+                    {view.artifactCount > 0 && <span>{view.artifactCount} artifact{view.artifactCount === 1 ? '' : 's'}</span>}
+                  </div>
+                  {view.blocker && (
+                    <p className="mt-1 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">{view.blocker}</p>
+                  )}
+                  {(view.pendingInputs.length > 0 || view.pendingApprovals.length > 0) && (
+                    <details className="mt-1 rounded border border-amber-500/25 bg-amber-500/5">
+                      <summary className="flex cursor-pointer list-none items-center gap-1 px-1.5 py-1 text-[9px] font-medium text-amber-800 dark:text-amber-300">
+                        <ClipboardCheck size={10} />
+                        <span>{view.pendingInputs.length + view.pendingApprovals.length} action needed</span>
+                      </summary>
+                      <div className="space-y-1 border-t border-amber-500/20 px-1.5 py-1">
+                        {view.pendingInputs.map((input) => (
+                          <div key={input.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed">
+                            <div className="flex min-w-0 items-center justify-between gap-2">
+                              <span className="truncate font-medium text-foreground">{input.title}</span>
+                              <span className="shrink-0 text-muted-foreground">{input.inputType}</span>
+                            </div>
+                            <p className="mt-0.5 text-muted-foreground">{input.question}</p>
+                            {input.choiceLabels.length > 0 && (
+                              <div className="mt-0.5 flex flex-wrap gap-1">
+                                {input.choiceLabels.slice(0, 3).map((label) => (
+                                  <Badge key={label} variant="outline" className="max-w-full truncate text-[8px] leading-3 px-1 py-0">{label}</Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        {view.pendingApprovals.map((approval) => (
+                          <div key={approval.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed">
+                            <div className="flex min-w-0 items-center justify-between gap-2">
+                              <span className="truncate font-medium text-foreground">{approval.toolName}</span>
+                              {approval.risk && <span className="shrink-0 text-muted-foreground">{approval.risk}</span>}
+                            </div>
+                            <p className="mt-0.5 text-muted-foreground">{approval.reason}</p>
+                            {approval.permission && <div className="mt-0.5 text-muted-foreground">{approval.permission}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                  {task.status === 'needs_review' && (onAcceptReview || onReworkReview || onRejectReview) && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {onAcceptReview && (
+                        <Button type="button" size="xs" variant="outline" className="h-5 px-1.5 text-[9px]" disabled={busy} onClick={() => onAcceptReview(task.id)}>
+                          Accept
+                        </Button>
+                      )}
+                      {onReworkReview && (
+                        <Button type="button" size="xs" variant="ghost" className="h-5 px-1.5 text-[9px]" disabled={busy} onClick={() => onReworkReview(task.id)}>
+                          Rework
+                        </Button>
+                      )}
+                      {onRejectReview && (
+                        <Button type="button" size="xs" variant="ghost" className="h-5 px-1.5 text-[9px] text-destructive hover:text-destructive" disabled={busy} onClick={() => onRejectReview(task.id)}>
+                          Reject
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {view.artifactDetails.length > 0 && (
+                    <details className="mt-1 rounded border border-border/60 bg-muted/10">
+                      <summary className="flex cursor-pointer list-none flex-wrap gap-1 px-1.5 py-1">
+                        {view.artifactDetails.slice(0, 2).map((artifact) => (
+                          <Badge key={artifact.id} variant="outline" className="max-w-full truncate text-[8px] leading-3 px-1 py-0">
+                            {artifact.label}
+                          </Badge>
+                        ))}
+                      </summary>
+                      <div className="space-y-1 border-t border-border/60 px-1.5 py-1">
+                        {view.artifactDetails.map((artifact) => (
+                          <div key={artifact.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
+                            <div className="flex min-w-0 items-center justify-between gap-2">
+                              <span className="truncate font-medium text-foreground">{artifact.label}</span>
+                              <span className="shrink-0">{artifact.type}</span>
+                            </div>
+                            <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                              {artifact.uri && <span className="truncate">uri {artifact.uri}</span>}
+                              {artifact.sourceRunId && <span className="truncate">run {artifact.sourceRunId}</span>}
+                              {artifact.sourceTaskId && <span className="truncate">task {artifact.sourceTaskId}</span>}
+                              {artifact.toolName && <span className="truncate">tool {artifact.toolName}</span>}
+                              {artifact.policy && <span className="truncate">policy {artifact.policy}</span>}
+                            </div>
+                            {artifact.metadata && <ActivityJSONBlock label="Metadata" value={artifact.metadata} />}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </div>
-                <div className="mt-0.5 text-[9px] text-muted-foreground">
-                  {Math.round(Math.max(0, Math.min(1, task.progress)) * 100)}%
-                  {task.ownerRunId ? ` · ${task.ownerRunId}` : ''}
-                </div>
-                {task.blockedReason && (
-                  <p className="mt-1 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">{task.blockedReason}</p>
-                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -2038,6 +2317,7 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
   const mediaAttachments = messageAttachments.filter((attachment) => attachment.type === 'image' || attachment.type === 'video')
   const otherAttachments = messageAttachments.filter((attachment) => attachment.type !== 'image' && attachment.type !== 'video')
   const showLargeMedia = !isUser && mediaAttachments.some((attachment) => attachment.id.startsWith('generated-'))
+  const displayContent = showLargeMedia ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
 
   function copy() {
     navigator.clipboard.writeText(msg.content)
@@ -2077,17 +2357,10 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
         </div>
       )}
     >
-      <MarkdownContent text={msg.content} attachments={messageAttachments} />
+      {displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
       {!isUser && <GenerationTraceSummaryCard jobs={msg.meta?.generationJobs} />}
       {!isUser && <GenerationParamAuditCard audits={msg.meta?.generationParamAudits} />}
       {!isUser && <GenerationJobSummaryCard jobs={msg.meta?.generationJobs} />}
-      {showLargeMedia && mediaAttachments.length > 0 && (
-        <div className={cn('mt-2 grid gap-2', mediaAttachments.length > 1 ? 'sm:grid-cols-2' : 'grid-cols-1')}>
-          {mediaAttachments.map((attachment) => (
-            <AttachmentPreview key={attachment.id} attachment={attachment} />
-          ))}
-        </div>
-      )}
       {showLargeMedia && <GeneratedResultCard attachments={mediaAttachments} projectId={projectId} />}
       {(showLargeMedia ? otherAttachments : messageAttachments).length > 0 && (
         <div className={cn('mt-2 grid gap-1.5', (showLargeMedia ? otherAttachments : messageAttachments).length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
@@ -3118,6 +3391,7 @@ function ChatView({
   const localRuntimeEnabled = true
   const [debugBeforeSend, setDebugBeforeSendState] = useState(false)
   const [buildingSendDraft, setBuildingSendDraft] = useState(false)
+  const [planActionBusy, setPlanActionBusy] = useState(false)
   const [pendingSendDraft, setPendingSendDraft] = useState<AgentSendDraft | null>(null)
   const [streamingAssistantMessageId, setStreamingAssistantMessageId] = useState<string | null>(null)
   const [streamingAssistantText, setStreamingAssistantText] = useState('')
@@ -3134,6 +3408,18 @@ function ChatView({
   const shouldAutoScrollRef = useRef(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLDivElement>(null)
+  const planDispatchSettings = useMemo<PlanDispatchSettings>(() => ({
+    maxWorkers: settings.planMaxWorkers,
+    maxTaskAttempts: settings.planMaxTaskAttempts,
+    workerTimeoutMs: settings.planWorkerTimeoutMs,
+  }), [settings.planMaxWorkers, settings.planMaxTaskAttempts, settings.planWorkerTimeoutMs])
+  const updatePlanDispatchSettings = useCallback((next: PlanDispatchSettings) => {
+    updateSettings({
+      planMaxWorkers: next.maxWorkers,
+      planMaxTaskAttempts: next.maxTaskAttempts,
+      planWorkerTimeoutMs: next.workerTimeoutMs,
+    })
+  }, [updateSettings])
   const fileRef = useRef<HTMLInputElement>(null)
   const contextPaneResizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
   const {
@@ -3245,11 +3531,6 @@ function ChatView({
     && !hasStreamingAssistantContent
     && !pendingSendDraft
     && !showGenerationProgressBubble
-  const showLocalWorkflow = activeLocalRun?.status === 'requires_action'
-    && (
-      (activeLocalRun.pendingApprovals ?? []).some((approval) => approval.status === 'pending')
-      || (activeLocalRun.pendingInputRequests ?? []).some((request) => request.status === 'pending')
-    )
   const approvingLocalRun = conversationRuntime?.approving ?? false
   const stoppingLocalRun = conversationRuntime?.stopping ?? false
   const stopRequestedBeforeRun = conversationRuntime?.stopRequested ?? false
@@ -3310,7 +3591,7 @@ function ChatView({
     enabled: localRuntimeEnabled && localAgentOnline,
     retry: false,
   })
-  const { data: activePlanSnapshot } = useQuery<AgentPlanSnapshot>({
+  const { data: activePlanSnapshot, refetch: refetchActivePlanSnapshot } = useQuery<AgentPlanSnapshot>({
     queryKey: ['local-agent-plan-snapshot', localAgentClient.baseURL, activeLocalRun?.planId ?? null, activeLocalRun?.updatedAt ?? null],
     queryFn: async () => {
       if (!activeLocalRun?.planId) throw new Error('active run is not attached to a plan')
@@ -3319,8 +3600,10 @@ function ChatView({
     },
     enabled: localRuntimeEnabled && localAgentOnline && !!activeLocalRun?.planId,
     retry: false,
-    refetchInterval: activeLocalRun?.planId && !isTerminalAgentRun(activeLocalRun) ? 1500 : false,
+    refetchInterval: (query) => shouldPollPlanSnapshot(query.state.data, activeLocalRun) ? 1500 : false,
   })
+  const actionableLocalRun = actionableRunForPlan(activePlanSnapshot, activeLocalRun)
+  const showLocalWorkflow = !!actionableLocalRun
   const createProject = useMutation({
     mutationFn: (payload: { name: string; description?: string }) => api.post('/projects', payload).then((r) => r.data as Project),
     onSuccess: (project) => {
@@ -3697,7 +3980,7 @@ function ChatView({
   }, [conv.id, recordLiveTraceEvent, setConversationRun, updateStreamingAssistantText])
 
   const approveActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
-    const run = activeLocalRun
+    const run = actionableLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
 
     setConversationRuntime(conv.id, { approving: true, loading: true, error: undefined })
@@ -3725,10 +4008,10 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
+  }, [actionableLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
 
   const rejectActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
-    const run = activeLocalRun
+    const run = actionableLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
 
     setConversationRuntime(conv.id, { approving: true, loading: true, error: undefined })
@@ -3752,10 +4035,10 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext])
+  }, [actionableLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext])
 
   const answerActiveLocalRunInput = useCallback(async (requestId: string, answer: { choiceIds?: string[]; text?: string }) => {
-    const run = activeLocalRun
+    const run = actionableLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
 
     setConversationRuntime(conv.id, { approving: true, loading: true, error: undefined })
@@ -3783,7 +4066,144 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [activeLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
+  }, [actionableLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
+
+  const dispatchActivePlan = useCallback(async () => {
+    const run = activeLocalRun
+    const planId = activePlanSnapshot?.plan.id ?? run?.planId
+    const plannerRunId = plannerRunIdForPlanAction(activePlanSnapshot, run)
+    if (!run || !planId || !plannerRunId || planActionBusy) return
+    setPlanActionBusy(true)
+    try {
+      const result = await localAgentClient.dispatchPlan(planId, {
+        plannerRunId,
+        maxWorkers: planDispatchSettings.maxWorkers,
+        maxTaskAttempts: planDispatchSettings.maxTaskAttempts,
+        workerTimeoutMs: planDispatchSettings.workerTimeoutMs,
+      })
+      const plannerRun = await localAgentClient.getRun(plannerRunId).catch(() => run)
+      setConversationRun(conv.id, plannerRun, { loading: result.spawnedRuns.length > 0 })
+      await refetchActivePlanSnapshot()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, { role: 'assistant', content: `计划调度失败：${message}` })
+    } finally {
+      setPlanActionBusy(false)
+    }
+  }, [activeLocalRun, activePlanSnapshot, planActionBusy, planDispatchSettings, addMessage, conv.id, userId, setConversationRun, refetchActivePlanSnapshot])
+
+  const replanActivePlan = useCallback(async () => {
+    const run = activeLocalRun
+    const plannerRunId = plannerRunIdForPlanAction(activePlanSnapshot, run)
+    if (!run?.planId || !plannerRunId || planActionBusy) return
+    setPlanActionBusy(true)
+    try {
+      const result = await localAgentClient.replanRun(plannerRunId, {
+        resetBlocked: true,
+        resetNeedsReview: true,
+        resetFailed: true,
+        resetCancelled: true,
+        retryFailed: true,
+        maxTaskAttempts: planDispatchSettings.maxTaskAttempts,
+        maxWorkers: planDispatchSettings.maxWorkers,
+        workerTimeoutMs: planDispatchSettings.workerTimeoutMs,
+      })
+      const plannerRun = await localAgentClient.getRun(plannerRunId).catch(() => run)
+      setConversationRun(conv.id, plannerRun, { loading: (result.dispatch?.spawnedRuns.length ?? 0) > 0 })
+      await refetchActivePlanSnapshot()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, { role: 'assistant', content: `计划重规划失败：${message}` })
+    } finally {
+      setPlanActionBusy(false)
+    }
+  }, [activeLocalRun, activePlanSnapshot, planActionBusy, planDispatchSettings, addMessage, conv.id, userId, setConversationRun, refetchActivePlanSnapshot])
+
+  const acceptPlanTaskReview = useCallback(async (taskId: string) => {
+    if (planActionBusy) return
+    setPlanActionBusy(true)
+    try {
+      await localAgentClient.updateTask(taskId, {
+        status: 'done',
+        progress: 1,
+        blockedReason: '',
+        metadata: {
+          reviewOutcome: 'accepted',
+          reviewedAt: new Date().toISOString(),
+        },
+      })
+      await refetchActivePlanSnapshot()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, { role: 'assistant', content: `验收任务失败：${message}` })
+    } finally {
+      setPlanActionBusy(false)
+    }
+  }, [planActionBusy, addMessage, conv.id, userId, refetchActivePlanSnapshot])
+
+  const rejectPlanTaskReview = useCallback(async (taskId: string) => {
+    if (planActionBusy) return
+    setPlanActionBusy(true)
+    try {
+      await localAgentClient.updateTask(taskId, {
+        status: 'cancelled',
+        progress: 1,
+        blockedReason: 'User rejected review.',
+        metadata: {
+          reviewOutcome: 'rejected',
+          reviewedAt: new Date().toISOString(),
+        },
+      })
+      await refetchActivePlanSnapshot()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, { role: 'assistant', content: `拒绝任务失败：${message}` })
+    } finally {
+      setPlanActionBusy(false)
+    }
+  }, [planActionBusy, addMessage, conv.id, userId, refetchActivePlanSnapshot])
+
+  const reworkPlanTaskReview = useCallback(async (taskId: string) => {
+    const run = activeLocalRun
+    const plannerRunId = plannerRunIdForPlanAction(activePlanSnapshot, run)
+    if (!run?.planId || !plannerRunId || planActionBusy) return
+    setPlanActionBusy(true)
+    try {
+      const result = await localAgentClient.replanRun(plannerRunId, {
+        resetTaskIds: [taskId],
+        maxWorkers: 1,
+        retryFailed: true,
+        maxTaskAttempts: planDispatchSettings.maxTaskAttempts,
+        workerTimeoutMs: planDispatchSettings.workerTimeoutMs,
+      })
+      const plannerRun = await localAgentClient.getRun(plannerRunId).catch(() => run)
+      setConversationRun(conv.id, plannerRun, { loading: (result.dispatch?.spawnedRuns.length ?? 0) > 0 })
+      await refetchActivePlanSnapshot()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, { role: 'assistant', content: `返工任务失败：${message}` })
+    } finally {
+      setPlanActionBusy(false)
+    }
+  }, [activeLocalRun, activePlanSnapshot, planActionBusy, planDispatchSettings, addMessage, conv.id, userId, setConversationRun, refetchActivePlanSnapshot])
+
+  const cancelActivePlanTree = useCallback(async () => {
+    const run = activeLocalRun
+    const rootRunId = plannerRunIdForPlanAction(activePlanSnapshot, run)
+    if (!run || !rootRunId || planActionBusy) return
+    setPlanActionBusy(true)
+    try {
+      await localAgentClient.cancelRunTree(rootRunId, { reason: '用户停止了当前计划树。' })
+      const latestRun = await localAgentClient.getRun(rootRunId).catch(() => run)
+      setConversationRun(conv.id, latestRun, { loading: false, stopping: false })
+      await refetchActivePlanSnapshot()
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e)
+      addMessage(userId, conv.id, { role: 'assistant', content: `取消计划树失败：${message}` })
+    } finally {
+      setPlanActionBusy(false)
+    }
+  }, [activeLocalRun, activePlanSnapshot, planActionBusy, addMessage, conv.id, userId, setConversationRun, refetchActivePlanSnapshot])
 
   const stopActiveLocalRun = useCallback(async () => {
     const run = activeLocalRun
@@ -4428,14 +4848,25 @@ function ChatView({
               <GenerationProgressBubble state={generationProgressState} />
             )}
             {showThinkingBubble && <ThinkingBubble run={activeLocalRun} state={thinkingState} />}
-            <PlanOverviewPanel snapshot={activePlanSnapshot} />
+            <PlanOverviewPanel
+              snapshot={activePlanSnapshot}
+              busy={planActionBusy}
+              onDispatch={dispatchActivePlan}
+              onReplan={replanActivePlan}
+              onCancelTree={cancelActivePlanTree}
+              onAcceptReview={acceptPlanTaskReview}
+              onReworkReview={reworkPlanTaskReview}
+              onRejectReview={rejectPlanTaskReview}
+              dispatchSettings={planDispatchSettings}
+              onDispatchSettingsChange={updatePlanDispatchSettings}
+            />
             <div ref={bottomRef} />
           </AgentThread>
         </AgentBody>
         {showLocalWorkflow && (
           <div className="border-t border-border/70 px-3 py-2">
             <LocalAgentWorkflow
-              run={activeLocalRun}
+              run={actionableLocalRun}
               approving={approvingLocalRun}
               events={liveTraceEvents}
               onApprove={approveActiveLocalRun}
@@ -4639,7 +5070,7 @@ function ChatView({
                   )}
                   {showLocalWorkflow && (
                     <LocalAgentWorkflow
-                      run={activeLocalRun}
+                      run={actionableLocalRun}
                       approving={approvingLocalRun}
                       events={liveTraceEvents}
                       onApprove={approveActiveLocalRun}

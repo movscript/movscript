@@ -1,5 +1,5 @@
 import type { JSONValue } from '../types.js'
-import type { AgentManifest } from '../manifest/agentManifest.js'
+import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { AgentContext } from '../context/runtimeContext.js'

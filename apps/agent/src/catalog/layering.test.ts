@@ -3,7 +3,8 @@ import test from 'node:test'
 import { DRAFT_SCHEMA_REGISTRY, getActiveSchemaForKind, getDraftSchemaEntry, listSchemasByKind } from '@movscript/draft-schemas'
 import { buildLayeredCatalogRegistry } from './registry.js'
 import { lintCatalog } from './linter.js'
-import { loadAgentPluginCatalog } from '../manifest/pluginCatalog.js'
+import { buildMCPVirtualPack } from './mcpVirtualPack.js'
+import { loadAgentPluginCatalog } from './loader.js'
 import { resolveProfile } from '../profiles/resolveProfile.js'
 import { composePrompt } from '../skills/promptComposer.js'
 import { selectActiveWorkflows } from '../skills/triggerEvaluator.js'
@@ -27,7 +28,6 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
   assert.ok(registry.packs.has('movscript.pack.proposal'))
   assert.ok(registry.packs.has('movscript.pack.content-unit'))
   assert.ok(registry.profiles.has('movscript.profile.default'))
-  assert.ok(registry.profiles.has('movscript.profile.catalog-default'))
   assert.equal(registry.modeProfiles.get('project-orchestration')?.id, 'movscript.profile.project-orchestration')
   assert.deepEqual(Array.from(registry.modeProfiles.keys()).sort(), [
     'asset-candidate-generation',
@@ -80,6 +80,7 @@ test('target-state skill and tool files override legacy compatibility resources'
   assert.ok(workflow?.kind === 'workflow')
   assert.equal(workflow.version, '1.0.0')
   assert.ok(workflow.schemaRefs?.includes('schema://movscript.project_proposal.v1'))
+  assert.match(workflow.instructionTemplate, /Goal: produce or edit one local project_proposal draft/)
   assert.match(workflow.instructionTemplate, /\{\{schema:movscript\.project_proposal\.v1\}\}/)
   const scriptSplit = catalog.layeredRegistry.skills.get('movscript.workflow.script-split')
   assert.ok(scriptSplit?.kind === 'workflow')
@@ -99,7 +100,6 @@ test('linter rejects missing refs and old profile permissions field', () => {
       version: '1.0.0',
       name: 'Test',
       skills: [],
-      permissions: [],
       tools: [],
     },
     skills: [{
@@ -111,11 +111,19 @@ test('linter rejects missing refs and old profile permissions field', () => {
       toolHints: ['missing_tool'],
     }],
     tools: [],
-    bundles: [],
   })
-  const profile = registry.profiles.get('movscript.profile.default')
-  assert.ok(profile)
-  Object.assign(profile, { permissions: ['draft.write'] })
+  registry.profiles.set('movscript.profile.broken', {
+    schema: 'movscript.agent.profile.v1',
+    id: 'movscript.profile.broken',
+    version: '1.0.0',
+    name: 'Broken',
+    enabledPacks: ['movscript.pack.default'],
+    persona: null,
+    enabledWorkflows: [],
+    enabledPolicies: [],
+    toolGrants: [],
+    permissions: ['draft.write'],
+  } as never)
 
   const issues = lintCatalog(registry)
   assert.ok(issues.some((issue) => issue.code === 'skill.tool_ref.missing'))
@@ -170,4 +178,215 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_update_draft'))
   assert.ok(tools.available.some((tool) => tool.name === 'movscript_request_user_input'))
   assert.equal(tools.available.some((tool) => tool.name === 'movscript_create_generation_job'), false)
+})
+
+test('org and user profile overrides can only narrow runtime capability', () => {
+  const catalog = loadAgentPluginCatalog()
+  const base = resolveProfile(catalog.layeredRegistry, { modeAlias: 'project-orchestration' }).profile
+  const orgProfile = {
+    schema: 'movscript.agent.profile.v1' as const,
+    id: 'acme.profile.org',
+    version: '1.0.0',
+    name: 'Org Override',
+    enabledPacks: ['movscript.pack.core', 'movscript.pack.drafts'],
+    persona: null,
+    enabledWorkflows: ['movscript.workflow.project-proposal'],
+    enabledPolicies: ['movscript.policy.safe-drafts', 'movscript.policy.approval-boundaries', 'movscript.policy.platform-concepts'],
+    toolGrants: [
+      { name: 'movscript_update_draft', mode: 'allow' as const, approval: 'always' as const },
+      { name: 'movscript_create_draft', mode: 'deny' as const },
+    ],
+    limits: { maxToolCallsPerTurn: 4 },
+  }
+  const userProfile = {
+    schema: 'movscript.agent.profile.v1' as const,
+    id: 'acme.profile.user',
+    version: '1.0.0',
+    name: 'User Override',
+    enabledPacks: [],
+    persona: null,
+    enabledWorkflows: ['movscript.workflow.project-proposal'],
+    enabledPolicies: [],
+    toolGrants: [
+      { name: 'movscript_update_draft', mode: 'deny' as const },
+    ],
+  }
+
+  const resolved = resolveProfile(catalog.layeredRegistry, {
+    modeAlias: 'project-orchestration',
+    orgProfile,
+    userProfile,
+  })
+
+  assert.deepEqual(resolved.warnings, [])
+  assert.deepEqual(resolved.profile.enabledPacks, ['movscript.pack.core', 'movscript.pack.drafts'])
+  assert.deepEqual(resolved.profile.enabledWorkflows, ['movscript.workflow.project-proposal'])
+  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_update_draft')?.mode, 'deny')
+  assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_create_draft')?.mode, 'deny')
+  assert.equal(resolved.profile.limits?.maxToolCallsPerTurn, 4)
+  assert.deepEqual(resolved.profile.resolvedFrom?.layers.map((layer) => layer.source), ['default', 'mode', 'org', 'user'])
+})
+
+test('org and user profile overrides are rejected as a whole when they add or loosen capability', () => {
+  const catalog = loadAgentPluginCatalog()
+  const base = resolveProfile(catalog.layeredRegistry, { modeAlias: 'project-orchestration' }).profile
+  const orgProfile = {
+    schema: 'movscript.agent.profile.v1' as const,
+    id: 'acme.profile.bad-org',
+    version: '1.0.0',
+    name: 'Bad Org Override',
+    enabledPacks: [...base.enabledPacks, 'movscript.pack.visual-generation'],
+    persona: null,
+    enabledWorkflows: [],
+    enabledPolicies: [],
+    toolGrants: [
+      { name: 'movscript_update_draft', mode: 'allow' as const, approval: 'never' as const },
+      { name: 'movscript_create_generation_job', mode: 'allow' as const, approval: 'never' as const },
+    ],
+  }
+  const userProfile = {
+    schema: 'movscript.agent.profile.v1' as const,
+    id: 'acme.profile.bad-user',
+    version: '1.0.0',
+    name: 'Bad User Override',
+    enabledPacks: [],
+    persona: null,
+    enabledWorkflows: [],
+    enabledPolicies: ['movscript.policy.safe-drafts'],
+    toolGrants: [],
+  }
+
+  const resolved = resolveProfile(catalog.layeredRegistry, {
+    modeAlias: 'project-orchestration',
+    orgProfile,
+    userProfile,
+  })
+
+  assert.ok(resolved.warnings.some((warning) => warning.includes('profile.override.rejected: org profile acme.profile.bad-org cannot add enabledPack movscript.pack.visual-generation')))
+  assert.ok(resolved.warnings.some((warning) => warning.includes('profile.override.rejected: user profile acme.profile.bad-user cannot add enabledPolicies')))
+  assert.deepEqual(resolved.profile.enabledPacks, base.enabledPacks)
+  assert.deepEqual(resolved.profile.toolGrants, base.toolGrants)
+  assert.deepEqual(resolved.profile.resolvedFrom?.layers.map((layer) => layer.source), ['default', 'mode'])
+})
+
+test('prompt composer degrades oversized prompts by dropping non-critical policies and workflows', () => {
+  const catalog = loadAgentPluginCatalog()
+  const { profile } = resolveProfile(catalog.layeredRegistry)
+  profile.limits = { systemPromptCharLimit: 180 }
+  const ctx = {
+    profile,
+    message: 'x',
+    intents: [],
+    uiContext: {},
+    conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
+    catalogVersion: catalog.layeredRegistry.version,
+  }
+  const lowPolicy = {
+    id: 'test.policy.low',
+    kind: 'policy' as const,
+    version: '1.0.0',
+    name: 'Low Policy',
+    description: '',
+    priority: 50,
+    enabled: true,
+    instructionTemplate: 'low policy '.repeat(40),
+  }
+  const workflow = {
+    id: 'test.workflow.low',
+    kind: 'workflow' as const,
+    version: '1.0.0',
+    name: 'Low Workflow',
+    description: '',
+    priority: 10,
+    enabled: true,
+    triggers: [{ kind: 'always' as const }],
+    toolRefs: [],
+    instructionTemplate: 'workflow '.repeat(40),
+  }
+  const prompt = composePrompt({
+    registry: catalog.layeredRegistry,
+    ctx,
+    policies: [lowPolicy],
+    workflows: [workflow],
+  })
+
+  assert.equal(prompt.parts.some((part) => part.id === lowPolicy.id), false)
+  assert.equal(prompt.parts.some((part) => part.id === workflow.id), false)
+  assert.equal(prompt.degraded, 'dropped_workflows')
+  assert.ok(prompt.warnings.some((warning) => warning.includes('dropped non-critical policy')))
+  assert.ok(prompt.warnings.some((warning) => warning.includes('dropped workflow')))
+})
+
+test('prompt composer throws prompt.size.exceeded when degradation cannot fit the prompt', () => {
+  const catalog = loadAgentPluginCatalog()
+  const { profile } = resolveProfile(catalog.layeredRegistry)
+  profile.limits = { systemPromptCharLimit: 20 }
+  const ctx = {
+    profile,
+    message: 'x',
+    intents: [],
+    uiContext: {},
+    conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
+    catalogVersion: catalog.layeredRegistry.version,
+  }
+  const persona = {
+    id: 'test.persona.large',
+    kind: 'persona' as const,
+    version: '1.0.0',
+    name: 'Large Persona',
+    description: '',
+    priority: 1000,
+    enabled: true,
+    instructionTemplate: 'persona '.repeat(20),
+  }
+
+  assert.throws(() => composePrompt({
+    registry: catalog.layeredRegistry,
+    ctx,
+    persona,
+    policies: [],
+    workflows: [],
+  }), /prompt\.size\.exceeded/)
+})
+
+test('MCP tools are modeled as namespaced tools inside a virtual MCP pack', () => {
+  const virtualPack = buildMCPVirtualPack({
+    serverId: 'studio-tools',
+    tools: [{
+      name: 'render.image',
+      description: 'Render an image through the connected studio MCP server.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { prompt: { type: 'string' } },
+        required: ['prompt'],
+      },
+    }],
+  })
+  const registry = buildLayeredCatalogRegistry({
+    manifest: {
+      schema: 'movscript.agent.current',
+      id: 'test',
+      version: '1.0.0',
+      name: 'Test',
+      skills: [],
+      tools: [],
+    },
+    skills: [],
+    tools: [],
+    packs: [virtualPack.pack],
+    layeredTools: virtualPack.tools,
+  })
+  const tool = registry.tools.get('mcp__studio_tools__render_image')
+
+  assert.equal(virtualPack.pack.id, 'mcp.studio_tools')
+  assert.equal(virtualPack.pack.source, 'mcp')
+  assert.deepEqual(virtualPack.pack.tools, ['mcp__studio_tools__render_image'])
+  assert.ok(tool)
+  assert.equal(tool.source, 'mcp')
+  assert.equal(tool.mcpServerId, 'studio_tools')
+  assert.equal(tool.permission, 'mcp.studio_tools.render_image')
+  assert.equal(tool.defaults.grant, 'deny')
+  assert.equal(tool.defaults.approval, 'always')
+  assert.deepEqual(lintCatalog(registry).filter((issue) => issue.level === 'error'), [])
 })

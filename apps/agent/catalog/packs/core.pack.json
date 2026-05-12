@@ -14,10 +14,11 @@
     "movscript_get_memory",
     "movscript_create_memory",
     "movscript_delete_memory",
-    "movscript_list_agent_bundles",
-    "movscript_inspect_agent_bundle",
-    "movscript_enable_agent_bundle",
-    "movscript_reload_agent_catalog"
+    "movscript_reload_agent_catalog",
+    "movscript_spawn_subagent",
+    "movscript_list_subagents",
+    "movscript_wait_subagent",
+    "movscript_cancel_subagent"
   ],
   "skills": [
     "movscript.persona.default",

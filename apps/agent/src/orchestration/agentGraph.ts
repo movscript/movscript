@@ -1,6 +1,6 @@
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph'
 import type { MCPClient } from '../mcpClient.js'
-import type { AgentManifest } from '../manifest/agentManifest.js'
+import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentApprovalRequest, AgentDebugContextPanel, AgentInputRequest, AgentMessage, AgentRun, AgentRunPolicy, AgentRunStatus, AgentTraceEventKind, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall, ToolCallOutcome, JSONValue } from '../state/types.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
@@ -289,10 +289,13 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     data: {
       eventType: 'prompt.composed',
       charCount: builtContext.systemPrompt.length,
+      promptStats: builtContext.promptStats,
       skillIds: input.skills.map((skill) => skill.id),
       availableToolNames: input.capabilities.available.map((tool) => tool.name),
       blockedToolCount: input.capabilities.blocked.length,
       debugPartIds: builtContext.debugParts.map((part) => part.id),
+      ...(builtContext.degraded ? { degraded: builtContext.degraded } : {}),
+      warnings: builtContext.warnings,
     },
   })
   const { messages: baseMessages } = builtContext
@@ -470,6 +473,7 @@ async function runPolicyNode(state: AgentGraphState, input: AgentGraphInput): Pr
     registry: input.registry,
     approvedToolNames: input.approvedToolNames,
     sandboxMode: input.policy.sandboxMode === true,
+    runRole: input.run.role,
   })
   input.onTrace({
     kind: 'policy',
@@ -652,7 +656,11 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         }
       }
       return {
-        outcome: { call, ...(execResult.error ? { error: execResult.error } : { result: execResult.result }) },
+        outcome: {
+          call,
+          ...(execResult.error ? { error: execResult.error } : { result: execResult.result }),
+          rollback: buildRollbackRecord(call, execResult.result, execResult.sandboxed),
+        },
         turnResult: {
           toolCall: normalizeToolCall(call),
           content: JSON.stringify({ result: execResult.result ?? null, call: { name: formatToolNameForDisplay(call.name), args: call.args } }),
@@ -843,12 +851,13 @@ function abortErrorFromSignal(signal?: AbortSignal): Error {
 }
 
 function canExecuteConcurrently(call: ToolCall, registry: ToolRegistry): boolean {
+  if (call.name === 'movscript_wait_subagent' || call.name === 'movscript_list_subagents') return true
   const tool = registry.get(call.name)
   return tool?.risk === 'read'
 }
 
 function isCatalogMutationTool(toolName: string): boolean {
-  return toolName === 'movscript_enable_agent_bundle' || toolName === 'movscript_reload_agent_catalog'
+  return toolName === 'movscript_reload_agent_catalog'
 }
 
 function normalizeToolCall(call: ToolCall): ToolCall {
@@ -900,6 +909,67 @@ function summarizeResult(value: JSONValue | undefined): string {
   const keys = Object.keys(value)
   const status = typeof value.status === 'string' ? `${value.status}; ` : ''
   return `${status}${keys.length} key(s): ${keys.slice(0, 6).join(', ')}`
+}
+
+function buildRollbackRecord(call: ToolCall, result: JSONValue | undefined, sandboxed?: boolean): ToolCallOutcome['rollback'] {
+  if (sandboxed || result === undefined) {
+    return {
+      policy: 'not_applicable',
+      reason: sandboxed ? 'Tool call was sandboxed and did not perform side effects.' : 'Tool call produced no durable side effect result.',
+    }
+  }
+  const metadata = isJSONRecord(result) ? result : undefined
+  const draftId = metadata
+    ? stringField(metadata.draftId)
+      ?? stringField(metadata.draftRef)
+      ?? stringField(metadata.proposalRef)
+      ?? (call.name === 'movscript_create_draft' ? stringField(metadata.id) : undefined)
+    : undefined
+  if (draftId) {
+    return {
+      policy: 'reversible',
+      reason: 'Local draft side effect can be superseded, rejected, or edited before apply.',
+      artifactType: 'draft',
+      artifactUri: `agent-draft:${draftId}`,
+      metadata: { draftId },
+    }
+  }
+  const backendWritePerformed = metadata && (
+    booleanField(metadata.performed)
+    || (isJSONRecord(metadata.backendCreate) && booleanField(metadata.backendCreate.performed))
+    || (isJSONRecord(metadata.backendApply) && booleanField(metadata.backendApply.performed))
+  )
+  if (backendWritePerformed || isBackendWriteTool(call.name)) {
+    return {
+      policy: 'manual_compensation',
+      reason: 'Backend write may require a compensating product action; automatic destructive rollback is not available.',
+      artifactType: 'backend-write',
+      metadata: {
+        toolName: call.name,
+        ...(metadata ? { result: metadata } : {}),
+      },
+    }
+  }
+  return {
+    policy: 'not_applicable',
+    reason: 'Tool call is read-only or produced no recognized durable write.',
+  }
+}
+
+function isBackendWriteTool(name: string): boolean {
+  return name === 'movscript_create_script'
+    || name === 'movscript_apply_draft'
+    || name.includes('_create_')
+    || name.includes('_update_')
+    || name.includes('_delete_')
+}
+
+function booleanField(value: unknown): boolean {
+  return value === true
+}
+
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function makeId(prefix: string): string {

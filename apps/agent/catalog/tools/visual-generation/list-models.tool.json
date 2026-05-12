@@ -1,0 +1,24 @@
+{
+  "name": "movscript_list_models",
+  "description": "List the current enabled models for a capability or feature, including supported parameters, so the agent can pick a valid model and ask the user for only the missing fields.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "capability": {
+        "type": "string"
+      },
+      "feature": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "generation.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

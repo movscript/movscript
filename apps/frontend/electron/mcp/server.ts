@@ -747,8 +747,127 @@ async function listModels(args: Record<string, unknown>): Promise<unknown> {
   return {
     count: byId.size,
     queries: queries.map((query) => query.label),
+    model_contracts: Array.from(byId.values()).map(summarizeModelContractForAgent),
     models: Array.from(byId.values()),
   }
+}
+
+export function summarizeModelContractForAgent(model: unknown): Record<string, unknown> {
+  const source = isRecord(model) ? model : {}
+  const schema = isRecord(source.params_schema) ? source.params_schema : undefined
+  const supportedParams = Array.isArray(source.supported_params) ? source.supported_params : []
+  const supportedParamKeys = supportedParams.flatMap((param) => {
+    if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) return []
+    return [param.key.trim()]
+  })
+  const propertyKeys = Object.keys(isRecord(schema?.properties) ? schema.properties : {})
+  return {
+    id: numericModelField(source, 'id') ?? numericModelField(source, 'ID'),
+    model_config_id: numericModelField(source, 'id') ?? numericModelField(source, 'ID'),
+    ...(typeof source.display_name === 'string' && source.display_name.trim() ? { display_name: source.display_name.trim() } : {}),
+    ...(typeof source.short_name === 'string' && source.short_name.trim() ? { short_name: source.short_name.trim() } : {}),
+    ...(typeof source.logical_model_id === 'string' && source.logical_model_id.trim() ? { logical_model_id: source.logical_model_id.trim() } : {}),
+    capabilities: stringArrayModelField(source.capabilities),
+    accepts_image_input: source.accepts_image_input === true,
+    input_requirements: isRecord(source.input_requirements) ? source.input_requirements : undefined,
+    supported_params: summarizeSupportedParamsForAgent(supportedParams, schema),
+    supported_param_keys: Array.from(new Set(supportedParamKeys.length > 0 ? supportedParamKeys : propertyKeys)).sort(),
+    params_schema_loaded: !!schema,
+    ...(Array.isArray(schema?.allOf) ? { params_schema_rule_count: schema.allOf.length } : {}),
+  }
+}
+
+function summarizeSupportedParamsForAgent(supportedParams: unknown[], schema: Record<string, unknown> | undefined): Array<Record<string, unknown>> {
+  const properties = isRecord(schema?.properties) ? schema.properties : undefined
+  const params = supportedParams
+    .map((param) => summarizeSupportedParamDefForAgent(param, properties))
+    .filter((param): param is Record<string, unknown> => !!param)
+  if (params.length > 0) return params
+
+  if (!properties) return []
+  return Object.entries(properties)
+    .map(([key, property]) => summarizeSchemaPropertyForAgent(key, property))
+    .filter((param): param is Record<string, unknown> => !!param)
+}
+
+function summarizeSupportedParamDefForAgent(param: unknown, schemaProperties: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) return undefined
+  const out: Record<string, unknown> = { key: param.key.trim() }
+  if (typeof param.label === 'string' && param.label.trim()) out.label = param.label.trim()
+  if (typeof param.type === 'string' && param.type.trim()) out.type = param.type.trim()
+  if (Array.isArray(param.options)) {
+    const options = stringArrayModelField(param.options)
+    if (options.length > 0) out.options = options
+  }
+  if (param.default !== undefined) out.default = param.default
+  copyFiniteNumber(out, param, 'min')
+  copyFiniteNumber(out, param, 'max')
+  copyFiniteNumber(out, param, 'step')
+  copyStringArray(out, param, 'conflicts_with')
+  copyRuleRefs(out, param, 'conditional_enum')
+  copyRuleRefs(out, param, 'conditional_const')
+  copyRuleRefs(out, param, 'requires_value')
+  mergeSchemaPropertySummary(out, schemaProperties?.[out.key as string])
+  return out
+}
+
+function summarizeSchemaPropertyForAgent(key: string, property: unknown): Record<string, unknown> | undefined {
+  const trimmedKey = key.trim()
+  if (!trimmedKey || !isRecord(property)) return undefined
+  const out: Record<string, unknown> = { key: trimmedKey }
+  if (typeof property.type === 'string' && property.type.trim()) out.type = property.type.trim()
+  copySchemaEnum(out, property)
+  if (property.default !== undefined) out.default = property.default
+  copyFiniteNumber(out, property, 'minimum', 'min')
+  copyFiniteNumber(out, property, 'maximum', 'max')
+  copyFiniteNumber(out, property, 'multipleOf', 'step')
+  if (typeof property.description === 'string' && property.description.trim()) out.description = property.description.trim()
+  return out
+}
+
+function mergeSchemaPropertySummary(out: Record<string, unknown>, property: unknown): void {
+  if (!isRecord(property)) return
+  copySchemaEnum(out, property)
+  copyFiniteNumber(out, property, 'minimum', 'min')
+  copyFiniteNumber(out, property, 'maximum', 'max')
+  copyFiniteNumber(out, property, 'multipleOf', 'step')
+  if (property.default !== undefined && out.default === undefined) out.default = property.default
+  if (typeof property.description === 'string' && property.description.trim()) out.description = property.description.trim()
+}
+
+function copySchemaEnum(out: Record<string, unknown>, property: Record<string, unknown>): void {
+  if (!Array.isArray(property.enum)) return
+  const values = property.enum.filter(isJSONScalar)
+  if (values.length === 0) return
+  if (values.every((value) => typeof value === 'string')) out.options = values
+  else out.enum = values
+}
+
+function copyFiniteNumber(out: Record<string, unknown>, source: Record<string, unknown>, sourceKey: string, targetKey = sourceKey): void {
+  const value = source[sourceKey]
+  if (typeof value === 'number' && Number.isFinite(value)) out[targetKey] = value
+}
+
+function isJSONScalar(value: unknown): value is string | number | boolean {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+}
+
+function copyStringArray(out: Record<string, unknown>, source: Record<string, unknown>, key: string): void {
+  const value = source[key]
+  if (!Array.isArray(value)) return
+  const items = stringArrayModelField(value)
+  if (items.length > 0) out[key] = items
+}
+
+function copyRuleRefs(out: Record<string, unknown>, source: Record<string, unknown>, key: string): void {
+  const value = source[key]
+  if (!Array.isArray(value)) return
+  const refs = value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const ref = typeof item.when_param === 'string' ? item.when_param : typeof item.param === 'string' ? item.param : ''
+    return ref.trim() ? [ref.trim()] : []
+  })
+  if (refs.length > 0) out[key] = Array.from(new Set(refs)).sort()
 }
 
 async function readProjectScripts(args: Record<string, unknown>): Promise<unknown> {
@@ -817,13 +936,14 @@ async function createGenerationJob(args: Record<string, unknown>): Promise<unkno
   let aspectRatio = getOptionalString(args, 'aspect_ratio')
   const duration = getOptionalNumeric(args, 'duration')
   const featureKey = getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey') ?? 'agent.chat_generation'
-  const modelParams = await getGenerationModelSupportedParamKeys(modelConfigId, jobType)
-  const extraParamAudit = normalizeGenerationExtraParams(args.extra_params, modelParams)
+  const modelParamContract = await getGenerationModelParamContract(modelConfigId, jobType)
+  const supportedParamKeys = modelParamContract?.supportedParamKeys
+  const extraParamAudit = normalizeGenerationExtraParams(args.extra_params, supportedParamKeys)
   const extraParams = extraParamAudit.extraParams
-  if (aspectRatio && modelParams && !modelParams.has('aspect_ratio')) {
+  if (aspectRatio && supportedParamKeys && !supportedParamKeys.has('aspect_ratio')) {
     aspectRatio = undefined
   }
-  const paramValidation = buildGenerationParamValidationAudit(modelConfigId, modelParams, extraParamAudit, {
+  const paramValidation = buildGenerationParamValidationAudit(modelConfigId, modelParamContract, extraParamAudit, {
     aspectRatioRequested: getOptionalString(args, 'aspect_ratio'),
     aspectRatioSubmitted: aspectRatio,
   })
@@ -1099,6 +1219,19 @@ function isGenerationJobType(value: string): boolean {
     || value === 'video_v2v'
 }
 
+function numericModelField(source: Record<string, unknown>, key: string): number | undefined {
+  const value = source[key]
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function stringArrayModelField(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value.flatMap((item) => (
+    typeof item === 'string' && item.trim() ? [item.trim()] : []
+  ))))
+}
+
 async function pickGenerationModelConfigId(jobType: string): Promise<number> {
   const capabilityCandidates = modelCapabilityCandidates(jobType)
   for (const capability of capabilityCandidates) {
@@ -1123,18 +1256,33 @@ function modelCapabilityCandidates(jobType: string): string[] {
   }
 }
 
-async function getGenerationModelSupportedParamKeys(modelConfigId: number, jobType: string): Promise<Set<string> | undefined> {
+interface GenerationModelParamContract {
+  supportedParamKeys: Set<string>
+  paramsSchemaLoaded: boolean
+  paramsSchemaRuleCount?: number
+}
+
+async function getGenerationModelParamContract(modelConfigId: number, jobType: string): Promise<GenerationModelParamContract | undefined> {
   for (const capability of modelCapabilityCandidates(jobType)) {
     const models = await backendList(`/models?capability=${encodeURIComponent(capability)}`)
     const model = models.find((item) => Number(item?.id ?? item?.ID) === modelConfigId)
-    const params = Array.isArray(model?.supported_params) ? model.supported_params : undefined
-    if (params) {
-      return new Set(params.flatMap((param: unknown) => {
+    if (!model) continue
+    const schema = isRecord(model.params_schema) ? model.params_schema : undefined
+    const params = Array.isArray(model.supported_params) ? model.supported_params : undefined
+    const supportedParamKeys = new Set<string>(
+      params
+        ? params.flatMap((param: unknown) => {
         if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) return []
         return [param.key.trim()]
-      }))
+      })
+        : Object.keys(isRecord(schema?.properties) ? schema.properties : {}),
+    )
+    return {
+      supportedParamKeys,
+      paramsSchemaLoaded: !!schema,
+      ...(Array.isArray(schema?.allOf) ? { paramsSchemaRuleCount: schema.allOf.length } : {}),
     }
-  }
+    }
   return undefined
 }
 
@@ -1190,17 +1338,20 @@ function normalizeGenerationExtraParams(value: unknown, supportedParamKeys?: Set
 
 export function buildGenerationParamValidationAudit(
   modelConfigId: number,
-  supportedParamKeys: Set<string> | undefined,
+  modelParamContract: GenerationModelParamContract | undefined,
   extraParamAudit: GenerationExtraParamAudit,
   options: { aspectRatioRequested?: string, aspectRatioSubmitted?: string },
 ): Record<string, unknown> {
+  const supportedParamKeys = modelParamContract?.supportedParamKeys
   const droppedTopLevelParams: string[] = []
   if (options.aspectRatioRequested && !options.aspectRatioSubmitted) {
     droppedTopLevelParams.push('aspect_ratio')
   }
   return {
     model_config_id: modelConfigId,
-    model_contract_loaded: supportedParamKeys !== undefined,
+    model_contract_loaded: modelParamContract !== undefined,
+    params_schema_loaded: modelParamContract?.paramsSchemaLoaded === true,
+    ...(modelParamContract?.paramsSchemaRuleCount !== undefined ? { params_schema_rule_count: modelParamContract.paramsSchemaRuleCount } : {}),
     ...(supportedParamKeys ? { supported_params: Array.from(supportedParamKeys).sort() } : {}),
     submitted_extra_params: extraParamAudit.submittedKeys.sort(),
     ...(extraParamAudit.providedKeys.length > 0 ? { provided_extra_params: extraParamAudit.providedKeys.sort() } : {}),

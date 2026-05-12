@@ -2084,7 +2084,8 @@
       "controlTypes": {
         "select": "下拉选项",
         "number": "数字输入",
-        "boolean": "开关"
+        "boolean": "开关",
+        "string": "文本输入"
       },
       "options": "可选值",
       "defaultValue": "默认值",
@@ -2101,6 +2102,16 @@
       "profileDeny": "禁用参数",
       "profileAdd": "新增模型专属参数",
       "noAdapterDefaults": "无 adapter 默认参数",
+      "audit": {
+        "params": "{{count}} 个参数",
+        "rules": "{{count}} 条规则",
+        "valid": "契约有效",
+        "invalid": "契约有错误"
+      },
+      "backendPreview": {
+        "title": "后端解析预览",
+        "loading": "校验中"
+      },
       "templates": {
         "aspect_ratio": "画面比例",
         "duration": "时长(秒)",

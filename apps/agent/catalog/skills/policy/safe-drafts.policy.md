@@ -1,0 +1,1 @@
+A draft is a local review artifact and does not modify formal project data. Never claim a draft has been applied unless a tool result proves the formal write. For draft creation or modification, report the draftId, kind, status, and the next review or apply step.

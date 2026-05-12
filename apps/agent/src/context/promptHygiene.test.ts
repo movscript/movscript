@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { filterPromptHistory, filterPromptMemories } from './promptHygiene.js'
+import { buildPromptMemoryIndex, filterPromptHistory, filterPromptMemories } from './promptHygiene.js'
 
 test('prompt hygiene filters runtime failure messages and memories from future model context', () => {
   const createdAt = '2026-01-01T00:00:00.000Z'
@@ -18,4 +18,15 @@ test('prompt hygiene filters runtime failure messages and memories from future m
 
   assert.deepEqual(history.map((message) => message.content), ['继续', '正常回复'])
   assert.deepEqual(memories.map((memory) => memory.title), ['偏好：镜头更稳'])
+})
+
+test('prompt memory index keeps ids and titles but drops memory content', () => {
+  const createdAt = '2026-01-01T00:00:00.000Z'
+  const index = buildPromptMemoryIndex([
+    { id: 'm1', projectId: 1, title: '默认镜头风格', kind: 'preference', content: '默认镜头风格是手持纪实', createdAt, updatedAt: createdAt },
+  ])
+
+  assert.equal(index[0]?.id, 'm1')
+  assert.equal(index[0]?.title, '默认镜头风格')
+  assert.equal(index[0]?.content, '')
 })

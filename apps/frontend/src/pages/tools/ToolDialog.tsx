@@ -21,6 +21,7 @@ import {
   CardContent,
 } from '@movscript/ui'
 import { cn } from '@/lib/utils'
+import { buildGenerationJobPayload } from '@/lib/generationJobPayload'
 import { useTranslation } from 'react-i18next'
 
 // ── CopyButton ────────────────────────────────────────────────────────────────
@@ -406,21 +407,16 @@ export function ToolDialog({
       }
     }
 
-    // Extract aspect_ratio and duration as top-level fields; keep remaining params in extra_params.
-    const { aspect_ratio, duration, ...remainingParams } = extraParams as Record<string, string | number | boolean>
-    const durationValue = duration === undefined || duration === '' ? undefined : Number(duration)
     try {
-      const job = await api.post('/jobs', {
-        model_config_id: selectedModelId,
-        job_type: effectiveJobType,
+      const job = await api.post('/jobs', buildGenerationJobPayload({
+        modelConfigId: selectedModelId,
+        jobType: effectiveJobType,
         title: buildGenerationJobTitle(effectiveJobType),
-        prompt: prompt.trim(),
-        aspect_ratio: aspect_ratio ?? undefined,
-        duration: Number.isFinite(durationValue) ? durationValue : undefined,
-        extra_params: Object.keys(remainingParams).length > 0 ? JSON.stringify(remainingParams) : undefined,
-        input_resource_ids: attachments.map((a) => a.ID),
-        feature_key: _nodeType,
-      }).then((r) => r.data as Job)
+        prompt,
+        params: extraParams,
+        inputResourceIds: attachments.map((a) => a.ID),
+        featureKey: _nodeType,
+      })).then((r) => r.data as Job)
       setActiveJobId(job.ID)
       setHistoryPage(1)
       setPrompt('')

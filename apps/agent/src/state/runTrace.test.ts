@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
+import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { appendTraceEvent, buildRunStep } from './runTrace.js'
 
 test('buildRunStep creates in-progress step with round metadata', () => {

@@ -1,24 +1,24 @@
-import type { MCPResource, MCPTool } from '../state/types.js'
+import type { JSONValue, MCPResource, MCPTool } from '../state/types.js'
 import {
   findToolGrant,
-  manifestAllowsPermission,
   type AgentManifest,
   type AgentToolApprovalMode,
-} from '../manifest/agentManifest.js'
+} from '../catalog/agentManifest.js'
 import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from './toolRegistry.js'
 import { publicToolName } from './toolNames.js'
+import { buildMCPVirtualPack } from '../catalog/mcpVirtualPack.js'
 import type {
   AgentCapabilitiesResponse,
   AgentDebugTool,
+  AgentRunRole,
   ResolvedAgentSkill,
   ResolvedToolCatalog,
   ToolUnavailableReason,
 } from '../state/types.js'
 
-// activeSkills and userMessage are accepted for backward-compatible call sites,
-// but tool visibility is no longer gated by skill/category/appliesWhen intersection —
-// any tool that is registered, MCP-reachable, manifest-granted, and permission-passing
-// is exposed to the model. Approval policy (never/always/on_write) still applies.
+// Tool visibility is not gated by skill/category intersection: any tool that is
+// registered, MCP-reachable, manifest-granted, and permission-passing is exposed
+// to the model. Approval policy (never/always/on_write) still applies.
 
 export interface CapabilityMCPClient {
   initialize(): Promise<unknown>
@@ -37,6 +37,7 @@ export async function resolveAgentCapabilities(options: {
   updates?: AgentCapabilitiesResponse['updates']
   activeSkills?: ResolvedAgentSkill[]
   userMessage?: string
+  runRole?: AgentRunRole
 }): Promise<AgentCapabilitiesResponse> {
   const registry = options.registry ?? DEFAULT_TOOL_REGISTRY
   const warnings: string[] = [...(options.warnings ?? [])]
@@ -59,17 +60,36 @@ export async function resolveAgentCapabilities(options: {
     warnings.push(`MCP unavailable: ${error}`)
   }
 
+  const mcpPack = connected && tools.length > 0
+    ? buildMCPVirtualPack({ serverId: 'default', tools })
+    : undefined
+  const registryTools = mcpPack
+    ? [...registry.list(), ...mcpPack.tools.map((tool): RegisteredTool => ({
+      name: tool.name,
+      description: tool.description,
+      permission: tool.permission,
+      risk: tool.risk,
+      source: 'mcp',
+      inputSchema: tool.inputSchema as unknown as JSONValue,
+      projectScoped: tool.projectScoped,
+      requiresApprovalByDefault: true,
+      defaults: tool.defaults,
+      mcpServerId: tool.mcpServerId,
+      capability: tool.capability,
+    }))]
+    : registry.list()
+
   return {
     defaultAgentManifest: options.manifest,
     ...(options.updates ? { updates: options.updates } : {}),
-    ...(options.pluginCatalog ? { pluginCatalog: options.pluginCatalog } : {}),
+    ...(options.pluginCatalog || mcpPack ? { pluginCatalog: mergeMCPPackInfo(options.pluginCatalog, mcpPack) } : {}),
     mcp: {
       connected,
       resources,
       tools,
       ...(error ? { error } : {}),
     },
-    registry: registry.list(),
+    registry: registryTools,
     resolvedTools: resolveToolCatalog({
       mcpTools: tools,
       registry,
@@ -78,8 +98,38 @@ export async function resolveAgentCapabilities(options: {
       mcpConnected: connected,
       activeSkills: options.activeSkills,
       userMessage: options.userMessage,
+      runRole: options.runRole,
     }),
     warnings,
+  }
+}
+
+function mergeMCPPackInfo(
+  pluginCatalog: AgentCapabilitiesResponse['pluginCatalog'] | undefined,
+  mcpPack: ReturnType<typeof buildMCPVirtualPack> | undefined,
+): AgentCapabilitiesResponse['pluginCatalog'] {
+  if (!pluginCatalog) {
+    return {
+      skillsDir: '',
+      toolsDir: '',
+      skillCount: 0,
+      toolCount: mcpPack?.tools.length ?? 0,
+      metadata: {
+        ...(mcpPack ? { mcpPacks: [mcpPack.pack] as unknown as JSONValue } : {}),
+      },
+    }
+  }
+  if (!mcpPack) return pluginCatalog
+  const existingMCPPacks = Array.isArray(pluginCatalog.metadata?.mcpPacks)
+    ? pluginCatalog.metadata.mcpPacks
+    : []
+  return {
+    ...pluginCatalog,
+    toolCount: pluginCatalog.toolCount + mcpPack.tools.length,
+    metadata: {
+      ...(pluginCatalog.metadata ?? {}),
+      mcpPacks: [...existingMCPPacks, mcpPack.pack] as unknown as JSONValue,
+    },
   }
 }
 
@@ -91,6 +141,7 @@ export function resolveToolCatalog(options: {
   mcpConnected?: boolean
   activeSkills?: ResolvedAgentSkill[]
   userMessage?: string
+  runRole?: AgentRunRole
 }): ResolvedToolCatalog {
   const registry = options.registry ?? DEFAULT_TOOL_REGISTRY
   const mcpByName = new Map(options.mcpTools.map((tool) => [publicToolName(tool.name), tool]))
@@ -115,6 +166,7 @@ export function resolveToolCatalog(options: {
       manifest: options.manifest,
       currentProjectId: options.currentProjectId,
       mcpConnected: options.mcpConnected ?? true,
+      runRole: options.runRole,
     })
     const tool: AgentDebugTool = {
       name,
@@ -149,13 +201,18 @@ function getUnavailableReason(options: {
   manifest: AgentManifest
   currentProjectId?: number
   mcpConnected: boolean
+  runRole?: AgentRunRole
 }): ToolUnavailableReason | undefined {
   if (!options.registeredTool) return 'unregistered'
   if (!options.mcpTool && options.registeredTool.source !== 'runtime') return 'mcp_unavailable'
   const grant = findManifestToolGrant(options.manifest, options.name)
   if (grant?.mode === 'deny') return 'denied'
   if (!grant) return 'not_granted'
-  if (!manifestAllowsPermission(options.manifest, options.registeredTool.permission)) return 'missing_permission'
+  if (
+    options.runRole
+    && options.registeredTool.allowedRunRoles
+    && !options.registeredTool.allowedRunRoles.includes(options.runRole)
+  ) return 'wrong_run_role'
   if (options.registeredTool.projectScoped && options.currentProjectId === undefined) return 'missing_project'
   return undefined
 }
@@ -176,4 +233,3 @@ function requiresApproval(tool: RegisteredTool | undefined, grantApproval: Agent
   if (grantApproval === 'always') return true
   return tool.risk === 'write' || tool.risk === 'generate' || tool.risk === 'destructive'
 }
-

@@ -1,0 +1,30 @@
+{
+  "name": "movscript_get_generation_job",
+  "description": "Inspect one AI image or video generation job and return its current status, progress hints, output resource, and media preview data when available.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "jobId"
+    ],
+    "properties": {
+      "jobId": {
+        "type": [
+          "string",
+          "number"
+        ]
+      },
+      "projectId": {
+        "type": "number"
+      }
+    }
+  },
+  "permission": "generation.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

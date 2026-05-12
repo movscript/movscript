@@ -1,18 +1,17 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../types.js'
-import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest, type AgentManifest } from '../manifest/agentManifest.js'
-import { resolveModeAgentManifest } from '../manifest/modeRegistry.js'
+import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest, type AgentManifest } from '../catalog/agentManifest.js'
 import {
   InMemoryAgentCatalogStateStore,
   type AgentCatalogStateStore,
-} from '../manifest/catalogState.js'
-import { loadAgentPluginCatalog as loadCatalogSnapshot, type AgentPluginBundle, type AgentPluginCatalog } from '../manifest/pluginCatalog.js'
+} from '../catalog/state.js'
+import { loadAgentPluginCatalog as loadCatalogSnapshot, type AgentPluginCatalog } from '../catalog/loader.js'
 import { extractAgentContext, parseToolResult } from '../context/runtimeContext.js'
 import { resolveAgentCapabilities } from '../tools/capabilityResolver.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from '../memory/types.js'
-import { resolveAgentSkills } from '../manifest/skillResolver.js'
+import { resolveAgentSkills } from '../skills/manifestSkillResolver.js'
 import { InMemoryAgentStore, type AgentStore, type AgentTraceQuery } from '../state/store.js'
 import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from '../tools/toolRegistry.js'
 import {
@@ -29,7 +28,8 @@ import { runAgentGraph } from '../orchestration/agentGraph.js'
 import { planSupervisorDispatch } from '../orchestration/supervisorGraph.js'
 import { generatePlanTasks } from '../orchestration/planGenerator.js'
 import { buildPromptPreview } from '../orchestration/contextBuilder.js'
-import { filterPromptMemories } from '../context/promptHygiene.js'
+import { buildPromptMemoryIndex } from '../context/promptHygiene.js'
+import { resolveRuntimeLayers } from '../skills/runtimeLayerResolver.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
   type AgentRuntimeContractResolver,
@@ -101,6 +101,7 @@ import {
 import { buildDebugContext, buildDebugTrace } from '../context/debugContext.js'
 import { parseAgentCommand } from '../context/commandRouter.js'
 import { planPreviewToolRequests } from '../orchestration/previewPlanner.js'
+import { reloadCatalogCandidate } from '../catalog/reloader.js'
 import {
   buildLocalDiagnosticFallbackContextResult,
   isLocalDiagnosticCommand,
@@ -152,8 +153,8 @@ export type {
   UpdatePlanTaskInput,
 } from '../state/types.js'
 export type { AgentMemory, AgentMemoryKind, MemoryQuery } from '../memory/types.js'
-export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from '../manifest/agentManifest.js'
-export type { AgentPluginCatalog } from '../manifest/pluginCatalog.js'
+export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from '../catalog/agentManifest.js'
+export type { AgentPluginCatalog } from '../catalog/loader.js'
 export type {
   AgentUpdateCandidate,
   AgentUpdateChannel,
@@ -165,7 +166,7 @@ export type {
   AgentUpdateSeverity,
   AgentUpdateState,
 } from '../updates/updatePolicy.js'
-export { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from '../manifest/agentManifest.js'
+export { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest } from '../catalog/agentManifest.js'
 export {
   DEFAULT_AGENT_UPDATE_POLICY,
   buildAgentUpdateState,
@@ -184,19 +185,29 @@ export {
 export { DEFAULT_TOOL_REGISTRY, StaticToolRegistry } from '../tools/toolRegistry.js'
 export {
   loadAgentPluginCatalog,
-  type AgentPluginBundle,
   resolveAgentSkillsDir,
   resolveAgentToolsDir,
   resolveBuiltinAgentSkillsDir,
   resolveBuiltinAgentToolsDir,
-} from '../manifest/pluginCatalog.js'
+} from '../catalog/loader.js'
 export {
   FileAgentCatalogStateStore,
   InMemoryAgentCatalogStateStore,
   resolveAgentCatalogStatePath,
   type AgentCatalogState,
   type AgentCatalogStateStore,
-} from '../manifest/catalogState.js'
+} from '../catalog/state.js'
+
+interface AgentRuntimeCatalogSnapshot {
+  id: string
+  catalogVersion: string | null
+  defaultAgentManifest: AgentManifest
+  skillCatalog: AgentManifest['skills']
+  toolRegistry: ToolRegistry
+  layeredRegistry: AgentPluginCatalog['layeredRegistry']
+  pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
+  pluginWarnings: string[]
+}
 
 export class AgentRuntime {
   private readonly mcpClient: Pick<MCPClient, 'initialize' | 'callTool' | 'listTools' | 'listResources'>
@@ -208,17 +219,20 @@ export class AgentRuntime {
   private defaultAgentManifest: AgentManifest
   private skillCatalog: AgentManifest['skills']
   private toolRegistry: ToolRegistry
+  private layeredRegistry: AgentPluginCatalog['layeredRegistry']
   private readonly contractResolver: AgentRuntimeContractResolver
   private pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
   private pluginWarnings: string[]
-  private pluginBundles: AgentPluginBundle[]
+  private catalogSnapshot: AgentRuntimeCatalogSnapshot
   private readonly catalogStateStore: AgentCatalogStateStore
   private readonly pluginCatalogLoader?: NonNullable<AgentRuntimeOptions['pluginCatalogLoader']>
   private readonly updateState?: AgentCapabilitiesResponse['updates']
   private readonly runControllers = new Map<string, AbortController>()
   private readonly runAuth = new Map<string, { backendAuthToken?: string; backendAPIBaseURL?: string }>()
+  private readonly runCatalogSnapshots = new Map<string, AgentRuntimeCatalogSnapshot>()
   private readonly runStreamSubscribers = new Map<string, Set<(event: AgentRunStreamEvent) => void>>()
   private readonly planStreamSubscribers = new Map<string, Set<(event: AgentPlanStreamEvent) => void>>()
+  private readonly postRunRecordTasks = new Set<Promise<void>>()
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
@@ -236,6 +250,10 @@ export class AgentRuntime {
     this.defaultAgentManifest = options.defaultAgentManifest ?? builtinCatalog?.manifest ?? DEFAULT_AGENT_MANIFEST
     this.skillCatalog = options.skillCatalog ?? builtinCatalog?.skills ?? []
     this.toolRegistry = options.toolRegistry ?? builtinCatalog?.registry ?? DEFAULT_TOOL_REGISTRY
+    this.layeredRegistry = builtinCatalog?.layeredRegistry ?? loadCatalogSnapshot({
+      baseManifest: this.defaultAgentManifest,
+      baseTools: this.toolRegistry.list(),
+    }).layeredRegistry
     this.contractResolver = options.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
     this.pluginCatalogInfo = options.pluginCatalogInfo ?? (builtinCatalog
       ? {
@@ -243,24 +261,24 @@ export class AgentRuntime {
         toolsDir: builtinCatalog.toolsDir,
         builtinSkillsDir: builtinCatalog.builtinSkillsDir,
         builtinToolsDir: builtinCatalog.builtinToolsDir,
-        bundlesDir: builtinCatalog.bundlesDir,
-        builtinBundlesDir: builtinCatalog.builtinBundlesDir,
         skillCount: builtinCatalog.skills.length,
         toolCount: builtinCatalog.registry.list().length,
-        bundleCount: builtinCatalog.bundles.length,
-        activeBundleIds: builtinCatalog.activeBundleIds,
-        availableBundleIds: builtinCatalog.availableBundleIds,
       }
       : undefined)
     this.pluginWarnings = options.pluginWarnings ?? builtinCatalog?.warnings ?? []
-    this.pluginBundles = builtinCatalog?.bundles ?? []
+    this.catalogSnapshot = this.createCatalogSnapshot()
     this.catalogStateStore = options.catalogStateStore ?? new InMemoryAgentCatalogStateStore()
     this.pluginCatalogLoader = options.pluginCatalogLoader
     this.updateState = options.updateState
     if (this.pluginCatalogLoader) this.reloadAgentCatalog()
   }
 
-  async getCapabilities(input: { agentManifest?: unknown; currentProjectId?: number; includeResources?: boolean } = {}): Promise<AgentCapabilitiesResponse> {
+  async getCapabilities(input: {
+    agentManifest?: unknown
+    currentProjectId?: number
+    includeResources?: boolean
+    runRole?: AgentRunRole
+  } = {}): Promise<AgentCapabilitiesResponse> {
     const agentManifest = normalizeAgentManifest(input.agentManifest ?? this.defaultAgentManifest)
     return resolveAgentCapabilities({
       mcpClient: this.mcpClient,
@@ -271,6 +289,7 @@ export class AgentRuntime {
       pluginCatalog: this.pluginCatalogInfo,
       warnings: this.pluginWarnings,
       updates: this.updateState,
+      runRole: input.runRole,
     })
   }
 
@@ -286,63 +305,27 @@ export class AgentRuntime {
     return this.defaultAgentManifest
   }
 
-  listAgentBundles(): JSONValue {
-    const state = this.catalogStateStore.load()
+  private createCatalogSnapshot(): AgentRuntimeCatalogSnapshot {
     return {
-      status: 'ok',
-      bundles: this.pluginBundles.map((bundle) => ({
-        ...bundle,
-        enabled: this.getEffectiveEnabledBundleIds().includes(bundle.id),
-      })),
-      enabledBundleIds: state.enabledBundleIds ?? this.pluginCatalogInfo?.activeBundleIds ?? [],
-      activeBundleIds: this.pluginCatalogInfo?.activeBundleIds ?? [],
-      availableBundleIds: this.pluginCatalogInfo?.availableBundleIds ?? this.pluginBundles.map((bundle) => bundle.id),
-      warnings: this.pluginWarnings,
-    } as unknown as JSONValue
+      id: makeId('catalog'),
+      catalogVersion: this.pluginCatalogInfo?.metadata?.catalogVersion as string | null | undefined ?? null,
+      defaultAgentManifest: this.defaultAgentManifest,
+      skillCatalog: this.skillCatalog,
+      toolRegistry: this.toolRegistry,
+      layeredRegistry: this.layeredRegistry,
+      ...(this.pluginCatalogInfo ? { pluginCatalogInfo: this.pluginCatalogInfo } : {}),
+      pluginWarnings: this.pluginWarnings,
+    }
   }
 
-  inspectAgentBundle(input: { bundleId?: unknown; id?: unknown } = {}): JSONValue {
-    const bundleId = typeof input.bundleId === 'string' && input.bundleId.trim()
-      ? input.bundleId.trim()
-      : typeof input.id === 'string' && input.id.trim()
-        ? input.id.trim()
-        : undefined
-    if (!bundleId) throw new Error('inspect_agent_bundle requires bundleId')
-    const bundle = this.pluginBundles.find((item) => item.id === bundleId)
-    if (!bundle) throw new Error(`agent bundle not found: ${bundleId}`)
-    const skillIds = new Set(bundle.skills)
-    const toolNames = new Set(bundle.tools)
-    return {
-      status: 'ok',
-      bundle,
-      enabled: this.getEffectiveEnabledBundleIds().includes(bundle.id),
-      skills: this.skillCatalog.filter((skill) => skillIds.has(skill.id)),
-      tools: this.toolRegistry.list().filter((tool) => toolNames.has(tool.name)),
-    } as unknown as JSONValue
+  private captureRunCatalogSnapshot(runId: string): AgentRuntimeCatalogSnapshot {
+    const snapshot = this.catalogSnapshot
+    this.runCatalogSnapshots.set(runId, snapshot)
+    return snapshot
   }
 
-  enableAgentBundle(input: { bundleId?: unknown; id?: unknown; replace?: unknown } = {}): JSONValue {
-    const bundleId = typeof input.bundleId === 'string' && input.bundleId.trim()
-      ? input.bundleId.trim()
-      : typeof input.id === 'string' && input.id.trim()
-        ? input.id.trim()
-        : undefined
-    if (!bundleId) throw new Error('enable_agent_bundle requires bundleId')
-    if (!this.pluginCatalogLoader) throw new Error('dynamic agent catalog loading is not configured')
-    if (!this.pluginBundles.some((bundle) => bundle.id === bundleId)) throw new Error(`agent bundle not found: ${bundleId}`)
-    const current = input.replace === true ? [] : this.getEffectiveEnabledBundleIds()
-    const enabledBundleIds = Array.from(new Set([...current, bundleId]))
-    this.catalogStateStore.save({ version: 1, enabledBundleIds, updatedAt: isoNow() })
-    this.reloadAgentCatalog()
-    return {
-      status: 'enabled',
-      bundleId,
-      enabledBundleIds: this.getEffectiveEnabledBundleIds(),
-      activeBundleIds: this.pluginCatalogInfo?.activeBundleIds ?? [],
-      skillCount: this.skillCatalog.length,
-      toolCount: this.toolRegistry.list().length,
-      warnings: this.pluginWarnings,
-    } as unknown as JSONValue
+  private getRunCatalogSnapshot(runId: string): AgentRuntimeCatalogSnapshot {
+    return this.runCatalogSnapshots.get(runId) ?? this.catalogSnapshot
   }
 
   reloadAgentCatalog(): JSONValue {
@@ -354,55 +337,188 @@ export class AgentRuntime {
         toolCount: this.toolRegistry.list().length,
       } as unknown as JSONValue
     }
-    const state = this.catalogStateStore.load()
-    const catalog = this.pluginCatalogLoader({ enabledBundleIds: state.enabledBundleIds })
-    const lintErrors = (catalog.catalogIssues ?? []).filter(isBlockingCatalogIssue)
-    if (lintErrors.length > 0) {
-      return {
-        status: 'rolled_back',
-        eventType: 'catalog.reload',
-        outcome: 'rolled_back',
-        catalogVersion: this.pluginCatalogInfo?.metadata?.catalogVersion ?? null,
-        reason: 'catalog.lint.fail',
-        lintErrors,
+    const reload = reloadCatalogCandidate({
+      load: () => this.pluginCatalogLoader?.() ?? loadCatalogSnapshot(),
+      previous: {
+        catalogVersion: this.pluginCatalogInfo?.metadata?.catalogVersion as string | null | undefined ?? null,
         skillCount: this.skillCatalog.length,
         toolCount: this.toolRegistry.list().length,
-      } as unknown as JSONValue
-    }
+      },
+      isBlockingIssue: isBlockingCatalogIssue,
+    })
+    if (reload.status === 'rolled_back') return reload as unknown as JSONValue
+    const catalog = reload.catalog
     this.defaultAgentManifest = catalog.manifest
     this.skillCatalog = catalog.skills
     this.toolRegistry = catalog.registry
+    this.layeredRegistry = catalog.layeredRegistry
     this.pluginWarnings = catalog.warnings
-    this.pluginBundles = catalog.bundles
     this.pluginCatalogInfo = {
       skillsDir: catalog.skillsDir,
       toolsDir: catalog.toolsDir,
       builtinSkillsDir: catalog.builtinSkillsDir,
       builtinToolsDir: catalog.builtinToolsDir,
-      bundlesDir: catalog.bundlesDir,
-      builtinBundlesDir: catalog.builtinBundlesDir,
       skillCount: catalog.skills.length,
       toolCount: catalog.registry.list().length,
-      bundleCount: catalog.bundles.length,
-      activeBundleIds: catalog.activeBundleIds,
-      availableBundleIds: catalog.availableBundleIds,
       metadata: {
-        catalogVersion: catalog.layeredRegistry?.version ?? isoNow(),
-        catalogIssueCount: catalog.catalogIssues?.length ?? 0,
+        catalogVersion: reload.catalogVersion,
+        catalogIssueCount: reload.catalogIssueCount,
       },
     }
+    this.catalogSnapshot = this.createCatalogSnapshot()
     return {
-      status: 'reloaded',
-      eventType: 'catalog.reload',
-      outcome: 'ok',
-      catalogVersion: this.pluginCatalogInfo.metadata?.catalogVersion ?? null,
-      enabledBundleIds: state.enabledBundleIds ?? null,
-      activeBundleIds: catalog.activeBundleIds,
-      availableBundleIds: catalog.availableBundleIds,
-      skillCount: catalog.skills.length,
-      toolCount: catalog.registry.list().length,
-      warnings: catalog.warnings,
-      catalogIssueCount: catalog.catalogIssues?.length ?? 0,
+      status: reload.status,
+      eventType: reload.eventType,
+      outcome: reload.outcome,
+      catalogVersion: reload.catalogVersion,
+      stagingDir: reload.stagingDir,
+      skillCount: reload.skillCount,
+      toolCount: reload.toolCount,
+      warnings: reload.warnings,
+      catalogIssueCount: reload.catalogIssueCount,
+    } as unknown as JSONValue
+  }
+
+  spawnSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    const plannerRun = this.requirePlannerRun(run.id)
+    const planId = plannerRun.planId
+    if (!planId) throw new Error('spawn_subagent requires the planner run to be attached to a plan')
+    const createdTaskIds: string[] = []
+    const taskInputs = normalizePlanTaskInputs(input.tasks)
+    const usedSubagentNames = this.collectSubagentNames(planId)
+    for (const [index, taskInput] of taskInputs.entries()) {
+      const subagentName = normalizeNonEmptyString(taskInput.subagentName)
+        ?? normalizeSubagentNameAt(input.subagentNames, index)
+        ?? nextSubagentName(usedSubagentNames)
+      usedSubagentNames.add(subagentName)
+      const task = buildAgentTask(planId, {
+        ...taskInput,
+        metadata: {
+          ...(isJSONRecord(taskInput.metadata) ? taskInput.metadata : {}),
+          executionMode: 'worker',
+          createdByPlannerRunId: plannerRun.id,
+          ...(subagentName ? { subagentName } : {}),
+        },
+      }, isoNow())
+      if (this.store.getTask(task.id)) throw new Error(`task already exists: ${task.id}`)
+      this.store.createTask(task)
+      this.recordTaskProtocolEvents(task)
+      this.emitPlanTaskEvent(planId, task)
+      createdTaskIds.push(task.id)
+    }
+
+    const requestedTaskIds = uniqueStrings([
+      ...normalizeStringList(input.taskIds),
+      ...(typeof input.taskId === 'string' && input.taskId.trim() ? [input.taskId.trim()] : []),
+      ...createdTaskIds,
+    ])
+    const subagentNameByTaskId = buildRequestedSubagentNameMap(input, requestedTaskIds)
+    for (const taskId of requestedTaskIds) {
+      if (!subagentNameByTaskId.has(taskId)) {
+        const name = nextSubagentName(usedSubagentNames)
+        subagentNameByTaskId.set(taskId, name)
+        usedSubagentNames.add(name)
+      }
+    }
+    for (const taskId of requestedTaskIds) {
+      const task = this.requireTask(taskId)
+      if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+      const subagentName = subagentNameByTaskId.get(taskId)
+      if (subagentName && (!isRecord(task.metadata) || task.metadata.subagentName !== subagentName)) {
+        this.updateTask(task.id, {
+          metadata: {
+            ...(task.metadata ?? {}),
+            subagentName,
+          },
+        })
+      }
+      if (task.status === 'blocked' || task.status === 'failed' || task.status === 'cancelled') {
+        this.updateTask(task.id, {
+          status: 'pending',
+          progress: 0,
+          metadata: {
+            ...(task.metadata ?? {}),
+            executionMode: 'worker',
+            resetByPlannerRunId: plannerRun.id,
+          },
+        })
+      }
+    }
+
+    const dispatch = this.dispatchPlan({
+      planId,
+      plannerRunId: plannerRun.id,
+      ...(requestedTaskIds.length > 0 ? { taskIds: requestedTaskIds } : {}),
+      maxWorkers: input.maxWorkers,
+    })
+    return {
+      status: dispatch.spawnedRuns.length > 0 ? 'spawned' : 'no_runnable_tasks',
+      planId,
+      plannerRunId: plannerRun.id,
+      createdTaskIds,
+      spawnedRuns: dispatch.spawnedRuns.map(toSubagentRunSummary),
+      blockedTaskIds: dispatch.blockedTaskIds,
+      snapshot: this.subagentSnapshot(planId, plannerRun.id),
+    } as unknown as JSONValue
+  }
+
+  listSubagents(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    const plannerRun = this.requirePlannerRun(run.id)
+    const planId = normalizeNonEmptyString(input.planId) ?? plannerRun.planId
+    if (!planId) throw new Error('list_subagents requires planId or a planner run plan')
+    if (planId !== plannerRun.planId) throw new Error(`planner run ${plannerRun.id} cannot inspect plan ${planId}`)
+    return {
+      status: 'ok',
+      planId,
+      plannerRunId: plannerRun.id,
+      snapshot: this.subagentSnapshot(planId, plannerRun.id),
+    } as unknown as JSONValue
+  }
+
+  async waitSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {
+    const plannerRun = this.requirePlannerRun(run.id)
+    const planId = normalizeNonEmptyString(input.planId) ?? plannerRun.planId
+    if (!planId) throw new Error('wait_subagent requires planId or a planner run plan')
+    if (planId !== plannerRun.planId) throw new Error(`planner run ${plannerRun.id} cannot wait on plan ${planId}`)
+    const timeoutMs = Math.min(30_000, Math.max(0, normalizePositiveInteger(input.timeoutMs) ?? 0))
+    const deadline = Date.now() + timeoutMs
+    const resolvedInput = this.resolveSubagentNameInput(planId, input)
+    let result = this.resolveSubagentWaitTarget(planId, resolvedInput)
+    while (!result.done && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      result = this.resolveSubagentWaitTarget(planId, resolvedInput)
+    }
+    return {
+      status: result.status,
+      done: result.done,
+      target: result.target,
+      planId,
+      plannerRunId: plannerRun.id,
+      snapshot: this.subagentSnapshot(planId, plannerRun.id),
+    } as unknown as JSONValue
+  }
+
+  cancelSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    const plannerRun = this.requirePlannerRun(run.id)
+    const planId = plannerRun.planId
+    if (!planId) throw new Error('cancel_subagent requires the planner run to be attached to a plan')
+    const resolvedInput = this.resolveSubagentNameInput(planId, input)
+    const runId = normalizeNonEmptyString(resolvedInput.runId) ?? this.requireTaskOwnerRunId(planId, resolvedInput.taskId)
+    if (!runId) throw new Error('cancel_subagent requires runId or taskId')
+    const childRun = this.requireRun(runId)
+    if (childRun.planId !== planId) throw new Error(`run ${runId} does not belong to plan ${planId}`)
+    if (childRun.role !== 'worker') {
+      throw new Error(`cancel_subagent can only cancel worker subagent runs`)
+    }
+    const result = this.cancelSubtree(runId, { reason: input.reason })
+    const cancelledRun = this.requireRun(runId)
+    return {
+      status: result.cancelledRunIds.length > 0 ? 'cancelled' : 'unchanged',
+      planId,
+      plannerRunId: plannerRun.id,
+      target: { kind: 'run', run: this.toSubagentRunSummaryForPlan(cancelledRun) as unknown as JSONValue },
+      cancelledRunIds: result.cancelledRunIds,
+      snapshot: this.subagentSnapshot(planId, plannerRun.id),
     } as unknown as JSONValue
   }
 
@@ -482,7 +598,9 @@ export class AgentRuntime {
       this.store.updateThread(thread)
     }
     const now = isoNow()
-    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput)
+    const catalogSnapshot = this.catalogSnapshot
+    const hasExplicitAgentManifest = input.agentManifest !== undefined
+    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput, catalogSnapshot)
     const runtimeContract = this.contractResolver.find(agentManifest)
     const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true, policy: input.policy })
@@ -497,8 +615,18 @@ export class AgentRuntime {
       ...(approvedToolNames.length > 0 ? { approvedToolNames } : {}),
       ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
       ...(initialUser ? { initialUserMessageId: initialUser.id } : {}),
-      ...normalizeRunHierarchyInput(input),
+      ...normalizeRunHierarchyInput(input, { defaultRole: 'planner' }),
     })
+    this.runCatalogSnapshots.set(run.id, catalogSnapshot)
+    run.metadata = {
+      ...(run.metadata ?? {}),
+      ...(isJSONRecord(input.metadata) ? input.metadata : {}),
+      ...(!hasExplicitAgentManifest ? { manifestSource: 'default' } : {}),
+      catalogSnapshot: {
+        id: catalogSnapshot.id,
+        version: catalogSnapshot.catalogVersion,
+      },
+    }
     this.store.createRun(run)
     this.applyThreadRunProjection(thread, run)
     thread.updatedAt = now
@@ -531,7 +659,9 @@ export class AgentRuntime {
     this.store.updateThread(thread)
     const now = isoNow()
     const approvedToolNames = normalizeApprovedToolNames(input.approvedToolNames)
-    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput)
+    const catalogSnapshot = this.catalogSnapshot
+    const hasExplicitAgentManifest = input.agentManifest !== undefined
+    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput, catalogSnapshot)
     const runtimeContract = this.contractResolver.find(agentManifest)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode === true, policy: input.policy })
     const run = buildAgentRun({
@@ -547,6 +677,15 @@ export class AgentRuntime {
       ...(clientInput ? { clientInput: clientInput as unknown as JSONValue } : {}),
       ...normalizeRunHierarchyInput(input, { defaultRole: 'worker' }),
     })
+    this.runCatalogSnapshots.set(run.id, catalogSnapshot)
+    run.metadata = {
+      ...(run.metadata ?? {}),
+      ...(!hasExplicitAgentManifest ? { manifestSource: 'default' } : {}),
+      catalogSnapshot: {
+        id: catalogSnapshot.id,
+        version: catalogSnapshot.catalogVersion,
+      },
+    }
     this.store.createRun(run)
     this.applyThreadRunProjection(thread, run)
     thread.updatedAt = now
@@ -574,30 +713,45 @@ export class AgentRuntime {
     const command = parseAgentCommand(message)
 
     const now = isoNow()
-    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput)
+    const catalogSnapshot = this.catalogSnapshot
+    const hasExplicitAgentManifest = input.agentManifest !== undefined
+    const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput, catalogSnapshot)
     await this.mcpClient.initialize()
     const contextResult = await this.mcpClient.callTool('movscript_get_current_context', {})
     const context = extractAgentContext(contextResult)
-    const memories = filterPromptMemories(this.memoryManager.loadRelevantMemories({
+    const relevantMemories = this.memoryManager.loadRelevantMemories({
       ...(typeof context.currentProjectId === 'number' ? { projectId: context.currentProjectId } : {}),
       query: message,
-    }))
-    const skills = resolveAgentSkills(agentManifest, message, this.skillCatalog)
+    })
+    const memories = buildPromptMemoryIndex(relevantMemories)
+    const debugContext = buildDebugContext(contextResult, memories, clientInput)
+    const layers = hasExplicitAgentManifest
+      ? undefined
+      : resolveRuntimeLayers({
+        registry: catalogSnapshot.layeredRegistry,
+        baseManifest: agentManifest,
+        message,
+        debugContext,
+        ...(clientInput ? { clientInput } : {}),
+        history: thread?.messages ?? [],
+      })
+    const activeManifest = layers?.manifest ?? agentManifest
+    const skills = layers?.skills ?? resolveAgentSkills(agentManifest, message, catalogSnapshot.skillCatalog)
     const capabilities = await resolveAgentCapabilities({
       mcpClient: this.mcpClient,
-      manifest: agentManifest,
+      manifest: activeManifest,
       currentProjectId: context.currentProjectId,
-      registry: this.toolRegistry,
-      pluginCatalog: this.pluginCatalogInfo,
-      warnings: this.pluginWarnings,
+      registry: catalogSnapshot.toolRegistry,
+      pluginCatalog: catalogSnapshot.pluginCatalogInfo,
+      warnings: [...catalogSnapshot.pluginWarnings, ...(layers?.warnings ?? [])],
       updates: this.updateState,
       activeSkills: skills,
       userMessage: message,
+      runRole: 'planner',
     })
-    const debugContext = buildDebugContext(contextResult, memories, clientInput)
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode !== false, policy: input.policy })
     const promptPreview = buildPromptPreview({
-      manifest: agentManifest,
+      manifest: activeManifest,
       skills,
       context: debugContext,
       tools: capabilities.resolvedTools,
@@ -614,7 +768,7 @@ export class AgentRuntime {
     let previewToolPlan = { toolCalls: [] as ToolCall[], pendingApprovals: [] as AgentApprovalRequest[] }
     try {
       previewToolPlan = await planPreviewToolRequests({
-        manifest: agentManifest,
+        manifest: activeManifest,
         skills,
         context: debugContext,
         tools: capabilities.resolvedTools,
@@ -625,7 +779,7 @@ export class AgentRuntime {
         userMessage: message,
         command,
         currentProjectId: context.currentProjectId,
-        registry: this.toolRegistry,
+        registry: catalogSnapshot.toolRegistry,
         draftStore: this.draftStore,
         contractResolver: this.contractResolver,
         makeApprovalId: () => makeId('approval'),
@@ -640,14 +794,14 @@ export class AgentRuntime {
       ...(thread ? { threadId: thread.id } : {}),
       message,
       status: 'preview',
-      agentManifest,
+      agentManifest: activeManifest,
       ...(typeof context.currentProjectId === 'number' ? { currentProjectId: context.currentProjectId } : {}),
       context: debugContext,
       skills,
       tools: capabilities.resolvedTools,
       policy,
       promptPreview,
-      debug: buildDebugTrace(agentManifest, skills, capabilities.resolvedTools, promptPreview.debugParts.map((part) => part.id)),
+      debug: buildDebugTrace(activeManifest, skills, capabilities.resolvedTools, promptPreview.debugParts.map((part) => part.id), layers?.trace),
       toolCalls: previewToolPlan.toolCalls,
       pendingApprovals: previewToolPlan.pendingApprovals,
       warnings,
@@ -714,25 +868,32 @@ export class AgentRuntime {
       updatedAt: now,
     }
     this.store.createPlan(plan)
+    const createdTasks: AgentTask[] = []
     for (const taskInput of tasksInput) {
       const task = buildAgentTask(plan.id, taskInput, now)
       this.store.createTask(task)
       this.recordTaskProtocolEvents(task)
+      createdTasks.push(task)
     }
 
     let rootRun: AgentRun | undefined
-    if (input.createPlannerRun === true) {
+    const inlinePlannerTask = selectPlannerInlineTask(createdTasks)
+    if (input.createPlannerRun !== false) {
       rootRun = this.createRun({
         ...input,
         threadId: thread.id,
         role: 'planner',
         planId: plan.id,
+        ...(inlinePlannerTask ? { taskId: inlinePlannerTask.id } : {}),
         progress: 0,
       })
       plan.rootRunId = rootRun.id
       plan.status = 'running'
       plan.updatedAt = isoNow()
       this.store.updatePlan(plan)
+      if (inlinePlannerTask) {
+        this.assignTaskToPlannerRun(inlinePlannerTask.id, rootRun.id)
+      }
     }
 
     return this.getPlanSnapshot(plan.id)
@@ -803,6 +964,27 @@ export class AgentRuntime {
     return task
   }
 
+  private assignTaskToPlannerRun(taskId: string, runId: string): void {
+    const task = this.requireTask(taskId)
+    const run = this.requireRun(runId)
+    if (run.role !== 'planner') throw new Error(`run ${runId} is not a planner run`)
+    const previousTask = { ...task, deps: [...task.deps], artifacts: [...task.artifacts] }
+    const now = isoNow()
+    task.status = 'running'
+    task.progress = 0
+    task.ownerRunId = run.id
+    task.startedAt = now
+    task.updatedAt = now
+    task.metadata = {
+      ...(task.metadata ?? {}),
+      executionMode: 'planner_inline',
+    }
+    delete task.blockedReason
+    this.store.updateTask(task)
+    this.recordTaskProtocolEvents(task, previousTask)
+    this.emitPlanTaskEvent(task.planId, task)
+  }
+
   cancelSubtree(runId: string, input: CancelRunInput = {}): { cancelledRunIds: string[] } {
     this.requireRun(runId)
     const reason = typeof input.reason === 'string' && input.reason.trim() ? input.reason.trim() : 'Run subtree was cancelled.'
@@ -830,6 +1012,11 @@ export class AgentRuntime {
     const workerTimeoutMs = normalizePositiveInteger(input.workerTimeoutMs)
     const timedOutRunIds = workerTimeoutMs ? this.cancelTimedOutPlanWorkers(plan.id, workerTimeoutMs) : []
     const retriedTaskIds = input.retryFailed === true ? this.resetRetryablePlanTasks(plan.id, maxTaskAttempts) : []
+    const requestedTaskIds = uniqueStrings(normalizeStringList(input.taskIds))
+    for (const taskId of requestedTaskIds) {
+      const task = this.requireTask(taskId)
+      if (task.planId !== plan.id) throw new Error(`task ${taskId} does not belong to plan ${plan.id}`)
+    }
     const tasks = this.store.listTasks(plan.id)
     const runs = this.store.listRuns({ planId: plan.id })
     const decision = planSupervisorDispatch({
@@ -837,6 +1024,7 @@ export class AgentRuntime {
       tasks,
       runs,
       maxWorkers: normalizePositiveInteger(input.maxWorkers),
+      ...(requestedTaskIds.length > 0 ? { taskIds: requestedTaskIds } : {}),
     })
     const now = isoNow()
     for (const blocked of decision.blockedTasks) {
@@ -849,8 +1037,20 @@ export class AgentRuntime {
     }
 
     const spawnedRuns: AgentRun[] = []
+    const usedSubagentNames = this.collectSubagentNames(plan.id)
     for (const task of decision.runnableTasks) {
-      const workerMessage = this.createMessage(plan.threadId, 'user', formatWorkerTaskMessage(plan, task), undefined)
+      const existingSubagentName = subagentNameFromTask(task)
+      const subagentName = existingSubagentName ?? nextSubagentName(usedSubagentNames)
+      usedSubagentNames.add(subagentName)
+      const workerTask = existingSubagentName === subagentName
+        ? task
+        : this.updateTask(task.id, {
+          metadata: {
+            ...(task.metadata ?? {}),
+            subagentName,
+          },
+        })
+      const workerMessage = this.createMessage(plan.threadId, 'user', formatWorkerTaskMessage(plan, workerTask), undefined)
       const thread = this.requireThread(plan.threadId)
       thread.messages.push(workerMessage)
       thread.updatedAt = workerMessage.createdAt
@@ -863,6 +1063,7 @@ export class AgentRuntime {
         planId: plan.id,
         taskId: task.id,
         progress: 0,
+        metadata: { subagentName },
         agentManifest: input.agentManifest ?? plannerRun.agentManifest,
         approvedToolNames: input.approvedToolNames,
         policy: input.policy ?? plannerRun.policy,
@@ -870,6 +1071,7 @@ export class AgentRuntime {
         backendAPIBaseURL: input.backendAPIBaseURL,
         sandboxMode: input.sandboxMode,
       })
+      const dispatchedRun = run
       const currentTask = this.requireTask(task.id)
       const previousTask = { ...currentTask, deps: [...currentTask.deps], artifacts: [...currentTask.artifacts] }
       currentTask.status = 'running'
@@ -881,7 +1083,7 @@ export class AgentRuntime {
       this.store.updateTask(currentTask)
       this.recordTaskProtocolEvents(currentTask, previousTask)
       this.emitPlanTaskEvent(plan.id, currentTask)
-      spawnedRuns.push(run)
+      spawnedRuns.push(dispatchedRun)
     }
     this.recomputePlanStatus(plan.id)
     return {
@@ -1030,6 +1232,8 @@ export class AgentRuntime {
       summary: approvingAll ? 'Approved all pending tool calls.' : `Approved ${selectedApprovalIds.size + selectedToolNames.size} pending action(s).`,
       status: 'completed',
       data: {
+        eventType: 'approval.resolved',
+        outcome: 'approved',
         approvalIds: Array.from(selectedApprovalIds),
         toolNames: Array.from(selectedToolNames),
         approvedToolNames: Array.from(approvedToolNames),
@@ -1063,7 +1267,11 @@ export class AgentRuntime {
       title: 'Approval rejected',
       summary: warning,
       status: 'blocked',
-      data: { rejectedToolNames },
+      data: {
+        eventType: 'approval.resolved',
+        outcome: 'denied',
+        rejectedToolNames,
+      },
     })
     run.status = 'completed_with_warnings'
     run.completedAt = now
@@ -1367,6 +1575,12 @@ export class AgentRuntime {
     return this.memoryManager.deleteMemory({ projectId, id })
   }
 
+  async flushPostRunRecords(): Promise<void> {
+    while (this.postRunRecordTasks.size > 0) {
+      await Promise.allSettled([...this.postRunRecordTasks])
+    }
+  }
+
   private startRunExecution(runId: string): void {
     const controller = new AbortController()
     this.runControllers.set(runId, controller)
@@ -1374,6 +1588,7 @@ export class AgentRuntime {
       if (this.runControllers.get(runId) === controller) {
         this.runControllers.delete(runId)
       }
+      this.runCatalogSnapshots.delete(runId)
       this.syncTaskFromRun(runId)
     })
   }
@@ -1383,6 +1598,7 @@ export class AgentRuntime {
     if (!run) return
     if (run.status === 'cancelled') return
     this.throwIfRunCancelled(runId, signal)
+    let catalogSnapshot = this.getRunCatalogSnapshot(runId)
 
     const runStartedAt = Date.now()
     run.status = 'in_progress'
@@ -1397,6 +1613,22 @@ export class AgentRuntime {
       round: setupRound,
       data: { policy: run.policy, manifestId: run.agentManifest?.id, sandboxMode: run.policy.sandboxMode === true },
     })
+    if (run.planId && run.taskId) {
+      this.recordTraceEvent(run, {
+        kind: 'task',
+        title: 'Task heartbeat',
+        summary: 'Worker task execution heartbeat.',
+        status: 'info',
+        round: setupRound,
+        data: {
+          eventType: 'heartbeat',
+          planId: run.planId,
+          taskId: run.taskId,
+          runId: run.id,
+          runStatus: run.status,
+        },
+      })
+    }
     this.store.updateRun(run)
     this.updateThreadRunStatus(run.threadId, run.status, run.id)
     this.emitRunSnapshot(run)
@@ -1460,10 +1692,11 @@ export class AgentRuntime {
         this.store.updateThread(thread)
       }
       const memoryStartedAt = Date.now()
-      const memories = filterPromptMemories(this.memoryManager.loadRelevantMemories({
+      const relevantMemories = this.memoryManager.loadRelevantMemories({
         projectId: context.currentProjectId,
         query: lastUser.content,
-      }))
+      })
+      const memories = buildPromptMemoryIndex(relevantMemories)
       const memoryLoadedAt = Date.now()
       this.recordTraceEvent(run, {
         kind: 'memory',
@@ -1480,26 +1713,44 @@ export class AgentRuntime {
         },
       })
 
-      const agentManifest = run.agentManifest ?? this.defaultAgentManifest
-      const runtimeContract = this.contractResolver.find(agentManifest)
+      const agentManifest = run.agentManifest ?? catalogSnapshot.defaultAgentManifest
       const contextWarnings = contextError ? [`Context pack unavailable: ${contextError}`] : []
-      const skills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
+      const baseDebugContext = buildDebugContext(contextResult, memories, clientInput)
+      if (typeof context.currentProductionId === 'number') {
+        baseDebugContext.productionId = context.currentProductionId
+      }
+      const shouldUseLayeredRuntime = run.metadata?.manifestSource === 'default' && catalogSnapshot.layeredRegistry.profiles.size > 0
+      const layers = shouldUseLayeredRuntime
+        ? resolveRuntimeLayers({
+          registry: catalogSnapshot.layeredRegistry,
+          baseManifest: agentManifest,
+          message: lastUser.content,
+          debugContext: baseDebugContext,
+          ...(clientInput ? { clientInput } : {}),
+          history: thread.messages,
+        })
+        : undefined
+      const activeManifest = layers?.manifest ?? agentManifest
+      run.agentManifest = activeManifest
+      const runtimeContract = this.contractResolver.find(activeManifest)
+      const skills = layers?.skills ?? resolveAgentSkills(agentManifest, lastUser.content, catalogSnapshot.skillCatalog)
       const capabilityStartedAt = Date.now()
       const capabilities = await resolveAgentCapabilities({
         mcpClient: this.mcpClient,
-        manifest: agentManifest,
+        manifest: activeManifest,
         currentProjectId: context.currentProjectId,
-        registry: this.toolRegistry,
-        pluginCatalog: this.pluginCatalogInfo,
-        warnings: [...this.pluginWarnings, ...contextWarnings],
+        registry: catalogSnapshot.toolRegistry,
+        pluginCatalog: catalogSnapshot.pluginCatalogInfo,
+        warnings: [...catalogSnapshot.pluginWarnings, ...contextWarnings, ...(layers?.warnings ?? [])],
         updates: this.updateState,
         activeSkills: skills,
         userMessage: lastUser.content,
+        runRole: run.role,
       })
       const capabilityDurationMs = Date.now() - capabilityStartedAt
       const setup = buildRunSetupMetadata({
         run,
-        agentManifest,
+        agentManifest: activeManifest,
         skills,
         capabilities,
         contextResult,
@@ -1509,7 +1760,7 @@ export class AgentRuntime {
         ...(clientInput ? { clientInput } : {}),
         authMetadata: this.getRunAuth(run.id),
       })
-      const debugContext = setup.debugContext
+      const debugContext = this.withRunPlanContext(setup.debugContext, run)
 
       this.recordTraceEvent(run, {
         kind: 'context',
@@ -1523,6 +1774,7 @@ export class AgentRuntime {
           route: debugContext.route,
           project: debugContext.project,
           selection: debugContext.selection,
+          ...(debugContext.agentPlan ? { agentPlan: debugContext.agentPlan as unknown as JSONValue } : {}),
           recentResourceCount: debugContext.recentResources.length,
           attachmentCount: debugContext.attachments.length,
           durationMs: contextDurationMs,
@@ -1540,11 +1792,18 @@ export class AgentRuntime {
         round: setupRound,
         data: {
           eventType: 'profile.resolved',
-          id: agentManifest.id,
-          version: agentManifest.version,
-          mode: agentManifest.metadata?.mode,
-          permissions: agentManifest.permissions,
-          toolGrants: agentManifest.tools.map((t) => ({ name: t.name, mode: t.mode, approval: t.approval })),
+          id: layers?.trace.profileId ?? activeManifest.id,
+          version: layers?.trace.profileVersion ?? activeManifest.version,
+          mode: activeManifest.metadata?.mode,
+          ...(layers?.trace.personaId ? { personaId: layers.trace.personaId } : {}),
+          ...(layers ? { policyIds: layers.trace.policyIds, workflowIds: layers.trace.workflowIds, profileLayers: layers.trace.profileLayers } : {}),
+          permissions: Array.from(new Set(activeManifest.tools
+            .filter((grant) => grant.mode !== 'deny')
+            .flatMap((grant) => {
+              const tool = catalogSnapshot.toolRegistry.get(grant.name)
+              return tool ? [tool.permission] : []
+            }))),
+          toolGrants: activeManifest.tools.map((t) => ({ name: t.name, mode: t.mode, approval: t.approval })),
         },
       })
       this.recordTraceEvent(run, {
@@ -1602,7 +1861,7 @@ export class AgentRuntime {
         const finalContent = renderLocalDiagnosticCommand({
           command,
           run,
-          manifest: agentManifest,
+          manifest: activeManifest,
           skills,
           context: debugContext,
           tools: capabilities.resolvedTools,
@@ -1709,7 +1968,7 @@ export class AgentRuntime {
           mcpClient: this.mcpClient,
           draftStore: this.draftStore,
           backendApplyClient: this.backendApplyClient,
-          registry: this.toolRegistry,
+          registry: catalogSnapshot.toolRegistry,
           memoryManager: this.memoryManager,
           catalogManager: this,
           sandboxMode: run.policy.sandboxMode === true,
@@ -1817,7 +2076,7 @@ export class AgentRuntime {
       const loopResult = await runAgentGraph({
         run,
         threadMessages: thread.messages,
-        manifest: agentManifest,
+        manifest: activeManifest,
         capabilities: capabilities.resolvedTools,
         skills,
         context: debugContext,
@@ -1831,34 +2090,51 @@ export class AgentRuntime {
         mcpClient: this.mcpClient,
         draftStore: this.draftStore,
         backendApplyClient: this.backendApplyClient,
-        registry: this.toolRegistry,
+        registry: catalogSnapshot.toolRegistry,
         contractResolver: this.contractResolver,
         memoryManager: this.memoryManager,
         catalogManager: this,
         onCatalogRefresh: async () => {
-          const refreshedSkills = resolveAgentSkills(agentManifest, lastUser.content, this.skillCatalog)
+          catalogSnapshot = this.captureRunCatalogSnapshot(run.id)
+          const refreshedBaseManifest = run.metadata?.manifestSource === 'default'
+            ? catalogSnapshot.defaultAgentManifest
+            : run.agentManifest ?? catalogSnapshot.defaultAgentManifest
+          const refreshedLayers = run.metadata?.manifestSource === 'default' && catalogSnapshot.layeredRegistry.profiles.size > 0
+            ? resolveRuntimeLayers({
+              registry: catalogSnapshot.layeredRegistry,
+              baseManifest: refreshedBaseManifest,
+              message: lastUser.content,
+              debugContext,
+              ...(clientInput ? { clientInput } : {}),
+              history: thread.messages,
+            })
+            : undefined
+          const refreshedManifest = refreshedLayers?.manifest ?? refreshedBaseManifest
+          run.agentManifest = refreshedManifest
+          const refreshedSkills = refreshedLayers?.skills ?? resolveAgentSkills(refreshedManifest, lastUser.content, catalogSnapshot.skillCatalog)
           const refreshedCapabilities = await resolveAgentCapabilities({
             mcpClient: this.mcpClient,
-            manifest: this.defaultAgentManifest,
+            manifest: refreshedManifest,
             currentProjectId: context.currentProjectId,
-            registry: this.toolRegistry,
-            pluginCatalog: this.pluginCatalogInfo,
-            warnings: this.pluginWarnings,
+            registry: catalogSnapshot.toolRegistry,
+            pluginCatalog: catalogSnapshot.pluginCatalogInfo,
+            warnings: [...catalogSnapshot.pluginWarnings, ...(refreshedLayers?.warnings ?? [])],
             updates: this.updateState,
             activeSkills: refreshedSkills,
             userMessage: lastUser.content,
+            runRole: run.role,
           })
           return {
-            manifest: this.defaultAgentManifest,
+            manifest: refreshedManifest,
             capabilities: refreshedCapabilities.resolvedTools,
             skills: refreshedSkills,
-            registry: this.toolRegistry,
+            registry: catalogSnapshot.toolRegistry,
             warnings: refreshedCapabilities.warnings,
           }
         },
         signal,
         ...(runtimeContract?.commandOverride
-          ? { command: runtimeContract.commandOverride({ userMessage: lastUser.content, manifest: agentManifest }) }
+          ? { command: runtimeContract.commandOverride({ userMessage: lastUser.content, manifest: activeManifest }) }
           : {}),
         ...(run.metadata?.forcedToolCall ? { forcedToolCalls: [normalizeToolCall(run.metadata.forcedToolCall) as ToolCall] } : {}),
         ...(getApprovedToolNames(run).length > 0 ? { approvedToolNames: getApprovedToolNames(run) } : {}),
@@ -1970,27 +2246,11 @@ export class AgentRuntime {
 
       run.assistantMessageId = assistant.id
       run.warnings = loopResult.warnings.length > 0 ? loopResult.warnings : undefined
-
-      const writtenMemories = this.memoryManager.extractAndWriteMemories({
-        run,
-        userMessage: lastUser,
-        projectId: context.currentProjectId,
-        toolResults: loopResult.toolOutcomes,
-        warnings: loopResult.warnings,
-      })
       run.metadata = {
         ...(run.metadata ?? {}),
         memoryIds: memories.map((m) => m.id),
-        writtenMemoryIds: writtenMemories.map((m) => m.id),
+        ...buildRollbackMetadata(loopResult.toolOutcomes),
       }
-      this.recordTraceEvent(run, {
-        kind: 'memory',
-        title: 'Memories written',
-        summary: `${writtenMemories.length} memory item(s) written after the run.`,
-        status: 'completed',
-        round: finalRound,
-        data: { writtenMemoryIds: writtenMemories.map((m) => m.id), kinds: Array.from(new Set(writtenMemories.map((m) => m.kind))) },
-      })
 
       run.status = loopResult.warnings.length > 0 ? 'completed_with_warnings' : 'completed'
       run.completedAt = isoNow()
@@ -2008,6 +2268,13 @@ export class AgentRuntime {
       this.store.updateThread(thread)
       this.store.updateRun(run)
       this.emitRunSnapshot(run, { done: true })
+      this.deferPostRunRecords(run.id, {
+        round: finalRound,
+        userMessage: lastUser,
+        projectId: context.currentProjectId,
+        toolOutcomes: loopResult.toolOutcomes,
+        warnings: loopResult.warnings,
+      })
     } catch (error) {
       if (this.isAbortError(error) || this.isRunCancelled(runId)) {
         this.markRunCancelled(this.store.getRun(runId) ?? run)
@@ -2024,7 +2291,6 @@ export class AgentRuntime {
         status: 'failed',
         data: { error: run.error },
       })
-      this.store.updateRun(run)
       this.updateThreadRunStatus(run.threadId, run.status, run.id)
       const thread = this.store.getThread(run.threadId)
       if (thread) {
@@ -2044,11 +2310,13 @@ export class AgentRuntime {
     }
   }
 
-  private resolveAgentManifest(inputManifest: unknown, clientInput?: ReturnType<typeof normalizeClientInput>): AgentManifest {
-    const explicit = normalizeAgentManifest(inputManifest ?? this.defaultAgentManifest)
-    const mode = typeof clientInput?.uiSnapshot?.mode === 'string' ? clientInput.uiSnapshot.mode : undefined
-    const resolved = resolveModeAgentManifest(mode, explicit, this.skillCatalog)
-    return resolved ?? explicit
+  private resolveAgentManifest(
+    inputManifest: unknown,
+    clientInput?: ReturnType<typeof normalizeClientInput>,
+    catalogSnapshot: AgentRuntimeCatalogSnapshot = this.catalogSnapshot,
+  ): AgentManifest {
+    void clientInput
+    return normalizeAgentManifest(inputManifest ?? catalogSnapshot.defaultAgentManifest)
   }
 
   private rememberRunAuth(runId: string, value: unknown): void {
@@ -2066,12 +2334,6 @@ export class AgentRuntime {
 
   private getRunAuth(runId: string): { backendAuthToken?: string; backendAPIBaseURL?: string } {
     return this.runAuth.get(runId) ?? {}
-  }
-
-  private getEffectiveEnabledBundleIds(): string[] {
-    const stateEnabled = this.catalogStateStore.load().enabledBundleIds
-    if (stateEnabled) return stateEnabled
-    return this.pluginCatalogInfo?.activeBundleIds ?? []
   }
 
   private createStep(run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string): AgentRunStep {
@@ -2292,7 +2554,7 @@ export class AgentRuntime {
       return
     }
     if (previous.status !== task.status) {
-      const event = taskStatusProtocolEvent(task.status)
+      const event = taskStatusProtocolEvent(task)
       emitTaskTrace(event.eventType, event.title, event.status, task.blockedReason ?? task.title)
     }
     if (previous.progress !== task.progress) {
@@ -2315,6 +2577,85 @@ export class AgentRuntime {
     }
     const plan = this.store.getPlan(task.planId)
     return plan?.rootRunId ? this.store.getRun(plan.rootRunId) : undefined
+  }
+
+  private recordRollbackTraceEvents(run: AgentRun, outcomes: ToolCallOutcome[], round: AgentRunRoundInfo): void {
+    const records = outcomes.flatMap((outcome) => outcome.rollback ? [{ call: outcome.call, rollback: outcome.rollback }] : [])
+    if (records.length === 0) return
+    this.recordTraceEvent(run, {
+      kind: 'task',
+      title: 'Rollback policy recorded',
+      summary: `${records.length} side effect rollback record(s).`,
+      status: records.some((record) => record.rollback.policy === 'manual_compensation') ? 'blocked' : 'info',
+      round,
+      data: {
+        eventType: 'rollback_policy',
+        rollbackRecords: records,
+      },
+    })
+  }
+
+  private deferPostRunRecords(runId: string, input: {
+    round: AgentRunRoundInfo
+    userMessage: AgentMessage
+    projectId?: number
+    toolOutcomes: ToolCallOutcome[]
+    warnings: string[]
+  }): void {
+    const runSnapshot = this.store.getRun(runId)
+    if (!runSnapshot) return
+    let resolveTask: () => void
+    const task = new Promise<void>((resolve) => {
+      resolveTask = resolve
+    })
+    this.postRunRecordTasks.add(task)
+    setTimeout(() => {
+      try {
+        const run = this.store.getRun(runId)
+        if (!run || (run.status !== 'completed' && run.status !== 'completed_with_warnings')) return
+        const writtenMemories = this.memoryManager.extractAndWriteMemories({
+          run,
+          userMessage: input.userMessage,
+          projectId: input.projectId,
+          toolResults: input.toolOutcomes,
+          warnings: input.warnings,
+        })
+        run.metadata = {
+          ...(run.metadata ?? {}),
+          writtenMemoryIds: writtenMemories.map((memory) => memory.id),
+        }
+        this.recordTraceEvent(run, {
+          kind: 'memory',
+          title: 'Memories written',
+          summary: `${writtenMemories.length} memory item(s) written after the run.`,
+          status: 'completed',
+          round: input.round,
+          data: {
+            async: true,
+            writtenMemoryIds: writtenMemories.map((memory) => memory.id),
+            kinds: Array.from(new Set(writtenMemories.map((memory) => memory.kind))),
+          },
+        })
+        this.recordRollbackTraceEvents(run, input.toolOutcomes, input.round)
+        this.store.updateRun(run)
+      } catch (error) {
+        const run = this.store.getRun(runId)
+        if (!run) return
+        this.recordTraceEvent(run, {
+          kind: 'memory',
+          title: 'Deferred post-run records failed',
+          summary: error instanceof Error ? error.message : String(error),
+          status: 'failed',
+          round: input.round,
+          data: { async: true },
+        })
+        this.store.updateRun(run)
+      }
+      finally {
+        this.postRunRecordTasks.delete(task)
+        resolveTask()
+      }
+    }, 0)
   }
 
   private emitPlanStreamEvent(planId: string, event: AgentPlanStreamEvent): void {
@@ -2356,6 +2697,12 @@ export class AgentRuntime {
     return run
   }
 
+  private requirePlannerRun(id: string): AgentRun {
+    const run = this.requireRun(id)
+    if (run.role !== 'planner') throw new Error(`run ${id} is not a planner run`)
+    return run
+  }
+
   private requirePlan(id: string): AgentPlan {
     const plan = this.store.getPlan(id)
     if (!plan) throw new Error(`plan not found: ${id}`)
@@ -2366,6 +2713,160 @@ export class AgentRuntime {
     const task = this.store.getTask(id)
     if (!task) throw new Error(`task not found: ${id}`)
     return task
+  }
+
+  private requireTaskOwnerRunId(planId: string, taskIdInput: unknown): string | undefined {
+    const taskId = normalizeNonEmptyString(taskIdInput)
+    if (!taskId) return undefined
+    const task = this.requireTask(taskId)
+    if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+    return task.ownerRunId
+  }
+
+  private resolveSubagentNameInput(planId: string, input: Record<string, JSONValue>): Record<string, JSONValue> {
+    const subagentName = normalizeNonEmptyString(input.subagentName)
+    if (!subagentName) return input
+    const task = this.findTaskBySubagentName(planId, subagentName)
+    if (!task) throw new Error(`subagent not found by name: ${subagentName}`)
+    return {
+      ...input,
+      taskId: task.id,
+      ...(task.ownerRunId ? { runId: task.ownerRunId } : {}),
+    }
+  }
+
+  private findTaskBySubagentName(planId: string, subagentName: string): AgentTask | undefined {
+    return this.store.listTasks(planId).find((task) => {
+      const metadata = isRecord(task.metadata) ? task.metadata : undefined
+      return metadata?.subagentName === subagentName
+    })
+  }
+
+  private collectSubagentNames(planId: string): Set<string> {
+    const names = new Set<string>()
+    for (const task of this.store.listTasks(planId)) {
+      const name = subagentNameFromTask(task)
+      if (name) names.add(name)
+    }
+    for (const run of this.store.listRuns({ planId })) {
+      const name = subagentNameFromRun(run)
+      if (name) names.add(name)
+    }
+    return names
+  }
+
+  private withRunPlanContext(context: AgentDebugContextPanel, run: AgentRun): AgentDebugContextPanel {
+    if (!run.planId) return context
+    const plan = this.store.getPlan(run.planId)
+    if (!plan) return context
+    const tasks = this.store.listTasks(plan.id)
+    const runs = this.store.listRuns({ planId: plan.id })
+    return {
+      ...context,
+      agentPlan: {
+        id: plan.id,
+        title: plan.title,
+        status: plan.status,
+        progress: plan.progress,
+        ...(run.role ? { role: run.role } : {}),
+        ...(run.taskId ? { currentTaskId: run.taskId } : {}),
+        ...(plan.rootRunId ? { rootRunId: plan.rootRunId } : {}),
+        tasks: tasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          status: task.status,
+          progress: task.progress,
+          deps: task.deps,
+          ...(subagentNameFromTask(task) ? { subagentName: subagentNameFromTask(task) } : {}),
+          ...(task.ownerRunId ? { ownerRunId: task.ownerRunId } : {}),
+          ...(task.blockedReason ? { blockedReason: task.blockedReason } : {}),
+        })),
+        workers: runs
+          .filter((item) => item.role === 'worker')
+          .map((item) => ({
+            id: item.id,
+            status: item.status,
+            ...(subagentNameFromRun(item) ? { subagentName: subagentNameFromRun(item) } : {}),
+            ...(item.taskId ? { taskId: item.taskId } : {}),
+            ...(item.parentRunId ? { parentRunId: item.parentRunId } : {}),
+            ...(typeof item.progress === 'number' ? { progress: item.progress } : {}),
+            ...(item.blockedReason ? { blockedReason: item.blockedReason } : {}),
+          })),
+        artifacts: tasks.flatMap((task) => task.artifacts.map((artifact) => {
+          const metadata = isRecord(artifact.metadata) ? artifact.metadata : undefined
+          return {
+            id: artifact.id,
+            type: artifact.type,
+            taskId: task.id,
+            ...(artifact.title ? { title: artifact.title } : {}),
+            ...(artifact.uri ? { uri: artifact.uri } : {}),
+            ...(subagentNameFromTask(task) ? { subagentName: subagentNameFromTask(task) } : {}),
+            ...(typeof metadata?.sourceRunId === 'string' ? { sourceRunId: metadata.sourceRunId } : {}),
+            ...(typeof metadata?.sourceTaskId === 'string' ? { sourceTaskId: metadata.sourceTaskId } : {}),
+            ...(typeof metadata?.toolName === 'string' ? { toolName: metadata.toolName } : {}),
+            ...(typeof metadata?.policy === 'string' ? { policy: metadata.policy } : {}),
+          }
+        })),
+      },
+    }
+  }
+
+  private subagentSnapshot(planId: string, plannerRunId: string): Record<string, JSONValue> {
+    const snapshot = this.getPlanSnapshot(planId)
+    return {
+      plan: snapshot.plan as unknown as JSONValue,
+      tasks: snapshot.tasks as unknown as JSONValue,
+      workers: snapshot.runs
+        .filter((run) => run.parentRunId === plannerRunId || (run.role === 'worker' && run.planId === planId))
+        .map((run) => this.toSubagentRunSummaryForPlan(run)) as unknown as JSONValue,
+    }
+  }
+
+  private resolveSubagentWaitTarget(planId: string, input: Record<string, JSONValue>): {
+    done: boolean
+    status: 'completed' | 'failed' | 'cancelled' | 'blocked' | 'needs_review' | 'pending'
+    target: Record<string, JSONValue>
+  } {
+    const runId = normalizeNonEmptyString(input.runId)
+    const taskId = normalizeNonEmptyString(input.taskId)
+    if (runId) {
+      const run = this.requireRun(runId)
+      if (run.planId !== planId) throw new Error(`run ${runId} does not belong to plan ${planId}`)
+      return {
+        done: isTerminalRunStatus(run.status),
+        status: waitStatusFromRunStatus(run.status),
+        target: { kind: 'run', run: this.toSubagentRunSummaryForPlan(run) as unknown as JSONValue },
+      }
+    }
+    if (taskId) {
+      const task = this.requireTask(taskId)
+      if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+      return {
+        done: task.status === 'done' || task.status === 'failed' || task.status === 'cancelled' || task.status === 'blocked',
+        status: waitStatusFromTaskStatus(task.status),
+        target: {
+          kind: 'task',
+          task: {
+            ...task,
+            ...(subagentNameFromTask(task) ? { subagentName: subagentNameFromTask(task) } : {}),
+          } as unknown as JSONValue,
+        },
+      }
+    }
+    const plan = this.requirePlan(planId)
+    return {
+      done: isTerminalPlanStatus(plan.status),
+      status: waitStatusFromPlanStatus(plan.status),
+      target: { kind: 'plan', plan: plan as unknown as JSONValue },
+    }
+  }
+
+  private toSubagentRunSummaryForPlan(run: AgentRun): Record<string, JSONValue> {
+    const summary = toSubagentRunSummary(run)
+    if (summary.subagentName || !run.taskId) return summary
+    const task = this.store.getTask(run.taskId)
+    const subagentName = task ? subagentNameFromTask(task) : undefined
+    return subagentName ? { ...summary, subagentName } : summary
   }
 
   private isRunCancelled(runId: string): boolean {
@@ -2452,14 +2953,23 @@ export class AgentRuntime {
         type: 'run',
         title: run.status === 'completed_with_warnings' ? 'Worker run completed with warnings' : 'Worker run completed',
         uri: `agent-run:${run.id}`,
+        metadata: artifactProvenanceFromRun(run, 'worker_completion'),
         createdAt: run.completedAt ?? now,
       })
+      for (const artifact of rollbackArtifactsFromRun(run, now)) {
+        task.artifacts = appendUniqueTaskArtifact(task.artifacts, artifact)
+      }
     } else if (run.status === 'requires_action') {
+      const needsInput = run.pendingInputRequests?.some((request) => request.status === 'pending') === true
       task.status = 'blocked'
       task.progress = typeof run.progress === 'number' ? run.progress : Math.max(task.progress, 0.5)
-      task.blockedReason = run.pendingInputRequests?.some((request) => request.status === 'pending')
+      task.blockedReason = needsInput
         ? 'Worker run needs user input.'
         : 'Worker run needs approval.'
+      task.metadata = {
+        ...(task.metadata ?? {}),
+        blockedKind: needsInput ? 'needs_input' : 'approval',
+      }
     } else if (run.status === 'failed') {
       task.status = 'failed'
       task.blockedReason = run.error ?? 'Worker run failed.'
@@ -2487,6 +2997,19 @@ export class AgentRuntime {
       if (!Number.isFinite(startedAt) || nowMs - startedAt < timeoutMs) continue
       this.cancelRun(run.id, { reason: `Worker run timed out after ${timeoutMs}ms.` })
       this.syncTaskFromRun(run.id)
+      const task = run.taskId ? this.store.getTask(run.taskId) : undefined
+      if (task) {
+        task.metadata = {
+          ...(task.metadata ?? {}),
+          timedOutRunId: run.id,
+          workerTimeoutMs: timeoutMs,
+          previousOwnerRunId: run.id,
+          previousStatus: 'running',
+        }
+        task.updatedAt = isoNow()
+        this.store.updateTask(task)
+        this.emitPlanTaskEvent(planId, task)
+      }
       timedOutRunIds.push(run.id)
     }
     return timedOutRunIds
@@ -2499,6 +3022,7 @@ export class AgentRuntime {
       if (task.status !== 'failed' && task.status !== 'cancelled') continue
       const attempts = this.store.listRuns({ planId, taskId: task.id, role: 'worker' }).length
       if (attempts >= maxTaskAttempts) continue
+      const previousTask = { ...task, deps: [...task.deps], artifacts: [...task.artifacts] }
       task.status = 'pending'
       task.progress = 0
       task.metadata = {
@@ -2510,6 +3034,7 @@ export class AgentRuntime {
       delete task.blockedReason
       task.updatedAt = now
       this.store.updateTask(task)
+      this.recordTaskProtocolEvents(task, previousTask)
       this.emitPlanTaskEvent(planId, task)
       retriedTaskIds.push(task.id)
     }
@@ -2520,20 +3045,23 @@ export class AgentRuntime {
   private resetPlanTasksForReplan(planId: string, input: ReplanRunInput): string[] {
     const explicitTaskIds = new Set(normalizeStringList(input.resetTaskIds))
     const resetBlocked = input.resetBlocked === true
+    const resetNeedsReview = input.resetNeedsReview === true
     const resetFailed = input.resetFailed === true
     const resetCancelled = input.resetCancelled === true
     const resetTaskIds: string[] = []
-    if (explicitTaskIds.size === 0 && !resetBlocked && !resetFailed && !resetCancelled) return resetTaskIds
+    if (explicitTaskIds.size === 0 && !resetBlocked && !resetNeedsReview && !resetFailed && !resetCancelled) return resetTaskIds
 
     const now = isoNow()
     for (const task of this.store.listTasks(planId)) {
       const shouldReset = explicitTaskIds.has(task.id)
         || (resetBlocked && task.status === 'blocked')
+        || (resetNeedsReview && task.status === 'needs_review')
         || (resetFailed && task.status === 'failed')
         || (resetCancelled && task.status === 'cancelled')
       if (!shouldReset) continue
-      if (task.status !== 'blocked' && task.status !== 'failed' && task.status !== 'cancelled' && !explicitTaskIds.has(task.id)) continue
+      if (task.status !== 'blocked' && task.status !== 'needs_review' && task.status !== 'failed' && task.status !== 'cancelled' && !explicitTaskIds.has(task.id)) continue
       const previousStatus = task.status
+      const previousTask = { ...task, deps: [...task.deps], artifacts: [...task.artifacts] }
       task.status = 'pending'
       task.progress = 0
       task.metadata = {
@@ -2550,6 +3078,7 @@ export class AgentRuntime {
       delete task.cancelledAt
       task.updatedAt = now
       this.store.updateTask(task)
+      this.recordTaskProtocolEvents(task, previousTask)
       this.emitPlanTaskEvent(planId, task)
       resetTaskIds.push(task.id)
     }
@@ -2580,6 +3109,7 @@ export class AgentRuntime {
     if (!plan) return
     const tasks = this.store.listTasks(planId)
     const now = isoNow()
+    const previousStatus = plan.status
     const progress = tasks.length === 0
       ? plan.progress
       : tasks.reduce((sum, task) => sum + normalizeProgress(task.progress)!, 0) / tasks.length
@@ -2604,6 +3134,25 @@ export class AgentRuntime {
     if (firstBlocked?.blockedReason) plan.blockedReason = firstBlocked.blockedReason
     else delete plan.blockedReason
     this.store.updatePlan(plan)
+    if (previousStatus !== 'done' && nextStatus === 'done') this.recordPlanCompletion(plan, tasks)
+  }
+
+  private recordPlanCompletion(plan: AgentPlan, tasks: AgentTask[]): void {
+    const run = plan.rootRunId ? this.store.getRun(plan.rootRunId) : this.store.listRuns({ planId: plan.id, role: 'planner' })[0]
+    if (!run) return
+    this.recordTraceEvent(run, {
+      kind: 'plan',
+      title: 'Plan completed',
+      summary: `${tasks.length} task(s) completed.`,
+      status: 'completed',
+      data: {
+        eventType: 'plan_completed',
+        planId: plan.id,
+        taskCount: tasks.length,
+        artifactCount: tasks.reduce((sum, task) => sum + task.artifacts.length, 0),
+        completedTaskIds: tasks.map((task) => task.id),
+      },
+    })
   }
 
   private updateThreadRunStatus(threadId: string, status: AgentRun['status'], runId?: string): void {
@@ -2681,18 +3230,157 @@ function isMessageRole(value: unknown): value is AgentMessageRole {
   return value === 'system' || value === 'user' || value === 'assistant'
 }
 
-function taskStatusProtocolEvent(status: AgentTask['status']): {
+function taskStatusProtocolEvent(task: AgentTask): {
   eventType: string
   title: string
   status: AgentTraceEvent['status']
 } {
+  const status = task.status
   if (status === 'running') return { eventType: 'task_started', title: 'Task started', status: 'started' }
-  if (status === 'blocked') return { eventType: 'blocked', title: 'Task blocked', status: 'blocked' }
+  if (status === 'blocked') {
+    const blockedKind = isRecord(task.metadata) && task.metadata.blockedKind === 'needs_input' ? 'needs_input' : 'blocked'
+    return {
+      eventType: blockedKind,
+      title: blockedKind === 'needs_input' ? 'Task needs input' : 'Task blocked',
+      status: 'blocked',
+    }
+  }
   if (status === 'needs_review') return { eventType: 'needs_review', title: 'Task needs review', status: 'blocked' }
   if (status === 'done') return { eventType: 'task_completed', title: 'Task completed', status: 'completed' }
   if (status === 'failed') return { eventType: 'task_failed', title: 'Task failed', status: 'failed' }
   if (status === 'cancelled') return { eventType: 'task_cancelled', title: 'Task cancelled', status: 'failed' }
   return { eventType: 'task_pending', title: 'Task pending', status: 'info' }
+}
+
+function buildRollbackMetadata(outcomes: ToolCallOutcome[]): { rollbackRecords?: JSONValue } {
+  const rollbackRecords = outcomes.flatMap((outcome) => outcome.rollback ? [{
+    call: outcome.call,
+    rollback: outcome.rollback,
+  }] : [])
+  return rollbackRecords.length > 0 ? { rollbackRecords: rollbackRecords as unknown as JSONValue } : {}
+}
+
+function buildRequestedSubagentNameMap(input: Record<string, JSONValue>, taskIds: string[]): Map<string, string> {
+  const result = new Map<string, string>()
+  const singleTaskId = normalizeNonEmptyString(input.taskId)
+  const singleName = normalizeNonEmptyString(input.subagentName)
+  if (singleTaskId && singleName) result.set(singleTaskId, singleName)
+  if (singleName && taskIds.length === 1) result.set(taskIds[0]!, singleName)
+  if (isRecord(input.subagentNames)) {
+    for (const [taskId, value] of Object.entries(input.subagentNames)) {
+      const name = normalizeNonEmptyString(value)
+      if (name) result.set(taskId, name)
+    }
+  }
+  const names = normalizeStringList(input.subagentNames)
+  taskIds.forEach((taskId, index) => {
+    const name = names[index]
+    if (name) result.set(taskId, name)
+  })
+  return result
+}
+
+function normalizeSubagentNameAt(value: unknown, index: number): string | undefined {
+  return normalizeStringList(value)[index]
+}
+
+const DEFAULT_SUBAGENT_NAMES = [
+  '爱因斯坦',
+  '霍金',
+  '图灵',
+  '居里',
+  '费曼',
+  '冯诺依曼',
+  '达尔文',
+  '牛顿',
+  '伽利略',
+  '开普勒',
+] as const
+
+function nextSubagentName(used: Set<string>): string {
+  for (const name of DEFAULT_SUBAGENT_NAMES) {
+    if (!used.has(name)) return name
+  }
+  let index = DEFAULT_SUBAGENT_NAMES.length + 1
+  while (used.has(`子代理${index}`)) index += 1
+  return `子代理${index}`
+}
+
+function subagentNameFromTask(task: AgentTask): string | undefined {
+  const metadata = isRecord(task.metadata) ? task.metadata : undefined
+  return normalizeNonEmptyString(metadata?.subagentName)
+}
+
+function subagentNameFromRun(run: AgentRun): string | undefined {
+  const metadata = isRecord(run.metadata) ? run.metadata : undefined
+  return normalizeNonEmptyString(metadata?.subagentName)
+}
+
+function toSubagentRunSummary(run: AgentRun): Record<string, JSONValue> {
+  const subagentName = subagentNameFromRun(run)
+  return {
+    id: run.id,
+    ...(subagentName ? { subagentName } : {}),
+    threadId: run.threadId,
+    status: run.status,
+    ...(run.role ? { role: run.role } : {}),
+    ...(run.parentRunId ? { parentRunId: run.parentRunId } : {}),
+    ...(run.planId ? { planId: run.planId } : {}),
+    ...(run.taskId ? { taskId: run.taskId } : {}),
+    ...(typeof run.progress === 'number' ? { progress: run.progress } : {}),
+    ...(run.blockedReason ? { blockedReason: run.blockedReason } : {}),
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    ...(run.startedAt ? { startedAt: run.startedAt } : {}),
+    ...(run.completedAt ? { completedAt: run.completedAt } : {}),
+    ...(run.failedAt ? { failedAt: run.failedAt } : {}),
+    ...(run.cancelledAt ? { cancelledAt: run.cancelledAt } : {}),
+    ...(run.error ? { error: run.error } : {}),
+    ...(run.warnings?.length ? { warnings: run.warnings } : {}),
+    stepCount: run.steps.length,
+    pendingApprovalCount: (run.pendingApprovals ?? []).filter((approval) => approval.status === 'pending').length,
+    pendingInputCount: (run.pendingInputRequests ?? []).filter((request) => request.status === 'pending').length,
+  }
+}
+
+function rollbackArtifactsFromRun(run: AgentRun, now: string): AgentTaskArtifact[] {
+  const metadata = isRecord(run.metadata) ? run.metadata : undefined
+  const records = Array.isArray(metadata?.rollbackRecords) ? metadata.rollbackRecords : []
+  return records.flatMap((record, index) => {
+    if (!isRecord(record)) return []
+    const rollback = isRecord(record.rollback) ? record.rollback : undefined
+    if (!rollback) return []
+    const policy = typeof rollback?.policy === 'string' ? rollback.policy : undefined
+    if (!policy || policy === 'not_applicable') return []
+    return [{
+      id: `rollback_${run.id}_${index}`,
+      type: 'rollback-policy',
+      title: policy === 'manual_compensation' ? 'Manual rollback required' : 'Rollback policy recorded',
+      uri: typeof rollback.artifactUri === 'string' ? rollback.artifactUri : `agent-run:${run.id}#rollback-${index}`,
+      metadata: {
+        ...artifactProvenanceFromRun(run, 'rollback_policy'),
+        policy,
+        ...(typeof rollback.reason === 'string' ? { reason: rollback.reason } : {}),
+        ...(isRecord(record.call) && typeof record.call.name === 'string' ? { toolName: record.call.name } : {}),
+      },
+      createdAt: now,
+    }]
+  })
+}
+
+function artifactProvenanceFromRun(run: AgentRun, createdFrom: string): Record<string, JSONValue> {
+  const subagentName = subagentNameFromRun(run)
+  return {
+    createdFrom,
+    sourceRunId: run.id,
+    threadId: run.threadId,
+    runStatus: run.status,
+    ...(run.role ? { sourceRunRole: run.role } : {}),
+    ...(run.parentRunId ? { parentRunId: run.parentRunId } : {}),
+    ...(run.planId ? { planId: run.planId } : {}),
+    ...(run.taskId ? { sourceTaskId: run.taskId } : {}),
+    ...(subagentName ? { subagentName } : {}),
+  }
 }
 
 function assistantDeltaFromTraceEvent(event: AgentTraceEvent): Omit<Extract<AgentRunStreamEvent, { type: 'assistant_delta' }>, 'runId' | 'traceEventId' | 'createdAt' | 'run'> | undefined {
@@ -2734,6 +3422,32 @@ function isTerminalRunStatus(status: AgentRun['status']): boolean {
 
 function isTerminalPlanStatus(status: AgentPlan['status']): boolean {
   return status === 'done' || status === 'failed' || status === 'cancelled'
+}
+
+function waitStatusFromRunStatus(status: AgentRun['status']): 'completed' | 'failed' | 'cancelled' | 'blocked' | 'pending' {
+  if (status === 'completed' || status === 'completed_with_warnings') return 'completed'
+  if (status === 'failed') return 'failed'
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'requires_action') return 'blocked'
+  return 'pending'
+}
+
+function waitStatusFromTaskStatus(status: AgentTask['status']): 'completed' | 'failed' | 'cancelled' | 'blocked' | 'needs_review' | 'pending' {
+  if (status === 'done') return 'completed'
+  if (status === 'failed') return 'failed'
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'blocked') return 'blocked'
+  if (status === 'needs_review') return 'needs_review'
+  return 'pending'
+}
+
+function waitStatusFromPlanStatus(status: AgentPlan['status']): 'completed' | 'failed' | 'cancelled' | 'blocked' | 'needs_review' | 'pending' {
+  if (status === 'done') return 'completed'
+  if (status === 'failed') return 'failed'
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'blocked') return 'blocked'
+  if (status === 'needs_review') return 'needs_review'
+  return 'pending'
 }
 
 function extractContextPackTimings(value: unknown): { totalMs?: number; contextPackMs?: number; projectsMs?: number } | undefined {
@@ -2888,6 +3602,7 @@ function normalizePositiveInteger(value: unknown): number | undefined {
 function formatWorkerTaskMessage(plan: AgentPlan, task: AgentTask): string {
   return [
     `Plan: ${plan.title}`,
+    subagentNameFromTask(task) ? `Subagent name: ${subagentNameFromTask(task)}` : undefined,
     `Task: ${task.title}`,
     task.description ? `Description: ${task.description}` : undefined,
     task.deps.length > 0 ? `Dependencies: ${task.deps.join(', ')}` : undefined,
@@ -2908,6 +3623,15 @@ function normalizeStringList(value: unknown): string[] {
 function normalizePlanTaskInputs(value: unknown): CreatePlanTaskInput[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => isRecord(item) ? [item] : [])
+}
+
+function selectPlannerInlineTask(tasks: AgentTask[]): AgentTask | undefined {
+  if (tasks.length !== 1) return undefined
+  const task = tasks[0]
+  if (!task || task.deps.length > 0 || task.parentId) return undefined
+  const metadata = isRecord(task.metadata) ? task.metadata : undefined
+  if (metadata?.executionMode === 'worker') return undefined
+  return task
 }
 
 function normalizePlanTaskUpdateInputs(value: unknown): UpdatePlanTaskInput[] {

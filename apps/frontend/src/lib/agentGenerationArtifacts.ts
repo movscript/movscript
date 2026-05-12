@@ -65,9 +65,12 @@ function generationParamAuditFromToolResult(result: unknown): Omit<ChatGeneratio
   if (!isRecord(data)) return undefined
   const audit = readRecord(data, 'param_validation')
   if (!audit) return undefined
+  const resultRecord = isRecord(result) ? result : undefined
   return {
     modelConfigId: numericField(audit, 'model_config_id') ?? numericField(audit, 'modelConfigId'),
     modelContractLoaded: audit.model_contract_loaded === true || audit.modelContractLoaded === true,
+    paramsSchemaLoaded: audit.params_schema_loaded === true || audit.paramsSchemaLoaded === true,
+    paramsSchemaRuleCount: numericField(audit, 'params_schema_rule_count') ?? numericField(audit, 'paramsSchemaRuleCount'),
     supportedParams: stringArrayField(audit, 'supported_params') ?? stringArrayField(audit, 'supportedParams') ?? [],
     providedExtraParams: stringArrayField(audit, 'provided_extra_params') ?? stringArrayField(audit, 'providedExtraParams') ?? [],
     submittedExtraParams: stringArrayField(audit, 'submitted_extra_params') ?? stringArrayField(audit, 'submittedExtraParams') ?? [],
@@ -75,6 +78,10 @@ function generationParamAuditFromToolResult(result: unknown): Omit<ChatGeneratio
     droppedTopLevelParams: stringArrayField(audit, 'dropped_top_level_params') ?? stringArrayField(audit, 'droppedTopLevelParams') ?? [],
     ...(typeof audit.extra_params_parse_error === 'string' ? { extraParamsParseError: audit.extra_params_parse_error } : {}),
     ...(typeof audit.extraParamsParseError === 'string' ? { extraParamsParseError: audit.extraParamsParseError } : {}),
+    ...(typeof data.repair_note === 'string' ? { repairNote: data.repair_note } : {}),
+    ...(typeof data.repairNote === 'string' ? { repairNote: data.repairNote } : {}),
+    ...(typeof resultRecord?.repair_note === 'string' ? { repairNote: resultRecord.repair_note } : {}),
+    ...(typeof resultRecord?.repairNote === 'string' ? { repairNote: resultRecord.repairNote } : {}),
   }
 }
 

@@ -160,6 +160,7 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
               <p className="mt-0.5 truncate text-[9px] text-muted-foreground">
                 模型合约：{audit.modelContractLoaded ? '已加载' : '未加载'}
                 {audit.supportedParams.length > 0 ? ` · ${audit.supportedParams.length} 个参数` : ''}
+                {audit.paramsSchemaLoaded ? ` · schema${audit.paramsSchemaRuleCount !== undefined ? ` ${audit.paramsSchemaRuleCount} 条规则` : ''}` : ''}
               </p>
               {audit.submittedExtraParams.length > 0 && (
                 <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
@@ -179,6 +180,11 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
               {audit.extraParamsParseError && (
                 <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-destructive">
                   extra_params 解析失败：{audit.extraParamsParseError}
+                </p>
+              )}
+              {audit.repairNote && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-green-700 dark:text-green-300">
+                  自动修复：{audit.repairNote}
                 </p>
               )}
             </div>

@@ -20,6 +20,13 @@ export function filterPromptMemories(memories: AgentMemory[]): AgentMemory[] {
   return memories.filter((memory) => !isRuntimeFailureText(`${memory.title}\n${memory.content}`))
 }
 
+export function buildPromptMemoryIndex(memories: AgentMemory[]): AgentMemory[] {
+  return filterPromptMemories(memories).map((memory) => ({
+    ...memory,
+    content: '',
+  }))
+}
+
 export function isRuntimeFailureText(text: string): boolean {
   const normalized = text.trim()
   return RUNTIME_FAILURE_PATTERNS.some((pattern) => pattern.test(normalized))

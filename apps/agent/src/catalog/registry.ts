@@ -1,6 +1,5 @@
 import { DRAFT_SCHEMA_REGISTRY } from '@movscript/draft-schemas'
-import type { AgentManifest, AgentSkillManifest } from '../manifest/agentManifest.js'
-import type { AgentPluginBundle } from '../manifest/pluginCatalog.js'
+import type { AgentManifest, AgentSkillManifest } from './agentManifest.js'
 import type { RegisteredTool } from '../tools/toolRegistry.js'
 import type {
   AgentProfile,
@@ -34,7 +33,6 @@ export function buildLayeredCatalogRegistry(input: {
   manifest: AgentManifest
   skills: AgentSkillManifest[]
   tools: RegisteredTool[]
-  bundles: AgentPluginBundle[]
   packs?: CapabilityPack[]
   profiles?: AgentProfile[]
   layeredSkills?: SkillDefinition[]
@@ -49,21 +47,17 @@ export function buildLayeredCatalogRegistry(input: {
     registry.skills.set(definition.id, definition)
   }
   for (const skill of input.layeredSkills ?? []) registry.skills.set(skill.id, skill)
-  for (const bundle of input.bundles) registry.packs.set(bundle.id, packFromLegacyBundle(bundle))
   for (const pack of input.packs ?? []) registry.packs.set(pack.id, pack)
   registry.packs.set('movscript.pack.default', {
     id: 'movscript.pack.default',
     version: '1.0.0',
     name: 'Default MovScript Agent Pack',
-    description: 'Compatibility pack containing the active built-in and local catalog resources.',
+    description: 'Default pack containing the active built-in and local catalog resources.',
     source: 'builtin',
     schemas: Array.from(registry.schemas.keys()),
     tools: Array.from(registry.tools.keys()),
     skills: Array.from(registry.skills.keys()),
   })
-  const defaultProfile = profileFromManifest(input.manifest, 'movscript.profile.default', 'Default Agent Profile')
-  registry.profiles.set(defaultProfile.id, defaultProfile)
-  if (defaultProfile.modeAlias) registry.modeProfiles.set(defaultProfile.modeAlias, defaultProfile)
   for (const profile of input.profiles ?? []) {
     registry.profiles.set(profile.id, profile)
     if (profile.modeAlias) registry.modeProfiles.set(profile.modeAlias, profile)
@@ -84,11 +78,12 @@ export function toolDefinitionFromRegisteredTool(tool: RegisteredTool): ToolDefi
       approval: tool.defaults?.approval ?? (tool.requiresApprovalByDefault ? 'always' : 'never'),
       ...(tool.defaults?.timeoutMs !== undefined ? { timeoutMs: tool.defaults.timeoutMs } : {}),
     },
-    source: tool.source === 'plugin' ? 'plugin' : 'runtime',
+    source: tool.source === 'plugin' ? 'plugin' : tool.source === 'mcp' ? 'mcp' : 'runtime',
     capability: typeof tool.capability === 'string' ? tool.capability : tool.description,
     ...(tool.source === 'plugin' && typeof tool.pluginId === 'string' ? { pluginId: tool.pluginId } : {}),
     ...(tool.source === 'mcp' && typeof tool.mcpServerId === 'string' ? { mcpServerId: tool.mcpServerId } : {}),
     ...(tool.errorCodes ? { errorCodes: tool.errorCodes } : {}),
+    ...(tool.allowedRunRoles ? { allowedRunRoles: tool.allowedRunRoles } : {}),
   }
 }
 
@@ -121,19 +116,6 @@ export function skillDefinitionFromManifestSkill(skill: AgentSkillManifest): Ski
     toolRefs: (skill.toolHints ?? []).map((name) => `tool://${name}`),
     schemaRefs: schemaRefsFromLegacySkill(skill),
     toolScope: 'intersect',
-  }
-}
-
-export function packFromLegacyBundle(bundle: AgentPluginBundle): CapabilityPack {
-  return {
-    id: bundle.id.replace('.bundle.', '.pack.').replace('movscript.bundle.', 'movscript.pack.'),
-    version: '1.0.0',
-    name: bundle.name,
-    ...(bundle.description ? { description: bundle.description } : {}),
-    source: 'builtin',
-    schemas: [],
-    tools: bundle.tools,
-    skills: bundle.skills.map((id) => normalizeLegacySkillId(id, inferLegacyKindFromId(id))),
   }
 }
 
@@ -174,12 +156,6 @@ function inferSkillKind(skill: AgentSkillManifest): SkillDefinition['kind'] {
   return 'workflow'
 }
 
-function inferLegacyKindFromId(id: string): SkillDefinition['kind'] {
-  if (id.includes('.policy.') || id.includes('.drafts.safe-drafts') || id.includes('.platform.concepts')) return 'policy'
-  if (id.includes('.persona.')) return 'persona'
-  return 'workflow'
-}
-
 function normalizeLegacySkillId(id: string, kind: SkillDefinition['kind']): string {
   if (id.includes(`.${kind}.`)) return id
   if (id.startsWith('movscript.intent.')) return `movscript.workflow.${id.slice('movscript.intent.'.length)}`
@@ -190,12 +166,6 @@ function normalizeLegacySkillId(id: string, kind: SkillDefinition['kind']): stri
 
 function triggersFromLegacySkill(skill: AgentSkillManifest): SkillTrigger[] {
   const triggers: SkillTrigger[] = []
-  if (skill.appliesWhen) {
-    triggers.push({
-      kind: 'keyword',
-      any: skill.appliesWhen.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
-    })
-  }
   const category = skill.category
   if (category) {
     triggers.push({ kind: 'intent', id: category })

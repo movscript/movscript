@@ -132,27 +132,6 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
 
-      if (req.method === 'GET' && url.pathname === '/agent-catalog/bundles') {
-        writeJSON(res, 200, context.agentRuntime.listAgentBundles())
-        return
-      }
-
-      const bundleMatch = url.pathname.match(/^\/agent-catalog\/bundles\/([^/]+)$/)
-      if (bundleMatch && req.method === 'GET') {
-        writeJSON(res, 200, context.agentRuntime.inspectAgentBundle({ bundleId: decodeURIComponent(bundleMatch[1]) }))
-        return
-      }
-
-      const bundleEnableMatch = url.pathname.match(/^\/agent-catalog\/bundles\/([^/]+)\/enable$/)
-      if (bundleEnableMatch && req.method === 'POST') {
-        const body = normalizeOptionalObject(await readJSON(req), 'agent catalog enable body')
-        writeJSON(res, 200, context.agentRuntime.enableAgentBundle({
-          ...body,
-          bundleId: decodeURIComponent(bundleEnableMatch[1]),
-        }))
-        return
-      }
-
       if (req.method === 'POST' && url.pathname === '/agent-catalog/reload') {
         writeJSON(res, 200, context.agentRuntime.reloadAgentCatalog())
         return

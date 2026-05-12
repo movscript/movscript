@@ -1,0 +1,17 @@
+{
+  "name": "movscript_request_user_input",
+  "description": "Pause the current agent run and ask the user for missing context, a choice, confirmation, or free-form input. Use this when the next step would be a guess.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "permission": "agent.input",
+  "risk": "ui",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

@@ -1,0 +1,70 @@
+{
+  "name": "movscript_create_draft",
+  "description": "Create a local draft. The kind field selects the draft schema. Set proposal:true to create a proposal draft with schema validation and inferred target/source metadata; without proposal:true creates a plain draft.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind",
+      "content"
+    ],
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "script_split_proposal",
+          "script",
+          "asset_slot",
+          "storyboard_line",
+          "content_unit",
+          "prompt",
+          "note",
+          "pipeline",
+          "segment",
+          "scene_moment",
+          "asset_proposal",
+          "project_proposal",
+          "production_proposal",
+          "content_unit_proposal",
+          "content_unit_media_proposal"
+        ]
+      },
+      "title": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string"
+      },
+      "projectId": {
+        "type": "number"
+      },
+      "productionId": {
+        "type": "number"
+      },
+      "source": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "target": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "metadata": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "proposal": {
+        "type": "boolean"
+      }
+    }
+  },
+  "permission": "draft.write",
+  "risk": "draft",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "Create a local review draft or proposal draft for the selected schema kind."
+}

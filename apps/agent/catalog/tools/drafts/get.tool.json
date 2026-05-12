@@ -1,0 +1,24 @@
+{
+  "name": "movscript_get_draft",
+  "description": "Read a local draft by id. Returns content, metadata, status, and the local validation result.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "draftId"
+    ],
+    "properties": {
+      "draftId": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "draft.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

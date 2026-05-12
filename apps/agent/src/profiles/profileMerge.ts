@@ -1,4 +1,4 @@
-import type { AgentProfile, ApprovalMode, ToolGrant } from '../catalog/types.js'
+import type { AgentProfile, ApprovalMode, ProfileResolutionTrace, ToolGrant } from '../catalog/types.js'
 
 const APPROVAL_RANK: Record<ApprovalMode, number> = {
   never: 0,
@@ -37,6 +37,56 @@ export function mergeProfiles(...layers: AgentProfile[]): AgentProfile {
   }
 }
 
+export type RestrictiveProfileLayerSource = Extract<ProfileResolutionTrace['layers'][number]['source'], 'org' | 'user'>
+
+export interface RestrictiveProfileOverrideResult {
+  profile: AgentProfile
+  warnings: string[]
+  applied: boolean
+}
+
+export function applyRestrictiveProfileOverride(
+  base: AgentProfile,
+  override: AgentProfile,
+  source: RestrictiveProfileLayerSource,
+): RestrictiveProfileOverrideResult {
+  const violations = findRestrictiveOverrideViolations(base, override, source)
+  if (violations.length > 0) {
+    return {
+      profile: cloneProfile(base),
+      warnings: violations.map((message) => `profile.override.rejected: ${source} profile ${override.id} ${message}`),
+      applied: false,
+    }
+  }
+
+  return {
+    profile: {
+      ...base,
+      id: override.id,
+      version: override.version,
+      name: override.name,
+      description: override.description ?? base.description,
+      modeAlias: base.modeAlias,
+      enabledPacks: source === 'org' && override.enabledPacks.length > 0
+        ? intersection(base.enabledPacks, override.enabledPacks)
+        : base.enabledPacks,
+      persona: base.persona,
+      enabledWorkflows: override.enabledWorkflows.length > 0
+        ? intersection(base.enabledWorkflows, override.enabledWorkflows)
+        : base.enabledWorkflows,
+      enabledPolicies: source === 'org'
+        ? union(base.enabledPolicies, override.enabledPolicies)
+        : base.enabledPolicies,
+      toolGrants: mergeRestrictiveToolGrants(base.toolGrants, override.toolGrants),
+      model: base.model,
+      limits: source === 'org' ? mergeLimits(base.limits, override.limits) : base.limits,
+      metadata: { ...(base.metadata ?? {}), ...(override.metadata ?? {}) },
+    },
+    warnings: [],
+    applied: true,
+  }
+}
+
 export function mergeToolGrants(base: ToolGrant[], next: ToolGrant[]): ToolGrant[] {
   const byName = new Map<string, ToolGrant>()
   for (const grant of base) byName.set(grant.name, grant)
@@ -67,6 +117,58 @@ function mergeLimits(left: AgentProfile['limits'], right: AgentProfile['limits']
   }
 }
 
+function findRestrictiveOverrideViolations(base: AgentProfile, override: AgentProfile, source: RestrictiveProfileLayerSource): string[] {
+  const violations: string[] = []
+  if (override.modeAlias && override.modeAlias !== base.modeAlias) violations.push(`cannot change modeAlias from ${base.modeAlias ?? 'none'} to ${override.modeAlias}`)
+  if (override.persona && override.persona !== base.persona) violations.push(`cannot change persona to ${override.persona}`)
+  if (override.model) violations.push('cannot override model binding')
+  if (source === 'user') {
+    if (override.enabledPacks.length > 0) violations.push(`cannot override enabledPacks (${override.enabledPacks.join(', ')})`)
+    if (override.enabledPolicies.length > 0) violations.push(`cannot add enabledPolicies (${override.enabledPolicies.join(', ')})`)
+    if (override.limits) violations.push('cannot override limits')
+  } else {
+    for (const pack of override.enabledPacks) {
+      if (!base.enabledPacks.includes(pack)) violations.push(`cannot add enabledPack ${pack}`)
+    }
+  }
+  for (const workflow of override.enabledWorkflows) {
+    if (!base.enabledWorkflows.includes(workflow)) violations.push(`cannot add enabledWorkflow ${workflow}`)
+  }
+  for (const grant of override.toolGrants) {
+    const baseGrant = base.toolGrants.find((item) => item.name === grant.name)
+    if (!baseGrant) {
+      if (grant.mode === 'allow') violations.push(`cannot allow ungranted tool ${grant.name}`)
+      continue
+    }
+    if (baseGrant.mode === 'deny' && grant.mode === 'allow') violations.push(`cannot allow denied tool ${grant.name}`)
+    if (baseGrant.mode === 'allow' && grant.mode === 'allow' && approvalRank(grant.approval) < approvalRank(baseGrant.approval)) {
+      violations.push(`cannot weaken approval for ${grant.name}`)
+    }
+  }
+  return violations
+}
+
+function mergeRestrictiveToolGrants(base: ToolGrant[], override: ToolGrant[]): ToolGrant[] {
+  if (override.length === 0) return base
+  const byName = new Map<string, ToolGrant>()
+  for (const grant of base) byName.set(grant.name, grant)
+  for (const grant of override) {
+    const existing = byName.get(grant.name)
+    if (!existing) continue
+    if (grant.mode === 'deny') {
+      byName.set(grant.name, { ...existing, mode: 'deny', ...(grant.approval ? { approval: stricterApproval(existing.approval, grant.approval) } : {}) })
+      continue
+    }
+    byName.set(grant.name, {
+      ...existing,
+      ...grant,
+      mode: 'allow',
+      ...(existing.approval || grant.approval ? { approval: stricterApproval(existing.approval, grant.approval) } : {}),
+    })
+  }
+  return Array.from(byName.values())
+}
+
 function minDefined(left?: number, right?: number): number | undefined {
   if (left === undefined) return right
   if (right === undefined) return left
@@ -75,6 +177,17 @@ function minDefined(left?: number, right?: number): number | undefined {
 
 function union(left: string[], right: string[]): string[] {
   return Array.from(new Set([...left, ...right]))
+}
+
+function intersection(left: string[], right: string[]): string[] {
+  const allowed = new Set(right)
+  return left.filter((item) => allowed.has(item))
+}
+
+function approvalRank(value?: ApprovalMode): number {
+  if (value === 'always') return 2
+  if (value === 'on_write') return 1
+  return 0
 }
 
 function cloneProfile(profile: AgentProfile): AgentProfile {

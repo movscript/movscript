@@ -434,6 +434,13 @@ export function GenInputCard({
                     onChange={(e) => onParamChange(p.key, e.target.checked)}
                     className="rounded"
                   />
+                ) : p.type === 'string' ? (
+                  <input
+                    type="text"
+                    className="border border-border rounded px-1.5 py-0.5 text-xs bg-background text-foreground w-32"
+                    value={String(val)}
+                    onChange={(e) => onParamChange(p.key, e.target.value)}
+                  />
                 ) : null}
               </div>
             )

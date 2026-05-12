@@ -7,12 +7,12 @@
   "priority": 900,
   "enabled": true,
   "scope": "global",
-  "instructionTemplate": "A draft is a local review artifact and does not modify formal project data. Never claim a draft has been applied unless a tool result proves the formal write. For draft creation or modification, report the draftId, kind, status, and the next review or apply step.",
   "toolRefs": [
     "tool://movscript_read_draft",
     "tool://movscript_get_draft",
     "tool://movscript_list_drafts",
     "tool://movscript_update_draft"
   ],
-  "outputContract": "State clearly whether the artifact is local review state or an approved backend write target."
+  "outputContract": "State clearly whether the artifact is local review state or an approved backend write target.",
+  "instructionTemplatePath": "safe-drafts.policy.md"
 }

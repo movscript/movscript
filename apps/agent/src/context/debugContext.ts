@@ -5,7 +5,7 @@ import type {
   AgentCapabilitiesResponse,
   ResolvedAgentSkill,
 } from '../state/types.js'
-import type { AgentManifest } from '../manifest/agentManifest.js'
+import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { CompiledPromptPreview } from '../state/types.js'
 import type { AgentClientResourceRef } from '../state/types.js'
@@ -108,6 +108,22 @@ export function buildDebugTrace(
   skills: ResolvedAgentSkill[],
   tools: AgentCapabilitiesResponse['resolvedTools'],
   promptPartIds: string[],
+  layerTrace?: {
+    profileId: string
+    profileVersion: string
+    profileLayers: Array<{ source: string; id: string; version: string }>
+    personaId?: string
+    policyIds: string[]
+    workflowIds: string[]
+    workflowTriggers?: Array<{
+      id: string
+      matched: boolean
+      matchedTriggerKind?: string
+      priority: number
+      selected: boolean
+      reason: string
+    }>
+  },
 ): AgentRunDebugTrace {
   return {
     manifestId: manifest.id,
@@ -117,6 +133,7 @@ export function buildDebugTrace(
     blockedTools: tools.blocked.map((t) => ({ name: t.name, ...(t.unavailableReason ? { reason: t.unavailableReason } : {}) })),
     promptPartIds,
     ...(manifest.model ? { model: manifest.model } : {}),
+    ...(layerTrace ? { layerTrace } : {}),
   }
 }
 

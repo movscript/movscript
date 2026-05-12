@@ -1,10 +1,10 @@
 import type { ToolCall } from '../state/types.js'
+import type { AgentRunRole } from '../state/types.js'
 import {
   DEFAULT_AGENT_MANIFEST,
   findToolGrant,
-  manifestAllowsPermission,
   type AgentManifest,
-} from '../manifest/agentManifest.js'
+} from '../catalog/agentManifest.js'
 import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from './toolRegistry.js'
 import type { ResolvedToolCatalog } from '../state/types.js'
 
@@ -30,6 +30,7 @@ export function applyToolPolicy(
     catalog?: ResolvedToolCatalog
     approvedToolNames?: string[]
     sandboxMode?: boolean
+    runRole?: AgentRunRole
   },
 ): ToolPolicyResult {
   const warnings: string[] = []
@@ -53,8 +54,13 @@ export function applyToolPolicy(
     }
 
     const grant = findToolGrant(manifest, call.name)
-    if (grant?.mode === 'deny' || !grant || !manifestAllowsPermission(manifest, tool.permission)) {
+    if (grant?.mode === 'deny' || !grant) {
       block(call, 'not_granted', `${call.name} 未被当前 agent manifest 授权`)
+      continue
+    }
+
+    if (options.runRole && tool.allowedRunRoles && !tool.allowedRunRoles.includes(options.runRole)) {
+      block(call, 'unknown_tool', `${call.name} 当前 run 角色不可用`)
       continue
     }
 
@@ -95,7 +101,7 @@ function isSandboxAutoAllowed(tool: RegisteredTool, sandboxMode?: boolean): bool
 function mapCatalogReason(reason: ResolvedToolCatalog['blocked'][number]['unavailableReason']): BlockedToolCall['reason'] {
   if (reason === 'missing_project') return 'missing_project'
   if (reason === 'not_granted' || reason === 'denied' || reason === 'missing_permission') return 'not_granted'
-  if (reason === 'inactive') return 'unknown_tool'
+  if (reason === 'inactive' || reason === 'wrong_run_role') return 'unknown_tool'
   return 'unknown_tool'
 }
 
@@ -103,6 +109,7 @@ function catalogWarningMessage(toolName: string, reason: ResolvedToolCatalog['bl
   if (reason === 'missing_project') return '当前没有选中项目'
   if (reason === 'not_granted' || reason === 'denied' || reason === 'missing_permission') return `${toolName} 未被当前 agent manifest 授权`
   if (reason === 'inactive') return `${toolName} 未被当前请求激活`
+  if (reason === 'wrong_run_role') return `${toolName} 当前 run 角色不可用`
   if (reason === 'unregistered') return `${toolName} 未注册到当前 agent 工具表中`
   if (reason === 'mcp_unavailable') return `${toolName} 当前 MCP tools/list 不可用`
   return `${toolName} 当前不可执行：${reason ?? 'unknown'}`

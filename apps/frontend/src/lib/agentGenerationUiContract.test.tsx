@@ -42,11 +42,14 @@ test('generation UI contract exposes stable hooks and accessible progressbars', 
       jobId: 45,
       modelConfigId: 12,
       modelContractLoaded: true,
+      paramsSchemaLoaded: true,
+      paramsSchemaRuleCount: 2,
       supportedParams: ['duration', 'resolution'],
       providedExtraParams: ['duration', 'resolution', 'unsupported_flag'],
       submittedExtraParams: ['duration', 'resolution'],
       droppedExtraParams: ['unsupported_flag'],
       droppedTopLevelParams: ['aspect_ratio'],
+      repairNote: 'Retried once with backend suggested_fix after generation parameter validation failed.',
     }]} />,
   )
 
@@ -61,6 +64,8 @@ test('generation UI contract exposes stable hooks and accessible progressbars', 
   assertIncludes(traceHtml, 'data-testid="agent-generation-trace-summary"')
   assertIncludes(auditHtml, 'data-testid="agent-generation-param-audit"')
   assertIncludes(auditHtml, 'unsupported_flag')
+  assertIncludes(auditHtml, 'schema 2 条规则')
+  assertIncludes(auditHtml, '自动修复')
 })
 
 test('agent panel keeps generated result and binding hooks for browser E2E', () => {

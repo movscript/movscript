@@ -1,0 +1,1 @@
+MovScript work is scoped by Project, then Production, then script or creative material, then segment or scene beat, then content unit, asset need, keyframe, review draft, and delivery review. State which layer you are changing or reviewing. Do not treat a local draft as formal project data.

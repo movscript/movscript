@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { applyToolPolicy } from './toolPolicy.js'
-import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
+import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { StaticToolRegistry } from './toolRegistry.js'
 
 const registry = new StaticToolRegistry([
@@ -65,7 +65,6 @@ test('tool policy injects current projectId into project scoped tools', () => {
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      permissions: [...DEFAULT_AGENT_MANIFEST.permissions, 'draft.write'],
       tools: [
         ...DEFAULT_AGENT_MANIFEST.tools,
         { name: 'movscript_create_draft', mode: 'allow', approval: 'never' },
@@ -90,7 +89,6 @@ test('tool policy blocks project scoped tools without a current project', () => 
 test('tool policy allows approved project creation without a current project', () => {
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    permissions: [...DEFAULT_AGENT_MANIFEST.permissions, 'project.write'],
     tools: [
       ...DEFAULT_AGENT_MANIFEST.tools,
       { name: 'movscript_create_project', mode: 'allow' as const, approval: 'always' as const },
@@ -130,7 +128,6 @@ test('tool policy blocks registered tools that the manifest does not grant', () 
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['project.read'],
       tools: [{ name: 'movscript_read_project_scripts', mode: 'allow' }],
     },
   })
@@ -147,7 +144,6 @@ test('tool policy blocks write/generation tools until explicitly approved', () =
     currentProjectId: 42,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['generation.create'],
       tools: [{ name: 'movscript_create_generation_job', mode: 'allow', approval: 'always' }],
     },
     registry,
@@ -167,7 +163,6 @@ test('tool policy allows approved generation tools and injects projectId', () =>
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['generation.create'],
       tools: [{ name: 'movscript_create_generation_job', mode: 'allow', approval: 'always' }],
     },
   })
@@ -184,7 +179,6 @@ test('tool policy allows generation job inspection without approval', () => {
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['generation.read'],
       tools: [{ name: 'movscript_get_generation_job', mode: 'allow', approval: 'never' }],
     },
   })
@@ -197,7 +191,6 @@ test('tool policy allows generation job inspection without approval', () => {
 test('tool policy requires approval before cancelling generation jobs', () => {
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,
-    permissions: ['generation.cancel'],
     tools: [{ name: 'movscript_cancel_generation_job', mode: 'allow' as const, approval: 'always' as const }],
   }
   const blocked = applyToolPolicy([
@@ -233,7 +226,6 @@ test('tool policy lets sandbox intercept approval-gated write and generation too
     registry,
     manifest: {
       ...DEFAULT_AGENT_MANIFEST,
-      permissions: ['generation.create'],
       tools: [{ name: 'movscript_create_generation_job', mode: 'allow', approval: 'always' }],
     },
   })

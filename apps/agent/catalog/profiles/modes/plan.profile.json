@@ -23,6 +23,10 @@
     { "name": "movscript_read_project_scripts", "mode": "allow", "approval": "never" },
     { "name": "movscript_list_drafts", "mode": "allow", "approval": "never" },
     { "name": "movscript_get_draft", "mode": "allow", "approval": "never" },
+    { "name": "movscript_spawn_subagent", "mode": "allow", "approval": "never" },
+    { "name": "movscript_list_subagents", "mode": "allow", "approval": "never" },
+    { "name": "movscript_wait_subagent", "mode": "allow", "approval": "never" },
+    { "name": "movscript_cancel_subagent", "mode": "allow", "approval": "never" },
     { "name": "movscript_request_user_input", "mode": "allow", "approval": "never" }
   ],
   "limits": { "maxActiveWorkflows": 2, "maxToolCallsPerTurn": 12, "systemPromptCharLimit": 32000 }

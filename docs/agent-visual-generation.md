@@ -20,7 +20,7 @@ This note records the product contract for Agent-driven image and video generati
 ## Runtime Flow
 
 1. The Agent calls `movscript_list_models` for the target capability or feature.
-2. The MCP tool returns resolved model capability data from the backend, including `capabilities`, `input_requirements`, `supported_params`, and `params_schema`.
+2. The MCP tool returns resolved model capability data from the backend, including `capabilities`, `input_requirements`, `supported_params`, and `params_schema`. It also returns `model_contracts`, a compact agent-facing summary with each model's ID, capability list, input limits, parameter controls, supported parameter keys, and schema rule count.
 3. The Agent calls `movscript_create_generation_job` with only parameters supported by the selected model.
 4. If backend validation returns a structured `suggested_fix`, the Agent may retry `movscript_create_generation_job` once with that fix applied. Only generation parameter fixes are applied automatically; write targets, resource IDs, model IDs, and approval-sensitive fields are not changed by repair.
 5. The MCP tool returns a normalized job payload, `param_validation` audit data, and a `monitor` instruction for `movscript_get_generation_job`.
@@ -35,13 +35,22 @@ This note records the product contract for Agent-driven image and video generati
 
 Every enabled generation model is exposed through `/models` and `movscript_list_models` as a resolved model contract. Runtime callers should treat this response as the source of truth instead of relying on provider names or hardcoded plugin fields.
 
+`movscript_list_models` preserves the raw backend `models` array for compatibility and also exposes `model_contracts` for prompt-efficient agent planning. Agents should use `model_contracts` for quick model selection and parameter preflight, then inspect the matching raw model's `params_schema` when they need the full JSON Schema.
+
 Required fields for agent-facing model selection:
 
 - `capabilities`: canonical task support such as `image`, `image_edit`, `video`, `video_i2v`, or `video_v2v`.
+- `model_contracts[].model_config_id`: the backend model config ID to pass to `movscript_create_generation_job`.
 - `input_requirements`: image/video input minimums and maximums. A max value of `-1` means unlimited.
 - `supported_params`: UI-oriented parameter controls resolved from adapter defaults plus model-specific overrides.
-- `params_schema`: JSON Schema generated from `supported_params`, with `additionalProperties: false`. Cross-parameter rules are exposed through `allOf` where they can be declared from the model contract, such as `duration` conflicting with `frames` or `resolution` being restricted when `draft=true`.
+- `model_contracts[].supported_params`: compact controls for agent planning. Each item includes the parameter `key`, and may include `label`, `type`, `options`, `default`, `min`, `max`, `step`, `conflicts_with`, `conditional_enum`, `conditional_const`, and `requires_value`. Conditional rule fields are compact reference lists; use the raw model's `params_schema` for the full rule body.
+- `model_contracts[].supported_param_keys`: sorted keys for fast filtering when the Agent already has candidate `extra_params`.
+- `params_schema`: JSON Schema generated from `supported_params`, with `additionalProperties: false`. Cross-parameter rules are exposed through `allOf` where they can be declared from the model contract, such as `duration` conflicting with `frames`, `resolution` being restricted when `draft=true`, `return_last_frame` being forced off in draft mode, or `image_count` requiring `sequential_image_generation=auto`.
 - `model_config_id`: the backend model config ID used by `movscript_create_generation_job`.
+
+Supported `ParamDef.type` values are `select`, `number`, `boolean`, and `string`.
+
+`ParamDef.json_schema` may add or override per-parameter JSON Schema keywords when the basic UI control fields are not expressive enough. For example, `frames` exposes the exact valid `25 + 4n` frame counts as an enum so agents can preflight the rule instead of learning it only from a backend validation error.
 
 Model capability resolution lives in:
 
@@ -57,7 +66,7 @@ Generation requests are preflighted before a backend job is created. The backend
 - required image/video inputs and model input limits;
 - model-supported parameter keys;
 - parameter types, enum options, numeric ranges, and integer requirements;
-- declared cross-parameter rules from the model contract, such as conflicts and conditional enum restrictions;
+- declared cross-parameter rules from the model contract, such as conflicts, conditional enum/const restrictions, and dependent required values;
 - backend-only cross-parameter rules that are not yet declarative.
 
 Structured validation errors use this shape:
@@ -87,7 +96,7 @@ The Electron MCP bridge preserves this structure in JSON-RPC `error.data`. The l
 - non-scalar values are ignored;
 - the model ID, prompt, project, resources, approval state, and output target are never modified by automatic repair.
 
-Successful MCP generation calls also return `param_validation` audit data. It records whether the selected model contract was loaded, which `supported_params` were visible to MCP, which `extra_params` were submitted, and which unsupported top-level or extra params were dropped before the backend request. This audit object is part of the tool result, is extracted into assistant message metadata as `generationParamAudits`, and is rendered by the chat UI's generation parameter audit card even when no validation error occurs.
+Successful MCP generation calls also return `param_validation` audit data. It records whether the selected model contract was loaded, whether the model's `params_schema` was available, how many schema cross-parameter rules were visible, which `supported_params` were visible to MCP, which `extra_params` were submitted, and which unsupported top-level or extra params were dropped before the backend request. If the Agent retried with a backend `suggested_fix`, the repaired result also carries a `repair_note`; the frontend extracts it as `generationParamAudits[].repairNote` and renders it in the chat UI's generation parameter audit card. This audit object is part of the tool result, is extracted into assistant message metadata as `generationParamAudits`, and is rendered even when no validation error occurs.
 
 Implementation points:
 
@@ -119,15 +128,26 @@ When adding or changing a model/provider:
 
 1. Add or update adapter defaults in `AdapterDefs.ParamSets`.
 2. Use `CustomSupportedParams` / `ModelParamProfile` for model-specific allow, deny, override, or add behavior.
-3. Confirm `/models?capability=<capability>` exposes accurate `supported_params`, `params_schema`, and `input_requirements`.
-4. Add backend validator tests for new parameter types, enum options, aliases, and cross-parameter rules.
-5. Add or update MCP/Agent tests if the new rule should produce a structured `suggested_fix`.
-6. Add sanitized provider replay fixtures when provider status/progress or output shape changes.
-7. Run the verification commands for this area before shipping.
+3. Use `POST /admin/model-configs/preview-contract` or the admin UI backend preview to confirm the backend resolver returns the intended `supported_params`, `params_schema`, and schema rule count before saving.
+4. Confirm invalid `CustomSupportedParams` cannot be saved; admin model configs reject malformed JSON, malformed profile field shapes, duplicate keys, bad control shapes, invalid `json_schema` keywords, invalid default values, and cross-parameter rules that reference unknown params or illegal rule values. API clients should see `code: "INVALID_MODEL_CONFIG"` for these model-config errors.
+5. Confirm `/models?capability=<capability>` exposes accurate `supported_params`, `params_schema`, and `input_requirements`.
+6. Add backend validator tests for new parameter types, enum options, aliases, and cross-parameter rules.
+7. Add or update MCP/Agent tests if the new rule should produce a structured `suggested_fix`.
+8. Add sanitized provider replay fixtures when provider status/progress or output shape changes.
+9. Run the verification commands for this area before shipping.
 
 ## Verification
 
-Required checks for this area:
+Focused checks for model capability contracts, admin validation, and MCP contract exposure:
+
+- `GOCACHE=/private/tmp/movscript-go-cache go test ./internal/infra/ai ./internal/app/aiadmin ./internal/interfaces/http/handler`
+- `pnpm --filter movscript-admin test`
+- `pnpm --filter movscript-admin typecheck`
+- `pnpm --filter movscript-frontend test:model-contract`
+
+Planner/subagent suites are intentionally outside this focused gate; failures there should not block model capability contract changes unless the change also touches planner/subagent behavior.
+
+Broader generation checks for full release qualification:
 
 - `pnpm run test:agent-generation`
 - `pnpm --filter movscript-agent test`

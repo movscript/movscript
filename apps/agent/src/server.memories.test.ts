@@ -9,9 +9,9 @@ import { InMemoryAgentStore } from './state/store.js'
 import { InMemoryAgentDraftStore } from './drafts/draftStore.js'
 import { BackendApplyClient } from './drafts/backendApplyClient.js'
 import type { ApplyDraftReview } from './drafts/draftApply.js'
-import { DEFAULT_AGENT_MANIFEST } from './manifest/agentManifest.js'
+import { DEFAULT_AGENT_MANIFEST } from './catalog/agentManifest.js'
 import { StaticAgentRuntimeContractResolver } from './contracts/runtimeContract.js'
-import { InMemoryAgentCatalogStateStore } from './manifest/catalogState.js'
+import { InMemoryAgentCatalogStateStore } from './catalog/state.js'
 import { createAgentRequestListener } from './server.js'
 import { RuntimeModelConfigStore } from './model/modelConfig.js'
 import type { AgentServerContext } from './bootstrap/agentServerContext.js'
@@ -254,13 +254,8 @@ function buildServerContext(agentRuntime: AgentRuntime): AgentServerContext {
       toolsDir: '/tmp',
       builtinSkillsDir: '/tmp',
       builtinToolsDir: '/tmp',
-      bundlesDir: '/tmp',
-      builtinBundlesDir: '/tmp',
       skillCount: 0,
       toolCount: 0,
-      bundleCount: 0,
-      activeBundleIds: [],
-      availableBundleIds: [],
       warnings: [],
     } as never,
   }

@@ -1,0 +1,27 @@
+{
+  "name": "movscript_get_memory",
+  "description": "Read one local agent memory by id in the current project.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "memoryId": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "memory.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

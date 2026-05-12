@@ -29,7 +29,7 @@ func ParamsSchema(params []ParamDef) map[string]any {
 			if p.Max != 0 {
 				prop["maximum"] = p.Max
 			}
-			if p.Step != 0 {
+			if p.Step != 0 && !paramJSONSchemaHasEnum(p.JSONSchema) {
 				prop["multipleOf"] = p.Step
 			}
 		case "boolean":
@@ -40,10 +40,22 @@ func ParamsSchema(params []ParamDef) map[string]any {
 		if p.Default != nil {
 			prop["default"] = p.Default
 		}
+		for key, value := range p.JSONSchema {
+			if key == "" {
+				continue
+			}
+			if value == nil {
+				delete(prop, key)
+				continue
+			}
+			prop[key] = cloneSchemaValue(value)
+		}
 		properties[p.Key] = prop
 	}
 	rules = append(rules, paramSchemaConflictRules(normalized)...)
 	rules = append(rules, paramSchemaConditionalEnumRules(normalized)...)
+	rules = append(rules, paramSchemaConditionalConstRules(normalized)...)
+	rules = append(rules, paramSchemaRequiresValueRules(normalized)...)
 	schema := map[string]any{
 		"type":                 "object",
 		"properties":           properties,
@@ -53,6 +65,37 @@ func ParamsSchema(params []ParamDef) map[string]any {
 		schema["allOf"] = rules
 	}
 	return schema
+}
+
+func paramJSONSchemaHasEnum(schema map[string]any) bool {
+	if len(schema) == 0 {
+		return false
+	}
+	_, ok := schema["enum"]
+	return ok
+}
+
+func cloneSchemaValue(value any) any {
+	switch v := value.(type) {
+	case []string:
+		return append([]string{}, v...)
+	case []int:
+		return append([]int{}, v...)
+	case []any:
+		out := make([]any, len(v))
+		for i, item := range v {
+			out[i] = cloneSchemaValue(item)
+		}
+		return out
+	case map[string]any:
+		out := make(map[string]any, len(v))
+		for key, item := range v {
+			out[key] = cloneSchemaValue(item)
+		}
+		return out
+	default:
+		return v
+	}
 }
 
 func paramSchemaConflictRules(params []ParamDef) []any {
@@ -106,6 +149,62 @@ func paramSchemaConditionalEnumRules(params []ParamDef) []any {
 					},
 				},
 				"description": "parameter \"" + p.Key + "\" has restricted options when \"" + item.WhenParam + "\" is set",
+			})
+		}
+	}
+	return rules
+}
+
+func paramSchemaConditionalConstRules(params []ParamDef) []any {
+	var rules []any
+	for _, p := range params {
+		if p.Key == "" {
+			continue
+		}
+		for _, item := range p.ConditionalConst {
+			if item.WhenParam == "" {
+				continue
+			}
+			rules = append(rules, map[string]any{
+				"if": map[string]any{
+					"properties": map[string]any{
+						item.WhenParam: map[string]any{"const": item.WhenValue},
+					},
+					"required": []string{item.WhenParam},
+				},
+				"then": map[string]any{
+					"properties": map[string]any{
+						p.Key: map[string]any{"const": item.Value},
+					},
+				},
+				"description": "parameter \"" + p.Key + "\" has a required value when \"" + item.WhenParam + "\" is set",
+			})
+		}
+	}
+	return rules
+}
+
+func paramSchemaRequiresValueRules(params []ParamDef) []any {
+	var rules []any
+	for _, p := range params {
+		if p.Key == "" {
+			continue
+		}
+		for _, item := range p.RequiresValue {
+			if item.Param == "" {
+				continue
+			}
+			rules = append(rules, map[string]any{
+				"if": map[string]any{
+					"required": []string{p.Key},
+				},
+				"then": map[string]any{
+					"properties": map[string]any{
+						item.Param: map[string]any{"const": item.Value},
+					},
+					"required": []string{item.Param},
+				},
+				"description": "parameter \"" + p.Key + "\" requires \"" + item.Param + "\" to have a specific value",
 			})
 		}
 	}

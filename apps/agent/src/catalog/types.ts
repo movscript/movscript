@@ -25,6 +25,7 @@ export interface ToolDefinition {
   mcpServerId?: string
   errorCodes?: string[]
   availability?: ToolAvailability
+  allowedRunRoles?: Array<'planner' | 'worker'>
 }
 
 export type ToolAvailability =

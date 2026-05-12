@@ -1,58 +1,61 @@
-# Agent 子 Agent 机制实现规划
+# Agent 子 Agent 机制
 
-本文档描述如何在当前 `apps/agent` 基础上引入 `plan agent + worker subagent` 机制，并保留现有单层 run 执行器作为 worker 运行核心。
+本文档记录当前 `apps/agent` 中已经落地的 `planner + worker subagent` 机制，以及后续演进边界。它不再是早期实施计划。
 
-## 目标
+## 当前目标
 
-- `Plan Agent` 负责拆解任务、排序依赖、分配子任务、监控进度、触发重规划。
-- `Worker SubAgent` 负责执行单个子任务，只处理局部上下文和局部工具调用。
-- 运行时可以同时管理多个子任务，并把子任务状态回流到父任务和总览视图。
-- 现有 `runAgentGraph()` 继续作为 worker loop 使用，不推倒重写。
+- 简单、单上下文任务由 planner 自己完成。
+- 需要并行、隔离上下文、长时间运行或可独立验收的任务，由 planner 调度 worker subagent。
+- Worker 复用现有单 run 执行器，不重写 agent loop。
+- Planner 通过结构化 plan/task/run 状态监控 worker，而不是靠自然语言猜测进度。
+- 面向用户和 AI 的表达优先使用 `subagentName`，例如 `爱因斯坦`、`霍金`；`taskId` / `runId` 只作为稳定引用和 API 参数。
 
-## 现状判断
-
-当前实现是单层结构：
-
-- `AgentRuntime.createRun()` 创建单个 run。
-- `runAgentGraph()` 负责单次 agentic loop。
-- `AgentTraceEvent` 和 `AgentRunStreamEvent` 已经支持事件流和流式回放。
-- `AgentTraceEvent` 里已有 `agentId` 和 `parentAgentId` 字段，但还没有形成父子 agent 语义。
-
-这意味着可以在现有运行时上加 supervisor 层，而不是先重做执行器。
-
-## 推荐架构
+## 运行模型
 
 ```text
 User Goal
-  -> Plan Agent
-  -> Task DAG
-  -> Worker SubAgent Runs
-  -> Trace / Step / Progress events
-  -> Plan Agent monitors and replans
+  -> Planner run
+  -> Plan + Task DAG
+  -> Worker subagent runs
+  -> Task/run trace, artifacts, blockers
+  -> Planner list/wait/cancel/replan
+  -> Planner final synthesis
 ```
 
-建议拆成三层：
+### Planner
 
-1. `Plan Agent`
-   - 负责任务拆分、优先级、依赖关系、重规划。
-   - 只看结构化进度，不直接做业务写入。
+Planner 负责：
 
-2. `Worker SubAgent`
-   - 复用当前 `runAgentGraph()`。
-   - 只执行一个明确子任务。
-   - 通过 trace / step / stream 上报进度。
+- 用户会话创建的根 run 默认就是 planner。
+- 生成或维护 task DAG。
+- 判断任务由自己完成还是交给 worker。
+- 调用 planner-only 工具调度 worker。
+- 处理 wait 结果里的 `pending`、`blocked`、`needs_review`、`failed`、`cancelled`、`completed` 状态。
+- 做最终汇总、重规划和用户可见结论。
 
-3. `Orchestrator`
-   - 负责 spawn、cancel、retry、timeout、事件聚合、状态持久化。
-   - 可以先放在 `AgentRuntime` 里，后续再拆模块。
+### Worker Subagent
 
-## 需要新增的数据结构
+Worker 负责：
 
-建议先补结构，再补行为。
+- 只作为 planner 派生出的 worker/subagent run 存在；普通用户会话不会默认创建 worker。
+- 执行一个明确子任务。
+- 使用局部上下文和可用工具。
+- 通过 run step、trace event、task artifact、blocked reason 回传结构化状态。
+- 不调度其他 subagent。调度工具对 worker run 不可用。
 
-### Run 维度
+### Runtime / Orchestrator
 
-在 `AgentRun` 中增加：
+Runtime 负责：
+
+- plan/task/run 持久化。
+- worker spawn、dispatch、cancel、retry、timeout。
+- task 状态从 worker run 同步。
+- plan stream / run stream / trace 回放。
+- `subagentName` 分配、查找和跨 run 生命周期管理。
+
+## 数据结构
+
+`AgentRun` 已支持：
 
 - `role`: `planner | worker`
 - `parentRunId`
@@ -60,138 +63,209 @@ User Goal
 - `taskId`
 - `progress`
 - `blockedReason`
+- `metadata.subagentName`
 
-### Task 维度
+`AgentTask` 已支持：
 
-新增独立的任务对象，例如：
+- `id`
+- `planId`
+- `parentId`
+- `deps`
+- `title`
+- `description`
+- `status`: `pending | running | blocked | needs_review | done | failed | cancelled`
+- `progress`
+- `ownerRunId`
+- `blockedReason`
+- `artifacts`
+- `metadata.subagentName`
 
-```json
-{
-  "id": "task_1",
-  "planId": "plan_1",
-  "parentId": null,
-  "deps": ["task_0"],
-  "title": "实现子 agent 机制",
-  "status": "running",
-  "progress": 0.5,
-  "ownerRunId": "run_123",
-  "blockedReason": null,
-  "artifacts": []
-}
+底层仍保留 `taskId` / `runId`，用于稳定关联、API 路由、trace 和存储。Planner 和前端展示应优先使用 `subagentName`。
+
+## Planner 工具
+
+以下 runtime tools 只对 planner run 开放：
+
+- `movscript_spawn_subagent`
+- `movscript_list_subagents`
+- `movscript_wait_subagent`
+- `movscript_cancel_subagent`
+
+Worker run 的能力解析会把这些工具标为 `wrong_run_role`，避免 worker 再调度 worker。
+
+### `spawn_subagent`
+
+Planner 可以：
+
+- 创建新 worker task 并 dispatch。
+- 对已有 `taskId` / `taskIds` dispatch worker。
+- 显式传 `subagentName` / `subagentNames`。
+- 省略名字，让 runtime 自动按序分配。
+
+默认名字顺序：
+
+```text
+爱因斯坦, 霍金, 图灵, 居里, 费曼, 冯诺依曼, 达尔文, 牛顿, 伽利略, 开普勒
 ```
 
-建议状态至少包括：
+超过内置列表后使用：
+
+```text
+子代理11, 子代理12, ...
+```
+
+直接调用 `dispatchPlan()` 的路径也会为 runnable worker task 自动补 `subagentName`，确保 UI 操作和 planner 工具行为一致。
+
+### `list_subagents`
+
+返回当前 plan 下 task 和 worker 快照，包含：
+
+- task status / progress / blocker / artifact
+- worker run status / progress / pending input / pending approval
+- `subagentName`
+
+### `wait_subagent`
+
+支持按以下方式定位：
+
+- `subagentName`
+- `taskId`
+- `runId`
+- 整个 plan
+
+返回结构化状态：
 
 - `pending`
-- `running`
-- `blocked`
-- `needs_review`
-- `done`
+- `completed`
 - `failed`
 - `cancelled`
-
-### Event 维度
-
-新增或细化 trace 事件，用于监控子任务：
-
-- `task_created`
-- `task_started`
-- `progress_update`
-- `artifact_created`
 - `blocked`
-- `needs_input`
-- `task_completed`
-- `task_failed`
-- `heartbeat`
+- `needs_review`
 
-## 执行流程
+如果返回 `pending`，planner 必须继续处理其他独立工作或如实说明 worker 仍在运行，不能假装完成。
 
-1. 用户提交目标。
-2. `Plan Agent` 生成任务 DAG。
-3. orchestrator 为叶子任务创建 worker run。
-4. worker run 执行现有 `runAgentGraph()`。
-5. worker 持续回报 trace / step / progress。
-6. `Plan Agent` 订阅 child run stream，更新任务状态。
-7. 遇到阻塞、失败、超时或范围变化时，触发重规划。
-8. 所有任务完成后，由 `Plan Agent` 做汇总和验收。
+### `cancel_subagent`
 
-## 监控策略
+支持按 `subagentName`、`taskId` 或 `runId` 取消 worker subagent。
 
-Plan Agent 不应该读取大段自然语言聊天记录来判断进度，而应该读取结构化状态：
+返回结构包含：
 
-- 当前 task 状态
-- task progress
-- 最近 event
-- blocked reason
-- child run status
-- artifact 列表
+- `target.kind`
+- `target.run`
+- `target.run.subagentName`
+- `target.run.status`
+- `cancelledRunIds`
+- `snapshot`
 
-建议增加这些能力：
+取消边界：
 
-- `getChildRuns(parentRunId)`
-- `getTaskTree(planId)`
-- `subscribePlanStream(planId)`
-- `cancelSubtree(runId)`
+- 只能取消同一个 plan 内的 worker run。
+- 不能跨 plan 取消。
+- 不能用 `cancel_subagent` 取消 planner/root run。
+- 后续新的 planner run 可以继续取消同 plan 中旧 planner 创建的 worker，因此支持跨 run 生命周期管理。
 
-## API 规划
+## 前端行为
 
-建议新增：
+Plan overview 面板当前支持：
+
+- 显示 plan 进度和 task 状态。
+- 显示 task 对应的 `subagentName`，没有名字时才回退到 `ownerRunId`。
+- Dispatch / Replan / Cancel tree 操作。
+- Replan 会重置 `blocked`、`needs_review`、`failed`、`cancelled` 任务，并可重新派发可运行 worker。
+- Dispatch / Replan 可在 Plan overview 面板中配置并发 worker 数、单任务最大尝试次数和 worker timeout；Rework 会复用当前 retry/timeout 策略，但只派发当前任务。
+- 这些 Plan overview 调度偏好会写入前端 agent settings 并持久化，刷新后仍保留；异常旧值会被归一化到安全默认值。
+- `needs_review` 任务行支持 Accept / Rework / Reject：Accept 将任务标记为完成，Rework 只重置当前任务并重新派发 worker，Reject 将任务关闭为 cancelled 并记录拒绝原因。
+- 任务行会显示 retry attempt、timeout、previous status / previous owner run 等调度线索，并可展开查看 pending input / pending approval 的标题、问题、工具名、风险和权限。
+- Plan overview 顶部提供 plan-level artifact summary，可按类型快速看聚合数量、按 artifact type 过滤，并按最近产物浏览跨任务输出。
+- 当前 active run 是 worker 时，前端仍会解析到 plan root planner run，避免 UI 被某个 worker 接管。
+- 只要 plan 未终态，或 snapshot 里仍有 active worker run，就继续轮询 plan snapshot。
+
+相关前端 helper：
+
+- `apps/frontend/src/lib/agentPlanUi.ts`
+
+## API
+
+已支持：
 
 - `POST /plans`
+- `GET /plans`
 - `GET /plans/:id`
 - `GET /plans/:id/tasks`
+- `POST /plans/:id/dispatch`
+- `GET /plans/:id/stream`
 - `GET /runs?parentRunId=...`
+- `GET /runs/:id`
 - `GET /runs/:id/children`
+- `GET /runs/:id/trace`
+- `GET /runs/:id/trace/summary`
 - `POST /runs/:id/replan`
 - `POST /runs/:id/cancel-tree`
 
-## 代码落点
+Planner-only subagent tools 通过模型 tool 调用进入 runtime，不作为面向普通 UI 的独立 HTTP endpoint 暴露。
 
-优先改这些文件：
+## Prompt 和上下文
 
-- `apps/agent/src/state/types.ts`
-- `apps/agent/src/state/store.ts`
-- `apps/agent/src/application/agentRuntime.ts`
-- `apps/agent/src/orchestration/agentGraph.ts`
-- `apps/agent/src/server.ts`
+Planner prompt 在 subagent 工具可用时会注入 `Planner Subagent Policy`，核心约束：
 
-建议新增这些文件：
+- 简单任务自己完成。
+- 可并行、隔离上下文或可能跨 run 的任务才 spawn worker。
+- 后续 wait/cancel 使用 `subagentName`。
+- list/wait 结构化状态优先于自然语言推测。
+- planner 保持最终综合和重规划责任。
 
-- `apps/agent/src/orchestration/supervisorGraph.ts`
-- `apps/agent/src/state/planStore.ts`
-- `apps/agent/src/state/planTypes.ts`
+Plan context 渲染时，有名字的 worker/task 会以 `subagentName` 作为主标签，例如：
 
-## 分期实施
+```text
+- 爱因斯坦: Run worker (status=running; progress=25%; taskRef=task#task_b)
+- 爱因斯坦: in_progress (runRef=run#run_worker; task=task#task_b)
+```
 
-### Phase 1: 结构补齐
+`taskRef` / `runRef` 仅用于工具参数和调试，不应成为用户可见主称呼。
 
-- 增加 planner/worker role。
-- 增加 parent-child run 关系。
-- 增加 plan/task 数据模型。
-- 复用现有 stream 和 trace 做监控。
+Planner prompt 还会带上 plan artifact references，摘要包含：
 
-### Phase 2: Supervisor
+- artifact title / type / ref uri
+- task / source task
+- source run
+- subagentName
+- toolName / rollback policy
 
-- 新增 plan agent 的调度逻辑。
-- 支持 spawn worker run。
-- 支持 child run 汇总到 plan 状态。
+这样 planner 在最终综合、返工和解释产物来源时，不需要回退到自然语言猜测。
 
-### Phase 3: UI 和 API
+## 关键测试覆盖
 
-- 增加 plan 总览接口。
-- 增加任务树和 child run 视图。
-- 增加重规划和 subtree cancel。
+主要覆盖在：
 
-### Phase 4: 细化协议
+- `apps/agent/src/application/agentRuntime.test.ts`
+- `apps/agent/src/orchestration/contextBuilder.test.ts`
+- `apps/frontend/src/lib/agentPlanUi.test.ts`
 
-- 统一 progress update 事件。
-- 统一 blocked / needs_input 语义。
-- 增加重试、超时和回滚策略。
+覆盖点包括：
 
-## 关键原则
+- planner runtime tools spawn/list/wait worker subagents。
+- `spawn_subagent` 自动分配人类可读名字。
+- 直接 `dispatchPlan()` 自动补 worker 名字。
+- 可按 `subagentName` wait/cancel。
+- 后续 planner run 可取消同 plan 内旧 worker。
+- worker run 不能使用 planner-only subagent tools。
+- planner capabilities 暴露 subagent scheduling tools。
+- prompt context 名字优先，id 仅作为 reference。
+- 前端 plan snapshot 轮询和 planner run 解析。
+- 前端 plan task view 会保留 pending input / approval 的结构化详情，而不是只显示数量。
+- 前端 artifact summary 会对整个 plan 的产物做按类型统计、按时间排序和按类型过滤。
+- subagent 工具结果契约覆盖 `spawn/list/wait/cancel` 的顶层字段、target、snapshot 和 name-first worker summary。
+- `needs_review` 任务可通过 replan 重置为 pending，并保留 previous status / owner 后重新派发 worker。
+- `needs_review` 任务可通过 task update 验收为 done，并记录 review outcome metadata。
+- `needs_review` 任务可通过 task update 拒绝为 cancelled，并记录 review outcome metadata 和关闭原因。
+- worker retry / timeout 会写入 task metadata，并在 plan task view 中展示 attempt、timeout 和 previous run/status。
+- 前端 Plan overview 可配置 worker 并发、最大尝试次数和 timeout，并将配置传给 dispatch / replan。
+- worker 并发、最大尝试次数和 timeout 已进入持久化 agent settings，并带有迁移归一化测试。
+- planner prompt 会渲染 plan artifact references，保留 task / run / subagent / tool / policy provenance。
+- default profile 的自动 tool grants 只补充 enabled packs 覆盖的工具，避免 profile 越过 pack 边界。
 
-- 先复用现有 worker loop，不重写执行器。
-- planner 只调度和监控，不直接承担业务写权限。
-- 任务状态必须结构化，不依赖纯自然语言。
-- 子 agent 必须可观测、可取消、可重放。
+## 剩余演进方向
 
+- 将 plan/task/subagent 状态做成更完整的 UI，包括 artifact browser 的跳转和子 agent 运行详情。
+- 支持更细的 task-level override，例如某类 worker 使用独立 timeout / retry 策略。
+- 继续增强 artifact browser 的跳转能力。

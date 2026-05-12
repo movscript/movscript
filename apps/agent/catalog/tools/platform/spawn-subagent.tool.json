@@ -1,0 +1,38 @@
+{
+  "name": "movscript_spawn_subagent",
+  "description": "Create or dispatch one or more worker subagent runs for plan tasks.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "subagentName": { "type": "string" },
+      "subagentNames": { "type": "array", "items": { "type": "string" } },
+      "taskId": { "type": "string" },
+      "taskIds": { "type": "array", "items": { "type": "string" } },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "subagentName": { "type": "string" },
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "deps": { "type": "array", "items": { "type": "string" } },
+            "parentId": { "type": "string" }
+          },
+          "required": ["title"]
+        }
+      },
+      "maxWorkers": { "type": "number" }
+    }
+  },
+  "permission": "agent.subagent.write",
+  "risk": "write",
+  "projectScoped": false,
+  "defaults": { "grant": "allow", "approval": "never" },
+  "source": "runtime",
+  "capability": "Dispatch scoped worker subagents for planner-owned plan tasks.",
+  "allowedRunRoles": ["planner"]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "movscript_cancel_generation_job",
+  "description": "Cancel a running video generation job through MovScript. This is a write action and should only run after explicit user approval.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "jobId"
+    ],
+    "properties": {
+      "jobId": {
+        "type": [
+          "string",
+          "number"
+        ]
+      },
+      "projectId": {
+        "type": "number"
+      }
+    }
+  },
+  "permission": "generation.cancel",
+  "risk": "write",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "always"
+  },
+  "source": "runtime"
+}

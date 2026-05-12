@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, Route, FolderKanban, HardDrive, CloudUpload, Bot } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, Route, FolderKanban, HardDrive, CloudUpload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -14,6 +14,19 @@ import { runtimeEdition, runtimeOverviewCards, runtimeSectionCards } from '@admi
 import { useTranslation } from 'react-i18next'
 import { translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
+import {
+  PARAM_TEMPLATES,
+  adapterParamsForCapabilities,
+  buildParamContractAudit,
+  emptyParamProfile,
+  isProfileParamConfig,
+  paramTemplateFor,
+  parseModelParamProfile,
+  parseParamDefs,
+  serializeModelParamProfile,
+  serializeParamDefs,
+  splitOptions,
+} from '@admin/lib/modelParamContract'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -382,175 +395,8 @@ function inferPricingMode(caps: string[]) {
   return 'per_token'
 }
 
-function parseParamDefs(value: string): ParamDef[] {
-  if (!value.trim()) return []
-  try {
-    const parsed = JSON.parse(value)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter((p) => p && typeof p.key === 'string' && typeof p.label === 'string')
-      .map(normalizeParamDefForAdmin)
-  } catch {
-    return []
-  }
-}
-
-function normalizeParamDefForAdmin(p: ParamDef): ParamDef {
-  const alias: Record<string, string> = {
-    ratio: 'aspect_ratio',
-    size: 'image_size',
-    guidance_scale: 'prompt_strength',
-    max_images: 'image_count',
-    camera_fixed: 'fixed_camera',
-    generate_audio: 'audio',
-  }
-  const key = alias[p.key] ?? p.key
-  const tmpl = PARAM_TEMPLATES[key]
-  if (!tmpl) return p
-  return {
-    ...tmpl,
-    ...p,
-    key,
-    label: p.label || tmpl.label,
-  }
-}
-
-function serializeParamDefs(params: ParamDef[]): string {
-  const normalized = params
-    .map((p) => {
-      p = normalizeParamDefForAdmin(p)
-      const key = p.key.trim()
-      if (!key) return null
-      const label = (p.label || key).trim()
-      const next: ParamDef = { key, label, type: p.type || 'select' }
-      if (next.type === 'select') {
-        next.options = (p.options ?? []).map(String).map((s) => s.trim()).filter(Boolean)
-        if (p.default !== undefined && p.default !== '') next.default = String(p.default)
-      }
-      if (next.type === 'number') {
-        if (p.default !== undefined && p.default !== '') next.default = Number(p.default)
-        if (p.min !== undefined && String(p.min) !== '') next.min = Number(p.min)
-        if (p.max !== undefined && String(p.max) !== '') next.max = Number(p.max)
-        if (p.step !== undefined && String(p.step) !== '') next.step = Number(p.step)
-      }
-      if (next.type === 'boolean') {
-        next.default = Boolean(p.default)
-      }
-      return next
-    })
-    .filter(Boolean) as ParamDef[]
-  return JSON.stringify(normalized)
-}
-
-function emptyParamProfile(): ModelParamProfile {
-  return { deny: [], override: {}, add: [] }
-}
-
-function parseModelParamProfile(value: string): ModelParamProfile {
-  if (!value.trim()) return emptyParamProfile()
-  try {
-    const parsed = JSON.parse(value)
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') return emptyParamProfile()
-    const raw = parsed as ModelParamProfile
-    const profile: ModelParamProfile = {}
-    if (Array.isArray(raw.allow)) profile.allow = raw.allow.map(String).filter(Boolean)
-    if (Array.isArray(raw.deny)) profile.deny = raw.deny.map(String).filter(Boolean)
-    if (raw.override && typeof raw.override === 'object' && !Array.isArray(raw.override)) {
-      profile.override = {}
-      Object.entries(raw.override).forEach(([key, param]) => {
-        if (param && typeof param === 'object') profile.override![key] = normalizeParamDefForAdmin(param as ParamDef)
-      })
-    }
-    if (Array.isArray(raw.add)) profile.add = raw.add.filter((p) => p && typeof p === 'object').map((p) => normalizeParamDefForAdmin(p as ParamDef))
-    return profile
-  } catch {
-    return emptyParamProfile()
-  }
-}
-
-function serializeModelParamProfile(profile: ModelParamProfile): string {
-  const next: ModelParamProfile = {}
-  const allow = (profile.allow ?? []).map(String).map((s) => s.trim()).filter(Boolean)
-  const deny = (profile.deny ?? []).map(String).map((s) => s.trim()).filter(Boolean)
-  const add = parseParamDefs(serializeParamDefs(profile.add ?? []))
-  const overrideEntries = Object.entries(profile.override ?? {})
-    .map(([key, param]) => [key.trim(), parseParamDefs(serializeParamDefs([{ ...param, key: param.key || key }]))[0]] as const)
-    .filter(([key, param]) => key && param)
-  if (allow.length > 0) next.allow = allow
-  if (deny.length > 0) next.deny = deny
-  if (overrideEntries.length > 0) {
-    next.override = {}
-    overrideEntries.forEach(([key, param]) => { next.override![key] = param })
-  }
-  if (add.length > 0) next.add = add
-  return JSON.stringify(next)
-}
-
-function isProfileParamConfig(value: string): boolean {
-  if (!value.trim()) return true
-  try {
-    const parsed = JSON.parse(value)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-  } catch {
-    return false
-  }
-}
-
-function splitOptions(value: string): string[] {
-  return value.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
-}
-
-const PARAM_TEMPLATES: Record<string, ParamDef> = {
-  aspect_ratio: { key: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
-  duration: { key: 'duration', label: 'Duration (seconds)', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
-  image_size: { key: 'image_size', label: 'Image Size', type: 'select', options: ['1024x1024', '1536x1024', '1024x1536', '1280x720', '720x1280'], default: '1024x1024' },
-  resolution: { key: 'resolution', label: 'Resolution', type: 'select', options: ['480p', '720p', '1080p'], default: '720p' },
-  quality: { key: 'quality', label: 'Quality', type: 'select', options: ['auto', 'standard', 'hd', 'high', 'medium', 'low'], default: 'auto' },
-  style: { key: 'style', label: 'Style', type: 'select', options: ['vivid', 'natural'], default: 'vivid' },
-  seed: { key: 'seed', label: 'Seed', type: 'number', default: -1, min: -1, max: 2147483647, step: 1 },
-  prompt_strength: { key: 'prompt_strength', label: 'Prompt Strength', type: 'number', default: 2.5, min: 1, max: 10, step: 0.1 },
-  watermark: { key: 'watermark', label: 'Watermark', type: 'boolean', default: false },
-  image_count: { key: 'image_count', label: 'Image Count', type: 'number', default: 1, min: 1, max: 15, step: 1 },
-  output_format: { key: 'output_format', label: 'Output Format', type: 'select', options: ['jpeg', 'png', 'webp'], default: 'jpeg' },
-  web_search: { key: 'web_search', label: 'Web Search', type: 'boolean', default: false },
-  fixed_camera: { key: 'fixed_camera', label: 'Fixed Camera', type: 'boolean', default: false },
-  audio: { key: 'audio', label: 'Generate Audio', type: 'boolean', default: true },
-  return_last_frame: { key: 'return_last_frame', label: 'Return Last Frame', type: 'boolean', default: false },
-  service_tier: { key: 'service_tier', label: 'Service Tier', type: 'select', options: ['default', 'flex'], default: 'default' },
-  frames: { key: 'frames', label: 'Frames', type: 'number', min: 29, max: 289, step: 4 },
-  execution_expires_after: { key: 'execution_expires_after', label: 'Expiration (seconds)', type: 'number', min: 1, step: 1 },
-  preset: { key: 'preset', label: 'Preset', type: 'select', options: ['normal', 'fun', 'spicy', 'custom'], default: 'normal' },
-  draft: { key: 'draft', label: 'Draft Mode', type: 'boolean', default: false },
-  max_tokens: { key: 'max_tokens', label: 'Max Tokens', type: 'number', min: 1, max: 1000000, step: 1 },
-  temperature: { key: 'temperature', label: 'Temperature', type: 'number', default: -1, min: -1, max: 2, step: 0.1 },
-  json_mode: { key: 'json_mode', label: 'JSON Mode', type: 'boolean', default: false },
-  sequential_image_generation: { key: 'sequential_image_generation', label: 'Sequential Images', type: 'select', options: ['disabled', 'auto'], default: 'disabled' },
-  optimize_prompt_mode: { key: 'optimize_prompt_mode', label: 'Prompt Optimization', type: 'select', options: ['standard', 'fast'], default: 'standard' },
-}
-
 function paramTemplateLabel(key: string, fallback: string, t: (key: string, values?: Record<string, unknown>) => string) {
   return t(`admin.params.templates.${key}`, { defaultValue: fallback })
-}
-
-function paramTemplateFor(key: string): ParamDef | null {
-  return PARAM_TEMPLATES[key] ?? null
-}
-
-function adapterParamsForCapabilities(adapter: AdapterDef | undefined, capabilities: string[]): ParamDef[] {
-  if (!adapter?.param_sets?.length) return []
-  const caps = new Set(capabilities)
-  const seen = new Set<string>()
-  const params: ParamDef[] = []
-  for (const set of adapter.param_sets) {
-    if (!caps.has(set.capability)) continue
-    for (const raw of set.params ?? []) {
-      const p = normalizeParamDefForAdmin(raw)
-      if (!p.key || seen.has(p.key)) continue
-      seen.add(p.key)
-      params.push({ ...p, options: p.options ? [...p.options] : undefined })
-    }
-  }
-  return params
 }
 
 function ParamBuilder({ value, onChange }: { value: string; onChange: (next: string) => void }) {
@@ -614,6 +460,7 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
                 <option value="select">{t('admin.params.controlTypes.select')}</option>
                 <option value="number">{t('admin.params.controlTypes.number')}</option>
                 <option value="boolean">{t('admin.params.controlTypes.boolean')}</option>
+                <option value="string">{t('admin.params.controlTypes.string')}</option>
               </select>
             </div>
             {param.type === 'select' && (
@@ -654,6 +501,12 @@ function ParamBuilder({ value, onChange }: { value: string; onChange: (next: str
                 {t('admin.params.defaultOn')}
               </label>
             )}
+            {param.type === 'string' && (
+              <div className="w-48">
+                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.params.defaultValue')}</Label>
+                <Input className="text-xs font-mono" value={String(param.default ?? '')} onChange={(e) => update(index, { default: e.target.value })} />
+              </div>
+            )}
             <button onClick={() => remove(index)} className="text-xs text-muted-foreground hover:text-destructive h-8 px-2">
               {t('common.delete')}
             </button>
@@ -668,10 +521,14 @@ function ParamConfigBuilder({
   value,
   onChange,
   adapterParams,
+  adapterType,
+  capabilities,
 }: {
   value: string
   onChange: (next: string) => void
   adapterParams: ParamDef[]
+  adapterType?: string
+  capabilities: string[]
 }) {
   const { t } = useTranslation()
   const mode: 'inherit' | 'profile' | 'override' | 'none' = !value.trim()
@@ -685,6 +542,26 @@ function ParamConfigBuilder({
   const adapterKeys = adapterParams.map((p) => p.key)
   const denied = new Set(profile.deny ?? [])
   const overrideParams = Object.entries(profile.override ?? {}).map(([key, param]) => ({ ...param, key: param.key || key }))
+  const audit = buildParamContractAudit(value, adapterParams)
+  const visibleAuditErrors = audit.errors.slice(0, 8)
+  const hiddenAuditErrorCount = Math.max(0, audit.errors.length - visibleAuditErrors.length)
+  const visibleAuditWarnings = audit.warnings.slice(0, 4)
+  const hiddenAuditWarningCount = Math.max(0, audit.warnings.length - visibleAuditWarnings.length)
+  const backendPreviewSkipped = !!adapterType && capabilities.length > 0 && audit.errors.length > 0
+  const contractPreview = useQuery<{
+    supported_params?: ParamDef[]
+    params_schema_rule_count?: number
+  }>({
+    queryKey: ['admin', 'model-contract-preview', adapterType ?? '', capabilities.join(','), value],
+    queryFn: () => api.post('/admin/model-configs/preview-contract', {
+      adapter_type: adapterType ?? '',
+      custom_capabilities: capabilities.join(','),
+      custom_supported_params: value,
+    }).then((r) => r.data),
+    enabled: !!adapterType && capabilities.length > 0 && audit.errors.length === 0,
+    staleTime: 1000,
+    retry: false,
+  })
 
   const setMode = (next: 'inherit' | 'profile' | 'override' | 'none') => {
     if (next === 'inherit') onChange('')
@@ -771,6 +648,63 @@ function ParamConfigBuilder({
               onChange={(next) => updateProfile({ ...profile, add: parseParamDefs(next) })}
             />
           </div>
+        </div>
+      )}
+      <div className={cn(
+        'rounded border px-3 py-2 text-xs space-y-1',
+        audit.errors.length > 0 ? 'border-destructive/40 bg-destructive/5 text-destructive' : 'border-border bg-background text-muted-foreground'
+      )}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>{t('admin.params.audit.params', { count: audit.params.length })}</span>
+          <span>{t('admin.params.audit.rules', { count: audit.schemaRuleCount })}</span>
+          <span>{audit.errors.length > 0 ? t('admin.params.audit.invalid') : t('admin.params.audit.valid')}</span>
+        </div>
+        {audit.params.length > 0 && (
+          <div className="font-mono text-[11px] text-muted-foreground break-all">
+            {audit.params.map((param) => param.key).join(', ')}
+          </div>
+        )}
+        {visibleAuditErrors.map((error) => (
+          <div key={error}>{error}</div>
+        ))}
+        {hiddenAuditErrorCount > 0 && (
+          <div>{t('admin.params.audit.moreErrors', { count: hiddenAuditErrorCount })}</div>
+        )}
+        {visibleAuditWarnings.map((warning) => (
+          <div key={warning} className="text-muted-foreground">{warning}</div>
+        ))}
+        {hiddenAuditWarningCount > 0 && (
+          <div className="text-muted-foreground">{t('admin.params.audit.moreWarnings', { count: hiddenAuditWarningCount })}</div>
+        )}
+      </div>
+      {adapterType && capabilities.length > 0 && (
+        <div className={cn(
+          'rounded border px-3 py-2 text-xs space-y-1',
+          contractPreview.isError ? 'border-destructive/40 bg-destructive/5 text-destructive' : 'border-border bg-background text-muted-foreground'
+        )}>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span>{t('admin.params.backendPreview.title')}</span>
+            {backendPreviewSkipped && <span>{t('admin.params.backendPreview.skipped')}</span>}
+            {contractPreview.isFetching && <span>{t('admin.params.backendPreview.loading')}</span>}
+            {contractPreview.data && <span>{t('admin.params.backendPreview.valid')}</span>}
+            {contractPreview.data && (
+              <>
+                <span>{t('admin.params.audit.params', { count: contractPreview.data.supported_params?.length ?? 0 })}</span>
+                <span>{t('admin.params.audit.rules', { count: contractPreview.data.params_schema_rule_count ?? 0 })}</span>
+              </>
+            )}
+          </div>
+          {contractPreview.data?.supported_params && contractPreview.data.supported_params.length > 0 && (
+            <div className="font-mono text-[11px] text-muted-foreground break-all">
+              {contractPreview.data.supported_params.map((param) => param.key).join(', ')}
+            </div>
+          )}
+          {contractPreview.isError && (
+            <div>{t('admin.params.backendPreview.error', { error: translateApiError((contractPreview.error as any)?.response?.data) })}</div>
+          )}
+          {backendPreviewSkipped && (
+            <div>{t('admin.params.backendPreview.skippedHint')}</div>
+          )}
         </div>
       )}
     </div>
@@ -1259,6 +1193,7 @@ export function ModelManagementPage() {
                     // Filter presets to this credential's adapter type.
                     const credAdapter = cred.adapter_type
                     const currentAdapter = adapters.find((a) => a.adapter_type === credAdapter)
+                    const addParamAudit = buildParamContractAudit(addSupportedParams, adapterParamsForCapabilities(currentAdapter, addCapabilities))
                     const filteredPresets = presets.filter(p => p.adapter_type === credAdapter)
 
                     function applyPreset(preset: ModelPreset) {
@@ -1460,11 +1395,13 @@ export function ModelManagementPage() {
                           </div>
                         </div>
 
-                        <ParamConfigBuilder
-                          value={addSupportedParams}
-                          onChange={setAddSupportedParams}
-                          adapterParams={adapterParamsForCapabilities(currentAdapter, addCapabilities)}
-                        />
+	                        <ParamConfigBuilder
+	                          value={addSupportedParams}
+	                          onChange={setAddSupportedParams}
+	                          adapterParams={adapterParamsForCapabilities(currentAdapter, addCapabilities)}
+	                          adapterType={currentAdapter?.adapter_type}
+	                          capabilities={addCapabilities}
+	                        />
 
                         <PriceFields def={{ pricing_mode: addEffectivePricingMode }} form={addPriceForm} onChange={setAddPriceForm} />
 
@@ -1488,7 +1425,7 @@ export function ModelManagementPage() {
                               supportedParams: addSupportedParams,
                               data: addPriceForm,
                             })}
-                            disabled={addModel.isPending || !addModelId.trim() || addCapabilities.length === 0}
+                            disabled={addModel.isPending || !addModelId.trim() || addCapabilities.length === 0 || addParamAudit.errors.length > 0}
                             size="sm"
                             className="flex-1"
                           >
@@ -1509,6 +1446,7 @@ export function ModelManagementPage() {
                     const selectorName = cfg.short_name || displayName
                     const caps = cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : []
                     const pricing = cfg.custom_pricing_mode || ''
+                    const editParamAudit = isEditing ? buildParamContractAudit(editForm.supported_params, adapterParamsForCapabilities(adapter, editForm.capabilities)) : null
 
                     return (
                       <div key={cfg.ID} className="border border-border rounded bg-background">
@@ -1662,11 +1600,13 @@ export function ModelManagementPage() {
                               </div>
                             </div>
                           )}
-                          <ParamConfigBuilder
-                              value={editForm.supported_params}
-                              onChange={(next) => setEditForm((f) => ({ ...f, supported_params: next }))}
-                              adapterParams={adapterParamsForCapabilities(adapter, editForm.capabilities)}
-                            />
+	                          <ParamConfigBuilder
+	                            value={editForm.supported_params}
+	                            onChange={(next) => setEditForm((f) => ({ ...f, supported_params: next }))}
+	                            adapterParams={adapterParamsForCapabilities(adapter, editForm.capabilities)}
+	                            adapterType={adapter?.adapter_type}
+	                            capabilities={editForm.capabilities}
+	                          />
                             <div className="flex gap-2">
                               <Button
                                 onClick={() => updateModelConfig.mutate({
@@ -1676,7 +1616,7 @@ export function ModelManagementPage() {
                                     pricing_mode: isEnterpriseRuntime ? editForm.pricing_mode : editEffectivePricingMode,
                                   },
                                 })}
-                                disabled={updateModelConfig.isPending}
+                                disabled={updateModelConfig.isPending || (editParamAudit?.errors.length ?? 0) > 0}
                                 size="sm"
                                 className="flex-1"
                               >
@@ -2842,7 +2782,6 @@ export default function AdminPage() {
     { label: t('admin.tabs.projects'), detail: `当前 ${projects.length.toLocaleString()} 个项目，可强制调整 Owner。`, icon: FolderKanban, href: '/projects' },
     { label: t('admin.tabs.storage'), detail: '内部资源存储后端状态和用户占用。', icon: HardDrive, href: '/storage' },
     { label: t('admin.tabs.cloudFiles'), detail: '公共对象中转和云文件存储配置。', icon: CloudUpload, href: '/cloud-files' },
-    { label: 'Agent 调试', detail: '本地 Agent 运行时、工具、技能和上下文调试。', icon: Bot, href: '/agent-debug' },
     ...runtimeSectionCards,
   ]
 

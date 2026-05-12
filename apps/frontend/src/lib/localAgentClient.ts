@@ -86,6 +86,8 @@ export type AgentTraceEventKind =
   | 'approval'
   | 'input'
   | 'assistant'
+  | 'task'
+  | 'plan'
   | 'error'
 
 export interface AgentTraceEvent {
@@ -844,8 +846,13 @@ export class LocalAgentClient {
     return this.getJSON(`/plans/${encodeURIComponent(planId)}/tasks`, { signal })
   }
 
+  updateTask(taskId: string, input: Partial<AgentTask>, signal?: AbortSignal): Promise<AgentTask> {
+    return this.patchJSON(`/tasks/${encodeURIComponent(taskId)}`, input, signal)
+  }
+
   dispatchPlan(planId: string, input: {
     plannerRunId?: string
+    taskIds?: string[]
     maxWorkers?: number
     maxTaskAttempts?: number
     retryFailed?: boolean
@@ -867,6 +874,7 @@ export class LocalAgentClient {
     updateTasks?: Array<Partial<AgentTask> & { id: string }>
     resetTaskIds?: string[]
     resetBlocked?: boolean
+    resetNeedsReview?: boolean
     resetFailed?: boolean
     resetCancelled?: boolean
     dispatch?: boolean

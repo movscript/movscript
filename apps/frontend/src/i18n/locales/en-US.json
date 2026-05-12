@@ -2200,7 +2200,8 @@
       "controlTypes": {
         "select": "Select",
         "number": "Number Input",
-        "boolean": "Toggle"
+        "boolean": "Toggle",
+        "string": "Text Input"
       },
       "options": "Options",
       "defaultValue": "Default",
@@ -2217,6 +2218,16 @@
       "profileDeny": "Disabled Parameters",
       "profileAdd": "Additional Model Parameters",
       "noAdapterDefaults": "No adapter default parameters",
+      "audit": {
+        "params": "{{count}} params",
+        "rules": "{{count}} rules",
+        "valid": "Contract valid",
+        "invalid": "Contract has errors"
+      },
+      "backendPreview": {
+        "title": "Backend Preview",
+        "loading": "Checking"
+      },
       "templates": {
         "aspect_ratio": "Aspect Ratio",
         "duration": "Duration (seconds)",

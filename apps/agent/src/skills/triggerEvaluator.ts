@@ -3,14 +3,25 @@ import type { ContextSelector, RuntimeContext, SkillTrigger, WorkflowSkill } fro
 export interface TriggerEvaluation {
   matched: boolean
   matchedTriggerKind?: SkillTrigger['kind']
+  matchedTrigger?: SkillTrigger
   warning?: string
+}
+
+export interface WorkflowTriggerTrace {
+  id: string
+  matched: boolean
+  matchedTriggerKind?: SkillTrigger['kind']
+  trigger?: SkillTrigger
+  priority: number
+  selected: boolean
+  reason: string
 }
 
 export function evaluateWorkflowTriggers(skill: WorkflowSkill, ctx: RuntimeContext): TriggerEvaluation {
   if (skill.triggers.length === 0) return { matched: false }
   for (const trigger of skill.triggers) {
     try {
-      if (matchesTrigger(trigger, ctx)) return { matched: true, matchedTriggerKind: trigger.kind }
+      if (matchesTrigger(trigger, ctx)) return { matched: true, matchedTriggerKind: trigger.kind, matchedTrigger: trigger }
     } catch (error) {
       return {
         matched: false,
@@ -22,16 +33,39 @@ export function evaluateWorkflowTriggers(skill: WorkflowSkill, ctx: RuntimeConte
 }
 
 export function selectActiveWorkflows(workflows: WorkflowSkill[], ctx: RuntimeContext): { workflows: WorkflowSkill[]; warnings: string[] } {
+  return selectActiveWorkflowsWithTrace(workflows, ctx)
+}
+
+export function selectActiveWorkflowsWithTrace(workflows: WorkflowSkill[], ctx: RuntimeContext): { workflows: WorkflowSkill[]; warnings: string[]; trace: WorkflowTriggerTrace[] } {
   const warnings: string[] = []
-  const matched = workflows.filter((workflow) => {
+  const evaluations = workflows.map((workflow) => {
     const result = evaluateWorkflowTriggers(workflow, ctx)
     if (result.warning) warnings.push(result.warning)
-    return result.matched
+    return { workflow, result }
   })
+  const matched = evaluations.filter((item) => item.result.matched).map((item) => item.workflow)
   const max = Math.min(Math.max(ctx.profile.limits?.maxActiveWorkflows ?? 2, 0), 4)
   const sorted = matched.sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))
   if (sorted.length > max) warnings.push(`trigger.workflow.limit: kept ${max} of ${sorted.length} matched workflows`)
-  return { workflows: sorted.slice(0, max), warnings }
+  const selected = sorted.slice(0, max)
+  const selectedIds = new Set(selected.map((workflow) => workflow.id))
+  const matchedIds = new Set(matched.map((workflow) => workflow.id))
+  const trace = evaluations
+    .map(({ workflow, result }): WorkflowTriggerTrace => ({
+      id: workflow.id,
+      matched: result.matched,
+      ...(result.matchedTriggerKind ? { matchedTriggerKind: result.matchedTriggerKind } : {}),
+      ...(result.matchedTrigger ? { trigger: result.matchedTrigger } : {}),
+      priority: workflow.priority,
+      selected: selectedIds.has(workflow.id),
+      reason: selectedIds.has(workflow.id)
+        ? `selected:${result.matchedTriggerKind ?? 'unknown'}`
+        : matchedIds.has(workflow.id)
+          ? 'matched_but_over_limit'
+          : 'not_matched',
+    }))
+    .sort((a, b) => Number(b.selected) - Number(a.selected) || Number(b.matched) - Number(a.matched) || b.priority - a.priority || a.id.localeCompare(b.id))
+  return { workflows: selected, warnings, trace }
 }
 
 function matchesTrigger(trigger: SkillTrigger, ctx: RuntimeContext): boolean {

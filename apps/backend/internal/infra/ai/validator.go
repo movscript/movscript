@@ -223,6 +223,10 @@ func validateParamValue(p ParamDef, val any) error {
 		if _, ok := boolValue(val); !ok {
 			return invalidParamTypeError(p.Key, "a boolean")
 		}
+	case "string":
+		if _, ok := strictStringValue(val); !ok {
+			return invalidParamTypeError(p.Key, "a string")
+		}
 	default:
 		if p.Key == "size" || p.Key == "image_size" {
 			return validateSizeParam(p.Key, val)
@@ -230,6 +234,56 @@ func validateParamValue(p ParamDef, val any) error {
 	}
 	if p.Key == "size" || p.Key == "image_size" {
 		return validateSizeParam(p.Key, val)
+	}
+	if err := validateParamJSONSchemaKeywords(p.Key, p.JSONSchema, val); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateParamJSONSchemaKeywords(key string, schema map[string]any, val any) error {
+	if len(schema) == 0 {
+		return nil
+	}
+	if enumRaw, ok := schema["enum"]; ok {
+		enumValues := scalarSlice(enumRaw)
+		if len(enumValues) > 0 && !scalarSliceContains(enumValues, val) {
+			err := invalidParamCombinationError("parameter \""+key+"\" must match one of the declared schema enum values", key)
+			err.Code = "INVALID_PARAMETER_OPTION"
+			err.AllowedValues = scalarValuesToStrings(enumValues)
+			if len(enumValues) > 0 {
+				err.SuggestedFix = map[string]any{key: enumValues[0]}
+			}
+			return err
+		}
+	}
+	if min, ok := schemaNumberKeyword(schema, "minimum"); ok {
+		n, valueOK := numberValue(val)
+		if !valueOK {
+			return invalidParamTypeError(key, "a number")
+		}
+		if n < min {
+			return invalidParamRangeError(key, ">=", min)
+		}
+	}
+	if max, ok := schemaNumberKeyword(schema, "maximum"); ok {
+		n, valueOK := numberValue(val)
+		if !valueOK {
+			return invalidParamTypeError(key, "a number")
+		}
+		if n > max {
+			return invalidParamRangeError(key, "<=", max)
+		}
+	}
+	if multiple, ok := schemaNumberKeyword(schema, "multipleOf"); ok && multiple != 0 {
+		n, valueOK := numberValue(val)
+		if !valueOK {
+			return invalidParamTypeError(key, "a number")
+		}
+		ratio := n / multiple
+		if math.Abs(ratio-math.Round(ratio)) > 1e-9 {
+			return invalidParamCombinationError("parameter \""+key+"\" must be a multiple of the declared schema step", key)
+		}
 	}
 	return nil
 }
@@ -300,6 +354,31 @@ func validateDeclaredParamRules(params map[string]any, supported map[string]Para
 			if len(item.Options) > 0 {
 				err.SuggestedFix = map[string]any{key: item.Options[0]}
 			}
+			return err
+		}
+		for _, item := range p.ConditionalConst {
+			if !conditionalParamMatches(params[item.WhenParam], item.WhenValue) {
+				continue
+			}
+			if _, exists := params[key]; !exists {
+				continue
+			}
+			if conditionalParamMatches(params[key], item.Value) {
+				continue
+			}
+			err := invalidParamCombinationError("parameter \""+key+"\" must have the required value for \""+item.WhenParam+"\"", key, item.WhenParam)
+			err.SuggestedFix = map[string]any{key: item.Value}
+			return err
+		}
+		for _, item := range p.RequiresValue {
+			if !paramHasNonZeroValue(params[key]) {
+				continue
+			}
+			if conditionalParamMatches(params[item.Param], item.Value) {
+				continue
+			}
+			err := invalidParamCombinationError("parameter \""+key+"\" requires \""+item.Param+"\" to have the required value", key, item.Param)
+			err.SuggestedFix = map[string]any{item.Param: item.Value}
 			return err
 		}
 	}
@@ -390,6 +469,114 @@ func stringValue(v any) (string, bool) {
 		return "false", true
 	default:
 		return "", false
+	}
+}
+
+func strictStringValue(v any) (string, bool) {
+	s, ok := v.(string)
+	return s, ok
+}
+
+func strictBoolValue(v any) (bool, bool) {
+	b, ok := v.(bool)
+	return b, ok
+}
+
+func strictNumberValue(v any) (float64, bool) {
+	switch t := v.(type) {
+	case float64:
+		return t, true
+	case int:
+		return float64(t), true
+	case int64:
+		return float64(t), true
+	case json.Number:
+		n, err := t.Float64()
+		return n, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func schemaNumberKeyword(schema map[string]any, key string) (float64, bool) {
+	value, ok := schema[key]
+	if !ok {
+		return 0, false
+	}
+	return numberValue(value)
+}
+
+func scalarSlice(value any) []any {
+	switch items := value.(type) {
+	case []any:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			if isComparableScalar(item) {
+				out = append(out, item)
+			}
+		}
+		return out
+	case []int:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			out = append(out, item)
+		}
+		return out
+	case []string:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			out = append(out, item)
+		}
+		return out
+	case []float64:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			out = append(out, item)
+		}
+		return out
+	case []bool:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			out = append(out, item)
+		}
+		return out
+	default:
+		return nil
+	}
+}
+
+func scalarSliceContains(values []any, target any) bool {
+	for _, value := range values {
+		if conditionalParamMatches(target, value) {
+			return true
+		}
+	}
+	return false
+}
+
+func scalarValuesToStrings(values []any) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		switch v := value.(type) {
+		case string:
+			out = append(out, v)
+		case bool:
+			out = append(out, strconv.FormatBool(v))
+		default:
+			if n, ok := numberValue(v); ok {
+				out = append(out, strconv.FormatFloat(n, 'f', -1, 64))
+			}
+		}
+	}
+	return out
+}
+
+func isComparableScalar(value any) bool {
+	switch value.(type) {
+	case string, float64, int, int64, bool:
+		return true
+	default:
+		return false
 	}
 }
 

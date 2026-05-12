@@ -9,7 +9,15 @@
       "priority": 700,
       "enabled": true,
       "triggers": [
-        { "kind": "keyword", "any": ["提案", "草稿", "proposal", "draft"] }
+        {
+          "kind": "keyword",
+          "any": [
+            "提案",
+            "草稿",
+            "proposal",
+            "draft"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -19,8 +27,8 @@
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "instructionTemplate": "For broad project changes, prefer an existing local proposal draft when one exists. Read context, inspect relevant drafts, and ask for the target draft kind only when ambiguous.",
-      "outputContract": "Return the selected draft or recommended draft kind and the next review action."
+      "outputContract": "Return the selected draft or recommended draft kind and the next review action.",
+      "instructionTemplatePath": "proposal-first.workflow.md"
     },
     {
       "id": "movscript.workflow.script-writing",
@@ -31,7 +39,16 @@
       "priority": 690,
       "enabled": true,
       "triggers": [
-        { "kind": "keyword", "any": ["写剧本", "创建剧本", "保存剧本", "script writing", "create script"] }
+        {
+          "kind": "keyword",
+          "any": [
+            "写剧本",
+            "创建剧本",
+            "保存剧本",
+            "script writing",
+            "create script"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -39,8 +56,8 @@
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "instructionTemplate": "Produce script content in the response first. Save it with {{tool:movscript_create_script}} only when the user explicitly wants a formal script record and the approval flow completes.",
-      "outputContract": "Return the script status, created script id when available, and whether the save was approved."
+      "outputContract": "Return the script status, created script id when available, and whether the save was approved.",
+      "instructionTemplatePath": "script-writing.workflow.md"
     },
     {
       "id": "movscript.workflow.project-progress",
@@ -51,7 +68,15 @@
       "priority": 660,
       "enabled": true,
       "triggers": [
-        { "kind": "keyword", "any": ["进度", "完成度", "project progress", "status"] }
+        {
+          "kind": "keyword",
+          "any": [
+            "进度",
+            "完成度",
+            "project progress",
+            "status"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -59,8 +84,8 @@
         "tool://movscript_list_drafts"
       ],
       "toolScope": "intersect",
-      "instructionTemplate": "Summarize progress from facts read through context, project scripts, and local drafts. Separate verified completion from recommendations and unknowns.",
-      "outputContract": "Return verified progress, open drafts, blockers, and recommended next step."
+      "outputContract": "Return verified progress, open drafts, blockers, and recommended next step.",
+      "instructionTemplatePath": "project-progress.workflow.md"
     },
     {
       "id": "movscript.workflow.storyboard-gap-review",
@@ -71,7 +96,15 @@
       "priority": 650,
       "enabled": true,
       "triggers": [
-        { "kind": "keyword", "any": ["分镜缺口", "storyboard gap", "镜头缺口", "关键帧缺口"] }
+        {
+          "kind": "keyword",
+          "any": [
+            "分镜缺口",
+            "storyboard gap",
+            "镜头缺口",
+            "关键帧缺口"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
@@ -80,8 +113,8 @@
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "instructionTemplate": "Review storyboard, keyframe, or media planning gaps from the selected context and relevant drafts. Do not invent missing media; list concrete missing decisions.",
-      "outputContract": "Return gaps grouped by target content unit or scene, plus the next proposal or generation step."
+      "outputContract": "Return gaps grouped by target content unit or scene, plus the next proposal or generation step.",
+      "instructionTemplatePath": "storyboard-gap-review.workflow.md"
     },
     {
       "id": "movscript.workflow.creative-workbench",
@@ -92,16 +125,31 @@
       "priority": 640,
       "enabled": true,
       "triggers": [
-        { "kind": "context", "selector": { "mode": ["creative-workbench"] } },
-        { "kind": "keyword", "any": ["故事素材", "头脑风暴", "creative workbench", "brainstorm"] }
+        {
+          "kind": "context",
+          "selector": {
+            "mode": [
+              "creative-workbench"
+            ]
+          }
+        },
+        {
+          "kind": "keyword",
+          "any": [
+            "故事素材",
+            "头脑风暴",
+            "creative workbench",
+            "brainstorm"
+          ]
+        }
       ],
       "toolRefs": [
         "tool://movscript_get_current_context",
         "tool://movscript_request_user_input"
       ],
       "toolScope": "intersect",
-      "instructionTemplate": "Refine the current story material into specific reusable notes. Ask for the target only when current context does not identify it.",
-      "outputContract": "Return refined material and a short note on what changed."
+      "outputContract": "Return refined material and a short note on what changed.",
+      "instructionTemplatePath": "creative-workbench.workflow.md"
     }
   ]
 }

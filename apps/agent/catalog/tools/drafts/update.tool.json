@@ -1,0 +1,122 @@
+{
+  "name": "movscript_update_draft",
+  "description": "Edit, validate, or dry-run one local draft. Actions: 'patch_content' (JSON Pointer add/replace/remove), 'replace_text' (old/new string), 'replace_content' (full body), 'replace_fields' (title/status/metadata), 'set_status', 'validate' (local schema only), and 'preview_apply' (dry-run that surfaces local validation errors plus backend apply diffs/errors).",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "draftId"
+    ],
+    "properties": {
+      "draftId": {
+        "type": "string"
+      },
+      "action": {
+        "type": "string",
+        "enum": [
+          "replace_fields",
+          "replace_content",
+          "patch_content",
+          "replace_text",
+          "set_status",
+          "validate",
+          "preview_apply"
+        ]
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "draft",
+          "accepted",
+          "rejected",
+          "applied",
+          "superseded"
+        ]
+      },
+      "title": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string"
+      },
+      "target": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "metadata": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "rejectedReason": {
+        "type": "string"
+      },
+      "expectedUpdatedAt": {
+        "type": "string"
+      },
+      "oldString": {
+        "type": "string"
+      },
+      "newString": {
+        "type": "string"
+      },
+      "replaceAll": {
+        "type": "boolean"
+      },
+      "previewApply": {
+        "type": "boolean"
+      },
+      "validateOnly": {
+        "type": "boolean"
+      },
+      "ops": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "path"
+          ],
+          "properties": {
+            "op": {
+              "type": "string",
+              "enum": [
+                "add",
+                "replace",
+                "remove"
+              ]
+            },
+            "path": {
+              "type": "string"
+            },
+            "value": {}
+          }
+        }
+      },
+      "targetEntityType": {
+        "type": "string"
+      },
+      "targetEntityId": {
+        "type": [
+          "string",
+          "number"
+        ]
+      },
+      "targetField": {
+        "type": "string"
+      },
+      "currentValue": {},
+      "proposedValue": {}
+    }
+  },
+  "permission": "draft.write",
+  "risk": "draft",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "Patch, replace, validate, or dry-run preview_apply for one local draft."
+}

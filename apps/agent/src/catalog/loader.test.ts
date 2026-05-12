@@ -1,0 +1,276 @@
+import assert from 'node:assert/strict'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import test from 'node:test'
+import { loadAgentPluginCatalog } from './loader.js'
+
+test('loads target-state tool catalog and ignores legacy skill files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-plugins-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+
+  try {
+    writePluginFile(skillsDir, 'writer.json', {
+      skills: [{
+        id: 'studio.writer',
+        name: 'Writer',
+        description: 'Writes scene drafts',
+        enabled: true,
+        priority: 20,
+        instruction: 'Write in short scene beats.',
+        toolHints: ['studio.script_outline'],
+      }],
+    })
+    writePluginFile(toolsDir, 'outline.tool.json', {
+      name: 'studio.script_outline',
+      description: 'Create a script outline draft.',
+      permission: 'draft.write',
+      risk: 'draft',
+      source: 'plugin',
+      pluginId: 'test.writer',
+      inputSchema: {
+        type: 'object',
+        required: ['title'],
+        properties: {
+          title: { type: 'string' },
+        },
+      },
+      projectScoped: true,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+    })
+
+    assert.equal(catalog.skillsDir, skillsDir)
+    assert.equal(catalog.toolsDir, toolsDir)
+    const writerSkill = catalog.skills.find((skill) => skill.id === 'studio.writer')
+    const outlineTool = catalog.tools.find((tool) => tool.name === 'studio.script_outline')
+    assert.equal(writerSkill, undefined)
+    assert.equal(outlineTool?.name, 'studio.script_outline')
+    assert.equal(outlineTool?.source, 'plugin')
+    assert.deepEqual(outlineTool?.inputSchema, {
+      type: 'object',
+      required: ['title'],
+      properties: {
+        title: { type: 'string' },
+      },
+    })
+    assert.equal(catalog.manifest.skills.some((skill) => skill.id === 'studio.writer'), false)
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'))
+    assert.ok(catalog.registry.get('studio.script_outline'))
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads built-in MovScript platform catalog by default', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-empty-'))
+  try {
+    const catalog = loadAgentPluginCatalog({
+      packsDir: join(dir, 'packs'),
+      profilesDir: join(dir, 'profiles'),
+    })
+
+    assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
+    assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
+    assert.equal(catalog.skills.some((skill) => skill.id === 'movscript.platform.concepts'), false)
+    assert.equal(catalog.skills.some((skill) => skill.id === 'movscript.drafts.safe-drafts'), false)
+    assert.equal(catalog.skills.some((skill) => skill.id === 'movscript.intent.proposal-first'), false)
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.platform-concepts'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.safe-drafts'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.proposal-first'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.project-proposal'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal'))
+    assert.ok(catalog.profiles.some((profile) => profile.modeAlias === 'project-orchestration'))
+    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_get_current_context'))
+    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_create_project'))
+    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_list_models'))
+    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_create_draft'))
+    assert.equal(catalog.manifest.skills.some((skill) => skill.id === 'movscript.intent.content-unit-proposal'), false)
+    assert.equal(catalog.manifest.skills.some((skill) => skill.id === 'movscript.intent.content-unit-media-proposal'), false)
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_get_current_context'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_list_models'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_create_project' && grant.approval === 'always'))
+    assert.ok(catalog.registry.get('movscript_create_draft'))
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'movscript_create_draft'), true)
+    assert.equal(catalog.registry.get('movscript_create_project')?.projectScoped, false)
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads built-in content unit proposal catalogs by default', () => {
+  const catalog = loadAgentPluginCatalog()
+
+  const contentUnitPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.content-unit')
+
+  assert.ok(contentUnitPack)
+  assert.ok(contentUnitPack?.tools.includes('movscript_create_draft'))
+  assert.ok(contentUnitPack?.tools.includes('movscript_read_draft'))
+  assert.ok(contentUnitPack?.tools.includes('movscript_update_draft'))
+  assert.ok(contentUnitPack?.skills.includes('movscript.workflow.content-unit-proposal'))
+  assert.ok(contentUnitPack?.skills.includes('movscript.workflow.content-unit-media-proposal'))
+  assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_create_draft'))
+  assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_read_draft'))
+  assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_update_draft'))
+  assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal'))
+  assert.equal(catalog.registry.get('movscript_upsert_proposal_node'), undefined)
+  assert.equal(catalog.registry.get('movscript_submit_script_split_draft'), undefined)
+  assert.equal(catalog.registry.get('movscript_list_productions'), undefined)
+  assert.deepEqual(catalog.warnings, [])
+})
+
+test('loads target-state tool files recursively and ignores legacy categorized skills', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-categorized-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+
+  try {
+    writePluginFile(join(skillsDir, 'production'), 'proposal.json', {
+      skills: [{
+        id: 'studio.production_proposal',
+        name: 'Production Proposal',
+        description: 'Draft production proposals',
+        category: 'production_proposal',
+        enabled: true,
+        instruction: 'Draft production proposal nodes.',
+      }],
+    })
+    writePluginFile(join(toolsDir, 'production'), 'proposal.tool.json', {
+      name: 'studio.read_production',
+      description: 'Read production context.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.production',
+      inputSchema: {},
+      projectScoped: true,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+    })
+    const skill = catalog.skills.find((item) => item.id === 'studio.production_proposal')
+    const tool = catalog.tools.find((item) => item.name === 'studio.read_production')
+
+    assert.equal(skill, undefined)
+    assert.equal(tool?.source, 'plugin')
+    assert.equal(tool?.pluginId, 'test.production')
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.read_production'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads native layered skill instructions from markdown files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-md-skill-'))
+  const skillsDir = join(dir, 'skills')
+
+  try {
+    writePluginFile(skillsDir, 'review.workflow.json', {
+      id: 'studio.workflow.review',
+      kind: 'workflow',
+      version: '1.0.0',
+      name: 'Review Workflow',
+      description: 'Review from Markdown.',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolRefs: [],
+      instructionTemplatePath: 'review.workflow.md',
+    })
+    mkdirSync(skillsDir, { recursive: true })
+    writeFileSync(join(skillsDir, 'review.workflow.md'), 'Review from a Markdown instruction body.\n', 'utf8')
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      builtinSkillsDir: skillsDir,
+      toolsDir: join(dir, 'tools'),
+      builtinToolsDir: join(dir, 'tools'),
+    })
+    const skill = catalog.layeredRegistry.skills.get('studio.workflow.review')
+
+    assert.equal(skill?.kind, 'workflow')
+    assert.equal(skill?.instructionTemplate, 'Review from a Markdown instruction body.')
+    assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('target-state catalog loading exposes layered tools without selection gating', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-target-catalog-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+
+  try {
+    writePluginFile(skillsDir, 'all.json', {
+      skills: [
+        {
+          id: 'studio.alpha',
+          name: 'Alpha',
+          description: 'Alpha skill',
+          enabled: true,
+          instruction: 'Alpha instruction.',
+        },
+        {
+          id: 'studio.beta',
+          name: 'Beta',
+          description: 'Beta skill',
+          enabled: true,
+          instruction: 'Beta instruction.',
+        },
+      ],
+    })
+    writePluginFile(toolsDir, 'alpha.tool.json', {
+      name: 'studio.alpha_tool',
+      description: 'Alpha tool.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.alpha',
+      inputSchema: {},
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(toolsDir, 'beta.tool.json', {
+      name: 'studio.beta_tool',
+      description: 'Beta tool.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.beta',
+      inputSchema: {},
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+    })
+
+    assert.equal(catalog.skills.some((skill) => skill.id === 'studio.alpha'), false)
+    assert.equal(catalog.skills.some((skill) => skill.id === 'studio.beta'), false)
+    assert.equal(Boolean(catalog.registry.get('studio.alpha_tool')), true)
+    assert.equal(Boolean(catalog.registry.get('studio.beta_tool')), true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+function writePluginFile(dir: string, filename: string, value: unknown): void {
+  const filePath = join(dir, filename)
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}

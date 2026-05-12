@@ -128,6 +128,89 @@ func TestGetProviderModelsByCapabilityKeepsProviderVariants(t *testing.T) {
 	}
 }
 
+func TestGetModelsByCapabilityExposesResolvedModelContract(t *testing.T) {
+	db := openAITestDB(t)
+	cred := model.AICredential{
+		Model:       gormModel(1),
+		AdapterType: AdapterVolcen,
+		DisplayName: "Volcen",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	cfg := model.AIModelConfig{
+		Model:              gormModel(1),
+		CredentialID:       cred.ID,
+		ModelDefID:         "seedance-test",
+		IsEnabled:          true,
+		CustomDisplayName:  "Seedance Test",
+		CustomCapabilities: CapabilityVideo,
+		CustomPricingMode:  string(PricingPerSecond),
+		CustomSupportedParams: `{
+			"allow":["duration","frames","draft","resolution","return_last_frame","sequential_image_generation","image_count"],
+			"override":{
+				"duration":{"conflicts_with":["frames"]},
+				"resolution":{"conditional_enum":[{"when_param":"draft","when_value":true,"options":["480p"]}]},
+				"return_last_frame":{"conditional_const":[{"when_param":"draft","when_value":true,"value":false}]}
+			},
+			"add":[
+				{"key":"sequential_image_generation","label":"组图","type":"select","options":["disabled","auto"],"default":"disabled"},
+				{"key":"image_count","label":"生成张数","type":"number","min":1,"max":15,"step":1,"requires_value":[{"param":"sequential_image_generation","value":"auto"}]}
+			]
+		}`,
+	}
+	if err := db.Create(&cfg).Error; err != nil {
+		t.Fatalf("create model config: %v", err)
+	}
+
+	svc := NewAIService(db, NewRegistry(db, nil))
+	models, err := svc.GetModelsByCapability(CapabilityVideo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 1 {
+		t.Fatalf("model count = %d, want 1: %#v", len(models), models)
+	}
+	got := models[0]
+	if got.InputRequirements.Image.Min != 0 || got.InputRequirements.Video.Max != 0 {
+		t.Fatalf("unexpected video input requirements: %#v", got.InputRequirements)
+	}
+	for _, key := range []string{"duration", "frames", "draft", "resolution", "return_last_frame", "sequential_image_generation", "image_count"} {
+		if !hasParam(got.SupportedParams, key) {
+			t.Fatalf("expected supported param %q in public model contract: %#v", key, got.SupportedParams)
+		}
+	}
+	allOf, ok := got.ParamsSchema["allOf"].([]any)
+	if !ok || len(allOf) != 4 {
+		t.Fatalf("expected four schema rules in public model contract, got %#v", got.ParamsSchema["allOf"])
+	}
+	props, ok := got.ParamsSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected schema properties in public model contract, got %#v", got.ParamsSchema["properties"])
+	}
+	frames, ok := props["frames"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected frames property in public model schema, got %#v", props["frames"])
+	}
+	enumValues, enumOK := frames["enum"].([]int)
+	if !schemaNumberEquals(frames["minimum"], 29) || !schemaNumberEquals(frames["maximum"], 289) || !enumOK || len(enumValues) != 66 || enumValues[0] != 29 || enumValues[len(enumValues)-1] != 289 || frames["description"] == "" {
+		t.Fatalf("expected frames JSON Schema constraints in public model schema, got %#v", frames)
+	}
+	if !schemaHasConflictRule(allOf, "duration", "frames") {
+		t.Fatalf("expected duration/frames conflict in public model schema: %#v", allOf)
+	}
+	if !schemaHasConditionalPropertyRule(allOf, "draft", true, "resolution", "enum", []any{"480p"}, false) {
+		t.Fatalf("expected draft=true resolution rule in public model schema: %#v", allOf)
+	}
+	if !schemaHasConditionalPropertyRule(allOf, "draft", true, "return_last_frame", "const", false, false) {
+		t.Fatalf("expected draft=true return_last_frame rule in public model schema: %#v", allOf)
+	}
+	if !schemaHasConditionalPropertyRule(allOf, "", nil, "sequential_image_generation", "const", "auto", true) {
+		t.Fatalf("expected image_count dependency rule in public model schema: %#v", allOf)
+	}
+}
+
 func TestResolveRuntimeModelConfigRoundRobinsLogicalProviderVariants(t *testing.T) {
 	db := openAITestDB(t)
 	createProviderVariant(t, db, 1, "OpenAI A", "gpt-image-1", 10)

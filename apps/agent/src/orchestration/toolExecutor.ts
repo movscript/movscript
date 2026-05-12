@@ -33,10 +33,11 @@ export interface ToolExecutorOptions {
 }
 
 export interface AgentCatalogToolManager {
-  listAgentBundles(): JSONValue
-  inspectAgentBundle(input?: Record<string, JSONValue>): JSONValue
-  enableAgentBundle(input?: Record<string, JSONValue>): JSONValue
   reloadAgentCatalog(): JSONValue
+  spawnSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  listSubagents(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  waitSubagent(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
+  cancelSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
 }
 
 export async function executeTool(call: ToolCall, options: ToolExecutorOptions): Promise<ToolExecutionResult> {
@@ -86,7 +87,8 @@ async function callMCPToolWithGenerationRepair(
   } catch (error) {
     const repairedArgs = generationRepairArgs(toolName, args, error)
     if (!repairedArgs) throw error
-    return mcpClient.callTool(toolName, repairedArgs, options)
+    const result = await mcpClient.callTool(toolName, repairedArgs, options)
+    return appendGenerationRepairNote(result, repairedArgs.repair_note)
   }
 }
 
@@ -141,6 +143,24 @@ function applyGenerationSuggestedFix(args: Record<string, JSONValue>, suggestedF
   return next
 }
 
+function appendGenerationRepairNote(result: JSONValue, repairNote: JSONValue | undefined): JSONValue {
+  if (typeof repairNote !== 'string' || !repairNote.trim()) return result
+  if (!isRecord(result)) return result
+  if (isRecord(result.data)) {
+    return {
+      ...result,
+      data: {
+        ...result.data,
+        repair_note: repairNote,
+      },
+    }
+  }
+  return {
+    ...result,
+    repair_note: repairNote,
+  }
+}
+
 function isGenerationRepairValue(value: JSONValue): value is string | number | boolean {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
 }
@@ -155,24 +175,29 @@ async function callRuntimeTool(
   catalogManager: AgentCatalogToolManager | undefined,
   _sandboxMode: boolean,
 ): Promise<JSONValue | undefined> {
-  if (toolName === 'movscript_list_agent_bundles') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.listAgentBundles()
-  }
-
-  if (toolName === 'movscript_inspect_agent_bundle') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.inspectAgentBundle(args)
-  }
-
-  if (toolName === 'movscript_enable_agent_bundle') {
-    if (!catalogManager) throw new Error('agent catalog manager is not configured')
-    return catalogManager.enableAgentBundle(args)
-  }
-
   if (toolName === 'movscript_reload_agent_catalog') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.reloadAgentCatalog()
+  }
+
+  if (toolName === 'movscript_spawn_subagent') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.spawnSubagent(run, args)
+  }
+
+  if (toolName === 'movscript_list_subagents') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.listSubagents(run, args)
+  }
+
+  if (toolName === 'movscript_wait_subagent') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.waitSubagent(run, args)
+  }
+
+  if (toolName === 'movscript_cancel_subagent') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.cancelSubagent(run, args)
   }
 
   if (toolName === 'movscript_create_draft') {

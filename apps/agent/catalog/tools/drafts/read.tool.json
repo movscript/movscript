@@ -1,0 +1,30 @@
+{
+  "name": "movscript_read_draft",
+  "description": "Read a local draft file by absolute file path and return its content plus metadata.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "file_path"
+    ],
+    "properties": {
+      "file_path": {
+        "type": "string"
+      },
+      "draft_id": {
+        "type": "string"
+      },
+      "draftId": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "draft.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import i18n from '@/i18n'
 
 export interface ChatMessage {
@@ -30,6 +31,9 @@ export interface AgentSettings {
   includeRecentResources: boolean
   autoPlan: boolean
   permissionMode: AgentPermissionMode
+  planMaxWorkers: number
+  planMaxTaskAttempts: number
+  planWorkerTimeoutMs: number
 }
 
 export type AgentWorkMode = 'chat' | 'plan' | 'create' | 'review'
@@ -90,12 +94,15 @@ export interface ChatGenerationParamAudit {
   jobId?: number
   modelConfigId?: number
   modelContractLoaded: boolean
+  paramsSchemaLoaded: boolean
+  paramsSchemaRuleCount?: number
   supportedParams: string[]
   providedExtraParams: string[]
   submittedExtraParams: string[]
   droppedExtraParams: string[]
   droppedTopLevelParams: string[]
   extraParamsParseError?: string
+  repairNote?: string
 }
 
 export interface ChatRunActivity {
@@ -196,6 +203,9 @@ const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   includeRecentResources: true,
   autoPlan: true,
   permissionMode: 'ask',
+  planMaxWorkers: 2,
+  planMaxTaskAttempts: 2,
+  planWorkerTimeoutMs: 15 * 60_000,
 }
 
 const EMPTY_CONVERSATION_DRAFT: ConversationDraft = {
@@ -216,11 +226,12 @@ if (typeof window !== 'undefined') {
 }
 
 export const useAgentStore = create<AgentStore>()(
-  (set, get) => ({
-    settings: DEFAULT_AGENT_SETTINGS,
-    convsByUser: {},
+  persist(
+    (set, get) => ({
+      settings: DEFAULT_AGENT_SETTINGS,
+      convsByUser: {},
 
-    updateSettings: (s) => set((state) => ({ settings: { ...state.settings, ...s } })),
+      updateSettings: (s) => set((state) => ({ settings: normalizeAgentSettings({ ...state.settings, ...s }) })),
 
     getConversations: (userId) => getUserState(get(), userId).conversations,
     getActiveConversationId: (userId) => getUserState(get(), userId).activeConversationId,
@@ -378,5 +389,40 @@ export const useAgentStore = create<AgentStore>()(
         },
       }
     }),
-  }),
+    }),
+    {
+      name: 'agent-store-v4',
+      partialize: (state) => ({ settings: state.settings }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<AgentStore> | undefined
+        return {
+          ...currentState,
+          ...persisted,
+          settings: normalizeAgentSettings(persisted?.settings),
+        }
+      },
+      onRehydrateStorage: () => (state) => {
+        if (state) state.settings = normalizeAgentSettings(state.settings)
+      },
+    }
+  ),
 )
+
+export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null): AgentSettings {
+  const merged = { ...DEFAULT_AGENT_SETTINGS, ...settings }
+  const workerOptions = [1, 2, 3, 4]
+  const attemptOptions = [1, 2, 3]
+  const timeoutOptions = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000]
+  return {
+    ...merged,
+    planMaxWorkers: workerOptions.includes(Number(merged.planMaxWorkers))
+      ? Number(merged.planMaxWorkers)
+      : DEFAULT_AGENT_SETTINGS.planMaxWorkers,
+    planMaxTaskAttempts: attemptOptions.includes(Number(merged.planMaxTaskAttempts))
+      ? Number(merged.planMaxTaskAttempts)
+      : DEFAULT_AGENT_SETTINGS.planMaxTaskAttempts,
+    planWorkerTimeoutMs: timeoutOptions.includes(Number(merged.planWorkerTimeoutMs))
+      ? Number(merged.planWorkerTimeoutMs)
+      : DEFAULT_AGENT_SETTINGS.planWorkerTimeoutMs,
+  }
+}

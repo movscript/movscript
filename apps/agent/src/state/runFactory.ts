@@ -1,6 +1,6 @@
 import type { AgentRuntimeContract } from '../contracts/runtimeContract.js'
 import { buildRuntimeContractMetadata } from '../contracts/runtimeContract.js'
-import type { AgentManifest } from '../manifest/agentManifest.js'
+import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentRun, AgentRunPolicy, AgentRunRole, JSONValue, ToolCall } from './types.js'
 
 export interface BuildAgentRunInput {

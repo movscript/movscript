@@ -1,0 +1,22 @@
+{
+  "name": "movscript_wait_subagent",
+  "description": "Inspect whether a worker subagent, task, or plan has finished and return the latest structured snapshot.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "subagentName": { "type": "string" },
+      "runId": { "type": "string" },
+      "taskId": { "type": "string" },
+      "planId": { "type": "string" },
+      "timeoutMs": { "type": "number" }
+    }
+  },
+  "permission": "agent.subagent.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": { "grant": "allow", "approval": "never" },
+  "source": "runtime",
+  "capability": "Wait for or inspect planner-owned worker subagent progress.",
+  "allowedRunRoles": ["planner"]
+}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
+import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { buildAgentRun } from './runFactory.js'
 
 test('buildAgentRun assembles lifecycle defaults and optional runtime metadata', () => {

@@ -1,4 +1,4 @@
-import type { AgentManifest } from '../manifest/agentManifest.js'
+import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'

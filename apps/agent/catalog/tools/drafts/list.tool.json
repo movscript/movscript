@@ -1,0 +1,36 @@
+{
+  "name": "movscript_list_drafts",
+  "description": "List local drafts for the current or specified project, optionally filtered by kind or status. Use to find an existing draft before creating a new one.",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "number"
+      },
+      "kind": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "threadId": {
+        "type": "string"
+      },
+      "runId": {
+        "type": "string"
+      },
+      "limit": {
+        "type": "number"
+      }
+    }
+  },
+  "permission": "draft.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

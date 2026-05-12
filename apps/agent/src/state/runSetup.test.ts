@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { DEFAULT_AGENT_MANIFEST } from '../manifest/agentManifest.js'
+import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { buildRunSetupMetadata } from './runSetup.js'
 
 test('buildRunSetupMetadata assembles debug context and run metadata', () => {

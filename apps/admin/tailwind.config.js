@@ -5,8 +5,6 @@ export default {
   darkMode: ['selector', '[data-theme="dark"]'],
   content: [
     './src/**/*.{ts,tsx}',
-    '../frontend/src/components/ui/**/*.{ts,tsx}',
-    '../frontend/src/components/canvas/**/*.{ts,tsx}',
     '../../packages/ui/src/**/*.{ts,tsx}',
   ],
   theme: {

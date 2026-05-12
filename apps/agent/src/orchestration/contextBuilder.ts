@@ -1,4 +1,4 @@
-import type { AgentManifest } from '../manifest/agentManifest.js'
+import type { AgentManifest } from '../catalog/agentManifest.js'
 import type {
   AgentDebugContextPanel,
   AgentMessage,
@@ -35,33 +35,61 @@ export interface BuiltContext {
   systemPrompt: string
   systemMessages: RuntimeModelChatMessage[]
   debugParts: CompiledPromptPreview['debugParts']
+  promptStats: PromptStats
+  warnings: string[]
+  degraded?: 'dropped_policies' | 'dropped_workflows' | 'dropped_examples'
 }
 
-const GLOBAL_CAPABILITY_DISCOVERY_POLICY = [
-  'Capability discovery is a first-class runtime behavior.',
-  'Before claiming a needed capability, skill, or tool is missing, inspect the available tool catalog in the current context.',
-  'If the current tools are insufficient and agent catalog tools are available, call movscript_list_agent_bundles to discover relevant bundles, then movscript_inspect_agent_bundle for the best candidate.',
-  'If enabling a bundle is needed, call movscript_enable_agent_bundle with the specific bundle id and let the runtime approval policy decide whether it may be enabled.',
-  'After a bundle is enabled or catalog files may have changed, call movscript_reload_agent_catalog before retrying the task.',
-  'Do not imply that a bundle, skill, tool, backend write, generation job, or cost-bearing action was enabled or applied until the relevant tool result proves it.',
-  'If catalog tools are not available, say that dynamic capability loading is not available in this run and continue with the best available tools.',
+export interface PromptStats {
+  totalChars: number
+  parts: Array<{ id: string; title: string; kind: string; layer: PromptLayer; chars: number }>
+  byLayer: Record<PromptLayer, number>
+}
+
+export type PromptLayer = 'level0_core' | 'level1_context' | 'level2_behavior' | 'retrieved_context' | 'runtime_warnings'
+
+const CORE_RUNTIME_PROTOCOL_LINES = [
+  'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
+  'Answer in the same language as the user unless they ask otherwise.',
+  'Tool results are the source of truth. Do not claim project data, backend writes, generation jobs, costs, skills, or tools changed unless a tool result proves it.',
+  'Default context is intentionally small. Retrieve project lists, drafts, memories, schemas, resources, generation jobs, or catalog details with tools only when needed.',
+  'When missing context would make the next step a guess, call movscript_request_user_input.',
+  'Final responses must preserve durable handoff anchors: artifact refs such as draftId, proposalRef, projectId, productionId, status, key decisions, unresolved questions, and the object future edits should continue from.',
+]
+
+const PLANNER_SUBAGENT_POLICY = [
+  'Planner/subagent orchestration is available in this run.',
+  'Do simple, single-context tasks yourself as the planner instead of spawning a worker.',
+  'Use movscript_spawn_subagent when work can be split into independent tasks, needs parallel execution, needs isolated context, or may take longer than one run.',
+  'Each worker receives a short human-readable subagentName such as 爱因斯坦 or 霍金. You may provide one, or omit it and let the runtime assign names in order; refer to workers by that name in later wait/cancel calls instead of relying on task ids in natural language.',
+  'After spawning workers, use movscript_list_subagents and movscript_wait_subagent to monitor structured task state, worker run status, blockers, and artifacts instead of inferring progress from natural-language chat.',
+  'If movscript_wait_subagent returns pending, continue with other independent work or report that worker execution is still in progress; do not pretend the worker finished.',
+  'If movscript_wait_subagent returns failed, cancelled, blocked, or needs_review, use the returned target and snapshot to decide whether to replan, spawn replacement work, cancel stale work, or ask the user for missing input.',
+  'Use movscript_cancel_subagent only for stale, mistaken, duplicated, or user-cancelled worker work.',
+  'Worker subagents execute scoped tasks; the planner remains responsible for final synthesis, dependency decisions, replan decisions, and user-facing completion.',
 ].join('\n')
 
 export function buildContext(input: ContextBuilderInput): BuiltContext {
   const debugParts: CompiledPromptPreview['debugParts'] = []
+  const warnings = [...input.warnings]
   const command = input.command ?? parseAgentCommand(input.userMessage)
   const contractResolver = input.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
   const runtimeContract = contractResolver.find(input.manifest)
 
-  // --- Global Policy ---
+  // --- Core Runtime Protocol ---
   debugParts.push({
-    id: 'policy.capability-discovery',
+    id: 'runtime.core',
     kind: 'policy',
-    title: 'Global Capability Policy',
-    content: GLOBAL_CAPABILITY_DISCOVERY_POLICY,
+    title: 'Core Runtime Protocol',
+    content: [
+      ...CORE_RUNTIME_PROTOCOL_LINES,
+      input.policy.sandboxMode ? 'Sandbox mode is active: write, generation, and destructive tools are intercepted and simulated.' : undefined,
+      `Runtime limits: approvalMode=${input.policy.approvalMode}; maxToolCalls=${input.policy.maxToolCalls}; maxIterations=${input.policy.maxIterations}.`,
+      input.manifest.soul ? `[Agent-specific output contract]\n${input.manifest.soul}` : undefined,
+    ].filter(Boolean).join('\n'),
   })
 
-  // --- Context ---
+  // --- Current Context Envelope ---
   debugParts.push({
     id: 'context.summary',
     kind: 'context',
@@ -69,7 +97,7 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     content: renderDebugContextText(input.context),
   })
 
-  // --- Command ---
+  // --- Core Command Contract ---
   debugParts.push({
     id: `command.${command.name}`,
     kind: 'policy',
@@ -85,46 +113,16 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     ].filter(Boolean).join('\n'),
   })
 
-  // --- Identity ---
-  const identityLines = [
-    'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
-    'Answer in the same language as the user unless they ask otherwise.',
-    'Use the runtime context, tool results, and startup memories when available.',
-    'Startup memories are intentionally small. When older preferences, decisions, warnings, project references, or draft notes may matter, call movscript_search_memories (with or without a query) instead of assuming all memories are present.',
-    'When context is missing or ambiguous and guessing would affect the outcome, call movscript_request_user_input with a clear title, short summary, and 2-4 concrete choices or a free-form question.',
-    'When reading context, decide from titles, summaries, labels, descriptions, and user-facing names first. Treat tool references as references for tool calls, not as the primary meaning of the context.',
-    'When several independent read tools are needed for the same step, request them in the same model turn so the runtime can execute them concurrently.',
-    'Do not claim you changed project data unless a tool result proves it.',
-    'When writes are represented as drafts or approval requests, describe them as drafts or pending approvals.',
-    'Final responses must leave durable handoff anchors for future turns: created or modified artifact references such as draftId, proposalRef, projectId, and productionId; current artifact status; key decisions; unresolved questions; and the exact object future edits should continue from. Do not dump raw tool traces; preserve only user-relevant conclusions and stable references.',
-    'Think in business terms: project, production, episode orchestration segment, scene moment, creative material, asset need, shot, and review draft. Treat segment as an internal emotional, rhythm, or dramatic-function phase of an episode, not as a script paragraph or plot summary. Avoid exposing runtime field names unless a tool result or approval requires them.',
-  ]
-  if (input.manifest.soul) {
-    identityLines.push('', '[Agent-specific output contract]', input.manifest.soul)
-  }
+  // --- Tool Use Principle ---
   debugParts.push({
-    id: 'agent.identity',
-    kind: 'soul',
-    title: 'Agent identity',
-    content: identityLines.join('\n'),
+    id: 'tools.available',
+    kind: 'tool',
+    title: 'Tool use',
+    content: renderToolCatalogText(input.tools),
   })
 
-  // --- Policy ---
-  const policyLines = [
-    `approvalMode: ${input.policy.approvalMode}`,
-    `maxToolCalls: ${input.policy.maxToolCalls}`,
-    `maxIterations: ${input.policy.maxIterations}`,
-    input.policy.sandboxMode ? 'sandboxMode: true — write/generate/destructive tools are intercepted and simulated' : undefined,
-  ].filter(Boolean) as string[]
-  debugParts.push({
-    id: 'policy.runtime',
-    kind: 'policy',
-    title: 'Runtime policy',
-    content: policyLines.join('\n'),
-  })
-
-  // --- Skills ---
-  for (const skill of input.skills) {
+  // --- Activated Behavior ---
+  for (const skill of orderedActivatedSkills(input.skills)) {
     debugParts.push({
       id: `skill.${skill.id}`,
       kind: 'skill',
@@ -132,8 +130,16 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
       content: skill.compiledInstruction || skill.description,
     })
   }
+  if (shouldIncludeSubagentPolicy(input, command)) {
+    debugParts.push({
+      id: 'policy.planner-subagents',
+      kind: 'policy',
+      title: 'Planner Subagent Policy',
+      content: PLANNER_SUBAGENT_POLICY,
+    })
+  }
 
-  // --- Memories ---
+  // --- Retrieved Context ---
   if (input.memories.length > 0) {
     debugParts.push({
       id: 'context.memories',
@@ -143,7 +149,7 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     })
   }
 
-  // --- Warnings ---
+  // --- Runtime Warnings ---
   if (input.warnings.length > 0) {
     debugParts.push({
       id: 'context.warnings',
@@ -153,34 +159,14 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     })
   }
 
-  // --- Tools ---
-  debugParts.push({
-    id: 'tools.available',
-    kind: 'tool',
-    title: 'Available tools',
-    content: renderToolCatalogText(input.tools),
-  })
-
-  const systemPrompt = debugParts
-    .map((part) => `## ${part.title}\n${part.content}`)
-    .join('\n\n')
-  const topLevelPolicyParts = debugParts.filter((part) => part.id === 'policy.capability-discovery')
-  const primaryContextParts = debugParts.filter((part) => part.id === 'context.summary' || part.id === 'context.memories')
-  const otherParts = debugParts.filter((part) => part.id !== 'policy.capability-discovery' && part.id !== 'context.summary' && part.id !== 'context.memories')
-  const systemMessages: RuntimeModelChatMessage[] = [
-    ...topLevelPolicyParts.map((part) => ({
-      role: 'system' as const,
-      content: `## ${part.title}\n${part.content}`,
-    })),
-    ...(primaryContextParts.length > 0 ? [{
-      role: 'system' as const,
-      content: primaryContextParts.map((part) => `## ${part.title}\n${part.content}`).join('\n\n'),
-    }] : []),
-    ...otherParts.map((part) => ({
-      role: 'system' as const,
-      content: `## ${part.title}\n${part.content}`,
-    })),
-  ]
+  const fittedPrompt = fitDebugPartsToLimit(debugParts, input.manifest, systemPromptLimit(input.manifest), warnings)
+  const finalDebugParts = fittedPrompt.debugParts
+  const systemPrompt = renderDebugParts(finalDebugParts)
+  const promptStats = buildPromptStats(finalDebugParts, systemPrompt)
+  const systemMessages: RuntimeModelChatMessage[] = finalDebugParts.map((part) => ({
+    role: 'system' as const,
+    content: `## ${part.title}\n${part.content}`,
+  }))
 
   const messages: RuntimeModelChatMessage[] = [
     ...systemMessages,
@@ -188,7 +174,7 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     { role: 'user', content: input.userMessage },
   ]
 
-  return { messages, systemPrompt, systemMessages, debugParts }
+  return { messages, systemPrompt, systemMessages, debugParts: finalDebugParts, promptStats, warnings, ...(fittedPrompt.degraded ? { degraded: fittedPrompt.degraded } : {}) }
 }
 
 export function buildOpenAIChatTools(
@@ -220,13 +206,61 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_get_draft') return DRAFT_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_update_draft') return UPDATE_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_read_draft') return DRAFT_FILE_PATH_TOOL_SCHEMA
-  if (tool.name === 'movscript_list_agent_bundles') return EMPTY_OBJECT_TOOL_SCHEMA
-  if (tool.name === 'movscript_inspect_agent_bundle') return AGENT_BUNDLE_ID_TOOL_SCHEMA
-  if (tool.name === 'movscript_enable_agent_bundle') return ENABLE_AGENT_BUNDLE_TOOL_SCHEMA
   if (tool.name === 'movscript_reload_agent_catalog') return EMPTY_OBJECT_TOOL_SCHEMA
+  if (tool.name === 'movscript_spawn_subagent') return SPAWN_SUBAGENT_TOOL_SCHEMA
+  if (tool.name === 'movscript_list_subagents') return LIST_SUBAGENTS_TOOL_SCHEMA
+  if (tool.name === 'movscript_wait_subagent') return WAIT_SUBAGENT_TOOL_SCHEMA
+  if (tool.name === 'movscript_cancel_subagent') return CANCEL_SUBAGENT_TOOL_SCHEMA
   if (tool.name === 'movscript_create_project') return CREATE_PROJECT_TOOL_SCHEMA
   if (tool.name === 'movscript_create_script') return CREATE_SCRIPT_TOOL_SCHEMA
   return undefined
+}
+
+function hasAvailableTool(tools: ResolvedToolCatalog, name: string): boolean {
+  return tools.available.some((tool) => tool.name === name)
+}
+
+function shouldIncludeSubagentPolicy(input: ContextBuilderInput, command: AgentCommandRuntime): boolean {
+  if (!hasAvailableTool(input.tools, 'movscript_spawn_subagent')) return false
+  if (input.context.agentPlan) return true
+  if (command.contextProfile === 'project_structure') return true
+  return /subagent|worker|parallel|并行|子代理|多任务|拆分任务|分工/.test(input.userMessage)
+}
+
+function orderedActivatedSkills(skills: ResolvedAgentSkill[]): ResolvedAgentSkill[] {
+  const kindRank = (skill: ResolvedAgentSkill): number => {
+    const kind = typeof skill.metadata?.kind === 'string' ? skill.metadata.kind : skill.category
+    if (kind === 'persona') return 0
+    if (kind === 'policy') return 1
+    if (kind === 'workflow') return 2
+    return 3
+  }
+  return [...skills].sort((a, b) => kindRank(a) - kindRank(b) || b.resolvedPriority - a.resolvedPriority || a.id.localeCompare(b.id))
+}
+
+function buildPromptStats(debugParts: CompiledPromptPreview['debugParts'], systemPrompt: string): PromptStats {
+  const byLayer: Record<PromptLayer, number> = {
+    level0_core: 0,
+    level1_context: 0,
+    level2_behavior: 0,
+    retrieved_context: 0,
+    runtime_warnings: 0,
+  }
+  const parts = debugParts.map((part) => {
+    const layer = promptLayerForPart(part)
+    const chars = `## ${part.title}\n${part.content}`.length
+    byLayer[layer] += chars
+    return { id: part.id, title: part.title, kind: part.kind, layer, chars }
+  })
+  return { totalChars: systemPrompt.length, parts, byLayer }
+}
+
+function promptLayerForPart(part: CompiledPromptPreview['debugParts'][number]): PromptLayer {
+  if (part.id === 'runtime.core' || part.id.startsWith('command.') || part.id === 'tools.available') return 'level0_core'
+  if (part.id === 'context.summary') return 'level1_context'
+  if (part.id.startsWith('skill.') || part.id === 'policy.planner-subagents') return 'level2_behavior'
+  if (part.id === 'context.memories') return 'retrieved_context'
+  return 'runtime_warnings'
 }
 
 const EMPTY_OBJECT_TOOL_SCHEMA = {
@@ -235,32 +269,72 @@ const EMPTY_OBJECT_TOOL_SCHEMA = {
   properties: {},
 } satisfies Record<string, unknown>
 
-const AGENT_BUNDLE_ID_TOOL_SCHEMA = {
+const SPAWN_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    bundleId: {
-      type: 'string',
-      description: 'Agent capability bundle id.',
+    subagentName: { type: 'string', description: 'Optional human-readable worker subagent name, for example 爱因斯坦 or 霍金. If omitted, the runtime assigns the next ordered name.' },
+    subagentNames: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Optional human-readable names for existing taskIds, in the same order as taskIds. Missing names are assigned automatically.',
     },
+    taskId: { type: 'string', description: 'Existing plan task id to run with a worker subagent.' },
+    taskIds: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Existing plan task ids to run with worker subagents.',
+    },
+    tasks: {
+      type: 'array',
+      description: 'Optional new tasks to add before dispatching workers.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string' },
+          subagentName: { type: 'string', description: 'Optional human-readable worker subagent name for this task. Missing names are assigned automatically.' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          deps: { type: 'array', items: { type: 'string' } },
+          parentId: { type: 'string' },
+        },
+        required: ['title'],
+      },
+    },
+    maxWorkers: { type: 'number', description: 'Maximum concurrent worker subagents to dispatch.' },
   },
-  required: ['bundleId'],
 } satisfies Record<string, unknown>
 
-const ENABLE_AGENT_BUNDLE_TOOL_SCHEMA = {
+const LIST_SUBAGENTS_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    bundleId: {
-      type: 'string',
-      description: 'Agent capability bundle id to enable.',
-    },
-    replace: {
-      type: 'boolean',
-      description: 'When true, replace the active bundle set with only this bundle.',
-    },
+    planId: { type: 'string', description: 'Plan id. Defaults to the current planner run plan.' },
   },
-  required: ['bundleId'],
+} satisfies Record<string, unknown>
+
+const WAIT_SUBAGENT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    subagentName: { type: 'string', description: 'Human-readable worker subagent name to inspect.' },
+    runId: { type: 'string', description: 'Worker run id to inspect.' },
+    taskId: { type: 'string', description: 'Task id to inspect.' },
+    planId: { type: 'string', description: 'Plan id to inspect. Defaults to the current planner run plan.' },
+    timeoutMs: { type: 'number', description: 'Short polling timeout in milliseconds. Use 0 for immediate status.' },
+  },
+} satisfies Record<string, unknown>
+
+const CANCEL_SUBAGENT_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    subagentName: { type: 'string', description: 'Human-readable worker subagent name to cancel.' },
+    runId: { type: 'string', description: 'Child worker run id to cancel.' },
+    taskId: { type: 'string', description: 'Task id whose owner worker should be cancelled.' },
+    reason: { type: 'string' },
+  },
 } satisfies Record<string, unknown>
 
 const CREATE_DRAFT_TOOL_SCHEMA = {
@@ -490,14 +564,82 @@ const CREATE_SCRIPT_TOOL_SCHEMA = {
   required: ['title', 'content'],
 } satisfies Record<string, unknown>
 
+function fitDebugPartsToLimit(
+  debugParts: CompiledPromptPreview['debugParts'],
+  manifest: AgentManifest,
+  limit: number,
+  warnings: string[],
+): { debugParts: CompiledPromptPreview['debugParts']; degraded?: BuiltContext['degraded'] } {
+  let current = [...debugParts]
+  let degraded: BuiltContext['degraded']
+  let prompt = renderDebugParts(current)
+  if (prompt.length <= limit) return { debugParts: current }
+
+  const lowPrioritySkills = current
+    .filter((part) => part.kind === 'skill' && skillPriority(manifest, part.id) < 100)
+    .sort((a, b) => skillPriority(manifest, a.id) - skillPriority(manifest, b.id) || b.id.localeCompare(a.id))
+  for (const skill of lowPrioritySkills) {
+    current = current.filter((part) => part.id !== skill.id)
+    degraded = 'dropped_policies'
+    warnings.push(`prompt.size.exceeded: dropped non-critical skill ${skill.id}`)
+    prompt = renderDebugParts(current)
+    if (prompt.length <= limit) return { debugParts: current, degraded }
+  }
+
+  const workflowSkills = current
+    .filter((part) => part.kind === 'skill')
+    .sort((a, b) => skillPriority(manifest, a.id) - skillPriority(manifest, b.id) || b.id.localeCompare(a.id))
+  for (const skill of workflowSkills) {
+    current = current.filter((part) => part.id !== skill.id)
+    degraded = 'dropped_workflows'
+    warnings.push(`prompt.size.exceeded: dropped skill ${skill.id}`)
+    prompt = renderDebugParts(current)
+    if (prompt.length <= limit) return { debugParts: current, degraded }
+  }
+
+  const stripped = current.map((part) => ({ ...part, content: stripExamplesSection(part.content) }))
+  const strippedPrompt = renderDebugParts(stripped)
+  if (strippedPrompt.length < prompt.length) {
+    current = stripped
+    degraded = 'dropped_examples'
+    warnings.push('prompt.size.exceeded: stripped examples sections')
+    prompt = strippedPrompt
+    if (prompt.length <= limit) return { debugParts: current, degraded }
+  }
+
+  throw new Error(`prompt.size.exceeded: system prompt ${prompt.length} chars exceeds limit ${limit}`)
+}
+
+function renderDebugParts(debugParts: CompiledPromptPreview['debugParts']): string {
+  return debugParts.map((part) => `## ${part.title}\n${part.content}`).join('\n\n')
+}
+
+function skillPriority(manifest: AgentManifest, partId: string): number {
+  const skillId = partId.startsWith('skill.') ? partId.slice('skill.'.length) : partId
+  return manifest.skills.find((skill) => skill.id === skillId)?.priority ?? 100
+}
+
+function systemPromptLimit(manifest: AgentManifest): number {
+  const value = manifest.metadata?.systemPromptCharLimit
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 32000
+}
+
+function stripExamplesSection(content: string): string {
+  return content
+    .replace(/\n+examples?:[\s\S]*?(?=\n#{1,6}\s|\noutput contract:|$)/gi, '\n')
+    .replace(/\n+示例[:：][\s\S]*?(?=\n#{1,6}\s|\noutput contract:|$)/g, '\n')
+    .trim()
+}
+
 // Re-export CompiledPromptPreview-compatible output for previewRun
 export function buildPromptPreview(input: ContextBuilderInput): CompiledPromptPreview {
-  const { messages, systemPrompt, debugParts } = buildContext(input)
+  const { messages, systemPrompt, debugParts, promptStats } = buildContext(input)
   return {
     system: systemPrompt,
     messages: messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role, content: m.content ?? '' })),
     debugParts,
+    promptStats,
   }
 }

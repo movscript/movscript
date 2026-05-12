@@ -16,6 +16,7 @@
     "dist:win:arm64": "pnpm run build && electron-builder --win --arm64",
     "preview": "electron-vite preview",
     "test": "node --import tsx --test \"src/**/*.test.ts\" \"src/**/*.test.tsx\" \"electron/**/*.test.ts\"",
+    "test:model-contract": "node --import tsx --test \"electron/mcp/server.test.ts\"",
     "test:generation-replay": "node --import tsx --test \"src/lib/agentGenerationTraceFixtures.test.ts\"",
     "test:generation-ui": "node --import tsx --test \"src/lib/agentGenerationUiContract.test.tsx\"",
     "test:generation-e2e": "playwright test --project=chromium",

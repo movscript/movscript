@@ -5,6 +5,7 @@ export interface SupervisorDispatchInput {
   tasks: AgentTask[]
   runs: AgentRun[]
   maxWorkers?: number
+  taskIds?: string[]
 }
 
 export interface SupervisorDispatchDecision {
@@ -14,6 +15,7 @@ export interface SupervisorDispatchDecision {
 
 export function planSupervisorDispatch(input: SupervisorDispatchInput): SupervisorDispatchDecision {
   const maxWorkers = normalizePositiveInteger(input.maxWorkers) ?? 1
+  const allowedTaskIds = input.taskIds && input.taskIds.length > 0 ? new Set(input.taskIds) : undefined
   const tasksById = new Map(input.tasks.map((task) => [task.id, task]))
   const activeWorkerTaskIds = new Set(input.runs
     .filter((run) => run.role === 'worker' && (run.status === 'queued' || run.status === 'in_progress' || run.status === 'requires_action'))
@@ -25,6 +27,7 @@ export function planSupervisorDispatch(input: SupervisorDispatchInput): Supervis
 
   for (const task of input.tasks) {
     if (runnableTasks.length >= availableSlots) break
+    if (allowedTaskIds && !allowedTaskIds.has(task.id)) continue
     if (task.status !== 'pending') continue
     if (activeWorkerTaskIds.has(task.id) || task.ownerRunId) continue
 

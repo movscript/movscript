@@ -34,6 +34,10 @@ The resolved model response includes:
 - `supported_params`: UI-oriented parameter controls for the model.
 - `params_schema`: machine-readable JSON Schema generated from `supported_params`.
 
+`movscript_list_models` also returns agent-facing `model_contracts`. In that summary, `supported_params` is a compact list of controls with `key`, and may include `label`, `type`, `options`, `default`, `min`, `max`, `step`, `conflicts_with`, `conditional_enum`, `conditional_const`, and `requires_value`. Conditional rule fields keep compact references only; agents should read the matching raw model's `params_schema` when they need the complete JSON Schema. `supported_param_keys` is provided for fast filtering of candidate `extra_params`.
+
+Supported `ParamDef.type` values are `select`, `number`, `boolean`, and `string`.
+
 Adapter defaults live in `apps/backend/internal/infra/ai/catalog.go`. Model-specific differences should be represented with `CustomSupportedParams` using either a full `ParamDef[]` override or a `ModelParamProfile`:
 
 ```json
@@ -51,7 +55,23 @@ Adapter defaults live in `apps/backend/internal/infra/ai/catalog.go`. Model-spec
 
 Do not rely on a provider-wide assumption such as "all video models support 10 seconds" or "all image models support the same size list". The resolved model contract is the runtime source of truth.
 
+`CustomSupportedParams` is validated before model configs are saved. Invalid JSON, unsupported parameter types, duplicate keys, select controls without options, invalid number ranges, invalid `json_schema` keywords, default values that do not match their control type/options/range/schema, and cross-parameter rules that reference unknown params or illegal rule values are rejected as bad model config input. Profile configs must also keep `allow`/`deny` as key arrays, `override` as an object keyed by parameter name, and `add` as an array of parameter definitions. Profile allow/deny filters prune inherited rules that point at removed params so the exported `params_schema` stays agent-safe.
+
+The admin UI can call `POST /admin/model-configs/preview-contract` with `adapter_type`, `custom_capabilities`, and `custom_supported_params` to dry-run the backend resolver before saving. The response includes the resolved `supported_params`, generated `params_schema`, and schema rule count.
+
 ## Validation Errors
+
+Admin model-config create/update/patch and preview endpoints return machine-readable configuration errors:
+
+```json
+{
+  "code": "INVALID_MODEL_CONFIG",
+  "message": "invalid ai model config: custom_supported_params.add[0]: parameter key is required",
+  "error": "invalid ai model config: custom_supported_params.add[0]: parameter key is required"
+}
+```
+
+Clients should branch on `code` when possible. The legacy `error` field is kept for existing callers.
 
 Generation jobs are preflighted before a job row is created. Parameter errors should return structured details that an Agent can repair:
 

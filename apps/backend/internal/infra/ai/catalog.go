@@ -25,16 +25,19 @@ const (
 // The frontend renders these as form controls so users can tune generation without
 // relying on hidden backend defaults.
 type ParamDef struct {
-	Key             string                 `json:"key"`
-	Label           string                 `json:"label"`
-	Type            string                 `json:"type"`              // "select" | "number" | "boolean"
-	Options         []string               `json:"options,omitempty"` // for type=select
-	Default         interface{}            `json:"default,omitempty"`
-	Min             float64                `json:"min,omitempty"`
-	Max             float64                `json:"max,omitempty"`
-	Step            float64                `json:"step,omitempty"`
-	ConflictsWith   []string               `json:"conflicts_with,omitempty"`   // params that cannot be used with this param
-	ConditionalEnum []ParamConditionalEnum `json:"conditional_enum,omitempty"` // enum restrictions activated by another param
+	Key              string                  `json:"key"`
+	Label            string                  `json:"label"`
+	Type             string                  `json:"type"`              // "select" | "number" | "boolean" | "string"
+	Options          []string                `json:"options,omitempty"` // for type=select
+	Default          interface{}             `json:"default,omitempty"`
+	Min              float64                 `json:"min,omitempty"`
+	Max              float64                 `json:"max,omitempty"`
+	Step             float64                 `json:"step,omitempty"`
+	JSONSchema       map[string]any          `json:"json_schema,omitempty"`       // extra JSON Schema keywords for this param
+	ConflictsWith    []string                `json:"conflicts_with,omitempty"`    // params that cannot be used with this param
+	ConditionalEnum  []ParamConditionalEnum  `json:"conditional_enum,omitempty"`  // enum restrictions activated by another param
+	ConditionalConst []ParamConditionalConst `json:"conditional_const,omitempty"` // const restrictions activated by another param
+	RequiresValue    []ParamRequiresValue    `json:"requires_value,omitempty"`    // dependent param values required when this param is set
 }
 
 // ParamConditionalEnum declares a cross-parameter enum restriction for params_schema.
@@ -43,6 +46,21 @@ type ParamConditionalEnum struct {
 	WhenParam string   `json:"when_param"`
 	WhenValue any      `json:"when_value"`
 	Options   []string `json:"options"`
+}
+
+// ParamConditionalConst declares a cross-parameter const restriction for params_schema.
+// Example: return_last_frame must be false when draft=true.
+type ParamConditionalConst struct {
+	WhenParam string `json:"when_param"`
+	WhenValue any    `json:"when_value"`
+	Value     any    `json:"value"`
+}
+
+// ParamRequiresValue declares a dependency activated when this parameter is set.
+// Example: image_count requires sequential_image_generation=auto.
+type ParamRequiresValue struct {
+	Param string `json:"param"`
+	Value any    `json:"value"`
 }
 
 // ModelParamProfile describes a model-specific delta on top of adapter params.
@@ -226,7 +244,7 @@ func volcenVideoParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",
 			Options: []string{"-1", "2", "4", "5", "10", "12", "15"}, Default: "5", ConflictsWith: []string{"frames"}},
-		{Key: "frames", Label: "帧数", Type: "number", Min: 29, Max: 289, Step: 4, ConflictsWith: []string{"duration"}},
+		{Key: "frames", Label: "帧数", Type: "number", Min: 29, Max: 289, Step: 4, JSONSchema: framesJSONSchema(), ConflictsWith: []string{"duration"}},
 		{Key: "aspect_ratio", Label: "画面比例", Type: "select",
 			Options: []string{"adaptive", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9"}, Default: "16:9"},
 		{Key: "resolution", Label: "清晰度", Type: "select",
@@ -236,9 +254,11 @@ func volcenVideoParams() []ParamDef {
 		{Key: "fixed_camera", Label: "固定镜头", Type: "boolean", Default: false},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
 		{Key: "audio", Label: "生成音频", Type: "boolean", Default: true},
-		{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false},
+		{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false,
+			ConditionalConst: []ParamConditionalConst{{WhenParam: "draft", WhenValue: true, Value: false}}},
 		{Key: "service_tier", Label: "服务等级", Type: "select",
-			Options: []string{"default", "flex"}, Default: "default"},
+			Options: []string{"default", "flex"}, Default: "default",
+			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"default"}}}},
 		{Key: "execution_expires_after", Label: "过期时间(秒)", Type: "number", Min: 1, Step: 1},
 		{Key: "draft", Label: "样片模式", Type: "boolean", Default: false},
 		{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false},
@@ -351,7 +371,8 @@ func volcenSeedream4Params(resolutionOptions []string) []ParamDef {
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: true},
 		{Key: "sequential_image_generation", Label: "组图", Type: "select",
 			Options: []string{"disabled", "auto"}, Default: "disabled"},
-		{Key: "image_count", Label: "生成张数", Type: "number", Min: 1, Max: 15, Step: 1},
+		{Key: "image_count", Label: "生成张数", Type: "number", Min: 1, Max: 15, Step: 1,
+			RequiresValue: []ParamRequiresValue{{Param: "sequential_image_generation", Value: "auto"}}},
 		{Key: "optimize_prompt_mode", Label: "提示词优化", Type: "select",
 			Options: []string{"standard", "fast"}, Default: "standard"},
 	}
@@ -381,9 +402,11 @@ func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []str
 	if withCameraFixed {
 		params = append(params, ParamDef{Key: "fixed_camera", Label: "固定镜头", Type: "boolean", Default: false})
 	}
-	params = append(params, ParamDef{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false})
+	params = append(params, ParamDef{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false,
+		ConditionalConst: []ParamConditionalConst{{WhenParam: "draft", WhenValue: true, Value: false}}})
 	if withServiceTier {
-		params = append(params, ParamDef{Key: "service_tier", Label: "服务等级", Type: "select", Options: []string{"default", "flex"}, Default: "default"})
+		params = append(params, ParamDef{Key: "service_tier", Label: "服务等级", Type: "select", Options: []string{"default", "flex"}, Default: "default",
+			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"default"}}}})
 	}
 	if withWebSearch {
 		params = append(params, ParamDef{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false})
@@ -392,6 +415,23 @@ func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []str
 		params = append(params, ParamDef{Key: "draft", Label: "样片模式", Type: "boolean", Default: false})
 	}
 	return params
+}
+
+func framesJSONSchema() map[string]any {
+	return map[string]any{
+		"minimum":    29,
+		"maximum":    289,
+		"enum":       frameOptions(),
+		"description": "Frame count must be in [29,289] and match 25 + 4n.",
+	}
+}
+
+func frameOptions() []int {
+	out := make([]int, 0, 66)
+	for frame := 29; frame <= 289; frame += 4 {
+		out = append(out, frame)
+	}
+	return out
 }
 
 // ModelPresets returns read-only well-known models used only as UI templates.
@@ -540,7 +580,7 @@ func applyModelParamProfile(params []ParamDef, profile ModelParamProfile) []Para
 		}
 	}
 
-	return out
+	return pruneParamRulesToKnownParams(out)
 }
 
 func mergeParamDef(base, patch ParamDef) ParamDef {
@@ -569,11 +609,20 @@ func mergeParamDef(base, patch ParamDef) ParamDef {
 	if patch.Step != 0 {
 		out.Step = patch.Step
 	}
+	if patch.JSONSchema != nil {
+		out.JSONSchema = cloneJSONSchemaMap(patch.JSONSchema)
+	}
 	if patch.ConflictsWith != nil {
 		out.ConflictsWith = append([]string{}, patch.ConflictsWith...)
 	}
 	if patch.ConditionalEnum != nil {
 		out.ConditionalEnum = cloneParamConditionalEnums(patch.ConditionalEnum)
+	}
+	if patch.ConditionalConst != nil {
+		out.ConditionalConst = append([]ParamConditionalConst{}, patch.ConditionalConst...)
+	}
+	if patch.RequiresValue != nil {
+		out.RequiresValue = append([]ParamRequiresValue{}, patch.RequiresValue...)
 	}
 	return out
 }
@@ -585,10 +634,46 @@ func cloneParamDef(p ParamDef) ParamDef {
 	if len(p.ConflictsWith) > 0 {
 		p.ConflictsWith = append([]string{}, p.ConflictsWith...)
 	}
+	if p.JSONSchema != nil {
+		p.JSONSchema = cloneJSONSchemaMap(p.JSONSchema)
+	}
 	if len(p.ConditionalEnum) > 0 {
 		p.ConditionalEnum = cloneParamConditionalEnums(p.ConditionalEnum)
 	}
+	if len(p.ConditionalConst) > 0 {
+		p.ConditionalConst = append([]ParamConditionalConst{}, p.ConditionalConst...)
+	}
+	if len(p.RequiresValue) > 0 {
+		p.RequiresValue = append([]ParamRequiresValue{}, p.RequiresValue...)
+	}
 	return p
+}
+
+func cloneJSONSchemaMap(schema map[string]any) map[string]any {
+	out := make(map[string]any, len(schema))
+	for key, value := range schema {
+		out[key] = cloneJSONSchemaValue(value)
+	}
+	return out
+}
+
+func cloneJSONSchemaValue(value any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		return cloneJSONSchemaMap(v)
+	case []any:
+		out := make([]any, len(v))
+		for i, item := range v {
+			out[i] = cloneJSONSchemaValue(item)
+		}
+		return out
+	case []string:
+		return append([]string{}, v...)
+	case []int:
+		return append([]int{}, v...)
+	default:
+		return v
+	}
 }
 
 func cloneParamConditionalEnums(items []ParamConditionalEnum) []ParamConditionalEnum {
@@ -634,6 +719,78 @@ func stringSet(values []string) map[string]bool {
 	for _, v := range values {
 		if key := normalizeParamKey(v); key != "" {
 			out[key] = true
+		}
+	}
+	return out
+}
+
+func pruneParamRulesToKnownParams(params []ParamDef) []ParamDef {
+	known := make(map[string]bool, len(params))
+	for _, p := range params {
+		if key := normalizeParamKey(p.Key); key != "" {
+			known[key] = true
+		}
+	}
+	for i := range params {
+		params[i].ConflictsWith = filterKnownParamKeys(params[i].ConflictsWith, known)
+		params[i].ConditionalEnum = filterKnownConditionalEnums(params[i].ConditionalEnum, known)
+		params[i].ConditionalConst = filterKnownConditionalConsts(params[i].ConditionalConst, known)
+		params[i].RequiresValue = filterKnownRequiresValues(params[i].RequiresValue, known)
+	}
+	return params
+}
+
+func filterKnownParamKeys(values []string, known map[string]bool) []string {
+	if len(values) == 0 {
+		return values
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		key := normalizeParamKey(value)
+		if key != "" && known[key] {
+			out = append(out, key)
+		}
+	}
+	return out
+}
+
+func filterKnownConditionalEnums(values []ParamConditionalEnum, known map[string]bool) []ParamConditionalEnum {
+	if len(values) == 0 {
+		return values
+	}
+	out := make([]ParamConditionalEnum, 0, len(values))
+	for _, value := range values {
+		if key := normalizeParamKey(value.WhenParam); key != "" && known[key] {
+			value.WhenParam = key
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func filterKnownConditionalConsts(values []ParamConditionalConst, known map[string]bool) []ParamConditionalConst {
+	if len(values) == 0 {
+		return values
+	}
+	out := make([]ParamConditionalConst, 0, len(values))
+	for _, value := range values {
+		if key := normalizeParamKey(value.WhenParam); key != "" && known[key] {
+			value.WhenParam = key
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func filterKnownRequiresValues(values []ParamRequiresValue, known map[string]bool) []ParamRequiresValue {
+	if len(values) == 0 {
+		return values
+	}
+	out := make([]ParamRequiresValue, 0, len(values))
+	for _, value := range values {
+		if key := normalizeParamKey(value.Param); key != "" && known[key] {
+			value.Param = key
+			out = append(out, value)
 		}
 	}
 	return out
@@ -721,6 +878,10 @@ func ResolveModelID(modelIDOverride string, def *ModelDef) string {
 		return modelIDOverride
 	}
 	return def.ModelID
+}
+
+func SplitCapabilities(s string) []string {
+	return splitComma(s)
 }
 
 func splitComma(s string) []string {

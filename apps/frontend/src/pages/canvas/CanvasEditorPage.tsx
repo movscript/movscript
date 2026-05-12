@@ -405,7 +405,7 @@ function workflowRunOutputItems(run: CanvasRun | undefined, nodes: Node[], t: (k
     const key = candidateKeys.find((candidate) => outputs[candidate])
     if (key) {
       candidateKeys.forEach((candidate) => usedKeys.add(candidate))
-      addItem(key, label, outputs[key], false)
+      addItem(key, label, outputs[key])
     }
   })
 
