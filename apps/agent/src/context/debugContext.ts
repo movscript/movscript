@@ -194,9 +194,8 @@ function buildRawContextHints(snapshot: unknown): string[] {
     .slice(0, 30)
 }
 
-function sampleRecords(items: unknown[]): string {
-  const samples = items.slice(0, 3).flatMap((item) => isRecord(item) ? [summarizeRecord(item)] : [])
-  return samples.length > 0 ? `; samples: ${samples.join(' | ')}` : ''
+function sampleRecords(_items: unknown[]): string {
+  return ''
 }
 
 function summarizeRecord(record: Record<string, unknown>): string {

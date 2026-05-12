@@ -129,7 +129,7 @@ When adding or changing a model/provider:
 1. Add or update adapter defaults in `AdapterDefs.ParamSets`.
 2. Use `CustomSupportedParams` / `ModelParamProfile` for model-specific allow, deny, override, or add behavior.
 3. Use `POST /admin/model-configs/preview-contract` or the admin UI backend preview to confirm the backend resolver returns the intended `supported_params`, `params_schema`, and schema rule count before saving.
-4. Confirm invalid `CustomSupportedParams` cannot be saved; admin model configs reject malformed JSON, malformed or unknown profile/parameter/rule fields, duplicate keys, bad control shapes, invalid `json_schema` keywords, invalid default values, and cross-parameter rules that reference unknown params or illegal rule values. API clients should see `code: "INVALID_MODEL_CONFIG"` for these model-config errors.
+4. Confirm invalid `CustomSupportedParams` cannot be saved; admin model configs reject malformed JSON, malformed or unknown profile/parameter/rule fields, malformed array fields such as non-string `options`/`conflicts_with` items or non-object rule items, duplicate keys, bad control shapes, invalid `json_schema` keywords, invalid default values, and cross-parameter rules that reference unknown params or illegal rule values. API clients should see `code: "INVALID_MODEL_CONFIG"` for these model-config errors.
 5. Confirm `/models?capability=<capability>` exposes accurate `supported_params`, `params_schema`, and `input_requirements`.
 6. Add backend validator tests for new parameter types, enum options, aliases, and cross-parameter rules.
 7. Add or update MCP/Agent tests if the new rule should produce a structured `suggested_fix`.

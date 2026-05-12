@@ -126,19 +126,10 @@ export function renderMemoryFilesText(memories: AgentMemory[], memoryStorePath?:
 }
 
 export function renderToolCatalogText(catalog: ResolvedToolCatalog): string {
-  const lines = [
-    'Use model tool schemas as the source of truth for parameters and detailed descriptions.',
+  return [
+    'Use model tool schemas as the source of truth for available tools, parameters, and detailed descriptions.',
     'Choose tools by business intent. If a needed capability is absent, inspect catalog/retrieval tools before saying it is missing.',
-  ]
-  lines.push(`Available tool handles: ${catalog.available.length > 0 ? catalog.available.map((tool) => tool.name).join(', ') : 'none'}`)
-  if (catalog.blocked.length > 0) {
-    lines.push('Blocked tool handles:')
-    for (const tool of catalog.blocked.slice(0, 12)) {
-      lines.push(`- ${tool.name}: ${tool.unavailableReason ?? 'blocked'}`)
-    }
-    if (catalog.blocked.length > 12) lines.push(`- ${catalog.blocked.length - 12} more blocked tool(s) omitted.`)
-  }
-  return lines.join('\n')
+  ].join('\n')
 }
 
 function businessReferenceLabel(kind: string, id: number | string): string {

@@ -10,7 +10,7 @@ import type {
 import type { AgentMemory } from '../memory/types.js'
 import type { RuntimeModelChatMessage, RuntimeModelChatTool } from '../model/modelConfig.js'
 import { parseAgentCommand, type AgentCommandRuntime } from '../context/commandRouter.js'
-import { renderDebugContextText, renderMemoriesText, renderToolCatalogText } from '../context/contextText.js'
+import { renderDebugContextText, renderToolCatalogText } from '../context/contextText.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
   type AgentRuntimeContractResolver,
@@ -98,20 +98,22 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   })
 
   // --- Core Command Contract ---
-  debugParts.push({
-    id: `command.${command.name}`,
-    kind: 'policy',
-    title: 'Command contract',
-    content: [
-      `command: ${command.rawName ?? command.name}`,
-      `contextProfile: ${command.contextProfile}`,
-      `outputMode: ${command.outputMode}`,
-      command.payload ? `payload: ${command.payload}` : undefined,
-      command.requiredTools.length > 0 ? `requiredTools: ${command.requiredTools.join(', ')}` : undefined,
-      '',
-      command.systemContract,
-    ].filter(Boolean).join('\n'),
-  })
+  if (shouldIncludeCommandContract(command)) {
+    debugParts.push({
+      id: `command.${command.name}`,
+      kind: 'policy',
+      title: 'Command contract',
+      content: [
+        `command: ${command.rawName ?? command.name}`,
+        `contextProfile: ${command.contextProfile}`,
+        `outputMode: ${command.outputMode}`,
+        command.payload ? `payload: ${command.payload}` : undefined,
+        command.requiredTools.length > 0 ? `requiredTools: ${command.requiredTools.join(', ')}` : undefined,
+        '',
+        command.systemContract,
+      ].filter(Boolean).join('\n'),
+    })
+  }
 
   // --- Tool Use Principle ---
   debugParts.push({
@@ -136,16 +138,6 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
       kind: 'policy',
       title: 'Planner Subagent Policy',
       content: PLANNER_SUBAGENT_POLICY,
-    })
-  }
-
-  // --- Retrieved Context ---
-  if (input.memories.length > 0) {
-    debugParts.push({
-      id: 'context.memories',
-      kind: 'context',
-      title: 'Relevant memories',
-      content: renderMemoriesText(input.memories),
     })
   }
 
@@ -218,6 +210,11 @@ function resolveOpenAIToolParameters(
 
 function hasAvailableTool(tools: ResolvedToolCatalog, name: string): boolean {
   return tools.available.some((tool) => tool.name === name)
+}
+
+function shouldIncludeCommandContract(command: AgentCommandRuntime): boolean {
+  if (command.name !== 'chat') return true
+  return command.requiredTools.length > 0 || command.outputMode !== 'natural'
 }
 
 function shouldIncludeSubagentPolicy(input: ContextBuilderInput, command: AgentCommandRuntime): boolean {
