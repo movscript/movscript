@@ -813,8 +813,11 @@ async function listProjects(args: Record<string, unknown>): Promise<unknown> {
 }
 
 export async function listModels(args: Record<string, unknown>): Promise<unknown> {
-  const feature = getOptionalString(args, 'feature') ?? getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey')
-  const capability = getOptionalString(args, 'capability')
+  const rawFeature = getOptionalString(args, 'feature') ?? getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey')
+  const rawCapability = getOptionalString(args, 'capability')
+  const featureCapability = normalizeModelCapabilityAlias(rawFeature)
+  const feature = featureCapability ? undefined : rawFeature
+  const capability = featureCapability ?? normalizeModelCapabilityAlias(rawCapability) ?? rawCapability
   const providerVariants = args.provider_variants === true || args.include_provider_variants === true
 
   const queries = feature
@@ -842,6 +845,42 @@ export async function listModels(args: Record<string, unknown>): Promise<unknown
     queries: queries.map((query) => query.label),
     model_contracts: Array.from(byId.values()).map(summarizeModelContractForAgent),
     models: Array.from(byId.values()),
+  }
+}
+
+function normalizeModelCapabilityAlias(value: string | undefined): string | undefined {
+  const normalized = value?.trim().toLowerCase().replace(/-/g, '_')
+  switch (normalized) {
+    case 'text':
+    case 'reasoning':
+    case 'image':
+    case 'image_edit':
+    case 'video':
+    case 'video_i2v':
+    case 'video_v2v':
+    case 'audio':
+      return normalized
+    case 'text_to_image':
+    case 't2i':
+    case 'txt2img':
+      return 'image'
+    case 'image_to_image':
+    case 'i2i':
+    case 'img2img':
+      return 'image_edit'
+    case 'text_to_video':
+    case 't2v':
+    case 'txt2video':
+      return 'video'
+    case 'image_to_video':
+    case 'i2v':
+    case 'img2video':
+      return 'video_i2v'
+    case 'video_to_video':
+    case 'v2v':
+      return 'video_v2v'
+    default:
+      return undefined
   }
 }
 

@@ -613,8 +613,9 @@ test('HTTP task update cannot corrupt the task graph', async () => {
       { id: 'task_http_graph_b', title: 'Graph B', deps: ['task_http_graph_a'] },
     ],
   })
+  const otherThread = runtime.createThread({ messages: [{ role: 'user', content: '另一个规划' }] })
   await runtime.createPlan({
-    threadId: thread.id,
+    threadId: otherThread.id,
     title: 'HTTP other graph boundary',
     createPlannerRun: false,
     tasks: [

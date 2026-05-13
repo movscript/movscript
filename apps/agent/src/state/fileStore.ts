@@ -15,56 +15,79 @@ interface AgentStateFile {
 
 export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
   readonly filePath: string
+  private persistTimer: NodeJS.Timeout | undefined
+  private dirty = false
+  private flushing = false
+  private readonly flushBeforeExit: () => void
 
   constructor(filePath = resolveAgentStatePath()) {
     super()
     this.filePath = filePath
     this.load()
+    this.flushBeforeExit = () => this.flush()
+    process.once('beforeExit', this.flushBeforeExit)
+    process.once('exit', this.flushBeforeExit)
   }
 
   override createThread(thread: AgentThread): void {
     super.createThread(thread)
-    this.persist()
+    this.schedulePersist()
   }
 
   override updateThread(thread: AgentThread): void {
     super.updateThread(thread)
-    this.persist()
+    this.schedulePersist()
   }
 
   override createRun(run: AgentRun): void {
     super.createRun(run)
-    this.persist()
+    this.schedulePersist()
   }
 
   override updateRun(run: AgentRun): void {
     super.updateRun(run)
-    this.persist()
+    this.schedulePersist()
   }
 
   override createPlan(plan: AgentPlan): void {
     super.createPlan(plan)
-    this.persist()
+    this.schedulePersist()
   }
 
   override updatePlan(plan: AgentPlan): void {
     super.updatePlan(plan)
-    this.persist()
+    this.schedulePersist()
   }
 
   override createTask(task: AgentTask): void {
     super.createTask(task)
-    this.persist()
+    this.schedulePersist()
   }
 
   override updateTask(task: AgentTask): void {
     super.updateTask(task)
-    this.persist()
+    this.schedulePersist()
   }
 
   override appendTraceEvent(event: AgentTraceEvent): void {
     super.appendTraceEvent(event)
-    this.persist()
+    this.schedulePersist()
+  }
+
+  flush(): void {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer)
+      this.persistTimer = undefined
+    }
+    if (!this.dirty || this.flushing) return
+    this.flushing = true
+    try {
+      this.dirty = false
+      this.persist()
+    } finally {
+      this.flushing = false
+      if (this.dirty) this.schedulePersist()
+    }
   }
 
   private load(): void {
@@ -85,6 +108,16 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
     for (const event of parsed.traceEvents ?? []) {
       super.appendTraceEvent(event)
     }
+  }
+
+  private schedulePersist(): void {
+    this.dirty = true
+    if (this.persistTimer) return
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = undefined
+      this.flush()
+    }, 250)
+    this.persistTimer.unref?.()
   }
 
   private persist(): void {

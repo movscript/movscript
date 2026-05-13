@@ -366,6 +366,10 @@ function mentionEditorTextBeforeCaret(editor: HTMLElement): { text: string; care
   return { text, caret: text.length }
 }
 
+function isImeComposing(event: React.KeyboardEvent): boolean {
+  return event.nativeEvent.isComposing || event.keyCode === 229
+}
+
 function renderMentionEditorValue(editor: HTMLElement, value: string, attachmentsById: Map<number, AgentAttachment>) {
   editor.replaceChildren()
   let lastIndex = 0
@@ -582,6 +586,7 @@ function AgentMentionEditor({
           onEscape()
           return
         }
+        if (isImeComposing(event)) return
         if ((event.key === 'Enter' || event.key === 'Tab') && onAcceptMention()) {
           event.preventDefault()
           return
@@ -2068,6 +2073,34 @@ function activitySummary(activity: ChatRunActivity) {
   return activity.events.length > 0 ? `${activity.events.length} events` : 'no tool calls'
 }
 
+function activityFromEvents(events: ChatRunActivityEvent[]): ChatRunActivity | undefined {
+  if (events.length === 0) return undefined
+  const firstEvent = events[0]
+  const lastEvent = events[events.length - 1] ?? firstEvent
+  const failed = events.some((event) => event.status === 'failed' || event.status === 'blocked')
+  const running = events.some((event) => event.status === 'started' || event.status === 'in_progress')
+  return {
+    runId: 'pending',
+    threadId: 'pending',
+    status: failed ? 'failed' : running ? 'in_progress' : lastEvent.status,
+    createdAt: firstEvent.createdAt,
+    updatedAt: lastEvent.completedAt ?? lastEvent.createdAt,
+    events,
+    steps: [],
+  }
+}
+
+function displayRunActivity(input: {
+  activity?: ChatRunActivity
+  run?: AgentRun | null
+  events?: ChatRunActivityEvent[]
+}): ChatRunActivity | undefined {
+  const base = input.activity ?? (input.run ? compactRunActivity(input.run) : activityFromEvents(input.events ?? []))
+  if (!base) return undefined
+  if (!input.events?.length || base.events === input.events) return base
+  return { ...base, events: [...base.events, ...input.events] }
+}
+
 function formatToolCallStreamDetail(event: ChatRunActivityEvent) {
   const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
   const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
@@ -2150,11 +2183,8 @@ function RunActivityPanel({
 }) {
   const { i18n } = useTranslation()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
-  const data = activity ?? (run ? compactRunActivity(run) : undefined)
-  if (!data) return null
-  const displayData = events?.length
-    ? { ...data, events: [...data.events, ...events] }
-    : data
+  const displayData = displayRunActivity({ activity, run, events })
+  if (!displayData) return null
 
   const items = [
     ...displayData.steps.map((step) => ({
@@ -2207,8 +2237,8 @@ function RunActivityPanel({
           <span className="truncate">{title}</span>
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
-          <Badge variant={runStatusVariant(data.status)} className="text-[9px] leading-4 px-1.5 py-0">
-            {data.status.replace(/_/g, ' ')}
+          <Badge variant={runStatusVariant(displayData.status)} className="text-[9px] leading-4 px-1.5 py-0">
+            {displayData.status.replace(/_/g, ' ')}
           </Badge>
           <span className="text-[9px] text-muted-foreground">{activitySummary(displayData)}</span>
         </span>
@@ -2245,18 +2275,73 @@ function RunActivityPanel({
             </div>
           </div>
         ))}
-        {data.warnings?.length ? (
+        {displayData.warnings?.length ? (
           <div className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
-            {data.warnings.map((warning) => <div key={warning}>{warning}</div>)}
+            {displayData.warnings.map((warning) => <div key={warning}>{warning}</div>)}
           </div>
         ) : null}
-        {data.error && (
+        {displayData.error && (
           <div className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-[10px] leading-relaxed text-destructive">
-            {data.error}
+            {displayData.error}
           </div>
         )}
       </div>
     </details>
+  )
+}
+
+function RunActivityTitleBubble({
+  activity,
+  run,
+  events,
+  title = '运行过程',
+  className,
+}: {
+  activity?: ChatRunActivity
+  run?: AgentRun | null
+  events?: ChatRunActivityEvent[]
+  title?: string
+  className?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const displayData = displayRunActivity({ activity, run, events })
+  if (!displayData) return null
+
+  const openCard = () => setOpen(true)
+  return (
+    <div className={cn('mt-2 text-xs', className)}>
+      <button
+        type="button"
+        onDoubleClick={openCard}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') openCard()
+        }}
+        className="flex w-full min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-background/70 px-2.5 py-2 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        title="双击打开运行过程"
+        aria-expanded={open}
+      >
+        <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+          <Workflow size={12} />
+          <span className="truncate">{title}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          <Badge variant={runStatusVariant(displayData.status)} className="text-[9px] leading-4 px-1.5 py-0">
+            {displayData.status.replace(/_/g, ' ')}
+          </Badge>
+          <span className="text-[9px] text-muted-foreground">{activitySummary(displayData)}</span>
+        </span>
+      </button>
+      {open && (
+        <RunActivityPanel
+          activity={activity}
+          run={run}
+          events={events}
+          title={title}
+          defaultOpen
+          className="mt-1.5"
+        />
+      )}
+    </div>
   )
 }
 
@@ -2966,10 +3051,9 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
       {!isUser && <GenerationParamAuditCard audits={msg.meta?.generationParamAudits} />}
       {!isUser && <GenerationJobSummaryCard jobs={msg.meta?.generationJobs} />}
       {!isUser && msg.meta?.localRunActivity && (
-        <RunActivityPanel
+        <RunActivityTitleBubble
           activity={msg.meta.localRunActivity}
           title="运行过程"
-          defaultOpen={msg.meta.localRunActivity.status !== 'completed'}
         />
       )}
       {showLargeMedia && <GeneratedResultCard attachments={mediaAttachments} projectId={projectId} />}
@@ -3024,11 +3108,10 @@ function LiveRunActivityBubble({
         </Badge>
       )}
     >
-      <RunActivityPanel
+      <RunActivityTitleBubble
         run={run}
         events={events}
         title="运行过程"
-        defaultOpen
         className="mt-0"
       />
     </AgentChatMessage>

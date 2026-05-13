@@ -226,6 +226,32 @@ test('listModels returns raw models plus compact agent contracts from backend mo
   }
 })
 
+test('listModels treats common generation feature aliases as capabilities', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/models?capability=image_edit': [minimalBackendModelFixture(41, ['image_edit'])],
+    '/models?capability=image': [minimalBackendModelFixture(42, ['image'])],
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const imageEdit = await listModels({ feature: 'image_to_image' }) as Record<string, any>
+    assert.deepEqual(imageEdit.queries, ['capability:image_edit'])
+    assert.equal(imageEdit.model_contracts[0].model_config_id, 41)
+
+    const textToImage = await listModels({ feature_key: 'text_to_image' }) as Record<string, any>
+    assert.deepEqual(textToImage.queries, ['capability:image'])
+    assert.equal(textToImage.model_contracts[0].model_config_id, 42)
+
+    const imageCapability = await listModels({ feature: 'image' }) as Record<string, any>
+    assert.deepEqual(imageCapability.queries, ['capability:image'])
+    assert.equal(imageCapability.model_contracts[0].model_config_id, 42)
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
+  }
+})
+
 test('listModels preserves distinct contracts for the same logical model', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
@@ -812,6 +838,22 @@ function backendModelFixture(id: number): Record<string, unknown> {
       properties: Object.fromEntries(contract.supported_params.map((param: any) => [param.key, paramSchemaFixture(param)])),
       allOf: [{ if: { properties: { draft: { const: true } } }, then: { properties: { resolution: { enum: ['480p'] } } } }],
     },
+  }
+}
+
+function minimalBackendModelFixture(id: number, capabilities: string[]): Record<string, unknown> {
+  return {
+    id,
+    display_name: `Model ${id}`,
+    short_name: `model-${id}`,
+    logical_model_id: `model.${id}`,
+    capabilities,
+    accepts_image_input: capabilities.includes('image_edit') || capabilities.includes('video_i2v'),
+    input_requirements: {
+      image: { min: capabilities.includes('image_edit') || capabilities.includes('video_i2v') ? 1 : 0, max: capabilities.includes('image_edit') || capabilities.includes('video_i2v') ? 1 : 0 },
+      video: { min: 0, max: 0 },
+    },
+    supported_params: [],
   }
 }
 

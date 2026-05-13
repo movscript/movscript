@@ -1,0 +1,58 @@
+[
+  {
+    "error": "model \"image-only\" does not support output type \"video\"",
+    "code": "UNSUPPORTED_OUTPUT_TYPE",
+    "field": "output_type",
+    "allowed_values": [
+      "image"
+    ],
+    "details": {
+      "code": "UNSUPPORTED_OUTPUT_TYPE",
+      "message": "model \"image-only\" does not support output type \"video\"",
+      "field": "output_type",
+      "allowed_values": [
+        "image"
+      ]
+    }
+  },
+  {
+    "error": "parameter \"duration\" must be one of [5, 10]",
+    "code": "INVALID_PARAMETER_OPTION",
+    "field": "duration",
+    "allowed_values": [
+      5,
+      10
+    ],
+    "suggested_fix": {
+      "duration": 5
+    },
+    "details": {
+      "code": "INVALID_PARAMETER_OPTION",
+      "message": "parameter \"duration\" must be one of [5, 10]",
+      "field": "duration",
+      "allowed_values": [
+        5,
+        10
+      ],
+      "suggested_fix": {
+        "duration": 5
+      }
+    }
+  },
+  {
+    "error": "image input count must be between 1 and 2, got 0",
+    "code": "INVALID_INPUT_COUNT",
+    "field": "image",
+    "required_min": 1,
+    "allowed_max": 2,
+    "actual_count": 0,
+    "details": {
+      "code": "INVALID_INPUT_COUNT",
+      "message": "image input count must be between 1 and 2, got 0",
+      "field": "image",
+      "required_min": 1,
+      "allowed_max": 2,
+      "actual_count": 0
+    }
+  }
+]

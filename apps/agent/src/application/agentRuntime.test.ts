@@ -1110,10 +1110,12 @@ test('persists threads, messages, runs, and steps across runtime rebuilds', asyn
     const statePath = join(dir, 'state.json')
     const client = new FakeMCPClient()
     client.projectId = 42
-    const runtime = createTestRuntime({ mcpClient: client, store: new FileAgentStore(statePath) })
+    const store = new FileAgentStore(statePath)
+    const runtime = createTestRuntime({ mcpClient: client, store })
     const thread = runtime.createThread({ title: 'Persistent thread' })
     runtime.addMessage(thread.id, { role: 'user', content: '参考我的默认镜头风格记忆，帮我写一个镜头草稿' })
     const run = await createAndWaitForRun(runtime, thread.id)
+    store.flush()
 
     const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(statePath) })
     const restoredThread = rebuilt.getThread(thread.id)
@@ -1214,6 +1216,7 @@ test('file store writes valid JSON atomically enough to recover state', () => {
       updatedAt: now,
       messages: [],
     })
+    store.flush()
 
     const parsed = JSON.parse(readFileSync(statePath, 'utf8'))
     assert.equal(parsed.version, 3)
@@ -4044,10 +4047,12 @@ test('persisted planner runs can wait and cancel named subagents after runtime r
       status: 'running',
       ownerRunId: worker.id,
     })
+    firstStore.flush()
 
+    const restartedStore = new FileAgentStore(statePath)
     const restartedRuntime = createTestRuntime({
       mcpClient: new FakeMCPClient(),
-      store: new FileAgentStore(statePath),
+      store: restartedStore,
       defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
     })
     const secondPlanner = await createAndWaitForRun(restartedRuntime, thread.id, {
@@ -4069,6 +4074,7 @@ test('persisted planner runs can wait and cancel named subagents after runtime r
     assert.equal(cancelResult.status, 'cancelled')
     assert.equal(cancelResult.target.run.id, worker.id)
     assert.equal(cancelResult.target.run.subagentName, '爱因斯坦')
+    restartedStore.flush()
 
     const finalRuntime = createTestRuntime({
       mcpClient: new FakeMCPClient(),

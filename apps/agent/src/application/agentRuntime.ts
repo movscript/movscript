@@ -647,9 +647,7 @@ export class AgentRuntime {
 
   listSubagents(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
     const plannerRun = this.requirePlannerRun(run.id)
-    const planId = normalizeNonEmptyString(input.planId) ?? plannerRun.planId
-    if (!planId) throw new Error('list_subagents requires planId or a planner run plan')
-    if (planId !== plannerRun.planId) throw new Error(`planner run ${plannerRun.id} cannot inspect plan ${planId}`)
+    const planId = this.resolvePlannerRunPlanId(plannerRun, input.planId, 'movscript_list_subagents', 'inspect')
     return {
       status: 'ok',
       planId,
@@ -660,9 +658,7 @@ export class AgentRuntime {
 
   async waitSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {
     const plannerRun = this.requirePlannerRun(run.id)
-    const planId = normalizeNonEmptyString(input.planId) ?? plannerRun.planId
-    if (!planId) throw new Error('wait_subagent requires planId or a planner run plan')
-    if (planId !== plannerRun.planId) throw new Error(`planner run ${plannerRun.id} cannot wait on plan ${planId}`)
+    const planId = this.resolvePlannerRunPlanId(plannerRun, input.planId, 'movscript_wait_subagent', 'wait on')
     const timeoutMs = Math.min(30_000, Math.max(0, normalizePositiveInteger(input.timeoutMs) ?? 0))
     const deadline = Date.now() + timeoutMs
     const resolvedInput = this.resolveSubagentNameInput(planId, input)
@@ -3046,6 +3042,18 @@ export class AgentRuntime {
       }
     }
     return run
+  }
+
+  private resolvePlannerRunPlanId(plannerRun: AgentRun, inputPlanId: unknown, source: string, action: string): string {
+    const planId = normalizeNonEmptyString(inputPlanId)
+      ?? plannerRun.planId
+      ?? this.findThreadPlan(plannerRun.threadId)?.id
+    if (!planId) throw new Error(`${toolNameFromSource(source)} requires planId or a planner run plan`)
+    if (plannerRun.planId && plannerRun.planId !== planId) throw new Error(`planner run ${plannerRun.id} cannot ${action} plan ${planId}`)
+    const plan = this.requirePlan(planId)
+    if (plan.threadId !== plannerRun.threadId) throw new Error(`planner run ${plannerRun.id} cannot ${action} plan ${planId}`)
+    if (!plannerRun.planId) this.attachPlannerRunToPlan(plannerRun.id, planId, source)
+    return planId
   }
 
   private requireTask(id: string): AgentTask {
