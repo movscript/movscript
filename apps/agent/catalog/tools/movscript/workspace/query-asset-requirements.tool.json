@@ -1,0 +1,55 @@
+{
+  "name": "movscript_query_asset_requirements",
+  "description": "查询当前或指定 project 的素材需求（asset slots），支持按设定资料、设定状态、归属对象、制作、状态和关键词过滤。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "number"
+      },
+      "asset_slot_id": {
+        "type": "number"
+      },
+      "creative_reference_id": {
+        "type": "number"
+      },
+      "creative_reference_state_id": {
+        "type": "number"
+      },
+      "owner_type": {
+        "type": "string"
+      },
+      "owner_id": {
+        "type": "number"
+      },
+      "production_id": {
+        "type": "number"
+      },
+      "status": {
+        "type": "string"
+      },
+      "query": {
+        "type": "string"
+      },
+      "include_internal": {
+        "type": "boolean"
+      },
+      "include_candidates": {
+        "type": "boolean"
+      },
+      "limit": {
+        "type": "number"
+      }
+    }
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "读取素材需求和已有候选，用于确认某个设定资料或内容节点需要生成哪些候选素材。"
+}

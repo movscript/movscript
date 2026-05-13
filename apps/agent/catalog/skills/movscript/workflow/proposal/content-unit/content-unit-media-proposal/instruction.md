@@ -16,11 +16,12 @@ Draft schema：{{schema:movscript.content_unit_media_proposal.v1.id}}
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
+- 内容和素材上下文：{{tool:movscript_query_production_context}} {{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_requirements}}
 - Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
 流程：
-1. 读取 focus，确认目标 content unit、scene beat 或 keyframe target。
+1. 读取 focus，确认目标 content unit、scene beat 或 keyframe target；如目标是 content unit，查询 production context，并在需要时读取 generation context。
 2. 查找可复用的 content_unit_media_proposal draft；没有则创建新的 proposal draft。
 3. 为每个目标写清媒体意图、参考约束、模型能力建议、验收标准和阻塞项。
 4. 保持媒体计划与 content unit 结构分离；结构变更交给 content_unit_proposal。

@@ -1,0 +1,49 @@
+{
+  "name": "movscript_query_creative_references",
+  "description": "查询当前或指定 project 的设定资料（人物、地点、道具、产品、风格、世界规则等），可同时返回相关状态、引用关系和素材需求。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "number"
+      },
+      "creative_reference_id": {
+        "type": "number"
+      },
+      "kind": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "query": {
+        "type": "string"
+      },
+      "include_states": {
+        "type": "boolean"
+      },
+      "include_usages": {
+        "type": "boolean"
+      },
+      "include_relationships": {
+        "type": "boolean"
+      },
+      "include_asset_slots": {
+        "type": "boolean"
+      },
+      "limit": {
+        "type": "number"
+      }
+    }
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "读取设定资料及其状态、引用、关系和相关素材需求，用于生成候选素材前的上下文检查。"
+}

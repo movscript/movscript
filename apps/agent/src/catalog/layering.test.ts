@@ -221,6 +221,11 @@ test('asset candidate preparation is separated from generation execution', () =>
 
   assert.equal(assetCandidate.toolRefs.includes('tool://movscript_create_generation_job'), false)
   assert.equal(assetCandidate.toolRefs.includes('tool://movscript_cancel_generation_job'), false)
+  assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_focus'))
+  assert.ok(assetCandidate.toolRefs.includes('tool://movscript_get_draft_model'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_get_focus'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_get_draft_model'))
+  assert.ok(visualGeneration.toolRefs.includes('tool://movscript_request_user_input'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_create_generation_job'))
   assert.ok(visualGeneration.toolRefs.includes('tool://movscript_cancel_generation_job'))
 
@@ -236,13 +241,23 @@ test('asset candidate preparation is separated from generation execution', () =>
   const visualTools = resolveVisibleTools({ registry: catalog.layeredRegistry, ctx, activeWorkflows: [visualGeneration] })
   assert.equal(assetTools.available.some((tool) => tool.name === 'movscript_create_generation_job'), false)
   assert.equal(assetTools.available.some((tool) => tool.name === 'movscript_cancel_generation_job'), false)
+  assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_focus'))
+  assert.ok(assetTools.available.some((tool) => tool.name === 'movscript_get_draft_model'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_cancel_generation_job'))
+  assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_request_user_input'))
 
   assert.match(assetCandidate.instructionTemplate, /不要在这里创建图片或视频生成任务/)
   assert.match(assetCandidate.instructionTemplate, /使用模型发现 contracts，而不是 provider 假设/)
+  assert.match(assetCandidate.instructionTemplate, /先确认当前设定材料是否已有可复用素材/)
+  assert.match(assetCandidate.instructionTemplate, /保留人物一致性、场景一致性和可复用识别点/)
+  assert.match(assetCandidate.instructionTemplate, /主角或重要角色即使文本说“丑”“狼狈”“不起眼”/)
   assert.match(visualGeneration.instructionTemplate, /只能通过需要审批的生成工具创建生成任务/)
   assert.match(visualGeneration.instructionTemplate, /优先用 `model_contracts` 做紧凑规划/)
+  assert.match(visualGeneration.instructionTemplate, /确认当前设定材料是否已有素材/)
+  assert.match(visualGeneration.instructionTemplate, /已有角色\/场景素材必须优先作为一致性约束/)
+  assert.match(visualGeneration.instructionTemplate, /主角、核心反派、重要常驻角色要保持可长期复用的美术价值/)
+  assert.match(visualGeneration.instructionTemplate, /向用户确认是否把这张图放入对应 asset target 的候选里/)
   assert.match(visualGeneration.instructionTemplate, /只提交被选中模型的 `supported_param_keys` \/ `supported_params` 支持的顶层参数和 `extra_params` 值/)
   assert.match(visualGeneration.instructionTemplate, /图片\/视频数量满足 `input_requirements` 的参考资源/)
   assert.match(visualGeneration.instructionTemplate, /将带有 `audit_version: 1` 的 `param_validation` 视为参数过滤和本地 preflight 的审计轨迹/)
@@ -332,6 +347,8 @@ test('visual generation prompt exposes backend generation validation error codes
   }
   assert.match(prompt.systemPrompt, /`preflight_errors` 和 `input_preflight_errors` 视为解释性审计数据/)
   assert.match(prompt.systemPrompt, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
+  assert.match(prompt.systemPrompt, /已有角色\/场景素材必须优先作为一致性约束/)
+  assert.match(prompt.systemPrompt, /图片输出资源存在时，向用户确认是否把这张图放入对应 asset target 的候选里/)
 })
 
 test('image edit wording with image context activates visual generation tools', () => {

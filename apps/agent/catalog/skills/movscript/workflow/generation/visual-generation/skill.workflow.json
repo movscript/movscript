@@ -35,6 +35,12 @@
     }
   ],
   "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_query_creative_references",
+    "tool://movscript_query_asset_requirements",
+    "tool://movscript_query_production_context",
+    "tool://movscript_get_draft_model",
+    "tool://movscript_request_user_input",
     "tool://movscript_list_models",
     "tool://movscript_create_generation_job",
     "tool://movscript_get_generation_job",
@@ -42,6 +48,6 @@
     "tool://movscript_cancel_generation_job"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回最终任务状态、jobId、可用时的输出资源，以及简洁的匹配理由。",
+  "outputContract": "返回最终任务状态、jobId、可用时的输出资源、一致性参考说明、简洁的匹配理由，以及图片是否放入素材候选的确认请求。",
   "instructionTemplatePath": "instruction.md"
 }

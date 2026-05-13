@@ -23,6 +23,9 @@
   ],
   "toolRefs": [
     "tool://movscript_get_focus",
+    "tool://movscript_query_production_context",
+    "tool://movscript_query_creative_references",
+    "tool://movscript_query_asset_requirements",
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",
     "tool://movscript_get_draft",

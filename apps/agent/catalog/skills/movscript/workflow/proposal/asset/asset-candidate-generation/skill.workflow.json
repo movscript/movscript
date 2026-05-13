@@ -22,11 +22,16 @@
     }
   ],
   "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_query_creative_references",
+    "tool://movscript_query_asset_requirements",
+    "tool://movscript_query_production_context",
+    "tool://movscript_get_draft_model",
     "tool://movscript_list_models",
     "tool://movscript_get_generation_job",
     "tool://movscript_list_generation_jobs"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回已选 asset target、候选 prompt 方向、所需模型能力、已知的引用/资源 id、验收标准、阻塞项和下一步动作。",
+  "outputContract": "返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、所需模型能力、已知的引用/资源 id、验收标准、阻塞项和下一步动作。",
   "instructionTemplatePath": "instruction.md"
 }

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
+import { buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -296,6 +296,84 @@ test('draft model MCP tool hydrates project proposal seed from allowed backend i
   } finally {
     setMCPAPIBaseURL(previousBaseURL)
     globalThis.fetch = previousFetch
+  }
+})
+
+test('semantic query tools expose creative references and linked asset requirements', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/42/entities/creative-references?kind=person': [
+      { ID: 11, project_id: 42, kind: 'person', name: '女主', description: '主角', status: 'confirmed' },
+      { ID: 12, project_id: 42, kind: 'person', name: '路人', description: '背景角色', status: 'draft' },
+    ],
+    '/projects/42/entities/creative-reference-states?creative_reference_id=11': [
+      { ID: 21, creative_reference_id: 11, name: '雨夜状态', emotion: '紧张' },
+    ],
+    '/projects/42/entities/asset-slots?include_internal=true': [
+      { ID: 31, owner_type: 'creative_reference', owner_id: 11, creative_reference_id: 11, name: '女主标准头像', kind: 'image', status: 'missing' },
+      { ID: 32, owner_type: 'creative_reference_state', owner_id: 21, creative_reference_state_id: 21, name: '雨夜服装', kind: 'image', status: 'missing' },
+      { ID: 33, owner_type: 'creative_reference', owner_id: 12, creative_reference_id: 12, name: '路人头像', kind: 'image', status: 'missing' },
+    ],
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await queryCreativeReferences({
+      projectId: 42,
+      kind: 'person',
+      creative_reference_id: 11,
+      include_states: true,
+      include_asset_slots: true,
+    }) as Record<string, any>
+
+    assert.equal(result.returned, 1)
+    assert.deepEqual(result.references.map((item: any) => item.ID), [11])
+    assert.deepEqual(result.states.map((item: any) => item.ID), [21])
+    assert.deepEqual(result.asset_requirements.map((item: any) => item.ID), [31, 32])
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL('http://localhost:8765')
+  }
+})
+
+test('semantic query tools expose production context and content unit generation context', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/42/entities/segments?production_id=7': [
+      { ID: 101, production_id: 7, title: '压抑铺垫', kind: 'emotional_function', summary: '低落到紧张' },
+    ],
+    '/projects/42/entities/scene-moments?segment_id=101': [
+      { ID: 201, segment_id: 101, title: '雨夜对峙', mood: '紧张' },
+    ],
+    '/projects/42/entities/content-units?production_id=7&segment_id=101&scene_moment_id=201': [
+      { ID: 301, production_id: 7, segment_id: 101, scene_moment_id: 201, title: '女主抬头', prompt: 'close up' },
+    ],
+    'POST /projects/42/entities/content-units/301/generation-context': {
+      target: { type: 'content_unit', content_unit: { ID: 301, title: '女主抬头' } },
+      intent: 'video',
+      creative_references: [],
+      asset_slots: [],
+      keyframes: [],
+      constraints: { read_only_entities: [], write_targets: [] },
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await queryProductionContext({
+      projectId: 42,
+      production_id: 7,
+      segment_id: 101,
+      scene_moment_id: 201,
+      content_unit_id: 301,
+      include_generation_context: true,
+    }) as Record<string, any>
+
+    assert.deepEqual(result.segments.map((item: any) => item.ID), [101])
+    assert.deepEqual(result.scene_moments.map((item: any) => item.ID), [201])
+    assert.deepEqual(result.content_units.map((item: any) => item.ID), [301])
+    assert.equal(result.generation_context.target.content_unit.ID, 301)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL('http://localhost:8765')
   }
 })
 

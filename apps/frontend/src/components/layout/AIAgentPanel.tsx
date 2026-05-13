@@ -6121,6 +6121,7 @@ function BuiltinChat({ userId, onCollapse }: { userId: string; onCollapse: () =>
     <AgentShell density="compact" className="ai-agent-panel-shell">
       {activeConv ? (
         <ChatView
+          key={activeConv.id}
           conv={activeConv}
           conversations={conversations}
           userId={userId}

@@ -14,6 +14,8 @@ import { StaticAgentRuntimeContractResolver } from './contracts/runtimeContract.
 import { InMemoryAgentCatalogStateStore } from './catalog/state.js'
 import { createAgentRequestListener } from './server.js'
 import { RuntimeModelConfigStore } from './model/modelConfig.js'
+import { defaultRunPolicy } from './context/normalizeRunInput.js'
+import { buildAgentRun } from './state/runFactory.js'
 import type { AgentServerContext } from './bootstrap/agentServerContext.js'
 import type { JSONValue, MCPResource, MCPTool } from './types.js'
 
@@ -499,9 +501,10 @@ test('HTTP plan snapshot exposes reusable summary', async () => {
 })
 
 test('HTTP cancel-tree only accepts the plan root planner run', async () => {
+  const store = new InMemoryAgentStore()
   const runtime = new AgentRuntime({
     mcpClient: new StubMCPClient(),
-    store: new InMemoryAgentStore(),
+    store,
     draftStore: new InMemoryAgentDraftStore(),
     backendApplyClient: new BackendApplyClient(),
     memoryStore: new InMemoryAgentMemoryStore(),
@@ -519,13 +522,22 @@ test('HTTP cancel-tree only accepts the plan root planner run', async () => {
     tasks: [{ id: 'task_http_cancel_worker', title: 'Worker task', metadata: { executionMode: 'worker' } }],
   })
   const rootPlanner = await waitForRun(runtime, plan.runs[0]!.id)
-  const dispatched = runtime.dispatchPlan({
+  const now = new Date().toISOString()
+  const worker = buildAgentRun({
+    id: 'run_http_cancel_worker',
+    threadId: thread.id,
+    now,
+    agentManifest: DEFAULT_AGENT_MANIFEST,
+    policy: defaultRunPolicy(),
+    role: 'worker',
+    parentRunId: rootPlanner.id,
     planId: plan.plan.id,
-    plannerRunId: rootPlanner.id,
-    taskIds: ['task_http_cancel_worker'],
+    taskId: 'task_http_cancel_worker',
+    progress: 0,
   })
-  const worker = dispatched.spawnedRuns[0]
-  assert.ok(worker)
+  worker.status = 'in_progress'
+  worker.startedAt = now
+  store.createRun(worker)
 
   const rejected = await dispatch(handler, 'POST', `/runs/${worker.id}/cancel-tree`, {
     reason: 'Worker should not cancel the whole plan.',

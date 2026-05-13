@@ -1,0 +1,57 @@
+{
+  "name": "movscript_query_production_context",
+  "description": "查询制作上下文：制作、情绪/戏剧功能段、情景和内容单元；可为内容单元读取生成上下文。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "projectId": {
+        "type": "number"
+      },
+      "production_id": {
+        "type": "number"
+      },
+      "segment_id": {
+        "type": "number"
+      },
+      "scene_moment_id": {
+        "type": "number"
+      },
+      "content_unit_id": {
+        "type": "number"
+      },
+      "status": {
+        "type": "string"
+      },
+      "query": {
+        "type": "string"
+      },
+      "include": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": ["productions", "segments", "scene_moments", "content_units"]
+        }
+      },
+      "include_generation_context": {
+        "type": "boolean"
+      },
+      "intent": {
+        "type": "string",
+        "enum": ["keyframe", "video"]
+      },
+      "limit": {
+        "type": "number"
+      }
+    }
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "读取情绪段、情景/情节、内容单元和内容单元生成上下文，用于素材候选规划。"
+}

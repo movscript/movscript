@@ -512,6 +512,63 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_query_creative_references',
+      description: 'Query project creative references / setting materials such as characters, places, props, products, style rules, and restrictions. Can include related states, usages, relationships, and asset requirements for candidate material planning.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
+          creative_reference_id: { type: 'number', description: 'Optional creative reference ID to return one setting material.' },
+          kind: { type: 'string', description: 'Optional reference kind such as person, place, prop, product, brand, style, world_rule, time_period, or restriction.' },
+          status: { type: 'string', description: 'Optional local status filter applied client-side.' },
+          query: { type: 'string', description: 'Optional text search over name, alias, description, content, and tags/profile JSON fields.' },
+          include_states: { type: 'boolean', description: 'When true, include creative-reference states for returned references.' },
+          include_usages: { type: 'boolean', description: 'When true, include usages for returned references.' },
+          include_relationships: { type: 'boolean', description: 'When true, include creative relationships for returned references.' },
+          include_asset_slots: { type: 'boolean', description: 'When true, include asset requirements linked to returned references or their states.' },
+          limit: { type: 'number', description: 'Maximum references to return. Defaults to 50.' },
+        }
+      ),
+    },
+    {
+      name: 'movscript_query_asset_requirements',
+      description: 'Query project asset requirements / asset slots, including requirements owned by a creative reference, creative reference state, segment, scene moment, storyboard line, content unit, or keyframe.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
+          asset_slot_id: { type: 'number', description: 'Optional asset slot ID to return one requirement.' },
+          creative_reference_id: { type: 'number', description: 'Optional creative reference ID; matches direct reference links and reference-owned slots.' },
+          creative_reference_state_id: { type: 'number', description: 'Optional creative reference state ID; matches direct state links and state-owned slots.' },
+          owner_type: { type: 'string', description: 'Optional owner type such as creative_reference, creative_reference_state, segment, scene_moment, content_unit, storyboard_line, or keyframe.' },
+          owner_id: { type: 'number', description: 'Optional owner entity ID. Applied with owner_type when provided.' },
+          production_id: { type: 'number', description: 'Optional production filter.' },
+          status: { type: 'string', description: 'Optional status filter such as missing, candidate, locked, or waived.' },
+          query: { type: 'string', description: 'Optional text search over name, description, prompt_hint, slot_key, and metadata_json.' },
+          include_internal: { type: 'boolean', description: 'When true, include internal asset-slot-owned slots.' },
+          include_candidates: { type: 'boolean', description: 'When true, include existing asset slot candidates for returned slots.' },
+          limit: { type: 'number', description: 'Maximum requirements to return. Defaults to 50.' },
+        }
+      ),
+    },
+    {
+      name: 'movscript_query_production_context',
+      description: 'Query production context entities for material planning: productions, emotional / dramatic segments, scene moments, and content units. For a content_unit_id it can also build the generation context with references and asset slots.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
+          production_id: { type: 'number', description: 'Optional production ID.' },
+          segment_id: { type: 'number', description: 'Optional segment ID.' },
+          scene_moment_id: { type: 'number', description: 'Optional scene moment ID.' },
+          content_unit_id: { type: 'number', description: 'Optional content unit ID.' },
+          status: { type: 'string', description: 'Optional status filter for productions or segments where supported.' },
+          query: { type: 'string', description: 'Optional text search over titles, descriptions, summaries, prompts, mood, action, and metadata.' },
+          include: { type: 'array', items: { type: 'string', enum: ['productions', 'segments', 'scene_moments', 'content_units'] }, description: 'Optional entity groups to include. Defaults to segments, scene_moments, and content_units.' },
+          include_generation_context: { type: 'boolean', description: 'When true and content_unit_id is provided, include backend generation context for that content unit.' },
+          intent: { type: 'string', enum: ['keyframe', 'video'], description: 'Generation-context intent. Defaults to video.' },
+          limit: { type: 'number', description: 'Maximum items per group. Defaults to 50.' },
+        }
+      ),
+    },
+    {
       name: 'movscript_get_draft_model',
       description: 'Return the frontend-owned DraftDomainModel contract for a draft kind and target. This is the single source for draft field ownership, seed policy, review route, apply boundary, and optional hydrated seed data.',
       inputSchema: objectSchema(
@@ -803,6 +860,12 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await listProjects(args))
     case 'movscript_read_project_scripts':
       return toolText(await readProjectScripts(args))
+    case 'movscript_query_creative_references':
+      return toolText(await queryCreativeReferences(args))
+    case 'movscript_query_asset_requirements':
+      return toolText(await queryAssetRequirements(args))
+    case 'movscript_query_production_context':
+      return toolText(await queryProductionContext(args))
     case 'movscript_get_draft_model':
       return toolText(await getDraftModelContract(args))
     case 'movscript_create_project':
@@ -1119,6 +1182,226 @@ async function readProjectScripts(args: Record<string, unknown>): Promise<unknow
   }
 }
 
+export async function queryCreativeReferences(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = resolveToolProjectId(args)
+  const referenceId = getOptionalNumeric(args, 'creative_reference_id') ?? getOptionalNumeric(args, 'creativeReferenceId')
+  const kind = getOptionalString(args, 'kind')
+  const status = getOptionalString(args, 'status')
+  const query = getOptionalString(args, 'query')
+  const limit = normalizeListLimit(args.limit, 50, 200)
+  const path = withQuery(`/projects/${projectId}/entities/creative-references`, { kind })
+  const rawReferences = await backendList(path)
+  const references = limitItems(rawReferences.filter((item) => {
+    if (referenceId !== undefined && entityId(item) !== referenceId) return false
+    if (status && normalizedStringField(item, 'status') !== status) return false
+    if (query && !recordMatchesQuery(item, query, ['name', 'alias', 'description', 'content', 'profile_json', 'tags_json'])) return false
+    return true
+  }), limit)
+  const referenceIds = new Set(references.map(entityId).filter((id): id is number => id !== undefined))
+
+  const includeStates = args.include_states === true || args.includeStates === true || args.include_asset_slots === true || args.includeAssetSlots === true
+  const includeUsages = args.include_usages === true || args.includeUsages === true
+  const includeRelationships = args.include_relationships === true || args.includeRelationships === true
+  const includeAssetSlots = args.include_asset_slots === true || args.includeAssetSlots === true
+
+  const states = includeStates
+    ? await queryReferenceStates(projectId, referenceIds)
+    : []
+  const stateIds = new Set(states.map(entityId).filter((id): id is number => id !== undefined))
+  const usages = includeUsages
+    ? await queryReferenceUsages(projectId, referenceIds)
+    : []
+  const relationships = includeRelationships
+    ? await queryReferenceRelationships(projectId, referenceIds)
+    : []
+  const assetSlots = includeAssetSlots
+    ? await queryAssetRequirements({
+        projectId,
+        include_internal: true,
+        limit: 200,
+        _creativeReferenceIds: Array.from(referenceIds),
+        _creativeReferenceStateIds: Array.from(stateIds),
+      })
+    : undefined
+
+  return {
+    projectId,
+    kind: 'creative_references',
+    filters: compactObject({ creative_reference_id: referenceId, kind, status, query, limit }),
+    count: rawReferences.length,
+    returned: references.length,
+    references: references.map(summarizeCreativeReference),
+    ...(includeStates ? { states: states.map(summarizeCreativeReferenceState) } : {}),
+    ...(includeUsages ? { usages: usages.map(summarizeCreativeReferenceUsage) } : {}),
+    ...(includeRelationships ? { relationships: relationships.map(summarizeCreativeRelationship) } : {}),
+    ...(includeAssetSlots && isRecord(assetSlots) ? { asset_requirements: assetSlots.requirements } : {}),
+  }
+}
+
+export async function queryAssetRequirements(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = resolveToolProjectId(args)
+  const assetSlotId = getOptionalNumeric(args, 'asset_slot_id') ?? getOptionalNumeric(args, 'assetSlotId')
+  const creativeReferenceId = getOptionalNumeric(args, 'creative_reference_id') ?? getOptionalNumeric(args, 'creativeReferenceId')
+  const creativeReferenceStateId = getOptionalNumeric(args, 'creative_reference_state_id') ?? getOptionalNumeric(args, 'creativeReferenceStateId')
+  const ownerType = getOptionalString(args, 'owner_type') ?? getOptionalString(args, 'ownerType')
+  const ownerId = getOptionalNumeric(args, 'owner_id') ?? getOptionalNumeric(args, 'ownerId')
+  const productionId = getOptionalNumeric(args, 'production_id') ?? getOptionalNumeric(args, 'productionId')
+  const status = getOptionalString(args, 'status')
+  const query = getOptionalString(args, 'query')
+  const includeInternal = args.include_internal === true || args.includeInternal === true
+  const includeCandidates = args.include_candidates === true || args.includeCandidates === true
+  const limit = normalizeListLimit(args.limit, 50, 200)
+  const referenceIds = numberSetArg(args._creativeReferenceIds, creativeReferenceId)
+  const stateIds = numberSetArg(args._creativeReferenceStateIds, creativeReferenceStateId)
+
+  const path = withQuery(`/projects/${projectId}/entities/asset-slots`, {
+    production_id: productionId,
+    status,
+    owner_type: ownerType,
+    include_internal: includeInternal ? 'true' : undefined,
+  })
+  const rawSlots = await backendList(path)
+  const requirements = limitItems(rawSlots.filter((slot) => {
+    if (assetSlotId !== undefined && entityId(slot) !== assetSlotId) return false
+    const slotOwnerType = normalizedStringField(slot, 'owner_type') ?? normalizedStringField(slot, 'ownerType')
+    const slotOwnerId = numericValue(isRecord(slot) ? slot.owner_id ?? slot.ownerId : undefined)
+    if (ownerId !== undefined && slotOwnerId !== ownerId) return false
+    if (referenceIds.size > 0) {
+      const directReferenceId = numericValue(isRecord(slot) ? slot.creative_reference_id ?? slot.creativeReferenceId : undefined)
+      const ownerReferenceId = slotOwnerType === 'creative_reference' ? slotOwnerId : undefined
+      const directStateId = numericValue(isRecord(slot) ? slot.creative_reference_state_id ?? slot.creativeReferenceStateId : undefined)
+      const ownerStateId = slotOwnerType === 'creative_reference_state' ? slotOwnerId : undefined
+      const matchesReference = referenceIds.has(directReferenceId ?? -1) || referenceIds.has(ownerReferenceId ?? -1)
+      const matchesState = stateIds.size > 0 && (stateIds.has(directStateId ?? -1) || stateIds.has(ownerStateId ?? -1))
+      if (!matchesReference && !matchesState) return false
+    }
+    if (stateIds.size > 0) {
+      const directStateId = numericValue(isRecord(slot) ? slot.creative_reference_state_id ?? slot.creativeReferenceStateId : undefined)
+      const ownerStateId = slotOwnerType === 'creative_reference_state' ? slotOwnerId : undefined
+      const directReferenceId = numericValue(isRecord(slot) ? slot.creative_reference_id ?? slot.creativeReferenceId : undefined)
+      const ownerReferenceId = slotOwnerType === 'creative_reference' ? slotOwnerId : undefined
+      const matchesState = stateIds.has(directStateId ?? -1) || stateIds.has(ownerStateId ?? -1)
+      const matchesReference = referenceIds.size > 0 && (referenceIds.has(directReferenceId ?? -1) || referenceIds.has(ownerReferenceId ?? -1))
+      if (!matchesState && !matchesReference) return false
+    }
+    if (query && !recordMatchesQuery(slot, query, ['name', 'description', 'prompt_hint', 'slot_key', 'metadata_json'])) return false
+    return true
+  }), limit)
+
+  const candidates = includeCandidates
+    ? await queryAssetSlotCandidates(projectId, requirements)
+    : []
+
+  return {
+    projectId,
+    kind: 'asset_requirements',
+    filters: compactObject({
+      asset_slot_id: assetSlotId,
+      creative_reference_id: creativeReferenceId,
+      creative_reference_state_id: creativeReferenceStateId,
+      owner_type: ownerType,
+      owner_id: ownerId,
+      production_id: productionId,
+      status,
+      query,
+      include_internal: includeInternal,
+      include_candidates: includeCandidates,
+      limit,
+    }),
+    count: rawSlots.length,
+    returned: requirements.length,
+    requirements: requirements.map(summarizeAssetRequirement),
+    ...(includeCandidates ? { candidates: candidates.map(summarizeAssetSlotCandidate) } : {}),
+  }
+}
+
+export async function queryProductionContext(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = resolveToolProjectId(args)
+  const productionId = getOptionalNumeric(args, 'production_id') ?? getOptionalNumeric(args, 'productionId')
+  const segmentId = getOptionalNumeric(args, 'segment_id') ?? getOptionalNumeric(args, 'segmentId')
+  const sceneMomentId = getOptionalNumeric(args, 'scene_moment_id') ?? getOptionalNumeric(args, 'sceneMomentId')
+  const contentUnitId = getOptionalNumeric(args, 'content_unit_id') ?? getOptionalNumeric(args, 'contentUnitId')
+  const status = getOptionalString(args, 'status')
+  const query = getOptionalString(args, 'query')
+  const limit = normalizeListLimit(args.limit, 50, 200)
+  const include = normalizeProductionContextInclude(args.include)
+
+  const result: Record<string, unknown> = {
+    projectId,
+    kind: 'production_context',
+    filters: compactObject({
+      production_id: productionId,
+      segment_id: segmentId,
+      scene_moment_id: sceneMomentId,
+      content_unit_id: contentUnitId,
+      status,
+      query,
+      include: Array.from(include),
+      limit,
+    }),
+  }
+
+  let segments: unknown[] = []
+  let sceneMoments: unknown[] = []
+  if (include.has('productions')) {
+    const productions = await backendList(withQuery(`/projects/${projectId}/entities/productions`, { status }))
+    result.productions = limitItems(productions.filter((item) => {
+      if (productionId !== undefined && entityId(item) !== productionId) return false
+      if (query && !recordMatchesQuery(item, query, ['name', 'description', 'source_type', 'owner_label', 'metadata_json'])) return false
+      return true
+    }), limit).map(summarizeProductionContextEntity)
+  }
+  if (include.has('segments') || include.has('scene_moments')) {
+    segments = await backendList(withQuery(`/projects/${projectId}/entities/segments`, {
+      production_id: productionId,
+      status,
+    }))
+  }
+  if (include.has('segments')) {
+    result.segments = limitItems(segments.filter((item) => {
+      if (segmentId !== undefined && entityId(item) !== segmentId) return false
+      if (query && !recordMatchesQuery(item, query, ['title', 'kind', 'summary', 'content', 'metadata_json'])) return false
+      return true
+    }), limit).map(summarizeProductionContextEntity)
+  }
+  if (include.has('scene_moments') || include.has('content_units')) {
+    const segmentIds = new Set(segments
+      .map(entityId)
+      .filter((id): id is number => id !== undefined))
+    sceneMoments = await backendList(withQuery(`/projects/${projectId}/entities/scene-moments`, { segment_id: segmentId }))
+    if (productionId !== undefined && segmentIds.size > 0) {
+      sceneMoments = sceneMoments.filter((item) => segmentIds.has(numericValue(isRecord(item) ? item.segment_id ?? item.segmentId : undefined) ?? -1))
+    }
+  }
+  if (include.has('scene_moments')) {
+    result.scene_moments = limitItems(sceneMoments.filter((item) => {
+      if (sceneMomentId !== undefined && entityId(item) !== sceneMomentId) return false
+      if (query && !recordMatchesQuery(item, query, ['title', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'metadata_json'])) return false
+      return true
+    }), limit).map(summarizeProductionContextEntity)
+  }
+  if (include.has('content_units')) {
+    const contentUnits = await backendList(withQuery(`/projects/${projectId}/entities/content-units`, {
+      production_id: productionId,
+      segment_id: segmentId,
+      scene_moment_id: sceneMomentId,
+    }))
+    result.content_units = limitItems(contentUnits.filter((item) => {
+      if (contentUnitId !== undefined && entityId(item) !== contentUnitId) return false
+      if (query && !recordMatchesQuery(item, query, ['title', 'kind', 'description', 'prompt', 'camera_notes', 'metadata_json'])) return false
+      return true
+    }), limit).map(summarizeProductionContextEntity)
+  }
+  if ((args.include_generation_context === true || args.includeGenerationContext === true) && contentUnitId !== undefined) {
+    result.generation_context = await backendPost(
+      `/projects/${projectId}/entities/content-units/${contentUnitId}/generation-context`,
+      { target_type: 'content_unit', target_id: contentUnitId, intent: getOptionalString(args, 'intent') ?? 'video' },
+    )
+  }
+
+  return result
+}
+
 export async function getDraftModelContract(args: Record<string, unknown>): Promise<unknown> {
   const kind = getRequiredString(args, 'kind') as AgentDraftKind
   const model = getDraftDomainModel(kind)
@@ -1412,6 +1695,119 @@ async function backendList(path: string): Promise<any[]> {
   if (Array.isArray(data)) return data
   if (isRecord(data) && Array.isArray(data.items)) return data.items
   return []
+}
+
+function resolveToolProjectId(args: Record<string, unknown>): number {
+  const projectId = getOptionalNumeric(args, 'projectId') ?? getOptionalNumeric(args, 'project_id') ?? contextSnapshot.project?.id
+  if (!projectId) throw new Error('projectId is required when no current project is selected')
+  return projectId
+}
+
+function withQuery(path: string, params: Record<string, unknown>): string {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue
+    query.set(key, String(value))
+  }
+  const serialized = query.toString()
+  return serialized ? `${path}?${serialized}` : path
+}
+
+function normalizeListLimit(value: unknown, fallback: number, max: number): number {
+  const parsed = numericValue(value)
+  if (parsed === undefined) return fallback
+  return clampNumber(Math.floor(parsed), 1, max)
+}
+
+function limitItems<T>(items: T[], limit: number): T[] {
+  return items.slice(0, limit)
+}
+
+function entityId(item: unknown): number | undefined {
+  return numericValue(isRecord(item) ? item.ID ?? item.id : undefined)
+}
+
+function normalizedStringField(item: unknown, key: string): string | undefined {
+  if (!isRecord(item)) return undefined
+  const value = item[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function numberSetArg(value: unknown, extra?: number): Set<number> {
+  const out = new Set<number>()
+  if (extra !== undefined) out.add(extra)
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const parsed = numericValue(item)
+      if (parsed !== undefined) out.add(parsed)
+    }
+  }
+  return out
+}
+
+function recordMatchesQuery(item: unknown, query: string, fields: string[]): boolean {
+  if (!isRecord(item)) return false
+  const needle = query.trim().toLowerCase()
+  if (!needle) return true
+  return fields.some((field) => {
+    const value = item[field]
+    if (value === undefined || value === null) return false
+    return String(value).toLowerCase().includes(needle)
+  })
+}
+
+function compactObject(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined && item !== null && item !== ''))
+}
+
+async function queryReferenceStates(projectId: number, referenceIds: Set<number>): Promise<unknown[]> {
+  const out: unknown[] = []
+  for (const id of referenceIds) {
+    out.push(...await backendList(`/projects/${projectId}/entities/creative-reference-states?creative_reference_id=${encodeURIComponent(String(id))}`))
+  }
+  return out
+}
+
+async function queryReferenceUsages(projectId: number, referenceIds: Set<number>): Promise<unknown[]> {
+  const out: unknown[] = []
+  for (const id of referenceIds) {
+    out.push(...await backendList(`/projects/${projectId}/entities/creative-reference-usages?creative_reference_id=${encodeURIComponent(String(id))}`))
+  }
+  return out
+}
+
+async function queryReferenceRelationships(projectId: number, referenceIds: Set<number>): Promise<unknown[]> {
+  const seen = new Set<number>()
+  const out: unknown[] = []
+  for (const id of referenceIds) {
+    const relationships = await backendList(`/projects/${projectId}/entities/creative-relationships?creative_reference_id=${encodeURIComponent(String(id))}`)
+    for (const relationship of relationships) {
+      const relationshipId = entityId(relationship)
+      if (relationshipId !== undefined) {
+        if (seen.has(relationshipId)) continue
+        seen.add(relationshipId)
+      }
+      out.push(relationship)
+    }
+  }
+  return out
+}
+
+async function queryAssetSlotCandidates(projectId: number, requirements: unknown[]): Promise<unknown[]> {
+  const out: unknown[] = []
+  for (const requirement of requirements) {
+    const id = entityId(requirement)
+    if (id === undefined) continue
+    out.push(...await backendList(`/projects/${projectId}/entities/asset-slot-candidates?asset_slot_id=${encodeURIComponent(String(id))}`))
+  }
+  return out
+}
+
+function normalizeProductionContextInclude(value: unknown): Set<string> {
+  const allowed = new Set(['productions', 'segments', 'scene_moments', 'content_units'])
+  if (!Array.isArray(value)) return new Set(['segments', 'scene_moments', 'content_units'])
+  const out = new Set(value.filter((item): item is string => typeof item === 'string' && allowed.has(item)))
+  return out.size > 0 ? out : new Set(['segments', 'scene_moments', 'content_units'])
 }
 
 export async function createGenerationJob(args: Record<string, unknown>): Promise<unknown> {
@@ -2456,6 +2852,200 @@ function summarizeScript(item: any, options: { includeContent: boolean; contentL
 
 function summarizeProjectScripts(items: unknown[]): unknown[] {
   return items.map((item) => summarizeScript(item, { includeContent: false, contentLimit: 0 }))
+}
+
+function summarizeCreativeReference(item: any): unknown {
+  return summarizePickedFields(item, [
+    'ID',
+    'id',
+    'project_id',
+    'kind',
+    'name',
+    'alias',
+    'description',
+    'content',
+    'importance',
+    'status',
+    'profile_json',
+    'tags_json',
+    'CreatedAt',
+    'UpdatedAt',
+  ])
+}
+
+function summarizeCreativeReferenceState(item: any): unknown {
+  return summarizePickedFields(item, [
+    'ID',
+    'id',
+    'project_id',
+    'creative_reference_id',
+    'scope_type',
+    'scope_id',
+    'name',
+    'description',
+    'visual_notes',
+    'emotion',
+    'costume',
+    'props',
+    'status',
+    'tags_json',
+    'metadata_json',
+    'CreatedAt',
+    'UpdatedAt',
+  ])
+}
+
+function summarizeCreativeReferenceUsage(item: any): unknown {
+  return summarizePickedFields(item, [
+    'ID',
+    'id',
+    'project_id',
+    'owner_type',
+    'owner_id',
+    'creative_reference_id',
+    'creative_reference_state_id',
+    'role',
+    'order',
+    'evidence',
+    'source',
+    'status',
+    'metadata_json',
+    'CreatedAt',
+    'UpdatedAt',
+  ])
+}
+
+function summarizeCreativeRelationship(item: any): unknown {
+  return summarizePickedFields(item, [
+    'ID',
+    'id',
+    'project_id',
+    'source_creative_reference_id',
+    'target_creative_reference_id',
+    'scope_type',
+    'scope_id',
+    'category',
+    'type',
+    'label',
+    'description',
+    'source',
+    'status',
+    'evidence',
+    'metadata_json',
+    'CreatedAt',
+    'UpdatedAt',
+  ])
+}
+
+function summarizeAssetRequirement(item: any): unknown {
+  const summary = summarizePickedFields(item, [
+    'ID',
+    'id',
+    'project_id',
+    'production_id',
+    'owner_type',
+    'owner_id',
+    'creative_reference_id',
+    'creative_reference_state_id',
+    'kind',
+    'name',
+    'slot_key',
+    'description',
+    'prompt_hint',
+    'priority',
+    'resource_id',
+    'locked_asset_slot_id',
+    'status',
+    'metadata_json',
+    'CreatedAt',
+    'UpdatedAt',
+  ])
+  if (isRecord(summary) && isRecord(item?.Resource)) summary.resource = summarizeResourceRecord(item.Resource)
+  if (isRecord(summary) && isRecord(item?.resource)) summary.resource = summarizeResourceRecord(item.resource)
+  if (isRecord(summary) && isRecord(item?.LockedAssetSlot)) summary.locked_asset_slot = summarizeAssetRequirement(item.LockedAssetSlot)
+  if (isRecord(summary) && isRecord(item?.locked_asset_slot)) summary.locked_asset_slot = summarizeAssetRequirement(item.locked_asset_slot)
+  return summary
+}
+
+function summarizeAssetSlotCandidate(item: any): unknown {
+  const summary = summarizePickedFields(item, [
+    'ID',
+    'id',
+    'project_id',
+    'asset_slot_id',
+    'candidate_asset_slot_id',
+    'resource_id',
+    'source_type',
+    'source_id',
+    'score',
+    'status',
+    'note',
+    'CreatedAt',
+    'UpdatedAt',
+  ])
+  if (isRecord(summary) && isRecord(item?.CandidateAssetSlot)) summary.candidate_asset_slot = summarizeAssetRequirement(item.CandidateAssetSlot)
+  if (isRecord(summary) && isRecord(item?.candidate_asset_slot)) summary.candidate_asset_slot = summarizeAssetRequirement(item.candidate_asset_slot)
+  return summary
+}
+
+function summarizeProductionContextEntity(item: any): unknown {
+  return summarizePickedFields(item, [
+    'ID',
+    'id',
+    'project_id',
+    'production_id',
+    'segment_id',
+    'scene_moment_id',
+    'script_version_id',
+    'text_block_id',
+    'parent_block_id',
+    'preview_timeline_id',
+    'name',
+    'title',
+    'kind',
+    'source_type',
+    'order',
+    'summary',
+    'content',
+    'description',
+    'time_text',
+    'location_text',
+    'condition_text',
+    'action_text',
+    'mood',
+    'prompt',
+    'duration_sec',
+    'shot_size',
+    'camera_angle',
+    'camera_height',
+    'camera_motion',
+    'motion_intensity',
+    'camera_speed',
+    'lens',
+    'focal_length',
+    'focus_subject',
+    'composition_start',
+    'composition_end',
+    'stabilization',
+    'camera_notes',
+    'status',
+    'metadata_json',
+    'CreatedAt',
+    'UpdatedAt',
+  ])
+}
+
+function summarizeResourceRecord(item: Record<string, unknown>): unknown {
+  return summarizePickedFields(item, ['ID', 'id', 'name', 'filename', 'file_name', 'type', 'mime_type', 'url', 'URL', 'status', 'CreatedAt', 'UpdatedAt'])
+}
+
+function summarizePickedFields(item: any, fields: string[]): unknown {
+  if (!item || typeof item !== 'object') return item
+  const summary: Record<string, unknown> = {}
+  for (const key of fields) {
+    if (item[key] !== undefined) summary[key] = truncateLongText(item[key])
+  }
+  return summary
 }
 
 function summarizeScriptVersion(item: any): unknown {
