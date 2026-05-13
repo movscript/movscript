@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Production Proposal",
-  "description": "以本地审阅 patches 的形式起草 production 层 segment 和 scene-moment proposals。",
+  "description": "以本地审阅 patches 的形式起草 production 层 segment、scene-moment 和 production-ready gap proposals。",
   "priority": 860,
   "enabled": true,
   "triggers": [
@@ -23,6 +23,7 @@
   ],
   "toolRefs": [
     "tool://movscript_get_focus",
+    "tool://movscript_get_draft_model",
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",
     "tool://movscript_get_draft",

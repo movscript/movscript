@@ -562,14 +562,14 @@ test('HTTP task update cannot create duplicate subagent names', async () => {
     title: 'HTTP task subagent name boundary',
     createPlannerRun: false,
     tasks: [
-      { id: 'task_http_named_a', title: 'Named A', metadata: { executionMode: 'worker', subagentName: '爱因斯坦' } },
+      { id: 'task_http_named_a', title: 'Named A', metadata: { executionMode: 'worker', subagentName: 'Einstein' } },
       { id: 'task_http_named_b', title: 'Named B', metadata: { executionMode: 'worker' } },
     ],
   })
 
   const rejected = await dispatch(handler, 'PATCH', '/tasks/task_http_named_b', {
     metadata: {
-      subagentName: '爱因斯坦',
+      subagentName: 'Einstein',
       reviewOutcome: 'should_not_write',
     },
   })
@@ -582,11 +582,11 @@ test('HTTP task update cannot create duplicate subagent names', async () => {
 
   const accepted = await dispatch(handler, 'PATCH', '/tasks/task_http_named_b', {
     metadata: {
-      subagentName: '霍金',
+      subagentName: 'Hawking',
     },
   })
   assert.equal(accepted.statusCode, 200)
-  assert.equal(JSON.parse(accepted.body).metadata.subagentName, '霍金')
+  assert.equal(JSON.parse(accepted.body).metadata.subagentName, 'Hawking')
 })
 
 test('HTTP task update cannot corrupt the task graph', async () => {

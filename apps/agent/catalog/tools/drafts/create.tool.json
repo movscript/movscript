@@ -49,6 +49,11 @@
         "type": "object",
         "additionalProperties": true
       },
+      "seed": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "来自 DraftDomainModel/MCP 的 seed 契约或已 hydrate seed 摘要。创建修改类 proposal 时应记录 mode、include、modelRef、sourceVersions/hydratedAt。"
+      },
       "metadata": {
         "type": "object",
         "additionalProperties": true

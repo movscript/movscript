@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { AgentClientInput, AgentManifest, AgentRun, AgentRunPolicy, AgentThread } from '@/lib/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
@@ -138,7 +139,8 @@ function defaultConversationRuntime(conversationId: string): AgentConversationRu
 }
 
 export const useAgentSessionStore = create<AgentSessionStore>()(
-  (set, get) => ({
+  persist(
+    (set, get) => ({
       pageTasks: {},
       conversationRuntimes: {},
       localThreadIdsByConversation: {},
@@ -364,7 +366,68 @@ export const useAgentSessionStore = create<AgentSessionStore>()(
         }
       }),
     }),
+    {
+      name: 'agent-session-store-v2',
+      partialize: (state) => ({
+        localThreadIdsByConversation: state.localThreadIdsByConversation,
+        conversationRuntimes: Object.fromEntries(
+          Object.entries(state.conversationRuntimes)
+            .filter(([, runtime]) => runtime.threadId || runtime.runId)
+            .map(([conversationId, runtime]) => [conversationId, {
+              ...defaultConversationRuntime(conversationId),
+              threadId: runtime.threadId,
+              runId: runtime.runId,
+              status: runtime.status,
+              loading: false,
+              building: false,
+              approving: false,
+              stopping: false,
+              stopRequested: false,
+              error: undefined,
+              updatedAt: runtime.updatedAt,
+            }]),
+        ),
+      }),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<AgentSessionStore> | undefined
+        return {
+          ...currentState,
+          localThreadIdsByConversation: normalizeStringRecord(persisted?.localThreadIdsByConversation),
+          conversationRuntimes: normalizeConversationRuntimes(persisted?.conversationRuntimes),
+        }
+      },
+    },
+  ),
 )
+
+function normalizeStringRecord(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .flatMap(([key, item]) => typeof item === 'string' && item.trim() ? [[key, item]] : []),
+  )
+}
+
+function normalizeConversationRuntimes(value: unknown): Record<string, AgentConversationRuntimeState> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .flatMap(([conversationId, runtime]) => {
+        if (!runtime || typeof runtime !== 'object' || Array.isArray(runtime)) return []
+        const record = runtime as Record<string, unknown>
+        const threadId = typeof record.threadId === 'string' && record.threadId ? record.threadId : undefined
+        const runId = typeof record.runId === 'string' && record.runId ? record.runId : undefined
+        if (!threadId && !runId) return []
+        return [[conversationId, {
+          ...defaultConversationRuntime(conversationId),
+          ...(threadId ? { threadId } : {}),
+          ...(runId ? { runId } : {}),
+          ...(typeof record.status === 'string' ? { status: record.status } : {}),
+          updatedAt: typeof record.updatedAt === 'number' && Number.isFinite(record.updatedAt) ? record.updatedAt : Date.now(),
+        }]]
+      }),
+  )
+}
 
 function isRuntimeTerminalRun(run: AgentRun): boolean {
   return run.status === 'completed'

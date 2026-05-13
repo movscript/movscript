@@ -312,6 +312,9 @@ test('buildOpenAIChatTools exposes spawn_subagent dispatch controls', () => {
   assert.equal(parameters?.properties?.workerTimeoutMs?.type, 'number')
   assert.deepEqual(parameters?.properties?.subagentNames?.oneOf?.map((item: any) => item.type), ['array', 'object'])
   assert.equal(parameters?.properties?.subagentNames?.oneOf?.[1]?.additionalProperties?.type, 'string')
+  assert.match(parameters?.properties?.subagentName?.description ?? '', /Einstein/)
+  assert.match(parameters?.properties?.subagentName?.description ?? '', /Do not use generic names/)
+  assert.match(parameters?.properties?.taskIds?.description ?? '', /create_plan first/)
   const taskProperties = parameters?.properties?.tasks?.items?.properties
   assert.equal(taskProperties?.maxTaskAttempts?.type, 'number')
   assert.equal(taskProperties?.workerTimeoutMs?.type, 'number')
@@ -335,6 +338,7 @@ test('buildOpenAIChatTools exposes cancel_subagent pending task semantics', () =
   const [tool] = buildOpenAIChatTools(tools)
   const parameters = tool?.function.parameters as any
   assert.match(parameters?.properties?.subagentName?.description ?? '', /not-yet-started task/)
+  assert.match(parameters?.properties?.subagentName?.description ?? '', /exact name/)
   assert.match(parameters?.properties?.taskId?.description ?? '', /pending\/blocked\/needs_review task/)
 })
 
@@ -401,7 +405,9 @@ test('buildContext renders planner subagent workflow when runtime layers activat
       instruction: '',
       compiledInstruction: [
         '简单、单上下文任务由 planner 自己完成。',
+        '每个 worker 应显式使用短的人类可读英文 subagentName，例如 Einstein、Turing、Curie、Newton、Darwin。',
         '用 maxWorkers 控制并发，用 retryFailed 和 maxTaskAttempts 处理失败或取消的任务重试，用 workerTimeoutMs 取消过期 active workers。',
+        '不要用 worker、subagent 这种猜测名称。',
         'wait 返回 failed、cancelled、blocked 或 needs_review 时，根据返回的 target 和 snapshot 决定 replan。',
       ].join('\n'),
       activationReason: 'trigger',
@@ -418,6 +424,8 @@ test('buildContext renders planner subagent workflow when runtime layers activat
   assert.match(plannerPolicy?.content ?? '', /retryFailed/)
   assert.match(plannerPolicy?.content ?? '', /maxTaskAttempts/)
   assert.match(plannerPolicy?.content ?? '', /workerTimeoutMs/)
+  assert.match(plannerPolicy?.content ?? '', /Einstein/)
+  assert.match(plannerPolicy?.content ?? '', /不要用 worker/)
   assert.match(plannerPolicy?.content ?? '', /needs_review/)
   assert.ok(withPlannerIntent.systemMessages.some((message) => String(message.content).includes('Planner Subagents')))
 })
@@ -523,14 +531,14 @@ test('buildContext renders current plan and worker state for planner decisions',
         rootRunId: 'run_planner',
         tasks: [
           { id: 'task_a', title: 'Implement planner', status: 'done', progress: 1, deps: [] },
-          { id: 'task_b', subagentName: '爱因斯坦', title: 'Run worker', status: 'running', progress: 0.25, deps: ['task_a'], ownerRunId: 'run_worker' },
-          { id: 'task_c', subagentName: '爱因斯坦', title: 'Duplicate name', status: 'pending', progress: 0, deps: [] },
+          { id: 'task_b', subagentName: 'Einstein', title: 'Run worker', status: 'running', progress: 0.25, deps: ['task_a'], ownerRunId: 'run_worker' },
+          { id: 'task_c', subagentName: 'Einstein', title: 'Duplicate name', status: 'pending', progress: 0, deps: [] },
         ],
         workers: [
-          { id: 'run_worker', subagentName: '爱因斯坦', status: 'in_progress', taskId: 'task_b', parentRunId: 'run_planner', progress: 0.25 },
+          { id: 'run_worker', subagentName: 'Einstein', status: 'in_progress', taskId: 'task_b', parentRunId: 'run_planner', progress: 0.25 },
         ],
         nameConflicts: [
-          { subagentName: '爱因斯坦', taskIds: ['task_b', 'task_c'] },
+          { subagentName: 'Einstein', taskIds: ['task_b', 'task_c'] },
         ],
         summary: {
           taskCount: 3,
@@ -550,7 +558,7 @@ test('buildContext renders current plan and worker state for planner decisions',
             title: 'Manual rollback required',
             uri: 'agent-draft:draft_1',
             taskId: 'task_b',
-            subagentName: '爱因斯坦',
+            subagentName: 'Einstein',
             sourceRunId: 'run_worker',
             sourceTaskId: 'task_b',
             sourceTaskTitle: 'Run worker',
@@ -582,15 +590,15 @@ test('buildContext renders current plan and worker state for planner decisions',
   assert.match(built.systemPrompt, /Tasks: 3 \(pending=1, running=1, done=1\)/)
   assert.match(built.systemPrompt, /Workers: 1; active=1/)
   assert.match(built.systemPrompt, /Artifacts: 1; nameConflicts=1/)
-  assert.match(built.systemPrompt, /爱因斯坦: Run worker/)
+  assert.match(built.systemPrompt, /Einstein: Run worker/)
   assert.match(built.systemPrompt, /taskRef=task#task_b/)
   assert.match(built.systemPrompt, /#### Subagent Name Conflicts/)
-  assert.match(built.systemPrompt, /爱因斯坦: Run worker \(task#task_b; status=running; owner=run#run_worker; worker=in_progress\) \| Duplicate name \(task#task_c; status=pending\)/)
-  assert.match(built.systemPrompt, /爱因斯坦: in_progress/)
+  assert.match(built.systemPrompt, /Einstein: Run worker \(task#task_b; status=running; owner=run#run_worker; worker=in_progress\) \| Duplicate name \(task#task_c; status=pending\)/)
+  assert.match(built.systemPrompt, /Einstein: in_progress/)
   assert.match(built.systemPrompt, /runRef=run#run_worker/)
   assert.match(built.systemPrompt, /#### Plan Artifact References/)
   assert.match(built.systemPrompt, /Manual rollback required/)
-  assert.match(built.systemPrompt, /subagent=爱因斯坦/)
+  assert.match(built.systemPrompt, /subagent=Einstein/)
   assert.match(built.systemPrompt, /run=run#run_worker/)
   assert.match(built.systemPrompt, /sourceTitle=Run worker/)
   assert.match(built.systemPrompt, /sourceStatus=running/)

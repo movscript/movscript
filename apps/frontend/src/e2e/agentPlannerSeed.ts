@@ -26,7 +26,7 @@ export function buildPlannerAgentBootstrap(apiBaseURL: string): E2EBootstrapSeed
   const assistantMessage: ChatMessage = {
     id: 'message-assistant-planner-e2e',
     role: 'assistant',
-    content: '已创建计划，并派发爱因斯坦处理素材风险审计。',
+    content: '已创建计划，并派发Einstein处理素材风险审计。',
     timestamp: Date.parse('2026-05-12T09:00:10.000Z'),
   }
   const conversation: Conversation = {
@@ -120,7 +120,7 @@ export function workerRunFixture(): AgentRun {
       allowNetwork: false,
       allowFileBytes: false,
     },
-    metadata: { subagentName: '爱因斯坦' },
+    metadata: { subagentName: 'Einstein' },
     createdAt: '2026-05-12T09:00:04.000Z',
     updatedAt: '2026-05-12T09:00:18.000Z',
     startedAt: '2026-05-12T09:00:04.000Z',
@@ -145,7 +145,7 @@ export function approvalWorkerRunFixture(): AgentRun {
     status: 'requires_action',
     taskId: 'task_approval_review',
     progress: 0.35,
-    metadata: { subagentName: '霍金' },
+    metadata: { subagentName: 'Hawking' },
     pendingApprovals: [{
       id: 'approval_publish_assets',
       runId: APPROVAL_WORKER_RUN_ID,
@@ -170,7 +170,7 @@ export function inputWorkerRunFixture(): AgentRun {
     status: 'requires_action',
     taskId: 'task_input_review',
     progress: 0.2,
-    metadata: { subagentName: '图灵' },
+    metadata: { subagentName: 'Turing' },
     pendingInputRequests: [{
       id: 'input_asset_scope',
       runId: INPUT_WORKER_RUN_ID,
@@ -224,7 +224,7 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
           title: '素材风险摘要',
           uri: 'agent-artifact:artifact_einstein_risk',
           metadata: {
-            subagentName: '爱因斯坦',
+            subagentName: 'Einstein',
             sourceRunId: WORKER_RUN_ID,
             sourceTaskId: 'task_einstein_audit',
             toolName: 'movscript_review_assets',
@@ -233,7 +233,7 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
         }],
         metadata: {
           executionMode: 'worker',
-          subagentName: '爱因斯坦',
+          subagentName: 'Einstein',
           retryAttempt: 1,
           maxTaskAttempts: 2,
           workerTimeoutMs: 900000,
@@ -254,7 +254,7 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
         artifacts: [],
         metadata: {
           executionMode: 'worker',
-          subagentName: '霍金',
+          subagentName: 'Hawking',
         },
         createdAt: '2026-05-12T09:00:03.000Z',
         updatedAt: '2026-05-12T09:00:14.000Z',
@@ -272,7 +272,7 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
         artifacts: [],
         metadata: {
           executionMode: 'worker',
-          subagentName: '图灵',
+          subagentName: 'Turing',
         },
         createdAt: '2026-05-12T09:00:04.000Z',
         updatedAt: '2026-05-12T09:00:16.000Z',
@@ -323,7 +323,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
       kind: 'run',
       title: runId === WORKER_RUN_ID ? 'Worker started' : 'Planner started',
       status: 'started',
-      summary: runId === WORKER_RUN_ID ? '爱因斯坦开始素材风险审计。' : 'Planner started plan orchestration.',
+      summary: runId === WORKER_RUN_ID ? 'Einstein开始素材风险审计。' : 'Planner started plan orchestration.',
       createdAt: '2026-05-12T09:00:01.000Z',
     },
     {
@@ -333,10 +333,10 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
       title: runId === WORKER_RUN_ID ? 'Asset review tool call' : 'Subagent dispatch tool call',
       status: 'completed',
       toolName: runId === WORKER_RUN_ID ? 'movscript_review_assets' : 'movscript_spawn_subagent',
-      summary: runId === WORKER_RUN_ID ? 'Found missing hero visual coverage.' : 'Spawned worker 爱因斯坦.',
+      summary: runId === WORKER_RUN_ID ? 'Found missing hero visual coverage.' : 'Spawned worker Einstein.',
       data: runId === WORKER_RUN_ID
         ? { findings: ['missing_hero_visual'], artifactId: 'artifact_einstein_risk' }
-        : { subagentName: '爱因斯坦', taskId: 'task_einstein_audit' },
+        : { subagentName: 'Einstein', taskId: 'task_einstein_audit' },
       createdAt: '2026-05-12T09:00:08.000Z',
       completedAt: '2026-05-12T09:00:12.000Z',
     },

@@ -60,6 +60,7 @@ export interface CreateAgentDraftInput {
   content?: unknown
   source?: unknown
   target?: unknown
+  seed?: unknown
   createdByRunId?: string
   createdByThreadId?: string
   metadata?: unknown
@@ -161,6 +162,8 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
   createDraft(input: CreateAgentDraftInput): AgentDraft {
     const now = new Date().toISOString()
     const draftId = makeDraftId()
+    const metadata = normalizeMetadata(input.metadata)
+    const seed = normalizeDraftSeed(input.seed)
     const draft: AgentDraft = {
       id: draftId,
       filePath: this.getDraftFilePath(draftId),
@@ -173,7 +176,7 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
       ...(normalizeDraftTarget(input.target) ? { target: normalizeDraftTarget(input.target) } : {}),
       ...(input.createdByRunId ? { createdByRunId: input.createdByRunId } : {}),
       ...(input.createdByThreadId ? { createdByThreadId: input.createdByThreadId } : {}),
-      ...(normalizeMetadata(input.metadata) ? { metadata: normalizeMetadata(input.metadata) } : {}),
+      ...(metadata || seed ? { metadata: { ...(metadata ?? {}), ...(seed ? { seed } : {}) } } : {}),
       createdAt: now,
       updatedAt: now,
     }
@@ -530,6 +533,11 @@ function normalizeDraftTarget(value: unknown): AgentDraftTarget | undefined {
 function normalizeMetadata(value: unknown): Record<string, JSONValue> | undefined {
   if (!isRecord(value)) return undefined
   return clone(value) as Record<string, JSONValue>
+}
+
+function normalizeDraftSeed(value: unknown): JSONValue | undefined {
+  if (!isJSONValue(value)) return undefined
+  return clone(value)
 }
 
 function normalizePatchOps(value: unknown): AgentDraftPatchOp[] {

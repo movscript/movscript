@@ -41,20 +41,20 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(page.getByTestId('agent-plan-overview-stats')).toContainText('1 artifact')
   await expect(page.getByTestId('agent-plan-status-explanation')).toContainText('3 active workers')
   await expect(page.getByTestId('agent-plan-artifact-summary')).toContainText('素材风险摘要')
-  await expect(page.getByTestId('agent-plan-overview')).toContainText('爱因斯坦')
+  await expect(page.getByTestId('agent-plan-overview')).toContainText('Einstein')
 
   await page.goto(`/agent/runs/${PLANNER_RUN_ID}`)
-  await expect(page.getByTestId('agent-run-child-runs')).toContainText('爱因斯坦')
-  await expect(page.getByTestId('agent-run-child-runs')).toContainText('霍金')
-  await expect(page.getByTestId('agent-run-child-runs')).toContainText('图灵')
-  await page.getByTestId('agent-run-child-run').filter({ hasText: '爱因斯坦' }).click()
+  await expect(page.getByTestId('agent-run-child-runs')).toContainText('Einstein')
+  await expect(page.getByTestId('agent-run-child-runs')).toContainText('Hawking')
+  await expect(page.getByTestId('agent-run-child-runs')).toContainText('Turing')
+  await page.getByTestId('agent-run-child-run').filter({ hasText: 'Einstein' }).click()
   await expect(page).toHaveURL(new RegExp(`/agent/runs/${WORKER_RUN_ID}$`))
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
 
   await expect(page.getByTestId('agent-run-page')).toBeVisible()
   await expect(page.getByTestId('agent-run-header')).toContainText('Agent run')
-  await expect(page.getByTestId('agent-run-sidebar')).toContainText('爱因斯坦')
+  await expect(page.getByTestId('agent-run-sidebar')).toContainText('Einstein')
   await expect(page.getByTestId('agent-run-plan-context')).toContainText('Planner 调度 E2E')
   await expect(page.getByTestId('agent-run-plan-context')).toContainText('素材风险审计')
   await expect(page.getByTestId('agent-run-task-artifacts')).toContainText('素材风险摘要')
@@ -71,7 +71,7 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(page.getByTestId('agent-run-trace-event-details')).toContainText('artifact_einstein_risk')
 
   page.once('dialog', async (dialog) => {
-    expect(dialog.message()).toContain('爱因斯坦')
+    expect(dialog.message()).toContain('Einstein')
     await dialog.accept()
   })
   await page.getByTestId('agent-run-cancel-worker').click()
@@ -122,7 +122,7 @@ test('planner worker approval can be resolved from run detail', async ({ page },
   await mockPlannerAgentRuntime(page)
 
   await page.goto(`/agent/runs/${APPROVAL_WORKER_RUN_ID}`)
-  await expect(page.getByTestId('agent-run-sidebar')).toContainText('霍金')
+  await expect(page.getByTestId('agent-run-sidebar')).toContainText('Hawking')
   await expect(page.getByTestId('agent-run-pending-approval')).toContainText('movscript_publish_assets')
   await page.getByTestId('agent-run-approval-action').filter({ hasText: 'Approve' }).click()
   await expect(page.getByTestId('agent-run-header')).toContainText('in progress')
@@ -166,7 +166,7 @@ test('planner worker input can be answered from run detail', async ({ page }, te
   await mockPlannerAgentRuntime(page)
 
   await page.goto(`/agent/runs/${INPUT_WORKER_RUN_ID}`)
-  await expect(page.getByTestId('agent-run-sidebar')).toContainText('图灵')
+  await expect(page.getByTestId('agent-run-sidebar')).toContainText('Turing')
   await expect(page.getByTestId('agent-run-pending-input')).toContainText('确认素材范围')
   await page.getByRole('button', { name: /^包含占位素材/ }).click()
   await expect(page.getByTestId('agent-run-header')).toContainText('queued')

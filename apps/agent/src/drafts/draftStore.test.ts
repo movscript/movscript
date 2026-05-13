@@ -64,6 +64,33 @@ test('listDrafts filters by multiple statuses', () => {
   )
 })
 
+test('createDraft stores DraftDomainModel seed metadata', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    projectId: 42,
+    kind: 'project_proposal',
+    title: 'seeded project proposal',
+    content: '{}',
+    seed: {
+      mode: 'editable_snapshot',
+      include: ['project', 'creative_references'],
+      modelRef: 'frontend:DraftDomainModel:project_proposal:v1',
+      sourceVersions: { project: { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' } },
+    },
+    metadata: {
+      proposal: true,
+    },
+  })
+
+  assert.deepEqual(draft.metadata?.seed, {
+    mode: 'editable_snapshot',
+    include: ['project', 'creative_references'],
+    modelRef: 'frontend:DraftDomainModel:project_proposal:v1',
+    sourceVersions: { project: { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' } },
+  })
+  assert.equal(draft.metadata?.proposal, true)
+})
+
 test('read and edit draft files with unique text replacement', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({

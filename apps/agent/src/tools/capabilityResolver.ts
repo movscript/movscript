@@ -21,6 +21,7 @@ const BASE_RETRIEVAL_TOOLS = new Set([
   'movscript_get_focus',
   'movscript_list_projects',
   'movscript_read_project_scripts',
+  'movscript_get_draft_model',
   'movscript_list_drafts',
   'movscript_read_draft',
   'movscript_get_draft',

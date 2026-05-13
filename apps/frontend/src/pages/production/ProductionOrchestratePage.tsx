@@ -52,9 +52,9 @@ import { cn } from '@/lib/utils'
 import { translateApiError, type APIErrorBody } from '@/lib/apiError'
 import { listScriptVersions, type ScriptVersion } from '@/api/scriptVersions'
 import {
-  buildEmptyProjectProposalDraftContent,
-} from '@/lib/projectProposalDraft'
-import { PRODUCTION_PROPOSAL_DRAFT_SCHEMA } from '@/lib/productionProposalDraft'
+  buildEmptyProductionProposalDraftContent,
+  PRODUCTION_PROPOSAL_DRAFT_SCHEMA,
+} from '@/lib/productionProposalDraft'
 import { localAgentClient, type AgentDraft, type AgentRun, type AgentRunStep } from '@/lib/localAgentClient'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
@@ -552,8 +552,7 @@ export default function ProductionOrchestratePage() {
   const [proposalNodeDecisions, setProposalNodeDecisions] = useState<ProposalNodeDecisions>({})
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('structure')
   const [createSegmentId, setCreateSegmentId] = useState<number | null>(null)
-  const [generatedProjectProposalDraftId, setGeneratedProjectProposalDraftId] = useState<string | null>(null)
-  const [orchestrationStage, setOrchestrationStage] = useState<'idle' | 'project' | 'production'>('idle')
+  const [orchestrationStage, setOrchestrationStage] = useState<'idle' | 'production'>('idle')
   const orchestrationCleanupRef = useRef<(() => void) | null>(null)
 
   const queryKey = ['production-orchestrate', projectId] as const
@@ -656,11 +655,6 @@ export default function ProductionOrchestratePage() {
     }
   }, [proposalPreviewDraft])
   useEffect(() => {
-    if (openedProjectDraftQuery.data?.kind === 'project_proposal') {
-      setGeneratedProjectProposalDraftId(openedProjectDraftQuery.data.id)
-    }
-  }, [openedProjectDraftQuery.data])
-  useEffect(() => {
     if (openedProjectDraftId || openedDraftId) {
       setWorkspaceView('review')
     }
@@ -696,15 +690,6 @@ export default function ProductionOrchestratePage() {
       labels: ['production-orchestrate', 'production-orchestration'],
     }),
     [effectiveProductionId, projectId, selectedProduction],
-  )
-  const projectPageKey = useMemo(
-    () => buildPageKey({
-      route: { pathname: '/project-workspace' },
-      projectId,
-      selection: projectId ? { entityType: 'project', entityId: projectId, label: project?.name ?? `项目 #${projectId}` } : undefined,
-      labels: ['project-workspace', 'project-orchestration'],
-    }),
-    [project?.name, projectId],
   )
 
   function handleFilterChange(nextFilter: EntityFilter) {
@@ -908,24 +893,15 @@ export default function ProductionOrchestratePage() {
     setSearchParams(next, { replace: true })
   }
 
-  async function ensureDualProposalDrafts(target: AnalysisTarget) {
+  async function ensureProductionProposalDraft(target: AnalysisTarget) {
     if (!projectId || !effectiveProductionId) return null
     if (!canLaunchLinkedProposal) {
-      toast.error('请先绑定可用剧本后再发起双阶段提案。')
+      toast.error('请先绑定可用剧本后再发起制作提案。')
       return null
     }
 
-    const [explicitProjectDraft, explicitProductionDraft] = await Promise.all([
-      openedProjectDraftId ? localAgentClient.getDraft(openedProjectDraftId).catch(() => null) : Promise.resolve(null),
+    const [explicitProductionDraft, productionDraftQuery] = await Promise.all([
       openedDraftId ? localAgentClient.getDraft(openedDraftId).catch(() => null) : Promise.resolve(null),
-    ])
-    const [projectDraftQuery, productionDraftQuery] = await Promise.all([
-      localAgentClient.listDrafts({
-        projectId,
-        kind: 'project_proposal',
-        pageKey: projectPageKey,
-        limit: 20,
-      }),
       localAgentClient.listDrafts({
         projectId,
         kind: 'production_proposal',
@@ -934,60 +910,19 @@ export default function ProductionOrchestratePage() {
       }),
     ])
 
-    const existingProjectDraft = (explicitProjectDraft?.kind === 'project_proposal' && explicitProjectDraft.status !== 'superseded')
-      ? explicitProjectDraft
-      : (projectDraftQuery.drafts ?? []).find((draft) => draft.kind === 'project_proposal' && draft.status !== 'superseded')
     const existingProductionDraft = (explicitProductionDraft?.kind === 'production_proposal' && explicitProductionDraft.status !== 'superseded')
       ? explicitProductionDraft
       : (productionDraftQuery.drafts ?? []).find((draft) => draft.kind === 'production_proposal' && draft.status !== 'superseded')
-
-    const projectDraft = existingProjectDraft ?? await localAgentClient.createDraft({
-      projectId,
-      kind: 'project_proposal',
-      title: `项目提案草稿 - ${project?.name ?? `#${projectId}`}`,
-      content: JSON.stringify(buildEmptyProjectProposalDraftContent({
-        projectId,
-        productionId: effectiveProductionId,
-        createdAt: new Date().toISOString(),
-      }), null, 2),
-      source: {
-        entityType: 'project',
-        entityId: projectId,
-        pageKey: projectPageKey,
-        pageType: 'project_proposal',
-        pageRoute: '/project-workspace',
-        selection: {
-          entityType: 'project',
-          entityId: projectId,
-          label: project?.name ?? `项目 #${projectId}`,
-        },
-      },
-      target: {
-        projectId,
-        entityType: 'project',
-        entityId: projectId,
-        field: 'proposal',
-      },
-      metadata: {
-        pageOwned: true,
-        proposalScope: 'project',
-        productionId: effectiveProductionId,
-        sourceProductionId: effectiveProductionId,
-      },
-    })
 
     const productionDraft = existingProductionDraft ?? await localAgentClient.createDraft({
       projectId,
       kind: 'production_proposal',
       title: `制作提案草稿 - ${selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}`,
-      content: JSON.stringify({
-        schema: PRODUCTION_PROPOSAL_DRAFT_SCHEMA,
+      content: JSON.stringify(buildEmptyProductionProposalDraftContent({
+        projectId,
         productionId: effectiveProductionId,
-        proposalScope: 'production',
-        proposal: { segments: [] },
         proposedAt: new Date().toISOString(),
-        projectDraftId: projectDraft.id,
-      }, null, 2),
+      }), null, 2),
       source: {
         entityType: 'production',
         entityId: effectiveProductionId,
@@ -1010,26 +945,29 @@ export default function ProductionOrchestratePage() {
         pageOwned: true,
         proposalScope: 'production',
         productionId: effectiveProductionId,
-        projectDraftId: projectDraft.id,
+        seed: buildProductionDraftSeedMetadata({
+          projectId,
+          production: selectedProduction,
+          scriptVersion: selectedScriptVersion,
+          projectScripts: scriptVersions,
+          modelRef: 'frontend:DraftDomainModel:production_proposal:v1',
+        }),
       },
     })
 
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
-      next.set('projectDraftId', projectDraft.id)
       next.set('draftId', productionDraft.id)
       next.set('productionId', String(effectiveProductionId))
       return next
     }, { replace: true })
 
-    setGeneratedProjectProposalDraftId(projectDraft.id)
     setWorkspaceView('review')
-    setOrchestrationStage('project')
-    return { projectDraft, productionDraft, target }
+    return { productionDraft, target }
   }
 
   async function handleAnalyzeTarget(target: AnalysisTarget) {
-    const drafts = await ensureDualProposalDrafts(target)
+    const drafts = await ensureProductionProposalDraft(target)
     if (!drafts) return
 
     const requestId = `production_orchestrate_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -1058,17 +996,17 @@ export default function ProductionOrchestratePage() {
 
     openAgentPanelDraft({
       requestId,
-      taskType: 'dual_orchestration',
-      message: `请同步生成项目提案和制作提案：${selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}`,
-      title: `双阶段提案: ${selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}`,
+      taskType: 'production_proposal',
+      message: `请生成制作提案：${selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}`,
+      title: `制作提案: ${selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}`,
       newConversation: true,
       autoSend: true,
       projectId,
       clientInput: buildCommandFirstClientInput({
         message: target.scope === 'segmentAnalysis' && target.entityId
-          ? `请围绕当前选中的编排段 #${target.entityId} 完成双阶段提案。`
-          : '请先完成项目提案，再继续生成制作提案。',
-        labels: ['production-orchestrate', 'project-orchestration', 'production-orchestration', 'draft-application'],
+          ? `请围绕当前选中的编排段 #${target.entityId} 生成 production_proposal。若发现必须引用但不存在的项目级对象，先转去整理 project_proposal draft。`
+          : '请基于当前 production snapshot 生成 production_proposal。若发现必须引用但不存在的项目级对象，先转去整理 project_proposal draft。',
+        labels: ['production-orchestrate', 'production-orchestration', 'draft-application'],
         hints: {
           projectId,
           productionId: effectiveProductionId,
@@ -1388,12 +1326,12 @@ export default function ProductionOrchestratePage() {
                   <div className="flex items-center gap-2">
                     {orchestrationStage !== 'idle' && (
                       <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">
-                        {orchestrationStage === 'project' ? '先生成项目提案' : '生成制作提案'}
+                        生成制作提案
                       </Badge>
                     )}
                     <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleAnalyzeTarget({ scope: 'production' })} disabled={!projectId || !effectiveProductionId}>
                       <Wand2 size={13} />
-                      生成双提案
+                      生成制作提案
                     </Button>
                   </div>
                 </div>
@@ -2765,7 +2703,7 @@ function ProjectProposalReviewSummary({
         </div>
       ) : (
         <div className="mt-3 rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-          还没有项目提案草稿。点击“生成双提案”后，这里会先显示项目级草稿，再继续生成制作草稿。
+          还没有项目提案草稿。生成制作提案时，如果 agent 发现必须补齐项目级对象，这里会显示对应项目草稿。
         </div>
       )}
     </section>
@@ -4103,6 +4041,62 @@ function buildProductionCurrentOverview(input: {
     primaryActionLabel: input.scriptVersion ? '审阅制作提案' : '绑定剧本',
     primaryActionIcon: input.scriptVersion ? Wand2 : ScrollText,
   }
+}
+
+function buildProductionDraftSeedMetadata(input: {
+  projectId: number
+  production?: (SemanticEntityRecord & { script_version_id?: number; name?: string }) | null
+  scriptVersion?: ScriptVersion | null
+  projectScripts: ScriptVersion[]
+  modelRef: string
+}) {
+  const body = (input.scriptVersion?.content || input.scriptVersion?.raw_source || '').trim()
+  return {
+    mode: 'snapshot',
+    include: ['production', 'production_script_brief', 'project_scripts'],
+    hydrated: true,
+    hydratedAt: new Date().toISOString(),
+    modelRef: input.modelRef,
+    data: {
+      production: input.production ? summarizeDraftSeedEntity(input.production) : null,
+      production_script_brief: {
+        productionId: input.production?.ID,
+        scriptVersionId: input.scriptVersion?.ID,
+        scriptVersionTitle: input.scriptVersion?.title,
+        scriptVersionUpdatedAt: input.scriptVersion?.UpdatedAt,
+        brief: input.production?.description || input.scriptVersion?.summary || '',
+        body_length: body.length,
+      },
+      project_scripts: input.projectScripts.map((script) => ({
+        ID: script.ID,
+        project_id: script.project_id,
+        script_id: script.script_id,
+        title: script.title,
+        source_type: script.source_type,
+        summary: script.summary,
+        status: script.status,
+        UpdatedAt: script.UpdatedAt,
+      })),
+    },
+    sourceVersions: {
+      production: input.production ? { id: input.production.ID, updatedAt: input.production.UpdatedAt } : null,
+      production_script_brief: input.scriptVersion ? { id: input.scriptVersion.ID, updatedAt: input.scriptVersion.UpdatedAt } : null,
+      project_scripts: input.projectScripts.map((script) => ({ id: script.ID, updatedAt: script.UpdatedAt })),
+    },
+    target: {
+      projectId: input.projectId,
+      entityType: 'production',
+      entityId: input.production?.ID,
+    },
+  }
+}
+
+function summarizeDraftSeedEntity(record: SemanticEntityRecord): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const key of ['ID', 'project_id', 'script_version_id', 'name', 'title', 'description', 'status', 'source_type', 'UpdatedAt']) {
+    if (record[key] !== undefined) out[key] = record[key]
+  }
+  return out
 }
 
 

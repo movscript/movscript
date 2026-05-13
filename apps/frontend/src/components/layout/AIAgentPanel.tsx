@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 import {
   AtSign, Bot, ChevronRight, Send, Loader2,
-  Plus, ArrowLeft, Copy, Check, X, ClipboardCheck, CircleStop,
+  Plus, Copy, Check, X, ClipboardCheck, CircleStop,
   Image, Video, FileText, Mic, File, Workflow,
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
   Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
@@ -29,7 +29,7 @@ import {
   formatLocalAgentAssistantContent,
   LocalAgentWorkflowPanel,
 } from '@/components/agent/localRuntime'
-import { extractAgentTaskArtifacts } from '@/lib/agentArtifacts'
+import { extractAgentTaskArtifacts, type AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 import {
   canStartLocalAgentFromClient,
   localAgentClient,
@@ -53,9 +53,11 @@ import {
   type AgentRunStreamEvent,
   type AgentRunTraceSummary,
   type AgentTraceEvent,
+  type AgentThread as LocalAgentThread,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
 import { actionableRunForPlan, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, plannerRunIdForPlanAction, shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
+import { buildDraftReviewPath } from '@/lib/draftDomainModel'
 import {
   AgentBody,
   AgentChatMessage,
@@ -674,6 +676,7 @@ async function assistantResultPayloadForRun(run: AgentRun, liveEvents: ChatRunAc
   const generationParamAudits = generationParamAuditsFromRun(run)
   const generationValidationErrors = generationValidationErrorsFromRun(run)
   const contextDiagnostic = contextDiagnosticFromRun(run)
+  const draftArtifacts = extractAgentTaskArtifacts(run)
   return {
     ...withGeneratedAttachments(attachments),
     meta: {
@@ -683,6 +686,7 @@ async function assistantResultPayloadForRun(run: AgentRun, liveEvents: ChatRunAc
       ...(generationJobs.length > 0 ? { generationJobs } : {}),
       ...(generationParamAudits.length > 0 ? { generationParamAudits } : {}),
       ...(generationValidationErrors.length > 0 ? { generationValidationErrors } : {}),
+      ...(draftArtifacts.length > 0 ? { draftArtifacts } : {}),
     },
   }
 }
@@ -794,7 +798,7 @@ interface AgentSendDraft {
   httpRequests: DebugHttpRequest[]
   localRuntime?: {
     threadId?: string
-    title: string
+    title?: string
     projectId?: number
     clientInput?: AgentClientInput
     agentManifest?: AgentManifest
@@ -1284,7 +1288,7 @@ function AgentDebugPreviewDialog({
                 )}
                 {pendingApprovals.length > 0 ? (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2">
-                    <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">{t('agents.chat.panel.workflow.approvalRequired')}</div>
+                    <div className="mb-1 font-medium text-amber-800 dark:text-amber-300">{t('agents.chat.workflow.approvalRequired')}</div>
                     <div className="space-y-1">
                       {pendingApprovals.map((approval) => (
                         <div key={approval.id} className="rounded border border-amber-500/20 bg-background/60 p-2">
@@ -1449,6 +1453,10 @@ interface PageContextSummary {
   labels: string[]
 }
 
+const EMPTY_PAGE_CONTEXT_SUMMARY: PageContextSummary = {
+  labels: [],
+}
+
 function PageContextPanel({
   context,
 }: {
@@ -1497,6 +1505,63 @@ function PageContextPanel({
   )
 }
 
+function AgentRuntimeContextPanel({
+  context,
+  emptyText,
+}: {
+  context?: AgentRunPreview['context']
+  emptyText: string
+}) {
+  const { t } = useTranslation()
+  if (!context) {
+    return (
+      <p className="text-[10px] leading-relaxed text-muted-foreground">
+        {emptyText}
+      </p>
+    )
+  }
+  const route = [context.route.pathname, context.route.search ?? '', context.route.hash ?? ''].join('')
+  const rows = [
+    route ? { label: t('agents.chat.panel.pageContext.route'), value: route } : null,
+    context.selection?.label ? { label: t('agents.chat.panel.pageContext.selection'), value: context.selection.label } : null,
+    context.projectsError ? { label: 'Projects', value: context.projectsError } : null,
+    ...(context.statusDigest ?? []).slice(0, 3).map((value, index) => ({ label: `Status ${index + 1}`, value })),
+    ...(context.rawContextHints ?? []).slice(0, 3).map((value, index) => ({ label: `Hint ${index + 1}`, value })),
+  ].filter(Boolean) as Array<{ label: string; value: string }>
+
+  return (
+    <div className="rounded-md border border-border bg-background/60 p-2 space-y-2">
+      <div className="grid gap-2 text-[11px] md:grid-cols-3">
+        <DebugSummaryItem label={t('agents.chat.panel.context.project')} value={context.project ? `${context.project.name ?? `#${context.project.id}`}` : t('common.emptyTitle')} />
+        <DebugSummaryItem label={t('agents.chat.panel.context.resources')} value={String(context.recentResources.length)} />
+        <DebugSummaryItem label={t('agents.chat.panel.context.attachments')} value={String(context.attachments.length)} />
+      </div>
+      <div className="grid gap-2 text-[11px] md:grid-cols-3">
+        <DebugSummaryItem label={t('agents.chat.panel.status.thread')} value={context.productionId !== undefined ? `production #${context.productionId}` : t('agents.chat.panel.pageContext.none')} />
+        <DebugSummaryItem label="Projects" value={String(context.projects?.length ?? 0)} />
+        <DebugSummaryItem label="Memories" value={String(context.memories.length)} />
+      </div>
+      {rows.length > 0 && (
+        <div className="space-y-1">
+          {rows.map((row) => (
+            <div key={`${row.label}-${row.value}`} className="grid grid-cols-[76px_minmax(0,1fr)] gap-2 rounded border border-border/60 bg-muted/20 px-2 py-1 text-[10px]">
+              <span className="text-muted-foreground">{row.label}</span>
+              <span className="truncate font-mono text-foreground" title={row.value}>{row.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {context.labels.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {context.labels.map((label) => (
+            <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{label}</Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function formatPageEntityLabel(context: PageContextSummary, t: ReturnType<typeof useTranslation>['t']) {
   const type = context.pageEntityType ?? context.selectionEntityType
   const id = context.pageEntityId ?? context.selectionEntityId
@@ -1505,58 +1570,103 @@ function formatPageEntityLabel(context: PageContextSummary, t: ReturnType<typeof
   return id === undefined ? type : `${type} #${id}`
 }
 
-function buildPageContextSummary(input: {
-  clientInput?: AgentClientInput
-  projectId?: number
-  fallbackProjectId?: number
-  fallbackLabels?: string[]
-}): PageContextSummary {
-  const uiSnapshot = isRecord(input.clientInput?.uiSnapshot) ? input.clientInput.uiSnapshot : undefined
-  const pageContext = isRecord(uiSnapshot?.pageContext) ? uiSnapshot.pageContext : undefined
-  const project = isRecord(uiSnapshot?.project) ? uiSnapshot.project : undefined
-  const selection = isRecord(uiSnapshot?.selection) ? uiSnapshot.selection : undefined
-  const route = isRecord(uiSnapshot?.route) ? uiSnapshot.route : undefined
-  const labels = Array.isArray(uiSnapshot?.labels)
-    ? uiSnapshot.labels.filter((label): label is string => typeof label === 'string' && !!label.trim())
-    : input.fallbackLabels ?? []
-  const projectId = numberValue(input.projectId ?? project?.id ?? input.fallbackProjectId)
-  const productionId = numberValue(uiSnapshot?.productionId)
-  const routeLike = {
-    pathname: stringValue(route?.pathname),
-    search: stringValue(route?.search),
-    hash: stringValue(route?.hash),
+function pageContextFromAgentContext(context?: AgentRunPreview['context']): PageContextSummary | undefined {
+  if (!context) return undefined
+  const route = {
+    pathname: context.route.pathname,
+    search: context.route.search,
+    hash: context.route.hash,
   }
-  const synthesizedPageContext = pageContext
-    ? undefined
-    : buildPageContext({
-      route: routeLike.pathname || routeLike.search || routeLike.hash ? routeLike : undefined,
-      projectId,
-      productionId,
-      draftId: stringValue(uiSnapshot?.draftId),
-      selection: selection
-        ? {
-          entityType: stringValue(selection.entityType),
-          entityId: stringValue(selection.entityId) ?? numberValue(selection.entityId),
-          label: stringValue(selection.label),
-        }
-        : undefined,
-      labels,
-    })
-
-  const resolvedPageContext = pageContext ?? synthesizedPageContext
+  const pageContext = buildPageContext({
+    route,
+    projectId: context.project?.id,
+    productionId: context.productionId,
+    selection: context.selection,
+    labels: context.labels,
+  })
   return {
-    pageKey: stringValue(resolvedPageContext?.pageKey),
-    pageType: stringValue(resolvedPageContext?.pageType),
-    pageRoute: stringValue(resolvedPageContext?.pageRoute),
-    pageEntityType: stringValue(resolvedPageContext?.pageEntityType),
-    pageEntityId: stringValue(resolvedPageContext?.pageEntityId) ?? numberValue(resolvedPageContext?.pageEntityId),
-    draftId: stringValue(resolvedPageContext?.draftId ?? uiSnapshot?.draftId),
-    ...(projectId !== undefined ? { projectId } : {}),
-    ...(productionId !== undefined ? { productionId } : {}),
-    selectionLabel: stringValue(selection?.label),
-    selectionEntityType: stringValue(selection?.entityType),
-    selectionEntityId: stringValue(selection?.entityId) ?? numberValue(selection?.entityId),
-    labels,
+    pageKey: pageContext?.pageKey,
+    pageType: pageContext?.pageType,
+    pageRoute: pageContext?.pageRoute,
+    pageEntityType: pageContext?.pageEntityType,
+    pageEntityId: pageContext?.pageEntityId,
+    draftId: pageContext?.draftId,
+    ...(context.project?.id !== undefined ? { projectId: context.project.id } : {}),
+    ...(context.productionId !== undefined ? { productionId: context.productionId } : {}),
+    selectionLabel: context.selection?.label,
+    selectionEntityType: context.selection?.entityType,
+    selectionEntityId: context.selection?.entityId,
+    labels: context.labels,
+  }
+}
+
+function agentContextFromRun(run: AgentRun | null | undefined): AgentRunPreview['context'] | undefined {
+  const context = isRecord(run?.metadata?.context) ? run.metadata.context : undefined
+  if (!context) return undefined
+  const route = isRecord(context.route) ? context.route : undefined
+  const pathname = stringValue(route?.pathname) ?? '/'
+  const recentResources = Array.isArray(context.recentResources)
+    ? context.recentResources.filter(isRecord).map((resource) => ({
+      id: numberValue(resource.id) ?? numberValue(resource.ID) ?? 0,
+      name: stringValue(resource.name) ?? '',
+      type: stringValue(resource.type) ?? '',
+      ...(stringValue(resource.mimeType ?? resource.mime_type) ? { mimeType: stringValue(resource.mimeType ?? resource.mime_type) } : {}),
+      ...(numberValue(resource.size) !== undefined ? { size: numberValue(resource.size) } : {}),
+    })).filter((resource) => resource.id > 0 && resource.name && resource.type)
+    : []
+  const attachments = Array.isArray(context.attachments)
+    ? context.attachments.filter(isRecord).map((attachment) => ({
+      id: stringValue(attachment.id) ?? '',
+      name: stringValue(attachment.name) ?? '',
+      type: stringValue(attachment.type) ?? 'file',
+      ...(numberValue(attachment.resourceId) !== undefined ? { resourceId: numberValue(attachment.resourceId) } : {}),
+    })).filter((attachment) => attachment.id && attachment.name)
+    : []
+  const memories = Array.isArray(context.memories)
+    ? context.memories.filter(isRecord).map((memory) => ({
+      id: stringValue(memory.id) ?? '',
+      scope: stringValue(memory.scope) ?? (numberValue(memory.projectId) !== undefined ? 'project' : 'global'),
+      kind: stringValue(memory.kind) ?? '',
+      content: stringValue(memory.content) ?? '',
+    })).filter((memory) => memory.id && memory.kind)
+    : []
+  const selection = isRecord(context.selection)
+    ? {
+      entityType: stringValue(context.selection.entityType) ?? '',
+      entityId: stringValue(context.selection.entityId) ?? numberValue(context.selection.entityId) ?? '',
+      ...(stringValue(context.selection.label) ? { label: stringValue(context.selection.label) } : {}),
+    }
+    : null
+  return {
+    route: {
+      pathname,
+      ...(stringValue(route?.search) ? { search: stringValue(route?.search) } : {}),
+      ...(stringValue(route?.hash) ? { hash: stringValue(route?.hash) } : {}),
+    },
+    ...(Array.isArray(context.projects) ? { projects: context.projects.filter(isRecord).map((project) => ({
+      id: numberValue(project.id) ?? 0,
+      name: stringValue(project.name) ?? '',
+      ...(stringValue(project.description) ? { description: stringValue(project.description) } : {}),
+      ...(stringValue(project.status) ? { status: stringValue(project.status) } : {}),
+      ...(numberValue(project.totalEpisodes) !== undefined ? { totalEpisodes: numberValue(project.totalEpisodes) } : {}),
+    })).filter((project) => project.id > 0 && project.name) } : {}),
+    ...(stringValue(context.projectsError) ? { projectsError: stringValue(context.projectsError) } : {}),
+    ...(isRecord(context.project) && numberValue(context.project.id) !== undefined ? {
+      project: {
+        id: numberValue(context.project.id) as number,
+        ...(stringValue(context.project.name) ? { name: stringValue(context.project.name) } : {}),
+        ...(stringValue(context.project.status) ? { status: stringValue(context.project.status) } : {}),
+        ...(stringValue(context.project.description) ? { description: stringValue(context.project.description) } : {}),
+      },
+    } : {}),
+    ...(numberValue(context.productionId) !== undefined ? { productionId: numberValue(context.productionId) } : {}),
+    selection: selection && selection.entityType && selection.entityId !== '' ? selection : null,
+    recentResources,
+    attachments,
+    memories,
+    labels: Array.isArray(context.labels) ? context.labels.filter((label): label is string => typeof label === 'string' && !!label.trim()) : [],
+    ...(Array.isArray(context.statusDigest) ? { statusDigest: context.statusDigest.filter((item): item is string => typeof item === 'string') } : {}),
+    ...(Array.isArray(context.rawContextHints) ? { rawContextHints: context.rawContextHints.filter((item): item is string => typeof item === 'string') } : {}),
   }
 }
 
@@ -3053,6 +3163,7 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
       {!isUser && <GenerationValidationErrorCard errors={msg.meta?.generationValidationErrors} />}
       {!isUser && <GenerationParamAuditCard audits={msg.meta?.generationParamAudits} />}
       {!isUser && <GenerationJobSummaryCard jobs={msg.meta?.generationJobs} />}
+      {!isUser && <AgentDraftResultCards artifacts={msg.meta?.draftArtifacts} />}
       {!isUser && msg.meta?.localRunActivity && (
         <RunActivityTitleBubble
           activity={msg.meta.localRunActivity}
@@ -3152,52 +3263,106 @@ function draftStatusVariant(status: AgentDraftStatus): 'secondary' | 'success' |
   return 'outline'
 }
 
-function buildDraftOpenPath(draft: AgentDraft): string | null {
-  const source = isRecord(draft.source) ? draft.source : undefined
-  const target = isRecord(draft.target) ? draft.target : undefined
-  const sourceEntityType = source ? stringValue(source.entityType) : undefined
-  const targetEntityType = target ? stringValue(target.entityType) : undefined
-  const sourceEntityId = source ? numberValue(source.entityId) : undefined
-  const targetEntityId = target ? numberValue(target.entityId) : undefined
+function AgentDraftResultCards({ artifacts }: { artifacts?: AgentTaskArtifactRef[] }) {
+  const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
+  const draftIds = useMemo(() => Array.from(new Set((artifacts ?? []).map((artifact) => artifact.draftId).filter(Boolean))), [artifacts])
+  const artifactsById = useMemo(() => {
+    const map = new Map<string, AgentTaskArtifactRef>()
+    for (const artifact of artifacts ?? []) map.set(artifact.draftId, artifact)
+    return map
+  }, [artifacts])
+  const draftsQuery = useQuery({
+    queryKey: ['agent-message-draft-artifacts', localAgentClient.baseURL, draftIds],
+    queryFn: async () => Promise.all(draftIds.map(async (draftId) => {
+      try {
+        return await localAgentClient.getDraft(draftId)
+      } catch {
+        return null
+      }
+    })),
+    enabled: draftIds.length > 0,
+    staleTime: 5_000,
+    retry: false,
+  })
+  if (draftIds.length === 0) return null
 
-  if (draft.kind === 'script_split_proposal') {
-    return `/workbench/script?draftId=${encodeURIComponent(draft.id)}`
+  const draftsById = new Map((draftsQuery.data ?? []).filter((draft): draft is AgentDraft => !!draft).map((draft) => [draft.id, draft]))
+  const draftCards = dedupeDraftResultCards(draftIds, artifactsById, draftsById)
+
+  return (
+    <div className="mt-2 space-y-1.5">
+      {draftCards.map(({ draftId, artifact, draft }) => {
+        const title = draft?.title ?? artifact?.title ?? draftId
+        const kind = draft?.kind ?? artifact?.draftKind
+        const updatedAt = draft?.updatedAt ?? artifact?.updatedAt
+        const openPath = draft ? buildDraftReviewPath(draft) : null
+        return (
+          <div key={draftId} className="rounded-md border border-border bg-background/70 px-2.5 py-2 text-xs">
+            <div className="flex min-w-0 items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+                  <ClipboardCheck size={12} />
+                  <span className="truncate">{title}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[9px] text-muted-foreground">
+                  {kind && <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.kinds.${kind}`)}</Badge>}
+                  {draft?.status && <Badge variant={draftStatusVariant(draft.status)} className="text-[9px] leading-4 px-1.5 py-0">{t(`agents.chat.drafts.status.${draft.status}`)}</Badge>}
+                  {updatedAt && <span>{formatAgentDate(updatedAt, locale)}</span>}
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                className="h-6 shrink-0 px-1.5 text-[10px]"
+                disabled={draftsQuery.isLoading && !draft}
+                onClick={() => navigate(openPath ?? '/agent/drafts')}
+              >
+                <Route size={10} />
+                {openPath ? t('agents.chat.panel.drafts.openPage') : t('agents.chat.panel.drafts.history')}
+              </Button>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function dedupeDraftResultCards(
+  draftIds: string[],
+  artifactsById: Map<string, AgentTaskArtifactRef>,
+  draftsById: Map<string, AgentDraft>,
+): Array<{ draftId: string; artifact?: AgentTaskArtifactRef; draft?: AgentDraft }> {
+  const cards: Array<{ draftId: string; artifact?: AgentTaskArtifactRef; draft?: AgentDraft }> = []
+  const seen = new Set<string>()
+  for (const draftId of draftIds) {
+    const artifact = artifactsById.get(draftId)
+    const draft = draftsById.get(draftId)
+    const key = draft ? `draft:${draft.id}` : fallbackDraftCardKey(draftId, artifact)
+    if (seen.has(key)) continue
+    seen.add(key)
+    cards.push({ draftId: draft?.id ?? draftId, artifact, draft })
   }
+  return cards
+}
 
-  if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
-    return `/project-workspace?draftId=${encodeURIComponent(draft.id)}`
+function fallbackDraftCardKey(draftId: string, artifact?: AgentTaskArtifactRef) {
+  if (artifact?.draftKind || artifact?.title || artifact?.sourceRunId || artifact?.sourceThreadId) {
+    return [
+      'artifact',
+      artifact?.draftKind ?? '',
+      artifact?.title ?? '',
+      artifact?.sourceRunId ?? '',
+      artifact?.sourceThreadId ?? '',
+    ].join(':')
   }
-
-  if (draft.kind === 'asset_proposal' || sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
-    const assetSlotId = sourceEntityId ?? targetEntityId
-    const params = new URLSearchParams({ draftId: draft.id })
-    if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
-    return `/asset-slots?${params.toString()}`
-  }
-
-  const productionId = sourceEntityId ?? targetEntityId
-  const productionRelatedKinds: AgentDraft['kind'][] = [
-    'production_proposal',
-    'pipeline',
-    'segment',
-    'scene_moment',
-    'content_unit',
-    'asset_slot',
-    'storyboard_line',
-  ]
-  if (
-    productionId !== undefined
-    && (
-      draft.kind === 'production_proposal'
-      || sourceEntityType === 'production'
-      || targetEntityType === 'production'
-      || productionRelatedKinds.includes(draft.kind)
-    )
-  ) {
-    return `/production-orchestrate?productionId=${productionId}&draftId=${encodeURIComponent(draft.id)}`
-  }
-
-  return null
+  return [
+    'artifact',
+    draftId,
+  ].join(':')
 }
 
 function diffRows(currentValue: unknown, proposedValue: unknown) {
@@ -3442,9 +3607,13 @@ function ConversationContextPanel({
   const skills = inspect?.skills ?? []
   const tools = useMemo<ConversationContextTool[]>(() => capabilities?.resolvedTools.available ?? inspect?.registeredTools ?? [], [capabilities?.resolvedTools.available, inspect?.registeredTools])
   const activeManifest = (config.enabled ? config.manifest : inspect?.defaultAgentManifest) ?? null
-  const activeSkillIds = new Set((activeManifest?.skills ?? []).filter((skill) => skill.enabled !== false).map((skill) => skill.id))
+  const activeSkillIds = config.enabled
+    ? new Set((activeManifest?.skills ?? []).filter((skill) => skill.enabled !== false).map((skill) => skill.id))
+    : null
   const activeToolNames = new Set((activeManifest?.tools ?? []).filter((grant) => grant.mode !== 'deny').map((grant) => grant.name))
-  const activeSkills = skills.filter((skill) => activeSkillIds.has(skill.id))
+  const activeSkills = activeSkillIds
+    ? skills.filter((skill) => activeSkillIds.has(skill.id))
+    : skills.filter((skill) => skill.enabled !== false)
   const activeTools = tools.filter((tool) => activeToolNames.has(tool.name))
 
   return (
@@ -3789,7 +3958,7 @@ function DraftPanel({
   })
   const drafts = draftsQuery.data ?? []
   const selectedDraft = drafts.find((draft) => draft.id === selectedId) ?? drafts[0] ?? null
-  const openDraftPath = useMemo(() => (selectedDraft ? buildDraftOpenPath(selectedDraft) : null), [selectedDraft])
+  const openDraftPath = useMemo(() => (selectedDraft ? buildDraftReviewPath(selectedDraft) : null), [selectedDraft])
 
   useEffect(() => {
     if (!selectedDraft) {
@@ -4061,15 +4230,25 @@ function ProjectRequirementPanel({
 
 function ChatView({
   conv,
+  conversations,
   userId,
   onBack,
+  onCollapse,
+  onSelectConversation,
+  onNewConversation,
+  onCloseConversation,
   externalTask,
   pageToolRequestId,
   onExternalDraftConsumed,
 }: {
   conv: Conversation
+  conversations: Conversation[]
   userId: string
   onBack: () => void
+  onCollapse: () => void
+  onSelectConversation: (id: string) => void
+  onNewConversation: () => void
+  onCloseConversation: (id: string) => void
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
   onExternalDraftConsumed?: () => void
@@ -4085,7 +4264,6 @@ function ChatView({
   } = useAgentStore()
   const qc = useQueryClient()
   const currentProject = useProjectStore((s) => s.current)
-  const setCurrentProject = useProjectStore((s) => s.setCurrent)
   const conversationRuntime = useAgentSessionStore((s) => s.conversationRuntimes[conv.id] ?? null)
   const localThreadId = useAgentSessionStore((s) => s.localThreadIdsByConversation[conv.id] ?? '')
   const setConversationRuntime = useAgentSessionStore((s) => s.setConversationRuntime)
@@ -4093,10 +4271,6 @@ function ChatView({
   const setLocalThreadId = useAgentSessionStore((s) => s.setLocalThreadId)
   const attachPageTaskConversation = useAgentSessionStore((s) => s.attachPageTaskConversation)
   const setPageTaskRunning = useAgentSessionStore((s) => s.setPageTaskRunning)
-  const { data: projects = [], isLoading: loadingProjects } = useQuery<Project[]>({
-    queryKey: ['projects'],
-    queryFn: () => api.get('/projects').then((r) => r.data),
-  })
   const { data: textModels = [] } = useQuery<PublicModel[]>({
     queryKey: ['models', 'text'],
     queryFn: () => api.get('/models?capability=text').then((r) => r.data),
@@ -4141,6 +4315,13 @@ function ChatView({
     maxTaskAttempts: settings.planMaxTaskAttempts,
     workerTimeoutMs: settings.planWorkerTimeoutMs,
   }), [settings.planMaxWorkers, settings.planMaxTaskAttempts, settings.planWorkerTimeoutMs])
+  const conversationTabs = useMemo(() => {
+    const ordered = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
+    const visible = ordered.slice(0, 6)
+    if (visible.some((item) => item.id === conv.id)) return visible
+    return [conv, ...visible].slice(0, 6)
+  }, [conversations, conv])
+  const currentConversationTitle = conversationDisplayTitle(conv, t)
   const updatePlanDispatchSettings = useCallback((next: PlanDispatchSettings) => {
     updateSettings({
       planMaxWorkers: next.maxWorkers,
@@ -4247,6 +4428,7 @@ function ChatView({
   const composerAttachments = useMemo(() => composerAttachmentEntries.map((entry) => entry.attachment), [composerAttachmentEntries])
   const activeModel = textModels.find((m) => m.id === modelId)
   const activeLocalRun = conversationRuntime?.run ?? null
+  const contextThreadId = pendingSendDraft?.localRuntime?.preview?.threadId ?? activeLocalRun?.threadId
   const loading = conversationRuntime?.loading ?? false
   const visibleActivityEvents = useMemo(() => {
     if (!pendingHttpEvents.length) return liveTraceEvents
@@ -4278,6 +4460,10 @@ function ChatView({
   const stopRequestedBeforeRun = conversationRuntime?.stopRequested ?? false
   const agentContextConfig = EMPTY_AGENT_CONTEXT_CONFIG
   const activeConversationManifest = agentContextConfig.enabled ? agentContextConfig.manifest ?? undefined : undefined
+  const agentRuntimeContext = pendingSendDraft?.localRuntime?.preview?.context
+    ?? agentContextFromRun(activeLocalRun)
+  const agentPageContext = pageContextFromAgentContext(agentRuntimeContext)
+    ?? EMPTY_PAGE_CONTEXT_SUMMARY
   useEffect(() => {
     const thread = threadRef.current
     if (!thread || !shouldAutoScrollRef.current) return
@@ -4290,16 +4476,13 @@ function ChatView({
     settings.includeRecentResources && recentResources.length > 0 ? t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) }) : null,
     composerAttachments.length > 0 ? t('agents.chat.attachmentsCount', { count: composerAttachments.length }) : null,
   ].filter(Boolean) as string[]
-  const currentPageContext = buildPageContextSummary({
-    clientInput: pendingSendDraft?.localRuntime?.clientInput
-      ?? externalTask?.payload.clientInput
-      ?? clientInputFromRun(activeLocalRun),
-    projectId: pendingSendDraft?.localRuntime?.projectId ?? externalTask?.payload.projectId,
-    fallbackProjectId: currentProject?.ID,
-    fallbackLabels: contextLabels,
-  })
-  const canSend = (!!input.trim() || composerAttachments.length > 0) && !loading && !uploading && !buildingSendDraft
   const localAgentOnline = !!localAgentHealth?.ok && !localAgentHealthError
+  const contextSubtitle = agentRuntimeContext?.labels.length
+    ? agentRuntimeContext.labels.join(' / ')
+    : localAgentOnline
+      ? t('agents.chat.panel.status.localRuntimeOnline')
+      : t('agents.chat.panel.status.localRuntimeOffline')
+  const canSend = (!!input.trim() || composerAttachments.length > 0) && !loading && !uploading && !buildingSendDraft
   const canAutoStartLocalAgent = canStartLocalAgentFromClient()
   const localAgentErrorMessage = localAgentStartError
     ?? (!localAgentOnline && localAgentHealthError instanceof Error ? localAgentHealthError.message : null)
@@ -4346,24 +4529,6 @@ function ChatView({
   })
   const actionableLocalRun = actionableRunForPlan(activePlanSnapshot, activeLocalRun)
   const showLocalWorkflow = !!actionableLocalRun
-  const createProject = useMutation({
-    mutationFn: (payload: { name: string; description?: string }) => api.post('/projects', payload).then((r) => r.data as Project),
-    onSuccess: (project) => {
-      setCurrentProject(project)
-      qc.invalidateQueries({ queryKey: ['projects'] })
-    },
-  })
-
-  useEffect(() => {
-    if (loadingProjects || !currentProject) return
-    const latest = projects.find((project) => project.ID === currentProject.ID)
-    if (latest) {
-      if (latest.UpdatedAt !== currentProject.UpdatedAt) setCurrentProject(latest)
-      return
-    }
-    setCurrentProject(null)
-  }, [projects, loadingProjects, currentProject, setCurrentProject])
-
   function setDebugBeforeSend(next: boolean) {
     setDebugBeforeSendState(next)
   }
@@ -4723,6 +4888,25 @@ function ChatView({
     })
   }, [conv.id, recordLiveTraceEvent, setConversationRun, updateStreamingAssistantText])
 
+  const appendAssistantRunResult = useCallback(async (run: AgentRun, thread: LocalAgentThread, liveEvents: ChatRunActivityEvent[] = []) => {
+    const content = formatLocalAgentAssistantContent(run, thread)
+    const resultPayload = await assistantResultPayloadForRun(run, liveEvents, content)
+    const artifacts = resultPayload.meta.draftArtifacts ?? []
+    const streamingMessageId = streamingAssistantMessageIdRef.current
+    resetStreamingAssistant()
+    const message = {
+      role: 'assistant' as const,
+      content,
+      ...resultPayload,
+    }
+    if (streamingMessageId) {
+      upsertMessage(userId, conv.id, streamingMessageId, message)
+    } else {
+      addMessage(userId, conv.id, message)
+    }
+    return { artifacts, content }
+  }, [addMessage, conv.id, resetStreamingAssistant, upsertMessage, userId])
+
   const approveActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = actionableLocalRun
     if (!run || run.status !== 'requires_action' || approvingLocalRun) return
@@ -4734,13 +4918,7 @@ function ChatView({
       const finalRun = await streamFollowUpRun(approvedRun.id)
       const thread = await localAgentClient.getThread(finalRun.threadId)
       if (finalRun.status !== 'requires_action') {
-        const content = formatLocalAgentAssistantContent(finalRun, thread)
-        const resultPayload = await assistantResultPayloadForRun(finalRun, liveTraceEventsRef.current, content)
-        addMessage(userId, conv.id, {
-          role: 'assistant',
-          content,
-          ...resultPayload,
-        })
+        await appendAssistantRunResult(finalRun, thread, liveTraceEventsRef.current)
       }
       if (runTouchesAgentCatalog(finalRun)) refreshAgentCatalogContext()
     } catch (e) {
@@ -4752,7 +4930,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [actionableLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
+  }, [actionableLocalRun, approvingLocalRun, addMessage, appendAssistantRunResult, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
 
   const rejectActiveLocalRun = useCallback(async (approvalIds?: string[]) => {
     const run = actionableLocalRun
@@ -4792,13 +4970,7 @@ function ChatView({
       const finalRun = await streamFollowUpRun(answeredRun.id)
       const thread = await localAgentClient.getThread(finalRun.threadId)
       if (finalRun.status !== 'requires_action') {
-        const content = formatLocalAgentAssistantContent(finalRun, thread)
-        const resultPayload = await assistantResultPayloadForRun(finalRun, liveTraceEventsRef.current, content)
-        addMessage(userId, conv.id, {
-          role: 'assistant',
-          content,
-          ...resultPayload,
-        })
+        await appendAssistantRunResult(finalRun, thread, liveTraceEventsRef.current)
       }
       if (runTouchesAgentCatalog(finalRun)) refreshAgentCatalogContext()
     } catch (e) {
@@ -4810,7 +4982,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { approving: false, loading: false })
     }
-  }, [actionableLocalRun, approvingLocalRun, addMessage, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
+  }, [actionableLocalRun, approvingLocalRun, addMessage, appendAssistantRunResult, conv.id, userId, setConversationRun, setConversationRuntime, refreshAgentCatalogContext, streamFollowUpRun])
 
   const dispatchActivePlan = useCallback(async () => {
     const run = activeLocalRun
@@ -4990,13 +5162,7 @@ function ChatView({
             stopRequested: false,
           })
           const thread = await localAgentClient.getThread(nextRun.threadId)
-          const content = formatLocalAgentAssistantContent(nextRun, thread)
-          const resultPayload = await assistantResultPayloadForRun(nextRun, liveTraceEventsRef.current, content)
-          addMessage(userId, conv.id, {
-            role: 'assistant',
-            content,
-            ...resultPayload,
-          })
+          await appendAssistantRunResult(nextRun, thread, liveTraceEventsRef.current)
         })
         .catch(async (error) => {
           const message = error instanceof Error ? error.message : String(error)
@@ -5028,7 +5194,7 @@ function ChatView({
     } finally {
       setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false, building: false })
     }
-  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, generationProgressState, addMessage, conv.id, userId, resetStreamingAssistant, setConversationRun, setConversationRuntime])
+  }, [activeLocalRun, stoppingLocalRun, stopRequestedBeforeRun, loading, buildingSendDraft, generationProgressState, addMessage, appendAssistantRunResult, conv.id, userId, resetStreamingAssistant, setConversationRun, setConversationRuntime])
 
   const buildSendDraft = useCallback(async (options: {
     includeRuntimePreview?: boolean
@@ -5080,7 +5246,7 @@ function ChatView({
     const threadId = diagnosticCommand ? undefined : localThreadId || undefined
     const localRuntime: AgentSendDraft['localRuntime'] = {
       ...(threadId ? { threadId } : {}),
-      title: options.title ?? conv.title,
+      ...(threadId && options.title ? { title: options.title } : {}),
       ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
       clientInput,
       ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
@@ -5233,10 +5399,6 @@ function ChatView({
         contextLabels: draft.contextLabels,
       },
     })
-    if (conv.messages.length === 0) {
-      const titleBase = stripResourceMentions(draft.visibleUserContent) || draft.attachments[0]?.name || t('agents.chat.newConversation')
-      updateConversationTitle(userId, conv.id, titleBase.slice(0, 30) + (titleBase.length > 30 ? '…' : ''))
-    }
     if (draft.localRuntime?.requestId) {
       setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id })
     }
@@ -5295,7 +5457,7 @@ function ChatView({
         threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
         message: draft.localRuntime?.clientInput?.message ?? draft.visibleUserContent,
         clientInput: draft.localRuntime?.clientInput,
-        title: draft.localRuntime?.title ?? conv.title,
+        ...(draft.localRuntime?.title ? { title: draft.localRuntime.title } : {}),
         projectId: draft.localRuntime?.projectId,
       }, {
         ...(draft.localRuntime?.agentManifest ? { agentManifest: draft.localRuntime.agentManifest } : {}),
@@ -5360,6 +5522,9 @@ function ChatView({
         },
         onStreamEvent: (event) => {
           if (sendController.signal.aborted) return
+          if (event.type === 'thread_title' && event.title.trim()) {
+            updateConversationTitle(userId, conv.id, event.title.trim())
+          }
           if (event.type === 'run' && event.run?.id) {
             const completedAt = new Date().toISOString()
             setPendingHttpEvents((current) => current.map((item) => (
@@ -5387,27 +5552,14 @@ function ChatView({
         : runResult.run
       const artifacts = extractAgentTaskArtifacts(run)
       if (!draft.localRuntime?.diagnosticCommand) setLocalThreadId(conv.id, thread.id)
+      if (!draft.localRuntime?.diagnosticCommand && thread.title?.trim()) {
+        updateConversationTitle(userId, conv.id, thread.title.trim())
+      }
       if (draft.localRuntime?.requestId) setPageTaskRunning(draft.localRuntime.requestId, { conversationId: conv.id, run, threadId: thread.id, artifacts })
       setConversationRun(conv.id, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
-      const content = formatLocalAgentAssistantContent(run, thread)
-      const resultPayload = await assistantResultPayloadForRun(run, liveTraceEventsRef.current, content)
       setPendingHttpEvents([])
-      const streamingMessageId = streamingAssistantMessageIdRef.current
       setPendingAssistantState(null)
-      resetStreamingAssistant()
-      if (streamingMessageId) {
-        upsertMessage(userId, conv.id, streamingMessageId, {
-          role: 'assistant',
-          content,
-          ...resultPayload,
-        })
-      } else {
-        addMessage(userId, conv.id, {
-          role: 'assistant',
-          content,
-          ...resultPayload,
-        })
-      }
+      await appendAssistantRunResult(run, thread, liveTraceEventsRef.current)
       liveTraceEventsRef.current = []
       setLiveTraceEvents([])
       if (runTouchesAgentCatalog(run)) refreshAgentCatalogContext()
@@ -5461,7 +5613,6 @@ function ChatView({
     }
   }, [
     addMessage,
-    upsertMessage,
     removeMessage,
     userId,
     conv.id,
@@ -5477,6 +5628,7 @@ function ChatView({
     setPageTaskRunning,
     setConversationRun,
     setConversationRuntime,
+    appendAssistantRunResult,
     clearConversationDraft,
     refreshAgentCatalogContext,
     resetStreamingAssistant,
@@ -5595,17 +5747,58 @@ function ChatView({
         onConfirm={confirmPendingSendDraft}
       />
       <section className="ai-agent-panel-card ai-agent-panel-content-card">
-        <AgentHeader>
-          <AgentHeaderContent>
-            <AgentTitle className="ai-agent-panel-conversation-title">{conv.title}</AgentTitle>
-          <AgentSubtitle>{t('agents.chat.localRuntime')}</AgentSubtitle>
+        <AgentHeader className="ai-agent-panel-chat-header">
+          <AgentHeaderContent className="ai-agent-panel-header-content">
+            <div className="ai-agent-panel-title-row">
+              <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
+                <ChevronRight size={14} />
+              </Button>
+              <AgentTitle>{t('agents.chat.aiAssistant')}</AgentTitle>
+            </div>
+            <div className="ai-agent-panel-conversation-tabs" role="tablist" aria-label={t('agents.chat.conversationTabs')}>
+              {conversationTabs.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={item.id === conv.id}
+                  aria-label={conversationDisplayTitle(item, t)}
+                  className="ai-agent-panel-conversation-tab"
+                  title={conversationDisplayTitle(item, t)}
+                  onClick={() => onSelectConversation(item.id)}
+                >
+                  <MessageSquareText size={11} aria-hidden="true" />
+                  <span>{conversationDisplayTitle(item, t)}</span>
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="ai-agent-panel-conversation-tab-close"
+                    aria-label={t('agents.chat.deleteConversation')}
+                    title={t('agents.chat.deleteConversation')}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onCloseConversation(item.id)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      event.preventDefault()
+                      event.stopPropagation()
+                      onCloseConversation(item.id)
+                    }}
+                  >
+                    <X size={10} aria-hidden="true" />
+                  </span>
+                </button>
+              ))}
+            </div>
+            <AgentSubtitle className="sr-only">{currentConversationTitle}</AgentSubtitle>
           </AgentHeaderContent>
           <AgentHeaderActions>
-            <AgentStatus state={loading || buildingSendDraft ? 'running' : 'ready'}>
-              {loading || buildingSendDraft ? t('common.loading') : t('agents.chat.messagesCount', { count: conv.messages.length })}
-            </AgentStatus>
-            <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label="Back">
-              <ArrowLeft size={14} />
+            <Button size="icon-sm" variant="outline" onClick={onNewConversation} aria-label={t('agents.chat.newConversation')} title={t('agents.chat.newConversation')}>
+              <Plus size={14} />
+            </Button>
+            <Button size="icon-sm" variant="ghost" onClick={onBack} aria-label={t('agents.chat.conversationHistory')} title={t('agents.chat.conversationHistory')}>
+              <History size={14} />
             </Button>
           </AgentHeaderActions>
         </AgentHeader>
@@ -5685,7 +5878,7 @@ function ChatView({
         <div className="ai-agent-panel-card-header">
           <div className="min-w-0">
             <p className="ai-agent-panel-card-title">上下文</p>
-            <p className="ai-agent-panel-card-subtitle">{contextLabels.length > 0 ? contextLabels.join(' / ') : '未选择上下文'}</p>
+            <p className="ai-agent-panel-card-subtitle">{contextSubtitle}</p>
           </div>
           <Button
             type="button"
@@ -5738,9 +5931,9 @@ function ChatView({
                 {localAgentErrorMessage}
               </p>
             )}
-            {localThreadId && (
+            {contextThreadId && (
               <p className="truncate text-[10px] text-muted-foreground/70">
-                {t('agents.chat.panel.status.thread')}: <code className="rounded bg-muted px-1 py-0.5">{localThreadId}</code>
+                {t('agents.chat.panel.status.thread')}: <code className="rounded bg-muted px-1 py-0.5">{contextThreadId}</code>
               </p>
             )}
           </div>
@@ -5749,106 +5942,35 @@ function ChatView({
               <DebugSection title={t('agents.chat.panel.layers.productSurface')}>
                 <div className="space-y-2">
                   <div className="grid gap-2 text-[11px] md:grid-cols-3">
-                    <DebugSummaryItem label={t('agents.chat.panel.status.thread')} value={localThreadId || t('agents.chat.panel.status.newThread')} />
+                    <DebugSummaryItem label={t('agents.chat.panel.status.thread')} value={contextThreadId || t('agents.chat.panel.status.newThread')} />
                     <DebugSummaryItem label={t('agents.chat.panel.context.runtime')} value={localAgentOnline ? t('agents.chat.panel.status.online') : t('agents.chat.panel.status.offline')} />
                     <DebugSummaryItem label={t('agents.chat.panel.context.conversation')} value={activeConversationManifest ? t('agents.chat.panel.context.customContext') : t('agents.chat.panel.context.runtimeDefault')} />
-                    {activeModel && <DebugSummaryItem label={t('agents.chat.panel.context.runtime')} value={publicModelLabel(activeModel)} />}
+                    <DebugSummaryItem label={t('agents.chat.panel.context.runtime')} value={localAgentHealth?.modelConfig?.configured ? localAgentHealth.modelConfig.model : t('common.emptyTitle')} />
+                    <DebugSummaryItem label={t('agents.chat.panel.capabilities.skills')} value={String(localAgentHealth?.pluginCatalog?.skillCount ?? localAgentInspect?.pluginCatalog?.skillCount ?? localAgentInspect?.skills.length ?? 0)} />
+                    <DebugSummaryItem label={t('agents.chat.panel.capabilities.tools')} value={String(localAgentHealth?.pluginCatalog?.toolCount ?? localAgentInspect?.pluginCatalog?.toolCount ?? localAgentInspect?.registeredTools.length ?? 0)} />
                   </div>
-                  <ProjectRequirementPanel
-                    project={currentProject}
-                    projects={projects}
-                    loading={loadingProjects}
-                    creating={createProject.isPending}
-                    onSelect={setCurrentProject}
-                    onCreate={(payload) => createProject.mutate(payload)}
-                  />
-                  <div className="rounded-md border border-border bg-background/60 p-2">
+                  <div className="rounded-md border border-border bg-background/60 p-2 text-[10px]">
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <label className="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={settings.includeProjectContext}
-                          onChange={(e) => updateSettings({ includeProjectContext: e.target.checked })}
-                          className="h-3 w-3 shrink-0"
-                        />
-                        <span className="min-w-0 truncate font-medium text-foreground">{t('agents.chat.projectContext')}</span>
-                      </label>
-                      <label className="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={settings.includeRecentResources}
-                          onChange={(e) => updateSettings({ includeRecentResources: e.target.checked })}
-                          className="h-3 w-3 shrink-0"
-                        />
-                        <span className="min-w-0 truncate font-medium text-foreground">{t('agents.chat.resourceContext')}</span>
-                      </label>
-                      <label className="flex min-w-0 items-center gap-2 rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
-                        <input
-                          type="checkbox"
-                          checked={settings.autoPlan}
-                          onChange={(e) => updateSettings({ autoPlan: e.target.checked })}
-                          className="h-3 w-3 shrink-0"
-                        />
-                        <span className="min-w-0 truncate font-medium text-foreground">{t('agents.chat.autoPlan')}</span>
-                      </label>
-                      <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px]">
-                        <span className="min-w-0 truncate font-medium text-foreground">{t('agents.chat.recentResourcesCount', { count: Math.min(recentResources.length, 8) })}</span>
-                        <Badge variant={settings.includeRecentResources && recentResources.length > 0 ? 'secondary' : 'outline'} className="shrink-0 text-[9px] leading-4 px-1.5 py-0">
-                          {settings.includeRecentResources ? t('agents.chat.panel.runtime.on') : t('agents.chat.panel.runtime.off')}
-                        </Badge>
+                      <DebugSummaryItem label="MCP" value={localAgentCapabilities?.mcp.connected ? t('agents.chat.panel.status.online') : t('agents.chat.panel.status.offline')} />
+                      <DebugSummaryItem label="Resources" value={String(localAgentCapabilities?.mcp.resources.length ?? localAgentInspect?.resources.length ?? 0)} />
+                      <DebugSummaryItem label="MCP Tools" value={String(localAgentCapabilities?.mcp.tools.length ?? localAgentInspect?.tools.length ?? 0)} />
+                      <DebugSummaryItem label="Warnings" value={String((localAgentCapabilities?.warnings.length ?? 0) + (localAgentInspect?.pluginCatalog?.warnings?.length ?? 0))} />
+                    </div>
+                    {localAgentHealth?.pluginCatalog?.warnings?.length ? (
+                      <div className="mt-2 space-y-1">
+                        {localAgentHealth.pluginCatalog.warnings.slice(0, 3).map((warning) => (
+                          <p key={warning} className="line-clamp-2 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-amber-700">{warning}</p>
+                        ))}
                       </div>
-                    </div>
-                    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
-                      {debugBeforeSend && (
-                        <Badge variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
-                          {t('agents.chat.debugPreview')}
-                        </Badge>
-                      )}
-                      {contextLabels.map((label) => (
-                        <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">{label}</Badge>
-                      ))}
-                      <Select
-                        value={settings.permissionMode}
-                        onValueChange={(next) => updateSettings({ permissionMode: next as AgentPermissionMode })}
-                      >
-                        <SelectTrigger size="sm" className="ml-auto h-7 w-28 max-w-full text-[10px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ask">{t('agents.chat.permissions.ask')}</SelectItem>
-                          <SelectItem value="suggest">{t('agents.chat.permissions.suggest')}</SelectItem>
-                          <SelectItem value="auto">{t('agents.chat.permissions.auto')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
               </DebugSection>
               <DebugSection title={t('agents.chat.panel.layers.pageContext')}>
-                <PageContextPanel context={currentPageContext} />
+                <PageContextPanel context={agentPageContext} />
               </DebugSection>
               <DebugSection title={t('agents.chat.panel.layers.runtimeContext')}>
-                <div className="space-y-2">
-                  <div className="grid gap-2 text-[11px] md:grid-cols-3">
-                    <DebugSummaryItem label={t('agents.chat.panel.context.project')} value={currentProject ? `${currentProject.name}` : t('common.emptyTitle')} />
-                    <DebugSummaryItem label={t('agents.chat.panel.context.resources')} value={String(recentResources.length)} />
-                    <DebugSummaryItem label={t('agents.chat.panel.context.attachments')} value={String(composerAttachments.length)} />
-                  </div>
-                  {pendingSendDraft?.localRuntime?.clientInput?.uiSnapshot ? (
-                    <details className="rounded-md border border-border bg-background/60">
-                      <summary className="cursor-pointer list-none px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
-                        {t('agents.chat.panel.context.snapshot')}
-                      </summary>
-                      <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-2 py-1.5 text-[10px] text-muted-foreground">
-                        {safeJSONStringify(pendingSendDraft.localRuntime.clientInput.uiSnapshot)}
-                      </pre>
-                    </details>
-                  ) : (
-                    <p className="text-[10px] leading-relaxed text-muted-foreground">
-                      {t('agents.chat.panel.context.noSnapshot')}
-                    </p>
-                  )}
-                </div>
+                <AgentRuntimeContextPanel context={agentRuntimeContext} emptyText={t('agents.chat.panel.context.noSnapshot')} />
               </DebugSection>
               <ConversationContextPanel
                 online={localAgentOnline}
@@ -5858,47 +5980,6 @@ function ChatView({
                 config={agentContextConfig}
                 onRefresh={refreshAgentCatalogContext}
               />
-              <DebugSection title={t('agents.chat.panel.layers.prompt')}>
-                <PromptLayerPanel draft={pendingSendDraft} />
-              </DebugSection>
-              <DebugSection title={t('agents.chat.panel.layers.execution')}>
-                <div className="space-y-2">
-                  {activeLocalRun ? (
-                    <RunActivityPanel
-                      run={activeLocalRun}
-                      events={visibleActivityEvents}
-                      title={t('agents.chat.panel.execution.runTimeline')}
-                    />
-                  ) : (
-                    <p className="text-[10px] leading-relaxed text-muted-foreground">{t('agents.chat.panel.execution.noRunYet')}</p>
-                  )}
-                  {showLocalWorkflow && (
-                    <LocalAgentWorkflow
-                      run={actionableLocalRun}
-                      approving={approvingLocalRun}
-                      events={visibleActivityEvents}
-                      onApprove={approveActiveLocalRun}
-                      onReject={rejectActiveLocalRun}
-                      onAnswerInput={answerActiveLocalRunInput}
-                    />
-                  )}
-                </div>
-              </DebugSection>
-              <DebugSection title={t('agents.chat.panel.layers.drafts')}>
-                <div className="space-y-2">
-                  <DraftPanel
-                    project={currentProject}
-                    online={localAgentOnline}
-                    threadId={activeLocalRun?.threadId ?? (localThreadId || undefined)}
-                    pageContext={currentPageContext}
-                  />
-                  <MemoryPanel
-                    project={currentProject}
-                    threadId={localThreadId || undefined}
-                    online={localAgentOnline}
-                  />
-                </div>
-              </DebugSection>
             </div>
           )}
         </div>
@@ -6037,17 +6118,26 @@ function ChatView({
 
 // ── Conversation list ─────────────────────────────────────────────────────────
 
+function conversationDisplayTitle(conv: Conversation, t: ReturnType<typeof useTranslation>['t']) {
+  const title = conv.title.trim()
+  if (!title) return t('agents.chat.newConversation')
+  if (title === t('agents.chat.aiAssistant')) return t('agents.chat.newConversation')
+  return title
+}
+
 function ConversationList({
   conversations,
   onSelect,
   onNew,
   onDelete,
+  onCollapse,
   onRestoreLocalThread,
 }: {
   conversations: Conversation[]
   onSelect: (id: string) => void
   onNew: () => void
   onDelete: (id: string) => void
+  onCollapse: () => void
   onRestoreLocalThread: (threadId: string) => Promise<void>
 }) {
   const { t, i18n } = useTranslation()
@@ -6081,11 +6171,15 @@ function ConversationList({
     <AgentMain>
       <AgentHeader>
         <AgentHeaderContent>
-          <AgentTitle>{t('agents.chat.aiAssistant')}</AgentTitle>
-          <AgentSubtitle>{t('agents.chat.newConversation')}</AgentSubtitle>
+          <div className="ai-agent-panel-title-row">
+            <Button size="icon-sm" variant="ghost" onClick={onCollapse} aria-label={t('agents.chat.collapseAssistant')} title={t('agents.chat.collapseAssistant')} className="ai-agent-panel-header-collapse">
+              <ChevronRight size={14} />
+            </Button>
+            <AgentTitle>{t('agents.chat.aiAssistant')}</AgentTitle>
+          </div>
         </AgentHeaderContent>
         <AgentHeaderActions>
-          <Button size="sm" variant="outline" onClick={onNew}>
+          <Button size="sm" variant="outline" onClick={onNew} className="shrink-0">
             <Plus size={13} /> {t('agents.chat.newConversation')}
           </Button>
         </AgentHeaderActions>
@@ -6095,9 +6189,6 @@ function ConversationList({
         {conversations.length === 0 ? (
           <AgentEmpty className="min-h-0 py-12">
             <p className="text-sm font-medium text-foreground">{t('agents.chat.noConversations')}</p>
-            <Button size="sm" onClick={onNew}>
-              <Plus size={13} /> {t('agents.chat.newConversation')}
-            </Button>
           </AgentEmpty>
         ) : (
           <AgentSidebarSection>
@@ -6105,7 +6196,7 @@ function ConversationList({
               <div key={conv.id} className="group relative">
                 <AgentConversationItem
                   onClick={() => onSelect(conv.id)}
-                  title={conv.title}
+                  title={conversationDisplayTitle(conv, t)}
                   description={conv.messages[conv.messages.length - 1]?.content.slice(0, 54) ?? ''}
                   meta={formatDate(conv.updatedAt)}
                   className="pr-10"
@@ -6161,7 +6252,7 @@ function ConversationList({
 
 // ── Built-in chat ─────────────────────────────────────────────────────────────
 
-function BuiltinChat({ userId }: { userId: string }) {
+function BuiltinChat({ userId, onCollapse }: { userId: string; onCollapse: () => void }) {
   const { t } = useTranslation()
   const {
     getConversations,
@@ -6237,8 +6328,13 @@ function BuiltinChat({ userId }: { userId: string }) {
       {activeConv ? (
         <ChatView
           conv={activeConv}
+          conversations={conversations}
           userId={userId}
           onBack={() => setActiveConversation(userId, null)}
+          onCollapse={onCollapse}
+          onSelectConversation={(id) => setActiveConversation(userId, id)}
+          onNewConversation={handleNew}
+          onCloseConversation={(id) => deleteConversation(userId, id)}
           externalTask={activeTask}
           pageToolRequestId={activeTask?.requestId}
         />
@@ -6248,6 +6344,7 @@ function BuiltinChat({ userId }: { userId: string }) {
           onSelect={(id) => setActiveConversation(userId, id)}
           onNew={handleNew}
           onDelete={(id) => deleteConversation(userId, id)}
+          onCollapse={onCollapse}
           onRestoreLocalThread={handleRestoreLocalThread}
         />
       )}
@@ -6352,7 +6449,7 @@ export function AIAgentPanel() {
       dockLayout
         ? cn(
             'relative h-full shrink-0 border-l border-border',
-            open ? 'w-[var(--ai-agent-panel-width)]' : 'w-11',
+            open ? 'w-[var(--ai-agent-panel-width)]' : 'ai-agent-panel--collapsed-dock w-11',
           )
         : cn(
             'fixed right-3 top-3 h-[calc(100vh-1.5rem)] rounded-md border border-border shadow-lg',
@@ -6370,32 +6467,20 @@ export function AIAgentPanel() {
           <div className="absolute left-1/2 top-1/2 h-10 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/80" />
         </div>
       )}
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border px-2.5 pl-3">
+      {!open && (
         <button
           onClick={toggleOpen}
-          title={open ? t('agents.chat.collapseAssistant') : t('agents.chat.aiAssistant')}
-          className="min-w-0 flex flex-1 items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          title={t('agents.chat.aiAssistant')}
+          aria-label={t('agents.chat.aiAssistant')}
+          className="ai-agent-panel-collapsed-toggle"
         >
-          <Bot size={16} className="shrink-0 text-foreground" />
-          {open && <span className="text-sm font-semibold flex-1 text-left text-foreground truncate">{t('agents.chat.aiAssistant')}</span>}
+          <Bot size={16} className="text-foreground" />
         </button>
-        {open && (
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            onClick={toggleOpen}
-            title={t('agents.chat.collapseAssistant')}
-            className="h-7 w-7 text-muted-foreground"
-          >
-            <ChevronRight size={13} />
-          </Button>
-        )}
-      </div>
+      )}
 
       {open && (
         <div className="flex flex-col flex-1 min-h-0">
-          <BuiltinChat userId={userId} />
+          <BuiltinChat userId={userId} onCollapse={toggleOpen} />
         </div>
       )}
     </div>

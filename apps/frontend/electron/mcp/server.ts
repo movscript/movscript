@@ -14,6 +14,8 @@ import {
   normalizeGenerationJob,
   stringValue,
 } from './generation'
+import { getDraftDomainModel, type DraftSeedMode } from '../../src/lib/draftDomainModel'
+import type { AgentDraftKind } from '../../src/lib/localAgentClient'
 
 const DEFAULT_PORT = 18765
 const MAX_PORT_PROBES = 20
@@ -510,6 +512,39 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_get_draft_model',
+      description: 'Return the frontend-owned DraftDomainModel contract for a draft kind and target. This is the single source for draft field ownership, seed policy, review route, apply boundary, and optional hydrated seed data.',
+      inputSchema: objectSchema(
+        {
+          kind: { type: 'string', enum: ['project_proposal', 'production_proposal', 'script_split_proposal', 'asset_proposal'] },
+          target: { type: 'object', additionalProperties: true, description: 'Optional target entity anchor. entityType/entityId defaults come from the model and current focus when available.' },
+          seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'], description: 'Defaults to the model seed.defaultMode.' },
+          include: { type: 'array', items: { type: 'string' }, description: 'Optional subset of the model seed.include allowlist.' },
+          hydrate: { type: 'boolean', description: 'When true, include seed.data loaded from allowed backend endpoints. Defaults to true for non-empty seed modes.' },
+        },
+        ['kind']
+      ),
+      outputSchema: objectSchema(
+        {
+          contractVersion: { type: 'number' },
+          kind: { type: 'string' },
+          title: { type: 'string' },
+          targetEntityType: { type: 'string' },
+          target: { type: 'object' },
+          seedPolicy: { type: 'object' },
+          seed: { type: 'object' },
+          contentSchemaId: { type: 'string' },
+          contentSchema: { type: 'object' },
+          fieldGuide: { type: 'object' },
+          applyBoundary: { type: 'object' },
+          reviewRouteTemplate: { type: 'string' },
+          reviewRoute: { type: 'string' },
+          modelRef: { type: 'string' },
+        },
+        ['contractVersion', 'kind', 'targetEntityType', 'target', 'seedPolicy', 'fieldGuide', 'applyBoundary', 'reviewRouteTemplate', 'reviewRoute', 'modelRef']
+      ),
+    },
+    {
       name: 'movscript_create_project',
       description: 'Create a formal MovScript project. Use only when the user explicitly asks to create a new project or confirms the project name.',
       inputSchema: objectSchema(
@@ -768,6 +803,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await listProjects(args))
     case 'movscript_read_project_scripts':
       return toolText(await readProjectScripts(args))
+    case 'movscript_get_draft_model':
+      return toolText(await getDraftModelContract(args))
     case 'movscript_create_project':
       return toolText(await createProject(args))
     case 'movscript_list_models':
@@ -1080,6 +1117,272 @@ async function readProjectScripts(args: Record<string, unknown>): Promise<unknow
     contentLimit: includeContent ? contentLimit : 0,
     scripts: selectedScripts.map((script: any) => summarizeScript(script, { includeContent, contentLimit })),
   }
+}
+
+export async function getDraftModelContract(args: Record<string, unknown>): Promise<unknown> {
+  const kind = getRequiredString(args, 'kind') as AgentDraftKind
+  const model = getDraftDomainModel(kind)
+  if (!model) throw new Error(`Unsupported draft model kind: ${kind}`)
+  const target = normalizeDraftModelTarget(model.targetEntityType, args.target)
+  const mode = normalizeDraftSeedMode(args.seedMode, model.seed.defaultMode)
+  if (!model.seed.allowedModes.includes(mode)) {
+    throw new Error(`seedMode ${mode} is not allowed for ${kind}`)
+  }
+  const include = normalizeDraftModelInclude(args.include, model.seed.include)
+  const shouldHydrate = args.hydrate === undefined ? mode !== 'empty' : args.hydrate === true
+  const seedData = shouldHydrate && mode !== 'empty'
+    ? await hydrateDraftSeedData(kind, target, include)
+    : undefined
+  const reviewRoute = buildDraftModelReviewRoute(model.routes.reviewTemplate, target)
+  const modelRef = `frontend:DraftDomainModel:${kind}:v1`
+  return {
+    contractVersion: 1,
+    kind,
+    title: model.title,
+    targetEntityType: model.targetEntityType,
+    target,
+    seedPolicy: {
+      mode,
+      defaultMode: model.seed.defaultMode,
+      allowedModes: model.seed.allowedModes,
+      include,
+      allowedInclude: model.seed.include,
+      ...(model.seed.maxDepth !== undefined ? { maxDepth: model.seed.maxDepth } : {}),
+      conflictKeys: model.seed.conflictKeys,
+    },
+    seed: {
+      mode,
+      include,
+      hydrated: !!seedData,
+      hydratedAt: new Date().toISOString(),
+      modelRef,
+      ...(seedData ? { data: seedData.data, sourceVersions: seedData.sourceVersions } : {}),
+      ...(seedData?.warnings && seedData.warnings.length > 0 ? { warnings: seedData.warnings } : {}),
+    },
+    ...(model.contentSchemaId ? { contentSchemaId: model.contentSchemaId } : {}),
+    ...(model.contentSchema ? { contentSchema: model.contentSchema } : {}),
+    fieldGuide: model.fieldGuide,
+    applyBoundary: model.applyBoundary,
+    reviewRouteTemplate: model.routes.reviewTemplate,
+    reviewRoute,
+    modelRef,
+  }
+}
+
+function normalizeDraftModelTarget(targetEntityType: string, value: unknown): Record<string, unknown> {
+  const source = isRecord(value) ? value : {}
+  const entityType = typeof source.entityType === 'string' && source.entityType.trim()
+    ? source.entityType.trim()
+    : targetEntityType
+  const entityId = source.entityId
+    ?? (targetEntityType === 'project' ? contextSnapshot.project?.id : undefined)
+    ?? (targetEntityType === 'production' && contextSnapshot.selection?.entityType === 'production' ? contextSnapshot.selection.entityId : undefined)
+  const out: Record<string, unknown> = {
+    ...source,
+    entityType,
+    ...(entityId !== undefined ? { entityId } : {}),
+  }
+  if (targetEntityType === 'project' && contextSnapshot.project?.id && out.projectId === undefined) {
+    out.projectId = contextSnapshot.project.id
+  }
+  if (targetEntityType !== 'project' && contextSnapshot.project?.id && out.projectId === undefined) {
+    out.projectId = contextSnapshot.project.id
+  }
+  return out
+}
+
+function normalizeDraftSeedMode(value: unknown, fallback: DraftSeedMode): DraftSeedMode {
+  return value === 'empty' || value === 'snapshot' || value === 'editable_snapshot'
+    ? value
+    : fallback
+}
+
+function normalizeDraftModelInclude(value: unknown, allowedInclude: string[]): string[] {
+  if (!Array.isArray(value)) return allowedInclude
+  const requested = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
+  const allowed = new Set(allowedInclude)
+  return requested.filter((item) => allowed.has(item))
+}
+
+async function hydrateDraftSeedData(
+  kind: AgentDraftKind,
+  target: Record<string, unknown>,
+  include: string[],
+): Promise<{ data: Record<string, unknown>; sourceVersions: Record<string, unknown>; warnings: string[] }> {
+  const data: Record<string, unknown> = {}
+  const sourceVersions: Record<string, unknown> = {}
+  const warnings: string[] = []
+  const projectId = numericValue(target.projectId) ?? (kind === 'project_proposal' ? numericValue(target.entityId) : contextSnapshot.project?.id)
+
+  if (!projectId) {
+    return { data, sourceVersions, warnings: ['projectId unavailable; seed hydration skipped.'] }
+  }
+
+  for (const item of include) {
+    try {
+      const hydrated = await hydrateDraftSeedInclude(kind, projectId, numericValue(target.entityId), item)
+      if (hydrated === undefined) continue
+      data[item] = hydrated
+      sourceVersions[item] = collectSeedSourceVersions(hydrated)
+    } catch (error) {
+      warnings.push(`${item}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  return { data, sourceVersions, warnings }
+}
+
+async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, entityId: number | undefined, include: string): Promise<unknown> {
+  switch (include) {
+    case 'project':
+      return summarizeSeedValue(await backendGet(`/projects/${projectId}`))
+    case 'creative_references':
+      return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/creative-references`))
+    case 'asset_slots':
+      return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/asset-slots`))
+    case 'asset_slot_ownership':
+      return summarizeAssetSlotOwnership(await backendList(`/projects/${projectId}/entities/asset-slots`))
+    case 'production': {
+      if (!entityId) return undefined
+      const productions = await backendList(`/projects/${projectId}/entities/productions`)
+      return summarizeSeedValue(productions.find((production) => numericValue(production?.ID ?? production?.id) === entityId) ?? null)
+    }
+    case 'production_script_brief': {
+      if (!entityId) return undefined
+      return hydrateProductionScriptBrief(projectId, entityId)
+    }
+    case 'segments': {
+      const segments = await backendList(`/projects/${projectId}/entities/segments`)
+      return summarizeSeedValue(kind === 'production_proposal' && entityId
+        ? segments.filter((segment) => numericValue(segment?.production_id ?? segment?.productionId) === entityId)
+        : segments)
+    }
+    case 'scene_moments': {
+      const segments = await backendList(`/projects/${projectId}/entities/segments`)
+      const segmentIds = new Set(segments
+        .filter((segment) => !entityId || numericValue(segment?.production_id ?? segment?.productionId) === entityId)
+        .map((segment) => numericValue(segment?.ID ?? segment?.id))
+        .filter((id): id is number => id !== undefined))
+      const moments = await backendList(`/projects/${projectId}/entities/scene-moments`)
+      return summarizeSeedValue(entityId
+        ? moments.filter((moment) => segmentIds.has(numericValue(moment?.segment_id ?? moment?.segmentId) ?? -1))
+        : moments)
+    }
+    case 'creative_reference_usages':
+      return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/creative-reference-usages`))
+    case 'asset_slot_usages':
+      return summarizeAssetSlotOwnership(await backendList(`/projects/${projectId}/entities/asset-slots`))
+    case 'asset_slot': {
+      if (!entityId) return undefined
+      const slots = await backendList(`/projects/${projectId}/entities/asset-slots`)
+      return summarizeSeedValue(slots.find((slot) => numericValue(slot?.ID ?? slot?.id) === entityId) ?? null)
+    }
+    case 'reference_resources':
+    case 'asset_need':
+    case 'unresolved_requirements':
+    case 'source_script':
+    case 'project_scripts':
+      return summarizeProjectScripts(await backendList(`/projects/${projectId}/scripts`))
+    case 'productions':
+      return summarizeSeedValue(await hydrateDraftKnownFallback(projectId, include))
+    default:
+      return undefined
+  }
+}
+
+async function hydrateProductionScriptBrief(projectId: number, productionId: number): Promise<unknown> {
+  const productions = await backendList(`/projects/${projectId}/entities/productions`)
+  const production = productions.find((item) => numericValue(item?.ID ?? item?.id) === productionId)
+  if (!production || typeof production !== 'object') {
+    return {
+      productionId,
+      warning: 'Production not found while hydrating production_script_brief.',
+    }
+  }
+
+  const scriptVersionId = numericValue(production.script_version_id ?? production.scriptVersionId)
+  const productionSummary = summarizeEntity(production)
+  if (!scriptVersionId) {
+    return {
+      production: productionSummary,
+      brief: textOrUndefined(production.description) ?? textOrUndefined(production.summary) ?? '',
+      sourceType: production.source_type,
+      warning: 'Production has no linked script_version_id; using production brief fields only.',
+    }
+  }
+
+  const scriptVersions = await backendList(`/projects/${projectId}/entities/script-versions`)
+  const scriptVersion = scriptVersions.find((item) => numericValue(item?.ID ?? item?.id) === scriptVersionId)
+  const body = textOrUndefined(scriptVersion?.content) ?? textOrUndefined(scriptVersion?.raw_source) ?? ''
+  return {
+    production: productionSummary,
+    scriptVersion: summarizeScriptVersion(scriptVersion),
+    brief: textOrUndefined(production.description) ?? textOrUndefined(scriptVersion?.summary) ?? '',
+    scriptVersionId,
+    scriptVersionTitle: textOrUndefined(scriptVersion?.title),
+    scriptVersionUpdatedAt: textOrUndefined(scriptVersion?.UpdatedAt ?? scriptVersion?.updatedAt),
+    body_length: body.length,
+    body_excerpt: body ? truncateLongText(body.slice(0, 4000)) : '',
+    body_excerpt_truncated: body.length > 4000,
+  }
+}
+
+async function hydrateDraftKnownFallback(projectId: number, include: string): Promise<unknown> {
+  switch (include) {
+    case 'project_scripts':
+    case 'source_script':
+      return backendList(`/projects/${projectId}/scripts`)
+    case 'productions':
+      return backendList(`/projects/${projectId}/entities/productions`)
+    default:
+      return null
+  }
+}
+
+function summarizeSeedValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => summarizeResource(item))
+  if (isRecord(value)) return summarizeResource(value)
+  return value
+}
+
+function summarizeAssetSlotOwnership(slots: unknown[]): unknown[] {
+  return slots.flatMap((slot) => {
+    if (!isRecord(slot)) return []
+    const id = slot.ID ?? slot.id
+    return [{
+      id,
+      owner_type: slot.owner_type,
+      owner_id: slot.owner_id,
+      creative_reference_id: slot.creative_reference_id,
+      production_id: slot.production_id,
+      UpdatedAt: slot.UpdatedAt ?? slot.updatedAt,
+    }]
+  })
+}
+
+function collectSeedSourceVersions(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => {
+      if (!isRecord(item)) return []
+      const id = item.ID ?? item.id
+      const updatedAt = item.UpdatedAt ?? item.updatedAt
+      return id !== undefined || updatedAt !== undefined ? [{ id, updatedAt }] : []
+    })
+  }
+  if (isRecord(value)) {
+    return {
+      id: value.ID ?? value.id ?? value.scriptVersionId,
+      updatedAt: value.UpdatedAt ?? value.updatedAt ?? value.scriptVersionUpdatedAt,
+    }
+  }
+  return null
+}
+
+function buildDraftModelReviewRoute(template: string, target: Record<string, unknown>): string {
+  const entityId = target.entityId !== undefined ? String(target.entityId) : ''
+  return template
+    .replace(/:targetEntityId/g, encodeURIComponent(entityId))
+    .replace(/:draftId/g, ':draftId')
 }
 
 async function createProject(args: Record<string, unknown>): Promise<unknown> {
@@ -1949,6 +2252,10 @@ function getOptionalString(args: Record<string, unknown>, key: string): string |
 
 function getOptionalNumeric(args: Record<string, unknown>, key: string): number | undefined {
   const value = args[key]
+  return numericValue(value)
+}
+
+function numericValue(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim()) {
     const parsed = Number(value)
@@ -2147,6 +2454,34 @@ function summarizeScript(item: any, options: { includeContent: boolean; contentL
   return summary
 }
 
+function summarizeProjectScripts(items: unknown[]): unknown[] {
+  return items.map((item) => summarizeScript(item, { includeContent: false, contentLimit: 0 }))
+}
+
+function summarizeScriptVersion(item: any): unknown {
+  if (!item || typeof item !== 'object') return item
+  const body = String(item.content || item.raw_source || '')
+  const summary: Record<string, unknown> = {}
+  for (const key of [
+    'ID',
+    'id',
+    'project_id',
+    'script_id',
+    'parent_version_id',
+    'version_number',
+    'title',
+    'source_type',
+    'summary',
+    'status',
+    'CreatedAt',
+    'UpdatedAt',
+  ]) {
+    if (item[key] !== undefined) summary[key] = truncateLongText(item[key])
+  }
+  summary.body_length = body.length
+  return summary
+}
+
 function summarizeEntity(item: any): unknown {
   if (!item || typeof item !== 'object') return item
   const summary: Record<string, unknown> = {}
@@ -2180,6 +2515,10 @@ function summarizeEntity(item: any): unknown {
 function truncateLongText(value: unknown): unknown {
   if (typeof value !== 'string') return value
   return value.length > 1200 ? `${value.slice(0, 1200)}...` : value
+}
+
+function textOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
 function toolText(value: unknown): MCPJSONValue {

@@ -1,0 +1,52 @@
+{
+  "name": "movscript_get_draft_model",
+  "description": "读取 frontend DraftDomainModel 契约。创建或修改 proposal draft 前使用，用它获取字段归属、seed policy、review route、apply boundary，以及按目标 hydrate 的 seed 数据。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "kind"
+    ],
+    "properties": {
+      "kind": {
+        "type": "string",
+        "enum": [
+          "project_proposal",
+          "production_proposal",
+          "script_split_proposal",
+          "asset_proposal"
+        ]
+      },
+      "target": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "seedMode": {
+        "type": "string",
+        "enum": [
+          "empty",
+          "snapshot",
+          "editable_snapshot"
+        ]
+      },
+      "include": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "hydrate": {
+        "type": "boolean"
+      }
+    }
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "从前端单一模型源读取 draft 语义、seed 和 route 契约。"
+}

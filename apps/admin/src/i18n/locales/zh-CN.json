@@ -1170,6 +1170,28 @@
       "projectMessages": "{{count}} 条消息",
       "previewPayload": "发送前预览载荷",
       "browserModeManualStart": "浏览器模式下仍可手动启动，命令：",
+      "workflow": {
+        "panelTitle": "Agent 工作流",
+        "waitingForInput": "等待输入",
+        "waitingForApproval": "等待审批",
+        "cancelled": "已取消",
+        "inputRequired": "需要输入",
+        "approvalRequired": "需要审批",
+        "rejectAll": "全部拒绝",
+        "approveAll": "全部通过",
+        "reject": "拒绝",
+        "approve": "通过",
+        "timing": "时序",
+        "focusTotal": "焦点读取：{{ms}}ms",
+        "failed": "运行失败：{{error}}",
+        "cancelledMessage": "当前对话已停止。",
+        "needsInput": "执行前需要补充信息：\n{{items}}",
+        "needsApproval": "执行前需要确认：\n{{items}}",
+        "waitingForToolCallConfirmation": "- 等待工具调用确认",
+        "noAssistantMessage": "本地 Agent Runtime 没有返回 assistant 消息。",
+        "warnings": "警告",
+        "unknownError": "未知错误"
+      },
       "panel": {
         "layers": {
           "productSurface": "产品界面",

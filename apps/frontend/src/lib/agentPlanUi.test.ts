@@ -122,7 +122,7 @@ test('activeWorkerRunCount ignores active planner runs', () => {
 
 test('buildPlanNameConflictViews exposes duplicate subagent names', () => {
   const planSnapshot = snapshot({
-    nameConflicts: [{ subagentName: '爱因斯坦', taskIds: ['task_a', 'task_b'] }],
+    nameConflicts: [{ subagentName: 'Einstein', taskIds: ['task_a', 'task_b'] }],
     tasks: [
       task({ id: 'task_a', title: 'Research', status: 'running', ownerRunId: 'run_a' }),
       task({ id: 'task_b', title: 'Draft', status: 'blocked' }),
@@ -133,14 +133,14 @@ test('buildPlanNameConflictViews exposes duplicate subagent names', () => {
   })
 
   assert.deepEqual(buildPlanNameConflictViews(planSnapshot), [{
-    subagentName: '爱因斯坦',
+    subagentName: 'Einstein',
     taskIds: ['task_a', 'task_b'],
     taskTitles: ['Research', 'Draft'],
     entries: [
       { taskId: 'task_a', taskTitle: 'Research', taskStatus: 'running', ownerRunId: 'run_a', ownerRunStatus: 'in_progress' },
       { taskId: 'task_b', taskTitle: 'Draft', taskStatus: 'blocked', ownerRunId: undefined, ownerRunStatus: undefined },
     ],
-    label: '爱因斯坦: Research, Draft',
+    label: 'Einstein: Research, Draft',
   }])
   assert.equal(buildPlanStatusExplanation(planSnapshot), '1 subagent name conflict · 1 active worker · 1 blocked')
 })
@@ -159,9 +159,9 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
         status: 'blocked',
         ownerRunId: 'run_worker',
         blockedReason: 'Need storyboard direction',
-        metadata: { subagentName: '爱因斯坦', retryAttempt: 2, maxTaskAttempts: 3, previousOwnerRunId: 'run_previous', previousStatus: 'failed', timedOutRunId: 'run_timeout', workerTimeoutMs: 900000 },
+        metadata: { subagentName: 'Einstein', retryAttempt: 2, maxTaskAttempts: 3, previousOwnerRunId: 'run_previous', previousStatus: 'failed', timedOutRunId: 'run_timeout', workerTimeoutMs: 900000 },
         artifacts: [
-          { id: 'artifact_1', type: 'draft', title: 'Storyboard notes', metadata: { subagentName: '爱因斯坦', sourceRunId: 'run_worker', sourceTaskId: 'task_source' }, createdAt: '2026-05-12T00:00:00.000Z' },
+          { id: 'artifact_1', type: 'draft', title: 'Storyboard notes', metadata: { subagentName: 'Einstein', sourceRunId: 'run_worker', sourceTaskId: 'task_source' }, createdAt: '2026-05-12T00:00:00.000Z' },
           { id: 'artifact_2', type: 'rollback-policy', metadata: { sourceRunId: 'run_worker' }, createdAt: '2026-05-12T00:00:01.000Z' },
         ],
       }),
@@ -194,8 +194,8 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
 
   const view = buildPlanTaskViews(planSnapshot).find((item) => item.task.id === 'task_named')
 
-  assert.equal(view?.subagentName, '爱因斯坦')
-  assert.equal(view?.ownerLabel, '爱因斯坦')
+  assert.equal(view?.subagentName, 'Einstein')
+  assert.equal(view?.ownerLabel, 'Einstein')
   assert.deepEqual(view?.worker && {
     id: view.worker.id,
     status: view.worker.status,
@@ -256,7 +256,7 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
   assert.equal(view?.timedOutRunId, 'run_timeout')
   assert.equal(view?.workerTimeoutMs, 900000)
   assert.equal(view?.statusExplanation, 'Waiting for 1 user input.')
-  assert.deepEqual(view?.artifactLabels, ['Storyboard notes · 爱因斯坦', 'rollback-policy · run_worker'])
+  assert.deepEqual(view?.artifactLabels, ['Storyboard notes · Einstein', 'rollback-policy · run_worker'])
   assert.deepEqual(view?.artifactDetails.map((artifact) => ({
     id: artifact.id,
     sourceRunId: artifact.sourceRunId,
@@ -265,7 +265,7 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
     subagentName: artifact.subagentName,
     policy: artifact.policy,
   })), [
-    { id: 'artifact_1', sourceRunId: 'run_worker', sourceTaskId: 'task_source', sourceTaskTitle: 'Source task', subagentName: '爱因斯坦', policy: undefined },
+    { id: 'artifact_1', sourceRunId: 'run_worker', sourceTaskId: 'task_source', sourceTaskTitle: 'Source task', subagentName: 'Einstein', policy: undefined },
     { id: 'artifact_2', sourceRunId: 'run_worker', sourceTaskId: undefined, sourceTaskTitle: undefined, subagentName: undefined, policy: undefined },
   ])
   assert.equal(view?.blocker, 'Need storyboard direction')
@@ -288,16 +288,16 @@ test('buildPlanTaskViews falls back to worker subagent name when task metadata i
         status: 'in_progress',
         planId: 'plan_1',
         taskId: 'task_run_named',
-        metadata: { subagentName: '霍金' },
+        metadata: { subagentName: 'Hawking' },
       }),
     ],
   })
 
   const view = buildPlanTaskViews(planSnapshot)[0]
 
-  assert.equal(view?.subagentName, '霍金')
-  assert.equal(view?.ownerLabel, '霍金')
-  assert.equal(view?.worker?.subagentName, '霍金')
+  assert.equal(view?.subagentName, 'Hawking')
+  assert.equal(view?.ownerLabel, 'Hawking')
+  assert.equal(view?.worker?.subagentName, 'Hawking')
 })
 
 test('buildPlanStatusExplanation summarizes plan health from task and run state', () => {
@@ -346,7 +346,7 @@ test('buildPlanOverviewStats prefers backend summary and falls back locally', ()
   const withSummary = snapshot({
     tasks: [task({ id: 'task_done', title: 'Done', status: 'done' })],
     runs: [run({ id: 'run_worker', role: 'worker', status: 'in_progress', planId: 'plan_1' })],
-    nameConflicts: [{ subagentName: '爱因斯坦', taskIds: ['task_a', 'task_b'] }],
+    nameConflicts: [{ subagentName: 'Einstein', taskIds: ['task_a', 'task_b'] }],
     summary: {
       taskCount: 4,
       taskStatusCounts: { pending: 1, running: 1, blocked: 0, needs_review: 0, done: 2, failed: 0, cancelled: 0 },
@@ -376,7 +376,7 @@ test('buildPlanOverviewStats prefers backend summary and falls back locally', ()
       run({ id: 'run_worker', role: 'worker', status: 'requires_action', planId: 'plan_1' }),
       run({ id: 'run_planner', role: 'planner', status: 'in_progress', planId: 'plan_1' }),
     ],
-    nameConflicts: [{ subagentName: '霍金', taskIds: ['task_done', 'task_pending'] }],
+    nameConflicts: [{ subagentName: 'Hawking', taskIds: ['task_done', 'task_pending'] }],
   })
   assert.deepEqual(buildPlanOverviewStats(withoutSummary), {
     taskCount: 2,
@@ -412,7 +412,7 @@ test('buildPlanArtifactSummary aggregates plan artifacts by recency and type', (
         status: 'done',
         ownerRunId: 'run_source',
         artifacts: [
-          { id: 'artifact_old', type: 'draft', title: 'Older draft', metadata: { subagentName: '爱因斯坦', sourceRunId: 'run_a' }, createdAt: '2026-05-12T00:00:00.000Z' },
+          { id: 'artifact_old', type: 'draft', title: 'Older draft', metadata: { subagentName: 'Einstein', sourceRunId: 'run_a' }, createdAt: '2026-05-12T00:00:00.000Z' },
         ],
       }),
       task({
@@ -448,7 +448,7 @@ test('buildTaskArtifactViews sorts task artifacts and preserves provenance', () 
     title: 'Artifact task',
     artifacts: [
       { id: 'artifact_old', type: 'draft', title: 'Old draft', metadata: { sourceRunId: 'run_old' }, createdAt: '2026-05-12T00:00:00.000Z' },
-      { id: 'artifact_new', type: 'review', title: 'New review', uri: 'agent://artifact/new', metadata: { sourceRunId: 'run_new', sourceTaskId: 'task_source', toolName: 'tool_review', subagentName: '霍金' }, createdAt: '2026-05-12T00:00:02.000Z' },
+      { id: 'artifact_new', type: 'review', title: 'New review', uri: 'agent://artifact/new', metadata: { sourceRunId: 'run_new', sourceTaskId: 'task_source', toolName: 'tool_review', subagentName: 'Hawking' }, createdAt: '2026-05-12T00:00:02.000Z' },
     ],
   })
   const views = buildTaskArtifactViews(artifactTask, 1, snapshot({
@@ -474,7 +474,7 @@ test('buildTaskArtifactViews sorts task artifacts and preserves provenance', () 
   })), [
     {
       id: 'artifact_new',
-      label: 'New review · 霍金',
+      label: 'New review · Hawking',
       taskId: 'task_artifacts',
       taskTitle: 'Artifact task',
       uri: 'agent://artifact/new',
@@ -483,7 +483,7 @@ test('buildTaskArtifactViews sorts task artifacts and preserves provenance', () 
       sourceTaskTitle: 'Source task',
       sourceTaskStatus: 'running',
       sourceTaskOwnerRunId: 'run_source',
-      subagentName: '霍金',
+      subagentName: 'Hawking',
       toolName: 'tool_review',
     },
   ])
@@ -503,7 +503,7 @@ test('actionableRunForPlan selects a blocked worker when the planner is active',
   })
   const planSnapshot = snapshot({
     tasks: [
-      task({ id: 'task_named', title: 'Named worker', status: 'blocked', ownerRunId: 'run_worker', metadata: { subagentName: '爱因斯坦' } }),
+      task({ id: 'task_named', title: 'Named worker', status: 'blocked', ownerRunId: 'run_worker', metadata: { subagentName: 'Einstein' } }),
     ],
     runs: [activePlanner, worker],
   })

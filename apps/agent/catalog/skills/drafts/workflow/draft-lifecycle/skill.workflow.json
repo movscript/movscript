@@ -23,6 +23,7 @@
     }
   ],
   "toolRefs": [
+    "tool://movscript_get_draft_model",
     "tool://movscript_list_drafts",
     "tool://movscript_get_draft",
     "tool://movscript_read_draft",

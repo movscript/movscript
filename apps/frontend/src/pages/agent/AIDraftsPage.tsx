@@ -18,6 +18,7 @@ import {
   type AgentDraftKind,
   type AgentDraftStatus,
 } from '@/lib/localAgentClient'
+import { buildDraftReviewPath } from '@/lib/draftDomainModel'
 import { useProjectStore } from '@/store/projectStore'
 import { cn } from '@/lib/utils'
 
@@ -63,7 +64,7 @@ export default function AIDraftsPage() {
     ].some((value) => (value ?? '').toLowerCase().includes(needle)))
   }, [draftsQuery.data, search])
   const selectedDraft = drafts.find((draft) => draft.id === selectedId) ?? drafts[0] ?? null
-  const openDraftPath = selectedDraft ? buildDraftOpenPath(selectedDraft) : null
+  const openDraftPath = selectedDraft ? buildDraftReviewPath(selectedDraft) : null
 
   async function copyDraftId(draft: AgentDraft) {
     await navigator.clipboard.writeText(draft.id)
@@ -256,61 +257,4 @@ function draftStatusVariant(status: AgentDraftStatus): 'secondary' | 'success' |
   if (status === 'accepted') return 'warning'
   if (status === 'superseded') return 'secondary'
   return 'outline'
-}
-
-function buildDraftOpenPath(draft: AgentDraft): string | null {
-  const source = draft.source && typeof draft.source === 'object' ? draft.source : undefined
-  const target = draft.target && typeof draft.target === 'object' ? draft.target : undefined
-  const sourceEntityType = typeof source?.entityType === 'string' ? source.entityType : undefined
-  const targetEntityType = typeof target?.entityType === 'string' ? target.entityType : undefined
-  const sourceEntityId = numberValue(source?.entityId)
-  const targetEntityId = numberValue(target?.entityId)
-
-  if (draft.kind === 'script_split_proposal') {
-    return `/workbench/script?draftId=${encodeURIComponent(draft.id)}`
-  }
-
-  if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
-    return `/project-workspace?draftId=${encodeURIComponent(draft.id)}`
-  }
-
-  if (draft.kind === 'asset_proposal' || sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
-    const assetSlotId = sourceEntityId ?? targetEntityId
-    const params = new URLSearchParams({ draftId: draft.id })
-    if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
-    return `/asset-slots?${params.toString()}`
-  }
-
-  const productionId = sourceEntityId ?? targetEntityId
-  const productionRelatedKinds: AgentDraft['kind'][] = [
-    'production_proposal',
-    'pipeline',
-    'segment',
-    'scene_moment',
-    'content_unit',
-    'asset_slot',
-    'storyboard_line',
-  ]
-  if (
-    productionId !== undefined
-    && (
-      draft.kind === 'production_proposal'
-      || sourceEntityType === 'production'
-      || targetEntityType === 'production'
-      || productionRelatedKinds.includes(draft.kind)
-    )
-  ) {
-    return `/production-orchestrate?productionId=${productionId}&draftId=${encodeURIComponent(draft.id)}`
-  }
-
-  return null
-}
-
-function numberValue(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim()) {
-    const parsed = Number(value)
-    return Number.isFinite(parsed) ? parsed : undefined
-  }
-  return undefined
 }

@@ -282,6 +282,13 @@ export type AgentRunStreamEvent =
     run: AgentRunStreamRun
   }
   | {
+    type: 'thread_title'
+    runId: string
+    threadId: string
+    title: string
+    updatedAt: string
+  }
+  | {
     type: 'done'
     run: AgentRunStreamRun
   }

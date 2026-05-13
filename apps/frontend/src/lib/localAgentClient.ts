@@ -159,13 +159,18 @@ export interface AgentCatalogSkill {
 
 export interface AgentDebugContextPanel {
   route: { pathname: string; search?: string; hash?: string }
+  projects?: Array<{ id: number; name: string; description?: string; status?: string; totalEpisodes?: number }>
+  projectsError?: string
   project?: { id: number; name?: string; status?: string; description?: string }
+  productionId?: number
   user?: { id: number; username: string; systemRole?: string }
   selection?: { entityType: string; entityId: number | string; label?: string } | null
   recentResources: Array<{ id: number; name: string; type: string; mimeType?: string; size?: number }>
   attachments: Array<{ id: string; name: string; type: string; resourceId?: number }>
   memories: Array<{ id: string; scope: string; kind: string; content: string }>
   labels: string[]
+  statusDigest?: string[]
+  rawContextHints?: string[]
 }
 
 export interface ResolvedAgentSkill extends AgentCatalogSkill {
@@ -686,6 +691,13 @@ export type AgentRunStreamEvent =
     run: AgentRun
   }
   | {
+    type: 'thread_title'
+    runId: string
+    threadId: string
+    title: string
+    updatedAt: string
+  }
+  | {
     type: 'done'
     run: AgentRun
   }
@@ -1084,7 +1096,7 @@ export class LocalAgentClient {
     return this.getJSON(`/drafts/${encodeURIComponent(draftId)}`)
   }
 
-  createDraft(input: { projectId?: number; kind?: AgentDraftKind; title: string; content: string; source?: Record<string, unknown>; target?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentDraft> {
+  createDraft(input: { projectId?: number; kind?: AgentDraftKind; title: string; content: string; source?: Record<string, unknown>; target?: Record<string, unknown>; seed?: Record<string, unknown>; metadata?: Record<string, unknown> }): Promise<AgentDraft> {
     return this.postJSON('/draft', input)
   }
 

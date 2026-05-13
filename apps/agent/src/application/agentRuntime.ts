@@ -112,6 +112,7 @@ import {
 } from '../context/localDiagnosticCommands.js'
 import { executeTool } from '../orchestration/toolExecutor.js'
 import { buildGenerationEvent } from '../generation/generationEvents.js'
+import { callModel } from '../model/modelClient.js'
 
 export type {
   AgentMessage,
@@ -544,7 +545,9 @@ export class AgentRuntime {
   spawnSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
     const plannerRun = this.requirePlannerRun(run.id)
     const planId = plannerRun.planId
-    if (!planId) throw new Error('spawn_subagent requires the planner run to be attached to a plan')
+    if (!planId) {
+      throw new Error('spawn_subagent requires the planner run to be attached to the session plan. Call movscript_create_plan first with the task list or goal, then call movscript_spawn_subagent using taskIds or tasks and explicit English human subagentName values such as Einstein or Turing.')
+    }
     const createdTaskIds: string[] = []
     const taskInputs = normalizePlanTaskInputs(input.tasks)
     const usedSubagentNames = this.collectSubagentNames(planId)
@@ -842,11 +845,11 @@ export class AgentRuntime {
         version: catalogSnapshot.catalogVersion,
       },
     }
+    this.rememberRunAuth(run.id, input)
     this.store.createRun(run)
     this.applyThreadRunProjection(thread, run)
     thread.updatedAt = now
     this.store.updateThread(thread)
-    this.rememberRunAuth(run.id, input)
     this.startRunExecution(run.id)
     return run
   }
@@ -901,11 +904,11 @@ export class AgentRuntime {
         version: catalogSnapshot.catalogVersion,
       },
     }
+    this.rememberRunAuth(run.id, input)
     this.store.createRun(run)
     this.applyThreadRunProjection(thread, run)
     thread.updatedAt = now
     this.store.updateThread(thread)
-    this.rememberRunAuth(run.id, input)
     this.startRunExecution(run.id)
     return run
   }
@@ -1864,11 +1867,97 @@ export class AgentRuntime {
     })
   }
 
+  private async ensureThreadTitle(
+    thread: AgentThread,
+    userMessage: AgentMessage | undefined,
+    input: { backendAuthToken?: unknown; backendAPIBaseURL?: unknown },
+    signal?: AbortSignal,
+    runId?: string,
+  ): Promise<void> {
+    if (thread.title?.trim()) return
+    if (!userMessage?.content.trim()) return
+    if (thread.metadata?.titleGeneratedAt) return
+    const now = isoNow()
+    thread.metadata = {
+      ...(thread.metadata ?? {}),
+      titleGenerationStatus: 'pending',
+    }
+    thread.updatedAt = now
+    this.store.updateThread(thread)
+
+    const fallbackTitle = fallbackThreadTitle(userMessage.content)
+    try {
+      const { resolveRuntimeChatModelConfig } = await import('../model/modelConfig.js')
+      const modelConfig = resolveRuntimeChatModelConfig()
+      if (!modelConfig) throw new Error('no model config found')
+      const result = await callModel({
+        config: modelConfig,
+        auth: {
+          ...normalizeBackendAuthToken(input.backendAuthToken),
+          ...normalizeBackendAPIBaseURL(input.backendAPIBaseURL),
+        },
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'You generate short chat thread titles.',
+              'Return only the title text.',
+              'Use the same language as the user message.',
+              'Keep it under 12 Chinese characters or 6 English words.',
+              'Do not add quotes, punctuation, or explanations.',
+            ].join('\n'),
+          },
+          {
+            role: 'user',
+            content: userMessage.content.slice(0, 1200),
+          },
+        ],
+        signal,
+      })
+      thread.title = normalizeThreadTitle(result.content) ?? fallbackTitle
+      thread.metadata = {
+        ...(thread.metadata ?? {}),
+        titleGeneratedAt: isoNow(),
+        titleGenerationStatus: 'completed',
+        titleSourceMessageId: userMessage.id,
+        titleSource: 'model',
+      }
+    } catch (error) {
+      thread.title = fallbackTitle
+      thread.metadata = {
+        ...(thread.metadata ?? {}),
+        titleGeneratedAt: isoNow(),
+        titleGenerationStatus: 'fallback',
+        titleSourceMessageId: userMessage.id,
+        titleSource: 'fallback',
+        titleGenerationError: error instanceof Error ? error.message : String(error),
+      }
+    }
+    thread.updatedAt = isoNow()
+    this.store.updateThread(thread)
+    if (runId && thread.title?.trim()) {
+      this.emitRunStreamEvent(runId, {
+        type: 'thread_title',
+        runId,
+        threadId: thread.id,
+        title: thread.title.trim(),
+        updatedAt: thread.updatedAt,
+      })
+    }
+  }
+
   private async executeRun(runId: string, signal?: AbortSignal): Promise<void> {
     const run = this.store.getRun(runId)
     if (!run) return
     if (run.status === 'cancelled') return
     this.throwIfRunCancelled(runId, signal)
+    const initialThread = this.requireThread(run.threadId)
+    const initialUserMessageId = typeof run.metadata?.initialUserMessageId === 'string' ? run.metadata.initialUserMessageId : undefined
+    const initialUser = initialUserMessageId
+      ? initialThread.messages.find((message) => message.id === initialUserMessageId && message.role === 'user')
+      : [...initialThread.messages].reverse().find((message) => message.role === 'user')
+    await this.ensureThreadTitle(initialThread, initialUser, this.getRunAuth(run.id), signal, run.id)
     let catalogSnapshot = this.getRunCatalogSnapshot(runId)
 
     const runStartedAt = Date.now()
@@ -2734,6 +2823,16 @@ export class AgentRuntime {
   private replayRunStream(run: AgentRun, listener: (event: AgentRunStreamEvent) => void): void {
     const streamRun = toStreamRun(run)
     listener({ type: 'run', run: streamRun })
+    const thread = this.store.getThread(run.threadId)
+    if (thread?.title?.trim()) {
+      listener({
+        type: 'thread_title',
+        runId: run.id,
+        threadId: thread.id,
+        title: thread.title.trim(),
+        updatedAt: thread.updatedAt,
+      })
+    }
     const traceEvents = this.store.listRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     for (const event of traceEvents) {
       listener({ type: 'trace', runId: run.id, event })
@@ -2790,7 +2889,7 @@ export class AgentRuntime {
       ? event.run
       : 'run' in event && event.run
         ? event.run
-        : event.type === 'trace' || event.type === 'assistant_delta' || event.type === 'assistant_message'
+        : event.type === 'trace' || event.type === 'assistant_delta' || event.type === 'assistant_message' || event.type === 'thread_title'
           ? this.store.getRun(event.runId)
           : undefined
     if (!run?.planId) return
@@ -3048,7 +3147,7 @@ export class AgentRuntime {
     const planId = normalizeNonEmptyString(inputPlanId)
       ?? plannerRun.planId
       ?? this.findThreadPlan(plannerRun.threadId)?.id
-    if (!planId) throw new Error(`${toolNameFromSource(source)} requires planId or a planner run plan`)
+    if (!planId) throw new Error(`${source} requires planId or a planner run plan`)
     if (plannerRun.planId && plannerRun.planId !== planId) throw new Error(`planner run ${plannerRun.id} cannot ${action} plan ${planId}`)
     const plan = this.requirePlan(planId)
     if (plan.threadId !== plannerRun.threadId) throw new Error(`planner run ${plannerRun.id} cannot ${action} plan ${planId}`)
@@ -3823,16 +3922,16 @@ function normalizeSubagentNameAt(value: unknown, index: number): string | undefi
 }
 
 const DEFAULT_SUBAGENT_NAMES = [
-  '爱因斯坦',
-  '霍金',
-  '图灵',
-  '居里',
-  '费曼',
-  '冯诺依曼',
-  '达尔文',
-  '牛顿',
-  '伽利略',
-  '开普勒',
+  'Agent 1',
+  'Agent 2',
+  'Agent 3',
+  'Agent 4',
+  'Agent 5',
+  'Agent 6',
+  'Agent 7',
+  'Agent 8',
+  'Agent 9',
+  'Agent 10',
 ] as const
 
 function nextSubagentName(used: Set<string>): string {
@@ -3840,8 +3939,8 @@ function nextSubagentName(used: Set<string>): string {
     if (!used.has(name)) return name
   }
   let index = DEFAULT_SUBAGENT_NAMES.length + 1
-  while (used.has(`子代理${index}`)) index += 1
-  return `子代理${index}`
+  while (used.has(`Agent ${index}`)) index += 1
+  return `Agent ${index}`
 }
 
 function subagentNameFromTask(task: AgentTask): string | undefined {
@@ -4249,6 +4348,36 @@ function formatWorkerTaskMessage(plan: AgentPlan, task: AgentTask): string {
 
 function normalizeNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function normalizeThreadTitle(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const firstLine = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean)
+  if (!firstLine) return undefined
+  const cleaned = firstLine
+    .replace(/^["'`“”‘’「『《<\s]+|["'`“”‘’」』》>\s.!?。！？:：,，;；]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned) return undefined
+  return truncateThreadTitle(cleaned)
+}
+
+function fallbackThreadTitle(message: string): string {
+  return truncateThreadTitle(
+    message
+      .replace(/@\[[^\]]+\]\([^)]+\)/g, '')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  ) || '新会话'
+}
+
+function truncateThreadTitle(value: string): string {
+  const title = value.trim()
+  if (!title) return ''
+  return Array.from(title).slice(0, 30).join('')
 }
 
 function normalizeStringList(value: unknown): string[] {

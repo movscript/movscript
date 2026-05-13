@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import i18n from '@/i18n'
+import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
 export interface ChatMessage {
   id: string
@@ -67,6 +68,7 @@ export interface ChatMessageMeta {
   generationJobs?: ChatGenerationJob[]
   generationParamAudits?: ChatGenerationParamAudit[]
   generationValidationErrors?: ChatGenerationValidationError[]
+  draftArtifacts?: AgentTaskArtifactRef[]
   localRunActivity?: ChatRunActivity
 }
 
@@ -243,7 +245,7 @@ export interface ChatRunActivityEvent {
 }
 
 // Per-user conversation state
-interface UserConvState {
+export interface UserConvState {
   conversations: Conversation[]
   activeConversationId: string | null
   draftsByConversation: Record<string, ConversationDraft>
@@ -285,9 +287,9 @@ function getUserState(store: Pick<AgentStore, 'convsByUser'>, userId: string): U
   const existing = store.convsByUser[userId]
   if (!existing) return defaultUserState()
   return {
-    conversations: existing.conversations ?? [],
+    conversations: normalizeConversations(existing.conversations),
     activeConversationId: existing.activeConversationId ?? null,
-    draftsByConversation: existing.draftsByConversation ?? {},
+    draftsByConversation: normalizeDraftsByConversation(existing.draftsByConversation),
   }
 }
 
@@ -486,21 +488,148 @@ export const useAgentStore = create<AgentStore>()(
     }),
     {
       name: 'agent-store-v4',
-      partialize: (state) => ({ settings: state.settings }),
+      partialize: (state) => ({
+        settings: state.settings,
+        convsByUser: normalizeConvsByUser(state.convsByUser),
+      }),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<AgentStore> | undefined
         return {
           ...currentState,
-          ...persisted,
           settings: normalizeAgentSettings(persisted?.settings),
+          convsByUser: normalizeConvsByUser(persisted?.convsByUser),
         }
       },
       onRehydrateStorage: () => (state) => {
-        if (state) state.settings = normalizeAgentSettings(state.settings)
+        if (!state) return
+        state.settings = normalizeAgentSettings(state.settings)
+        state.convsByUser = normalizeConvsByUser(state.convsByUser)
       },
     }
   ),
 )
+
+export function normalizeConvsByUser(value?: Record<string, UserConvState> | null): Record<string, UserConvState> {
+  if (!value || typeof value !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(value).map(([userId, state]) => {
+      const conversations = normalizeConversations(state?.conversations)
+      const activeConversationId = typeof state?.activeConversationId === 'string'
+        && conversations.some((conversation) => conversation.id === state.activeConversationId)
+        ? state.activeConversationId
+        : conversations[0]?.id ?? null
+      return [userId, {
+        conversations,
+        activeConversationId,
+        draftsByConversation: normalizeDraftsByConversation(state?.draftsByConversation),
+      }]
+    }),
+  )
+}
+
+function normalizeConversations(value: unknown): Conversation[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(isRecord)
+    .map((conversation) => {
+      const now = Date.now()
+      const id = typeof conversation.id === 'string' && conversation.id ? conversation.id : genId()
+      const messages = normalizeMessages(conversation.messages)
+      return {
+        id,
+        title: typeof conversation.title === 'string' && conversation.title.trim() ? conversation.title : i18n.t('agents.chat.newConversation'),
+        messages,
+        createdAt: numberOrFallback(conversation.createdAt, messages[0]?.timestamp ?? now),
+        updatedAt: numberOrFallback(conversation.updatedAt, messages[messages.length - 1]?.timestamp ?? now),
+      }
+    })
+}
+
+function normalizeMessages(value: unknown): ChatMessage[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(isRecord)
+    .map((message) => {
+      const role = message.role === 'assistant' ? 'assistant' : 'user'
+      return {
+        id: typeof message.id === 'string' && message.id ? message.id : genId(),
+        role,
+        content: typeof message.content === 'string' ? message.content : '',
+        timestamp: numberOrFallback(message.timestamp, Date.now()),
+        ...(Array.isArray(message.attachments) ? { attachments: normalizeAttachments(message.attachments) } : {}),
+        ...(isRecord(message.meta) ? { meta: message.meta as ChatMessageMeta } : {}),
+      }
+    })
+}
+
+function normalizeDraftsByConversation(value: unknown): Record<string, ConversationDraft> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .flatMap(([conversationId, draft]) => {
+        if (!isRecord(draft)) return []
+        return [[conversationId, {
+          input: typeof draft.input === 'string' ? draft.input : '',
+          attachments: normalizeAttachments(draft.attachments),
+        }]]
+      }),
+  )
+}
+
+function normalizeAttachments(value: unknown): AgentAttachment[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(isRecord)
+    .map((attachment) => normalizeAttachment(attachment))
+}
+
+function normalizeAttachment(attachment: Record<string, unknown>): AgentAttachment {
+  const resourceId = numberOrUndefined(attachment.resourceId)
+  const type = normalizeAttachmentType(attachment.type)
+  const url = normalizeAttachmentUrl(typeof attachment.url === 'string' ? attachment.url : undefined, resourceId)
+  return {
+    id: typeof attachment.id === 'string' && attachment.id ? attachment.id : resourceId !== undefined ? `res-${resourceId}` : genId(),
+    name: typeof attachment.name === 'string' && attachment.name.trim() ? attachment.name : resourceId !== undefined ? `resource-${resourceId}` : 'attachment',
+    type,
+    mimeType: typeof attachment.mimeType === 'string' && attachment.mimeType ? attachment.mimeType : defaultMimeType(type),
+    size: numberOrFallback(attachment.size, 0),
+    ...(url ? { url } : {}),
+    ...(resourceId !== undefined ? { resourceId } : {}),
+    ...(isRecord(attachment.generated) ? { generated: attachment.generated as AgentAttachment['generated'] } : {}),
+  }
+}
+
+function normalizeAttachmentUrl(url: string | undefined, resourceId: number | undefined): string | undefined {
+  if (resourceId !== undefined && (!url || url.startsWith('blob:') || url.startsWith('data:'))) {
+    return `/api/v1/resources/${resourceId}/file`
+  }
+  return url
+}
+
+function normalizeAttachmentType(value: unknown): AgentAttachment['type'] {
+  return value === 'image' || value === 'video' || value === 'audio' || value === 'text' || value === 'file' ? value : 'file'
+}
+
+function defaultMimeType(type: AgentAttachment['type']): string {
+  if (type === 'image') return 'image/png'
+  if (type === 'video') return 'video/mp4'
+  if (type === 'audio') return 'audio/mpeg'
+  if (type === 'text') return 'text/plain'
+  return 'application/octet-stream'
+}
+
+function numberOrFallback(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback
+}
+
+function numberOrUndefined(value: unknown): number | undefined {
+  const numeric = Number(value)
+  return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
 
 export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null): AgentSettings {
   const merged = { ...DEFAULT_AGENT_SETTINGS, ...settings }

@@ -5,7 +5,7 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "subagentName": { "type": "string" },
+      "subagentName": { "type": "string", "description": "要取消的精确 subagent 名字，必须来自 spawn/list/get_plan 返回值；不要猜 worker 这种泛称。" },
       "runId": { "type": "string" },
       "taskId": { "type": "string" },
       "reason": { "type": "string" }

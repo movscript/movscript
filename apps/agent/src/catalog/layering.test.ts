@@ -9,7 +9,9 @@ import { buildMCPVirtualPack } from './mcpVirtualPack.js'
 import { loadAgentPluginCatalog } from './loader.js'
 import { resolveProfile } from '../profiles/resolveProfile.js'
 import { composePrompt } from '../skills/promptComposer.js'
+import { resolveRuntimeLayers } from '../skills/runtimeLayerResolver.js'
 import { selectActiveWorkflows } from '../skills/triggerEvaluator.js'
+import { resolveToolCatalog } from '../tools/capabilityResolver.js'
 import { resolveVisibleTools } from '../tools/toolCatalogResolver.js'
 
 const CATALOG_SKILLS_DIR = new URL('../../catalog/skills/', import.meta.url)
@@ -47,6 +49,7 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
 
   assert.ok(registry.schemas.has('movscript.project_proposal.v1'))
   assert.ok(registry.tools.has('movscript_update_draft'))
+  assert.ok(registry.tools.has('movscript_get_draft_model'))
   assert.ok(registry.skills.has('movscript.policy.drafts'))
   assert.ok(registry.packs.has('movscript.pack.default'))
   assert.ok(registry.packs.has('movscript.pack.agent-core'))
@@ -95,7 +98,6 @@ test('target-state pack files and the default profile are loaded as first-class 
     'movscript.workflow.project-proposal',
     'movscript.workflow.setting-prep',
     'movscript.workflow.production-proposal',
-    'movscript.workflow.dual-orchestration',
     'movscript.workflow.asset-proposal',
     'movscript.workflow.asset-candidate-generation',
     'movscript.workflow.content-unit-proposal',
@@ -144,6 +146,24 @@ test('draft lifecycle workflow describes read-before-write draft handling', () =
   })
   assert.deepEqual(selected.warnings, [])
   assert.deepEqual(selected.workflows.map((item) => item.id), ['movscript.workflow.draft-lifecycle'])
+})
+
+test('proposal workflows reference frontend draft model contract before field-specific edits', () => {
+  const catalog = loadAgentPluginCatalog()
+  const workflowIds = [
+    'movscript.workflow.draft-lifecycle',
+    'movscript.workflow.project-proposal',
+    'movscript.workflow.production-proposal',
+  ]
+
+  for (const workflowId of workflowIds) {
+    const workflow = catalog.layeredRegistry.skills.get(workflowId)
+    assert.ok(workflow?.kind === 'workflow', `${workflowId} should be a workflow`)
+    assert.match(workflow.instructionTemplate, /DraftDomainModel/, `${workflowId} should point to the frontend draft domain model`)
+    assert.match(workflow.instructionTemplate, /MCP/, `${workflowId} should route field contracts through MCP`)
+    assert.match(workflow.instructionTemplate, /schema fallback|schema.*fallback/i, `${workflowId} should define the current schema fallback`)
+    assert.ok(workflow.toolRefs.includes('tool://movscript_get_draft_model'), `${workflowId} should be able to call the draft model MCP contract tool`)
+  }
 })
 
 test('planner subagent behavior is provided by agent-core workflow skill', () => {
@@ -314,6 +334,40 @@ test('visual generation prompt exposes backend generation validation error codes
   assert.match(prompt.systemPrompt, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
 })
 
+test('image edit wording with image context activates visual generation tools', () => {
+  const catalog = loadAgentPluginCatalog()
+  const message = '让这张小猫站起来'
+  const layers = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: catalog.manifest,
+    message,
+    debugContext: {
+      route: { pathname: '/script-split-workbench' },
+      projects: [{ id: 4, name: '测试项目' }],
+      project: { id: 4, name: '测试项目' },
+      selection: null,
+      recentResources: [{ id: 2, name: 'job_3_image.jpg', type: 'image', mimeType: 'image/jpeg' }],
+      attachments: [{ id: 'resource-2', name: 'job_3_image.jpg', type: 'image', resourceId: 2 }],
+      memories: [],
+      labels: ['Project 素材', 'image_edit 生成请求'],
+    },
+  })
+
+  assert.ok(layers.trace.workflowIds.includes('movscript.workflow.visual-generation'))
+  assert.ok(layers.skills.some((skill) => skill.id === 'movscript.workflow.visual-generation'))
+
+  const tools = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: layers.manifest,
+    currentProjectId: 4,
+    activeSkills: layers.skills,
+    userMessage: message,
+  })
+  assert.ok(tools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
+  assert.notEqual(tools.byName.movscript_create_generation_job?.unavailableReason, 'workflow_scope')
+})
+
 test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('workflow/general-workflows.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/project-proposal.workflow.json', CATALOG_SKILLS_DIR)), false)
@@ -337,7 +391,7 @@ test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('movscript/workflow/planning/proposal-first/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/project/project-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/production/production-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/production/dual-orchestration/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/production/dual-orchestration/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-media-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)

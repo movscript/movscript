@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
+import { buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -197,6 +197,105 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
       schemaShapeWithoutDescriptions(staticCreateJob.outputSchema?.properties?.[field]),
       `movscript_create_generation_job ${field} output schema should match the static agent catalog`,
     )
+  }
+})
+
+test('draft model MCP tool exposes frontend-owned field and seed contract', async () => {
+  const result = await getDraftModelContract({
+    kind: 'production_proposal',
+    target: { entityType: 'production', entityId: 301, projectId: 42 },
+    seedMode: 'snapshot',
+    include: ['production', 'segments', 'not_allowed'],
+    hydrate: false,
+  }) as Record<string, any>
+
+  assert.equal(result.contractVersion, 1)
+  assert.equal(result.kind, 'production_proposal')
+  assert.equal(result.contentSchemaId, 'movscript.production_proposal.v1')
+  assert.deepEqual(result.seedPolicy.include, ['production', 'segments'])
+  assert.equal(result.seedPolicy.defaultMode, 'snapshot')
+  assert.deepEqual(result.seedPolicy.allowedModes, ['empty', 'snapshot'])
+  assert.deepEqual(result.fieldGuide.owns, ['segments', 'scene_moments', 'production_local_requirements'])
+  assert.equal(result.applyBoundary.backendApply, 'production_proposal')
+  assert.equal(result.reviewRoute, '/production-orchestrate?productionId=301&draftId=:draftId')
+  assert.equal(result.modelRef, 'frontend:DraftDomainModel:production_proposal:v1')
+})
+
+test('draft model MCP tool hydrates production proposal snapshot with production brief and project scripts', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/42/entities/productions': [{
+      ID: 301,
+      project_id: 42,
+      script_version_id: 77,
+      name: 'Pilot production',
+      description: 'Production brief from page.',
+      UpdatedAt: '2026-05-13T00:00:00.000Z',
+    }],
+    '/projects/42/entities/script-versions': [{
+      ID: 77,
+      project_id: 42,
+      script_id: 9,
+      title: 'Pilot v1',
+      summary: 'Script version summary.',
+      content: 'A long script body.',
+      UpdatedAt: '2026-05-13T00:00:01.000Z',
+    }],
+    '/projects/42/scripts': [{
+      ID: 9,
+      project_id: 42,
+      title: 'Pilot',
+      summary: 'Project script summary.',
+      content: 'Project script body should not be included.',
+      UpdatedAt: '2026-05-13T00:00:02.000Z',
+    }],
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await getDraftModelContract({
+      kind: 'production_proposal',
+      target: { entityType: 'production', entityId: 301, projectId: 42 },
+      include: ['production_script_brief', 'project_scripts'],
+    }) as Record<string, any>
+
+    assert.equal(result.seedPolicy.mode, 'snapshot')
+    assert.equal(result.seed.data.production_script_brief.scriptVersionId, 77)
+    assert.equal(result.seed.data.production_script_brief.brief, 'Production brief from page.')
+    assert.equal(result.seed.data.production_script_brief.body_excerpt, 'A long script body.')
+    assert.equal(result.seed.data.project_scripts[0].title, 'Pilot')
+    assert.equal(result.seed.data.project_scripts[0].content, undefined)
+    assert.deepEqual(result.seed.sourceVersions.production_script_brief, { id: 77, updatedAt: '2026-05-13T00:00:01.000Z' })
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('draft model MCP tool hydrates project proposal seed from allowed backend includes', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/42': { id: 42, name: 'Seed Project', UpdatedAt: '2026-05-13T00:00:00.000Z' },
+    '/projects/42/entities/creative-references': [{ ID: 7, name: 'Hero', UpdatedAt: '2026-05-13T00:00:01.000Z' }],
+    '/projects/42/entities/asset-slots': [{ ID: 9, name: 'Hero portrait', owner_type: 'creative_reference', owner_id: 7, UpdatedAt: '2026-05-13T00:00:02.000Z' }],
+  }) as typeof fetch
+  const previousBaseURL = 'http://localhost:8765'
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await getDraftModelContract({
+      kind: 'project_proposal',
+      target: { entityType: 'project', entityId: 42 },
+      include: ['project', 'creative_references', 'asset_slots', 'asset_slot_ownership'],
+    }) as Record<string, any>
+
+    assert.equal(result.seed.hydrated, true)
+    assert.equal(result.seed.data.project.name, 'Seed Project')
+    assert.equal(result.seed.data.creative_references[0].name, 'Hero')
+    assert.equal(result.seed.data.asset_slot_ownership[0].owner_type, 'creative_reference')
+    assert.deepEqual(result.seed.sourceVersions.project, { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' })
+  } finally {
+    setMCPAPIBaseURL(previousBaseURL)
+    globalThis.fetch = previousFetch
   }
 })
 

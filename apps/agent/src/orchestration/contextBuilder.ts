@@ -355,23 +355,23 @@ const SPAWN_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    subagentName: { type: 'string', description: 'Optional human-readable worker subagent name, for example 爱因斯坦 or 霍金. If omitted, the runtime assigns the next ordered name.' },
+    subagentName: { type: 'string', description: 'Optional human-readable worker subagent name. Prefer a short English human name such as Einstein, Turing, Curie, or Newton. Do not use generic names like worker or subagent.' },
     subagentNames: {
       oneOf: [
         { type: 'array', items: { type: 'string' } },
         { type: 'object', additionalProperties: { type: 'string' } },
       ],
-      description: 'Optional human-readable names for existing taskIds. Use an array in the same order as taskIds, or an object mapping taskId to name. Missing names are assigned automatically.',
+      description: 'Optional human-readable names for existing taskIds. Use an array in the same order as taskIds, or an object mapping taskId to name. Prefer short English human names such as Einstein, Turing, Curie, or Newton. Missing names get neutral runtime fallback labels.',
     },
-    taskId: { type: 'string', description: 'Existing plan task id to run with a worker subagent.' },
+    taskId: { type: 'string', description: 'Existing plan task id to run with a worker subagent. The planner run must already have a plan; call create_plan first when no plan exists.' },
     taskIds: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Existing plan task ids to run with worker subagents.',
+      description: 'Existing plan task ids to run with worker subagents. The planner run must already have a plan; call create_plan first when no plan exists.',
     },
     tasks: {
       type: 'array',
-      description: 'Optional new tasks to add before dispatching workers.',
+      description: 'Optional new tasks to add before dispatching workers. The planner run must already have a plan; call create_plan first when no plan exists.',
       items: {
         type: 'object',
         additionalProperties: false,
@@ -400,7 +400,7 @@ const WAIT_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    subagentName: { type: 'string', description: 'Human-readable worker subagent name to inspect.' },
+    subagentName: { type: 'string', description: 'Human-readable worker subagent name to inspect. Use an actual name returned by spawn/list/get_plan, such as Einstein or Turing; do not guess generic names like worker.' },
     runId: { type: 'string', description: 'Worker run id to inspect.' },
     taskId: { type: 'string', description: 'Task id to inspect.' },
     planId: { type: 'string', description: 'Plan id to inspect. Defaults to the current planner run plan.' },
@@ -412,7 +412,7 @@ const CANCEL_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    subagentName: { type: 'string', description: 'Human-readable worker subagent name to cancel. May target an active worker run or a not-yet-started task.' },
+    subagentName: { type: 'string', description: 'Human-readable worker subagent name to cancel. May target an active worker run or a not-yet-started task. Use an exact name returned by spawn/list/get_plan.' },
     runId: { type: 'string', description: 'Child worker run id to cancel.' },
     taskId: { type: 'string', description: 'Task id whose owner worker should be cancelled, or whose pending/blocked/needs_review task should be marked cancelled if no worker has started.' },
     reason: { type: 'string' },
@@ -434,6 +434,7 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
     productionId: { type: 'number', description: 'Optional hint for production_proposal drafts.' },
     source: { type: 'object', additionalProperties: true },
     target: { type: 'object', additionalProperties: true },
+    seed: { type: 'object', additionalProperties: true, description: 'DraftDomainModel/MCP seed contract or hydrated seed summary to persist under metadata.seed.' },
     metadata: { type: 'object', additionalProperties: true },
     proposal: { type: 'boolean', description: 'When true, creates a reviewable proposal draft: adds schema validation, infers target/source, sets default title, and returns {proposalRef, draftId, status}.' },
   },

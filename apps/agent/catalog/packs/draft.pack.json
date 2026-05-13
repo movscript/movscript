@@ -24,6 +24,7 @@
     "movscript_read_draft",
     "movscript_list_drafts",
     "movscript_get_draft",
+    "movscript_get_draft_model",
     "movscript_create_draft",
     "movscript_update_draft",
     "movscript_create_script"

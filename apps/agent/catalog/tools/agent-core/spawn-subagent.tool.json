@@ -1,14 +1,20 @@
 {
   "name": "movscript_spawn_subagent",
-  "description": "为 plan tasks 创建或派发一个或多个 worker subagent runs。",
+  "description": "为当前 plan tasks 创建或派发一个或多个 worker subagent runs。当前 planner run 必须已绑定会话唯一 plan；如果没有 plan，先调用 movscript_create_plan。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
-      "subagentName": { "type": "string" },
-      "subagentNames": { "type": "array", "items": { "type": "string" } },
-      "taskId": { "type": "string" },
-      "taskIds": { "type": "array", "items": { "type": "string" } },
+      "subagentName": { "type": "string", "description": "可选的人类可读名字。优先用英文人名，例如 Einstein、Turing、Curie、Newton；不要用 worker、subagent 这类泛称。" },
+      "subagentNames": {
+        "oneOf": [
+          { "type": "array", "items": { "type": "string" } },
+          { "type": "object", "additionalProperties": { "type": "string" } }
+        ],
+        "description": "为 taskIds 指定名字。优先用英文人名，例如 Einstein、Turing、Curie、Newton。"
+      },
+      "taskId": { "type": "string", "description": "当前 plan 中已有 task id。" },
+      "taskIds": { "type": "array", "items": { "type": "string" }, "description": "当前 plan 中已有 task ids。" },
       "tasks": {
         "type": "array",
         "items": {
@@ -16,7 +22,7 @@
           "additionalProperties": false,
           "properties": {
             "id": { "type": "string" },
-            "subagentName": { "type": "string" },
+            "subagentName": { "type": "string", "description": "可选的人类可读名字。优先用英文人名，例如 Einstein、Turing、Curie、Newton。" },
             "title": { "type": "string" },
             "description": { "type": "string" },
             "deps": { "type": "array", "items": { "type": "string" } },
@@ -33,6 +39,6 @@
   "projectScoped": false,
   "defaults": { "grant": "allow", "approval": "never" },
   "source": "runtime",
-  "capability": "为 planner 拥有的 plan tasks 派发有范围约束的 worker subagents。",
+  "capability": "为 planner 拥有的 plan tasks 派发有范围约束的 worker subagents；没有 plan 时必须先 create_plan。",
   "allowedRunRoles": ["planner"]
 }

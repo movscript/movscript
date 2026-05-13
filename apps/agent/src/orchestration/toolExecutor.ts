@@ -267,6 +267,7 @@ async function callRuntimeTool(
         ...extractPageContext(run),
       },
       target: args.target,
+      seed: args.seed,
       createdByRunId: run.id,
       createdByThreadId: run.threadId,
       metadata: isRecord(args.metadata) ? args.metadata : undefined,
@@ -696,6 +697,7 @@ function createProposalDraft(
     content,
     source,
     target,
+    seed: args.seed,
     createdByRunId: run.id,
     createdByThreadId: run.threadId,
     metadata: {
