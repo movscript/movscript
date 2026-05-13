@@ -9,7 +9,7 @@
   "scripts": {
     "build": "pnpm --filter @movscript/draft-schemas build && tsc -p tsconfig.build.json && node scripts/build-server-bundle.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test": "node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\"",
     "test:generation-repair": "node --import tsx --test \"src/orchestration/toolExecutor.test.ts\"",
     "dev": "node scripts/dev-watch.mjs",
     "dev:cli": "tsx src/cli.ts",

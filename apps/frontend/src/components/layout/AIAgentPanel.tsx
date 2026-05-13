@@ -12,13 +12,21 @@ import {
   MessageSquareText, Braces, FileJson,
 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { getAPIBaseURL, getAPIV1BaseURL } from '@/lib/config'
 import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSettled, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
+import { attachmentFromResource, attachmentKey, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/lib/agentAttachments'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, buildPageContext, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
-import { generationProgressFromEvents, replayGenerationTrace, type GenerationProgressState, type GenerationTraceEventLike, type GenerationTraceReplay } from '@/lib/agentGenerationMedia'
+import { generationProgressFromEvents, type GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel, type GenerationJobBadgeTone } from '@/lib/agentGenerationDisplay'
-import { generationParamAuditsFromRun, generationValidationErrorsFromRun } from '@/lib/agentGenerationArtifacts'
+import {
+  assistantResultPayloadForRun,
+  fetchAllRunTraceEvents,
+  fetchResourceById,
+  hideGeneratedResultTechnicalSummary,
+  hydrateHistoricalGeneratedAttachments,
+  outputResourceIdsFromText,
+} from '@/lib/agentMessageViewModel'
+import { compactRunActivity, compactRunTraceEvents, liveTraceEventKey, mergeRunActivityEvents } from '@/lib/agentRunActivity'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { toastMCPError, toastMCPStatus } from '@/lib/mcpStatus'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
@@ -28,11 +36,13 @@ import { GeneratedResultCard } from '@/components/agent/GeneratedResultCard'
 import {
   formatLocalAgentAssistantContent,
   LocalAgentWorkflowPanel,
+  localAgentApprovalImpactText,
 } from '@/components/agent/localRuntime'
 import { extractAgentTaskArtifacts, type AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 import {
   canStartLocalAgentFromClient,
   localAgentClient,
+  type AgentMessage,
   type AgentCapabilitiesResponse,
   type AgentHealth,
   type AgentClientInput,
@@ -180,51 +190,11 @@ function MarkdownContent({ text, attachments }: { text: string; attachments?: Ag
   )
 }
 
-function hideGeneratedResultTechnicalSummary(text: string) {
-  const hiddenLine = /^(?:Command:\s*\/(?:image|video)\b|Run:\s*\S+|Thread:\s*\S+|Job\s+#\d+|Status:\s*\S+|Output resources?:\s*#?\d+(?:\s*,\s*#?\d+)*)\s*$/i
-  return text
-    .split('\n')
-    .filter((line) => !hiddenLine.test(line.trim()))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-}
-
 function formatBytes(bytes: number) {
   if (!bytes) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']
   const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
   return `${(bytes / Math.pow(1024, idx)).toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`
-}
-
-function resourceUrl(resource: Pick<RawResource, 'url' | 'direct_url'>) {
-  const url = resource.direct_url || resource.url
-  if (!url) return ''
-  if (/^(https?:|blob:|data:)/i.test(url)) return url
-  if (url.startsWith('/api/v1/')) return `${getAPIBaseURL()}${url}`
-  if (url.startsWith('/')) return `${getAPIV1BaseURL()}${url}`
-  return url
-}
-
-function attachmentKind(mimeType: string, fallbackName = ''): AgentAttachment['type'] {
-  if (mimeType.startsWith('image/')) return 'image'
-  if (mimeType.startsWith('video/')) return 'video'
-  if (mimeType.startsWith('audio/')) return 'audio'
-  if (/\.(heic|heif)$/i.test(fallbackName)) return 'image'
-  if (mimeType.startsWith('text/') || /\.(txt|md|json|csv|srt)$/i.test(fallbackName)) return 'text'
-  return 'file'
-}
-
-function attachmentFromResource(resource: RawResource): AgentAttachment {
-  return {
-    id: `res-${resource.ID}`,
-    name: resource.name,
-    type: attachmentKind(resource.mime_type, resource.name),
-    mimeType: resource.mime_type,
-    size: resource.size,
-    url: resourceUrl(resource),
-    resourceId: resource.ID,
-  }
 }
 
 function attachmentDisplayUrl(attachment: AgentAttachment) {
@@ -309,29 +279,6 @@ function stripResourceMentions(text: string): string {
 
 function normalizeInlineSpacing(text: string): string {
   return text.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n')
-}
-
-function attachmentKey(attachment: AgentAttachment): string {
-  return attachment.resourceId !== undefined ? `resource:${attachment.resourceId}` : attachment.id
-}
-
-function dedupeAttachments(items: AgentAttachment[]): AgentAttachment[] {
-  const seen = new Map<string, AgentAttachment>()
-  for (const item of items) {
-    seen.set(attachmentKey(item), item)
-  }
-  return Array.from(seen.values())
-}
-
-function placeholderAttachment(resourceId: number): AgentAttachment {
-  return {
-    id: `resource-${resourceId}`,
-    name: `resource-${resourceId}`,
-    type: 'file',
-    mimeType: 'application/octet-stream',
-    size: 0,
-    resourceId,
-  }
 }
 
 function resourceMentionAttachments(text: string, byId: Map<number, AgentAttachment>): AgentAttachment[] {
@@ -609,139 +556,6 @@ function AgentMentionEditor({
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-async function generationReplayFromRun(run: AgentRun, liveEvents: GenerationTraceEventLike[] = []): Promise<GenerationTraceReplay> {
-  const traceEvents = [
-    ...(run.steps ?? []).map((step) => ({ data: step.result, createdAt: step.createdAt, completedAt: step.completedAt })),
-    ...(run.traceEvents ?? []),
-    ...liveEvents,
-    ...await fetchRunTraceEventsForGeneratedAttachments(run.id),
-  ]
-  return replayGenerationTrace(traceEvents)
-}
-
-async function generatedAttachmentsFromReplay(replay: GenerationTraceReplay, fallbackResourceIds: number[] = [], fallbackContent = ''): Promise<AgentAttachment[]> {
-  const resources = new Map<number, RawResource>(replay.outputResources.map((resource) => [resource.ID, resource]))
-  for (const id of [...replay.outputResourceIds, ...fallbackResourceIds]) {
-    if (!resources.has(id)) {
-      const found = await fetchResourceById(id)
-      if (found && (found.type === 'image' || found.type === 'video')) resources.set(id, found)
-    }
-  }
-  return Array.from(resources.values())
-    .filter((resource) => resource.type === 'image' || resource.type === 'video')
-    .map((resource) => ({
-      ...attachmentFromResource(resource),
-      id: `generated-${resource.ID}`,
-      ...(replay.metadataByResourceId.has(resource.ID) ? { generated: replay.metadataByResourceId.get(resource.ID) } : {}),
-    }))
-    .concat(
-      fallbackResourceIds
-        .filter((id) => !resources.has(id))
-        .map((id) => generatedFallbackAttachmentFromText(id, fallbackContent)),
-    )
-}
-
-async function fetchRunTraceEventsForGeneratedAttachments(runId: string): Promise<GenerationTraceEventLike[]> {
-  try {
-    const response = await localAgentClient.getRunTraceEvents(runId, { limit: 200, kind: 'tool_call' })
-    return response.events
-  } catch {
-    return []
-  }
-}
-
-async function fetchResourceById(id: number): Promise<RawResource | undefined> {
-  try {
-    const { data } = await api.get<RawResource[] | { items: RawResource[] }>('/resources', {
-      params: { page: 1, page_size: 200, type: 'image,video' },
-    })
-    const resources = Array.isArray(data) ? data : data.items
-    return resources.find((resource) => resource.ID === id)
-  } catch {
-    return undefined
-  }
-}
-
-function withGeneratedAttachments(attachments: AgentAttachment[]): { attachments?: AgentAttachment[] } {
-  return attachments.length > 0 ? { attachments } : {}
-}
-
-async function assistantResultPayloadForRun(run: AgentRun, liveEvents: ChatRunActivityEvent[] = [], assistantContent = '') {
-  const replay = await generationReplayFromRun(run, liveEvents)
-  const fallbackIds = outputResourceIdsFromText(assistantContent)
-  const attachments = run.streamPartial ? [] : await generatedAttachmentsFromReplay(replay, fallbackIds, assistantContent)
-  const generationJobs = replay.jobs
-  const generationParamAudits = generationParamAuditsFromRun(run)
-  const generationValidationErrors = generationValidationErrorsFromRun(run)
-  const contextDiagnostic = contextDiagnosticFromRun(run)
-  const draftArtifacts = extractAgentTaskArtifacts(run)
-  return {
-    ...withGeneratedAttachments(attachments),
-    meta: {
-      contextLabels: [`run ${run.status}`],
-      localRunActivity: mergeRunActivityEvents(compactRunActivity(run), liveEvents),
-      ...(contextDiagnostic ? { contextDiagnostic } : {}),
-      ...(generationJobs.length > 0 ? { generationJobs } : {}),
-      ...(generationParamAudits.length > 0 ? { generationParamAudits } : {}),
-      ...(generationValidationErrors.length > 0 ? { generationValidationErrors } : {}),
-      ...(draftArtifacts.length > 0 ? { draftArtifacts } : {}),
-    },
-  }
-}
-
-function contextDiagnosticFromRun(run: AgentRun): ChatContextDiagnostic | undefined {
-  const command = isRecord(run.metadata?.command) ? run.metadata.command : undefined
-  if (command?.name !== 'context') return undefined
-  for (const step of run.steps ?? []) {
-    if (step.type !== 'message' || !isRecord(step.result)) continue
-    const diagnostic = step.result.diagnostic
-    if (isChatContextDiagnostic(diagnostic)) return diagnostic
-  }
-  return undefined
-}
-
-function isChatContextDiagnostic(value: unknown): value is ChatContextDiagnostic {
-  if (!isRecord(value)) return false
-  if (value.schema !== 'movscript.local_context_diagnostic.v1') return false
-  if (!Array.isArray(value.messages) || !Array.isArray(value.debugParts)) return false
-  if (!isRecord(value.tools) || !Array.isArray(value.tools.available) || !Array.isArray(value.tools.blocked) || !Array.isArray(value.tools.modelTools)) return false
-  return true
-}
-
-function generatedFallbackAttachmentFromText(resourceId: number, text: string): AgentAttachment {
-  const isVideo = /(?:Command:\s*\/video|\/video\b|视频)/i.test(text)
-  const type: AgentAttachment['type'] = isVideo ? 'video' : 'image'
-  return {
-    id: `generated-${resourceId}`,
-    name: isVideo ? `generated-video-${resourceId}.mp4` : `generated-image-${resourceId}.png`,
-    type,
-    mimeType: isVideo ? 'video/mp4' : 'image/png',
-    size: 0,
-    url: `/api/v1/resources/${resourceId}/file`,
-    resourceId,
-  }
-}
-
-function outputResourceIdsFromText(text: string): number[] {
-  const ids: number[] = []
-  const seen = new Set<number>()
-  const patterns = [
-    /Output resources?:\s*#?(\d+(?:\s*,\s*#?\d+)*)/gi,
-    /输出资源(?:\s*ID)?[:：]?\s*#?(\d+(?:\s*,\s*#?\d+)*)/g,
-  ]
-  for (const pattern of patterns) {
-    for (const match of text.matchAll(pattern)) {
-      for (const raw of match[1].split(',')) {
-        const id = Number(raw.replace(/[^\d]/g, ''))
-        if (!Number.isInteger(id) || id <= 0 || seen.has(id)) continue
-        seen.add(id)
-        ids.push(id)
-      }
-    }
-  }
-  return ids
 }
 
 function attachmentPromptBlock(attachments: AgentAttachment[]) {
@@ -1297,6 +1111,10 @@ function AgentDebugPreviewDialog({
                             <Badge variant="warning" className="text-[9px]">{approval.risk ?? approval.status}</Badge>
                           </div>
                           <p className="mt-0.5 text-muted-foreground">{approval.reason}</p>
+                          <div className="mt-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-1 text-[10px] leading-relaxed text-amber-900 dark:text-amber-200">
+                            <span className="font-medium">{t('agents.chat.workflow.approvalImpact.label')}: </span>
+                            {localAgentApprovalImpactText(approval, t)}
+                          </div>
                           {approval.args && (
                             <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
                               {safeJSONStringify(approval.args)}
@@ -1756,62 +1574,6 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value))
 }
 
-function compactRunActivity(run: AgentRun): ChatRunActivity {
-  return {
-    runId: run.id,
-    threadId: run.threadId,
-    status: run.status,
-    createdAt: run.createdAt,
-    updatedAt: run.updatedAt,
-    ...(run.startedAt ? { startedAt: run.startedAt } : {}),
-    ...(run.completedAt ? { completedAt: run.completedAt } : {}),
-    ...(run.failedAt ? { failedAt: run.failedAt } : {}),
-    ...(run.error ? { error: run.error } : {}),
-    ...(run.warnings?.length ? { warnings: run.warnings } : {}),
-    steps: run.steps
-      .filter((step) => step.type === 'tool_call' || step.type === 'message')
-      .map((step) => ({
-        id: step.id,
-        type: step.type,
-        status: step.status,
-        ...(step.title ? { title: step.title } : {}),
-        ...(step.toolName ? { toolName: step.toolName } : {}),
-        ...(step.args ? { args: step.args } : {}),
-        ...(step.result !== undefined ? { result: step.result } : {}),
-        ...(step.error ? { error: step.error } : {}),
-        ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
-        createdAt: step.createdAt,
-        ...(step.completedAt ? { completedAt: step.completedAt } : {}),
-      })),
-    events: compactRunTraceEvents(run.traceEvents ?? []),
-  }
-}
-
-function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunActivityEvent[] {
-  return events
-    .filter((trace) => trace.kind === 'tool_call'
-      || trace.kind === 'model_call'
-      || trace.kind === 'context'
-      || trace.kind === 'memory'
-      || trace.kind === 'policy'
-      || trace.kind === 'tool_catalog'
-      || trace.kind === 'message'
-      || trace.kind === 'assistant'
-      || trace.kind === 'run')
-    .map((trace) => ({
-      id: trace.id,
-      kind: trace.kind,
-      title: trace.title,
-      status: trace.status,
-      ...(trace.summary ? { summary: trace.summary } : {}),
-      ...(trace.toolName ? { toolName: trace.toolName } : {}),
-      ...(trace.stepId ? { stepId: trace.stepId } : {}),
-      ...(trace.data !== undefined ? { data: trace.data } : {}),
-      createdAt: trace.createdAt,
-      ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
-    }))
-}
-
 function debugHttpRequestEvents(requests: DebugHttpRequest[], startedAt = new Date().toISOString()): ChatRunActivityEvent[] {
   return requests.map((request, index) => ({
     id: `http-request-${request.id}`,
@@ -1864,16 +1626,6 @@ function upsertActivityEvent(events: ChatRunActivityEvent[], item: ChatRunActivi
   const httpItems = events.filter((candidate) => candidate.id.startsWith('http-request-'))
   const runtimeItems = events.filter((candidate) => !candidate.id.startsWith('local-runtime-') && !candidate.id.startsWith('http-request-'))
   return [...setupItems, ...httpItems, ...runtimeItems]
-}
-
-function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRunActivityEvent[]): ChatRunActivity {
-  if (events.length === 0) return activity
-  const existingKeys = new Set(activity.events.map(liveTraceEventKey))
-  const mergedEvents = [
-    ...activity.events,
-    ...events.filter((event) => !existingKeys.has(liveTraceEventKey(event))),
-  ]
-  return { ...activity, events: mergedEvents.slice(-48) }
 }
 
 interface ThinkingBubbleState {
@@ -2252,16 +2004,6 @@ function formatGenerationTraceDetail(event: ChatRunActivityEvent) {
   }
 }
 
-function liveTraceEventKey(event: ChatRunActivityEvent) {
-  if (event.kind !== 'tool_call' || event.title !== 'Model tool call delta') return event.id
-  if (event.id.startsWith('trace_live_')) return event.id
-  const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
-  const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
-  const toolCall = stream?.toolCall && typeof stream.toolCall === 'object' ? stream.toolCall as Record<string, unknown> : undefined
-  const index = typeof toolCall?.index === 'number' ? toolCall.index : 0
-  return `model-tool-call-stream:${index}`
-}
-
 function ActivityJSONBlock({ label, value }: { label: string; value: unknown }) {
   const text = safeJSONStringify(value)
   return (
@@ -2482,6 +2224,7 @@ function PlanOverviewPanel({
   onDispatchSettingsChange?: (settings: PlanDispatchSettings) => void
 }) {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [artifactTypeFilter, setArtifactTypeFilter] = useState<'all' | string>('all')
   const [traceSummaries, setTraceSummaries] = useState<Record<string, AgentRunTraceSummary>>({})
   const [loadingTraceSummaryRunId, setLoadingTraceSummaryRunId] = useState<string | null>(null)
@@ -2995,6 +2738,9 @@ function PlanOverviewPanel({
                             </div>
                             <p className="mt-0.5 text-muted-foreground">{approval.reason}</p>
                             {approval.permission && <div className="mt-0.5 text-muted-foreground">{approval.permission}</div>}
+                            <div className="mt-0.5 text-amber-800 dark:text-amber-300">
+                              {t('agents.chat.workflow.approvalImpact.label')}: {localAgentApprovalImpactText(approval, t)}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -3093,22 +2839,7 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
   )
   const { data: historicalGeneratedAttachments = [] } = useQuery({
     queryKey: ['agent-historical-generated-attachments', msg.id, missingTextOutputResourceIds],
-    queryFn: async () => {
-      const resources = await Promise.all(missingTextOutputResourceIds.map(fetchResourceById))
-      const foundAttachments = resources
-        .filter((resource): resource is RawResource => !!resource && (resource.type === 'image' || resource.type === 'video'))
-        .map((resource) => ({
-          ...attachmentFromResource(resource),
-          id: `generated-${resource.ID}`,
-        }))
-      const foundIds = new Set(foundAttachments.map((attachment) => attachment.resourceId).filter((id): id is number => id !== undefined))
-      return [
-        ...foundAttachments,
-        ...missingTextOutputResourceIds
-          .filter((id) => !foundIds.has(id))
-          .map((id) => generatedFallbackAttachmentFromText(id, msg.content)),
-      ]
-    },
+    queryFn: () => hydrateHistoricalGeneratedAttachments(msg.content, msg.attachments ?? []),
     enabled: !isUser && missingTextOutputResourceIds.length > 0,
     staleTime: 60_000,
   })
@@ -3247,6 +2978,64 @@ function formatAgentDate(value: string | number, locale: string) {
 
 function localThreadTitle(thread: Pick<AgentThreadSummary, 'title' | 'id'>, t: ReturnType<typeof useTranslation>['t']) {
   return thread.title || t('agents.chat.panel.runtime.localThreadTitle', { id: thread.id.slice(-6) })
+}
+
+function timestampFromISO(value: string | undefined): number | undefined {
+  if (!value) return undefined
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) ? timestamp : undefined
+}
+
+async function restoredChatMessageFromLocalMessage(
+  message: AgentMessage,
+  restoredLabel: string,
+): Promise<Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }> {
+  const base = {
+    role: message.role as 'user' | 'assistant',
+    content: message.content,
+    timestamp: timestampFromISO(message.createdAt),
+  }
+  if (message.role !== 'assistant' || !message.runId) {
+    return {
+      ...base,
+      meta: { contextLabels: [restoredLabel] },
+    }
+  }
+  try {
+    const [run, traceEvents] = await Promise.all([
+      localAgentClient.getRun(message.runId),
+      fetchAllRunTraceEvents(message.runId),
+    ])
+    const resultPayload = await assistantResultPayloadForRun(
+      { ...run, traceEvents },
+      [],
+      message.content,
+      {
+        fetchRunTraceEvents: async () => traceEvents.filter((event) => event.kind === 'tool_call'),
+      },
+    )
+    return {
+      ...base,
+      ...resultPayload,
+      meta: {
+        ...resultPayload.meta,
+        contextLabels: [
+          restoredLabel,
+          ...(resultPayload.meta.contextLabels ?? []),
+        ],
+      },
+    }
+  } catch {
+    return {
+      ...base,
+      meta: {
+        contextLabels: [
+          restoredLabel,
+          message.runId ? `run ${message.runId.slice(-6)}` : '',
+        ].filter(Boolean),
+      },
+    }
+  }
 }
 
 function asString(value: unknown) {
@@ -3869,6 +3658,10 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
                     <Badge variant="warning" className="text-[9px]">{approval.risk ?? approval.status}</Badge>
                   </div>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{approval.reason}</p>
+                  <div className="mt-1 rounded border border-amber-500/20 bg-background/60 px-1.5 py-1 text-[9px] leading-relaxed text-amber-900 dark:text-amber-200">
+                    <span className="font-medium">{t('agents.chat.workflow.approvalImpact.label')}: </span>
+                    {localAgentApprovalImpactText(approval, t)}
+                  </div>
                   {approval.args && (
                     <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 p-1.5 text-[9px] text-muted-foreground">
                       {safeJSONStringify(approval.args)}
@@ -6285,14 +6078,15 @@ function BuiltinChat({ userId, onCollapse }: { userId: string; onCollapse: () =>
   async function handleRestoreLocalThread(threadId: string) {
     const thread = await localAgentClient.getThread(threadId)
     const convId = createConversation(userId)
+    const restoredLabel = t('agents.chat.panel.runtime.restoredLocalRuntime')
     updateConversationTitle(userId, convId, localThreadTitle(thread, t))
-    for (const message of thread.messages) {
-      if (message.role !== 'user' && message.role !== 'assistant') continue
-      addMessage(userId, convId, {
-        role: message.role,
-        content: message.content,
-        meta: { contextLabels: [t('agents.chat.panel.runtime.restoredLocalRuntime')] },
-      })
+    const restoredMessages = await Promise.all(
+      thread.messages
+        .filter((message) => message.role === 'user' || message.role === 'assistant')
+        .map((message) => restoredChatMessageFromLocalMessage(message, restoredLabel)),
+    )
+    for (const message of restoredMessages) {
+      addMessage(userId, convId, message)
     }
     setLocalThreadId(convId, thread.id)
     setActiveConversation(userId, convId)

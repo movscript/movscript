@@ -1,0 +1,74 @@
+{
+  "audit_version": 1,
+  "model_config_id": 42,
+  "model_contract_loaded": true,
+  "params_schema_loaded": true,
+  "params_schema_rule_count": 2,
+  "input_requirements": {
+    "image": {
+      "min": 1,
+      "max": 4
+    },
+    "video": {
+      "min": 0,
+      "max": 0
+    }
+  },
+  "submitted_inputs": {
+    "image": 5,
+    "video": 0
+  },
+  "supported_params": [
+    "duration",
+    "frames",
+    "resolution"
+  ],
+  "submitted_extra_params": [
+    "duration",
+    "resolution"
+  ],
+  "provided_extra_params": [
+    "duration",
+    "legacy_size",
+    "resolution",
+    "unsupported_flag"
+  ],
+  "dropped_extra_params": [
+    "unsupported_flag"
+  ],
+  "dropped_top_level_params": [
+    "aspect_ratio"
+  ],
+  "drop_reasons": {
+    "unsupported_flag": "unsupported_extra_param",
+    "aspect_ratio": "unsupported_top_level_param"
+  },
+  "renamed_extra_params": {
+    "legacy_size": "resolution"
+  },
+  "preflight_errors": [
+    {
+      "code": "INVALID_PARAMETER_OPTION",
+      "field": "frames",
+      "message": "parameter \"frames\" must match one of the declared schema enum values",
+      "allowed_values": [
+        29,
+        33,
+        37
+      ],
+      "suggested_fix": {
+        "frames": 29
+      }
+    }
+  ],
+  "input_preflight_errors": [
+    {
+      "code": "INVALID_INPUT_COUNT",
+      "field": "image",
+      "message": "image input count 5 exceeds maximum 4",
+      "required_min": 1,
+      "allowed_max": 4,
+      "actual_count": 5
+    }
+  ]
+}

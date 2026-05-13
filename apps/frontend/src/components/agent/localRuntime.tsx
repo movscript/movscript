@@ -10,6 +10,7 @@ import type { ChatRunActivityEvent } from '@/store/agentStore'
 
 type PendingApproval = NonNullable<AgentRun['pendingApprovals']>[number]
 type PendingInputRequest = NonNullable<AgentRun['pendingInputRequests']>[number]
+type ApprovalLike = Pick<PendingApproval, 'toolName' | 'risk' | 'permission' | 'preview'>
 
 export interface LocalAgentWorkflowPanelProps {
   run: AgentRun | null
@@ -30,6 +31,43 @@ export interface LocalAgentInputRequestCardProps {
   sendLabel?: string
   placeholder?: string
   className?: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+
+function approvalPreviewSideEffect(approval: ApprovalLike): string | null {
+  const preview = isRecord(approval.preview) ? approval.preview : null
+  const review = isRecord(preview?.review) ? preview.review : null
+  return typeof review?.sideEffect === 'string' && review.sideEffect.trim() ? review.sideEffect.trim() : null
+}
+
+export function localAgentApprovalImpactText(approval: ApprovalLike, t: ReturnType<typeof useTranslation>['t']): string {
+  const sideEffect = approvalPreviewSideEffect(approval)
+  if (sideEffect) return t('agents.chat.workflow.approvalImpact.previewApply', { sideEffect })
+
+  const byTool: Record<string, string> = {
+    movscript_create_generation_job: 'generationCreate',
+    movscript_cancel_generation_job: 'generationCancel',
+    movscript_create_project: 'projectCreate',
+    movscript_create_script: 'scriptCreate',
+    movscript_delete_memory: 'memoryDelete',
+    movscript_reload_agent_catalog: 'catalogReload',
+    movscript_spawn_subagent: 'subagentSpawn',
+    movscript_cancel_subagent: 'subagentCancel',
+  }
+  const toolKey = byTool[approval.toolName]
+  if (toolKey) return t(`agents.chat.workflow.approvalImpact.${toolKey}`)
+
+  const permission = approval.permission ?? ''
+  if (permission.includes('generation')) return t('agents.chat.workflow.approvalImpact.generationGeneric')
+  if (permission.includes('project.write')) return t('agents.chat.workflow.approvalImpact.projectWrite')
+  if (permission.includes('draft.write')) return t('agents.chat.workflow.approvalImpact.draftWrite')
+  if (permission.includes('memory.write')) return t('agents.chat.workflow.approvalImpact.memoryWrite')
+  if (approval.risk === 'destructive') return t('agents.chat.workflow.approvalImpact.destructive')
+  if (approval.risk === 'write') return t('agents.chat.workflow.approvalImpact.write')
+  return t('agents.chat.workflow.approvalImpact.default')
 }
 
 export function formatLocalAgentAssistantContent(run: AgentRun, thread: Pick<AgentThread, 'messages'>) {
@@ -239,6 +277,10 @@ export function LocalAgentWorkflowPanel({
                   </div>
                 </div>
                 <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{approval.reason}</p>
+                <div className="mt-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-1 text-[10px] leading-relaxed text-amber-900 dark:text-amber-200">
+                  <span className="font-medium">{t('agents.chat.workflow.approvalImpact.label')}: </span>
+                  {localAgentApprovalImpactText(approval, t)}
+                </div>
                 {approvalDetails ? approvalDetails(approval) : null}
               </div>
             ))}

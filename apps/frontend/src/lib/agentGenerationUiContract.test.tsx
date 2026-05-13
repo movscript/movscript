@@ -140,8 +140,11 @@ test('agent panel keeps generated result and binding hooks for browser E2E', () 
 
 test('agent panel keeps plan overview summary and drilldown hooks', () => {
   const source = readFileSync(resolve('src/components/layout/AIAgentPanel.tsx'), 'utf8')
-  assertIncludes(source, 'const generationValidationErrors = generationValidationErrorsFromRun(run)')
-  assertIncludes(source, 'generationValidationErrors.length > 0 ? { generationValidationErrors } : {}')
+  const viewModelSource = readFileSync(resolve('src/lib/agentMessageViewModel.ts'), 'utf8')
+  assertIncludes(source, 'assistantResultPayloadForRun(run, liveEvents, content)')
+  assertIncludes(source, 'restoredChatMessageFromLocalMessage(message, restoredLabel)')
+  assertIncludes(viewModelSource, 'const generationValidationErrors = generationValidationErrorsFromRun(run)')
+  assertIncludes(viewModelSource, 'generationValidationErrors.length > 0 ? { generationValidationErrors } : {}')
   assertIncludes(source, '<GenerationValidationErrorCard errors={msg.meta?.generationValidationErrors} />')
   assertIncludes(source, 'data-testid="agent-plan-overview"')
   assertIncludes(source, 'data-testid="agent-plan-overview-stats"')

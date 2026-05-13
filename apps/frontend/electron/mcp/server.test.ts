@@ -857,7 +857,7 @@ function loadParamValidationAuditFixture(): Record<string, any> {
 }
 
 function loadStaticCatalogTool(fileName: string): Record<string, any> {
-  return JSON.parse(readFileSync(resolve(process.cwd(), `../../apps/agent/catalog/tools/visual-generation/${fileName}`), 'utf8')) as Record<string, any>
+  return JSON.parse(readFileSync(resolve(process.cwd(), `../../apps/agent/catalog/tools/movscript/visual-generation/${fileName}`), 'utf8')) as Record<string, any>
 }
 
 function schemaShapeWithoutDescriptions(value: unknown): unknown {

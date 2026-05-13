@@ -262,8 +262,8 @@ interface AgentStore {
   createConversation: (userId: string) => string
   deleteConversation: (userId: string, id: string) => void
   setActiveConversation: (userId: string, id: string | null) => void
-  addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
-  upsertMessage: (userId: string, conversationId: string, messageId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'>) => void
+  addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => void
+  upsertMessage: (userId: string, conversationId: string, messageId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => void
   removeMessage: (userId: string, conversationId: string, messageId: string) => void
   updateConversationTitle: (userId: string, id: string, title: string) => void
   getConversationDraft: (userId: string, conversationId: string) => ConversationDraft
@@ -388,7 +388,7 @@ export const useAgentStore = create<AgentStore>()(
             ...cur,
             conversations: cur.conversations.map((c) =>
               c.id === conversationId
-                ? { ...c, messages: [...c.messages, { ...msg, id: genId(), timestamp: Date.now() }], updatedAt: Date.now() }
+                ? { ...c, messages: [...c.messages, { ...msg, id: genId(), timestamp: msg.timestamp ?? Date.now() }], updatedAt: Date.now() }
                 : c
             ),
           },
@@ -407,7 +407,7 @@ export const useAgentStore = create<AgentStore>()(
             conversations: cur.conversations.map((c) => {
               if (c.id !== conversationId) return c
               const existingIndex = c.messages.findIndex((message) => message.id === messageId)
-              const nextMessage = { ...msg, id: messageId, timestamp: existingIndex >= 0 ? c.messages[existingIndex].timestamp : now }
+              const nextMessage = { ...msg, id: messageId, timestamp: msg.timestamp ?? (existingIndex >= 0 ? c.messages[existingIndex].timestamp : now) }
               const messages = existingIndex >= 0
                 ? c.messages.map((message, index) => index === existingIndex ? nextMessage : message)
                 : [...c.messages, nextMessage]

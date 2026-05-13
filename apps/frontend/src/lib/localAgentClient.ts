@@ -741,7 +741,7 @@ export function canStartLocalAgentFromClient(): boolean {
 export class LocalAgentClient {
   readonly baseURL: string
 
-  constructor(baseURL = import.meta.env.VITE_LOCAL_AGENT_BASE_URL || DEFAULT_LOCAL_AGENT_BASE_URL) {
+  constructor(baseURL = runtimeLocalAgentBaseURL()) {
     this.baseURL = baseURL.replace(/\/+$/, '')
   }
 
@@ -1226,6 +1226,10 @@ export class LocalAgentClient {
       backendAPIBaseURL: getAPIV1BaseURL(),
     }
   }
+}
+
+function runtimeLocalAgentBaseURL(): string {
+  return import.meta.env?.VITE_LOCAL_AGENT_BASE_URL || DEFAULT_LOCAL_AGENT_BASE_URL
 }
 
 export const localAgentClient = new LocalAgentClient()
