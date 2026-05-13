@@ -981,7 +981,6 @@ export default function ProductionOrchestratePage() {
       }
       const latestProjectDraft = selectLatestDraftArtifact(payload.artifacts, 'project_proposal')
       const latestProductionDraft = selectLatestDraftArtifact(payload.artifacts, 'production_proposal')
-      if (latestProjectDraft?.draftId) setGeneratedProjectProposalDraftId(latestProjectDraft.draftId)
       setSearchParams((current) => {
         const next = new URLSearchParams(current)
         if (latestProjectDraft?.draftId) next.set('projectDraftId', latestProjectDraft.draftId)

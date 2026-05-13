@@ -1,0 +1,9 @@
+{
+  "camera_fixed": "fixed_camera",
+  "duration_seconds": "duration",
+  "generate_audio": "audio",
+  "guidance_scale": "prompt_strength",
+  "max_images": "image_count",
+  "ratio": "aspect_ratio",
+  "size": "image_size"
+}
