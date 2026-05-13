@@ -37,5 +37,6 @@
     "grant": "allow",
     "approval": "never"
   },
-  "source": "runtime"
+  "source": "runtime",
+  "capability": "记录当前项目内的本地 agent memory。"
 }

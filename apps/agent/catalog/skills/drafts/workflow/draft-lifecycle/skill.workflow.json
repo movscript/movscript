@@ -1,0 +1,36 @@
+{
+  "id": "movscript.workflow.draft-lifecycle",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Draft Lifecycle",
+  "description": "通用本地 draft 读取、创建、编辑、校验、dry-run preview 和汇报流程。",
+  "priority": 740,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "draft",
+        "草稿",
+        "提案",
+        "审阅",
+        "修改草稿",
+        "validate",
+        "preview",
+        "preview_apply",
+        "apply"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_list_drafts",
+    "tool://movscript_get_draft",
+    "tool://movscript_read_draft",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回 draftId、kind、status、是否读取过现有 draft、validation/preview 状态，以及下一步 review 或 apply 动作。",
+  "instructionTemplatePath": "instruction.md"
+}

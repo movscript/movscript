@@ -44,6 +44,10 @@ test('loads target-state tool catalog but only enabled packs grant runtime acces
       id: 'studio.pack.writer',
       name: 'Studio Writer',
       source: 'plugin',
+      resources: {
+        skills: ['writer.workflow.json'],
+        tools: ['outline.tool.json'],
+      },
       schemas: [],
       tools: ['studio.script_outline'],
       skills: ['studio.workflow.writer'],
@@ -114,6 +118,10 @@ test('enabled pack registration activates file-loaded skills and tools without p
       id: 'studio.pack.writer',
       name: 'Studio Writer',
       source: 'plugin',
+      resources: {
+        skills: ['writer.workflow.json'],
+        tools: ['outline.tool.json'],
+      },
       schemas: [],
       tools: ['studio.script_outline'],
       skills: ['studio.workflow.writer'],
@@ -207,7 +215,7 @@ test('loads built-in content unit proposal catalogs by default', () => {
   assert.deepEqual(catalog.warnings, [])
 })
 
-test('loads target-state tool files recursively and ignores non-layered categorized skills', () => {
+test('pack loading ignores unreferenced local catalog files', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-categorized-'))
   const skillsDir = join(dir, 'skills')
   const toolsDir = join(dir, 'tools')
@@ -244,17 +252,114 @@ test('loads target-state tool files recursively and ignores non-layered categori
     const tool = catalog.layeredTools.find((item) => item.name === 'studio.read_production')
 
     assert.equal(skill, undefined)
-    assert.equal(tool?.source, 'plugin')
-    assert.equal(tool?.pluginId, 'test.production')
+    assert.equal(tool, undefined)
     assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio.read_production'), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('loads native layered skill instructions from markdown files', () => {
+test('loads skills and tools only from pack-declared resource paths', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-pack-resource-paths-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const profilesDir = join(dir, 'profiles')
+
+  try {
+    writePluginFile(join(skillsDir, 'included'), 'writer.workflow.json', {
+      id: 'studio.workflow.included',
+      kind: 'workflow',
+      name: 'Included',
+      description: 'Included by pack resources.',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolRefs: ['tool://studio.included_tool'],
+      instructionTemplate: 'Included workflow.',
+    })
+    writePluginFile(join(skillsDir, 'ignored'), 'ignored.workflow.json', {
+      id: 'studio.workflow.ignored',
+      kind: 'workflow',
+      name: 'Ignored',
+      description: 'Not included by pack resources.',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolRefs: ['tool://studio.ignored_tool'],
+      instructionTemplate: 'Ignored workflow.',
+    })
+    writePluginFile(join(toolsDir, 'included'), 'included.tool.json', {
+      name: 'studio.included_tool',
+      description: 'Included tool.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.included',
+      inputSchema: { type: 'object', properties: {} },
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(join(toolsDir, 'ignored'), 'ignored.tool.json', {
+      name: 'studio.ignored_tool',
+      description: 'Ignored tool.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'plugin',
+      pluginId: 'test.ignored',
+      inputSchema: { type: 'object', properties: {} },
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(packsDir, 'studio.pack.json', {
+      id: 'studio.pack.included',
+      name: 'Included Pack',
+      source: 'plugin',
+      resources: {
+        skills: ['included'],
+        tools: ['included'],
+      },
+      schemas: [],
+      tools: ['studio.included_tool'],
+      skills: ['studio.workflow.included'],
+    })
+    writePluginFile(profilesDir, 'default.profile.json', {
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Default',
+      enabledPacks: ['studio.pack.included'],
+      persona: null,
+      enabledWorkflows: [],
+      enabledPolicies: [],
+      toolGrants: [],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      packsDir,
+      profilesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+      builtinPacksDir: packsDir,
+      builtinProfilesDir: profilesDir,
+    })
+
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'studio.workflow.included'))
+    assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'studio.workflow.ignored'), false)
+    assert.ok(catalog.registry.get('studio.included_tool'))
+    assert.equal(catalog.registry.get('studio.ignored_tool'), undefined)
+    assert.equal(catalog.resourcePaths.skills['studio.workflow.included']?.endsWith(join('included', 'writer.workflow.json')), true)
+    assert.equal(catalog.resourcePaths.skills['studio.workflow.ignored'], undefined)
+    assert.equal(catalog.catalogIssues.some((issue) => issue.resourceId === 'studio.pack.included'), false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('loads native layered skill instructions from pack-declared markdown files', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-md-skill-'))
   const skillsDir = join(dir, 'skills')
+  const packsDir = join(dir, 'packs')
 
   try {
     writePluginFile(skillsDir, 'review.workflow.json', {
@@ -270,10 +375,23 @@ test('loads native layered skill instructions from markdown files', () => {
     })
     mkdirSync(skillsDir, { recursive: true })
     writeFileSync(join(skillsDir, 'review.workflow.md'), 'Review from a Markdown instruction body.\n', 'utf8')
+    writePluginFile(packsDir, 'review.pack.json', {
+      id: 'studio.pack.review',
+      name: 'Review Pack',
+      source: 'plugin',
+      resources: {
+        skills: ['review.workflow.json'],
+      },
+      schemas: [],
+      tools: [],
+      skills: ['studio.workflow.review'],
+    })
 
     const catalog = loadAgentPluginCatalog({
       skillsDir,
       builtinSkillsDir: skillsDir,
+      packsDir,
+      builtinPacksDir: packsDir,
       toolsDir: join(dir, 'tools'),
       builtinToolsDir: join(dir, 'tools'),
     })
@@ -287,7 +405,7 @@ test('loads native layered skill instructions from markdown files', () => {
   }
 })
 
-test('target-state catalog loading exposes layered tools without selection gating', () => {
+test('catalog loading does not expose tools outside pack-declared resource paths', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-target-catalog-'))
   const skillsDir = join(dir, 'skills')
   const toolsDir = join(dir, 'tools')
@@ -342,8 +460,8 @@ test('target-state catalog loading exposes layered tools without selection gatin
 
     assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'studio.alpha'), false)
     assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'studio.beta'), false)
-    assert.equal(Boolean(catalog.registry.get('studio.alpha_tool')), true)
-    assert.equal(Boolean(catalog.registry.get('studio.beta_tool')), true)
+    assert.equal(Boolean(catalog.registry.get('studio.alpha_tool')), false)
+    assert.equal(Boolean(catalog.registry.get('studio.beta_tool')), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

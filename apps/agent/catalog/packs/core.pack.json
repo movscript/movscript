@@ -2,8 +2,18 @@
   "id": "movscript.pack.agent-core",
   "version": "1.0.0",
   "name": "Agent Core",
-  "description": "Agent 拥有的 memory、subagent 编排、用户输入和 catalog reload 工具。",
+  "description": "Agent 对自身能力的核心认知层：memory、用户输入、catalog reload 和 planner subagents。",
   "source": "builtin",
+  "resources": {
+    "skills": [
+      "agent-core/persona/default",
+      "agent-core/policy/agent-core",
+      "agent-core/workflow/planner-subagents"
+    ],
+    "tools": [
+      "agent-core"
+    ]
+  },
   "schemas": [],
   "tools": [
     "movscript_search_memories",
@@ -19,8 +29,7 @@
   ],
   "skills": [
     "movscript.persona.default",
-    "movscript.persona.plan-orchestrator",
-    "movscript.persona.reviewer",
-    "movscript.policy.agent-core"
+    "movscript.policy.agent-core",
+    "movscript.workflow.planner-subagents"
   ]
 }

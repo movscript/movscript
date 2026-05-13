@@ -37,7 +37,15 @@ export interface AgentPluginCatalog {
   registry: ToolRegistry
   layeredRegistry: CatalogRegistry
   catalogIssues: CatalogIssue[]
+  resourcePaths: CatalogResourcePaths
   warnings: string[]
+}
+
+export interface CatalogResourcePaths {
+  packs: Record<string, string>
+  profiles: Record<string, string>
+  skills: Record<string, string>
+  tools: Record<string, string>
 }
 
 export function loadAgentPluginCatalog(options: {
@@ -60,10 +68,6 @@ export function loadAgentPluginCatalog(options: {
   const builtinPacksDir = options.builtinPacksDir ?? resolveBuiltinAgentPacksDir()
   const profilesDir = options.profilesDir ?? resolveAgentProfilesDir()
   const builtinProfilesDir = options.builtinProfilesDir ?? resolveBuiltinAgentProfilesDir()
-  const builtinLayeredSkillResult = loadLayeredSkillDirectory(builtinSkillsDir)
-  const localLayeredSkillResult = loadLayeredSkillDirectory(skillsDir)
-  const builtinLayeredToolResult = loadLayeredToolDirectory(builtinToolsDir, 'runtime')
-  const localLayeredToolResult = loadLayeredToolDirectory(toolsDir, 'plugin')
   const builtinPackResult = loadPackDirectory(builtinPacksDir)
   const localPackResult = loadPackDirectory(packsDir)
   const builtinProfileResult = loadProfileDirectory(builtinProfilesDir)
@@ -72,6 +76,10 @@ export function loadAgentPluginCatalog(options: {
     ...builtinPackResult.packs,
     ...localPackResult.packs,
   ])
+  const builtinLayeredSkillResult = loadLayeredSkillsForPacks(builtinSkillsDir, builtinPackResult.packs)
+  const localLayeredSkillResult = loadLayeredSkillsForPacks(skillsDir, localPackResult.packs)
+  const builtinLayeredToolResult = loadLayeredToolsForPacks(builtinToolsDir, builtinPackResult.packs, 'runtime')
+  const localLayeredToolResult = loadLayeredToolsForPacks(toolsDir, localPackResult.packs, 'plugin')
   const layeredSkills = dedupeLayeredSkills([
     ...builtinLayeredSkillResult.skills,
     ...localLayeredSkillResult.skills,
@@ -99,6 +107,8 @@ export function loadAgentPluginCatalog(options: {
     ...localLayeredSkillResult.warnings,
     ...builtinLayeredToolResult.warnings,
     ...localLayeredToolResult.warnings,
+    ...packResourceWarnings(builtinPackResult.packs, 'builtin'),
+    ...packResourceWarnings(localPackResult.packs, 'local'),
   ]
   const baseManifest = options.baseManifest ?? DEFAULT_AGENT_MANIFEST
   const baseTools = options.baseTools ?? DEFAULT_TOOL_REGISTRY.list()
@@ -116,6 +126,12 @@ export function loadAgentPluginCatalog(options: {
     layeredTools,
   })
   const catalogIssues = lintCatalog(layeredRegistry)
+  const resourcePaths = {
+    packs: { ...builtinPackResult.paths, ...localPackResult.paths },
+    profiles: { ...builtinProfileResult.paths, ...localProfileResult.paths },
+    skills: { ...builtinLayeredSkillResult.paths, ...localLayeredSkillResult.paths },
+    tools: { ...builtinLayeredToolResult.paths, ...localLayeredToolResult.paths },
+  }
 
   return {
     skillsDir,
@@ -135,6 +151,7 @@ export function loadAgentPluginCatalog(options: {
     registry,
     layeredRegistry,
     catalogIssues,
+    resourcePaths,
     warnings: Array.from(new Set([
       ...warnings,
     ])),
@@ -282,53 +299,156 @@ function resolveCatalogDir(kind: 'skills' | 'tools' | 'packs' | 'profiles'): str
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[1]
 }
 
-function loadPackDirectory(dir: string): { packs: CapabilityPack[]; warnings: string[] } {
+function loadPackDirectory(dir: string): { packs: CapabilityPack[]; warnings: string[]; paths: Record<string, string> } {
   const warnings: string[] = []
   const packs: CapabilityPack[] = []
+  const paths: Record<string, string> = {}
   for (const filePath of listPluginJSONFiles(dir)) {
     const parsed = readJSONFile(filePath, warnings)
     if (parsed === undefined) continue
     const pack = normalizeCapabilityPack(parsed, filePath, warnings)
-    if (pack) packs.push(pack)
+    if (pack) {
+      packs.push(pack)
+      paths[pack.id] = filePath
+    }
   }
-  return { packs: dedupePacks(packs), warnings }
+  return { packs: dedupePacks(packs), warnings, paths }
 }
 
-function loadProfileDirectory(dir: string): { profiles: AgentProfile[]; warnings: string[] } {
+function loadProfileDirectory(dir: string): { profiles: AgentProfile[]; warnings: string[]; paths: Record<string, string> } {
   const warnings: string[] = []
   const profiles: AgentProfile[] = []
+  const paths: Record<string, string> = {}
   for (const filePath of listPluginJSONFiles(dir)) {
     const parsed = readJSONFile(filePath, warnings)
     if (parsed === undefined) continue
     const profile = normalizeAgentProfile(parsed, filePath, warnings)
-    if (profile) profiles.push(profile)
+    if (profile) {
+      profiles.push(profile)
+      paths[profile.id] = filePath
+    }
   }
-  return { profiles: dedupeProfiles(profiles), warnings }
+  return { profiles: dedupeProfiles(profiles), warnings, paths }
 }
 
-function loadLayeredSkillDirectory(dir: string): { skills: SkillDefinition[]; warnings: string[] } {
+function loadLayeredSkillsForPacks(rootDir: string, packs: CapabilityPack[]): { skills: SkillDefinition[]; warnings: string[]; paths: Record<string, string> } {
   const warnings: string[] = []
   const skills: SkillDefinition[] = []
+  const paths: Record<string, string> = {}
+  for (const filePath of listPackResourceJSONFiles(rootDir, packs, 'skills', warnings, /\.(persona|workflow|policy)\.json$/i)) {
+    const parsed = readJSONFile(filePath, warnings)
+    if (parsed === undefined) continue
+    const normalizedSkills = normalizeLayeredSkillFile(parsed, filePath, warnings)
+    skills.push(...normalizedSkills)
+    for (const skill of normalizedSkills) paths[skill.id] = filePath
+  }
+  return { skills: dedupeLayeredSkills(skills), warnings, paths }
+}
+
+function loadLayeredToolsForPacks(rootDir: string, packs: CapabilityPack[], defaultSource: 'runtime' | 'plugin'): { tools: ToolDefinition[]; warnings: string[]; paths: Record<string, string> } {
+  const warnings: string[] = []
+  const tools: ToolDefinition[] = []
+  const paths: Record<string, string> = {}
+  for (const filePath of listPackResourceJSONFiles(rootDir, packs, 'tools', warnings, /\.tool\.json$/i)) {
+    const parsed = readJSONFile(filePath, warnings)
+    if (parsed === undefined) continue
+    const tool = normalizeLayeredTool(parsed, filePath, warnings, defaultSource)
+    if (tool) {
+      tools.push(tool)
+      paths[tool.name] = filePath
+    }
+  }
+  return { tools: dedupeLayeredTools(tools), warnings, paths }
+}
+
+function loadLayeredSkillDirectory(dir: string): { skills: SkillDefinition[]; warnings: string[]; paths: Record<string, string> } {
+  const warnings: string[] = []
+  const skills: SkillDefinition[] = []
+  const paths: Record<string, string> = {}
   for (const filePath of listPluginJSONFiles(dir)) {
     if (!/\.(persona|workflow|policy)\.json$/i.test(filePath)) continue
     const parsed = readJSONFile(filePath, warnings)
     if (parsed === undefined) continue
-    skills.push(...normalizeLayeredSkillFile(parsed, filePath, warnings))
+    const normalizedSkills = normalizeLayeredSkillFile(parsed, filePath, warnings)
+    skills.push(...normalizedSkills)
+    for (const skill of normalizedSkills) paths[skill.id] = filePath
   }
-  return { skills: dedupeLayeredSkills(skills), warnings }
+  return { skills: dedupeLayeredSkills(skills), warnings, paths }
 }
 
-function loadLayeredToolDirectory(dir: string, defaultSource: 'runtime' | 'plugin'): { tools: ToolDefinition[]; warnings: string[] } {
+function loadLayeredToolDirectory(dir: string, defaultSource: 'runtime' | 'plugin'): { tools: ToolDefinition[]; warnings: string[]; paths: Record<string, string> } {
   const warnings: string[] = []
   const tools: ToolDefinition[] = []
+  const paths: Record<string, string> = {}
   for (const filePath of listPluginJSONFiles(dir)) {
     if (!/\.tool\.json$/i.test(filePath)) continue
     const parsed = readJSONFile(filePath, warnings)
     if (parsed === undefined) continue
     const tool = normalizeLayeredTool(parsed, filePath, warnings, defaultSource)
-    if (tool) tools.push(tool)
+    if (tool) {
+      tools.push(tool)
+      paths[tool.name] = filePath
+    }
   }
-  return { tools: dedupeLayeredTools(tools), warnings }
+  return { tools: dedupeLayeredTools(tools), warnings, paths }
+}
+
+function packResourceWarnings(packs: CapabilityPack[], label: string): string[] {
+  const warnings: string[] = []
+  for (const pack of packs) {
+    if ((pack.skills.length > 0 || pack.tools.length > 0) && !pack.resources) {
+      warnings.push(`${label} pack ${pack.id} declares skills/tools but no resources.skills/resources.tools paths; no pack-owned skill/tool files will be loaded for this pack`)
+      continue
+    }
+    if (pack.skills.length > 0 && (pack.resources?.skills?.length ?? 0) === 0) {
+      warnings.push(`${label} pack ${pack.id} declares skills but no resources.skills paths`)
+    }
+    if (pack.tools.length > 0 && (pack.resources?.tools?.length ?? 0) === 0) {
+      warnings.push(`${label} pack ${pack.id} declares tools but no resources.tools paths`)
+    }
+  }
+  return warnings
+}
+
+function listPackResourceJSONFiles(
+  rootDir: string,
+  packs: CapabilityPack[],
+  kind: 'skills' | 'tools',
+  warnings: string[],
+  fileNamePattern: RegExp,
+): string[] {
+  const files = new Set<string>()
+  for (const pack of packs) {
+    const resourcePaths = pack.resources?.[kind] ?? []
+    for (const resourcePath of resourcePaths) {
+      const resolvedPath = resolveCatalogResourcePath(rootDir, resourcePath)
+      if (!resolvedPath) {
+        warnings.push(`pack ${pack.id} has invalid ${kind} resource path ${resourcePath}; paths must be relative and stay inside the catalog ${kind} root`)
+        continue
+      }
+      for (const filePath of listResourceJSONFiles(resolvedPath)) {
+        if (fileNamePattern.test(filePath)) files.add(filePath)
+      }
+    }
+  }
+  return Array.from(files).sort()
+}
+
+function resolveCatalogResourcePath(rootDir: string, resourcePath: string): string | undefined {
+  if (isAbsolute(resourcePath)) return undefined
+  const resolvedPath = resolve(rootDir, resourcePath)
+  const normalizedRoot = normalize(rootDir)
+  const normalizedResolved = normalize(resolvedPath)
+  if (normalizedResolved !== normalizedRoot && !normalizedResolved.startsWith(`${normalizedRoot}/`)) return undefined
+  return resolvedPath
+}
+
+function listResourceJSONFiles(path: string): string[] {
+  if (!existsSync(path)) return []
+  const stat = statSync(path)
+  if (stat.isFile()) return path.endsWith('.json') ? [path] : []
+  if (stat.isDirectory()) return listPluginJSONFiles(path)
+  return []
 }
 
 function listPluginJSONFiles(dir: string): string[] {
@@ -386,6 +506,7 @@ function normalizeCapabilityPack(input: unknown, filePath: string, warnings: str
     name,
     ...(nonEmptyString(input.description) ? { description: nonEmptyString(input.description) } : {}),
     source,
+    ...(normalizePackResources(input.resources) ? { resources: normalizePackResources(input.resources) } : {}),
     schemas: stringArray(input.schemas),
     tools: stringArray(input.tools),
     skills: stringArray(input.skills),
@@ -395,6 +516,15 @@ function normalizeCapabilityPack(input: unknown, filePath: string, warnings: str
     ...(nonEmptyString(input.mcpServerId) ? { mcpServerId: nonEmptyString(input.mcpServerId) } : {}),
     ...(isRecord(input.capabilities) ? { capabilities: normalizePackCapabilities(input.capabilities) } : {}),
   }
+}
+
+function normalizePackResources(input: unknown): CapabilityPack['resources'] | undefined {
+  if (!isRecord(input)) return undefined
+  const resources = {
+    ...(stringArray(input.skills).length > 0 ? { skills: stringArray(input.skills) } : {}),
+    ...(stringArray(input.tools).length > 0 ? { tools: stringArray(input.tools) } : {}),
+  }
+  return resources.skills || resources.tools ? resources : undefined
 }
 
 function normalizePackRequires(input: Record<string, unknown>): NonNullable<CapabilityPack['requires']> {

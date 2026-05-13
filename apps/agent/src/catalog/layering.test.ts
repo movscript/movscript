@@ -75,6 +75,11 @@ test('target-state pack files and the default profile are loaded as first-class 
   assert.ok(movscriptPack.skills.includes('movscript.workflow.asset-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.content-unit-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.visual-generation'))
+  const corePack = catalog.packs.find((pack) => pack.id === 'movscript.pack.agent-core')
+  const draftPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.drafts')
+  assert.ok(corePack?.skills.includes('movscript.workflow.planner-subagents'))
+  assert.ok(draftPack?.skills.includes('movscript.workflow.draft-lifecycle'))
+  assert.deepEqual(draftPack?.requires?.packs, { 'movscript.pack.agent-core': '>=1.0.0' })
   assert.ok(defaultProfile)
   assert.deepEqual(defaultProfile.enabledPacks, [
     'movscript.pack.agent-core',
@@ -83,6 +88,8 @@ test('target-state pack files and the default profile are loaded as first-class 
   ])
   assert.equal(defaultProfile.persona, 'movscript.persona.default')
   assert.deepEqual(defaultProfile.enabledWorkflows, [
+    'movscript.workflow.planner-subagents',
+    'movscript.workflow.draft-lifecycle',
     'movscript.workflow.project-progress',
     'movscript.workflow.proposal-first',
     'movscript.workflow.project-proposal',
@@ -105,9 +112,78 @@ test('target-state pack files and the default profile are loaded as first-class 
   const resolved = resolveProfile(catalog.layeredRegistry)
   assert.equal(resolved.profile.id, 'movscript.profile.default')
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.project-proposal'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.planner-subagents'))
+  assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.draft-lifecycle'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.production-proposal'))
   assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_create_generation_job' && grant.approval === 'always'))
   assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_request_user_input' && grant.approval === 'never'))
+})
+
+test('draft lifecycle workflow describes read-before-write draft handling', () => {
+  const catalog = loadAgentPluginCatalog()
+  const profile = resolveProfile(catalog.layeredRegistry).profile
+  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.draft-lifecycle')
+
+  assert.ok(workflow?.kind === 'workflow')
+  assert.ok(workflow.toolRefs.includes('tool://movscript_list_drafts'))
+  assert.ok(workflow.toolRefs.includes('tool://movscript_get_draft'))
+  assert.ok(workflow.toolRefs.includes('tool://movscript_create_draft'))
+  assert.ok(workflow.toolRefs.includes('tool://movscript_update_draft'))
+  assert.match(workflow.instructionTemplate, /写入前必须先读取/)
+  assert.match(workflow.instructionTemplate, /若用户给了 draftId，先 get\/read 该 draft/)
+  assert.match(workflow.instructionTemplate, /没有 draftId，先 list/)
+  assert.match(workflow.instructionTemplate, /绝不在未读取现有 draft\/list 结果前直接覆盖写入/)
+
+  const selected = selectActiveWorkflows([workflow], {
+    profile,
+    message: '修改这个 draft',
+    intents: [],
+    uiContext: { projectId: 1 },
+    conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
+    catalogVersion: catalog.layeredRegistry.version,
+  })
+  assert.deepEqual(selected.warnings, [])
+  assert.deepEqual(selected.workflows.map((item) => item.id), ['movscript.workflow.draft-lifecycle'])
+})
+
+test('planner subagent behavior is provided by agent-core workflow skill', () => {
+  const catalog = loadAgentPluginCatalog()
+  const profile = resolveProfile(catalog.layeredRegistry).profile
+  const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.planner-subagents')
+
+  assert.ok(workflow?.kind === 'workflow')
+  assert.ok(workflow.toolRefs.includes('tool://movscript_spawn_subagent'))
+  assert.ok(workflow.toolRefs.includes('tool://movscript_wait_subagent'))
+  assert.match(workflow.instructionTemplate, /简单、单上下文任务由 planner 自己完成/)
+  assert.match(workflow.instructionTemplate, /maxWorkers/)
+  assert.match(workflow.instructionTemplate, /workerTimeoutMs/)
+
+  const selected = selectActiveWorkflows([workflow], {
+    profile,
+    message: '请并行处理这些任务',
+    intents: ['planner_subagents'],
+    uiContext: {},
+    conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
+    catalogVersion: catalog.layeredRegistry.version,
+  })
+  assert.deepEqual(selected.warnings, [])
+  assert.deepEqual(selected.workflows.map((item) => item.id), ['movscript.workflow.planner-subagents'])
+
+  const prompt = composePrompt({
+    registry: catalog.layeredRegistry,
+    ctx: {
+      profile,
+      message: '请并行处理这些任务',
+      intents: ['planner_subagents'],
+      uiContext: {},
+      conversation: { turnCount: 1, lastToolCalls: [], recentErrors: [] },
+      catalogVersion: catalog.layeredRegistry.version,
+    },
+    policies: [],
+    workflows: selected.workflows,
+  })
+  assert.match(prompt.systemPrompt, /Planner Subagents/)
+  assert.doesNotMatch(prompt.systemPrompt, /\{\{tool:/)
 })
 
 test('asset candidate preparation is separated from generation execution', () => {
@@ -373,6 +449,7 @@ test('linter rejects packs that do not cover included skill refs', () => {
       version: '1.0.0',
       name: 'Incomplete',
       source: 'builtin',
+      resources: { skills: ['studio/read'] },
       schemas: [],
       tools: [],
       skills: ['studio.workflow.read'],
@@ -381,6 +458,52 @@ test('linter rejects packs that do not cover included skill refs', () => {
 
   const issues = lintCatalog(registry)
   assert.ok(issues.some((issue) => issue.code === 'pack.tool_ref.uncovered'))
+})
+
+test('linter requires pack resource paths for declared skills and tools', () => {
+  const registry = buildLayeredCatalogRegistry({
+    manifest: {
+      schema: 'movscript.agent.current',
+      id: 'test',
+      version: '1.0.0',
+      name: 'Test',
+      tools: [],
+    },
+    tools: [{
+      name: 'studio_read',
+      description: 'Read.',
+      permission: 'project.read',
+      risk: 'read',
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+      source: 'runtime',
+    }],
+    layeredSkills: [{
+      id: 'studio.workflow.read',
+      kind: 'workflow',
+      version: '1.0.0',
+      name: 'Read',
+      description: 'Read workflow',
+      priority: 100,
+      enabled: true,
+      instructionTemplate: 'Read.',
+      triggers: [{ kind: 'intent', id: 'read' }],
+      toolRefs: ['tool://studio_read'],
+    }],
+    packs: [{
+      id: 'studio.pack.no-resources',
+      version: '1.0.0',
+      name: 'No Resources',
+      source: 'builtin',
+      schemas: [],
+      tools: ['studio_read'],
+      skills: ['studio.workflow.read'],
+    }],
+  })
+
+  const issues = lintCatalog(registry)
+  assert.ok(issues.some((issue) => issue.code === 'pack.resources.skills.missing'))
+  assert.ok(issues.some((issue) => issue.code === 'pack.resources.tools.missing'))
 })
 
 test('linter flags workflow language in tool descriptions', () => {

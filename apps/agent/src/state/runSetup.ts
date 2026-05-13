@@ -35,6 +35,14 @@ export function buildRunSetupMetadata(input: BuildRunSetupMetadataInput): BuiltR
     metadata: {
       ...(input.run.metadata ?? {}),
       debugTrace: buildDebugTrace(input.agentManifest, input.skills, input.capabilities.resolvedTools, []) as unknown as JSONValue,
+      skills: input.skills.map((skill) => ({
+        id: skill.id,
+        name: skill.name,
+        category: skill.category,
+        activationReason: skill.activationReason,
+        resolvedPriority: skill.resolvedPriority,
+        instruction: skill.compiledInstruction ?? skill.instruction,
+      })) as unknown as JSONValue,
       context: debugContext as unknown as JSONValue,
       command: input.command as unknown as JSONValue,
       ...(input.authMetadata ?? {}),

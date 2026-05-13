@@ -34,5 +34,6 @@
     "grant": "allow",
     "approval": "never"
   },
-  "source": "runtime"
+  "source": "runtime",
+  "capability": "搜索当前项目内的本地 agent memories。"
 }

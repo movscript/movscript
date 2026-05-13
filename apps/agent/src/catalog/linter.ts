@@ -7,6 +7,12 @@ export function lintCatalog(registry: CatalogRegistry): CatalogIssue[] {
   for (const skill of registry.skills.values()) lintSkill(skill, registry, issues)
   for (const tool of registry.tools.values()) lintTool(tool, issues)
   for (const pack of registry.packs.values()) {
+    if (requiresResourcePaths(pack) && pack.skills.length > 0 && (pack.resources?.skills?.length ?? 0) === 0) {
+      error(issues, 'pack.resources.skills.missing', `pack ${pack.id} declares skills but does not declare resources.skills paths`, pack.id)
+    }
+    if (requiresResourcePaths(pack) && pack.tools.length > 0 && (pack.resources?.tools?.length ?? 0) === 0) {
+      error(issues, 'pack.resources.tools.missing', `pack ${pack.id} declares tools but does not declare resources.tools paths`, pack.id)
+    }
     for (const schema of pack.schemas) if (!registry.schemas.has(schema)) error(issues, 'pack.schema.missing', `pack ${pack.id} references missing schema ${schema}`, pack.id)
     for (const tool of pack.tools) if (!registry.tools.has(tool)) error(issues, 'pack.tool.missing', `pack ${pack.id} references missing tool ${tool}`, pack.id)
     for (const skill of pack.skills) if (!registry.skills.has(skill)) error(issues, 'pack.skill.missing', `pack ${pack.id} references missing skill ${skill}`, pack.id)
@@ -44,6 +50,10 @@ export function lintCatalog(registry: CatalogRegistry): CatalogIssue[] {
     }
   }
   return issues
+}
+
+function requiresResourcePaths(pack: { id: string; source: string }): boolean {
+  return pack.id !== 'movscript.pack.default' && pack.source !== 'mcp'
 }
 
 function lintPackClosure(packId: string, registry: CatalogRegistry, issues: CatalogIssue[]): void {

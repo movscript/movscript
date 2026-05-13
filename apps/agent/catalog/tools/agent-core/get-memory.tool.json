@@ -23,5 +23,6 @@
     "grant": "allow",
     "approval": "never"
   },
-  "source": "runtime"
+  "source": "runtime",
+  "capability": "按 id 读取当前项目内的一条本地 agent memory。"
 }

@@ -88,6 +88,12 @@ function testCatalog(input: { version: string; tools: string[] }): AgentPluginCa
     registry: toolRegistry,
     layeredRegistry: registry,
     catalogIssues: [],
+    resourcePaths: {
+      packs: {},
+      profiles: {},
+      skills: {},
+      tools: {},
+    },
     warnings: [],
   }
 }

@@ -23,5 +23,6 @@
     "grant": "allow",
     "approval": "always"
   },
-  "source": "runtime"
+  "source": "runtime",
+  "capability": "删除当前项目内的一条本地 agent memory。"
 }

@@ -1,0 +1,12 @@
+{
+  "id": "movscript.policy.agent-core",
+  "kind": "policy",
+  "version": "1.0.0",
+  "name": "Agent Core Capability Policy",
+  "description": "定义 Agent 对自身核心能力的认知、发现方式和高风险动作边界。",
+  "priority": 920,
+  "enabled": true,
+  "scope": "global",
+  "outputContract": "说明当前使用的是哪类 core capability；对于 gated actions，根据记录的工具结果说明 pending、approved、denied 或 completed 状态。",
+  "instructionTemplatePath": "instruction.md"
+}

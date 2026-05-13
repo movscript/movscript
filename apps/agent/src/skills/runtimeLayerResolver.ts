@@ -188,6 +188,7 @@ function inferIntents(message: string, debugContext: AgentDebugContextPanel): st
   if (route.includes('project-workspace')) intents.add('project_proposal')
   if (route.includes('production-orchestrate')) intents.add('dual_orchestration')
   if (route.includes('asset-slots')) intents.add('asset_proposal')
+  if (debugContext.agentPlan) intents.add('planner_subagents')
   const mappings = [
     ['project_proposal', ['项目提案', 'project proposal', 'project_proposal']],
     ['production_proposal', ['制作提案', 'production proposal', 'production_proposal']],
@@ -198,6 +199,7 @@ function inferIntents(message: string, debugContext: AgentDebugContextPanel): st
     ['content_unit_proposal', ['content unit proposal', 'content_unit_proposal']],
     ['content_unit_media_proposal', ['content unit media', 'content_unit_media_proposal']],
     ['visual_generation', ['生成图片', '生成视频', 'visual generation', 'image generation']],
+    ['planner_subagents', ['subagent', 'worker', 'parallel', '并行', '子代理', '多任务', '拆分任务', '分工']],
   ] as const
   for (const [intent, needles] of mappings) {
     if (needles.some((needle) => normalized.includes(needle.toLowerCase()))) intents.add(intent)
@@ -216,4 +218,5 @@ const LABEL_INTENT_ALIASES: Record<string, string> = {
   content_unit_media_proposal: 'content_unit_media_proposal',
   setting_prep: 'setting_prep',
   visual_generation: 'visual_generation',
+  planner_subagents: 'planner_subagents',
 }

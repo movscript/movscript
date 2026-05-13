@@ -48,28 +48,6 @@ export interface PromptStats {
 
 export type PromptLayer = 'level0_core' | 'level1_context' | 'level2_behavior' | 'retrieved_context' | 'runtime_warnings'
 
-const CORE_RUNTIME_PROTOCOL_LINES = [
-  'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
-  'Answer in the same language as the user unless they ask otherwise.',
-  'Tool results are the source of truth. Do not claim project data, backend writes, generation jobs, costs, skills, or tools changed unless a tool result proves it.',
-  'Default context is intentionally small. Retrieve project lists, drafts, memories, schemas, resources, generation jobs, or catalog details with tools only when needed.',
-  'When missing context would make the next step a guess, call movscript_request_user_input.',
-  'Final responses must preserve durable handoff anchors: artifact refs such as draftId, proposalRef, projectId, productionId, status, key decisions, unresolved questions, and the object future edits should continue from.',
-]
-
-const PLANNER_SUBAGENT_POLICY = [
-  'Planner/subagent orchestration is available in this run.',
-  'Do simple, single-context tasks yourself as the planner instead of spawning a worker.',
-  'Use movscript_spawn_subagent when work can be split into independent tasks, needs parallel execution, needs isolated context, or may take longer than one run.',
-  'Each worker receives a short human-readable subagentName such as 爱因斯坦 or 霍金. You may provide one, or omit it and let the runtime assign names in order; refer to workers by that name in later wait/cancel calls instead of relying on task ids in natural language.',
-  'When spawning or redispatching worker tasks, use maxWorkers for concurrency, retryFailed with maxTaskAttempts for failed/cancelled task retries, and workerTimeoutMs to cancel stale active workers before dispatching new work. Per-task maxTaskAttempts and workerTimeoutMs override the call-level defaults.',
-  'After spawning workers, use movscript_list_subagents and movscript_wait_subagent to monitor structured task state, worker run status, blockers, and artifacts instead of inferring progress from natural-language chat.',
-  'If movscript_wait_subagent returns pending, continue with other independent work or report that worker execution is still in progress; do not pretend the worker finished.',
-  'If movscript_wait_subagent returns failed, cancelled, blocked, or needs_review, use the returned target and snapshot to decide whether to replan, spawn replacement work, cancel stale work, or ask the user for missing input.',
-  'Use movscript_cancel_subagent only for stale, mistaken, duplicated, or user-cancelled worker work. It can cancel an active worker run or mark a named pending/blocked/needs_review subagent task cancelled before any worker starts.',
-  'Worker subagents execute scoped tasks; the planner remains responsible for final synthesis, dependency decisions, replan decisions, and user-facing completion.',
-].join('\n')
-
 export function buildContext(input: ContextBuilderInput): BuiltContext {
   const debugParts: CompiledPromptPreview['debugParts'] = []
   const warnings = [...input.warnings]
@@ -77,13 +55,12 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
   const contractResolver = input.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
   const runtimeContract = contractResolver.find(input.manifest)
 
-  // --- Core Runtime Protocol ---
+  // --- Runtime Contract ---
   debugParts.push({
     id: 'runtime.core',
     kind: 'policy',
-    title: 'Core Runtime Protocol',
+    title: 'Runtime Contract',
     content: [
-      ...CORE_RUNTIME_PROTOCOL_LINES,
       input.policy.sandboxMode ? 'Sandbox mode is active: write, generation, and destructive tools are intercepted and simulated.' : undefined,
       `Runtime limits: approvalMode=${input.policy.approvalMode}; maxToolCalls=${input.policy.maxToolCalls}; maxIterations=${input.policy.maxIterations}.`,
       input.manifest.soul ? `[Agent-specific output contract]\n${input.manifest.soul}` : undefined,
@@ -131,14 +108,6 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
       kind: 'skill',
       title: skill.name,
       content: skill.compiledInstruction || skill.description,
-    })
-  }
-  if (shouldIncludeSubagentPolicy(input, command)) {
-    debugParts.push({
-      id: 'policy.planner-subagents',
-      kind: 'policy',
-      title: 'Planner Subagent Policy',
-      content: PLANNER_SUBAGENT_POLICY,
     })
   }
 
@@ -209,20 +178,9 @@ function resolveOpenAIToolParameters(
   return undefined
 }
 
-function hasAvailableTool(tools: ResolvedToolCatalog, name: string): boolean {
-  return tools.available.some((tool) => tool.name === name)
-}
-
 function shouldIncludeCommandContract(command: AgentCommandRuntime): boolean {
   if (command.name !== 'chat') return true
   return command.requiredTools.length > 0 || command.outputMode !== 'natural'
-}
-
-function shouldIncludeSubagentPolicy(input: ContextBuilderInput, command: AgentCommandRuntime): boolean {
-  if (!hasAvailableTool(input.tools, 'movscript_spawn_subagent')) return false
-  if (input.context.agentPlan) return true
-  if (command.contextProfile === 'project_structure') return true
-  return /subagent|worker|parallel|并行|子代理|多任务|拆分任务|分工/.test(input.userMessage)
 }
 
 function orderedActivatedSkills(skills: ResolvedAgentSkill[]): ResolvedAgentSkill[] {
@@ -256,7 +214,7 @@ function buildPromptStats(debugParts: CompiledPromptPreview['debugParts'], syste
 function promptLayerForPart(part: CompiledPromptPreview['debugParts'][number]): PromptLayer {
   if (part.id === 'runtime.core' || part.id.startsWith('command.') || part.id === 'tools.available') return 'level0_core'
   if (part.id === 'context.summary') return 'level1_context'
-  if (part.id.startsWith('skill.') || part.id === 'policy.planner-subagents') return 'level2_behavior'
+  if (part.id.startsWith('skill.')) return 'level2_behavior'
   if (part.id === 'context.memories') return 'retrieved_context'
   return 'runtime_warnings'
 }

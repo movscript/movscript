@@ -4,6 +4,15 @@
   "name": "Drafts",
   "description": "本地审阅 draft schema、编辑、校验和 dry-run preview 工具。",
   "source": "builtin",
+  "resources": {
+    "skills": [
+      "drafts/policy/drafts",
+      "drafts/workflow/draft-lifecycle"
+    ],
+    "tools": [
+      "drafts"
+    ]
+  },
   "schemas": [
     "movscript.project_proposal.v1",
     "movscript.production_proposal.v1",
@@ -20,6 +29,12 @@
     "movscript_create_script"
   ],
   "skills": [
-    "movscript.policy.drafts"
-  ]
+    "movscript.policy.drafts",
+    "movscript.workflow.draft-lifecycle"
+  ],
+  "requires": {
+    "packs": {
+      "movscript.pack.agent-core": ">=1.0.0"
+    }
+  }
 }

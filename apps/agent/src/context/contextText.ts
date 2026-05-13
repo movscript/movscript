@@ -3,7 +3,7 @@ import type { AgentMemory } from '../memory/types.js'
 
 export function renderDebugContextText(context: AgentDebugContextPanel): string {
   const lines: string[] = [
-    'Focus is only the active task anchor. Retrieve lists, drafts, scripts, resources, or entity details with narrow tools when they matter.',
+    'Focus snapshot:',
     '',
     '### Screen',
     `- Location: ${context.route.pathname}${context.route.search ?? ''}${context.route.hash ?? ''}`,
@@ -169,10 +169,8 @@ export function renderToolCatalogText(catalog: ResolvedToolCatalog): string {
     })
     .slice(0, 8)
   return [
-    'Use model tool schemas as the source of truth for available tools, parameters, detailed descriptions, and declared output fields.',
-    'Input schemas define valid tool calls; output schemas define stable result fields to inspect after the tool returns.',
+    'Available tool schemas are attached to the model call. This section only summarizes declared output fields.',
     outputSummaries.length > 0 ? ['Declared tool output fields:', ...outputSummaries].join('\n') : undefined,
-    'Choose tools by business intent. If a needed capability is absent, inspect catalog/retrieval tools before saying it is missing.',
   ].filter(Boolean).join('\n')
 }
 

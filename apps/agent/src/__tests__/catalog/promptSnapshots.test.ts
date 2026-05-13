@@ -40,6 +40,9 @@ test('default profile prompt composition covers global policy and triggered work
 
   assert.match(prompt.systemPrompt, /Project Proposal/)
   assert.match(prompt.systemPrompt, /Proposal First/)
+  assert.match(prompt.systemPrompt, /Core 是 agent 对自身运行能力的稳定认知层/)
+  assert.match(prompt.systemPrompt, /读取记忆、请求用户输入、刷新 catalog、以及在 planner run 中编排 worker subagents/)
+  assert.match(prompt.systemPrompt, /优先从当前 profile、active workflows 和可见工具判断自己能做什么/)
   assert.doesNotMatch(prompt.systemPrompt, /\{\{schema:/)
   assert.ok(prompt.parts.some((part) => part.id === 'movscript.policy.drafts'))
   assert.ok(prompt.parts.some((part) => part.id === 'movscript.workflow.project-proposal'))

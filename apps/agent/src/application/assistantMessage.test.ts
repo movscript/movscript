@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildAssistantContent, extractRequestedToolCallsFromAssistantContent } from './assistantMessage.js'
+import { buildAssistantContent, buildAssistantMessages, extractRequestedToolCallsFromAssistantContent } from './assistantMessage.js'
 import type { JSONValue } from '../types.js'
 import type { AgentRun } from '../state/types.js'
 
@@ -46,6 +46,26 @@ test('assistant message extracts tool calls from model JSON content', () => {
   assert.equal(toolCalls.length, 1)
   assert.equal(toolCalls[0].name, 'movscript_read_project_scripts')
   assert.equal(toolCalls[0].args?.project_id, 1)
+})
+
+test('configured assistant messages prefer resolved skill instructions from run metadata', () => {
+  const run = makeRun()
+  run.metadata = {
+    ...(run.metadata ?? {}),
+    skills: [{
+      id: 'movscript.policy.agent-core',
+      name: 'Agent Core Capability Policy',
+      instruction: 'Core skill instruction from catalog.',
+    }],
+  }
+
+  const messages = buildAssistantMessages('总结结果', [], [], [], run)
+  const systemText = messages.filter((message) => message.role === 'system').map((message) => message.content).join('\n')
+
+  assert.match(systemText, /Agent Core Capability Policy/)
+  assert.match(systemText, /Core skill instruction from catalog/)
+  assert.doesNotMatch(systemText, /You are MovScript Agent/)
+  assert.doesNotMatch(systemText, /Final responses must leave durable handoff anchors/)
 })
 
 test('assistant message extracts a single tool call returned as JSON content', () => {

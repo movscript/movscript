@@ -1,6 +1,6 @@
 # MovScript Agent Skills Concepts
 
-本文定义 MovScript Agent 的 skills 工作概念。目标是废弃旧的“workflow 子定位”设计，把 Agent 行为拆成清晰的三层：MovScript 核心概念、MovScript 核心用法、具体 proposal 如何完成。
+本文定义 MovScript Agent 的 skills 工作概念。目标是废弃旧的“workflow 子定位”设计，把 Agent 行为拆成清晰的三层：MovScript 核心概念、MovScript 工作流程、每一种工作需求的工作流程。
 
 本文优先级高于旧的 mode / workflow prompt 说明。旧文档若把 workflow 当成子人格、入口模式或宽上下文包，应按本文修正。
 
@@ -66,7 +66,7 @@ MovScript 当前核心 proposal kind：
 
 Proposal producer 可以是 Agent workflow、插件、批处理或未来自动化任务。Producer 不重要，重要的是 proposal kind、schema、review/apply 边界一致。
 
-## 2. MovScript 的核心用法
+## 2. MovScript 的工作流程
 
 ### 默认执行顺序
 
@@ -133,7 +133,30 @@ Workflow 必须写清：
 - 在 profile 里重复维护 pack 已经注册的 workflow/policy/tool 清单。
 - proposal workflow 直接提交生成 job 或正式写入。
 
-## 3. 具体 Proposal 如何完成
+## 3. 每一种工作需求的工作流程
+
+本层只定义“用户要做什么时，应该进入哪个 workflow”。具体 schema 形状来自 draft schema，具体可执行能力来自 tool 定义。
+
+### 工作需求选择规则
+
+按业务意图选择最窄 workflow：
+
+- 项目级设定、creative references、asset slots、素材需求归属或复用合并：`project_proposal`
+- production 级 segments、scene moments、引用使用状态、production-ready 缺口：`production_proposal`
+- 同时维护 project 层基础和 production 层编排：`dual_orchestration`
+- 宽泛变更先变成可审阅方案：`proposal_first`
+- 场景、镜头节拍、旁白、字幕、转场、音乐节拍或内容单元结构：`content_unit_proposal`
+- 关键帧、视频候选、媒体计划、content unit 的生成约束：`content_unit_media_proposal`
+- 素材候选计划、asset slot 的 prompt、参考资源、模型能力需求、风险和验收标准：`asset_proposal`
+- 准备可生成的素材候选方向但不提交任务：`asset_candidate_generation`
+- 真正创建图片或视频生成任务：`visual_generation`
+- 审阅分镜、关键帧或媒体规划缺口：`storyboard_gap_review`
+- 总结项目进度、完成度、阻塞项和未关闭 drafts：`project_progress`
+- 准备或改进一个已选 creative reference：`setting_prep`
+
+如果用户请求跨多个层级，优先拆成多个 proposal 或使用 `dual_orchestration`，不要做一个混合职责的大 draft。
+
+### Proposal 如何完成
 
 ### 通用完成标准
 

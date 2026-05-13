@@ -4,6 +4,20 @@
   "name": "MovScript",
   "description": "MovScript workspace、proposal 规划、项目进度审阅和视觉生成能力。",
   "source": "builtin",
+  "resources": {
+    "skills": [
+      "movscript/persona",
+      "movscript/policy",
+      "movscript/workflow/workspace",
+      "movscript/workflow/planning",
+      "movscript/workflow/proposal",
+      "movscript/workflow/generation"
+    ],
+    "tools": [
+      "movscript/workspace",
+      "movscript/visual-generation"
+    ]
+  },
   "schemas": [],
   "tools": [
     "movscript_get_focus",

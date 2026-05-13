@@ -210,19 +210,16 @@ export function buildAssistantMessages(
     ? run.agentManifest.soul.trim()
     : undefined
   const context = run?.metadata?.context
+  const skillMessages = assistantSkillMessages(run)
   const messages: Array<RuntimeModelChatMessage | undefined> = [
-    {
+    skillMessages.length > 0 ? undefined : {
       role: 'system',
       content: [
-        'You are MovScript Agent, a pragmatic assistant for film and animation production workflows.',
-        'Answer in the same language as the user unless they ask otherwise.',
-        'Use the runtime context, plan, tool results, and memories when available.',
-        'Do not claim you changed project data unless a tool result proves it.',
-        'When writes are represented as drafts or approval requests, describe them as drafts or pending approvals.',
-        'Final responses must leave durable handoff anchors for future turns: created or modified artifact references such as draftId, proposalRef, projectId, and productionId; current artifact status; key decisions; unresolved questions; and the exact object future edits should continue from. Do not dump raw tool traces; preserve only user-relevant conclusions and stable references.',
+        'Use the runtime JSON sections below to summarize this turn.',
         agentSoul ? `[Agent-specific output contract]\n${agentSoul}` : undefined,
       ].join('\n'),
     },
+    ...skillMessages,
     context !== undefined ? {
       role: 'system' as const,
       content: `Runtime context JSON:\n${JSON.stringify(context)}`,
@@ -258,6 +255,26 @@ export function buildAssistantMessages(
     },
   ]
   return messages.filter((message): message is RuntimeModelChatMessage => !!message)
+}
+
+function assistantSkillMessages(run?: AgentRun): RuntimeModelChatMessage[] {
+  const rawSkills = run?.metadata?.skills
+  if (!Array.isArray(rawSkills)) return []
+  return rawSkills.flatMap((item): RuntimeModelChatMessage[] => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
+    const record = item as Record<string, unknown>
+    const title = typeof record.name === 'string' && record.name.trim()
+      ? record.name.trim()
+      : typeof record.id === 'string' && record.id.trim()
+        ? record.id.trim()
+        : 'Agent Skill'
+    const content = typeof record.compiledInstruction === 'string' && record.compiledInstruction.trim()
+      ? record.compiledInstruction.trim()
+      : typeof record.instruction === 'string' && record.instruction.trim()
+        ? record.instruction.trim()
+        : undefined
+    return content ? [{ role: 'system', content: `## ${title}\n${content}` }] : []
+  })
 }
 
 function matchToolOutcomes(

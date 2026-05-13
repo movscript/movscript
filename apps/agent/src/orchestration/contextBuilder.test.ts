@@ -35,10 +35,9 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
 
   const systemMessages = built.messages.filter((message) => message.role === 'system')
   assert.ok(systemMessages.length > 1)
-  assert.match(systemMessages[0].content ?? '', /Core Runtime Protocol/)
-  assert.match(systemMessages[0].content ?? '', /Tool results are the source of truth/)
-  assert.match(systemMessages[0].content ?? '', /Default context is intentionally small/)
-  assert.match(systemMessages[1].content ?? '', /active task anchor/)
+  assert.match(systemMessages[0].content ?? '', /Runtime Contract/)
+  assert.match(systemMessages[0].content ?? '', /Runtime limits:/)
+  assert.match(systemMessages[1].content ?? '', /Focus snapshot:/)
   assert.match(systemMessages[1].content ?? '', /Title:/)
   assert.match(systemMessages[1].content ?? '', /Business reference:/)
   assert.match(systemMessages[1].content ?? '', /production#4/)
@@ -46,7 +45,6 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
   assert.doesNotMatch(systemMessages[1].content ?? '', /项目1的名字/)
   assert.equal(systemMessages.some((message) => String(message.content).includes('Runtime context JSON')), false)
   assert.ok(systemMessages.some((message) => String(message.content).includes('outputMode: natural')))
-  assert.ok(String(systemMessages[0].content).includes('durable handoff anchors'))
 })
 
 test('buildContext keeps default chat prompt lean', () => {
@@ -115,7 +113,7 @@ test('buildContext keeps default chat prompt lean', () => {
   assert.doesNotMatch(built.systemPrompt, /Blocked tool handles/)
   assert.doesNotMatch(built.systemPrompt, /movscript_create_draft/)
   assert.doesNotMatch(built.systemPrompt, /memory#memory_1/)
-  assert.match(built.systemPrompt, /output schemas define stable result fields/)
+  assert.match(built.systemPrompt, /Available tool schemas are attached to the model call/)
 })
 
 test('buildContext summarizes declared tool output fields for model-readable results', () => {
@@ -340,10 +338,9 @@ test('buildOpenAIChatTools exposes cancel_subagent pending task semantics', () =
   assert.match(parameters?.properties?.taskId?.description ?? '', /pending\/blocked\/needs_review task/)
 })
 
-test('buildContext adds planner subagent policy only when scheduling tools are available', () => {
+test('buildContext renders planner subagent workflow when runtime layers activate it', () => {
   const baseInput = {
     manifest: DEFAULT_AGENT_MANIFEST,
-    skills: [],
     context: {
       route: { pathname: '/agent' },
       projects: [],
@@ -366,9 +363,10 @@ test('buildContext adds planner subagent policy only when scheduling tools are a
   }
   const withoutSubagents = buildContext({
     ...baseInput,
+    skills: [],
     tools: { discovered: [], available: [], blocked: [], byName: {} },
   })
-  assert.equal(withoutSubagents.debugParts.some((part) => part.id === 'policy.planner-subagents'), false)
+  assert.equal(withoutSubagents.debugParts.some((part) => part.id === 'skill.movscript.workflow.planner-subagents'), false)
 
   const tools = {
     discovered: [],
@@ -386,25 +384,42 @@ test('buildContext adds planner subagent policy only when scheduling tools are a
   }
   const withSubagents = buildContext({
     ...baseInput,
+    skills: [],
     tools,
   })
-  const policy = withSubagents.debugParts.find((part) => part.id === 'policy.planner-subagents')
+  const policy = withSubagents.debugParts.find((part) => part.id === 'skill.movscript.workflow.planner-subagents')
   assert.equal(policy, undefined)
-  assert.equal(withSubagents.systemMessages.some((message) => String(message.content).includes('Planner Subagent Policy')), false)
+  assert.equal(withSubagents.systemMessages.some((message) => String(message.content).includes('Planner Subagents')), false)
 
   const withPlannerIntent = buildContext({
     ...baseInput,
+    skills: [{
+      id: 'movscript.workflow.planner-subagents',
+      name: 'Planner Subagents',
+      description: '',
+      enabled: true,
+      instruction: '',
+      compiledInstruction: [
+        '简单、单上下文任务由 planner 自己完成。',
+        '用 maxWorkers 控制并发，用 retryFailed 和 maxTaskAttempts 处理失败或取消的任务重试，用 workerTimeoutMs 取消过期 active workers。',
+        'wait 返回 failed、cancelled、blocked 或 needs_review 时，根据返回的 target 和 snapshot 决定 replan。',
+      ].join('\n'),
+      activationReason: 'trigger',
+      resolvedPriority: 760,
+      warnings: [],
+      category: 'workflow',
+      metadata: { kind: 'workflow' },
+    }],
     tools,
     userMessage: '请并行处理这些任务',
   })
-  const plannerPolicy = withPlannerIntent.debugParts.find((part) => part.id === 'policy.planner-subagents')
-  assert.match(plannerPolicy?.content ?? '', /Do simple, single-context tasks yourself/)
-  assert.match(plannerPolicy?.content ?? '', /movscript_spawn_subagent/)
+  const plannerPolicy = withPlannerIntent.debugParts.find((part) => part.id === 'skill.movscript.workflow.planner-subagents')
+  assert.match(plannerPolicy?.content ?? '', /简单、单上下文任务由 planner 自己完成/)
   assert.match(plannerPolicy?.content ?? '', /retryFailed/)
   assert.match(plannerPolicy?.content ?? '', /maxTaskAttempts/)
   assert.match(plannerPolicy?.content ?? '', /workerTimeoutMs/)
-  assert.match(plannerPolicy?.content ?? '', /pending\/blocked\/needs_review subagent task/)
-  assert.ok(withPlannerIntent.systemMessages.some((message) => String(message.content).includes('Planner Subagent Policy')))
+  assert.match(plannerPolicy?.content ?? '', /needs_review/)
+  assert.ok(withPlannerIntent.systemMessages.some((message) => String(message.content).includes('Planner Subagents')))
 })
 
 test('buildContext orders activated behavior as persona, policies, then workflows', () => {
@@ -622,6 +637,8 @@ test('buildContext degrades oversized prompts using manifest prompt limit', () =
       activationReason: 'trigger' as const,
       resolvedPriority: skill.priority,
       warnings: [],
+      category: 'workflow',
+      metadata: { kind: 'workflow' },
     })),
     context: {
       route: { pathname: '/test' },
@@ -646,8 +663,8 @@ test('buildContext degrades oversized prompts using manifest prompt limit', () =
   })
 
   assert.equal(built.debugParts.some((part) => part.id === 'skill.test.low'), false)
-  assert.equal(built.debugParts.some((part) => part.id === 'skill.test.workflow'), false)
-  assert.equal(built.degraded, 'dropped_workflows')
+  assert.equal(built.debugParts.some((part) => part.id === 'skill.test.workflow'), true)
+  assert.equal(built.degraded, 'dropped_policies')
   assert.ok(built.warnings.some((warning) => warning.includes('dropped non-critical skill')))
   assert.ok(built.systemPrompt.length <= 4000)
 })

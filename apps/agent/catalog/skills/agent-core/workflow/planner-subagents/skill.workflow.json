@@ -1,0 +1,35 @@
+{
+  "id": "movscript.workflow.planner-subagents",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Planner Subagents",
+  "description": "在 planner run 中为可并行或可隔离的任务编排 worker subagents。",
+  "priority": 760,
+  "enabled": true,
+  "triggers": [
+    { "kind": "intent", "id": "planner_subagents" },
+    {
+      "kind": "keyword",
+      "any": [
+        "subagent",
+        "worker",
+        "parallel",
+        "并行",
+        "子代理",
+        "多任务",
+        "拆分任务",
+        "分工"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_spawn_subagent",
+    "tool://movscript_list_subagents",
+    "tool://movscript_wait_subagent",
+    "tool://movscript_cancel_subagent",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回 planner 自己完成的内容、已派发或等待的 subagent 名称、任务状态、阻塞项和最终综合结论。",
+  "instructionTemplatePath": "instruction.md"
+}

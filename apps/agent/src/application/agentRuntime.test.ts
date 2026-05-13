@@ -2226,6 +2226,10 @@ test('runtime reloads target-state local catalog tools for later runs', async ()
       id: 'studio.pack.dynamic',
       name: 'Dynamic Test Pack',
       source: 'plugin',
+      resources: {
+        skills: ['dynamic.workflow.json'],
+        tools: ['dynamic.tool.json'],
+      },
       schemas: [],
       tools: ['studio_dynamic_echo'],
       skills: ['studio.workflow.dynamic'],
@@ -2284,7 +2288,7 @@ test('runtime reloads target-state local catalog tools for later runs', async ()
   }
 })
 
-test('target-state local catalog loading registers layered tool files but pack controls grants', async () => {
+test('target-state local catalog loading ignores tool files outside pack resources', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-target-tool-'))
   const toolsDir = join(dir, 'tools')
   const packsDir = join(dir, 'packs')
@@ -2310,7 +2314,7 @@ test('target-state local catalog loading registers layered tool files but pack c
       builtinProfilesDir: profilesDir,
       baseManifest: DYNAMIC_CATALOG_BASE_MANIFEST,
     })
-    assert.equal(Boolean(catalog.registry.get('studio_dynamic_echo')), true)
+    assert.equal(Boolean(catalog.registry.get('studio_dynamic_echo')), false)
     assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio_dynamic_echo'), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
@@ -2460,6 +2464,10 @@ test('agent loop refreshes target-state tools after catalog reload in the same r
           id: 'studio.pack.same-run',
           name: 'Same Run Test Pack',
           source: 'plugin',
+          resources: {
+            skills: ['dynamic.workflow.json'],
+            tools: ['dynamic.tool.json'],
+          },
           schemas: [],
           tools: ['studio_same_run_echo'],
           skills: ['studio.workflow.same-run'],

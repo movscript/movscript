@@ -658,7 +658,7 @@ function withGeneratedAttachments(attachments: AgentAttachment[]): { attachments
   return attachments.length > 0 ? { attachments } : {}
 }
 
-async function assistantResultPayloadForRun(run: AgentRun, liveEvents: GenerationTraceEventLike[] = [], assistantContent = '') {
+async function assistantResultPayloadForRun(run: AgentRun, liveEvents: ChatRunActivityEvent[] = [], assistantContent = '') {
   const replay = await generationReplayFromRun(run, liveEvents)
   const fallbackIds = outputResourceIdsFromText(assistantContent)
   const attachments = run.streamPartial ? [] : await generatedAttachmentsFromReplay(replay, fallbackIds, assistantContent)
@@ -669,6 +669,7 @@ async function assistantResultPayloadForRun(run: AgentRun, liveEvents: Generatio
     ...withGeneratedAttachments(attachments),
     meta: {
       contextLabels: [`run ${run.status}`],
+      localRunActivity: mergeRunActivityEvents(compactRunActivity(run), liveEvents),
       ...(generationJobs.length > 0 ? { generationJobs } : {}),
       ...(generationParamAudits.length > 0 ? { generationParamAudits } : {}),
       ...(generationValidationErrors.length > 0 ? { generationValidationErrors } : {}),
@@ -1629,7 +1630,7 @@ function compactRunActivity(run: AgentRun): ChatRunActivity {
     ...(run.error ? { error: run.error } : {}),
     ...(run.warnings?.length ? { warnings: run.warnings } : {}),
     steps: run.steps
-      .filter((step) => step.type === 'tool_call')
+      .filter((step) => step.type === 'tool_call' || step.type === 'message')
       .map((step) => ({
         id: step.id,
         type: step.type,
@@ -1643,8 +1644,63 @@ function compactRunActivity(run: AgentRun): ChatRunActivity {
         createdAt: step.createdAt,
         ...(step.completedAt ? { completedAt: step.completedAt } : {}),
       })),
-    events: [],
+    events: compactRunTraceEvents(run.traceEvents ?? []),
   }
+}
+
+function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunActivityEvent[] {
+  return events
+    .filter((trace) => trace.kind === 'tool_call'
+      || trace.kind === 'model_call'
+      || trace.kind === 'context'
+      || trace.kind === 'memory'
+      || trace.kind === 'policy'
+      || trace.kind === 'tool_catalog'
+      || trace.kind === 'message'
+      || trace.kind === 'assistant'
+      || trace.kind === 'run')
+    .map((trace) => ({
+      id: trace.id,
+      kind: trace.kind,
+      title: trace.title,
+      status: trace.status,
+      ...(trace.summary ? { summary: trace.summary } : {}),
+      ...(trace.toolName ? { toolName: trace.toolName } : {}),
+      ...(trace.stepId ? { stepId: trace.stepId } : {}),
+      ...(trace.data !== undefined ? { data: trace.data } : {}),
+      createdAt: trace.createdAt,
+      ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
+    }))
+}
+
+function debugHttpRequestEvents(requests: DebugHttpRequest[], startedAt = new Date().toISOString()): ChatRunActivityEvent[] {
+  return requests.map((request, index) => ({
+    id: `http-request-${request.id}`,
+    kind: 'model_call',
+    title: `${request.method} ${request.label}`,
+    summary: request.url,
+    status: index === 0 ? 'started' : 'info',
+    data: {
+      httpRequest: {
+        method: request.method,
+        url: request.url,
+        ...(request.headers ? { headers: request.headers } : {}),
+        ...(request.body !== undefined ? { body: request.body } : {}),
+        ...(request.note ? { note: request.note } : {}),
+      },
+    },
+    createdAt: startedAt,
+  }))
+}
+
+function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRunActivityEvent[]): ChatRunActivity {
+  if (events.length === 0) return activity
+  const existingKeys = new Set(activity.events.map(liveTraceEventKey))
+  const mergedEvents = [
+    ...activity.events,
+    ...events.filter((event) => !existingKeys.has(liveTraceEventKey(event))),
+  ]
+  return { ...activity, events: mergedEvents.slice(-48) }
 }
 
 interface ThinkingBubbleState {
@@ -1882,8 +1938,8 @@ function RunActivityPanel({
   const items = [
     ...displayData.steps.map((step) => ({
       id: step.id,
-      kind: 'tool',
-      title: step.toolName ?? step.title ?? 'Tool call',
+      kind: step.type === 'tool_call' ? 'tool' : 'runtime',
+      title: step.toolName ?? step.title ?? (step.type === 'tool_call' ? 'Tool call' : 'Assistant message'),
       status: step.status,
       time: formatActivityTime(step.createdAt, locale),
       duration: durationLabel(step.createdAt, step.completedAt),
@@ -1895,9 +1951,12 @@ function RunActivityPanel({
     ...displayData.events.map((event) => {
       const streamToolCall = formatToolCallStreamDetail(event)
       const generationTrace = formatGenerationTraceDetail(event)
+      const httpRequest = event.data && typeof event.data === 'object' && 'httpRequest' in event.data
+        ? (event.data as Record<string, unknown>).httpRequest
+        : undefined
       return {
         id: event.id,
-        kind: event.kind,
+        kind: httpRequest ? 'http' : event.kind,
         title: generationTrace ? generationTrace.label : streamToolCall ? streamToolCall.label : event.toolName ? `${event.title}: ${event.toolName}` : event.title,
         status: event.status,
         time: formatActivityTime(event.createdAt, locale),
@@ -2681,6 +2740,13 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
       {!isUser && <GenerationValidationErrorCard errors={msg.meta?.generationValidationErrors} />}
       {!isUser && <GenerationParamAuditCard audits={msg.meta?.generationParamAudits} />}
       {!isUser && <GenerationJobSummaryCard jobs={msg.meta?.generationJobs} />}
+      {!isUser && msg.meta?.localRunActivity && (
+        <RunActivityPanel
+          activity={msg.meta.localRunActivity}
+          title="运行过程"
+          defaultOpen={msg.meta.localRunActivity.status !== 'completed'}
+        />
+      )}
       {showLargeMedia && <GeneratedResultCard attachments={mediaAttachments} projectId={projectId} />}
       {(showLargeMedia ? otherAttachments : messageAttachments).length > 0 && (
         <div className={cn('mt-2 grid gap-1.5', (showLargeMedia ? otherAttachments : messageAttachments).length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
@@ -2710,6 +2776,36 @@ function StreamingAssistantBubble({ content }: { content: string }) {
       )}
     >
       <MarkdownContent text={content} />
+    </AgentChatMessage>
+  )
+}
+
+function LiveRunActivityBubble({
+  run,
+  events,
+}: {
+  run: AgentRun | null
+  events: ChatRunActivityEvent[]
+}) {
+  if (!run && events.length === 0) return null
+  return (
+    <AgentChatMessage
+      role="assistant"
+      avatar={<Bot size={13} />}
+      author="MovScript Agent"
+      footer={(
+        <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
+          运行中
+        </Badge>
+      )}
+    >
+      <RunActivityPanel
+        run={run}
+        events={events}
+        title="运行过程"
+        defaultOpen
+        className="mt-0"
+      />
     </AgentChatMessage>
   )
 }
@@ -3717,6 +3813,7 @@ function ChatView({
   const [streamingAssistantText, setStreamingAssistantText] = useState('')
   const [liveTraceEvents, setLiveTraceEvents] = useState<ChatRunActivityEvent[]>([])
   const [pendingAssistantState, setPendingAssistantState] = useState<ThinkingBubbleState | null>(null)
+  const [pendingHttpEvents, setPendingHttpEvents] = useState<ChatRunActivityEvent[]>([])
   const liveTraceEventsRef = useRef<ChatRunActivityEvent[]>([])
   const cancelRequestedRunIdsRef = useRef<Set<string>>(new Set())
   const activeSendAbortControllerRef = useRef<AbortController | null>(null)
@@ -3794,6 +3891,7 @@ function ChatView({
     shouldAutoScrollRef.current = true
     liveTraceEventsRef.current = []
     setLiveTraceEvents([])
+    setPendingHttpEvents([])
   }, [conv.id])
   useEffect(() => () => {
     if (streamingFlushTimerRef.current !== null) window.clearTimeout(streamingFlushTimerRef.current)
@@ -3839,9 +3937,17 @@ function ChatView({
   const activeModel = textModels.find((m) => m.id === modelId)
   const activeLocalRun = conversationRuntime?.run ?? null
   const loading = conversationRuntime?.loading ?? false
+  const visibleActivityEvents = useMemo(() => {
+    if (!pendingHttpEvents.length) return liveTraceEvents
+    const existing = new Set(liveTraceEvents.map(liveTraceEventKey))
+    return [
+      ...pendingHttpEvents.filter((event) => !existing.has(liveTraceEventKey(event))),
+      ...liveTraceEvents,
+    ]
+  }, [liveTraceEvents, pendingHttpEvents])
   const hasStreamingAssistantContent = !!streamingAssistantMessageId || !!streamingAssistantText.trim()
-  const thinkingState = pendingAssistantState ?? getThinkingBubbleState(activeLocalRun, liveTraceEvents)
-  const generationTraceEvents = liveTraceEvents.length > 0 ? liveTraceEvents : (activeLocalRun?.traceEvents ?? [])
+  const thinkingState = pendingAssistantState ?? getThinkingBubbleState(activeLocalRun, visibleActivityEvents)
+  const generationTraceEvents = visibleActivityEvents.length > 0 ? visibleActivityEvents : (activeLocalRun?.traceEvents ?? [])
   const generationProgressState = generationProgressFromEvents(generationTraceEvents)
   const showGenerationProgressBubble = !!generationProgressState
     && (loading || buildingSendDraft || activeLocalRun?.status === 'in_progress' || activeLocalRun?.status === 'queued')
@@ -3851,6 +3957,11 @@ function ChatView({
     && !hasStreamingAssistantContent
     && !pendingSendDraft
     && !showGenerationProgressBubble
+  const showLiveRunActivityBubble = !pendingSendDraft
+    && !hasStreamingAssistantContent
+    && (loading || buildingSendDraft || visibleActivityEvents.length > 0)
+    && !showGenerationProgressBubble
+    && (visibleActivityEvents.length > 0 || !!activeLocalRun)
   const approvingLocalRun = conversationRuntime?.approving ?? false
   const stoppingLocalRun = conversationRuntime?.stopping ?? false
   const stopRequestedBeforeRun = conversationRuntime?.stopRequested ?? false
@@ -3860,7 +3971,7 @@ function ChatView({
     const thread = threadRef.current
     if (!thread || !shouldAutoScrollRef.current) return
     thread.scrollTo({ top: thread.scrollHeight, behavior: 'auto' })
-  }, [conv.id, conv.messages.length, loading, buildingSendDraft, hasStreamingAssistantContent, streamingAssistantText, pendingAssistantState, generationProgressState])
+  }, [conv.id, conv.messages.length, loading, buildingSendDraft, hasStreamingAssistantContent, streamingAssistantText, pendingAssistantState, generationProgressState, visibleActivityEvents.length])
   const contextLabels = [
     t('agents.chat.localRuntime'),
     activeConversationManifest ? t('agents.chat.panel.capabilities.custom') : null,
@@ -4281,7 +4392,9 @@ function ChatView({
       const next = existingIndex >= 0
         ? current.map((candidate, index) => index === existingIndex ? item : candidate)
         : [...current, item]
-      const sliced = next.slice(-16)
+      const httpItems = next.filter((candidate) => candidate.id.startsWith('http-request-'))
+      const runtimeItems = next.filter((candidate) => !candidate.id.startsWith('http-request-'))
+      const sliced = [...httpItems, ...runtimeItems.slice(-16)]
       liveTraceEventsRef.current = sliced
       return sliced
     })
@@ -4793,8 +4906,10 @@ function ChatView({
     setMentionRange(null)
     setConversationRuntime(conv.id, { loading: true, building: false, approving: false, stopping: false, stopRequested: false, error: undefined })
     cancelRequestedRunIdsRef.current.clear()
-    liveTraceEventsRef.current = []
-    setLiveTraceEvents([])
+    const httpEvents = debugHttpRequestEvents(draft.httpRequests)
+    liveTraceEventsRef.current = httpEvents
+    setLiveTraceEvents(httpEvents)
+    setPendingHttpEvents(httpEvents)
     setPendingAssistantState({ status: 'preparing_request' })
     addMessage(userId, conv.id, {
       role: 'user',
@@ -4898,6 +5013,23 @@ function ChatView({
         },
         onStreamEvent: (event) => {
           if (sendController.signal.aborted) return
+          if (event.type === 'run' && event.run?.id) {
+            const completedAt = new Date().toISOString()
+            setPendingHttpEvents((current) => current.map((item) => (
+              item.status === 'started'
+                ? { ...item, status: 'completed', completedAt }
+                : item
+            )))
+            setLiveTraceEvents((current) => {
+              const next = current.map((item) => (
+                item.status === 'started' && item.id.startsWith('http-request-')
+                  ? { ...item, status: 'completed' as const, completedAt }
+                  : item
+              ))
+              liveTraceEventsRef.current = next
+              return next
+            })
+          }
           recordLiveTraceEvent(event)
         },
       })
@@ -4912,6 +5044,7 @@ function ChatView({
       setConversationRun(conv.id, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
       const content = formatLocalAgentAssistantContent(run, thread)
       const resultPayload = await assistantResultPayloadForRun(run, liveTraceEventsRef.current, content)
+      setPendingHttpEvents([])
       const streamingMessageId = streamingAssistantMessageIdRef.current
       setPendingAssistantState(null)
       resetStreamingAssistant()
@@ -4928,6 +5061,8 @@ function ChatView({
           ...resultPayload,
         })
       }
+      liveTraceEventsRef.current = []
+      setLiveTraceEvents([])
       if (runTouchesAgentCatalog(run)) refreshAgentCatalogContext()
       notifyAgentPanelRunSettled({
         requestId: draft.localRuntime?.requestId,
@@ -4942,6 +5077,7 @@ function ChatView({
         const streamingMessageId = streamingAssistantMessageIdRef.current
         if (streamingMessageId) removeMessage(userId, conv.id, streamingMessageId)
         setPendingAssistantState(null)
+        setPendingHttpEvents([])
         resetStreamingAssistant()
         setConversationRuntime(conv.id, { stopRequested: false, stopping: false, loading: false, building: false })
         notifyAgentPanelRunSettled({
@@ -4955,6 +5091,7 @@ function ChatView({
       const streamingMessageId = streamingAssistantMessageIdRef.current
       if (streamingMessageId) removeMessage(userId, conv.id, streamingMessageId)
       setPendingAssistantState(null)
+      setPendingHttpEvents([])
       resetStreamingAssistant()
       addMessage(userId, conv.id, {
         role: 'assistant',
@@ -5163,7 +5300,11 @@ function ChatView({
             {showGenerationProgressBubble && (
               <GenerationProgressBubble state={generationProgressState} />
             )}
-            {showThinkingBubble && <ThinkingBubble run={activeLocalRun} state={thinkingState} />}
+            {showLiveRunActivityBubble ? (
+              <LiveRunActivityBubble run={activeLocalRun} events={visibleActivityEvents} />
+            ) : (
+              showThinkingBubble && <ThinkingBubble run={activeLocalRun} state={thinkingState} />
+            )}
             <PlanOverviewPanel
               snapshot={activePlanSnapshot}
               busy={planActionBusy}
@@ -5184,7 +5325,7 @@ function ChatView({
             <LocalAgentWorkflow
               run={actionableLocalRun}
               approving={approvingLocalRun}
-              events={liveTraceEvents}
+              events={visibleActivityEvents}
               onApprove={approveActiveLocalRun}
               onReject={rejectActiveLocalRun}
               onAnswerInput={answerActiveLocalRunInput}
@@ -5378,7 +5519,7 @@ function ChatView({
                   {activeLocalRun ? (
                     <RunActivityPanel
                       run={activeLocalRun}
-                      events={liveTraceEvents}
+                      events={visibleActivityEvents}
                       title={t('agents.chat.panel.execution.runTimeline')}
                     />
                   ) : (
@@ -5388,7 +5529,7 @@ function ChatView({
                     <LocalAgentWorkflow
                       run={actionableLocalRun}
                       approving={approvingLocalRun}
-                      events={liveTraceEvents}
+                      events={visibleActivityEvents}
                       onApprove={approveActiveLocalRun}
                       onReject={rejectActiveLocalRun}
                       onAnswerInput={answerActiveLocalRunInput}

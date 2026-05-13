@@ -89,6 +89,10 @@ export interface CapabilityPack {
   name: string
   description?: string
   source: PackSource
+  resources?: {
+    skills?: string[]
+    tools?: string[]
+  }
   schemas: string[]
   tools: string[]
   skills: string[]

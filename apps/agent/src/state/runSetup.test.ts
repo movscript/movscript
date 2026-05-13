@@ -23,7 +23,20 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
       steps: [],
     },
     agentManifest: DEFAULT_AGENT_MANIFEST,
-    skills: [],
+    skills: [{
+      id: 'movscript.policy.agent-core',
+      name: 'Agent Core',
+      description: 'Core policy',
+      version: '1.0.0',
+      category: 'policy',
+      enabled: true,
+      priority: 920,
+      instruction: 'raw core instruction',
+      compiledInstruction: 'compiled core instruction',
+      activationReason: 'profile',
+      resolvedPriority: 920,
+      warnings: [],
+    }],
     capabilities: {
       defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
       mcp: { connected: true, resources: [], tools: [] },
@@ -60,4 +73,6 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
   assert.equal(result.metadata.backendAuthToken, 'token_1')
   assert.equal((result.metadata.command as any)?.name, 'chat')
   assert.equal((result.metadata.debugTrace as any)?.manifestId, DEFAULT_AGENT_MANIFEST.id)
+  assert.equal((result.metadata.skills as any[])?.[0]?.id, 'movscript.policy.agent-core')
+  assert.equal((result.metadata.skills as any[])?.[0]?.instruction, 'compiled core instruction')
 })
