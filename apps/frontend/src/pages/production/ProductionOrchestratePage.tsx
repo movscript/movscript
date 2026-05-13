@@ -1061,7 +1061,6 @@ export default function ProductionOrchestratePage() {
       taskType: 'dual_orchestration',
       message: `请同步生成项目提案和制作提案：${selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}`,
       title: `双阶段提案: ${selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}`,
-      mode: 'create',
       newConversation: true,
       autoSend: true,
       projectId,
@@ -1069,7 +1068,6 @@ export default function ProductionOrchestratePage() {
         message: target.scope === 'segmentAnalysis' && target.entityId
           ? `请围绕当前选中的编排段 #${target.entityId} 完成双阶段提案。`
           : '请先完成项目提案，再继续生成制作提案。',
-        mode: 'dual-orchestration',
         labels: ['production-orchestrate', 'project-orchestration', 'production-orchestration', 'draft-application'],
         hints: {
           projectId,

@@ -1,0 +1,31 @@
+{
+  "id": "movscript.pack.proposal-project",
+  "version": "1.0.0",
+  "name": "Proposal Project",
+  "description": "Project proposal workflows for creative references and asset slots bound to creative references.",
+  "source": "builtin",
+  "schemas": [
+    "movscript.project_proposal.v1"
+  ],
+  "tools": [
+    "movscript_get_current_context",
+    "movscript_create_draft",
+    "movscript_get_draft",
+    "movscript_list_drafts",
+    "movscript_update_draft",
+    "movscript_read_draft",
+    "movscript_request_user_input"
+  ],
+  "skills": [
+    "movscript.persona.project-orchestrator",
+    "movscript.workflow.project-proposal",
+    "movscript.workflow.setting-prep"
+  ],
+  "requires": {
+    "packs": {
+      "movscript.pack.agent-core": ">=1.0.0",
+      "movscript.pack.movscript-workspace": ">=1.0.0",
+      "movscript.pack.drafts": ">=1.0.0"
+    }
+  }
+}

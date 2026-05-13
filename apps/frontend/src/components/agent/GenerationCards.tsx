@@ -1,5 +1,5 @@
 import { AlertCircle, Check, Loader2, Wand2 } from 'lucide-react'
-import type { ChatGenerationJob, ChatGenerationParamAudit } from '@/store/agentStore'
+import type { ChatGenerationJob, ChatGenerationParamAudit, ChatGenerationValidationError } from '@/store/agentStore'
 import type { GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel, type GenerationJobBadgeTone } from '@/lib/agentGenerationDisplay'
 import { cn } from '@/lib/utils'
@@ -162,6 +162,12 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
                 {audit.supportedParams.length > 0 ? ` · ${audit.supportedParams.length} 个参数` : ''}
                 {audit.paramsSchemaLoaded ? ` · schema${audit.paramsSchemaRuleCount !== undefined ? ` ${audit.paramsSchemaRuleCount} 条规则` : ''}` : ''}
               </p>
+              {audit.inputRequirements && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
+                  输入需求：图片 {formatInputRequirement(audit.inputRequirements.image)} · 视频 {formatInputRequirement(audit.inputRequirements.video)}
+                  {audit.submittedInputs ? ` · 已提交 图片 ${audit.submittedInputs.image}/视频 ${audit.submittedInputs.video}` : ''}
+                </p>
+              )}
               {audit.submittedExtraParams.length > 0 && (
                 <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
                   提交：{audit.submittedExtraParams.join('、')}
@@ -169,17 +175,32 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
               )}
               {audit.droppedExtraParams.length > 0 && (
                 <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
-                  过滤 extra_params：{audit.droppedExtraParams.join('、')}
+                  过滤 extra_params：{audit.droppedExtraParams.map((key) => formatDroppedParam(key, audit.dropReasons)).join('、')}
                 </p>
               )}
               {audit.droppedTopLevelParams.length > 0 && (
                 <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
-                  过滤顶层参数：{audit.droppedTopLevelParams.join('、')}
+                  过滤顶层参数：{audit.droppedTopLevelParams.map((key) => formatDroppedParam(key, audit.dropReasons)).join('、')}
+                </p>
+              )}
+              {audit.renamedExtraParams && Object.keys(audit.renamedExtraParams).length > 0 && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
+                  参数别名：{formatRenamedParams(audit.renamedExtraParams)}
                 </p>
               )}
               {audit.extraParamsParseError && (
                 <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-destructive">
                   extra_params 解析失败：{audit.extraParamsParseError}
+                </p>
+              )}
+              {audit.preflightErrors && audit.preflightErrors.length > 0 && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  本地预检：{audit.preflightErrors.map(formatPreflightError).join('、')}
+                </p>
+              )}
+              {audit.inputPreflightErrors && audit.inputPreflightErrors.length > 0 && (
+                <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  输入预检：{audit.inputPreflightErrors.map(formatInputPreflightError).join('、')}
                 </p>
               )}
               {audit.repairNote && (
@@ -193,6 +214,102 @@ export function GenerationParamAuditCard({ audits }: { audits?: ChatGenerationPa
       </div>
     </div>
   )
+}
+
+export function GenerationValidationErrorCard({ errors }: { errors?: ChatGenerationValidationError[] }) {
+  if (!errors?.length) return null
+  return (
+    <div data-testid="agent-generation-validation-errors" className="mt-2 rounded-md border border-red-500/30 bg-red-500/5 p-2">
+      <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <AlertCircle size={12} className="shrink-0 text-red-600" />
+          <span className="truncate text-[11px] font-medium text-foreground">生成校验失败</span>
+        </div>
+        <span className="shrink-0 rounded border border-red-500/30 bg-red-500/10 px-1.5 py-0 text-[9px] leading-4 text-red-700">
+          {errors.length} 个错误
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {errors.map((error, index) => (
+          <div key={error.stepId ?? `generation-error-${index}`} className="rounded border border-red-500/20 bg-background/70 px-2 py-1.5">
+            <p className="truncate text-[10px] font-medium text-foreground">
+              {error.field ? `${error.field} · ` : ''}{error.code}
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{error.message}</p>
+            {error.allowedValues && error.allowedValues.length > 0 && (
+              <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">
+                允许值：{error.allowedValues.join('、')}
+              </p>
+            )}
+            {error.requiredMin !== undefined && error.allowedMax !== undefined && error.actualCount !== undefined && (
+              <p className="mt-1 text-[9px] leading-relaxed text-muted-foreground">
+                输入数量：{error.actualCount}，要求 {error.requiredMin}-{error.allowedMax === -1 ? '不限' : error.allowedMax}
+              </p>
+            )}
+            {error.suggestedFix && (
+              <p className="mt-1 line-clamp-2 text-[9px] leading-relaxed text-amber-700 dark:text-amber-300">
+                建议：{formatSuggestedFix(error.suggestedFix).replace(/^，建议 /, '')}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function formatDroppedParam(key: string, reasons?: Record<string, string>): string {
+  const reason = reasons?.[key]
+  if (!reason) return key
+  return `${key} (${formatDropReason(reason)})`
+}
+
+function formatDropReason(reason: string): string {
+  switch (reason) {
+    case 'unsupported_extra_param':
+      return '不支持'
+    case 'unsupported_top_level_param':
+      return '模型不支持'
+    case 'parse_error':
+      return '解析失败'
+    default:
+      return reason
+  }
+}
+
+function formatRenamedParams(values: Record<string, string>): string {
+  return Object.entries(values).map(([from, to]) => `${from} -> ${to}`).join('、')
+}
+
+function formatInputRequirement(value: { min: number, max: number }): string {
+  return `${value.min}-${value.max === -1 ? '不限' : value.max}`
+}
+
+function formatPreflightError(error: NonNullable<ChatGenerationParamAudit['preflightErrors']>[number]): string {
+  const allowed = error.allowedValues?.length ? `，允许 ${error.allowedValues.join('/')}` : ''
+  const suggested = formatSuggestedFix(error.suggestedFix)
+  return `${error.field} (${error.code}${allowed}${suggested})`
+}
+
+function formatInputPreflightError(error: NonNullable<ChatGenerationParamAudit['inputPreflightErrors']>[number]): string {
+  const label = error.field === 'image' ? '图片' : '视频'
+  const max = error.allowedMax === -1 ? '不限' : String(error.allowedMax)
+  return `${label} ${error.actualCount} 个 (要求 ${error.requiredMin}-${max})`
+}
+
+function formatSuggestedFix(value?: Record<string, unknown>): string {
+  if (!value) return ''
+  const entries = Object.entries(value)
+    .filter((entry): entry is [string, string | number | boolean | null] => (
+      entry[0].trim().length > 0 && isReadableSuggestedFixValue(entry[1])
+    ))
+    .sort(([left], [right]) => left.localeCompare(right))
+  if (entries.length === 0) return ''
+  return `，建议 ${entries.map(([key, fixValue]) => fixValue === null ? `删除 ${key}` : `${key}=${String(fixValue)}`).join('/')}`
+}
+
+function isReadableSuggestedFixValue(value: unknown): value is string | number | boolean | null {
+  return value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
 }
 
 export function GenerationTraceSummaryCard({ jobs }: { jobs?: ChatGenerationJob[] }) {

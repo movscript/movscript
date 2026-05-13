@@ -122,6 +122,9 @@ func (h *AIHandler) PreviewModelConfigContract(c *gin.Context) {
 	var req struct {
 		AdapterType           string `json:"adapter_type"`
 		CustomCapabilities    string `json:"custom_capabilities"`
+		CustomAcceptsImage    bool   `json:"custom_accepts_image"`
+		CustomMaxInputImages  int    `json:"custom_max_input_images"`
+		CustomMaxInputVideos  int    `json:"custom_max_input_videos"`
 		CustomSupportedParams string `json:"custom_supported_params"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -131,6 +134,9 @@ func (h *AIHandler) PreviewModelConfigContract(c *gin.Context) {
 	result, err := h.service.PreviewModelConfigContract(aiadminapp.PreviewModelConfigContractInput{
 		AdapterType:           req.AdapterType,
 		CustomCapabilities:    req.CustomCapabilities,
+		CustomAcceptsImage:    req.CustomAcceptsImage,
+		CustomMaxInputImages:  req.CustomMaxInputImages,
+		CustomMaxInputVideos:  req.CustomMaxInputVideos,
 		CustomSupportedParams: req.CustomSupportedParams,
 	})
 	if err != nil {

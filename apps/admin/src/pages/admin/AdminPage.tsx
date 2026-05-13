@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
+import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
 import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, Route, FolderKanban, HardDrive, CloudUpload } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,7 @@ import { publicModelLabel } from '@/lib/modelDisplay'
 import {
   PARAM_TEMPLATES,
   adapterParamsForCapabilities,
+  buildAgentCompactParamContract,
   buildParamContractAudit,
   emptyParamProfile,
   isProfileParamConfig,
@@ -26,6 +28,7 @@ import {
   serializeModelParamProfile,
   serializeParamDefs,
   splitOptions,
+  summarizeParamRuleTypes,
 } from '@admin/lib/modelParamContract'
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -78,6 +81,9 @@ type ModelEditForm = {
   priority: string
   capabilities: string[]
   pricing_mode: string
+  accepts_image: boolean
+  max_input_images: number
+  max_input_videos: number
   supported_params: string
 }
 
@@ -86,6 +92,17 @@ const PRICING_LABEL_KEYS: Record<string, string> = {
   per_image: 'admin.pricingMode.perImage',
   per_second: 'admin.pricingMode.perSecond',
   per_call: 'admin.pricingMode.perCall',
+}
+
+function isValidInputLimit(value: number): boolean {
+  return Number.isInteger(value) && value >= -1
+}
+
+function inputLimitErrors(maxInputImages: number, maxInputVideos: number, t: (key: string) => string): string[] {
+  const errors: string[] = []
+  if (!isValidInputLimit(maxInputImages)) errors.push(t('admin.models.maxImagesInvalid'))
+  if (!isValidInputLimit(maxInputVideos)) errors.push(t('admin.models.maxVideosInvalid'))
+  return errors
 }
 
 const canUseCustomPricingMode = runtimeCapabilities.customPricingMode
@@ -523,12 +540,18 @@ function ParamConfigBuilder({
   adapterParams,
   adapterType,
   capabilities,
+  acceptsImageInput,
+  maxInputImages,
+  maxInputVideos,
 }: {
   value: string
   onChange: (next: string) => void
   adapterParams: ParamDef[]
   adapterType?: string
   capabilities: string[]
+  acceptsImageInput?: boolean
+  maxInputImages?: number
+  maxInputVideos?: number
 }) {
   const { t } = useTranslation()
   const mode: 'inherit' | 'profile' | 'override' | 'none' = !value.trim()
@@ -543,6 +566,7 @@ function ParamConfigBuilder({
   const denied = new Set(profile.deny ?? [])
   const overrideParams = Object.entries(profile.override ?? {}).map(([key, param]) => ({ ...param, key: param.key || key }))
   const audit = buildParamContractAudit(value, adapterParams)
+  const auditRuleTypes = summarizeParamRuleTypes(audit.params)
   const visibleAuditErrors = audit.errors.slice(0, 8)
   const hiddenAuditErrorCount = Math.max(0, audit.errors.length - visibleAuditErrors.length)
   const visibleAuditWarnings = audit.warnings.slice(0, 4)
@@ -551,17 +575,24 @@ function ParamConfigBuilder({
   const contractPreview = useQuery<{
     supported_params?: ParamDef[]
     params_schema_rule_count?: number
+    agent_contract?: AgentCompactParamContract
   }>({
-    queryKey: ['admin', 'model-contract-preview', adapterType ?? '', capabilities.join(','), value],
+    queryKey: ['admin', 'model-contract-preview', adapterType ?? '', capabilities.join(','), acceptsImageInput === true, maxInputImages ?? 0, maxInputVideos ?? 0, value],
     queryFn: () => api.post('/admin/model-configs/preview-contract', {
       adapter_type: adapterType ?? '',
       custom_capabilities: capabilities.join(','),
+      custom_accepts_image: acceptsImageInput === true,
+      custom_max_input_images: maxInputImages ?? 0,
+      custom_max_input_videos: maxInputVideos ?? 0,
       custom_supported_params: value,
     }).then((r) => r.data),
     enabled: !!adapterType && capabilities.length > 0 && audit.errors.length === 0,
     staleTime: 1000,
     retry: false,
   })
+  const backendPreviewRuleTypes = summarizeParamRuleTypes(contractPreviewParams(contractPreview.data))
+  const fallbackInputRequirements = agentInputRequirementsForAdmin(capabilities, acceptsImageInput === true, maxInputImages ?? 0, maxInputVideos ?? 0)
+  const backendPreviewAgentContract = contractPreview.data?.agent_contract ?? buildAgentCompactParamContract(contractPreviewParams(contractPreview.data), fallbackInputRequirements)
 
   const setMode = (next: 'inherit' | 'profile' | 'override' | 'none') => {
     if (next === 'inherit') onChange('')
@@ -664,6 +695,11 @@ function ParamConfigBuilder({
             {audit.params.map((param) => param.key).join(', ')}
           </div>
         )}
+        {auditRuleTypes.total > 0 && (
+          <div className="text-[11px] text-muted-foreground">
+            {formatParamRuleTypeSummary(auditRuleTypes, t)}
+          </div>
+        )}
         {visibleAuditErrors.map((error) => (
           <div key={error}>{error}</div>
         ))}
@@ -695,9 +731,23 @@ function ParamConfigBuilder({
             )}
           </div>
           {contractPreview.data?.supported_params && contractPreview.data.supported_params.length > 0 && (
-            <div className="font-mono text-[11px] text-muted-foreground break-all">
-              {contractPreview.data.supported_params.map((param) => param.key).join(', ')}
-            </div>
+            <>
+              <div className="font-mono text-[11px] text-muted-foreground break-all">
+                {contractPreview.data.supported_params.map((param) => param.key).join(', ')}
+              </div>
+              {backendPreviewRuleTypes.total > 0 && (
+                <div className="text-[11px] text-muted-foreground">
+                  {formatParamRuleTypeSummary(backendPreviewRuleTypes, t)}
+                </div>
+              )}
+              <div className="text-[11px] text-muted-foreground">
+                {t('admin.params.backendPreview.agentContract', {
+                  version: backendPreviewAgentContract.contract_version,
+                  keys: backendPreviewAgentContract.supported_param_keys.join(', ') || t('admin.params.noneValue'),
+                })}
+              </div>
+              <CopyCompactContractButton contract={backendPreviewAgentContract} />
+            </>
           )}
           {contractPreview.isError && (
             <div>{t('admin.params.backendPreview.error', { error: translateApiError((contractPreview.error as any)?.response?.data) })}</div>
@@ -709,6 +759,62 @@ function ParamConfigBuilder({
       )}
     </div>
   )
+}
+
+function agentInputRequirementsForAdmin(
+  capabilities: string[],
+  acceptsImageInput: boolean,
+  maxInputImages: number,
+  maxInputVideos: number,
+): AgentCompactParamContract['input_requirements'] {
+  const image = { min: 0, max: 0 }
+  const video = { min: 0, max: 0 }
+  if (acceptsImageInput) image.max = 1
+  if (isValidInputLimit(maxInputImages) && maxInputImages !== 0) image.max = maxInputImages
+  if (isValidInputLimit(maxInputVideos) && maxInputVideos !== 0) video.max = maxInputVideos
+  if (capabilities.includes('image_edit') || capabilities.includes('video_i2v')) {
+    image.min = 1
+    if (image.max === 0) image.max = 1
+  }
+  if (capabilities.includes('video_v2v')) {
+    video.min = 1
+    if (video.max === 0) video.max = 1
+  }
+  return { image, video }
+}
+
+function CopyCompactContractButton({ contract }: { contract: unknown }) {
+  const { t } = useTranslation()
+  const [copied, setCopied] = useState(false)
+  const text = JSON.stringify(contract, null, 2)
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true)
+          window.setTimeout(() => setCopied(false), 1200)
+        })
+      }}
+      className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-ring/50 hover:text-foreground"
+    >
+      {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
+      {copied ? t('admin.params.backendPreview.copiedAgentContract') : t('admin.params.backendPreview.copyAgentContract')}
+    </button>
+  )
+}
+
+function contractPreviewParams(data?: { supported_params?: ParamDef[] }): ParamDef[] {
+  return Array.isArray(data?.supported_params) ? data.supported_params : []
+}
+
+function formatParamRuleTypeSummary(summary: ParamRuleTypeSummary, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const parts: string[] = []
+  if (summary.conflicts > 0) parts.push(t('admin.params.audit.ruleTypes.conflicts', { count: summary.conflicts }))
+  if (summary.conditionalEnums > 0) parts.push(t('admin.params.audit.ruleTypes.conditionalEnums', { count: summary.conditionalEnums }))
+  if (summary.conditionalConsts > 0) parts.push(t('admin.params.audit.ruleTypes.conditionalConsts', { count: summary.conditionalConsts }))
+  if (summary.requiresValues > 0) parts.push(t('admin.params.audit.ruleTypes.requiresValues', { count: summary.requiresValues }))
+  return parts.join(' · ')
 }
 
 // ── Model Management Tab ──────────────────────────────────────────────────────
@@ -745,7 +851,7 @@ export function ModelManagementPage() {
   // Editing existing model config
   const [editingConfig, setEditingConfig] = useState<AIModelConfig | null>(null)
   const [editForm, setEditForm] = useState<ModelEditForm>({
-    display_name: '', short_name: '', model_id_override: '', priority: '0', capabilities: [], pricing_mode: 'per_token', supported_params: '',
+    display_name: '', short_name: '', model_id_override: '', priority: '0', capabilities: [], pricing_mode: 'per_token', accepts_image: false, max_input_images: 0, max_input_videos: 0, supported_params: '',
   })
   // Files API editing state
   const [filesAPIEditFor, setFilesAPIEditFor] = useState<number | null>(null)
@@ -848,7 +954,9 @@ export function ModelManagementPage() {
         priority: parseInt(data.priority, 10) || 0,
         custom_capabilities: data.capabilities.join(','),
         custom_pricing_mode: data.pricing_mode,
-        custom_accepts_image: data.capabilities.includes('image_edit') || data.capabilities.includes('video_i2v') || data.capabilities.includes('video_v2v'),
+        custom_accepts_image: data.accepts_image,
+        custom_max_input_images: data.max_input_images,
+        custom_max_input_videos: data.max_input_videos,
         custom_supported_params: data.supported_params,
       }),
     onSuccess: () => {
@@ -1194,6 +1302,8 @@ export function ModelManagementPage() {
                     const credAdapter = cred.adapter_type
                     const currentAdapter = adapters.find((a) => a.adapter_type === credAdapter)
                     const addParamAudit = buildParamContractAudit(addSupportedParams, adapterParamsForCapabilities(currentAdapter, addCapabilities))
+                    const addInputLimitErrors = inputLimitErrors(addMaxInputImages, addMaxInputVideos, t)
+                    const addInputLimitsValid = addInputLimitErrors.length === 0
                     const filteredPresets = presets.filter(p => p.adapter_type === credAdapter)
 
                     function applyPreset(preset: ModelPreset) {
@@ -1206,7 +1316,7 @@ export function ModelManagementPage() {
                       setAddMaxInputImages(preset.max_input_images ?? 0)
                       setAddMaxInputVideos(preset.max_input_videos ?? 0)
                       setAddImageEditField(preset.image_edit_field ?? '')
-                      setAddSupportedParams('')
+                      setAddSupportedParams(Array.isArray(preset.supported_params) ? serializeParamDefs(preset.supported_params) : '')
                       setShowPresets(false)
                     }
 
@@ -1246,7 +1356,14 @@ export function ModelManagementPage() {
                                 className="w-full text-left rounded px-2 py-1.5 text-xs hover:bg-accent transition-colors flex items-center justify-between gap-2"
                               >
                                 <span className="font-medium truncate">{preset.display_name}</span>
-                                <span className="text-muted-foreground font-mono shrink-0">{preset.model_id}</span>
+                                <span className="flex shrink-0 items-center gap-1.5">
+                                  {Array.isArray(preset.supported_params) && preset.supported_params.length > 0 && (
+                                    <span className="rounded border border-border bg-background px-1.5 py-0 text-[10px] leading-4 text-muted-foreground">
+                                      {t('admin.models.presetParams', { count: preset.supported_params.length })}
+                                    </span>
+                                  )}
+                                  <span className="text-muted-foreground font-mono">{preset.model_id}</span>
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -1376,6 +1493,8 @@ export function ModelManagementPage() {
                               <Label className="text-xs text-muted-foreground">{t('admin.models.maxImages')}</Label>
                               <input
                                 type="number"
+                                min={-1}
+                                step={1}
                                 className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
                                 value={addMaxInputImages}
                                 onChange={e => setAddMaxInputImages(Number(e.target.value))}
@@ -1387,13 +1506,21 @@ export function ModelManagementPage() {
                             <Label className="text-xs text-muted-foreground">{t('admin.models.maxVideos')}</Label>
                             <input
                               type="number"
+                              min={-1}
+                              step={1}
                               className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
                               value={addMaxInputVideos}
                               onChange={e => setAddMaxInputVideos(Number(e.target.value))}
                               placeholder="0"
                             />
                           </div>
+                          <span className="text-[11px] text-muted-foreground">{t('admin.models.inputLimitHint')}</span>
                         </div>
+                        {addInputLimitErrors.length > 0 && (
+                          <div className="space-y-0.5 text-xs text-destructive">
+                            {addInputLimitErrors.map((error) => <p key={error}>{error}</p>)}
+                          </div>
+                        )}
 
 	                        <ParamConfigBuilder
 	                          value={addSupportedParams}
@@ -1401,6 +1528,9 @@ export function ModelManagementPage() {
 	                          adapterParams={adapterParamsForCapabilities(currentAdapter, addCapabilities)}
 	                          adapterType={currentAdapter?.adapter_type}
 	                          capabilities={addCapabilities}
+	                          acceptsImageInput={addAcceptsImage}
+	                          maxInputImages={addMaxInputImages}
+	                          maxInputVideos={addMaxInputVideos}
 	                        />
 
                         <PriceFields def={{ pricing_mode: addEffectivePricingMode }} form={addPriceForm} onChange={setAddPriceForm} />
@@ -1425,7 +1555,7 @@ export function ModelManagementPage() {
                               supportedParams: addSupportedParams,
                               data: addPriceForm,
                             })}
-                            disabled={addModel.isPending || !addModelId.trim() || addCapabilities.length === 0 || addParamAudit.errors.length > 0}
+                            disabled={addModel.isPending || !addModelId.trim() || addCapabilities.length === 0 || !addInputLimitsValid || addParamAudit.errors.length > 0}
                             size="sm"
                             className="flex-1"
                           >
@@ -1447,6 +1577,8 @@ export function ModelManagementPage() {
                     const caps = cfg.custom_capabilities ? cfg.custom_capabilities.split(',').filter(Boolean) : []
                     const pricing = cfg.custom_pricing_mode || ''
                     const editParamAudit = isEditing ? buildParamContractAudit(editForm.supported_params, adapterParamsForCapabilities(adapter, editForm.capabilities)) : null
+                    const editInputLimitErrors = inputLimitErrors(editForm.max_input_images, editForm.max_input_videos, t)
+                    const editInputLimitsValid = editInputLimitErrors.length === 0
 
                     return (
                       <div key={cfg.ID} className="border border-border rounded bg-background">
@@ -1498,6 +1630,9 @@ export function ModelManagementPage() {
                                 priority: String(cfg.priority ?? 0),
                                 capabilities: nextCaps,
                                 pricing_mode: cfg.custom_pricing_mode || 'per_token',
+                                accepts_image: cfg.custom_accepts_image,
+                                max_input_images: cfg.custom_max_input_images,
+                                max_input_videos: cfg.custom_max_input_videos,
                                 supported_params: cfg.custom_supported_params || '',
                               })
                             }}
@@ -1600,12 +1735,58 @@ export function ModelManagementPage() {
                               </div>
                             </div>
                           )}
+                            <div className="flex flex-wrap gap-3 items-center">
+                              <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={editForm.accepts_image}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, accepts_image: e.target.checked }))}
+                                  className="rounded"
+                                />
+                                {t('admin.models.acceptsImageInput')}
+                              </label>
+                              {editForm.accepts_image && (
+                                <div className="flex items-center gap-1.5">
+                                  <Label className="text-xs text-muted-foreground">{t('admin.models.maxImages')}</Label>
+                                  <input
+                                    type="number"
+                                    min={-1}
+                                    step={1}
+                                    className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
+                                    value={editForm.max_input_images}
+                                    onChange={(e) => setEditForm((f) => ({ ...f, max_input_images: Number(e.target.value) }))}
+                                    placeholder="1"
+                                  />
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1.5">
+                                <Label className="text-xs text-muted-foreground">{t('admin.models.maxVideos')}</Label>
+                                <input
+                                  type="number"
+                                  min={-1}
+                                  step={1}
+                                  className="w-16 text-xs border border-border rounded px-1.5 py-0.5 bg-background"
+                                  value={editForm.max_input_videos}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, max_input_videos: Number(e.target.value) }))}
+                                  placeholder="0"
+                                />
+                              </div>
+                              <span className="text-[11px] text-muted-foreground">{t('admin.models.inputLimitHint')}</span>
+                            </div>
+                            {editInputLimitErrors.length > 0 && (
+                              <div className="space-y-0.5 text-xs text-destructive">
+                                {editInputLimitErrors.map((error) => <p key={error}>{error}</p>)}
+                              </div>
+                            )}
 	                          <ParamConfigBuilder
 	                            value={editForm.supported_params}
 	                            onChange={(next) => setEditForm((f) => ({ ...f, supported_params: next }))}
 	                            adapterParams={adapterParamsForCapabilities(adapter, editForm.capabilities)}
 	                            adapterType={adapter?.adapter_type}
 	                            capabilities={editForm.capabilities}
+	                            acceptsImageInput={editForm.accepts_image}
+	                            maxInputImages={editForm.max_input_images}
+	                            maxInputVideos={editForm.max_input_videos}
 	                          />
                             <div className="flex gap-2">
                               <Button
@@ -1616,7 +1797,7 @@ export function ModelManagementPage() {
                                     pricing_mode: canUseCustomPricingMode ? editForm.pricing_mode : editEffectivePricingMode,
                                   },
                                 })}
-                                disabled={updateModelConfig.isPending || (editParamAudit?.errors.length ?? 0) > 0}
+                                disabled={updateModelConfig.isPending || !editInputLimitsValid || (editParamAudit?.errors.length ?? 0) > 0}
                                 size="sm"
                                 className="flex-1"
                               >

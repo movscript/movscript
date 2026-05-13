@@ -1,0 +1,33 @@
+{
+  "id": "movscript.pack.proposal-production",
+  "version": "1.0.0",
+  "name": "Proposal Production",
+  "description": "Production proposal workflows for emotional segments and scene moments that bind to segments and reference project settings or assets.",
+  "source": "builtin",
+  "schemas": [
+    "movscript.project_proposal.v1",
+    "movscript.production_proposal.v1"
+  ],
+  "tools": [
+    "movscript_get_current_context",
+    "movscript_create_draft",
+    "movscript_get_draft",
+    "movscript_list_drafts",
+    "movscript_update_draft",
+    "movscript_read_draft",
+    "movscript_request_user_input"
+  ],
+  "skills": [
+    "movscript.persona.production-orchestrator",
+    "movscript.workflow.production-proposal",
+    "movscript.workflow.dual-orchestration"
+  ],
+  "requires": {
+    "packs": {
+      "movscript.pack.agent-core": ">=1.0.0",
+      "movscript.pack.movscript-workspace": ">=1.0.0",
+      "movscript.pack.drafts": ">=1.0.0",
+      "movscript.pack.proposal-project": ">=1.0.0"
+    }
+  }
+}

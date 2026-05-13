@@ -30,13 +30,12 @@ export function resolveRuntimeLayers(input: {
   clientInput?: NormalizedClientInput
   history?: AgentMessage[]
 }): RuntimeLayerResolution {
-  const modeAlias = resolveModeAlias(input.debugContext, input.clientInput, input.baseManifest, input.message)
-  const resolvedProfile = resolveProfile(input.registry, modeAlias ? { modeAlias } : {})
+  const resolvedProfile = resolveProfile(input.registry)
   const ctx: RuntimeContext = {
     profile: resolvedProfile.profile,
     message: input.message,
-    intents: inferIntents(input.message, modeAlias),
-    uiContext: buildUIContext(input.debugContext, modeAlias),
+    intents: inferIntents(input.message, input.debugContext),
+    uiContext: buildUIContext(input.debugContext),
     conversation: {
       turnCount: input.history?.length ?? 0,
       lastToolCalls: [],
@@ -101,7 +100,6 @@ function manifestFromProfile(baseManifest: AgentManifest, profile: RuntimeContex
     version: profile.version,
     name: profile.name,
     ...(profile.description ? { description: profile.description } : {}),
-    skills: [],
     tools: profile.toolGrants.map((grant) => ({
       name: grant.name,
       mode: grant.mode,
@@ -120,7 +118,6 @@ function manifestFromProfile(baseManifest: AgentManifest, profile: RuntimeContex
       ...(baseManifest.metadata ?? {}),
       profileId: profile.id,
       profileVersion: profile.version,
-      ...(profile.modeAlias ? { mode: profile.modeAlias } : {}),
       ...(profile.limits?.systemPromptCharLimit ? { systemPromptCharLimit: profile.limits.systemPromptCharLimit } : {}),
       ...(profile.resolvedFrom ? { resolvedFrom: profileResolutionTraceMetadata(profile.resolvedFrom) } : {}),
     },
@@ -159,35 +156,17 @@ function toResolvedSkill(
     metadata: {
       ...(skill.metadata ?? {}),
       kind: skill.kind,
+      ...(skill.kind === 'workflow' && skill.toolScope ? { toolScope: skill.toolScope } : {}),
     },
     resolvedPriority: skill.priority,
-    activationReason: skill.kind === 'workflow' ? 'default' : 'manifest',
+    activationReason: skill.kind === 'workflow' ? 'trigger' : 'profile',
     compiledInstruction: rendered ?? renderSkill(skill, registry, ctx),
     warnings: [],
   }
 }
 
-function resolveModeAlias(
-  debugContext: AgentDebugContextPanel,
-  clientInput: NormalizedClientInput | undefined,
-  manifest: AgentManifest,
-  message: string,
-): string | undefined {
-  return clientInput?.uiSnapshot?.mode
-    ?? debugContext.mode
-    ?? (typeof manifest.metadata?.mode === 'string' ? manifest.metadata.mode : undefined)
-    ?? inferModeAliasFromMessage(message)
-}
-
-function inferModeAliasFromMessage(message: string): string | undefined {
-  const normalized = message.toLowerCase()
-  if (/草稿|写|创作|创建内容|draft|write|create content/.test(normalized)) return 'create'
-  return undefined
-}
-
-function buildUIContext(debugContext: AgentDebugContextPanel, modeAlias: string | undefined): RuntimeContext['uiContext'] {
+function buildUIContext(debugContext: AgentDebugContextPanel): RuntimeContext['uiContext'] {
   return {
-    ...(modeAlias ? { mode: modeAlias } : {}),
     route: `${debugContext.route.pathname}${debugContext.route.search ?? ''}${debugContext.route.hash ?? ''}`,
     ...(debugContext.project?.id !== undefined ? { projectId: debugContext.project.id } : {}),
     ...(debugContext.productionId !== undefined ? { productionId: debugContext.productionId } : {}),
@@ -196,23 +175,45 @@ function buildUIContext(debugContext: AgentDebugContextPanel, modeAlias: string 
   }
 }
 
-function inferIntents(message: string, modeAlias: string | undefined): string[] {
+function inferIntents(message: string, debugContext: AgentDebugContextPanel): string[] {
   const intents = new Set<string>()
-  if (modeAlias) {
-    intents.add(modeAlias)
-    intents.add(modeAlias.replaceAll('-', '_'))
-  }
   const normalized = message.toLowerCase()
+  for (const label of debugContext.labels) {
+    const normalizedLabel = label.toLowerCase().replaceAll('-', '_')
+    intents.add(normalizedLabel)
+    const alias = LABEL_INTENT_ALIASES[normalizedLabel]
+    if (alias) intents.add(alias)
+  }
+  const route = debugContext.route.pathname.toLowerCase()
+  if (route.includes('project-workspace')) intents.add('project_proposal')
+  if (route.includes('production-orchestrate')) intents.add('dual_orchestration')
+  if (route.includes('asset-slots')) intents.add('asset_proposal')
   const mappings = [
     ['project_proposal', ['项目提案', 'project proposal', 'project_proposal']],
     ['production_proposal', ['制作提案', 'production proposal', 'production_proposal']],
+    ['dual_orchestration', ['双阶段提案', '项目和制作', 'dual orchestration', 'dual_orchestration']],
+    ['asset_proposal', ['素材提案', '素材候选', 'asset proposal', 'asset_proposal']],
+    ['asset_candidate_generation', ['生成素材', '图片候选', '视频候选', 'asset candidate']],
+    ['setting_prep', ['设定准备', '设定完善', 'creative reference']],
     ['content_unit_proposal', ['content unit proposal', 'content_unit_proposal']],
     ['content_unit_media_proposal', ['content unit media', 'content_unit_media_proposal']],
-    ['script_split', ['拆剧本', '剧本拆分', 'script split', 'script_split']],
     ['visual_generation', ['生成图片', '生成视频', 'visual generation', 'image generation']],
   ] as const
   for (const [intent, needles] of mappings) {
     if (needles.some((needle) => normalized.includes(needle.toLowerCase()))) intents.add(intent)
   }
   return Array.from(intents)
+}
+
+const LABEL_INTENT_ALIASES: Record<string, string> = {
+  project_orchestration: 'project_proposal',
+  production_orchestration: 'production_proposal',
+  dual_orchestration: 'dual_orchestration',
+  asset_proposal: 'asset_proposal',
+  asset_candidate_generation: 'asset_candidate_generation',
+  content_unit_suggest: 'content_unit_proposal',
+  content_unit_proposal: 'content_unit_proposal',
+  content_unit_media_proposal: 'content_unit_media_proposal',
+  setting_prep: 'setting_prep',
+  visual_generation: 'visual_generation',
 }

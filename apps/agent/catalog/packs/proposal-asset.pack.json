@@ -1,0 +1,34 @@
+{
+  "id": "movscript.pack.proposal-asset",
+  "version": "1.0.0",
+  "name": "Proposal Asset",
+  "description": "Independent asset proposal workflows for asset candidate plans, references, risks, and generation readiness.",
+  "source": "builtin",
+  "schemas": [
+    "movscript.asset_proposal.v1"
+  ],
+  "tools": [
+    "movscript_get_current_context",
+    "movscript_create_draft",
+    "movscript_get_draft",
+    "movscript_list_drafts",
+    "movscript_update_draft",
+    "movscript_read_draft",
+    "movscript_request_user_input",
+    "movscript_list_models",
+    "movscript_get_generation_job",
+    "movscript_list_generation_jobs"
+  ],
+  "skills": [
+    "movscript.persona.visual-director",
+    "movscript.workflow.asset-proposal",
+    "movscript.workflow.asset-candidate-generation"
+  ],
+  "requires": {
+    "packs": {
+      "movscript.pack.agent-core": ">=1.0.0",
+      "movscript.pack.movscript-workspace": ">=1.0.0",
+      "movscript.pack.drafts": ">=1.0.0"
+    }
+  }
+}

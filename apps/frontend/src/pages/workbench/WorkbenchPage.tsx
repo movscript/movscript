@@ -2452,13 +2452,11 @@ function AssetPreparationWorkbench() {
         taskType: 'asset_candidate_proposal',
         message: `请准备素材候选提案：${row.title}`,
         title: `素材提案: ${row.title}`,
-        mode: 'create',
         newConversation: true,
         autoSend: true,
         projectId,
         clientInput: buildCommandFirstClientInput({
           message: `请为当前素材需求生成一份可审阅的素材候选提案：${row.title}`,
-          mode: 'asset-proposal',
           labels: ['asset-workbench', 'asset-proposal', 'draft-application'],
           hints: {
             projectId,
@@ -2835,13 +2833,11 @@ function SettingPreparationWorkbench() {
       taskType: 'setting_preparation',
       message,
       title: `完善设定: ${selected.title}`,
-      mode: 'create',
       newConversation: true,
       autoSend: true,
       projectId,
       clientInput: buildCommandFirstClientInput({
         message: `请完善设定资料：${selected.title}`,
-        mode: 'setting-prep',
         labels: ['setting-prep-workbench', 'workbench', 'structured-output'],
         hints: {
           projectId,
@@ -3500,7 +3496,6 @@ function ContentGenerationWorkbench() {
         modelName: aiModelName,
         clientInput: buildCommandFirstClientInput({
           message: prompt,
-          mode: 'content-unit-suggest',
           labels: ['workbench', 'content-unit-suggest'],
           hints: {
             projectId,
@@ -5509,7 +5504,6 @@ function ScriptSplitWorkbench() {
     const draftShell = await ensureScriptSplitDraftShell(baseTitle, normalized)
     const clientInput = buildCommandFirstClientInput({
       message: normalized,
-      mode: 'script-split',
       labels: ['script-split-workbench', 'structured-output'],
       hints: {
         projectId,
@@ -5579,7 +5573,6 @@ function ScriptSplitWorkbench() {
       taskType: 'script_split_proposal',
       message: displayMessage,
       title: `一键制作: ${baseTitle}`,
-      mode: 'create',
       newConversation: true,
       autoSend: true,
       projectId,

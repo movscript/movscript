@@ -1,5 +1,5 @@
 import { DRAFT_SCHEMA_REGISTRY } from '@movscript/draft-schemas'
-import type { AgentManifest, AgentSkillManifest } from './agentManifest.js'
+import type { AgentManifest } from './agentManifest.js'
 import type { RegisteredTool } from '../tools/toolRegistry.js'
 import type {
   AgentProfile,
@@ -24,13 +24,11 @@ export function createEmptyCatalogRegistry(version = new Date().toISOString()): 
     skills: new Map(),
     packs: new Map(),
     profiles: new Map(),
-    modeProfiles: new Map(),
   }
 }
 
 export function buildLayeredCatalogRegistry(input: {
   manifest: AgentManifest
-  skills: AgentSkillManifest[]
   tools: RegisteredTool[]
   packs?: CapabilityPack[]
   profiles?: AgentProfile[]
@@ -41,7 +39,6 @@ export function buildLayeredCatalogRegistry(input: {
   const registry = createEmptyCatalogRegistry(input.version)
   for (const tool of input.tools) registry.tools.set(tool.name, toolDefinitionFromRegisteredTool(tool))
   for (const tool of input.layeredTools ?? []) registry.tools.set(tool.name, tool)
-  void input.skills
   for (const skill of input.layeredSkills ?? []) registry.skills.set(skill.id, skill)
   for (const pack of input.packs ?? []) registry.packs.set(pack.id, pack)
   registry.packs.set('movscript.pack.default', {
@@ -56,7 +53,6 @@ export function buildLayeredCatalogRegistry(input: {
   })
   for (const profile of input.profiles ?? []) {
     registry.profiles.set(profile.id, profile)
-    if (profile.modeAlias) registry.modeProfiles.set(profile.modeAlias, profile)
   }
   return registry
 }
@@ -66,6 +62,7 @@ export function toolDefinitionFromRegisteredTool(tool: RegisteredTool): ToolDefi
     name: tool.name,
     description: tool.description,
     inputSchema: isRecord(tool.inputSchema) ? tool.inputSchema : EMPTY_OBJECT_SCHEMA,
+    ...(isRecord(tool.outputSchema) ? { outputSchema: tool.outputSchema } : {}),
     permission: tool.permission,
     risk: tool.risk,
     projectScoped: tool.projectScoped,
@@ -84,17 +81,15 @@ export function toolDefinitionFromRegisteredTool(tool: RegisteredTool): ToolDefi
 }
 
 export function profileFromManifest(manifest: AgentManifest, id = manifest.id, name = manifest.name): AgentProfile {
-  const modeAlias = typeof manifest.metadata?.mode === 'string' ? manifest.metadata.mode : undefined
   return {
     schema: 'movscript.agent.profile.v1',
     id,
     version: manifest.version,
     name,
     ...(manifest.description ? { description: manifest.description } : {}),
-    ...(modeAlias ? { modeAlias } : {}),
     enabledPacks: ['movscript.pack.default'],
     persona: manifest.soul
-      ? `movscript.persona.${modeAlias ?? 'default'}`
+      ? 'movscript.persona.default'
       : null,
     enabledWorkflows: [],
     enabledPolicies: [],

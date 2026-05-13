@@ -10,22 +10,6 @@ export interface AgentToolGrant {
   approval?: AgentToolApprovalMode
 }
 
-export interface AgentSkillManifest {
-  id: string
-  name: string
-  description: string
-  version?: string
-  category?: string
-  categories?: string[]
-  enabled: boolean
-  priority?: number
-  instruction: string
-  inputHints?: string[]
-  outputContract?: string
-  toolHints?: string[]
-  metadata?: Record<string, JSONValue>
-}
-
 export interface AgentManifest {
   schema: AgentManifestSchema
   id: string
@@ -33,7 +17,6 @@ export interface AgentManifest {
   name: string
   description?: string
   soul?: string
-  skills: AgentSkillManifest[]
   tools: AgentToolGrant[]
   model?: {
     provider?: string
@@ -49,7 +32,6 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
   version: '0.1.0',
   name: 'MovScript Local Agent',
   description: 'Default local agent with project read and local draft update permissions.',
-  skills: [],
   tools: [
     { name: 'movscript_get_current_context', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_projects', mode: 'allow', approval: 'never' },
@@ -78,7 +60,6 @@ export function normalizeAgentManifest(input: unknown): AgentManifest {
   const version = nonEmptyString(input.version) ?? DEFAULT_AGENT_MANIFEST.version
   const name = nonEmptyString(input.name) ?? DEFAULT_AGENT_MANIFEST.name
   const tools = toolGrantArray(input.tools)
-  const skills = skillManifestArray(input.skills)
 
   return {
     schema: 'movscript.agent.current',
@@ -87,16 +68,10 @@ export function normalizeAgentManifest(input: unknown): AgentManifest {
     name,
     ...(nonEmptyString(input.description) ? { description: nonEmptyString(input.description) } : {}),
     ...(nonEmptyString(input.soul) ? { soul: nonEmptyString(input.soul) } : {}),
-    skills,
     tools,
     ...(isRecord(input.model) ? { model: normalizeModelBinding(input.model) } : {}),
     ...(isJSONRecord(input.metadata) ? { metadata: input.metadata } : {}),
   }
-}
-
-export function mergeAgentManifestSkills(manifest: AgentManifest, skills: AgentSkillManifest[]): AgentManifest {
-  void skills
-  return manifest
 }
 
 export function findToolGrant(manifest: AgentManifest, toolName: string): AgentToolGrant | undefined {
@@ -119,50 +94,12 @@ function toolGrantArray(value: unknown): AgentToolGrant[] {
   return grants
 }
 
-function skillManifestArray(value: unknown): AgentSkillManifest[] {
-  if (!Array.isArray(value)) return []
-  const skills: AgentSkillManifest[] = []
-  for (const item of value) {
-    if (!isRecord(item)) continue
-    const id = nonEmptyString(item.id)
-    const name = nonEmptyString(item.name)
-    if (!id || !name) continue
-    const description = nonEmptyString(item.description) ?? ''
-    const instruction = nonEmptyString(item.instruction) ?? description
-    skills.push({
-      id,
-      name,
-      description,
-      enabled: item.enabled !== false,
-      ...(typeof item.priority === 'number' && Number.isFinite(item.priority) ? { priority: item.priority } : {}),
-      instruction,
-      ...(nonEmptyString(item.category) ? { category: nonEmptyString(item.category) } : {}),
-      ...(stringArray(item.categories).length > 0 ? { categories: stringArray(item.categories) } : {}),
-      ...(nonEmptyString(item.version) ? { version: nonEmptyString(item.version) } : {}),
-      ...(stringArray(item.inputHints).length > 0 ? { inputHints: stringArray(item.inputHints) } : {}),
-      ...(nonEmptyString(item.outputContract) ? { outputContract: nonEmptyString(item.outputContract) } : {}),
-      ...(stringArray(item.toolHints).length > 0 ? { toolHints: stringArray(item.toolHints) } : {}),
-      ...(isJSONRecord(item.metadata) ? { metadata: item.metadata } : {}),
-    })
-  }
-  return skills
-}
-
-export function normalizeAgentSkillManifest(input: unknown): AgentSkillManifest | undefined {
-  return skillManifestArray([input])[0]
-}
-
 function normalizeModelBinding(value: Record<string, unknown>): AgentManifest['model'] {
   return {
     ...(nonEmptyString(value.provider) ? { provider: nonEmptyString(value.provider) } : {}),
     ...(nonEmptyString(value.modelId) ? { modelId: nonEmptyString(value.modelId) } : {}),
     ...(typeof value.platformModelId === 'number' && Number.isFinite(value.platformModelId) ? { platformModelId: value.platformModelId } : {}),
   }
-}
-
-function stringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)))
 }
 
 function nonEmptyString(value: unknown): string | undefined {

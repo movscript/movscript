@@ -29,6 +29,7 @@ export interface MCPTool {
   name: string
   description: string
   inputSchema: JSONValue
+  outputSchema?: JSONValue
 }
 
 export interface MCPClientOptions {

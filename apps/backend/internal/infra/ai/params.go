@@ -60,6 +60,11 @@ func NormalizeParamDefsForUI(params []ParamDef) []ParamDef {
 			if p.Label == "" || p.Label == "ratio" {
 				p.Label = "画面比例"
 			}
+		case "duration_seconds":
+			p.Key = "duration"
+			if p.Label == "" || p.Label == "duration_seconds" {
+				p.Label = "时长(秒)"
+			}
 		case "size":
 			p.Key = "image_size"
 			if p.Label == "" || p.Label == "尺寸" {

@@ -64,6 +64,7 @@ export interface AgentRunStep {
   args?: Record<string, unknown>
   result?: unknown
   error?: string
+  errorData?: unknown
   sandboxed?: boolean
   createdAt: string
   completedAt?: string
@@ -122,12 +123,15 @@ export interface AgentManifest {
   name: string
   description?: string
   soul?: string
-  skills?: AgentSkillManifest[]
   permissions: string[]
   tools: Array<{
     name: string
     mode: 'allow' | 'deny'
     approval?: 'never' | 'always' | 'on_write'
+  }>
+  skills?: Array<{
+    id: string
+    enabled?: boolean
   }>
   model?: {
     provider?: string
@@ -137,8 +141,9 @@ export interface AgentManifest {
   metadata?: Record<string, unknown>
 }
 
-export interface AgentSkillManifest {
+export interface AgentCatalogSkill {
   id: string
+  kind?: 'persona' | 'workflow' | 'policy'
   name: string
   description: string
   version?: string
@@ -147,8 +152,6 @@ export interface AgentSkillManifest {
   enabled: boolean
   priority?: number
   instruction: string
-  appliesWhen?: string
-  inputHints?: string[]
   outputContract?: string
   toolHints?: string[]
   metadata?: Record<string, unknown>
@@ -165,9 +168,9 @@ export interface AgentDebugContextPanel {
   labels: string[]
 }
 
-export interface ResolvedAgentSkill extends AgentSkillManifest {
+export interface ResolvedAgentSkill extends AgentCatalogSkill {
   resolvedPriority: number
-  activationReason: 'manifest' | 'applies_when' | 'user_selected' | 'default'
+  activationReason: 'profile' | 'trigger' | 'default'
   compiledInstruction: string
   warnings: string[]
 }
@@ -176,6 +179,7 @@ export interface AgentDebugTool {
   name: string
   description?: string
   inputSchema?: unknown
+  outputSchema?: unknown
   source: 'mcp' | 'runtime' | 'plugin'
   registered: boolean
   granted: boolean
@@ -280,6 +284,21 @@ export interface AgentPlanSnapshot {
   plan: AgentPlan
   tasks: AgentTask[]
   runs: AgentRun[]
+  nameConflicts?: Array<{
+    subagentName: string
+    taskIds: string[]
+  }>
+  summary?: {
+    taskCount: number
+    taskStatusCounts: Record<AgentTask['status'], number>
+    workerCount: number
+    activeWorkerCount: number
+    artifactCount: number
+    nameConflictCount: number
+    blockedTaskIds: string[]
+    needsReviewTaskIds: string[]
+    failedTaskIds: string[]
+  }
 }
 
 export interface DispatchPlanResult {
@@ -329,8 +348,7 @@ export interface AgentClientInput {
     size?: number
     resourceId?: number
   }>
-    uiSnapshot?: {
-    mode?: string
+  uiSnapshot?: {
     route?: {
       pathname?: string
       search?: string
@@ -424,7 +442,7 @@ export interface AgentInspectResponse {
     category?: string
     categories?: string[]
   }>
-  skills: AgentSkillManifest[]
+  skills: AgentCatalogSkill[]
   defaultAgentManifest: AgentManifest
   pluginCatalog?: {
     skillsDir: string

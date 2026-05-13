@@ -1,0 +1,38 @@
+{
+  "id": "movscript.workflow.asset-proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Asset Proposal",
+  "description": "Draft reviewable asset candidate plans before media generation.",
+  "priority": 850,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "asset_proposal"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "素材提案",
+        "素材候选",
+        "asset proposal",
+        "asset_proposal"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_current_context",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.asset_proposal.v1"
+  ],
+  "outputContract": "Return draftId, asset slot or selected target when known, candidate count, unresolved risks, and review status.",
+  "instructionTemplatePath": "instruction.md"
+}

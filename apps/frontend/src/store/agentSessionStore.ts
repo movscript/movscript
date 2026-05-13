@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import type { AgentWorkMode } from '@/store/agentStore'
 import type { AgentClientInput, AgentManifest, AgentRun, AgentRunPolicy, AgentThread } from '@/lib/localAgentClient'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 
@@ -12,7 +11,6 @@ export interface AgentPageTaskPayload {
   message: string
   displayMessage?: string
   title?: string
-  mode?: AgentWorkMode
   newConversation?: boolean
   autoSend?: boolean
   projectId?: number

@@ -16,6 +16,7 @@ export interface ToolExecutionResult {
   call: ToolCall
   result?: JSONValue
   error?: string
+  errorData?: JSONValue
   sandboxed?: boolean
   source: ToolSource
 }
@@ -97,6 +98,7 @@ function generationRepairArgs(toolName: string, args: Record<string, JSONValue>,
   if (!(error instanceof MCPError)) return undefined
   const data = isRecord(error.data) ? error.data : undefined
   if (!data || data.type !== 'backend_http_error' || data.status !== 400) return undefined
+  if (!isRepairableGenerationValidationCode(data.code)) return undefined
   const suggestedFix = isRecord(data.suggested_fix) ? data.suggested_fix : undefined
   if (!suggestedFix) return undefined
   const repaired = applyGenerationSuggestedFix(args, suggestedFix)
@@ -107,28 +109,51 @@ function generationRepairArgs(toolName: string, args: Record<string, JSONValue>,
   }
 }
 
+function isRepairableGenerationValidationCode(code: unknown): boolean {
+  return code === 'UNSUPPORTED_PARAMETER'
+    || code === 'INVALID_PARAMETER_TYPE'
+    || code === 'INVALID_PARAMETER_OPTION'
+    || code === 'INVALID_PARAMETER_RANGE'
+    || code === 'INVALID_PARAMETER_COMBINATION'
+}
+
 function applyGenerationSuggestedFix(args: Record<string, JSONValue>, suggestedFix: Record<string, JSONValue>): Record<string, JSONValue> | undefined {
   let changed = false
   const next: Record<string, JSONValue> = { ...args }
   const extraParams = isRecord(args.extra_params) ? { ...args.extra_params } : {}
 
   for (const [key, value] of Object.entries(suggestedFix)) {
-    if (!isGenerationRepairValue(value)) continue
+    if (!isGenerationRepairValue(value) && value !== null) continue
     switch (key) {
       case 'aspect_ratio':
-        if (next.aspect_ratio !== value) {
+        if (value === null) {
+          if ('aspect_ratio' in next) {
+            delete next.aspect_ratio
+            changed = true
+          }
+        } else if (next.aspect_ratio !== value) {
           next.aspect_ratio = value
           changed = true
         }
         break
       case 'duration':
-        if (next.duration !== value) {
+        if (value === null) {
+          if ('duration' in next) {
+            delete next.duration
+            changed = true
+          }
+        } else if (next.duration !== value) {
           next.duration = value
           changed = true
         }
         break
       default:
-        if (extraParams[key] !== value) {
+        if (value === null) {
+          if (key in extraParams) {
+            delete extraParams[key]
+            changed = true
+          }
+        } else if (extraParams[key] !== value) {
           extraParams[key] = value
           changed = true
         }
@@ -139,6 +164,8 @@ function applyGenerationSuggestedFix(args: Record<string, JSONValue>, suggestedF
   if (!changed) return undefined
   if (Object.keys(extraParams).length > 0) {
     next.extra_params = extraParams
+  } else if ('extra_params' in next) {
+    delete next.extra_params
   }
   return next
 }

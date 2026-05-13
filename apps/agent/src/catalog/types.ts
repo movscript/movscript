@@ -11,6 +11,7 @@ export interface ToolDefinition {
   name: string
   description: string
   inputSchema: JSONSchema7
+  outputSchema?: JSONSchema7
   permission: string
   risk: ToolRiskLevel
   projectScoped: boolean
@@ -42,7 +43,6 @@ export type SkillTrigger =
   | { kind: 'always' }
 
 export interface ContextSelector {
-  mode?: string[]
   route?: string[]
   selectedKind?: DraftKind[]
   selectedScope?: DraftScope[]
@@ -76,7 +76,7 @@ export type WorkflowSkill = SkillDefinitionBase & {
 }
 export type PolicyScope =
   | 'global'
-  | { mode?: string[]; workflow?: string[]; risk?: ToolRiskLevel[] }
+  | { workflow?: string[]; risk?: ToolRiskLevel[] }
 export type PolicySkill = SkillDefinitionBase & {
   kind: 'policy'
   scope?: PolicyScope
@@ -113,7 +113,6 @@ export interface AgentProfile {
   version: string
   name: string
   description?: string
-  modeAlias?: string
   enabledPacks: string[]
   persona: string | null
   enabledWorkflows: string[]
@@ -148,12 +147,11 @@ export interface ModelBinding {
 }
 
 export interface ProfileResolutionTrace {
-  layers: Array<{ source: 'default' | 'mode' | 'org' | 'user'; id: string; version: string }>
+  layers: Array<{ source: 'default' | 'org' | 'user'; id: string; version: string }>
   resolvedAt: string
 }
 
 export interface UIContext {
-  mode?: string
   route?: string
   selectedKind?: DraftKind
   selectedScope?: DraftScope
@@ -184,7 +182,6 @@ export interface CatalogRegistry {
   skills: Map<string, SkillDefinition>
   packs: Map<string, CapabilityPack>
   profiles: Map<string, AgentProfile>
-  modeProfiles: Map<string, AgentProfile>
 }
 
 export interface CatalogIssue {

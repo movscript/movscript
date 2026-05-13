@@ -2,7 +2,7 @@
   "id": "movscript.pack.visual-generation",
   "version": "1.0.0",
   "name": "Visual Generation",
-  "description": "Image and video generation workflows and tools.",
+  "description": "Image and video generation execution workflows and approval-gated job tools.",
   "source": "builtin",
   "schemas": [],
   "tools": [
@@ -13,12 +13,12 @@
     "movscript_cancel_generation_job"
   ],
   "skills": [
-    "movscript.workflow.visual-generation",
-    "movscript.workflow.asset-candidate-generation"
+    "movscript.workflow.visual-generation"
   ],
   "requires": {
     "packs": {
-      "movscript.pack.core": ">=1.0.0"
+      "movscript.pack.agent-core": ">=1.0.0",
+      "movscript.pack.movscript-workspace": ">=1.0.0"
     }
   }
 }

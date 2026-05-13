@@ -1,0 +1,112 @@
+{
+  "contract_version": 1,
+  "id": 42,
+  "model_config_id": 42,
+  "display_name": "Draft Video",
+  "short_name": "draft-video",
+  "logical_model_id": "video.draft",
+  "capabilities": [
+    "video",
+    "video_i2v"
+  ],
+  "accepts_image_input": true,
+  "input_requirements": {
+    "image": {
+      "min": 1,
+      "max": 4
+    },
+    "video": {
+      "min": 0,
+      "max": 0
+    }
+  },
+  "supported_param_keys": [
+    "draft",
+    "frames",
+    "image_count",
+    "resolution",
+    "return_last_frame",
+    "sequential_image_generation"
+  ],
+  "supported_params": [
+    {
+      "key": "draft",
+      "label": "Draft",
+      "type": "boolean"
+    },
+    {
+      "key": "resolution",
+      "label": "Resolution",
+      "type": "select",
+      "options": [
+        "360p",
+        "480p"
+      ],
+      "default": "480p",
+      "conditional_enum": [
+        {
+          "when_param": "draft",
+          "when_value": true,
+          "options": [
+            "480p"
+          ]
+        }
+      ]
+    },
+    {
+      "key": "frames",
+      "label": "Frames",
+      "type": "number",
+      "min": 0,
+      "max": 0,
+      "step": 4,
+      "enum": [
+        29,
+        33,
+        37
+      ],
+      "description": "Frame count must match 25 + 4n.",
+      "conflicts_with": [
+        "resolution"
+      ]
+    },
+    {
+      "key": "return_last_frame",
+      "label": "Return Last Frame",
+      "type": "boolean",
+      "default": false,
+      "conditional_const": [
+        {
+          "when_param": "draft",
+          "when_value": true,
+          "value": false
+        }
+      ]
+    },
+    {
+      "key": "sequential_image_generation",
+      "label": "Sequential",
+      "type": "select",
+      "options": [
+        "disabled",
+        "auto"
+      ]
+    },
+    {
+      "key": "image_count",
+      "label": "Image Count",
+      "type": "number",
+      "default": 1,
+      "min": 1,
+      "max": 15,
+      "requires_value": [
+        {
+          "param": "sequential_image_generation",
+          "value": "auto"
+        }
+      ]
+    }
+  ],
+  "params_schema_loaded": true,
+  "params_schema_rule_count": 1
+}

@@ -1,0 +1,38 @@
+{
+  "id": "movscript.workflow.content-unit-media-proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Content Unit Media Proposal",
+  "description": "Draft media and keyframe plans for existing content units.",
+  "priority": 820,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "content_unit_media_proposal"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "媒体方案",
+        "关键帧",
+        "content unit media",
+        "content_unit_media_proposal"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_current_context",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.content_unit_media_proposal.v1"
+  ],
+  "outputContract": "Return draftId, content unit targets, planned media/keyframe count, preview status, and open decisions.",
+  "instructionTemplatePath": "instruction.md"
+}

@@ -63,8 +63,8 @@ export function reloadCatalogCandidate(input: {
       catalogVersion,
       stagingDir,
       catalog,
-      skillCount: catalog.skills.length,
-      toolCount: catalog.registry.list().length,
+      skillCount: catalog.layeredSkills.length,
+      toolCount: catalog.layeredTools.length,
       warnings: catalog.warnings,
       catalogIssueCount: catalog.catalogIssues?.length ?? 0,
     }

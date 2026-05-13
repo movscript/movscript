@@ -6,8 +6,11 @@ type ValidationError struct {
 	Code          string         `json:"code"`
 	Message       string         `json:"message"`
 	Field         string         `json:"field,omitempty"`
-	AllowedValues []string       `json:"allowed_values,omitempty"`
+	AllowedValues []any          `json:"allowed_values,omitempty"`
 	SuggestedFix  map[string]any `json:"suggested_fix,omitempty"`
+	RequiredMin   *int           `json:"required_min,omitempty"`
+	AllowedMax    *int           `json:"allowed_max,omitempty"`
+	ActualCount   *int           `json:"actual_count,omitempty"`
 }
 
 func (e *ValidationError) Error() string {
@@ -33,6 +36,16 @@ func unsupportedParameterError(key, model string) *ValidationError {
 	)
 }
 
+func unsupportedOutputTypeError(outputType, model string, capabilities []string) *ValidationError {
+	err := newValidationError(
+		"UNSUPPORTED_OUTPUT_TYPE",
+		fmt.Sprintf("model %q does not support output type %q", model, outputType),
+		"output_type",
+	)
+	err.AllowedValues = stringValuesToAny(capabilities)
+	return err
+}
+
 func invalidParamTypeError(key, expected string) *ValidationError {
 	return newValidationError(
 		"INVALID_PARAMETER_TYPE",
@@ -47,11 +60,19 @@ func invalidParamOptionError(key string, allowed []string) *ValidationError {
 		fmt.Sprintf("parameter %q must be one of [%s]", key, joinStrings(allowed, ", ")),
 		key,
 	)
-	err.AllowedValues = append([]string{}, allowed...)
+	err.AllowedValues = stringValuesToAny(allowed)
 	if len(allowed) > 0 {
 		err.SuggestedFix = map[string]any{key: allowed[0]}
 	}
 	return err
+}
+
+func stringValuesToAny(values []string) []any {
+	out := make([]any, 0, len(values))
+	for _, value := range values {
+		out = append(out, value)
+	}
+	return out
 }
 
 func invalidParamRangeError(key, op string, limit float64) *ValidationError {
@@ -68,6 +89,18 @@ func invalidParamCombinationError(message string, fields ...string) *ValidationE
 		field = fields[0]
 	}
 	return newValidationError("INVALID_PARAMETER_COMBINATION", message, field)
+}
+
+func invalidInputCountError(kind, message string, requiredMin, allowedMax, actualCount int) *ValidationError {
+	err := newValidationError("INVALID_INPUT_COUNT", message, kind)
+	err.RequiredMin = intPtr(requiredMin)
+	err.AllowedMax = intPtr(allowedMax)
+	err.ActualCount = intPtr(actualCount)
+	return err
+}
+
+func intPtr(value int) *int {
+	return &value
 }
 
 func joinStrings(values []string, sep string) string {

@@ -19,7 +19,7 @@ test('reloadCatalogCandidate commits a lint-clean candidate with staging metadat
   assert.equal(result.catalogVersion, 'catalog-v2')
   assert.equal(result.stagingDir, '/tmp/movscript-agent/_staging')
   assert.equal(result.skillCount, 0)
-  assert.equal(result.toolCount, 1)
+  assert.equal(result.toolCount, 0)
 })
 
 test('reloadCatalogCandidate rolls back lint-blocked candidates and preserves previous counts', () => {
@@ -83,8 +83,6 @@ function testCatalog(input: { version: string; tools: string[] }): AgentPluginCa
     profiles: [],
     layeredSkills: [],
     layeredTools: [],
-    skills: [],
-    tools: toolRegistry.list(),
     toolGrants: [],
     manifest: DEFAULT_AGENT_MANIFEST,
     registry: toolRegistry,

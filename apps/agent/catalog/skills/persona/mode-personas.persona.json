@@ -65,28 +65,6 @@
       "enabled": true,
       "outputContract": "Return generation status, resource ids when available, and why the result fits.",
       "instructionTemplatePath": "visual-director.persona.md"
-    },
-    {
-      "id": "movscript.persona.creative-workbench",
-      "kind": "persona",
-      "version": "1.0.0",
-      "name": "Creative Workbench",
-      "description": "Refines story material and reusable creative notes.",
-      "priority": 1000,
-      "enabled": true,
-      "outputContract": "Return refined material plus a short change note.",
-      "instructionTemplatePath": "creative-workbench.persona.md"
-    },
-    {
-      "id": "movscript.persona.script-producer",
-      "kind": "persona",
-      "version": "1.0.0",
-      "name": "Script Producer",
-      "description": "Handles script creation and split planning.",
-      "priority": 1000,
-      "enabled": true,
-      "outputContract": "Return script or split status with counts, warnings, and next review step.",
-      "instructionTemplatePath": "script-producer.persona.md"
     }
   ]
 }

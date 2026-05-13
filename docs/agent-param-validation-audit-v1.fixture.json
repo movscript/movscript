@@ -1,0 +1,81 @@
+{
+  "audit_version": 1,
+  "model_config_id": 42,
+  "model_contract_loaded": true,
+  "params_schema_loaded": true,
+  "params_schema_rule_count": 4,
+  "input_requirements": {
+    "image": {
+      "min": 1,
+      "max": 4
+    },
+    "video": {
+      "min": 0,
+      "max": 0
+    }
+  },
+  "submitted_inputs": {
+    "image": 5,
+    "video": 0
+  },
+  "supported_params": [
+    "duration",
+    "frames",
+    "prompt_strength",
+    "resolution"
+  ],
+  "provided_extra_params": [
+    "frames",
+    "guidance_scale",
+    "style"
+  ],
+  "submitted_extra_params": [
+    "frames",
+    "prompt_strength"
+  ],
+  "dropped_extra_params": [
+    "style"
+  ],
+  "dropped_top_level_params": [
+    "aspect_ratio"
+  ],
+  "drop_reasons": {
+    "aspect_ratio": "unsupported_top_level_param",
+    "style": "unsupported_extra_param"
+  },
+  "renamed_extra_params": {
+    "guidance_scale": "prompt_strength"
+  },
+  "preflight_errors": [
+    {
+      "code": "INVALID_PARAMETER_COMBINATION",
+      "field": "duration",
+      "message": "parameters \"duration\" and \"frames\" cannot be used together in the local model contract",
+      "suggested_fix": {
+        "frames": null
+      }
+    },
+    {
+      "code": "INVALID_PARAMETER_OPTION",
+      "field": "resolution",
+      "message": "parameter \"resolution\" is not in the local model contract options",
+      "allowed_values": [
+        "480p",
+        "720p"
+      ],
+      "suggested_fix": {
+        "resolution": "480p"
+      }
+    }
+  ],
+  "input_preflight_errors": [
+    {
+      "code": "INVALID_INPUT_COUNT",
+      "field": "image",
+      "message": "image generation input count is above the local model contract maximum",
+      "required_min": 1,
+      "allowed_max": 4,
+      "actual_count": 5
+    }
+  ]
+}

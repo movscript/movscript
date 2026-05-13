@@ -480,7 +480,7 @@ function projectEndpoint(projectId: number, kind: string): string {
   }
 }
 
-function listTools(): MCPTool[] {
+export function listTools(): MCPTool[] {
   return [
     {
       name: 'movscript_get_current_context',
@@ -524,32 +524,103 @@ function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_list_models',
-      description: 'List enabled AI models for a capability or feature, including supported parameters, so the agent can choose a valid model before generation.',
+      description: 'List enabled AI models for a capability or feature. The result includes raw models plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Models are contract-scoped: entries with the same logical_model_id can still expose different model_config_id values and different contracts.',
       inputSchema: objectSchema(
         {
           capability: { type: 'string', description: 'Optional capability filter such as text, image, image_edit, video, video_i2v, or video_v2v.' },
           feature: { type: 'string', description: 'Optional feature key filter. Takes precedence over capability when provided.' },
+          feature_key: { type: 'string', description: 'Alias for feature.' },
           provider_variants: { type: 'boolean', description: 'When true, include provider-specific model variants.' },
           include_provider_variants: { type: 'boolean', description: 'Alias for provider_variants.' },
         }
       ),
+      outputSchema: objectSchema(
+        {
+          count: { type: 'number' },
+          queries: { type: 'array', items: { type: 'string' } },
+          model_contracts: {
+            type: 'array',
+            items: {
+              type: 'object',
+              additionalProperties: true,
+              required: ['contract_version', 'model_config_id', 'capabilities', 'input_requirements', 'supported_param_keys', 'supported_params'],
+              properties: {
+                contract_version: { type: 'number', const: 1 },
+                id: { type: 'number' },
+                model_config_id: { type: 'number', description: 'Exact ID to pass to movscript_create_generation_job.' },
+                display_name: { type: 'string' },
+                short_name: { type: 'string' },
+                logical_model_id: { type: 'string', description: 'Grouping metadata only. Do not use this instead of model_config_id.' },
+                capabilities: { type: 'array', items: { type: 'string' } },
+                accepts_image_input: { type: 'boolean' },
+                input_requirements: {
+                  type: 'object',
+                  required: ['image', 'video'],
+                  properties: {
+                    image: {
+                      type: 'object',
+                      required: ['min', 'max'],
+                      properties: {
+                        min: { type: 'number' },
+                        max: { type: 'number' },
+                      },
+                    },
+                    video: {
+                      type: 'object',
+                      required: ['min', 'max'],
+                      properties: {
+                        min: { type: 'number' },
+                        max: { type: 'number' },
+                      },
+                    },
+                  },
+                },
+                supported_param_keys: { type: 'array', items: { type: 'string' } },
+                supported_params: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    additionalProperties: true,
+                    required: ['key'],
+                    properties: {
+                      key: { type: 'string' },
+                      label: { type: 'string' },
+                      type: { type: 'string', enum: ['select', 'number', 'boolean', 'string'] },
+                      options: { type: 'array', items: { type: 'string' } },
+                      conflicts_with: { type: 'array', items: { type: 'string' } },
+                      conditional_enum: { type: 'array' },
+                      conditional_const: { type: 'array' },
+                      requires_value: { type: 'array' },
+                    },
+                  },
+                },
+                params_schema_loaded: { type: 'boolean' },
+                params_schema_rule_count: { type: 'number' },
+              },
+            },
+          },
+          models: { type: 'array' },
+        },
+        ['count', 'queries', 'model_contracts', 'models']
+      ),
     },
     {
       name: 'movscript_create_generation_job',
-      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Before choosing model_config_id or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Returns the completed job, output_resource, and param_validation audit data for direct chat display. This is cost-bearing and should only run after explicit user approval.',
+      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Before choosing model_config_id, input_resource_ids, or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Returns the completed job, output_resource, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
       inputSchema: objectSchema(
         {
           prompt: { type: 'string' },
           title: { type: 'string', description: 'Optional display title for the generation job.' },
           output_type: { type: 'string', enum: ['image', 'video'], description: 'High-level output type. Ignored when job_type is provided.' },
           job_type: { type: 'string', enum: ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v'] },
-          model_config_id: { type: 'number', description: 'Optional AIModelConfig ID. If omitted, MovScript chooses the first available model for the requested capability.' },
-          input_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Optional reference image/video resource IDs.' },
+          model_config_id: { type: ['number', 'string'], description: 'Optional AIModelConfig ID. If omitted, MovScript chooses the first available model for the requested capability.' },
+          input_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Optional reference image/video resource IDs. Count should satisfy the selected model contract input_requirements; mismatches are reported in param_validation.input_preflight_errors.' },
+          reference_type: { type: 'string', enum: ['image', 'video'], description: 'Use video with output_type video when reference resources should create a video_v2v job.' },
           aspect_ratio: { type: 'string', description: 'Optional aspect ratio such as 1:1, 16:9, or 9:16.' },
           duration: { type: 'number', description: 'Optional video duration in seconds.' },
           extra_params: {
             type: 'object',
-            description: 'Optional model-specific generation parameters. Keys must come from the selected model returned by movscript_list_models.supported_params / params_schema. Unsupported keys are omitted before submission and reported in param_validation.dropped_extra_params.',
+            description: 'Optional model-specific generation parameters. Keys must come from the selected model returned by movscript_list_models.supported_params / params_schema. Unsupported keys are omitted before submission and reported in param_validation audit_version 1 dropped_extra_params; obvious local type/option/range and compact cross-parameter rule mismatches are reported in non-blocking param_validation.preflight_errors.',
             additionalProperties: true,
           },
           feature_key: { type: 'string', description: 'Optional feature key for routing/audit. Defaults to agent.chat_generation.' },
@@ -559,6 +630,51 @@ function listTools(): MCPTool[] {
           poll_interval_ms: { type: 'number', description: 'Polling interval. Defaults to 2500.' },
         },
         ['prompt']
+      ),
+      outputSchema: objectSchema(
+        {
+          status: { type: 'string', description: 'Current or final backend generation status.' },
+          job: { type: 'object', description: 'Normalized generation job payload.' },
+          jobId: { type: 'number', description: 'Generation job ID for monitoring and audit.' },
+          monitor: {
+            type: 'object',
+            description: 'Present when the job needs asynchronous monitoring.',
+            properties: {
+              tool: { type: 'string', const: 'movscript_get_generation_job' },
+              args: { type: 'object' },
+              message: { type: 'string' },
+            },
+          },
+          output_resource: { type: 'object', description: 'Generated resource object when available.' },
+          output_resource_id: { type: 'number', description: 'Generated resource ID when available.' },
+          media: { type: 'object', description: 'Media preview metadata when available.' },
+          param_validation: {
+            type: 'object',
+            description: 'audit_version 1 parameter filtering and preflight audit.',
+            properties: {
+              audit_version: { type: 'number', const: 1 },
+              model_config_id: { type: 'number' },
+              model_contract_loaded: { type: 'boolean' },
+              params_schema_loaded: { type: 'boolean' },
+              params_schema_rule_count: { type: 'number' },
+              input_requirements: { type: 'object' },
+              submitted_inputs: { type: 'object' },
+              supported_params: { type: 'array', items: { type: 'string' } },
+              provided_extra_params: { type: 'array', items: { type: 'string' } },
+              submitted_extra_params: { type: 'array', items: { type: 'string' } },
+              dropped_extra_params: { type: 'array', items: { type: 'string' } },
+              dropped_top_level_params: { type: 'array', items: { type: 'string' } },
+              drop_reasons: { type: 'object' },
+              renamed_extra_params: { type: 'object' },
+              extra_params_parse_error: { type: 'string' },
+              preflight_errors: { type: 'array' },
+              input_preflight_errors: { type: 'array' },
+            },
+          },
+          terminal: { type: 'boolean', description: 'Whether status is terminal when wait=true.' },
+          message: { type: 'string' },
+        },
+        ['status', 'job', 'jobId', 'param_validation', 'message']
       ),
     },
     {
@@ -719,7 +835,7 @@ async function listProjects(args: Record<string, unknown>): Promise<unknown> {
   }
 }
 
-async function listModels(args: Record<string, unknown>): Promise<unknown> {
+export async function listModels(args: Record<string, unknown>): Promise<unknown> {
   const feature = getOptionalString(args, 'feature') ?? getOptionalString(args, 'feature_key') ?? getOptionalString(args, 'featureKey')
   const capability = getOptionalString(args, 'capability')
   const providerVariants = args.provider_variants === true || args.include_provider_variants === true
@@ -762,6 +878,7 @@ export function summarizeModelContractForAgent(model: unknown): Record<string, u
   })
   const propertyKeys = Object.keys(isRecord(schema?.properties) ? schema.properties : {})
   return {
+    contract_version: 1,
     id: numericModelField(source, 'id') ?? numericModelField(source, 'ID'),
     model_config_id: numericModelField(source, 'id') ?? numericModelField(source, 'ID'),
     ...(typeof source.display_name === 'string' && source.display_name.trim() ? { display_name: source.display_name.trim() } : {}),
@@ -769,11 +886,30 @@ export function summarizeModelContractForAgent(model: unknown): Record<string, u
     ...(typeof source.logical_model_id === 'string' && source.logical_model_id.trim() ? { logical_model_id: source.logical_model_id.trim() } : {}),
     capabilities: stringArrayModelField(source.capabilities),
     accepts_image_input: source.accepts_image_input === true,
-    input_requirements: isRecord(source.input_requirements) ? source.input_requirements : undefined,
+    input_requirements: summarizeInputRequirementsForAgent(source.input_requirements),
     supported_params: summarizeSupportedParamsForAgent(supportedParams, schema),
     supported_param_keys: Array.from(new Set(supportedParamKeys.length > 0 ? supportedParamKeys : propertyKeys)).sort(),
     params_schema_loaded: !!schema,
     ...(Array.isArray(schema?.allOf) ? { params_schema_rule_count: schema.allOf.length } : {}),
+  }
+}
+
+function summarizeInputRequirementsForAgent(value: unknown): Record<string, Record<string, number>> {
+  const source = isRecord(value) ? value : {}
+  return {
+    image: summarizeInputRequirementForAgent(source.image),
+    video: summarizeInputRequirementForAgent(source.video),
+  }
+}
+
+function summarizeInputRequirementForAgent(value: unknown): Record<string, number> {
+  const source = isRecord(value) ? value : {}
+  const min = integerModelField(source, 'min', 0, 0)
+  const max = integerModelField(source, 'max', -1, 0)
+  if (max !== -1 && min > max) return { min: 0, max: 0 }
+  return {
+    min,
+    max,
   }
 }
 
@@ -804,9 +940,9 @@ function summarizeSupportedParamDefForAgent(param: unknown, schemaProperties: Re
   copyFiniteNumber(out, param, 'max')
   copyFiniteNumber(out, param, 'step')
   copyStringArray(out, param, 'conflicts_with')
-  copyRuleRefs(out, param, 'conditional_enum')
-  copyRuleRefs(out, param, 'conditional_const')
-  copyRuleRefs(out, param, 'requires_value')
+  copyConditionalEnumRules(out, param)
+  copyConditionalConstRules(out, param)
+  copyRequiresValueRules(out, param)
   mergeSchemaPropertySummary(out, schemaProperties?.[out.key as string])
   return out
 }
@@ -859,15 +995,52 @@ function copyStringArray(out: Record<string, unknown>, source: Record<string, un
   if (items.length > 0) out[key] = items
 }
 
-function copyRuleRefs(out: Record<string, unknown>, source: Record<string, unknown>, key: string): void {
-  const value = source[key]
+function copyConditionalEnumRules(out: Record<string, unknown>, source: Record<string, unknown>): void {
+  const value = source.conditional_enum
   if (!Array.isArray(value)) return
-  const refs = value.flatMap((item) => {
+  const rules = value.flatMap((item) => {
     if (!isRecord(item)) return []
-    const ref = typeof item.when_param === 'string' ? item.when_param : typeof item.param === 'string' ? item.param : ''
-    return ref.trim() ? [ref.trim()] : []
+    const whenParam = typeof item.when_param === 'string' ? item.when_param.trim() : ''
+    const options = Array.isArray(item.options) ? item.options.filter((option): option is string => typeof option === 'string') : []
+    if (!whenParam || !isJSONScalar(item.when_value) || options.length === 0) return []
+    return [{
+      when_param: whenParam,
+      when_value: item.when_value,
+      options,
+    }]
   })
-  if (refs.length > 0) out[key] = Array.from(new Set(refs)).sort()
+  if (rules.length > 0) out.conditional_enum = rules
+}
+
+function copyConditionalConstRules(out: Record<string, unknown>, source: Record<string, unknown>): void {
+  const value = source.conditional_const
+  if (!Array.isArray(value)) return
+  const rules = value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const whenParam = typeof item.when_param === 'string' ? item.when_param.trim() : ''
+    if (!whenParam || !isJSONScalar(item.when_value) || !isJSONScalar(item.value)) return []
+    return [{
+      when_param: whenParam,
+      when_value: item.when_value,
+      value: item.value,
+    }]
+  })
+  if (rules.length > 0) out.conditional_const = rules
+}
+
+function copyRequiresValueRules(out: Record<string, unknown>, source: Record<string, unknown>): void {
+  const value = source.requires_value
+  if (!Array.isArray(value)) return
+  const rules = value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const param = typeof item.param === 'string' ? item.param.trim() : ''
+    if (!param || !isJSONScalar(item.value)) return []
+    return [{
+      param,
+      value: item.value,
+    }]
+  })
+  if (rules.length > 0) out.requires_value = rules
 }
 
 async function readProjectScripts(args: Record<string, unknown>): Promise<unknown> {
@@ -922,7 +1095,7 @@ async function backendList(path: string): Promise<any[]> {
   return []
 }
 
-async function createGenerationJob(args: Record<string, unknown>): Promise<unknown> {
+export async function createGenerationJob(args: Record<string, unknown>): Promise<unknown> {
   const prompt = getRequiredString(args, 'prompt').trim()
   if (!prompt) throw new Error('prompt is required')
 
@@ -943,9 +1116,19 @@ async function createGenerationJob(args: Record<string, unknown>): Promise<unkno
   if (aspectRatio && supportedParamKeys && !supportedParamKeys.has('aspect_ratio')) {
     aspectRatio = undefined
   }
+  const submittedParamsForPreflight: Record<string, unknown> = {
+    ...(extraParamAudit.submittedParams ?? {}),
+    ...(aspectRatio ? { aspect_ratio: aspectRatio } : {}),
+    ...(duration !== undefined ? { duration } : {}),
+  }
+  const preflightErrors = preflightGenerationParams(submittedParamsForPreflight, modelParamContract)
+  const inputPreflightErrors = preflightGenerationInputs(jobType, inputResourceIds.length, modelParamContract)
   const paramValidation = buildGenerationParamValidationAudit(modelConfigId, modelParamContract, extraParamAudit, {
     aspectRatioRequested: getOptionalString(args, 'aspect_ratio'),
     aspectRatioSubmitted: aspectRatio,
+    preflightErrors,
+    submittedInputs: buildSubmittedGenerationInputs(jobType, inputResourceIds.length),
+    inputPreflightErrors,
   })
   const title = getOptionalString(args, 'title') ?? defaultGenerationJobTitle(jobType)
 
@@ -1225,6 +1408,13 @@ function numericModelField(source: Record<string, unknown>, key: string): number
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
+function integerModelField(source: Record<string, unknown>, key: string, min: number, fallback: number): number {
+  const value = source[key]
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isInteger(parsed) || parsed < min) return fallback
+  return parsed
+}
+
 function stringArrayModelField(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return Array.from(new Set(value.flatMap((item) => (
@@ -1258,8 +1448,40 @@ function modelCapabilityCandidates(jobType: string): string[] {
 
 interface GenerationModelParamContract {
   supportedParamKeys: Set<string>
+  supportedParams: Map<string, GenerationModelParam>
+  rules: GenerationModelParamRules
+  inputRequirements: GenerationInputRequirements
   paramsSchemaLoaded: boolean
   paramsSchemaRuleCount?: number
+}
+
+type GenerationInputKind = 'image' | 'video'
+
+interface GenerationInputRequirement {
+  min: number
+  max: number
+}
+
+interface GenerationInputRequirements {
+  image: GenerationInputRequirement
+  video: GenerationInputRequirement
+}
+
+interface GenerationModelParam {
+  key: string
+  type?: string
+  options?: string[]
+  enum?: Array<string | number | boolean>
+  min?: number
+  max?: number
+  step?: number
+}
+
+interface GenerationModelParamRules {
+  conflicts: Array<{ key: string, other: string }>
+  conditionalEnums: Array<{ key: string, whenParam: string, whenValue: string | number | boolean, options: string[] }>
+  conditionalConsts: Array<{ key: string, whenParam: string, whenValue: string | number | boolean, value: string | number | boolean }>
+  requiresValues: Array<{ key: string, param: string, value: string | number | boolean }>
 }
 
 async function getGenerationModelParamContract(modelConfigId: number, jobType: string): Promise<GenerationModelParamContract | undefined> {
@@ -1272,18 +1494,110 @@ async function getGenerationModelParamContract(modelConfigId: number, jobType: s
     const supportedParamKeys = new Set<string>(
       params
         ? params.flatMap((param: unknown) => {
-        if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) return []
-        return [param.key.trim()]
-      })
+            if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) return []
+            return [param.key.trim()]
+          })
         : Object.keys(isRecord(schema?.properties) ? schema.properties : {}),
     )
     return {
       supportedParamKeys,
+      supportedParams: buildGenerationModelParams(params, schema),
+      rules: buildGenerationModelParamRules(params),
+      inputRequirements: normalizeGenerationInputRequirements(model.input_requirements),
       paramsSchemaLoaded: !!schema,
       ...(Array.isArray(schema?.allOf) ? { paramsSchemaRuleCount: schema.allOf.length } : {}),
     }
-    }
+  }
   return undefined
+}
+
+function buildGenerationModelParams(params: unknown[] | undefined, schema: Record<string, unknown> | undefined): Map<string, GenerationModelParam> {
+  const out = new Map<string, GenerationModelParam>()
+  const properties = isRecord(schema?.properties) ? schema.properties : {}
+  if (params) {
+    for (const param of params) {
+      const item = compactGenerationModelParam(param)
+      if (!item) continue
+      mergeSchemaPropertyIntoModelParam(item, properties[item.key])
+      out.set(item.key, item)
+    }
+  }
+  for (const [key, property] of Object.entries(properties)) {
+    if (out.has(key)) continue
+    const item: GenerationModelParam = { key }
+    mergeSchemaPropertyIntoModelParam(item, property)
+    out.set(key, item)
+  }
+  return out
+}
+
+function compactGenerationModelParam(param: unknown): GenerationModelParam | undefined {
+  if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) return undefined
+  const out: GenerationModelParam = { key: param.key.trim() }
+  if (typeof param.type === 'string' && param.type.trim()) out.type = param.type.trim()
+  if (Array.isArray(param.options)) {
+    const options = stringArrayModelField(param.options)
+    if (options.length > 0) out.options = options
+  }
+  copyFiniteNumber(out as unknown as Record<string, unknown>, param, 'min')
+  copyFiniteNumber(out as unknown as Record<string, unknown>, param, 'max')
+  copyFiniteNumber(out as unknown as Record<string, unknown>, param, 'step')
+  return out
+}
+
+// Exported for MCP contract tests; runtime uses this to normalize compact v1 rules for non-blocking preflight audits.
+export function buildGenerationModelParamRules(params: unknown[] | undefined): GenerationModelParamRules {
+  const rules: GenerationModelParamRules = { conflicts: [], conditionalEnums: [], conditionalConsts: [], requiresValues: [] }
+  const conflictPairs = new Set<string>()
+  for (const param of params ?? []) {
+    if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) continue
+    const key = param.key.trim()
+    if (Array.isArray(param.conflicts_with)) {
+      for (const other of param.conflicts_with) {
+        if (typeof other !== 'string' || !other.trim()) continue
+        const otherKey = other.trim()
+        const pairKey = [key, otherKey].sort().join('\u0000')
+        if (conflictPairs.has(pairKey)) continue
+        conflictPairs.add(pairKey)
+        rules.conflicts.push({ key, other: otherKey })
+      }
+    }
+    if (Array.isArray(param.conditional_enum)) {
+      for (const item of param.conditional_enum) {
+        if (!isRecord(item) || typeof item.when_param !== 'string' || !item.when_param.trim() || !isJSONScalar(item.when_value)) continue
+        const options = Array.isArray(item.options) ? item.options.filter((option): option is string => typeof option === 'string' && option.trim().length > 0) : []
+        if (options.length > 0) rules.conditionalEnums.push({ key, whenParam: item.when_param.trim(), whenValue: item.when_value, options })
+      }
+    }
+    if (Array.isArray(param.conditional_const)) {
+      for (const item of param.conditional_const) {
+        if (!isRecord(item) || typeof item.when_param !== 'string' || !item.when_param.trim() || !isJSONScalar(item.when_value) || !isJSONScalar(item.value)) continue
+        rules.conditionalConsts.push({ key, whenParam: item.when_param.trim(), whenValue: item.when_value, value: item.value })
+      }
+    }
+    if (Array.isArray(param.requires_value)) {
+      for (const item of param.requires_value) {
+        if (!isRecord(item) || typeof item.param !== 'string' || !item.param.trim() || !isJSONScalar(item.value)) continue
+        rules.requiresValues.push({ key, param: item.param.trim(), value: item.value })
+      }
+    }
+  }
+  return rules
+}
+
+function mergeSchemaPropertyIntoModelParam(out: GenerationModelParam, property: unknown): void {
+  if (!isRecord(property)) return
+  if (typeof property.type === 'string' && !out.type) out.type = property.type
+  if (Array.isArray(property.enum)) {
+    const values = property.enum.filter(isJSONScalar)
+    if (values.length > 0) {
+      if (values.every((value) => typeof value === 'string')) out.options = values
+      else out.enum = values
+    }
+  }
+  copyFiniteNumber(out as unknown as Record<string, unknown>, property, 'minimum', 'min')
+  copyFiniteNumber(out as unknown as Record<string, unknown>, property, 'maximum', 'max')
+  copyFiniteNumber(out as unknown as Record<string, unknown>, property, 'multipleOf', 'step')
 }
 
 interface GenerationExtraParamAudit {
@@ -1291,10 +1605,13 @@ interface GenerationExtraParamAudit {
   providedKeys: string[]
   submittedKeys: string[]
   droppedKeys: string[]
+  submittedParams?: Record<string, unknown>
+  dropReasons?: Record<string, string>
+  renamedKeys?: Record<string, string>
   parseError?: string
 }
 
-function normalizeGenerationExtraParams(value: unknown, supportedParamKeys?: Set<string>): GenerationExtraParamAudit {
+export function normalizeGenerationExtraParams(value: unknown, supportedParamKeys?: Set<string>): GenerationExtraParamAudit {
   if (value === undefined || value === null) {
     return { providedKeys: [], submittedKeys: [], droppedKeys: [] }
   }
@@ -1322,43 +1639,279 @@ function normalizeGenerationExtraParams(value: unknown, supportedParamKeys?: Set
   }
   if (isRecord(value)) {
     const providedKeys = Object.keys(value)
-    const params = supportedParamKeys
-      ? Object.fromEntries(Object.entries(value).filter(([key]) => supportedParamKeys.has(key)))
-      : value
+    const params: Record<string, unknown> = {}
+    const droppedKeys: string[] = []
+    const renamedKeys: Record<string, string> = {}
+    for (const [key, paramValue] of Object.entries(value)) {
+      const canonicalKey = canonicalGenerationParamKey(key)
+      if (supportedParamKeys && !supportedParamKeys.has(canonicalKey)) {
+        droppedKeys.push(key)
+        continue
+      }
+      if (canonicalKey !== key) renamedKeys[key] = canonicalKey
+      if (params[canonicalKey] === undefined || key === canonicalKey) {
+        params[canonicalKey] = paramValue
+      }
+    }
     const submittedKeys = Object.keys(params)
     return {
       extraParams: submittedKeys.length > 0 ? JSON.stringify(params) : undefined,
       providedKeys,
       submittedKeys,
-      droppedKeys: supportedParamKeys ? providedKeys.filter((key) => !supportedParamKeys.has(key)) : [],
+      droppedKeys,
+      ...(submittedKeys.length > 0 ? { submittedParams: params } : {}),
+      ...(droppedKeys.length > 0 ? { dropReasons: Object.fromEntries(droppedKeys.map((key) => [key, 'unsupported_extra_param'])) } : {}),
+      ...(Object.keys(renamedKeys).length > 0 ? { renamedKeys } : {}),
     }
   }
   return { providedKeys: [], submittedKeys: [], droppedKeys: [] }
+}
+
+function canonicalGenerationParamKey(key: string): string {
+  switch (key) {
+    case 'ratio':
+      return 'aspect_ratio'
+    case 'duration_seconds':
+      return 'duration'
+    case 'size':
+      return 'image_size'
+    case 'guidance_scale':
+      return 'prompt_strength'
+    case 'max_images':
+      return 'image_count'
+    case 'camera_fixed':
+      return 'fixed_camera'
+    case 'generate_audio':
+      return 'audio'
+    default:
+      return key
+  }
 }
 
 export function buildGenerationParamValidationAudit(
   modelConfigId: number,
   modelParamContract: GenerationModelParamContract | undefined,
   extraParamAudit: GenerationExtraParamAudit,
-  options: { aspectRatioRequested?: string, aspectRatioSubmitted?: string },
+  options: {
+    aspectRatioRequested?: string
+    aspectRatioSubmitted?: string
+    preflightErrors?: GenerationParamPreflightError[]
+    submittedInputs?: Record<GenerationInputKind, number>
+    inputPreflightErrors?: GenerationInputPreflightError[]
+  },
 ): Record<string, unknown> {
   const supportedParamKeys = modelParamContract?.supportedParamKeys
   const droppedTopLevelParams: string[] = []
   if (options.aspectRatioRequested && !options.aspectRatioSubmitted) {
     droppedTopLevelParams.push('aspect_ratio')
   }
+  const dropReasons: Record<string, string> = {}
+  for (const key of extraParamAudit.droppedKeys) {
+    dropReasons[key] = extraParamAudit.dropReasons?.[key] ?? 'unsupported_extra_param'
+  }
+  for (const key of droppedTopLevelParams) {
+    dropReasons[key] = 'unsupported_top_level_param'
+  }
+  if (extraParamAudit.parseError) {
+    dropReasons.extra_params = 'parse_error'
+  }
   return {
+    audit_version: 1,
     model_config_id: modelConfigId,
     model_contract_loaded: modelParamContract !== undefined,
     params_schema_loaded: modelParamContract?.paramsSchemaLoaded === true,
     ...(modelParamContract?.paramsSchemaRuleCount !== undefined ? { params_schema_rule_count: modelParamContract.paramsSchemaRuleCount } : {}),
+    ...(modelParamContract ? { input_requirements: modelParamContract.inputRequirements } : {}),
+    ...(options.submittedInputs ? { submitted_inputs: options.submittedInputs } : {}),
     ...(supportedParamKeys ? { supported_params: Array.from(supportedParamKeys).sort() } : {}),
     submitted_extra_params: extraParamAudit.submittedKeys.sort(),
     ...(extraParamAudit.providedKeys.length > 0 ? { provided_extra_params: extraParamAudit.providedKeys.sort() } : {}),
     ...(extraParamAudit.droppedKeys.length > 0 ? { dropped_extra_params: extraParamAudit.droppedKeys.sort() } : {}),
     ...(droppedTopLevelParams.length > 0 ? { dropped_top_level_params: droppedTopLevelParams } : {}),
+    ...(Object.keys(dropReasons).length > 0 ? { drop_reasons: dropReasons } : {}),
+    ...(extraParamAudit.renamedKeys && Object.keys(extraParamAudit.renamedKeys).length > 0 ? { renamed_extra_params: extraParamAudit.renamedKeys } : {}),
     ...(extraParamAudit.parseError ? { extra_params_parse_error: extraParamAudit.parseError } : {}),
+    ...(options.preflightErrors && options.preflightErrors.length > 0 ? { preflight_errors: options.preflightErrors } : {}),
+    ...(options.inputPreflightErrors && options.inputPreflightErrors.length > 0 ? { input_preflight_errors: options.inputPreflightErrors } : {}),
   }
+}
+
+type GenerationParamPreflightError = {
+  code: string
+  field: string
+  message: string
+  allowed_values?: Array<string | number | boolean>
+  suggested_fix?: Record<string, string | number | boolean | null>
+}
+
+type GenerationInputPreflightError = {
+  code: 'INVALID_INPUT_COUNT'
+  field: GenerationInputKind
+  message: string
+  required_min: number
+  allowed_max: number
+  actual_count: number
+}
+
+function normalizeGenerationInputRequirements(value: unknown): GenerationInputRequirements {
+  const source = isRecord(value) ? value : {}
+  return {
+    image: normalizeGenerationInputRequirement(source.image),
+    video: normalizeGenerationInputRequirement(source.video),
+  }
+}
+
+function normalizeGenerationInputRequirement(value: unknown): GenerationInputRequirement {
+  const source = isRecord(value) ? value : {}
+  const min = integerModelField(source, 'min', 0, 0)
+  const max = integerModelField(source, 'max', -1, 0)
+  if (max !== -1 && min > max) return { min: 0, max: 0 }
+  return { min, max }
+}
+
+function buildSubmittedGenerationInputs(jobType: string, inputCount: number): Record<GenerationInputKind, number> {
+  return {
+    image: generationInputKindForJobType(jobType) === 'image' ? inputCount : 0,
+    video: generationInputKindForJobType(jobType) === 'video' ? inputCount : 0,
+  }
+}
+
+function preflightGenerationInputs(jobType: string, inputCount: number, modelParamContract: GenerationModelParamContract | undefined): GenerationInputPreflightError[] {
+  if (!modelParamContract) return []
+  const kind = generationInputKindForJobType(jobType)
+  if (!kind) return []
+  const requirement = modelParamContract.inputRequirements[kind]
+  const errors: GenerationInputPreflightError[] = []
+  if (inputCount < requirement.min) {
+    errors.push({
+      code: 'INVALID_INPUT_COUNT',
+      field: kind,
+      message: `${kind} generation input count is below the local model contract minimum`,
+      required_min: requirement.min,
+      allowed_max: requirement.max,
+      actual_count: inputCount,
+    })
+  }
+  if (requirement.max !== -1 && inputCount > requirement.max) {
+    errors.push({
+      code: 'INVALID_INPUT_COUNT',
+      field: kind,
+      message: `${kind} generation input count is above the local model contract maximum`,
+      required_min: requirement.min,
+      allowed_max: requirement.max,
+      actual_count: inputCount,
+    })
+  }
+  return errors
+}
+
+function generationInputKindForJobType(jobType: string): GenerationInputKind | undefined {
+  if (jobType === 'image_edit' || jobType === 'video_i2v') return 'image'
+  if (jobType === 'video_v2v') return 'video'
+  return undefined
+}
+
+export function preflightGenerationParams(params: Record<string, unknown>, modelParamContract: GenerationModelParamContract | undefined): GenerationParamPreflightError[] {
+  if (!modelParamContract || Object.keys(params).length === 0) return []
+  const errors: GenerationParamPreflightError[] = []
+  for (const [key, value] of Object.entries(params)) {
+    const param = modelParamContract.supportedParams.get(key)
+    if (!param) continue
+    const enumValues = param.enum ?? param.options
+    if (enumValues && enumValues.length > 0 && !enumValues.some((item) => scalarValuesEqual(item, value))) {
+      errors.push({
+        code: 'INVALID_PARAMETER_OPTION',
+        field: key,
+        message: `parameter "${key}" is not in the local model contract options`,
+        allowed_values: enumValues,
+        suggested_fix: { [key]: enumValues[0] },
+      })
+      continue
+    }
+    if (param.type === 'number') {
+      const number = numericParamValue(value)
+      if (number === undefined) {
+        errors.push({ code: 'INVALID_PARAMETER_TYPE', field: key, message: `parameter "${key}" should be a number` })
+        continue
+      }
+      if (param.min !== undefined && number < param.min) {
+        errors.push({ code: 'INVALID_PARAMETER_RANGE', field: key, message: `parameter "${key}" is below the local model contract minimum` })
+      }
+      if (param.max !== undefined && number > param.max) {
+        errors.push({ code: 'INVALID_PARAMETER_RANGE', field: key, message: `parameter "${key}" is above the local model contract maximum` })
+      }
+    } else if ((param.type === 'select' || param.type === 'string') && typeof value !== 'string') {
+      errors.push({ code: 'INVALID_PARAMETER_TYPE', field: key, message: `parameter "${key}" should be a string` })
+    } else if (param.type === 'boolean' && typeof value !== 'boolean') {
+      errors.push({ code: 'INVALID_PARAMETER_TYPE', field: key, message: `parameter "${key}" should be a boolean` })
+    }
+  }
+  for (const rule of modelParamContract.rules.conflicts) {
+    if (paramHasValue(params[rule.key]) && paramHasValue(params[rule.other])) {
+      errors.push({
+        code: 'INVALID_PARAMETER_COMBINATION',
+        field: rule.key,
+        message: `parameter "${rule.key}" conflicts with "${rule.other}" in the local model contract`,
+        suggested_fix: { [rule.other]: null },
+      })
+    }
+  }
+  for (const rule of modelParamContract.rules.conditionalEnums) {
+    if (!scalarValuesEqual(rule.whenValue, params[rule.whenParam])) continue
+    const value = params[rule.key]
+    if (!paramHasValue(value) || rule.options.some((option) => scalarValuesEqual(option, value))) continue
+    errors.push({
+      code: 'INVALID_PARAMETER_COMBINATION',
+      field: rule.key,
+      message: `parameter "${rule.key}" is not allowed for "${rule.whenParam}" in the local model contract`,
+      allowed_values: rule.options,
+      suggested_fix: { [rule.key]: rule.options[0] },
+    })
+  }
+  for (const rule of modelParamContract.rules.conditionalConsts) {
+    if (!scalarValuesEqual(rule.whenValue, params[rule.whenParam])) continue
+    const value = params[rule.key]
+    if (!paramHasValue(value) || scalarValuesEqual(rule.value, value)) continue
+    errors.push({
+      code: 'INVALID_PARAMETER_COMBINATION',
+      field: rule.key,
+      message: `parameter "${rule.key}" must match the required value for "${rule.whenParam}" in the local model contract`,
+      allowed_values: [rule.value],
+      suggested_fix: { [rule.key]: rule.value },
+    })
+  }
+  for (const rule of modelParamContract.rules.requiresValues) {
+    if (!paramHasValue(params[rule.key]) || scalarValuesEqual(rule.value, params[rule.param])) continue
+    errors.push({
+      code: 'INVALID_PARAMETER_COMBINATION',
+      field: rule.key,
+      message: `parameter "${rule.key}" requires "${rule.param}" in the local model contract`,
+      allowed_values: [rule.value],
+      suggested_fix: { [rule.param]: rule.value },
+    })
+  }
+  return errors
+}
+
+function numericParamValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function scalarValuesEqual(expected: string | number | boolean, actual: unknown): boolean {
+  if (typeof expected === 'number') return numericParamValue(actual) === expected
+  return expected === actual
+}
+
+function paramHasValue(value: unknown): boolean {
+  if (value === undefined || value === null || value === '') return false
+  if (typeof value === 'boolean') return value
+  const number = numericParamValue(value)
+  return number === undefined || number !== 0
 }
 
 async function waitForGenerationJob(jobId: number, timeoutMs: number, pollIntervalMs: number): Promise<unknown> {
@@ -1485,6 +2038,9 @@ export function normalizeBackendHTTPErrorForMCP(method: string, path: string, st
     ...(bodyRecord && typeof bodyRecord.field === 'string' ? { field: bodyRecord.field } : {}),
     ...(bodyRecord && Array.isArray(bodyRecord.allowed_values) ? { allowed_values: bodyRecord.allowed_values } : {}),
     ...(bodyRecord && isRecord(bodyRecord.suggested_fix) ? { suggested_fix: bodyRecord.suggested_fix } : {}),
+    ...(bodyRecord && Number.isInteger(bodyRecord.required_min) ? { required_min: bodyRecord.required_min } : {}),
+    ...(bodyRecord && Number.isInteger(bodyRecord.allowed_max) ? { allowed_max: bodyRecord.allowed_max } : {}),
+    ...(bodyRecord && Number.isInteger(bodyRecord.actual_count) ? { actual_count: bodyRecord.actual_count } : {}),
     ...(bodyRecord && isRecord(bodyRecord.details) ? { details: bodyRecord.details } : {}),
   }
 }

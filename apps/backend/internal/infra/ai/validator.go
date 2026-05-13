@@ -28,7 +28,7 @@ func ValidateGenRequest(def *ModelDef, req GenRequest) error {
 
 	// 1. Verify the model supports the requested output type.
 	if !hasCap(def, req.OutputType) {
-		return fmt.Errorf("model %q does not support output type %q", def.DisplayName, req.OutputType)
+		return unsupportedOutputTypeError(req.OutputType, def.DisplayName, def.Capabilities)
 	}
 
 	// 2. Verify input constraints per output type.
@@ -36,41 +36,95 @@ func ValidateGenRequest(def *ModelDef, req GenRequest) error {
 	case CapabilityImageEdit:
 		// image_edit requires at least one image input.
 		if req.ImageCount == 0 {
-			return fmt.Errorf("output type %q requires an image input but none was provided", req.OutputType)
+			return invalidInputCountError(
+				"image",
+				fmt.Sprintf("output type %q requires an image input but none was provided", req.OutputType),
+				1,
+				def.MaxInputImages,
+				req.ImageCount,
+			)
 		}
 
 	case CapabilityVideoI2V:
 		// image-to-video requires at least one image input.
 		if req.ImageCount == 0 {
-			return fmt.Errorf("output type %q requires an image input but none was provided", req.OutputType)
+			return invalidInputCountError(
+				"image",
+				fmt.Sprintf("output type %q requires an image input but none was provided", req.OutputType),
+				1,
+				def.MaxInputImages,
+				req.ImageCount,
+			)
 		}
 
 	case CapabilityVideoV2V:
 		// video-to-video requires at least one video input.
 		if req.VideoCount == 0 {
-			return fmt.Errorf("output type %q requires a video input but none was provided", req.OutputType)
+			return invalidInputCountError(
+				"video",
+				fmt.Sprintf("output type %q requires a video input but none was provided", req.OutputType),
+				1,
+				def.MaxInputVideos,
+				req.VideoCount,
+			)
 		}
 	}
 
 	// 3. Verify image count does not exceed model limit.
 	if def.MaxInputImages > 0 && req.ImageCount > def.MaxInputImages {
-		return fmt.Errorf("model %q supports at most %d image input(s), but %d were provided",
-			def.DisplayName, def.MaxInputImages, req.ImageCount)
+		return invalidInputCountError(
+			"image",
+			fmt.Sprintf("model %q supports at most %d image input(s), but %d were provided", def.DisplayName, def.MaxInputImages, req.ImageCount),
+			requiredImageInputMin(req.OutputType),
+			def.MaxInputImages,
+			req.ImageCount,
+		)
 	}
 	if def.MaxInputImages == 0 && req.ImageCount > 0 {
-		return fmt.Errorf("model %q does not accept image inputs", def.DisplayName)
+		return invalidInputCountError(
+			"image",
+			fmt.Sprintf("model %q does not accept image inputs", def.DisplayName),
+			0,
+			0,
+			req.ImageCount,
+		)
 	}
 
 	// 4. Verify video count does not exceed model limit.
 	if def.MaxInputVideos > 0 && req.VideoCount > def.MaxInputVideos {
-		return fmt.Errorf("model %q supports at most %d video input(s), but %d were provided",
-			def.DisplayName, def.MaxInputVideos, req.VideoCount)
+		return invalidInputCountError(
+			"video",
+			fmt.Sprintf("model %q supports at most %d video input(s), but %d were provided", def.DisplayName, def.MaxInputVideos, req.VideoCount),
+			requiredVideoInputMin(req.OutputType),
+			def.MaxInputVideos,
+			req.VideoCount,
+		)
 	}
 	if def.MaxInputVideos == 0 && req.VideoCount > 0 {
-		return fmt.Errorf("model %q does not accept video inputs", def.DisplayName)
+		return invalidInputCountError(
+			"video",
+			fmt.Sprintf("model %q does not accept video inputs", def.DisplayName),
+			0,
+			0,
+			req.VideoCount,
+		)
 	}
 
 	return nil
+}
+
+func requiredImageInputMin(outputType string) int {
+	if outputType == CapabilityImageEdit || outputType == CapabilityVideoI2V {
+		return 1
+	}
+	return 0
+}
+
+func requiredVideoInputMin(outputType string) int {
+	if outputType == CapabilityVideoV2V {
+		return 1
+	}
+	return 0
 }
 
 // hasCap reports whether the model def includes the given capability string.
@@ -140,8 +194,10 @@ func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, a
 	if err := validateDeclaredParamRules(params, supported); err != nil {
 		return nil, err
 	}
-	if err := validateCrossParamRules(params); err != nil {
-		return nil, err
+	if !def.SupportedParamsExplicit {
+		if err := validateCrossParamRules(params); err != nil {
+			return nil, err
+		}
 	}
 	return params, nil
 }
@@ -210,10 +266,10 @@ func validateParamValue(p ParamDef, val any) error {
 		if !ok {
 			return invalidParamTypeError(p.Key, "a number")
 		}
-		if p.Min != 0 && n < p.Min {
+		if p.hasMin() && n < p.Min {
 			return invalidParamRangeError(p.Key, ">=", p.Min)
 		}
-		if p.Max != 0 && n > p.Max {
+		if p.hasMax() && n > p.Max {
 			return invalidParamRangeError(p.Key, "<=", p.Max)
 		}
 		if p.Step >= 1 && !isWholeNumber(n) {
@@ -250,7 +306,7 @@ func validateParamJSONSchemaKeywords(key string, schema map[string]any, val any)
 		if len(enumValues) > 0 && !scalarSliceContains(enumValues, val) {
 			err := invalidParamCombinationError("parameter \""+key+"\" must match one of the declared schema enum values", key)
 			err.Code = "INVALID_PARAMETER_OPTION"
-			err.AllowedValues = scalarValuesToStrings(enumValues)
+			err.AllowedValues = cloneScalarValues(enumValues)
 			if len(enumValues) > 0 {
 				err.SuggestedFix = map[string]any{key: enumValues[0]}
 			}
@@ -308,7 +364,7 @@ func validateCrossParamRules(params map[string]any) error {
 		}
 		if resolution, ok := stringValue(params["resolution"]); ok && resolution != "" && resolution != "480p" {
 			err := invalidParamCombinationError("parameter \"resolution\" must be 480p when \"draft\" is true", "resolution", "draft")
-			err.AllowedValues = []string{"480p"}
+			err.AllowedValues = []any{"480p"}
 			err.SuggestedFix = map[string]any{"resolution": "480p"}
 			return err
 		}
@@ -338,7 +394,9 @@ func validateDeclaredParamRules(params map[string]any, supported map[string]Para
 		}
 		for _, other := range p.ConflictsWith {
 			if paramHasNonZeroValue(params[other]) {
-				return invalidParamCombinationError("parameters \""+key+"\" and \""+other+"\" cannot be used together", key, other)
+				err := invalidParamCombinationError("parameters \""+key+"\" and \""+other+"\" cannot be used together", key, other)
+				err.SuggestedFix = map[string]any{other: nil}
+				return err
 			}
 		}
 		for _, item := range p.ConditionalEnum {
@@ -350,7 +408,7 @@ func validateDeclaredParamRules(params map[string]any, supported map[string]Para
 				continue
 			}
 			err := invalidParamCombinationError("parameter \""+key+"\" must be one of the allowed values for \""+item.WhenParam+"\"", key, item.WhenParam)
-			err.AllowedValues = append([]string{}, item.Options...)
+			err.AllowedValues = stringValuesToAny(item.Options)
 			if len(item.Options) > 0 {
 				err.SuggestedFix = map[string]any{key: item.Options[0]}
 			}
@@ -554,21 +612,8 @@ func scalarSliceContains(values []any, target any) bool {
 	return false
 }
 
-func scalarValuesToStrings(values []any) []string {
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		switch v := value.(type) {
-		case string:
-			out = append(out, v)
-		case bool:
-			out = append(out, strconv.FormatBool(v))
-		default:
-			if n, ok := numberValue(v); ok {
-				out = append(out, strconv.FormatFloat(n, 'f', -1, 64))
-			}
-		}
-	}
-	return out
+func cloneScalarValues(values []any) []any {
+	return append([]any{}, values...)
 }
 
 func isComparableScalar(value any) bool {

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -46,6 +47,79 @@ func TestCreateModelConfigReturnsBadRequestForInvalidParamContract(t *testing.T)
 	}
 }
 
+func TestCreateModelConfigReturnsBadRequestForInvalidInputLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestAIModelConfigRouter(t, true)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+		"model_def_id":"bad-image",
+		"custom_capabilities":"image",
+		"custom_max_input_images":-2,
+		"custom_supported_params":"[{\"key\":\"aspect_ratio\",\"label\":\"Aspect Ratio\",\"type\":\"select\",\"options\":[\"1:1\"],\"default\":\"1:1\"}]"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid input limit, got %d: %s", res.Code, res.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if body["code"] != "INVALID_MODEL_CONFIG" {
+		t.Fatalf("expected stable INVALID_MODEL_CONFIG code, got %#v", body)
+	}
+	if !strings.Contains(body["message"].(string), "custom_max_input_images") {
+		t.Fatalf("expected input limit detail in message, got %#v", body)
+	}
+}
+
+func TestPatchModelConfigReturnsBadRequestForInvalidInputLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestAIModelConfigRouter(t, true)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+		"model_def_id":"image-model",
+		"custom_capabilities":"image",
+		"custom_accepts_image":true,
+		"custom_max_input_images":4,
+		"custom_supported_params":"[{\"key\":\"aspect_ratio\",\"label\":\"Aspect Ratio\",\"type\":\"select\",\"options\":[\"1:1\"],\"default\":\"1:1\"}]"
+	}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes := httptest.NewRecorder()
+
+	router.ServeHTTP(createRes, createReq)
+
+	if createRes.Code != http.StatusCreated {
+		t.Fatalf("expected valid config to be created, got %d: %s", createRes.Code, createRes.Body.String())
+	}
+
+	patchReq := httptest.NewRequest(http.MethodPatch, "/admin/model-configs/1", strings.NewReader(`{
+		"custom_max_input_images":-2
+	}`))
+	patchReq.Header.Set("Content-Type", "application/json")
+	patchRes := httptest.NewRecorder()
+
+	router.ServeHTTP(patchRes, patchReq)
+
+	if patchRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 for invalid input limit patch, got %d: %s", patchRes.Code, patchRes.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(patchRes.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode error body: %v", err)
+	}
+	if body["code"] != "INVALID_MODEL_CONFIG" {
+		t.Fatalf("expected stable INVALID_MODEL_CONFIG code, got %#v", body)
+	}
+	if !strings.Contains(body["message"].(string), "custom_max_input_images") {
+		t.Fatalf("expected input limit detail in message, got %#v", body)
+	}
+}
+
 func TestCreateModelConfigReturnsNotFoundForMissingCredential(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := newTestAIModelConfigRouter(t, false)
@@ -75,6 +149,315 @@ func TestCreateModelConfigReturnsNotFoundForMissingCredential(t *testing.T) {
 	}
 }
 
+func TestPreviewModelConfigContractReturnsAgentContract(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestAIModelConfigRouter(t, false)
+
+	req := httptest.NewRequest(http.MethodPost, "/admin/model-configs/preview-contract", strings.NewReader(`{
+		"adapter_type":"volcen",
+		"custom_capabilities":"video_i2v,video_v2v",
+		"custom_accepts_image":true,
+		"custom_max_input_images":4,
+		"custom_max_input_videos":2,
+		"custom_supported_params":"{\"allow\":[\"duration\",\"resolution\"],\"override\":{\"duration\":{\"type\":\"select\",\"options\":[\"5\"],\"default\":\"5\"},\"resolution\":{\"json_schema\":{\"description\":\"Preview resolution\"}}}}"
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200 for preview contract, got %d: %s", res.Code, res.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode preview body: %v", err)
+	}
+	agentContract, ok := body["agent_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected agent_contract object, got %#v", body)
+	}
+	if agentContract["contract_version"] != float64(1) {
+		t.Fatalf("expected agent contract version 1, got %#v", agentContract)
+	}
+	inputRequirements, ok := agentContract["input_requirements"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected input_requirements object, got %#v", agentContract)
+	}
+	imageReq, ok := inputRequirements["image"].(map[string]any)
+	if !ok || imageReq["min"] != float64(1) || imageReq["max"] != float64(4) {
+		t.Fatalf("unexpected image input requirements: %#v", inputRequirements["image"])
+	}
+	videoReq, ok := inputRequirements["video"].(map[string]any)
+	if !ok || videoReq["min"] != float64(1) || videoReq["max"] != float64(2) {
+		t.Fatalf("unexpected video input requirements: %#v", inputRequirements["video"])
+	}
+	keys, ok := agentContract["supported_param_keys"].([]any)
+	if !ok || len(keys) != 2 || keys[0] != "duration" || keys[1] != "resolution" {
+		t.Fatalf("unexpected agent supported keys: %#v", agentContract["supported_param_keys"])
+	}
+	params, ok := agentContract["supported_params"].([]any)
+	if !ok || len(params) != 2 {
+		t.Fatalf("unexpected agent supported params: %#v", agentContract["supported_params"])
+	}
+	duration := agentContractParamBody(params, "duration")
+	if duration == nil || duration["label"] != "时长(秒)" || duration["default"] != "5" {
+		t.Fatalf("expected compact duration label/default, got %#v", duration)
+	}
+	resolution := agentContractParamBody(params, "resolution")
+	if resolution == nil || resolution["description"] != "Preview resolution" {
+		t.Fatalf("expected schema description in compact resolution, got %#v", resolution)
+	}
+}
+
+func TestSavedModelConfigInputRequirementsMatchRuntimeModels(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestAIModelConfigRouter(t, true)
+
+	previewReq := httptest.NewRequest(http.MethodPost, "/admin/model-configs/preview-contract", strings.NewReader(`{
+		"adapter_type":"volcen",
+		"custom_capabilities":"video_i2v,video_v2v",
+		"custom_accepts_image":true,
+		"custom_max_input_images":4,
+		"custom_max_input_videos":2,
+		"custom_supported_params":"{\"allow\":[\"duration\",\"resolution\"],\"override\":{\"duration\":{\"type\":\"select\",\"options\":[\"5\"],\"default\":\"5\"}}}"
+	}`))
+	previewReq.Header.Set("Content-Type", "application/json")
+	previewRes := httptest.NewRecorder()
+
+	router.ServeHTTP(previewRes, previewReq)
+
+	if previewRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 for preview contract, got %d: %s", previewRes.Code, previewRes.Body.String())
+	}
+	var preview map[string]any
+	if err := json.Unmarshal(previewRes.Body.Bytes(), &preview); err != nil {
+		t.Fatalf("decode preview body: %v", err)
+	}
+	agentContract, ok := preview["agent_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected agent_contract object, got %#v", preview)
+	}
+	previewInputs, ok := agentContract["input_requirements"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preview input_requirements object, got %#v", agentContract)
+	}
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+		"model_def_id":"runtime-i2v",
+		"custom_capabilities":"video_i2v,video_v2v",
+		"custom_accepts_image":true,
+		"custom_max_input_images":4,
+		"custom_max_input_videos":2,
+		"custom_supported_params":"{\"allow\":[\"duration\",\"resolution\"],\"override\":{\"duration\":{\"type\":\"select\",\"options\":[\"5\"],\"default\":\"5\"}}}"
+	}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes := httptest.NewRecorder()
+
+	router.ServeHTTP(createRes, createReq)
+
+	if createRes.Code != http.StatusCreated {
+		t.Fatalf("expected valid config to be created, got %d: %s", createRes.Code, createRes.Body.String())
+	}
+
+	modelsReq := httptest.NewRequest(http.MethodGet, "/models?capability=video_i2v&provider_variants=true", nil)
+	modelsRes := httptest.NewRecorder()
+
+	router.ServeHTTP(modelsRes, modelsReq)
+
+	if modelsRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 for runtime models, got %d: %s", modelsRes.Code, modelsRes.Body.String())
+	}
+	var models []map[string]any
+	if err := json.Unmarshal(modelsRes.Body.Bytes(), &models); err != nil {
+		t.Fatalf("decode runtime models: %v", err)
+	}
+	if len(models) != 1 {
+		t.Fatalf("expected one runtime model, got %#v", models)
+	}
+	runtimeInputs, ok := models[0]["input_requirements"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected runtime input_requirements object, got %#v", models[0])
+	}
+	if !inputRequirementEqual(previewInputs["image"], runtimeInputs["image"]) {
+		t.Fatalf("preview image requirements do not match runtime: preview=%#v runtime=%#v", previewInputs["image"], runtimeInputs["image"])
+	}
+	if !inputRequirementEqual(previewInputs["video"], runtimeInputs["video"]) {
+		t.Fatalf("preview video requirements do not match runtime: preview=%#v runtime=%#v", previewInputs["video"], runtimeInputs["video"])
+	}
+}
+
+func TestSavedModelConfigPreservesUnlimitedInputRequirements(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestAIModelConfigRouter(t, true)
+
+	previewReq := httptest.NewRequest(http.MethodPost, "/admin/model-configs/preview-contract", strings.NewReader(`{
+		"adapter_type":"volcen",
+		"custom_capabilities":"video_i2v,video_v2v",
+		"custom_accepts_image":true,
+		"custom_max_input_images":-1,
+		"custom_max_input_videos":-1,
+		"custom_supported_params":"{\"allow\":[\"duration\"],\"override\":{\"duration\":{\"type\":\"select\",\"options\":[\"5\"],\"default\":\"5\"}}}"
+	}`))
+	previewReq.Header.Set("Content-Type", "application/json")
+	previewRes := httptest.NewRecorder()
+
+	router.ServeHTTP(previewRes, previewReq)
+
+	if previewRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 for preview contract, got %d: %s", previewRes.Code, previewRes.Body.String())
+	}
+	var preview map[string]any
+	if err := json.Unmarshal(previewRes.Body.Bytes(), &preview); err != nil {
+		t.Fatalf("decode preview body: %v", err)
+	}
+	agentContract, ok := preview["agent_contract"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected agent_contract object, got %#v", preview)
+	}
+	previewInputs, ok := agentContract["input_requirements"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected preview input_requirements object, got %#v", agentContract)
+	}
+	if !inputRequirementHas(previewInputs["image"], 1, -1) || !inputRequirementHas(previewInputs["video"], 1, -1) {
+		t.Fatalf("expected preview unlimited image/video requirements, got %#v", previewInputs)
+	}
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+		"model_def_id":"runtime-unlimited-i2v",
+		"custom_capabilities":"video_i2v,video_v2v",
+		"custom_accepts_image":true,
+		"custom_max_input_images":-1,
+		"custom_max_input_videos":-1,
+		"custom_supported_params":"{\"allow\":[\"duration\"],\"override\":{\"duration\":{\"type\":\"select\",\"options\":[\"5\"],\"default\":\"5\"}}}"
+	}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes := httptest.NewRecorder()
+
+	router.ServeHTTP(createRes, createReq)
+
+	if createRes.Code != http.StatusCreated {
+		t.Fatalf("expected valid config to be created, got %d: %s", createRes.Code, createRes.Body.String())
+	}
+
+	modelsReq := httptest.NewRequest(http.MethodGet, "/models?capability=video_i2v&provider_variants=true", nil)
+	modelsRes := httptest.NewRecorder()
+
+	router.ServeHTTP(modelsRes, modelsReq)
+
+	if modelsRes.Code != http.StatusOK {
+		t.Fatalf("expected 200 for runtime models, got %d: %s", modelsRes.Code, modelsRes.Body.String())
+	}
+	var models []map[string]any
+	if err := json.Unmarshal(modelsRes.Body.Bytes(), &models); err != nil {
+		t.Fatalf("decode runtime models: %v", err)
+	}
+	if len(models) != 1 {
+		t.Fatalf("expected one runtime model, got %#v", models)
+	}
+	runtimeInputs, ok := models[0]["input_requirements"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected runtime input_requirements object, got %#v", models[0])
+	}
+	if !inputRequirementEqual(previewInputs["image"], runtimeInputs["image"]) {
+		t.Fatalf("preview image requirements do not match runtime: preview=%#v runtime=%#v", previewInputs["image"], runtimeInputs["image"])
+	}
+	if !inputRequirementEqual(previewInputs["video"], runtimeInputs["video"]) {
+		t.Fatalf("preview video requirements do not match runtime: preview=%#v runtime=%#v", previewInputs["video"], runtimeInputs["video"])
+	}
+}
+
+func TestListModelPresetsReturnsSupportedParams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestAIModelConfigRouter(t, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/model-presets", nil)
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200 for model presets, got %d: %s", res.Code, res.Body.String())
+	}
+	var presets []map[string]any
+	if err := json.Unmarshal(res.Body.Bytes(), &presets); err != nil {
+		t.Fatalf("decode presets: %v", err)
+	}
+	for _, preset := range presets {
+		if preset["id"] != "volcengine:seedance-1-0-lite-t2v" {
+			continue
+		}
+		params, ok := preset["supported_params"].([]any)
+		if !ok || len(params) == 0 {
+			t.Fatalf("expected preset supported_params, got %#v", preset)
+		}
+		if agentContractParamBody(params, "duration") == nil || agentContractParamBody(params, "resolution") == nil {
+			t.Fatalf("expected duration and resolution preset params, got %#v", params)
+		}
+		return
+	}
+	t.Fatal("expected Seedance preset in HTTP response")
+}
+
+func TestListModelPresetsReturnsCanonicalParamKeys(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := newTestAIModelConfigRouter(t, false)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/model-presets", nil)
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200 for model presets, got %d: %s", res.Code, res.Body.String())
+	}
+	var presets []map[string]any
+	if err := json.Unmarshal(res.Body.Bytes(), &presets); err != nil {
+		t.Fatalf("decode presets: %v", err)
+	}
+	for _, preset := range presets {
+		if preset["id"] != "openai:dall-e-3" {
+			continue
+		}
+		params, ok := preset["supported_params"].([]any)
+		if !ok || len(params) == 0 {
+			t.Fatalf("expected DALL-E supported_params, got %#v", preset)
+		}
+		if agentContractParamBody(params, "image_size") == nil {
+			t.Fatalf("expected DALL-E preset to expose canonical image_size param, got %#v", params)
+		}
+		if agentContractParamBody(params, "size") != nil {
+			t.Fatalf("expected DALL-E preset not to expose legacy size alias, got %#v", params)
+		}
+		return
+	}
+	t.Fatal("expected DALL-E preset in HTTP response")
+}
+
+func agentContractParamBody(params []any, key string) map[string]any {
+	for _, raw := range params {
+		param, ok := raw.(map[string]any)
+		if ok && param["key"] == key {
+			return param
+		}
+	}
+	return nil
+}
+
+func inputRequirementEqual(left any, right any) bool {
+	leftReq, leftOK := left.(map[string]any)
+	rightReq, rightOK := right.(map[string]any)
+	return leftOK &&
+		rightOK &&
+		leftReq["min"] == rightReq["min"] &&
+		leftReq["max"] == rightReq["max"]
+}
+
+func inputRequirementHas(raw any, min int, max int) bool {
+	req, ok := raw.(map[string]any)
+	return ok && req["min"] == float64(min) && req["max"] == float64(max)
+}
+
 func newTestAIModelConfigRouter(t *testing.T, seedCredential bool) *gin.Engine {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "handler-aiadmin.db")), &gorm.Config{})
@@ -93,8 +476,15 @@ func newTestAIModelConfigRouter(t *testing.T, seedCredential bool) *gin.Engine {
 			t.Fatalf("seed credential: %v", err)
 		}
 	}
-	h := NewAIHandler(db.Session(&gorm.Session{SkipHooks: true}), "746573742d656e6372797074696f6e2d6b65792d33322d62797465732d2d2d2d2d", nil)
+	db = db.Session(&gorm.Session{SkipHooks: true})
+	registry := ai.NewRegistry(db, nil)
+	h := NewAIHandler(db, "746573742d656e6372797074696f6e2d6b65792d33322d62797465732d2d2d2d2d", registry)
+	models := NewModelsHandler(ai.NewAIService(db, registry))
 	router := gin.New()
+	router.GET("/admin/model-presets", h.ListModelPresets)
 	router.POST("/admin/ai/credentials/:id/models", h.CreateModelConfig)
+	router.PATCH("/admin/model-configs/:id", h.PatchModelConfig)
+	router.POST("/admin/model-configs/preview-contract", h.PreviewModelConfigContract)
+	router.GET("/models", models.ListByCapability)
 	return router
 }

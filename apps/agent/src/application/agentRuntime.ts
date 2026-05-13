@@ -1,6 +1,7 @@
-import type { MCPClient } from '../mcpClient.js'
+import { MCPError, type MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../types.js'
 import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest, type AgentManifest } from '../catalog/agentManifest.js'
+import type { SkillDefinition } from '../catalog/types.js'
 import {
   InMemoryAgentCatalogStateStore,
   type AgentCatalogStateStore,
@@ -39,6 +40,7 @@ import { buildRunSetupMetadata } from '../state/runSetup.js'
 import type {
   AgentApprovalRequest,
   AgentPlan,
+  AgentPlanSummary,
   AgentPlanSnapshot,
   AgentPlanStreamEvent,
   AgentRunRole,
@@ -152,7 +154,7 @@ export type {
   UpdatePlanTaskInput,
 } from '../state/types.js'
 export type { AgentMemory, AgentMemoryKind, MemoryQuery } from '../memory/types.js'
-export type { AgentManifest, AgentToolGrant, AgentSkillManifest } from '../catalog/agentManifest.js'
+export type { AgentManifest, AgentToolGrant } from '../catalog/agentManifest.js'
 export type { AgentPluginCatalog } from '../catalog/loader.js'
 export type {
   AgentUpdateCandidate,
@@ -201,7 +203,6 @@ interface AgentRuntimeCatalogSnapshot {
   id: string
   catalogVersion: string | null
   defaultAgentManifest: AgentManifest
-  skillCatalog: AgentManifest['skills']
   toolRegistry: ToolRegistry
   layeredRegistry: AgentPluginCatalog['layeredRegistry']
   pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
@@ -216,7 +217,6 @@ export class AgentRuntime {
   private readonly memoryStore: AgentMemoryStore
   private readonly memoryManager: MemoryManager
   private defaultAgentManifest: AgentManifest
-  private skillCatalog: AgentManifest['skills']
   private toolRegistry: ToolRegistry
   private layeredRegistry: AgentPluginCatalog['layeredRegistry']
   private readonly contractResolver: AgentRuntimeContractResolver
@@ -242,12 +242,10 @@ export class AgentRuntime {
     this.memoryManager = new MemoryManager(this.memoryStore)
     const builtinCatalog = !options.pluginCatalogLoader
       && !options.defaultAgentManifest
-      && !options.skillCatalog
       && !options.toolRegistry
       ? loadCatalogSnapshot()
       : undefined
     this.defaultAgentManifest = options.defaultAgentManifest ?? builtinCatalog?.manifest ?? DEFAULT_AGENT_MANIFEST
-    this.skillCatalog = options.skillCatalog ?? builtinCatalog?.skills ?? []
     this.toolRegistry = options.toolRegistry ?? builtinCatalog?.registry ?? DEFAULT_TOOL_REGISTRY
     this.layeredRegistry = builtinCatalog?.layeredRegistry ?? loadCatalogSnapshot({
       baseManifest: this.defaultAgentManifest,
@@ -260,8 +258,8 @@ export class AgentRuntime {
         toolsDir: builtinCatalog.toolsDir,
         builtinSkillsDir: builtinCatalog.builtinSkillsDir,
         builtinToolsDir: builtinCatalog.builtinToolsDir,
-        skillCount: builtinCatalog.skills.length,
-        toolCount: builtinCatalog.registry.list().length,
+        skillCount: builtinCatalog.layeredSkills.length,
+        toolCount: builtinCatalog.layeredTools.length,
       }
       : undefined)
     this.pluginWarnings = options.pluginWarnings ?? builtinCatalog?.warnings ?? []
@@ -296,8 +294,8 @@ export class AgentRuntime {
     return this.toolRegistry.list()
   }
 
-  listSkillCatalog(): AgentManifest['skills'] {
-    return this.skillCatalog
+  listSkillCatalog(): SkillDefinition[] {
+    return Array.from(this.layeredRegistry.skills.values())
   }
 
   getDefaultAgentManifest(): AgentManifest {
@@ -309,7 +307,6 @@ export class AgentRuntime {
       id: makeId('catalog'),
       catalogVersion: this.pluginCatalogInfo?.metadata?.catalogVersion as string | null | undefined ?? null,
       defaultAgentManifest: this.defaultAgentManifest,
-      skillCatalog: this.skillCatalog,
       toolRegistry: this.toolRegistry,
       layeredRegistry: this.layeredRegistry,
       ...(this.pluginCatalogInfo ? { pluginCatalogInfo: this.pluginCatalogInfo } : {}),
@@ -332,23 +329,22 @@ export class AgentRuntime {
       return {
         status: 'unchanged',
         reason: 'dynamic agent catalog loading is not configured',
-        skillCount: this.skillCatalog.length,
-        toolCount: this.toolRegistry.list().length,
+        skillCount: this.layeredRegistry.skills.size,
+        toolCount: this.layeredRegistry.tools.size,
       } as unknown as JSONValue
     }
     const reload = reloadCatalogCandidate({
       load: () => this.pluginCatalogLoader?.() ?? loadCatalogSnapshot(),
       previous: {
         catalogVersion: this.pluginCatalogInfo?.metadata?.catalogVersion as string | null | undefined ?? null,
-        skillCount: this.skillCatalog.length,
-        toolCount: this.toolRegistry.list().length,
+        skillCount: this.layeredRegistry.skills.size,
+        toolCount: this.layeredRegistry.tools.size,
       },
       isBlockingIssue: isBlockingCatalogIssue,
     })
     if (reload.status === 'rolled_back') return reload as unknown as JSONValue
     const catalog = reload.catalog
     this.defaultAgentManifest = catalog.manifest
-    this.skillCatalog = catalog.skills
     this.toolRegistry = catalog.registry
     this.layeredRegistry = catalog.layeredRegistry
     this.pluginWarnings = catalog.warnings
@@ -357,8 +353,8 @@ export class AgentRuntime {
       toolsDir: catalog.toolsDir,
       builtinSkillsDir: catalog.builtinSkillsDir,
       builtinToolsDir: catalog.builtinToolsDir,
-      skillCount: catalog.skills.length,
-      toolCount: catalog.registry.list().length,
+      skillCount: catalog.layeredSkills.length,
+      toolCount: catalog.layeredTools.length,
       metadata: {
         catalogVersion: reload.catalogVersion,
         catalogIssueCount: reload.catalogIssueCount,
@@ -385,10 +381,12 @@ export class AgentRuntime {
     const createdTaskIds: string[] = []
     const taskInputs = normalizePlanTaskInputs(input.tasks)
     const usedSubagentNames = this.collectSubagentNames(planId)
+    const tasksToCreate: AgentTask[] = []
     for (const [index, taskInput] of taskInputs.entries()) {
       const subagentName = normalizeNonEmptyString(taskInput.subagentName)
         ?? normalizeSubagentNameAt(input.subagentNames, index)
         ?? nextSubagentName(usedSubagentNames)
+      if (usedSubagentNames.has(subagentName)) throw new Error(`subagent name already exists in plan ${planId}: ${subagentName}`)
       usedSubagentNames.add(subagentName)
       const task = buildAgentTask(planId, {
         ...taskInput,
@@ -397,31 +395,45 @@ export class AgentRuntime {
           executionMode: 'worker',
           createdByPlannerRunId: plannerRun.id,
           ...(subagentName ? { subagentName } : {}),
+          ...taskExecutionOverrideMetadata(taskInput),
         },
       }, isoNow())
       if (this.store.getTask(task.id)) throw new Error(`task already exists: ${task.id}`)
+      if (tasksToCreate.some((item) => item.id === task.id)) throw new Error(`task already exists: ${task.id}`)
+      tasksToCreate.push(task)
+    }
+    const taskToCreateById = new Map(tasksToCreate.map((task) => [task.id, task]))
+    const requestedTaskIds = uniqueStrings([
+      ...normalizeStringList(input.taskIds),
+      ...(typeof input.taskId === 'string' && input.taskId.trim() ? [input.taskId.trim()] : []),
+      ...tasksToCreate.map((task) => task.id),
+    ])
+    const subagentNameByTaskId = buildRequestedSubagentNameMap(input, requestedTaskIds)
+    for (const taskId of requestedTaskIds) {
+      if (!subagentNameByTaskId.has(taskId)) {
+        const task = taskToCreateById.get(taskId) ?? this.requireTask(taskId)
+        if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+        const existingName = subagentNameFromTask(task)
+        const name = existingName ?? nextSubagentName(usedSubagentNames)
+        subagentNameByTaskId.set(taskId, name)
+        usedSubagentNames.add(name)
+      }
+    }
+    for (const taskId of requestedTaskIds) {
+      const task = taskToCreateById.get(taskId) ?? this.requireTask(taskId)
+      if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+      const subagentName = subagentNameByTaskId.get(taskId)
+      if (subagentName) this.assertUniqueSubagentNameForTask(planId, taskId, subagentName, subagentNameByTaskId)
+    }
+    for (const task of tasksToCreate) {
       this.store.createTask(task)
       this.recordTaskProtocolEvents(task)
       this.emitPlanTaskEvent(planId, task)
       createdTaskIds.push(task.id)
     }
 
-    const requestedTaskIds = uniqueStrings([
-      ...normalizeStringList(input.taskIds),
-      ...(typeof input.taskId === 'string' && input.taskId.trim() ? [input.taskId.trim()] : []),
-      ...createdTaskIds,
-    ])
-    const subagentNameByTaskId = buildRequestedSubagentNameMap(input, requestedTaskIds)
-    for (const taskId of requestedTaskIds) {
-      if (!subagentNameByTaskId.has(taskId)) {
-        const name = nextSubagentName(usedSubagentNames)
-        subagentNameByTaskId.set(taskId, name)
-        usedSubagentNames.add(name)
-      }
-    }
     for (const taskId of requestedTaskIds) {
       const task = this.requireTask(taskId)
-      if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
       const subagentName = subagentNameByTaskId.get(taskId)
       if (subagentName && (!isRecord(task.metadata) || task.metadata.subagentName !== subagentName)) {
         this.updateTask(task.id, {
@@ -431,7 +443,7 @@ export class AgentRuntime {
           },
         })
       }
-      if (task.status === 'blocked' || task.status === 'failed' || task.status === 'cancelled') {
+      if (task.status === 'blocked' || ((task.status === 'failed' || task.status === 'cancelled') && input.retryFailed !== true)) {
         this.updateTask(task.id, {
           status: 'pending',
           progress: 0,
@@ -449,6 +461,9 @@ export class AgentRuntime {
       plannerRunId: plannerRun.id,
       ...(requestedTaskIds.length > 0 ? { taskIds: requestedTaskIds } : {}),
       maxWorkers: input.maxWorkers,
+      maxTaskAttempts: input.maxTaskAttempts,
+      retryFailed: input.retryFailed,
+      workerTimeoutMs: input.workerTimeoutMs,
     })
     return {
       status: dispatch.spawnedRuns.length > 0 ? 'spawned' : 'no_runnable_tasks',
@@ -457,6 +472,8 @@ export class AgentRuntime {
       createdTaskIds,
       spawnedRuns: dispatch.spawnedRuns.map(toSubagentRunSummary),
       blockedTaskIds: dispatch.blockedTaskIds,
+      retriedTaskIds: dispatch.retriedTaskIds,
+      timedOutRunIds: dispatch.timedOutRunIds,
       snapshot: this.subagentSnapshot(planId, plannerRun.id),
     } as unknown as JSONValue
   }
@@ -502,21 +519,57 @@ export class AgentRuntime {
     const planId = plannerRun.planId
     if (!planId) throw new Error('cancel_subagent requires the planner run to be attached to a plan')
     const resolvedInput = this.resolveSubagentNameInput(planId, input)
-    const runId = normalizeNonEmptyString(resolvedInput.runId) ?? this.requireTaskOwnerRunId(planId, resolvedInput.taskId)
-    if (!runId) throw new Error('cancel_subagent requires runId or taskId')
-    const childRun = this.requireRun(runId)
-    if (childRun.planId !== planId) throw new Error(`run ${runId} does not belong to plan ${planId}`)
+    const taskId = normalizeNonEmptyString(resolvedInput.taskId)
+    const runId = normalizeNonEmptyString(resolvedInput.runId) ?? this.requireTaskOwnerRunId(planId, taskId)
+    if (!runId && !taskId) throw new Error('cancel_subagent requires runId or taskId')
+    if (!runId && taskId) return this.cancelPendingSubagentTask(plannerRun, taskId, input)
+    const targetRunId = runId!
+    const childRun = this.requireRun(targetRunId)
+    if (childRun.planId !== planId) throw new Error(`run ${targetRunId} does not belong to plan ${planId}`)
     if (childRun.role !== 'worker') {
       throw new Error(`cancel_subagent can only cancel worker subagent runs`)
     }
-    const result = this.cancelSubtree(runId, { reason: input.reason })
-    const cancelledRun = this.requireRun(runId)
+    const result = this.cancelSubtree(targetRunId, { reason: input.reason })
+    const cancelledRun = this.requireRun(targetRunId)
     return {
       status: result.cancelledRunIds.length > 0 ? 'cancelled' : 'unchanged',
       planId,
       plannerRunId: plannerRun.id,
       target: { kind: 'run', run: this.toSubagentRunSummaryForPlan(cancelledRun) as unknown as JSONValue },
       cancelledRunIds: result.cancelledRunIds,
+      snapshot: this.subagentSnapshot(planId, plannerRun.id),
+    } as unknown as JSONValue
+  }
+
+  private cancelPendingSubagentTask(plannerRun: AgentRun, taskId: string, input: Record<string, JSONValue>): JSONValue {
+    const planId = plannerRun.planId
+    if (!planId) throw new Error('cancel_subagent requires the planner run to be attached to a plan')
+    const task = this.requireTask(taskId)
+    if (task.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+    if (task.ownerRunId) throw new Error(`task ${taskId} is already owned by run ${task.ownerRunId}`)
+    const cancellable = task.status === 'pending' || task.status === 'blocked' || task.status === 'needs_review'
+    const cancelledTask = cancellable
+      ? this.updateTask(task.id, {
+        status: 'cancelled',
+        progress: task.progress,
+        blockedReason: normalizeNonEmptyString(input.reason) ?? 'Subagent task was cancelled before a worker run started.',
+        metadata: {
+          cancelledByPlannerRunId: plannerRun.id,
+        },
+      })
+      : task
+    return {
+      status: cancellable ? 'cancelled' : 'unchanged',
+      planId,
+      plannerRunId: plannerRun.id,
+      target: {
+        kind: 'task',
+        task: {
+          ...cancelledTask,
+          ...(subagentNameFromTask(cancelledTask) ? { subagentName: subagentNameFromTask(cancelledTask) } : {}),
+        } as unknown as JSONValue,
+      },
+      cancelledRunIds: [],
       snapshot: this.subagentSnapshot(planId, plannerRun.id),
     } as unknown as JSONValue
   }
@@ -744,7 +797,7 @@ export class AgentRuntime {
       pluginCatalog: catalogSnapshot.pluginCatalogInfo,
       warnings: [...catalogSnapshot.pluginWarnings, ...(layers?.warnings ?? [])],
       updates: this.updateState,
-      activeSkills: skills,
+      ...(layers ? { activeSkills: skills } : {}),
       userMessage: message,
       runRole: 'planner',
     })
@@ -866,10 +919,13 @@ export class AgentRuntime {
       createdAt: now,
       updatedAt: now,
     }
-    this.store.createPlan(plan)
     const createdTasks: AgentTask[] = []
-    for (const taskInput of tasksInput) {
-      const task = buildAgentTask(plan.id, taskInput, now)
+    const tasksToCreate = tasksInput.map((taskInput) => buildAgentTask(plan.id, taskInput, now))
+    this.assertTaskGraphReferencesForCreate(plan.id, tasksToCreate)
+    this.assertTaskParentHierarchyAcyclic(plan.id, new Map(tasksToCreate.map((task) => [task.id, task.parentId])))
+    this.assertTaskGraphAcyclic(plan.id, new Map(tasksToCreate.map((task) => [task.id, task.deps])))
+    this.store.createPlan(plan)
+    for (const task of tasksToCreate) {
       this.store.createTask(task)
       this.recordTaskProtocolEvents(task)
       createdTasks.push(task)
@@ -909,10 +965,16 @@ export class AgentRuntime {
   getPlanSnapshot(planId: string): AgentPlanSnapshot {
     const plan = this.store.getPlan(planId)
     if (!plan) throw new Error(`plan not found: ${planId}`)
+    const tasks = this.store.listTasks(planId)
+    const nameConflicts = subagentNameConflicts(tasks)
+    const runs = this.store.listRuns({ planId }).map(toProductRun)
+    const artifacts = taskArtifactReferences(tasks)
     return {
       plan,
-      tasks: this.store.listTasks(planId),
-      runs: this.store.listRuns({ planId }).map(toProductRun),
+      tasks,
+      runs,
+      ...(nameConflicts.length > 0 ? { nameConflicts } : {}),
+      summary: agentPlanSummary(tasks, runs, artifacts, nameConflicts),
     }
   }
 
@@ -934,8 +996,24 @@ export class AgentRuntime {
       if (nextStatus === 'cancelled') task.cancelledAt = now
     }
     const parentId = normalizeNonEmptyString(input.parentId)
-    if (parentId) task.parentId = parentId
-    if (Array.isArray(input.deps)) task.deps = normalizeStringList(input.deps)
+    if (parentId) {
+      this.assertTaskReferenceInPlan(task.planId, parentId, 'parent task')
+      if (parentId === task.id) throw new Error(`task ${task.id} cannot use itself as parent`)
+      this.assertTaskParentHierarchyAcyclic(task.planId, new Map([[task.id, parentId]]))
+      task.parentId = parentId
+    } else if ('parentId' in input) {
+      this.assertTaskParentHierarchyAcyclic(task.planId, new Map([[task.id, undefined]]))
+      delete task.parentId
+    }
+    if (Array.isArray(input.deps)) {
+      const deps = normalizeStringList(input.deps)
+      for (const depId of deps) {
+        this.assertTaskReferenceInPlan(task.planId, depId, 'dependency task')
+        if (depId === task.id) throw new Error(`task ${task.id} cannot depend on itself`)
+      }
+      this.assertTaskGraphAcyclic(task.planId, new Map([[task.id, deps]]))
+      task.deps = deps
+    }
     const title = normalizeNonEmptyString(input.title)
     if (title) task.title = title
     if (typeof input.description === 'string') {
@@ -946,7 +1024,12 @@ export class AgentRuntime {
     const progress = normalizeProgress(input.progress)
     if (progress !== undefined) task.progress = progress
     const ownerRunId = typeof input.ownerRunId === 'string' && input.ownerRunId.trim() ? input.ownerRunId.trim() : undefined
-    if (ownerRunId) task.ownerRunId = ownerRunId
+    if (ownerRunId) {
+      const ownerRun = this.requireRun(ownerRunId)
+      if (ownerRun.planId !== task.planId) throw new Error(`owner run ${ownerRunId} does not belong to plan ${task.planId}`)
+      if (ownerRun.taskId && ownerRun.taskId !== task.id) throw new Error(`owner run ${ownerRunId} is attached to task ${ownerRun.taskId}, not task ${task.id}`)
+      task.ownerRunId = ownerRunId
+    }
     if (typeof input.blockedReason === 'string') {
       const blockedReason = input.blockedReason.trim()
       if (blockedReason) task.blockedReason = blockedReason
@@ -954,13 +1037,29 @@ export class AgentRuntime {
     }
     const artifacts = normalizeTaskArtifacts(input.artifacts, now)
     if (artifacts.length > 0) task.artifacts = [...task.artifacts, ...artifacts]
-    if (isJSONRecord(input.metadata)) task.metadata = { ...(task.metadata ?? {}), ...input.metadata }
+    if (isJSONRecord(input.metadata)) {
+      const nextSubagentName = normalizeNonEmptyString(input.metadata.subagentName)
+      if (nextSubagentName) this.assertUniqueSubagentNameForTask(task.planId, task.id, nextSubagentName, new Map([[task.id, nextSubagentName]]))
+      task.metadata = { ...(task.metadata ?? {}), ...input.metadata }
+    }
     task.updatedAt = now
     this.store.updateTask(task)
     this.recomputePlanStatus(task.planId)
     this.recordTaskProtocolEvents(task, previousTask)
     this.emitPlanTaskEvent(task.planId, task)
     return task
+  }
+
+  private assertTaskReferenceInPlan(planId: string, taskId: string, label: string): void {
+    const referencedTask = this.requireTask(taskId)
+    if (referencedTask.planId !== planId) throw new Error(`${label} ${taskId} does not belong to plan ${planId}`)
+  }
+
+  private assertTaskReferenceInTaskMap(planId: string, tasksById: Map<string, AgentTask>, taskId: string, label: string): void {
+    if (tasksById.has(taskId)) return
+    const referencedTask = this.store.getTask(taskId)
+    if (referencedTask && referencedTask.planId !== planId) throw new Error(`${label} ${taskId} does not belong to plan ${planId}`)
+    throw new Error(`task not found: ${taskId}`)
   }
 
   private assignTaskToPlannerRun(taskId: string, runId: string): void {
@@ -998,6 +1097,16 @@ export class AgentRuntime {
     return { cancelledRunIds }
   }
 
+  cancelPlanTree(runId: string, input: CancelRunInput = {}): { cancelledRunIds: string[] } {
+    const run = this.requirePlannerRun(runId)
+    if (!run.planId) throw new Error(`planner run ${runId} is not attached to a plan`)
+    const plan = this.requirePlan(run.planId)
+    if (plan.rootRunId && plan.rootRunId !== run.id) {
+      throw new Error(`planner run ${run.id} is not the root planner for plan ${plan.id}`)
+    }
+    return this.cancelSubtree(run.id, input)
+  }
+
   dispatchPlan(input: DispatchPlanInput): DispatchPlanResult {
     const planId = typeof input.planId === 'string' && input.planId.trim() ? input.planId.trim() : undefined
     if (!planId) throw new Error('planId is required')
@@ -1006,10 +1115,11 @@ export class AgentRuntime {
       ? input.plannerRunId.trim()
       : plan.rootRunId
     if (!plannerRunId) throw new Error(`plan ${planId} has no plannerRunId`)
-    const plannerRun = this.requireRun(plannerRunId)
+    const plannerRun = this.requirePlannerRun(plannerRunId)
+    if (plannerRun.planId && plannerRun.planId !== plan.id) throw new Error(`planner run ${plannerRun.id} does not belong to plan ${plan.id}`)
     const maxTaskAttempts = normalizePositiveInteger(input.maxTaskAttempts) ?? 1
     const workerTimeoutMs = normalizePositiveInteger(input.workerTimeoutMs)
-    const timedOutRunIds = workerTimeoutMs ? this.cancelTimedOutPlanWorkers(plan.id, workerTimeoutMs) : []
+    const timedOutRunIds = this.cancelTimedOutPlanWorkers(plan.id, workerTimeoutMs)
     const retriedTaskIds = input.retryFailed === true ? this.resetRetryablePlanTasks(plan.id, maxTaskAttempts) : []
     const requestedTaskIds = uniqueStrings(normalizeStringList(input.taskIds))
     for (const taskId of requestedTaskIds) {
@@ -1102,14 +1212,19 @@ export class AgentRuntime {
       ?? (run.role === 'planner' ? run.id : run.parentRunId)
       ?? plan.rootRunId
     if (!plannerRunId) throw new Error(`plan ${plan.id} has no plannerRunId`)
-    this.requireRun(plannerRunId)
+    const plannerRun = this.requirePlannerRun(plannerRunId)
+    if (plannerRun.planId && plannerRun.planId !== plan.id) throw new Error(`planner run ${plannerRun.id} does not belong to plan ${plan.id}`)
 
     const now = isoNow()
     const taskInputs = this.normalizeReplanTaskInputsForPlan(plan.id, input.tasks, input.addTasks)
+    const tasksToCreate = this.buildReplanTasksToCreate(plan.id, taskInputs.creates, now)
+    const updatesToApply = this.normalizeAndValidateReplanTaskUpdates(plan.id, [
+      ...taskInputs.updates,
+      ...normalizePlanTaskUpdateInputs(input.updates),
+      ...normalizePlanTaskUpdateInputs(input.updateTasks),
+    ], tasksToCreate)
     const createdTaskIds: string[] = []
-    for (const taskInput of taskInputs.creates) {
-      const task = buildAgentTask(plan.id, taskInput, now)
-      if (this.store.getTask(task.id)) throw new Error(`task already exists: ${task.id}`)
+    for (const task of tasksToCreate) {
       this.store.createTask(task)
       this.recordTaskProtocolEvents(task)
       this.emitPlanTaskEvent(plan.id, task)
@@ -1117,15 +1232,7 @@ export class AgentRuntime {
     }
 
     const updatedTaskIds: string[] = []
-    for (const update of [
-      ...taskInputs.updates,
-      ...normalizePlanTaskUpdateInputs(input.updates),
-      ...normalizePlanTaskUpdateInputs(input.updateTasks),
-    ]) {
-      const taskId = normalizeNonEmptyString(update.id)
-      if (!taskId) throw new Error('task update id is required')
-      const task = this.requireTask(taskId)
-      if (task.planId !== plan.id) throw new Error(`task ${taskId} does not belong to plan ${plan.id}`)
+    for (const { taskId, update } of updatesToApply) {
       this.updateTask(taskId, update)
       updatedTaskIds.push(taskId)
     }
@@ -1742,7 +1849,7 @@ export class AgentRuntime {
         pluginCatalog: catalogSnapshot.pluginCatalogInfo,
         warnings: [...catalogSnapshot.pluginWarnings, ...contextWarnings, ...(layers?.warnings ?? [])],
         updates: this.updateState,
-        activeSkills: skills,
+        ...(layers ? { activeSkills: skills } : {}),
         userMessage: lastUser.content,
         runRole: run.role,
       })
@@ -1793,7 +1900,6 @@ export class AgentRuntime {
           eventType: 'profile.resolved',
           id: layers?.trace.profileId ?? activeManifest.id,
           version: layers?.trace.profileVersion ?? activeManifest.version,
-          mode: activeManifest.metadata?.mode,
           ...(layers?.trace.personaId ? { personaId: layers.trace.personaId } : {}),
           ...(layers ? { policyIds: layers.trace.policyIds, workflowIds: layers.trace.workflowIds, profileLayers: layers.trace.profileLayers } : {}),
           permissions: Array.from(new Set(activeManifest.tools
@@ -1959,24 +2065,36 @@ export class AgentRuntime {
 
         const toolStep = this.createStep(run, 'tool_call', localRound, 'movscript_create_generation_job')
         const startedAt = Date.now()
-        const execResult = await executeTool({
-          name: 'movscript_create_generation_job',
-          args: toolArgs as Record<string, JSONValue>,
-        }, {
-          run,
-          mcpClient: this.mcpClient,
-          draftStore: this.draftStore,
-          backendApplyClient: this.backendApplyClient,
-          registry: catalogSnapshot.toolRegistry,
-          memoryManager: this.memoryManager,
-          catalogManager: this,
-          sandboxMode: run.policy.sandboxMode === true,
-          signal,
-        })
+        let execResult
+        try {
+          execResult = await executeTool({
+            name: 'movscript_create_generation_job',
+            args: toolArgs as Record<string, JSONValue>,
+          }, {
+            run,
+            mcpClient: this.mcpClient,
+            draftStore: this.draftStore,
+            backendApplyClient: this.backendApplyClient,
+            registry: catalogSnapshot.toolRegistry,
+            memoryManager: this.memoryManager,
+            catalogManager: this,
+            sandboxMode: run.policy.sandboxMode === true,
+            signal,
+          })
+        } catch (error) {
+          const errorData = generationBackendErrorData(error)
+          execResult = {
+            call: { name: 'movscript_create_generation_job', args: toolArgs as Record<string, JSONValue> },
+            error: error instanceof Error ? error.message : String(error),
+            ...(errorData !== undefined ? { errorData } : {}),
+            source: 'mcp' as const,
+          }
+        }
         const durationMs = Date.now() - startedAt
         toolStep.status = execResult.error ? 'failed' : 'completed'
         toolStep.result = execResult.result
         toolStep.error = execResult.error
+        toolStep.errorData = execResult.errorData
         toolStep.completedAt = isoNow()
         toolStep.durationMs = durationMs
         this.store.updateRun(run)
@@ -1988,7 +2106,7 @@ export class AgentRuntime {
           round: localRound,
           stepId: toolStep.id,
           toolName: 'movscript_create_generation_job',
-          data: { source: execResult.source, result: execResult.result, error: execResult.error, sandboxed: execResult.sandboxed, durationMs },
+          data: { source: execResult.source, result: execResult.result, error: execResult.error, errorData: execResult.errorData, sandboxed: execResult.sandboxed, durationMs },
           durationMs,
         })
         const generationEvent = buildGenerationEvent({ name: 'movscript_create_generation_job', args: toolArgs as Record<string, JSONValue> }, execResult.result)
@@ -2119,7 +2237,7 @@ export class AgentRuntime {
             pluginCatalog: catalogSnapshot.pluginCatalogInfo,
             warnings: [...catalogSnapshot.pluginWarnings, ...(refreshedLayers?.warnings ?? [])],
             updates: this.updateState,
-            activeSkills: refreshedSkills,
+            ...(refreshedLayers ? { activeSkills: refreshedSkills } : {}),
             userMessage: lastUser.content,
             runRole: run.role,
           })
@@ -2725,8 +2843,7 @@ export class AgentRuntime {
   private resolveSubagentNameInput(planId: string, input: Record<string, JSONValue>): Record<string, JSONValue> {
     const subagentName = normalizeNonEmptyString(input.subagentName)
     if (!subagentName) return input
-    const task = this.findTaskBySubagentName(planId, subagentName)
-    if (!task) throw new Error(`subagent not found by name: ${subagentName}`)
+    const task = this.requireTaskBySubagentName(planId, subagentName)
     return {
       ...input,
       taskId: task.id,
@@ -2734,11 +2851,13 @@ export class AgentRuntime {
     }
   }
 
-  private findTaskBySubagentName(planId: string, subagentName: string): AgentTask | undefined {
-    return this.store.listTasks(planId).find((task) => {
-      const metadata = isRecord(task.metadata) ? task.metadata : undefined
-      return metadata?.subagentName === subagentName
-    })
+  private requireTaskBySubagentName(planId: string, subagentName: string): AgentTask {
+    const matches = this.store.listTasks(planId).filter((task) => subagentNameFromTask(task) === subagentName)
+    if (matches.length === 0) throw new Error(`subagent not found by name: ${subagentName}`)
+    if (matches.length > 1) {
+      throw new Error(`subagent name is ambiguous in plan ${planId}: ${subagentName}`)
+    }
+    return matches[0]!
   }
 
   private collectSubagentNames(planId: string): Set<string> {
@@ -2754,12 +2873,62 @@ export class AgentRuntime {
     return names
   }
 
+  private assertUniqueSubagentNameForTask(planId: string, taskId: string, subagentName: string, requestedNames: Map<string, string>): void {
+    for (const [otherTaskId, otherName] of requestedNames.entries()) {
+      if (otherTaskId !== taskId && otherName === subagentName) {
+        throw new Error(`subagent name already exists in plan ${planId}: ${subagentName}`)
+      }
+    }
+    for (const task of this.store.listTasks(planId)) {
+      if (task.id !== taskId && subagentNameFromTask(task) === subagentName) {
+        throw new Error(`subagent name already exists in plan ${planId}: ${subagentName}`)
+      }
+    }
+    for (const run of this.store.listRuns({ planId })) {
+      if (run.taskId !== taskId && subagentNameFromRun(run) === subagentName) {
+        throw new Error(`subagent name already exists in plan ${planId}: ${subagentName}`)
+      }
+    }
+  }
+
+  private assertSubagentNamesUniqueForTaskMap(planId: string, tasksById: Map<string, AgentTask>): void {
+    const taskIdsByName = new Map<string, string[]>()
+    for (const task of tasksById.values()) {
+      const subagentName = subagentNameFromTask(task)
+      if (!subagentName) continue
+      taskIdsByName.set(subagentName, [...(taskIdsByName.get(subagentName) ?? []), task.id])
+    }
+    for (const [subagentName, taskIds] of taskIdsByName.entries()) {
+      if (taskIds.length > 1) throw new Error(`subagent name already exists in plan ${planId}: ${subagentName}`)
+    }
+    for (const run of this.store.listRuns({ planId })) {
+      const subagentName = subagentNameFromRun(run)
+      if (!subagentName) continue
+      const taskIds = taskIdsByName.get(subagentName) ?? []
+      if (taskIds.some((taskId) => taskId !== run.taskId)) throw new Error(`subagent name already exists in plan ${planId}: ${subagentName}`)
+    }
+  }
+
   private withRunPlanContext(context: AgentDebugContextPanel, run: AgentRun): AgentDebugContextPanel {
     if (!run.planId) return context
     const plan = this.store.getPlan(run.planId)
     if (!plan) return context
     const tasks = this.store.listTasks(plan.id)
+    const tasksById = new Map(tasks.map((task) => [task.id, task]))
+    const nameConflicts = subagentNameConflicts(tasks)
     const runs = this.store.listRuns({ planId: plan.id })
+    const workers = runs
+      .filter((item) => item.role === 'worker')
+      .map((item) => ({
+        id: item.id,
+        status: item.status,
+        ...(subagentNameFromRun(item) ? { subagentName: subagentNameFromRun(item) } : {}),
+        ...(item.taskId ? { taskId: item.taskId } : {}),
+        ...(item.parentRunId ? { parentRunId: item.parentRunId } : {}),
+        ...(typeof item.progress === 'number' ? { progress: item.progress } : {}),
+        ...(item.blockedReason ? { blockedReason: item.blockedReason } : {}),
+      }))
+    const artifacts = taskArtifactReferences(tasks, tasksById)
     return {
       ...context,
       agentPlan: {
@@ -2778,46 +2947,30 @@ export class AgentRuntime {
           deps: task.deps,
           ...(subagentNameFromTask(task) ? { subagentName: subagentNameFromTask(task) } : {}),
           ...(task.ownerRunId ? { ownerRunId: task.ownerRunId } : {}),
-          ...(task.blockedReason ? { blockedReason: task.blockedReason } : {}),
-        })),
-        workers: runs
-          .filter((item) => item.role === 'worker')
-          .map((item) => ({
-            id: item.id,
-            status: item.status,
-            ...(subagentNameFromRun(item) ? { subagentName: subagentNameFromRun(item) } : {}),
-            ...(item.taskId ? { taskId: item.taskId } : {}),
-            ...(item.parentRunId ? { parentRunId: item.parentRunId } : {}),
-            ...(typeof item.progress === 'number' ? { progress: item.progress } : {}),
-            ...(item.blockedReason ? { blockedReason: item.blockedReason } : {}),
+            ...(task.blockedReason ? { blockedReason: task.blockedReason } : {}),
           })),
-        artifacts: tasks.flatMap((task) => task.artifacts.map((artifact) => {
-          const metadata = isRecord(artifact.metadata) ? artifact.metadata : undefined
-          return {
-            id: artifact.id,
-            type: artifact.type,
-            taskId: task.id,
-            ...(artifact.title ? { title: artifact.title } : {}),
-            ...(artifact.uri ? { uri: artifact.uri } : {}),
-            ...(subagentNameFromTask(task) ? { subagentName: subagentNameFromTask(task) } : {}),
-            ...(typeof metadata?.sourceRunId === 'string' ? { sourceRunId: metadata.sourceRunId } : {}),
-            ...(typeof metadata?.sourceTaskId === 'string' ? { sourceTaskId: metadata.sourceTaskId } : {}),
-            ...(typeof metadata?.toolName === 'string' ? { toolName: metadata.toolName } : {}),
-            ...(typeof metadata?.policy === 'string' ? { policy: metadata.policy } : {}),
-          }
-        })),
+        workers,
+        ...(nameConflicts.length > 0 ? { nameConflicts } : {}),
+        artifacts,
+        summary: agentPlanSummary(tasks, workers, artifacts, nameConflicts),
       },
     }
   }
 
   private subagentSnapshot(planId: string, plannerRunId: string): Record<string, JSONValue> {
     const snapshot = this.getPlanSnapshot(planId)
+    const nameConflicts = subagentNameConflicts(snapshot.tasks)
+    const workers = snapshot.runs
+      .filter((run) => run.parentRunId === plannerRunId || (run.role === 'worker' && run.planId === planId))
+      .map((run) => this.toSubagentRunSummaryForPlan(run))
+    const artifacts = taskArtifactReferences(snapshot.tasks)
     return {
       plan: snapshot.plan as unknown as JSONValue,
       tasks: snapshot.tasks as unknown as JSONValue,
-      workers: snapshot.runs
-        .filter((run) => run.parentRunId === plannerRunId || (run.role === 'worker' && run.planId === planId))
-        .map((run) => this.toSubagentRunSummaryForPlan(run)) as unknown as JSONValue,
+      workers: workers as unknown as JSONValue,
+      ...(nameConflicts.length > 0 ? { nameConflicts: nameConflicts as unknown as JSONValue } : {}),
+      artifacts: artifacts as unknown as JSONValue,
+      summary: agentPlanSummary(snapshot.tasks, workers, artifacts, nameConflicts) as unknown as JSONValue,
     }
   }
 
@@ -2987,27 +3140,30 @@ export class AgentRuntime {
     this.emitPlanTaskEvent(run.planId, task)
   }
 
-  private cancelTimedOutPlanWorkers(planId: string, timeoutMs: number): string[] {
+  private cancelTimedOutPlanWorkers(planId: string, defaultTimeoutMs?: number): string[] {
     const nowMs = Date.now()
     const timedOutRunIds: string[] = []
     for (const run of this.store.listRuns({ planId, role: 'worker' })) {
       if (run.status !== 'queued' && run.status !== 'in_progress') continue
+      const task = run.taskId ? this.store.getTask(run.taskId) : undefined
+      const timeoutMs = taskExecutionWorkerTimeoutMs(task, defaultTimeoutMs)
+      if (!timeoutMs) continue
       const startedAt = new Date(run.startedAt ?? run.createdAt).getTime()
       if (!Number.isFinite(startedAt) || nowMs - startedAt < timeoutMs) continue
       this.cancelRun(run.id, { reason: `Worker run timed out after ${timeoutMs}ms.` })
       this.syncTaskFromRun(run.id)
-      const task = run.taskId ? this.store.getTask(run.taskId) : undefined
-      if (task) {
-        task.metadata = {
-          ...(task.metadata ?? {}),
+      const updatedTask = run.taskId ? this.store.getTask(run.taskId) : undefined
+      if (updatedTask) {
+        updatedTask.metadata = {
+          ...(updatedTask.metadata ?? {}),
           timedOutRunId: run.id,
           workerTimeoutMs: timeoutMs,
           previousOwnerRunId: run.id,
           previousStatus: 'running',
         }
-        task.updatedAt = isoNow()
-        this.store.updateTask(task)
-        this.emitPlanTaskEvent(planId, task)
+        updatedTask.updatedAt = isoNow()
+        this.store.updateTask(updatedTask)
+        this.emitPlanTaskEvent(planId, updatedTask)
       }
       timedOutRunIds.push(run.id)
     }
@@ -3020,13 +3176,15 @@ export class AgentRuntime {
     for (const task of this.store.listTasks(planId)) {
       if (task.status !== 'failed' && task.status !== 'cancelled') continue
       const attempts = this.store.listRuns({ planId, taskId: task.id, role: 'worker' }).length
-      if (attempts >= maxTaskAttempts) continue
+      const taskMaxAttempts = taskExecutionMaxTaskAttempts(task, maxTaskAttempts)
+      if (attempts >= taskMaxAttempts) continue
       const previousTask = { ...task, deps: [...task.deps], artifacts: [...task.artifacts] }
       task.status = 'pending'
       task.progress = 0
       task.metadata = {
         ...(task.metadata ?? {}),
         retryAttempt: attempts + 1,
+        maxTaskAttempts: taskMaxAttempts,
         previousOwnerRunId: task.ownerRunId ?? null,
       }
       delete task.ownerRunId
@@ -3101,6 +3259,157 @@ export class AgentRuntime {
       }
     }
     return { creates, updates }
+  }
+
+  private buildReplanTasksToCreate(planId: string, inputs: CreatePlanTaskInput[], now: string): AgentTask[] {
+    const tasksToCreate: AgentTask[] = []
+    const requestedNames = new Map<string, string>()
+    for (const input of inputs) {
+      const subagentName = normalizeNonEmptyString(input.subagentName)
+        ?? normalizeNonEmptyString(isRecord(input.metadata) ? input.metadata.subagentName : undefined)
+      const task = buildAgentTask(planId, input, now)
+      if (this.store.getTask(task.id)) throw new Error(`task already exists: ${task.id}`)
+      if (tasksToCreate.some((item) => item.id === task.id)) throw new Error(`task already exists: ${task.id}`)
+      if (subagentName) {
+        requestedNames.set(task.id, subagentName)
+        this.assertUniqueSubagentNameForTask(planId, task.id, subagentName, requestedNames)
+      }
+      tasksToCreate.push(task)
+    }
+    this.assertTaskGraphReferencesForCreate(planId, tasksToCreate)
+    this.assertTaskParentHierarchyAcyclic(planId, new Map(tasksToCreate.map((task) => [task.id, task.parentId])))
+    this.assertTaskGraphAcyclic(planId, new Map(tasksToCreate.map((task) => [task.id, task.deps])))
+    return tasksToCreate
+  }
+
+  private normalizeAndValidateReplanTaskUpdates(
+    planId: string,
+    updates: UpdatePlanTaskInput[],
+    tasksToCreate: AgentTask[],
+  ): Array<{ taskId: string; update: UpdatePlanTaskInput }> {
+    const tasksById = new Map<string, AgentTask>()
+    for (const task of this.store.listTasks(planId)) tasksById.set(task.id, cloneTaskForValidation(task))
+    for (const task of tasksToCreate) tasksById.set(task.id, cloneTaskForValidation(task))
+
+    const normalized: Array<{ taskId: string; update: UpdatePlanTaskInput }> = []
+    for (const update of updates) {
+      const taskId = normalizeNonEmptyString(update.id)
+      if (!taskId) throw new Error('task update id is required')
+      const task = tasksById.get(taskId)
+      if (!task) {
+        const existing = this.store.getTask(taskId)
+        if (existing && existing.planId !== planId) throw new Error(`task ${taskId} does not belong to plan ${planId}`)
+        throw new Error(`task not found: ${taskId}`)
+      }
+
+      const ownerRunId = typeof update.ownerRunId === 'string' && update.ownerRunId.trim() ? update.ownerRunId.trim() : undefined
+      if (ownerRunId) {
+        const ownerRun = this.requireRun(ownerRunId)
+        if (ownerRun.planId !== planId) throw new Error(`owner run ${ownerRunId} does not belong to plan ${planId}`)
+        if (ownerRun.taskId && ownerRun.taskId !== task.id) throw new Error(`owner run ${ownerRunId} is attached to task ${ownerRun.taskId}, not task ${task.id}`)
+      }
+
+      const parentId = normalizeNonEmptyString(update.parentId)
+      if (parentId) {
+        this.assertTaskReferenceInTaskMap(planId, tasksById, parentId, 'parent task')
+        if (parentId === task.id) throw new Error(`task ${task.id} cannot use itself as parent`)
+        task.parentId = parentId
+      } else if ('parentId' in update) {
+        delete task.parentId
+      }
+
+      if (Array.isArray(update.deps)) {
+        const deps = normalizeStringList(update.deps)
+        for (const depId of deps) {
+          this.assertTaskReferenceInTaskMap(planId, tasksById, depId, 'dependency task')
+          if (depId === task.id) throw new Error(`task ${task.id} cannot depend on itself`)
+        }
+        task.deps = deps
+      }
+
+      if (isJSONRecord(update.metadata)) {
+        task.metadata = { ...(task.metadata ?? {}), ...update.metadata }
+      }
+
+      normalized.push({ taskId, update })
+    }
+
+    this.assertSubagentNamesUniqueForTaskMap(planId, tasksById)
+    this.assertTaskParentHierarchyAcyclic(planId, new Map(Array.from(tasksById.values()).map((task) => [task.id, task.parentId])))
+    this.assertTaskGraphAcyclic(planId, new Map(Array.from(tasksById.values()).map((task) => [task.id, task.deps])))
+    return normalized
+  }
+
+  private assertTaskGraphReferencesForCreate(planId: string, tasksToCreate: AgentTask[]): void {
+    const createdIds = new Set(tasksToCreate.map((task) => task.id))
+    for (const task of tasksToCreate) {
+      const references = [
+        ...(task.parentId ? [{ id: task.parentId, label: 'parent task' }] : []),
+        ...task.deps.map((id) => ({ id, label: 'dependency task' })),
+      ]
+      for (const reference of references) {
+        if (reference.id === task.id) {
+          throw new Error(reference.label === 'parent task'
+            ? `task ${task.id} cannot use itself as parent`
+            : `task ${task.id} cannot depend on itself`)
+        }
+        if (createdIds.has(reference.id)) continue
+        this.assertTaskReferenceInPlan(planId, reference.id, reference.label)
+      }
+    }
+  }
+
+  private assertTaskGraphAcyclic(planId: string, overrides: Map<string, string[]>): void {
+    const depsByTaskId = new Map<string, string[]>()
+    for (const task of this.store.listTasks(planId)) depsByTaskId.set(task.id, [...task.deps])
+    for (const [taskId, deps] of overrides.entries()) depsByTaskId.set(taskId, [...deps])
+
+    const visiting = new Set<string>()
+    const visited = new Set<string>()
+    const path: string[] = []
+    const visit = (taskId: string): void => {
+      if (visited.has(taskId)) return
+      if (visiting.has(taskId)) {
+        const start = path.indexOf(taskId)
+        const cycle = [...path.slice(start >= 0 ? start : 0), taskId]
+        throw new Error(`task dependency cycle detected: ${cycle.join(' -> ')}`)
+      }
+      visiting.add(taskId)
+      path.push(taskId)
+      for (const depId of depsByTaskId.get(taskId) ?? []) {
+        if (depsByTaskId.has(depId)) visit(depId)
+      }
+      path.pop()
+      visiting.delete(taskId)
+      visited.add(taskId)
+    }
+    for (const taskId of depsByTaskId.keys()) visit(taskId)
+  }
+
+  private assertTaskParentHierarchyAcyclic(planId: string, overrides: Map<string, string | undefined>): void {
+    const parentByTaskId = new Map<string, string | undefined>()
+    for (const task of this.store.listTasks(planId)) parentByTaskId.set(task.id, task.parentId)
+    for (const [taskId, parentId] of overrides.entries()) parentByTaskId.set(taskId, parentId)
+
+    const visiting = new Set<string>()
+    const visited = new Set<string>()
+    const path: string[] = []
+    const visit = (taskId: string): void => {
+      if (visited.has(taskId)) return
+      if (visiting.has(taskId)) {
+        const start = path.indexOf(taskId)
+        const cycle = [...path.slice(start >= 0 ? start : 0), taskId]
+        throw new Error(`task parent cycle detected: ${cycle.join(' -> ')}`)
+      }
+      visiting.add(taskId)
+      path.push(taskId)
+      const parentId = parentByTaskId.get(taskId)
+      if (parentId && parentByTaskId.has(parentId)) visit(parentId)
+      path.pop()
+      visiting.delete(taskId)
+      visited.add(taskId)
+    }
+    for (const taskId of parentByTaskId.keys()) visit(taskId)
   }
 
   private recomputePlanStatus(planId: string): void {
@@ -3315,6 +3624,87 @@ function subagentNameFromRun(run: AgentRun): string | undefined {
   return normalizeNonEmptyString(metadata?.subagentName)
 }
 
+function subagentNameConflicts(tasks: AgentTask[]): Array<{ subagentName: string; taskIds: string[] }> {
+  const byName = new Map<string, string[]>()
+  for (const task of tasks) {
+    const subagentName = subagentNameFromTask(task)
+    if (!subagentName) continue
+    byName.set(subagentName, [...(byName.get(subagentName) ?? []), task.id])
+  }
+  return Array.from(byName.entries())
+    .filter(([, taskIds]) => taskIds.length > 1)
+    .map(([subagentName, taskIds]) => ({ subagentName, taskIds }))
+    .sort((a, b) => a.subagentName.localeCompare(b.subagentName))
+}
+
+function cloneTaskForValidation(task: AgentTask): AgentTask {
+  return {
+    ...task,
+    deps: [...task.deps],
+    artifacts: [...task.artifacts],
+    ...(task.metadata ? { metadata: { ...task.metadata } } : {}),
+  }
+}
+
+type AgentPlanArtifactReference = NonNullable<AgentDebugContextPanel['agentPlan']>['artifacts'][number]
+type AgentPlanContextSummary = AgentPlanSummary
+
+function taskArtifactReferences(tasks: AgentTask[], tasksById = new Map(tasks.map((task) => [task.id, task]))): AgentPlanArtifactReference[] {
+  return tasks.flatMap((task) => task.artifacts.map((artifact) => {
+    const metadata = isRecord(artifact.metadata) ? artifact.metadata : undefined
+    const sourceTaskId = typeof metadata?.sourceTaskId === 'string' ? metadata.sourceTaskId : undefined
+    const sourceTask = sourceTaskId ? tasksById.get(sourceTaskId) : undefined
+    return {
+      id: artifact.id,
+      type: artifact.type,
+      taskId: task.id,
+      ...(artifact.title ? { title: artifact.title } : {}),
+      ...(artifact.uri ? { uri: artifact.uri } : {}),
+      ...(subagentNameFromTask(task) ? { subagentName: subagentNameFromTask(task) } : {}),
+      ...(typeof metadata?.sourceRunId === 'string' ? { sourceRunId: metadata.sourceRunId } : {}),
+      ...(sourceTaskId ? { sourceTaskId } : {}),
+      ...(sourceTask?.title ? { sourceTaskTitle: sourceTask.title } : {}),
+      ...(sourceTask?.status ? { sourceTaskStatus: sourceTask.status } : {}),
+      ...(sourceTask?.ownerRunId ? { sourceTaskOwnerRunId: sourceTask.ownerRunId } : {}),
+      ...(typeof metadata?.toolName === 'string' ? { toolName: metadata.toolName } : {}),
+      ...(typeof metadata?.policy === 'string' ? { policy: metadata.policy } : {}),
+    }
+  }))
+}
+
+function agentPlanSummary(
+  tasks: AgentTask[],
+  workers: Array<{ status?: AgentRun['status'] }>,
+  artifacts: AgentPlanArtifactReference[],
+  nameConflicts: Array<{ subagentName: string; taskIds: string[] }>,
+): AgentPlanContextSummary {
+  const taskStatusCounts = {
+    pending: 0,
+    running: 0,
+    blocked: 0,
+    needs_review: 0,
+    done: 0,
+    failed: 0,
+    cancelled: 0,
+  } satisfies Record<AgentTask['status'], number>
+  for (const task of tasks) taskStatusCounts[task.status] += 1
+  const activeWorkerCount = workers.filter((worker) => worker.status && isActiveRunStatus(worker.status)).length
+  const blockedTaskIds = tasks.filter((task) => task.status === 'blocked').map((task) => task.id)
+  const needsReviewTaskIds = tasks.filter((task) => task.status === 'needs_review').map((task) => task.id)
+  const failedTaskIds = tasks.filter((task) => task.status === 'failed').map((task) => task.id)
+  return {
+    taskCount: tasks.length,
+    taskStatusCounts,
+    workerCount: workers.length,
+    activeWorkerCount,
+    artifactCount: artifacts.length,
+    nameConflictCount: nameConflicts.length,
+    blockedTaskIds,
+    needsReviewTaskIds,
+    failedTaskIds,
+  }
+}
+
 function toSubagentRunSummary(run: AgentRun): Record<string, JSONValue> {
   const subagentName = subagentNameFromRun(run)
   return {
@@ -3520,6 +3910,7 @@ function toStreamRun(run: AgentRun): AgentRunStreamRun {
       ...(step.title ? { title: step.title } : {}),
     ...(step.toolName ? { toolName: step.toolName } : {}),
     ...(step.error ? { error: step.error } : {}),
+    ...(step.errorData !== undefined ? { errorData: step.errorData } : {}),
     ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
     ...(typeof step.durationMs === 'number' ? { durationMs: step.durationMs } : {}),
     createdAt: step.createdAt,
@@ -3598,6 +3989,23 @@ function normalizePositiveInteger(value: unknown): number | undefined {
   return Math.max(1, Math.floor(number))
 }
 
+function taskExecutionOverrideMetadata(input: CreatePlanTaskInput): Record<string, JSONValue> {
+  const maxTaskAttempts = normalizePositiveInteger(input.maxTaskAttempts)
+  const workerTimeoutMs = normalizePositiveInteger(input.workerTimeoutMs)
+  return {
+    ...(maxTaskAttempts ? { maxTaskAttempts } : {}),
+    ...(workerTimeoutMs ? { workerTimeoutMs } : {}),
+  }
+}
+
+function taskExecutionMaxTaskAttempts(task: AgentTask, defaultMaxTaskAttempts: number): number {
+  return normalizePositiveInteger(task.metadata?.maxTaskAttempts) ?? defaultMaxTaskAttempts
+}
+
+function taskExecutionWorkerTimeoutMs(task: AgentTask | undefined, defaultTimeoutMs?: number): number | undefined {
+  return normalizePositiveInteger(task?.metadata?.workerTimeoutMs) ?? defaultTimeoutMs
+}
+
 function formatWorkerTaskMessage(plan: AgentPlan, task: AgentTask): string {
   return [
     `Plan: ${plan.title}`,
@@ -3645,6 +4053,10 @@ function uniqueStrings(values: string[]): string[] {
 function buildAgentTask(planId: string, input: CreatePlanTaskInput, now: string): AgentTask {
   const title = normalizeNonEmptyString(input.title)
   if (!title) throw new Error('task title is required')
+  const metadata = {
+    ...(isJSONRecord(input.metadata) ? input.metadata : {}),
+    ...taskExecutionOverrideMetadata(input),
+  }
   return {
     id: normalizeNonEmptyString(input.id) ?? makeId('task'),
     planId,
@@ -3655,7 +4067,7 @@ function buildAgentTask(planId: string, input: CreatePlanTaskInput, now: string)
     status: 'pending',
     progress: 0,
     artifacts: [],
-    ...(isJSONRecord(input.metadata) ? { metadata: input.metadata } : {}),
+    ...(Object.keys(metadata).length > 0 ? { metadata } : {}),
     createdAt: now,
     updatedAt: now,
   }
@@ -3703,6 +4115,14 @@ function isJSONValue(value: unknown): value is JSONValue {
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
   if (Array.isArray(value)) return value.every(isJSONValue)
   return isJSONRecord(value)
+}
+
+function generationBackendErrorData(error: unknown): JSONValue | undefined {
+  if (!(error instanceof MCPError)) return undefined
+  const data = error.data
+  if (!isJSONRecord(data)) return undefined
+  if (data.type !== 'backend_http_error' || data.status !== 400 || typeof data.code !== 'string') return undefined
+  return data
 }
 
 function makeId(prefix: string): string {

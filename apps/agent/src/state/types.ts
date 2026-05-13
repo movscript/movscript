@@ -1,6 +1,6 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue, MCPResource, MCPTool } from '../types.js'
-import type { AgentManifest, AgentSkillManifest } from '../catalog/agentManifest.js'
+import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { RegisteredTool, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { AgentCatalogStateStore } from '../catalog/state.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
@@ -74,6 +74,7 @@ export interface AgentRunStep {
   args?: Record<string, JSONValue>
   result?: JSONValue
   error?: string
+  errorData?: JSONValue
   sandboxed?: boolean
   durationMs?: number
   createdAt: string
@@ -200,6 +201,23 @@ export interface AgentPlanSnapshot {
   plan: AgentPlan
   tasks: AgentTask[]
   runs: AgentRun[]
+  nameConflicts?: Array<{
+    subagentName: string
+    taskIds: string[]
+  }>
+  summary?: AgentPlanSummary
+}
+
+export interface AgentPlanSummary {
+  taskCount: number
+  taskStatusCounts: Record<AgentTaskStatus, number>
+  workerCount: number
+  activeWorkerCount: number
+  artifactCount: number
+  nameConflictCount: number
+  blockedTaskIds: string[]
+  needsReviewTaskIds: string[]
+  failedTaskIds: string[]
 }
 
 export type AgentRunStreamRun = AgentRun & {
@@ -331,7 +349,6 @@ export interface AgentInputRequest {
 }
 
 export interface AgentDebugContextPanel {
-  mode?: string
   route: {
     pathname: string
     search?: string
@@ -412,6 +429,10 @@ export interface AgentDebugContextPanel {
       progress?: number
       blockedReason?: string
     }>
+    nameConflicts?: Array<{
+      subagentName: string
+      taskIds: string[]
+    }>
     artifacts: Array<{
       id: string
       type: string
@@ -421,9 +442,13 @@ export interface AgentDebugContextPanel {
       subagentName?: string
       sourceRunId?: string
       sourceTaskId?: string
+      sourceTaskTitle?: string
+      sourceTaskStatus?: AgentTaskStatus
+      sourceTaskOwnerRunId?: string
       toolName?: string
       policy?: string
     }>
+    summary?: AgentPlanSummary
   }
 }
 
@@ -445,7 +470,6 @@ export interface AgentClientResourceRef {
 }
 
 export interface AgentClientUISnapshot {
-  mode?: string
   route?: {
     pathname?: string
     search?: string
@@ -482,9 +506,21 @@ export interface AgentClientInput {
   uiSnapshot?: unknown
 }
 
-export interface ResolvedAgentSkill extends AgentSkillManifest {
+export interface ResolvedAgentSkill {
+  id: string
+  name: string
+  description: string
+  version?: string
+  category?: string
+  categories?: string[]
+  enabled: boolean
+  priority?: number
+  instruction: string
+  outputContract?: string
+  toolHints?: string[]
+  metadata?: Record<string, JSONValue>
   resolvedPriority: number
-  activationReason: 'manifest' | 'user_selected' | 'default'
+  activationReason: 'profile' | 'trigger' | 'default'
   compiledInstruction: string
   warnings: string[]
 }
@@ -506,6 +542,7 @@ export interface AgentDebugTool {
   name: string
   description?: string
   inputSchema?: JSONValue
+  outputSchema?: JSONValue
   source: 'mcp' | 'runtime' | 'plugin'
   category?: string
   categories?: string[]
@@ -624,7 +661,6 @@ export interface AgentRuntimeOptions {
   backendApplyClient?: BackendApplyClient
   memoryStore?: import('../memory/memoryStore.js').AgentMemoryStore
   defaultAgentManifest?: AgentManifest
-  skillCatalog?: AgentSkillManifest[]
   toolRegistry?: import('../tools/toolRegistry.js').ToolRegistry
   catalogStateStore?: AgentCatalogStateStore
   pluginCatalogLoader?: (options?: Record<string, never>) => import('../catalog/loader.js').AgentPluginCatalog
@@ -784,6 +820,8 @@ export interface CreatePlanTaskInput {
   description?: unknown
   subagentName?: unknown
   subagentNames?: unknown
+  maxTaskAttempts?: unknown
+  workerTimeoutMs?: unknown
   metadata?: unknown
 }
 

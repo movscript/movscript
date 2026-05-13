@@ -2222,6 +2222,12 @@
       "audit": {
         "params": "{{count}} params",
         "rules": "{{count}} rules",
+        "ruleTypes": {
+          "conflicts": "{{count}} conflicts",
+          "conditionalEnums": "{{count}} conditional enums",
+          "conditionalConsts": "{{count}} conditional consts",
+          "requiresValues": "{{count}} value requirements"
+        },
         "valid": "Contract valid",
         "invalid": "Contract has errors",
         "moreErrors": "{{count}} more errors",
@@ -2233,6 +2239,9 @@
         "valid": "Backend contract valid",
         "skipped": "Skipped",
         "skippedHint": "Fix the local contract errors before running the backend resolver preview.",
+        "agentContract": "Agent compact contract v{{version}} keys: {{keys}}",
+        "copyAgentContract": "Copy agent contract JSON",
+        "copiedAgentContract": "Copied agent contract",
         "error": "Backend rejected this contract: {{error}}"
       },
       "templates": {
@@ -2301,6 +2310,7 @@
       "pickPreset": "Choose preset",
       "fetchFromApi": "Fetch from API",
       "presetHint": "Selecting one fills all fields automatically. You can still edit them.",
+      "presetParams": "{{count}} params",
       "modelIdLabel": "Model ID (identifier sent to the API)",
       "modelIdPlaceholder": "e.g. gpt-4o, gemini-2.0-flash, doubao-seed-2-0-pro-260215",
       "displayNamePlaceholder": "Optional. Leave blank to use Model ID.",
@@ -2311,6 +2321,9 @@
       "acceptsImageInput": "Accepts image input",
       "maxImages": "Max images",
       "maxVideos": "Max videos",
+      "inputLimitHint": "-1 means unlimited. A non-zero max image limit also exposes image input support.",
+      "maxImagesInvalid": "Max images must be -1 or greater.",
+      "maxVideosInvalid": "Max videos must be -1 or greater.",
       "add": "Add",
       "test": "Test",
       "noModelsHint": "No models added yet. Click \"Add Model\" to start.",

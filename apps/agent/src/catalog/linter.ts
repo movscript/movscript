@@ -4,7 +4,6 @@ const PLACEHOLDER_RE = /\{\{(tool|schema|ctx):([^}]+)\}\}/g
 
 export function lintCatalog(registry: CatalogRegistry): CatalogIssue[] {
   const issues: CatalogIssue[] = []
-  lintUniqueModeAliases(registry, issues)
   for (const skill of registry.skills.values()) lintSkill(skill, registry, issues)
   for (const tool of registry.tools.values()) lintTool(tool, issues)
   for (const pack of registry.packs.values()) {
@@ -50,6 +49,7 @@ function lintSkill(skill: SkillDefinition, registry: CatalogRegistry, issues: Ca
   if (skill.kind === 'workflow' && skill.triggers.length === 0) {
     error(issues, 'skill.workflow.triggers.empty', `workflow ${skill.id} must declare triggers`, skill.id)
   }
+  if (skill.kind === 'workflow') lintWorkflowBoundary(skill, registry, issues)
   if (skill.kind === 'persona' && ((skill.toolRefs?.length ?? 0) > 0 || (skill.schemaRefs?.length ?? 0) > 0)) {
     warning(issues, 'skill.persona.refs', `persona ${skill.id} should not reference tools or schemas`, skill.id)
   }
@@ -86,6 +86,24 @@ function lintSkill(skill: SkillDefinition, registry: CatalogRegistry, issues: Ca
   if (skill.kind === 'policy') lintPolicyScope(skill.scope, registry, issues, skill.id)
 }
 
+function lintWorkflowBoundary(skill: Extract<SkillDefinition, { kind: 'workflow' }>, registry: CatalogRegistry, issues: CatalogIssue[]): void {
+  const riskyRefs = skill.toolRefs
+    .map((ref) => stripRef(ref, 'tool://'))
+    .map((name) => registry.tools.get(name))
+    .filter((tool): tool is ToolDefinition => !!tool && (tool.risk === 'write' || tool.risk === 'generate' || tool.risk === 'destructive'))
+  if (riskyRefs.length === 0) return
+  const requiredSections = ['Goal:', 'Boundary:', 'Process:', 'Output:', 'Never:']
+  const missing = requiredSections.filter((section) => !skill.instructionTemplate.includes(section))
+  if (missing.length > 0) {
+    error(
+      issues,
+      'skill.workflow.boundary.missing',
+      `workflow ${skill.id} references risky tools (${riskyRefs.map((tool) => tool.name).join(', ')}) but is missing boundary sections: ${missing.join(', ')}`,
+      skill.id,
+    )
+  }
+}
+
 function lintTool(tool: ToolDefinition, issues: CatalogIssue[]): void {
   if (!tool.inputSchema || typeof tool.inputSchema !== 'object') {
     error(issues, 'tool.input_schema.missing', `tool ${tool.name} must declare inputSchema`, tool.name)
@@ -106,16 +124,6 @@ function lintPolicyScope(scope: PolicyScope | undefined, registry: CatalogRegist
   for (const workflowId of scope.workflow) {
     const workflow = registry.skills.get(workflowId)
     if (!workflow || workflow.kind !== 'workflow') error(issues, 'policy.scope.workflow_missing', `policy ${id} scope references missing workflow ${workflowId}`, id)
-  }
-}
-
-function lintUniqueModeAliases(registry: CatalogRegistry, issues: CatalogIssue[]): void {
-  const seen = new Map<string, string>()
-  for (const profile of registry.profiles.values()) {
-    if (!profile.modeAlias) continue
-    const previous = seen.get(profile.modeAlias)
-    if (previous) error(issues, 'profile.mode_alias.duplicate', `modeAlias ${profile.modeAlias} is used by ${previous} and ${profile.id}`, profile.id)
-    seen.set(profile.modeAlias, profile.id)
   }
 }
 

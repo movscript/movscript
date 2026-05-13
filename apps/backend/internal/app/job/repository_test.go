@@ -3,11 +3,13 @@ package job
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
+	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -136,13 +138,66 @@ func TestGormRepositoryDeleteCancelsPendingAndDeletesFinished(t *testing.T) {
 	}
 }
 
+func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
+	db := openJobRepositoryTestDB(t)
+	cred := model.AICredential{
+		AdapterType: ai.AdapterVolcen,
+		DisplayName: "Volcen",
+		IsEnabled:   true,
+	}
+	if err := db.Create(&cred).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	cfg := model.AIModelConfig{
+		CredentialID:       cred.ID,
+		ModelDefID:         "seedance-conflict-test",
+		IsEnabled:          true,
+		CustomDisplayName:  "Seedance Conflict Test",
+		CustomCapabilities: ai.CapabilityVideo,
+		CustomPricingMode:  string(ai.PricingPerSecond),
+		CustomSupportedParams: `{
+			"allow":["duration","frames"],
+			"override":{
+				"duration":{"conflicts_with":["frames"]}
+			}
+		}`,
+	}
+	if err := db.Create(&cfg).Error; err != nil {
+		t.Fatalf("create model config: %v", err)
+	}
+
+	svc := NewService(db, ai.NewAIService(db, ai.NewRegistry(db, nil)))
+	_, err := svc.EnqueueGeneration(context.Background(), EnqueueInput{
+		UserID:        1,
+		ModelConfigID: cfg.ID,
+		JobType:       ai.CapabilityVideo,
+		Prompt:        "make a shot",
+		ExtraParams:   `{"frames":29}`,
+		Duration:      5,
+	})
+	if err == nil {
+		t.Fatal("expected generation param conflict error")
+	}
+	var validationErr *ai.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ai.ValidationError, got %T: %v", err, err)
+	}
+	if validationErr.Code != "INVALID_PARAMETER_COMBINATION" || validationErr.Field != "duration" {
+		t.Fatalf("unexpected validation error: %#v", validationErr)
+	}
+	value, ok := validationErr.SuggestedFix["frames"]
+	if !ok || value != nil {
+		t.Fatalf("expected frames suggested fix to be nil for removal, got %#v", validationErr.SuggestedFix)
+	}
+}
+
 func openJobRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "job_repository.db")), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.Job{}, &model.RawResource{}); err != nil {
+	if err := db.AutoMigrate(&model.Job{}, &model.RawResource{}, &model.AICredential{}, &model.AIModelConfig{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db

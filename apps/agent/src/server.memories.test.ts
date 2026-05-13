@@ -58,7 +58,6 @@ test('memories endpoints stay project-scoped', async () => {
     backendApplyClient: new BackendApplyClient(),
     memoryStore: new InMemoryAgentMemoryStore(),
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    skillCatalog: [],
     toolRegistry: { get: () => undefined, list: () => [] } as never,
     catalogStateStore: new InMemoryAgentCatalogStateStore(),
     contractResolver: new StaticAgentRuntimeContractResolver([]),
@@ -98,7 +97,6 @@ test('memory list accepts non-project scopes without server errors', async () =>
     backendApplyClient: new BackendApplyClient(),
     memoryStore: new InMemoryAgentMemoryStore(),
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    skillCatalog: [],
     toolRegistry: { get: () => undefined, list: () => [] } as never,
     catalogStateStore: new InMemoryAgentCatalogStateStore(),
     contractResolver: new StaticAgentRuntimeContractResolver([]),
@@ -124,7 +122,6 @@ test('create memory requires projectId through the HTTP layer', async () => {
     backendApplyClient: new BackendApplyClient(),
     memoryStore: new InMemoryAgentMemoryStore(),
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    skillCatalog: [],
     toolRegistry: { get: () => undefined, list: () => [] } as never,
     catalogStateStore: new InMemoryAgentCatalogStateStore(),
     contractResolver: new StaticAgentRuntimeContractResolver([]),
@@ -146,7 +143,6 @@ test('draft apply endpoint is an application-layer action outside agent runs', a
     backendApplyClient,
     memoryStore: new InMemoryAgentMemoryStore(),
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    skillCatalog: [],
     toolRegistry: { get: () => undefined, list: () => [] } as never,
     catalogStateStore: new InMemoryAgentCatalogStateStore(),
     contractResolver: new StaticAgentRuntimeContractResolver([]),
@@ -174,6 +170,502 @@ test('draft apply endpoint is an application-layer action outside agent runs', a
   assert.equal(runtime.listRuns().length, 0)
 })
 
+test('run replan endpoint uses plan root planner when called on a worker run', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'HTTP replan root planner',
+    tasks: [{ id: 'task_http_worker', title: 'Worker task', metadata: { executionMode: 'worker' } }],
+  })
+  const rootPlanner = await waitForRun(runtime, plan.runs[0]!.id)
+  const otherPlanner = runtime.createRun({ threadId: thread.id, planId: plan.plan.id, role: 'planner' })
+  const dispatched = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: otherPlanner.id,
+    taskIds: ['task_http_worker'],
+  })
+  const worker = dispatched.spawnedRuns[0]
+  assert.ok(worker)
+  assert.equal(worker.parentRunId, otherPlanner.id)
+
+  const res = await dispatch(handler, 'POST', `/runs/${worker.id}/replan`, {
+    resetFailed: true,
+    dispatch: true,
+    maxWorkers: 1,
+  })
+  const json = JSON.parse(res.body) as { dispatch?: { spawnedRuns: unknown[] } }
+
+  assert.equal(res.statusCode, 202)
+  assert.equal(json.dispatch?.spawnedRuns.length, 0)
+  assert.equal(runtime.getPlan(plan.plan.id)?.rootRunId, rootPlanner.id)
+})
+
+test('HTTP replan rejects invalid addTasks without partial task creation', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'HTTP replan invalid addTasks',
+    tasks: [{ id: 'task_http_replan_base', title: 'Base task', metadata: { executionMode: 'worker' } }],
+  })
+  const planner = await waitForRun(runtime, plan.runs[0]!.id)
+
+  const rejected = await dispatch(handler, 'POST', `/runs/${planner.id}/replan`, {
+    addTasks: [
+      { id: 'task_http_replan_cycle_a', title: 'Cycle A', deps: ['task_http_replan_cycle_b'] },
+      { id: 'task_http_replan_cycle_b', title: 'Cycle B', deps: ['task_http_replan_cycle_a'] },
+    ],
+    dispatch: false,
+  })
+  assert.equal(rejected.statusCode, 500)
+  assert.match(JSON.parse(rejected.body).error, /dependency cycle detected/)
+
+  const snapshot = runtime.getPlanSnapshot(plan.plan.id)
+  assert.equal(snapshot.tasks.some((task) => task.id === 'task_http_replan_cycle_a'), false)
+  assert.equal(snapshot.tasks.some((task) => task.id === 'task_http_replan_cycle_b'), false)
+
+  const parentCycle = await dispatch(handler, 'POST', `/runs/${planner.id}/replan`, {
+    addTasks: [
+      { id: 'task_http_replan_parent_cycle_a', title: 'Parent Cycle A', parentId: 'task_http_replan_parent_cycle_b' },
+      { id: 'task_http_replan_parent_cycle_b', title: 'Parent Cycle B', parentId: 'task_http_replan_parent_cycle_a' },
+    ],
+    dispatch: false,
+  })
+  assert.equal(parentCycle.statusCode, 500)
+  assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
+
+  const afterParentCycle = runtime.getPlanSnapshot(plan.plan.id)
+  assert.equal(afterParentCycle.tasks.some((task) => task.id === 'task_http_replan_parent_cycle_a'), false)
+  assert.equal(afterParentCycle.tasks.some((task) => task.id === 'task_http_replan_parent_cycle_b'), false)
+
+  const badUpdate = await dispatch(handler, 'POST', `/runs/${planner.id}/replan`, {
+    addTasks: [
+      { id: 'task_http_replan_update_atomic', title: 'Update Atomic' },
+    ],
+    updates: [
+      { id: 'task_http_replan_missing_update', title: 'Missing update target' },
+    ],
+    dispatch: false,
+  })
+  assert.equal(badUpdate.statusCode, 500)
+  assert.match(JSON.parse(badUpdate.body).error, /task not found/)
+
+  const afterBadUpdate = runtime.getPlanSnapshot(plan.plan.id)
+  assert.equal(afterBadUpdate.tasks.some((task) => task.id === 'task_http_replan_update_atomic'), false)
+
+  const accepted = await dispatch(handler, 'POST', `/runs/${planner.id}/replan`, {
+    addTasks: [
+      { id: 'task_http_replan_followup', title: 'Followup', deps: ['task_http_replan_base'] },
+    ],
+    updates: [
+      { id: 'task_http_replan_base', description: 'Updated by HTTP replan.' },
+    ],
+    dispatch: false,
+  })
+  assert.equal(accepted.statusCode, 202)
+  assert.deepEqual(JSON.parse(accepted.body).createdTaskIds, ['task_http_replan_followup'])
+  assert.deepEqual(JSON.parse(accepted.body).updatedTaskIds, ['task_http_replan_base'])
+})
+
+test('public run endpoint always creates planner user runs', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello' }] })
+
+  const res = await dispatch(handler, 'POST', '/runs', {
+    threadId: thread.id,
+    role: 'worker',
+    parentRunId: 'run_external_parent',
+    taskId: 'task_external_worker',
+  })
+  const run = JSON.parse(res.body) as { role?: string; parentRunId?: string; taskId?: string }
+
+  assert.equal(res.statusCode, 201)
+  assert.equal(run.role, 'planner')
+  assert.equal(run.parentRunId, undefined)
+  assert.equal(run.taskId, undefined)
+})
+
+test('public tool run endpoint cannot impersonate a planned subagent', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello' }] })
+
+  const res = await dispatch(handler, 'POST', '/runs/tool', {
+    threadId: thread.id,
+    role: 'planner',
+    parentRunId: 'run_external_parent',
+    planId: 'plan_external',
+    taskId: 'task_external_worker',
+    progress: 0.7,
+    blockedReason: 'external status injection',
+    toolCall: {
+      name: 'movscript_read_project_scripts',
+      args: { projectId: 42 },
+    },
+  })
+  const run = JSON.parse(res.body) as {
+    role?: string
+    parentRunId?: string
+    planId?: string
+    taskId?: string
+    progress?: number
+    blockedReason?: string
+  }
+
+  assert.equal(res.statusCode, 201)
+  assert.equal(run.role, 'worker')
+  assert.equal(run.parentRunId, undefined)
+  assert.equal(run.planId, undefined)
+  assert.equal(run.taskId, undefined)
+  assert.equal(run.progress, undefined)
+  assert.equal(run.blockedReason, undefined)
+})
+
+test('HTTP plan creation rejects invalid task graphs without writing plan state', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+
+  const missingDep = await dispatch(handler, 'POST', '/plans', {
+    threadId: thread.id,
+    title: 'HTTP invalid missing dep plan',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_invalid_dep', title: 'Invalid dep', deps: ['task_missing_dep'] },
+    ],
+  })
+  assert.equal(missingDep.statusCode, 500)
+  assert.match(JSON.parse(missingDep.body).error, /task not found/)
+  assert.equal(runtime.listPlans().some((plan) => plan.title === 'HTTP invalid missing dep plan'), false)
+
+  const cycle = await dispatch(handler, 'POST', '/plans', {
+    threadId: thread.id,
+    title: 'HTTP invalid cycle plan',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_cycle_a', title: 'Cycle A', deps: ['task_http_cycle_b'] },
+      { id: 'task_http_cycle_b', title: 'Cycle B', deps: ['task_http_cycle_a'] },
+    ],
+  })
+  assert.equal(cycle.statusCode, 500)
+  assert.match(JSON.parse(cycle.body).error, /dependency cycle detected/)
+  assert.equal(runtime.listPlans().some((plan) => plan.title === 'HTTP invalid cycle plan'), false)
+
+  const parentCycle = await dispatch(handler, 'POST', '/plans', {
+    threadId: thread.id,
+    title: 'HTTP invalid parent cycle plan',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_parent_cycle_a', title: 'Parent Cycle A', parentId: 'task_http_parent_cycle_b' },
+      { id: 'task_http_parent_cycle_b', title: 'Parent Cycle B', parentId: 'task_http_parent_cycle_a' },
+    ],
+  })
+  assert.equal(parentCycle.statusCode, 500)
+  assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
+  assert.equal(runtime.listPlans().some((plan) => plan.title === 'HTTP invalid parent cycle plan'), false)
+
+  const valid = await dispatch(handler, 'POST', '/plans', {
+    threadId: thread.id,
+    title: 'HTTP valid graph plan',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_graph_a', title: 'Graph A' },
+      { id: 'task_http_graph_b', title: 'Graph B', deps: ['task_http_graph_a'] },
+    ],
+  })
+  assert.equal(valid.statusCode, 201)
+  assert.equal(JSON.parse(valid.body).tasks.find((task: any) => task.id === 'task_http_graph_b')?.deps[0], 'task_http_graph_a')
+})
+
+test('HTTP plan snapshot exposes reusable summary', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'HTTP snapshot summary',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_summary_running', title: 'Running summary', metadata: { executionMode: 'worker' } },
+      { id: 'task_http_summary_failed', title: 'Failed summary' },
+    ],
+  })
+  const worker = runtime.createRun({
+    threadId: thread.id,
+    role: 'worker',
+    planId: plan.plan.id,
+    taskId: 'task_http_summary_running',
+  })
+  runtime.updateTask('task_http_summary_running', {
+    status: 'running',
+    ownerRunId: worker.id,
+    artifacts: [{ id: 'artifact_http_summary', type: 'draft', title: 'HTTP summary artifact' }],
+  })
+  runtime.updateTask('task_http_summary_failed', {
+    status: 'failed',
+    blockedReason: 'Worker failed',
+  })
+
+  const res = await dispatch(handler, 'GET', `/plans/${plan.plan.id}`)
+  const json = JSON.parse(res.body) as {
+    summary?: {
+      taskCount: number
+      taskStatusCounts: Record<string, number>
+      workerCount: number
+      activeWorkerCount: number
+      artifactCount: number
+      failedTaskIds: string[]
+    }
+  }
+
+  assert.equal(res.statusCode, 200)
+  assert.equal(json.summary?.taskCount, 2)
+  assert.equal(json.summary?.taskStatusCounts.running, 1)
+  assert.equal(json.summary?.taskStatusCounts.failed, 1)
+  assert.equal(json.summary?.workerCount, 1)
+  assert.equal(json.summary?.activeWorkerCount, 1)
+  assert.equal(json.summary?.artifactCount, 1)
+  assert.deepEqual(json.summary?.failedTaskIds, ['task_http_summary_failed'])
+})
+
+test('HTTP cancel-tree only accepts the plan root planner run', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'HTTP cancel tree root planner',
+    tasks: [{ id: 'task_http_cancel_worker', title: 'Worker task', metadata: { executionMode: 'worker' } }],
+  })
+  const rootPlanner = await waitForRun(runtime, plan.runs[0]!.id)
+  const dispatched = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: rootPlanner.id,
+    taskIds: ['task_http_cancel_worker'],
+  })
+  const worker = dispatched.spawnedRuns[0]
+  assert.ok(worker)
+
+  const rejected = await dispatch(handler, 'POST', `/runs/${worker.id}/cancel-tree`, {
+    reason: 'Worker should not cancel the whole plan.',
+  })
+  assert.equal(rejected.statusCode, 500)
+  assert.match(JSON.parse(rejected.body).error, /is not a planner run/)
+  assert.notEqual(runtime.getRun(worker.id)?.status, 'cancelled')
+
+  const accepted = await dispatch(handler, 'POST', `/runs/${rootPlanner.id}/cancel-tree`, {
+    reason: 'Stop the whole plan.',
+  })
+  assert.equal(accepted.statusCode, 200)
+  assert.deepEqual(JSON.parse(accepted.body).cancelledRunIds, [worker.id])
+  assert.equal(runtime.getRun(worker.id)?.status, 'cancelled')
+})
+
+test('HTTP task update cannot create duplicate subagent names', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'HTTP task subagent name boundary',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_named_a', title: 'Named A', metadata: { executionMode: 'worker', subagentName: '爱因斯坦' } },
+      { id: 'task_http_named_b', title: 'Named B', metadata: { executionMode: 'worker' } },
+    ],
+  })
+
+  const rejected = await dispatch(handler, 'PATCH', '/tasks/task_http_named_b', {
+    metadata: {
+      subagentName: '爱因斯坦',
+      reviewOutcome: 'should_not_write',
+    },
+  })
+  assert.equal(rejected.statusCode, 500)
+  assert.match(JSON.parse(rejected.body).error, /subagent name already exists/)
+
+  const taskB = runtime.getPlanSnapshot(plan.plan.id).tasks.find((task) => task.id === 'task_http_named_b')
+  assert.equal(taskB?.metadata?.subagentName, undefined)
+  assert.equal(taskB?.metadata?.reviewOutcome, undefined)
+
+  const accepted = await dispatch(handler, 'PATCH', '/tasks/task_http_named_b', {
+    metadata: {
+      subagentName: '霍金',
+    },
+  })
+  assert.equal(accepted.statusCode, 200)
+  assert.equal(JSON.parse(accepted.body).metadata.subagentName, '霍金')
+})
+
+test('HTTP task update cannot corrupt the task graph', async () => {
+  const runtime = new AgentRuntime({
+    mcpClient: new StubMCPClient(),
+    store: new InMemoryAgentStore(),
+    draftStore: new InMemoryAgentDraftStore(),
+    backendApplyClient: new BackendApplyClient(),
+    memoryStore: new InMemoryAgentMemoryStore(),
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: { get: () => undefined, list: () => [] } as never,
+    catalogStateStore: new InMemoryAgentCatalogStateStore(),
+    contractResolver: new StaticAgentRuntimeContractResolver([]),
+    updateState: buildUpdateState(),
+  })
+  const handler = createAgentRequestListener(buildServerContext(runtime))
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'HTTP task graph boundary',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_graph_a', title: 'Graph A' },
+      { id: 'task_http_graph_b', title: 'Graph B', deps: ['task_http_graph_a'] },
+    ],
+  })
+  await runtime.createPlan({
+    threadId: thread.id,
+    title: 'HTTP other graph boundary',
+    createPlannerRun: false,
+    tasks: [
+      { id: 'task_http_graph_other', title: 'Other graph task' },
+    ],
+  })
+
+  const crossPlan = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
+    deps: ['task_http_graph_other'],
+  })
+  assert.equal(crossPlan.statusCode, 500)
+  assert.match(JSON.parse(crossPlan.body).error, /does not belong to plan/)
+
+  const cycle = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
+    deps: ['task_http_graph_b'],
+  })
+  assert.equal(cycle.statusCode, 500)
+  assert.match(JSON.parse(cycle.body).error, /dependency cycle detected/)
+
+  const acceptedParent = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_b', {
+    deps: [],
+    parentId: 'task_http_graph_a',
+  })
+  assert.equal(acceptedParent.statusCode, 200)
+
+  const parentCycle = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_a', {
+    parentId: 'task_http_graph_b',
+  })
+  assert.equal(parentCycle.statusCode, 500)
+  assert.match(JSON.parse(parentCycle.body).error, /parent cycle detected/)
+
+  const taskA = runtime.getPlanSnapshot(plan.plan.id).tasks.find((task) => task.id === 'task_http_graph_a')
+  assert.deepEqual(taskA?.deps, [])
+  assert.equal(taskA?.parentId, undefined)
+
+  const accepted = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_b', {
+    deps: [],
+    parentId: 'task_http_graph_a',
+  })
+  assert.equal(accepted.statusCode, 200)
+  const body = JSON.parse(accepted.body)
+  assert.deepEqual(body.deps, [])
+  assert.equal(body.parentId, 'task_http_graph_a')
+
+  const cleared = await dispatch(handler, 'PATCH', '/tasks/task_http_graph_b', {
+    parentId: null,
+  })
+  assert.equal(cleared.statusCode, 200)
+  assert.equal(JSON.parse(cleared.body).parentId, undefined)
+})
+
 test('runtime shutdown endpoint accepts local non-browser management requests', async () => {
   const runtime = new AgentRuntime({
     mcpClient: new StubMCPClient(),
@@ -182,7 +674,6 @@ test('runtime shutdown endpoint accepts local non-browser management requests', 
     backendApplyClient: new BackendApplyClient(),
     memoryStore: new InMemoryAgentMemoryStore(),
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    skillCatalog: [],
     toolRegistry: { get: () => undefined, list: () => [] } as never,
     catalogStateStore: new InMemoryAgentCatalogStateStore(),
     contractResolver: new StaticAgentRuntimeContractResolver([]),
@@ -211,7 +702,6 @@ test('runtime shutdown endpoint rejects cross-site browser requests', async () =
     backendApplyClient: new BackendApplyClient(),
     memoryStore: new InMemoryAgentMemoryStore(),
     defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
-    skillCatalog: [],
     toolRegistry: { get: () => undefined, list: () => [] } as never,
     catalogStateStore: new InMemoryAgentCatalogStateStore(),
     contractResolver: new StaticAgentRuntimeContractResolver([]),
@@ -269,6 +759,16 @@ function buildUpdateState(): AgentServerContext['updates'] {
     history: [],
     policy: { channel: 'manual', allowRemote: false },
   } as never
+}
+
+async function waitForRun(runtime: AgentRuntime, runId: string) {
+  const deadline = Date.now() + 1000
+  while (true) {
+    const latest = runtime.getRun(runId)
+    if (latest && latest.status !== 'queued' && latest.status !== 'in_progress') return latest
+    if (Date.now() > deadline) throw new Error(`run ${runId} did not finish`)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
 }
 
 function dispatch(

@@ -1,0 +1,26 @@
+{
+  "id": "movscript.pack.proposal-router",
+  "version": "1.0.0",
+  "name": "Proposal Router",
+  "description": "Routes broad proposal or draft requests into the narrowest project, production, asset, or content-unit proposal workflow.",
+  "source": "builtin",
+  "schemas": [],
+  "tools": [
+    "movscript_get_current_context",
+    "movscript_list_drafts",
+    "movscript_get_draft",
+    "movscript_create_draft",
+    "movscript_update_draft",
+    "movscript_request_user_input"
+  ],
+  "skills": [
+    "movscript.workflow.proposal-first"
+  ],
+  "requires": {
+    "packs": {
+      "movscript.pack.agent-core": ">=1.0.0",
+      "movscript.pack.movscript-workspace": ">=1.0.0",
+      "movscript.pack.drafts": ">=1.0.0"
+    }
+  }
+}

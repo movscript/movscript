@@ -3,12 +3,24 @@ package ai
 import (
 	"encoding/json"
 	"errors"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestModelPresetJSONUsesPricingMode(t *testing.T) {
-	body, err := json.Marshal(ModelPreset{ID: "test", PricingMode: PricingPerImage})
+	body, err := json.Marshal(ModelPreset{
+		ID:          "test",
+		PricingMode: PricingPerImage,
+		SupportedParams: []ParamDef{{
+			Key:     "duration",
+			Label:   "Duration",
+			Type:    "select",
+			Options: []string{"5", "10"},
+			Default: "5",
+		}},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,6 +30,145 @@ func TestModelPresetJSONUsesPricingMode(t *testing.T) {
 	}
 	if strings.Contains(got, "billing_mode") {
 		t.Fatalf("unexpected legacy billing_mode in JSON: %s", got)
+	}
+	if !strings.Contains(got, `"supported_params"`) || !strings.Contains(got, `"duration"`) {
+		t.Fatalf("missing supported_params in JSON: %s", got)
+	}
+}
+
+func TestModelPresetsExposeModelSpecificSupportedParams(t *testing.T) {
+	presets := ModelPresets()
+	sawDalle := false
+	sawSeedance := false
+	for _, preset := range presets {
+		switch preset.ID {
+		case "openai:dall-e-3":
+			sawDalle = true
+			if !hasParam(preset.SupportedParams, "image_size") || hasParam(preset.SupportedParams, "size") {
+				t.Fatalf("expected DALL-E preset params to use canonical image_size key, got %#v", preset.SupportedParams)
+			}
+		case "volcengine:seedance-1-0-lite-t2v":
+			sawSeedance = true
+			if !hasParam(preset.SupportedParams, "duration") || !hasParam(preset.SupportedParams, "resolution") {
+				t.Fatalf("expected preset supported params for %s, got %#v", preset.ID, preset.SupportedParams)
+			}
+			body, err := json.Marshal(preset)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(body), `"supported_params"`) {
+				t.Fatalf("expected preset JSON to expose supported_params: %s", string(body))
+			}
+		}
+	}
+	if !sawDalle {
+		t.Fatal("expected DALL-E preset")
+	}
+	if !sawSeedance {
+		t.Fatal("expected Seedance preset")
+	}
+}
+
+func TestModelPresetSupportedParamsAreValidCanonicalContracts(t *testing.T) {
+	aliasKeys := map[string]bool{}
+	for alias := range loadModelParamAliasManifest(t) {
+		aliasKeys[alias] = true
+	}
+	for _, preset := range ModelPresets() {
+		if len(preset.SupportedParams) == 0 {
+			continue
+		}
+		for _, param := range preset.SupportedParams {
+			if aliasKeys[param.Key] {
+				t.Fatalf("preset %s exposes alias parameter key %q", preset.ID, param.Key)
+			}
+		}
+		body, err := json.Marshal(preset.SupportedParams)
+		if err != nil {
+			t.Fatalf("marshal supported params for preset %s: %v", preset.ID, err)
+		}
+		if err := ValidateModelParamConfig(preset.AdapterType, preset.Capabilities, string(body)); err != nil {
+			t.Fatalf("preset %s has invalid supported params: %v", preset.ID, err)
+		}
+	}
+}
+
+func TestVisualModelPresetDefaultsValidateAsAgentSubmittedParams(t *testing.T) {
+	for _, preset := range ModelPresets() {
+		if !hasVisualGenerationCapability(preset.Capabilities) {
+			continue
+		}
+		jobType := defaultJobTypeForPresetCapabilities(preset.Capabilities)
+		if jobType == "" {
+			t.Fatalf("visual preset %s has no supported default job type: %#v", preset.ID, preset.Capabilities)
+		}
+		aspectRatio, duration, extraParams := defaultGenerationArgsForPreset(t, preset)
+		extraParamsJSON := ""
+		if len(extraParams) > 0 {
+			body, err := json.Marshal(extraParams)
+			if err != nil {
+				t.Fatalf("marshal default params for preset %s: %v", preset.ID, err)
+			}
+			extraParamsJSON = string(body)
+		}
+		def := &ModelDef{
+			ID:                      preset.ID,
+			ModelID:                 preset.ModelID,
+			DisplayName:             preset.DisplayName,
+			Capabilities:            preset.Capabilities,
+			AdapterType:             preset.AdapterType,
+			SupportedParams:         preset.SupportedParams,
+			SupportedParamsExplicit: true,
+		}
+		if err := ValidateGenerationParams(def, jobType, extraParamsJSON, aspectRatio, duration); err != nil {
+			t.Fatalf("preset %s default generation params must validate for job_type %s: aspect_ratio=%q duration=%d extra_params=%s: %v",
+				preset.ID, jobType, aspectRatio, duration, extraParamsJSON, err)
+		}
+	}
+}
+
+func TestVisualModelPresetsDeclareModelSpecificSupportedParams(t *testing.T) {
+	for _, preset := range ModelPresets() {
+		if !hasVisualGenerationCapability(preset.Capabilities) {
+			continue
+		}
+		if len(preset.SupportedParams) == 0 {
+			t.Fatalf("visual preset %s must declare model-specific supported params to avoid broad adapter defaults", preset.ID)
+		}
+	}
+}
+
+func TestVideoModelPresetsExposeDurationContractMatchingRuntimeLimits(t *testing.T) {
+	for _, preset := range modelPresetSources {
+		if !hasString(preset.Capabilities, CapabilityVideo) &&
+			!hasString(preset.Capabilities, CapabilityVideoI2V) &&
+			!hasString(preset.Capabilities, CapabilityVideoV2V) {
+			continue
+		}
+		duration, ok := findPresetParam(preset.SupportedParams, "duration")
+		if !ok {
+			t.Fatalf("video preset %s must expose duration param for agent preflight", preset.ID)
+		}
+		if duration.Type != "select" || len(duration.Options) == 0 {
+			t.Fatalf("video preset %s duration must be a non-empty select contract, got %#v", preset.ID, duration)
+		}
+		if preset.DefaultDurSec > 0 && !hasString(duration.Options, intString(preset.DefaultDurSec)) {
+			t.Fatalf("video preset %s duration options %v must include default duration %d", preset.ID, duration.Options, preset.DefaultDurSec)
+		}
+		if preset.MaxDurSec > 0 {
+			if !hasString(duration.Options, intString(preset.MaxDurSec)) {
+				t.Fatalf("video preset %s duration options %v must include max duration %d", preset.ID, duration.Options, preset.MaxDurSec)
+			}
+			for _, option := range duration.Options {
+				value, ok := parseIntOption(option)
+				if !ok || value < -1 {
+					t.Fatalf("video preset %s duration option %q must be an integer or -1 auto sentinel", preset.ID, option)
+				}
+				if value > preset.MaxDurSec {
+					t.Fatalf("video preset %s duration option %q exceeds max duration %d", preset.ID, option, preset.MaxDurSec)
+				}
+			}
+		}
 	}
 }
 
@@ -33,6 +184,82 @@ func TestResolveModelDefUsesAdapterDefaultParams(t *testing.T) {
 	}
 	if !hasParam(def.SupportedParams, "frames") {
 		t.Fatal("expected volcen video params to include frames")
+	}
+}
+
+func hasVisualGenerationCapability(capabilities []string) bool {
+	for _, cap := range capabilities {
+		switch cap {
+		case CapabilityImage, CapabilityImageEdit, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V:
+			return true
+		}
+	}
+	return false
+}
+
+func defaultJobTypeForPresetCapabilities(capabilities []string) string {
+	switch {
+	case hasString(capabilities, CapabilityImage):
+		return CapabilityImage
+	case hasString(capabilities, CapabilityImageEdit):
+		return CapabilityImageEdit
+	case hasString(capabilities, CapabilityVideo):
+		return CapabilityVideo
+	case hasString(capabilities, CapabilityVideoI2V):
+		return CapabilityVideoI2V
+	case hasString(capabilities, CapabilityVideoV2V):
+		return CapabilityVideoV2V
+	default:
+		return ""
+	}
+}
+
+func defaultGenerationArgsForPreset(t *testing.T, preset ModelPreset) (string, int, map[string]any) {
+	t.Helper()
+	extraParams := map[string]any{}
+	aspectRatio := ""
+	duration := 0
+	for _, param := range preset.SupportedParams {
+		if param.Default == nil {
+			continue
+		}
+		switch param.Key {
+		case "aspect_ratio":
+			value, ok := param.Default.(string)
+			if !ok {
+				t.Fatalf("preset %s aspect_ratio default must be a string, got %#v", preset.ID, param.Default)
+			}
+			aspectRatio = value
+		case "duration":
+			duration = defaultDurationSeconds(t, preset.ID, param.Default)
+		default:
+			extraParams[param.Key] = param.Default
+		}
+	}
+	return aspectRatio, duration, extraParams
+}
+
+func defaultDurationSeconds(t *testing.T, presetID string, value any) int {
+	t.Helper()
+	switch v := value.(type) {
+	case int:
+		return v
+	case int64:
+		return int(v)
+	case float64:
+		if v != float64(int(v)) {
+			t.Fatalf("preset %s duration default must be an integer second count, got %v", presetID, v)
+		}
+		return int(v)
+	case string:
+		parsed, err := strconv.Atoi(v)
+		if err != nil {
+			t.Fatalf("preset %s duration default must parse as integer seconds, got %q", presetID, v)
+		}
+		return parsed
+	default:
+		t.Fatalf("preset %s duration default must be numeric or numeric string, got %#v", presetID, value)
+		return 0
 	}
 }
 
@@ -57,11 +284,62 @@ func TestResolveModelDefDefaultsOpenAICompatImageEditField(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-image-edit", AdapterOpenAICompat,
 		"Custom Image Edit", CapabilityImageEdit, string(PricingPerImage),
-		true, 1, 0,
+		false, 0, 0,
 		"", "",
 	)
+	if !def.AcceptsImageInput || def.MaxInputImages != 1 {
+		t.Fatalf("expected image_edit to imply accepts image input with max=1, got accepts=%v max=%d", def.AcceptsImageInput, def.MaxInputImages)
+	}
 	if def.ImageEditField != "image[]" {
 		t.Fatalf("ImageEditField = %q, want image[]", def.ImageEditField)
+	}
+}
+
+func TestResolveModelDefInfersImageInputFromI2VCapability(t *testing.T) {
+	def := ResolveModelDef(
+		"custom-i2v", AdapterVolcen,
+		"Custom I2V", CapabilityVideoI2V, string(PricingPerSecond),
+		false, 0, 0,
+		"", "",
+	)
+	if !def.AcceptsImageInput || def.MaxInputImages != 1 {
+		t.Fatalf("expected i2v to imply accepts image input with max=1, got accepts=%v max=%d", def.AcceptsImageInput, def.MaxInputImages)
+	}
+}
+
+func TestResolveModelDefInfersImageInputFromCustomImageLimit(t *testing.T) {
+	def := ResolveModelDef(
+		"custom-image-model", AdapterVolcen,
+		"Custom Image Model", CapabilityImage, string(PricingPerImage),
+		false, 4, 0,
+		"", "",
+	)
+	if !def.AcceptsImageInput || def.MaxInputImages != 4 {
+		t.Fatalf("expected custom max input images to imply accepts image input, got accepts=%v max=%d", def.AcceptsImageInput, def.MaxInputImages)
+	}
+}
+
+func TestVisualModelPresetsExposeConsistentInputMetadata(t *testing.T) {
+	for _, preset := range ModelPresets() {
+		if hasString(preset.Capabilities, CapabilityImageEdit) || hasString(preset.Capabilities, CapabilityVideoI2V) {
+			if !preset.AcceptsImageInput || preset.MaxInputImages == 0 {
+				t.Fatalf("preset %s with image input capability must expose accepts_image_input and max_input_images, got accepts=%v max=%d", preset.ID, preset.AcceptsImageInput, preset.MaxInputImages)
+			}
+		}
+		if hasString(preset.Capabilities, CapabilityVideoV2V) && preset.MaxInputVideos == 0 {
+			t.Fatalf("preset %s with v2v capability must expose max_input_videos", preset.ID)
+		}
+		if hasString(preset.Capabilities, CapabilityVideo) || hasString(preset.Capabilities, CapabilityVideoI2V) || hasString(preset.Capabilities, CapabilityVideoV2V) {
+			if preset.PricingMode != PricingPerSecond {
+				t.Fatalf("video preset %s pricing_mode = %s, want %s", preset.ID, preset.PricingMode, PricingPerSecond)
+			}
+		}
+		if (hasString(preset.Capabilities, CapabilityImage) || hasString(preset.Capabilities, CapabilityImageEdit)) &&
+			!hasString(preset.Capabilities, CapabilityVideo) && !hasString(preset.Capabilities, CapabilityVideoI2V) && !hasString(preset.Capabilities, CapabilityVideoV2V) {
+			if preset.PricingMode != PricingPerImage {
+				t.Fatalf("image preset %s pricing_mode = %s, want %s", preset.ID, preset.PricingMode, PricingPerImage)
+			}
+		}
 	}
 }
 
@@ -132,8 +410,23 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["duration"]}`); err != nil {
 		t.Fatalf("expected valid profile to pass: %v", err)
 	}
-	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["web_search"],"add":[{"key":"web_search","label":"Web Search","type":"boolean"}]}`); err != nil {
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["custom_flag"],"add":[{"key":"custom_flag","label":"Custom Flag","type":"boolean"}]}`); err != nil {
 		t.Fatalf("expected allow to reference added param: %v", err)
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"aspect_ratio":{"key":"ratio","type":"select","options":["16:9"]}}}`); err != nil {
+		t.Fatalf("expected override key aliases to match canonical key: %v", err)
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"web_search","label":"Web Search","type":"boolean"},{"key":"web_search","label":"Web Search 2","type":"boolean"}]}`); err == nil {
+		t.Fatal("expected duplicate profile add key to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"duration","label":"Duration","type":"select","options":["5"]}]}`); err == nil {
+		t.Fatal("expected profile add existing adapter param to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"ratio","label":"Ratio","type":"select","options":["16:9"]}]}`); err == nil {
+		t.Fatal("expected profile add alias of existing adapter param to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"duration":{"type":"select","options":["5"]}},"add":[{"key":"duration","label":"Duration","type":"select","options":["10"]}]}`); err == nil {
+		t.Fatal("expected profile add overridden param to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"","type":"boolean"}]}`); err == nil {
 		t.Fatal("expected empty param key to be rejected")
@@ -141,8 +434,20 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"alow":["duration"]}`); err == nil {
 		t.Fatal("expected unknown profile field to be rejected")
 	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `["duration"]`); err == nil {
+		t.Fatal("expected non-object legacy param item to be rejected")
+	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":"Negative Prompt"}]`); err == nil {
 		t.Fatal("expected missing param type to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":123,"label":"Negative Prompt","type":"string"}]`); err == nil {
+		t.Fatal("expected non-string param key to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":123,"type":"string"}]`); err == nil {
+		t.Fatal("expected non-string param label to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":"Negative Prompt","type":123}]`); err == nil {
+		t.Fatal("expected non-string param type to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"negative_prompt","label":"Negative Prompt","type":"string","defualt":"low quality"}]`); err == nil {
 		t.Fatal("expected unknown param field to be rejected")
@@ -155,6 +460,15 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"negative_prompt","label":"Negative Prompt","type":"string","defualt":"low quality"}]}`); err == nil {
 		t.Fatal("expected unknown profile add param field to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":[{"key":"frames","label":"Frames","type":"number","min":"1"}]}`); err == nil {
+		t.Fatal("expected non-number profile add min to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"frames":{"type":"number","step":"1"}}}`); err == nil {
+		t.Fatal("expected non-number profile override step to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"seed","label":"Seed","type":"number","step":0}]`); err == nil {
+		t.Fatal("expected explicit zero step to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"ratio","type":"select","options":["16:9"]}]`); err != nil {
 		t.Fatalf("expected known alias to receive normalized label: %v", err)
@@ -189,6 +503,9 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"default":5}]`); err == nil {
 		t.Fatal("expected select default with number type to be rejected")
 	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"seed","label":"Seed","type":"number","min":0,"max":0,"default":1}]`); err == nil {
+		t.Fatal("expected number default above explicit zero max to be rejected")
+	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"duration","type":"select","options":["5"],"default":null}]`); err == nil {
 		t.Fatal("expected explicit null default in legacy array to be rejected")
 	}
@@ -215,6 +532,9 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"duration":"5"}}`); err == nil {
 		t.Fatal("expected non-object override param in profile to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"override":{"duration":{"key":"frames","type":"number"}}}`); err == nil {
+		t.Fatal("expected override key mismatch to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"add":null}`); err == nil {
 		t.Fatal("expected explicit null add in profile to be rejected")
@@ -261,6 +581,9 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","json_schema":{"enum":"29"}}]`); err == nil {
 		t.Fatal("expected invalid json_schema enum to be rejected")
 	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","json_schema":{"enum":[29,{"value":33}]}}]`); err == nil {
+		t.Fatal("expected non-scalar json_schema enum item to be rejected")
+	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[{"key":"frames","type":"number","json_schema":{"minimum":100,"maximum":50}}]`); err == nil {
 		t.Fatal("expected invalid json_schema range to be rejected")
 	}
@@ -293,6 +616,30 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
 		{"key":"draft","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":1,"when_value":true,"options":["480p"]}]}
+	]`); err == nil {
+		t.Fatal("expected non-string conditional_enum when_param to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":null,"when_value":true,"options":["480p"]}]}
+	]`); err == nil {
+		t.Fatal("expected null conditional_enum when_param to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":true,"options":"480p"}]}
+	]`); err == nil {
+		t.Fatal("expected non-array conditional_enum options to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
+		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":true,"options":[480]}]}
+	]`); err == nil {
+		t.Fatal("expected non-string conditional_enum option to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
 		{"key":"resolution","type":"select","options":["480p"],"conditional_enum":[{"when_param":"draft","when_value":true,"options":["720p"]}]}
 	]`); err == nil {
 		t.Fatal("expected conditional enum option outside target options to be rejected")
@@ -302,6 +649,18 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"draft","when_value":true,"vale":false}]}
 	]`); err == nil {
 		t.Fatal("expected unknown conditional_const field to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
+		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":1,"when_value":true,"value":false}]}
+	]`); err == nil {
+		t.Fatal("expected non-string conditional_const when_param to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"draft","type":"boolean"},
+		{"key":"return_last_frame","type":"boolean","conditional_const":[{"when_param":"draft","when_value":true,"value":null}]}
+	]`); err == nil {
+		t.Fatal("expected null conditional_const value to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
 		{"key":"draft","type":"boolean"},
@@ -322,6 +681,20 @@ func TestValidateModelParamConfigRejectsBrokenContracts(t *testing.T) {
 		{"key":"seed","type":"number","requires_value":[{"parameter":"sequential_image_generation","value":"auto"}]}
 	]`); err == nil {
 		t.Fatal("expected unknown requires_value field to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"image_count","type":"number","min":1,"max":15},
+		{"key":"sequential_image_generation","type":"select","options":["disabled","auto"]},
+		{"key":"seed","type":"number","requires_value":[{"param":1,"value":"auto"}]}
+	]`); err == nil {
+		t.Fatal("expected non-string requires_value param to be rejected")
+	}
+	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `[
+		{"key":"image_count","type":"number","min":1,"max":15},
+		{"key":"sequential_image_generation","type":"select","options":["disabled","auto"]},
+		{"key":"seed","type":"number","requires_value":[{"param":null,"value":"auto"}]}
+	]`); err == nil {
+		t.Fatal("expected null requires_value param to be rejected")
 	}
 	if err := ValidateModelParamConfig(AdapterVolcen, []string{CapabilityVideo}, `{"allow":["missing_param"]}`); err == nil {
 		t.Fatal("expected unknown allow param to be rejected")
@@ -373,6 +746,57 @@ func TestValidateGenerationParamsReturnsStructuredOptionError(t *testing.T) {
 	}
 }
 
+func TestValidateGenRequestReturnsStructuredInputCountError(t *testing.T) {
+	def := ResolveModelDef(
+		"custom-i2v", AdapterVolcen,
+		"Custom I2V", CapabilityVideoI2V, string(PricingPerSecond),
+		true, 2, 0,
+		"", "",
+	)
+	err := ValidateGenRequest(def, GenRequest{
+		OutputType: CapabilityVideoI2V,
+		ImageCount: 3,
+	})
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T %[1]v", err)
+	}
+	if validationErr.Code != "INVALID_INPUT_COUNT" || validationErr.Field != "image" {
+		t.Fatalf("unexpected validation error: %#v", validationErr)
+	}
+	if validationErr.RequiredMin == nil || *validationErr.RequiredMin != 1 {
+		t.Fatalf("expected required_min=1, got %#v", validationErr.RequiredMin)
+	}
+	if validationErr.AllowedMax == nil || *validationErr.AllowedMax != 2 {
+		t.Fatalf("expected allowed_max=2, got %#v", validationErr.AllowedMax)
+	}
+	if validationErr.ActualCount == nil || *validationErr.ActualCount != 3 {
+		t.Fatalf("expected actual_count=3, got %#v", validationErr.ActualCount)
+	}
+}
+
+func TestValidateGenRequestReturnsStructuredUnsupportedOutputTypeError(t *testing.T) {
+	def := ResolveModelDef(
+		"custom-image", AdapterVolcen,
+		"Custom Image", CapabilityImage, string(PricingPerImage),
+		false, 0, 0,
+		"", "",
+	)
+	err := ValidateGenRequest(def, GenRequest{
+		OutputType: CapabilityVideo,
+	})
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError, got %T %[1]v", err)
+	}
+	if validationErr.Code != "UNSUPPORTED_OUTPUT_TYPE" || validationErr.Field != "output_type" {
+		t.Fatalf("unexpected validation error: %#v", validationErr)
+	}
+	if len(validationErr.AllowedValues) != 1 || validationErr.AllowedValues[0] != CapabilityImage {
+		t.Fatalf("expected allowed output types to preserve model capabilities, got %#v", validationErr.AllowedValues)
+	}
+}
+
 func TestValidateGenerationParamsValidatesStringParamType(t *testing.T) {
 	def := ResolveModelDef(
 		"profile-image", AdapterOpenAICompat,
@@ -395,8 +819,8 @@ func TestValidateGenerationParamsValidatesStringParamType(t *testing.T) {
 
 func TestValidateGenerationParamsAppliesParamJSONSchemaKeywords(t *testing.T) {
 	def := &ModelDef{
-		ID:          "schema-video",
-		DisplayName: "Schema Video",
+		ID:           "schema-video",
+		DisplayName:  "Schema Video",
 		Capabilities: []string{CapabilityVideo},
 		SupportedParams: []ParamDef{
 			{
@@ -422,6 +846,9 @@ func TestValidateGenerationParamsAppliesParamJSONSchemaKeywords(t *testing.T) {
 	if validationErr.Code != "INVALID_PARAMETER_OPTION" || validationErr.Field != "frames" {
 		t.Fatalf("unexpected validation error: %#v", validationErr)
 	}
+	if len(validationErr.AllowedValues) != 3 || validationErr.AllowedValues[0] != 29 || validationErr.AllowedValues[1] != 33 || validationErr.AllowedValues[2] != 37 {
+		t.Fatalf("expected numeric allowed values to keep numeric types, got %#v", validationErr.AllowedValues)
+	}
 	if validationErr.SuggestedFix["frames"] != 29 {
 		t.Fatalf("expected first schema enum value as suggested fix, got %#v", validationErr.SuggestedFix)
 	}
@@ -444,6 +871,82 @@ func TestValidateAndNormalizeGenerationParamsReturnsCanonicalKeys(t *testing.T) 
 	if params["prompt_strength"] != float64(2.5) {
 		t.Fatalf("expected prompt_strength canonical key, got %#v", params)
 	}
+}
+
+func TestValidateAndNormalizeGenerationParamsAliasesMatchManifest(t *testing.T) {
+	aliases := loadModelParamAliasManifest(t)
+	for from, to := range aliases {
+		paramType, value := aliasTestParamValue(to)
+		params := CanonicalizeGenerationParams(map[string]any{from: value})
+		if params[to] != value {
+			t.Fatalf("expected runtime alias %q to canonicalize to %q, got %#v", from, to, params)
+		}
+		if _, ok := params[from]; ok {
+			t.Fatalf("expected runtime alias %q to be removed after canonicalization, got %#v", from, params)
+		}
+
+		def := &ModelDef{
+			DisplayName:             "Alias Test",
+			Capabilities:            []string{CapabilityImage},
+			SupportedParams:         []ParamDef{{Key: to, Type: paramType}},
+			SupportedParamsExplicit: true,
+		}
+		body, err := json.Marshal(map[string]any{from: value})
+		if err != nil {
+			t.Fatal(err)
+		}
+		normalized, err := ValidateAndNormalizeGenerationParams(def, CapabilityImage, string(body), "", 0)
+		if err != nil {
+			t.Fatalf("expected runtime alias %q to validate as %q: %v", from, to, err)
+		}
+		if normalized[to] != value {
+			t.Fatalf("expected validated params to contain %q, got %#v", to, normalized)
+		}
+		if _, ok := normalized[from]; ok {
+			t.Fatalf("expected validated params to omit alias %q, got %#v", from, normalized)
+		}
+	}
+}
+
+func aliasTestParamValue(key string) (string, any) {
+	switch key {
+	case "image_size":
+		return "string", "1024x1024"
+	case "prompt_strength":
+		return "number", float64(0.5)
+	case "image_count":
+		return "number", float64(1)
+	case "fixed_camera", "audio":
+		return "boolean", true
+	default:
+		return "string", "value"
+	}
+}
+
+func TestNormalizeParamDefsForUICanonicalizesAliases(t *testing.T) {
+	aliases := loadModelParamAliasManifest(t)
+	for from, to := range aliases {
+		params := NormalizeParamDefsForUI([]ParamDef{{Key: from, Type: "select", Options: []string{"value"}}})
+		if len(params) != 1 || params[0].Key != to {
+			t.Fatalf("expected alias %q to normalize to %q, got %#v", from, to, params)
+		}
+	}
+}
+
+func loadModelParamAliasManifest(t *testing.T) map[string]string {
+	t.Helper()
+	data, err := os.ReadFile("../../../../../docs/model-param-aliases.json")
+	if err != nil {
+		t.Fatalf("read model param alias manifest: %v", err)
+	}
+	var aliases map[string]string
+	if err := json.Unmarshal(data, &aliases); err != nil {
+		t.Fatalf("parse model param alias manifest: %v", err)
+	}
+	if len(aliases) == 0 {
+		t.Fatal("expected model param alias manifest to be non-empty")
+	}
+	return aliases
 }
 
 func TestValidateAndNormalizeGenerationParamsIgnoresJobMetadata(t *testing.T) {
@@ -548,6 +1051,44 @@ func TestParamsSchemaExposesResolvedParamDefs(t *testing.T) {
 	}
 }
 
+func TestParamDefPreservesExplicitZeroNumberBounds(t *testing.T) {
+	const raw = `[{"key":"prompt_strength","label":"Prompt Strength","type":"number","min":0,"max":0}]`
+	params, explicit := ResolveEffectiveParams(AdapterVolcen, []string{CapabilityImage}, raw)
+	if !explicit || len(params) != 1 {
+		t.Fatalf("expected explicit custom params, got explicit=%v params=%#v", explicit, params)
+	}
+	param := params[0]
+	if !param.hasMin() || !param.hasMax() {
+		t.Fatalf("expected explicit zero number bounds to keep presence, got %#v", param)
+	}
+	encoded, err := json.Marshal(param)
+	if err != nil {
+		t.Fatalf("marshal param: %v", err)
+	}
+	if !strings.Contains(string(encoded), `"min":0`) || !strings.Contains(string(encoded), `"max":0`) {
+		t.Fatalf("expected explicit zero bounds in JSON contract, got %s", string(encoded))
+	}
+	schema := ParamsSchema(params)
+	props := schema["properties"].(map[string]any)
+	strength := props["prompt_strength"].(map[string]any)
+	if !schemaNumberEquals(strength["minimum"], 0) || !schemaNumberEquals(strength["maximum"], 0) {
+		t.Fatalf("expected zero bounds in params schema, got %#v", strength)
+	}
+	def := &ModelDef{
+		ID:                      "zero-bound",
+		DisplayName:             "Zero Bound",
+		Capabilities:            []string{CapabilityImage},
+		SupportedParams:         params,
+		SupportedParamsExplicit: true,
+	}
+	if err := ValidateGenerationParams(def, CapabilityImage, `{"prompt_strength":1}`, "", 0); err == nil {
+		t.Fatal("expected explicit zero max to reject value above zero")
+	}
+	if err := ValidateGenerationParams(def, CapabilityImage, `{"prompt_strength":0}`, "", 0); err != nil {
+		t.Fatalf("expected zero value to satisfy explicit zero bounds: %v", err)
+	}
+}
+
 func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
 	def := &ModelDef{
 		ID:           "declared-rules",
@@ -564,11 +1105,15 @@ func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
 		},
 		SupportedParamsExplicit: true,
 	}
+	var validationErr *ValidationError
 	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5","frames":29}`, "", 0); err == nil {
 		t.Fatal("expected declared conflict rule to reject duration + frames")
+	} else if !errors.As(err, &validationErr) {
+		t.Fatalf("expected ValidationError for conflict, got %T %[1]v", err)
+	} else if value, ok := validationErr.SuggestedFix["frames"]; !ok || value != nil {
+		t.Fatalf("expected conflict suggested fix to remove frames, got %#v", validationErr.SuggestedFix)
 	}
 	err := ValidateGenerationParams(def, CapabilityVideo, `{"draft":true,"resolution":"720p"}`, "", 0)
-	var validationErr *ValidationError
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("expected ValidationError, got %T %[1]v", err)
 	}
@@ -591,6 +1136,53 @@ func TestDeclaredParamRulesValidateCombinations(t *testing.T) {
 	}
 }
 
+func TestExplicitSupportedParamsDoNotInheritLegacyCrossParamRules(t *testing.T) {
+	def := &ModelDef{
+		ID:           "declared-rules-without-conflict",
+		DisplayName:  "Declared Rules Without Conflict",
+		Capabilities: []string{CapabilityVideo},
+		SupportedParams: []ParamDef{
+			{Key: "duration", Type: "select", Options: []string{"5", "10"}},
+			{Key: "frames", Type: "number", Min: 29, Max: 289, Step: 4},
+			{Key: "draft", Type: "boolean"},
+			{Key: "resolution", Type: "select", Options: []string{"480p", "720p"}},
+			{Key: "return_last_frame", Type: "boolean"},
+			{Key: "sequential_image_generation", Type: "select", Options: []string{"disabled", "auto"}},
+			{Key: "image_count", Type: "number", Min: 1, Max: 15, Step: 1},
+		},
+		SupportedParamsExplicit: true,
+	}
+	if err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5","frames":29}`, "", 0); err != nil {
+		t.Fatalf("expected explicit params without conflicts_with to allow duration + frames: %v", err)
+	}
+	if err := ValidateGenerationParams(def, CapabilityVideo, `{"draft":true,"resolution":"720p","return_last_frame":true}`, "", 0); err != nil {
+		t.Fatalf("expected explicit params without conditional rules to allow draft combination: %v", err)
+	}
+	if err := ValidateGenerationParams(def, CapabilityVideo, `{"image_count":3,"sequential_image_generation":"disabled"}`, "", 0); err != nil {
+		t.Fatalf("expected explicit params without requires_value to allow image_count combination: %v", err)
+	}
+}
+
+func TestAdapterDefaultParamsKeepLegacyCrossParamRules(t *testing.T) {
+	def := &ModelDef{
+		ID:           "adapter-default-legacy-rules",
+		DisplayName:  "Adapter Default Legacy Rules",
+		Capabilities: []string{CapabilityVideo},
+		SupportedParams: []ParamDef{
+			{Key: "duration", Type: "select", Options: []string{"5", "10"}},
+			{Key: "frames", Type: "number", Min: 29, Max: 289, Step: 4},
+		},
+	}
+	err := ValidateGenerationParams(def, CapabilityVideo, `{"duration":"5","frames":29}`, "", 0)
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("expected legacy ValidationError, got %T %[1]v", err)
+	}
+	if validationErr.Code != "INVALID_PARAMETER_COMBINATION" || validationErr.Field != "frames" {
+		t.Fatalf("unexpected legacy validation error: %#v", validationErr)
+	}
+}
+
 func TestModelInputsForDefReflectsTaskRequirements(t *testing.T) {
 	def := ResolveModelDef(
 		"custom-i2v", AdapterVolcen,
@@ -601,6 +1193,44 @@ func TestModelInputsForDefReflectsTaskRequirements(t *testing.T) {
 	inputs := modelInputsForDef(def)
 	if inputs.Image.Min != 1 || inputs.Image.Max != 2 {
 		t.Fatalf("expected i2v image input min=1 max=2, got %#v", inputs.Image)
+	}
+	if inputs.Video.Min != 0 || inputs.Video.Max != 0 {
+		t.Fatalf("expected no video input requirement, got %#v", inputs.Video)
+	}
+}
+
+func TestModelInputsForDefReflectsOptionalCustomImageInputs(t *testing.T) {
+	def := ResolveModelDef(
+		"custom-image-model", AdapterVolcen,
+		"Custom Image Model", CapabilityImage, string(PricingPerImage),
+		false, 4, 0,
+		"", "",
+	)
+	inputs := modelInputsForDef(def)
+	if !def.AcceptsImageInput {
+		t.Fatalf("expected custom image input limit to set accepts image input")
+	}
+	if inputs.Image.Min != 0 || inputs.Image.Max != 4 {
+		t.Fatalf("expected optional image input min=0 max=4, got %#v", inputs.Image)
+	}
+	if inputs.Video.Min != 0 || inputs.Video.Max != 0 {
+		t.Fatalf("expected no video input requirement, got %#v", inputs.Video)
+	}
+}
+
+func TestModelInputsForDefKeepsRequiredImageInputForMixedImageEditModels(t *testing.T) {
+	def := ResolveModelDef(
+		"custom-image-and-edit", AdapterGemini,
+		"Custom Image And Edit", strings.Join([]string{CapabilityImage, CapabilityImageEdit}, ","), string(PricingPerImage),
+		true, -1, 0,
+		"", "",
+	)
+	inputs := modelInputsForDef(def)
+	if !def.AcceptsImageInput {
+		t.Fatalf("expected mixed image/edit model to accept image input")
+	}
+	if inputs.Image.Min != 1 || inputs.Image.Max != -1 {
+		t.Fatalf("expected mixed image/edit model image input min=1 max=-1, got %#v", inputs.Image)
 	}
 	if inputs.Video.Min != 0 || inputs.Video.Max != 0 {
 		t.Fatalf("expected no video input requirement, got %#v", inputs.Video)
@@ -633,6 +1263,24 @@ func hasParam(params []ParamDef, key string) bool {
 		}
 	}
 	return false
+}
+
+func findPresetParam(params []ParamDef, key string) (ParamDef, bool) {
+	for _, p := range params {
+		if p.Key == key {
+			return p, true
+		}
+	}
+	return ParamDef{}, false
+}
+
+func intString(value int) string {
+	return strconv.Itoa(value)
+}
+
+func parseIntOption(value string) (int, bool) {
+	parsed, err := strconv.Atoi(value)
+	return parsed, err == nil
 }
 
 func schemaRuleHasKey(rules []any, key string) bool {

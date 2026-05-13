@@ -9,7 +9,7 @@ const APPROVAL_RANK: Record<ApprovalMode, number> = {
 export function mergeProfiles(...layers: AgentProfile[]): AgentProfile {
   if (layers.length === 0) throw new Error('mergeProfiles requires at least one profile')
   let effective = cloneProfile(layers[0])
-  const trace = layers.flatMap((layer) => layer.resolvedFrom?.layers ?? [{ source: 'mode' as const, id: layer.id, version: layer.version }])
+  const trace = layers.flatMap((layer) => layer.resolvedFrom?.layers ?? [{ source: 'default' as const, id: layer.id, version: layer.version }])
   for (const next of layers.slice(1)) {
     effective = {
       ...effective,
@@ -17,7 +17,6 @@ export function mergeProfiles(...layers: AgentProfile[]): AgentProfile {
       version: next.version,
       name: next.name,
       description: next.description ?? effective.description,
-      modeAlias: effective.modeAlias ?? next.modeAlias,
       enabledPacks: union(effective.enabledPacks, next.enabledPacks),
       persona: next.persona ?? effective.persona,
       enabledWorkflows: union(effective.enabledWorkflows, next.enabledWorkflows),
@@ -66,7 +65,6 @@ export function applyRestrictiveProfileOverride(
       version: override.version,
       name: override.name,
       description: override.description ?? base.description,
-      modeAlias: base.modeAlias,
       enabledPacks: source === 'org' && override.enabledPacks.length > 0
         ? intersection(base.enabledPacks, override.enabledPacks)
         : base.enabledPacks,
@@ -119,7 +117,6 @@ function mergeLimits(left: AgentProfile['limits'], right: AgentProfile['limits']
 
 function findRestrictiveOverrideViolations(base: AgentProfile, override: AgentProfile, source: RestrictiveProfileLayerSource): string[] {
   const violations: string[] = []
-  if (override.modeAlias && override.modeAlias !== base.modeAlias) violations.push(`cannot change modeAlias from ${base.modeAlias ?? 'none'} to ${override.modeAlias}`)
   if (override.persona && override.persona !== base.persona) violations.push(`cannot change persona to ${override.persona}`)
   if (override.model) violations.push('cannot override model binding')
   if (source === 'user') {

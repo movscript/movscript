@@ -1,0 +1,28 @@
+{
+  "id": "movscript.workflow.project-progress",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Project Progress",
+  "description": "Summarizes current project progress from context, scripts, drafts, and available state.",
+  "priority": 660,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "进度",
+        "完成度",
+        "project progress",
+        "status"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_current_context",
+    "tool://movscript_read_project_scripts",
+    "tool://movscript_list_drafts"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "Return verified progress, open drafts, blockers, and recommended next step.",
+  "instructionTemplatePath": "instruction.md"
+}

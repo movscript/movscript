@@ -8,6 +8,48 @@ export type ParamContractAudit = {
   schemaRuleCount: number
 }
 
+export type ParamRuleTypeSummary = {
+  conflicts: number
+  conditionalEnums: number
+  conditionalConsts: number
+  requiresValues: number
+  total: number
+}
+
+export type AgentCompactParamContract = {
+  contract_version: 1
+  id?: number
+  model_config_id?: number
+  display_name?: string
+  short_name?: string
+  logical_model_id?: string
+  capabilities?: string[]
+  accepts_image_input?: boolean
+  input_requirements: {
+    image: { min: number; max: number }
+    video: { min: number; max: number }
+  }
+  supported_param_keys: string[]
+  supported_params: Array<{
+    key: string
+    label?: string
+    type?: ParamDef['type']
+    options?: string[]
+    enum?: Array<string | number | boolean>
+    default?: ParamDef['default']
+    min?: number
+    max?: number
+    step?: number
+    description?: string
+    conflicts_with?: string[]
+    conditional_enum?: ParamConditionalEnum[]
+    conditional_const?: ParamConditionalConst[]
+    requires_value?: ParamRequiresValue[]
+  }>
+  params_schema_loaded?: boolean
+  params_schema_rule_count?: number
+}
+
 export const PARAM_TEMPLATES: Record<string, ParamDef> = {
   aspect_ratio: { key: 'aspect_ratio', label: 'Aspect Ratio', type: 'select', options: ['16:9', '9:16', '1:1', '4:3', '3:4'], default: '16:9' },
   duration: { key: 'duration', label: 'Duration (seconds)', type: 'select', options: ['5', '6', '8', '10', '15', '20'], default: '5' },
@@ -52,6 +94,7 @@ export function parseParamDefs(value: string): ParamDef[] {
 export function normalizeParamDefForAdmin(p: ParamDef): ParamDef {
   const alias: Record<string, string> = {
     ratio: 'aspect_ratio',
+    duration_seconds: 'duration',
     size: 'image_size',
     guidance_scale: 'prompt_strength',
     max_images: 'image_count',
@@ -78,14 +121,18 @@ export function serializeParamDefs(params: ParamDef[]): string {
       const label = (p.label || key).trim()
       const next: ParamDef = { key, label, type: p.type || 'select' }
       if (next.type === 'select') {
-        next.options = (p.options ?? []).map(String).map((s) => s.trim()).filter(Boolean)
+        next.options = stringItemsForSerialization(p.options)
         if (p.default !== undefined && p.default !== '') next.default = String(p.default)
       }
       if (next.type === 'number') {
-        if (p.default !== undefined && p.default !== '') next.default = Number(p.default)
-        if (p.min !== undefined && String(p.min) !== '') next.min = Number(p.min)
-        if (p.max !== undefined && String(p.max) !== '') next.max = Number(p.max)
-        if (p.step !== undefined && String(p.step) !== '') next.step = Number(p.step)
+        const defaultValue = finiteNumberForSerialization(p.default)
+        const minValue = finiteNumberForSerialization(p.min)
+        const maxValue = finiteNumberForSerialization(p.max)
+        const stepValue = finiteNumberForSerialization(p.step)
+        if (defaultValue !== undefined) next.default = defaultValue
+        if (minValue !== undefined) next.min = minValue
+        if (maxValue !== undefined) next.max = maxValue
+        if (stepValue !== undefined) next.step = stepValue
       }
       if (next.type === 'boolean') {
         const defaultValue = booleanDefaultForSerialization(p.default)
@@ -98,38 +145,61 @@ export function serializeParamDefs(params: ParamDef[]): string {
         next.json_schema = p.json_schema
       }
       if (Array.isArray(p.conflicts_with)) {
-        next.conflicts_with = p.conflicts_with.map(String).map((s) => s.trim()).filter(Boolean)
+        next.conflicts_with = stringItemsForSerialization(p.conflicts_with)
       }
       if (Array.isArray(p.conditional_enum)) {
-        next.conditional_enum = p.conditional_enum
+        const rules = p.conditional_enum
+          .map(ruleObjectForSerialization)
+          .filter((item): item is Record<string, unknown> => !!item)
           .map((item) => ({
             when_param: String(item.when_param ?? '').trim(),
-            when_value: item.when_value,
-            options: (item.options ?? []).map(String).map((s) => s.trim()).filter(Boolean),
+            when_value: item.when_value as ParamConditionalEnum['when_value'],
+            options: stringItemsForSerialization(item.options),
           }))
           .filter((item) => item.when_param && item.options.length > 0)
+        if (rules.length > 0) next.conditional_enum = rules
       }
       if (Array.isArray(p.conditional_const)) {
-        next.conditional_const = p.conditional_const
+        const rules = p.conditional_const
+          .map(ruleObjectForSerialization)
+          .filter((item): item is Record<string, unknown> => !!item)
           .map((item) => ({
             when_param: String(item.when_param ?? '').trim(),
-            when_value: item.when_value,
-            value: item.value,
+            when_value: item.when_value as ParamConditionalConst['when_value'],
+            value: item.value as ParamConditionalConst['value'],
           }))
           .filter((item) => item.when_param)
+        if (rules.length > 0) next.conditional_const = rules
       }
       if (Array.isArray(p.requires_value)) {
-        next.requires_value = p.requires_value
+        const rules = p.requires_value
+          .map(ruleObjectForSerialization)
+          .filter((item): item is Record<string, unknown> => !!item)
           .map((item) => ({
             param: String(item.param ?? '').trim(),
-            value: item.value,
+            value: item.value as ParamRequiresValue['value'],
           }))
           .filter((item) => item.param)
+        if (rules.length > 0) next.requires_value = rules
       }
       return next
     })
     .filter(Boolean) as ParamDef[]
   return JSON.stringify(normalized)
+}
+
+function stringItemsForSerialization(value: unknown): string[] {
+  return Array.isArray(value) ? value.map(String).map((s) => s.trim()).filter(Boolean) : []
+}
+
+function ruleObjectForSerialization(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+}
+
+function finiteNumberForSerialization(value: unknown): number | undefined {
+  if (value === undefined || value === '') return undefined
+  const next = Number(value)
+  return Number.isFinite(next) ? next : undefined
 }
 
 function booleanDefaultForSerialization(value: ParamDef['default']): boolean | undefined {
@@ -220,6 +290,49 @@ export function buildParamContractAudit(value: string, adapterParams: ParamDef[]
     errors,
     warnings,
     schemaRuleCount: countSchemaRules(normalized),
+  }
+}
+
+export function summarizeParamRuleTypes(params: ParamDef[]): ParamRuleTypeSummary {
+  const summary = params.reduce<ParamRuleTypeSummary>((acc, param) => {
+    acc.conflicts += param.conflicts_with?.length ?? 0
+    acc.conditionalEnums += param.conditional_enum?.length ?? 0
+    acc.conditionalConsts += param.conditional_const?.length ?? 0
+    acc.requiresValues += param.requires_value?.length ?? 0
+    return acc
+  }, { conflicts: 0, conditionalEnums: 0, conditionalConsts: 0, requiresValues: 0, total: 0 })
+  summary.total = summary.conflicts + summary.conditionalEnums + summary.conditionalConsts + summary.requiresValues
+  return summary
+}
+
+export function buildAgentCompactParamContract(
+  params: ParamDef[],
+  inputRequirements: AgentCompactParamContract['input_requirements'] = {
+    image: { min: 0, max: 0 },
+    video: { min: 0, max: 0 },
+  },
+): AgentCompactParamContract {
+  const supportedParams = params
+    .filter((param) => param.key)
+    .map((param) => ({
+      key: param.key,
+      ...(param.label ? { label: param.label } : {}),
+      ...(param.type ? { type: param.type } : {}),
+      ...(param.options?.length ? { options: [...param.options] } : {}),
+      ...(param.default !== undefined ? { default: param.default } : {}),
+      ...(param.min !== undefined ? { min: param.min } : {}),
+      ...(param.max !== undefined ? { max: param.max } : {}),
+      ...(param.step !== undefined ? { step: param.step } : {}),
+      ...(param.conflicts_with?.length ? { conflicts_with: [...param.conflicts_with] } : {}),
+      ...(param.conditional_enum?.length ? { conditional_enum: param.conditional_enum.map((rule) => ({ ...rule, options: [...rule.options] })) } : {}),
+      ...(param.conditional_const?.length ? { conditional_const: param.conditional_const.map((rule) => ({ ...rule })) } : {}),
+      ...(param.requires_value?.length ? { requires_value: param.requires_value.map((rule) => ({ ...rule })) } : {}),
+    }))
+  return {
+    contract_version: 1,
+    input_requirements: inputRequirements,
+    supported_param_keys: supportedParams.map((param) => param.key).sort(),
+    supported_params: supportedParams,
   }
 }
 
@@ -320,7 +433,9 @@ function validateRawParamDefFields(value: string, label: string, errors: string[
     const parsed = JSON.parse(value)
     if (!Array.isArray(parsed)) return
     parsed.forEach((item, index) => {
-      if (item && typeof item === 'object' && !Array.isArray(item)) {
+      if (!item || Array.isArray(item) || typeof item !== 'object') {
+        errors.push(`${label}[${index}] must be a parameter definition object.`)
+      } else {
         validateRawParamDefObject(item as Record<string, unknown>, `${label}[${index}]`, errors)
       }
     })
@@ -336,6 +451,15 @@ function validateRawParamDefObject(param: Record<string, unknown>, label: string
   ])
   Object.keys(param).forEach((field) => {
     if (!allowedFields.has(field)) errors.push(`${label} contains unknown field "${field}".`)
+  })
+  allowedFields.forEach((field) => {
+    if (param[field] === null) errors.push(`${label}.${field} must not be null.`)
+  })
+  ;(['key', 'label', 'type'] as const).forEach((field) => {
+    if (param[field] !== undefined && typeof param[field] !== 'string') errors.push(`${label}.${field} must be a string.`)
+  })
+  ;(['min', 'max', 'step'] as const).forEach((field) => {
+    if (param[field] !== undefined && (typeof param[field] !== 'number' || Number.isNaN(param[field]))) errors.push(`${label}.${field} must be a number.`)
   })
   ;(['options', 'conflicts_with', 'conditional_enum', 'conditional_const', 'requires_value'] as const).forEach((field) => {
     if (param[field] !== undefined && !Array.isArray(param[field])) errors.push(`${label}.${field} must be an array.`)
@@ -361,6 +485,16 @@ function validateRawRuleObjects(value: unknown, label: string, allowedFields: st
     Object.keys(item as Record<string, unknown>).forEach((field) => {
       if (!allowed.has(field)) errors.push(`${label}[${index}] contains unknown field "${field}".`)
     })
+    Object.entries(item as Record<string, unknown>).forEach(([field, raw]) => {
+      if (raw === null) errors.push(`${label}[${index}].${field} must not be null.`)
+    })
+    validateRawRuleStringField(item as Record<string, unknown>, 'when_param', `${label}[${index}].when_param`, errors)
+    if (allowed.has('param')) validateRawRuleStringField(item as Record<string, unknown>, 'param', `${label}[${index}].param`, errors)
+    if (allowed.has('options')) {
+      const options = (item as Record<string, unknown>).options
+      if (options !== undefined && !Array.isArray(options)) errors.push(`${label}[${index}].options must be an array.`)
+      validateRawStringArray(options, `${label}[${index}].options`, errors)
+    }
   })
 }
 
@@ -369,6 +503,10 @@ function validateRawStringArray(value: unknown, label: string, errors: string[])
   value.forEach((item, index) => {
     if (typeof item !== 'string') errors.push(`${label}[${index}] must be a string.`)
   })
+}
+
+function validateRawRuleStringField(value: Record<string, unknown>, field: string, label: string, errors: string[]) {
+  if (value[field] !== undefined && typeof value[field] !== 'string') errors.push(`${label} must be a string.`)
 }
 
 export function splitOptions(value: string): string[] {
@@ -414,12 +552,19 @@ function resolveProfileParams(adapterParams: ParamDef[], profile: ModelParamProf
 function validateProfileParamReferences(adapterParams: ParamDef[], profile: ModelParamProfile, errors: string[]) {
   const known = new Set(adapterParams.map((param) => normalizeAdminParamKey(param.key)).filter(Boolean))
   Object.entries(profile.override ?? {}).forEach(([rawKey, rawParam]) => {
+    const overrideKey = normalizeAdminParamKey(rawKey)
     const key = normalizeAdminParamKey(rawParam.key || rawKey)
+    if (rawParam.key && key !== overrideKey) errors.push(`Profile override.${rawKey} key must match override key "${overrideKey}".`)
     if (key) known.add(key)
   })
+  const addSeen = new Set<string>()
   for (const raw of profile.add ?? []) {
     const key = normalizeAdminParamKey(raw.key)
-    if (key) known.add(key)
+    if (!key) continue
+    if (addSeen.has(key)) errors.push(`Profile add contains duplicated parameter "${key}".`)
+    if (known.has(key)) errors.push(`Profile add parameter "${key}" already exists; use override to modify existing parameters.`)
+    addSeen.add(key)
+    known.add(key)
   }
   const allow = validateProfileKeyList('allow', profile.allow ?? [], known, errors)
   const deny = validateProfileKeyList('deny', profile.deny ?? [], known, errors)
@@ -458,7 +603,7 @@ function validateResolvedParams(params: ParamDef[], errors: string[]) {
     if (param.type === 'select' && options.length === 0) errors.push(`Select parameter "${key}" needs at least one option.`)
     if (param.type === 'select') validateStringOptions(options, `Select parameter "${key}" options`, errors)
     if (param.type === 'number' && param.min !== undefined && param.max !== undefined && Number(param.min) > Number(param.max)) errors.push(`Number parameter "${key}" has min greater than max.`)
-    if (param.type === 'number' && param.step !== undefined && Number(param.step) < 0) errors.push(`Number parameter "${key}" has negative step.`)
+    if (param.type === 'number' && param.step !== undefined && Number(param.step) <= 0) errors.push(`Number parameter "${key}" step must be greater than zero.`)
     validateParamDefault(param, key, errors)
     validateParamJSONSchema(param, key, errors)
     stringArrayField(param.conflicts_with).forEach((other) => {

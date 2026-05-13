@@ -26,7 +26,6 @@ export interface ConversationDraft {
 
 export interface AgentSettings {
   modelId: number | null
-  mode: AgentWorkMode
   includeProjectContext: boolean
   includeRecentResources: boolean
   autoPlan: boolean
@@ -36,7 +35,6 @@ export interface AgentSettings {
   planWorkerTimeoutMs: number
 }
 
-export type AgentWorkMode = 'chat' | 'plan' | 'create' | 'review'
 export type AgentPermissionMode = 'ask' | 'suggest' | 'auto'
 
 export interface AgentAttachment {
@@ -63,11 +61,11 @@ export interface AgentAttachment {
 export interface ChatMessageMeta {
   modelId?: number | null
   agentName?: string
-  mode?: AgentWorkMode
   permissionMode?: AgentPermissionMode
   contextLabels?: string[]
   generationJobs?: ChatGenerationJob[]
   generationParamAudits?: ChatGenerationParamAudit[]
+  generationValidationErrors?: ChatGenerationValidationError[]
   localRunActivity?: ChatRunActivity
 }
 
@@ -92,6 +90,7 @@ export interface ChatGenerationJob {
 export interface ChatGenerationParamAudit {
   stepId?: string
   jobId?: number
+  auditVersion?: number
   modelConfigId?: number
   modelContractLoaded: boolean
   paramsSchemaLoaded: boolean
@@ -101,8 +100,58 @@ export interface ChatGenerationParamAudit {
   submittedExtraParams: string[]
   droppedExtraParams: string[]
   droppedTopLevelParams: string[]
+  dropReasons?: Record<string, string>
+  renamedExtraParams?: Record<string, string>
   extraParamsParseError?: string
+  preflightErrors?: ChatGenerationParamPreflightError[]
+  inputRequirements?: ChatGenerationInputRequirements
+  submittedInputs?: ChatGenerationSubmittedInputs
+  inputPreflightErrors?: ChatGenerationInputPreflightError[]
   repairNote?: string
+}
+
+export interface ChatGenerationInputRequirement {
+  min: number
+  max: number
+}
+
+export interface ChatGenerationInputRequirements {
+  image: ChatGenerationInputRequirement
+  video: ChatGenerationInputRequirement
+}
+
+export interface ChatGenerationSubmittedInputs {
+  image: number
+  video: number
+}
+
+export interface ChatGenerationParamPreflightError {
+  code: string
+  field: string
+  message: string
+  allowedValues?: Array<string | number | boolean>
+  suggestedFix?: Record<string, unknown>
+}
+
+export interface ChatGenerationInputPreflightError {
+  code: string
+  field: 'image' | 'video'
+  message: string
+  requiredMin: number
+  allowedMax: number
+  actualCount: number
+}
+
+export interface ChatGenerationValidationError {
+  stepId?: string
+  code: string
+  field?: string
+  message: string
+  allowedValues?: Array<string | number | boolean>
+  suggestedFix?: Record<string, unknown>
+  requiredMin?: number
+  allowedMax?: number
+  actualCount?: number
 }
 
 export interface ChatRunActivity {
@@ -198,7 +247,6 @@ function getUserState(store: Pick<AgentStore, 'convsByUser'>, userId: string): U
 
 const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   modelId: null,
-  mode: 'chat',
   includeProjectContext: true,
   includeRecentResources: true,
   autoPlan: true,

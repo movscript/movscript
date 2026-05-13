@@ -1,15 +1,11 @@
 {
-  "id": "movscript.pack.core",
+  "id": "movscript.pack.agent-core",
   "version": "1.0.0",
-  "name": "MovScript Core",
-  "description": "Platform context, memory, catalog, and always-on safety policies.",
+  "name": "Agent Core",
+  "description": "Agent-owned memory, subagent orchestration, user input, and catalog reload tools.",
   "source": "builtin",
   "schemas": [],
   "tools": [
-    "movscript_get_current_context",
-    "movscript_list_projects",
-    "movscript_read_project_scripts",
-    "movscript_create_project",
     "movscript_search_memories",
     "movscript_get_memory",
     "movscript_create_memory",
@@ -18,19 +14,13 @@
     "movscript_spawn_subagent",
     "movscript_list_subagents",
     "movscript_wait_subagent",
-    "movscript_cancel_subagent"
+    "movscript_cancel_subagent",
+    "movscript_request_user_input"
   ],
   "skills": [
     "movscript.persona.default",
     "movscript.persona.plan-orchestrator",
-    "movscript.persona.content-creator",
     "movscript.persona.reviewer",
-    "movscript.persona.project-orchestrator",
-    "movscript.persona.production-orchestrator",
-    "movscript.persona.visual-director",
-    "movscript.persona.creative-workbench",
-    "movscript.persona.script-producer",
-    "movscript.policy.approval-boundaries",
-    "movscript.policy.platform-concepts"
+    "movscript.policy.approval-boundaries"
   ]
 }

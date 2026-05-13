@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { actionableRunForPlan, buildPlanArtifactSummary, buildPlanTaskViews, plannerRunIdForPlanAction, runNeedsUserAction, shouldPollPlanSnapshot } from './agentPlanUi'
+import { actionableRunForPlan, activeWorkerRunCount, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, buildTaskArtifactViews, plannerRunIdForPlanAction, runNeedsUserAction, shouldPollPlanSnapshot } from './agentPlanUi'
 import type { AgentPlanSnapshot, AgentRun, AgentTask } from './localAgentClient'
 
 function run(input: Partial<AgentRun> & { id: string }): AgentRun {
@@ -36,7 +36,7 @@ function run(input: Partial<AgentRun> & { id: string }): AgentRun {
   }
 }
 
-function snapshot(input: { plan?: Partial<AgentPlanSnapshot['plan']>; tasks?: AgentPlanSnapshot['tasks']; runs?: AgentPlanSnapshot['runs'] } = {}): AgentPlanSnapshot {
+function snapshot(input: { plan?: Partial<AgentPlanSnapshot['plan']>; tasks?: AgentPlanSnapshot['tasks']; runs?: AgentPlanSnapshot['runs']; nameConflicts?: AgentPlanSnapshot['nameConflicts']; summary?: AgentPlanSnapshot['summary'] } = {}): AgentPlanSnapshot {
   return {
     plan: {
       id: 'plan_1',
@@ -51,6 +51,8 @@ function snapshot(input: { plan?: Partial<AgentPlanSnapshot['plan']>; tasks?: Ag
     },
     tasks: input.tasks ?? [],
     runs: input.runs ?? [],
+    nameConflicts: input.nameConflicts,
+    summary: input.summary,
   }
 }
 
@@ -108,18 +110,58 @@ test('shouldPollPlanSnapshot stops polling when plan and runs are terminal', () 
   assert.equal(shouldPollPlanSnapshot(planSnapshot, run({ id: 'run_planner', status: 'completed', planId: 'plan_1' })), false)
 })
 
+test('activeWorkerRunCount ignores active planner runs', () => {
+  assert.equal(activeWorkerRunCount(snapshot({
+    runs: [
+      run({ id: 'run_planner', role: 'planner', status: 'in_progress', planId: 'plan_1' }),
+      run({ id: 'run_worker', role: 'worker', status: 'requires_action', planId: 'plan_1' }),
+      run({ id: 'run_done_worker', role: 'worker', status: 'completed', planId: 'plan_1' }),
+    ],
+  })), 1)
+})
+
+test('buildPlanNameConflictViews exposes duplicate subagent names', () => {
+  const planSnapshot = snapshot({
+    nameConflicts: [{ subagentName: '爱因斯坦', taskIds: ['task_a', 'task_b'] }],
+    tasks: [
+      task({ id: 'task_a', title: 'Research', status: 'running', ownerRunId: 'run_a' }),
+      task({ id: 'task_b', title: 'Draft', status: 'blocked' }),
+    ],
+    runs: [
+      run({ id: 'run_a', role: 'worker', status: 'in_progress', taskId: 'task_a', planId: 'plan_1' }),
+    ],
+  })
+
+  assert.deepEqual(buildPlanNameConflictViews(planSnapshot), [{
+    subagentName: '爱因斯坦',
+    taskIds: ['task_a', 'task_b'],
+    taskTitles: ['Research', 'Draft'],
+    entries: [
+      { taskId: 'task_a', taskTitle: 'Research', taskStatus: 'running', ownerRunId: 'run_a', ownerRunStatus: 'in_progress' },
+      { taskId: 'task_b', taskTitle: 'Draft', taskStatus: 'blocked', ownerRunId: undefined, ownerRunStatus: undefined },
+    ],
+    label: '爱因斯坦: Research, Draft',
+  }])
+  assert.equal(buildPlanStatusExplanation(planSnapshot), '1 subagent name conflict · 1 active worker · 1 blocked')
+})
+
 test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts', () => {
   const planSnapshot = snapshot({
     tasks: [
+      task({
+        id: 'task_source',
+        title: 'Source task',
+        status: 'done',
+      }),
       task({
         id: 'task_named',
         title: 'Named worker',
         status: 'blocked',
         ownerRunId: 'run_worker',
         blockedReason: 'Need storyboard direction',
-        metadata: { subagentName: '爱因斯坦', retryAttempt: 2, previousOwnerRunId: 'run_previous', previousStatus: 'failed', timedOutRunId: 'run_timeout', workerTimeoutMs: 900000 },
+        metadata: { subagentName: '爱因斯坦', retryAttempt: 2, maxTaskAttempts: 3, previousOwnerRunId: 'run_previous', previousStatus: 'failed', timedOutRunId: 'run_timeout', workerTimeoutMs: 900000 },
         artifacts: [
-          { id: 'artifact_1', type: 'draft', title: 'Storyboard notes', metadata: { subagentName: '爱因斯坦', sourceRunId: 'run_worker' }, createdAt: '2026-05-12T00:00:00.000Z' },
+          { id: 'artifact_1', type: 'draft', title: 'Storyboard notes', metadata: { subagentName: '爱因斯坦', sourceRunId: 'run_worker', sourceTaskId: 'task_source' }, createdAt: '2026-05-12T00:00:00.000Z' },
           { id: 'artifact_2', type: 'rollback-policy', metadata: { sourceRunId: 'run_worker' }, createdAt: '2026-05-12T00:00:01.000Z' },
         ],
       }),
@@ -150,7 +192,7 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
     ],
   })
 
-  const [view] = buildPlanTaskViews(planSnapshot)
+  const view = buildPlanTaskViews(planSnapshot).find((item) => item.task.id === 'task_named')
 
   assert.equal(view?.subagentName, '爱因斯坦')
   assert.equal(view?.ownerLabel, '爱因斯坦')
@@ -208,22 +250,157 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
   ])
   assert.equal(view?.artifactCount, 2)
   assert.equal(view?.retryAttempt, 2)
+  assert.equal(view?.maxTaskAttempts, 3)
   assert.equal(view?.previousOwnerRunId, 'run_previous')
   assert.equal(view?.previousStatus, 'failed')
   assert.equal(view?.timedOutRunId, 'run_timeout')
   assert.equal(view?.workerTimeoutMs, 900000)
+  assert.equal(view?.statusExplanation, 'Waiting for 1 user input.')
   assert.deepEqual(view?.artifactLabels, ['Storyboard notes · 爱因斯坦', 'rollback-policy · run_worker'])
   assert.deepEqual(view?.artifactDetails.map((artifact) => ({
     id: artifact.id,
     sourceRunId: artifact.sourceRunId,
     sourceTaskId: artifact.sourceTaskId,
+    sourceTaskTitle: artifact.sourceTaskTitle,
     subagentName: artifact.subagentName,
     policy: artifact.policy,
   })), [
-    { id: 'artifact_1', sourceRunId: 'run_worker', sourceTaskId: undefined, subagentName: '爱因斯坦', policy: undefined },
-    { id: 'artifact_2', sourceRunId: 'run_worker', sourceTaskId: undefined, subagentName: undefined, policy: undefined },
+    { id: 'artifact_1', sourceRunId: 'run_worker', sourceTaskId: 'task_source', sourceTaskTitle: 'Source task', subagentName: '爱因斯坦', policy: undefined },
+    { id: 'artifact_2', sourceRunId: 'run_worker', sourceTaskId: undefined, sourceTaskTitle: undefined, subagentName: undefined, policy: undefined },
   ])
   assert.equal(view?.blocker, 'Need storyboard direction')
+})
+
+test('buildPlanTaskViews falls back to worker subagent name when task metadata is missing it', () => {
+  const planSnapshot = snapshot({
+    tasks: [
+      task({
+        id: 'task_run_named',
+        title: 'Run named worker',
+        status: 'running',
+        ownerRunId: 'run_named_worker',
+      }),
+    ],
+    runs: [
+      run({
+        id: 'run_named_worker',
+        role: 'worker',
+        status: 'in_progress',
+        planId: 'plan_1',
+        taskId: 'task_run_named',
+        metadata: { subagentName: '霍金' },
+      }),
+    ],
+  })
+
+  const view = buildPlanTaskViews(planSnapshot)[0]
+
+  assert.equal(view?.subagentName, '霍金')
+  assert.equal(view?.ownerLabel, '霍金')
+  assert.equal(view?.worker?.subagentName, '霍金')
+})
+
+test('buildPlanStatusExplanation summarizes plan health from task and run state', () => {
+  const explanation = buildPlanStatusExplanation(snapshot({
+    tasks: [
+      task({ id: 'task_pending', title: 'Pending', status: 'pending' }),
+      task({ id: 'task_blocked', title: 'Blocked', status: 'blocked' }),
+      task({ id: 'task_review', title: 'Review', status: 'needs_review' }),
+      task({ id: 'task_failed', title: 'Failed', status: 'failed' }),
+      task({ id: 'task_done', title: 'Done', status: 'done' }),
+    ],
+    runs: [
+      run({ id: 'run_planner', role: 'planner', status: 'in_progress', planId: 'plan_1' }),
+      run({ id: 'run_active', role: 'worker', status: 'in_progress', planId: 'plan_1' }),
+    ],
+  }))
+
+  assert.equal(explanation, '1 active worker · 1 blocked · 1 needs review · 1 failed · 1 pending')
+  assert.equal(buildPlanStatusExplanation(snapshot({
+    tasks: [task({ id: 'task_done', title: 'Done', status: 'done' })],
+    plan: { status: 'done' },
+  })), 'All tasks completed.')
+  assert.equal(buildPlanStatusExplanation(snapshot({ tasks: [] })), 'No plan tasks yet.')
+})
+
+test('buildPlanStatusExplanation prefers backend summary when available', () => {
+  const explanation = buildPlanStatusExplanation(snapshot({
+    tasks: [task({ id: 'task_done', title: 'Done', status: 'done' })],
+    summary: {
+      taskCount: 3,
+      taskStatusCounts: { pending: 2, running: 0, blocked: 1, needs_review: 0, done: 0, failed: 0, cancelled: 0 },
+      workerCount: 4,
+      activeWorkerCount: 2,
+      artifactCount: 5,
+      nameConflictCount: 1,
+      blockedTaskIds: ['task_blocked'],
+      needsReviewTaskIds: [],
+      failedTaskIds: [],
+    },
+  }))
+
+  assert.equal(explanation, '1 subagent name conflict · 2 active workers · 1 blocked · 2 pending')
+})
+
+test('buildPlanOverviewStats prefers backend summary and falls back locally', () => {
+  const withSummary = snapshot({
+    tasks: [task({ id: 'task_done', title: 'Done', status: 'done' })],
+    runs: [run({ id: 'run_worker', role: 'worker', status: 'in_progress', planId: 'plan_1' })],
+    nameConflicts: [{ subagentName: '爱因斯坦', taskIds: ['task_a', 'task_b'] }],
+    summary: {
+      taskCount: 4,
+      taskStatusCounts: { pending: 1, running: 1, blocked: 0, needs_review: 0, done: 2, failed: 0, cancelled: 0 },
+      workerCount: 3,
+      activeWorkerCount: 2,
+      artifactCount: 7,
+      nameConflictCount: 5,
+      blockedTaskIds: [],
+      needsReviewTaskIds: [],
+      failedTaskIds: [],
+    },
+  })
+  assert.deepEqual(buildPlanOverviewStats(withSummary), {
+    taskCount: 4,
+    completedTaskCount: 2,
+    activeWorkerCount: 2,
+    artifactCount: 7,
+    nameConflictCount: 5,
+  })
+
+  const withoutSummary = snapshot({
+    tasks: [
+      task({ id: 'task_done', title: 'Done', status: 'done', artifacts: [{ id: 'artifact_1', type: 'draft', title: 'Draft', createdAt: '2026-05-12T00:00:00.000Z' }] }),
+      task({ id: 'task_pending', title: 'Pending', status: 'pending' }),
+    ],
+    runs: [
+      run({ id: 'run_worker', role: 'worker', status: 'requires_action', planId: 'plan_1' }),
+      run({ id: 'run_planner', role: 'planner', status: 'in_progress', planId: 'plan_1' }),
+    ],
+    nameConflicts: [{ subagentName: '霍金', taskIds: ['task_done', 'task_pending'] }],
+  })
+  assert.deepEqual(buildPlanOverviewStats(withoutSummary), {
+    taskCount: 2,
+    completedTaskCount: 1,
+    activeWorkerCount: 1,
+    artifactCount: 1,
+    nameConflictCount: 1,
+  })
+})
+
+test('buildPlanTaskViews explains task statuses for planner review and runnable work', () => {
+  const views = buildPlanTaskViews(snapshot({
+    tasks: [
+      task({ id: 'task_review', title: 'Review', status: 'needs_review' }),
+      task({ id: 'task_ready', title: 'Ready', status: 'pending' }),
+      task({ id: 'task_done', title: 'Done', status: 'done' }),
+    ],
+  }))
+
+  assert.deepEqual(views.map((view) => [view.task.id, view.statusExplanation]), [
+    ['task_review', 'Waiting for planner or user review.'],
+    ['task_ready', 'Ready when dependencies and worker capacity allow.'],
+    ['task_done', 'Task completed.'],
+  ])
 })
 
 test('buildPlanArtifactSummary aggregates plan artifacts by recency and type', () => {
@@ -232,6 +409,8 @@ test('buildPlanArtifactSummary aggregates plan artifacts by recency and type', (
       task({
         id: 'task_a',
         title: 'First',
+        status: 'done',
+        ownerRunId: 'run_source',
         artifacts: [
           { id: 'artifact_old', type: 'draft', title: 'Older draft', metadata: { subagentName: '爱因斯坦', sourceRunId: 'run_a' }, createdAt: '2026-05-12T00:00:00.000Z' },
         ],
@@ -242,20 +421,72 @@ test('buildPlanArtifactSummary aggregates plan artifacts by recency and type', (
         artifacts: [
           { id: 'artifact_new', type: 'draft', title: 'Newer draft', metadata: { sourceRunId: 'run_b' }, createdAt: '2026-05-12T00:01:00.000Z' },
           { id: 'artifact_policy', type: 'rollback-policy', title: 'Rollback', metadata: { sourceRunId: 'run_b', policy: 'manual_compensation' }, createdAt: '2026-05-12T00:02:00.000Z' },
+          { id: 'artifact_cross_task', type: 'review', title: 'Cross task review', metadata: { sourceTaskId: 'task_a', sourceRunId: 'run_a' }, createdAt: '2026-05-12T00:03:00.000Z' },
         ],
       }),
     ],
   }))
 
-  assert.equal(summary.totalCount, 3)
+  assert.equal(summary.totalCount, 4)
   assert.deepEqual(summary.byType, [
     { type: 'draft', count: 2 },
+    { type: 'review', count: 1 },
     { type: 'rollback-policy', count: 1 },
   ])
-  assert.deepEqual(summary.artifacts.map((artifact) => artifact.id), ['artifact_policy', 'artifact_new', 'artifact_old'])
-  assert.equal(summary.artifacts[0]?.policy, 'manual_compensation')
-  assert.equal(summary.artifacts[0]?.taskId, 'task_b')
-  assert.equal(summary.artifacts[0]?.taskTitle, 'Second')
+  assert.deepEqual(summary.artifacts.map((artifact) => artifact.id), ['artifact_cross_task', 'artifact_policy', 'artifact_new', 'artifact_old'])
+  assert.equal(summary.artifacts[0]?.sourceTaskTitle, 'First')
+  assert.equal(summary.artifacts[0]?.sourceTaskStatus, 'done')
+  assert.equal(summary.artifacts[0]?.sourceTaskOwnerRunId, 'run_source')
+  assert.equal(summary.artifacts[1]?.policy, 'manual_compensation')
+  assert.equal(summary.artifacts[1]?.taskId, 'task_b')
+  assert.equal(summary.artifacts[1]?.taskTitle, 'Second')
+})
+
+test('buildTaskArtifactViews sorts task artifacts and preserves provenance', () => {
+  const artifactTask = task({
+    id: 'task_artifacts',
+    title: 'Artifact task',
+    artifacts: [
+      { id: 'artifact_old', type: 'draft', title: 'Old draft', metadata: { sourceRunId: 'run_old' }, createdAt: '2026-05-12T00:00:00.000Z' },
+      { id: 'artifact_new', type: 'review', title: 'New review', uri: 'agent://artifact/new', metadata: { sourceRunId: 'run_new', sourceTaskId: 'task_source', toolName: 'tool_review', subagentName: '霍金' }, createdAt: '2026-05-12T00:00:02.000Z' },
+    ],
+  })
+  const views = buildTaskArtifactViews(artifactTask, 1, snapshot({
+    tasks: [
+      artifactTask,
+      task({ id: 'task_source', title: 'Source task', status: 'running', ownerRunId: 'run_source' }),
+    ],
+  }))
+
+  assert.deepEqual(views.map((artifact) => ({
+    id: artifact.id,
+    label: artifact.label,
+    taskId: artifact.taskId,
+    taskTitle: artifact.taskTitle,
+    uri: artifact.uri,
+    sourceRunId: artifact.sourceRunId,
+    sourceTaskId: artifact.sourceTaskId,
+    sourceTaskTitle: artifact.sourceTaskTitle,
+    sourceTaskStatus: artifact.sourceTaskStatus,
+    sourceTaskOwnerRunId: artifact.sourceTaskOwnerRunId,
+    subagentName: artifact.subagentName,
+    toolName: artifact.toolName,
+  })), [
+    {
+      id: 'artifact_new',
+      label: 'New review · 霍金',
+      taskId: 'task_artifacts',
+      taskTitle: 'Artifact task',
+      uri: 'agent://artifact/new',
+      sourceRunId: 'run_new',
+      sourceTaskId: 'task_source',
+      sourceTaskTitle: 'Source task',
+      sourceTaskStatus: 'running',
+      sourceTaskOwnerRunId: 'run_source',
+      subagentName: '霍金',
+      toolName: 'tool_review',
+    },
+  ])
 })
 
 test('actionableRunForPlan selects a blocked worker when the planner is active', () => {

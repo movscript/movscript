@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://movscript.local/schemas/agent-generation-validation-error-v1.schema.json",
+  "title": "Agent generation validation error v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error", "code", "details"],
+  "properties": {
+    "error": {
+      "type": "string",
+      "minLength": 1
+    },
+    "code": {
+      "$ref": "#/$defs/errorCode"
+    },
+    "field": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowed_values": {
+      "$ref": "#/$defs/jsonScalarArray"
+    },
+    "suggested_fix": {
+      "$ref": "#/$defs/suggestedFix"
+    },
+    "required_min": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "allowed_max": {
+      "type": "integer",
+      "minimum": -1
+    },
+    "actual_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "details": {
+      "$ref": "#/$defs/details"
+    }
+  },
+  "$defs": {
+    "errorCode": {
+      "enum": [
+        "UNSUPPORTED_OUTPUT_TYPE",
+        "UNSUPPORTED_PARAMETER",
+        "INVALID_PARAMETER_TYPE",
+        "INVALID_PARAMETER_OPTION",
+        "INVALID_PARAMETER_RANGE",
+        "INVALID_PARAMETER_COMBINATION",
+        "INVALID_INPUT_COUNT"
+      ]
+    },
+    "jsonScalarOrNull": {
+      "type": ["string", "number", "boolean", "null"]
+    },
+    "jsonScalarArray": {
+      "type": "array",
+      "items": {
+        "type": ["string", "number", "boolean"]
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "suggestedFix": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/jsonScalarOrNull"
+      },
+      "minProperties": 1
+    },
+    "details": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/errorCode"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "allowed_values": {
+          "$ref": "#/$defs/jsonScalarArray"
+        },
+        "suggested_fix": {
+          "$ref": "#/$defs/suggestedFix"
+        },
+        "required_min": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "allowed_max": {
+          "type": "integer",
+          "minimum": -1
+        },
+        "actual_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

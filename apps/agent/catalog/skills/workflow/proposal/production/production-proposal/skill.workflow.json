@@ -1,0 +1,38 @@
+{
+  "id": "movscript.workflow.production-proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Production Proposal",
+  "description": "Draft production-level segment and scene-moment proposals as local review patches.",
+  "priority": 860,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "production_proposal"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "制作提案",
+        "制作编排",
+        "production proposal",
+        "production_proposal"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_current_context",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.production_proposal.v1"
+  ],
+  "outputContract": "Reply with draftId, projectId, productionId, draft status, last preview_apply ok/stage, and counts for segments and scene moments.",
+  "instructionTemplatePath": "instruction.md"
+}

@@ -789,13 +789,11 @@ export default function ProjectOrchestrationPage() {
         taskType: 'project_orchestration',
         message: `请执行项目提案：${project?.name ?? `#${projectId}`}`,
         title: `项目提案: ${project?.name ?? `#${projectId}`}`,
-        mode: 'create',
         newConversation: true,
         autoSend: true,
         projectId,
         clientInput: buildCommandFirstClientInput({
           message: userMessage,
-          mode: 'project-orchestration',
           labels: ['project-workspace', 'project-orchestration', 'draft-application'],
           hints: {
             projectId,

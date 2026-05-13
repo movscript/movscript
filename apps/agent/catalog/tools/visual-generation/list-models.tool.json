@@ -1,6 +1,6 @@
 {
   "name": "movscript_list_models",
-  "description": "List the current enabled models for a capability or feature, including supported parameters, so the agent can pick a valid model and ask the user for only the missing fields.",
+  "description": "List enabled image/video models for a capability or feature. The result includes raw models plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts. Models are contract-scoped: entries with the same logical_model_id can still expose different model_config_id values and different contracts, so use the selected contract's exact model_config_id when creating a job. Use this before generation to choose a valid model and ask only for fields required by that model.",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -10,6 +10,188 @@
       },
       "feature": {
         "type": "string"
+      },
+      "feature_key": {
+        "type": "string",
+        "description": "Alias for feature."
+      },
+      "provider_variants": {
+        "type": "boolean",
+        "description": "When true, include provider-specific model variants."
+      },
+      "include_provider_variants": {
+        "type": "boolean",
+        "description": "Alias for provider_variants."
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+      "count",
+      "queries",
+      "model_contracts",
+      "models"
+    ],
+    "properties": {
+      "count": {
+        "type": "number"
+      },
+      "queries": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "model_contracts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "contract_version",
+            "model_config_id",
+            "capabilities",
+            "input_requirements",
+            "supported_param_keys",
+            "supported_params"
+          ],
+          "properties": {
+            "contract_version": {
+              "type": "number",
+              "const": 1
+            },
+            "id": {
+              "type": "number"
+            },
+            "model_config_id": {
+              "type": "number",
+              "description": "Exact ID to pass to movscript_create_generation_job."
+            },
+            "display_name": {
+              "type": "string"
+            },
+            "short_name": {
+              "type": "string"
+            },
+            "logical_model_id": {
+              "type": "string",
+              "description": "Grouping metadata only. Do not use this instead of model_config_id."
+            },
+            "capabilities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "accepts_image_input": {
+              "type": "boolean"
+            },
+            "input_requirements": {
+              "type": "object",
+              "required": [
+                "image",
+                "video"
+              ],
+              "properties": {
+                "image": {
+                  "type": "object",
+                  "required": [
+                    "min",
+                    "max"
+                  ],
+                  "properties": {
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "video": {
+                  "type": "object",
+                  "required": [
+                    "min",
+                    "max"
+                  ],
+                  "properties": {
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            },
+            "supported_param_keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "supported_params": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "required": [
+                  "key"
+                ],
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "select",
+                      "number",
+                      "boolean",
+                      "string"
+                    ]
+                  },
+                  "options": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "conflicts_with": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "conditional_enum": {
+                    "type": "array"
+                  },
+                  "conditional_const": {
+                    "type": "array"
+                  },
+                  "requires_value": {
+                    "type": "array"
+                  }
+                }
+              }
+            },
+            "params_schema_loaded": {
+              "type": "boolean"
+            },
+            "params_schema_rule_count": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "models": {
+        "type": "array"
       }
     }
   },

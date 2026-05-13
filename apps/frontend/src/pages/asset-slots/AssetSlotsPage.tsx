@@ -342,13 +342,11 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
         taskType: 'asset_candidate_proposal',
         message: `请准备素材候选提案：${slotName}`,
         title: `素材提案: ${slotName}`,
-        mode: 'create',
         newConversation: true,
         autoSend: true,
         projectId,
         clientInput: buildCommandFirstClientInput({
           message: `请为当前素材需求编写一份可审阅的素材候选生成提案：${slotName}`,
-          mode: 'asset-proposal',
           labels: ['asset-slots', 'asset-proposal', 'draft-application'],
           hints: {
             projectId,

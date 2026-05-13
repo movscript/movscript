@@ -291,6 +291,7 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 		if key == "" {
 			key = fmt.Sprintf("config:%d", item.ID)
 		}
+		key += "\x00" + publicModelContractSignature(item)
 		if idx, ok := groupIndex[key]; ok {
 			result[idx].ProviderVariants++
 			result[idx].providerVariantIDs = append(result[idx].providerVariantIDs, row.ID)
@@ -303,6 +304,26 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 		result = append(result, item)
 	}
 	return result, nil
+}
+
+func publicModelContractSignature(item PublicModel) string {
+	body, err := json.Marshal(struct {
+		Capabilities      []string       `json:"capabilities"`
+		AcceptsImageInput bool           `json:"accepts_image_input"`
+		SupportedParams   []ParamDef     `json:"supported_params"`
+		InputRequirements ModelInputs    `json:"input_requirements"`
+		ParamsSchema      map[string]any `json:"params_schema"`
+	}{
+		Capabilities:      item.Capabilities,
+		AcceptsImageInput: item.AcceptsImageInput,
+		SupportedParams:   item.SupportedParams,
+		InputRequirements: item.InputRequirements,
+		ParamsSchema:      item.ParamsSchema,
+	})
+	if err != nil {
+		return fmt.Sprintf("config:%d", item.ID)
+	}
+	return string(body)
 }
 
 // GetModelsForFeature returns enabled models allowed for a feature key.

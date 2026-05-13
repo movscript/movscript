@@ -2106,6 +2106,12 @@
       "audit": {
         "params": "{{count}} 个参数",
         "rules": "{{count}} 条规则",
+        "ruleTypes": {
+          "conflicts": "{{count}} 个互斥",
+          "conditionalEnums": "{{count}} 个条件枚举",
+          "conditionalConsts": "{{count}} 个条件常量",
+          "requiresValues": "{{count}} 个依赖值"
+        },
         "valid": "契约有效",
         "invalid": "契约有错误",
         "moreErrors": "还有 {{count}} 个错误",
@@ -2117,6 +2123,9 @@
         "valid": "后端契约有效",
         "skipped": "已跳过",
         "skippedHint": "请先修复本地契约错误，再运行后端 resolver 预览。",
+        "agentContract": "Agent 紧凑契约 v{{version}} 参数：{{keys}}",
+        "copyAgentContract": "复制 Agent 契约 JSON",
+        "copiedAgentContract": "已复制 Agent 契约",
         "error": "后端拒绝了该契约：{{error}}"
       },
       "templates": {
@@ -2185,6 +2194,7 @@
       "pickPreset": "从预设选",
       "fetchFromApi": "从接口获取",
       "presetHint": "选中后自动填充所有字段，可继续修改",
+      "presetParams": "{{count}} 个参数",
       "modelIdLabel": "Model ID（发给 API 的模型标识）",
       "modelIdPlaceholder": "如 gpt-4o、gemini-2.0-flash、doubao-seed-2-0-pro-260215",
       "displayNamePlaceholder": "可选，留空使用 Model ID",
@@ -2195,6 +2205,9 @@
       "acceptsImageInput": "接受图像输入",
       "maxImages": "最多图片数",
       "maxVideos": "最多视频数",
+      "inputLimitHint": "-1 表示不限制。最多图片数非 0 时也会暴露为支持图像输入。",
+      "maxImagesInvalid": "最多图片数必须大于等于 -1。",
+      "maxVideosInvalid": "最多视频数必须大于等于 -1。",
       "add": "添加",
       "test": "测试",
       "noModelsHint": "暂无已添加的模型，点击「添加模型」开始配置",

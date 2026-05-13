@@ -460,14 +460,18 @@ var modelPresetSources = []ModelDef{
 		DisplayName: "Grok Imagine Edit (图像编辑)", Capabilities: []string{CapabilityImageEdit},
 		PricingMode: PricingPerImage, AdapterType: AdapterOpenAICompat,
 		AcceptsImageInput: true, MaxInputImages: 1, ImageEditField: "image[]",
-		RefUSDPerImage: 0.080},
+		RefUSDPerImage: 0.080,
+		SupportedParams: []ParamDef{
+			{Key: "image_size", Label: "尺寸", Type: "select",
+				Options: []string{"1024x1024", "1280x720", "720x1280"}, Default: "1024x1024"},
+		}},
 
 	// Grok Imagine Video — text-to-video via /videos/generations (OpenAI-compat).
 	// Duration and resolution are proxy-controlled; xAI does not publicly document params.
 	{ID: "xai:grok-imagine-video", ModelID: "grok-imagine-video",
 		DisplayName: "Grok Imagine Video (文生视频)", Capabilities: []string{CapabilityVideo, CapabilityVideoI2V},
 		PricingMode: PricingPerSecond, AdapterType: AdapterOpenAICompat,
-		MaxInputImages:  2,
+		AcceptsImageInput: true, MaxInputImages: 2,
 		RefUSDPerSecond: 0.20, DefaultDurSec: 6, MaxDurSec: 20,
 		SupportedParams: []ParamDef{
 			{Key: "duration", Label: "时长(秒)", Type: "select",

@@ -1,1 +1,0 @@
-Create a generation candidate for the selected asset slot. Preserve the asset slot as the review target; do not mark the generated media as accepted or locked. Monitor the job and report the output resource when available.

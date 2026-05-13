@@ -3,10 +3,7 @@ import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   DEFAULT_AGENT_MANIFEST,
-  mergeAgentManifestSkills,
-  normalizeAgentSkillManifest,
   type AgentManifest,
-  type AgentSkillManifest,
   type AgentToolGrant,
 } from './agentManifest.js'
 import { resolveAgentStatePath } from '../state/fileStore.js'
@@ -14,7 +11,6 @@ import {
   DEFAULT_TOOL_REGISTRY,
   StaticToolRegistry,
   mergeRegisteredTools,
-  normalizeRegisteredTool,
   type RegisteredTool,
   type ToolRegistry,
 } from '../tools/toolRegistry.js'
@@ -36,8 +32,6 @@ export interface AgentPluginCatalog {
   profiles: AgentProfile[]
   layeredSkills: SkillDefinition[]
   layeredTools: ToolDefinition[]
-  skills: AgentSkillManifest[]
-  tools: RegisteredTool[]
   toolGrants: AgentToolGrant[]
   manifest: AgentManifest
   registry: ToolRegistry
@@ -66,10 +60,6 @@ export function loadAgentPluginCatalog(options: {
   const builtinPacksDir = options.builtinPacksDir ?? resolveBuiltinAgentPacksDir()
   const profilesDir = options.profilesDir ?? resolveAgentProfilesDir()
   const builtinProfilesDir = options.builtinProfilesDir ?? resolveBuiltinAgentProfilesDir()
-  const builtinSkillResult = { skills: [] as AgentSkillManifest[], warnings: [] as string[] }
-  const localSkillResult = { skills: [] as AgentSkillManifest[], warnings: [] as string[] }
-  const builtinToolResult = { tools: [] as RegisteredTool[], grants: [] as AgentToolGrant[], warnings: [] as string[] }
-  const localToolResult = { tools: [] as RegisteredTool[], grants: [] as AgentToolGrant[], warnings: [] as string[] }
   const builtinLayeredSkillResult = loadLayeredSkillDirectory(builtinSkillsDir)
   const localLayeredSkillResult = loadLayeredSkillDirectory(skillsDir)
   const builtinLayeredToolResult = loadLayeredToolDirectory(builtinToolsDir, 'runtime')
@@ -78,18 +68,6 @@ export function loadAgentPluginCatalog(options: {
   const localPackResult = loadPackDirectory(packsDir)
   const builtinProfileResult = loadProfileDirectory(builtinProfilesDir)
   const localProfileResult = loadProfileDirectory(profilesDir)
-  const skillDefinitions = dedupeById([
-    ...builtinSkillResult.skills,
-    ...localSkillResult.skills,
-  ])
-  const toolDefinitions = dedupeByName([
-    ...builtinToolResult.tools,
-    ...localToolResult.tools,
-  ])
-  const definitionGrants = mergeToolGrants([], [
-    ...builtinToolResult.grants,
-    ...localToolResult.grants,
-  ])
   const packs = dedupePacks([
     ...builtinPackResult.packs,
     ...localPackResult.packs,
@@ -112,53 +90,26 @@ export function loadAgentPluginCatalog(options: {
     ...builtinProfileResult.profiles,
     ...localProfileResult.profiles,
   ]), layeredToolGrants, packs)
-  const selectedSkillRefs = skillDefinitions.map((skill) => skill.id)
-  const selectedToolRefs = toolDefinitions.map((tool) => tool.name)
-  const skillResult = {
-    skills: resolveSkillRefs(selectedSkillRefs, skillDefinitions),
-    warnings: [
-      ...builtinSkillResult.warnings,
-      ...localSkillResult.warnings,
-      ...builtinPackResult.warnings,
-      ...localPackResult.warnings,
-      ...builtinProfileResult.warnings,
-      ...localProfileResult.warnings,
-      ...builtinLayeredSkillResult.warnings,
-      ...localLayeredSkillResult.warnings,
-      ...builtinLayeredToolResult.warnings,
-      ...localLayeredToolResult.warnings,
-    ],
-  }
-  const toolResult = {
-    tools: mergeRegisteredTools(resolveToolRefs(selectedToolRefs, toolDefinitions), layeredRegisteredTools),
-    grants: mergeToolGrants([], [
-      ...definitionGrants.filter((grant) => selectedToolRefs.includes(grant.name)),
-      ...layeredToolGrants,
-    ]),
-    warnings: [
-      ...builtinToolResult.warnings,
-      ...localToolResult.warnings,
-      ...builtinPackResult.warnings,
-      ...localPackResult.warnings,
-      ...builtinProfileResult.warnings,
-      ...localProfileResult.warnings,
-      ...builtinLayeredSkillResult.warnings,
-      ...localLayeredSkillResult.warnings,
-      ...builtinLayeredToolResult.warnings,
-      ...localLayeredToolResult.warnings,
-    ],
-  }
+  const warnings = [
+    ...builtinPackResult.warnings,
+    ...localPackResult.warnings,
+    ...builtinProfileResult.warnings,
+    ...localProfileResult.warnings,
+    ...builtinLayeredSkillResult.warnings,
+    ...localLayeredSkillResult.warnings,
+    ...builtinLayeredToolResult.warnings,
+    ...localLayeredToolResult.warnings,
+  ]
   const baseManifest = options.baseManifest ?? DEFAULT_AGENT_MANIFEST
   const baseTools = options.baseTools ?? DEFAULT_TOOL_REGISTRY.list()
-  const manifest = mergeAgentManifestSkills({
+  const manifest = {
     ...baseManifest,
-    tools: mergeToolGrants(baseManifest.tools, toolResult.grants),
-  }, skillResult.skills)
-  const registry = new StaticToolRegistry(mergeRegisteredTools(baseTools, toolResult.tools))
+    tools: mergeToolGrants(baseManifest.tools, layeredToolGrants),
+  }
+  const registry = new StaticToolRegistry(mergeRegisteredTools(baseTools, layeredRegisteredTools))
   const layeredRegistry = buildLayeredCatalogRegistry({
     manifest,
-    skills: skillDefinitions,
-    tools: mergeRegisteredTools(baseTools, toolDefinitions),
+    tools: baseTools,
     packs,
     profiles,
     layeredSkills,
@@ -179,16 +130,13 @@ export function loadAgentPluginCatalog(options: {
     profiles,
     layeredSkills,
     layeredTools,
-    skills: skillResult.skills,
-    tools: toolResult.tools,
-    toolGrants: toolResult.grants,
+    toolGrants: layeredToolGrants,
     manifest,
     registry,
     layeredRegistry,
     catalogIssues,
     warnings: Array.from(new Set([
-      ...skillResult.warnings,
-      ...toolResult.warnings,
+      ...warnings,
     ])),
   }
 }
@@ -201,6 +149,7 @@ function registeredToolFromLayeredTool(tool: ToolDefinition): RegisteredTool {
     risk: tool.risk,
     source: tool.source,
     inputSchema: tool.inputSchema as unknown as JSONValue,
+    ...(tool.outputSchema ? { outputSchema: tool.outputSchema as unknown as JSONValue } : {}),
     projectScoped: tool.projectScoped,
     requiresApprovalByDefault: tool.defaults.approval !== 'never',
     defaults: tool.defaults,
@@ -317,45 +266,6 @@ function loadLayeredToolDirectory(dir: string, defaultSource: 'runtime' | 'plugi
   return { tools: dedupeLayeredTools(tools), warnings }
 }
 
-function loadSkillDirectory(dir: string): { skills: AgentSkillManifest[]; warnings: string[] } {
-  const warnings: string[] = []
-  const skills: AgentSkillManifest[] = []
-  for (const filePath of listPluginJSONFiles(dir)) {
-    const parsed = readJSONFile(filePath, warnings)
-    if (parsed === undefined) continue
-    for (const skill of extractSkills(parsed, filePath, warnings)) {
-      skills.push(withCatalogCategory(skill, parsed, dir, filePath))
-    }
-  }
-  return { skills: dedupeById(skills), warnings }
-}
-
-function loadToolDirectory(dir: string, defaultSource: 'runtime' | 'plugin'): { tools: RegisteredTool[]; grants: AgentToolGrant[]; warnings: string[] } {
-  const warnings: string[] = []
-  const tools: RegisteredTool[] = []
-  const grants: AgentToolGrant[] = []
-  for (const filePath of listPluginJSONFiles(dir)) {
-    const parsed = readJSONFile(filePath, warnings)
-    if (parsed === undefined) continue
-    const toolSet = extractTools(parsed)
-    tools.push(...toolSet.tools.map((tool) => withCatalogCategory(withDefaultToolSource(tool, defaultSource), parsed, dir, filePath)))
-    grants.push(...toolSet.grants)
-  }
-  return {
-    tools: dedupeByName(tools),
-    grants: mergeToolGrants([], grants),
-    warnings,
-  }
-}
-
-function withDefaultToolSource(tool: RegisteredTool, source: 'runtime' | 'plugin'): RegisteredTool {
-  return {
-    ...tool,
-    source: tool.source ?? source,
-    ...(source === 'plugin' && !tool.pluginId ? { pluginId: 'local.catalog' } : {}),
-  }
-}
-
 function listPluginJSONFiles(dir: string): string[] {
   if (!existsSync(dir)) return []
   const files: string[] = []
@@ -382,102 +292,6 @@ function readJSONFile(filePath: string, warnings: string[]): unknown {
     warnings.push(`${filePath} could not be parsed: ${error instanceof Error ? error.message : String(error)}`)
     return undefined
   }
-}
-
-function extractSkills(value: unknown, filePath: string, warnings: string[]): AgentSkillManifest[] {
-  if (Array.isArray(value)) return value.flatMap((item) => normalizeAgentSkillManifest(resolveLegacySkillInstruction(item, filePath, warnings)) ?? [])
-  if (!isRecord(value)) return []
-  if (isNativeLayeredSkillFile(value)) return []
-  if (Array.isArray(value.skills)) return value.skills.flatMap((item) => normalizeAgentSkillManifest(resolveLegacySkillInstruction(item, filePath, warnings)) ?? [])
-  const skill = normalizeAgentSkillManifest(resolveLegacySkillInstruction(value, filePath, warnings))
-  return skill ? [skill] : []
-}
-
-function resolveLegacySkillInstruction(input: unknown, filePath: string, warnings: string[]): unknown {
-  if (!isRecord(input)) return input
-  const instructionPath = nonEmptyString(input.instructionPath)
-    ?? nonEmptyString(input.instructionTemplatePath)
-    ?? nonEmptyString(input.bodyPath)
-  if (!instructionPath) return input
-  const resolvedPath = resolveCatalogSiblingPath(filePath, instructionPath)
-  if (!resolvedPath) {
-    warnings.push(`${filePath} instructionPath must be relative and stay inside the skill directory`)
-    return input
-  }
-  try {
-    const instruction = readFileSync(resolvedPath, 'utf8').trim()
-    if (!instruction) {
-      warnings.push(`${resolvedPath} is empty; instructionPath ignored`)
-      return input
-    }
-    return { ...input, instruction }
-  } catch (error) {
-    warnings.push(`${resolvedPath} could not be read: ${error instanceof Error ? error.message : String(error)}`)
-    return input
-  }
-}
-
-function extractTools(value: unknown): { tools: RegisteredTool[]; grants: AgentToolGrant[] } {
-  if (Array.isArray(value)) {
-    return {
-      tools: value.flatMap((item) => normalizeRegisteredTool(item) ?? []),
-      grants: value.flatMap((item) => normalizeToolGrant(isRecord(item) ? item.defaultGrant : undefined) ?? []),
-    }
-  }
-  if (!isRecord(value)) return { tools: [], grants: [] }
-  const values = Array.isArray(value.tools) ? value.tools : [value]
-  return {
-    tools: values.flatMap((item) => normalizeRegisteredTool(item) ?? []),
-    grants: values.flatMap((item) => normalizeToolGrant(isRecord(item) ? item.defaultGrant : undefined) ?? []),
-  }
-}
-
-function resolveSkillRefs(refs: string[], definitions: AgentSkillManifest[]): AgentSkillManifest[] {
-  const byId = new Map(definitions.map((skill) => [skill.id, skill]))
-  return refs.flatMap((ref) => byId.get(ref) ?? [])
-}
-
-function resolveToolRefs(refs: string[], definitions: RegisteredTool[]): RegisteredTool[] {
-  const byName = new Map(definitions.map((tool) => [tool.name, tool]))
-  return refs.flatMap((ref) => byName.get(ref) ?? [])
-}
-
-function withCatalogCategory<T extends { category?: string; categories?: string[]; metadata?: Record<string, JSONValue> }>(
-  item: T,
-  parsed: unknown,
-  rootDir: string,
-  filePath: string,
-): T {
-  const category = item.category ?? catalogCategory(parsed) ?? pathCategory(rootDir, filePath)
-  const parsedCategories = catalogCategories(parsed)
-  const categories = Array.from(new Set([...(item.categories ?? []), ...parsedCategories, ...(category ? [category] : [])]))
-  return {
-    ...item,
-    ...(category ? { category } : {}),
-    ...(categories.length > 0 ? { categories } : {}),
-    metadata: {
-      ...(item.metadata ?? {}),
-      ...(category ? { category } : {}),
-      catalogFile: filePath,
-    },
-  }
-}
-
-function catalogCategory(value: unknown): string | undefined {
-  if (!isRecord(value)) return undefined
-  return typeof value.category === 'string' && value.category.trim() ? value.category.trim() : undefined
-}
-
-function catalogCategories(value: unknown): string[] {
-  if (!isRecord(value) || !Array.isArray(value.categories)) return []
-  return value.categories.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
-}
-
-function pathCategory(rootDir: string, filePath: string): string | undefined {
-  const relative = filePath.startsWith(rootDir) ? filePath.slice(rootDir.length).replace(/^[/\\]/, '') : ''
-  const parts = relative.split(/[/\\]/).filter(Boolean)
-  if (parts.length <= 1) return undefined
-  return parts[0]
 }
 
 function normalizeToolGrant(input: unknown): AgentToolGrant | undefined {
@@ -553,7 +367,6 @@ function normalizeAgentProfile(input: unknown, filePath: string, warnings: strin
     version,
     name,
     ...(nonEmptyString(input.description) ? { description: nonEmptyString(input.description) } : {}),
-    ...(nonEmptyString(input.modeAlias) ? { modeAlias: nonEmptyString(input.modeAlias) } : {}),
     enabledPacks: stringArray(input.enabledPacks),
     persona: typeof input.persona === 'string' && input.persona.trim() ? input.persona.trim() : null,
     enabledWorkflows: stringArray(input.enabledWorkflows),
@@ -650,15 +463,6 @@ function resolveCatalogSiblingPath(filePath: string, siblingPath: string): strin
   return resolvedPath
 }
 
-function isNativeLayeredSkillFile(value: Record<string, unknown>): boolean {
-  if (isNativeLayeredSkill(value)) return true
-  return Array.isArray(value.skills) && value.skills.some((item) => isRecord(item) && isNativeLayeredSkill(item))
-}
-
-function isNativeLayeredSkill(value: Record<string, unknown>): boolean {
-  return value.kind === 'persona' || value.kind === 'workflow' || value.kind === 'policy'
-}
-
 function normalizeLayeredTool(input: unknown, filePath: string, warnings: string[], defaultSource: 'runtime' | 'plugin'): ToolDefinition | undefined {
   if (!isRecord(input)) return undefined
   const name = nonEmptyString(input.name)
@@ -676,6 +480,7 @@ function normalizeLayeredTool(input: unknown, filePath: string, warnings: string
     name,
     description,
     inputSchema: input.inputSchema,
+    ...(isRecord(input.outputSchema) ? { outputSchema: input.outputSchema } : {}),
     permission,
     risk,
     projectScoped: input.projectScoped === true,
@@ -706,7 +511,6 @@ function normalizePolicyScope(value: unknown): PolicyScope | undefined {
   if (value === 'global') return 'global'
   if (!isRecord(value)) return undefined
   return {
-    ...(stringArray(value.mode).length > 0 ? { mode: stringArray(value.mode) } : {}),
     ...(stringArray(value.workflow).length > 0 ? { workflow: stringArray(value.workflow) } : {}),
     ...(stringArray(value.risk).length > 0 ? { risk: stringArray(value.risk).filter((risk) => risk === 'read' || risk === 'draft' || risk === 'write' || risk === 'generate' || risk === 'destructive' || risk === 'ui') } : {}),
   }
@@ -728,7 +532,6 @@ function normalizeSkillTriggers(value: unknown): NonNullable<Extract<SkillDefini
 
 function normalizeContextSelector(input: Record<string, unknown>): ContextSelector {
   return {
-    ...(stringArray(input.mode).length > 0 ? { mode: stringArray(input.mode) } : {}),
     ...(stringArray(input.route).length > 0 ? { route: stringArray(input.route) } : {}),
     ...(stringArray(input.selectedKind).length > 0 ? { selectedKind: stringArray(input.selectedKind) as never } : {}),
     ...(stringArray(input.selectedScope).length > 0 ? { selectedScope: stringArray(input.selectedScope) as never } : {}),
@@ -823,18 +626,6 @@ function dedupeLayeredSkills(skills: SkillDefinition[]): SkillDefinition[] {
 
 function dedupeLayeredTools(tools: ToolDefinition[]): ToolDefinition[] {
   const byName = new Map<string, ToolDefinition>()
-  for (const tool of tools) byName.set(tool.name, tool)
-  return Array.from(byName.values())
-}
-
-function dedupeById(skills: AgentSkillManifest[]): AgentSkillManifest[] {
-  const byId = new Map<string, AgentSkillManifest>()
-  for (const skill of skills) byId.set(skill.id, skill)
-  return Array.from(byId.values())
-}
-
-function dedupeByName(tools: RegisteredTool[]): RegisteredTool[] {
-  const byName = new Map<string, RegisteredTool>()
   for (const tool of tools) byName.set(tool.name, tool)
   return Array.from(byName.values())
 }

@@ -23,13 +23,13 @@ func ParamsSchema(params []ParamDef) map[string]any {
 			}
 		case "number":
 			prop["type"] = "number"
-			if p.Min != 0 {
+			if p.hasMin() {
 				prop["minimum"] = p.Min
 			}
-			if p.Max != 0 {
+			if p.hasMax() {
 				prop["maximum"] = p.Max
 			}
-			if p.Step != 0 && !paramJSONSchemaHasEnum(p.JSONSchema) {
+			if p.hasStep() && p.Step > 0 && !paramJSONSchemaHasEnum(p.JSONSchema) {
 				prop["multipleOf"] = p.Step
 			}
 		case "boolean":

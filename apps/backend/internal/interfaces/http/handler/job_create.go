@@ -78,6 +78,15 @@ func (h *JobHandler) writeJobCreateError(c *gin.Context, err error) {
 		if len(validationErr.SuggestedFix) > 0 {
 			body["suggested_fix"] = validationErr.SuggestedFix
 		}
+		if validationErr.RequiredMin != nil {
+			body["required_min"] = *validationErr.RequiredMin
+		}
+		if validationErr.AllowedMax != nil {
+			body["allowed_max"] = *validationErr.AllowedMax
+		}
+		if validationErr.ActualCount != nil {
+			body["actual_count"] = *validationErr.ActualCount
+		}
 		c.JSON(http.StatusBadRequest, body)
 	case errors.Is(err, jobapp.ErrJobTypeRequired), errors.Is(err, jobapp.ErrInvalidJobType):
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

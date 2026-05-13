@@ -28,6 +28,8 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
     for (const item of context.statusDigest.slice(0, 6)) lines.push(`- ${item}`)
   }
   if (context.agentPlan) {
+    const planTasksById = new Map(context.agentPlan.tasks.map((task) => [task.id, task]))
+    const planWorkersByTaskId = new Map(context.agentPlan.workers.flatMap((worker) => worker.taskId ? [[worker.taskId, worker] as const] : []))
     lines.push('', '### Agent Plan')
     lines.push(`- Plan: ${context.agentPlan.title}`)
     lines.push(`- Plan reference: plan#${context.agentPlan.id}`)
@@ -36,6 +38,20 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
     if (context.agentPlan.role) lines.push(`- Current agent role: ${context.agentPlan.role}`)
     if (context.agentPlan.currentTaskId) lines.push(`- Current task reference: task#${context.agentPlan.currentTaskId}`)
     if (context.agentPlan.rootRunId) lines.push(`- Planner run reference: run#${context.agentPlan.rootRunId}`)
+    if (context.agentPlan.summary) {
+      const summary = context.agentPlan.summary
+      const counts = Object.entries(summary.taskStatusCounts)
+        .filter(([, count]) => count > 0)
+        .map(([status, count]) => `${status}=${count}`)
+        .join(', ')
+      lines.push('', '#### Plan Summary')
+      lines.push(`- Tasks: ${summary.taskCount}${counts ? ` (${counts})` : ''}`)
+      lines.push(`- Workers: ${summary.workerCount}; active=${summary.activeWorkerCount}`)
+      lines.push(`- Artifacts: ${summary.artifactCount}; nameConflicts=${summary.nameConflictCount}`)
+      if (summary.blockedTaskIds.length > 0) lines.push(`- Blocked task refs: ${summary.blockedTaskIds.map((taskId) => `task#${taskId}`).join(', ')}`)
+      if (summary.needsReviewTaskIds.length > 0) lines.push(`- Needs review task refs: ${summary.needsReviewTaskIds.map((taskId) => `task#${taskId}`).join(', ')}`)
+      if (summary.failedTaskIds.length > 0) lines.push(`- Failed task refs: ${summary.failedTaskIds.map((taskId) => `task#${taskId}`).join(', ')}`)
+    }
     if (context.agentPlan.tasks.length > 0) {
       lines.push('', '#### Plan Tasks')
       for (const task of context.agentPlan.tasks.slice(0, 8)) {
@@ -49,6 +65,23 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
         ].filter(Boolean).join('; ')
         const label = task.subagentName ? `${task.subagentName}: ${task.title}` : `task#${task.id}: ${task.title}`
         lines.push(`- ${label}${details ? ` (${details})` : ''}`)
+      }
+    }
+    if (context.agentPlan.nameConflicts && context.agentPlan.nameConflicts.length > 0) {
+      lines.push('', '#### Subagent Name Conflicts')
+      for (const conflict of context.agentPlan.nameConflicts.slice(0, 6)) {
+        const entries = conflict.taskIds.map((taskId) => {
+          const task = planTasksById.get(taskId)
+          const worker = planWorkersByTaskId.get(taskId)
+          const details = [
+            `task#${taskId}`,
+            task?.status ? `status=${task.status}` : undefined,
+            task?.ownerRunId ? `owner=run#${task.ownerRunId}` : undefined,
+            worker?.status ? `worker=${worker.status}` : undefined,
+          ].filter(Boolean).join('; ')
+          return task?.title ? `${task.title} (${details})` : details
+        })
+        lines.push(`- ${conflict.subagentName}: ${entries.join(' | ')}`)
       }
     }
     if (context.agentPlan.workers.length > 0) {
@@ -74,6 +107,9 @@ export function renderDebugContextText(context: AgentDebugContextPanel): string 
           `task=task#${artifact.taskId}`,
           artifact.sourceRunId ? `run=run#${artifact.sourceRunId}` : undefined,
           artifact.sourceTaskId ? `sourceTask=task#${artifact.sourceTaskId}` : undefined,
+          artifact.sourceTaskTitle ? `sourceTitle=${artifact.sourceTaskTitle}` : undefined,
+          artifact.sourceTaskStatus ? `sourceStatus=${artifact.sourceTaskStatus}` : undefined,
+          artifact.sourceTaskOwnerRunId ? `sourceOwner=run#${artifact.sourceTaskOwnerRunId}` : undefined,
           artifact.toolName ? `tool=${artifact.toolName}` : undefined,
           artifact.policy ? `policy=${artifact.policy}` : undefined,
           artifact.uri ? `ref=${artifact.uri}` : undefined,
@@ -126,10 +162,46 @@ export function renderMemoryFilesText(memories: AgentMemory[], memoryStorePath?:
 }
 
 export function renderToolCatalogText(catalog: ResolvedToolCatalog): string {
+  const outputSummaries = catalog.available
+    .flatMap((tool) => {
+      const summary = summarizeToolOutputSchema(tool.outputSchema)
+      return summary ? [`- ${tool.name}: ${summary}`] : []
+    })
+    .slice(0, 8)
   return [
-    'Use model tool schemas as the source of truth for available tools, parameters, and detailed descriptions.',
+    'Use model tool schemas as the source of truth for available tools, parameters, detailed descriptions, and declared output fields.',
+    'Input schemas define valid tool calls; output schemas define stable result fields to inspect after the tool returns.',
+    outputSummaries.length > 0 ? ['Declared tool output fields:', ...outputSummaries].join('\n') : undefined,
     'Choose tools by business intent. If a needed capability is absent, inspect catalog/retrieval tools before saying it is missing.',
-  ].join('\n')
+  ].filter(Boolean).join('\n')
+}
+
+function summarizeToolOutputSchema(schema: unknown): string | undefined {
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return undefined
+  const props = (schema as Record<string, unknown>).properties
+  if (!props || typeof props !== 'object' || Array.isArray(props)) return undefined
+  const fields = Object.entries(props)
+    .slice(0, 12)
+    .map(([key, value]) => summarizeSchemaField(key, value))
+  return fields.length > 0 ? fields.join(', ') : undefined
+}
+
+function summarizeSchemaField(key: string, value: unknown): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return key
+  const record = value as Record<string, unknown>
+  if (record.type === 'array' && record.items && typeof record.items === 'object' && !Array.isArray(record.items)) {
+    const itemProps = (record.items as Record<string, unknown>).properties
+    if (itemProps && typeof itemProps === 'object' && !Array.isArray(itemProps)) {
+      const nested = Object.keys(itemProps).slice(0, 8)
+      return nested.length > 0 ? `${key}[].${nested.join('|')}` : `${key}[]`
+    }
+    return `${key}[]`
+  }
+  if (record.type === 'object' && record.properties && typeof record.properties === 'object' && !Array.isArray(record.properties)) {
+    const nested = Object.keys(record.properties).slice(0, 8)
+    return nested.length > 0 ? `${key}.{${nested.join('|')}}` : key
+  }
+  return key
 }
 
 function businessReferenceLabel(kind: string, id: number | string): string {

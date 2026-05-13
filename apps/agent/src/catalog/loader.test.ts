@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { loadAgentPluginCatalog } from './loader.js'
 
-test('loads target-state tool catalog and ignores legacy skill files', () => {
+test('loads target-state tool catalog and ignores non-layered skill files', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-plugins-'))
   const skillsDir = join(dir, 'skills')
   const toolsDir = join(dir, 'tools')
@@ -48,8 +48,8 @@ test('loads target-state tool catalog and ignores legacy skill files', () => {
 
     assert.equal(catalog.skillsDir, skillsDir)
     assert.equal(catalog.toolsDir, toolsDir)
-    const writerSkill = catalog.skills.find((skill) => skill.id === 'studio.writer')
-    const outlineTool = catalog.tools.find((tool) => tool.name === 'studio.script_outline')
+    const writerSkill = catalog.layeredSkills.find((skill) => skill.id === 'studio.writer')
+    const outlineTool = catalog.layeredTools.find((tool) => tool.name === 'studio.script_outline')
     assert.equal(writerSkill, undefined)
     assert.equal(outlineTool?.name, 'studio.script_outline')
     assert.equal(outlineTool?.source, 'plugin')
@@ -60,7 +60,6 @@ test('loads target-state tool catalog and ignores legacy skill files', () => {
         title: { type: 'string' },
       },
     })
-    assert.equal(catalog.manifest.skills.some((skill) => skill.id === 'studio.writer'), false)
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'))
     assert.ok(catalog.registry.get('studio.script_outline'))
     assert.deepEqual(catalog.warnings, [])
@@ -79,21 +78,19 @@ test('loads built-in MovScript platform catalog by default', () => {
 
     assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
     assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
-    assert.equal(catalog.skills.some((skill) => skill.id === 'movscript.platform.concepts'), false)
-    assert.equal(catalog.skills.some((skill) => skill.id === 'movscript.drafts.safe-drafts'), false)
-    assert.equal(catalog.skills.some((skill) => skill.id === 'movscript.intent.proposal-first'), false)
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.platform-concepts'))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.safe-drafts'))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.proposal-first'))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.project-proposal'))
-    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal'))
-    assert.ok(catalog.profiles.some((profile) => profile.modeAlias === 'project-orchestration'))
-    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_get_current_context'))
-    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_create_project'))
-    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_list_models'))
-    assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_create_draft'))
-    assert.equal(catalog.manifest.skills.some((skill) => skill.id === 'movscript.intent.content-unit-proposal'), false)
-    assert.equal(catalog.manifest.skills.some((skill) => skill.id === 'movscript.intent.content-unit-media-proposal'), false)
+    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.agent-core'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.movscript-workspace'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal-project'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal-asset'))
+    assert.ok(catalog.profiles.some((profile) => profile.id === 'movscript.profile.default'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_get_current_context'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_project'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_list_models'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_draft'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_get_current_context'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_list_models'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_create_project' && grant.approval === 'always'))
@@ -109,7 +106,7 @@ test('loads built-in MovScript platform catalog by default', () => {
 test('loads built-in content unit proposal catalogs by default', () => {
   const catalog = loadAgentPluginCatalog()
 
-  const contentUnitPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.content-unit')
+  const contentUnitPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.proposal-content-unit')
 
   assert.ok(contentUnitPack)
   assert.ok(contentUnitPack?.tools.includes('movscript_create_draft'))
@@ -117,17 +114,17 @@ test('loads built-in content unit proposal catalogs by default', () => {
   assert.ok(contentUnitPack?.tools.includes('movscript_update_draft'))
   assert.ok(contentUnitPack?.skills.includes('movscript.workflow.content-unit-proposal'))
   assert.ok(contentUnitPack?.skills.includes('movscript.workflow.content-unit-media-proposal'))
-  assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_create_draft'))
-  assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_read_draft'))
-  assert.ok(catalog.tools.some((tool) => tool.name === 'movscript_update_draft'))
-  assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal'))
+  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_draft'))
+  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_read_draft'))
+  assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_update_draft'))
+  assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal-project'))
   assert.equal(catalog.registry.get('movscript_upsert_proposal_node'), undefined)
   assert.equal(catalog.registry.get('movscript_submit_script_split_draft'), undefined)
   assert.equal(catalog.registry.get('movscript_list_productions'), undefined)
   assert.deepEqual(catalog.warnings, [])
 })
 
-test('loads target-state tool files recursively and ignores legacy categorized skills', () => {
+test('loads target-state tool files recursively and ignores non-layered categorized skills', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-categorized-'))
   const skillsDir = join(dir, 'skills')
   const toolsDir = join(dir, 'tools')
@@ -160,8 +157,8 @@ test('loads target-state tool files recursively and ignores legacy categorized s
       builtinSkillsDir: skillsDir,
       builtinToolsDir: toolsDir,
     })
-    const skill = catalog.skills.find((item) => item.id === 'studio.production_proposal')
-    const tool = catalog.tools.find((item) => item.name === 'studio.read_production')
+    const skill = catalog.layeredSkills.find((item) => item.id === 'studio.production_proposal')
+    const tool = catalog.layeredTools.find((item) => item.name === 'studio.read_production')
 
     assert.equal(skill, undefined)
     assert.equal(tool?.source, 'plugin')
@@ -260,8 +257,8 @@ test('target-state catalog loading exposes layered tools without selection gatin
       builtinToolsDir: toolsDir,
     })
 
-    assert.equal(catalog.skills.some((skill) => skill.id === 'studio.alpha'), false)
-    assert.equal(catalog.skills.some((skill) => skill.id === 'studio.beta'), false)
+    assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'studio.alpha'), false)
+    assert.equal(catalog.layeredSkills.some((skill) => skill.id === 'studio.beta'), false)
     assert.equal(Boolean(catalog.registry.get('studio.alpha_tool')), true)
     assert.equal(Boolean(catalog.registry.get('studio.beta_tool')), true)
   } finally {

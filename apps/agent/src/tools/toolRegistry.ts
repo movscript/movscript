@@ -18,6 +18,7 @@ export interface RegisteredTool {
   category?: string
   categories?: string[]
   inputSchema?: JSONValue
+  outputSchema?: JSONValue
   projectScoped: boolean
   requiresApprovalByDefault: boolean
   defaults?: ToolDefaults
@@ -72,6 +73,7 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
     ...(nonEmptyString(input.category) ? { category: nonEmptyString(input.category) } : {}),
     ...(stringArray(input.categories).length > 0 ? { categories: stringArray(input.categories) } : {}),
     ...(isJSONValue(input.inputSchema) ? { inputSchema: input.inputSchema } : {}),
+    ...(isJSONValue(input.outputSchema) ? { outputSchema: input.outputSchema } : {}),
     projectScoped: input.projectScoped === true,
     requiresApprovalByDefault: input.requiresApprovalByDefault === true,
     ...(normalizeToolDefaults(input.defaults) ? { defaults: normalizeToolDefaults(input.defaults) } : {}),
@@ -125,7 +127,7 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
   },
   {
     name: 'movscript_cancel_subagent',
-    description: 'Planner-only tool. Cancel a child worker subagent subtree owned by the current planner run.',
+    description: 'Planner-only tool. Cancel a worker subagent run or a named pending subagent task in the current plan.',
     permission: 'agent.subagent.write',
     risk: 'write',
     source: 'runtime',

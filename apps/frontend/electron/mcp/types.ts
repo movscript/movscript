@@ -37,6 +37,12 @@ export interface MCPTool {
     required?: string[]
     additionalProperties?: boolean
   }
+  outputSchema?: {
+    type: 'object'
+    properties: Record<string, MCPJSONValue>
+    required?: string[]
+    additionalProperties?: boolean
+  }
 }
 
 export interface MCPContextSnapshot {

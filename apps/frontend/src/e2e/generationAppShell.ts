@@ -106,7 +106,6 @@ export async function mockGenerationAppShell(page: Page, kind: GenerationMediaKi
         resources: [],
         tools: [],
         registeredTools: [],
-        skills: [],
         defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
       })
       return

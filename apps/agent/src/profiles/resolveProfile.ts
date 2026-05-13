@@ -8,18 +8,14 @@ export interface ResolveProfileResult {
 
 export function resolveProfile(
   registry: CatalogRegistry,
-  options: { modeAlias?: string; orgProfile?: AgentProfile; userProfile?: AgentProfile } = {},
+  options: { orgProfile?: AgentProfile; userProfile?: AgentProfile } = {},
 ): ResolveProfileResult {
   const warnings: string[] = []
   const base = registry.profiles.get('movscript.profile.default') ?? firstProfile(registry)
-  const mode = options.modeAlias ? registry.modeProfiles.get(options.modeAlias) : undefined
-  if (options.modeAlias && !mode) warnings.push(`profile.resolve.miss: mode ${options.modeAlias} not found; using default profile`)
-  const presetLayers = [base, mode].filter((item): item is AgentProfile => !!item)
   const traceLayers: ProfileResolutionTrace['layers'] = [
     { source: 'default' as const, id: base.id, version: base.version },
-    ...(mode ? [{ source: 'mode' as const, id: mode.id, version: mode.version }] : []),
   ]
-  let profile = mergeProfiles(...presetLayers)
+  let profile = mergeProfiles(base)
   if (options.orgProfile) {
     const org = applyRestrictiveProfileOverride(profile, options.orgProfile, 'org')
     warnings.push(...org.warnings)

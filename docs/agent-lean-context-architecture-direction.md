@@ -93,7 +93,7 @@ Examples:
 
 Workflow defines how to perform a specific class of business task.
 
-Workflows should not be loaded by default. They require structured triggers such as mode, route, selected entity kind, intent, or focused keywords.
+Workflows should not be injected just because they exist. They require structured triggers such as route, selected entity kind, intent, labels, or focused keywords.
 
 Workflow answers:
 
@@ -127,9 +127,9 @@ A profile should not contain:
 - skill instructions
 - schema bodies
 - tool descriptions copied into prose
-- mode-specific hardcoded prompt text
+- UI-entry-specific hardcoded prompt text
 
-Modes should become profile aliases. For example, `visual-generation` is a profile alias that enables visual generation workflows and generation tools. It is not itself a skill.
+Mode should not exist in the runtime architecture. UI entry points provide route, selection, labels, attachments, and message text; workflow triggers decide which behavior activates.
 
 ## 6. Runtime Context Shape
 
@@ -154,6 +154,7 @@ Does not contain:
 - workflow instructions
 - schema summaries
 - subagent details unless relevant
+- default chat command contracts; command contracts are injected only for explicit runtime commands or non-natural output/tool requirements
 
 ### Level 1: Current Context Envelope
 
@@ -177,6 +178,8 @@ Does not include full lists by default:
 - all workers
 
 The model should call tools to retrieve those details when needed.
+
+Array-shaped context may be summarized by count, but default prompt text should not sample list item contents. Memory matches are not injected as a startup index; the model should use memory retrieval tools when prior decisions or preferences matter.
 
 ### Level 2: Activated Behavior
 
@@ -206,6 +209,8 @@ Runtime Warnings
 
 Tool details should primarily be carried through tool/function schemas, not duplicated as long textual catalog entries. A short tool-use principle is enough in system text.
 
+The runtime may record available and blocked tool handles in trace/debug metadata, but it should not list those handles in the system prompt by default.
+
 Capability discovery should become a compact rule:
 
 > If a needed capability is not available, inspect the catalog tools before saying it is missing.
@@ -220,7 +225,6 @@ Workflow selection should move away from legacy `appliesWhen` keyword strings.
 
 Target trigger types:
 
-- `mode`: selected profile or UI mode
 - `route`: current page or route pattern
 - `selectedKind`: project, production, script, draft, resource, content unit, etc.
 - `intent`: normalized runtime command or classifier output
@@ -232,6 +236,7 @@ Default activation rules:
 - persona can be profile-selected
 - policy can be profile-selected
 - workflow must be triggered
+- business tools should be model-visible only when a triggered workflow references them, except for compact retrieval/input and planner coordination tools needed to obtain more context
 - low-confidence workflow matches should prefer asking or fetching context over injecting multiple workflows
 
 ## 9. Context Retrieval Direction

@@ -82,7 +82,6 @@ export function buildGenerationAppBootstrapScenario(
           },
         } satisfies AgentAttachment],
         meta: {
-          mode: 'chat' as const,
           contextLabels: ['E2E 生成监控'],
           generationJobs: [{
             jobId: FINAL_JOB_ID,
@@ -110,7 +109,6 @@ export function buildGenerationAppBootstrapScenario(
         content: '生成失败：provider rejected request。',
         timestamp: Date.parse('2026-05-09T12:00:25.000Z'),
         meta: {
-          mode: 'chat' as const,
           contextLabels: ['E2E 生成监控'],
           generationJobs: [{
             jobId: FINAL_JOB_ID,
@@ -136,7 +134,6 @@ export function buildGenerationAppBootstrapScenario(
         content: '生成监控已超时，任务可能仍在后台继续运行。',
         timestamp: Date.parse('2026-05-09T12:00:25.000Z'),
         meta: {
-          mode: 'chat' as const,
           contextLabels: ['E2E 生成监控'],
           generationJobs: [{
             jobId: FINAL_JOB_ID,
@@ -245,7 +242,6 @@ export function buildGenerationAppBootstrapScenario(
     agent: {
       userId: String(USER_ID),
       settings: {
-        mode: 'chat',
         includeProjectContext: true,
         includeRecentResources: true,
         autoPlan: true,

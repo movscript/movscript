@@ -39,6 +39,7 @@ function mcpToolDefinition(serverId: string, tool: MCPTool): ToolDefinition {
     name: mcpPublicToolName(serverId, tool.name),
     description: tool.description,
     inputSchema: normalizeSchema(tool.inputSchema),
+    ...(tool.outputSchema ? { outputSchema: normalizeSchema(tool.outputSchema) } : {}),
     permission: `mcp.${serverId}.${normalizeToolName(tool.name)}`,
     risk: 'write',
     projectScoped: false,

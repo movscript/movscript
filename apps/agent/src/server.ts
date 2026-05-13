@@ -103,8 +103,8 @@ export function createAgentRequestListener(context: AgentServerContext, options:
             toolsDir: context.pluginCatalog.toolsDir,
             builtinSkillsDir: context.pluginCatalog.builtinSkillsDir,
             builtinToolsDir: context.pluginCatalog.builtinToolsDir,
-            skillCount: context.pluginCatalog.skills.length,
-            toolCount: context.pluginCatalog.tools.length,
+            skillCount: context.pluginCatalog.layeredSkills.length,
+            toolCount: context.pluginCatalog.layeredTools.length,
             warnings: context.pluginCatalog.warnings,
           },
           updates: context.updates,
@@ -271,13 +271,13 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'POST' && url.pathname === '/runs') {
         const body = await readJSON(req)
-        writeJSON(res, 201, context.agentRuntime.createRun(withRequestAuth(normalizeOptionalObject(body, 'run body'), req)))
+        writeJSON(res, 201, context.agentRuntime.createRun(asPlannerUserRun(withRequestAuth(normalizeOptionalObject(body, 'run body'), req))))
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/runs/tool') {
         const body = await readJSON(req)
-        writeJSON(res, 201, context.agentRuntime.createToolRun(withRequestAuth(normalizeOptionalObject(body, 'tool run body'), req)))
+        writeJSON(res, 201, context.agentRuntime.createToolRun(asDirectToolRun(withRequestAuth(normalizeOptionalObject(body, 'tool run body'), req))))
         return
       }
 
@@ -402,7 +402,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const runCancelTreeMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel-tree$/)
       if (runCancelTreeMatch && req.method === 'POST') {
         const body = await readJSON(req)
-        writeJSON(res, 200, context.agentRuntime.cancelSubtree(runCancelTreeMatch[1], normalizeOptionalObject(body, 'cancel tree body')))
+        writeJSON(res, 200, context.agentRuntime.cancelPlanTree(runCancelTreeMatch[1], normalizeOptionalObject(body, 'cancel tree body')))
         return
       }
 
@@ -413,11 +413,12 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           writeJSON(res, run ? 400 : 404, { error: run ? 'run is not attached to a plan' : 'run not found' })
           return
         }
+        const plan = context.agentRuntime.getPlan(run.planId)
         const body = await readJSON(req)
         writeJSON(res, 202, context.agentRuntime.replanRun(runReplanMatch[1], {
           ...withRequestAuth(normalizeOptionalObject(body, 'replan body'), req),
           planId: run.planId,
-          plannerRunId: run.role === 'planner' ? run.id : run.parentRunId,
+          plannerRunId: plan?.rootRunId ?? (run.role === 'planner' ? run.id : run.parentRunId),
         }))
         return
       }
@@ -797,6 +798,29 @@ function requestAuth(req: IncomingMessage): { backendAuthToken?: string; backend
 function withRequestAuth<T extends Record<string, unknown>>(body: T, req: IncomingMessage): T & { backendAuthToken?: string; backendAPIBaseURL?: string } {
   const auth = requestAuth(req)
   return Object.keys(auth).length > 0 ? { ...body, ...auth } : body
+}
+
+function asPlannerUserRun(body: Record<string, unknown>): Record<string, unknown> & { role: 'planner'; parentRunId?: undefined; taskId?: undefined } {
+  const { parentRunId: _parentRunId, taskId: _taskId, ...rest } = body
+  return { ...rest, role: 'planner' }
+}
+
+function asDirectToolRun(body: Record<string, unknown>): Record<string, unknown> & {
+  role: 'worker'
+  parentRunId?: undefined
+  planId?: undefined
+  taskId?: undefined
+} {
+  const {
+    role: _role,
+    parentRunId: _parentRunId,
+    planId: _planId,
+    taskId: _taskId,
+    progress: _progress,
+    blockedReason: _blockedReason,
+    ...rest
+  } = body
+  return { ...rest, role: 'worker' }
 }
 
 function headerValue(req: IncomingMessage, name: string): string | undefined {

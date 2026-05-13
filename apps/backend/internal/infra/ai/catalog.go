@@ -33,11 +33,65 @@ type ParamDef struct {
 	Min              float64                 `json:"min,omitempty"`
 	Max              float64                 `json:"max,omitempty"`
 	Step             float64                 `json:"step,omitempty"`
+	minSet           bool                    `json:"-"`
+	maxSet           bool                    `json:"-"`
+	stepSet          bool                    `json:"-"`
 	JSONSchema       map[string]any          `json:"json_schema,omitempty"`       // extra JSON Schema keywords for this param
 	ConflictsWith    []string                `json:"conflicts_with,omitempty"`    // params that cannot be used with this param
 	ConditionalEnum  []ParamConditionalEnum  `json:"conditional_enum,omitempty"`  // enum restrictions activated by another param
 	ConditionalConst []ParamConditionalConst `json:"conditional_const,omitempty"` // const restrictions activated by another param
 	RequiresValue    []ParamRequiresValue    `json:"requires_value,omitempty"`    // dependent param values required when this param is set
+}
+
+func (p *ParamDef) UnmarshalJSON(data []byte) error {
+	type alias ParamDef
+	var out alias
+	if err := json.Unmarshal(data, &out); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	out.minSet = raw["min"] != nil
+	out.maxSet = raw["max"] != nil
+	out.stepSet = raw["step"] != nil
+	*p = ParamDef(out)
+	return nil
+}
+
+func (p ParamDef) MarshalJSON() ([]byte, error) {
+	type alias ParamDef
+	raw, err := json.Marshal(alias(p))
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, err
+	}
+	if p.minSet {
+		out["min"] = p.Min
+	}
+	if p.maxSet {
+		out["max"] = p.Max
+	}
+	if p.stepSet {
+		out["step"] = p.Step
+	}
+	return json.Marshal(out)
+}
+
+func (p ParamDef) hasMin() bool {
+	return p.minSet || p.Min != 0
+}
+
+func (p ParamDef) hasMax() bool {
+	return p.maxSet || p.Max != 0
+}
+
+func (p ParamDef) hasStep() bool {
+	return p.stepSet || p.Step != 0
 }
 
 // ParamConditionalEnum declares a cross-parameter enum restriction for params_schema.
@@ -144,6 +198,7 @@ type ModelPreset struct {
 	MaxInputImages    int         `json:"max_input_images"`
 	MaxInputVideos    int         `json:"max_input_videos"`
 	ImageEditField    string      `json:"image_edit_field,omitempty"`
+	SupportedParams   []ParamDef  `json:"supported_params,omitempty"`
 	RefInputUSDPer1M  float64     `json:"ref_input_usd_per_1m,omitempty"`
 	RefOutputUSDPer1M float64     `json:"ref_output_usd_per_1m,omitempty"`
 	RefUSDPerImage    float64     `json:"ref_usd_per_image,omitempty"`
@@ -391,8 +446,7 @@ func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []str
 	params := []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select", Options: durationOptions, Default: "5"},
 		{Key: "aspect_ratio", Label: "画面比例", Type: "select", Options: ratioOptions, Default: ratioOptions[0]},
-		{Key: "resolution", Label: "分辨率", Type: "select", Options: resolutionOptions, Default: "720p",
-			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}},
+		{Key: "resolution", Label: "分辨率", Type: "select", Options: resolutionOptions, Default: "720p"},
 		{Key: "seed", Label: "种子", Type: "number", Default: -1, Min: -1, Max: 4294967295, Step: 1},
 		{Key: "watermark", Label: "水印", Type: "boolean", Default: false},
 	}
@@ -402,16 +456,24 @@ func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []str
 	if withCameraFixed {
 		params = append(params, ParamDef{Key: "fixed_camera", Label: "固定镜头", Type: "boolean", Default: false})
 	}
-	params = append(params, ParamDef{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false,
-		ConditionalConst: []ParamConditionalConst{{WhenParam: "draft", WhenValue: true, Value: false}}})
+	params = append(params, ParamDef{Key: "return_last_frame", Label: "返回尾帧", Type: "boolean", Default: false})
 	if withServiceTier {
-		params = append(params, ParamDef{Key: "service_tier", Label: "服务等级", Type: "select", Options: []string{"default", "flex"}, Default: "default",
-			ConditionalEnum: []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"default"}}}})
+		params = append(params, ParamDef{Key: "service_tier", Label: "服务等级", Type: "select", Options: []string{"default", "flex"}, Default: "default"})
 	}
 	if withWebSearch {
 		params = append(params, ParamDef{Key: "web_search", Label: "联网搜索", Type: "boolean", Default: false})
 	}
 	if withDraft {
+		for i := range params {
+			switch params[i].Key {
+			case "resolution":
+				params[i].ConditionalEnum = []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"480p"}}}
+			case "return_last_frame":
+				params[i].ConditionalConst = []ParamConditionalConst{{WhenParam: "draft", WhenValue: true, Value: false}}
+			case "service_tier":
+				params[i].ConditionalEnum = []ParamConditionalEnum{{WhenParam: "draft", WhenValue: true, Options: []string{"default"}}}
+			}
+		}
 		params = append(params, ParamDef{Key: "draft", Label: "样片模式", Type: "boolean", Default: false})
 	}
 	return params
@@ -419,9 +481,9 @@ func volcenSeedanceParams(durationOptions, ratioOptions, resolutionOptions []str
 
 func framesJSONSchema() map[string]any {
 	return map[string]any{
-		"minimum":    29,
-		"maximum":    289,
-		"enum":       frameOptions(),
+		"minimum":     29,
+		"maximum":     289,
+		"enum":        frameOptions(),
 		"description": "Frame count must be in [29,289] and match 25 + 4n.",
 	}
 }
@@ -451,6 +513,7 @@ func ModelPresets() []ModelPreset {
 			MaxInputImages:    def.MaxInputImages,
 			MaxInputVideos:    def.MaxInputVideos,
 			ImageEditField:    def.ImageEditField,
+			SupportedParams:   NormalizeParamDefsForUI(cloneParamDefs(def.SupportedParams)),
 			RefInputUSDPer1M:  def.RefInputUSDPer1M,
 			RefOutputUSDPer1M: def.RefOutputUSDPer1M,
 			RefUSDPerImage:    def.RefUSDPerImage,
@@ -600,14 +663,17 @@ func mergeParamDef(base, patch ParamDef) ParamDef {
 	if patch.Default != nil {
 		out.Default = patch.Default
 	}
-	if patch.Min != 0 {
+	if patch.hasMin() {
 		out.Min = patch.Min
+		out.minSet = true
 	}
-	if patch.Max != 0 {
+	if patch.hasMax() {
 		out.Max = patch.Max
+		out.maxSet = true
 	}
-	if patch.Step != 0 {
+	if patch.hasStep() {
 		out.Step = patch.Step
+		out.stepSet = true
 	}
 	if patch.JSONSchema != nil {
 		out.JSONSchema = cloneJSONSchemaMap(patch.JSONSchema)
@@ -647,6 +713,17 @@ func cloneParamDef(p ParamDef) ParamDef {
 		p.RequiresValue = append([]ParamRequiresValue{}, p.RequiresValue...)
 	}
 	return p
+}
+
+func cloneParamDefs(params []ParamDef) []ParamDef {
+	if len(params) == 0 {
+		return nil
+	}
+	out := make([]ParamDef, 0, len(params))
+	for _, param := range params {
+		out = append(out, cloneParamDef(param))
+	}
+	return out
 }
 
 func cloneJSONSchemaMap(schema map[string]any) map[string]any {
@@ -696,6 +773,8 @@ func normalizeParamKey(key string) string {
 	switch key {
 	case "ratio":
 		return "aspect_ratio"
+	case "duration_seconds":
+		return "duration"
 	case "size":
 		return "image_size"
 	case "guidance_scale":
@@ -840,11 +919,11 @@ func ResolveModelDef(modelDefID, adapterType, customDisplayName, customCaps, cus
 		}
 	}
 
-	if customAcceptsImage {
-		def.AcceptsImageInput = true
-	}
 	if customMaxInputImages != 0 {
 		def.MaxInputImages = customMaxInputImages
+	}
+	if customAcceptsImage || customMaxInputImages != 0 || hasString(def.Capabilities, CapabilityImageEdit) || hasString(def.Capabilities, CapabilityVideoI2V) {
+		def.AcceptsImageInput = true
 	}
 	if def.AcceptsImageInput && def.MaxInputImages == 0 {
 		def.MaxInputImages = 1

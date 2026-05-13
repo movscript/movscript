@@ -17,12 +17,12 @@ import { publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, buildPageContext, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import { generationProgressFromEvents, replayGenerationTrace, type GenerationProgressState, type GenerationTraceEventLike, type GenerationTraceReplay } from '@/lib/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel, type GenerationJobBadgeTone } from '@/lib/agentGenerationDisplay'
-import { generationParamAuditsFromRun } from '@/lib/agentGenerationArtifacts'
+import { generationParamAuditsFromRun, generationValidationErrorsFromRun } from '@/lib/agentGenerationArtifacts'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { toastMCPError, toastMCPStatus } from '@/lib/mcpStatus'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
-import { GenerationJobSummaryCard, GenerationParamAuditCard, GenerationProgressCard, GenerationTraceSummaryCard } from '@/components/agent/GenerationCards'
+import { GenerationJobSummaryCard, GenerationParamAuditCard, GenerationProgressCard, GenerationTraceSummaryCard, GenerationValidationErrorCard } from '@/components/agent/GenerationCards'
 import { GeneratedResultCard } from '@/components/agent/GeneratedResultCard'
 import {
   formatLocalAgentAssistantContent,
@@ -54,7 +54,7 @@ import {
   type AgentTraceEvent,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
-import { actionableRunForPlan, buildPlanArtifactSummary, buildPlanTaskViews, plannerRunIdForPlanAction, shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
+import { actionableRunForPlan, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, plannerRunIdForPlanAction, shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
 import {
   AgentBody,
   AgentChatMessage,
@@ -98,7 +98,6 @@ import {
   type Conversation,
   type AgentAttachment,
   type AgentSettings,
-  type AgentWorkMode,
   type AgentPermissionMode,
 } from '@/store/agentStore'
 import { useAgentSessionStore, type AgentPageTaskState } from '@/store/agentSessionStore'
@@ -665,12 +664,14 @@ async function assistantResultPayloadForRun(run: AgentRun, liveEvents: Generatio
   const attachments = run.streamPartial ? [] : await generatedAttachmentsFromReplay(replay, fallbackIds, assistantContent)
   const generationJobs = replay.jobs
   const generationParamAudits = generationParamAuditsFromRun(run)
+  const generationValidationErrors = generationValidationErrorsFromRun(run)
   return {
     ...withGeneratedAttachments(attachments),
     meta: {
       contextLabels: [`run ${run.status}`],
       ...(generationJobs.length > 0 ? { generationJobs } : {}),
       ...(generationParamAudits.length > 0 ? { generationParamAudits } : {}),
+      ...(generationValidationErrors.length > 0 ? { generationValidationErrors } : {}),
     },
   }
 }
@@ -719,7 +720,6 @@ function attachmentPromptBlock(attachments: AgentAttachment[]) {
 }
 
 function buildAgentContext(options: {
-  mode: AgentWorkMode
   permissionMode: AgentPermissionMode
   autoPlan: boolean
   project: Project | null
@@ -749,7 +749,7 @@ interface AgentSendDraft {
     name?: string
     soul?: string
   }
-  settings: Pick<AgentSettings, 'mode' | 'permissionMode' | 'includeProjectContext' | 'includeRecentResources' | 'autoPlan'>
+  settings: Pick<AgentSettings, 'permissionMode' | 'includeProjectContext' | 'includeRecentResources' | 'autoPlan'>
   contextLabels: string[]
   context: {
     project?: Pick<Project, 'ID' | 'name' | 'status' | 'description'>
@@ -847,7 +847,6 @@ function buildAgentClientInput(options: {
   productionId?: number
   draftId?: string
   selection?: { entityType?: string; entityId?: number | string; label?: string } | null
-  mode?: string
 }): AgentClientInput {
   const input = buildCommandFirstClientInput({
     message: options.message,
@@ -859,7 +858,6 @@ function buildAgentClientInput(options: {
       size: attachment.size,
       ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
     })),
-    ...(options.mode ? { mode: options.mode } : {}),
     labels: options.labels,
     hints: {
       ...(options.projectId ? { projectId: options.projectId } : {}),
@@ -1089,7 +1087,7 @@ function AgentDebugPreviewDialog({
           <div className="grid gap-2 md:grid-cols-4">
             <DebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(draft.model.name ?? draft.model.id ?? t('common.emptyTitle'))} />
             <DebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={draft.agent.name ?? t('agents.chat.panel.debugPreview.agent')} />
-            <DebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={`${draft.settings.mode} · ${draft.settings.permissionMode}`} />
+            <DebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={draft.settings.permissionMode} />
             <DebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(draft.httpRequests.length)} />
           </div>
 
@@ -2018,6 +2016,9 @@ function PlanOverviewPanel({
   if (!snapshot) return null
   const taskViews = buildPlanTaskViews(snapshot)
   const artifactSummary = buildPlanArtifactSummary(snapshot)
+  const nameConflicts = buildPlanNameConflictViews(snapshot)
+  const overviewStats = buildPlanOverviewStats(snapshot)
+  const planStatusExplanation = buildPlanStatusExplanation(snapshot)
   const availableArtifactTypes = new Set(artifactSummary.byType.map((item) => item.type))
   const activeArtifactTypeFilter = artifactTypeFilter === 'all' || availableArtifactTypes.has(artifactTypeFilter)
     ? artifactTypeFilter
@@ -2026,7 +2027,6 @@ function PlanOverviewPanel({
     ? artifactSummary.artifacts
     : artifactSummary.artifacts.filter((artifact) => artifact.type === activeArtifactTypeFilter)
   const tasks = taskViews.map((view) => view.task)
-  const completed = tasks.filter((task) => task.status === 'done').length
   const activeRuns = snapshot.runs.filter((run) => run.status === 'queued' || run.status === 'in_progress' || run.status === 'requires_action').length
   const rootRun = snapshot.runs.find((run) => run.id === snapshot.plan.rootRunId)
   const canDispatch = activeRuns === 0 && tasks.some((task) => task.status === 'pending')
@@ -2039,6 +2039,10 @@ function PlanOverviewPanel({
   const scrollToTask = (taskId: string | undefined) => {
     if (!taskId || typeof document === 'undefined') return
     document.getElementById(`agent-plan-task-${taskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  const openRun = (runId: string | undefined) => {
+    if (!runId) return
+    navigate(`/agent/runs/${encodeURIComponent(runId)}`)
   }
   const loadTraceSummary = async (runId: string) => {
     if (traceSummaries[runId] || loadingTraceSummaryRunId === runId) return
@@ -2083,21 +2087,59 @@ function PlanOverviewPanel({
     }
   }
   return (
-    <div className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 text-xs">
+    <div data-testid="agent-plan-overview" className="mt-2 rounded-md border border-border bg-background/70 px-2.5 py-2 text-xs">
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
             <Route size={12} />
             <span className="truncate">{snapshot.plan.title}</span>
           </div>
-          <div className="mt-0.5 text-[9px] text-muted-foreground">
-            {completed}/{tasks.length} tasks · {activeRuns} active worker{activeRuns === 1 ? '' : 's'}
+          <div data-testid="agent-plan-overview-stats" className="mt-0.5 text-[9px] text-muted-foreground">
+            {overviewStats.completedTaskCount}/{overviewStats.taskCount} tasks · {overviewStats.activeWorkerCount} active worker{overviewStats.activeWorkerCount === 1 ? '' : 's'}
+            {overviewStats.artifactCount > 0 && <> · {overviewStats.artifactCount} artifact{overviewStats.artifactCount === 1 ? '' : 's'}</>}
+            {overviewStats.nameConflictCount > 0 && <> · {overviewStats.nameConflictCount} name conflict{overviewStats.nameConflictCount === 1 ? '' : 's'}</>}
           </div>
+          <p data-testid="agent-plan-status-explanation" className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">{planStatusExplanation}</p>
         </div>
         <Badge variant={runStatusVariant(snapshot.plan.status)} className="shrink-0 text-[9px] leading-4 px-1.5 py-0">
           {snapshot.plan.status.replace(/_/g, ' ')}
         </Badge>
       </div>
+      {nameConflicts.length > 0 && (
+        <div data-testid="agent-plan-name-conflicts" className="mt-2 space-y-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-[9px] leading-relaxed text-destructive">
+          {nameConflicts.map((conflict) => (
+            <div key={conflict.subagentName} className="min-w-0">
+              <div className="truncate font-medium">Name conflict · {conflict.subagentName}</div>
+              <div className="mt-1 space-y-0.5">
+                {conflict.entries.map((entry) => (
+                  <div key={entry.taskId} className="flex min-w-0 items-center justify-between gap-2 rounded bg-background/70 px-1.5 py-0.5 text-muted-foreground">
+                    <div className="min-w-0">
+                      <div className="truncate text-foreground">{entry.taskTitle}</div>
+                      <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                        <span className="truncate">task {entry.taskId}</span>
+                        {entry.taskStatus && <span>{entry.taskStatus.replace(/_/g, ' ')}</span>}
+                        {entry.ownerRunId && <span className="truncate">run {entry.ownerRunId}</span>}
+                        {entry.ownerRunStatus && <span>{entry.ownerRunStatus.replace(/_/g, ' ')}</span>}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(entry.taskId)}>
+                        Task
+                      </Button>
+                      {entry.ownerRunId && (
+                        <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(entry.ownerRunId)}>
+                          <Route size={8} />
+                          Run
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {(onDispatch || onReplan || onCancelTree) && (
         <div className="mt-2 flex flex-wrap items-center gap-1">
           {onDispatch && (
@@ -2161,7 +2203,7 @@ function PlanOverviewPanel({
         />
       </div>
       {artifactSummary.totalCount > 0 && (
-        <details className="mt-2 rounded border border-border/70 bg-muted/10">
+        <details data-testid="agent-plan-artifact-summary" className="mt-2 rounded border border-border/70 bg-muted/10">
           <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-2 py-1.5 text-[9px] font-medium text-foreground">
             <FileText size={10} />
             <span>{artifactSummary.totalCount} plan artifact{artifactSummary.totalCount === 1 ? '' : 's'}</span>
@@ -2198,6 +2240,17 @@ function PlanOverviewPanel({
                         Jump
                       </Button>
                     )}
+                    {artifact.sourceRunId && (
+                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceRunId)}>
+                        <Route size={8} />
+                        Run
+                      </Button>
+                    )}
+                    {artifact.sourceTaskOwnerRunId && artifact.sourceTaskOwnerRunId !== artifact.sourceRunId && (
+                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
+                        Source
+                      </Button>
+                    )}
                     <span>{artifact.type}</span>
                   </div>
                 </div>
@@ -2205,7 +2258,8 @@ function PlanOverviewPanel({
                   {artifact.uri && <span className="truncate">uri {artifact.uri}</span>}
                   {artifact.taskTitle && <span className="truncate">task {artifact.taskTitle}</span>}
                   {artifact.sourceRunId && <span className="truncate">run {artifact.sourceRunId}</span>}
-                  {artifact.sourceTaskId && <span className="truncate">task {artifact.sourceTaskId}</span>}
+                  {artifact.sourceTaskId && <span className="truncate">source task {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</span>}
+                  {artifact.sourceTaskStatus && <span>{artifact.sourceTaskStatus.replace(/_/g, ' ')}</span>}
                   {artifact.subagentName && <span className="truncate">agent {artifact.subagentName}</span>}
                   {artifact.toolName && <span className="truncate">tool {artifact.toolName}</span>}
                   {artifact.policy && <span className="truncate">policy {artifact.policy}</span>}
@@ -2236,13 +2290,15 @@ function PlanOverviewPanel({
                     ) : null}
                     {view.waitingInputCount > 0 && <span>{view.waitingInputCount} input</span>}
                     {view.waitingApprovalCount > 0 && <span>{view.waitingApprovalCount} approval</span>}
-                    {view.retryAttempt && <span>attempt {view.retryAttempt}</span>}
+                    {view.retryAttempt && <span>attempt {view.retryAttempt}{view.maxTaskAttempts ? `/${view.maxTaskAttempts}` : ''}</span>}
+                    {!view.retryAttempt && view.maxTaskAttempts && <span>max {view.maxTaskAttempts} attempts</span>}
                     {view.previousStatus && <span>from {view.previousStatus.replace(/_/g, ' ')}</span>}
                     {view.workerTimeoutMs && <span>timeout {formatDurationLabel(view.workerTimeoutMs)}</span>}
                     {view.timedOutRunId && <span className="truncate">timed out {view.timedOutRunId}</span>}
                     {view.previousOwnerRunId && <span className="truncate">prev {view.previousOwnerRunId}</span>}
                     {view.artifactCount > 0 && <span>{view.artifactCount} artifact{view.artifactCount === 1 ? '' : 's'}</span>}
                   </div>
+                  <p className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">{view.statusExplanation}</p>
                   {view.blocker && (
                     <p className="mt-1 text-[10px] leading-relaxed text-amber-700 dark:text-amber-300">{view.blocker}</p>
                   )}
@@ -2250,7 +2306,7 @@ function PlanOverviewPanel({
                     <details className="mt-1 rounded border border-border/60 bg-muted/10">
                       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-1.5 py-1 text-[9px] font-medium text-foreground">
                         <Bot size={10} />
-                        <span className="truncate">Worker {view.subagentName ?? view.worker.id}</span>
+                        <span className="truncate">Worker {view.subagentName ?? view.worker.subagentName ?? view.worker.id}</span>
                         <Badge variant={runStatusVariant(view.worker.status)} className="text-[8px] leading-3 px-1 py-0">
                           {view.worker.status.replace(/_/g, ' ')}
                         </Badge>
@@ -2499,12 +2555,31 @@ function PlanOverviewPanel({
                           <div key={artifact.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
                             <div className="flex min-w-0 items-center justify-between gap-2">
                               <span className="truncate font-medium text-foreground">{artifact.label}</span>
-                              <span className="shrink-0">{artifact.type}</span>
+                              <div className="flex shrink-0 items-center gap-1">
+                                {artifact.sourceTaskId && (
+                                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(artifact.sourceTaskId)}>
+                                    Task
+                                  </Button>
+                                )}
+                                {artifact.sourceRunId && (
+                                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceRunId)}>
+                                    <Route size={8} />
+                                    Run
+                                  </Button>
+                                )}
+                                {artifact.sourceTaskOwnerRunId && artifact.sourceTaskOwnerRunId !== artifact.sourceRunId && (
+                                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
+                                    Source
+                                  </Button>
+                                )}
+                                <span>{artifact.type}</span>
+                              </div>
                             </div>
                             <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
                               {artifact.uri && <span className="truncate">uri {artifact.uri}</span>}
                               {artifact.sourceRunId && <span className="truncate">run {artifact.sourceRunId}</span>}
-                              {artifact.sourceTaskId && <span className="truncate">task {artifact.sourceTaskId}</span>}
+                              {artifact.sourceTaskId && <span className="truncate">source task {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</span>}
+                              {artifact.sourceTaskStatus && <span>{artifact.sourceTaskStatus.replace(/_/g, ' ')}</span>}
                               {artifact.toolName && <span className="truncate">tool {artifact.toolName}</span>}
                               {artifact.policy && <span className="truncate">policy {artifact.policy}</span>}
                             </div>
@@ -2593,11 +2668,6 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
       )}
       footer={msg.meta && (
         <div className={cn('flex flex-wrap gap-1', isUser ? 'justify-end' : 'justify-start')}>
-          {msg.meta.mode && (
-            <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
-              {msg.meta.mode}
-            </Badge>
-          )}
           {msg.meta.contextLabels?.map((label) => (
             <Badge key={label} variant="secondary" className="text-[9px] leading-4 px-1.5 py-0">
               {label}
@@ -2608,6 +2678,7 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
     >
       {displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
       {!isUser && <GenerationTraceSummaryCard jobs={msg.meta?.generationJobs} />}
+      {!isUser && <GenerationValidationErrorCard errors={msg.meta?.generationValidationErrors} />}
       {!isUser && <GenerationParamAuditCard audits={msg.meta?.generationParamAudits} />}
       {!isUser && <GenerationJobSummaryCard jobs={msg.meta?.generationJobs} />}
       {showLargeMedia && <GeneratedResultCard attachments={mediaAttachments} projectId={projectId} />}
@@ -3089,7 +3160,7 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
       <div className="grid gap-2 text-[11px] md:grid-cols-4">
         <DebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(draft.model.name ?? draft.model.id ?? t('common.emptyTitle'))} />
         <DebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={draft.agent.name ?? t('agents.chat.panel.debugPreview.default')} />
-        <DebugSummaryItem label={t('agents.chat.panel.debugPreview.mode')} value={`${draft.settings.mode} · ${draft.settings.permissionMode}`} />
+        <DebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={draft.settings.permissionMode} />
         <DebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(draft.httpRequests.length)} />
       </div>
 
@@ -4557,7 +4628,7 @@ function ChatView({
       ])
     const visibleText = (options.displayMessage ?? text).trim()
     const visibleUserContent = visibleText || t('agents.chat.attachmentOnlyMessage')
-    const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent, settings.mode)
+    const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent)
     const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
     const requestedManifest = options.agentManifest ?? activeConversationManifest
     const clientInput = options.clientInput ?? buildAgentClientInput({
@@ -4565,10 +4636,8 @@ function ChatView({
       attachments: sentAttachments,
       projectId: options.projectId ?? currentProject?.ID,
       labels: contextLabels,
-      mode: settings.mode,
     })
     const agentContext = buildAgentContext({
-      mode: settings.mode,
       permissionMode: settings.permissionMode,
       autoPlan: settings.autoPlan,
       project: currentProject,
@@ -4643,7 +4712,6 @@ function ChatView({
         id: null,
       },
       settings: {
-        mode: settings.mode,
         permissionMode: settings.permissionMode,
         includeProjectContext: settings.includeProjectContext,
         includeRecentResources: settings.includeRecentResources,
@@ -4735,7 +4803,6 @@ function ChatView({
       meta: {
         modelId: draft.model.id,
         agentName: t('agents.chat.localRuntime'),
-        mode: draft.settings.mode,
         permissionMode: draft.settings.permissionMode,
         contextLabels: draft.contextLabels,
       },
@@ -5657,7 +5724,6 @@ function BuiltinChat({ userId }: { userId: string }) {
     while (pending?.message?.trim()) {
       const convId = pending.newConversation ? createConversation(userId) : (getActiveConversationId(userId) ?? createConversation(userId))
       if (pending.title) updateConversationTitle(userId, convId, pending.title)
-      if (pending.mode) useAgentStore.getState().updateSettings({ mode: pending.mode })
       setActiveConversation(userId, convId)
       if (pending.requestId) attachPageTaskConversation(pending.requestId, convId)
       pending = consumeAgentPanelDraft()
@@ -5670,7 +5736,6 @@ function BuiltinChat({ userId }: { userId: string }) {
       if (!detail?.message?.trim()) return
       const convId = detail.newConversation ? createConversation(userId) : (getActiveConversationId(userId) ?? createConversation(userId))
       if (detail.title) updateConversationTitle(userId, convId, detail.title)
-      if (detail.mode) useAgentStore.getState().updateSettings({ mode: detail.mode })
       setActiveConversation(userId, convId)
       if (detail.requestId) attachPageTaskConversation(detail.requestId, convId)
     }

@@ -81,7 +81,6 @@ function matchesTrigger(trigger: SkillTrigger, ctx: RuntimeContext): boolean {
 
 export function matchSelector(selector: ContextSelector, ctx: RuntimeContext): boolean {
   const ui = ctx.uiContext
-  if (selector.mode && !selector.mode.includes(ui.mode ?? ctx.profile.modeAlias ?? '')) return false
   if (selector.route && !selector.route.some((route) => routeMatches(route, ui.route ?? ''))) return false
   if (selector.selectedKind && (!ui.selectedKind || !selector.selectedKind.includes(ui.selectedKind))) return false
   if (selector.selectedScope && (!ui.selectedScope || !selector.selectedScope.includes(ui.selectedScope))) return false

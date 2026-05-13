@@ -1,8 +1,10 @@
 package ai
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
@@ -128,6 +130,29 @@ func TestGetProviderModelsByCapabilityKeepsProviderVariants(t *testing.T) {
 	}
 }
 
+func TestGetModelsByCapabilityDoesNotMergeDifferentModelContracts(t *testing.T) {
+	db := openAITestDB(t)
+	createProviderVariantWithParams(t, db, 1, "OpenAI A", "gpt-image-1", 10, `[{"key":"image_size","label":"Image Size","type":"select","options":["1024x1024"],"default":"1024x1024"}]`)
+	createProviderVariantWithParams(t, db, 2, "OpenAI B", "gpt-image-1", 10, `[{"key":"image_size","label":"Image Size","type":"select","options":["1536x1024"],"default":"1536x1024"}]`)
+
+	svc := NewAIService(db, NewRegistry(db, nil))
+	models, err := svc.GetModelsByCapability(CapabilityImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 2 {
+		t.Fatalf("logical model count = %d, want 2 distinct contracts: %#v", len(models), models)
+	}
+	for _, got := range models {
+		if got.ProviderVariants != 1 {
+			t.Fatalf("model contract %s was merged across provider variants: %#v", got.ModelDefID, got)
+		}
+		if len(got.SupportedParams) != 1 || got.SupportedParams[0].Key != "image_size" || len(got.SupportedParams[0].Options) != 1 {
+			t.Fatalf("unexpected supported params for %s: %#v", got.ModelDefID, got.SupportedParams)
+		}
+	}
+}
+
 func TestGetModelsByCapabilityExposesResolvedModelContract(t *testing.T) {
 	db := openAITestDB(t)
 	cred := model.AICredential{
@@ -211,6 +236,85 @@ func TestGetModelsByCapabilityExposesResolvedModelContract(t *testing.T) {
 	}
 }
 
+func TestGetProviderModelsByCapabilityExposesAllVisualPresetContracts(t *testing.T) {
+	db := openAITestDB(t)
+	for index, preset := range ModelPresets() {
+		if !hasVisualGenerationCapability(preset.Capabilities) {
+			continue
+		}
+		paramsJSON, err := json.Marshal(preset.SupportedParams)
+		if err != nil {
+			t.Fatalf("marshal supported params for %s: %v", preset.ID, err)
+		}
+		id := uint(index + 1)
+		cred := model.AICredential{
+			Model:       gormModel(id),
+			AdapterType: preset.AdapterType,
+			DisplayName: preset.ID,
+			IsEnabled:   true,
+		}
+		if err := db.Create(&cred).Error; err != nil {
+			t.Fatalf("create credential for %s: %v", preset.ID, err)
+		}
+		cfg := model.AIModelConfig{
+			Model:                 gormModel(id),
+			CredentialID:          cred.ID,
+			ModelDefID:            preset.ID,
+			IsEnabled:             true,
+			CustomDisplayName:     preset.DisplayName,
+			CustomCapabilities:    strings.Join(preset.Capabilities, ","),
+			CustomPricingMode:     string(preset.PricingMode),
+			CustomAcceptsImage:    preset.AcceptsImageInput,
+			CustomMaxInputImages:  preset.MaxInputImages,
+			CustomMaxInputVideos:  preset.MaxInputVideos,
+			CustomSupportedParams: string(paramsJSON),
+		}
+		if err := db.Create(&cfg).Error; err != nil {
+			t.Fatalf("create model config for %s: %v", preset.ID, err)
+		}
+	}
+
+	svc := NewAIService(db, NewRegistry(db, nil))
+	for _, capability := range []string{CapabilityImage, CapabilityImageEdit, CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V} {
+		models, err := svc.GetProviderModelsByCapability(capability)
+		if err != nil {
+			t.Fatalf("list provider models for %s: %v", capability, err)
+		}
+		for _, got := range models {
+			if got.ModelDefID == "" || got.DisplayName == "" {
+				t.Fatalf("runtime model for %s is missing identity fields: %#v", capability, got)
+			}
+			if !modelHasCapability(&ModelDef{Capabilities: got.Capabilities}, capability) {
+				t.Fatalf("runtime model %s does not expose requested capability %s: %#v", got.ModelDefID, capability, got.Capabilities)
+			}
+			if len(got.SupportedParams) == 0 {
+				t.Fatalf("runtime visual model %s has no supported_params", got.ModelDefID)
+			}
+			props, ok := got.ParamsSchema["properties"].(map[string]any)
+			if !ok || len(props) == 0 {
+				t.Fatalf("runtime visual model %s has no params_schema properties: %#v", got.ModelDefID, got.ParamsSchema)
+			}
+			for _, param := range got.SupportedParams {
+				if param.Key == "" {
+					t.Fatalf("runtime visual model %s exposes empty param key: %#v", got.ModelDefID, got.SupportedParams)
+				}
+				if _, ok := props[param.Key]; !ok {
+					t.Fatalf("runtime visual model %s schema missing param %q: %#v", got.ModelDefID, param.Key, props)
+				}
+			}
+			if got.InputRequirements.Image.Min != expectedImageInputMin(got.Capabilities) {
+				t.Fatalf("runtime visual model %s image min mismatch: %#v", got.ModelDefID, got.InputRequirements.Image)
+			}
+			if got.InputRequirements.Video.Min != expectedVideoInputMin(got.Capabilities) {
+				t.Fatalf("runtime visual model %s video min mismatch: %#v", got.ModelDefID, got.InputRequirements.Video)
+			}
+			if got.InputRequirements.Image.Max < -1 || got.InputRequirements.Video.Max < -1 {
+				t.Fatalf("runtime visual model %s has invalid max input requirements: %#v", got.ModelDefID, got.InputRequirements)
+			}
+		}
+	}
+}
+
 func TestResolveRuntimeModelConfigRoundRobinsLogicalProviderVariants(t *testing.T) {
 	db := openAITestDB(t)
 	createProviderVariant(t, db, 1, "OpenAI A", "gpt-image-1", 10)
@@ -230,6 +334,20 @@ func TestResolveRuntimeModelConfigRoundRobinsLogicalProviderVariants(t *testing.
 	}
 }
 
+func expectedImageInputMin(capabilities []string) int {
+	if slices.Contains(capabilities, CapabilityImageEdit) || slices.Contains(capabilities, CapabilityVideoI2V) {
+		return 1
+	}
+	return 0
+}
+
+func expectedVideoInputMin(capabilities []string) int {
+	if slices.Contains(capabilities, CapabilityVideoV2V) {
+		return 1
+	}
+	return 0
+}
+
 func openAITestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "ai.db")), &gorm.Config{})
@@ -243,6 +361,10 @@ func openAITestDB(t *testing.T) *gorm.DB {
 }
 
 func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName, modelID string, priority int) {
+	createProviderVariantWithParams(t, db, id, providerName, modelID, priority, "")
+}
+
+func createProviderVariantWithParams(t *testing.T, db *gorm.DB, id uint, providerName, modelID string, priority int, supportedParams string) {
 	t.Helper()
 	cred := model.AICredential{
 		Model:       gormModel(id),
@@ -254,13 +376,14 @@ func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName, mod
 		t.Fatalf("create credential: %v", err)
 	}
 	cfg := model.AIModelConfig{
-		Model:              gormModel(id),
-		CredentialID:       cred.ID,
-		ModelDefID:         modelID,
-		IsEnabled:          true,
-		Priority:           priority,
-		CustomDisplayName:  modelID,
-		CustomCapabilities: CapabilityImage,
+		Model:                 gormModel(id),
+		CredentialID:          cred.ID,
+		ModelDefID:            modelID,
+		IsEnabled:             true,
+		Priority:              priority,
+		CustomDisplayName:     modelID,
+		CustomCapabilities:    CapabilityImage,
+		CustomSupportedParams: supportedParams,
 	}
 	if err := db.Create(&cfg).Error; err != nil {
 		t.Fatalf("create model config: %v", err)

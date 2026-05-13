@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 
-import { GenerationJobSummaryCard, GenerationProgressCard, GenerationTraceSummaryCard } from './GenerationCards'
+import { GenerationJobSummaryCard, GenerationParamAuditCard, GenerationProgressCard, GenerationTraceSummaryCard, GenerationValidationErrorCard } from './GenerationCards'
 
 test('GenerationProgressCard renders progressbar and test hooks', () => {
   const html = renderToStaticMarkup(
@@ -66,6 +66,116 @@ test('GenerationJobSummaryCard renders summary cards with accessible progressbar
   assert.equal(html.includes('role="progressbar"'), true)
   assert.equal(html.includes('aria-valuenow="100"'), true)
   assert.equal(html.includes('完成'), true)
+})
+
+test('GenerationParamAuditCard renders preflight suggested fixes', () => {
+  const html = renderToStaticMarkup(
+    <GenerationParamAuditCard audits={[
+      {
+        stepId: 'step-1',
+        jobId: 12,
+        modelConfigId: 34,
+        modelContractLoaded: true,
+        paramsSchemaLoaded: true,
+        paramsSchemaRuleCount: 3,
+        inputRequirements: {
+          image: { min: 1, max: 4 },
+          video: { min: 0, max: 0 },
+        },
+        submittedInputs: {
+          image: 5,
+          video: 0,
+        },
+        supportedParams: ['return_last_frame'],
+        providedExtraParams: ['return_last_frame'],
+        submittedExtraParams: ['return_last_frame'],
+        droppedExtraParams: [],
+        droppedTopLevelParams: [],
+        preflightErrors: [{
+          code: 'INVALID_PARAMETER_CONDITIONAL_CONST',
+          field: 'return_last_frame',
+          message: 'return_last_frame must be false for this model mode',
+          suggestedFix: { return_last_frame: false },
+        }],
+        inputPreflightErrors: [{
+          code: 'INVALID_INPUT_COUNT',
+          field: 'image',
+          message: 'image generation input count is above the local model contract maximum',
+          requiredMin: 1,
+          allowedMax: 4,
+          actualCount: 5,
+        }],
+      },
+    ]} />,
+  )
+
+  assert.equal(html.includes('data-testid="agent-generation-param-audit"'), true)
+  assert.equal(html.includes('本地预检'), true)
+  assert.equal(html.includes('return_last_frame'), true)
+  assert.equal(html.includes('建议'), true)
+  assert.equal(html.includes('return_last_frame=false'), true)
+  assert.equal(html.includes('输入需求'), true)
+  assert.equal(html.includes('输入预检'), true)
+  assert.equal(html.includes('图片 5 个'), true)
+})
+
+test('GenerationParamAuditCard renders null suggested fixes as parameter removal', () => {
+  const html = renderToStaticMarkup(
+    <GenerationParamAuditCard audits={[
+      {
+        stepId: 'step-1',
+        jobId: 12,
+        modelConfigId: 34,
+        modelContractLoaded: true,
+        paramsSchemaLoaded: true,
+        supportedParams: ['duration', 'frames'],
+        providedExtraParams: ['frames'],
+        submittedExtraParams: ['frames'],
+        droppedExtraParams: [],
+        droppedTopLevelParams: [],
+        preflightErrors: [{
+          code: 'INVALID_PARAMETER_COMBINATION',
+          field: 'duration',
+          message: 'duration and frames cannot be used together',
+          suggestedFix: { frames: null },
+        }],
+      },
+    ]} />,
+  )
+
+  assert.equal(html.includes('建议'), true)
+  assert.equal(html.includes('删除 frames'), true)
+})
+
+test('GenerationValidationErrorCard renders structured backend validation details', () => {
+  const html = renderToStaticMarkup(
+    <GenerationValidationErrorCard errors={[
+      {
+        stepId: 'step-1',
+        code: 'UNSUPPORTED_OUTPUT_TYPE',
+        field: 'output_type',
+        message: 'model "Reference Image" does not support output type "video"',
+        allowedValues: ['image'],
+      },
+      {
+        stepId: 'step-2',
+        code: 'INVALID_INPUT_COUNT',
+        field: 'image',
+        message: 'model "Reference Image" supports at most 4 image input(s), but 5 were provided',
+        requiredMin: 1,
+        allowedMax: 4,
+        actualCount: 5,
+      },
+    ]} />,
+  )
+
+  assert.equal(html.includes('data-testid="agent-generation-validation-errors"'), true)
+  assert.equal(html.includes('生成校验失败'), true)
+  assert.equal(html.includes('UNSUPPORTED_OUTPUT_TYPE'), true)
+  assert.equal(html.includes('允许值'), true)
+  assert.equal(html.includes('image'), true)
+  assert.equal(html.includes('输入数量'), true)
+  assert.equal(html.includes('5'), true)
 })
 
 test('GenerationTraceSummaryCard renders process totals and latest state', () => {

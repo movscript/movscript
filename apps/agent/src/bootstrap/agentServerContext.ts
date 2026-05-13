@@ -84,8 +84,8 @@ export function createAgentServerContext(): AgentServerContext {
         severity: 'normal',
         source: 'builtin',
         metadata: {
-          skills: pluginCatalog.skills.length,
-          tools: pluginCatalog.tools.length,
+          skills: pluginCatalog.layeredSkills.length,
+          tools: pluginCatalog.layeredTools.length,
         },
       },
     ],
@@ -104,7 +104,6 @@ export function createAgentServerContext(): AgentServerContext {
     backendApplyClient,
     memoryStore: new FileAgentMemoryStore(memoryPath),
     defaultAgentManifest: pluginCatalog.manifest,
-    skillCatalog: pluginCatalog.skills,
     toolRegistry: pluginCatalog.registry,
     catalogStateStore,
     pluginCatalogLoader: (options) => loadAgentPluginCatalog(options),
@@ -114,8 +113,8 @@ export function createAgentServerContext(): AgentServerContext {
       toolsDir: pluginCatalog.toolsDir,
       builtinSkillsDir: pluginCatalog.builtinSkillsDir,
       builtinToolsDir: pluginCatalog.builtinToolsDir,
-      skillCount: pluginCatalog.skills.length,
-      toolCount: pluginCatalog.tools.length,
+      skillCount: pluginCatalog.layeredSkills.length,
+      toolCount: pluginCatalog.layeredTools.length,
     },
     pluginWarnings: pluginCatalog.warnings,
     updateState,
@@ -173,8 +172,8 @@ export function getAgentRuntimeCapabilities(context: AgentServerContext): AgentR
       toolsDir: pluginCatalog.toolsDir,
       builtinSkillsDir: pluginCatalog.builtinSkillsDir,
       builtinToolsDir: pluginCatalog.builtinToolsDir,
-      skillCount: pluginCatalog.skills.length,
-      toolCount: pluginCatalog.tools.length,
+      skillCount: pluginCatalog.layeredSkills.length,
+      toolCount: pluginCatalog.layeredTools.length,
       warnings: pluginCatalog.warnings,
     },
     paths,
@@ -199,7 +198,7 @@ export function logAgentServerStartup(context: AgentServerContext): void {
   console.info(`[agent] model config path ${paths.modelConfigPath}`)
   console.info(`[agent] backend apply ${backendApplyClient.isEnabled() ? 'enabled' : 'disabled'}`)
   console.info(`[agent] update policy ${updates.policy.channel} (${updates.current.policyVersion})`)
-  console.info(`[agent] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.skills.length})`)
-  console.info(`[agent] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.tools.length})`)
+  console.info(`[agent] skills dir ${pluginCatalog.skillsDir} (${pluginCatalog.layeredSkills.length})`)
+  console.info(`[agent] tools dir ${pluginCatalog.toolsDir} (${pluginCatalog.layeredTools.length})`)
   for (const warning of pluginCatalog.warnings) console.warn(`[agent] plugin warning: ${warning}`)
 }

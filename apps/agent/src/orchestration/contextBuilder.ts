@@ -62,10 +62,11 @@ const PLANNER_SUBAGENT_POLICY = [
   'Do simple, single-context tasks yourself as the planner instead of spawning a worker.',
   'Use movscript_spawn_subagent when work can be split into independent tasks, needs parallel execution, needs isolated context, or may take longer than one run.',
   'Each worker receives a short human-readable subagentName such as 爱因斯坦 or 霍金. You may provide one, or omit it and let the runtime assign names in order; refer to workers by that name in later wait/cancel calls instead of relying on task ids in natural language.',
+  'When spawning or redispatching worker tasks, use maxWorkers for concurrency, retryFailed with maxTaskAttempts for failed/cancelled task retries, and workerTimeoutMs to cancel stale active workers before dispatching new work. Per-task maxTaskAttempts and workerTimeoutMs override the call-level defaults.',
   'After spawning workers, use movscript_list_subagents and movscript_wait_subagent to monitor structured task state, worker run status, blockers, and artifacts instead of inferring progress from natural-language chat.',
   'If movscript_wait_subagent returns pending, continue with other independent work or report that worker execution is still in progress; do not pretend the worker finished.',
   'If movscript_wait_subagent returns failed, cancelled, blocked, or needs_review, use the returned target and snapshot to decide whether to replan, spawn replacement work, cancel stale work, or ask the user for missing input.',
-  'Use movscript_cancel_subagent only for stale, mistaken, duplicated, or user-cancelled worker work.',
+  'Use movscript_cancel_subagent only for stale, mistaken, duplicated, or user-cancelled worker work. It can cancel an active worker run or mark a named pending/blocked/needs_review subagent task cancelled before any worker starts.',
   'Worker subagents execute scoped tasks; the planner remains responsible for final synthesis, dependency decisions, replan decisions, and user-facing completion.',
 ].join('\n')
 
@@ -151,7 +152,7 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     })
   }
 
-  const fittedPrompt = fitDebugPartsToLimit(debugParts, input.manifest, systemPromptLimit(input.manifest), warnings)
+  const fittedPrompt = fitDebugPartsToLimit(debugParts, input.skills, systemPromptLimit(input.manifest), warnings)
   const finalDebugParts = fittedPrompt.debugParts
   const systemPrompt = renderDebugParts(finalDebugParts)
   const promptStats = buildPromptStats(finalDebugParts, systemPrompt)
@@ -272,9 +273,11 @@ const SPAWN_SUBAGENT_TOOL_SCHEMA = {
   properties: {
     subagentName: { type: 'string', description: 'Optional human-readable worker subagent name, for example 爱因斯坦 or 霍金. If omitted, the runtime assigns the next ordered name.' },
     subagentNames: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Optional human-readable names for existing taskIds, in the same order as taskIds. Missing names are assigned automatically.',
+      oneOf: [
+        { type: 'array', items: { type: 'string' } },
+        { type: 'object', additionalProperties: { type: 'string' } },
+      ],
+      description: 'Optional human-readable names for existing taskIds. Use an array in the same order as taskIds, or an object mapping taskId to name. Missing names are assigned automatically.',
     },
     taskId: { type: 'string', description: 'Existing plan task id to run with a worker subagent.' },
     taskIds: {
@@ -295,11 +298,16 @@ const SPAWN_SUBAGENT_TOOL_SCHEMA = {
           description: { type: 'string' },
           deps: { type: 'array', items: { type: 'string' } },
           parentId: { type: 'string' },
+          maxTaskAttempts: { type: 'number', description: 'Optional retry attempt limit for this worker task. Overrides the dispatch default.' },
+          workerTimeoutMs: { type: 'number', description: 'Optional timeout for this worker task in milliseconds. Overrides the dispatch default.' },
         },
         required: ['title'],
       },
     },
     maxWorkers: { type: 'number', description: 'Maximum concurrent worker subagents to dispatch.' },
+    maxTaskAttempts: { type: 'number', description: 'Default retry attempt limit for failed worker tasks dispatched by this call. Task-level maxTaskAttempts overrides this value.' },
+    retryFailed: { type: 'boolean', description: 'Whether to reset retryable failed or cancelled worker tasks before dispatching.' },
+    workerTimeoutMs: { type: 'number', description: 'Default worker timeout in milliseconds. Task-level workerTimeoutMs overrides this value.' },
   },
 } satisfies Record<string, unknown>
 
@@ -327,9 +335,9 @@ const CANCEL_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    subagentName: { type: 'string', description: 'Human-readable worker subagent name to cancel.' },
+    subagentName: { type: 'string', description: 'Human-readable worker subagent name to cancel. May target an active worker run or a not-yet-started task.' },
     runId: { type: 'string', description: 'Child worker run id to cancel.' },
-    taskId: { type: 'string', description: 'Task id whose owner worker should be cancelled.' },
+    taskId: { type: 'string', description: 'Task id whose owner worker should be cancelled, or whose pending/blocked/needs_review task should be marked cancelled if no worker has started.' },
     reason: { type: 'string' },
   },
 } satisfies Record<string, unknown>
@@ -563,7 +571,7 @@ const CREATE_SCRIPT_TOOL_SCHEMA = {
 
 function fitDebugPartsToLimit(
   debugParts: CompiledPromptPreview['debugParts'],
-  manifest: AgentManifest,
+  skills: ResolvedAgentSkill[],
   limit: number,
   warnings: string[],
 ): { debugParts: CompiledPromptPreview['debugParts']; degraded?: BuiltContext['degraded'] } {
@@ -573,8 +581,8 @@ function fitDebugPartsToLimit(
   if (prompt.length <= limit) return { debugParts: current }
 
   const lowPrioritySkills = current
-    .filter((part) => part.kind === 'skill' && skillPriority(manifest, part.id) < 100)
-    .sort((a, b) => skillPriority(manifest, a.id) - skillPriority(manifest, b.id) || b.id.localeCompare(a.id))
+    .filter((part) => part.kind === 'skill' && skillPriority(skills, part.id) < 100)
+    .sort((a, b) => skillPriority(skills, a.id) - skillPriority(skills, b.id) || b.id.localeCompare(a.id))
   for (const skill of lowPrioritySkills) {
     current = current.filter((part) => part.id !== skill.id)
     degraded = 'dropped_policies'
@@ -585,7 +593,7 @@ function fitDebugPartsToLimit(
 
   const workflowSkills = current
     .filter((part) => part.kind === 'skill')
-    .sort((a, b) => skillPriority(manifest, a.id) - skillPriority(manifest, b.id) || b.id.localeCompare(a.id))
+    .sort((a, b) => skillPriority(skills, a.id) - skillPriority(skills, b.id) || b.id.localeCompare(a.id))
   for (const skill of workflowSkills) {
     current = current.filter((part) => part.id !== skill.id)
     degraded = 'dropped_workflows'
@@ -611,9 +619,9 @@ function renderDebugParts(debugParts: CompiledPromptPreview['debugParts']): stri
   return debugParts.map((part) => `## ${part.title}\n${part.content}`).join('\n\n')
 }
 
-function skillPriority(manifest: AgentManifest, partId: string): number {
+function skillPriority(skills: ResolvedAgentSkill[], partId: string): number {
   const skillId = partId.startsWith('skill.') ? partId.slice('skill.'.length) : partId
-  return manifest.skills.find((skill) => skill.id === skillId)?.priority ?? 100
+  return skills.find((skill) => skill.id === skillId)?.resolvedPriority ?? 100
 }
 
 function systemPromptLimit(manifest: AgentManifest): number {

@@ -1,0 +1,38 @@
+{
+  "id": "movscript.workflow.dual-orchestration",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Dual Orchestration",
+  "description": "Coordinate project and production proposal drafts in a two-stage review flow.",
+  "priority": 910,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "dual_orchestration"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "双阶段提案",
+        "项目和制作",
+        "dual orchestration"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_current_context",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.project_proposal.v1",
+    "schema://movscript.production_proposal.v1"
+  ],
+  "outputContract": "Return both draft ids, preview status for each, and a short dependency note showing how production references the project proposal.",
+  "instructionTemplatePath": "instruction.md"
+}

@@ -1,1 +1,0 @@
-Gather prompt, references, aspect ratio, duration, output type, and model capability. Use {{tool:movscript_list_models}} when model support matters. Create generation jobs only through the approval-gated generation tool, then monitor until the job reaches a terminal state or timeout. Do not claim media exists until the tool result includes output media or an output resource.

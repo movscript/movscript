@@ -290,13 +290,11 @@ export default function CreativeWorkbenchPage() {
       taskType: 'creative_brainstorm',
       message: `请整理并发散当前故事素材：${selected.title || current?.name || '故事素材'}`,
       title: `头脑风暴: ${selected.title || current?.name || '故事素材'}`,
-      mode: 'create',
       newConversation: true,
       autoSend: true,
       projectId,
       clientInput: buildCommandFirstClientInput({
         message: selected.fixedMaterial || selected.title || '请整理并发散当前故事素材。',
-        mode: 'creative-workbench',
         labels: ['creative-workbench', 'brainstorm', 'page-tool-render'],
         hints: {
           projectId,

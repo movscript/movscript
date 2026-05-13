@@ -268,6 +268,7 @@ export interface ModelPreset {
   max_input_images: number
   max_input_videos: number
   image_edit_field?: string
+  supported_params?: ParamDef[]
   ref_input_usd_per_1m?: number
   ref_output_usd_per_1m?: number
   ref_usd_per_image?: number

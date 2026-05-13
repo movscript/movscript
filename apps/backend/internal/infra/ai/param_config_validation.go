@@ -58,7 +58,7 @@ func validateRawParamNullFields(raw any) error {
 		for i, item := range value {
 			param, ok := item.(map[string]any)
 			if !ok {
-				continue
+				return fmt.Errorf("custom_supported_params[%d] must be a parameter definition object", i)
 			}
 			if err := validateRawParamNullField(param, fmt.Sprintf("custom_supported_params[%d]", i)); err != nil {
 				return err
@@ -195,6 +195,20 @@ func validateRawParamKnownFields(param map[string]any, path string) error {
 }
 
 func validateRawParamFieldTypes(param map[string]any, path string) error {
+	for _, field := range []string{"key", "label", "type"} {
+		if value, exists := param[field]; exists {
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("%s.%s must be a string", path, field)
+			}
+		}
+	}
+	for _, field := range []string{"min", "max", "step"} {
+		if value, exists := param[field]; exists {
+			if _, ok := value.(float64); !ok {
+				return fmt.Errorf("%s.%s must be a number", path, field)
+			}
+		}
+	}
 	for _, field := range []string{"options", "conflicts_with", "conditional_enum", "conditional_const", "requires_value"} {
 		if value, exists := param[field]; exists {
 			items, ok := value.([]any)
@@ -224,14 +238,32 @@ func validateRawParamRuleFields(param map[string]any, path string) error {
 	}); err != nil {
 		return err
 	}
+	if err := validateRawRuleNullFields(param["conditional_enum"], path+".conditional_enum"); err != nil {
+		return err
+	}
+	if err := validateRawConditionalEnumFieldTypes(param["conditional_enum"], path+".conditional_enum"); err != nil {
+		return err
+	}
 	if err := validateRawObjectArrayFields(param["conditional_const"], path+".conditional_const", map[string]bool{
 		"when_param": true, "when_value": true, "value": true,
 	}); err != nil {
 		return err
 	}
-	return validateRawObjectArrayFields(param["requires_value"], path+".requires_value", map[string]bool{
+	if err := validateRawRuleNullFields(param["conditional_const"], path+".conditional_const"); err != nil {
+		return err
+	}
+	if err := validateRawRuleStringField(param["conditional_const"], path+".conditional_const", "when_param"); err != nil {
+		return err
+	}
+	if err := validateRawObjectArrayFields(param["requires_value"], path+".requires_value", map[string]bool{
 		"param": true, "value": true,
-	})
+	}); err != nil {
+		return err
+	}
+	if err := validateRawRuleNullFields(param["requires_value"], path+".requires_value"); err != nil {
+		return err
+	}
+	return validateRawRuleStringField(param["requires_value"], path+".requires_value", "param")
 }
 
 func validateRawObjectArrayFields(value any, path string, allowed map[string]bool) error {
@@ -253,12 +285,82 @@ func validateRawObjectArrayFields(value any, path string, allowed map[string]boo
 	return nil
 }
 
+func validateRawRuleNullFields(value any, path string) error {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	for i, item := range items {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		for field, raw := range obj {
+			if raw == nil {
+				return fmt.Errorf("%s[%d].%s must not be null", path, i, field)
+			}
+		}
+	}
+	return nil
+}
+
+func validateRawConditionalEnumFieldTypes(value any, path string) error {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	for i, item := range items {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if raw, exists := obj["when_param"]; exists {
+			if _, ok := raw.(string); !ok {
+				return fmt.Errorf("%s[%d].when_param must be a string", path, i)
+			}
+		}
+		if raw, exists := obj["options"]; exists {
+			options, ok := raw.([]any)
+			if !ok {
+				return fmt.Errorf("%s[%d].options must be an array", path, i)
+			}
+			for j, option := range options {
+				if _, ok := option.(string); !ok {
+					return fmt.Errorf("%s[%d].options[%d] must be a string", path, i, j)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func validateRawRuleStringField(value any, path string, field string) error {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	for i, item := range items {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if raw, exists := obj[field]; exists {
+			if _, ok := raw.(string); !ok {
+				return fmt.Errorf("%s[%d].%s must be a string", path, i, field)
+			}
+		}
+	}
+	return nil
+}
+
 func validateProfileParamDefs(profile ModelParamProfile) error {
 	for key, param := range profile.Override {
 		param = normalizeParamDefKey(param)
-		if param.Key == "" {
-			param.Key = normalizeParamKey(key)
+		overrideKey := normalizeParamKey(key)
+		if param.Key != "" && param.Key != overrideKey {
+			return fmt.Errorf("custom_supported_params.override.%s: parameter key %q must match override key %q", key, param.Key, overrideKey)
 		}
+		param.Key = overrideKey
 		if param.Key == "" {
 			return fmt.Errorf("custom_supported_params.override.%s: parameter key is required", key)
 		}
@@ -282,11 +384,14 @@ func validateProfileParamDefs(profile ModelParamProfile) error {
 
 func validateProfileParamReferences(adapterType string, capabilities []string, profile ModelParamProfile) error {
 	known := make(map[string]bool)
+	baseKnown := make(map[string]bool)
 	for _, param := range DefaultParamsForAdapter(adapterType, capabilities) {
 		if key := normalizeParamKey(param.Key); key != "" {
 			known[key] = true
+			baseKnown[key] = true
 		}
 	}
+	overrideKnown := make(map[string]bool)
 	for key, param := range profile.Override {
 		param = normalizeParamDefKey(param)
 		if param.Key == "" {
@@ -294,10 +399,19 @@ func validateProfileParamReferences(adapterType string, capabilities []string, p
 		}
 		if param.Key != "" {
 			known[param.Key] = true
+			overrideKnown[param.Key] = true
 		}
 	}
+	addKnown := make(map[string]bool)
 	for _, param := range profile.Add {
 		if key := normalizeParamKey(param.Key); key != "" {
+			if addKnown[key] {
+				return fmt.Errorf("custom_supported_params.add contains duplicate parameter key %q", key)
+			}
+			if baseKnown[key] || overrideKnown[key] {
+				return fmt.Errorf("custom_supported_params.add parameter %q already exists; use override to modify existing parameters", key)
+			}
+			addKnown[key] = true
 			known[key] = true
 		}
 	}
@@ -415,11 +529,11 @@ func validateParamDefShape(param ParamDef) error {
 			return err
 		}
 	}
-	if param.Type == "number" && param.Min != 0 && param.Max != 0 && param.Min > param.Max {
+	if param.Type == "number" && param.hasMin() && param.hasMax() && param.Min > param.Max {
 		return fmt.Errorf("number parameter %q has min greater than max", param.Key)
 	}
-	if param.Type == "number" && param.Step < 0 {
-		return fmt.Errorf("number parameter %q has negative step", param.Key)
+	if param.Type == "number" && param.hasStep() && param.Step <= 0 {
+		return fmt.Errorf("number parameter %q step must be greater than zero", param.Key)
 	}
 	if param.Default != nil {
 		if err := validateParamDefaultValue(param); err != nil {
@@ -472,8 +586,8 @@ func validateParamJSONSchemaConfig(param ParamDef) error {
 		return nil
 	}
 	if raw, ok := param.JSONSchema["enum"]; ok {
-		values := scalarSlice(raw)
-		if len(values) == 0 {
+		values, ok := strictScalarSlice(raw)
+		if !ok || len(values) == 0 {
 			return fmt.Errorf("parameter %q json_schema.enum must be a non-empty scalar array", param.Key)
 		}
 	}
@@ -523,6 +637,46 @@ func strictJSONSchemaNumber(schema map[string]any, key string) (float64, bool, b
 	}
 }
 
+func strictScalarSlice(value any) ([]any, bool) {
+	switch items := value.(type) {
+	case []any:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			if !isComparableScalar(item) {
+				return nil, false
+			}
+			out = append(out, item)
+		}
+		return out, true
+	case []int:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			out = append(out, item)
+		}
+		return out, true
+	case []string:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			out = append(out, item)
+		}
+		return out, true
+	case []float64:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			out = append(out, item)
+		}
+		return out, true
+	case []bool:
+		out := make([]any, 0, len(items))
+		for _, item := range items {
+			out = append(out, item)
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
 func validateConfigParamValue(param ParamDef, value any) error {
 	switch param.Type {
 	case "select":
@@ -538,10 +692,10 @@ func validateConfigParamValue(param ParamDef, value any) error {
 		if !ok {
 			return fmt.Errorf("value must be a number")
 		}
-		if param.Min != 0 && v < param.Min {
+		if param.hasMin() && v < param.Min {
 			return fmt.Errorf("value is less than min")
 		}
-		if param.Max != 0 && v > param.Max {
+		if param.hasMax() && v > param.Max {
 			return fmt.Errorf("value is greater than max")
 		}
 	case "boolean":
@@ -576,10 +730,10 @@ func validateParamDefaultValue(param ParamDef) error {
 		if !ok {
 			return fmt.Errorf("number parameter %q default must be a number", param.Key)
 		}
-		if param.Min != 0 && value < param.Min {
+		if param.hasMin() && value < param.Min {
 			return fmt.Errorf("number parameter %q default is less than min", param.Key)
 		}
-		if param.Max != 0 && value > param.Max {
+		if param.hasMax() && value > param.Max {
 			return fmt.Errorf("number parameter %q default is greater than max", param.Key)
 		}
 	case "boolean":

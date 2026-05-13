@@ -31,6 +31,7 @@
     "dev:movcli": "pnpm --filter movcli dev",
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm run test:backend && pnpm -r --if-present test",
+    "test:model-capability-contract": "node scripts/verify-agent-compact-contract.mjs && cd apps/backend && GOCACHE=/private/tmp/movscript-go-cache go test ./internal/infra/ai ./internal/app/aiadmin ./internal/app/job ./internal/interfaces/http/handler && cd ../.. && pnpm --filter movscript-admin test -- modelParamContract && pnpm --filter movscript-admin typecheck && pnpm --filter movscript-frontend test:generation-contract && pnpm --filter movscript-agent exec node --import tsx --test --test-name-pattern \"asset candidate preparation is separated from generation execution|visual generation prompt exposes backend generation validation error codes\" src/catalog/layering.test.ts && pnpm --filter movscript-agent test:generation-repair",
     "test:agent-generation": "pnpm --filter movscript-agent test && pnpm --filter movscript-frontend test:generation-replay && pnpm --filter movscript-frontend test:generation-ui && pnpm --filter movscript-frontend test:generation-e2e && pnpm --filter movscript-frontend test:generation-electron && pnpm --filter movscript-frontend typecheck",
     "test:backend": "cd apps/backend && go test ./...",
     "tidy": "cd apps/backend && go mod tidy",
