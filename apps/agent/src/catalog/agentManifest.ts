@@ -33,7 +33,7 @@ export const DEFAULT_AGENT_MANIFEST: AgentManifest = {
   name: 'MovScript Local Agent',
   description: 'Default local agent with project read and local draft update permissions.',
   tools: [
-    { name: 'movscript_get_current_context', mode: 'allow', approval: 'never' },
+    { name: 'movscript_get_focus', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_projects', mode: 'allow', approval: 'never' },
     { name: 'movscript_read_project_scripts', mode: 'allow', approval: 'never' },
     { name: 'movscript_list_drafts', mode: 'allow', approval: 'never' },

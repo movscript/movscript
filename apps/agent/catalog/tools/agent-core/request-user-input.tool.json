@@ -1,0 +1,25 @@
+{
+  "name": "movscript_request_user_input",
+  "description": "暂停当前 agent run，向用户询问缺失上下文、选项、确认或自由文本输入。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["question"],
+    "properties": {
+      "question": { "type": "string" },
+      "expectedAnswer": { "enum": ["text", "enum", "number", "boolean"] },
+      "choices": { "type": "array", "items": { "type": "string" } },
+      "placeholder": { "type": "string" }
+    }
+  },
+  "permission": "agent.input",
+  "risk": "ui",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "向用户询问缺失信息，并用用户回答恢复 run。",
+  "errorCodes": ["user_denied", "approval_timeout"]
+}

@@ -41,6 +41,6 @@ test('default profile prompt composition covers global policy and triggered work
   assert.match(prompt.systemPrompt, /Project Proposal/)
   assert.match(prompt.systemPrompt, /Proposal First/)
   assert.doesNotMatch(prompt.systemPrompt, /\{\{schema:/)
-  assert.ok(prompt.parts.some((part) => part.id === 'movscript.policy.safe-drafts'))
+  assert.ok(prompt.parts.some((part) => part.id === 'movscript.policy.drafts'))
   assert.ok(prompt.parts.some((part) => part.id === 'movscript.workflow.project-proposal'))
 })

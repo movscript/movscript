@@ -1,0 +1,29 @@
+{
+  "id": "movscript.workflow.storyboard-gap-review",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Storyboard Gap Review",
+  "description": "审阅已选内容的分镜或媒体规划缺口。",
+  "priority": 650,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "分镜缺口",
+        "storyboard gap",
+        "镜头缺口",
+        "关键帧缺口"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_list_drafts",
+    "tool://movscript_get_draft",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "按目标 content unit 或 scene 分组返回缺口，并给出下一步 proposal 或生成动作。",
+  "instructionTemplatePath": "instruction.md"
+}

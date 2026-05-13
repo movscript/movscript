@@ -256,11 +256,10 @@ export function LocalAgentWorkflowPanel({
             {timingEvents.map((event) => {
               const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
               const durationMs = typeof data?.durationMs === 'number' ? data.durationMs : undefined
-              const contextPackTimings = data?.contextPackTimings && typeof data.contextPackTimings === 'object'
-                ? data.contextPackTimings as Record<string, unknown>
+              const focusTimings = data?.focusTimings && typeof data.focusTimings === 'object'
+                ? data.focusTimings as Record<string, unknown>
                 : undefined
-              const contextPackMs = typeof contextPackTimings?.contextPackMs === 'number' ? contextPackTimings.contextPackMs : undefined
-              const projectsMs = typeof contextPackTimings?.projectsMs === 'number' ? contextPackTimings.projectsMs : undefined
+              const focusMs = typeof focusTimings?.focusMs === 'number' ? focusTimings.focusMs : undefined
               return (
                 <div key={event.id} className="rounded border border-sky-500/20 bg-background/60 px-2 py-1.5">
                   <div className="flex items-center justify-between gap-2">
@@ -272,8 +271,7 @@ export function LocalAgentWorkflowPanel({
                     )}
                   </div>
                   {event.summary && <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{event.summary}</p>}
-                  {contextPackMs !== undefined && <p className="mt-0.5 text-[9px] text-muted-foreground/80">{t('agents.chat.workflow.contextPackTotal', { ms: Math.round(contextPackMs) })}</p>}
-                  {projectsMs !== undefined && <p className="mt-0.5 text-[9px] text-muted-foreground/80">{t('agents.chat.workflow.contextPackProjectsFetch', { ms: Math.round(projectsMs) })}</p>}
+                  {focusMs !== undefined && <p className="mt-0.5 text-[9px] text-muted-foreground/80">{t('agents.chat.workflow.focusTotal', { ms: Math.round(focusMs) })}</p>}
                 </div>
               )
             })}

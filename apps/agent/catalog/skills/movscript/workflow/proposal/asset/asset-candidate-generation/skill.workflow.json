@@ -1,0 +1,32 @@
+{
+  "id": "movscript.workflow.asset-candidate-generation",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Asset Candidate Generation",
+  "description": "为 asset slot 准备可审阅的视觉候选方向，但不提交生成任务。",
+  "priority": 770,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "asset_candidate_generation"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "生成素材",
+        "图片候选",
+        "视频候选",
+        "asset candidate"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_list_models",
+    "tool://movscript_get_generation_job",
+    "tool://movscript_list_generation_jobs"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回已选 asset target、候选 prompt 方向、所需模型能力、已知的引用/资源 id、验收标准、阻塞项和下一步动作。",
+  "instructionTemplatePath": "instruction.md"
+}

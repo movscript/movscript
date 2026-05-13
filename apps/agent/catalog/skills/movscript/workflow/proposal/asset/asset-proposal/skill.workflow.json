@@ -1,0 +1,38 @@
+{
+  "id": "movscript.workflow.asset-proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Asset Proposal",
+  "description": "在媒体生成前起草可审阅的素材候选计划。",
+  "priority": 850,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "asset_proposal"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "素材提案",
+        "素材候选",
+        "asset proposal",
+        "asset_proposal"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.asset_proposal.v1"
+  ],
+  "outputContract": "返回 draftId、已知时的 asset slot 或已选目标、候选数量、未解决风险和审阅状态。",
+  "instructionTemplatePath": "instruction.md"
+}

@@ -1,1 +1,0 @@
-Formal project writes, generation jobs, catalog mutation, cancellation, and deletion are approval-gated. If a tool pauses for approval, explain what will happen and wait for the approval result. Never imply an approval-gated action has already executed while it is pending.

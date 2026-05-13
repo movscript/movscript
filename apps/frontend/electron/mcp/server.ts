@@ -483,8 +483,8 @@ function projectEndpoint(projectId: number, kind: string): string {
 export function listTools(): MCPTool[] {
   return [
     {
-      name: 'movscript_get_current_context',
-      description: 'Return the current route, project, user, selection, and available resources.',
+      name: 'movscript_get_focus',
+      description: 'Return the current MovScript task focus: route, selected project, active production id, current user, and selected entity. This does not load project lists, scripts, drafts, or resources.',
       inputSchema: objectSchema({}),
     },
     {
@@ -762,8 +762,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
   const args = getObjectParam(params, 'arguments')
 
   switch (name) {
-    case 'movscript_get_current_context':
-      return toolText(await getContextPack())
+    case 'movscript_get_focus':
+      return toolText(getFocus())
     case 'movscript_list_projects':
       return toolText(await listProjects(args))
     case 'movscript_read_project_scripts':
@@ -791,38 +791,15 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
   }
 }
 
-async function getContextPack(): Promise<unknown> {
+function getFocus(): unknown {
   const startedAt = Date.now()
-  try {
-    const projectsStartedAt = Date.now()
-    const projectsResult = await listProjects({})
-    const projects = isRecord(projectsResult) && Array.isArray(projectsResult.projects) ? projectsResult.projects : []
-    const projectsMs = Date.now() - projectsStartedAt
-    const resources = listResources()
-    const contextPackMs = Date.now() - startedAt
-    return {
-      snapshot: contextSnapshot,
-      projects,
-      resources,
-      timings: {
-        totalMs: contextPackMs,
-        contextPackMs,
-        projectsMs,
-      },
-    }
-  } catch (error) {
-    const resources = listResources()
-    const contextPackMs = Date.now() - startedAt
-    return {
-      snapshot: contextSnapshot,
-      projects: [],
-      projectsError: error instanceof Error ? error.message : String(error),
-      resources,
-      timings: {
-        totalMs: contextPackMs,
-        contextPackMs,
-      },
-    }
+  const focusMs = Date.now() - startedAt
+  return {
+    focus: contextSnapshot,
+    timings: {
+      totalMs: focusMs,
+      focusMs,
+    },
   }
 }
 

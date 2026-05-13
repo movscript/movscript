@@ -1,0 +1,31 @@
+{
+  "id": "movscript.workflow.proposal-first",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Proposal First",
+  "description": "在正式写入前，把宽泛变更请求路由到本地 proposal drafts。",
+  "priority": 700,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "提案",
+        "草稿",
+        "proposal",
+        "draft"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_list_drafts",
+    "tool://movscript_get_draft",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回已选择的 draft 或推荐的 draft kind，以及下一步审阅动作。",
+  "instructionTemplatePath": "instruction.md"
+}

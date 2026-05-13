@@ -14,7 +14,7 @@ import type { NormalizedClientInput } from './normalizeClientInput.js'
 
 export function buildDebugContext(contextResult: JSONValue, memories: AgentMemory[], clientInput?: NormalizedClientInput): AgentDebugContextPanel {
   const parsed = parseToolResult(contextResult)
-  const snapshot = isRecord(parsed) && isRecord(parsed.snapshot) ? parsed.snapshot : parsed
+  const snapshot = isRecord(parsed) && isRecord(parsed.focus) ? parsed.focus : isRecord(parsed) && isRecord(parsed.snapshot) ? parsed.snapshot : parsed
   const project = isRecord(snapshot) && isRecord(snapshot.project) ? snapshot.project : undefined
   const projectId = typeof project?.id === 'number' ? project.id : typeof project?.ID === 'number' ? project.ID : undefined
   const productionId = isRecord(snapshot) && typeof snapshot.productionId === 'number'

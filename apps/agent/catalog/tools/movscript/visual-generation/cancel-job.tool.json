@@ -1,0 +1,30 @@
+{
+  "name": "movscript_cancel_generation_job",
+  "description": "通过 MovScript 取消正在运行的视频生成任务。这是写入动作，只能在用户明确批准后运行。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "jobId"
+    ],
+    "properties": {
+      "jobId": {
+        "type": [
+          "string",
+          "number"
+        ]
+      },
+      "projectId": {
+        "type": "number"
+      }
+    }
+  },
+  "permission": "generation.cancel",
+  "risk": "write",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "always"
+  },
+  "source": "runtime"
+}

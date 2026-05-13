@@ -769,7 +769,7 @@ export class AgentRuntime {
     const hasExplicitAgentManifest = input.agentManifest !== undefined
     const agentManifest = this.resolveAgentManifest(input.agentManifest, clientInput, catalogSnapshot)
     await this.mcpClient.initialize()
-    const contextResult = await this.mcpClient.callTool('movscript_get_current_context', {})
+    const contextResult = await this.mcpClient.callTool('movscript_get_focus', {})
     const context = extractAgentContext(contextResult)
     const relevantMemories = this.memoryManager.loadRelevantMemories({
       ...(typeof context.currentProjectId === 'number' ? { projectId: context.currentProjectId } : {}),
@@ -1766,19 +1766,19 @@ export class AgentRuntime {
       const contextStartedAt = Date.now()
       try {
         await this.mcpClient.initialize({ signal })
-        contextResult = await this.mcpClient.callTool('movscript_get_current_context', {}, { signal })
+        contextResult = await this.mcpClient.callTool('movscript_get_focus', {}, { signal })
       } catch (error) {
         contextError = error instanceof Error ? error.message : String(error)
         const contextDurationMs = Date.now() - contextStartedAt
         this.recordTraceEvent(run, {
           kind: 'context',
-          title: 'Context pack failed',
+          title: 'Focus failed',
           summary: `${contextError} (${contextDurationMs}ms)`,
           status: isLocalDiagnosticCommand(command.name) ? 'blocked' : 'failed',
           round: setupRound,
           data: {
-            source: 'mcp_context_pack',
-            endpoint: 'movscript_get_current_context',
+            source: 'mcp_focus',
+            endpoint: 'movscript_get_focus',
             error: contextError,
             durationMs: contextDurationMs,
             startedAt: new Date(contextStartedAt).toISOString(),
@@ -1791,7 +1791,7 @@ export class AgentRuntime {
         contextResult = buildLocalDiagnosticFallbackContextResult(clientInput, contextError)
       }
       const context = extractAgentContext(contextResult)
-      const contextPackTimings = extractContextPackTimings(contextResult)
+      const focusTimings = extractFocusTimings(contextResult)
       const contextDurationMs = Date.now() - contextStartedAt
       if (typeof context.currentProjectId === 'number') {
         thread.projectId = context.currentProjectId
@@ -1820,7 +1820,7 @@ export class AgentRuntime {
       })
 
       const agentManifest = run.agentManifest ?? catalogSnapshot.defaultAgentManifest
-      const contextWarnings = contextError ? [`Context pack unavailable: ${contextError}`] : []
+      const contextWarnings = contextError ? [`Focus unavailable: ${contextError}`] : []
       const baseDebugContext = buildDebugContext(contextResult, memories, clientInput)
       if (typeof context.currentProductionId === 'number') {
         baseDebugContext.productionId = context.currentProductionId
@@ -1886,7 +1886,7 @@ export class AgentRuntime {
           durationMs: contextDurationMs,
           startedAt: new Date(contextStartedAt).toISOString(),
           completedAt: new Date(Date.now()).toISOString(),
-          ...(contextPackTimings ? { contextPackTimings } : {}),
+          ...(focusTimings ? { focusTimings } : {}),
           ...(contextError ? { fallback: true, error: contextError } : {}),
         },
       })
@@ -2181,7 +2181,7 @@ export class AgentRuntime {
           contextMs: contextDurationMs,
           memoryMs: memoryLoadedAt - memoryStartedAt,
           capabilityMs: capabilityDurationMs,
-          ...(contextPackTimings ? { contextPackTimings } : {}),
+          ...(focusTimings ? { focusTimings } : {}),
         },
       })
 
@@ -3839,18 +3839,17 @@ function waitStatusFromPlanStatus(status: AgentPlan['status']): 'completed' | 'f
   return 'pending'
 }
 
-function extractContextPackTimings(value: unknown): { totalMs?: number; contextPackMs?: number; projectsMs?: number } | undefined {
+function extractFocusTimings(value: unknown): { totalMs?: number; focusMs?: number } | undefined {
   const parsed = parseToolResult(value as JSONValue)
   if (!isRecord(parsed) || !isRecord(parsed.timings)) return undefined
   const timings = parsed.timings
-  const result: { totalMs?: number; contextPackMs?: number; projectsMs?: number } = {}
+  const result: { totalMs?: number; focusMs?: number } = {}
   if (typeof timings.totalMs === 'number' && Number.isFinite(timings.totalMs)) result.totalMs = timings.totalMs
-  if (typeof timings.contextPackMs === 'number' && Number.isFinite(timings.contextPackMs)) {
-    result.contextPackMs = timings.contextPackMs
+  if (typeof timings.focusMs === 'number' && Number.isFinite(timings.focusMs)) {
+    result.focusMs = timings.focusMs
   } else if (typeof timings.totalMs === 'number' && Number.isFinite(timings.totalMs)) {
-    result.contextPackMs = timings.totalMs
+    result.focusMs = timings.totalMs
   }
-  if (typeof timings.projectsMs === 'number' && Number.isFinite(timings.projectsMs)) result.projectsMs = timings.projectsMs
   return Object.keys(result).length > 0 ? result : undefined
 }
 

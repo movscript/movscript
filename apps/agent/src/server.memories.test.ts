@@ -23,7 +23,7 @@ class StubMCPClient {
   }
 
   async callTool(name: string): Promise<JSONValue> {
-    if (name === 'movscript_get_current_context') return { content: [{ type: 'text', text: JSON.stringify({ snapshot: { project: { id: 42, name: 'Project A' } } }) }] }
+    if (name === 'movscript_get_focus') return { content: [{ type: 'text', text: JSON.stringify({ snapshot: { project: { id: 42, name: 'Project A' } } }) }] }
     return { ok: true }
   }
 

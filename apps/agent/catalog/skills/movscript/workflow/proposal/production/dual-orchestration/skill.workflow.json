@@ -1,0 +1,38 @@
+{
+  "id": "movscript.workflow.dual-orchestration",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Dual Orchestration",
+  "description": "在两阶段审阅流程中协调 project 和 production proposal drafts。",
+  "priority": 910,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "dual_orchestration"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "双阶段提案",
+        "项目和制作",
+        "dual orchestration"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.project_proposal.v1",
+    "schema://movscript.production_proposal.v1"
+  ],
+  "outputContract": "返回两个 draft id、各自 preview 状态，以及说明 production 如何引用 project proposal 的简短依赖备注。",
+  "instructionTemplatePath": "instruction.md"
+}

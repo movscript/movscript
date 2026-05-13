@@ -1,6 +1,6 @@
 {
   "name": "movscript_get_draft",
-  "description": "Read a local draft by id. Returns content, metadata, status, and the local validation result.",
+  "description": "按 id 读取本地 draft。返回 content、metadata、status 和本地校验结果。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,

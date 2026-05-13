@@ -19,7 +19,7 @@ async function main() {
 
   if (command === 'context') {
     await client.initialize()
-    const context = await client.callTool('movscript_get_current_context')
+    const context = await client.callTool('movscript_get_focus')
     printJSON(context)
     return
   }

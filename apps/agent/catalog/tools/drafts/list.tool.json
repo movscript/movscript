@@ -1,6 +1,6 @@
 {
   "name": "movscript_list_drafts",
-  "description": "List local drafts for the current or specified project, optionally filtered by kind or status. Use to find an existing draft before creating a new one.",
+  "description": "列出当前或指定项目的本地 drafts，可按 kind 或 status 过滤。创建新 draft 前，用它查找已有 draft。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,

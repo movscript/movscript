@@ -1,0 +1,38 @@
+{
+  "name": "movscript_search_memories",
+  "description": "按查询和可选 kind 搜索当前项目中的本地 agent memories，包括历史偏好、决策、警告、条目引用和 draft notes。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "query": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "preference",
+          "fact",
+          "item_ref",
+          "entity_ref",
+          "draft",
+          "decision",
+          "warning"
+        ]
+      },
+      "limit": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 25
+      }
+    }
+  },
+  "permission": "memory.read",
+  "risk": "read",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

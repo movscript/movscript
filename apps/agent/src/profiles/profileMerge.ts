@@ -110,7 +110,6 @@ function mergeLimits(left: AgentProfile['limits'], right: AgentProfile['limits']
   if (!right) return left
   return {
     maxActiveWorkflows: minDefined(left.maxActiveWorkflows, right.maxActiveWorkflows),
-    maxToolCallsPerTurn: minDefined(left.maxToolCallsPerTurn, right.maxToolCallsPerTurn),
     systemPromptCharLimit: minDefined(left.systemPromptCharLimit, right.systemPromptCharLimit),
   }
 }

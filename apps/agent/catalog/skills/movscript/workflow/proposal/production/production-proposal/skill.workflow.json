@@ -1,0 +1,38 @@
+{
+  "id": "movscript.workflow.production-proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Production Proposal",
+  "description": "以本地审阅 patches 的形式起草 production 层 segment 和 scene-moment proposals。",
+  "priority": 860,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "production_proposal"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "制作提案",
+        "制作编排",
+        "production proposal",
+        "production_proposal"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.production_proposal.v1"
+  ],
+  "outputContract": "回复 draftId、projectId、productionId、draft status、最近一次 preview_apply 的 ok/stage，以及 segments 和 scene moments 数量。",
+  "instructionTemplatePath": "instruction.md"
+}

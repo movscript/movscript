@@ -1,6 +1,6 @@
 {
   "name": "movscript_create_script",
-  "description": "Create a formal script record in the current project after user approval.",
+  "description": "用户批准后，在当前项目中创建正式 script 记录。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -90,5 +90,5 @@
     "approval": "always"
   },
   "source": "runtime",
-  "capability": "Create a formal script record in the current project after approval."
+  "capability": "批准后在当前项目中创建正式 script 记录。"
 }

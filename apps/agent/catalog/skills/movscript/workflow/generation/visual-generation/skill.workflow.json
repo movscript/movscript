@@ -1,0 +1,36 @@
+{
+  "id": "movscript.workflow.visual-generation",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Visual Generation",
+  "description": "创建图片或视频生成任务，并监控结果。",
+  "priority": 780,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "visual_generation"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "生成图片",
+        "生成视频",
+        "出图",
+        "出视频",
+        "image generation",
+        "video generation"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_list_models",
+    "tool://movscript_create_generation_job",
+    "tool://movscript_get_generation_job",
+    "tool://movscript_list_generation_jobs",
+    "tool://movscript_cancel_generation_job"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回最终任务状态、jobId、可用时的输出资源，以及简洁的匹配理由。",
+  "instructionTemplatePath": "instruction.md"
+}

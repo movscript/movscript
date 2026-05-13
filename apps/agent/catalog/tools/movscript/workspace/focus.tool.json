@@ -1,0 +1,18 @@
+{
+  "name": "movscript_get_focus",
+  "description": "返回当前 MovScript 任务 focus：route、已选 project、active production id、当前用户和已选实体。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "读取当前任务 focus，但不加载项目列表、剧本、drafts、资源或 proposal 详情。"
+}

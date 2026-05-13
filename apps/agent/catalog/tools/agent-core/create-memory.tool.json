@@ -1,0 +1,41 @@
+{
+  "name": "movscript_create_memory",
+  "description": "在当前项目中创建本地 agent memory。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "title",
+      "kind",
+      "content"
+    ],
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "preference",
+          "fact",
+          "item_ref",
+          "entity_ref",
+          "draft",
+          "decision",
+          "warning"
+        ]
+      },
+      "content": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "memory.write",
+  "risk": "draft",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

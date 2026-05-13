@@ -1,0 +1,43 @@
+{
+  "id": "movscript.pack.movscript",
+  "version": "1.0.0",
+  "name": "MovScript",
+  "description": "MovScript workspace、proposal 规划、项目进度审阅和视觉生成能力。",
+  "source": "builtin",
+  "schemas": [],
+  "tools": [
+    "movscript_get_focus",
+    "movscript_list_projects",
+    "movscript_read_project_scripts",
+    "movscript_create_project",
+    "movscript_list_models",
+    "movscript_create_generation_job",
+    "movscript_get_generation_job",
+    "movscript_list_generation_jobs",
+    "movscript_cancel_generation_job"
+  ],
+  "skills": [
+    "movscript.policy.movscript",
+    "movscript.persona.project-orchestrator",
+    "movscript.persona.production-orchestrator",
+    "movscript.persona.visual-director",
+    "movscript.workflow.project-progress",
+    "movscript.workflow.proposal-first",
+    "movscript.workflow.project-proposal",
+    "movscript.workflow.setting-prep",
+    "movscript.workflow.production-proposal",
+    "movscript.workflow.dual-orchestration",
+    "movscript.workflow.asset-proposal",
+    "movscript.workflow.asset-candidate-generation",
+    "movscript.workflow.content-unit-proposal",
+    "movscript.workflow.content-unit-media-proposal",
+    "movscript.workflow.storyboard-gap-review",
+    "movscript.workflow.visual-generation"
+  ],
+  "requires": {
+    "packs": {
+      "movscript.pack.agent-core": ">=1.0.0",
+      "movscript.pack.drafts": ">=1.0.0"
+    }
+  }
+}

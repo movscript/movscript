@@ -1,0 +1,33 @@
+{
+  "name": "movscript_create_project",
+  "description": "用户批准后创建正式 MovScript project。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "total_episodes": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "name"
+    ]
+  },
+  "permission": "project.write",
+  "risk": "write",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "always"
+  },
+  "source": "runtime"
+}

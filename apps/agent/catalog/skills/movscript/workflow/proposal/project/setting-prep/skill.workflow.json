@@ -1,0 +1,30 @@
+{
+  "id": "movscript.workflow.setting-prep",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Setting Prep",
+  "description": "准备或改进一个已选 creative reference。",
+  "priority": 760,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "setting_prep"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "设定准备",
+        "设定完善",
+        "creative reference"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回改进建议、缺失数据点，以及下一步是否需要 proposal draft。",
+  "instructionTemplatePath": "instruction.md"
+}

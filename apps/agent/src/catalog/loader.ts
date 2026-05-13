@@ -86,10 +86,10 @@ export function loadAgentPluginCatalog(options: {
     mode: tool.defaults.grant,
     approval: tool.defaults.approval,
   }))
-  const profiles = profilesWithDefaultToolGrants(dedupeProfiles([
+  const profiles = profilesWithEnabledPackResources(dedupeProfiles([
     ...builtinProfileResult.profiles,
     ...localProfileResult.profiles,
-  ]), layeredToolGrants, packs)
+  ]), layeredToolGrants, packs, layeredSkills)
   const warnings = [
     ...builtinPackResult.warnings,
     ...localPackResult.warnings,
@@ -104,7 +104,7 @@ export function loadAgentPluginCatalog(options: {
   const baseTools = options.baseTools ?? DEFAULT_TOOL_REGISTRY.list()
   const manifest = {
     ...baseManifest,
-    tools: mergeToolGrants(baseManifest.tools, layeredToolGrants),
+    tools: mergeToolGrants(baseManifest.tools, enabledPackToolGrants(profiles, layeredToolGrants, packs)),
   }
   const registry = new StaticToolRegistry(mergeRegisteredTools(baseTools, layeredRegisteredTools))
   const layeredRegistry = buildLayeredCatalogRegistry({
@@ -161,18 +161,83 @@ function registeredToolFromLayeredTool(tool: ToolDefinition): RegisteredTool {
   }
 }
 
-function profilesWithDefaultToolGrants(profiles: AgentProfile[], grants: AgentToolGrant[], packs: CapabilityPack[]): AgentProfile[] {
-  if (grants.length === 0) return profiles
+function profilesWithEnabledPackResources(
+  profiles: AgentProfile[],
+  grants: AgentToolGrant[],
+  packs: CapabilityPack[],
+  skills: SkillDefinition[],
+): AgentProfile[] {
   const packsById = new Map(packs.map((pack) => [pack.id, pack]))
+  const skillsById = new Map(skills.map((skill) => [skill.id, skill]))
   return profiles.map((profile) => {
-    if (profile.id !== 'movscript.profile.default') return profile
-    const existing = new Set(profile.toolGrants.map((grant) => grant.name))
-    const packTools = new Set(profile.enabledPacks.flatMap((packId) => packsById.get(packId)?.tools ?? []))
-    const additions = grants
-      .filter((grant) => grant.mode === 'allow' && !existing.has(grant.name) && packTools.has(grant.name))
-      .map((grant) => ({ name: grant.name, mode: grant.mode, ...(grant.approval ? { approval: grant.approval } : {}) }))
-    return additions.length > 0 ? { ...profile, toolGrants: [...profile.toolGrants, ...additions] } : profile
+    const packClosure = collectEnabledPackClosure(profile.enabledPacks, packsById)
+    const packTools = new Set(Array.from(packClosure).flatMap((packId) => packsById.get(packId)?.tools ?? []))
+    const packSkills = Array.from(packClosure).flatMap((packId) => packsById.get(packId)?.skills ?? [])
+    const explicitWorkflowFilter = profile.enabledWorkflows.length > 0 ? new Set(profile.enabledWorkflows) : undefined
+    const explicitPolicyFilter = profile.enabledPolicies.length > 0 ? new Set(profile.enabledPolicies) : undefined
+    const enabledWorkflows = packSkills
+      .filter((id) => skillsById.get(id)?.kind === 'workflow')
+      .filter((id) => !explicitWorkflowFilter || explicitWorkflowFilter.has(id))
+    const enabledPolicies = packSkills
+      .filter((id) => skillsById.get(id)?.kind === 'policy')
+      .filter((id) => !explicitPolicyFilter || explicitPolicyFilter.has(id))
+    const explicitGrants = new Map(profile.toolGrants.map((grant) => [grant.name, grant]))
+    const toolGrants = grants
+      .filter((grant) => packTools.has(grant.name))
+      .map((grant) => {
+        const explicit = explicitGrants.get(grant.name)
+        if (!explicit) return { name: grant.name, mode: grant.mode, ...(grant.approval ? { approval: grant.approval } : {}) }
+        const approval = stricterApproval(grant.approval, explicit.approval)
+        return {
+          name: grant.name,
+          mode: explicit.mode,
+          ...(approval ? { approval } : {}),
+        }
+      })
+    return {
+      ...profile,
+      enabledWorkflows,
+      enabledPolicies,
+      toolGrants,
+    }
   })
+}
+
+function enabledPackToolGrants(
+  profiles: AgentProfile[],
+  grants: AgentToolGrant[],
+  packs: CapabilityPack[],
+): AgentToolGrant[] {
+  const packsById = new Map(packs.map((pack) => [pack.id, pack]))
+  const enabledPackIds = new Set(profiles.flatMap((profile) => Array.from(collectEnabledPackClosure(profile.enabledPacks, packsById))))
+  const enabledToolNames = new Set(Array.from(enabledPackIds).flatMap((packId) => packsById.get(packId)?.tools ?? []))
+  return grants.filter((grant) => enabledToolNames.has(grant.name))
+}
+
+function collectEnabledPackClosure(packIds: string[], packsById: Map<string, CapabilityPack>): Set<string> {
+  const visited = new Set<string>()
+  for (const id of packIds) visit(id)
+  return visited
+
+  function visit(id: string): void {
+    if (visited.has(id)) return
+    visited.add(id)
+    const pack = packsById.get(id)
+    if (!pack) return
+    for (const required of Object.keys(pack.requires?.packs ?? {})) visit(required)
+  }
+}
+
+function stricterApproval(left?: AgentToolGrant['approval'], right?: AgentToolGrant['approval']): AgentToolGrant['approval'] {
+  if (!left) return right
+  if (!right) return left
+  return approvalRank(right) > approvalRank(left) ? right : left
+}
+
+function approvalRank(value?: AgentToolGrant['approval']): number {
+  if (value === 'always') return 2
+  if (value === 'on_write') return 1
+  return 0
 }
 
 export function resolveAgentSkillsDir(statePath = resolveAgentStatePath()): string {
@@ -563,7 +628,6 @@ function normalizeProfileModel(input: Record<string, unknown>): NonNullable<Agen
 function normalizeProfileLimits(input: Record<string, unknown>): NonNullable<AgentProfile['limits']> {
   return {
     ...(positiveNumber(input.maxActiveWorkflows) ? { maxActiveWorkflows: positiveNumber(input.maxActiveWorkflows) } : {}),
-    ...(positiveNumber(input.maxToolCallsPerTurn) ? { maxToolCallsPerTurn: positiveNumber(input.maxToolCallsPerTurn) } : {}),
     ...(positiveNumber(input.systemPromptCharLimit) ? { systemPromptCharLimit: positiveNumber(input.systemPromptCharLimit) } : {}),
   }
 }

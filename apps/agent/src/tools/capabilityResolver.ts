@@ -18,7 +18,7 @@ import type {
 
 const BASE_RETRIEVAL_TOOLS = new Set([
   'movscript_request_user_input',
-  'movscript_get_current_context',
+  'movscript_get_focus',
   'movscript_list_projects',
   'movscript_read_project_scripts',
   'movscript_list_drafts',

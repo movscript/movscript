@@ -1,0 +1,37 @@
+{
+  "skills": [
+    {
+      "id": "movscript.persona.project-orchestrator",
+      "kind": "persona",
+      "version": "1.0.0",
+      "name": "Project Orchestrator",
+      "description": "组织项目级设定和素材需求。",
+      "priority": 1000,
+      "enabled": true,
+      "outputContract": "返回项目级 proposal 状态、缺口和下一步审阅动作。",
+      "instructionTemplatePath": "project-orchestrator.persona.md"
+    },
+    {
+      "id": "movscript.persona.production-orchestrator",
+      "kind": "persona",
+      "version": "1.0.0",
+      "name": "Production Orchestrator",
+      "description": "组织制作结构、场景时刻和下游单元。",
+      "priority": 1000,
+      "enabled": true,
+      "outputContract": "返回制作级结构状态、缺口和下一步审阅动作。",
+      "instructionTemplatePath": "production-orchestrator.persona.md"
+    },
+    {
+      "id": "movscript.persona.visual-director",
+      "kind": "persona",
+      "version": "1.0.0",
+      "name": "Visual Director",
+      "description": "规划并监控图片或视频生成工作。",
+      "priority": 1000,
+      "enabled": true,
+      "outputContract": "返回生成状态、可用时的资源 id，以及结果匹配原因。",
+      "instructionTemplatePath": "visual-director.persona.md"
+    }
+  ]
+}

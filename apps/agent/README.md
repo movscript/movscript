@@ -52,7 +52,7 @@ curl http://127.0.0.1:28765/health
 | `GET` | `/tools` | Registered tool metadata. |
 | `GET` | `/skills` | Loaded skill catalog. |
 | `GET` | `/agent-manifest/default` | Legacy built-in/default manifest. |
-| `GET` | `/context` | Current MovScript context pack from MCP. |
+| `GET` | `/context` | Current MovScript focus from MCP. |
 | `POST` | `/draft` | Create a local draft/candidate artifact. |
 | `GET` | `/drafts` | List local draft/candidate artifacts. |
 | `GET` | `/drafts/:id` | Read one local draft/candidate artifact. |
@@ -78,4 +78,6 @@ curl http://127.0.0.1:28765/health
 The agent service reads local JSON metadata from skills and tools directories at startup.
 It also ships a built-in MovScript catalog in `apps/agent/catalog/skills` and `apps/agent/catalog/tools`.
 
-Installed skills are merged into the default manifest. Installed tools are merged into the agent tool registry, but a matching MCP tool must exist before execution can succeed.
+Skills and tools are file-defined resources. A resource is scanned into the catalog when its file is valid, but it becomes runtime-available only when a pack lists it and the active profile enables that pack. Profiles should normally choose packs, persona, and limits; workflows, policies, and tool grants are derived from enabled packs. Profile `enabledWorkflows`, `enabledPolicies`, and `toolGrants` remain as compatibility narrowing fields, not as the primary extension mechanism.
+
+Installed plugin tools are also merged into the agent tool registry for schema discovery. Non-runtime plugin or MCP tools still require a matching MCP tool before execution can succeed.

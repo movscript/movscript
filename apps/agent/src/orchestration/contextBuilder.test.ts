@@ -38,7 +38,7 @@ test('buildContext emits multiple textual system messages instead of one JSON-pa
   assert.match(systemMessages[0].content ?? '', /Core Runtime Protocol/)
   assert.match(systemMessages[0].content ?? '', /Tool results are the source of truth/)
   assert.match(systemMessages[0].content ?? '', /Default context is intentionally small/)
-  assert.match(systemMessages[1].content ?? '', /compact execution envelope/)
+  assert.match(systemMessages[1].content ?? '', /active task anchor/)
   assert.match(systemMessages[1].content ?? '', /Title:/)
   assert.match(systemMessages[1].content ?? '', /Business reference:/)
   assert.match(systemMessages[1].content ?? '', /production#4/)
@@ -65,7 +65,7 @@ test('buildContext keeps default chat prompt lean', () => {
       discovered: [],
       available: [
         {
-          name: 'movscript_get_current_context',
+          name: 'movscript_get_focus',
           source: 'runtime',
           registered: true,
           granted: true,

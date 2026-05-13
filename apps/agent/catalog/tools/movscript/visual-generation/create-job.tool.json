@@ -1,0 +1,236 @@
+{
+  "name": "movscript_create_generation_job",
+  "description": "通过 MovScript 创建 AI 图片或视频生成任务，并返回用于审阅的生成输出资源。选择 model_config_id、input_resource_ids 或 extra_params 前，先调用 movscript_list_models，并遵守所选模型 contract：capabilities、input_requirements、supported_param_keys、supported_params 和 params_schema。只提交该模型支持的参数和参考数量。不支持或本地可疑的参数会在 audit_version 1 的 param_validation 中报告，包括 dropped keys、alias rewrites 和非阻塞 preflight_errors；参考数量不匹配会在 input_preflight_errors 中报告。preflight_errors 和 input_preflight_errors 是解释性审计数据，本身不是后端拒绝。后端 validation errors 具有权威性；suggested_fix 可驱动一次生成参数 retry，但 UNSUPPORTED_OUTPUT_TYPE 和 INVALID_INPUT_COUNT 属于说明/模型或输入选择场景，不得在同一请求中自动修复。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+      "prompt"
+    ],
+    "properties": {
+      "prompt": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "output_type": {
+        "type": "string",
+        "enum": [
+          "image",
+          "video"
+        ]
+      },
+      "job_type": {
+        "type": "string",
+        "enum": [
+          "image",
+          "image_edit",
+          "video",
+          "video_i2v",
+          "video_v2v"
+        ],
+        "description": "精确的生成任务类型。当所选模型 contract 要求图片或视频输入时，优先使用此字段。"
+      },
+      "model_config_id": {
+        "type": [
+          "number",
+          "string"
+        ]
+      },
+      "wait": {
+        "type": "boolean"
+      },
+      "projectId": {
+        "type": "number"
+      },
+      "input_resource_ids": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "description": "参考图片或视频资源 ID。数量必须满足所选模型 contract 的 input_requirements；不匹配会在 param_validation.input_preflight_errors 中报告。"
+      },
+      "reference_type": {
+        "type": "string",
+        "enum": [
+          "image",
+          "video"
+        ],
+        "description": "当参考资源应创建 video_v2v 任务时，配合 output_type video 使用 video。"
+      },
+      "aspect_ratio": {
+        "type": "string",
+        "description": "所选模型 contract 支持时使用的顶层生成画幅比例。"
+      },
+      "duration": {
+        "type": "number",
+        "description": "所选模型 contract 支持时使用的顶层视频时长，单位为秒。"
+      },
+      "feature_key": {
+        "type": "string"
+      },
+      "timeout_ms": {
+        "type": "number"
+      },
+      "poll_interval_ms": {
+        "type": "number"
+      },
+      "extra_params": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "模型专用生成参数。keys 必须来自 movscript_list_models 返回的所选模型 contract。不要猜测 provider 全局参数；不支持的 keys 会在提交后端前被省略，并在 audit_version 1 的 param_validation 中报告。"
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+      "status",
+      "job",
+      "jobId",
+      "param_validation",
+      "message"
+    ],
+    "properties": {
+      "status": {
+        "type": "string",
+        "description": "当前或最终后端生成状态。"
+      },
+      "job": {
+        "type": "object",
+        "description": "归一化的生成任务 payload。"
+      },
+      "jobId": {
+        "type": "number",
+        "description": "用于监控和审计的生成任务 ID。"
+      },
+      "monitor": {
+        "type": "object",
+        "description": "当任务需要异步监控时存在。",
+        "properties": {
+          "tool": {
+            "type": "string",
+            "const": "movscript_get_generation_job"
+          },
+          "args": {
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "output_resource": {
+        "type": "object",
+        "description": "可用时的生成资源对象。"
+      },
+      "output_resource_id": {
+        "type": "number",
+        "description": "可用时的生成资源 ID。"
+      },
+      "media": {
+        "type": "object",
+        "description": "可用时的媒体预览 metadata。"
+      },
+      "param_validation": {
+        "type": "object",
+        "description": "audit_version 1 参数过滤和 preflight 审计。",
+        "properties": {
+          "audit_version": {
+            "type": "number",
+            "const": 1
+          },
+          "model_config_id": {
+            "type": "number"
+          },
+          "model_contract_loaded": {
+            "type": "boolean"
+          },
+          "params_schema_loaded": {
+            "type": "boolean"
+          },
+          "params_schema_rule_count": {
+            "type": "number"
+          },
+          "input_requirements": {
+            "type": "object"
+          },
+          "submitted_inputs": {
+            "type": "object"
+          },
+          "supported_params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "provided_extra_params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "submitted_extra_params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dropped_extra_params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "dropped_top_level_params": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "drop_reasons": {
+            "type": "object"
+          },
+          "renamed_extra_params": {
+            "type": "object"
+          },
+          "extra_params_parse_error": {
+            "type": "string"
+          },
+          "preflight_errors": {
+            "type": "array"
+          },
+          "input_preflight_errors": {
+            "type": "array"
+          }
+        }
+      },
+      "terminal": {
+        "type": "boolean",
+        "description": "wait=true 时，status 是否为终态。"
+      },
+      "message": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "generation.create",
+  "risk": "generate",
+  "errorCodes": [
+    "UNSUPPORTED_OUTPUT_TYPE",
+    "UNSUPPORTED_PARAMETER",
+    "INVALID_PARAMETER_TYPE",
+    "INVALID_PARAMETER_OPTION",
+    "INVALID_PARAMETER_RANGE",
+    "INVALID_PARAMETER_COMBINATION",
+    "INVALID_INPUT_COUNT"
+  ],
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "always"
+  },
+  "source": "runtime"
+}

@@ -144,7 +144,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'GET' && url.pathname === '/context') {
         await context.client.initialize()
-        writeJSON(res, 200, await context.client.callTool('movscript_get_current_context'))
+        writeJSON(res, 200, await context.client.callTool('movscript_get_focus'))
         return
       }
 

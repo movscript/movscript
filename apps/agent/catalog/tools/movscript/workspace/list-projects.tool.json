@@ -1,0 +1,17 @@
+{
+  "name": "movscript_list_projects",
+  "description": "以编号 Markdown 摘要列出所有可见 projects。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "permission": "project.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime"
+}

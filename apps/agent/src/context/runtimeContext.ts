@@ -16,7 +16,7 @@ export function extractCurrentProjectId(result: JSONValue): number | undefined {
   const parsed = parseToolResult(result)
   if (!isRecord(parsed)) return undefined
 
-  const snapshot = isRecord(parsed.snapshot) ? parsed.snapshot : parsed
+  const snapshot = isRecord(parsed.focus) ? parsed.focus : isRecord(parsed.snapshot) ? parsed.snapshot : parsed
   const project = isRecord(snapshot.project) ? snapshot.project : undefined
   const projectId = project?.id ?? project?.ID ?? snapshot.projectId ?? snapshot.currentProjectId
   return typeof projectId === 'number' && Number.isFinite(projectId) ? projectId : undefined
@@ -26,7 +26,7 @@ export function extractCurrentProductionId(result: JSONValue): number | undefine
   const parsed = parseToolResult(result)
   if (!isRecord(parsed)) return undefined
 
-  const snapshot = isRecord(parsed.snapshot) ? parsed.snapshot : parsed
+  const snapshot = isRecord(parsed.focus) ? parsed.focus : isRecord(parsed.snapshot) ? parsed.snapshot : parsed
   const productionId = snapshot.productionId ?? snapshot.currentProductionId
   return typeof productionId === 'number' && Number.isFinite(productionId) ? productionId : undefined
 }

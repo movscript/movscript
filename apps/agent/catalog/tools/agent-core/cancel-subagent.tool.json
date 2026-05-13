@@ -1,0 +1,21 @@
+{
+  "name": "movscript_cancel_subagent",
+  "description": "取消当前 planner run 拥有的子 worker subagent 树。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "subagentName": { "type": "string" },
+      "runId": { "type": "string" },
+      "taskId": { "type": "string" },
+      "reason": { "type": "string" }
+    }
+  },
+  "permission": "agent.subagent.write",
+  "risk": "write",
+  "projectScoped": false,
+  "defaults": { "grant": "allow", "approval": "never" },
+  "source": "runtime",
+  "capability": "取消 planner 拥有的 worker subagents。",
+  "allowedRunRoles": ["planner"]
+}

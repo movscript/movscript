@@ -1,0 +1,39 @@
+{
+  "id": "movscript.workflow.project-proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Project Proposal",
+  "description": "以本地 merge patches 的形式起草 project 层 creative reference 和 asset-slot proposals。",
+  "priority": 900,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "project_proposal"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "项目提案",
+        "项目设定",
+        "素材需求",
+        "project proposal",
+        "project_proposal"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.project_proposal.v1"
+  ],
+  "instructionTemplatePath": "instruction.md",
+  "outputContract": "回复 draftId、projectId、可用时的 productionId、draft status、最近一次 preview_apply 的 ok/stage，以及简洁的设定/素材缺口。"
+}

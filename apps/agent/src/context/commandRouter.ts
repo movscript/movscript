@@ -88,7 +88,7 @@ export function parseAgentCommand(message: string): AgentCommandRuntime {
         contextProfile: inferContextProfile(trimmed),
         outputMode: 'natural',
         requiredTools: [],
-        systemContract: 'This is a natural-language agent request. Choose tools based on the user goal and current context.',
+        systemContract: 'This is a natural-language agent request. Choose tools based on the user goal and current focus.',
       }
   }
 }

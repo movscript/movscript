@@ -141,7 +141,7 @@ Agent 每一轮应该读取：
 - 当前 `targetSnapshot`：知道方案现在是什么样。
 - 最近若干条 `revisions`：知道刚刚为什么这样改。
 - `changeSummary`：知道累计修改意图。
-- 最新 context pack：包括当前 production、项目级设定资料索引、项目级素材索引、已有 usage 和版本号。
+- 最新实体读取结果：包括当前 production、项目级设定资料索引、项目级素材索引、已有 usage 和版本号。
 
 Agent 每一轮应该调用 tool 提交 patch，例如：
 
@@ -212,9 +212,9 @@ Patch 应作为当前 `production_proposal` draft 的 `revisions[]` 保存。这
 
 ## 项目级复用不能交给 Snapshot 自己解决
 
-项目级设定资料和素材复用必须由系统提供 context pack，并由 resolver/validator 裁定。
+项目级设定资料和素材复用必须由系统通过窄查询提供最新实体读取结果，并由 resolver/validator 裁定。
 
-每次 Agent 修改前，context pack 至少应该包含：
+每次 Agent 修改前，相关实体读取结果至少应该包含：
 
 - 当前 production 的 segments、scene moments、usages。
 - 项目级 `creative_references` 摘要：`id`、`kind`、`name`、aliases、profile 摘要、fingerprint。
@@ -242,7 +242,7 @@ Agent 可以提出：
 推荐流程：
 
 1. 用户确认当前 `targetSnapshot`。
-2. 系统重新读取最新数据库 context pack。
+2. 系统重新读取最新数据库实体状态。
 3. resolver 重新解析 `targetSnapshot` 中的 unresolved references 和 asset slots。
 4. diff engine 计算 `base/current database -> targetSnapshot` 的正式 operations。
 5. validator 检查跨项目引用、缺失父节点、重复创建、悬空 usage、stale version。

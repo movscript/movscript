@@ -1,0 +1,27 @@
+{
+  "name": "movscript_delete_memory",
+  "description": "删除当前项目中的一条本地 agent memory。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "memoryId": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "memory.write",
+  "risk": "write",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "always"
+  },
+  "source": "runtime"
+}

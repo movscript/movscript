@@ -3,7 +3,7 @@ import type { AgentMemory } from '../memory/types.js'
 
 export function renderDebugContextText(context: AgentDebugContextPanel): string {
   const lines: string[] = [
-    'Current context is a compact execution envelope. Retrieve lists or details with tools when they matter.',
+    'Focus is only the active task anchor. Retrieve lists, drafts, scripts, resources, or entity details with narrow tools when they matter.',
     '',
     '### Screen',
     `- Location: ${context.route.pathname}${context.route.search ?? ''}${context.route.hash ?? ''}`,

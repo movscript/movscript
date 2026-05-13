@@ -1,6 +1,6 @@
 {
   "name": "movscript_update_draft",
-  "description": "Edit, validate, or dry-run one local draft. Actions: 'patch_content' (JSON Pointer add/replace/remove), 'replace_text' (old/new string), 'replace_content' (full body), 'replace_fields' (title/status/metadata), 'set_status', 'validate' (local schema only), and 'preview_apply' (dry-run that surfaces local validation errors plus backend apply diffs/errors).",
+  "description": "编辑、校验或 dry-run 一个本地 draft。Actions: 'patch_content'（JSON Pointer add/replace/remove）、'replace_text'（old/new string）、'replace_content'（完整 body）、'replace_fields'（title/status/metadata）、'set_status'、'validate'（仅本地 schema）、'preview_apply'（dry-run，暴露本地校验错误以及后端 apply diff/error）。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -118,5 +118,5 @@
     "approval": "never"
   },
   "source": "runtime",
-  "capability": "Patch, replace, validate, or dry-run preview_apply for one local draft."
+  "capability": "对一个本地 draft 执行 patch、replace、validate 或 dry-run preview_apply。"
 }

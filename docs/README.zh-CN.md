@@ -19,6 +19,7 @@
 ## Agent
 
 - [Proposal-first Agent Design](proposal-first-agent-design.md)
+- [MovScript Agent Skills Concepts](movscript-agent-skills-concepts.md)
 - [Agent 子 Agent 机制实现规划](agent-subagent-mechanism-plan.md)
 - [Agent architecture guide](agent-architecture-guide.md)
 - [Agent design](agent-design.md)

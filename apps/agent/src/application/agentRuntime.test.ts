@@ -317,16 +317,15 @@ class FakeMCPClient {
     if (this.failTools.has(name)) {
       throw new Error(`${name} failed`)
     }
-    if (name === 'movscript_get_current_context' || name === 'movscript_get_context_pack') {
+    if (name === 'movscript_get_focus') {
       return toolText({
-        snapshot: {
+        focus: {
           project: this.projectId === null ? null : { id: this.projectId, name: 'Test Project' },
           user: this.userId === null ? null : { id: this.userId, username: 'tester' },
         },
         timings: {
-          contextPackMs: 12,
+          focusMs: 12,
           totalMs: 12,
-          projectsMs: 4,
         },
       })
     }
@@ -423,7 +422,7 @@ test('previews plan and policy without creating a run or executing planned tools
   assert.equal(preview.toolCalls.length, 0)
   assert.equal(runtime.listRuns().length, 0)
   assert.equal(client.calls.some((call) => call.name === 'movscript_create_script'), false)
-  assert.ok(client.calls.some((call) => call.name === 'movscript_get_context_pack' || call.name === 'movscript_get_current_context'))
+  assert.ok(client.calls.some((call) => call.name === 'movscript_get_focus'))
 })
 
 test('runtime builds envelope context from client input without frontend prompt assembly', async () => {
@@ -472,7 +471,7 @@ test('preview activates only triggered layered skills instead of loading every p
 
   const skillIds = preview.skills?.map((skill) => skill.id) ?? []
   assert.ok(skillIds.includes('movscript.persona.default'))
-  assert.ok(skillIds.includes('movscript.policy.safe-drafts'))
+  assert.ok(skillIds.includes('movscript.policy.drafts'))
   assert.equal(skillIds.includes('movscript.workflow.project-proposal'), false)
   assert.equal(skillIds.includes('movscript.workflow.visual-generation'), false)
   assert.deepEqual(preview.debug?.layerTrace?.workflowIds, [])
@@ -687,13 +686,13 @@ test('explicit write agent can create_project without a current project after ap
   assert.equal(call?.args.projectId, undefined)
   const contextTrace = runtime.getRunTraceEvents(resumed.id, { kind: 'context' }).find((event) => event.title === 'Runtime context resolved')
   const contextTraceData = isTestRecord(contextTrace?.data) ? contextTrace.data : undefined
-  const contextPackTimingsValue = contextTraceData && !Array.isArray(contextTraceData)
-    ? (contextTraceData as Record<string, unknown>).contextPackTimings
+  const focusTimingsValue = contextTraceData && !Array.isArray(contextTraceData)
+    ? (contextTraceData as Record<string, unknown>).focusTimings
     : undefined
-  const contextPackTimings = isTestRecord(contextPackTimingsValue)
-    ? (contextPackTimingsValue as Record<string, unknown>)
+  const focusTimings = isTestRecord(focusTimingsValue)
+    ? (focusTimingsValue as Record<string, unknown>)
     : undefined
-  assert.equal(contextPackTimings?.contextPackMs, 12)
+  assert.equal(focusTimings?.focusMs, 12)
   const toolTrace = runtime.getRunTraceEvents(resumed.id, { kind: 'tool_call' }).find((event) => event.toolName === 'movscript_create_project' && event.status === 'completed')
   assert.equal(typeof toolTrace?.durationMs, 'number')
   assert.ok((toolTrace?.durationMs ?? -1) >= 0)
@@ -1906,7 +1905,7 @@ test('generation monitor emits timeout when async job does not finish in time', 
   assert.equal(timeout.terminal, false)
 })
 
-test('context command returns fallback diagnostics when MCP context pack is unavailable', async () => {
+test('context command returns fallback diagnostics when MCP focus is unavailable', async () => {
   const client = new FakeMCPClient()
   client.failInitialize = true
   const runtime = createTestRuntime({ mcpClient: client })
@@ -1931,11 +1930,11 @@ test('context command returns fallback diagnostics when MCP context pack is unav
   assert.match(assistant?.content ?? '', /Model gateway messages:/)
   assert.match(assistant?.content ?? '', /Title: Fallback Project/)
   assert.match(assistant?.content ?? '', /Business reference: project#42/)
-  assert.match(assistant?.content ?? '', /Context pack unavailable: mcp offline/)
+  assert.match(assistant?.content ?? '', /Focus unavailable: mcp offline/)
   assert.throws(() => JSON.parse(assistant?.content ?? ''))
   {
     const traceEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
-    assert.equal(traceEvents.some((event) => event.title === 'Context pack failed'), true)
+    assert.equal(traceEvents.some((event) => event.title === 'Focus failed'), true)
     assert.equal(traceEvents.some((event) => event.kind === 'model_call'), false)
   }
 })
@@ -2009,7 +2008,7 @@ test('production orchestrate requests include productionId in runtime context', 
       },
     })
 
-    const contextMessage = (requestBody?.messages as any[]).find((message) => message?.role === 'system' && typeof message.content === 'string' && message.content.includes('## Current context'))
+    const contextMessage = (requestBody?.messages as any[]).find((message) => message?.role === 'system' && typeof message.content === 'string' && message.content.includes('## Focus'))
     assert.ok(contextMessage)
     assert.match(String(contextMessage?.content ?? ''), /Active production business reference: production#4/)
   } finally {
@@ -2214,6 +2213,34 @@ test('runtime reloads target-state local catalog tools for later runs', async ()
       projectScoped: false,
       defaults: { grant: 'allow', approval: 'never' },
     })
+    writeJSONFile(skillsDir, 'dynamic.workflow.json', {
+      id: 'studio.workflow.dynamic',
+      kind: 'workflow',
+      name: 'Dynamic Echo',
+      description: 'Expose the dynamic echo tool for dynamic checks.',
+      triggers: [{ kind: 'keyword', any: ['dynamic check'] }],
+      toolRefs: ['tool://studio_dynamic_echo'],
+      instructionTemplate: 'Use the dynamic echo tool for dynamic checks.',
+    })
+    writeJSONFile(packsDir, 'dynamic.pack.json', {
+      id: 'studio.pack.dynamic',
+      name: 'Dynamic Test Pack',
+      source: 'plugin',
+      schemas: [],
+      tools: ['studio_dynamic_echo'],
+      skills: ['studio.workflow.dynamic'],
+    })
+    writeJSONFile(profilesDir, 'default.profile.json', {
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Dynamic Test Profile',
+      enabledPacks: ['studio.pack.dynamic'],
+      persona: null,
+      enabledWorkflows: [],
+      enabledPolicies: [],
+      toolGrants: [],
+    })
     const reloaded = runtime.reloadAgentCatalog() as any
     assert.equal(reloaded.status, 'reloaded')
 
@@ -2257,9 +2284,11 @@ test('runtime reloads target-state local catalog tools for later runs', async ()
   }
 })
 
-test('target-state local catalog loading uses layered tool files', async () => {
+test('target-state local catalog loading registers layered tool files but pack controls grants', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-target-tool-'))
   const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const profilesDir = join(dir, 'profiles')
   try {
     writeJSONFile(toolsDir, 'dynamic.tool.json', {
       name: 'studio_dynamic_echo',
@@ -2275,9 +2304,14 @@ test('target-state local catalog loading uses layered tool files', async () => {
     const catalog = loadAgentPluginCatalog({
       toolsDir,
       builtinToolsDir: toolsDir,
+      packsDir,
+      profilesDir,
+      builtinPacksDir: packsDir,
+      builtinProfilesDir: profilesDir,
       baseManifest: DYNAMIC_CATALOG_BASE_MANIFEST,
     })
     assert.equal(Boolean(catalog.registry.get('studio_dynamic_echo')), true)
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio_dynamic_echo'), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -2359,7 +2393,7 @@ test('in-flight runs keep their catalog snapshot across external reloads', async
   client.projectId = 42
   const originalCallTool = client.callTool.bind(client)
   client.callTool = async (name, args = {}) => {
-    if (name === 'movscript_get_current_context') {
+    if (name === 'movscript_get_focus') {
       await new Promise<void>((resolve) => releaseContext.push(resolve))
     }
     return originalCallTool(name, args)
@@ -2412,6 +2446,34 @@ test('agent loop refreshes target-state tools after catalog reload in the same r
           inputSchema: {},
           projectScoped: false,
           defaults: { grant: 'allow', approval: 'never' },
+        })
+        writeJSONFile(skillsDir, 'dynamic.workflow.json', {
+          id: 'studio.workflow.same-run',
+          kind: 'workflow',
+          name: 'Same Run Echo',
+          description: 'Expose the same-run echo tool after catalog reload.',
+          triggers: [{ kind: 'always' }],
+          toolRefs: ['tool://studio_same_run_echo'],
+          instructionTemplate: 'Use the same-run echo tool after catalog reload.',
+        })
+        writeJSONFile(packsDir, 'dynamic.pack.json', {
+          id: 'studio.pack.same-run',
+          name: 'Same Run Test Pack',
+          source: 'plugin',
+          schemas: [],
+          tools: ['studio_same_run_echo'],
+          skills: ['studio.workflow.same-run'],
+        })
+        writeJSONFile(profilesDir, 'default.profile.json', {
+          schema: 'movscript.agent.profile.v1',
+          id: 'movscript.profile.default',
+          version: '1.0.0',
+          name: 'Same Run Test Profile',
+          enabledPacks: ['studio.pack.same-run'],
+          persona: null,
+          enabledWorkflows: [],
+          enabledPolicies: [],
+          toolGrants: [],
         })
       }
       return loadAgentPluginCatalog({

@@ -1,0 +1,22 @@
+{
+  "name": "movscript_wait_subagent",
+  "description": "检查 worker subagent、task 或 plan 是否完成，并返回最新结构化快照。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "subagentName": { "type": "string" },
+      "runId": { "type": "string" },
+      "taskId": { "type": "string" },
+      "planId": { "type": "string" },
+      "timeoutMs": { "type": "number" }
+    }
+  },
+  "permission": "agent.subagent.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": { "grant": "allow", "approval": "never" },
+  "source": "runtime",
+  "capability": "等待或检查 planner 拥有的 worker subagent 进度。",
+  "allowedRunRoles": ["planner"]
+}

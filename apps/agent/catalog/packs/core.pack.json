@@ -2,7 +2,7 @@
   "id": "movscript.pack.agent-core",
   "version": "1.0.0",
   "name": "Agent Core",
-  "description": "Agent-owned memory, subagent orchestration, user input, and catalog reload tools.",
+  "description": "Agent 拥有的 memory、subagent 编排、用户输入和 catalog reload 工具。",
   "source": "builtin",
   "schemas": [],
   "tools": [
@@ -21,6 +21,6 @@
     "movscript.persona.default",
     "movscript.persona.plan-orchestrator",
     "movscript.persona.reviewer",
-    "movscript.policy.approval-boundaries"
+    "movscript.policy.agent-core"
   ]
 }

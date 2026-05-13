@@ -90,7 +90,7 @@ test('renderLocalFinalAssistantContent renders local context command output', ()
     },
     run: buildTestRun(),
     context: buildTestContext() as unknown as Record<string, unknown>,
-    warnings: ['Context pack unavailable: mcp offline'],
+    warnings: ['Focus unavailable: mcp offline'],
     memories: [],
     modelContent: 'model output should not be used',
   })
@@ -98,7 +98,7 @@ test('renderLocalFinalAssistantContent renders local context command output', ()
   assert.match(content, /Command: \/context/)
   assert.match(content, /Model context text:/)
   assert.match(content, /Business reference: project#42/)
-  assert.match(content, /Context pack unavailable: mcp offline/)
+  assert.match(content, /Focus unavailable: mcp offline/)
   assert.doesNotMatch(content, /model output should not be used/)
 })
 

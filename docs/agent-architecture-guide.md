@@ -33,7 +33,7 @@ Frontend / Electron
 ## Run 流程
 
 1. `createRun()` 创建 Run，保存 `AgentRunPolicy`。
-2. `executeRun()` 调用 `movscript_get_current_context` 获取紧凑上下文包。
+2. `executeRun()` 调用 `movscript_get_focus` 获取紧凑上下文包。
 3. 加载 memory 短索引，解析 profile、layered catalog、triggered workflows、tools/capabilities。
 4. `contextBuilder.buildContext()` 生成分层 system messages 和 debug prompt stats。
 5. agentic loop 选择下一批 tool calls。

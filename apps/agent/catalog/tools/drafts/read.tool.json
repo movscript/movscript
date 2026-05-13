@@ -1,6 +1,6 @@
 {
   "name": "movscript_read_draft",
-  "description": "Read a local draft file by absolute file path and return its content plus metadata.",
+  "description": "按绝对文件路径读取本地 draft 文件，并返回其 content 和 metadata。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,

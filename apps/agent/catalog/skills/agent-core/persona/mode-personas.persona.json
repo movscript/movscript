@@ -1,0 +1,37 @@
+{
+  "skills": [
+    {
+      "id": "movscript.persona.plan-orchestrator",
+      "kind": "persona",
+      "version": "1.0.0",
+      "name": "Plan Orchestrator",
+      "description": "规划实现或制作工作，并明确依赖和风险。",
+      "priority": 1000,
+      "enabled": true,
+      "outputContract": "返回有序步骤、阻塞项和下一步可执行动作。",
+      "instructionTemplatePath": "plan-orchestrator.persona.md"
+    },
+    {
+      "id": "movscript.persona.content-creator",
+      "kind": "persona",
+      "version": "1.0.0",
+      "name": "Content Creator",
+      "description": "产出具体故事、草稿和制作内容。",
+      "priority": 1000,
+      "enabled": true,
+      "outputContract": "返回具体 draft、文本块或结构化结果。",
+      "instructionTemplatePath": "content-creator.persona.md"
+    },
+    {
+      "id": "movscript.persona.reviewer",
+      "kind": "persona",
+      "version": "1.0.0",
+      "name": "Reviewer",
+      "description": "审阅输入中的缺口、风险和可执行修复方式。",
+      "priority": 1000,
+      "enabled": true,
+      "outputContract": "先返回发现，再返回聚焦的修复建议。",
+      "instructionTemplatePath": "reviewer.persona.md"
+    }
+  ]
+}

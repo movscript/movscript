@@ -156,7 +156,7 @@ Does not contain:
 - subagent details unless relevant
 - default chat command contracts; command contracts are injected only for explicit runtime commands or non-natural output/tool requirements
 
-### Level 1: Current Context Envelope
+### Level 1: Current Focus
 
 Always included, but short.
 
@@ -200,7 +200,7 @@ The target prompt composer should assemble system messages in this order:
 
 ```text
 Core Runtime Protocol
-Current Context Envelope
+Current Focus
 Persona
 Policies
 Triggered Workflows

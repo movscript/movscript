@@ -1,6 +1,6 @@
 {
   "name": "movscript_create_draft",
-  "description": "Create a local draft. The kind field selects the draft schema. Set proposal:true to create a proposal draft with schema validation and inferred target/source metadata; without proposal:true creates a plain draft.",
+  "description": "创建本地 draft。kind 字段选择 draft schema。设置 proposal:true 会创建带 schema 校验和推断 target/source metadata 的 proposal draft；不设置 proposal:true 则创建普通 draft。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -66,5 +66,5 @@
     "approval": "never"
   },
   "source": "runtime",
-  "capability": "Create a local review draft or proposal draft for the selected schema kind."
+  "capability": "为所选 schema kind 创建本地审阅 draft 或 proposal draft。"
 }

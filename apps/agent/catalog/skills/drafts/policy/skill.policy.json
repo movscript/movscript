@@ -1,0 +1,18 @@
+{
+  "id": "movscript.policy.drafts",
+  "kind": "policy",
+  "version": "1.0.0",
+  "name": "Drafts Policy",
+  "description": "定义本地审阅 draft 边界，以及 draft 变更的汇报要求。",
+  "priority": 900,
+  "enabled": true,
+  "scope": "global",
+  "toolRefs": [
+    "tool://movscript_read_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_update_draft"
+  ],
+  "outputContract": "明确说明 artifact 是本地审阅状态，还是已批准的后端写入目标。",
+  "instructionTemplatePath": "instruction.md"
+}

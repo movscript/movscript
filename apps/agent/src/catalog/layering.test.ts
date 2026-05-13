@@ -47,14 +47,11 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
 
   assert.ok(registry.schemas.has('movscript.project_proposal.v1'))
   assert.ok(registry.tools.has('movscript_update_draft'))
-  assert.ok(registry.skills.has('movscript.policy.safe-drafts'))
+  assert.ok(registry.skills.has('movscript.policy.drafts'))
   assert.ok(registry.packs.has('movscript.pack.default'))
   assert.ok(registry.packs.has('movscript.pack.agent-core'))
-  assert.ok(registry.packs.has('movscript.pack.movscript-workspace'))
-  assert.ok(registry.packs.has('movscript.pack.proposal-project'))
-  assert.ok(registry.packs.has('movscript.pack.proposal-production'))
-  assert.ok(registry.packs.has('movscript.pack.proposal-asset'))
-  assert.ok(registry.packs.has('movscript.pack.proposal-content-unit'))
+  assert.ok(registry.packs.has('movscript.pack.drafts'))
+  assert.ok(registry.packs.has('movscript.pack.movscript'))
   assert.ok(registry.profiles.has('movscript.profile.default'))
   assert.equal(registry.profiles.size, 1)
   assert.equal(catalog.catalogIssues.some((issue) => issue.level === 'error'), false)
@@ -63,29 +60,54 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
 
 test('target-state pack files and the default profile are loaded as first-class catalog resources', () => {
   const catalog = loadAgentPluginCatalog()
-  const projectProposalPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.proposal-project')
-  const productionProposalPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.proposal-production')
+  const movscriptPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.movscript')
   const defaultProfile = catalog.profiles.find((profile) => profile.id === 'movscript.profile.default')
 
-  assert.ok(projectProposalPack)
-  assert.equal(projectProposalPack.source, 'builtin')
-  assert.ok(projectProposalPack.schemas.includes('movscript.project_proposal.v1'))
-  assert.ok(projectProposalPack.skills.includes('movscript.workflow.project-proposal'))
-  assert.ok(productionProposalPack)
-  assert.ok(productionProposalPack.schemas.includes('movscript.production_proposal.v1'))
-  assert.ok(productionProposalPack.skills.includes('movscript.workflow.production-proposal'))
+  assert.ok(movscriptPack)
+  assert.equal(movscriptPack.source, 'builtin')
+  assert.deepEqual(movscriptPack.schemas, [])
+  assert.deepEqual(movscriptPack.requires?.packs, {
+    'movscript.pack.agent-core': '>=1.0.0',
+    'movscript.pack.drafts': '>=1.0.0',
+  })
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.project-proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.production-proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.asset-proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.content-unit-proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.visual-generation'))
   assert.ok(defaultProfile)
-  assert.ok(defaultProfile.enabledPacks.includes('movscript.pack.proposal-project'))
-  assert.ok(defaultProfile.enabledPacks.includes('movscript.pack.proposal-production'))
-  assert.ok(defaultProfile.enabledPacks.includes('movscript.pack.proposal-asset'))
-  assert.ok(defaultProfile.enabledPacks.includes('movscript.pack.proposal-content-unit'))
-  assert.ok(defaultProfile.enabledPacks.includes('movscript.pack.visual-generation'))
+  assert.deepEqual(defaultProfile.enabledPacks, [
+    'movscript.pack.agent-core',
+    'movscript.pack.drafts',
+    'movscript.pack.movscript',
+  ])
   assert.equal(defaultProfile.persona, 'movscript.persona.default')
+  assert.deepEqual(defaultProfile.enabledWorkflows, [
+    'movscript.workflow.project-progress',
+    'movscript.workflow.proposal-first',
+    'movscript.workflow.project-proposal',
+    'movscript.workflow.setting-prep',
+    'movscript.workflow.production-proposal',
+    'movscript.workflow.dual-orchestration',
+    'movscript.workflow.asset-proposal',
+    'movscript.workflow.asset-candidate-generation',
+    'movscript.workflow.content-unit-proposal',
+    'movscript.workflow.content-unit-media-proposal',
+    'movscript.workflow.storyboard-gap-review',
+    'movscript.workflow.visual-generation',
+  ])
+  assert.deepEqual(defaultProfile.enabledPolicies, [
+    'movscript.policy.agent-core',
+    'movscript.policy.drafts',
+    'movscript.policy.movscript',
+  ])
 
   const resolved = resolveProfile(catalog.layeredRegistry)
   assert.equal(resolved.profile.id, 'movscript.profile.default')
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.project-proposal'))
   assert.ok(resolved.profile.enabledWorkflows.includes('movscript.workflow.production-proposal'))
+  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_create_generation_job' && grant.approval === 'always'))
+  assert.ok(resolved.profile.toolGrants.some((grant) => grant.name === 'movscript_request_user_input' && grant.approval === 'never'))
 })
 
 test('asset candidate preparation is separated from generation execution', () => {
@@ -121,16 +143,16 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_cancel_generation_job'))
 
-  assert.match(assetCandidate.instructionTemplate, /Do not create image or video generation jobs here/)
-  assert.match(assetCandidate.instructionTemplate, /use model discovery contracts rather than provider assumptions/i)
-  assert.match(visualGeneration.instructionTemplate, /This workflow may create generation jobs/)
-  assert.match(visualGeneration.instructionTemplate, /Prefer `model_contracts` for compact planning/)
-  assert.match(visualGeneration.instructionTemplate, /Submit only top-level and `extra_params` values supported by the selected model/)
-  assert.match(visualGeneration.instructionTemplate, /reference resources whose image\/video counts satisfy `input_requirements`/)
-  assert.match(visualGeneration.instructionTemplate, /Treat `param_validation` with `audit_version: 1` as the audit trail/)
+  assert.match(assetCandidate.instructionTemplate, /不要在这里创建图片或视频生成任务/)
+  assert.match(assetCandidate.instructionTemplate, /使用模型发现 contracts，而不是 provider 假设/)
+  assert.match(visualGeneration.instructionTemplate, /只能通过需要审批的生成工具创建生成任务/)
+  assert.match(visualGeneration.instructionTemplate, /优先用 `model_contracts` 做紧凑规划/)
+  assert.match(visualGeneration.instructionTemplate, /只提交被选中模型的 `supported_param_keys` \/ `supported_params` 支持的顶层参数和 `extra_params` 值/)
+  assert.match(visualGeneration.instructionTemplate, /图片\/视频数量满足 `input_requirements` 的参考资源/)
+  assert.match(visualGeneration.instructionTemplate, /将带有 `audit_version: 1` 的 `param_validation` 视为参数过滤和本地 preflight 的审计轨迹/)
   assert.match(visualGeneration.instructionTemplate, /`input_preflight_errors`/)
-  assert.match(visualGeneration.instructionTemplate, /explanatory audit data, not final backend rejection/)
-  assert.match(visualGeneration.instructionTemplate, /Do not auto-repair `UNSUPPORTED_OUTPUT_TYPE` or `INVALID_INPUT_COUNT`/)
+  assert.match(visualGeneration.instructionTemplate, /解释性审计数据，而不是最终后端拒绝/)
+  assert.match(visualGeneration.instructionTemplate, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
   assert.match(visualGeneration.instructionTemplate, /\{\{tool:movscript_create_generation_job\.errors\}\}/)
   assert.match(listModelsTool.description, /model_contracts/)
   assert.match(listModelsTool.description, /contract_version 1/)
@@ -154,12 +176,12 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.ok(listModelsContractProperties.supported_param_keys)
   assert.ok(listModelsContractProperties.supported_params)
   assert.ok(listModelsContractProperties.params_schema_rule_count)
-  assert.match(createJobTool.description, /call movscript_list_models/)
-  assert.match(createJobTool.description, /selected model's contract/)
-  assert.match(createJobTool.description, /param_validation audit_version 1/)
+  assert.match(createJobTool.description, /先调用 movscript_list_models/)
+  assert.match(createJobTool.description, /所选模型 contract/)
+  assert.match(createJobTool.description, /audit_version 1 的 param_validation/)
   assert.match(createJobTool.description, /input_preflight_errors/)
-  assert.match(createJobTool.description, /explanatory audit data, not backend rejection/)
-  assert.match(createJobTool.description, /UNSUPPORTED_OUTPUT_TYPE and INVALID_INPUT_COUNT/)
+  assert.match(createJobTool.description, /解释性审计数据，本身不是后端拒绝/)
+  assert.match(createJobTool.description, /UNSUPPORTED_OUTPUT_TYPE 和 INVALID_INPUT_COUNT/)
   assert.deepEqual(createJobTool.errorCodes, generationValidationErrorCodes())
   const createJobOutputProperties = schemaProperties(createJobTool.outputSchema)
   assert.ok(createJobOutputProperties.status)
@@ -212,8 +234,8 @@ test('visual generation prompt exposes backend generation validation error codes
   for (const code of generationValidationErrorCodes()) {
     assert.match(prompt.systemPrompt, new RegExp(`\\b${code}\\b`))
   }
-  assert.match(prompt.systemPrompt, /preflight_errors` and `input_preflight_errors` as explanatory audit data/)
-  assert.match(prompt.systemPrompt, /Do not auto-repair `UNSUPPORTED_OUTPUT_TYPE` or `INVALID_INPUT_COUNT`/)
+  assert.match(prompt.systemPrompt, /`preflight_errors` 和 `input_preflight_errors` 视为解释性审计数据/)
+  assert.match(prompt.systemPrompt, /不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`/)
 })
 
 test('workflow skills use isolated skill directories', () => {
@@ -236,23 +258,23 @@ test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('workflow/visual-generation.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/visual-generation.workflow.md', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/asset-candidate-generation.workflow.md', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('workflow/planning/proposal-first/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/project/project-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/production/production-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/production/dual-orchestration/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/asset/asset-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/content-unit/content-unit-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/content-unit/content-unit-media-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/planning/script-split/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('workflow/proposal/project/setting-prep/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/writing/script-writing/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('workflow/movscript/workspace/project-progress/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/content-unit/storyboard-gap-review/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/creative/creative-workbench/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
-  assert.equal(existsSync(new URL('workflow/generation/visual-generation/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/generation/visual-generation/instruction.md', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/asset/asset-candidate-generation/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('workflow/proposal/asset/asset-candidate-generation/instruction.md', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/planning/proposal-first/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/project/project-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/production/production-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/production/dual-orchestration/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-media-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/planning/script-split/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/project/setting-prep/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/writing/script-writing/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('movscript/workflow/workspace/project-progress/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/storyboard-gap-review/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/creative/creative-workbench/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
+  assert.equal(existsSync(new URL('movscript/workflow/generation/visual-generation/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/generation/visual-generation/instruction.md', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-candidate-generation/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-candidate-generation/instruction.md', CATALOG_SKILLS_DIR)), true)
 })
 
 test('target-state skill and tool files define the active runtime resources', () => {
@@ -263,7 +285,7 @@ test('target-state skill and tool files define the active runtime resources', ()
   assert.ok(workflow?.kind === 'workflow')
   assert.equal(workflow.version, '1.0.0')
   assert.ok(workflow.schemaRefs?.includes('schema://movscript.project_proposal.v1'))
-  assert.match(workflow.instructionTemplate, /Goal: produce or edit one local project_proposal draft/)
+  assert.match(workflow.instructionTemplate, /目标：产出或编辑一个本地 project_proposal draft/)
   assert.match(workflow.instructionTemplate, /\{\{schema:movscript\.project_proposal\.v1\}\}/)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.script-split'), false)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.script-writing'), false)
@@ -316,6 +338,51 @@ test('linter rejects missing refs and old profile permissions field', () => {
   assert.ok(issues.some((issue) => issue.code === 'profile.permissions.present'))
 })
 
+test('linter rejects packs that do not cover included skill refs', () => {
+  const registry = buildLayeredCatalogRegistry({
+    manifest: {
+      schema: 'movscript.agent.current',
+      id: 'test',
+      version: '1.0.0',
+      name: 'Test',
+      tools: [],
+    },
+    tools: [{
+      name: 'studio_read',
+      description: 'Read studio data.',
+      permission: 'studio.read',
+      risk: 'read',
+      projectScoped: false,
+      requiresApprovalByDefault: false,
+      source: 'runtime',
+    }],
+    layeredSkills: [{
+      id: 'studio.workflow.read',
+      kind: 'workflow',
+      version: '1.0.0',
+      name: 'Read',
+      description: 'Read workflow',
+      priority: 100,
+      enabled: true,
+      instructionTemplate: 'Read.',
+      triggers: [{ kind: 'intent', id: 'read' }],
+      toolRefs: ['tool://studio_read'],
+    }],
+    packs: [{
+      id: 'studio.pack.incomplete',
+      version: '1.0.0',
+      name: 'Incomplete',
+      source: 'builtin',
+      schemas: [],
+      tools: [],
+      skills: ['studio.workflow.read'],
+    }],
+  })
+
+  const issues = lintCatalog(registry)
+  assert.ok(issues.some((issue) => issue.code === 'pack.tool_ref.uncovered'))
+})
+
 test('linter flags workflow language in tool descriptions', () => {
   const registry = buildLayeredCatalogRegistry({
     manifest: {
@@ -346,7 +413,7 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
   assert.deepEqual(warnings, [])
 
   const workflow = catalog.layeredRegistry.skills.get('movscript.workflow.project-proposal')
-  const policy = catalog.layeredRegistry.skills.get('movscript.policy.safe-drafts')
+  const policy = catalog.layeredRegistry.skills.get('movscript.policy.drafts')
   assert.ok(workflow?.kind === 'workflow')
   assert.ok(policy?.kind === 'policy')
 
@@ -397,15 +464,15 @@ test('org and user profile overrides can only narrow runtime capability', () => 
     id: 'acme.profile.org',
     version: '1.0.0',
     name: 'Org Override',
-    enabledPacks: ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.proposal-project'],
+    enabledPacks: ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.movscript'],
     persona: null,
     enabledWorkflows: ['movscript.workflow.project-proposal'],
-    enabledPolicies: ['movscript.policy.safe-drafts', 'movscript.policy.approval-boundaries', 'movscript.policy.platform-concepts'],
+    enabledPolicies: ['movscript.policy.drafts', 'movscript.policy.agent-core', 'movscript.policy.movscript'],
     toolGrants: [
       { name: 'movscript_update_draft', mode: 'allow' as const, approval: 'always' as const },
       { name: 'movscript_create_draft', mode: 'deny' as const },
     ],
-    limits: { maxToolCallsPerTurn: 4 },
+    limits: { maxActiveWorkflows: 1 },
   }
   const userProfile = {
     schema: 'movscript.agent.profile.v1' as const,
@@ -427,11 +494,11 @@ test('org and user profile overrides can only narrow runtime capability', () => 
   })
 
   assert.deepEqual(resolved.warnings, [])
-  assert.deepEqual(resolved.profile.enabledPacks, ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.proposal-project'])
+  assert.deepEqual(resolved.profile.enabledPacks, ['movscript.pack.agent-core', 'movscript.pack.drafts', 'movscript.pack.movscript'])
   assert.deepEqual(resolved.profile.enabledWorkflows, ['movscript.workflow.project-proposal'])
   assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_update_draft')?.mode, 'deny')
   assert.equal(resolved.profile.toolGrants.find((grant) => grant.name === 'movscript_create_draft')?.mode, 'deny')
-  assert.equal(resolved.profile.limits?.maxToolCallsPerTurn, 4)
+  assert.equal(resolved.profile.limits?.maxActiveWorkflows, 1)
   assert.deepEqual(resolved.profile.resolvedFrom?.layers.map((layer) => layer.source), ['default', 'org', 'user'])
 })
 
@@ -460,7 +527,7 @@ test('org and user profile overrides are rejected as a whole when they add or lo
     enabledPacks: [],
     persona: null,
     enabledWorkflows: [],
-    enabledPolicies: ['movscript.policy.safe-drafts'],
+    enabledPolicies: ['movscript.policy.drafts'],
     toolGrants: [],
   }
 

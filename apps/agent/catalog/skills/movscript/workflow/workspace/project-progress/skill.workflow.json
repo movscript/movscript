@@ -1,0 +1,28 @@
+{
+  "id": "movscript.workflow.project-progress",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Project Progress",
+  "description": "根据上下文、剧本、drafts 和可用状态总结当前项目进度。",
+  "priority": 660,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "keyword",
+      "any": [
+        "进度",
+        "完成度",
+        "project progress",
+        "status"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_read_project_scripts",
+    "tool://movscript_list_drafts"
+  ],
+  "toolScope": "intersect",
+  "outputContract": "返回已验证进度、未关闭 drafts、阻塞项和推荐下一步。",
+  "instructionTemplatePath": "instruction.md"
+}

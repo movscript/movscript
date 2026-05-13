@@ -132,7 +132,6 @@ export interface ToolGrant {
 
 export interface ProfileLimits {
   maxActiveWorkflows?: number
-  maxToolCallsPerTurn?: number
   systemPromptCharLimit?: number
 }
 

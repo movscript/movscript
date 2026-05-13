@@ -90,11 +90,11 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     ].filter(Boolean).join('\n'),
   })
 
-  // --- Current Context Envelope ---
+  // --- Focus ---
   debugParts.push({
     id: 'context.summary',
     kind: 'context',
-    title: 'Current context',
+    title: 'Focus',
     content: renderDebugContextText(input.context),
   })
 

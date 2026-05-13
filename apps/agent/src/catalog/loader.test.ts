@@ -5,22 +5,23 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { loadAgentPluginCatalog } from './loader.js'
 
-test('loads target-state tool catalog and ignores non-layered skill files', () => {
+test('loads target-state tool catalog but only enabled packs grant runtime access', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-plugins-'))
   const skillsDir = join(dir, 'skills')
   const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const profilesDir = join(dir, 'profiles')
 
   try {
-    writePluginFile(skillsDir, 'writer.json', {
-      skills: [{
-        id: 'studio.writer',
-        name: 'Writer',
-        description: 'Writes scene drafts',
-        enabled: true,
-        priority: 20,
-        instruction: 'Write in short scene beats.',
-        toolHints: ['studio.script_outline'],
-      }],
+    writePluginFile(skillsDir, 'writer.workflow.json', {
+      id: 'studio.workflow.writer',
+      kind: 'workflow',
+      name: 'Writer',
+      description: 'Writes scene drafts',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolRefs: ['tool://studio.script_outline'],
+      instructionTemplate: 'Write in short scene beats.',
     })
     writePluginFile(toolsDir, 'outline.tool.json', {
       name: 'studio.script_outline',
@@ -39,18 +40,30 @@ test('loads target-state tool catalog and ignores non-layered skill files', () =
       projectScoped: true,
       defaults: { grant: 'allow', approval: 'never' },
     })
+    writePluginFile(packsDir, 'studio.pack.json', {
+      id: 'studio.pack.writer',
+      name: 'Studio Writer',
+      source: 'plugin',
+      schemas: [],
+      tools: ['studio.script_outline'],
+      skills: ['studio.workflow.writer'],
+    })
     const catalog = loadAgentPluginCatalog({
       skillsDir,
       toolsDir,
+      packsDir,
+      profilesDir,
       builtinSkillsDir: skillsDir,
       builtinToolsDir: toolsDir,
+      builtinPacksDir: packsDir,
+      builtinProfilesDir: profilesDir,
     })
 
     assert.equal(catalog.skillsDir, skillsDir)
     assert.equal(catalog.toolsDir, toolsDir)
-    const writerSkill = catalog.layeredSkills.find((skill) => skill.id === 'studio.writer')
+    const writerSkill = catalog.layeredSkills.find((skill) => skill.id === 'studio.workflow.writer')
     const outlineTool = catalog.layeredTools.find((tool) => tool.name === 'studio.script_outline')
-    assert.equal(writerSkill, undefined)
+    assert.equal(writerSkill?.kind, 'workflow')
     assert.equal(outlineTool?.name, 'studio.script_outline')
     assert.equal(outlineTool?.source, 'plugin')
     assert.deepEqual(outlineTool?.inputSchema, {
@@ -60,9 +73,81 @@ test('loads target-state tool catalog and ignores non-layered skill files', () =
         title: { type: 'string' },
       },
     })
-    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'))
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'), false)
     assert.ok(catalog.registry.get('studio.script_outline'))
     assert.deepEqual(catalog.warnings, [])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('enabled pack registration activates file-loaded skills and tools without profile duplication', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-enabled-pack-'))
+  const skillsDir = join(dir, 'skills')
+  const toolsDir = join(dir, 'tools')
+  const packsDir = join(dir, 'packs')
+  const profilesDir = join(dir, 'profiles')
+
+  try {
+    writePluginFile(skillsDir, 'writer.workflow.json', {
+      id: 'studio.workflow.writer',
+      kind: 'workflow',
+      name: 'Writer',
+      description: 'Writes scene drafts',
+      enabled: true,
+      triggers: [{ kind: 'always' }],
+      toolRefs: ['tool://studio.script_outline'],
+      instructionTemplate: 'Write in short scene beats.',
+    })
+    writePluginFile(toolsDir, 'outline.tool.json', {
+      name: 'studio.script_outline',
+      description: 'Create a script outline draft.',
+      permission: 'draft.write',
+      risk: 'draft',
+      source: 'plugin',
+      pluginId: 'test.writer',
+      inputSchema: { type: 'object', properties: {} },
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+    })
+    writePluginFile(packsDir, 'studio.pack.json', {
+      id: 'studio.pack.writer',
+      name: 'Studio Writer',
+      source: 'plugin',
+      schemas: [],
+      tools: ['studio.script_outline'],
+      skills: ['studio.workflow.writer'],
+    })
+    writePluginFile(profilesDir, 'default.profile.json', {
+      schema: 'movscript.agent.profile.v1',
+      id: 'movscript.profile.default',
+      version: '1.0.0',
+      name: 'Default',
+      enabledPacks: ['studio.pack.writer'],
+      persona: null,
+      enabledWorkflows: [],
+      enabledPolicies: [],
+      toolGrants: [],
+    })
+
+    const catalog = loadAgentPluginCatalog({
+      skillsDir,
+      toolsDir,
+      packsDir,
+      profilesDir,
+      builtinSkillsDir: skillsDir,
+      builtinToolsDir: toolsDir,
+      builtinPacksDir: packsDir,
+      builtinProfilesDir: profilesDir,
+    })
+    const profile = catalog.profiles.find((item) => item.id === 'movscript.profile.default')
+
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'studio.workflow.writer'))
+    assert.ok(catalog.registry.get('studio.script_outline'))
+    assert.deepEqual(profile?.enabledWorkflows, ['studio.workflow.writer'])
+    assert.deepEqual(profile?.toolGrants, [{ name: 'studio.script_outline', mode: 'allow', approval: 'never' }])
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.script_outline'))
+    assert.deepEqual(catalog.catalogIssues, [])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -78,20 +163,19 @@ test('loads built-in MovScript platform catalog by default', () => {
 
     assert.ok(catalog.builtinSkillsDir.endsWith(join('catalog', 'skills')))
     assert.ok(catalog.builtinToolsDir.endsWith(join('catalog', 'tools')))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.platform-concepts'))
-    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.safe-drafts'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.movscript'))
+    assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.policy.drafts'))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.proposal-first'))
     assert.ok(catalog.layeredSkills.some((skill) => skill.id === 'movscript.workflow.project-proposal'))
     assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.agent-core'))
-    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.movscript-workspace'))
-    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal-project'))
-    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal-asset'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.drafts'))
+    assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.movscript'))
     assert.ok(catalog.profiles.some((profile) => profile.id === 'movscript.profile.default'))
-    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_get_current_context'))
+    assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_get_focus'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_project'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_list_models'))
     assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_draft'))
-    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_get_current_context'))
+    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_get_focus'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_list_models'))
     assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'movscript_create_project' && grant.approval === 'always'))
     assert.ok(catalog.registry.get('movscript_create_draft'))
@@ -106,21 +190,20 @@ test('loads built-in MovScript platform catalog by default', () => {
 test('loads built-in content unit proposal catalogs by default', () => {
   const catalog = loadAgentPluginCatalog()
 
-  const contentUnitPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.proposal-content-unit')
+  const movscriptPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.movscript')
+  const draftPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.drafts')
 
-  assert.ok(contentUnitPack)
-  assert.ok(contentUnitPack?.tools.includes('movscript_create_draft'))
-  assert.ok(contentUnitPack?.tools.includes('movscript_read_draft'))
-  assert.ok(contentUnitPack?.tools.includes('movscript_update_draft'))
-  assert.ok(contentUnitPack?.skills.includes('movscript.workflow.content-unit-proposal'))
-  assert.ok(contentUnitPack?.skills.includes('movscript.workflow.content-unit-media-proposal'))
+  assert.ok(movscriptPack)
+  assert.ok(draftPack?.schemas.includes('movscript.content_unit_proposal.v1'))
+  assert.ok(draftPack?.schemas.includes('movscript.content_unit_media_proposal.v1'))
+  assert.ok(movscriptPack?.skills.includes('movscript.workflow.content-unit-proposal'))
+  assert.ok(movscriptPack?.skills.includes('movscript.workflow.content-unit-media-proposal'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_draft'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_read_draft'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_update_draft'))
-  assert.ok(catalog.packs.some((pack) => pack.id === 'movscript.pack.proposal-project'))
   assert.equal(catalog.registry.get('movscript_upsert_proposal_node'), undefined)
   assert.equal(catalog.registry.get('movscript_submit_script_split_draft'), undefined)
-  assert.equal(catalog.registry.get('movscript_list_productions'), undefined)
+  assert.equal(catalog.registry.get('movscript_update_proposal_node'), undefined)
   assert.deepEqual(catalog.warnings, [])
 })
 
@@ -163,7 +246,7 @@ test('loads target-state tool files recursively and ignores non-layered categori
     assert.equal(skill, undefined)
     assert.equal(tool?.source, 'plugin')
     assert.equal(tool?.pluginId, 'test.production')
-    assert.ok(catalog.manifest.tools.some((grant) => grant.name === 'studio.read_production'))
+    assert.equal(catalog.manifest.tools.some((grant) => grant.name === 'studio.read_production'), false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

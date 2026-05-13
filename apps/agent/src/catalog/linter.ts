@@ -10,6 +10,7 @@ export function lintCatalog(registry: CatalogRegistry): CatalogIssue[] {
     for (const schema of pack.schemas) if (!registry.schemas.has(schema)) error(issues, 'pack.schema.missing', `pack ${pack.id} references missing schema ${schema}`, pack.id)
     for (const tool of pack.tools) if (!registry.tools.has(tool)) error(issues, 'pack.tool.missing', `pack ${pack.id} references missing tool ${tool}`, pack.id)
     for (const skill of pack.skills) if (!registry.skills.has(skill)) error(issues, 'pack.skill.missing', `pack ${pack.id} references missing skill ${skill}`, pack.id)
+    lintPackClosure(pack.id, registry, issues)
   }
   for (const profile of registry.profiles.values()) {
     if ('permissions' in profile) error(issues, 'profile.permissions.present', `profile ${profile.id} must not declare permissions`, profile.id)
@@ -43,6 +44,51 @@ export function lintCatalog(registry: CatalogRegistry): CatalogIssue[] {
     }
   }
   return issues
+}
+
+function lintPackClosure(packId: string, registry: CatalogRegistry, issues: CatalogIssue[]): void {
+  const pack = registry.packs.get(packId)
+  if (!pack) return
+  const coveredPacks = collectPackClosure(packId, registry)
+  const coveredSchemas = new Set<string>()
+  const coveredTools = new Set<string>()
+  for (const id of coveredPacks) {
+    const item = registry.packs.get(id)
+    if (!item) continue
+    for (const schema of item.schemas) coveredSchemas.add(schema)
+    for (const tool of item.tools) coveredTools.add(tool)
+  }
+
+  for (const skillId of pack.skills) {
+    const skill = registry.skills.get(skillId)
+    if (!skill) continue
+    for (const ref of skill.toolRefs ?? []) {
+      const tool = stripRef(ref, 'tool://')
+      if (!coveredTools.has(tool)) {
+        error(issues, 'pack.tool_ref.uncovered', `pack ${pack.id} includes skill ${skill.id} but neither the pack nor its required packs include tool ${tool}`, pack.id)
+      }
+    }
+    for (const ref of skill.schemaRefs ?? []) {
+      const schema = stripRef(ref, 'schema://')
+      if (!coveredSchemas.has(schema)) {
+        error(issues, 'pack.schema_ref.uncovered', `pack ${pack.id} includes skill ${skill.id} but neither the pack nor its required packs include schema ${schema}`, pack.id)
+      }
+    }
+  }
+}
+
+function collectPackClosure(packId: string, registry: CatalogRegistry): Set<string> {
+  const visited = new Set<string>()
+  visit(packId)
+  return visited
+
+  function visit(id: string): void {
+    if (visited.has(id)) return
+    visited.add(id)
+    const pack = registry.packs.get(id)
+    if (!pack) return
+    for (const required of Object.keys(pack.requires?.packs ?? {})) visit(required)
+  }
 }
 
 function lintSkill(skill: SkillDefinition, registry: CatalogRegistry, issues: CatalogIssue[]): void {
@@ -92,8 +138,16 @@ function lintWorkflowBoundary(skill: Extract<SkillDefinition, { kind: 'workflow'
     .map((name) => registry.tools.get(name))
     .filter((tool): tool is ToolDefinition => !!tool && (tool.risk === 'write' || tool.risk === 'generate' || tool.risk === 'destructive'))
   if (riskyRefs.length === 0) return
-  const requiredSections = ['Goal:', 'Boundary:', 'Process:', 'Output:', 'Never:']
-  const missing = requiredSections.filter((section) => !skill.instructionTemplate.includes(section))
+  const requiredSections = [
+    { label: 'Goal/目标', markers: ['Goal:', '目标：'] },
+    { label: 'Boundary/边界', markers: ['Boundary:', '边界：'] },
+    { label: 'Process/流程', markers: ['Process:', '流程：'] },
+    { label: 'Output/输出', markers: ['Output:', '输出：'] },
+    { label: 'Never/绝不', markers: ['Never:', '绝不：'] },
+  ]
+  const missing = requiredSections
+    .filter((section) => !section.markers.some((marker) => skill.instructionTemplate.includes(marker)))
+    .map((section) => section.label)
   if (missing.length > 0) {
     error(
       issues,
