@@ -1,0 +1,33 @@
+{
+  "name": "movscript_replan",
+  "description": "更新当前 plan 的任务结构，必要时重置任务并派发 worker subagents。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "planId": { "type": "string" },
+      "tasks": { "type": "array", "items": { "type": "object" } },
+      "addTasks": { "type": "array", "items": { "type": "object" } },
+      "updates": { "type": "array", "items": { "type": "object" } },
+      "updateTasks": { "type": "array", "items": { "type": "object" } },
+      "resetTaskIds": { "type": "array", "items": { "type": "string" } },
+      "resetBlocked": { "type": "boolean" },
+      "resetNeedsReview": { "type": "boolean" },
+      "resetFailed": { "type": "boolean" },
+      "resetCancelled": { "type": "boolean" },
+      "dispatch": { "type": "boolean" },
+      "taskIds": { "type": "array", "items": { "type": "string" } },
+      "maxWorkers": { "type": "number" },
+      "maxTaskAttempts": { "type": "number" },
+      "retryFailed": { "type": "boolean" },
+      "workerTimeoutMs": { "type": "number" }
+    }
+  },
+  "permission": "agent.plan.write",
+  "risk": "write",
+  "projectScoped": false,
+  "defaults": { "grant": "allow", "approval": "never" },
+  "source": "runtime",
+  "capability": "在 worker 失败、阻塞、需要补充任务或需要调整依赖时维护当前 plan。",
+  "allowedRunRoles": ["planner"]
+}

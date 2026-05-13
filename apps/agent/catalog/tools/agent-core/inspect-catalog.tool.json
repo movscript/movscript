@@ -1,0 +1,42 @@
+{
+  "name": "movscript_inspect_agent_catalog",
+  "description": "只读查看当前 run 使用的 agent catalog snapshot，包括 profile、enabled packs、skills、tools 和可用性摘要。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "view": {
+        "type": "string",
+        "enum": [
+          "summary",
+          "pack",
+          "skill",
+          "tool",
+          "profile"
+        ],
+        "description": "要查看的 catalog 视图。默认 summary。"
+      },
+      "id": {
+        "type": "string",
+        "description": "pack id、skill id、tool name 或 profile id。summary 可省略。"
+      },
+      "includeInstruction": {
+        "type": "boolean",
+        "description": "查看 skill 时是否返回 instructionTemplate 正文。默认 false，仅在确实需要执行细节时使用。"
+      },
+      "includeSchema": {
+        "type": "boolean",
+        "description": "查看 tool 时是否返回 inputSchema/outputSchema。默认 false。"
+      }
+    }
+  },
+  "permission": "agent.catalog.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "按需读取当前 run 的 agent catalog snapshot 中的 pack、skill、tool 和 profile 详情，不会安装、启用或 reload catalog。"
+}

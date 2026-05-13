@@ -9,6 +9,7 @@ import {
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
   Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
   SlidersHorizontal, Wrench, Route, PlayIcon,
+  MessageSquareText, Braces, FileJson,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { getAPIBaseURL, getAPIV1BaseURL } from '@/lib/config'
@@ -95,6 +96,8 @@ import {
   type ChatMessage,
   type ChatRunActivity,
   type ChatRunActivityEvent,
+  type ChatContextDiagnostic,
+  type ChatContextDiagnosticTool,
   type Conversation,
   type AgentAttachment,
   type AgentSettings,
@@ -665,16 +668,37 @@ async function assistantResultPayloadForRun(run: AgentRun, liveEvents: ChatRunAc
   const generationJobs = replay.jobs
   const generationParamAudits = generationParamAuditsFromRun(run)
   const generationValidationErrors = generationValidationErrorsFromRun(run)
+  const contextDiagnostic = contextDiagnosticFromRun(run)
   return {
     ...withGeneratedAttachments(attachments),
     meta: {
       contextLabels: [`run ${run.status}`],
       localRunActivity: mergeRunActivityEvents(compactRunActivity(run), liveEvents),
+      ...(contextDiagnostic ? { contextDiagnostic } : {}),
       ...(generationJobs.length > 0 ? { generationJobs } : {}),
       ...(generationParamAudits.length > 0 ? { generationParamAudits } : {}),
       ...(generationValidationErrors.length > 0 ? { generationValidationErrors } : {}),
     },
   }
+}
+
+function contextDiagnosticFromRun(run: AgentRun): ChatContextDiagnostic | undefined {
+  const command = isRecord(run.metadata?.command) ? run.metadata.command : undefined
+  if (command?.name !== 'context') return undefined
+  for (const step of run.steps ?? []) {
+    if (step.type !== 'message' || !isRecord(step.result)) continue
+    const diagnostic = step.result.diagnostic
+    if (isChatContextDiagnostic(diagnostic)) return diagnostic
+  }
+  return undefined
+}
+
+function isChatContextDiagnostic(value: unknown): value is ChatContextDiagnostic {
+  if (!isRecord(value)) return false
+  if (value.schema !== 'movscript.local_context_diagnostic.v1') return false
+  if (!Array.isArray(value.messages) || !Array.isArray(value.debugParts)) return false
+  if (!isRecord(value.tools) || !Array.isArray(value.tools.available) || !Array.isArray(value.tools.blocked) || !Array.isArray(value.tools.modelTools)) return false
+  return true
 }
 
 function generatedFallbackAttachmentFromText(resourceId: number, text: string): AgentAttachment {
@@ -1679,7 +1703,7 @@ function debugHttpRequestEvents(requests: DebugHttpRequest[], startedAt = new Da
     kind: 'model_call',
     title: `${request.method} ${request.label}`,
     summary: request.url,
-    status: index === 0 ? 'started' : 'info',
+    status: 'info',
     data: {
       httpRequest: {
         method: request.method,
@@ -1691,6 +1715,40 @@ function debugHttpRequestEvents(requests: DebugHttpRequest[], startedAt = new Da
     },
     createdAt: startedAt,
   }))
+}
+
+function setActivityEventStatus(
+  events: ChatRunActivityEvent[],
+  id: string,
+  status: ChatRunActivityEvent['status'],
+  completedAt?: string,
+): ChatRunActivityEvent[] {
+  return events.map((item) => (
+    item.id === id
+      ? {
+        ...item,
+        status,
+        ...(completedAt ? { completedAt } : {}),
+      }
+      : item
+  ))
+}
+
+function upsertActivityEvent(events: ChatRunActivityEvent[], item: ChatRunActivityEvent): ChatRunActivityEvent[] {
+  const existingIndex = events.findIndex((candidate) => candidate.id === item.id)
+  if (existingIndex >= 0) {
+    return events.map((candidate, index) => index === existingIndex
+      ? {
+        ...candidate,
+        ...item,
+        data: item.data ?? candidate.data,
+      }
+      : candidate)
+  }
+  const setupItems = [...events.filter((candidate) => candidate.id.startsWith('local-runtime-')), item]
+  const httpItems = events.filter((candidate) => candidate.id.startsWith('http-request-'))
+  const runtimeItems = events.filter((candidate) => !candidate.id.startsWith('local-runtime-') && !candidate.id.startsWith('http-request-'))
+  return [...setupItems, ...httpItems, ...runtimeItems]
 }
 
 function mergeRunActivityEvents(activity: ChatRunActivity, events: ChatRunActivityEvent[]): ChatRunActivity {
@@ -1792,6 +1850,169 @@ function GenerationProgressBubble({ state }: { state: GenerationProgressState })
     >
       <GenerationProgressCard state={state} />
     </AgentChatMessage>
+  )
+}
+
+function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextDiagnostic }) {
+  const [copied, setCopied] = useState(false)
+  const totalChars = diagnostic.promptStats?.totalChars ?? diagnostic.messages.reduce((sum, message) => sum + message.content.length, 0)
+  const availableTools = diagnostic.tools.available
+  const blockedTools = diagnostic.tools.blocked
+  const modelTools = diagnostic.tools.modelTools
+  const focusPart = diagnostic.debugParts.find((part) => part.id === 'context.summary')
+
+  function copyJSON() {
+    navigator.clipboard.writeText(safeJSONStringify(diagnostic))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  return (
+    <div className="mt-1 space-y-2 rounded-md border border-border bg-background/70 p-2.5 text-xs">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 font-medium text-foreground">
+            <MessageSquareText size={13} />
+            <span>Runtime context</span>
+            <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
+              /context
+            </Badge>
+          </div>
+          <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+            Local diagnostic snapshot. The model gateway was not called.
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="ghost"
+          onClick={copyJSON}
+          aria-label="Copy context diagnostic JSON"
+          title="Copy context diagnostic JSON"
+          className="shrink-0"
+        >
+          {copied ? <Check size={11} /> : <Copy size={11} />}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4">
+        <DebugSummaryItem label="messages" value={String(diagnostic.messages.length)} />
+        <DebugSummaryItem label="model tools" value={String(modelTools.length)} />
+        <DebugSummaryItem label="available" value={String(availableTools.length)} />
+        <DebugSummaryItem label="chars" value={String(totalChars)} />
+      </div>
+
+      {focusPart && (
+        <details className="rounded-md border border-border bg-background/70" open>
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+            <Route size={10} />
+            Focus
+          </summary>
+          <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words border-t border-border px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
+            {focusPart.content}
+          </pre>
+        </details>
+      )}
+
+      <details className="rounded-md border border-border bg-background/70" open>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+          <span className="inline-flex items-center gap-1.5"><Wrench size={10} /> Tools attached to model call</span>
+          <span className="text-[9px] text-muted-foreground">{modelTools.length}</span>
+        </summary>
+        <div className="max-h-72 space-y-1.5 overflow-y-auto border-t border-border p-1.5">
+          {modelTools.length === 0 ? (
+            <p className="px-1 text-[10px] text-muted-foreground">No callable tools were attached.</p>
+          ) : modelTools.map((tool) => {
+            const details = availableTools.find((candidate) => candidate.name === tool.name)
+            return <ContextDiagnosticToolRow key={tool.name} tool={details ?? tool} parameters={tool.parameters} />
+          })}
+        </div>
+      </details>
+
+      {blockedTools.length > 0 && (
+        <details className="rounded-md border border-border bg-background/70">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+            <span className="inline-flex items-center gap-1.5"><CircleStop size={10} /> Blocked tools</span>
+            <span className="text-[9px] text-muted-foreground">{blockedTools.length}</span>
+          </summary>
+          <div className="max-h-56 space-y-1.5 overflow-y-auto border-t border-border p-1.5">
+            {blockedTools.map((tool) => <ContextDiagnosticToolRow key={tool.name} tool={tool} />)}
+          </div>
+        </details>
+      )}
+
+      <details className="rounded-md border border-border bg-background/70">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+          <span className="inline-flex items-center gap-1.5"><FileJson size={10} /> Prompt parts</span>
+          <span className="text-[9px] text-muted-foreground">{diagnostic.debugParts.length}</span>
+        </summary>
+        <div className="space-y-1.5 border-t border-border p-1.5">
+          {diagnostic.debugParts.map((part) => (
+            <div key={part.id} className="rounded border border-border/70 bg-muted/20">
+              <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1">
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{part.kind}</Badge>
+                  <span className="truncate text-[10px] font-medium text-foreground">{part.title}</span>
+                </div>
+                <span className="shrink-0 text-[9px] text-muted-foreground">{part.content.length}</span>
+              </div>
+              <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
+                {part.content}
+              </pre>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      <details className="rounded-md border border-border bg-background/70">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
+          <span className="inline-flex items-center gap-1.5"><Braces size={10} /> Model gateway messages</span>
+          <span className="text-[9px] text-muted-foreground">{diagnostic.messages.length}</span>
+        </summary>
+        <div className="space-y-1.5 border-t border-border p-1.5">
+          {diagnostic.messages.map((message, index) => (
+            <div key={`${message.role}-${index}`} className="rounded border border-border/70 bg-muted/20">
+              <div className="flex items-center justify-between gap-2 border-b border-border/60 px-2 py-1">
+                <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{message.role}</Badge>
+                <span className="text-[9px] text-muted-foreground">{message.content.length}</span>
+              </div>
+              <pre className="max-h-36 overflow-auto whitespace-pre-wrap break-words px-2 py-1.5 text-[10px] leading-relaxed text-foreground">
+                {message.content}
+              </pre>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      {diagnostic.warnings.length > 0 && (
+        <div className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1.5 text-[10px] leading-relaxed text-amber-800 dark:text-amber-300">
+          {diagnostic.warnings.map((warning) => <div key={warning}>- {warning}</div>)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ContextDiagnosticToolRow({ tool, parameters }: { tool: ChatContextDiagnosticTool | { name: string; description?: string }; parameters?: unknown }) {
+  const schema = parameters ?? ('inputSchema' in tool ? tool.inputSchema : undefined)
+  return (
+    <div className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
+      <div className="flex min-w-0 items-center gap-1">
+        <span className="truncate font-medium text-foreground">{tool.name}</span>
+        {'risk' in tool && tool.risk && <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{tool.risk}</Badge>}
+        {'approval' in tool && tool.approval && <Badge variant="secondary" className="text-[8px] leading-3 px-1 py-0">{tool.approval}</Badge>}
+        {'unavailableReason' in tool && tool.unavailableReason && <Badge variant="warning" className="text-[8px] leading-3 px-1 py-0">{tool.unavailableReason}</Badge>}
+      </div>
+      {tool.description && <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{tool.description}</p>}
+      {schema !== undefined && (
+        <details className="mt-1 rounded border border-border/60 bg-muted/20">
+          <summary className="cursor-pointer list-none px-1.5 py-1 text-[9px] text-muted-foreground marker:hidden">schema</summary>
+          <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-1.5 py-1 text-[9px] text-muted-foreground">
+            {safeJSONStringify(schema)}
+          </pre>
+        </details>
+      )}
+    </div>
   )
 }
 
@@ -2700,7 +2921,10 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
   const mediaAttachments = messageAttachments.filter((attachment) => attachment.type === 'image' || attachment.type === 'video')
   const otherAttachments = messageAttachments.filter((attachment) => attachment.type !== 'image' && attachment.type !== 'video')
   const showLargeMedia = !isUser && mediaAttachments.some((attachment) => attachment.id.startsWith('generated-'))
-  const displayContent = showLargeMedia ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
+  const contextDiagnostic = !isUser ? msg.meta?.contextDiagnostic : undefined
+  const displayContent = contextDiagnostic
+    ? ''
+    : showLargeMedia ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
 
   function copy() {
     navigator.clipboard.writeText(msg.content)
@@ -2736,6 +2960,7 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
       )}
     >
       {displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
+      {contextDiagnostic && <ContextDiagnosticCard diagnostic={contextDiagnostic} />}
       {!isUser && <GenerationTraceSummaryCard jobs={msg.meta?.generationJobs} />}
       {!isUser && <GenerationValidationErrorCard errors={msg.meta?.generationValidationErrors} />}
       {!isUser && <GenerationParamAuditCard audits={msg.meta?.generationParamAudits} />}
@@ -4932,17 +5157,53 @@ function ChatView({
     resetStreamingAssistant()
     const sendController = new AbortController()
     activeSendAbortControllerRef.current = sendController
+    const updateActivityEvents = (updater: (events: ChatRunActivityEvent[]) => ChatRunActivityEvent[]) => {
+      setPendingHttpEvents((current) => updater(current))
+      setLiveTraceEvents((current) => {
+        const next = updater(current)
+        liveTraceEventsRef.current = next
+        return next
+      })
+    }
+    const startActivityEvent = (event: Omit<ChatRunActivityEvent, 'createdAt' | 'status'>) => {
+      updateActivityEvents((current) => upsertActivityEvent(current, {
+        ...event,
+        status: 'started',
+        createdAt: new Date().toISOString(),
+      }))
+    }
+    const completeActivityEvent = (id: string, status: ChatRunActivityEvent['status'] = 'completed') => {
+      updateActivityEvents((current) => setActivityEventStatus(current, id, status, new Date().toISOString()))
+    }
 
     try {
       if (!localAgentOnline) {
+        startActivityEvent({
+          id: 'local-runtime-ensure-running',
+          kind: 'runtime',
+          title: '准备本地 Runtime',
+          summary: localAgentClient.baseURL,
+        })
         await localAgentClient.ensureRunning()
+        completeActivityEvent('local-runtime-ensure-running')
         if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
         await refetchLocalAgentHealth()
         if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
       }
+      startActivityEvent({
+        id: 'local-runtime-mcp-ready',
+        kind: 'runtime',
+        title: '检查 MCP 服务',
+        summary: localAgentHealth?.mcpEndpoint ?? localAgentClient.baseURL,
+      })
       await assertMCPReady()
+      completeActivityEvent('local-runtime-mcp-ready')
       setPendingAssistantState({ status: 'thinking' })
+      updateActivityEvents((current) => setActivityEventStatus(current, 'http-request-local-save-model-config', 'started'))
       await syncRuntimeModelConfig(draft.model.id, draft.model.name)
+      completeActivityEvent('http-request-local-save-model-config')
+      if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
+      updateActivityEvents((current) => setActivityEventStatus(current, 'http-request-local-create-thread', 'started'))
       if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
       const runResult = await localAgentClient.runMessageStream({
         threadId: draft.localRuntime?.diagnosticCommand ? undefined : draft.localRuntime?.threadId,
@@ -5016,7 +5277,7 @@ function ChatView({
           if (event.type === 'run' && event.run?.id) {
             const completedAt = new Date().toISOString()
             setPendingHttpEvents((current) => current.map((item) => (
-              item.status === 'started'
+              item.status === 'started' && item.id.startsWith('http-request-')
                 ? { ...item, status: 'completed', completedAt }
                 : item
             )))

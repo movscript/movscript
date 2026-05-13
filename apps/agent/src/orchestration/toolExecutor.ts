@@ -34,7 +34,11 @@ export interface ToolExecutorOptions {
 }
 
 export interface AgentCatalogToolManager {
+  inspectAgentCatalog(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   reloadAgentCatalog(): JSONValue
+  createAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
+  getAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
+  replanAgentPlan(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   spawnSubagent(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   listSubagents(run: AgentRun, input?: Record<string, JSONValue>): JSONValue
   waitSubagent(run: AgentRun, input?: Record<string, JSONValue>): Promise<JSONValue> | JSONValue
@@ -202,9 +206,29 @@ async function callRuntimeTool(
   catalogManager: AgentCatalogToolManager | undefined,
   _sandboxMode: boolean,
 ): Promise<JSONValue | undefined> {
+  if (toolName === 'movscript_inspect_agent_catalog') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.inspectAgentCatalog(run, args)
+  }
+
   if (toolName === 'movscript_reload_agent_catalog') {
     if (!catalogManager) throw new Error('agent catalog manager is not configured')
     return catalogManager.reloadAgentCatalog()
+  }
+
+  if (toolName === 'movscript_create_plan') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.createAgentPlan(run, args)
+  }
+
+  if (toolName === 'movscript_get_plan') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.getAgentPlan(run, args)
+  }
+
+  if (toolName === 'movscript_replan') {
+    if (!catalogManager) throw new Error('agent catalog manager is not configured')
+    return catalogManager.replanAgentPlan(run, args)
   }
 
   if (toolName === 'movscript_spawn_subagent') {

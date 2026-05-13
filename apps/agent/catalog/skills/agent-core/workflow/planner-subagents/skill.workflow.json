@@ -23,6 +23,9 @@
     }
   ],
   "toolRefs": [
+    "tool://movscript_create_plan",
+    "tool://movscript_get_plan",
+    "tool://movscript_replan",
     "tool://movscript_spawn_subagent",
     "tool://movscript_list_subagents",
     "tool://movscript_wait_subagent",

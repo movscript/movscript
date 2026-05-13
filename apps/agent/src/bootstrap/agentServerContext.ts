@@ -102,6 +102,13 @@ export interface AgentCatalogStartupReport {
 }
 
 export function createAgentServerContext(): AgentServerContext {
+  const startupStartedAt = Date.now()
+  let lastPhaseAt = startupStartedAt
+  const logPhase = (phase: string) => {
+    const now = Date.now()
+    console.info(`[agent] startup phase ${phase} +${now - lastPhaseAt}ms total=${now - startupStartedAt}ms`)
+    lastPhaseAt = now
+  }
   const port = Number(process.env.MOVSCRIPT_AGENT_PORT || DEFAULT_AGENT_PORT)
   const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT
   const statePath = resolveAgentStatePath()
@@ -109,9 +116,13 @@ export function createAgentServerContext(): AgentServerContext {
   const draftPath = resolveAgentDraftPath(statePath)
   const catalogStatePath = resolveAgentCatalogStatePath(statePath)
   const modelConfigPath = resolveRuntimeModelConfigPath(statePath)
+  logPhase('paths-resolved')
   const modelConfigStore = new RuntimeModelConfigStore(modelConfigPath)
+  logPhase('model-config-store-created')
   const pluginCatalog = loadAgentPluginCatalog()
+  logPhase(`plugin-catalog-loaded packs=${pluginCatalog.packs.length} skills=${pluginCatalog.layeredSkills.length} tools=${pluginCatalog.layeredTools.length}`)
   const catalogStateStore = new FileAgentCatalogStateStore(catalogStatePath)
+  logPhase('catalog-state-store-loaded')
   const updateState = buildAgentUpdateState({
     runtimeVersion: '0.1.0',
     manifestVersion: pluginCatalog.manifest.version,
@@ -132,6 +143,7 @@ export function createAgentServerContext(): AgentServerContext {
       'Remote update source is not configured; dynamic updates are limited to builtin and local catalog files.',
     ],
   })
+  logPhase('update-state-built')
   const client = new MCPClient({ endpoint: mcpEndpoint })
   const backendApplyClient = new MCPBackendApplyClient(client)
   const runtimeContractResolver = EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
@@ -144,6 +156,7 @@ export function createAgentServerContext(): AgentServerContext {
     memoryStore: new FileAgentMemoryStore(memoryPath),
     defaultAgentManifest: pluginCatalog.manifest,
     toolRegistry: pluginCatalog.registry,
+    pluginCatalog,
     catalogStateStore,
     pluginCatalogLoader: (options) => loadAgentPluginCatalog(options),
     contractResolver: runtimeContractResolver,
@@ -158,6 +171,7 @@ export function createAgentServerContext(): AgentServerContext {
     pluginWarnings: pluginCatalog.warnings,
     updateState,
   })
+  logPhase('agent-runtime-created')
 
   return {
     port,

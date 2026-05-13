@@ -87,6 +87,15 @@ export function normalizeRegisteredTool(input: unknown): RegisteredTool | undefi
 
 export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
   {
+    name: 'movscript_inspect_agent_catalog',
+    description: 'Inspect the current run agent catalog snapshot, including profile, enabled packs, skills, tools, and availability summary.',
+    permission: 'agent.catalog.read',
+    risk: 'read',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+  },
+  {
     name: 'movscript_reload_agent_catalog',
     description: 'Reload local agent skills, tools, packs, and profiles from configured catalog directories.',
     permission: 'agent.catalog.write',
@@ -94,6 +103,36 @@ export const DEFAULT_TOOL_REGISTRY = new StaticToolRegistry([
     source: 'runtime',
     projectScoped: false,
     requiresApprovalByDefault: true,
+  },
+  {
+    name: 'movscript_create_plan',
+    description: 'Planner-only tool. Create or attach the single plan for the current thread, and optionally define initial tasks.',
+    permission: 'agent.plan.write',
+    risk: 'write',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+    allowedRunRoles: ['planner'],
+  },
+  {
+    name: 'movscript_get_plan',
+    description: 'Planner-only tool. Inspect the current thread plan snapshot with tasks and runs.',
+    permission: 'agent.plan.read',
+    risk: 'read',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+    allowedRunRoles: ['planner'],
+  },
+  {
+    name: 'movscript_replan',
+    description: 'Planner-only tool. Update, add, reset, and optionally dispatch tasks for the current plan.',
+    permission: 'agent.plan.write',
+    risk: 'write',
+    source: 'runtime',
+    projectScoped: false,
+    requiresApprovalByDefault: false,
+    allowedRunRoles: ['planner'],
   },
   {
     name: 'movscript_spawn_subagent',

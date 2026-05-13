@@ -63,10 +63,56 @@ export interface ChatMessageMeta {
   agentName?: string
   permissionMode?: AgentPermissionMode
   contextLabels?: string[]
+  contextDiagnostic?: ChatContextDiagnostic
   generationJobs?: ChatGenerationJob[]
   generationParamAudits?: ChatGenerationParamAudit[]
   generationValidationErrors?: ChatGenerationValidationError[]
   localRunActivity?: ChatRunActivity
+}
+
+export interface ChatContextDiagnostic {
+  schema: 'movscript.local_context_diagnostic.v1'
+  command?: Record<string, unknown>
+  modelGatewayCalled: boolean
+  messages: Array<{ role: string; content: string }>
+  systemPrompt?: string
+  debugParts: Array<{ id: string; kind: string; title: string; content: string }>
+  promptStats?: {
+    totalChars: number
+    parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
+    byLayer: Record<string, number>
+  }
+  tools: {
+    available: ChatContextDiagnosticTool[]
+    blocked: ChatContextDiagnosticTool[]
+    discoveredCount: number
+    modelTools: Array<{ name: string; description?: string; parameters?: unknown }>
+  }
+  skills: Array<{
+    id: string
+    name: string
+    category?: string
+    activationReason?: string
+    resolvedPriority?: number
+  }>
+  warnings: string[]
+}
+
+export interface ChatContextDiagnosticTool {
+  name: string
+  description?: string
+  source?: string
+  registered?: boolean
+  granted?: boolean
+  available?: boolean
+  permission?: string
+  risk?: string
+  projectScoped?: boolean
+  approval?: string
+  requiresApproval?: boolean
+  unavailableReason?: string
+  inputSchema?: unknown
+  outputSchema?: unknown
 }
 
 export interface ChatGenerationJob {

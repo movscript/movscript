@@ -19,6 +19,7 @@ interface AgentRequestListenerOptions {
 
 export function createAgentRequestListener(context: AgentServerContext, options: AgentRequestListenerOptions = {}): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
+    const requestStartedAt = Date.now()
     setHeaders(res)
 
     if (req.method === 'OPTIONS') {
@@ -31,6 +32,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const url = new URL(req.url || '/', `http://${req.headers.host || '127.0.0.1'}`)
 
       if (req.method === 'GET' && url.pathname === '/health') {
+        const healthStartedAt = Date.now()
         writeJSON(res, 200, {
           ...getAgentRuntimeCapabilities(context),
           ok: true,
@@ -39,11 +41,14 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           modelConfig: context.modelConfigStore.getPublicConfig(),
           modelCapabilities: describeRuntimeModelCapabilities(context.modelConfigStore.getEffectiveConfig()),
         })
+        logSlowRequest(req.method, url.pathname, requestStartedAt, healthStartedAt)
         return
       }
 
       if (req.method === 'GET' && url.pathname === '/runtime/capabilities') {
+        const capabilityStartedAt = Date.now()
         writeJSON(res, 200, getAgentRuntimeCapabilities(context))
+        logSlowRequest(req.method, url.pathname, requestStartedAt, capabilityStartedAt)
         return
       }
 
@@ -66,22 +71,28 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'GET' && url.pathname === '/model-config') {
+        const modelConfigStartedAt = Date.now()
         writeJSON(res, 200, {
           ...context.modelConfigStore.getPublicConfig(),
           capabilities: describeRuntimeModelCapabilities(context.modelConfigStore.getEffectiveConfig()),
         })
+        logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigStartedAt)
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/model-config') {
         const body = await readJSON(req)
+        const modelConfigStartedAt = Date.now()
         writeJSON(res, 200, context.modelConfigStore.save(normalizeOptionalObject(body, 'model config body')))
+        logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigStartedAt)
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/model-config/test') {
         const body = await readJSON(req)
+        const modelConfigTestStartedAt = Date.now()
         writeJSON(res, 200, await context.modelConfigStore.test(normalizeOptionalObject(body, 'model config test body'), requestAuth(req)))
+        logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigTestStartedAt)
         return
       }
 
@@ -650,6 +661,12 @@ function readJSON(req: IncomingMessage): Promise<unknown> {
 function writeJSON(res: ServerResponse, status: number, value: unknown): void {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' })
   res.end(JSON.stringify(value))
+}
+
+function logSlowRequest(method: string | undefined, pathname: string, requestStartedAt: number, handlerStartedAt: number): void {
+  const totalMs = Date.now() - requestStartedAt
+  if (totalMs <= 100) return
+  console.info(`[agent] request slow ${method ?? 'UNKNOWN'} ${pathname} total=${totalMs}ms handler=${Date.now() - handlerStartedAt}ms`)
 }
 
 function streamRunEvents(req: IncomingMessage, res: ServerResponse, runtime: AgentRuntime, runId: string): void {

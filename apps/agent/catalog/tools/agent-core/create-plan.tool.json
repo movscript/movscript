@@ -1,0 +1,39 @@
+{
+  "name": "movscript_create_plan",
+  "description": "为当前会话创建唯一 plan，并把当前 planner run 绑定到该 plan；若会话已有 plan，则返回并绑定已有 plan。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "title": { "type": "string" },
+      "goal": { "type": "string" },
+      "message": { "type": "string" },
+      "maxTasks": { "type": "number" },
+      "tasks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "deps": { "type": "array", "items": { "type": "string" } },
+            "parentId": { "type": "string" },
+            "subagentName": { "type": "string" },
+            "maxTaskAttempts": { "type": "number" },
+            "workerTimeoutMs": { "type": "number" }
+          },
+          "required": ["title"]
+        }
+      }
+    }
+  },
+  "permission": "agent.plan.write",
+  "risk": "write",
+  "projectScoped": false,
+  "defaults": { "grant": "allow", "approval": "never" },
+  "source": "runtime",
+  "capability": "让 planner 自己为可拆分工作创建会话级唯一 plan/task 容器，随后可派发 worker subagents。",
+  "allowedRunRoles": ["planner"]
+}

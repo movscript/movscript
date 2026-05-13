@@ -77,10 +77,14 @@ function summarizeHealthCheck(health: AgentRuntimeHealthCheck): string {
 }
 
 export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}): Promise<AgentRuntimeStatus> {
+  const startedAt = Date.now()
   const baseURL = normalizeBaseURL(input.baseURL)
   const policy = getAgentRuntimeLaunchPolicy()
+  console.info(`[agent] ensure runtime start baseURL=${baseURL} policy=${policy}`)
   const health = await getAgentRuntimeHealth(baseURL)
+  console.info(`[agent] ensure runtime initial health ${summarizeHealthCheck(health)} elapsed=${Date.now() - startedAt}ms`)
   if (health.ok && health.compatible) {
+    console.info(`[agent] ensure runtime already compatible elapsed=${Date.now() - startedAt}ms`)
     return {
       ok: true,
       running: true,
@@ -131,7 +135,9 @@ export async function ensureAgentRuntimeRunning(input: { baseURL?: string } = {}
   startPromise = startAgentRuntime(baseURL).finally(() => {
     startPromise = null
   })
-  return startPromise
+  const status = await startPromise
+  console.info(`[agent] ensure runtime finished ok=${status.ok} started=${status.started} elapsed=${Date.now() - startedAt}ms`)
+  return status
 }
 
 export async function stopAgentRuntime(): Promise<void> {
@@ -153,6 +159,7 @@ export async function setAgentRuntimeAPIBaseURL(apiBaseURL: string): Promise<voi
 async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
   const spawnStartedAt = Date.now()
   try {
+    console.info(`[agent] start runtime begin baseURL=${baseURL}`)
     const launch = resolveAgentRuntimeLaunch()
     const port = resolvePort(baseURL)
     const mcpEndpoint = process.env.MOVSCRIPT_MCP_ENDPOINT || DEFAULT_MCP_ENDPOINT
@@ -185,7 +192,9 @@ async function startAgentRuntime(baseURL: string): Promise<AgentRuntimeStatus> {
       if (proc === child) proc = null
     })
 
-    await waitForAgentRuntime(baseURL, 10_000)
+    console.info(`[agent] spawned child pid=${child.pid ?? 'unknown'} after ${Date.now() - spawnStartedAt}ms`)
+    await waitForAgentRuntime(baseURL, 20_000)
+    console.info(`[agent] start runtime ready elapsed=${Date.now() - spawnStartedAt}ms`)
     return {
       ok: true,
       running: true,
@@ -376,16 +385,18 @@ async function waitForAgentRuntime(baseURL: string, timeoutMs: number): Promise<
   let lastHealth: AgentRuntimeHealthCheck = { ok: false, compatible: false, reason: 'fetch-failed', error: 'no health probe yet' }
   let lastProgressLogAt = 0
   while (Date.now() < deadline) {
+    const probeStartedAt = Date.now()
     const health = await getAgentRuntimeHealth(baseURL)
+    const probeMs = Date.now() - probeStartedAt
     if (health.ok && health.compatible) {
-      console.info(`[agent] health ok at ${baseURL} after ${Date.now() - startedAt}ms`)
+      console.info(`[agent] health ok at ${baseURL} after ${Date.now() - startedAt}ms probeMs=${probeMs}`)
       return
     }
     lastHealth = health
     const now = Date.now()
     if (now - lastProgressLogAt >= 1000) {
       lastProgressLogAt = now
-      console.info(`[agent] still waiting for runtime at ${baseURL} (elapsed=${now - startedAt}ms, ${summarizeHealthCheck(health)})`)
+      console.info(`[agent] still waiting for runtime at ${baseURL} (elapsed=${now - startedAt}ms probeMs=${probeMs}, ${summarizeHealthCheck(health)})`)
     }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
@@ -393,6 +404,7 @@ async function waitForAgentRuntime(baseURL: string, timeoutMs: number): Promise<
 }
 
 async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealthCheck> {
+  const startedAt = Date.now()
   let res: Response
   try {
     res = await fetch(`${baseURL}/health`)
@@ -431,6 +443,7 @@ async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealt
       error: `GET ${baseURL}/health body did not report ok=true`,
     }
   }
+  const healthMs = Date.now() - startedAt
   let capabilityRes: Response
   try {
     capabilityRes = await fetch(`${baseURL}/runtime/capabilities`)
@@ -451,6 +464,10 @@ async function getAgentRuntimeHealth(baseURL: string): Promise<AgentRuntimeHealt
     }
   }
   const capabilities = await capabilityRes.json() as { runtime?: { apiVersion?: unknown; features?: unknown }; mcpEndpoint?: unknown }
+  const totalMs = Date.now() - startedAt
+  if (totalMs > 250) {
+    console.info(`[agent] runtime health probe slow healthMs=${healthMs} totalMs=${totalMs} baseURL=${baseURL}`)
+  }
   const runtime = capabilities.runtime ?? body.runtime
   const apiVersion = typeof runtime?.apiVersion === 'number' ? runtime.apiVersion : undefined
   const features = Array.isArray(runtime?.features) ? runtime.features : []

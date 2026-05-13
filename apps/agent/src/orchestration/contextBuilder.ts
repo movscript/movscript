@@ -168,7 +168,11 @@ function resolveOpenAIToolParameters(
   if (tool.name === 'movscript_get_draft') return DRAFT_ID_TOOL_SCHEMA
   if (tool.name === 'movscript_update_draft') return UPDATE_DRAFT_TOOL_SCHEMA
   if (tool.name === 'movscript_read_draft') return DRAFT_FILE_PATH_TOOL_SCHEMA
+  if (tool.name === 'movscript_inspect_agent_catalog') return INSPECT_AGENT_CATALOG_TOOL_SCHEMA
   if (tool.name === 'movscript_reload_agent_catalog') return EMPTY_OBJECT_TOOL_SCHEMA
+  if (tool.name === 'movscript_create_plan') return CREATE_PLAN_TOOL_SCHEMA
+  if (tool.name === 'movscript_get_plan') return GET_PLAN_TOOL_SCHEMA
+  if (tool.name === 'movscript_replan') return REPLAN_TOOL_SCHEMA
   if (tool.name === 'movscript_spawn_subagent') return SPAWN_SUBAGENT_TOOL_SCHEMA
   if (tool.name === 'movscript_list_subagents') return LIST_SUBAGENTS_TOOL_SCHEMA
   if (tool.name === 'movscript_wait_subagent') return WAIT_SUBAGENT_TOOL_SCHEMA
@@ -225,6 +229,128 @@ const EMPTY_OBJECT_TOOL_SCHEMA = {
   properties: {},
 } satisfies Record<string, unknown>
 
+const PLAN_TASK_INPUT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string', description: 'Optional stable task id. Use snake_case prefixed with task_ when choosing one.' },
+    title: { type: 'string' },
+    description: { type: 'string' },
+    deps: { type: 'array', items: { type: 'string' }, description: 'Task ids that must finish first.' },
+    parentId: { type: 'string' },
+    subagentName: { type: 'string', description: 'Optional human-readable worker subagent name for this task.' },
+    maxTaskAttempts: { type: 'number', description: 'Optional retry attempt limit for this worker task.' },
+    workerTimeoutMs: { type: 'number', description: 'Optional timeout for this worker task in milliseconds.' },
+  },
+  required: ['title'],
+} satisfies Record<string, unknown>
+
+const PLAN_TASK_UPDATE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string', description: 'Existing task id to update.' },
+    title: { type: 'string' },
+    description: { type: 'string' },
+    deps: { type: 'array', items: { type: 'string' } },
+    parentId: { type: 'string' },
+    status: { type: 'string', enum: ['pending', 'running', 'blocked', 'needs_review', 'done', 'failed', 'cancelled'] },
+    progress: { type: 'number' },
+    blockedReason: { type: 'string' },
+    subagentName: { type: 'string' },
+  },
+  required: ['id'],
+} satisfies Record<string, unknown>
+
+const INSPECT_AGENT_CATALOG_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    view: {
+      type: 'string',
+      enum: ['summary', 'pack', 'skill', 'tool', 'profile'],
+      description: 'Catalog view to inspect. Defaults to summary.',
+    },
+    id: {
+      type: 'string',
+      description: 'Pack id, skill id, tool name, or profile id. Optional for summary.',
+    },
+    includeInstruction: {
+      type: 'boolean',
+      description: 'When inspecting a skill, include the instructionTemplate body. Defaults to false.',
+    },
+    includeSchema: {
+      type: 'boolean',
+      description: 'When inspecting a tool, include inputSchema/outputSchema. Defaults to false.',
+    },
+  },
+} satisfies Record<string, unknown>
+
+const CREATE_PLAN_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    title: { type: 'string', description: 'Plan title. Defaults to the current thread title or Agent plan.' },
+    goal: { type: 'string', description: 'Goal to plan. If tasks are omitted, runtime may generate initial tasks from this goal.' },
+    message: { type: 'string', description: 'Alias for goal.' },
+    maxTasks: { type: 'number', description: 'Maximum generated task count when using goal/message.' },
+    tasks: {
+      type: 'array',
+      description: 'Initial tasks. Omit only when goal/message is enough for runtime task generation.',
+      items: PLAN_TASK_INPUT_SCHEMA,
+    },
+  },
+} satisfies Record<string, unknown>
+
+const GET_PLAN_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    planId: { type: 'string', description: 'Plan id. Defaults to the current planner run plan.' },
+  },
+} satisfies Record<string, unknown>
+
+const REPLAN_TOOL_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    planId: { type: 'string', description: 'Plan id. Defaults to the current planner run plan.' },
+    tasks: {
+      type: 'array',
+      description: 'Task creates or updates. Items with an existing id update that task; items with a new id create a task.',
+      items: {
+        oneOf: [PLAN_TASK_INPUT_SCHEMA, PLAN_TASK_UPDATE_SCHEMA],
+      },
+    },
+    addTasks: {
+      type: 'array',
+      description: 'Tasks to add without updating existing tasks.',
+      items: PLAN_TASK_INPUT_SCHEMA,
+    },
+    updates: {
+      type: 'array',
+      description: 'Existing task updates.',
+      items: PLAN_TASK_UPDATE_SCHEMA,
+    },
+    updateTasks: {
+      type: 'array',
+      description: 'Alias for updates.',
+      items: PLAN_TASK_UPDATE_SCHEMA,
+    },
+    resetTaskIds: { type: 'array', items: { type: 'string' }, description: 'Specific tasks to reset to pending before dispatch.' },
+    resetBlocked: { type: 'boolean', description: 'Reset blocked tasks to pending.' },
+    resetNeedsReview: { type: 'boolean', description: 'Reset needs_review tasks for another worker pass.' },
+    resetFailed: { type: 'boolean', description: 'Reset failed tasks to pending.' },
+    resetCancelled: { type: 'boolean', description: 'Reset cancelled tasks to pending.' },
+    dispatch: { type: 'boolean', description: 'Whether to dispatch workers after replanning. Defaults to true.' },
+    taskIds: { type: 'array', items: { type: 'string' }, description: 'Task ids to dispatch when dispatching.' },
+    maxWorkers: { type: 'number' },
+    maxTaskAttempts: { type: 'number' },
+    retryFailed: { type: 'boolean' },
+    workerTimeoutMs: { type: 'number' },
+  },
+} satisfies Record<string, unknown>
+
 const SPAWN_SUBAGENT_TOOL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -250,14 +376,7 @@ const SPAWN_SUBAGENT_TOOL_SCHEMA = {
         type: 'object',
         additionalProperties: false,
         properties: {
-          id: { type: 'string' },
-          subagentName: { type: 'string', description: 'Optional human-readable worker subagent name for this task. Missing names are assigned automatically.' },
-          title: { type: 'string' },
-          description: { type: 'string' },
-          deps: { type: 'array', items: { type: 'string' } },
-          parentId: { type: 'string' },
-          maxTaskAttempts: { type: 'number', description: 'Optional retry attempt limit for this worker task. Overrides the dispatch default.' },
-          workerTimeoutMs: { type: 'number', description: 'Optional timeout for this worker task in milliseconds. Overrides the dispatch default.' },
+          ...PLAN_TASK_INPUT_SCHEMA.properties,
         },
         required: ['title'],
       },

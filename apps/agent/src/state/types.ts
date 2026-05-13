@@ -662,6 +662,7 @@ export interface AgentRuntimeOptions {
   memoryStore?: import('../memory/memoryStore.js').AgentMemoryStore
   defaultAgentManifest?: AgentManifest
   toolRegistry?: import('../tools/toolRegistry.js').ToolRegistry
+  pluginCatalog?: import('../catalog/loader.js').AgentPluginCatalog
   catalogStateStore?: AgentCatalogStateStore
   pluginCatalogLoader?: (options?: Record<string, never>) => import('../catalog/loader.js').AgentPluginCatalog
   contractResolver?: AgentRuntimeContractResolver

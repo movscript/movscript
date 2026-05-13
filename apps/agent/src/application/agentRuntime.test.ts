@@ -1932,11 +1932,55 @@ test('context command returns fallback diagnostics when MCP focus is unavailable
   assert.match(assistant?.content ?? '', /Business reference: project#42/)
   assert.match(assistant?.content ?? '', /Focus unavailable: mcp offline/)
   assert.throws(() => JSON.parse(assistant?.content ?? ''))
+  const messageStep = run.steps.find((step) => step.type === 'message')
+  const diagnostic = (messageStep?.result as any)?.diagnostic
+  assert.equal(diagnostic?.schema, 'movscript.local_context_diagnostic.v1')
+  assert.equal(diagnostic?.modelGatewayCalled, false)
+  assert.equal(Array.isArray(diagnostic?.messages), true)
+  assert.equal(diagnostic.messages.some((message: any) => message.role === 'system'), true)
+  assert.equal(Array.isArray(diagnostic?.tools?.modelTools), true)
+  assert.equal(diagnostic.tools.modelTools.some((tool: any) => tool.name === 'movscript_get_focus'), true)
   {
     const traceEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     assert.equal(traceEvents.some((event) => event.title === 'Focus failed'), true)
     assert.equal(traceEvents.some((event) => event.kind === 'model_call'), false)
   }
+})
+
+test('context command run stream emits assistant message and done events', async () => {
+  const client = new FakeMCPClient()
+  client.failInitialize = true
+  const runtime = createTestRuntime({ mcpClient: client })
+  const thread = runtime.createThread()
+  runtime.addMessage(thread.id, {
+    role: 'user',
+    content: '/context',
+    clientInput: {
+      message: '/context',
+      uiSnapshot: {
+        route: { pathname: '/agent/debug' },
+        project: { id: 42, name: 'Fallback Project' },
+      },
+    },
+  })
+
+  const run = runtime.createRun({ threadId: thread.id })
+  const events: string[] = []
+  const assistantContents: string[] = []
+  const unsubscribe = runtime.subscribeRunStream(run.id, (event) => {
+    events.push(event.type)
+    if (event.type === 'assistant_message') assistantContents.push(event.message.content)
+  })
+
+  try {
+    await waitForRun(runtime, run.id)
+  } finally {
+    unsubscribe()
+  }
+
+  assert.equal(events.includes('assistant_message'), true)
+  assert.equal(events.at(-1), 'done')
+  assert.match(assistantContents.at(-1) ?? '', /Model gateway messages:/)
 })
 
 test('memory command returns opened memory file refs without content or model gateway call', async () => {
@@ -2635,6 +2679,69 @@ test('runtime tracks plan tasks and parent child worker runs', async () => {
   assert.equal(runtime.getPlanSnapshot(plan.plan.id).runs.length, 2)
 })
 
+test('createPlan enforces one plan per thread', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Single thread plan',
+    createPlannerRun: false,
+    tasks: [{ id: 'task_single_plan', title: 'Only task' }],
+  })
+
+  assert.equal(plan.plan.threadId, thread.id)
+  await assert.rejects(() => runtime.createPlan({
+    threadId: thread.id,
+    title: 'Second thread plan',
+    createPlannerRun: false,
+    tasks: [{ id: 'task_second_plan', title: 'Second task' }],
+  }), /already has plan/)
+})
+
+test('agent plan tools create attach inspect and replan the session plan', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请拆分并并行处理' }] })
+  const planner = runtime.createRun({
+    threadId: thread.id,
+    role: 'planner',
+    policy: { maxToolCalls: 1, maxIterations: 1 },
+  })
+
+  const created = await runtime.createAgentPlan(planner, {
+    title: 'Agent-created plan',
+    tasks: [
+      { id: 'task_agent_plan_a', title: 'Agent plan A' },
+    ],
+  }) as any
+  assert.equal(created.status, 'created')
+  assert.equal(created.snapshot.tasks.length, 1)
+  assert.equal(runtime.getRun(planner.id)?.planId, created.planId)
+
+  const existing = await runtime.createAgentPlan(runtime.getRun(planner.id)!, {
+    title: 'Ignored second plan',
+    tasks: [{ id: 'task_should_not_exist', title: 'Should not exist' }],
+  }) as any
+  assert.equal(existing.status, 'exists')
+  assert.equal(existing.planId, created.planId)
+  assert.equal(existing.snapshot.tasks.some((task: any) => task.id === 'task_should_not_exist'), false)
+
+  const inspected = runtime.getAgentPlan(runtime.getRun(planner.id)!, {}) as any
+  assert.equal(inspected.planId, created.planId)
+  assert.equal(inspected.snapshot.plan.rootRunId, planner.id)
+
+  const replanned = runtime.replanAgentPlan(runtime.getRun(planner.id)!, {
+    addTasks: [
+      { id: 'task_agent_plan_b', title: 'Agent plan B', deps: ['task_agent_plan_a'] },
+    ],
+    dispatch: false,
+  }) as any
+  assert.deepEqual(replanned.createdTaskIds, ['task_agent_plan_b'])
+  assert.equal(replanned.snapshot.tasks.find((task: any) => task.id === 'task_agent_plan_b')?.status, 'pending')
+})
+
 test('task ownerRunId updates must reference an existing run in the same plan', async () => {
   const client = new FakeMCPClient()
   const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
@@ -2648,14 +2755,15 @@ test('task ownerRunId updates must reference an existing run in the same plan', 
       { id: 'task_owner_other', title: 'Other owned task' },
     ],
   })
+  const otherThread = runtime.createThread({ messages: [{ role: 'user', content: '其他规划' }] })
   const otherPlan = await runtime.createPlan({
-    threadId: thread.id,
+    threadId: otherThread.id,
     title: 'Other owner boundary',
     createPlannerRun: false,
     tasks: [],
   })
   const otherRun = runtime.createRun({
-    threadId: thread.id,
+    threadId: otherThread.id,
     role: 'planner',
     planId: otherPlan.plan.id,
   })
@@ -2691,8 +2799,9 @@ test('task graph updates must reference tasks in the same plan', async () => {
       { id: 'task_graph_peer', title: 'Graph peer' },
     ],
   })
+  const otherThread = runtime.createThread({ messages: [{ role: 'user', content: '其他规划' }] })
   await runtime.createPlan({
-    threadId: thread.id,
+    threadId: otherThread.id,
     title: 'Other graph boundary',
     createPlannerRun: false,
     tasks: [
@@ -2953,8 +3062,9 @@ test('dispatchPlan requires a planner run from the same plan', async () => {
     planId: plan.plan.id,
     taskId: 'task_dispatch_boundary',
   })
+  const otherThread = runtime.createThread({ messages: [{ role: 'user', content: '其他规划' }] })
   const otherPlan = await runtime.createPlan({
-    threadId: thread.id,
+    threadId: otherThread.id,
     title: 'Other planner boundary',
     tasks: [],
   })
@@ -3424,8 +3534,9 @@ test('spawn_subagent validates existing task targets before creating new tasks',
     title: 'Atomic subagent target validation',
     tasks: [],
   })
+  const otherThread = runtime.createThread({ messages: [{ role: 'user', content: '其他规划' }] })
   const otherPlan = await runtime.createPlan({
-    threadId: thread.id,
+    threadId: otherThread.id,
     title: 'Other target validation plan',
     createPlannerRun: false,
     tasks: [
@@ -4097,12 +4208,42 @@ test('planner capabilities expose subagent scheduling tools', async () => {
   const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
 
   const plannerCapabilities = await runtime.getCapabilities({ runRole: 'planner' })
+  assert.equal(plannerCapabilities.resolvedTools.byName.movscript_inspect_agent_catalog?.available, true)
   assert.equal(plannerCapabilities.resolvedTools.byName.movscript_spawn_subagent?.available, true)
   assert.equal(plannerCapabilities.resolvedTools.byName.movscript_wait_subagent?.available, true)
 
   const workerCapabilities = await runtime.getCapabilities({ runRole: 'worker' })
+  assert.equal(workerCapabilities.resolvedTools.byName.movscript_inspect_agent_catalog?.available, true)
   assert.equal(workerCapabilities.resolvedTools.byName.movscript_spawn_subagent?.available, false)
   assert.equal(workerCapabilities.resolvedTools.byName.movscript_spawn_subagent?.unavailableReason, 'wrong_run_role')
+})
+
+test('inspect agent catalog returns current snapshot summary and skill details', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '请帮我做项目提案草稿' }] })
+  const run = await createAndWaitForRun(runtime, thread.id)
+
+  const summary = runtime.inspectAgentCatalog(run, { view: 'summary' }) as any
+  assert.equal(summary.status, 'ok')
+  assert.equal(summary.profile.id, 'movscript.profile.default')
+  assert.equal(summary.enabledPackIds.includes('movscript.pack.agent-core'), true)
+  assert.equal(summary.toolNames.includes('movscript_inspect_agent_catalog'), true)
+
+  const skill = runtime.inspectAgentCatalog(run, {
+    view: 'skill',
+    id: 'movscript.policy.agent-core',
+  }) as any
+  assert.equal(skill.skill.id, 'movscript.policy.agent-core')
+  assert.equal(skill.skill.instructionTemplate, undefined)
+  assert.equal(skill.coveredByEnabledPack, true)
+
+  const skillWithInstruction = runtime.inspectAgentCatalog(run, {
+    view: 'skill',
+    id: 'movscript.policy.agent-core',
+    includeInstruction: true,
+  }) as any
+  assert.match(skillWithInstruction.skill.instructionTemplate, /catalog inspection/)
 })
 
 test('user conversation runs default to planner role with subagent scheduling tools', async () => {

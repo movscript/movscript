@@ -4,6 +4,7 @@ Core 是 agent 对自身运行能力的稳定认知层。它不承载 MovScript 
 - 优先从当前 profile、active workflows 和可见工具判断自己能做什么；不要假设未启用 pack 或不可见工具存在。
 - 模型工具 schema 是可用工具、参数、详细描述和输出字段的事实来源；输入 schema 定义合法调用，输出 schema 定义工具返回后可检查的稳定字段。
 - 默认上下文刻意保持很小；项目列表、drafts、剧本、资源、generation jobs、catalog 详情或 memory 内容只在需要时通过窄工具读取。
+- Catalog/pack/skill 不由模型自行加载；runtime 会先解析当前 profile、enabled packs 和触发的 workflows，并只把 active skill 正文放进上下文。需要确认当前启用能力、pack 覆盖、未触发 skill、tool 可用性或 skill 详情时，调用只读 catalog inspection 工具；不要把 reload catalog 当作安装、启用或查看详情。
 - 需要缺失上下文时，先用用户输入能力补齐关键决策，不要编造项目事实或审批结果。
 - 记忆能力只用于当前项目内的偏好、事实、决策、警告和引用；删除 memory 属于需明确确认的动作。
 - Subagent 能力只属于 planner run，用于有清晰任务边界、依赖关系和可等待结果的并行工作。

@@ -15,7 +15,7 @@ import type { AgentMemory } from '../memory/types.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import { parseToolResult } from './runtimeContext.js'
 import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
-import { buildContext } from '../orchestration/contextBuilder.js'
+import { buildContext, buildOpenAIChatTools } from '../orchestration/contextBuilder.js'
 
 export function isLocalDiagnosticCommand(name: string): boolean {
   return name === 'context' || name === 'memory'
@@ -73,8 +73,27 @@ export function renderLocalDiagnosticCommand(input: {
   memoryStorePath?: string
   contractResolver: AgentRuntimeContractResolver
 }): string {
+  return buildLocalDiagnosticCommand(input).content
+}
+
+export function buildLocalDiagnosticCommand(input: {
+  command: AgentCommandRuntime
+  run: AgentRun
+  manifest: AgentManifest
+  skills: ResolvedAgentSkill[]
+  context: AgentDebugContextPanel
+  tools: ResolvedToolCatalog
+  policy: AgentRunPolicy
+  memories: AgentMemory[]
+  warnings: string[]
+  history: AgentMessage[]
+  userMessage: string
+  memoryStorePath?: string
+  contractResolver: AgentRuntimeContractResolver
+}): { content: string; metadata?: Record<string, JSONValue> } {
   if (input.command.name === 'context') {
-    return renderModelGatewayMessagesText(buildContext({
+    const runtimeContract = input.contractResolver.find(input.manifest)
+    const builtContext = buildContext({
       manifest: input.manifest,
       skills: input.skills,
       context: input.context,
@@ -86,12 +105,65 @@ export function renderLocalDiagnosticCommand(input: {
       userMessage: input.userMessage,
       command: input.command,
       contractResolver: input.contractResolver,
-    }).messages)
+    })
+    const modelTools = buildOpenAIChatTools(input.tools, runtimeContract)
+    return {
+      content: renderModelGatewayMessagesText(builtContext.messages),
+      metadata: {
+        schema: 'movscript.local_context_diagnostic.v1',
+        command: input.command as unknown as JSONValue,
+        modelGatewayCalled: false,
+        messages: builtContext.messages.map((message) => ({
+          role: message.role,
+          content: message.content ?? '',
+        })) as unknown as JSONValue,
+        systemPrompt: builtContext.systemPrompt,
+        debugParts: builtContext.debugParts as unknown as JSONValue,
+        promptStats: builtContext.promptStats as unknown as JSONValue,
+        tools: {
+          available: compactDiagnosticTools(input.tools.available),
+          blocked: compactDiagnosticTools(input.tools.blocked),
+          discoveredCount: input.tools.discovered.length,
+          modelTools: modelTools.map((tool) => ({
+            name: tool.function.name,
+            ...(tool.function.description ? { description: tool.function.description } : {}),
+            ...(tool.function.parameters !== undefined ? { parameters: tool.function.parameters as JSONValue } : {}),
+          })),
+        } as unknown as JSONValue,
+        skills: input.skills.map((skill) => ({
+          id: skill.id,
+          name: skill.name,
+          category: skill.category,
+          activationReason: skill.activationReason,
+          resolvedPriority: skill.resolvedPriority,
+        })) as unknown as JSONValue,
+        warnings: builtContext.warnings as unknown as JSONValue,
+      },
+    }
   }
   if (input.command.name === 'memory') {
-    return renderMemoryFilesText(input.memories, input.memoryStorePath)
+    return { content: renderMemoryFilesText(input.memories, input.memoryStorePath) }
   }
-  return ''
+  return { content: '' }
+}
+
+function compactDiagnosticTools(tools: ResolvedToolCatalog['available']): JSONValue {
+  return tools.map((tool) => ({
+    name: tool.name,
+    ...(tool.description ? { description: tool.description } : {}),
+    source: tool.source,
+    registered: tool.registered,
+    granted: tool.granted,
+    available: tool.available,
+    ...(tool.permission ? { permission: tool.permission } : {}),
+    ...(tool.risk ? { risk: tool.risk } : {}),
+    ...(tool.projectScoped !== undefined ? { projectScoped: tool.projectScoped } : {}),
+    approval: tool.approval,
+    requiresApproval: tool.requiresApproval,
+    ...(tool.unavailableReason ? { unavailableReason: tool.unavailableReason } : {}),
+    ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+    ...(tool.outputSchema !== undefined ? { outputSchema: tool.outputSchema } : {}),
+  })) as unknown as JSONValue
 }
 
 export function renderLocalFinalAssistantContent(input: {

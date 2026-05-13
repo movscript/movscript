@@ -1,7 +1,7 @@
 import { MCPError, type MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../types.js'
 import { DEFAULT_AGENT_MANIFEST, normalizeAgentManifest, type AgentManifest } from '../catalog/agentManifest.js'
-import type { SkillDefinition } from '../catalog/types.js'
+import type { AgentProfile, CapabilityPack, SkillDefinition, ToolDefinition } from '../catalog/types.js'
 import {
   InMemoryAgentCatalogStateStore,
   type AgentCatalogStateStore,
@@ -104,10 +104,10 @@ import { parseAgentCommand } from '../context/commandRouter.js'
 import { planPreviewToolRequests } from '../orchestration/previewPlanner.js'
 import { reloadCatalogCandidate } from '../catalog/reloader.js'
 import {
+  buildLocalDiagnosticCommand,
   buildLocalDiagnosticFallbackContextResult,
   isLocalDiagnosticCommand,
   parseGenerationDebugCommand,
-  renderLocalDiagnosticCommand,
   renderLocalFinalAssistantContent,
 } from '../context/localDiagnosticCommands.js'
 import { executeTool } from '../orchestration/toolExecutor.js'
@@ -240,17 +240,19 @@ export class AgentRuntime {
     this.backendApplyClient = options.backendApplyClient ?? new MCPBackendApplyClient(this.mcpClient)
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
-    const builtinCatalog = !options.pluginCatalogLoader
+    const initialCatalog = options.pluginCatalog
+    const builtinCatalog = initialCatalog ?? (!options.pluginCatalogLoader
       && !options.defaultAgentManifest
       && !options.toolRegistry
       ? loadCatalogSnapshot()
-      : undefined
+      : undefined)
     this.defaultAgentManifest = options.defaultAgentManifest ?? builtinCatalog?.manifest ?? DEFAULT_AGENT_MANIFEST
     this.toolRegistry = options.toolRegistry ?? builtinCatalog?.registry ?? DEFAULT_TOOL_REGISTRY
-    this.layeredRegistry = builtinCatalog?.layeredRegistry ?? loadCatalogSnapshot({
-      baseManifest: this.defaultAgentManifest,
-      baseTools: this.toolRegistry.list(),
-    }).layeredRegistry
+    this.layeredRegistry = builtinCatalog?.layeredRegistry
+      ?? loadCatalogSnapshot({
+        baseManifest: this.defaultAgentManifest,
+        baseTools: this.toolRegistry.list(),
+      }).layeredRegistry
     this.contractResolver = options.contractResolver ?? EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER
     this.pluginCatalogInfo = options.pluginCatalogInfo ?? (builtinCatalog
       ? {
@@ -267,7 +269,7 @@ export class AgentRuntime {
     this.catalogStateStore = options.catalogStateStore ?? new InMemoryAgentCatalogStateStore()
     this.pluginCatalogLoader = options.pluginCatalogLoader
     this.updateState = options.updateState
-    if (this.pluginCatalogLoader) this.reloadAgentCatalog()
+    if (this.pluginCatalogLoader && !initialCatalog) this.reloadAgentCatalog()
   }
 
   async getCapabilities(input: {
@@ -371,6 +373,171 @@ export class AgentRuntime {
       toolCount: reload.toolCount,
       warnings: reload.warnings,
       catalogIssueCount: reload.catalogIssueCount,
+    } as unknown as JSONValue
+  }
+
+  inspectAgentCatalog(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    const snapshot = this.getRunCatalogSnapshot(run.id)
+    const registry = snapshot.layeredRegistry
+    const view = normalizeCatalogInspectView(input.view)
+    const id = normalizeNonEmptyString(input.id)
+    const profileId = normalizeNonEmptyString(run.agentManifest?.metadata?.profileId)
+      ?? normalizeNonEmptyString(snapshot.defaultAgentManifest.metadata?.profileId)
+      ?? 'movscript.profile.default'
+    const profile = registry.profiles.get(profileId) ?? registry.profiles.get('movscript.profile.default') ?? registry.profiles.values().next().value
+    const enabledPackIds = profile ? collectCatalogPackClosure(profile.enabledPacks, registry.packs) : []
+    const enabledPackSet = new Set(enabledPackIds)
+    const activeSkillIds = activeSkillIdsFromRun(run)
+    const base = {
+      status: 'ok',
+      catalogSnapshot: {
+        id: snapshot.id,
+        version: snapshot.catalogVersion,
+      },
+      view,
+    }
+
+    if (view === 'summary') {
+      return {
+        ...base,
+        profile: profile ? summarizeCatalogProfile(profile) : null,
+        counts: {
+          packs: registry.packs.size,
+          enabledPacks: enabledPackIds.length,
+          skills: registry.skills.size,
+          tools: registry.tools.size,
+          profiles: registry.profiles.size,
+        },
+        enabledPackIds,
+        activeSkillIds,
+        availableSkillIds: profile ? uniqueStrings([
+          ...(profile.persona ? [profile.persona] : []),
+          ...profile.enabledPolicies,
+          ...profile.enabledWorkflows,
+        ]) : [],
+        toolNames: profile?.toolGrants.map((grant) => grant.name) ?? [],
+        warnings: snapshot.pluginWarnings,
+      } as unknown as JSONValue
+    }
+
+    if (!id) throw new Error(`inspect_agent_catalog ${view} view requires id`)
+    if (view === 'pack') {
+      const pack = registry.packs.get(id)
+      if (!pack) throw new Error(`catalog pack not found: ${id}`)
+      return {
+        ...base,
+        pack: summarizeCatalogPack(pack),
+        enabled: enabledPackSet.has(pack.id),
+      } as unknown as JSONValue
+    }
+    if (view === 'skill') {
+      const skill = registry.skills.get(id)
+      if (!skill) throw new Error(`catalog skill not found: ${id}`)
+      return {
+        ...base,
+        skill: summarizeCatalogSkill(skill, input.includeInstruction === true),
+        active: activeSkillIds.includes(skill.id),
+        coveredByEnabledPack: enabledPackIds.some((packId) => registry.packs.get(packId)?.skills.includes(skill.id)),
+      } as unknown as JSONValue
+    }
+    if (view === 'tool') {
+      const tool = registry.tools.get(id)
+      if (!tool) throw new Error(`catalog tool not found: ${id}`)
+      const grant = profile?.toolGrants.find((item) => item.name === tool.name)
+      return {
+        ...base,
+        tool: summarizeCatalogTool(tool, input.includeSchema === true),
+        enabledByPack: enabledPackIds.some((packId) => registry.packs.get(packId)?.tools.includes(tool.name)),
+        grant: grant ? { mode: grant.mode, ...(grant.approval ? { approval: grant.approval } : {}) } : null,
+      } as unknown as JSONValue
+    }
+    if (view === 'profile') {
+      const target = registry.profiles.get(id)
+      if (!target) throw new Error(`catalog profile not found: ${id}`)
+      return {
+        ...base,
+        profile: summarizeCatalogProfile(target),
+        isCurrent: target.id === profile?.id,
+      } as unknown as JSONValue
+    }
+    throw new Error(`unsupported catalog inspect view: ${view}`)
+  }
+
+  async createAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {
+    const plannerRun = this.requirePlannerRun(run.id)
+    if (plannerRun.planId) {
+      return {
+        status: 'exists',
+        planId: plannerRun.planId,
+        plannerRunId: plannerRun.id,
+        snapshot: this.getPlanSnapshot(plannerRun.planId),
+      } as unknown as JSONValue
+    }
+    const existingPlan = this.findThreadPlan(plannerRun.threadId)
+    if (existingPlan) {
+      this.attachPlannerRunToPlan(plannerRun.id, existingPlan.id, 'movscript_create_plan')
+      return {
+        status: 'attached',
+        planId: existingPlan.id,
+        plannerRunId: plannerRun.id,
+        snapshot: this.getPlanSnapshot(existingPlan.id),
+      } as unknown as JSONValue
+    }
+    const snapshot = await this.createPlan({
+      ...input,
+      threadId: plannerRun.threadId,
+      createPlannerRun: false,
+    })
+    this.attachPlannerRunToPlan(plannerRun.id, snapshot.plan.id, 'movscript_create_plan')
+    const plan = this.requirePlan(snapshot.plan.id)
+    plan.status = snapshot.tasks.length > 0 ? 'running' : 'blocked'
+    plan.updatedAt = isoNow()
+    this.store.updatePlan(plan)
+
+    return {
+      status: 'created',
+      planId: plan.id,
+      plannerRunId: plannerRun.id,
+      snapshot: this.getPlanSnapshot(plan.id),
+    } as unknown as JSONValue
+  }
+
+  getAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    const plannerRun = this.requirePlannerRun(run.id)
+    const planId = normalizeNonEmptyString(input.planId) ?? plannerRun.planId ?? this.findThreadPlan(plannerRun.threadId)?.id
+    if (!planId) throw new Error('get_plan requires planId or a planner run plan')
+    const plan = this.requirePlan(planId)
+    if (plan.threadId !== plannerRun.threadId) throw new Error(`planner run ${plannerRun.id} cannot inspect plan ${planId}`)
+    return {
+      status: 'ok',
+      planId,
+      plannerRunId: plannerRun.id,
+      snapshot: this.getPlanSnapshot(planId),
+    } as unknown as JSONValue
+  }
+
+  replanAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
+    const plannerRun = this.requirePlannerRun(run.id)
+    const planId = normalizeNonEmptyString(input.planId) ?? plannerRun.planId ?? this.findThreadPlan(plannerRun.threadId)?.id
+    if (!planId) throw new Error('replan requires planId or a planner run plan')
+    if (plannerRun.planId && plannerRun.planId !== planId) throw new Error(`planner run ${plannerRun.id} cannot replan plan ${planId}`)
+    const plan = this.requirePlan(planId)
+    if (plan.threadId !== plannerRun.threadId) throw new Error(`planner run ${plannerRun.id} cannot replan plan ${planId}`)
+    if (!plannerRun.planId) this.attachPlannerRunToPlan(plannerRun.id, planId, 'movscript_replan')
+    const result = this.replanRun(plannerRun.id, {
+      ...input,
+      planId,
+      plannerRunId: plannerRun.id,
+    })
+    return {
+      status: 'updated',
+      planId,
+      plannerRunId: plannerRun.id,
+      createdTaskIds: result.createdTaskIds,
+      updatedTaskIds: result.updatedTaskIds,
+      resetTaskIds: result.resetTaskIds,
+      ...(result.dispatch ? { dispatch: result.dispatch } : {}),
+      snapshot: this.getPlanSnapshot(planId),
     } as unknown as JSONValue
   }
 
@@ -885,6 +1052,8 @@ export class AgentRuntime {
     const threadId = typeof input.threadId === 'string' && input.threadId.trim() ? input.threadId.trim() : undefined
     if (!threadId) throw new Error('threadId is required')
     const thread = this.requireThread(threadId)
+    const existingPlan = this.findThreadPlan(thread.id)
+    if (existingPlan) throw new Error(`thread ${thread.id} already has plan ${existingPlan.id}`)
     const now = isoNow()
     let tasksInput = normalizePlanTaskInputs(input.tasks)
     const planGoal = normalizeNonEmptyString(input.goal) ?? normalizeNonEmptyString(input.message)
@@ -1963,7 +2132,7 @@ export class AgentRuntime {
         })
 
         const finalRound = buildRunRound(999, 'Final response', 'final')
-        const finalContent = renderLocalDiagnosticCommand({
+        const localDiagnostic = buildLocalDiagnosticCommand({
           command,
           run,
           manifest: activeManifest,
@@ -1978,13 +2147,18 @@ export class AgentRuntime {
           memoryStorePath: this.getMemoryStorePath(),
           contractResolver: this.contractResolver,
         })
+        const finalContent = localDiagnostic.content
         const assistant = this.createMessage(thread.id, 'assistant', finalContent || '（无内容）', run.id)
         thread.messages.push(assistant)
         thread.updatedAt = assistant.createdAt
 
         const step = this.createStep(run, 'message', finalRound)
         step.status = 'completed'
-        step.result = { messageId: assistant.id, localCommand: command.name }
+        step.result = {
+          messageId: assistant.id,
+          localCommand: command.name,
+          ...(localDiagnostic.metadata ? { diagnostic: localDiagnostic.metadata } : {}),
+        }
         step.completedAt = isoNow()
         this.recordTraceEvent(run, {
           kind: 'assistant',
@@ -2018,6 +2192,8 @@ export class AgentRuntime {
         thread.updatedAt = run.updatedAt
         this.store.updateThread(thread)
         this.store.updateRun(run)
+        this.emitAssistantMessage(run, assistant)
+        this.emitRunSnapshot(run, { done: true })
         return
       }
 
@@ -2166,6 +2342,8 @@ export class AgentRuntime {
         thread.updatedAt = run.updatedAt
         this.store.updateThread(thread)
         this.store.updateRun(run)
+        this.emitAssistantMessage(run, assistant)
+        this.emitRunSnapshot(run, { done: true })
         return
       }
 
@@ -2384,6 +2562,7 @@ export class AgentRuntime {
       thread.updatedAt = run.updatedAt
       this.store.updateThread(thread)
       this.store.updateRun(run)
+      this.emitAssistantMessage(run, assistant)
       this.emitRunSnapshot(run, { done: true })
       this.deferPostRunRecords(run.id, {
         round: finalRound,
@@ -2422,6 +2601,7 @@ export class AgentRuntime {
         step.completedAt = isoNow()
         this.store.updateThread(thread)
         this.store.updateRun(run)
+        this.emitAssistantMessage(run, assistant)
       }
       this.emitRunSnapshot(run, { done: true })
     }
@@ -2592,6 +2772,15 @@ export class AgentRuntime {
     if (options.done) {
       this.emitRunStreamEvent(run.id, { type: 'done', run: streamRun })
     }
+  }
+
+  private emitAssistantMessage(run: AgentRun, message: AgentMessage): void {
+    this.emitRunStreamEvent(run.id, {
+      type: 'assistant_message',
+      runId: run.id,
+      message,
+      run: toStreamRun(run),
+    })
   }
 
   private replayPlanStream(planId: string, listener: (event: AgentPlanStreamEvent) => void): void {
@@ -2824,6 +3013,39 @@ export class AgentRuntime {
     const plan = this.store.getPlan(id)
     if (!plan) throw new Error(`plan not found: ${id}`)
     return plan
+  }
+
+  private findThreadPlan(threadId: string): AgentPlan | undefined {
+    return this.store.listPlans().find((plan) => plan.threadId === threadId)
+  }
+
+  private attachPlannerRunToPlan(runId: string, planId: string, source: string): AgentRun {
+    const run = this.requirePlannerRun(runId)
+    const plan = this.requirePlan(planId)
+    if (run.threadId !== plan.threadId) throw new Error(`planner run ${run.id} cannot attach to plan ${plan.id}`)
+    if (run.planId && run.planId !== plan.id) throw new Error(`planner run ${run.id} is already attached to plan ${run.planId}`)
+    run.planId = plan.id
+    run.progress = 0
+    run.updatedAt = isoNow()
+    run.metadata = {
+      ...(run.metadata ?? {}),
+      attachedPlanByTool: source,
+    }
+    this.store.updateRun(run)
+
+    if (!plan.rootRunId) {
+      plan.rootRunId = run.id
+      plan.updatedAt = isoNow()
+      this.store.updatePlan(plan)
+    } else if (plan.rootRunId !== run.id) {
+      const rootRun = this.store.getRun(plan.rootRunId)
+      if (!rootRun || rootRun.threadId !== run.threadId) {
+        plan.rootRunId = run.id
+        plan.updatedAt = isoNow()
+        this.store.updatePlan(plan)
+      }
+    }
+    return run
   }
 
   private requireTask(id: string): AgentTask {
@@ -4098,6 +4320,104 @@ function isBlockingCatalogIssue(issue: { level: string; code: string; resourceId
   if (issue.level !== 'error') return false
   if (issue.resourceId === 'movscript.profile.default') return false
   return true
+}
+
+function normalizeCatalogInspectView(value: unknown): 'summary' | 'pack' | 'skill' | 'tool' | 'profile' {
+  if (value === 'pack' || value === 'skill' || value === 'tool' || value === 'profile') return value
+  return 'summary'
+}
+
+function activeSkillIdsFromRun(run: AgentRun): string[] {
+  const event = [...(run.traceEvents ?? [])].reverse().find((item) => item.title === 'Runtime context resolved' || item.title === 'Runtime context resolved from fallback')
+  const data = isRecord(event?.data) ? event.data : undefined
+  const raw = Array.isArray(data?.skills) ? data.skills : []
+  return raw.flatMap((item) => isRecord(item) && typeof item.id === 'string' ? [item.id] : [])
+}
+
+function collectCatalogPackClosure(ids: string[], packs: Map<string, CapabilityPack>): string[] {
+  const visited = new Set<string>()
+  const visit = (id: string): void => {
+    if (visited.has(id)) return
+    visited.add(id)
+    const pack = packs.get(id)
+    if (!pack) return
+    for (const required of Object.keys(pack.requires?.packs ?? {})) visit(required)
+  }
+  for (const id of ids) visit(id)
+  return Array.from(visited)
+}
+
+function summarizeCatalogProfile(profile: AgentProfile): JSONValue {
+  return {
+    id: profile.id,
+    version: profile.version,
+    name: profile.name,
+    ...(profile.description ? { description: profile.description } : {}),
+    enabledPacks: profile.enabledPacks,
+    persona: profile.persona,
+    enabledPolicies: profile.enabledPolicies,
+    enabledWorkflows: profile.enabledWorkflows,
+    toolGrants: profile.toolGrants.map((grant) => ({
+      name: grant.name,
+      mode: grant.mode,
+      ...(grant.approval ? { approval: grant.approval } : {}),
+    })),
+    ...(profile.limits ? { limits: profile.limits as unknown as JSONValue } : {}),
+  }
+}
+
+function summarizeCatalogPack(pack: CapabilityPack): JSONValue {
+  return {
+    id: pack.id,
+    version: pack.version,
+    name: pack.name,
+    ...(pack.description ? { description: pack.description } : {}),
+    source: pack.source,
+    skills: pack.skills,
+    tools: pack.tools,
+    schemas: pack.schemas,
+    ...(pack.requires ? { requires: pack.requires as unknown as JSONValue } : {}),
+    ...(pack.conflicts ? { conflicts: pack.conflicts } : {}),
+  }
+}
+
+function summarizeCatalogSkill(skill: SkillDefinition, includeInstruction: boolean): JSONValue {
+  return {
+    id: skill.id,
+    kind: skill.kind,
+    version: skill.version,
+    name: skill.name,
+    description: skill.description,
+    priority: skill.priority,
+    enabled: skill.enabled,
+    ...(skill.kind === 'workflow' ? {
+      triggers: skill.triggers as unknown as JSONValue,
+      toolRefs: skill.toolRefs,
+      ...(skill.toolScope ? { toolScope: skill.toolScope } : {}),
+    } : {}),
+    ...(skill.kind !== 'workflow' && skill.toolRefs ? { toolRefs: skill.toolRefs } : {}),
+    ...(skill.schemaRefs ? { schemaRefs: skill.schemaRefs } : {}),
+    ...(skill.outputContract ? { outputContract: skill.outputContract } : {}),
+    ...(includeInstruction ? { instructionTemplate: skill.instructionTemplate } : {}),
+  }
+}
+
+function summarizeCatalogTool(tool: ToolDefinition, includeSchema: boolean): JSONValue {
+  return {
+    name: tool.name,
+    description: tool.description,
+    permission: tool.permission,
+    risk: tool.risk,
+    projectScoped: tool.projectScoped,
+    defaults: tool.defaults,
+    source: tool.source,
+    ...(tool.capability ? { capability: tool.capability } : {}),
+    ...(tool.errorCodes ? { errorCodes: tool.errorCodes } : {}),
+    ...(tool.allowedRunRoles ? { allowedRunRoles: tool.allowedRunRoles } : {}),
+    ...(tool.availability ? { availability: tool.availability as unknown as JSONValue } : {}),
+    ...(includeSchema ? { inputSchema: tool.inputSchema as unknown as JSONValue } : {}),
+    ...(includeSchema && tool.outputSchema ? { outputSchema: tool.outputSchema as unknown as JSONValue } : {}),
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
