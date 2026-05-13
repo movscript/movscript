@@ -2308,6 +2308,19 @@ function RunActivityTitleBubble({
   if (!displayData) return null
 
   const openCard = () => setOpen(true)
+  if (open) {
+    return (
+      <RunActivityPanel
+        activity={activity}
+        run={run}
+        events={events}
+        title={title}
+        defaultOpen
+        className={cn('mt-2', className)}
+      />
+    )
+  }
+
   return (
     <div className={cn('mt-2 text-xs', className)}>
       <button
@@ -2331,16 +2344,6 @@ function RunActivityTitleBubble({
           <span className="text-[9px] text-muted-foreground">{activitySummary(displayData)}</span>
         </span>
       </button>
-      {open && (
-        <RunActivityPanel
-          activity={activity}
-          run={run}
-          events={events}
-          title={title}
-          defaultOpen
-          className="mt-1.5"
-        />
-      )}
     </div>
   )
 }
