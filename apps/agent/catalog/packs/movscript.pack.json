@@ -30,6 +30,7 @@
     "movscript_create_project",
     "movscript_list_models",
     "movscript_create_generation_job",
+    "movscript_attach_asset_slot_candidate",
     "movscript_get_generation_job",
     "movscript_list_generation_jobs",
     "movscript_cancel_generation_job"

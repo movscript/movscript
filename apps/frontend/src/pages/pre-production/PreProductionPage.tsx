@@ -195,25 +195,27 @@ function ResourceThumb({ resource, className }: { resource?: RawResource; classN
   )
 }
 
-export function AssetGenerationWorkspace() {
+export function PreProductionAssetWorkspace() {
   const projectId = useProjectStore((s) => s.current?.ID)
-  return <AssetSlotWorkspace projectId={projectId} compact />
+  return <PreProductionWorkspaceShell projectId={projectId} compact />
 }
 
-export default function AssetSlotsPage() {
+export default function PreProductionPage() {
   const project = useProjectStore((s) => s.current)
-  return <AssetSlotWorkspace projectId={project?.ID} projectName={project?.name} />
+  return <PreProductionWorkspaceShell projectId={project?.ID} projectName={project?.name} />
 }
 
-function AssetSlotWorkspace({ projectId, projectName, compact = false }: { projectId?: number; projectName?: string; compact?: boolean }) {
+function PreProductionWorkspaceShell({ projectId, projectName, compact = false }: { projectId?: number; projectName?: string; compact?: boolean }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const assetAssistantCleanupRef = useRef<(() => void) | null>(null)
+  const prepAuditCleanupRef = useRef<(() => void) | null>(null)
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const [newSlotEditId, setNewSlotEditId] = useState<number | null>(null)
   const [newReferenceEditKey, setNewReferenceEditKey] = useState<string | number | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [prepAuditLaunching, setPrepAuditLaunching] = useState(false)
   const selectedId = readNumberParam(searchParams, 'asset_slot_id') ?? readNumberParam(searchParams, 'selected')
   const selectedReferenceParam = readNumberParam(searchParams, 'reference_id')
   const kindParam = readStringParam(searchParams, 'kind')
@@ -257,9 +259,19 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
     enabled: !!projectId && workspaceView === 'review',
     refetchInterval: workspaceView === 'review' ? 1500 : false,
   })
+  const settingProposalDraftsQuery = useQuery<AgentDraft[]>({
+    queryKey: ['setting-proposal-drafts', projectId],
+    queryFn: async () => {
+      const { drafts } = await localAgentClient.listDrafts({ projectId, kind: 'setting_proposal', limit: 20 })
+      return drafts
+    },
+    enabled: !!projectId && workspaceView === 'review',
+    refetchInterval: workspaceView === 'review' ? 1500 : false,
+  })
 
   useEffect(() => () => {
     assetAssistantCleanupRef.current?.()
+    prepAuditCleanupRef.current?.()
   }, [])
 
   const updateSlotMutation = useMutation({
@@ -553,6 +565,74 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
     generateCandidateMutation.mutate({ row: selected, kind: selected.kind === 'video' ? 'video' : 'image' })
   }
 
+  function organizeCurrentPrep() {
+    if (!projectId) {
+      toast.info('请先选择项目')
+      return
+    }
+    const projectLabel = projectName || `项目 #${projectId}`
+    const requestId = `pre_production_audit_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    setPrepAuditLaunching(true)
+    prepAuditCleanupRef.current?.()
+    prepAuditCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
+      setPrepAuditLaunching(false)
+      prepAuditCleanupRef.current?.()
+      prepAuditCleanupRef.current = null
+      if (payload.status === 'cancelled' || payload.run?.status === 'cancelled') {
+        toast.info('前期准备梳理已停止')
+      } else if (payload.status === 'error' || payload.run?.status === 'failed') {
+        toast.error(payload.run?.error || payload.error || '前期准备梳理失败')
+      } else {
+        const latestSettingDraft = selectLatestDraftArtifact(payload.artifacts, 'setting_proposal')
+        const latestAssetProposalDraft = selectLatestDraftArtifact(payload.artifacts, 'asset_proposal')
+        setSearchParams((current) => {
+          const next = new URLSearchParams(current)
+          next.set('view', 'review')
+          if (latestSettingDraft?.draftId) next.set('settingDraftId', latestSettingDraft.draftId)
+          if (latestAssetProposalDraft?.draftId) next.set('assetProposalDraftId', latestAssetProposalDraft.draftId)
+          return next
+        }, { replace: true })
+        toast.success('前期准备梳理完成，可在审阅区查看设定和素材提案')
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['pre-production-creative-references', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
+        settingProposalDraftsQuery.refetch(),
+        assetProposalDraftsQuery.refetch(),
+      ])
+    })
+
+    openAgentPanelDraft({
+      requestId,
+      taskType: 'pre_production_audit',
+      message: `请梳理当前设定和素材：${projectLabel}`,
+      title: `前期准备梳理: ${projectLabel}`,
+      newConversation: true,
+      autoSend: true,
+      projectId,
+      clientInput: buildCommandFirstClientInput({
+        message: [
+          `请梳理当前项目「${projectLabel}」的前期准备。`,
+          '读取现有 creative_references 和 asset_slots，输出可审阅草稿：',
+          '1. 如果设定资料缺漏、重复、状态不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，proposal.asset_slots 必须为空。',
+          '2. 如果素材需求缺漏、归属不清晰、优先级/状态/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
+          '3. 不要生成候选素材，不要创建生成任务，不要把候选图 prompt 写成本轮结果。',
+          '4. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
+        ].join('\n'),
+        labels: ['pre-production', 'setting-and-asset-prep', 'draft-review'],
+        hints: {
+          projectId,
+          route: { pathname: '/pre-production' },
+          selection: { entityType: 'project', entityId: projectId, label: projectLabel },
+        },
+      }),
+      runPolicy: { maxToolCalls: 36, maxIterations: 18 },
+      timeoutMs: 240_000,
+      renderMode: 'page',
+    })
+    toast.info('已打开前期准备梳理会话；AI 生成的草稿会回到审阅区')
+  }
+
   const mainWorkspace = (
     <PreProductionWorkspace
       loading={isLoading}
@@ -578,6 +658,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
       startCreate={startCreate}
       startCreateReference={startCreateReference}
       createSlotPending={createSlotMutation.isPending}
+      prepAuditLaunching={prepAuditLaunching}
       setWorkspaceView={setWorkspaceView}
       updateSlotMutationPending={updateSlotMutation.isPending}
       addCandidateMutationPending={addCandidateMutation.isPending}
@@ -608,6 +689,7 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
       onGenerateProposal={generateCandidate}
       onGenerateMedia={generateMediaCandidate}
       onOpenAssistant={openAssistantForSlot}
+      onOrganizeCurrentPrep={organizeCurrentPrep}
       onOpenCanvas={() => selected && openCanvasMutation.mutate(selected)}
       onSelectSlot={(slotId) => setFilter({ asset_slot_id: slotId })}
       onSelectReference={(referenceId) => {
@@ -620,12 +702,16 @@ function AssetSlotWorkspace({ projectId, projectName, compact = false }: { proje
   const reviewWorkspace = (
     <PreProductionReviewWorkspace
       projectId={projectId}
+      settingDrafts={settingProposalDraftsQuery.data ?? []}
+      settingDraftsLoading={settingProposalDraftsQuery.isLoading}
       drafts={assetProposalDraftsQuery.data ?? []}
       loading={assetProposalDraftsQuery.isLoading}
       creativeReferences={creativeReferences}
       assetSlots={visibleSlots}
       onApplied={async () => {
+        await queryClient.invalidateQueries({ queryKey: ['pre-production-creative-references', projectId] })
         await queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] })
+        await settingProposalDraftsQuery.refetch()
         await assetProposalDraftsQuery.refetch()
       }}
       setWorkspaceView={setWorkspaceView}
@@ -673,6 +759,7 @@ function PreProductionWorkspace({
   startCreate,
   startCreateReference,
   createSlotPending,
+  prepAuditLaunching,
   setWorkspaceView,
   updateSlotMutationPending,
   addCandidateMutationPending,
@@ -691,6 +778,7 @@ function PreProductionWorkspace({
   onGenerateProposal,
   onGenerateMedia,
   onOpenAssistant,
+  onOrganizeCurrentPrep,
   onOpenCanvas,
   onSelectSlot,
   onSelectReference,
@@ -718,6 +806,7 @@ function PreProductionWorkspace({
   startCreate: () => void
   startCreateReference: () => void
   createSlotPending: boolean
+  prepAuditLaunching: boolean
   setWorkspaceView: (view: 'main' | 'review') => void
   updateSlotMutationPending: boolean
   addCandidateMutationPending: boolean
@@ -736,6 +825,7 @@ function PreProductionWorkspace({
   onGenerateProposal: (kind: CandidateGenerationKind) => void
   onGenerateMedia: (kind: CandidateGenerationKind) => void
   onOpenAssistant: () => void
+  onOrganizeCurrentPrep: () => void
   onOpenCanvas: () => void
   onSelectSlot: (slotId: number) => void
   onSelectReference: (referenceId: number) => void
@@ -753,6 +843,10 @@ function PreProductionWorkspace({
           <CompactMetric label="锁定" value={lockedCount} detail={`${waivedCount} 豁免`} />
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={onOrganizeCurrentPrep} loading={prepAuditLaunching} disabled={!projectId || prepAuditLaunching}>
+            <Bot size={14} />
+            梳理设定+素材
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setWorkspaceView('review')}>
             <GitBranch size={14} />
             审阅提案
@@ -875,6 +969,8 @@ function PreProductionWorkspace({
 
 function PreProductionReviewWorkspace({
   projectId,
+  settingDrafts,
+  settingDraftsLoading,
   drafts,
   loading,
   creativeReferences,
@@ -883,6 +979,8 @@ function PreProductionReviewWorkspace({
   setWorkspaceView,
 }: {
   projectId?: number
+  settingDrafts: AgentDraft[]
+  settingDraftsLoading: boolean
   drafts: AgentDraft[]
   loading: boolean
   creativeReferences: CreativeReferenceRecord[]
@@ -911,17 +1009,30 @@ function PreProductionReviewWorkspace({
         </Button>
       </header>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <ProjectLayerProposalReviewPanel
-          projectId={projectId}
-          kind="asset_proposal"
-          title="素材需求提案"
-          description="只确认需要什么素材、属于哪个设定、用途、优先级、复用边界和状态。"
-          emptyMessage="暂无待审阅素材需求提案。"
-          drafts={drafts}
-          loading={loading}
-          data={{ creativeReferences, assetSlots }}
-          onApplied={onApplied}
-        />
+        <div className="space-y-4">
+          <ProjectLayerProposalReviewPanel
+            projectId={projectId}
+            kind="setting_proposal"
+            title="设定提案"
+            description="只确认人物、地点、道具、产品、风格和世界规则；素材需求不在此提案内写入。"
+            emptyMessage="暂无待审阅设定提案。"
+            drafts={settingDrafts}
+            loading={settingDraftsLoading}
+            data={{ creativeReferences, assetSlots }}
+            onApplied={onApplied}
+          />
+          <ProjectLayerProposalReviewPanel
+            projectId={projectId}
+            kind="asset_proposal"
+            title="素材需求提案"
+            description="只确认需要什么素材、属于哪个设定、用途、优先级、复用边界和状态。"
+            emptyMessage="暂无待审阅素材需求提案。"
+            drafts={drafts}
+            loading={loading}
+            data={{ creativeReferences, assetSlots }}
+            onApplied={onApplied}
+          />
+        </div>
         <div className="space-y-3">
           <AssetInfoPanel title="审阅边界" icon={GitBranch}>
             <AssetInfoRow label="设定资料" value="人物、地点、道具、风格等前期核心" />

@@ -38,7 +38,7 @@ test('default profile prompt composition covers global policy and triggered work
     workflows,
   })
 
-  assert.match(prompt.systemPrompt, /Project Proposal/)
+  assert.match(prompt.systemPrompt, /Project Standards Proposal/)
   assert.match(prompt.systemPrompt, /Proposal First/)
   assert.match(prompt.systemPrompt, /Core 是 agent 对自身运行能力的稳定认知层/)
   assert.match(prompt.systemPrompt, /读取记忆、请求用户输入、刷新 catalog、以及在 planner run 中编排 worker subagents/)

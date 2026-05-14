@@ -43,11 +43,12 @@
     "tool://movscript_request_user_input",
     "tool://movscript_list_models",
     "tool://movscript_create_generation_job",
+    "tool://movscript_attach_asset_slot_candidate",
     "tool://movscript_get_generation_job",
     "tool://movscript_list_generation_jobs",
     "tool://movscript_cancel_generation_job"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回最终任务状态、jobId、可用时的输出资源、一致性参考说明、简洁的匹配理由，以及图片是否放入素材候选的确认请求。",
+  "outputContract": "返回最终任务状态、jobId、可用时的输出资源、一致性参考说明、简洁的匹配理由，以及候选集写入结果。",
   "instructionTemplatePath": "instruction.md"
 }

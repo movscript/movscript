@@ -9,7 +9,7 @@ import { useUserStore } from './store/userStore'
 import { useAppSettingsStore } from './store/appSettingsStore'
 import { isBackendBootStatus, type BackendBootStatus } from './lib/backendBoot'
 import ProjectsPage from './pages/projects/ProjectsPage'
-import AssetSlotsPage from './pages/asset-slots/AssetSlotsPage'
+import PreProductionPage from './pages/pre-production/PreProductionPage'
 import CollaborationPage from './pages/collaboration/CollaborationPage'
 import AuthPage from './pages/AuthPage'
 import OnboardingPage from './pages/onboarding/OnboardingPage'
@@ -297,7 +297,7 @@ export default function App() {
                 <Route path="/admin/*" element={<Navigate to="/projects" replace />} />
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
-              <Route path="/pre-production" element={<ProjectGuard><AssetSlotsPage /></ProjectGuard>} />
+              <Route path="/pre-production" element={<ProjectGuard><PreProductionPage /></ProjectGuard>} />
               <Route path="/creative-references" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
               <Route path="/reference-relations" element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
               <Route path="/asset-slots" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />

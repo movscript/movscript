@@ -28,6 +28,8 @@
     "tool://movscript_query_production_context",
     "tool://movscript_get_draft_model",
     "tool://movscript_list_models",
+    "tool://movscript_create_generation_job",
+    "tool://movscript_attach_asset_slot_candidate",
     "tool://movscript_get_generation_job",
     "tool://movscript_list_generation_jobs"
   ],

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
+import { attachAssetSlotCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -122,10 +122,13 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   const tools = listTools()
   const listModels = tools.find((tool) => tool.name === 'movscript_list_models')
   const createJob = tools.find((tool) => tool.name === 'movscript_create_generation_job')
+  const attachCandidate = tools.find((tool) => tool.name === 'movscript_attach_asset_slot_candidate')
   const staticListModels = loadStaticCatalogTool('list-models.tool.json')
   const staticCreateJob = loadStaticCatalogTool('create-job.tool.json')
+  const staticAttachCandidate = loadStaticCatalogTool('attach-asset-slot-candidate.tool.json')
   assert.ok(listModels)
   assert.ok(createJob)
+  assert.ok(attachCandidate)
   assert.match(listModels.description, /model_contracts/)
   assert.match(listModels.description, /contract_version 1/)
   assert.match(listModels.description, /input_requirements/)
@@ -160,6 +163,11 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok(createJob.outputSchema?.properties?.output_resource)
   assert.ok(createJob.outputSchema?.properties?.output_resource_id)
   assert.ok(createJob.outputSchema?.properties?.param_validation)
+  assert.match(attachCandidate.description, /reviewable candidate/)
+  assert.match(attachCandidate.description, /does not accept, select, bind, or lock/)
+  assert.ok(attachCandidate.inputSchema.properties?.asset_slot_id)
+  assert.ok(attachCandidate.inputSchema.properties?.resource_id)
+  assert.ok(attachCandidate.outputSchema?.properties?.candidate)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.audit_version)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.model_contract_loaded)
   assert.ok((createJob.outputSchema?.properties?.param_validation as any)?.properties?.params_schema_loaded)
@@ -197,6 +205,76 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
       schemaShapeWithoutDescriptions(staticCreateJob.outputSchema?.properties?.[field]),
       `movscript_create_generation_job ${field} output schema should match the static agent catalog`,
     )
+  }
+  for (const field of ['projectId', 'asset_slot_id', 'resource_id', 'source_type', 'source_id', 'score', 'note']) {
+    assert.deepEqual(
+      schemaShapeWithoutDescriptions(attachCandidate.inputSchema.properties?.[field]),
+      schemaShapeWithoutDescriptions(staticAttachCandidate.inputSchema.properties?.[field]),
+      `movscript_attach_asset_slot_candidate ${field} schema should match the static agent catalog`,
+    )
+  }
+  for (const field of ['status', 'candidate', 'asset_slot_id', 'candidate_asset_slot_id', 'resource_id', 'message']) {
+    assert.deepEqual(
+      schemaShapeWithoutDescriptions(attachCandidate.outputSchema?.properties?.[field]),
+      schemaShapeWithoutDescriptions(staticAttachCandidate.outputSchema?.properties?.[field]),
+      `movscript_attach_asset_slot_candidate ${field} output schema should match the static agent catalog`,
+    )
+  }
+})
+
+test('attach asset slot candidate posts resource candidate without selecting it', async () => {
+  const previousFetch = globalThis.fetch
+  const previousBaseURL = 'http://localhost:8765'
+  const calls: Array<{ path: string; body: Record<string, unknown> }> = []
+  globalThis.fetch = mockFetch({
+    'POST /projects/42/entities/asset-slot-candidates': (body: Record<string, unknown>) => {
+      calls.push({ path: '/projects/42/entities/asset-slot-candidates', body })
+      return {
+        id: 900,
+        asset_slot_id: body.asset_slot_id,
+        candidate_asset_slot_id: 901,
+        score: body.score,
+        status: 'candidate',
+        note: body.note,
+        candidate_asset_slot: {
+          id: 901,
+          resource_id: body.resource_id,
+          status: 'candidate',
+        },
+      }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await attachAssetSlotCandidate({
+      projectId: 42,
+      asset_slot_id: 7,
+      resource_id: 88,
+      jobId: 123,
+      score: 0.82,
+      note: 'first generated candidate',
+    }) as Record<string, any>
+
+    assert.deepEqual(calls, [{
+      path: '/projects/42/entities/asset-slot-candidates',
+      body: {
+        asset_slot_id: 7,
+        resource_id: 88,
+        source_type: 'agent',
+        source_id: 123,
+        score: 0.82,
+        note: 'first generated candidate',
+      },
+    }])
+    assert.equal(result.status, 'attached')
+    assert.equal(result.asset_slot_id, 7)
+    assert.equal(result.resource_id, 88)
+    assert.equal(result.candidate_asset_slot_id, 901)
+    assert.equal(result.candidate.status, 'candidate')
+    assert.match(result.message, /资源 #88 已加入素材位 #7 的候选集/)
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL(previousBaseURL)
   }
 })
 

@@ -91,7 +91,7 @@ import {
   workbenchSurfaces,
   type WorkbenchCategory,
 } from '@/pages/project-workspace/structure'
-import { AssetGenerationWorkspace } from '@/pages/asset-slots/AssetSlotsPage'
+import { PreProductionAssetWorkspace } from '@/pages/pre-production/PreProductionPage'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 
 export type WorkbenchMode = 'free'
@@ -5727,7 +5727,7 @@ function ScriptSplitWorkbench() {
 
 function CategoryContent({ category }: { category: WorkbenchCategory }) {
   if (category === 'script') return <ScriptSplitWorkbench />
-  if (category === 'assets') return <AssetGenerationWorkspace />
+  if (category === 'assets') return <PreProductionAssetWorkspace />
   if (category === 'creative') return <SettingPreparationWorkbench />
   if (category === 'production') return <ContentGenerationWorkbench />
   if (category === 'reference-relations') return <ReferenceRelationsPage embedded initialView="graph" />

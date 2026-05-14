@@ -781,6 +781,33 @@ export function listTools(): MCPTool[] {
       ),
     },
     {
+      name: 'movscript_attach_asset_slot_candidate',
+      description: 'Attach an existing raw resource as a reviewable candidate for an asset slot. Use after generation succeeds and an output_resource_id is available. This creates or reuses the candidate asset slot and candidate relation, but does not accept, select, bind, or lock the candidate.',
+      inputSchema: objectSchema(
+        {
+          projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
+          asset_slot_id: { type: 'number', description: 'Target asset slot / requirement ID.' },
+          resource_id: { type: 'number', description: 'Existing raw resource ID, usually movscript_create_generation_job.output_resource_id.' },
+          source_type: { type: 'string', description: 'Optional audit source type. Defaults to agent.' },
+          source_id: { type: 'number', description: 'Optional source entity/job/canvas ID for audit.' },
+          score: { type: 'number', description: 'Optional candidate score.' },
+          note: { type: 'string', description: 'Optional review note for why this resource is a candidate.' },
+        },
+        ['asset_slot_id', 'resource_id']
+      ),
+      outputSchema: objectSchema(
+        {
+          status: { type: 'string' },
+          candidate: { type: 'object', description: 'Created or reused asset_slot_candidate.' },
+          asset_slot_id: { type: 'number' },
+          candidate_asset_slot_id: { type: 'number' },
+          resource_id: { type: 'number' },
+          message: { type: 'string' },
+        },
+        ['status', 'candidate', 'asset_slot_id', 'resource_id', 'message']
+      ),
+    },
+    {
       name: 'movscript_list_generation_jobs',
       description: 'List recent AI image or video generation jobs for the current project so the agent can monitor queued and running work.',
       inputSchema: objectSchema(
@@ -874,6 +901,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await listModels(args))
     case 'movscript_create_generation_job':
       return toolText(await createGenerationJob(args))
+    case 'movscript_attach_asset_slot_candidate':
+      return toolText(await attachAssetSlotCandidate(args))
     case 'movscript_get_generation_job':
       return toolText(await getGenerationJob(args))
     case 'movscript_list_generation_jobs':
@@ -1974,6 +2003,37 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
     message: finalStatus === 'succeeded'
       ? `生成完成${outputResourceId ? `，输出资源 #${outputResourceId}` : ''}。`
       : `生成任务结束，状态：${finalStatus}。`,
+  }
+}
+
+export async function attachAssetSlotCandidate(args: Record<string, unknown>): Promise<unknown> {
+  const projectId = resolveToolProjectId(args)
+  const assetSlotId = getOptionalNumeric(args, 'asset_slot_id') ?? getOptionalNumeric(args, 'assetSlotId')
+  const resourceId = getOptionalNumeric(args, 'resource_id') ?? getOptionalNumeric(args, 'resourceId') ?? getOptionalNumeric(args, 'output_resource_id')
+  if (!assetSlotId) throw new Error('asset_slot_id is required')
+  if (!resourceId) throw new Error('resource_id is required')
+
+  const sourceType = getOptionalString(args, 'source_type') ?? getOptionalString(args, 'sourceType') ?? 'agent'
+  const sourceId = getOptionalNumeric(args, 'source_id') ?? getOptionalNumeric(args, 'sourceId') ?? getOptionalNumeric(args, 'jobId')
+  const score = getOptionalNumeric(args, 'score')
+  const note = getOptionalString(args, 'note')
+  const candidate = await backendPost(`/projects/${projectId}/entities/asset-slot-candidates`, {
+    asset_slot_id: assetSlotId,
+    resource_id: resourceId,
+    source_type: sourceType,
+    ...(sourceId ? { source_id: sourceId } : {}),
+    ...(score !== undefined ? { score } : {}),
+    ...(note ? { note } : {}),
+  })
+  const candidateAssetSlotId = numericValue(isRecord(candidate) ? candidate.candidate_asset_slot_id ?? candidate.candidateAssetSlotId : undefined)
+
+  return {
+    status: 'attached',
+    candidate,
+    asset_slot_id: assetSlotId,
+    ...(candidateAssetSlotId ? { candidate_asset_slot_id: candidateAssetSlotId } : {}),
+    resource_id: resourceId,
+    message: `资源 #${resourceId} 已加入素材位 #${assetSlotId} 的候选集。`,
   }
 }
 

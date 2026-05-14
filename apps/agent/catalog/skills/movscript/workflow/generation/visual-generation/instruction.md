@@ -16,6 +16,7 @@
 - 设定/素材 seed：{{tool:movscript_get_draft_model}}
 - 模型发现：{{tool:movscript_list_models}}
 - 创建生成任务：{{tool:movscript_create_generation_job}}
+- 加入 asset slot 候选集：{{tool:movscript_attach_asset_slot_candidate}}
 - 检查和监控任务：{{tool:movscript_get_generation_job}} {{tool:movscript_list_generation_jobs}}
 - 请求用户确认：{{tool:movscript_request_user_input}}
 - 仅在用户明确要求或 stop/cancel 流程需要时取消：{{tool:movscript_cancel_generation_job}}
@@ -31,7 +32,7 @@
 8. 只有在需要审批的生成工具获准运行后，才能提交任务。
 9. 监控任务，直到进入终态或达到监控超时。
 10. 只有工具结果包含输出资源或媒体预览时，才能报告它们。
-11. 当图片输出资源存在时，向用户确认是否把这张图放入对应 asset target 的候选里；在用户确认前，不得把它写成候选已加入、已选中、已绑定或已锁定。
+11. 当输出资源存在且用户目标是生成某个 asset slot 的素材候选时，调用 `movscript_attach_asset_slot_candidate` 把该 output_resource_id 加入目标 asset slot 候选集。除非用户明确要求只预览结果，否则不要停留在让用户手动选择。
 
 校验：
 - 不要仅凭任务已创建就假设任务成功。
@@ -43,8 +44,8 @@
 - 不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`。说明不匹配之处，并选择兼容的模型 contract，或要求用户提供正确的参考输入。
 
 输出：
-返回最终任务状态、jobId、可用时的输出资源或媒体预览、存在时的 provider/model 元数据、使用或缺失的一致性参考、简洁的匹配理由，以及“是否放入候选”的用户确认请求。
+返回最终任务状态、jobId、可用时的输出资源或媒体预览、存在时的 provider/model 元数据、使用或缺失的一致性参考、简洁的匹配理由，以及候选集写入结果。
 
 绝不：
 - 在工具结果包含输出媒体或输出资源之前，绝不声称生成媒体已经存在。
-- 绝不把生成媒体标记为 candidate、accepted、selected、bound 或 locked，除非用户确认且后续写入工具结果证明对应状态。
+- 绝不把生成媒体标记为 candidate，除非 `movscript_attach_asset_slot_candidate` 工具结果证明候选写入成功；绝不把生成媒体标记为 accepted、selected、bound 或 locked。

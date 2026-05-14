@@ -1,0 +1,78 @@
+{
+  "name": "movscript_attach_asset_slot_candidate",
+  "description": "把已有 raw resource 加入某个 asset slot 的候选集。通常在 movscript_create_generation_job 成功返回 output_resource_id 后调用。该工具只创建/复用 candidate asset slot 和 asset_slot_candidate 关系，不会 accept、select、bind 或 lock 候选。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+      "asset_slot_id",
+      "resource_id"
+    ],
+    "properties": {
+      "projectId": {
+        "type": "number"
+      },
+      "asset_slot_id": {
+        "type": "number",
+        "description": "目标素材位 / asset requirement ID。"
+      },
+      "resource_id": {
+        "type": "number",
+        "description": "已有 raw resource ID，通常来自 movscript_create_generation_job.output_resource_id。"
+      },
+      "source_type": {
+        "type": "string",
+        "description": "可选审计来源类型。默认 agent。"
+      },
+      "source_id": {
+        "type": "number",
+        "description": "可选来源实体、生成任务或画布 ID。"
+      },
+      "score": {
+        "type": "number"
+      },
+      "note": {
+        "type": "string"
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+      "status",
+      "candidate",
+      "asset_slot_id",
+      "resource_id",
+      "message"
+    ],
+    "properties": {
+      "status": {
+        "type": "string"
+      },
+      "candidate": {
+        "type": "object"
+      },
+      "asset_slot_id": {
+        "type": "number"
+      },
+      "candidate_asset_slot_id": {
+        "type": "number"
+      },
+      "resource_id": {
+        "type": "number"
+      },
+      "message": {
+        "type": "string"
+      }
+    }
+  },
+  "permission": "asset.candidate.write",
+  "risk": "write",
+  "projectScoped": true,
+  "defaults": {
+    "grant": "allow",
+    "approval": "on_write"
+  },
+  "source": "runtime"
+}
