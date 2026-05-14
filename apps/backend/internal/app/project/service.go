@@ -39,12 +39,18 @@ type CreateInput struct {
 	Name          string `json:"name" binding:"required"`
 	Description   string `json:"description"`
 	TotalEpisodes int    `json:"total_episodes"`
+	AspectRatio   string `json:"aspect_ratio"`
+	VisualStyle   string `json:"visual_style"`
+	ProjectStyle  string `json:"project_style"`
 }
 
 type UpdateInput struct {
 	Name          string `json:"name" binding:"required"`
 	Description   string `json:"description"`
 	TotalEpisodes int    `json:"total_episodes"`
+	AspectRatio   string `json:"aspect_ratio"`
+	VisualStyle   string `json:"visual_style"`
+	ProjectStyle  string `json:"project_style"`
 }
 
 type MemberInput struct {

@@ -187,8 +187,8 @@ export class BackendApplyClient {
       return { performed: false, skippedReason: 'backend apply preview disabled: MOVSCRIPT_BACKEND_API_BASE_URL is not configured' }
     }
     const request = buildApplyRequest(review)
-    if (!isProjectProposalTarget(review)) {
-      return { performed: false, skippedReason: 'backend apply preview is only implemented for project_proposal drafts' }
+    if (!isProjectProposalTarget(review) && !isProductionProposalTarget(review)) {
+      return { performed: false, skippedReason: 'backend apply preview is only implemented for proposal drafts' }
     }
     const path = request.path.replace(/\/apply$/, '/apply-preview')
     const url = `${baseURL}${path}`
@@ -234,6 +234,9 @@ function buildApplyRequest(review: ApplyDraftReview): { method: 'PATCH' | 'POST'
   if (isProjectProposalTarget(review)) {
     return buildProjectProposalRequest(review)
   }
+  if (isProductionProposalTarget(review)) {
+    return buildProductionProposalRequest(review)
+  }
   const entityType = review.target.entityType
   const entityId = review.target.entityId
   const field = review.target.field
@@ -264,7 +267,7 @@ function buildApplyRequest(review: ApplyDraftReview): { method: 'PATCH' | 'POST'
 
 function buildProjectProposalRequest(review: ApplyDraftReview): { method: 'POST'; path: string; payload: Record<string, JSONValue> } {
   const projectId = resolveProjectId(review)
-  const payload = normalizeProjectProposalPayload(review.proposedValue)
+  const payload = normalizeProjectProposalPayloadForKind(review.proposedValue, review.draftKind)
   return {
     method: 'POST',
     path: `/projects/${encodeURIComponent(String(projectId))}/entities/project-proposals/apply`,
@@ -273,13 +276,29 @@ function buildProjectProposalRequest(review: ApplyDraftReview): { method: 'POST'
 }
 
 function isProjectProposalTarget(review: ApplyDraftReview): boolean {
-  return review.target.entityType === 'project' && review.target.field === 'proposal'
+  return review.draftKind === 'setting_proposal'
+    || review.draftKind === 'asset_proposal'
+    || (review.target.entityType === 'project' && review.target.field === 'proposal')
+}
+
+function buildProductionProposalRequest(review: ApplyDraftReview): { method: 'POST'; path: string; payload: Record<string, JSONValue> } {
+  const projectId = resolveProjectId(review)
+  const payload = normalizeProductionProposalPayload(review.proposedValue, review.target.entityId)
+  return {
+    method: 'POST',
+    path: `/projects/${encodeURIComponent(String(projectId))}/entities/production-proposals/apply`,
+    payload,
+  }
+}
+
+function isProductionProposalTarget(review: ApplyDraftReview): boolean {
+  return review.draftKind === 'production_proposal' || review.target.entityType === 'production'
 }
 
 function resolveProjectId(review: ApplyDraftReview): string | number {
-  const candidate = review.target.projectId ?? review.target.entityId
+  const candidate = review.target.projectId ?? (isProjectProposalTarget(review) ? review.target.entityId : undefined)
   if ((typeof candidate !== 'string' && typeof candidate !== 'number') || String(candidate).trim() === '') {
-    throw new Error('apply_draft requires projectId for project proposal apply')
+    throw new Error('apply_draft requires projectId for proposal apply')
   }
   return candidate
 }
@@ -296,6 +315,51 @@ function normalizeProjectProposalPayload(value: JSONValue): Record<string, JSONV
     throw new Error('project proposal draft content must be a JSON object')
   }
   return value as Record<string, JSONValue>
+}
+
+function normalizeProjectProposalPayloadForKind(value: JSONValue, kind: ApplyDraftReview['draftKind']): Record<string, JSONValue> {
+  const payload = normalizeProjectProposalPayload(value)
+  if (kind === 'project_proposal') {
+    const proposal = isRecord(payload.proposal) ? payload.proposal : {}
+    return {
+      ...payload,
+      proposal: {
+        ...proposal,
+        project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
+        creative_references: [],
+        asset_slots: [],
+      },
+    }
+  }
+  if (kind !== 'setting_proposal' && kind !== 'asset_proposal') return payload
+  const proposal = isRecord(payload.proposal) ? payload.proposal : {}
+  return {
+    ...payload,
+    proposal: {
+      ...proposal,
+      creative_references: kind === 'setting_proposal' ? (Array.isArray(proposal.creative_references) ? proposal.creative_references : []) : [],
+      asset_slots: kind === 'asset_proposal' ? (Array.isArray(proposal.asset_slots) ? proposal.asset_slots : []) : [],
+    },
+  }
+}
+
+function normalizeProductionProposalPayload(value: JSONValue, fallbackProductionId: unknown): Record<string, JSONValue> {
+  const parsed = typeof value === 'string' ? parseJSONText(value) : value
+  if (!isRecord(parsed)) {
+    throw new Error('production proposal draft content must be a JSON object')
+  }
+  const productionId = parsed.production_id ?? parsed.productionId ?? fallbackProductionId
+  if ((typeof productionId !== 'string' && typeof productionId !== 'number') || String(productionId).trim() === '') {
+    throw new Error('production proposal draft content requires productionId')
+  }
+  if (!isRecord(parsed.proposal)) {
+    throw new Error('production proposal draft content requires proposal')
+  }
+  return {
+    ...parsed,
+    production_id: productionId,
+    proposal_scope: parsed.proposal_scope ?? parsed.proposalScope ?? 'production',
+  }
 }
 
 function normalizeBaseURL(value: string | undefined): string | undefined {

@@ -23,6 +23,7 @@ import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
 import VideoEditPage from './pages/tools/VideoEditPage'
 import BrainstormPage from './pages/tools/BrainstormPage'
+import SmartStoryboardPage from './pages/tools/SmartStoryboardPage'
 import CreativeReferencesPage from './pages/creative-references/CreativeReferencesPage'
 import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelationsPage'
 import ProductionFramePage from './pages/production/ProductionFramePage'
@@ -296,9 +297,10 @@ export default function App() {
                 <Route path="/admin/*" element={<Navigate to="/projects" replace />} />
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
-              <Route path="/creative-references" element={<ProjectGuard><CreativeReferencesPage /></ProjectGuard>} />
+              <Route path="/pre-production" element={<ProjectGuard><AssetSlotsPage /></ProjectGuard>} />
+              <Route path="/creative-references" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
               <Route path="/reference-relations" element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
-              <Route path="/asset-slots" element={<ProjectGuard><AssetSlotsPage /></ProjectGuard>} />
+              <Route path="/asset-slots" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
 
               {/* 工具模块 */}
               <Route path="/canvases" element={<Padded><CanvasListPage /></Padded>} />
@@ -309,6 +311,7 @@ export default function App() {
               <Route path="/tools/multi-angle" element={<MultiAnglePage />} />
               <Route path="/tools/video-edit" element={<VideoEditPage />} />
               <Route path="/tools/brainstorm" element={<BrainstormPage />} />
+              <Route path="/tools/smart-storyboard" element={<SmartStoryboardPage />} />
               <Route path="/tools/plugin/:pluginId" element={<PluginToolPage />} />
 
               {/* 工作模块 */}
@@ -333,8 +336,8 @@ export default function App() {
               <Route path="/workbench/script" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/production-plan" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="preview" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/preview" element={<ProjectGuard><Navigate to="/workbench/production-plan" replace /></ProjectGuard>} />
-              <Route path="/workbench/creative" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="creative" showCategoryTabs={false} /></ProjectGuard>} />
-              <Route path="/workbench/assets" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="assets" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path="/workbench/creative" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
+              <Route path="/workbench/assets" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
               <Route path="/content-unit-orchestrate" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/production" element={<ProjectGuard><LegacyContentUnitOrchestrateRedirect /></ProjectGuard>} />
               <Route path="/workbench/delivery" element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />

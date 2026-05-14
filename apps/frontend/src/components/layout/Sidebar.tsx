@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next'
 import type { LucideIcon } from 'lucide-react'
 import {
   AppWindow,
-  Archive,
   Atom,
   Badge,
   Blocks,
@@ -33,6 +32,7 @@ import {
   Lightbulb,
   LogOut,
   Move,
+  PackageCheck,
   PanelLeftClose,
   PanelLeftOpen,
   Palette,
@@ -49,6 +49,7 @@ import {
   Telescope,
   ToyBrick,
   Truck,
+  Video,
   WandSparkles,
   Wrench,
 } from 'lucide-react'
@@ -262,8 +263,8 @@ export function Sidebar() {
               <NavItem to="/creative-workbench" icon={Lightbulb} label={t('sidebar.items.creativeWorkbench')} collapsed={collapsed} />
               <NavItem to="/script-split-workbench" icon={Blocks} label={t('sidebar.items.workbench')} collapsed={collapsed} />
               <NavItem to="/project-workspace" icon={Layers3} label={t('sidebar.items.projectWorkspace')} collapsed={collapsed} />
+              <NavItem to="/pre-production" icon={Telescope} label={t('sidebar.items.preProduction')} collapsed={collapsed} />
               <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
-              <NavItem to="/workbench/assets" icon={Archive} label={t('sidebar.items.workbenchAssetPreparation')} collapsed={collapsed} />
               <NavItem to="/content-unit-orchestrate" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
               <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
               <NavItem to="/delivery/workbench" icon={ClipboardCheck} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
@@ -283,6 +284,7 @@ export function Sidebar() {
           <NavItem to="/tools/multi-angle" icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
           <NavItem to="/tools/video-edit" icon={Scissors} label={t('sidebar.items.videoEdit')} collapsed={collapsed} />
           <NavItem to="/tools/brainstorm" icon={BrainCircuit} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
+          <NavItem to="/tools/smart-storyboard" icon={Video} label={t('sidebar.items.smartStoryboard')} collapsed={collapsed} />
           {installedPlugins.map((plugin, index) => (
             <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={PLUGIN_NAV_ICONS[index % PLUGIN_NAV_ICONS.length]} label={plugin.name} collapsed={collapsed} />
           ))}

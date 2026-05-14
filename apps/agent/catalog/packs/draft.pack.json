@@ -14,11 +14,12 @@
     ]
   },
   "schemas": [
+    "movscript.setting_proposal.v1",
+    "movscript.asset_proposal.v1",
     "movscript.project_proposal.v1",
     "movscript.production_proposal.v1",
     "movscript.content_unit_proposal.v1",
-    "movscript.content_unit_media_proposal.v1",
-    "movscript.asset_proposal.v1"
+    "movscript.content_unit_media_proposal.v1"
   ],
   "tools": [
     "movscript_read_draft",

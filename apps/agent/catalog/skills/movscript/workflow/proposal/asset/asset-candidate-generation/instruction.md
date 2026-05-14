@@ -1,5 +1,5 @@
 目标：
-为选中的 asset slot 准备可生成的候选方向，但不提交生成任务。
+为选中的 asset slot 生成可审阅的图片或视频候选；如果缺少生成参数，先补齐参数，再交接 visual_generation 创建任务。
 
 输入：
 - Focus，以及已选 asset slot 或 asset need。
@@ -7,14 +7,13 @@
 - 目标输出类型、prompt 方向、引用 id、画幅比例、时长、模型能力需求、风险和验收标准。
 
 边界：
-- 此 workflow 只负责候选准备和审阅目标定位。
+- 此 workflow 负责真实候选生成的目标定位和生成交接，不产出 asset_proposal 文字草稿作为最终结果。
 - 保留已选 asset slot 作为审阅目标。
-- 不要在这里创建图片或视频生成任务。
 - 不要把生成媒体标记为 accepted、selected、bound 或 locked。
 
 允许的工具：
 - 读取当前 focus，并在有用时检查 DraftDomainModel seed、近期生成任务或模型 contract。
-- 查询设定资料、素材需求和制作上下文：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_requirements}} {{tool:movscript_query_production_context}}
+- 查询设定资料、素材需求和制作上下文：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}} {{tool:movscript_query_production_context}}
 - 只在需要验证可行性或必填参数时列出模型。
 - 如果猜测会改变候选方向，应向用户询问缺失的目标、引用或输出约束。
 
@@ -25,7 +24,7 @@
 4. 处理剧情描述与视觉定位冲突时，以可长期复用的角色资产为准。主角或重要角色即使文本说“丑”“狼狈”“不起眼”，也不要把候选写成真实低质或不可用的丑化形象；应转译为朴素、疲惫、被环境误读、衣着状态差等可控特征，除非用户明确要求丑化。
 5. 将期望候选总结为具体 prompt intent、引用、输出类型、模型能力和验收标准。
 6. 检查可行性时，使用模型发现 contracts，而不是 provider 假设。记录缺失引用、不支持的时长/画幅比例、不支持的模型专用参数、输入数量限制或归属不清等阻塞项。
-7. 如果用户想执行生成，交接给 Visual Generation workflow，而不是从此 workflow 调用生成工具。
+7. 用户要求生成候选时，必须交接给 Visual Generation workflow 创建并监控任务；不要只返回更详细的文字提案。
 
 校验：
 - 候选必须命名 asset target，并说明准备方向为什么适合它。

@@ -1986,6 +1986,79 @@
       "emptyHint": "输入你的想法，开始激发灵感",
       "requestFailed": "请求失败，请检查模型配置后重试"
     },
+    "smartStoryboard": {
+      "title": "智能分镜",
+      "subtitle": "把人物、场景和分镜示意图组织成镜头语言，用情绪和表达生成关键帧方案。",
+      "generate": "生成关键帧",
+      "buckets": {
+        "characters": "人物",
+        "scenes": "场景",
+        "storyboard": "分镜图"
+      },
+      "empty": {
+        "characters": "从左侧选择人物或角色参考图",
+        "scenes": "从左侧选择场景或环境参考图",
+        "storyboard": "加入手绘分镜、构图示意或参考帧"
+      },
+      "emotion": {
+        "title": "情绪表达",
+        "intensity": "情绪强度",
+        "expression": "表演与表达",
+        "placeholder": "例如：人物压住愤怒，眼神躲闪，动作慢半拍；场景保持冷色和低对比。",
+        "presets": {
+          "calm": "平静",
+          "tense": "紧张",
+          "joy": "喜悦",
+          "fear": "恐惧",
+          "lonely": "孤独",
+          "hopeful": "希望"
+        }
+      },
+      "camera": {
+        "title": "镜头语言",
+        "shotSize": "景别",
+        "move": "运动",
+        "lens": "镜头",
+        "rhythm": "节奏",
+        "shotSizes": {
+          "closeUp": "特写",
+          "medium": "中景",
+          "wide": "远景",
+          "overShoulder": "过肩"
+        },
+        "moves": {
+          "static": "固定",
+          "pushIn": "推近",
+          "tracking": "跟拍",
+          "handheld": "手持"
+        },
+        "lenses": {
+          "wide": "广角",
+          "standard": "标准",
+          "telephoto": "长焦"
+        },
+        "rhythms": {
+          "slow": "慢",
+          "balanced": "均衡",
+          "fast": "快"
+        }
+      },
+      "beats": {
+        "title": "镜头拆解",
+        "fields": {
+          "title": "镜头标题",
+          "emotion": "情绪",
+          "shot": "镜头",
+          "note": "备注"
+        }
+      },
+      "preview": {
+        "title": "关键帧预览"
+      },
+      "prompt": {
+        "title": "生成提示摘要"
+      }
+    },
     "defs": {
       "refImageGen": {
         "name": "参考生图",
@@ -2592,14 +2665,17 @@
     "titles": {
       "projects": "项目",
       "projectHome": "首页",
-      "projectWorkspace": "项目编排",
+      "projectWorkspace": "项目规范",
+      "settingWorkbench": "设定工作台",
+      "assetProposalWorkbench": "素材工作台",
+      "preProduction": "前期准备",
       "projectPlan": "筹备总览",
       "creation": "首页",
       "workbench": "一键制作",
       "workbenchScript": "一键制作",
       "workbenchPreview": "制作预演",
       "workbenchCreative": "设定准备",
-      "workbenchAssets": "素材生成",
+      "workbenchAssets": "素材工作台",
       "workbenchProduction": "内容编排",
       "workbenchDelivery": "交付工作台",
       "deliveryWorkbench": "交付工作台",
@@ -2675,6 +2751,7 @@
       "multiAngle": "多角度",
       "videoEdit": "剪辑工具",
       "brainstorm": "AI生文",
+      "smartStoryboard": "智能分镜",
       "resources": "资源库",
       "jobs": "生成记录",
       "plugins": "插件",
@@ -2685,7 +2762,10 @@
       "creation": "处理台",
       "collaboration": "协作",
       "projectHome": "首页",
-      "projectWorkspace": "项目编排",
+      "projectWorkspace": "项目规范",
+      "settingWorkbench": "设定工作台",
+      "assetProposalWorkbench": "素材工作台",
+      "preProduction": "前期准备",
       "creativeWorkbench": "头脑风暴",
       "projectProduction": "制作",
       "productionOrchestrate": "制作编排",
@@ -2713,12 +2793,12 @@
       "workbenchScript": "一键制作",
       "workbenchPreview": "制作预演",
       "workbenchCreative": "设定准备",
-      "workbenchAssets": "素材生成",
+      "workbenchAssets": "素材工作台",
       "workbenchProduction": "生产决策",
       "workbenchDelivery": "交付门禁",
       "workbenchReferenceRelations": "关系校正",
       "workbenchProductionPreview": "制作预演",
-      "workbenchAssetPreparation": "素材准备",
+      "workbenchAssetPreparation": "素材工作台",
       "workbenchContentGeneration": "内容编排",
       "productionTasks": "任务",
       "delivery": "交付",

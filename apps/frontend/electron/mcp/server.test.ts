@@ -272,7 +272,7 @@ test('draft model MCP tool hydrates production proposal snapshot with production
   }
 })
 
-test('draft model MCP tool hydrates project proposal seed from allowed backend includes', async () => {
+test('draft model MCP tool hydrates asset proposal seed from allowed backend includes', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42': { id: 42, name: 'Seed Project', UpdatedAt: '2026-05-13T00:00:00.000Z' },
@@ -283,7 +283,7 @@ test('draft model MCP tool hydrates project proposal seed from allowed backend i
   setMCPAPIBaseURL('http://mock.backend')
   try {
     const result = await getDraftModelContract({
-      kind: 'project_proposal',
+      kind: 'asset_proposal',
       target: { entityType: 'project', entityId: 42 },
       include: ['project', 'creative_references', 'asset_slots', 'asset_slot_ownership'],
     }) as Record<string, any>
@@ -291,7 +291,7 @@ test('draft model MCP tool hydrates project proposal seed from allowed backend i
     assert.equal(result.seed.hydrated, true)
     assert.equal(result.seed.data.project.name, 'Seed Project')
     assert.equal(result.seed.data.creative_references[0].name, 'Hero')
-    assert.equal(result.seed.data.asset_slot_ownership[0].owner_type, 'creative_reference')
+    assert.equal(result.seed.data.asset_slots[0].owner_type, 'creative_reference')
     assert.deepEqual(result.seed.sourceVersions.project, { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' })
   } finally {
     setMCPAPIBaseURL(previousBaseURL)
@@ -299,7 +299,7 @@ test('draft model MCP tool hydrates project proposal seed from allowed backend i
   }
 })
 
-test('semantic query tools expose creative references and linked asset requirements', async () => {
+test('semantic query tools expose creative references and linked asset slots', async () => {
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
     '/projects/42/entities/creative-references?kind=person': [
@@ -328,7 +328,7 @@ test('semantic query tools expose creative references and linked asset requireme
     assert.equal(result.returned, 1)
     assert.deepEqual(result.references.map((item: any) => item.ID), [11])
     assert.deepEqual(result.states.map((item: any) => item.ID), [21])
-    assert.deepEqual(result.asset_requirements.map((item: any) => item.ID), [31, 32])
+    assert.deepEqual(result.asset_slots.map((item: any) => item.ID), [31, 32])
   } finally {
     globalThis.fetch = previousFetch
     setMCPAPIBaseURL('http://localhost:8765')

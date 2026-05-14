@@ -2,6 +2,7 @@ package semantic
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -14,13 +15,26 @@ var errProjectProposalPreviewRollback = errors.New("project proposal apply previ
 
 type ApplyProjectProposalRequest struct {
 	Scope    string               `json:"scope"`
+	Mode     string               `json:"mode"`
 	Summary  string               `json:"summary"`
 	Proposal *ProjectProposalTree `json:"proposal"`
 }
 
 type ProjectProposalTree struct {
+	ProjectStyle       *ProjectStylePatch                      `json:"project_style"`
 	CreativeReferences []ProjectProposalCreativeReferencePatch `json:"creative_references"`
 	AssetSlots         []ProjectProposalAssetSlotPatch         `json:"asset_slots"`
+}
+
+type ProjectStylePatch struct {
+	AspectRatio    *string  `json:"aspect_ratio"`
+	ShotSizeSystem []string `json:"shot_size_system"`
+	CameraLanguage *string  `json:"camera_language"`
+	VisualStyle    *string  `json:"visual_style"`
+	LightingStyle  *string  `json:"lighting_style"`
+	ColorPalette   *string  `json:"color_palette"`
+	PacingRules    *string  `json:"pacing_rules"`
+	NegativeRules  []string `json:"negative_rules"`
 }
 
 type ProjectProposalCreativeReferencePatch struct {
@@ -61,11 +75,14 @@ type ProjectProposalApplyCounts struct {
 	CreativeReferencesCreated int `json:"creative_references_created"`
 	CreativeReferencesUpdated int `json:"creative_references_updated"`
 	CreativeReferencesMerged  int `json:"creative_references_merged"`
+	CreativeReferencesDeleted int `json:"creative_references_deleted"`
 	AssetSlotsCreated         int `json:"asset_slots_created"`
 	AssetSlotsUpdated         int `json:"asset_slots_updated"`
+	AssetSlotsDeleted         int `json:"asset_slots_deleted"`
 	AssetSlotsReassigned      int `json:"asset_slots_reassigned"`
 	CreativeReferenceUsages   int `json:"creative_reference_usages"`
 	CreativeRelationships     int `json:"creative_relationships"`
+	ProjectStyleUpdated       int `json:"project_style_updated"`
 }
 
 func (s *Service) ApplyProjectProposal(ctx context.Context, projectID uint, req ApplyProjectProposalRequest) (*ApplyProjectProposalResponse, error) {
@@ -120,6 +137,12 @@ func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, 
 
 	err := s.repo.WithTx(ctx, func(txRepo repository) error {
 		txSvc := &Service{repo: txRepo, cache: s.cache}
+		if req.Proposal.ProjectStyle != nil && req.Proposal.ProjectStyle.hasChanges() {
+			if _, err := txRepo.PatchProjectStyle(ctx, projectID, *req.Proposal.ProjectStyle); err != nil {
+				return err
+			}
+			resp.Counts.ProjectStyleUpdated = 1
+		}
 		for _, patch := range req.Proposal.CreativeReferences {
 			if err := txSvc.applyProjectCreativeReferencePatch(ctx, projectID, patch, resp, &state); err != nil {
 				return err
@@ -130,6 +153,11 @@ func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, 
 				return err
 			}
 		}
+		if normalizeProjectProposalMode(req.Mode) == "snapshot" {
+			if err := txSvc.applyProjectProposalSnapshotOmissions(ctx, projectID, req.Proposal, resp); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -137,6 +165,158 @@ func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, 
 	}
 
 	return resp, nil
+}
+
+func (s *Service) applyProjectProposalSnapshotOmissions(ctx context.Context, projectID uint, proposal *ProjectProposalTree, resp *ApplyProjectProposalResponse) error {
+	if proposal == nil {
+		return nil
+	}
+	keptReferenceIDs := make(map[uint]bool)
+	for _, patch := range proposal.CreativeReferences {
+		if patch.ID != nil && *patch.ID > 0 {
+			keptReferenceIDs[*patch.ID] = true
+		}
+	}
+	references, err := s.repo.ListCreativeReferences(ctx, CreativeReferenceFilter{ProjectID: projectID})
+	if err != nil {
+		return err
+	}
+	for _, reference := range references {
+		if keptReferenceIDs[reference.ID] || !projectProposalReferenceActive(reference) {
+			continue
+		}
+		if _, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(reference.ID), CreativeReferenceInput{
+			Name:        reference.Name,
+			Kind:        reference.Kind,
+			Description: reference.Description,
+			Status:      "ignored",
+		}); err != nil {
+			return err
+		}
+		resp.Counts.CreativeReferencesDeleted++
+	}
+
+	keptAssetSlotIDs := make(map[uint]bool)
+	for _, patch := range proposal.AssetSlots {
+		if patch.ID != nil && *patch.ID > 0 {
+			keptAssetSlotIDs[*patch.ID] = true
+		}
+	}
+	slots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, IncludeInternal: "true"})
+	if err != nil {
+		return err
+	}
+	for _, slot := range slots {
+		if keptAssetSlotIDs[slot.ID] || !projectProposalAssetSlotActive(slot) {
+			continue
+		}
+		if _, err := s.PatchAssetSlot(ctx, projectID, fmt.Sprint(slot.ID), PatchAssetSlotInput{
+			ProductionID:             slot.ProductionID,
+			CreativeReferenceID:      slot.CreativeReferenceID,
+			CreativeReferenceStateID: slot.CreativeReferenceStateID,
+			OwnerType:                slot.OwnerType,
+			OwnerID:                  slot.OwnerID,
+			Kind:                     slot.Kind,
+			Name:                     slot.Name,
+			Description:              slot.Description,
+			SlotKey:                  slot.SlotKey,
+			PromptHint:               slot.PromptHint,
+			Status:                   "waived",
+			Priority:                 slot.Priority,
+			ResourceID:               slot.ResourceID,
+			LockedAssetSlotID:        slot.LockedAssetSlotID,
+			MetadataJSON:             slot.MetadataJSON,
+		}); err != nil {
+			return err
+		}
+		resp.Counts.AssetSlotsDeleted++
+	}
+	return nil
+}
+
+func (patch ProjectStylePatch) hasChanges() bool {
+	return patch.AspectRatio != nil ||
+		len(patch.ShotSizeSystem) > 0 ||
+		patch.CameraLanguage != nil ||
+		patch.VisualStyle != nil ||
+		patch.LightingStyle != nil ||
+		patch.ColorPalette != nil ||
+		patch.PacingRules != nil ||
+		len(patch.NegativeRules) > 0
+}
+
+func (patch ProjectStylePatch) normalizedMap() map[string]any {
+	out := make(map[string]any)
+	if patch.AspectRatio != nil {
+		out["aspect_ratio"] = strings.TrimSpace(*patch.AspectRatio)
+	}
+	if len(patch.ShotSizeSystem) > 0 {
+		out["shot_size_system"] = normalizedStringSlice(patch.ShotSizeSystem)
+	}
+	if patch.CameraLanguage != nil {
+		out["camera_language"] = strings.TrimSpace(*patch.CameraLanguage)
+	}
+	if patch.VisualStyle != nil {
+		out["visual_style"] = strings.TrimSpace(*patch.VisualStyle)
+	}
+	if patch.LightingStyle != nil {
+		out["lighting_style"] = strings.TrimSpace(*patch.LightingStyle)
+	}
+	if patch.ColorPalette != nil {
+		out["color_palette"] = strings.TrimSpace(*patch.ColorPalette)
+	}
+	if patch.PacingRules != nil {
+		out["pacing_rules"] = strings.TrimSpace(*patch.PacingRules)
+	}
+	if len(patch.NegativeRules) > 0 {
+		out["negative_rules"] = normalizedStringSlice(patch.NegativeRules)
+	}
+	return out
+}
+
+func normalizedStringSlice(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func mergeProjectStyleJSON(current string, patch ProjectStylePatch) (string, error) {
+	merged := make(map[string]any)
+	if strings.TrimSpace(current) != "" {
+		if err := json.Unmarshal([]byte(current), &merged); err != nil {
+			return "", fmt.Errorf("parse existing project style: %w", err)
+		}
+	}
+	for key, value := range patch.normalizedMap() {
+		merged[key] = value
+	}
+	raw, err := json.Marshal(merged)
+	if err != nil {
+		return "", fmt.Errorf("marshal project style: %w", err)
+	}
+	return string(raw), nil
+}
+
+func normalizeProjectProposalMode(mode string) string {
+	if strings.TrimSpace(mode) == "snapshot" {
+		return "snapshot"
+	}
+	return "patch"
+}
+
+func projectProposalReferenceActive(reference domainsemantic.CreativeReference) bool {
+	status := strings.TrimSpace(reference.Status)
+	return status != "ignored" && status != "merged"
+}
+
+func projectProposalAssetSlotActive(slot domainsemantic.AssetSlot) bool {
+	status := strings.TrimSpace(slot.Status)
+	return status != "ignored" && status != "waived" && status != "merged"
 }
 
 func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projectID uint, patch ProjectProposalCreativeReferencePatch, resp *ApplyProjectProposalResponse, state *projectProposalApplyState) error {
@@ -171,7 +351,11 @@ func (s *Service) applyProjectCreativeReferencePatch(ctx context.Context, projec
 		if _, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(*patch.ID), input); err != nil {
 			return err
 		}
-		resp.Counts.CreativeReferencesUpdated++
+		if isProjectProposalSoftDeleteStatus(input.Status) {
+			resp.Counts.CreativeReferencesDeleted++
+		} else {
+			resp.Counts.CreativeReferencesUpdated++
+		}
 	} else if _, err := s.repo.LoadCreativeReference(ctx, projectID, fmt.Sprint(*patch.ID)); err != nil {
 		return err
 	}
@@ -362,8 +546,21 @@ func (s *Service) applyProjectAssetSlotPatch(ctx context.Context, projectID uint
 	if _, err := s.PatchAssetSlot(ctx, projectID, fmt.Sprint(*patch.ID), input); err != nil {
 		return err
 	}
-	resp.Counts.AssetSlotsUpdated++
+	if isProjectProposalSoftDeleteStatus(input.Status) {
+		resp.Counts.AssetSlotsDeleted++
+	} else {
+		resp.Counts.AssetSlotsUpdated++
+	}
 	return nil
+}
+
+func isProjectProposalSoftDeleteStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "ignored", "waived":
+		return true
+	default:
+		return false
+	}
 }
 
 func rememberProjectProposalCreativeReferenceID(state *projectProposalApplyState, clientID string, fields map[string]any, id uint) {

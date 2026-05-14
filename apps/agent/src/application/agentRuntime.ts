@@ -1767,7 +1767,7 @@ export class AgentRuntime {
         message: 'Draft failed local validation. Patch the draft and validate again before simulating backend apply.',
       } as unknown as JSONValue
     }
-    if (preview.draft.kind === 'asset_proposal') {
+    if (preview.draft.kind === 'asset_proposal' && !assetProposalContainsAssetSlots(preview.draft.content)) {
       return {
         ok: true,
         stage: 'local_validation',
@@ -3842,6 +3842,19 @@ export class AgentRuntime {
 
   private isAbortError(error: unknown): boolean {
     return error instanceof Error && error.name === 'AbortError'
+  }
+}
+
+function assetProposalContainsAssetSlots(content: string): boolean {
+  try {
+    const parsed = JSON.parse(content) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return false
+    const proposal = (parsed as Record<string, unknown>).proposal
+    if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) return false
+    return Array.isArray((proposal as Record<string, unknown>).asset_slots)
+      && ((proposal as Record<string, unknown>).asset_slots as unknown[]).length > 0
+  } catch {
+    return false
   }
 }
 

@@ -41,27 +41,85 @@ const productionRelatedKinds: AgentDraftKind[] = [
   'storyboard_line',
 ]
 
+const contentUnitRelatedKinds: AgentDraftKind[] = [
+  'content_unit_proposal',
+  'content_unit_media_proposal',
+  'content_unit',
+]
+
 export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainModel>> = {
+  setting_proposal: {
+    kind: 'setting_proposal',
+    title: 'Setting proposal',
+    targetEntityType: 'project',
+    contentSchemaId: 'movscript.setting_proposal.v1',
+    seed: {
+      defaultMode: 'editable_snapshot',
+      allowedModes: ['empty', 'snapshot', 'editable_snapshot'],
+      include: ['project', 'creative_references'],
+      maxDepth: 2,
+      conflictKeys: ['project.updatedAt', 'creative_references[].updatedAt'],
+    },
+    fieldGuide: {
+      owns: ['creative_references', 'reuse_candidates', 'merge_candidates'],
+      references: ['project'],
+      forbids: ['asset_slots', 'asset_candidate_plans', 'media_generation_jobs', 'generated_resource_bindings', 'production_segments', 'scene_moments', 'content_units'],
+    },
+    applyBoundary: {
+      backendApply: 'project_proposal',
+      writableEntityTypes: ['creative_reference'],
+    },
+    routes: {
+      fallback: '/creative-references',
+      reviewTemplate: '/creative-references?view=review&draftId=:draftId',
+    },
+  },
+  asset_proposal: {
+    kind: 'asset_proposal',
+    title: 'Asset proposal',
+    targetEntityType: 'project',
+    contentSchemaId: 'movscript.asset_proposal.v1',
+    seed: {
+      defaultMode: 'editable_snapshot',
+      allowedModes: ['empty', 'snapshot', 'editable_snapshot'],
+      include: ['project', 'creative_references', 'asset_slots', 'asset_slot_ownership', 'asset_slot', 'asset_need', 'reference_resources'],
+      maxDepth: 2,
+      conflictKeys: ['project.updatedAt', 'creative_references[].updatedAt', 'asset_slots[].updatedAt', 'asset_slot.updatedAt', 'reference_resources[].UpdatedAt'],
+    },
+    fieldGuide: {
+      owns: ['asset_slots', 'asset_slot_ownership', 'candidate_plan', 'acceptance_criteria', 'risks'],
+      references: ['project', 'creative_references', 'asset_slot', 'reference_resources'],
+      forbids: ['creative_reference_edits', 'media_generation_jobs', 'generated_resource_bindings', 'resource_binding_apply'],
+    },
+    applyBoundary: {
+      backendApply: 'project_proposal',
+      writableEntityTypes: ['asset_slot'],
+    },
+    routes: {
+      fallback: '/asset-slots',
+      reviewTemplate: '/asset-slots?view=review&draftId=:draftId',
+    },
+  },
   project_proposal: {
     kind: 'project_proposal',
-    title: 'Project proposal',
+    title: 'Project standards proposal',
     targetEntityType: 'project',
     contentSchemaId: 'movscript.project_proposal.v1',
     seed: {
       defaultMode: 'editable_snapshot',
       allowedModes: ['empty', 'snapshot', 'editable_snapshot'],
-      include: ['project', 'creative_references', 'asset_slots', 'asset_slot_ownership'],
+      include: ['project'],
       maxDepth: 2,
-      conflictKeys: ['project.updatedAt', 'creative_references[].updatedAt', 'asset_slots[].updatedAt'],
+      conflictKeys: ['project.updatedAt'],
     },
     fieldGuide: {
-      owns: ['creative_references', 'asset_slots', 'asset_slot_ownership', 'reuse_candidates', 'merge_candidates'],
+      owns: ['project_style', 'shot_size_system', 'aspect_ratio', 'camera_language', 'visual_style', 'lighting_style', 'color_palette', 'pacing_rules', 'negative_rules'],
       references: ['project'],
-      forbids: ['production_segments', 'scene_moments', 'content_units', 'media_generation_jobs', 'generated_resource_bindings'],
+      forbids: ['creative_reference_lists', 'asset_requirement_lists', 'asset_candidate_plans', 'production_segments', 'scene_moments', 'content_units', 'media_generation_jobs', 'generated_resource_bindings'],
     },
     applyBoundary: {
       backendApply: 'project_proposal',
-      writableEntityTypes: ['creative_reference', 'asset_slot'],
+      writableEntityTypes: ['project'],
     },
     routes: {
       fallback: '/project-workspace',
@@ -103,6 +161,58 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       reviewTemplate: '/production-orchestrate?productionId=:targetEntityId&draftId=:draftId',
     },
   },
+  content_unit_proposal: {
+    kind: 'content_unit_proposal',
+    title: 'Content unit proposal',
+    targetEntityType: 'scene_moment',
+    contentSchemaId: 'movscript.content_unit_proposal.v1',
+    seed: {
+      defaultMode: 'snapshot',
+      allowedModes: ['empty', 'snapshot'],
+      include: ['production', 'segments', 'scene_moments', 'content_units'],
+      maxDepth: 3,
+      conflictKeys: ['production.updatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt', 'content_units[].updatedAt'],
+    },
+    fieldGuide: {
+      owns: ['content_units'],
+      references: ['production', 'segments', 'scene_moments', 'creative_references', 'asset_slots'],
+      forbids: ['media_generation_jobs', 'generated_resource_bindings', 'project_level_creative_references', 'project_level_asset_slots'],
+    },
+    applyBoundary: {
+      backendApply: 'draft_only',
+      writableEntityTypes: ['content_unit'],
+    },
+    routes: {
+      fallback: '/content-unit-orchestrate',
+      reviewTemplate: '/content-unit-orchestrate?scene_moment_id=:targetEntityId&draftId=:draftId',
+    },
+  },
+  content_unit_media_proposal: {
+    kind: 'content_unit_media_proposal',
+    title: 'Content unit media proposal',
+    targetEntityType: 'content_unit',
+    contentSchemaId: 'movscript.content_unit_media_proposal.v1',
+    seed: {
+      defaultMode: 'snapshot',
+      allowedModes: ['empty', 'snapshot'],
+      include: ['content_unit', 'scene_moments', 'asset_slots', 'reference_resources'],
+      maxDepth: 2,
+      conflictKeys: ['content_unit.updatedAt', 'scene_moments[].updatedAt', 'asset_slots[].updatedAt', 'reference_resources[].UpdatedAt'],
+    },
+    fieldGuide: {
+      owns: ['media_plans', 'acceptance_criteria'],
+      references: ['content_unit', 'scene_moments', 'asset_slots', 'reference_resources'],
+      forbids: ['generation_job_submission', 'resource_binding_apply', 'final_media_generation_jobs'],
+    },
+    applyBoundary: {
+      backendApply: 'draft_only',
+      writableEntityTypes: ['keyframe', 'preview_timeline'],
+    },
+    routes: {
+      fallback: '/contents',
+      reviewTemplate: '/contents?content_unit_id=:targetEntityId&draftId=:draftId',
+    },
+  },
   script_split_proposal: {
     kind: 'script_split_proposal',
     title: 'Script split proposal',
@@ -129,32 +239,6 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       reviewTemplate: '/workbench/script?draftId=:draftId',
     },
   },
-  asset_proposal: {
-    kind: 'asset_proposal',
-    title: 'Asset proposal',
-    targetEntityType: 'asset_slot',
-    contentSchemaId: 'movscript.asset_proposal.v1',
-    seed: {
-      defaultMode: 'editable_snapshot',
-      allowedModes: ['empty', 'snapshot', 'editable_snapshot'],
-      include: ['asset_slot', 'asset_need', 'reference_resources'],
-      maxDepth: 2,
-      conflictKeys: ['asset_slot.updatedAt', 'reference_resources[].UpdatedAt'],
-    },
-    fieldGuide: {
-      owns: ['candidate_plan', 'acceptance_criteria', 'risks'],
-      references: ['asset_slot', 'reference_resources'],
-      forbids: ['generation_job_submission', 'resource_binding_apply'],
-    },
-    applyBoundary: {
-      backendApply: 'draft_only',
-      writableEntityTypes: ['asset_slot'],
-    },
-    routes: {
-      fallback: '/asset-slots',
-      reviewTemplate: '/asset-slots?draftId=:draftId&asset_slot_id=:targetEntityId',
-    },
-  },
 }
 
 export function getDraftDomainModel(kind: AgentDraftKind): DraftDomainModel | null {
@@ -178,15 +262,40 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
     return `/workbench/script?draftId=${encodeURIComponent(draft.id)}`
   }
 
-  if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
-    return `/project-workspace?draftId=${encodeURIComponent(draft.id)}`
+  if (draft.kind === 'setting_proposal') {
+    return `/creative-references?view=review&draftId=${encodeURIComponent(draft.id)}`
   }
 
   if (draft.kind === 'asset_proposal' || sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
     const assetSlotId = sourceEntityId ?? targetEntityId
+    if (draft.kind === 'asset_proposal' && assetSlotId === undefined) {
+      return `/asset-slots?view=review&draftId=${encodeURIComponent(draft.id)}`
+    }
     const params = new URLSearchParams({ draftId: draft.id })
     if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
     return `/asset-slots?${params.toString()}`
+  }
+
+  if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
+    return `/project-workspace?draftId=${encodeURIComponent(draft.id)}`
+  }
+
+  if (draft.kind === 'content_unit_media_proposal' || targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
+    const contentUnitId = sourceEntityId ?? targetEntityId
+    const params = new URLSearchParams({ draftId: draft.id })
+    if (contentUnitId !== undefined) params.set('content_unit_id', String(contentUnitId))
+    return `/contents?${params.toString()}`
+  }
+
+  if (draft.kind === 'content_unit_proposal') {
+    const sceneMomentId = sourceEntityId ?? targetEntityId
+    const params = new URLSearchParams({ draftId: draft.id })
+    if ((sourceEntityType === 'scene_moment' || targetEntityType === 'scene_moment') && sceneMomentId !== undefined) {
+      params.set('scene_moment_id', String(sceneMomentId))
+    } else if ((sourceEntityType === 'production' || targetEntityType === 'production') && sceneMomentId !== undefined) {
+      params.set('productionId', String(sceneMomentId))
+    }
+    return `/content-unit-orchestrate?${params.toString()}`
   }
 
   const productionId = sourceEntityId ?? targetEntityId
@@ -197,6 +306,7 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
       || sourceEntityType === 'production'
       || targetEntityType === 'production'
       || productionRelatedKinds.includes(draft.kind)
+      || contentUnitRelatedKinds.includes(draft.kind)
     )
   ) {
     return `/production-orchestrate?productionId=${productionId}&draftId=${encodeURIComponent(draft.id)}`

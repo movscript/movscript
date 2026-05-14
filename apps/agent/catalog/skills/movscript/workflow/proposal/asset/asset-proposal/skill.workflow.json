@@ -3,8 +3,8 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Asset Proposal",
-  "description": "在媒体生成前起草可审阅的素材候选计划。",
-  "priority": 850,
+  "description": "起草统一的素材提案：既可定义 project asset slots，也可为已选 asset slot 规划候选 prompt、参考资源、模型能力需求、风险和验收标准；不创建生成任务。",
+  "priority": 904,
   "enabled": true,
   "triggers": [
     {
@@ -14,8 +14,17 @@
     {
       "kind": "keyword",
       "any": [
+        "素材需求提案",
+        "素材需求",
+        "素材位",
         "素材提案",
+        "素材方案",
         "素材候选",
+        "素材候选方案",
+        "候选图方案",
+        "候选视频方案",
+        "prompt 方案",
+        "asset slot",
         "asset proposal",
         "asset_proposal"
       ]
@@ -24,7 +33,7 @@
   "toolRefs": [
     "tool://movscript_get_focus",
     "tool://movscript_query_creative_references",
-    "tool://movscript_query_asset_requirements",
+    "tool://movscript_query_asset_slots",
     "tool://movscript_query_production_context",
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",
@@ -36,6 +45,6 @@
   "schemaRefs": [
     "schema://movscript.asset_proposal.v1"
   ],
-  "outputContract": "返回 draftId、已知时的 asset slot 或已选目标、候选数量、未解决风险和审阅状态。",
+  "outputContract": "返回 draftId、projectId、素材需求变更数量、已知时的 asset slot 或已选目标、候选计划数量、validation/preview 状态和未解决风险。",
   "instructionTemplatePath": "instruction.md"
 }

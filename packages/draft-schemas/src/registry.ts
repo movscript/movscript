@@ -11,6 +11,37 @@ function objectSchema(required: string[], properties: Record<string, unknown>): 
 
 const actionSchema = { enum: ['create', 'update', 'reuse'] }
 const clientIdSchema = { type: 'string', minLength: 1 }
+const proposalModeSchema = { enum: ['patch', 'snapshot'] }
+const projectProposalCreativeReferencesSchema = {
+  type: 'array',
+  items: objectSchema(['fields'], {
+    id: { type: 'number' },
+    client_id: clientIdSchema,
+    merge_candidates: { type: 'array' },
+    fields: objectSchema(['name'], {
+      name: { type: 'string' },
+      description: { type: 'string' },
+      tags: { type: 'array', items: { type: 'string' } },
+    }),
+  }),
+}
+const projectProposalAssetSlotsSchema = {
+  type: 'array',
+  items: objectSchema(['fields'], {
+    id: { type: 'number' },
+    client_id: clientIdSchema,
+    owner: objectSchema(['type'], {
+      type: { const: 'creative_reference' },
+      id: { type: 'number' },
+      client_id: clientIdSchema,
+    }),
+    fields: objectSchema(['name', 'kind'], {
+      name: { type: 'string' },
+      kind: { enum: ['image', 'video', 'audio', 'text'] },
+      description: { type: 'string' },
+    }),
+  }),
+}
 
 export const projectProposalSchema = {
   id: 'movscript.project_proposal.v1',
@@ -21,38 +52,24 @@ export const projectProposalSchema = {
   version: '1.0.0',
   status: 'active',
   jsonSchema: objectSchema(['proposal'], {
+    mode: proposalModeSchema,
+    snapshot_base: { type: 'object' },
     proposal: objectSchema([], {
-      creative_references: {
-        type: 'array',
-        items: objectSchema(['action', 'fields'], {
-          action: actionSchema,
-          id: { type: 'number' },
-          client_id: clientIdSchema,
-          merge_candidates: { type: 'array' },
-          fields: objectSchema(['name'], {
-            name: { type: 'string' },
-            description: { type: 'string' },
-            tags: { type: 'array', items: { type: 'string' } },
-          }),
-        }),
-      },
-      asset_slots: {
-        type: 'array',
-        items: objectSchema(['action', 'owner', 'fields'], {
-          action: actionSchema,
-          id: { type: 'number' },
-          client_id: clientIdSchema,
-          owner: objectSchema(['type'], {
-            type: { const: 'creative_reference' },
-            id: { type: 'number' },
-            client_id: clientIdSchema,
-          }),
-          fields: objectSchema(['name', 'kind'], {
-            name: { type: 'string' },
-            kind: { enum: ['image', 'video', 'audio', 'text'] },
-            description: { type: 'string' },
-          }),
-        }),
+      creative_references: projectProposalCreativeReferencesSchema,
+      asset_slots: projectProposalAssetSlotsSchema,
+      project_style: {
+        type: 'object',
+        additionalProperties: true,
+        properties: {
+          aspect_ratio: { type: 'string' },
+          shot_size_system: { type: 'array', items: { type: 'string' } },
+          camera_language: { type: 'string' },
+          visual_style: { type: 'string' },
+          lighting_style: { type: 'string' },
+          color_palette: { type: 'string' },
+          pacing_rules: { type: 'string' },
+          negative_rules: { type: 'array', items: { type: 'string' } },
+        },
       },
     }),
     impact_notes: { type: 'string' },
@@ -62,30 +79,76 @@ export const projectProposalSchema = {
     '# movscript.project_proposal.v1',
     '',
     'Content shape:',
-    '{ proposal: { creative_references?: Array<{ action, id?, client_id?, fields }>, asset_slots?: Array<{ action, owner, fields }> }, impact_notes?, summary? }',
+    '{ mode?: "patch"|"snapshot", proposal: { project_style: { aspect_ratio?, shot_size_system?, camera_language?, visual_style?, lighting_style?, color_palette?, pacing_rules?, negative_rules? }, creative_references?: [], asset_slots?: [] }, snapshot_base?, impact_notes?, summary? }',
     '',
     'Rules:',
-    '- reuse/update nodes must include an existing id; create nodes must include client_id.',
-    '- Each asset_slot must be owned by one creative_reference via id or client_id.',
+    '- Project proposal owns project-wide production standards: shot sizes, aspect ratio, camera language, style, lighting, color, pacing, and negative rules.',
+    '- Do not use project proposal as the default place for setting lists or asset slot lists. Use setting_proposal and asset_proposal for those.',
+    '- Legacy payloads may still include creative_references or asset_slots for compatibility, but new drafts should keep them empty unless explicitly migrating old data.',
     '- Vague style words need concrete visible traits or must be recorded in impact_notes.',
   ].join('\n'),
   examples: [{
     name: 'basic',
     content: {
       proposal: {
+        creative_references: [],
+        asset_slots: [],
+        project_style: {
+          aspect_ratio: '9:16',
+          shot_size_system: ['wide', 'medium', 'close-up', 'insert'],
+          visual_style: 'Clean vertical drama realism with readable product and prop details.',
+          negative_rules: ['No unreadable dark scenes', 'No arbitrary character face changes'],
+        },
+      },
+      summary: 'Defines project-wide production standards.',
+    },
+  }],
+} satisfies DraftSchemaDefinition
+
+export const settingProposalSchema = {
+  id: 'movscript.setting_proposal.v1',
+  kind: 'setting_proposal',
+  category: 'project',
+  scope: 'project',
+  title: 'Setting Proposal',
+  version: '1.0.0',
+  status: 'active',
+  jsonSchema: objectSchema(['proposal'], {
+    mode: proposalModeSchema,
+    snapshot_base: { type: 'object' },
+    proposal: objectSchema([], {
+      creative_references: projectProposalCreativeReferencesSchema,
+      asset_slots: {
+        type: 'array',
+        maxItems: 0,
+        description: 'Setting proposals never edit asset slots.',
+      },
+    }),
+    impact_notes: { type: 'string' },
+    summary: { type: 'string' },
+  }),
+  promptSummary: [
+    '# movscript.setting_proposal.v1',
+    '',
+    'Content shape:',
+    '{ mode?: "patch"|"snapshot", proposal: { creative_references?: Array<{ id?, client_id?, fields }>, asset_slots?: [] }, snapshot_base?, impact_notes?, summary? }',
+    '',
+    'Rules:',
+    '- Setting proposals only create, update, merge, or retire creative_references.',
+    '- Do not include asset_slots, candidate image plans, prompts, generation jobs, or generated resources.',
+    '- Existing rows are identified by id; new rows use client_id.',
+  ].join('\n'),
+  examples: [{
+    name: 'basic',
+    content: {
+      proposal: {
         creative_references: [{
-          action: 'create',
           client_id: 'ref-hero',
           fields: { name: 'Main character', description: 'A reserved young engineer.' },
         }],
-        asset_slots: [{
-          action: 'create',
-          client_id: 'asset-portrait',
-          owner: { type: 'creative_reference', client_id: 'ref-hero' },
-          fields: { name: 'Character portrait', kind: 'image' },
-        }],
+        asset_slots: [],
       },
-      summary: 'Adds one character reference and one owned portrait slot.',
+      summary: 'Adds one character reference.',
     },
   }],
 } satisfies DraftSchemaDefinition
@@ -109,7 +172,44 @@ export const productionProposalSchema = {
           id: { type: 'number' },
           client_id: clientIdSchema,
           title: { type: 'string' },
-          scene_moments: { type: 'array' },
+          scene_moments: {
+            type: 'array',
+            items: objectSchema(['action', 'title'], {
+              action: actionSchema,
+              id: { type: 'number' },
+              client_id: clientIdSchema,
+              title: { type: 'string' },
+              time_text: { type: 'string' },
+              location_text: { type: 'string' },
+              action_text: { type: 'string' },
+              mood: { type: 'string' },
+              description: { type: 'string' },
+              order: { type: 'number' },
+              status: { type: 'string' },
+              creative_references: {
+                type: 'array',
+                items: objectSchema(['action', 'id'], {
+                  action: { const: 'reuse' },
+                  id: { type: 'number' },
+                  client_id: clientIdSchema,
+                  name: { type: 'string' },
+                  role: { type: 'string' },
+                }),
+              },
+              asset_slots: {
+                type: 'array',
+                items: objectSchema(['action', 'name', 'kind'], {
+                  action: actionSchema,
+                  id: { type: 'number' },
+                  client_id: clientIdSchema,
+                  name: { type: 'string' },
+                  kind: { enum: ['image', 'video', 'audio', 'text'] },
+                  description: { type: 'string' },
+                  priority: { type: 'string' },
+                }),
+              },
+            }),
+          },
         }),
       },
     }),
@@ -120,12 +220,14 @@ export const productionProposalSchema = {
     '# movscript.production_proposal.v1',
     '',
     'Content shape:',
-    '{ productionId: number, proposalScope: "production", proposal: { segments: Array<{ action, id?, client_id?, title, scene_moments: Array<object> }> }, impact_notes?, summary? }',
+    '{ productionId: number, proposalScope: "production", proposal: { segments: Array<{ action, id?, client_id?, title, scene_moments: Array<{ action, id?, client_id?, title, time_text?, location_text?, action_text?, mood?, creative_references?: Array<{ action: "reuse", id, role? }>, asset_slots?: Array<{ action, id?, client_id?, name, kind, description? }> }> }> }, impact_notes?, summary? }',
     '',
     'Rules:',
     '- productionId is required and must match the selected production.',
     '- reuse/update nodes must include existing ids.',
-    '- Reference project-level creative references and asset slots; do not create final project entities.',
+    '- Each scene_moment should include at least one creative_references reuse node or one asset_slots node unless the gap is intentionally explained in impact_notes.',
+    '- Use creative_references with action "reuse" and existing project-level ids; do not create project-level creative references here.',
+    '- Use asset_slots for production-local material slots owned by the scene moment; do not create final media resources.',
   ].join('\n'),
   examples: [{
     name: 'basic',
@@ -137,7 +239,13 @@ export const productionProposalSchema = {
           action: 'create',
           client_id: 'seg-1',
           title: 'Opening tension',
-          scene_moments: [],
+          scene_moments: [{
+            action: 'create',
+            client_id: 'moment-1',
+            title: 'Opening beat',
+            creative_references: [{ action: 'reuse', id: 1, role: 'character' }],
+            asset_slots: [{ action: 'create', client_id: 'slot-1', name: 'Opening room reference', kind: 'image' }],
+          }],
         }],
       },
     },
@@ -203,28 +311,83 @@ export const assetProposalSchema = {
   id: 'movscript.asset_proposal.v1',
   kind: 'asset_proposal',
   category: 'asset',
-  scope: 'asset',
+  scope: 'project',
   title: 'Asset Proposal',
   version: '1.0.0',
   status: 'active',
-  jsonSchema: objectSchema(['asset_slot', 'candidate_plan'], {
-    asset_slot: objectSchema(['id'], { id: { type: ['number', 'string'] }, name: { type: 'string' } }),
-    candidate_plan: {
-      type: 'array',
-      items: objectSchema(['kind', 'prompt'], {
-        kind: { enum: ['image', 'video', 'audio', 'text'] },
-        prompt: { type: 'string' },
-        references: { type: 'array' },
-        risks: { type: 'array', items: { type: 'string' } },
-      }),
-    },
+  jsonSchema: objectSchema(['proposal'], {
+    mode: proposalModeSchema,
+    snapshot_base: { type: 'object' },
+    projectId: { type: 'number' },
+    assetSlotId: { type: ['number', 'string'] },
+    slot: objectSchema([], { id: { type: ['number', 'string'] }, name: { type: 'string' }, kind: { type: 'string' } }),
+    context: { type: 'object' },
+    proposal: objectSchema([], {
+      creative_references: {
+        type: 'array',
+        maxItems: 0,
+        description: 'Asset proposals never edit settings.',
+      },
+      asset_slots: projectProposalAssetSlotsSchema,
+      candidate_plans: {
+        type: 'array',
+        items: objectSchema(['output_kind', 'prompt'], {
+          client_id: clientIdSchema,
+          output_kind: { enum: ['image', 'video', 'audio', 'text', 'file'] },
+          prompt: { type: 'string' },
+          negative_prompt: { type: 'string' },
+          aspect_ratio: { type: 'string' },
+          duration: { type: 'number' },
+          model_capability: { enum: ['image', 'image_edit', 'video', 'video_i2v'] },
+          input_resource_ids: { type: 'array', items: { type: 'number' } },
+          references: { type: 'array' },
+          acceptance_criteria: { type: 'array', items: { type: 'string' } },
+          risks: { type: 'array', items: { type: 'string' } },
+        }),
+      },
+    }),
+    impact_notes: { type: 'string' },
+    summary: { type: 'string' },
+    next_actions: { type: 'array', items: { type: 'string' } },
   }),
   promptSummary: [
     '# movscript.asset_proposal.v1',
-    'Content shape: { asset_slot: { id, name? }, candidate_plan: Array<{ kind, prompt, references?, risks? }>, acceptance_criteria? }',
-    'Rules: prepare candidate generation; do not submit generation jobs from this workflow.',
+    '',
+    'Content shape:',
+    '{ mode?: "patch"|"snapshot", proposal: { creative_references?: [], asset_slots?: Array<{ id?, client_id?, owner?, fields }>, candidate_plans?: Array<{ output_kind, prompt, input_resource_ids?, acceptance_criteria?, risks? }> }, assetSlotId?, slot?, context?, snapshot_base?, impact_notes?, summary?, next_actions? }',
+    '',
+    'Rules:',
+    '- Asset proposal is the single draft kind for project asset slots and per-slot candidate planning.',
+    '- Use proposal.asset_slots to create, update, reassign, waive, or retire asset slot requirements.',
+    '- Use proposal.candidate_plans only after an asset slot exists or is explicitly selected.',
+    '- Do not include creative reference edits, generation jobs, or generated resource bindings.',
   ].join('\n'),
-  examples: [{ name: 'basic', content: { asset_slot: { id: 1, name: 'Hero portrait' }, candidate_plan: [{ kind: 'image', prompt: 'Portrait with neutral background.' }] } }],
+  examples: [{
+    name: 'asset-slot-requirement',
+    content: {
+      proposal: {
+        creative_references: [],
+        asset_slots: [{
+          client_id: 'asset-portrait',
+          owner: { type: 'creative_reference', id: 1 },
+          fields: { name: 'Character portrait', kind: 'image' },
+        }],
+        candidate_plans: [],
+      },
+      summary: 'Adds one owned portrait requirement.',
+    },
+  }, {
+    name: 'candidate-plan',
+    content: {
+      assetSlotId: 1,
+      slot: { id: 1, name: 'Hero portrait', kind: 'image' },
+      proposal: {
+        creative_references: [],
+        asset_slots: [],
+        candidate_plans: [{ output_kind: 'image', prompt: 'Portrait with neutral background.', input_resource_ids: [], acceptance_criteria: ['Face remains consistent.'] }],
+      },
+    },
+  }],
 } satisfies DraftSchemaDefinition
 
 export const scriptSplitProposalSchema = {
@@ -264,6 +427,7 @@ export const scriptSplitProposalSchema = {
 } satisfies DraftSchemaDefinition
 
 export const DRAFT_SCHEMA_REGISTRY = {
+  [settingProposalSchema.id]: settingProposalSchema,
   [projectProposalSchema.id]: projectProposalSchema,
   [productionProposalSchema.id]: productionProposalSchema,
   [contentUnitProposalSchema.id]: contentUnitProposalSchema,
@@ -273,6 +437,7 @@ export const DRAFT_SCHEMA_REGISTRY = {
 } as const satisfies Record<string, DraftSchemaDefinition>
 
 export const DRAFT_CONTENT_SCHEMA_IDS = {
+  settingProposal: settingProposalSchema.id,
   projectProposal: projectProposalSchema.id,
   productionProposal: productionProposalSchema.id,
   contentUnitProposal: contentUnitProposalSchema.id,
@@ -285,6 +450,7 @@ export const DRAFT_SCHEMA_IDS = Object.keys(DRAFT_SCHEMA_REGISTRY)
 export type DraftSchemaKey = keyof typeof DRAFT_SCHEMA_REGISTRY
 
 export const DRAFT_SCOPES = {
+  settingProposal: settingProposalSchema.kind,
   projectProposal: projectProposalSchema.kind,
   productionProposal: productionProposalSchema.kind,
   contentUnitProposal: contentUnitProposalSchema.kind,
@@ -294,6 +460,7 @@ export const DRAFT_SCOPES = {
 } as const
 
 export const DRAFT_KIND_VALUES = [
+  'setting_proposal',
   'script_split_proposal',
   'script',
   'asset_slot',

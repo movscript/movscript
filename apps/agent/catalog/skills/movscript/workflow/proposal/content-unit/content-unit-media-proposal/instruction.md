@@ -16,7 +16,7 @@ Draft schema：{{schema:movscript.content_unit_media_proposal.v1.id}}
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
-- 内容和素材上下文：{{tool:movscript_query_production_context}} {{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_requirements}}
+- 内容和素材上下文：{{tool:movscript_query_production_context}} {{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}}
 - Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 

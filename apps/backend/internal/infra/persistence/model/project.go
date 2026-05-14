@@ -12,6 +12,9 @@ type Project struct {
 	// planning|script_analysis|asset_prep|production|editing|done
 	Status        string          `gorm:"default:'planning'" json:"status"`
 	TotalEpisodes int             `json:"total_episodes"`
+	AspectRatio   string          `gorm:"default:''" json:"aspect_ratio"`
+	VisualStyle   string          `gorm:"type:text" json:"visual_style"`
+	ProjectStyle  string          `gorm:"type:text" json:"project_style"`
 	Members       []ProjectMember `gorm:"foreignKey:ProjectID" json:"members,omitempty"`
 	Scripts       []Script        `gorm:"foreignKey:ProjectID" json:"scripts,omitempty"`
 }

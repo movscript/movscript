@@ -74,8 +74,9 @@ test('target-state pack files and the default profile are loaded as first-class 
     'movscript.pack.drafts': '>=1.0.0',
   })
   assert.ok(movscriptPack.skills.includes('movscript.workflow.project-proposal'))
-  assert.ok(movscriptPack.skills.includes('movscript.workflow.production-proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.setting-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.asset-proposal'))
+  assert.ok(movscriptPack.skills.includes('movscript.workflow.production-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.content-unit-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.visual-generation'))
   const corePack = catalog.packs.find((pack) => pack.id === 'movscript.pack.agent-core')
@@ -96,9 +97,10 @@ test('target-state pack files and the default profile are loaded as first-class 
     'movscript.workflow.project-progress',
     'movscript.workflow.proposal-first',
     'movscript.workflow.project-proposal',
+    'movscript.workflow.setting-proposal',
+    'movscript.workflow.asset-proposal',
     'movscript.workflow.setting-prep',
     'movscript.workflow.production-proposal',
-    'movscript.workflow.asset-proposal',
     'movscript.workflow.asset-candidate-generation',
     'movscript.workflow.content-unit-proposal',
     'movscript.workflow.content-unit-media-proposal',
@@ -247,7 +249,8 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_cancel_generation_job'))
   assert.ok(visualTools.available.some((tool) => tool.name === 'movscript_request_user_input'))
 
-  assert.match(assetCandidate.instructionTemplate, /不要在这里创建图片或视频生成任务/)
+  assert.match(assetCandidate.instructionTemplate, /交接给 Visual Generation workflow/)
+  assert.match(assetCandidate.instructionTemplate, /绝不从此 workflow 调用创建或取消生成的工具/)
   assert.match(assetCandidate.instructionTemplate, /使用模型发现 contracts，而不是 provider 假设/)
   assert.match(assetCandidate.instructionTemplate, /先确认当前设定材料是否已有可复用素材/)
   assert.match(assetCandidate.instructionTemplate, /保留人物一致性、场景一致性和可复用识别点/)
@@ -372,6 +375,44 @@ test('image edit wording with image context activates visual generation tools', 
 
   assert.ok(layers.trace.workflowIds.includes('movscript.workflow.visual-generation'))
   assert.ok(layers.skills.some((skill) => skill.id === 'movscript.workflow.visual-generation'))
+
+  const tools = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: layers.manifest,
+    currentProjectId: 4,
+    activeSkills: layers.skills,
+    userMessage: message,
+  })
+  assert.ok(tools.available.some((tool) => tool.name === 'movscript_create_generation_job'))
+  assert.notEqual(tools.byName.movscript_create_generation_job?.unavailableReason, 'workflow_scope')
+})
+
+test('asset candidate generation activates visual generation tools on asset slot pages', () => {
+  const catalog = loadAgentPluginCatalog()
+  const message = '生成图片候选 人物主视图 周建军'
+  const layers = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: catalog.manifest,
+    message,
+    debugContext: {
+      route: { pathname: '/asset-slots' },
+      projects: [{ id: 4, name: '测试项目' }],
+      project: { id: 4, name: '测试项目' },
+      selection: { entityType: 'asset_slot', entityId: 24 },
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: ['asset_candidate_generation'],
+    },
+  })
+
+  assert.deepEqual(layers.trace.workflowIds, [
+    'movscript.workflow.asset-candidate-generation',
+    'movscript.workflow.visual-generation',
+  ])
+  assert.ok(layers.ctx.intents.includes('asset_candidate_generation'))
+  assert.ok(layers.ctx.intents.includes('visual_generation'))
 
   const tools = resolveToolCatalog({
     mcpTools: [],
@@ -637,7 +678,7 @@ test('profile resolution, trigger selection, prompt refs, and tool scope work to
     policies: [policy],
     workflows: selected.workflows,
   })
-  assert.match(prompt.systemPrompt, /Project Proposal/)
+  assert.match(prompt.systemPrompt, /Project Standards Proposal/)
   assert.doesNotMatch(prompt.systemPrompt, /\{\{schema:/)
 
   const tools = resolveVisibleTools({

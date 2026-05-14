@@ -122,7 +122,7 @@ function GeneratedMediaPreview({ attachment }: { attachment: AgentAttachment }) 
 
 function GeneratedResourceBindingControl({ attachment, projectId }: { attachment: AgentAttachment; projectId?: number }) {
   const [targetType, setTargetType] = useState<GeneratedBindingTarget>('asset_slot')
-  const [targetIdText, setTargetIdText] = useState('')
+  const [targetId, setTargetId] = useState<number | undefined>(undefined)
   const [targetQuery, setTargetQuery] = useState('')
   const [bindingStatus, setBindingStatus] = useState<'idle' | 'binding' | 'bound' | 'error'>('idle')
   const [bindingMessage, setBindingMessage] = useState('')
@@ -134,18 +134,17 @@ function GeneratedResourceBindingControl({ attachment, projectId }: { attachment
     staleTime: 30_000,
   })
   if (attachment.resourceId === undefined) return null
-  const targetId = Number(targetIdText.trim())
-  const canBind = !!projectId && Number.isInteger(targetId) && targetId > 0 && bindingStatus !== 'binding'
   const normalizedQuery = targetQuery.trim().toLowerCase()
   const filteredTargets = targetRecords
     .filter((record) => !normalizedQuery || generatedTargetSearchText(record).includes(normalizedQuery))
-    .slice(0, 5)
-  const selectedTarget = Number.isInteger(targetId) ? targetRecords.find((record) => record.ID === targetId) : undefined
+    .slice(0, 20)
+  const selectedTarget = targetId !== undefined ? targetRecords.find((record) => record.ID === targetId) : undefined
+  const canBind = !!projectId && targetId !== undefined && !!selectedTarget && bindingStatus !== 'binding'
   const selectedTargetDescription = selectedTarget ? generatedTargetRecordDescription(selectedTarget) : ''
   const selectedTargetMeta = selectedTarget ? generatedTargetRecordMeta(selectedTarget) : []
 
   async function bindResource() {
-    if (!projectId || !canBind || attachment.resourceId === undefined) return
+    if (!projectId || !canBind || attachment.resourceId === undefined || targetId === undefined) return
     setBindingStatus('binding')
     setBindingMessage('')
     try {
@@ -175,10 +174,10 @@ function GeneratedResourceBindingControl({ attachment, projectId }: { attachment
 
   return (
     <div data-testid="agent-generated-resource-binding" className="mt-1.5 grid gap-1.5 rounded border border-border/60 bg-background/50 p-1.5">
-      <div className="grid grid-cols-[minmax(0,1fr)_64px_auto] gap-1">
+      <div className="grid grid-cols-[minmax(0,0.55fr)_minmax(0,1fr)_auto] gap-1">
         <Select value={targetType} onValueChange={(value) => {
           setTargetType(value as GeneratedBindingTarget)
-          setTargetIdText('')
+          setTargetId(undefined)
           setTargetQuery('')
           if (bindingStatus !== 'binding') setBindingStatus('idle')
         }}>
@@ -191,52 +190,43 @@ function GeneratedResourceBindingControl({ attachment, projectId }: { attachment
             ))}
           </SelectContent>
         </Select>
-        <input
-          value={targetIdText}
-          onChange={(event) => {
-            setTargetIdText(event.target.value.replace(/[^\d]/g, ''))
+        <Select
+          value={targetId !== undefined ? String(targetId) : undefined}
+          onValueChange={(value) => {
+            setTargetId(Number(value))
             if (bindingStatus !== 'binding') setBindingStatus('idle')
           }}
-          placeholder="ID"
-          inputMode="numeric"
-          className="h-7 min-w-0 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        />
+          disabled={!projectId || loadingTargets || filteredTargets.length === 0}
+        >
+          <SelectTrigger className="h-7 min-w-0 text-[10px]">
+            <SelectValue placeholder={loadingTargets ? '加载中' : `选择${generatedBindingTargetLabel(targetType)}`} />
+          </SelectTrigger>
+          <SelectContent>
+            {filteredTargets.map((record) => (
+              <SelectItem key={`${targetType}-${record.ID}`} value={String(record.ID)}>
+                {generatedTargetRecordLabel(record)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button type="button" size="xs" variant="secondary" disabled={!canBind} onClick={bindResource} className="h-7 px-2 text-[10px]">
           {bindingStatus === 'binding' ? '绑定中' : '绑定'}
         </Button>
       </div>
       <input
         value={targetQuery}
-        onChange={(event) => setTargetQuery(event.target.value)}
-        placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetType)}，或直接填写 ID`}
+        onChange={(event) => {
+          setTargetQuery(event.target.value)
+          setTargetId(undefined)
+          if (bindingStatus !== 'binding') setBindingStatus('idle')
+        }}
+        placeholder={loadingTargets ? '正在加载目标对象...' : `搜索${generatedBindingTargetLabel(targetType)}`}
         disabled={!projectId}
         className="h-7 min-w-0 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-60"
       />
-      {projectId && filteredTargets.length > 0 && (
-        <div className="grid gap-1">
-          {filteredTargets.map((record) => (
-            <button
-              key={`${targetType}-${record.ID}`}
-              type="button"
-              onClick={() => {
-                setTargetIdText(String(record.ID))
-                setTargetQuery(generatedTargetRecordLabel(record))
-                if (bindingStatus !== 'binding') setBindingStatus('idle')
-              }}
-              className={cn(
-                'min-w-0 rounded border px-2 py-1 text-left text-[9px] hover:border-primary/50 hover:bg-background',
-                Number(targetIdText) === record.ID ? 'border-primary/60 bg-primary/5 text-foreground' : 'border-border/60 text-muted-foreground',
-              )}
-            >
-              <span className="block truncate">{generatedTargetRecordLabel(record)}</span>
-              <span className="block text-[8px] text-muted-foreground">#{record.ID}</span>
-            </button>
-          ))}
-        </div>
-      )}
       {projectId && normalizedQuery && !loadingTargets && filteredTargets.length === 0 && (
         <p className="rounded border border-dashed border-border/70 px-2 py-1 text-[9px] leading-relaxed text-muted-foreground">
-          没有匹配的目标对象；如果你知道准确 ID，仍然可以直接填写并绑定。
+          没有匹配的目标对象，请调整搜索条件后再选择。
         </p>
       )}
       {selectedTarget && (
@@ -253,13 +243,8 @@ function GeneratedResourceBindingControl({ attachment, projectId }: { attachment
           )}
         </div>
       )}
-      {projectId && Number.isInteger(targetId) && targetId > 0 && !selectedTarget && !loadingTargets && (
-        <p className="rounded border border-border/60 px-2 py-1 text-[9px] leading-relaxed text-muted-foreground">
-          当前列表未加载到 #{targetId}；绑定时会由后端校验目标是否存在。
-        </p>
-      )}
       <p className={cn('text-[9px] leading-relaxed', bindingStatus === 'error' ? 'text-destructive' : bindingStatus === 'bound' ? 'text-green-700' : 'text-muted-foreground')}>
-        {bindingMessage || (projectId ? '选择目标对象或输入 ID 后，将生成资源绑定为该对象的 selected output。' : '请选择项目后再绑定生成资源。')}
+        {bindingMessage || (projectId ? '选择目标对象后，将生成资源绑定为该对象的 selected output。' : '请选择项目后再绑定生成资源。')}
       </p>
     </div>
   )

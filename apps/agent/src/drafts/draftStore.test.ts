@@ -110,23 +110,75 @@ test('read and edit draft files with unique text replacement', () => {
   assert.equal(edited.draft.content, 'alpha delta gamma')
 })
 
-test('validateDraft accepts canonical project proposal content', () => {
+test('validateDraft accepts canonical project standards proposal content', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
     kind: 'project_proposal',
-    title: 'project proposal',
+    title: 'project standards proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
       scope: 'project_proposal',
-      summary: '整理项目设定与素材需求',
+      summary: '定义项目级制作规范',
+      proposal: {
+        creative_references: [],
+        asset_slots: [],
+        project_style: {
+          aspect_ratio: '9:16',
+          shot_size_system: ['wide', 'medium', 'close-up', 'insert'],
+          visual_style: '竖屏短剧写实风格，关键道具和人物表情必须清晰可读。',
+          negative_rules: ['不要随机改脸', '不要压暗证据道具'],
+        },
+      },
+      impact_notes: [],
+      createdAt: '2026-05-08T00:00:00.000Z',
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, true)
+  assert.equal(validation.issues.filter((issue) => issue.severity === 'error').length, 0)
+})
+
+test('validateDraft accepts canonical setting proposal content', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'setting_proposal',
+    title: 'setting proposal',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
+      scope: 'setting_proposal',
+      summary: '整理项目设定',
       proposal: {
         creative_references: [{
           client_id: 'cr_heroine',
           fields: { name: '女主', kind: 'person' },
         }],
+        asset_slots: [],
+      },
+      impact_notes: [],
+      createdAt: '2026-05-08T00:00:00.000Z',
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, true)
+  assert.equal(validation.issues.filter((issue) => issue.severity === 'error').length, 0)
+})
+
+test('validateDraft accepts canonical asset slot proposal content', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'asset_proposal',
+    title: 'asset slot proposal',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+      scope: 'asset_proposal',
+      summary: '整理素材需求',
+      proposal: {
+        creative_references: [],
         asset_slots: [{
           fields: { name: '女主参考图', kind: 'image' },
-          owner: { type: 'creative_reference', client_id: 'cr_heroine' },
+          owner: { type: 'creative_reference', id: 12 },
         }],
       },
       impact_notes: [],
@@ -142,11 +194,11 @@ test('validateDraft accepts canonical project proposal content', () => {
 test('validateDraft rejects operation-shaped project proposal content', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
-    kind: 'project_proposal',
+    kind: 'setting_proposal',
     title: 'project proposal',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
-      scope: 'project_proposal',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
+      scope: 'setting_proposal',
       summary: '整理项目设定与素材需求',
       proposal: {
         creative_references: [{
@@ -175,11 +227,11 @@ test('validateDraft rejects operation-shaped project proposal content', () => {
 test('validateDraft rejects non-snake-case project proposal asset owner type', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
-    kind: 'project_proposal',
+    kind: 'asset_proposal',
     title: 'project proposal',
     content: JSON.stringify({
-      schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
-      scope: 'project_proposal',
+      schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
+      scope: 'asset_proposal',
       summary: '整理项目设定与素材需求',
       proposal: {
         creative_references: [],
@@ -228,6 +280,32 @@ test('validateDraft rejects downstream content units and keyframes in production
   const validation = validateDraft(draft)
   assert.equal(validation.ok, false)
   assert.match(JSON.stringify(validation.issues), /content_units/)
+})
+
+test('validateDraft warns when production proposal scene moment lacks context bindings', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'production_proposal',
+    title: 'production proposal',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      productionId: 12,
+      proposal: {
+        segments: [{
+          action: 'create',
+          title: '情绪段一',
+          scene_moments: [{
+            action: 'create',
+            title: '情节一',
+          }],
+        }],
+      },
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, true)
+  assert.match(JSON.stringify(validation.issues), /creative_references or asset_slots/)
 })
 
 test('validateDraft accepts canonical asset proposal content', () => {

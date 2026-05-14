@@ -42,7 +42,6 @@ import { api } from '@/lib/api'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { buildCommandFirstClientInput, buildPageKey } from '@/lib/agentCommandInput'
-import { buildEmptyAssetProposalDraftContent } from '@/lib/assetProposalDraft'
 import { openAgentPanelDraft, registerAgentPanelPageTool } from '@/lib/agentPanelBridge'
 import { selectLatestDraftArtifact } from '@/lib/agentArtifacts'
 import {
@@ -92,12 +91,12 @@ import {
   workbenchSurfaces,
   type WorkbenchCategory,
 } from '@/pages/project-workspace/structure'
+import { AssetGenerationWorkspace } from '@/pages/asset-slots/AssetSlotsPage'
 import { MediaViewer } from '@/components/shared/MediaViewer'
 
 export type WorkbenchMode = 'free'
 type WorkStatus = 'blocked' | 'review' | 'ready' | 'running'
 type Priority = 'high' | 'medium' | 'low'
-type AssetCandidateGenerationKind = 'image' | 'video'
 
 interface WorkbenchContentProps {
   mode: WorkbenchMode
@@ -530,18 +529,6 @@ type WorkbenchRecord = SemanticEntityRecord & {
   evidence?: string
 }
 
-interface AssetPrepData {
-  slots: WorkbenchRecord[]
-  candidates: WorkbenchRecord[]
-  contentUnits: WorkbenchRecord[]
-  segments: WorkbenchRecord[]
-  sceneMoments: WorkbenchRecord[]
-  creativeReferences: WorkbenchRecord[]
-  creativeReferenceStates: WorkbenchRecord[]
-  keyframes: WorkbenchRecord[]
-  jobs: Job[]
-}
-
 interface ProductionWorkbenchData {
   productions: WorkbenchRecord[]
   segments: WorkbenchRecord[]
@@ -593,46 +580,6 @@ interface SettingPrepRow {
   linkedProductions: WorkbenchRecord[]
 }
 
-interface AssetPrepViewRow {
-  id: string
-  title: string
-  scope: string
-  status: WorkStatus
-  priority: Priority
-  need?: string
-  progress: number
-  settingKey: string
-  settingLabel: string
-  settingDetail: string
-  sceneMomentId?: number
-  sceneMomentLabel: string
-  segmentId?: number
-  segmentLabel: string
-  contentUnitId?: number
-  contentUnitLabel: string
-  creativeReferenceId?: number
-  creativeReferenceLabel: string
-  contextSummary: string
-  slot: WorkbenchRecord
-  candidates: WorkbenchRecord[]
-  lockedSlot?: WorkbenchRecord
-}
-
-interface AssetPrepOption {
-  value: string
-  label: string
-  detail: string
-  count: number
-  candidateCount: number
-}
-
-interface AssetPrepFilterState {
-  sceneMomentId: string
-  segmentId: string
-  contentUnitId: string
-  creativeReferenceId: string
-}
-
 interface AiUnitSuggestion {
   client_id: string
   title: string
@@ -673,31 +620,6 @@ interface ContentGenerationMomentRow {
   assetSlots: WorkbenchRecord[]
   missingSlots: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
-}
-
-async function loadAssetPrepData(projectId: number): Promise<AssetPrepData> {
-  const [slots, candidates, contentUnits, segments, sceneMoments, creativeReferences, creativeReferenceStates, keyframes, jobs] = await Promise.all([
-    listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
-    listSemanticEntities(projectId, semanticEntityConfig('assetSlotCandidates')),
-    listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
-    listSemanticEntities(projectId, semanticEntityConfig('segments')),
-    listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
-    listSemanticEntities(projectId, semanticEntityConfig('creativeReferences')),
-    listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceStates')),
-    listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
-    loadWorkbenchJobs(projectId, ['image', 'image_edit']),
-  ])
-  return {
-    slots: slots as WorkbenchRecord[],
-    candidates: candidates as WorkbenchRecord[],
-    contentUnits: contentUnits as WorkbenchRecord[],
-    segments: segments as WorkbenchRecord[],
-    sceneMoments: sceneMoments as WorkbenchRecord[],
-    creativeReferences: creativeReferences as WorkbenchRecord[],
-    creativeReferenceStates: creativeReferenceStates as WorkbenchRecord[],
-    keyframes: keyframes as WorkbenchRecord[],
-    jobs,
-  }
 }
 
 async function loadProductionWorkbenchData(projectId: number): Promise<ProductionWorkbenchData> {
@@ -852,171 +774,6 @@ async function loadWorkbenchJobs(projectId: number, types: string[]) {
   return batches.flat().sort((a, b) => new Date(b.CreatedAt).getTime() - new Date(a.CreatedAt).getTime())
 }
 
-function buildAssetPrepRows(data?: AssetPrepData): AssetPrepViewRow[] {
-  if (!data) return []
-  const slotById = new Map(data.slots.map((slot) => [slot.ID, slot]))
-  const contentUnitById = new Map(data.contentUnits.map((item) => [item.ID, item]))
-  const sceneMomentById = new Map(data.sceneMoments.map((item) => [item.ID, item]))
-  const segmentById = new Map(data.segments.map((item) => [item.ID, item]))
-  const keyframeById = new Map(data.keyframes.map((item) => [item.ID, item]))
-  const referenceById = new Map(data.creativeReferences.map((reference) => [reference.ID, reference]))
-  const stateById = new Map(data.creativeReferenceStates.map((state) => [state.ID, state]))
-  const visibleSlots = data.slots.filter((slot) => slot.owner_type !== 'asset_slot')
-  return visibleSlots
-    .map((slot) => {
-      const candidates = data.candidates
-        .filter((candidate) => Number(candidate.asset_slot_id) === slot.ID)
-        .map((candidate) => ({
-          ...candidate,
-          candidate_asset_slot: candidate.candidate_asset_slot ?? (candidate.candidate_asset_slot_id ? slotById.get(Number(candidate.candidate_asset_slot_id)) : undefined),
-        }))
-      const lockedSlot = slot.locked_asset_slot_id ? slotById.get(Number(slot.locked_asset_slot_id)) : undefined
-      const context = deriveAssetContext(
-        slot,
-        {
-          contentUnitById,
-          sceneMomentById,
-          segmentById,
-          keyframeById,
-          referenceById,
-          stateById,
-        },
-      )
-      return {
-        id: String(slot.ID),
-        title: titleOfRecord(slot),
-        scope: context.contextSummary,
-        settingKey: context.referenceKey,
-        settingLabel: context.creativeReferenceLabel,
-        settingDetail: context.settingDetail,
-        sceneMomentId: context.sceneMomentId,
-        sceneMomentLabel: context.sceneMomentLabel,
-        segmentId: context.segmentId,
-        segmentLabel: context.segmentLabel,
-        contentUnitId: context.contentUnitId,
-        contentUnitLabel: context.contentUnitLabel,
-        creativeReferenceId: context.creativeReferenceId,
-        creativeReferenceLabel: context.creativeReferenceLabel,
-        contextSummary: context.contextSummary,
-        status: assetSlotWorkStatus(slot, lockedSlot),
-        priority: priorityFromRecord(slot.priority),
-        need: firstText(slot.description, slot.prompt_hint, slot.slot_key, slot.kind),
-        progress: assetSlotProgress(slot, candidates, lockedSlot),
-        slot,
-        candidates,
-        lockedSlot,
-      }
-    })
-    .sort((a, b) => workStatusRank(a.status) - workStatusRank(b.status) || priorityRank(b.priority) - priorityRank(a.priority) || b.slot.ID - a.slot.ID)
-}
-
-function deriveAssetContext(
-  slot: WorkbenchRecord,
-  refs: {
-    contentUnitById: Map<number, WorkbenchRecord>
-    sceneMomentById: Map<number, WorkbenchRecord>
-    segmentById: Map<number, WorkbenchRecord>
-    keyframeById: Map<number, WorkbenchRecord>
-    referenceById: Map<number, WorkbenchRecord>
-    stateById: Map<number, WorkbenchRecord>
-  },
-) {
-  const referenceId = slot.creative_reference_id || (slot.owner_type === 'creative_reference' ? slot.owner_id : undefined)
-  const stateId = slot.creative_reference_state_id || (slot.owner_type === 'creative_reference_state' ? slot.owner_id : undefined)
-  const state = stateId ? refs.stateById.get(Number(stateId)) : undefined
-  const creativeReferenceId = referenceId || (state?.creative_reference_id ? Number(state.creative_reference_id) : undefined)
-  const reference = creativeReferenceId ? refs.referenceById.get(Number(creativeReferenceId)) : undefined
-
-  const directContentUnitId = slot.owner_type === 'content_unit' ? slot.owner_id : undefined
-  const directSceneMomentId = slot.owner_type === 'scene_moment' ? slot.owner_id : undefined
-  const directSegmentId = slot.owner_type === 'segment' ? slot.owner_id : undefined
-  const directKeyframeId = slot.owner_type === 'keyframe' ? slot.owner_id : undefined
-  const keyframe = directKeyframeId ? refs.keyframeById.get(Number(directKeyframeId)) : undefined
-  const contentUnitId = directContentUnitId || (keyframe?.content_unit_id ? Number(keyframe.content_unit_id) : undefined)
-  const contentUnit = contentUnitId ? refs.contentUnitById.get(Number(contentUnitId)) : undefined
-  const sceneMomentId = directSceneMomentId || (contentUnit?.scene_moment_id ? Number(contentUnit.scene_moment_id) : keyframe?.scene_moment_id ? Number(keyframe.scene_moment_id) : undefined)
-  const sceneMoment = sceneMomentId ? refs.sceneMomentById.get(Number(sceneMomentId)) : undefined
-  const segmentId = directSegmentId || (sceneMoment?.segment_id ? Number(sceneMoment.segment_id) : contentUnit?.segment_id ? Number(contentUnit.segment_id) : keyframe?.segment_id ? Number(keyframe.segment_id) : undefined)
-  const segment = segmentId ? refs.segmentById.get(Number(segmentId)) : undefined
-
-  const referenceLabel = reference ? titleOfRecord(reference) : creativeReferenceId ? `设定资料 #${creativeReferenceId}` : '未绑定设定资料'
-  const usageLabel = [
-    segment ? `编排段 · ${titleOfRecord(segment)}` : segmentId ? `编排段 #${segmentId}` : null,
-    sceneMoment ? `场景 · ${titleOfRecord(sceneMoment)}` : sceneMomentId ? `场景 #${sceneMomentId}` : null,
-    contentUnit ? `制作项 · ${titleOfRecord(contentUnit)}` : contentUnitId ? `制作项 #${contentUnitId}` : null,
-  ].filter(Boolean).join(' / ')
-
-  return {
-    referenceKey: stateId ? `state:${stateId}` : creativeReferenceId ? `reference:${creativeReferenceId}` : 'unbound',
-    creativeReferenceId,
-    creativeReferenceLabel: referenceLabel,
-    settingDetail: state
-      ? `设定状态 / ${firstText(state.scope_type, '临时状态')}`
-      : reference
-        ? firstText(reference.kind, reference.status, '设定资料')
-        : '未绑定设定资料',
-    segmentId,
-    segmentLabel: segment ? `编排段 · ${titleOfRecord(segment)}` : segmentId ? `编排段 #${segmentId}` : '未绑定编排段',
-    sceneMomentId,
-    sceneMomentLabel: sceneMoment ? `场景 · ${titleOfRecord(sceneMoment)}` : sceneMomentId ? `场景 #${sceneMomentId}` : '未绑定场景',
-    contentUnitId,
-    contentUnitLabel: contentUnit ? `制作项 · ${titleOfRecord(contentUnit)}` : contentUnitId ? `制作项 #${contentUnitId}` : '未绑定制作项',
-    contextSummary: [referenceLabel, usageLabel || '未绑定使用位置'].join(' / '),
-  }
-}
-
-function assetScopeCountLabel(rows: AssetPrepViewRow[]) {
-  return String(new Set(rows.map((row) => row.contextSummary)).size)
-}
-
-function buildAssetFilterOptions(rows: AssetPrepViewRow[]) {
-  return {
-    sceneMoments: collectAssetOptions(rows, (row) => row.sceneMomentId, (row) => row.sceneMomentLabel),
-    segments: collectAssetOptions(rows, (row) => row.segmentId, (row) => row.segmentLabel),
-    contentUnits: collectAssetOptions(rows, (row) => row.contentUnitId, (row) => row.contentUnitLabel),
-    creativeReferences: collectAssetOptions(rows, (row) => row.creativeReferenceId, (row) => row.creativeReferenceLabel),
-  }
-}
-
-function collectAssetOptions(
-  rows: AssetPrepViewRow[],
-  valueOf: (row: AssetPrepViewRow) => number | undefined,
-  labelOf: (row: AssetPrepViewRow) => string,
-): AssetPrepOption[] {
-  const options = new Map<string, AssetPrepOption>()
-  for (const row of rows) {
-    const value = valueOf(row)
-    if (!value) continue
-    const key = String(value)
-    const existing = options.get(key)
-    if (existing) {
-      existing.count += 1
-      existing.candidateCount += row.candidates.length
-      continue
-    }
-    options.set(key, {
-      value: key,
-      label: labelOf(row),
-      detail: row.contextSummary,
-      count: 1,
-      candidateCount: row.candidates.length,
-    })
-  }
-  return [...options.values()].sort((a, b) => b.count - a.count || b.candidateCount - a.candidateCount || a.label.localeCompare(b.label, 'zh-Hans-CN'))
-}
-
-function matchesAssetPrepFilters(row: AssetPrepViewRow, filters: AssetPrepFilterState) {
-  if (filters.sceneMomentId !== 'all' && String(row.sceneMomentId ?? '') !== filters.sceneMomentId) return false
-  if (filters.segmentId !== 'all' && String(row.segmentId ?? '') !== filters.segmentId) return false
-  if (filters.contentUnitId !== 'all' && String(row.contentUnitId ?? '') !== filters.contentUnitId) return false
-  if (filters.creativeReferenceId !== 'all' && String(row.creativeReferenceId ?? '') !== filters.creativeReferenceId) return false
-  return true
-}
-
-function hasAssetPrepFilters(filters: AssetPrepFilterState) {
-  return filters.sceneMomentId !== 'all' || filters.segmentId !== 'all' || filters.contentUnitId !== 'all' || filters.creativeReferenceId !== 'all'
-}
-
 function buildContentGenerationRows(data?: ProductionWorkbenchData): ContentGenerationViewRow[] {
   if (!data) return []
   const contentUnits = data.contentUnits ?? []
@@ -1115,18 +872,6 @@ function buildContentGenerationMomentRows(data?: ProductionWorkbenchData): Conte
     })
 }
 
-function buildAssetMetrics(rows: AssetPrepViewRow[], data?: AssetPrepData): WorkbenchMetric[] {
-  const activeJobs = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
-  const candidateCount = rows.reduce((sum, row) => sum + row.candidates.length, 0)
-  return [
-    { label: '素材需求', value: String(rows.length), detail: '有需求即进入准备，不等待设定定稿', icon: PackageCheck, status: rows.length > 0 ? 'review' : 'blocked' },
-    { label: '候选素材', value: String(candidateCount), detail: '当前筛选下的候选集', icon: SquareStack, status: candidateCount > 0 ? 'review' : rows.length > 0 ? 'review' : 'blocked' },
-    { label: '上下文范围', value: assetScopeCountLabel(rows), detail: '按场景与设定聚合', icon: GitBranch, status: rows.length > 0 ? 'ready' : 'blocked' },
-    { label: '已锁定', value: String(rows.filter((row) => normalizeAssetSlotStatus(row.slot.status) === 'locked').length), detail: '可进入关键帧或制作项生成', icon: LockKeyhole, status: 'ready' },
-    { label: '生成任务', value: String(activeJobs), detail: '当前项目图片任务', icon: RefreshCw, status: activeJobs > 0 ? 'running' : 'ready' },
-  ]
-}
-
 function buildProductionMetrics(rows: ContentGenerationViewRow[], data?: ProductionWorkbenchData): WorkbenchMetric[] {
   const runningJobs = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
   const succeededJobs = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
@@ -1148,59 +893,6 @@ function buildMomentMetrics(rows: ContentGenerationMomentRow[], data?: Productio
     { label: '可直接生成', value: String(readyMoments), detail: '情节、镜头和素材输入都已接上', icon: CheckCircle2, status: readyMoments > 0 ? 'ready' : 'review' },
     { label: '待拆镜头', value: String(uncoveredMoments), detail: '还没有生成制作项的情节', icon: Wand2, status: uncoveredMoments > 0 ? 'blocked' : 'ready' },
   ]
-}
-
-function buildAssetContext(row: AssetPrepViewRow | null): WorkbenchLinkRow[] {
-  if (!row) return []
-  const slot = row.slot
-  return [
-    { label: '素材需求', value: `${assetKindLabel(slot.kind)} / ${assetPriorityLabel(slot.priority)} / ${assetStatusLabel(slot.status)}`, icon: PackageCheck },
-    { label: '设定资料', value: row.creativeReferenceLabel, icon: Users },
-    { label: '场景 / 制作项 / 编排段', value: [row.sceneMomentLabel, row.contentUnitLabel, row.segmentLabel].join(' / '), icon: GitBranch },
-    { label: '用途说明', value: firstText(slot.description, slot.prompt_hint, '未填写用途或提示'), icon: FileText },
-    { label: '锁定输出', value: row.lockedSlot ? titleOfRecord(row.lockedSlot) : slot.resource_id ? `资源 #${slot.resource_id}` : '尚未锁定素材', icon: LockKeyhole },
-  ]
-}
-
-function buildAssetCandidateRows(row: AssetPrepViewRow | null) {
-  if (!row) return []
-  const candidateRows = row.candidates.map((candidate) => {
-    const candidateSlot = candidate.candidate_asset_slot
-    return {
-      name: candidateSlot ? titleOfRecord(candidateSlot) : `候选 #${candidate.ID}`,
-      source: [candidate.source_type || 'manual', candidate.source_id ? `#${candidate.source_id}` : null].filter(Boolean).join(' '),
-      fit: candidate.score ? `评分 ${candidate.score}` : firstText(candidateSlot?.description, candidateSlot?.prompt_hint, candidateSlot?.status, '未填写说明'),
-      issue: firstText(candidate.note, candidateSlot?.prompt_hint, candidate.status, '待人工复核'),
-      status: candidate.status === 'selected' ? 'ready' as WorkStatus : candidate.status === 'rejected' ? 'blocked' as WorkStatus : 'review' as WorkStatus,
-      resource: candidateSlot?.resource,
-    }
-  })
-  if (candidateRows.length === 0 && row.lockedSlot) {
-    return [{
-      name: titleOfRecord(row.lockedSlot),
-      source: 'locked_asset_slot',
-      fit: firstText(row.lockedSlot.description, row.lockedSlot.prompt_hint, '已锁定素材'),
-      issue: '已作为当前素材需求输出',
-      status: 'ready' as WorkStatus,
-      resource: row.lockedSlot.resource,
-    }]
-  }
-  return candidateRows
-}
-
-function assetPrepReferenceResourceIds(row: AssetPrepViewRow) {
-  const ids: number[] = []
-  const add = (id?: number) => {
-    if (id && Number.isFinite(id) && !ids.includes(id)) ids.push(id)
-  }
-  add(row.lockedSlot?.resource?.ID ?? row.lockedSlot?.resource_id)
-  add(row.slot.resource?.ID ?? row.slot.resource_id)
-  for (const candidate of row.candidates) {
-    const candidateSlot = candidate.candidate_asset_slot
-    add(candidateSlot?.resource?.ID ?? candidateSlot?.resource_id)
-    if (ids.length >= 3) break
-  }
-  return ids
 }
 
 function normalizeCreativeReferenceStatus(status?: string) {
@@ -2212,40 +1904,6 @@ function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
   )
 }
 
-function FilterSelect({
-  label,
-  value,
-  options,
-  placeholder,
-  onChange,
-}: {
-  label: string
-  value: string
-  options: AssetPrepOption[]
-  placeholder: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-9">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{placeholder}</SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label} · {option.count}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="truncate text-[11px] text-muted-foreground">{options.length > 0 ? `${options.length} 个可选项` : '暂无可筛选项'}</p>
-    </div>
-  )
-}
-
 function CandidateComparison({
   rows,
   primaryLabel,
@@ -2290,433 +1948,6 @@ function CandidateComparison({
       ))}
     </div>
   )
-}
-
-function AssetPreparationWorkbench() {
-  const project = useProjectStore((s) => s.current)
-  const projectId = project?.ID
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const uploadInputRef = useRef<HTMLInputElement>(null)
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['workbench', 'assets', projectId],
-    queryFn: () => loadAssetPrepData(projectId!),
-    enabled: !!projectId,
-  })
-  const rows = useMemo(() => buildAssetPrepRows(data), [data])
-  const filterOptions = useMemo(() => buildAssetFilterOptions(rows), [rows])
-  const [assetFilters, setAssetFilters] = useState<AssetPrepFilterState>({
-    sceneMomentId: 'all',
-    segmentId: 'all',
-    contentUnitId: 'all',
-    creativeReferenceId: 'all',
-  })
-  const [selectedId, setSelectedId] = useState('')
-  const [uploading, setUploading] = useState(false)
-  const assetAssistantCleanupRef = useRef<(() => void) | null>(null)
-
-  useEffect(() => () => {
-    assetAssistantCleanupRef.current?.()
-  }, [])
-
-  useEffect(() => {
-    const nextRows = rows.filter((row) => matchesAssetPrepFilters(row, assetFilters))
-    if (nextRows.length === 0) {
-      if (selectedId) setSelectedId('')
-      return
-    }
-    if (!selectedId || !nextRows.some((row) => row.id === selectedId)) {
-      setSelectedId(nextRows[0].id)
-    }
-  }, [rows, selectedId, assetFilters])
-
-  const filteredRows = useMemo(() => rows.filter((row) => matchesAssetPrepFilters(row, assetFilters)), [rows, assetFilters])
-  const selected = filteredRows.find((item) => item.id === selectedId) ?? filteredRows[0] ?? rows.find((item) => item.id === selectedId) ?? rows[0] ?? null
-  const metrics = buildAssetMetrics(filteredRows, data)
-  const candidateRows = buildAssetCandidateRows(selected)
-  const contextRows = buildAssetContext(selected)
-  const openAssetCanvas = useMutation({
-    mutationFn: async (row: AssetPrepViewRow) => {
-      if (!projectId) throw new Error('请先选择项目')
-      return api.post('/canvases', {
-        name: `${titleOfRecord(row.slot)} · 素材准备画布`,
-        project_id: projectId,
-        canvas_type: 'inspiration',
-        stage: 'asset_prep',
-        ref_type: 'asset_slot',
-        ref_id: row.slot.ID,
-      }).then((r) => r.data as Canvas)
-    },
-    onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
-  })
-  const uploadCandidate = useMutation({
-    mutationFn: async (file: File) => {
-      if (!projectId) throw new Error('请先选择项目')
-      if (!selected) throw new Error('请先选择素材需求')
-      const fd = new FormData()
-      fd.append('file', file)
-      const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
-      await api.post(`/projects/${projectId}/entities/asset-slot-candidates`, {
-        asset_slot_id: selected.slot.ID,
-        resource_id: resource.ID,
-        source_type: 'upload',
-        source_id: resource.ID,
-        score: 0.75,
-        status: 'candidate',
-        note: `手动上传候选：${resource.name}`,
-      })
-    },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['workbench', 'assets', projectId] }),
-        queryClient.invalidateQueries({ queryKey: ['resources'] }),
-        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slots-page', projectId] }),
-        queryClient.invalidateQueries({ queryKey: ['semantic-asset-slot-candidates-page', projectId] }),
-      ])
-      toast.success('候选已上传')
-    },
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '上传候选失败'))
-    },
-    onSettled: () => {
-      setUploading(false)
-      if (uploadInputRef.current) uploadInputRef.current.value = ''
-    },
-  })
-
-  const generateCandidate = useMutation({
-    mutationFn: async ({ row, kind }: { row: AssetPrepViewRow; kind: AssetCandidateGenerationKind }) => {
-      if (!projectId) throw new Error('请先选择项目')
-      const referenceIds = assetPrepReferenceResourceIds(row)
-      const draftShell = await localAgentClient.createDraft({
-        projectId,
-        kind: 'asset_proposal',
-        title: `素材候选提案 - ${row.title}`,
-        content: JSON.stringify(buildEmptyAssetProposalDraftContent({
-          projectId,
-          assetSlotId: row.slot.ID,
-          slotName: row.title,
-          slotKind: String(row.slot.kind ?? 'image'),
-          description: row.need,
-          promptHint: String(row.slot.prompt_hint ?? ''),
-          ownerLabel: row.contextSummary,
-          referenceResourceIds: referenceIds,
-          createdAt: new Date().toISOString(),
-        }), null, 2),
-        source: {
-          entityType: 'asset_slot',
-          entityId: row.slot.ID,
-          pageType: 'asset_proposal',
-          pageRoute: '/workbench/assets',
-        },
-        target: {
-          projectId,
-          entityType: 'asset_slot',
-          entityId: row.slot.ID,
-          field: 'candidate_generation_plan',
-        },
-        metadata: {
-          pageOwned: true,
-          assetSlotId: row.slot.ID,
-          requestedOutputKind: kind,
-          referenceResourceIds: referenceIds,
-          sceneMomentLabel: row.sceneMomentLabel,
-          contentUnitLabel: row.contentUnitLabel,
-        },
-      })
-      const requestId = `asset_workbench_proposal_${row.slot.ID}_${Date.now().toString(36)}`
-      assetAssistantCleanupRef.current?.()
-      assetAssistantCleanupRef.current = registerAgentPanelPageTool(requestId, async (payload) => {
-        if (payload.run?.status === 'failed') {
-          toast.error(payload.run.error || payload.error || '素材候选提案生成失败')
-          assetAssistantCleanupRef.current?.()
-          assetAssistantCleanupRef.current = null
-          return
-        }
-        if (payload.run?.status === 'cancelled') {
-          toast.info('素材候选提案已停止')
-          assetAssistantCleanupRef.current?.()
-          assetAssistantCleanupRef.current = null
-          return
-        }
-        if (!payload.run || (payload.run.status !== 'completed' && payload.run.status !== 'completed_with_warnings')) return
-        const latestDraft = selectLatestDraftArtifact(payload.artifacts, 'asset_proposal')
-        const draftId = latestDraft?.draftId || draftShell.id
-        toast.success(`素材候选提案已准备，可在 AI 草稿中审阅：${draftId}`)
-        assetAssistantCleanupRef.current?.()
-        assetAssistantCleanupRef.current = null
-      })
-
-      openAgentPanelDraft({
-        requestId,
-        taskType: 'asset_candidate_proposal',
-        message: `请准备素材候选提案：${row.title}`,
-        title: `素材提案: ${row.title}`,
-        newConversation: true,
-        autoSend: true,
-        projectId,
-        clientInput: buildCommandFirstClientInput({
-          message: `请为当前素材需求生成一份可审阅的素材候选提案：${row.title}`,
-          labels: ['asset-workbench', 'asset-proposal', 'draft-application'],
-          hints: {
-            projectId,
-            draftId: draftShell.id,
-            route: { pathname: '/workbench/assets' },
-            selection: { entityType: 'asset_slot', entityId: row.slot.ID, label: row.title },
-          },
-        }),
-        runPolicy: { maxToolCalls: 12, maxIterations: 8 },
-        timeoutMs: 300_000,
-        renderMode: 'chat',
-      })
-      return draftShell
-    },
-    onSuccess: () => {
-      toast.success('已打开 AI 素材候选提案助手')
-    },
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '准备素材候选提案失败'))
-    },
-  })
-
-  function triggerUpload() {
-    if (!selected || uploading || uploadCandidate.isPending) return
-    uploadInputRef.current?.click()
-  }
-
-  function handleUpload(file?: File) {
-    if (!file || !selected || uploadCandidate.isPending) return
-    setUploading(true)
-    uploadCandidate.mutate(file)
-  }
-
-  function openAssetAssistant(row: AssetPrepViewRow | null) {
-    if (!projectId || !row) {
-      toast.info('请先选择素材需求')
-      return
-    }
-    generateCandidate.mutate({ row, kind: row.slot.kind === 'video' ? 'video' : 'image' })
-  }
-
-  const selectedSlotId = selected?.slot.ID
-  const selectedPreferredKind: AssetCandidateGenerationKind = selected?.slot.kind === 'video' ? 'video' : 'image'
-  const assetNextActions = [
-    {
-      label: `生成${selectedPreferredKind === 'video' ? '视频' : '图片'}提案`,
-      run: () => selected ? generateCandidate.mutate({ row: selected, kind: selectedPreferredKind }) : navigate('/asset-slots'),
-      primary: !selected?.candidates.length,
-      loading: generateCandidate.isPending && generateCandidate.variables?.kind === selectedPreferredKind,
-      icon: Wand2,
-    },
-    {
-      label: selectedPreferredKind === 'video' ? '生成图片提案' : '生成视频提案',
-      run: () => selected ? generateCandidate.mutate({ row: selected, kind: selectedPreferredKind === 'video' ? 'image' : 'video' }) : navigate('/asset-slots'),
-      primary: false,
-      loading: generateCandidate.isPending && generateCandidate.variables?.kind !== selectedPreferredKind,
-      icon: selectedPreferredKind === 'video' ? Image : Film,
-    },
-    { label: 'AI 助手准备提案', run: () => openAssetAssistant(selected), primary: false, icon: Bot },
-    { label: '画布编排生成', run: () => selected ? openAssetCanvas.mutate(selected) : navigate('/asset-slots'), primary: false, loading: openAssetCanvas.isPending, icon: Sparkles },
-    { label: '采用并锁定素材', run: () => navigate(selectedSlotId ? `/asset-slots?asset_slot_id=${selectedSlotId}` : '/asset-slots'), primary: Boolean(selected?.candidates.length) && normalizeAssetSlotStatus(selected?.slot.status) !== 'locked' },
-    { label: '写回资源库', run: () => navigate('/resources'), primary: false },
-  ]
-  const filterCountLabel = `${filteredRows.length}/${rows.length}`
-  const hasFilters = hasAssetPrepFilters(assetFilters)
-
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <SpecializedWorkbenchHeader
-        category="assets"
-        kicker="素材准备"
-        title="素材准备工作台"
-        description="这里是素材需求的候选集工作台。只要有需求就可以上传、生成和比较候选；场景、设定资料、制作项和编排段只是筛选与追溯上下文。"
-      />
-      <main className="min-h-0 flex-1 overflow-auto p-5">
-        {!projectId ? (
-          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目信息，无法拉取素材需求、候选和生成任务。" />
-        ) : isLoading ? (
-          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载素材数据...</Card>
-        ) : isError ? (
-          <EmptyWorkbenchState title="素材数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。 " />
-        ) : (
-          <div className="asset-prep-workbench space-y-5">
-            <section className="rounded-lg border border-border bg-card p-4">
-              <div className="grid gap-3 lg:grid-cols-4">
-                <FilterSelect
-                  label="场景"
-                  value={assetFilters.sceneMomentId}
-                  options={filterOptions.sceneMoments}
-                  placeholder="全部场景"
-                  onChange={(value) => setAssetFilters((prev) => ({ ...prev, sceneMomentId: value }))}
-                />
-                <FilterSelect
-                  label="编排段"
-                  value={assetFilters.segmentId}
-                  options={filterOptions.segments}
-                  placeholder="全部编排段"
-                  onChange={(value) => setAssetFilters((prev) => ({ ...prev, segmentId: value }))}
-                />
-                <FilterSelect
-                  label="制作项"
-                  value={assetFilters.contentUnitId}
-                  options={filterOptions.contentUnits}
-                  placeholder="全部制作项"
-                  onChange={(value) => setAssetFilters((prev) => ({ ...prev, contentUnitId: value }))}
-                />
-                <FilterSelect
-                  label="设定资料"
-                  value={assetFilters.creativeReferenceId}
-                  options={filterOptions.creativeReferences}
-                  placeholder="全部设定资料"
-                  onChange={(value) => setAssetFilters((prev) => ({ ...prev, creativeReferenceId: value }))}
-                />
-              </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-muted-foreground">素材需求按场景、编排段、制作项和设定资料筛选，不再以单一归属字段作为入口。</p>
-                <div className="flex items-center gap-2">
-                  {hasFilters ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8"
-                      onClick={() => setAssetFilters({ sceneMomentId: 'all', segmentId: 'all', contentUnitId: 'all', creativeReferenceId: 'all' })}
-                    >
-                      清空筛选
-                    </Button>
-                  ) : null}
-                  <Badge variant="outline">{filterCountLabel} 个素材需求</Badge>
-                </div>
-              </div>
-            </section>
-            <MetricStrip metrics={metrics} />
-            <div className="asset-prep-layout grid items-stretch gap-5">
-              <SpecializedQueue
-                title="候选队列"
-                className="flex h-full min-h-[560px] flex-col overflow-hidden"
-                bodyClassName="min-h-0 flex-1 overflow-hidden"
-                items={filteredRows.map((row) => ({
-                  id: row.id,
-                  title: row.title,
-                  scope: row.contextSummary,
-                  status: row.status,
-                  priority: row.priority,
-                  progress: row.progress,
-                  need: row.need || row.settingDetail,
-                }))}
-                selectedId={selected?.id ?? ''}
-                onSelect={(id) => {
-                  setSelectedId(id)
-                }}
-              />
-              <div className="asset-prep-side min-w-0 grid h-full min-h-[560px] gap-5">
-                <div className="asset-prep-workspace min-w-0 grid min-h-0 gap-5">
-                  <WorkbenchPanel
-                    title="当前上下文与素材需求"
-                    icon={GitBranch}
-                    action={selected ? <Badge variant="outline">{selected.contextSummary}</Badge> : undefined}
-                    className="flex min-h-0 flex-col"
-                    bodyClassName="min-h-0 flex-1 overflow-auto"
-                  >
-                    {selected ? (
-                      <>
-                        <div className="mb-4 grid gap-3 rounded-md border border-border bg-background p-3 md:grid-cols-[1fr_auto]">
-                          <div className="min-w-0">
-                            <p className="text-xs text-muted-foreground">当前上下文</p>
-                            <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{selected.contextSummary}</h2>
-                            <p className="mt-1 truncate text-sm text-muted-foreground">{selected.settingDetail}</p>
-                          </div>
-                          <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
-                        </div>
-                        <ContextStack rows={contextRows} />
-                      </>
-                    ) : (
-                      <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无可用素材需求</p>
-                    )}
-                  </WorkbenchPanel>
-
-                  <WorkbenchPanel
-                    title="候选集"
-                    icon={SquareStack}
-                    action={(
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline">{candidateRows.length} 个候选</Badge>
-                        <Button size="sm" variant="outline" className="h-8 gap-2" onClick={triggerUpload} disabled={!selected || uploadCandidate.isPending || uploading}>
-                          <Upload size={14} />
-                          上传候选
-                        </Button>
-                      </div>
-                    )}
-                    className="flex min-h-0 flex-1 flex-col"
-                    bodyClassName="min-h-0 flex-1 overflow-auto"
-                  >
-                    <div className="mb-3 rounded-md border border-dashed border-border bg-background px-3 py-3 text-xs text-muted-foreground">
-                      这里把当前场景、设定资料、制作项和编排段的候选放在一起看，越贴近当前上下文的候选越应该优先进入这一层。
-                    </div>
-                    <CandidateComparison rows={candidateRows} primaryLabel="可用性" emptyText="当前素材需求还没有候选素材" />
-                  </WorkbenchPanel>
-                </div>
-
-                <WorkbenchPanel
-                  title="编辑区"
-                  icon={Settings2}
-                  action={selected ? (
-                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => navigate(`/asset-slots?asset_slot_id=${selected.slot.ID}`)}>
-                      <ArrowRight size={14} />
-                      详情页
-                    </Button>
-                  ) : undefined}
-                  className="asset-prep-editor-panel flex min-h-0 flex-col"
-                  bodyClassName="min-h-0 flex-1 overflow-auto"
-                >
-                  <div className="space-y-4">
-                    <div className="rounded-md border border-border bg-background px-3 py-3">
-                      <p className="text-xs text-muted-foreground">当前上下文</p>
-                      <p className="mt-1 truncate text-sm font-medium text-foreground">{selected?.contextSummary ?? '请选择一个素材需求'}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{selected?.settingDetail ?? '先选中一个素材需求，再上传候选或执行下一步动作。'}</p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-foreground">手动上传候选</p>
-                          <p className="mt-1 text-xs text-muted-foreground">支持图片、视频、音频和文本文件，上传后直接成为当前素材需求的候选。</p>
-                        </div>
-                        <Button variant="outline" className="h-8 shrink-0 gap-2" onClick={triggerUpload} disabled={!selected || uploading || uploadCandidate.isPending}>
-                          <Upload size={14} />
-                          {uploadCandidate.isPending || uploading ? '上传中' : '选择文件'}
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">上传会直接写入当前素材需求下的候选记录。</p>
-                    </div>
-
-                    <div className="space-y-3 border-t border-border pt-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-foreground">下一步动作</p>
-                          <p className="mt-1 text-xs text-muted-foreground">围绕当前素材需求继续生成、锁定或回写资源库。</p>
-                        </div>
-                        <Badge variant="outline">{assetNextActions.length} 个动作</Badge>
-                      </div>
-                      <div className="space-y-2">
-                        {assetNextActions.map((action, index) => (
-                          <Button key={action.label} variant={action.primary ? 'primary' : 'outline'} className="w-full justify-start gap-2" onClick={() => action.run()} loading={action.loading}>
-                            {action.icon ? <action.icon size={15} /> : index === 4 ? <LockKeyhole size={15} /> : <ChevronRight size={15} />}
-                            {action.label}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </WorkbenchPanel>
-              </div>
-            </div>
-            <input ref={uploadInputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleUpload(e.target.files?.[0])} />
-          </div>
-        )}
-      </main>
-    </div>
-  )
-
 }
 
 function SettingPreparationWorkbench() {
@@ -5151,10 +4382,10 @@ const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, {
   icon: typeof PackageCheck
 }> = {
   assets: {
-    title: '素材准备工作台',
+    title: '素材工作台',
     stage: 'asset_prep',
     description: '复用现有画布工作流来组织素材需求缺口、参考输入、AI 生成、人工审核和资源写回。',
-    canvasName: '素材准备画布',
+    canvasName: '素材工作台画布',
     icon: PackageCheck,
   },
   production: {
@@ -6496,7 +5727,7 @@ function ScriptSplitWorkbench() {
 
 function CategoryContent({ category }: { category: WorkbenchCategory }) {
   if (category === 'script') return <ScriptSplitWorkbench />
-  if (category === 'assets') return <AssetPreparationWorkbench />
+  if (category === 'assets') return <AssetGenerationWorkspace />
   if (category === 'creative') return <SettingPreparationWorkbench />
   if (category === 'production') return <ContentGenerationWorkbench />
   if (category === 'reference-relations') return <ReferenceRelationsPage embedded initialView="graph" />

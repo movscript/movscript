@@ -20,7 +20,7 @@
 2. 如果进度判断依赖剧本事实，读取相关项目剧本；如果依赖未关闭方案，读取 draft 列表。
 3. 按层级归类：project 设定和素材需求、production 编排、content unit、媒体计划、生成任务或交付审阅。
 4. 将每项状态标记为已验证、draft 中、建议、未知或阻塞。
-5. 给出最少的下一步 workflow 建议，例如继续 project_proposal、production_proposal、content_unit_proposal、visual_generation 或 storyboard_gap_review。
+5. 给出最少的下一步 workflow 建议，例如继续 project_proposal（项目标准）、setting_proposal（设定资料）、asset_proposal（素材需求或素材候选）、production_proposal、content_unit_proposal、visual_generation 或 storyboard_gap_review。
 
 校验：
 - 只能根据工具结果、focus 或用户显式输入陈述事实。

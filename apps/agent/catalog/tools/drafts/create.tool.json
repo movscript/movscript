@@ -22,6 +22,7 @@
           "pipeline",
           "segment",
           "scene_moment",
+          "setting_proposal",
           "asset_proposal",
           "project_proposal",
           "production_proposal",

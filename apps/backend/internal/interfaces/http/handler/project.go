@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	projectapp "github.com/movscript/movscript/internal/app/project"
@@ -126,6 +127,26 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
 		return
+	}
+	if strings.TrimSpace(req.Name) == "" {
+		if existing, err := h.projects.Get(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c)); err == nil {
+			req.Name = existing.Name
+			if req.Description == "" {
+				req.Description = existing.Description
+			}
+			if req.TotalEpisodes == 0 {
+				req.TotalEpisodes = existing.TotalEpisodes
+			}
+			if req.AspectRatio == "" {
+				req.AspectRatio = existing.AspectRatio
+			}
+			if req.VisualStyle == "" {
+				req.VisualStyle = existing.VisualStyle
+			}
+			if req.ProjectStyle == "" {
+				req.ProjectStyle = existing.ProjectStyle
+			}
+		}
 	}
 	project, err := h.projects.Update(c.Request.Context(), parseID(c.Param("id")), req, currentOrgID(c))
 	if err != nil {

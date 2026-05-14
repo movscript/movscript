@@ -540,7 +540,8 @@ export default function ProductionOrchestratePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const productionId = Number(searchParams.get('productionId')) || 0
   const openedDraftId = searchParams.get('draftId')?.trim() || ''
-  const openedProjectDraftId = searchParams.get('projectDraftId')?.trim() || ''
+  const openedSettingDraftId = searchParams.get('settingDraftId')?.trim() || ''
+  const openedAssetProposalDraftId = searchParams.get('assetProposalDraftId')?.trim() || ''
 
   const [filter, setFilter] = useState<EntityFilter>('all')
   const [selectedEntityId, setSelectedEntityId] = useState<number | null>(null)
@@ -575,13 +576,21 @@ export default function ProductionOrchestratePage() {
     },
     enabled: !!projectId && !!openedDraftId,
   })
-  const openedProjectDraftQuery = useQuery({
-    queryKey: ['production-orchestrate-project-draft', projectId, openedProjectDraftId],
+  const openedSettingDraftQuery = useQuery({
+    queryKey: ['production-orchestrate-setting-draft', projectId, openedSettingDraftId],
     queryFn: async () => {
-      if (!projectId || !openedProjectDraftId) return null
-      return localAgentClient.getDraft(openedProjectDraftId)
+      if (!projectId || !openedSettingDraftId) return null
+      return localAgentClient.getDraft(openedSettingDraftId)
     },
-    enabled: !!projectId && !!openedProjectDraftId,
+    enabled: !!projectId && !!openedSettingDraftId,
+  })
+  const openedAssetProposalDraftQuery = useQuery({
+    queryKey: ['production-orchestrate-asset-proposal-draft', projectId, openedAssetProposalDraftId],
+    queryFn: async () => {
+      if (!projectId || !openedAssetProposalDraftId) return null
+      return localAgentClient.getDraft(openedAssetProposalDraftId)
+    },
+    enabled: !!projectId && !!openedAssetProposalDraftId,
   })
 
   const productions = data?.productions ?? []
@@ -655,10 +664,10 @@ export default function ProductionOrchestratePage() {
     }
   }, [proposalPreviewDraft])
   useEffect(() => {
-    if (openedProjectDraftId || openedDraftId) {
+    if (openedSettingDraftId || openedAssetProposalDraftId || openedDraftId) {
       setWorkspaceView('review')
     }
-  }, [openedDraftId, openedProjectDraftId])
+  }, [openedAssetProposalDraftId, openedDraftId, openedSettingDraftId])
   useEffect(() => {
     return () => orchestrationCleanupRef.current?.()
   }, [])
@@ -979,11 +988,13 @@ export default function ProductionOrchestratePage() {
         await Promise.all([refetch(), queryClient.invalidateQueries({ queryKey })])
         return
       }
-      const latestProjectDraft = selectLatestDraftArtifact(payload.artifacts, 'project_proposal')
+      const latestSettingDraft = selectLatestDraftArtifact(payload.artifacts, 'setting_proposal')
+      const latestAssetProposalDraft = selectLatestDraftArtifact(payload.artifacts, 'asset_proposal')
       const latestProductionDraft = selectLatestDraftArtifact(payload.artifacts, 'production_proposal')
       setSearchParams((current) => {
         const next = new URLSearchParams(current)
-        if (latestProjectDraft?.draftId) next.set('projectDraftId', latestProjectDraft.draftId)
+        if (latestSettingDraft?.draftId) next.set('settingDraftId', latestSettingDraft.draftId)
+        if (latestAssetProposalDraft?.draftId) next.set('assetProposalDraftId', latestAssetProposalDraft.draftId)
         if (latestProductionDraft?.draftId) next.set('draftId', latestProductionDraft.draftId)
         next.set('productionId', String(effectiveProductionId))
         return next
@@ -1003,8 +1014,8 @@ export default function ProductionOrchestratePage() {
       projectId,
       clientInput: buildCommandFirstClientInput({
         message: target.scope === 'segmentAnalysis' && target.entityId
-          ? `请围绕当前选中的编排段 #${target.entityId} 生成 production_proposal。若发现必须引用但不存在的项目级对象，先转去整理 project_proposal draft。`
-          : '请基于当前 production snapshot 生成 production_proposal。若发现必须引用但不存在的项目级对象，先转去整理 project_proposal draft。',
+          ? `请围绕当前选中的编排段 #${target.entityId} 生成 production_proposal。若发现必须引用但不存在的项目级设定资料，先转 setting_proposal；若缺少素材需求锚点，先转 asset_proposal。不要把这些上游对象写进 project_proposal。`
+          : '请基于当前 production snapshot 生成 production_proposal。若发现必须引用但不存在的项目级设定资料，先转 setting_proposal；若缺少素材需求锚点，先转 asset_proposal。不要把这些上游对象写进 project_proposal。',
         labels: ['production-orchestrate', 'production-orchestration', 'draft-application'],
         hints: {
           projectId,
@@ -1259,15 +1270,22 @@ export default function ProductionOrchestratePage() {
           </div>
           <div className="flex items-center gap-2">
             {isFetching && <Loader2 size={14} className="animate-spin text-muted-foreground" />}
-            {openedProjectDraftId && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">项目 draft</Badge>}
+            {openedSettingDraftId && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">设定 draft</Badge>}
+            {openedAssetProposalDraftId && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">素材需求 draft</Badge>}
             {openedDraftId && <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">已打开 draft</Badge>}
             <Badge variant={allCreativeReferences.length > 0 || allAssetSlots.length > 0 ? 'secondary' : 'warning'} className="h-6 rounded-full px-2 text-[10px]">
-              {allCreativeReferences.length > 0 || allAssetSlots.length > 0 ? '项目编排已就绪' : '先走项目编排'}
+              {allCreativeReferences.length > 0 || allAssetSlots.length > 0 ? '上游资源已就绪' : '先补设定/素材需求'}
             </Badge>
             <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to="/project-workspace">
-                <Layers3 size={13} />
-                项目编排
+              <Link to="/creative-references">
+                <Sparkles size={13} />
+                设定工作台
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
+              <Link to="/asset-slots">
+                <PackageCheck size={13} />
+                素材需求
               </Link>
             </Button>
             <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={() => refetch()}>
@@ -1339,9 +1357,12 @@ export default function ProductionOrchestratePage() {
                 {workspaceView === 'review' ? (
                   <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 p-4">
                     <ProjectProposalReviewSummary
-                      draft={openedProjectDraftQuery.data}
+                      settingDraft={openedSettingDraftQuery.data}
+                      assetProposalDraft={openedAssetProposalDraftQuery.data}
                       projectName={project?.name ?? '当前项目'}
                       productionName={selectedProduction ? String(selectedProduction.name ?? `制作 #${selectedProduction.ID}`) : `制作 #${effectiveProductionId}`}
+                      creativeReferences={allCreativeReferences}
+                      assetSlots={allAssetSlots}
                     />
                     {proposalPreviewDraft ? (
                       <ProposalReviewPanel
@@ -1566,17 +1587,23 @@ function ProductionOrchestrationWorkspace({
             </div>
             <h1 className="mt-1 text-lg font-semibold text-foreground">制作编排树</h1>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-              这里只处理情绪段和情节展开；设定资料和素材都来自项目编排，只读引用，不在这里创建。
+              这里只处理情绪段和情节展开；设定资料来自设定工作台，素材需求来自素材需求工作台，制作编排只能只读引用。
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={boundaryTone === 'ok' ? 'secondary' : 'warning'} className="h-6 rounded-full px-2 text-[10px]">
-              {boundaryTone === 'ok' ? '项目编排已就绪' : '先完成项目编排'}
+              {boundaryTone === 'ok' ? '上游资源已就绪' : '先补设定/素材需求'}
             </Badge>
             <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to="/project-workspace">
-                <Layers3 size={13} />
-                打开项目编排
+              <Link to="/creative-references">
+                <Sparkles size={13} />
+                设定工作台
+              </Link>
+            </Button>
+            <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
+              <Link to="/asset-slots">
+                <PackageCheck size={13} />
+                素材需求
               </Link>
             </Button>
           </div>
@@ -1599,11 +1626,11 @@ function ProductionOrchestrationWorkspace({
           <div>
             <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
               <Sparkles size={12} />
-              项目编排结果
+              上游资源池
             </div>
             <h2 className="mt-1 text-sm font-semibold text-foreground">设定与素材资源池</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              这里展示项目编排沉淀下来的设定资料和素材需求；制作编排只能引用它们，不能在这里新增。
+              这里展示设定工作台和素材需求工作台沉淀下来的资源；制作编排只能引用它们，不能在这里新增。
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
@@ -1630,7 +1657,7 @@ function ProductionOrchestrationWorkspace({
           <div className="mt-4 space-y-2">
             {creativeReferences.length === 0 ? (
               <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-                当前还没有可引用的设定资料，先去项目编排补齐。
+                当前还没有可引用的设定资料，先去设定工作台补齐。
               </div>
             ) : (
               creativeReferences.map((reference) => (
@@ -1681,7 +1708,7 @@ function ProductionOrchestrationWorkspace({
           </div>
         ) : (
           <div className="mt-4 rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-            默认收起。展开后查看项目编排结果里的设定和素材资源池。
+            默认收起。展开后查看设定工作台和素材需求工作台的上游资源池。
           </div>
         )}
       </section>
@@ -1693,9 +1720,9 @@ function ProductionOrchestrationWorkspace({
               <Route size={12} />
               制作编排
             </div>
-            <h2 className="mt-1 text-sm font-semibold text-foreground">情绪段与情节树</h2>
+            <h2 className="mt-1 text-sm font-semibold text-foreground">横向情绪流与情节</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              这里只保留树结构。展开节点后，可以看到它引用了哪些设定资料和素材需求。
+              按情绪段从左到右排列，下方承载每段的情节；展开后查看引用的设定资料和素材需求。
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1713,83 +1740,35 @@ function ProductionOrchestrationWorkspace({
             </Button>
           </div>
         </div>
-        <div className="mt-4 space-y-2">
+        <div className="mt-4">
           {segments.length === 0 ? (
             <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-              当前还没有制作树。先从剧本和项目编排生成一版，再在这里继续收敛。
+              当前还没有制作树。先从剧本、设定资料和素材需求生成一版，再在这里继续收敛。
             </div>
-          ) : segments.map((segment) => (
-            <ProductionTreeNode
-              key={`segment-${segment.ID}`}
-              id={`segment-${segment.ID}`}
-              level={0}
-              expanded={expandedIds.has(`segment-${segment.ID}`)}
-              onToggle={() => onToggleExpand(`segment-${segment.ID}`)}
-              title={titleOfRecord(segment)}
-              detail={String(segment.summary ?? segment.content ?? '暂无摘要')}
-              badges={[
-                segmentKindLabel[String(segment.kind ?? '')] ?? String(segment.kind ?? '编排段'),
-                String(segment.status ?? 'draft'),
-                `${sceneMoments.filter((moment) => moment.segment_id === segment.ID).length} 情景`,
-              ]}
-              actions={(
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 px-2 text-[10px]"
-                    onClick={(event) => { event.stopPropagation(); onCreateSceneMoment(segment.ID) }}
-                  >
-                    <Plus size={11} />
-                    新增情景
-                  </Button>
-                  <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={(event) => { event.stopPropagation(); onEditSegment(segment) }}>
-                    <Pencil size={11} />
-                    编辑
-                  </Button>
-                </div>
-              )}
-            >
-              <div className="space-y-2 pb-2">
-                <TreeMiniLine label="摘要" value={String(segment.summary ?? segment.content ?? '暂无摘要')} />
-                <TreeChipRow label="引用设定" items={referencesForOwner('segment', segment.ID, lookup).map((reference) => titleOfRecord(reference))} />
-                <TreeChipRow label="关联素材" items={(lookup.assetSlotsByOwnerKey.get(ownerKey('segment', segment.ID)) ?? []).map((slot) => formatAssetSlotLabel(slot, lookup))} />
-                <div className="space-y-2">
-                  {(sceneMoments.filter((moment) => moment.segment_id === segment.ID)).map((moment) => (
-                    <ProductionTreeNode
-                      key={`scene-${moment.ID}`}
-                      id={`scene-${moment.ID}`}
-                      level={1}
-                      expanded={expandedIds.has(`scene-${moment.ID}`)}
-                      onToggle={() => onToggleExpand(`scene-${moment.ID}`)}
-                      title={titleOfRecord(moment)}
-                      detail={[moment.time_text, moment.location_text, moment.action_text, moment.mood].filter(Boolean).join(' · ') || '暂无说明'}
-                      badges={[
-                        String(moment.status ?? 'draft'),
-                        `${referencesForOwner('scene_moment', moment.ID, lookup).length} 个设定`,
-                        `${(lookup.assetSlotsByOwnerKey.get(ownerKey('scene_moment', moment.ID)) ?? []).length} 个素材`,
-                      ]}
-                      actions={(
-                        <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={(event) => { event.stopPropagation(); onEditSceneMoment(moment) }}>
-                          <Pencil size={11} />
-                          编辑
-                        </Button>
-                      )}
-                    >
-                      <div className="space-y-2 pb-2">
-                        <TreeMiniLine label="时间" value={String(moment.time_text ?? '未填写')} />
-                        <TreeMiniLine label="地点" value={String(moment.location_text ?? '未填写')} />
-                        <TreeMiniLine label="动作" value={String(moment.action_text ?? '未填写')} />
-                        <TreeMiniLine label="情绪" value={String(moment.mood ?? '未填写')} />
-                        <TreeChipRow label="引用设定" items={referencesForOwner('scene_moment', moment.ID, lookup).map((reference) => titleOfRecord(reference))} />
-                        <TreeChipRow label="关联素材" items={(lookup.assetSlotsByOwnerKey.get(ownerKey('scene_moment', moment.ID)) ?? []).map((slot) => formatAssetSlotLabel(slot, lookup))} />
-                      </div>
-                    </ProductionTreeNode>
-                  ))}
-                </div>
+          ) : (
+            <div className="overflow-x-auto pb-2">
+              <div className="relative flex min-w-max items-start gap-3 pr-1">
+                <div className="absolute left-0 right-0 top-6 h-px bg-border" />
+                {segments.map((segment, index) => {
+                  const childMoments = sceneMoments.filter((moment) => moment.segment_id === segment.ID)
+                  return (
+                    <EmotionFlowColumn
+                      key={`segment-flow-${segment.ID}`}
+                      index={index}
+                      segment={segment}
+                      moments={childMoments}
+                      lookup={lookup}
+                      expandedIds={expandedIds}
+                      onToggleExpand={onToggleExpand}
+                      onEditSegment={onEditSegment}
+                      onEditSceneMoment={onEditSceneMoment}
+                      onCreateSceneMoment={onCreateSceneMoment}
+                    />
+                  )
+                })}
               </div>
-            </ProductionTreeNode>
-          ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -1797,11 +1776,191 @@ function ProductionOrchestrationWorkspace({
         <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-300">
           <div className="flex items-center gap-2">
             <AlertCircle size={13} />
-            <p className="text-xs font-semibold">制作编排还没接上项目编排</p>
+            <p className="text-xs font-semibold">制作编排还没接上上游资源</p>
           </div>
           <p className="mt-1 text-[11px] leading-4">
-            先去项目编排补齐设定资料和素材需求，再回到这里继续展开情绪段和情节树。
+            先去设定工作台补齐设定资料，或去素材需求工作台补齐素材需求，再回到这里继续展开情绪段和情节树。
           </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function EmotionFlowColumn({
+  index,
+  segment,
+  moments,
+  lookup,
+  expandedIds,
+  onToggleExpand,
+  onEditSegment,
+  onEditSceneMoment,
+  onCreateSceneMoment,
+}: {
+  index: number
+  segment: SegmentRecord
+  moments: SceneMomentRecord[]
+  lookup: OrchestrationLookup
+  expandedIds: Set<string>
+  onToggleExpand: (id: string) => void
+  onEditSegment: (record: SemanticEntityRecord) => void
+  onEditSceneMoment: (record: SemanticEntityRecord) => void
+  onCreateSceneMoment: (segmentId: number) => void
+}) {
+  const segmentId = `segment-${segment.ID}`
+  const expanded = expandedIds.has(segmentId)
+  const segmentReferences = referencesForOwner('segment', segment.ID, lookup)
+  const segmentAssetSlots = lookup.assetSlotsByOwnerKey.get(ownerKey('segment', segment.ID)) ?? []
+
+  return (
+    <div className="relative z-[1] flex w-[300px] shrink-0 flex-col">
+      <div className="mb-2 flex justify-center">
+        <span className="flex h-12 min-w-12 items-center justify-center rounded-full border border-border bg-background px-3 text-xs font-semibold text-foreground shadow-sm">
+          {String(index + 1).padStart(2, '0')}
+        </span>
+      </div>
+
+      <div className="overflow-hidden rounded-md border border-border bg-background">
+        <button
+          type="button"
+          className="block w-full px-3 py-3 text-left"
+          onClick={() => onToggleExpand(segmentId)}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                  {segmentKindLabel[String(segment.kind ?? '')] ?? String(segment.kind ?? '情绪段')}
+                </span>
+                <span className={cn('rounded-full px-2 py-0.5 text-[10px]', statusTone[String(segment.status ?? '')] ?? 'bg-muted text-muted-foreground')}>
+                  {statusLabel[String(segment.status ?? '')] ?? String(segment.status ?? 'draft')}
+                </span>
+              </div>
+              <h3 className="mt-2 line-clamp-2 text-sm font-semibold leading-5 text-foreground">{titleOfRecord(segment)}</h3>
+            </div>
+            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded border border-border bg-muted/20 text-muted-foreground">
+              {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </span>
+          </div>
+          <p className="mt-2 line-clamp-3 text-[11px] leading-4 text-muted-foreground">
+            {String(segment.summary ?? segment.content ?? '暂无摘要')}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
+            <span className="rounded-full bg-muted/40 px-2 py-0.5">{moments.length} 情节</span>
+            <span className="rounded-full bg-muted/40 px-2 py-0.5">{segmentReferences.length} 设定</span>
+            <span className="rounded-full bg-muted/40 px-2 py-0.5">{segmentAssetSlots.length} 素材</span>
+          </div>
+        </button>
+
+        {expanded && (
+          <div className="border-t border-border/60 px-3 py-2">
+            <div className="space-y-2">
+              <TreeMiniLine label="摘要" value={String(segment.summary ?? segment.content ?? '暂无摘要')} />
+              <TreeChipRow label="引用设定" items={segmentReferences.map((reference) => titleOfRecord(reference))} />
+              <TreeChipRow label="关联素材" items={segmentAssetSlots.map((slot) => formatAssetSlotLabel(slot, lookup))} />
+            </div>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 border-t border-border/60 bg-muted/20 px-3 py-2">
+          <span className="text-[11px] font-medium text-muted-foreground">情节</span>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => onEditSegment(segment)}
+            >
+              <Pencil size={11} />
+              编辑段
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-6 px-2 text-[10px]"
+              onClick={() => onCreateSceneMoment(segment.ID)}
+            >
+              <Plus size={11} />
+              新增
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2 px-3 py-3">
+          {moments.length === 0 ? (
+            <div className="rounded border border-dashed border-border bg-muted/10 px-2 py-3 text-[11px] leading-4 text-muted-foreground">
+              这个情绪段下还没有情节。
+            </div>
+          ) : moments.map((moment) => (
+            <EmotionMomentItem
+              key={`scene-flow-${moment.ID}`}
+              moment={moment}
+              lookup={lookup}
+              expanded={expandedIds.has(`scene-${moment.ID}`)}
+              onToggle={() => onToggleExpand(`scene-${moment.ID}`)}
+              onEdit={() => onEditSceneMoment(moment)}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmotionMomentItem({
+  moment,
+  lookup,
+  expanded,
+  onToggle,
+  onEdit,
+}: {
+  moment: SceneMomentRecord
+  lookup: OrchestrationLookup
+  expanded: boolean
+  onToggle: () => void
+  onEdit: () => void
+}) {
+  const references = referencesForOwner('scene_moment', moment.ID, lookup)
+  const assetSlots = lookup.assetSlotsByOwnerKey.get(ownerKey('scene_moment', moment.ID)) ?? []
+  const detail = [moment.time_text, moment.location_text, moment.action_text].filter(Boolean).join(' · ') || '暂无说明'
+
+  return (
+    <div className="rounded border border-border bg-background">
+      <button type="button" className="block w-full px-2.5 py-2 text-left" onClick={onToggle}>
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-muted/20 text-muted-foreground">
+            {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <p className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">{titleOfRecord(moment)}</p>
+              <span className={cn('rounded-full px-1.5 py-0.5 text-[10px]', statusTone[String(moment.status ?? '')] ?? 'bg-muted text-muted-foreground')}>
+                {statusLabel[String(moment.status ?? '')] ?? String(moment.status ?? 'draft')}
+              </span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
+            {moment.mood && (
+              <p className="mt-1 truncate text-[10px] text-muted-foreground">情绪：{moment.mood}</p>
+            )}
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="space-y-2 border-t border-border/60 px-2.5 py-2">
+          <TreeMiniLine label="时间" value={String(moment.time_text ?? '未填写')} />
+          <TreeMiniLine label="地点" value={String(moment.location_text ?? '未填写')} />
+          <TreeMiniLine label="动作" value={String(moment.action_text ?? '未填写')} />
+          <TreeMiniLine label="情绪" value={String(moment.mood ?? '未填写')} />
+          <TreeChipRow label="引用设定" items={references.map((reference) => titleOfRecord(reference))} />
+          <TreeChipRow label="关联素材" items={assetSlots.map((slot) => formatAssetSlotLabel(slot, lookup))} />
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-[10px]" onClick={onEdit}>
+              <Pencil size={11} />
+              编辑情节
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -2547,9 +2706,15 @@ function ProposalReviewEmptyState({ onSwitchToStructure }: { onSwitchToStructure
             回到结构
           </Button>
           <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-            <Link to="/project-workspace">
-              <Layers3 size={12} />
-              项目编排
+            <Link to="/creative-references">
+              <Sparkles size={12} />
+              设定工作台
+            </Link>
+          </Button>
+          <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
+            <Link to="/asset-slots">
+              <PackageCheck size={12} />
+              素材需求
             </Link>
           </Button>
         </div>
@@ -2563,28 +2728,36 @@ interface InlineProjectProposalEntry {
   title: string
   detail: string
   target: string
+  changeType: 'added' | 'modified' | 'deleted'
   kind: 'creative_references' | 'asset_slots'
   raw: Record<string, unknown>
 }
 
 interface InlineProjectProposalView {
+  mode: 'patch' | 'snapshot'
   summary: string
   creativeReferences: InlineProjectProposalEntry[]
   assetSlots: InlineProjectProposalEntry[]
   impactNotes: string[]
 }
 
-function parseInlineProjectProposalDraft(draft: AgentDraft | null | undefined): InlineProjectProposalView | null {
+function parseInlineProjectProposalDraft(
+  draft: AgentDraft | null | undefined,
+  creativeReferenceRecords: CreativeReferenceRecord[] = [],
+  assetSlotRecords: AssetSlotRecord[] = [],
+): InlineProjectProposalView | null {
   if (!draft) return null
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
     const proposal = isRecordValue(content.proposal) ? content.proposal : {}
+    const mode = content.mode === 'snapshot' ? 'snapshot' as const : 'patch' as const
     const creativeReferences = asRecordArray(proposal.creative_references).map((item, index) => ({
       key: `${draft.id}:creative_references:${index}`,
       kind: 'creative_references' as const,
       title: asString(proposalField(item, ['name', 'title', 'label', 'kind']), `设定建议 #${index + 1}`),
       detail: asString(proposalField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
-      target: typeof item.id === 'number' ? `合并到 #${item.id}` : '新增候选',
+      changeType: inlineProjectProposalChangeType(item),
+      target: inlineProjectProposalChangeType(item) === 'deleted' ? `移出 #${item.id}` : typeof item.id === 'number' ? `合并到 #${item.id}` : '新增候选',
       raw: item,
     }))
     const assetSlots = asRecordArray(proposal.asset_slots).map((item, index) => ({
@@ -2592,17 +2765,22 @@ function parseInlineProjectProposalDraft(draft: AgentDraft | null | undefined): 
       kind: 'asset_slots' as const,
       title: asString(proposalField(item, ['name', 'title', 'label', 'kind']), `素材建议 #${index + 1}`),
       detail: asString(proposalField(item, ['description', 'summary', 'content', 'rationale']), '暂无说明'),
-      target: typeof item.id === 'number' ? `调整 #${item.id}` : '新增候选',
+      changeType: inlineProjectProposalChangeType(item),
+      target: inlineProjectProposalChangeType(item) === 'deleted' ? `移出 #${item.id}` : typeof item.id === 'number' ? `调整 #${item.id}` : '新增候选',
       raw: item,
     }))
+    const snapshotDeleted = mode === 'snapshot'
+      ? inferInlineProjectProposalSnapshotDeletes(draft, proposal, creativeReferenceRecords, assetSlotRecords)
+      : { creativeReferences: [], assetSlots: [] }
     const impactNotes = [
       ...asRecordArray(content.impact_notes).map((item) => asString(item.note ?? item.text ?? item.content ?? item.summary)),
       ...(Array.isArray(content.impact_notes) ? content.impact_notes.map((item) => asString(item)).filter(Boolean) : []),
     ].filter(Boolean)
     return {
+      mode,
       summary: asString(content.summary, '暂无摘要'),
-      creativeReferences,
-      assetSlots,
+      creativeReferences: [...creativeReferences, ...snapshotDeleted.creativeReferences],
+      assetSlots: [...assetSlots, ...snapshotDeleted.assetSlots],
       impactNotes,
     }
   } catch {
@@ -2610,71 +2788,133 @@ function parseInlineProjectProposalDraft(draft: AgentDraft | null | undefined): 
   }
 }
 
+function inferInlineProjectProposalSnapshotDeletes(
+  draft: AgentDraft,
+  proposal: Record<string, unknown>,
+  creativeReferenceRecords: CreativeReferenceRecord[],
+  assetSlotRecords: AssetSlotRecord[],
+) {
+  const proposedReferenceIds = new Set(asRecordArray(proposal.creative_references).map((item) => Number(item.id)).filter((id) => Number.isFinite(id) && id > 0))
+  const proposedAssetSlotIds = new Set(asRecordArray(proposal.asset_slots).map((item) => Number(item.id)).filter((id) => Number.isFinite(id) && id > 0))
+  const creativeReferences = creativeReferenceRecords
+    .filter((record) => !['ignored', 'merged'].includes(String(record.status ?? '')))
+    .flatMap((record) => {
+    if (proposedReferenceIds.has(record.ID)) return []
+    return [{
+      key: `${draft.id}:creative_references:delete:${record.ID}`,
+      kind: 'creative_references' as const,
+      title: titleOfRecord(record),
+      detail: String(record.description ?? '新提案未包含此设定，按 snapshot 语义视为删除候选。'),
+      target: `移出 #${record.ID}`,
+      changeType: 'deleted' as const,
+      raw: { id: record.ID, fields: { name: titleOfRecord(record), status: 'ignored' } },
+    }]
+  })
+  const assetSlots = assetSlotRecords
+    .filter((record) => !['ignored', 'waived', 'merged'].includes(String(record.status ?? '')))
+    .flatMap((record) => {
+    if (proposedAssetSlotIds.has(record.ID)) return []
+    return [{
+      key: `${draft.id}:asset_slots:delete:${record.ID}`,
+      kind: 'asset_slots' as const,
+      title: titleOfRecord(record),
+      detail: String(record.description ?? '新提案未包含此素材需求，按 snapshot 语义视为删除候选。'),
+      target: `移出 #${record.ID}`,
+      changeType: 'deleted' as const,
+      raw: { id: record.ID, fields: { name: titleOfRecord(record), status: 'waived', kind: String(record.kind ?? 'image') } },
+    }]
+  })
+  return { creativeReferences, assetSlots }
+}
+
+function inlineProjectProposalChangeType(item: Record<string, unknown>): InlineProjectProposalEntry['changeType'] {
+  const status = asString(proposalField(item, ['status']))
+  if (['ignored', 'waived'].includes(status)) return 'deleted'
+  return typeof item.id === 'number' ? 'modified' : 'added'
+}
+
 function ProjectProposalReviewSummary({
-  draft,
+  settingDraft,
+  assetProposalDraft,
   projectName,
   productionName,
+  creativeReferences,
+  assetSlots,
 }: {
-  draft: AgentDraft | null | undefined
+  settingDraft: AgentDraft | null | undefined
+  assetProposalDraft: AgentDraft | null | undefined
   projectName: string
   productionName: string
+  creativeReferences: CreativeReferenceRecord[]
+  assetSlots: AssetSlotRecord[]
 }) {
-  const view = useMemo(() => parseInlineProjectProposalDraft(draft), [draft])
+  const settingView = useMemo(() => parseInlineProjectProposalDraft(settingDraft, creativeReferences, []), [creativeReferences, settingDraft])
+  const assetProposalView = useMemo(() => parseInlineProjectProposalDraft(assetProposalDraft, [], assetSlots), [assetProposalDraft, assetSlots])
+  const deletedCount = (settingView?.creativeReferences ?? []).filter((entry) => entry.changeType === 'deleted').length
+    + (assetProposalView?.assetSlots ?? []).filter((entry) => entry.changeType === 'deleted').length
+  const hasDraft = Boolean(settingDraft || assetProposalDraft)
   return (
     <section className="rounded-lg border border-border bg-background p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
             <Sparkles size={12} />
-            项目提案审阅
+            上游提案审阅
           </div>
-          <h2 className="mt-1 text-sm font-semibold text-foreground">项目级设定与素材草稿</h2>
+          <h2 className="mt-1 text-sm font-semibold text-foreground">设定与素材需求草稿</h2>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {projectName} · {productionName}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant={draft ? 'secondary' : 'outline'} className="h-6 rounded-full px-2 text-[10px]">
-            {draft ? draft.status : '未加载'}
+          <Badge variant={hasDraft ? 'secondary' : 'outline'} className="h-6 rounded-full px-2 text-[10px]">
+            {hasDraft ? '已加载' : '未加载'}
           </Badge>
-          {draft ? (
+          {settingDraft ? (
             <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to={`/project-workspace?draftId=${encodeURIComponent(draft.id)}`}>
-                <Layers3 size={12} />
-                打开完整审阅
+              <Link to={`/creative-references?view=review&draftId=${encodeURIComponent(settingDraft.id)}`}>
+                <Sparkles size={12} />
+                打开设定审阅
               </Link>
             </Button>
-          ) : (
-            <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" disabled>
-              <Layers3 size={12} />
-              打开完整审阅
+          ) : null}
+          {assetProposalDraft ? (
+            <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
+              <Link to={`/asset-slots?view=review&draftId=${encodeURIComponent(assetProposalDraft.id)}`}>
+                <PackageCheck size={12} />
+                打开素材需求审阅
+              </Link>
             </Button>
-          )}
+          ) : null}
         </div>
       </div>
-      {view ? (
+      {settingView || assetProposalView ? (
         <div className="mt-4 space-y-3">
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-4">
             <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
               <p className="text-[10px] text-muted-foreground">设定资料</p>
-              <p className="mt-1 text-xs font-medium text-foreground">{view.creativeReferences.length} 项</p>
+              <p className="mt-1 text-xs font-medium text-foreground">{settingView?.creativeReferences.length ?? 0} 项</p>
             </div>
             <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
               <p className="text-[10px] text-muted-foreground">素材需求</p>
-              <p className="mt-1 text-xs font-medium text-foreground">{view.assetSlots.length} 项</p>
+              <p className="mt-1 text-xs font-medium text-foreground">{assetProposalView?.assetSlots.length ?? 0} 项</p>
             </div>
             <div className="rounded-md border border-border bg-muted/20 px-3 py-2">
               <p className="text-[10px] text-muted-foreground">影响说明</p>
-              <p className="mt-1 text-xs font-medium text-foreground">{view.impactNotes.length} 条</p>
+              <p className="mt-1 text-xs font-medium text-foreground">{(settingView?.impactNotes.length ?? 0) + (assetProposalView?.impactNotes.length ?? 0)} 条</p>
+            </div>
+            <div className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2">
+              <p className="text-[10px] text-rose-700 dark:text-rose-300">删除候选</p>
+              <p className="mt-1 text-xs font-medium text-rose-700 dark:text-rose-300">{deletedCount} 项</p>
             </div>
           </div>
-          <p className="text-[11px] leading-5 text-muted-foreground">{view.summary}</p>
+          <p className="text-[11px] leading-5 text-muted-foreground">{[settingView?.summary, assetProposalView?.summary].filter(Boolean).join(' / ')}</p>
           <div className="grid gap-3 lg:grid-cols-2">
             <div className="rounded-md border border-border bg-muted/10 p-3">
               <p className="text-[10px] font-medium text-foreground">设定资料</p>
               <div className="mt-2 space-y-2">
-                {view.creativeReferences.slice(0, 4).map((entry) => (
-                  <div key={entry.key} className="rounded border border-border bg-background px-2 py-1.5 text-[10px]">
+                {(settingView?.creativeReferences ?? []).slice(0, 4).map((entry) => (
+                  <div key={entry.key} className={cn('rounded border px-2 py-1.5 text-[10px]', entry.changeType === 'deleted' ? 'border-rose-500/30 bg-rose-500/5' : 'border-border bg-background')}>
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-medium text-foreground">{entry.title}</span>
                       <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">{entry.target}</span>
@@ -2682,13 +2922,14 @@ function ProjectProposalReviewSummary({
                     <p className="mt-1 line-clamp-2 text-muted-foreground">{entry.detail}</p>
                   </div>
                 ))}
+                {!settingView?.creativeReferences.length ? <p className="text-[10px] text-muted-foreground">没有设定提案草稿。</p> : null}
               </div>
             </div>
             <div className="rounded-md border border-border bg-muted/10 p-3">
               <p className="text-[10px] font-medium text-foreground">素材需求</p>
               <div className="mt-2 space-y-2">
-                {view.assetSlots.slice(0, 4).map((entry) => (
-                  <div key={entry.key} className="rounded border border-border bg-background px-2 py-1.5 text-[10px]">
+                {(assetProposalView?.assetSlots ?? []).slice(0, 4).map((entry) => (
+                  <div key={entry.key} className={cn('rounded border px-2 py-1.5 text-[10px]', entry.changeType === 'deleted' ? 'border-rose-500/30 bg-rose-500/5' : 'border-border bg-background')}>
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-medium text-foreground">{entry.title}</span>
                       <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">{entry.target}</span>
@@ -2696,13 +2937,14 @@ function ProjectProposalReviewSummary({
                     <p className="mt-1 line-clamp-2 text-muted-foreground">{entry.detail}</p>
                   </div>
                 ))}
+                {!assetProposalView?.assetSlots.length ? <p className="text-[10px] text-muted-foreground">没有素材需求提案草稿。</p> : null}
               </div>
             </div>
           </div>
         </div>
       ) : (
         <div className="mt-3 rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-          还没有项目提案草稿。生成制作提案时，如果 agent 发现必须补齐项目级对象，这里会显示对应项目草稿。
+          还没有上游提案草稿。生成制作提案时，如果 agent 发现必须补齐项目级设定或素材需求，这里会显示对应草稿。
         </div>
       )}
     </section>
@@ -3362,7 +3604,7 @@ function buildProposalApplyGate(preview: ProposalApplyPreview, backendPreviewRea
     return {
       status: 'blocked',
       title: '存在不能写入的变更',
-      detail: '请处理依赖未接受的节点；如果变更是新增或更新设定/素材，需要回到项目编排处理。',
+      detail: '请处理依赖未接受的节点；如果变更是新增或更新设定/素材需求，需要回到设定工作台或素材需求工作台处理。',
     }
   }
   if (!backendPreviewReady) {
@@ -3635,7 +3877,7 @@ function ProposalSemanticDiffRow({
           <div className="flex items-center gap-1.5">
             <p className="truncate text-[11px] font-medium text-foreground">{item.title}</p>
             {decision && <DecisionBadge decision={decision} />}
-            {!decision && projectBoundaryBlocked && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:text-amber-300">回项目编排</span>}
+            {!decision && projectBoundaryBlocked && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:text-amber-300">回上游工作台</span>}
           </div>
           {item.detail && <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{item.detail}</p>}
           {(item.before || item.after) && (
@@ -3653,9 +3895,9 @@ function ProposalSemanticDiffRow({
           className="h-6 px-2 text-[10px]"
           onClick={() => onSetDecisions(projectBoundaryBlocked ? [] : item.acceptKeys, 'accepted')}
           disabled={projectBoundaryBlocked}
-          title={projectBoundaryBlocked ? '设定和素材需要回到项目编排处理' : undefined}
+          title={projectBoundaryBlocked ? '设定和素材需求需要回到设定工作台或素材需求工作台处理' : undefined}
         >
-          {projectBoundaryBlocked ? '回项目编排' : '接受'}
+          {projectBoundaryBlocked ? '回上游工作台' : '接受'}
         </Button>
         <Button size="sm" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => onSetDecision(item.key, 'rejected')}>
           拒绝
@@ -3821,7 +4063,7 @@ function ProposalContextGroup({
                     <div className="flex items-center gap-1.5">
                       <p className="truncate text-[11px] font-medium text-foreground">{item.title}</p>
                       {decision && <DecisionBadge decision={decision} />}
-                      {!decision && boundaryBlocked && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:text-amber-300">回项目编排</span>}
+                      {!decision && boundaryBlocked && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:text-amber-300">回上游工作台</span>}
                     </div>
                     <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{item.parent}</p>
                     {item.detail && <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{item.detail}</p>}
@@ -3834,9 +4076,9 @@ function ProposalContextGroup({
                     className="h-6 px-2 text-[10px]"
                     onClick={() => onSetDecision(item.nodeKey, 'accepted')}
                     disabled={boundaryBlocked}
-                    title={boundaryBlocked ? '设定和素材需要回到项目编排处理' : undefined}
+                    title={boundaryBlocked ? '设定和素材需求需要回到设定工作台或素材需求工作台处理' : undefined}
                   >
-                    {boundaryBlocked ? '回项目编排' : '接受'}
+                    {boundaryBlocked ? '回上游工作台' : '接受'}
 	                  </Button>
 	                  <Button size="sm" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => onSetDecision(item.nodeKey, 'rejected')}>
 	                    拒绝

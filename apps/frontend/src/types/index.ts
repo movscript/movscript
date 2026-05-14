@@ -6,6 +6,9 @@ export interface Project {
   owner?: User
   status?: string
   total_episodes?: number
+  aspect_ratio?: string
+  visual_style?: string
+  project_style?: string
   CreatedAt: string
   UpdatedAt: string
 }

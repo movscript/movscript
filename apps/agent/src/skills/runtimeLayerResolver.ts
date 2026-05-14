@@ -185,23 +185,20 @@ function inferIntents(message: string, debugContext: AgentDebugContextPanel): st
     if (alias) intents.add(alias)
     if (isVisualGenerationLabel(normalizedLabel)) intents.add('visual_generation')
   }
-  const route = debugContext.route.pathname.toLowerCase()
-  if (route.includes('project-workspace')) intents.add('project_proposal')
-  if (route.includes('production-orchestrate')) intents.add('production_proposal')
-  if (route.includes('asset-slots')) intents.add('asset_proposal')
-  if (debugContext.agentPlan) intents.add('planner_subagents')
-  if (isVisualGenerationRequest(normalized, debugContext)) intents.add('visual_generation')
   const mappings = [
-    ['project_proposal', ['项目提案', 'project proposal', 'project_proposal']],
+    ['project_proposal', ['项目提案', '项目规范', '镜头大小', '镜头规格', '风格规范', 'project proposal', 'project_proposal']],
+    ['setting_proposal', ['设定提案', '设定资料', '人物设定', '地点设定', 'setting proposal', 'setting_proposal']],
+    ['asset_proposal', ['素材需求提案', '素材需求', '素材位', 'asset slot', '素材方案', '素材候选方案', '候选图方案', '候选视频方案', 'prompt 方案', 'asset proposal', 'asset_proposal']],
     ['production_proposal', ['制作提案', 'production proposal', 'production_proposal']],
-    ['asset_proposal', ['素材提案', '素材候选', 'asset proposal', 'asset_proposal']],
-    ['asset_candidate_generation', ['生成素材', '图片候选', '视频候选', 'asset candidate']],
+    ['asset_candidate_generation', ['生成素材', '生成候选', '生成图片候选', '生成视频候选', '图片候选', '视频候选', 'asset candidate']],
     ['setting_prep', ['设定准备', '设定完善', 'creative reference']],
     ['content_unit_proposal', ['content unit proposal', 'content_unit_proposal']],
     ['content_unit_media_proposal', ['content unit media', 'content_unit_media_proposal']],
     ['visual_generation', [
       '生成图片',
       '生成视频',
+      '生成图片候选',
+      '生成视频候选',
       '出图',
       '出视频',
       'image generation',
@@ -222,13 +219,27 @@ function inferIntents(message: string, debugContext: AgentDebugContextPanel): st
   for (const [intent, needles] of mappings) {
     if (needles.some((needle) => normalized.includes(needle.toLowerCase()))) intents.add(intent)
   }
+  const route = debugContext.route.pathname.toLowerCase()
+  if (route.includes('project-workspace')) intents.add('project_proposal')
+  if (route.includes('creative-references') || route.includes('pre-production')) intents.add('setting_proposal')
+  if (route.includes('production-orchestrate')) intents.add('production_proposal')
+  if (route.includes('asset-slots') || route.includes('pre-production')) {
+    const hasExplicitAssetWorkflow = intents.has('asset_proposal')
+      || intents.has('asset_candidate_generation')
+      || intents.has('visual_generation')
+    if (!hasExplicitAssetWorkflow) intents.add('asset_proposal')
+  }
+  if (debugContext.agentPlan) intents.add('planner_subagents')
+  if (isVisualGenerationRequest(normalized, debugContext)) intents.add('visual_generation')
+  if (intents.has('asset_candidate_generation')) intents.add('visual_generation')
   return Array.from(intents)
 }
 
 const LABEL_INTENT_ALIASES: Record<string, string> = {
   project_orchestration: 'project_proposal',
-  production_orchestration: 'production_proposal',
+  setting_proposal: 'setting_proposal',
   asset_proposal: 'asset_proposal',
+  production_orchestration: 'production_proposal',
   asset_candidate_generation: 'asset_candidate_generation',
   content_unit_suggest: 'content_unit_proposal',
   content_unit_proposal: 'content_unit_proposal',

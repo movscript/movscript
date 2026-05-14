@@ -104,6 +104,9 @@ func (r *gormRepository) ForceSetOwner(ctx context.Context, projectID uint, owne
 
 func (r *gormRepository) Create(ctx context.Context, input CreateInput, ownerID uint, orgID *uint) (domainproject.Project, error) {
 	project := domainproject.NewProject(input.Name, input.Description, input.TotalEpisodes, ownerID, orgID).ToModel()
+	project.AspectRatio = input.AspectRatio
+	project.VisualStyle = input.VisualStyle
+	project.ProjectStyle = input.ProjectStyle
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&project).Error; err != nil {
 			return err
@@ -197,6 +200,9 @@ func (r *gormRepository) Update(ctx context.Context, id uint, input UpdateInput,
 	project.Name = input.Name
 	project.Description = input.Description
 	project.TotalEpisodes = input.TotalEpisodes
+	project.AspectRatio = input.AspectRatio
+	project.VisualStyle = input.VisualStyle
+	project.ProjectStyle = input.ProjectStyle
 	if err := r.db.WithContext(ctx).Save(&project).Error; err != nil {
 		return domainproject.Project{}, err
 	}

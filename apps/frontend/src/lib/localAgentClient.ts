@@ -562,6 +562,7 @@ export interface RuntimeModelTestResult {
 export type AgentMemoryScope = 'global' | 'project' | 'thread'
 export type AgentMemoryKind = 'preference' | 'fact' | 'entity_ref' | 'draft' | 'decision' | 'warning'
 export type AgentDraftKind =
+  | 'setting_proposal'
   | 'script_split_proposal'
   | 'script'
   | 'asset_slot'

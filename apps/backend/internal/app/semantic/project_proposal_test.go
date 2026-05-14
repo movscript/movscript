@@ -2,11 +2,57 @@ package semantic
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 )
+
+func TestApplyProjectProposalUpdatesProjectStyle(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	project := model.Project{Name: "Style project", Description: "Original", AspectRatio: "1:1", ProjectStyle: `{"camera_language":"locked tripod"}`}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	aspectRatio := "9:16"
+	visualStyle := "竖屏短剧写实，肤色自然，道具轮廓清晰"
+	lightingStyle := "柔和日光，避免过曝"
+
+	resp, err := service.ApplyProjectProposal(context.Background(), project.ID, ApplyProjectProposalRequest{
+		Proposal: &ProjectProposalTree{
+			ProjectStyle: &ProjectStylePatch{
+				AspectRatio:    &aspectRatio,
+				VisualStyle:    &visualStyle,
+				LightingStyle:  &lightingStyle,
+				ShotSizeSystem: []string{"特写", "中景", "全景"},
+				NegativeRules:  []string{"不要随机改脸", "不要让字幕遮挡主体"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply project style proposal: %v", err)
+	}
+	if resp.Counts.ProjectStyleUpdated != 1 {
+		t.Fatalf("project_style_updated = %d, want 1", resp.Counts.ProjectStyleUpdated)
+	}
+
+	var updated model.Project
+	if err := db.First(&updated, project.ID).Error; err != nil {
+		t.Fatalf("load updated project: %v", err)
+	}
+	if updated.AspectRatio != aspectRatio || updated.VisualStyle != visualStyle {
+		t.Fatalf("unexpected project globals: aspect=%q visual=%q", updated.AspectRatio, updated.VisualStyle)
+	}
+	var style map[string]any
+	if err := json.Unmarshal([]byte(updated.ProjectStyle), &style); err != nil {
+		t.Fatalf("parse project style json: %v", err)
+	}
+	if style["camera_language"] != "locked tripod" || style["lighting_style"] != lightingStyle {
+		t.Fatalf("unexpected merged project style: %#v", style)
+	}
+}
 
 func TestApplyProjectProposalMergesPartialReferencesAndAssets(t *testing.T) {
 	db := newProposalTestDB(t)
@@ -130,6 +176,148 @@ func TestApplyProjectProposalOnlyPatchesMentionedFields(t *testing.T) {
 	}
 	if updatedSlot.OwnerType != "creative_reference" || updatedSlot.OwnerID == nil || *updatedSlot.OwnerID != reference.ID {
 		t.Fatalf("asset slot owner = %s/%v, want creative_reference/%d", updatedSlot.OwnerType, updatedSlot.OwnerID, reference.ID)
+	}
+}
+
+func TestApplyProjectProposalSoftDeletesSnapshotOmissions(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+
+	reference := model.CreativeReference{
+		ProjectID:   1,
+		Name:        "Removed reference",
+		Kind:        "person",
+		Description: "No longer needed",
+		Status:      "confirmed",
+	}
+	if err := db.Create(&reference).Error; err != nil {
+		t.Fatalf("create reference: %v", err)
+	}
+	slot := model.AssetSlot{
+		ProjectID:   1,
+		Name:        "Removed six-view",
+		Kind:        "image",
+		Description: "No longer needed",
+		Status:      "missing",
+	}
+	if err := db.Create(&slot).Error; err != nil {
+		t.Fatalf("create slot: %v", err)
+	}
+
+	resp, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Mode: "patch",
+		Proposal: &ProjectProposalTree{
+			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
+				ID: &reference.ID,
+				Fields: map[string]any{
+					"name":   "Removed reference",
+					"status": "ignored",
+				},
+			}},
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				ID: &slot.ID,
+				Fields: map[string]any{
+					"name":   "Removed six-view",
+					"kind":   "image",
+					"status": "waived",
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply project proposal soft delete: %v", err)
+	}
+	if resp.Counts.CreativeReferencesDeleted != 1 || resp.Counts.AssetSlotsDeleted != 1 {
+		t.Fatalf("unexpected delete counts: %+v", resp.Counts)
+	}
+
+	var updatedReference model.CreativeReference
+	if err := db.First(&updatedReference, reference.ID).Error; err != nil {
+		t.Fatalf("load reference: %v", err)
+	}
+	if updatedReference.Status != "ignored" {
+		t.Fatalf("reference status = %q, want ignored", updatedReference.Status)
+	}
+	var updatedSlot model.AssetSlot
+	if err := db.First(&updatedSlot, slot.ID).Error; err != nil {
+		t.Fatalf("load slot: %v", err)
+	}
+	if updatedSlot.Status != "waived" {
+		t.Fatalf("slot status = %q, want waived", updatedSlot.Status)
+	}
+}
+
+func TestApplyProjectProposalSnapshotModeDeletesOmittedActiveItems(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+
+	kept := model.CreativeReference{ProjectID: 1, Name: "Kept", Kind: "person", Status: "confirmed"}
+	removed := model.CreativeReference{ProjectID: 1, Name: "Removed", Kind: "prop", Status: "confirmed"}
+	ignored := model.CreativeReference{ProjectID: 1, Name: "Already ignored", Kind: "prop", Status: "ignored"}
+	if err := db.Create(&kept).Error; err != nil {
+		t.Fatalf("create kept reference: %v", err)
+	}
+	if err := db.Create(&removed).Error; err != nil {
+		t.Fatalf("create removed reference: %v", err)
+	}
+	if err := db.Create(&ignored).Error; err != nil {
+		t.Fatalf("create ignored reference: %v", err)
+	}
+	keptSlot := model.AssetSlot{ProjectID: 1, Name: "Kept front", Kind: "image", Status: "missing"}
+	removedSlot := model.AssetSlot{ProjectID: 1, Name: "Removed front", Kind: "image", Status: "missing"}
+	if err := db.Create(&keptSlot).Error; err != nil {
+		t.Fatalf("create kept slot: %v", err)
+	}
+	if err := db.Create(&removedSlot).Error; err != nil {
+		t.Fatalf("create removed slot: %v", err)
+	}
+
+	resp, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Mode: "snapshot",
+		Proposal: &ProjectProposalTree{
+			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
+				ID: &kept.ID,
+				Fields: map[string]any{
+					"name": kept.Name,
+					"kind": kept.Kind,
+				},
+			}},
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				ID: &keptSlot.ID,
+				Fields: map[string]any{
+					"name": keptSlot.Name,
+					"kind": keptSlot.Kind,
+				},
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply snapshot project proposal: %v", err)
+	}
+	if resp.Counts.CreativeReferencesDeleted != 1 || resp.Counts.AssetSlotsDeleted != 1 {
+		t.Fatalf("unexpected snapshot delete counts: %+v", resp.Counts)
+	}
+
+	var updatedRemoved model.CreativeReference
+	if err := db.First(&updatedRemoved, removed.ID).Error; err != nil {
+		t.Fatalf("load removed reference: %v", err)
+	}
+	if updatedRemoved.Status != "ignored" {
+		t.Fatalf("removed reference status = %q, want ignored", updatedRemoved.Status)
+	}
+	var updatedKept model.CreativeReference
+	if err := db.First(&updatedKept, kept.ID).Error; err != nil {
+		t.Fatalf("load kept reference: %v", err)
+	}
+	if updatedKept.Status != "confirmed" {
+		t.Fatalf("kept reference status = %q, want confirmed", updatedKept.Status)
+	}
+	var updatedRemovedSlot model.AssetSlot
+	if err := db.First(&updatedRemovedSlot, removedSlot.ID).Error; err != nil {
+		t.Fatalf("load removed slot: %v", err)
+	}
+	if updatedRemovedSlot.Status != "waived" {
+		t.Fatalf("removed slot status = %q, want waived", updatedRemovedSlot.Status)
 	}
 }
 

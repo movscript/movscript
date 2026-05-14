@@ -9,6 +9,7 @@ import (
 
 	"github.com/movscript/movscript/internal/app/entityrelation"
 	"github.com/movscript/movscript/internal/app/workflowio"
+	domainproject "github.com/movscript/movscript/internal/domain/project"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
@@ -18,6 +19,7 @@ import (
 
 type repository interface {
 	WithTx(ctx context.Context, fn func(repository) error) error
+	PatchProjectStyle(ctx context.Context, projectID uint, patch ProjectStylePatch) (domainproject.Project, error)
 	ListRelations(ctx context.Context, filter RelationFilter) ([]domainsemantic.EntityRelation, error)
 	ListScriptVersions(ctx context.Context, filter ScriptVersionFilter) ([]domainsemantic.ScriptVersion, error)
 	LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptSnapshot, error)
@@ -167,6 +169,31 @@ func (r *gormRepository) WithTx(ctx context.Context, fn func(repository) error) 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return fn(newRepository(tx))
 	})
+}
+
+func (r *gormRepository) PatchProjectStyle(ctx context.Context, projectID uint, patch ProjectStylePatch) (domainproject.Project, error) {
+	var project persistencemodel.Project
+	if err := r.db.WithContext(ctx).Where("id = ?", projectID).First(&project).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return domainproject.Project{}, ErrNotFound
+		}
+		return domainproject.Project{}, err
+	}
+	if patch.AspectRatio != nil {
+		project.AspectRatio = strings.TrimSpace(*patch.AspectRatio)
+	}
+	if patch.VisualStyle != nil {
+		project.VisualStyle = strings.TrimSpace(*patch.VisualStyle)
+	}
+	projectStyle, err := mergeProjectStyleJSON(project.ProjectStyle, patch)
+	if err != nil {
+		return domainproject.Project{}, ErrInvalidInput{Err: err}
+	}
+	project.ProjectStyle = projectStyle
+	if err := r.db.WithContext(ctx).Save(&project).Error; err != nil {
+		return domainproject.Project{}, err
+	}
+	return domainproject.ProjectFromModel(project), nil
 }
 
 func (r *gormRepository) ListRelations(ctx context.Context, filter RelationFilter) ([]domainsemantic.EntityRelation, error) {

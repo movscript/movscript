@@ -9,6 +9,7 @@ import {
   Database,
   Eye,
   Film,
+  GitBranch,
   Layers3,
   PackageCheck,
   Plus,
@@ -35,6 +36,8 @@ import { Badge } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { ContentFilterBar } from '@/pages/contents/components/ContentFilterBar'
 import { readStringParam, updateContentFilterParams, type ContentFilterKey } from '@/pages/contents/lib/contentFilters'
+import { ProjectLayerProposalReviewPanel } from '@/components/proposals/ProjectLayerProposalReviewPanel'
+import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 
 type ReferenceKind = CreativeReferenceCardKind
 type ReferenceStatus = CreativeReferenceCardStatus
@@ -225,6 +228,7 @@ export default function CreativeReferencesPage() {
   const referenceFilterId = readStringParam(searchParams, 'reference_id')
   const selectedId = readStringParam(searchParams, 'selected')
   const query = readStringParam(searchParams, 'q')
+  const workspaceView = searchParams.get('view') === 'review' ? 'review' : 'main'
 
   const referencesQuery = useQuery({
     queryKey: ['semantic-creative-references-page', projectId, 'creative-references'],
@@ -255,6 +259,15 @@ export default function CreativeReferencesPage() {
     queryKey: ['semantic-creative-references-page', projectId, 'asset-slots'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('assetSlots')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
+  })
+  const settingDraftsQuery = useQuery<AgentDraft[]>({
+    queryKey: ['setting-proposal-drafts', projectId],
+    queryFn: async () => {
+      const { drafts } = await localAgentClient.listDrafts({ projectId, kind: 'setting_proposal', limit: 20 })
+      return drafts
+    },
+    enabled: !!projectId && workspaceView === 'review',
+    refetchInterval: workspaceView === 'review' ? 1500 : false,
   })
 
   const rawReferences = referencesQuery.data ?? []
@@ -338,6 +351,13 @@ export default function CreativeReferencesPage() {
     setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
   }
 
+  function setWorkspaceView(view: 'main' | 'review') {
+    const next = new URLSearchParams(searchParams)
+    if (view === 'review') next.set('view', 'review')
+    else next.delete('view')
+    setSearchParams(next, { replace: true })
+  }
+
   function startCreateReference() {
     setCreatingReference(true)
     setCreatingAssetSlot(false)
@@ -368,6 +388,16 @@ export default function CreativeReferencesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex rounded-md border border-border bg-background p-1">
+              <Button size="sm" variant={workspaceView === 'main' ? 'secondary' : 'ghost'} className="h-7 gap-1.5 px-2 text-xs" onClick={() => setWorkspaceView('main')}>
+                <Database size={13} />
+                主视图
+              </Button>
+              <Button size="sm" variant={workspaceView === 'review' ? 'secondary' : 'ghost'} className="h-7 gap-1.5 px-2 text-xs" onClick={() => setWorkspaceView('review')}>
+                <GitBranch size={13} />
+                审阅
+              </Button>
+            </div>
             <Button variant="outline" className="gap-2">
               <Eye size={15} />
               查看引用图谱
@@ -379,7 +409,25 @@ export default function CreativeReferencesPage() {
           </div>
         </header>
       )}
-      overview={(
+      overview={workspaceView === 'review' ? (
+        <ProjectLayerProposalReviewPanel
+          projectId={projectId}
+          kind="setting_proposal"
+          title="设定提案审阅"
+          description="这里只审阅 setting_proposal：人物、地点、道具、产品、风格和世界规则。素材需求和候选图方案不在这里应用。"
+          emptyMessage="暂无待审阅设定提案。"
+          drafts={settingDraftsQuery.data ?? []}
+          loading={settingDraftsQuery.isLoading}
+          data={{
+            creativeReferences: rawReferences,
+            assetSlots,
+          }}
+          onApplied={async () => {
+            await referencesQuery.refetch()
+            await settingDraftsQuery.refetch()
+          }}
+        />
+      ) : (
         <section className="grid grid-cols-4 gap-3">
           <MetricCard icon={Database} label="设定资料总数" value={activeReferences.length} detail={mergedCount > 0 ? `${mergedCount} 个已合并归档` : '覆盖人物、地点、道具、产品、风格'} tone="text-sky-600" />
           <MetricCard icon={ShieldCheck} label="已锁定" value={lockedCount} detail="可直接进入预演和生成" tone="text-emerald-600" />
@@ -449,7 +497,13 @@ export default function CreativeReferencesPage() {
             </div>
         </>
       )}
-      detail={(
+      detail={workspaceView === 'review' ? (
+        <Panel title="审阅边界" icon={GitBranch}>
+          <p className="text-xs leading-5 text-muted-foreground">
+            设定工作台的审阅视图只处理 setting_proposal。确认后的写入目标是项目级设定资料；素材需求归属请进入素材需求工作台。
+          </p>
+        </Panel>
+      ) : (
         <>
           <SemanticEntityInlineEditor
             projectId={projectId}
@@ -514,7 +568,13 @@ export default function CreativeReferencesPage() {
           </Panel>
         </>
       )}
-      preview={(
+      preview={workspaceView === 'review' ? (
+        <Panel title="审阅提示" icon={CheckCircle2}>
+          <CheckRow label="提案类型" value="setting_proposal" ok />
+          <CheckRow label="可写入对象" value="设定资料" ok />
+          <CheckRow label="不处理" value="素材需求 / 候选图" />
+        </Panel>
+      ) : (
         selected ? (
           <Panel title="事实与视觉要点" icon={Sparkles}>
             <InfoList title="视觉要点" items={selected.visualNotes} />

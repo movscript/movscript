@@ -172,6 +172,13 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.Job{})
 			},
 		},
+		{
+			Version: "000014",
+			Name:    "add_project_global_style",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.Project{})
+			},
+		},
 	}
 	return core
 }

@@ -489,7 +489,7 @@ export default function ProjectHomePage() {
         progress: assetProgress,
         state: counts.missingAssets > 0 ? 'blocked' : data.assetSlots.length === 0 ? (planProgress > 0 ? 'active' : 'empty') : assetProgress >= 70 ? 'ready' : 'active',
         href: '/asset-slots',
-        workbenchHref: '/workbench/assets',
+        workbenchHref: '/asset-slots',
         icon: PackageCheck,
       },
       {
@@ -561,8 +561,8 @@ export default function ProjectHomePage() {
       items.push({
         key: `asset:${slot.ID}`,
         title: titleOf(slot, `素材需求 #${slot.ID}`),
-        area: '素材生成工作台',
-        href: '/workbench/assets',
+        area: '素材工作台',
+        href: '/asset-slots',
         priority: ['critical', 'high'].includes(String(slot.priority ?? '')) ? 'high' : 'medium',
         detail: String(slot.description ?? '素材需求缺口会影响关键帧和视频生产'),
       })

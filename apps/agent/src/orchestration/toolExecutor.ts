@@ -487,6 +487,7 @@ function numberField(value: JSONValue | undefined): number | undefined {
 
 function normalizeProposalDraftKind(value: JSONValue | undefined): AgentDraftKind | undefined {
   return value === 'script_split_proposal'
+    || value === 'setting_proposal'
     || value === 'script'
     || value === 'asset_slot'
     || value === 'storyboard_line'
@@ -516,6 +517,8 @@ function normalizeProposalDraftContent(value: JSONValue | undefined): string | u
 function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: string): void {
   const requiredSchema = kind === 'script_split_proposal'
     ? DRAFT_CONTENT_SCHEMA_IDS.scriptSplit
+    : kind === 'setting_proposal'
+      ? DRAFT_CONTENT_SCHEMA_IDS.settingProposal
     : kind === 'project_proposal'
       ? DRAFT_CONTENT_SCHEMA_IDS.projectProposal
       : kind === 'production_proposal'
@@ -892,7 +895,8 @@ async function previewDraftApply(
 }
 
 function isDraftKind(value: JSONValue | undefined): value is AgentDraftKind {
-  return value === 'script_split_proposal'
+  return value === 'setting_proposal'
+    || value === 'script_split_proposal'
     || value === 'script'
     || value === 'asset_slot'
     || value === 'storyboard_line'

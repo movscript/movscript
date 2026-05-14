@@ -513,7 +513,7 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_query_creative_references',
-      description: 'Query project creative references / setting materials such as characters, places, props, products, style rules, and restrictions. Can include related states, usages, relationships, and asset requirements for candidate material planning.',
+      description: 'Query project creative references / setting materials such as characters, places, props, products, style rules, and restrictions. Can include related states, usages, relationships, and asset slots for candidate material planning.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
@@ -524,18 +524,18 @@ export function listTools(): MCPTool[] {
           include_states: { type: 'boolean', description: 'When true, include creative-reference states for returned references.' },
           include_usages: { type: 'boolean', description: 'When true, include usages for returned references.' },
           include_relationships: { type: 'boolean', description: 'When true, include creative relationships for returned references.' },
-          include_asset_slots: { type: 'boolean', description: 'When true, include asset requirements linked to returned references or their states.' },
+          include_asset_slots: { type: 'boolean', description: 'When true, include asset slots linked to returned references or their states.' },
           limit: { type: 'number', description: 'Maximum references to return. Defaults to 50.' },
         }
       ),
     },
     {
-      name: 'movscript_query_asset_requirements',
-      description: 'Query project asset requirements / asset slots, including requirements owned by a creative reference, creative reference state, segment, scene moment, storyboard line, content unit, or keyframe.',
+      name: 'movscript_query_asset_slots',
+      description: 'Query project asset slots, including slots owned by a creative reference, creative reference state, segment, scene moment, storyboard line, content unit, or keyframe.',
       inputSchema: objectSchema(
         {
           projectId: { type: 'number', description: 'Defaults to the current UI project when omitted.' },
-          asset_slot_id: { type: 'number', description: 'Optional asset slot ID to return one requirement.' },
+          asset_slot_id: { type: 'number', description: 'Optional asset slot ID to return one slot.' },
           creative_reference_id: { type: 'number', description: 'Optional creative reference ID; matches direct reference links and reference-owned slots.' },
           creative_reference_state_id: { type: 'number', description: 'Optional creative reference state ID; matches direct state links and state-owned slots.' },
           owner_type: { type: 'string', description: 'Optional owner type such as creative_reference, creative_reference_state, segment, scene_moment, content_unit, storyboard_line, or keyframe.' },
@@ -545,7 +545,7 @@ export function listTools(): MCPTool[] {
           query: { type: 'string', description: 'Optional text search over name, description, prompt_hint, slot_key, and metadata_json.' },
           include_internal: { type: 'boolean', description: 'When true, include internal asset-slot-owned slots.' },
           include_candidates: { type: 'boolean', description: 'When true, include existing asset slot candidates for returned slots.' },
-          limit: { type: 'number', description: 'Maximum requirements to return. Defaults to 50.' },
+          limit: { type: 'number', description: 'Maximum asset slots to return. Defaults to 50.' },
         }
       ),
     },
@@ -573,7 +573,7 @@ export function listTools(): MCPTool[] {
       description: 'Return the frontend-owned DraftDomainModel contract for a draft kind and target. This is the single source for draft field ownership, seed policy, review route, apply boundary, and optional hydrated seed data.',
       inputSchema: objectSchema(
         {
-          kind: { type: 'string', enum: ['project_proposal', 'production_proposal', 'script_split_proposal', 'asset_proposal'] },
+          kind: { type: 'string', enum: ['setting_proposal', 'project_proposal', 'production_proposal', 'script_split_proposal', 'asset_proposal'] },
           target: { type: 'object', additionalProperties: true, description: 'Optional target entity anchor. entityType/entityId defaults come from the model and current focus when available.' },
           seedMode: { type: 'string', enum: ['empty', 'snapshot', 'editable_snapshot'], description: 'Defaults to the model seed.defaultMode.' },
           include: { type: 'array', items: { type: 'string' }, description: 'Optional subset of the model seed.include allowlist.' },
@@ -862,8 +862,8 @@ async function callTool(params: MCPJSONValue | undefined): Promise<MCPJSONValue>
       return toolText(await readProjectScripts(args))
     case 'movscript_query_creative_references':
       return toolText(await queryCreativeReferences(args))
-    case 'movscript_query_asset_requirements':
-      return toolText(await queryAssetRequirements(args))
+    case 'movscript_query_asset_slots':
+      return toolText(await queryAssetSlots(args))
     case 'movscript_query_production_context':
       return toolText(await queryProductionContext(args))
     case 'movscript_get_draft_model':
@@ -1215,7 +1215,7 @@ export async function queryCreativeReferences(args: Record<string, unknown>): Pr
     ? await queryReferenceRelationships(projectId, referenceIds)
     : []
   const assetSlots = includeAssetSlots
-    ? await queryAssetRequirements({
+    ? await queryAssetSlots({
         projectId,
         include_internal: true,
         limit: 200,
@@ -1234,11 +1234,11 @@ export async function queryCreativeReferences(args: Record<string, unknown>): Pr
     ...(includeStates ? { states: states.map(summarizeCreativeReferenceState) } : {}),
     ...(includeUsages ? { usages: usages.map(summarizeCreativeReferenceUsage) } : {}),
     ...(includeRelationships ? { relationships: relationships.map(summarizeCreativeRelationship) } : {}),
-    ...(includeAssetSlots && isRecord(assetSlots) ? { asset_requirements: assetSlots.requirements } : {}),
+    ...(includeAssetSlots && isRecord(assetSlots) ? { asset_slots: assetSlots.asset_slots } : {}),
   }
 }
 
-export async function queryAssetRequirements(args: Record<string, unknown>): Promise<unknown> {
+export async function queryAssetSlots(args: Record<string, unknown>): Promise<unknown> {
   const projectId = resolveToolProjectId(args)
   const assetSlotId = getOptionalNumeric(args, 'asset_slot_id') ?? getOptionalNumeric(args, 'assetSlotId')
   const creativeReferenceId = getOptionalNumeric(args, 'creative_reference_id') ?? getOptionalNumeric(args, 'creativeReferenceId')
@@ -1261,7 +1261,7 @@ export async function queryAssetRequirements(args: Record<string, unknown>): Pro
     include_internal: includeInternal ? 'true' : undefined,
   })
   const rawSlots = await backendList(path)
-  const requirements = limitItems(rawSlots.filter((slot) => {
+  const slots = limitItems(rawSlots.filter((slot) => {
     if (assetSlotId !== undefined && entityId(slot) !== assetSlotId) return false
     const slotOwnerType = normalizedStringField(slot, 'owner_type') ?? normalizedStringField(slot, 'ownerType')
     const slotOwnerId = numericValue(isRecord(slot) ? slot.owner_id ?? slot.ownerId : undefined)
@@ -1289,12 +1289,12 @@ export async function queryAssetRequirements(args: Record<string, unknown>): Pro
   }), limit)
 
   const candidates = includeCandidates
-    ? await queryAssetSlotCandidates(projectId, requirements)
+    ? await queryAssetSlotCandidates(projectId, slots)
     : []
 
   return {
     projectId,
-    kind: 'asset_requirements',
+    kind: 'asset_slots',
     filters: compactObject({
       asset_slot_id: assetSlotId,
       creative_reference_id: creativeReferenceId,
@@ -1309,8 +1309,8 @@ export async function queryAssetRequirements(args: Record<string, unknown>): Pro
       limit,
     }),
     count: rawSlots.length,
-    returned: requirements.length,
-    requirements: requirements.map(summarizeAssetRequirement),
+    returned: slots.length,
+    asset_slots: slots.map(summarizeAssetSlot),
     ...(includeCandidates ? { candidates: candidates.map(summarizeAssetSlotCandidate) } : {}),
   }
 }
@@ -1495,7 +1495,14 @@ async function hydrateDraftSeedData(
   const data: Record<string, unknown> = {}
   const sourceVersions: Record<string, unknown> = {}
   const warnings: string[] = []
-  const projectId = numericValue(target.projectId) ?? (kind === 'project_proposal' ? numericValue(target.entityId) : contextSnapshot.project?.id)
+  const projectId = numericValue(target.projectId) ?? (['setting_proposal', 'asset_proposal', 'project_proposal'].includes(kind) ? numericValue(target.entityId) : contextSnapshot.project?.id)
+  const targetIds = {
+    entityId: numericValue(target.entityId),
+    productionId: numericValue(target.productionId ?? target.production_id),
+    segmentId: numericValue(target.segmentId ?? target.segment_id),
+    sceneMomentId: numericValue(target.sceneMomentId ?? target.scene_moment_id),
+    contentUnitId: numericValue(target.contentUnitId ?? target.content_unit_id),
+  }
 
   if (!projectId) {
     return { data, sourceVersions, warnings: ['projectId unavailable; seed hydration skipped.'] }
@@ -1503,7 +1510,7 @@ async function hydrateDraftSeedData(
 
   for (const item of include) {
     try {
-      const hydrated = await hydrateDraftSeedInclude(kind, projectId, numericValue(target.entityId), item)
+      const hydrated = await hydrateDraftSeedInclude(kind, projectId, targetIds, item)
       if (hydrated === undefined) continue
       data[item] = hydrated
       sourceVersions[item] = collectSeedSourceVersions(hydrated)
@@ -1515,20 +1522,32 @@ async function hydrateDraftSeedData(
   return { data, sourceVersions, warnings }
 }
 
-async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, entityId: number | undefined, include: string): Promise<unknown> {
+interface DraftSeedTargetIds {
+  entityId?: number
+  productionId?: number
+  segmentId?: number
+  sceneMomentId?: number
+  contentUnitId?: number
+}
+
+async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, targetIds: DraftSeedTargetIds, include: string): Promise<unknown> {
+  const entityId = targetIds.entityId
+  const sceneMomentId = targetIds.sceneMomentId ?? (kind === 'content_unit_proposal' ? entityId : undefined)
+  const contentUnitId = targetIds.contentUnitId ?? (kind === 'content_unit_media_proposal' ? entityId : undefined)
+  const productionId = targetIds.productionId
+    ?? (kind === 'production_proposal' ? entityId : undefined)
+    ?? await resolveDraftSeedProductionId(projectId, { sceneMomentId, contentUnitId })
   switch (include) {
     case 'project':
       return summarizeSeedValue(await backendGet(`/projects/${projectId}`))
     case 'creative_references':
       return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/creative-references`))
-    case 'asset_slots':
-      return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/asset-slots`))
     case 'asset_slot_ownership':
       return summarizeAssetSlotOwnership(await backendList(`/projects/${projectId}/entities/asset-slots`))
     case 'production': {
-      if (!entityId) return undefined
+      if (!productionId) return undefined
       const productions = await backendList(`/projects/${projectId}/entities/productions`)
-      return summarizeSeedValue(productions.find((production) => numericValue(production?.ID ?? production?.id) === entityId) ?? null)
+      return summarizeSeedValue(productions.find((production) => numericValue(production?.ID ?? production?.id) === productionId) ?? null)
     }
     case 'production_script_brief': {
       if (!entityId) return undefined
@@ -1536,31 +1555,61 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
     }
     case 'segments': {
       const segments = await backendList(`/projects/${projectId}/entities/segments`)
-      return summarizeSeedValue(kind === 'production_proposal' && entityId
-        ? segments.filter((segment) => numericValue(segment?.production_id ?? segment?.productionId) === entityId)
+      return summarizeSeedValue(productionId
+        ? segments.filter((segment) => numericValue(segment?.production_id ?? segment?.productionId) === productionId)
         : segments)
     }
     case 'scene_moments': {
       const segments = await backendList(`/projects/${projectId}/entities/segments`)
       const segmentIds = new Set(segments
-        .filter((segment) => !entityId || numericValue(segment?.production_id ?? segment?.productionId) === entityId)
+        .filter((segment) => !productionId || numericValue(segment?.production_id ?? segment?.productionId) === productionId)
         .map((segment) => numericValue(segment?.ID ?? segment?.id))
         .filter((id): id is number => id !== undefined))
       const moments = await backendList(`/projects/${projectId}/entities/scene-moments`)
-      return summarizeSeedValue(entityId
-        ? moments.filter((moment) => segmentIds.has(numericValue(moment?.segment_id ?? moment?.segmentId) ?? -1))
-        : moments)
+      return summarizeSeedValue(sceneMomentId
+        ? moments.filter((moment) => numericValue(moment?.ID ?? moment?.id) === sceneMomentId)
+        : productionId
+          ? moments.filter((moment) => segmentIds.has(numericValue(moment?.segment_id ?? moment?.segmentId) ?? -1))
+          : moments)
     }
-    case 'creative_reference_usages':
-      return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/creative-reference-usages`))
+    case 'content_units': {
+      const units = await backendList(`/projects/${projectId}/entities/content-units`)
+      return summarizeSeedValue(contentUnitId
+        ? units.filter((unit) => numericValue(unit?.ID ?? unit?.id) === contentUnitId)
+        : sceneMomentId
+          ? units.filter((unit) => numericValue(unit?.scene_moment_id ?? unit?.sceneMomentId) === sceneMomentId)
+          : productionId
+            ? units.filter((unit) => numericValue(unit?.production_id ?? unit?.productionId) === productionId)
+            : units)
+    }
+    case 'content_unit': {
+      if (!contentUnitId) return undefined
+      const units = await backendList(`/projects/${projectId}/entities/content-units`)
+      return summarizeSeedValue(units.find((unit) => numericValue(unit?.ID ?? unit?.id) === contentUnitId) ?? null)
+    }
+    case 'reference_resources':
+      return summarizeSeedValue(contentUnitId
+        ? await backendList(`/projects/${projectId}/resources?ref_type=content_unit&ref_id=${encodeURIComponent(String(contentUnitId))}`)
+        : await backendList(`/projects/${projectId}/resources`))
+    case 'asset_slots': {
+      const slots = await backendList(`/projects/${projectId}/entities/asset-slots`)
+      return summarizeSeedValue(contentUnitId
+        ? slots.filter((slot) => slot.owner_type === 'content_unit' && numericValue(slot.owner_id) === contentUnitId)
+        : sceneMomentId
+          ? slots.filter((slot) => slot.owner_type === 'scene_moment' && numericValue(slot.owner_id) === sceneMomentId)
+          : productionId
+            ? slots.filter((slot) => numericValue(slot.production_id ?? slot.productionId) === productionId)
+            : slots)
+    }
     case 'asset_slot_usages':
       return summarizeAssetSlotOwnership(await backendList(`/projects/${projectId}/entities/asset-slots`))
+    case 'creative_reference_usages':
+      return summarizeSeedValue(await backendList(`/projects/${projectId}/entities/creative-reference-usages`))
     case 'asset_slot': {
       if (!entityId) return undefined
       const slots = await backendList(`/projects/${projectId}/entities/asset-slots`)
       return summarizeSeedValue(slots.find((slot) => numericValue(slot?.ID ?? slot?.id) === entityId) ?? null)
     }
-    case 'reference_resources':
     case 'asset_need':
     case 'unresolved_requirements':
     case 'source_script':
@@ -1571,6 +1620,32 @@ async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, 
     default:
       return undefined
   }
+}
+
+async function resolveDraftSeedProductionId(
+  projectId: number,
+  target: { sceneMomentId?: number; contentUnitId?: number },
+): Promise<number | undefined> {
+  let sceneMomentId = target.sceneMomentId
+  if (!sceneMomentId && target.contentUnitId) {
+    const units = await backendList(`/projects/${projectId}/entities/content-units`)
+    const unit = units.find((item) => numericValue(item?.ID ?? item?.id) === target.contentUnitId)
+    const directProductionId = numericValue(unit?.production_id ?? unit?.productionId)
+    if (directProductionId) return directProductionId
+    sceneMomentId = numericValue(unit?.scene_moment_id ?? unit?.sceneMomentId)
+  }
+  if (!sceneMomentId) return undefined
+
+  const moments = await backendList(`/projects/${projectId}/entities/scene-moments`)
+  const moment = moments.find((item) => numericValue(item?.ID ?? item?.id) === sceneMomentId)
+  const directProductionId = numericValue(moment?.production_id ?? moment?.productionId)
+  if (directProductionId) return directProductionId
+
+  const segmentId = numericValue(moment?.segment_id ?? moment?.segmentId)
+  if (!segmentId) return undefined
+  const segments = await backendList(`/projects/${projectId}/entities/segments`)
+  const segment = segments.find((item) => numericValue(item?.ID ?? item?.id) === segmentId)
+  return numericValue(segment?.production_id ?? segment?.productionId)
 }
 
 async function hydrateProductionScriptBrief(projectId: number, productionId: number): Promise<unknown> {
@@ -1793,10 +1868,10 @@ async function queryReferenceRelationships(projectId: number, referenceIds: Set<
   return out
 }
 
-async function queryAssetSlotCandidates(projectId: number, requirements: unknown[]): Promise<unknown[]> {
+async function queryAssetSlotCandidates(projectId: number, slots: unknown[]): Promise<unknown[]> {
   const out: unknown[] = []
-  for (const requirement of requirements) {
-    const id = entityId(requirement)
+  for (const slot of slots) {
+    const id = entityId(slot)
     if (id === undefined) continue
     out.push(...await backendList(`/projects/${projectId}/entities/asset-slot-candidates?asset_slot_id=${encodeURIComponent(String(id))}`))
   }
@@ -1985,10 +2060,10 @@ async function applyDraftReview(args: Record<string, unknown>): Promise<unknown>
 async function previewApplyDraftReview(args: Record<string, unknown>): Promise<unknown> {
   const review = getReviewParam(args)
   const request = buildApplyRequest(review)
-  if (!isProjectProposalTarget(review)) {
+  if (!isProjectProposalTarget(review) && !isProductionProposalTarget(review)) {
     return {
       performed: false,
-      skippedReason: 'backend apply preview is only implemented for project_proposal drafts',
+      skippedReason: 'backend apply preview is only implemented for proposal drafts',
     }
   }
   const path = request.path.replace(/\/apply$/, '/apply-preview')
@@ -2024,6 +2099,9 @@ function buildApplyRequest(review: Record<string, unknown>): { method: 'PATCH' |
   if (isProjectProposalTarget(review)) {
     return buildProjectProposalRequest(review)
   }
+  if (isProductionProposalTarget(review)) {
+    return buildProductionProposalRequest(review)
+  }
   const target = getObjectValue(review.target, 'target')
   const entityType = stringValue(target.entityType)
   const entityId = target.entityId
@@ -2058,7 +2136,7 @@ function buildProjectProposalRequest(review: Record<string, unknown>): { method:
   return {
     method: 'POST',
     path: `/projects/${encodeURIComponent(String(projectId))}/entities/project-proposals/apply`,
-    payload: normalizeProjectProposalPayload(review.proposedValue),
+    payload: normalizeProjectProposalPayloadForKind(review.proposedValue, stringValue(review.draftKind) as AgentDraftKind),
   }
 }
 
@@ -2067,11 +2145,26 @@ function isProjectProposalTarget(review: Record<string, unknown>): boolean {
   return target.entityType === 'project' && target.field === 'proposal'
 }
 
+function buildProductionProposalRequest(review: Record<string, unknown>): { method: 'POST'; path: string; payload: Record<string, unknown> } {
+  const projectId = resolveProjectId(review)
+  const target = getObjectValue(review.target, 'target')
+  return {
+    method: 'POST',
+    path: `/projects/${encodeURIComponent(String(projectId))}/entities/production-proposals/apply`,
+    payload: normalizeProductionProposalPayload(review.proposedValue, target.entityId),
+  }
+}
+
+function isProductionProposalTarget(review: Record<string, unknown>): boolean {
+  const target = isRecord(review.target) ? review.target : {}
+  return review.draftKind === 'production_proposal' || target.entityType === 'production'
+}
+
 function resolveProjectId(review: Record<string, unknown>): string | number {
   const target = getObjectValue(review.target, 'target')
-  const candidate = target.projectId ?? target.entityId
+  const candidate = target.projectId ?? (isProjectProposalTarget(review) ? target.entityId : undefined)
   if ((typeof candidate !== 'string' && typeof candidate !== 'number') || String(candidate).trim() === '') {
-    throw new Error('apply_draft requires projectId for project proposal apply')
+    throw new Error('apply_draft requires projectId for proposal apply')
   }
   return candidate
 }
@@ -2090,6 +2183,47 @@ function normalizeProjectProposalPayload(value: unknown): Record<string, unknown
     throw new Error('project proposal draft content must be a JSON object')
   }
   return value
+}
+
+function normalizeProjectProposalPayloadForKind(value: unknown, kind: AgentDraftKind): Record<string, unknown> {
+  const payload = normalizeProjectProposalPayload(value)
+  if (kind !== 'project_proposal') return payload
+  const proposal = isRecord(payload.proposal) ? payload.proposal : {}
+  return {
+    ...payload,
+    proposal: {
+      ...proposal,
+      project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
+      creative_references: [],
+      asset_slots: [],
+    },
+  }
+}
+
+function normalizeProductionProposalPayload(value: unknown, fallbackProductionId: unknown): Record<string, unknown> {
+  let parsed = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch {
+      throw new Error('production proposal draft content must be a JSON object')
+    }
+  }
+  if (!isRecord(parsed)) {
+    throw new Error('production proposal draft content must be a JSON object')
+  }
+  const productionId = parsed.production_id ?? parsed.productionId ?? fallbackProductionId
+  if ((typeof productionId !== 'string' && typeof productionId !== 'number') || String(productionId).trim() === '') {
+    throw new Error('production proposal draft content requires productionId')
+  }
+  if (!isRecord(parsed.proposal)) {
+    throw new Error('production proposal draft content requires proposal')
+  }
+  return {
+    ...parsed,
+    production_id: productionId,
+    proposal_scope: parsed.proposal_scope ?? parsed.proposalScope ?? 'production',
+  }
 }
 
 function inferGenerationJobType(args: Record<string, unknown>, inputResourceIds: number[]): string {
@@ -2937,7 +3071,7 @@ function summarizeCreativeRelationship(item: any): unknown {
   ])
 }
 
-function summarizeAssetRequirement(item: any): unknown {
+function summarizeAssetSlot(item: any): unknown {
   const summary = summarizePickedFields(item, [
     'ID',
     'id',
@@ -2962,8 +3096,8 @@ function summarizeAssetRequirement(item: any): unknown {
   ])
   if (isRecord(summary) && isRecord(item?.Resource)) summary.resource = summarizeResourceRecord(item.Resource)
   if (isRecord(summary) && isRecord(item?.resource)) summary.resource = summarizeResourceRecord(item.resource)
-  if (isRecord(summary) && isRecord(item?.LockedAssetSlot)) summary.locked_asset_slot = summarizeAssetRequirement(item.LockedAssetSlot)
-  if (isRecord(summary) && isRecord(item?.locked_asset_slot)) summary.locked_asset_slot = summarizeAssetRequirement(item.locked_asset_slot)
+  if (isRecord(summary) && isRecord(item?.LockedAssetSlot)) summary.locked_asset_slot = summarizeAssetSlot(item.LockedAssetSlot)
+  if (isRecord(summary) && isRecord(item?.locked_asset_slot)) summary.locked_asset_slot = summarizeAssetSlot(item.locked_asset_slot)
   return summary
 }
 
@@ -2983,8 +3117,8 @@ function summarizeAssetSlotCandidate(item: any): unknown {
     'CreatedAt',
     'UpdatedAt',
   ])
-  if (isRecord(summary) && isRecord(item?.CandidateAssetSlot)) summary.candidate_asset_slot = summarizeAssetRequirement(item.CandidateAssetSlot)
-  if (isRecord(summary) && isRecord(item?.candidate_asset_slot)) summary.candidate_asset_slot = summarizeAssetRequirement(item.candidate_asset_slot)
+  if (isRecord(summary) && isRecord(item?.CandidateAssetSlot)) summary.candidate_asset_slot = summarizeAssetSlot(item.CandidateAssetSlot)
+  if (isRecord(summary) && isRecord(item?.candidate_asset_slot)) summary.candidate_asset_slot = summarizeAssetSlot(item.candidate_asset_slot)
   return summary
 }
 

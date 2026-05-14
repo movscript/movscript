@@ -2,8 +2,8 @@
   "id": "movscript.workflow.project-proposal",
   "kind": "workflow",
   "version": "1.0.0",
-  "name": "Project Proposal",
-  "description": "以本地 merge patches 的形式起草 project 层 creative reference 和 asset-slot proposals。",
+  "name": "Project Standards Proposal",
+  "description": "起草 project 层制作规范：镜头大小体系、画幅、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束。",
   "priority": 900,
   "enabled": true,
   "triggers": [
@@ -15,8 +15,12 @@
       "kind": "keyword",
       "any": [
         "项目提案",
-        "项目设定",
-        "素材需求",
+        "项目规范",
+        "镜头大小",
+        "镜头规格",
+        "画幅",
+        "风格规范",
+        "摄影语言",
         "project proposal",
         "project_proposal"
       ]
@@ -36,5 +40,5 @@
     "schema://movscript.project_proposal.v1"
   ],
   "instructionTemplatePath": "instruction.md",
-  "outputContract": "回复 draftId、projectId、可用时的 productionId、draft status、最近一次 preview_apply 的 ok/stage，以及简洁的设定/素材缺口。"
+  "outputContract": "回复 draftId、projectId、draft status、项目规范摘要、validation 状态，以及尚未决定的镜头/风格约束。"
 }

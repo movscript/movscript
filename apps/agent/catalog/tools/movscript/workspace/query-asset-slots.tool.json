@@ -1,6 +1,6 @@
 {
-  "name": "movscript_query_asset_requirements",
-  "description": "查询当前或指定 project 的素材需求（asset slots），支持按设定资料、设定状态、归属对象、制作、状态和关键词过滤。",
+  "name": "movscript_query_asset_slots",
+  "description": "查询当前或指定 project 的素材槽（asset slots），支持按设定资料、设定状态、归属对象、制作、状态和关键词过滤。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -51,5 +51,5 @@
     "approval": "never"
   },
   "source": "runtime",
-  "capability": "读取素材需求和已有候选，用于确认某个设定资料或内容节点需要生成哪些候选素材。"
+  "capability": "读取素材槽和已有候选，用于确认某个设定资料或内容节点需要生成哪些候选素材。"
 }

@@ -200,12 +200,24 @@ Rules:
 
 ## Standard Project Orchestration Template
 
-Project orchestration is a two-layer review flow:
+Project orchestration is now a split project-layer review flow:
 
 ```text
 project_proposal
-  owns project-level creative references, setting references, asset slot
-  requirements, ownership, reuse, and merge candidates.
+  owns project-wide production standards: aspect ratio, shot size system,
+  camera language, visual style, lighting, color, pacing, and negative rules.
+
+setting_proposal
+  owns creative references and settings: people, places, props, products,
+  style references, world rules, relationships, and merge candidates.
+
+asset_proposal
+  owns asset slots: what asset is needed, ownership, use,
+  priority, reuse boundary, and status.
+
+asset_proposal
+  owns candidate image/video/resource plans for one existing asset slot:
+  prompts, references, model constraints, acceptance criteria, and risks.
 
 production_proposal
   owns one production's segment structure, scene moments, production-local
@@ -226,10 +238,7 @@ Default seed:
 {
   "mode": "editable_snapshot",
   "include": [
-    "project",
-    "creative_references",
-    "asset_slots",
-    "asset_slot_ownership"
+    "project"
   ],
   "maxDepth": 2
 }
@@ -237,16 +246,80 @@ Default seed:
 
 Field ownership:
 
-- Project proposal may create or revise creative references.
-- Project proposal may create or revise asset slot requirements.
-- Project proposal may define asset slot ownership and reuse/merge candidates.
+- Project proposal may define project-wide production standards.
+- Project proposal must not create or revise creative references.
+- Project proposal must not create or revise asset slot requirements.
 - Project proposal must not write production segments, content units, media
-  plans, or generated resource bindings.
+  plans, candidate prompts, generation jobs, or generated resource bindings.
+- Current backend apply is `draft_only` until project standards have a formal
+  backend target.
 
 Review route:
 
 ```text
 /project-workspace?draftId=:draftId
+```
+
+### Setting Proposal Model
+
+Target:
+
+```json
+{ "entityType": "project", "entityId": 123 }
+```
+
+Default seed:
+
+```json
+{
+  "mode": "editable_snapshot",
+  "include": ["project", "creative_references"],
+  "maxDepth": 2
+}
+```
+
+Field ownership:
+
+- Setting proposal may create, revise, merge, or retire creative references.
+- Setting proposal must not write asset slots, candidate media plans, production
+  segments, content units, generation jobs, or generated resources.
+
+Review route:
+
+```text
+/creative-references?draftId=:draftId
+```
+
+### Asset Proposal Model
+
+Target:
+
+```json
+{ "entityType": "project", "entityId": 123 }
+```
+
+Default seed:
+
+```json
+{
+  "mode": "editable_snapshot",
+  "include": ["project", "creative_references", "asset_slots", "asset_slot_ownership"],
+  "maxDepth": 2
+}
+```
+
+Field ownership:
+
+- Asset slot proposal may create, revise, reassign, waive, or retire
+  asset slots.
+- Asset slot proposal must not write creative reference definitions,
+  candidate image/video directions, prompts, model params, generation jobs, or
+  generated resources.
+
+Review route:
+
+```text
+/asset-slots?draftId=:draftId
 ```
 
 ### Production Proposal Model
@@ -282,7 +355,8 @@ Field ownership:
   slots.
 - Production proposal may record production-local unresolved requirements.
 - Production proposal must not define new project-level creative references or
-  asset slots. It should request or link a project proposal for that.
+  asset slots. It should request or link `setting_proposal` or
+  `asset_proposal` for that.
 
 Review route:
 

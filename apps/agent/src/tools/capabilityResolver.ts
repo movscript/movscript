@@ -22,7 +22,7 @@ const BASE_RETRIEVAL_TOOLS = new Set([
   'movscript_list_projects',
   'movscript_read_project_scripts',
   'movscript_query_creative_references',
-  'movscript_query_asset_requirements',
+  'movscript_query_asset_slots',
   'movscript_query_production_context',
   'movscript_get_draft_model',
   'movscript_list_drafts',

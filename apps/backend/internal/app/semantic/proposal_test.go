@@ -234,6 +234,7 @@ func newProposalTestDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&model.EntityRelation{},
+		&model.Project{},
 		&model.Production{},
 		&model.Segment{},
 		&model.SceneMoment{},

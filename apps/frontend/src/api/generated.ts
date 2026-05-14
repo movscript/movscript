@@ -31,12 +31,18 @@ export interface components {
       "owner_id": number
       "status": string
       "total_episodes"?: number
+      "aspect_ratio"?: string
+      "visual_style"?: string
+      "project_style"?: string
     }
     "ProjectCreate": {
       "name": string
       "description"?: string
       "status"?: string
       "total_episodes"?: number
+      "aspect_ratio"?: string
+      "visual_style"?: string
+      "project_style"?: string
     }
     "ProjectMember": {
       "ID": number

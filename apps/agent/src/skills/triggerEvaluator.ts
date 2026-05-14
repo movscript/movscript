@@ -45,7 +45,7 @@ export function selectActiveWorkflowsWithTrace(workflows: WorkflowSkill[], ctx: 
   })
   const matched = evaluations.filter((item) => item.result.matched).map((item) => item.workflow)
   const max = Math.min(Math.max(ctx.profile.limits?.maxActiveWorkflows ?? 2, 0), 4)
-  const sorted = matched.sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))
+  const sorted = matched.sort((a, b) => workflowSelectionPriority(b, ctx) - workflowSelectionPriority(a, ctx) || a.id.localeCompare(b.id))
   if (sorted.length > max) warnings.push(`trigger.workflow.limit: kept ${max} of ${sorted.length} matched workflows`)
   const selected = sorted.slice(0, max)
   const selectedIds = new Set(selected.map((workflow) => workflow.id))
@@ -66,6 +66,18 @@ export function selectActiveWorkflowsWithTrace(workflows: WorkflowSkill[], ctx: 
     }))
     .sort((a, b) => Number(b.selected) - Number(a.selected) || Number(b.matched) - Number(a.matched) || b.priority - a.priority || a.id.localeCompare(b.id))
   return { workflows: selected, warnings, trace }
+}
+
+function workflowSelectionPriority(workflow: WorkflowSkill, ctx: RuntimeContext): number {
+  if (!hasGenerationExecutionIntent(ctx)) return workflow.priority
+  if (ctx.intents.includes('asset_candidate_generation') && workflow.id === 'movscript.workflow.asset-candidate-generation') return workflow.priority + 10000
+  if (workflow.id === 'movscript.workflow.visual-generation') return workflow.priority + 9000
+  if (workflow.id === 'movscript.workflow.asset-candidate-generation') return workflow.priority + 8000
+  return workflow.priority
+}
+
+function hasGenerationExecutionIntent(ctx: RuntimeContext): boolean {
+  return ctx.intents.includes('visual_generation') || ctx.intents.includes('asset_candidate_generation')
 }
 
 function matchesTrigger(trigger: SkillTrigger, ctx: RuntimeContext): boolean {

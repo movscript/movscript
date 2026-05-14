@@ -4,12 +4,18 @@ type ProjectCreateInput struct {
 	Name          string `json:"name" binding:"required"`
 	Description   string `json:"description"`
 	TotalEpisodes int    `json:"total_episodes"`
+	AspectRatio   string `json:"aspect_ratio"`
+	VisualStyle   string `json:"visual_style"`
+	ProjectStyle  string `json:"project_style"`
 }
 
 type ProjectUpdateInput struct {
 	Name          string `json:"name" binding:"required"`
 	Description   string `json:"description"`
 	TotalEpisodes int    `json:"total_episodes"`
+	AspectRatio   string `json:"aspect_ratio"`
+	VisualStyle   string `json:"visual_style"`
+	ProjectStyle  string `json:"project_style"`
 }
 
 type ProjectMemberInput struct {
@@ -74,7 +80,7 @@ type ScriptInput struct {
 	Order                  int    `json:"order"`
 }
 
-var projectPatchFields = stringSet("name", "description", "total_episodes")
+var projectPatchFields = stringSet("name", "description", "total_episodes", "aspect_ratio", "visual_style", "project_style")
 var scriptPatchFields = stringSet("title", "description", "content", "raw_source", "script_type", "source_type", "version", "parent_script_id", "assignee_id", "summary", "characters", "character_relationships", "core_settings", "background", "scenes_desc", "hook", "plot_summary", "script_points", "planned_scene_count", "time_text", "location_text", "structured_characters", "plot_beats", "atmosphere", "structure_json", "entity_candidates", "relationship_candidates", "order")
 
 func ProjectPatchUpdates(body map[string]any) map[string]any {

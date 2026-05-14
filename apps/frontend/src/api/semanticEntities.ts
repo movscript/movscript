@@ -1,4 +1,5 @@
 import { api } from '@/lib/api'
+import type { Project } from '@/types'
 
 export type SemanticEntityKind =
   | 'scriptVersions'
@@ -172,6 +173,39 @@ export async function updateSemanticEntity(projectId: number, config: SemanticEn
 
 export async function deleteSemanticEntity(projectId: number, config: SemanticEntityConfig, id: number) {
   await api.delete(`${semanticEntityPath(projectId, config)}/${id}`)
+}
+
+export async function getProject(projectId: number) {
+  const { data } = await api.get<Project>(`/projects/${projectId}`)
+  return data
+}
+
+export interface ApplyProjectProposalResponse {
+  project_id: number
+  counts: Partial<{
+    creative_references_created: number
+    creative_references_updated: number
+    creative_references_merged: number
+    creative_references_deleted: number
+    asset_slots_created: number
+    asset_slots_updated: number
+    asset_slots_deleted: number
+    asset_slots_reassigned: number
+    creative_reference_usages: number
+    creative_relationships: number
+    project_style_updated: number
+  }>
+}
+
+export async function applyProjectProposal(
+  projectId: number,
+  payload: Record<string, unknown>,
+): Promise<ApplyProjectProposalResponse> {
+  const { data } = await api.post<ApplyProjectProposalResponse>(
+    `/projects/${projectId}/entities/project-proposals/apply`,
+    payload,
+  )
+  return data
 }
 
 export interface ApplyProductionProposalResponse {

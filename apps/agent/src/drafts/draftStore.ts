@@ -487,8 +487,10 @@ export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
   }
   if (draft.kind === 'script_split_proposal') {
     validateScriptSplitDraft(draft, issues)
+  } else if (draft.kind === 'setting_proposal') {
+    validateProjectProposalDraft(draft, issues, { kind: 'setting' })
   } else if (draft.kind === 'project_proposal') {
-    validateProjectProposalDraft(draft, issues)
+    validateProjectProposalDraft(draft, issues, { kind: 'project_standards' })
   } else if (draft.kind === 'content_unit_proposal') {
     validateContentUnitProposalDraft(draft, issues)
   } else if (draft.kind === 'asset_proposal') {
@@ -692,7 +694,11 @@ function validateScriptSplitDraft(draft: AgentDraft, issues: AgentDraftValidatio
   })
 }
 
-function validateProjectProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
+function validateProjectProposalDraft(
+  draft: AgentDraft,
+  issues: AgentDraftValidationIssue[],
+  options: { kind: 'legacy' | 'setting' | 'asset_requirement' | 'project_standards' } = { kind: 'legacy' },
+): void {
   let parsed: unknown
   try {
     parsed = JSON.parse(draft.content)
@@ -704,11 +710,24 @@ function validateProjectProposalDraft(draft: AgentDraft, issues: AgentDraftValid
     issues.push({ path: '/content', message: 'Project proposal draft content must be a JSON object.', severity: 'error' })
     return
   }
-  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.projectProposal) {
-    issues.push({ path: '/schema', message: `Project proposal draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.projectProposal}.`, severity: 'error' })
+  const expectedSchema = options.kind === 'setting'
+    ? DRAFT_CONTENT_SCHEMA_IDS.settingProposal
+    : options.kind === 'asset_requirement'
+      ? DRAFT_CONTENT_SCHEMA_IDS.assetProposal
+      : DRAFT_CONTENT_SCHEMA_IDS.projectProposal
+  const expectedScope = options.kind === 'setting'
+    ? 'setting_proposal'
+    : options.kind === 'asset_requirement'
+      ? 'asset_proposal'
+      : 'project_proposal'
+  if (parsed.schema !== expectedSchema) {
+    issues.push({ path: '/schema', message: `Project-level proposal draft schema must be ${expectedSchema}.`, severity: 'error' })
   }
-  if (parsed.scope !== 'project_proposal') {
-    issues.push({ path: '/scope', message: 'Project proposal draft scope must be project_proposal.', severity: 'error' })
+  if (parsed.scope !== expectedScope) {
+    issues.push({ path: '/scope', message: `Project-level proposal draft scope must be ${expectedScope}.`, severity: 'error' })
+  }
+  if (parsed.mode !== undefined && parsed.mode !== 'patch' && parsed.mode !== 'snapshot') {
+    issues.push({ path: '/mode', message: 'Project proposal draft mode must be patch or snapshot when present.', severity: 'error' })
   }
 
   const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
@@ -717,15 +736,44 @@ function validateProjectProposalDraft(draft: AgentDraft, issues: AgentDraftValid
     return
   }
 
-  validateProjectProposalPatchArray('creative_references', proposal.creative_references, issues)
-  validateProjectProposalPatchArray('asset_slots', proposal.asset_slots, issues)
+  if (options.kind === 'project_standards') {
+    validateEmptyProjectProposalArray('creative_references', proposal.creative_references, issues)
+    validateEmptyProjectProposalArray('asset_slots', proposal.asset_slots, issues)
+    if (!isRecord(proposal.project_style)) {
+      issues.push({ path: '/proposal/project_style', message: 'Project standards proposal requires proposal.project_style.', severity: 'error' })
+    }
+  } else {
+    validateProjectProposalPatchArray('creative_references', proposal.creative_references, issues)
+    validateProjectProposalPatchArray('asset_slots', proposal.asset_slots, issues)
+    if (options.kind === 'setting') {
+      validateEmptyProjectProposalArray('asset_slots', proposal.asset_slots, issues)
+    }
+    if (options.kind === 'asset_requirement') {
+      validateEmptyProjectProposalArray('creative_references', proposal.creative_references, issues)
+    }
+  }
 
   if (parsed.operations !== undefined) {
-    issues.push({
-      path: '/operations',
-      message: 'Project proposal drafts must not include operations; they are partial merge patches over creative_references and asset_slots.',
-      severity: 'error',
-    })
+      issues.push({
+        path: '/operations',
+        message: 'Project proposal drafts must not include operations; use patch mode or snapshot mode over creative_references and asset_slots.',
+        severity: 'error',
+      })
+  }
+}
+
+function validateEmptyProjectProposalArray(
+  key: 'creative_references' | 'asset_slots',
+  value: unknown,
+  issues: AgentDraftValidationIssue[],
+): void {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    issues.push({ path: `/proposal/${key}`, message: `${key} must be an array when present.`, severity: 'error' })
+    return
+  }
+  if (value.length > 0) {
+    issues.push({ path: `/proposal/${key}`, message: `${key} is outside this proposal boundary. Use the dedicated proposal kind instead.`, severity: 'error' })
   }
 }
 
@@ -747,14 +795,37 @@ function validateAssetProposalDraft(draft: AgentDraft, issues: AgentDraftValidat
   if (parsed.scope !== 'asset_proposal') {
     issues.push({ path: '/scope', message: 'Asset proposal draft scope must be asset_proposal.', severity: 'error' })
   }
+  const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
+  if (!proposal) {
+    issues.push({ path: '/proposal', message: 'Asset proposal draft requires proposal.', severity: 'error' })
+    return
+  }
+  const requirementItems = Array.isArray(proposal.asset_slots) ? proposal.asset_slots : []
+  if (proposal.asset_slots !== undefined) {
+    validateProjectProposalPatchArray('asset_slots', proposal.asset_slots, issues)
+  }
+  if (proposal.creative_references !== undefined) {
+    validateEmptyProjectProposalArray('creative_references', proposal.creative_references, issues)
+  }
+  const plans = proposal.candidate_plans
+  if (plans !== undefined && !Array.isArray(plans)) {
+    issues.push({ path: '/proposal/candidate_plans', message: 'Asset proposal candidate_plans must be an array.', severity: 'error' })
+    return
+  }
+  const candidatePlans = Array.isArray(plans) ? plans : []
+  const hasRequirementItems = requirementItems.length > 0
+  const hasCandidatePlans = candidatePlans.length > 0
+  if (!hasRequirementItems && !hasCandidatePlans) {
+    issues.push({ path: '/proposal', message: 'Asset proposal draft requires proposal.asset_slots or proposal.candidate_plans.', severity: 'warning' })
+  }
   const assetSlotId = numberValue(parsed.assetSlotId ?? parsed.asset_slot_id)
-  if (assetSlotId === undefined || assetSlotId <= 0) {
-    issues.push({ path: '/assetSlotId', message: 'Asset proposal draft requires a positive assetSlotId.', severity: 'error' })
+  if (hasCandidatePlans && (assetSlotId === undefined || assetSlotId <= 0)) {
+    issues.push({ path: '/assetSlotId', message: 'Asset proposal candidate plans require a positive assetSlotId.', severity: 'error' })
   }
   const slot = isRecord(parsed.slot) ? parsed.slot : undefined
-  if (!slot) {
+  if (hasCandidatePlans && !slot) {
     issues.push({ path: '/slot', message: 'Asset proposal draft requires slot.', severity: 'error' })
-  } else {
+  } else if (slot) {
     const slotId = numberValue(slot.id ?? slot.ID)
     if (slotId === undefined || slotId <= 0) {
       issues.push({ path: '/slot/id', message: 'Asset proposal slot requires a positive id.', severity: 'error' })
@@ -770,17 +841,7 @@ function validateAssetProposalDraft(draft: AgentDraft, issues: AgentDraftValidat
     }
   }
 
-  const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
-  if (!proposal) {
-    issues.push({ path: '/proposal', message: 'Asset proposal draft requires proposal.', severity: 'error' })
-    return
-  }
-  const plans = proposal.candidate_plans
-  if (!Array.isArray(plans)) {
-    issues.push({ path: '/proposal/candidate_plans', message: 'Asset proposal draft requires proposal.candidate_plans.', severity: 'error' })
-    return
-  }
-  plans.forEach((plan, index) => {
+  candidatePlans.forEach((plan, index) => {
     const base = `/proposal/candidate_plans/${index}`
     if (!isRecord(plan)) {
       issues.push({ path: base, message: 'Asset proposal candidate plan must be an object.', severity: 'error' })
@@ -964,6 +1025,15 @@ function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftVa
       if (typeof sceneMoment.title !== 'string' || !sceneMoment.title.trim()) {
         issues.push({ path: `${sceneBase}/title`, message: 'Scene moment requires title.', severity: 'error' })
       }
+      const creativeReferences = Array.isArray(sceneMoment.creative_references) ? sceneMoment.creative_references : []
+      const assetSlots = Array.isArray(sceneMoment.asset_slots) ? sceneMoment.asset_slots : []
+      if (creativeReferences.length === 0 && assetSlots.length === 0) {
+        issues.push({
+          path: sceneBase,
+          message: 'Scene moment has no creative_references or asset_slots; downstream generation context may be incomplete.',
+          severity: 'warning',
+        })
+      }
       forbidProductionProposalDownstreamNode(sceneMoment.content_units, `${sceneBase}/content_units`, 'content_units', issues)
       forbidProductionProposalDownstreamNode(sceneMoment.keyframes, `${sceneBase}/keyframes`, 'keyframes', issues)
     })
@@ -1011,7 +1081,7 @@ function validateProjectProposalPatchNode(
     if (!allowedKeys.has(nodeKey)) {
       issues.push({
         path: `${basePath}/${nodeKey}`,
-        message: 'Project proposal nodes only allow client_id, id, fields, owner, and merge_candidates according to node type.',
+        message: 'Project proposal nodes only allow client_id, id, fields, owner, and merge_candidates according to node type. Do not use action.',
         severity: 'error',
       })
     }

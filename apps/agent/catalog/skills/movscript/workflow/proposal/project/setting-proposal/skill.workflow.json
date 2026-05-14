@@ -1,0 +1,42 @@
+{
+  "id": "movscript.workflow.setting-proposal",
+  "kind": "workflow",
+  "version": "1.0.0",
+  "name": "Setting Proposal",
+  "description": "起草 project 层设定资料 proposal：人物、地点、道具、产品、风格、世界规则、关系和合并候选。",
+  "priority": 905,
+  "enabled": true,
+  "triggers": [
+    {
+      "kind": "intent",
+      "id": "setting_proposal"
+    },
+    {
+      "kind": "keyword",
+      "any": [
+        "设定提案",
+        "设定资料",
+        "人物设定",
+        "地点设定",
+        "世界观",
+        "setting proposal",
+        "setting_proposal"
+      ]
+    }
+  ],
+  "toolRefs": [
+    "tool://movscript_get_focus",
+    "tool://movscript_get_draft_model",
+    "tool://movscript_create_draft",
+    "tool://movscript_update_draft",
+    "tool://movscript_get_draft",
+    "tool://movscript_list_drafts",
+    "tool://movscript_request_user_input"
+  ],
+  "toolScope": "intersect",
+  "schemaRefs": [
+    "schema://movscript.setting_proposal.v1"
+  ],
+  "instructionTemplatePath": "instruction.md",
+  "outputContract": "回复 draftId、projectId、draft status、validation/preview 状态，以及设定资料变更摘要。"
+}

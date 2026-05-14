@@ -23,6 +23,9 @@ type Project struct {
 	OrgID         *uint     `json:"org_id,omitempty"`
 	Status        string    `json:"status"`
 	TotalEpisodes int       `json:"total_episodes"`
+	AspectRatio   string    `json:"aspect_ratio"`
+	VisualStyle   string    `json:"visual_style"`
+	ProjectStyle  string    `json:"project_style"`
 	Members       []Member  `json:"members,omitempty"`
 	CreatedAt     time.Time `json:"CreatedAt"`
 	UpdatedAt     time.Time `json:"UpdatedAt"`

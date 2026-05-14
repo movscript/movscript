@@ -52,7 +52,7 @@ const PROJECT_PROPOSAL_DRAFT = {
   updatedAt: NOW,
 }
 
-test('project workspace reviews settings before asset requirements', async ({ page }, testInfo) => {
+test('project workspace reviews settings before asset slots', async ({ page }, testInfo) => {
   const baseURL = testInfo.project.use.baseURL
   if (!baseURL) throw new Error('project workspace E2E requires a baseURL')
 

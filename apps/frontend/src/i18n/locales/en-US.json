@@ -2102,6 +2102,79 @@
       "emptyHint": "Enter an idea to start brainstorming",
       "requestFailed": "Request failed. Check the model configuration and try again."
     },
+    "smartStoryboard": {
+      "title": "Smart Storyboard",
+      "subtitle": "Organize characters, scenes, and storyboard sketches into cinematic language, then shape keyframe plans through emotion and performance.",
+      "generate": "Generate Keyframes",
+      "buckets": {
+        "characters": "Characters",
+        "scenes": "Scenes",
+        "storyboard": "Storyboard"
+      },
+      "empty": {
+        "characters": "Select character reference images from the left",
+        "scenes": "Select scene or environment references from the left",
+        "storyboard": "Add sketches, composition notes, or reference frames"
+      },
+      "emotion": {
+        "title": "Emotion",
+        "intensity": "Intensity",
+        "expression": "Performance",
+        "placeholder": "Example: the character suppresses anger, avoids eye contact, and moves half a beat late; keep the scene cool and low contrast.",
+        "presets": {
+          "calm": "Calm",
+          "tense": "Tense",
+          "joy": "Joy",
+          "fear": "Fear",
+          "lonely": "Lonely",
+          "hopeful": "Hopeful"
+        }
+      },
+      "camera": {
+        "title": "Camera Language",
+        "shotSize": "Shot Size",
+        "move": "Move",
+        "lens": "Lens",
+        "rhythm": "Rhythm",
+        "shotSizes": {
+          "closeUp": "Close-up",
+          "medium": "Medium",
+          "wide": "Wide",
+          "overShoulder": "Over-shoulder"
+        },
+        "moves": {
+          "static": "Static",
+          "pushIn": "Push in",
+          "tracking": "Tracking",
+          "handheld": "Handheld"
+        },
+        "lenses": {
+          "wide": "Wide",
+          "standard": "Standard",
+          "telephoto": "Telephoto"
+        },
+        "rhythms": {
+          "slow": "Slow",
+          "balanced": "Balanced",
+          "fast": "Fast"
+        }
+      },
+      "beats": {
+        "title": "Shot Breakdown",
+        "fields": {
+          "title": "Shot title",
+          "emotion": "Emotion",
+          "shot": "Shot",
+          "note": "Note"
+        }
+      },
+      "preview": {
+        "title": "Keyframe Preview"
+      },
+      "prompt": {
+        "title": "Prompt Summary"
+      }
+    },
     "defs": {
       "refImageGen": {
         "name": "Reference Image",
@@ -2708,14 +2781,17 @@
     "titles": {
       "projects": "Projects",
       "projectHome": "Home",
-      "projectWorkspace": "Project Orchestration",
+      "projectWorkspace": "Project Standards",
+      "settingWorkbench": "Setting Workbench",
+      "assetProposalWorkbench": "Asset Workbench",
+      "preProduction": "Pre-production",
       "projectPlan": "Prep Overview",
       "creation": "Home",
       "workbench": "One-click Production",
       "workbenchScript": "One-click Production",
       "workbenchPreview": "Production Preview",
       "workbenchCreative": "Setting Prep",
-      "workbenchAssets": "Asset Generation",
+      "workbenchAssets": "Asset Workbench",
       "workbenchProduction": "Content Orchestration",
       "workbenchDelivery": "Delivery Workbench",
       "deliveryWorkbench": "Delivery Workbench",
@@ -2791,6 +2867,7 @@
       "multiAngle": "Multi-angle",
       "videoEdit": "Video Edit",
       "brainstorm": "Brainstorm",
+      "smartStoryboard": "Smart Storyboard",
       "resources": "Resources",
       "jobs": "Generation Jobs",
       "plugins": "Plugins",
@@ -2801,7 +2878,10 @@
       "creation": "Triage Desk",
       "collaboration": "Collaboration",
       "projectHome": "Home",
-      "projectWorkspace": "Project Orchestration",
+      "projectWorkspace": "Project Standards",
+      "settingWorkbench": "Setting Workbench",
+      "assetProposalWorkbench": "Asset Workbench",
+      "preProduction": "Pre-production",
       "creativeWorkbench": "Creative Workbench",
       "projectProduction": "Production Overview",
       "productionOrchestrate": "Orchestration",
@@ -2829,12 +2909,12 @@
       "workbenchScript": "One-click Production",
       "workbenchPreview": "Production Preview",
       "workbenchCreative": "Setting Prep",
-      "workbenchAssets": "Asset Generation",
+      "workbenchAssets": "Asset Workbench",
       "workbenchProduction": "Production Decisions",
       "workbenchDelivery": "Delivery Gate",
       "workbenchReferenceRelations": "Relation Correction",
       "workbenchProductionPreview": "Production Preview",
-      "workbenchAssetPreparation": "Asset Preparation",
+      "workbenchAssetPreparation": "Asset Workbench",
       "workbenchContentGeneration": "Content Orchestration",
       "productionTasks": "Tasks",
       "delivery": "Delivery",

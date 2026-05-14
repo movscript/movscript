@@ -3686,18 +3686,21 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['script_split_proposal', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal', 'content_unit_media_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal', 'content_unit_media_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 const DRAFT_REFRESH_INTERVAL_MS = 1500
 
 function inferScopedDraftKind(pageContext?: PageContextSummary): AgentDraftKind | undefined {
   if (!pageContext) return undefined
   if (pageContext.pageType === 'production_orchestrate') return 'production_proposal'
+  if (pageContext.pageType === 'setting_proposal' || pageContext.labels.some((label) => /creative-references|setting[_-]proposal/i.test(label))) {
+    return 'setting_proposal'
+  }
+  if (pageContext.pageType === 'asset_proposal' || pageContext.labels.some((label) => /asset-proposal|asset_proposal|asset-slots/i.test(label))) {
+    return 'asset_proposal'
+  }
   if (pageContext.pageType === 'project_proposal' || pageContext.labels.some((label) => /project-(workspace|orchestration|proposal)/i.test(label))) {
     return 'project_proposal'
-  }
-  if (pageContext.pageType === 'asset_proposal' || pageContext.labels.some((label) => /asset-(slots|proposal)|asset_proposal/i.test(label))) {
-    return 'asset_proposal'
   }
   return undefined
 }
