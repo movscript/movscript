@@ -191,10 +191,11 @@ func ValidateAndNormalizeGenerationParams(def *ModelDef, jobType, extraParams, a
 		}
 	}
 
-	if err := validateDeclaredParamRules(params, supported); err != nil {
-		return nil, err
-	}
-	if !def.SupportedParamsExplicit {
+	if def.SupportedParamsExplicit {
+		if err := validateDeclaredParamRules(params, def.SupportedParams); err != nil {
+			return nil, err
+		}
+	} else {
 		if err := validateCrossParamRules(params); err != nil {
 			return nil, err
 		}
@@ -387,14 +388,14 @@ func validateCrossParamRules(params map[string]any) error {
 	return nil
 }
 
-func validateDeclaredParamRules(params map[string]any, supported map[string]ParamDef) error {
-	for key, p := range supported {
-		if !paramHasNonZeroValue(params[key]) {
+func validateDeclaredParamRules(params map[string]any, supported []ParamDef) error {
+	for _, p := range supported {
+		if !paramHasNonZeroValue(params[p.Key]) {
 			continue
 		}
 		for _, other := range p.ConflictsWith {
 			if paramHasNonZeroValue(params[other]) {
-				err := invalidParamCombinationError("parameters \""+key+"\" and \""+other+"\" cannot be used together", key, other)
+				err := invalidParamCombinationError("parameters \""+p.Key+"\" and \""+other+"\" cannot be used together", p.Key, other)
 				err.SuggestedFix = map[string]any{other: nil}
 				return err
 			}
@@ -403,14 +404,14 @@ func validateDeclaredParamRules(params map[string]any, supported map[string]Para
 			if !conditionalParamMatches(params[item.WhenParam], item.WhenValue) {
 				continue
 			}
-			value, ok := stringValue(params[key])
+			value, ok := stringValue(params[p.Key])
 			if !ok || value == "" || containsString(item.Options, value) {
 				continue
 			}
-			err := invalidParamCombinationError("parameter \""+key+"\" must be one of the allowed values for \""+item.WhenParam+"\"", key, item.WhenParam)
+			err := invalidParamCombinationError("parameter \""+p.Key+"\" must be one of the allowed values for \""+item.WhenParam+"\"", p.Key, item.WhenParam)
 			err.AllowedValues = stringValuesToAny(item.Options)
 			if len(item.Options) > 0 {
-				err.SuggestedFix = map[string]any{key: item.Options[0]}
+				err.SuggestedFix = map[string]any{p.Key: item.Options[0]}
 			}
 			return err
 		}
@@ -418,24 +419,24 @@ func validateDeclaredParamRules(params map[string]any, supported map[string]Para
 			if !conditionalParamMatches(params[item.WhenParam], item.WhenValue) {
 				continue
 			}
-			if _, exists := params[key]; !exists {
+			if _, exists := params[p.Key]; !exists {
 				continue
 			}
-			if conditionalParamMatches(params[key], item.Value) {
+			if conditionalParamMatches(params[p.Key], item.Value) {
 				continue
 			}
-			err := invalidParamCombinationError("parameter \""+key+"\" must have the required value for \""+item.WhenParam+"\"", key, item.WhenParam)
-			err.SuggestedFix = map[string]any{key: item.Value}
+			err := invalidParamCombinationError("parameter \""+p.Key+"\" must have the required value for \""+item.WhenParam+"\"", p.Key, item.WhenParam)
+			err.SuggestedFix = map[string]any{p.Key: item.Value}
 			return err
 		}
 		for _, item := range p.RequiresValue {
-			if !paramHasNonZeroValue(params[key]) {
+			if !paramHasNonZeroValue(params[p.Key]) {
 				continue
 			}
 			if conditionalParamMatches(params[item.Param], item.Value) {
 				continue
 			}
-			err := invalidParamCombinationError("parameter \""+key+"\" requires \""+item.Param+"\" to have the required value", key, item.Param)
+			err := invalidParamCombinationError("parameter \""+p.Key+"\" requires \""+item.Param+"\" to have the required value", p.Key, item.Param)
 			err.SuggestedFix = map[string]any{item.Param: item.Value}
 			return err
 		}
