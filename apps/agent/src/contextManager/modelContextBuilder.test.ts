@@ -117,6 +117,100 @@ test('buildContext keeps default chat prompt lean', () => {
   assert.match(built.systemPrompt, /Available tool schemas are attached to the model call/)
 })
 
+test('buildContext explains skill discovery and catalog inspection when a skill index is available', () => {
+  const built = buildContext({
+    manifest: DEFAULT_AGENT_MANIFEST,
+    skills: [{
+      id: 'movscript.policy.agent-core',
+      name: 'Agent Core Policy',
+      description: 'Core operating rules.',
+      enabled: true,
+      instruction: 'Use runtime tools according to policy.',
+      compiledInstruction: 'Use runtime tools according to policy.',
+      activationReason: 'profile',
+      resolvedPriority: 900,
+      warnings: [],
+      category: 'policy',
+      metadata: { kind: 'policy' },
+    }],
+    skillDiscovery: {
+      profileId: 'movscript.profile.default',
+      profileName: 'MovScript Default Profile',
+      catalogVersion: 'catalog-test',
+      enabledPackIds: ['movscript.pack.agent-core', 'movscript.pack.movscript'],
+      availableSkills: [
+        {
+          id: 'movscript.policy.agent-core',
+          name: 'Agent Core Policy',
+          kind: 'policy',
+          description: 'Core operating rules.',
+          active: true,
+        },
+        {
+          id: 'movscript.workflow.content-unit-proposal',
+          name: 'Content Unit Proposal',
+          kind: 'workflow',
+          description: 'Plan storyboard and keyframe proposal drafts.',
+          active: false,
+          triggerHints: ['intent:content_unit_proposal', 'keyword:分镜'],
+        },
+        {
+          id: 'movscript.expertise.storyboard.general-director',
+          name: 'General Director Storyboard Expertise',
+          kind: 'expertise',
+          description: 'Storyboard expertise.',
+          active: false,
+          useWhen: ['分镜', '镜头参数'],
+        },
+      ],
+    },
+    context: {
+      route: { pathname: '/agent' },
+      projects: [],
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+    tools: {
+      discovered: [],
+      blocked: [],
+      byName: {},
+      available: [{
+        name: 'movscript_inspect_agent_catalog',
+        source: 'runtime',
+        registered: true,
+        granted: true,
+        available: true,
+        approval: 'never',
+        requiresApproval: false,
+      }],
+    },
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 8,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    memories: [],
+    warnings: [],
+    history: [],
+    userMessage: '启动分镜导演专家技能',
+  })
+
+  const discovery = built.debugParts.find((part) => part.id === 'skills.discovery')
+  assert.ok(discovery)
+  assert.match(discovery.content, /Skill activation is automatic/)
+  assert.match(discovery.content, /movscript_inspect_agent_catalog/)
+  assert.match(discovery.content, /Enabled workflow skills:/)
+  assert.match(discovery.content, /movscript\.workflow\.content-unit-proposal/)
+  assert.match(discovery.content, /Enabled expertise skills:/)
+  assert.match(discovery.content, /movscript\.expertise\.storyboard\.general-director/)
+  assert.match(built.systemPrompt, /## Skill Discovery/)
+  assert.equal(built.promptStats.parts.some((part) => part.id === 'skills.discovery' && part.layer === 'level2_behavior'), true)
+})
+
 test('buildContext summarizes declared tool output fields for model-readable results', () => {
   const built = buildContext({
     manifest: DEFAULT_AGENT_MANIFEST,

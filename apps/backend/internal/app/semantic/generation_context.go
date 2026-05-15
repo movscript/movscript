@@ -21,16 +21,17 @@ type GenerationContextRequest struct {
 }
 
 type GenerationContext struct {
-	Target             GenerationContextTarget      `json:"target"`
-	Intent             string                       `json:"intent"`
-	Production         *domainsemantic.Production   `json:"production,omitempty"`
-	Segment            *domainsemantic.Segment      `json:"segment,omitempty"`
-	SceneMoment        *domainsemantic.SceneMoment  `json:"scene_moment,omitempty"`
-	ScriptBlock        *domainsemantic.ScriptBlock  `json:"script_block,omitempty"`
-	CreativeReferences []GenerationContextReference `json:"creative_references"`
-	AssetSlots         []domainsemantic.AssetSlot   `json:"asset_slots"`
-	Keyframes          []domainsemantic.Keyframe    `json:"keyframes"`
-	Constraints        GenerationContextConstraints `json:"constraints"`
+	Target             GenerationContextTarget        `json:"target"`
+	Intent             string                         `json:"intent"`
+	Production         *domainsemantic.Production     `json:"production,omitempty"`
+	Segment            *domainsemantic.Segment        `json:"segment,omitempty"`
+	SceneMoment        *domainsemantic.SceneMoment    `json:"scene_moment,omitempty"`
+	StoryboardLine     *domainsemantic.StoryboardLine `json:"storyboard_line,omitempty"`
+	ScriptBlock        *domainsemantic.ScriptBlock    `json:"script_block,omitempty"`
+	CreativeReferences []GenerationContextReference   `json:"creative_references"`
+	AssetSlots         []domainsemantic.AssetSlot     `json:"asset_slots"`
+	Keyframes          []domainsemantic.Keyframe      `json:"keyframes"`
+	Constraints        GenerationContextConstraints   `json:"constraints"`
 }
 
 type GenerationContextTarget struct {
@@ -101,7 +102,7 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 		},
 		Intent: intent,
 		Constraints: GenerationContextConstraints{
-			ReadOnlyEntities: []string{"production", "segment", "scene_moment", "script_block", "creative_reference", "creative_reference_state", "content_unit"},
+			ReadOnlyEntities: []string{"production", "segment", "scene_moment", "storyboard_line", "script_block", "creative_reference", "creative_reference_state", "content_unit"},
 			WriteTargets:     generationWriteTargets(intent),
 		},
 	}
@@ -133,6 +134,27 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 			result.Segment = &segment
 		}
 	}
+	if contentUnit.StoryboardLineID != nil {
+		storyboardLine, err := s.repo.LoadStoryboardLine(ctx, projectID, strconv.FormatUint(uint64(*contentUnit.StoryboardLineID), 10))
+		if err != nil {
+			return GenerationContext{}, generationContextLoadError(projectID, "load_storyboard_line", "storyboard_line", *contentUnit.StoryboardLineID, err)
+		}
+		result.StoryboardLine = &storyboardLine
+		if result.Segment == nil && storyboardLine.SegmentID != nil {
+			segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*storyboardLine.SegmentID), 10))
+			if err != nil {
+				return GenerationContext{}, generationContextLoadError(projectID, "load_storyboard_line_segment", "segment", *storyboardLine.SegmentID, err)
+			}
+			result.Segment = &segment
+		}
+		if result.SceneMoment == nil && storyboardLine.SceneMomentID != nil {
+			sceneMoment, err := s.repo.LoadSceneMoment(ctx, projectID, strconv.FormatUint(uint64(*storyboardLine.SceneMomentID), 10))
+			if err != nil {
+				return GenerationContext{}, generationContextLoadError(projectID, "load_storyboard_line_scene_moment", "scene_moment", *storyboardLine.SceneMomentID, err)
+			}
+			result.SceneMoment = &sceneMoment
+		}
+	}
 	if contentUnit.ScriptBlockID != nil {
 		scriptBlock, err := s.repo.LoadScriptBlock(ctx, projectID, strconv.FormatUint(uint64(*contentUnit.ScriptBlockID), 10))
 		if err != nil {
@@ -140,14 +162,24 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 		}
 		result.ScriptBlock = &scriptBlock
 	}
+	if result.ScriptBlock == nil {
+		fallbackID := fallbackGenerationScriptBlockID(result.SceneMoment, result.Segment)
+		if fallbackID != nil {
+			scriptBlock, err := s.repo.LoadScriptBlock(ctx, projectID, strconv.FormatUint(uint64(*fallbackID), 10))
+			if err != nil {
+				return GenerationContext{}, generationContextLoadError(projectID, "load_fallback_script_block", "script_block", *fallbackID, err)
+			}
+			result.ScriptBlock = &scriptBlock
+		}
+	}
 
-	references, err := s.collectGenerationReferences(ctx, projectID, contentUnit, result.Segment, result.SceneMoment)
+	references, err := s.collectGenerationReferences(ctx, projectID, contentUnit, result.Segment, result.SceneMoment, result.StoryboardLine)
 	if err != nil {
 		return GenerationContext{}, err
 	}
 	result.CreativeReferences = references
 
-	assetSlots, err := s.collectGenerationAssetSlots(ctx, projectID, contentUnit, result.Segment, result.SceneMoment, references)
+	assetSlots, err := s.collectGenerationAssetSlots(ctx, projectID, contentUnit, result.Segment, result.SceneMoment, result.StoryboardLine, references)
 	if err != nil {
 		return GenerationContext{}, err
 	}
@@ -162,6 +194,16 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 	}
 	result.Keyframes = keyframes
 	return result, nil
+}
+
+func fallbackGenerationScriptBlockID(sceneMoment *domainsemantic.SceneMoment, segment *domainsemantic.Segment) *uint {
+	if sceneMoment != nil && sceneMoment.ScriptBlockID != nil {
+		return sceneMoment.ScriptBlockID
+	}
+	if segment != nil && segment.ScriptBlockID != nil {
+		return segment.ScriptBlockID
+	}
+	return nil
 }
 
 func generationContextLoadError(projectID uint, step string, entityType string, entityID uint, err error) GenerationContextError {
@@ -198,7 +240,7 @@ func generationWriteTargets(intent string) []string {
 	return []string{"raw_resource", "keyframe", "resource_binding", "asset_slot_candidate"}
 }
 
-func (s *Service) collectGenerationReferences(ctx context.Context, projectID uint, contentUnit domainsemantic.ContentUnit, segment *domainsemantic.Segment, sceneMoment *domainsemantic.SceneMoment) ([]GenerationContextReference, error) {
+func (s *Service) collectGenerationReferences(ctx context.Context, projectID uint, contentUnit domainsemantic.ContentUnit, segment *domainsemantic.Segment, sceneMoment *domainsemantic.SceneMoment, storyboardLine *domainsemantic.StoryboardLine) ([]GenerationContextReference, error) {
 	owners := []struct {
 		kind string
 		id   uint
@@ -210,6 +252,12 @@ func (s *Service) collectGenerationReferences(ctx context.Context, projectID uin
 			kind string
 			id   uint
 		}{kind: "scene_moment", id: sceneMoment.ID})
+	}
+	if storyboardLine != nil {
+		owners = append(owners, struct {
+			kind string
+			id   uint
+		}{kind: "storyboard_line", id: storyboardLine.ID})
 	}
 	if segment != nil {
 		owners = append(owners, struct {
@@ -264,7 +312,7 @@ func (s *Service) collectGenerationReferences(ctx context.Context, projectID uin
 	return items, nil
 }
 
-func (s *Service) collectGenerationAssetSlots(ctx context.Context, projectID uint, contentUnit domainsemantic.ContentUnit, segment *domainsemantic.Segment, sceneMoment *domainsemantic.SceneMoment, references []GenerationContextReference) ([]domainsemantic.AssetSlot, error) {
+func (s *Service) collectGenerationAssetSlots(ctx context.Context, projectID uint, contentUnit domainsemantic.ContentUnit, segment *domainsemantic.Segment, sceneMoment *domainsemantic.SceneMoment, storyboardLine *domainsemantic.StoryboardLine, references []GenerationContextReference) ([]domainsemantic.AssetSlot, error) {
 	owners := []struct {
 		kind string
 		id   uint
@@ -276,6 +324,12 @@ func (s *Service) collectGenerationAssetSlots(ctx context.Context, projectID uin
 			kind string
 			id   uint
 		}{kind: "scene_moment", id: sceneMoment.ID})
+	}
+	if storyboardLine != nil {
+		owners = append(owners, struct {
+			kind string
+			id   uint
+		}{kind: "storyboard_line", id: storyboardLine.ID})
 	}
 	if segment != nil {
 		owners = append(owners, struct {

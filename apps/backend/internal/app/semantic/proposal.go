@@ -7,22 +7,22 @@ import (
 	"strings"
 
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
+	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 )
 
 type ProposalSegmentNode struct {
-	Action       string                    `json:"action"`
-	ID           *uint                     `json:"id"`
-	ClientID     string                    `json:"client_id"`
-	Title        string                    `json:"title"`
-	Kind         string                    `json:"kind"`
-	Summary      string                    `json:"summary"`
-	Order        int                       `json:"order"`
-	Status       string                    `json:"status"`
-	SceneMoments []ProposalSceneMomentNode `json:"scene_moments"`
+	ID            *uint                     `json:"id"`
+	ClientID      string                    `json:"client_id"`
+	Title         string                    `json:"title"`
+	Kind          string                    `json:"kind"`
+	Summary       string                    `json:"summary"`
+	Order         int                       `json:"order"`
+	Status        string                    `json:"status"`
+	ScriptBlockID *uint                     `json:"script_block_id"`
+	SceneMoments  []ProposalSceneMomentNode `json:"scene_moments"`
 }
 
 type ProposalSceneMomentNode struct {
-	Action             string                    `json:"action"`
 	ID                 *uint                     `json:"id"`
 	ClientID           string                    `json:"client_id"`
 	Title              string                    `json:"title"`
@@ -33,6 +33,7 @@ type ProposalSceneMomentNode struct {
 	Description        string                    `json:"description"`
 	Order              int                       `json:"order"`
 	Status             string                    `json:"status"`
+	ScriptBlockID      *uint                     `json:"script_block_id"`
 	ContentUnits       []ProposalContentUnitNode `json:"content_units"`
 	CreativeReferences []ProposalCreativeRefNode `json:"creative_references"`
 	AssetSlots         []ProposalAssetSlotNode   `json:"asset_slots"`
@@ -40,22 +41,21 @@ type ProposalSceneMomentNode struct {
 }
 
 type ProposalContentUnitNode struct {
-	Action      string                 `json:"action"`
-	ID          *uint                  `json:"id"`
-	ClientID    string                 `json:"client_id"`
-	Title       string                 `json:"title"`
-	Kind        string                 `json:"kind"`
-	Description string                 `json:"description"`
-	ShotSize    string                 `json:"shot_size"`
-	CameraAngle string                 `json:"camera_angle"`
-	DurationSec float64                `json:"duration_sec"`
-	Order       int                    `json:"order"`
-	Status      string                 `json:"status"`
-	Keyframes   []ProposalKeyframeNode `json:"keyframes"`
+	ID            *uint                  `json:"id"`
+	ClientID      string                 `json:"client_id"`
+	Title         string                 `json:"title"`
+	Kind          string                 `json:"kind"`
+	Description   string                 `json:"description"`
+	ShotSize      string                 `json:"shot_size"`
+	CameraAngle   string                 `json:"camera_angle"`
+	DurationSec   float64                `json:"duration_sec"`
+	Order         int                    `json:"order"`
+	Status        string                 `json:"status"`
+	ScriptBlockID *uint                  `json:"script_block_id"`
+	Keyframes     []ProposalKeyframeNode `json:"keyframes"`
 }
 
 type ProposalKeyframeNode struct {
-	Action      string `json:"action"`
 	ID          *uint  `json:"id"`
 	ClientID    string `json:"client_id"`
 	Title       string `json:"title"`
@@ -66,7 +66,6 @@ type ProposalKeyframeNode struct {
 }
 
 type ProposalCreativeRefNode struct {
-	Action   string                    `json:"action"`
 	ID       *uint                     `json:"id"`
 	ClientID string                    `json:"client_id"`
 	Name     string                    `json:"name"`
@@ -83,7 +82,6 @@ type ProposalCreativeRefState struct {
 }
 
 type ProposalAssetSlotNode struct {
-	Action      string `json:"action"`
 	ID          *uint  `json:"id"`
 	ClientID    string `json:"client_id"`
 	Name        string `json:"name"`
@@ -93,9 +91,10 @@ type ProposalAssetSlotNode struct {
 }
 
 type ApplyProductionProposalRequest struct {
-  ProductionID  uint          `json:"production_id" binding:"required"`
-  ProposalScope string        `json:"proposal_scope"`
-  Proposal      *ProposalTree `json:"proposal"`
+	Mode          string        `json:"mode"`
+	ProductionID  uint          `json:"production_id" binding:"required"`
+	ProposalScope string        `json:"proposal_scope"`
+	Proposal      *ProposalTree `json:"proposal"`
 }
 
 type ProposalTree struct {
@@ -154,6 +153,9 @@ func (s *Service) ApplyProductionProposal(ctx context.Context, projectID uint, r
 	if req.Proposal == nil {
 		return nil, ErrInvalidInput{Err: errors.New("proposal is required")}
 	}
+	if req.Mode != "snapshot" {
+		return nil, ErrInvalidInput{Err: errors.New("production proposal requires mode snapshot")}
+	}
 	if err := s.ensureProductionInProject(ctx, projectID, req.ProductionID); err != nil {
 		return nil, err
 	}
@@ -174,6 +176,9 @@ func (s *Service) PreviewProductionProposalApply(ctx context.Context, projectID 
 	}
 	if req.Proposal == nil {
 		return nil, ErrInvalidInput{Err: errors.New("proposal is required")}
+	}
+	if req.Mode != "snapshot" {
+		return nil, ErrInvalidInput{Err: errors.New("production proposal requires mode snapshot")}
 	}
 	if err := s.ensureProductionInProject(ctx, projectID, req.ProductionID); err != nil {
 		return nil, err
@@ -224,41 +229,39 @@ func (s *Service) applyProductionProposalInTx(ctx context.Context, projectID uin
 
 func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uint, req ApplyProductionProposalRequest) (*ApplyProductionProposalResponse, error) {
 	resp := &ApplyProductionProposalResponse{ProductionID: req.ProductionID}
+	keptSegmentIDs := make(map[uint]struct{})
+	keptSceneMomentIDs := make(map[uint]struct{})
+	keptContentUnitIDs := make(map[uint]struct{})
+	keptKeyframeIDs := make(map[uint]struct{})
+	keptAssetSlotIDs := make(map[uint]struct{})
 	for i, segNode := range req.Proposal.Segments {
 		var segmentID uint
-		switch normalizeProposalAction(segNode.Action) {
-		case "reuse":
-			if segNode.ID == nil {
-				return nil, missingProposalID("segment", segNode.ClientID, "reuse")
-			}
+		if segNode.ID != nil && *segNode.ID > 0 {
 			if err := s.ensureSegmentInProject(ctx, projectID, *segNode.ID); err != nil {
 				return nil, err
 			}
-			segmentID = *segNode.ID
-		case "update":
-			if segNode.ID == nil {
-				return nil, missingProposalID("segment", segNode.ClientID, "update")
-			}
 			seg, err := s.PatchSegment(ctx, projectID, fmt.Sprint(*segNode.ID), PatchSegmentInput{
-				ProductionID: &req.ProductionID,
-				Kind:         segNode.Kind,
-				Order:        segNode.Order,
-				Title:        segNode.Title,
-				Summary:      segNode.Summary,
-				Status:       segNode.Status,
+				ProductionID:  &req.ProductionID,
+				ScriptBlockID: segNode.ScriptBlockID,
+				Kind:          segNode.Kind,
+				Order:         fallbackInt(segNode.Order, i+1),
+				Title:         segNode.Title,
+				Summary:       segNode.Summary,
+				Status:        segNode.Status,
 			})
 			if err != nil {
 				return nil, err
 			}
 			segmentID = seg.ID
-		case "create":
+		} else {
 			seg, err := s.CreateSegment(ctx, projectID, CreateSegmentInput{
-				ProductionID: &req.ProductionID,
-				Kind:         segNode.Kind,
-				Order:        fallbackInt(segNode.Order, i+1),
-				Title:        segNode.Title,
-				Summary:      segNode.Summary,
-				Status:       domainsemantic.ProposalDraftStatus(segNode.Status),
+				ProductionID:  &req.ProductionID,
+				ScriptBlockID: segNode.ScriptBlockID,
+				Kind:          segNode.Kind,
+				Order:         fallbackInt(segNode.Order, i+1),
+				Title:         segNode.Title,
+				Summary:       segNode.Summary,
+				Status:        domainsemantic.ProposalDraftStatus(segNode.Status),
 			})
 			if err != nil {
 				return nil, err
@@ -266,53 +269,45 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 			resp.Segments = append(resp.Segments, seg)
 			resp.Counts.SegmentsCreated++
 			segmentID = seg.ID
-		default:
-			return nil, invalidProposalAction("segment", segNode.ClientID, segNode.Action)
 		}
+		keptSegmentIDs[segmentID] = struct{}{}
 
 		for j, smNode := range segNode.SceneMoments {
 			var sceneMomentID uint
-			switch normalizeProposalAction(smNode.Action) {
-			case "reuse":
-				if smNode.ID == nil {
-					return nil, missingProposalID("scene_moment", smNode.ClientID, "reuse")
-				}
+			if smNode.ID != nil && *smNode.ID > 0 {
 				if err := s.ensureSceneMomentInProject(ctx, projectID, *smNode.ID); err != nil {
 					return nil, err
 				}
-				sceneMomentID = *smNode.ID
-			case "update":
-				if smNode.ID == nil {
-					return nil, missingProposalID("scene_moment", smNode.ClientID, "update")
-				}
 				segIDPtr := &segmentID
 				sm, err := s.PatchSceneMoment(ctx, projectID, fmt.Sprint(*smNode.ID), PatchSceneMomentInput{
-					SegmentID:    segIDPtr,
-					Order:        smNode.Order,
-					Title:        smNode.Title,
-					Description:  smNode.Description,
-					TimeText:     smNode.TimeText,
-					LocationText: smNode.LocationText,
-					ActionText:   smNode.ActionText,
-					Mood:         smNode.Mood,
-					Status:       smNode.Status,
+					SegmentID:     segIDPtr,
+					ScriptBlockID: smNode.ScriptBlockID,
+					Order:         smNode.Order,
+					Title:         smNode.Title,
+					Description:   smNode.Description,
+					TimeText:      smNode.TimeText,
+					LocationText:  smNode.LocationText,
+					ActionText:    smNode.ActionText,
+					Mood:          smNode.Mood,
+					Status:        smNode.Status,
 				})
 				if err != nil {
 					return nil, err
 				}
 				sceneMomentID = sm.ID
-			case "create":
+			} else {
 				segIDPtr := &segmentID
 				sm, err := s.CreateSceneMoment(ctx, projectID, CreateSceneMomentInput{
-					SegmentID:    segIDPtr,
-					Order:        fallbackInt(smNode.Order, j+1),
-					Title:        smNode.Title,
-					Description:  smNode.Description,
-					TimeText:     smNode.TimeText,
-					LocationText: smNode.LocationText,
-					ActionText:   smNode.ActionText,
-					Mood:         smNode.Mood,
-					Status:       domainsemantic.ProposalDraftStatus(smNode.Status),
+					SegmentID:     segIDPtr,
+					ScriptBlockID: smNode.ScriptBlockID,
+					Order:         fallbackInt(smNode.Order, j+1),
+					Title:         smNode.Title,
+					Description:   smNode.Description,
+					TimeText:      smNode.TimeText,
+					LocationText:  smNode.LocationText,
+					ActionText:    smNode.ActionText,
+					Mood:          smNode.Mood,
+					Status:        domainsemantic.ProposalDraftStatus(smNode.Status),
 				})
 				if err != nil {
 					return nil, err
@@ -320,48 +315,17 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 				resp.SceneMoments = append(resp.SceneMoments, sm)
 				resp.Counts.SceneMomentsCreated++
 				sceneMomentID = sm.ID
-			default:
-				return nil, invalidProposalAction("scene_moment", smNode.ClientID, smNode.Action)
 			}
+			keptSceneMomentIDs[sceneMomentID] = struct{}{}
 
 			for _, crNode := range smNode.CreativeReferences {
-				var refID uint
-				switch normalizeProposalAction(crNode.Action) {
-				case "reuse":
-					if crNode.ID == nil {
-						return nil, missingProposalID("creative_reference", crNode.ClientID, "reuse")
-					}
-					if err := s.ensureCreativeReferenceInProject(ctx, projectID, *crNode.ID); err != nil {
-						return nil, err
-					}
-					refID = *crNode.ID
-				case "update":
-					if crNode.ID == nil {
-						return nil, missingProposalID("creative_reference", crNode.ClientID, "update")
-					}
-					ref, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(*crNode.ID), CreativeReferenceInput{
-						Kind:   crNode.Kind,
-						Name:   crNode.Name,
-						Status: domainsemantic.ProposalDraftStatusValue,
-					})
-					if err != nil {
-						return nil, err
-					}
-					refID = ref.ID
-				case "create":
-					ref, err := s.CreateCreativeReference(ctx, projectID, CreativeReferenceInput{
-						Kind:   crNode.Kind,
-						Name:   crNode.Name,
-						Status: domainsemantic.ProposalDraftStatusValue,
-					})
-					if err != nil {
-						return nil, err
-					}
-					resp.Counts.CreativeReferencesCreated++
-					refID = ref.ID
-				default:
-					return nil, invalidProposalAction("creative_reference", crNode.ClientID, crNode.Action)
+				if crNode.ID == nil {
+					return nil, missingProposalID("creative_reference", crNode.ClientID, "snapshot")
 				}
+				if err := s.ensureCreativeReferenceInProject(ctx, projectID, *crNode.ID); err != nil {
+					return nil, err
+				}
+				refID := *crNode.ID
 
 				if refID > 0 && sceneMomentID > 0 {
 					var stateID *uint
@@ -400,18 +364,9 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 
 			for k, cuNode := range smNode.ContentUnits {
 				var contentUnitID uint
-				switch normalizeProposalAction(cuNode.Action) {
-				case "reuse":
-					if cuNode.ID == nil {
-						return nil, missingProposalID("content_unit", cuNode.ClientID, "reuse")
-					}
+				if cuNode.ID != nil && *cuNode.ID > 0 {
 					if err := s.ensureContentUnitInProject(ctx, projectID, *cuNode.ID); err != nil {
 						return nil, err
-					}
-					contentUnitID = *cuNode.ID
-				case "update":
-					if cuNode.ID == nil {
-						return nil, missingProposalID("content_unit", cuNode.ClientID, "update")
 					}
 					smIDPtr := &sceneMomentID
 					prodIDPtr := &req.ProductionID
@@ -420,6 +375,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 						ProductionID:  prodIDPtr,
 						SegmentID:     segIDPtr,
 						SceneMomentID: smIDPtr,
+						ScriptBlockID: cuNode.ScriptBlockID,
 						Kind:          cuNode.Kind,
 						Order:         cuNode.Order,
 						Title:         cuNode.Title,
@@ -433,7 +389,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 						return nil, err
 					}
 					contentUnitID = cu.ID
-				case "create":
+				} else {
 					smIDPtr := &sceneMomentID
 					prodIDPtr := &req.ProductionID
 					segIDPtr := &segmentID
@@ -441,6 +397,7 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 						ProductionID:  prodIDPtr,
 						SegmentID:     segIDPtr,
 						SceneMomentID: smIDPtr,
+						ScriptBlockID: cuNode.ScriptBlockID,
 						Kind:          cuNode.Kind,
 						Order:         fallbackInt(cuNode.Order, k+1),
 						Title:         cuNode.Title,
@@ -456,29 +413,19 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 					resp.ContentUnits = append(resp.ContentUnits, cu)
 					resp.Counts.ContentUnitsCreated++
 					contentUnitID = cu.ID
-				default:
-					return nil, invalidProposalAction("content_unit", cuNode.ClientID, cuNode.Action)
 				}
+				keptContentUnitIDs[contentUnitID] = struct{}{}
 				for l, keyframeNode := range cuNode.Keyframes {
-					if err := s.applyProposalKeyframe(ctx, projectID, req.ProductionID, sceneMomentID, &contentUnitID, keyframeNode, l, resp); err != nil {
+					if err := s.applyProposalKeyframe(ctx, projectID, req.ProductionID, sceneMomentID, &contentUnitID, keyframeNode, l, resp, keptKeyframeIDs); err != nil {
 						return nil, err
 					}
 				}
 			}
 
 			for _, asNode := range smNode.AssetSlots {
-				switch normalizeProposalAction(asNode.Action) {
-				case "reuse":
-					if asNode.ID == nil {
-						return nil, missingProposalID("asset_slot", asNode.ClientID, "reuse")
-					}
+				if asNode.ID != nil && *asNode.ID > 0 {
 					if err := s.ensureAssetSlotInProject(ctx, projectID, *asNode.ID); err != nil {
 						return nil, err
-					}
-					continue
-				case "update":
-					if asNode.ID == nil {
-						return nil, missingProposalID("asset_slot", asNode.ClientID, "update")
 					}
 					smIDPtr := &sceneMomentID
 					prodIDPtr := &req.ProductionID
@@ -494,10 +441,8 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 					}); err != nil {
 						return nil, err
 					}
+					keptAssetSlotIDs[*asNode.ID] = struct{}{}
 					continue
-				case "create":
-				default:
-					return nil, invalidProposalAction("asset_slot", asNode.ClientID, asNode.Action)
 				}
 				smIDPtr := &sceneMomentID
 				prodIDPtr := &req.ProductionID
@@ -516,33 +461,28 @@ func (s *Service) applyProductionProposalTree(ctx context.Context, projectID uin
 				}
 				resp.AssetSlots = append(resp.AssetSlots, slot)
 				resp.Counts.AssetSlotsCreated++
+				keptAssetSlotIDs[slot.ID] = struct{}{}
 			}
 
 			for l, keyframeNode := range smNode.Keyframes {
-				if err := s.applyProposalKeyframe(ctx, projectID, req.ProductionID, sceneMomentID, nil, keyframeNode, l, resp); err != nil {
+				if err := s.applyProposalKeyframe(ctx, projectID, req.ProductionID, sceneMomentID, nil, keyframeNode, l, resp, keptKeyframeIDs); err != nil {
 					return nil, err
 				}
 			}
 		}
 	}
+	if err := s.applyProductionProposalSnapshotOmissions(ctx, projectID, req, keptSegmentIDs, keptSceneMomentIDs, keptContentUnitIDs, keptKeyframeIDs, keptAssetSlotIDs); err != nil {
+		return nil, err
+	}
 	return resp, nil
 }
 
-func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, productionID uint, sceneMomentID uint, contentUnitID *uint, node ProposalKeyframeNode, index int, resp *ApplyProductionProposalResponse) error {
+func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, productionID uint, sceneMomentID uint, contentUnitID *uint, node ProposalKeyframeNode, index int, resp *ApplyProductionProposalResponse, keptKeyframeIDs map[uint]struct{}) error {
 	prodIDPtr := &productionID
 	sceneMomentIDPtr := &sceneMomentID
-	switch normalizeProposalAction(node.Action) {
-	case "reuse":
-		if node.ID == nil {
-			return missingProposalID("keyframe", node.ClientID, "reuse")
-		}
+	if node.ID != nil && *node.ID > 0 {
 		if err := s.ensureKeyframeInProject(ctx, projectID, *node.ID); err != nil {
 			return err
-		}
-		return nil
-	case "update":
-		if node.ID == nil {
-			return missingProposalID("keyframe", node.ClientID, "update")
 		}
 		_, err := s.PatchKeyframe(ctx, projectID, fmt.Sprint(*node.ID), KeyframeInput{
 			ProductionID:  prodIDPtr,
@@ -554,34 +494,26 @@ func (s *Service) applyProposalKeyframe(ctx context.Context, projectID uint, pro
 			Order:         node.Order,
 			Status:        node.Status,
 		})
+		keptKeyframeIDs[*node.ID] = struct{}{}
 		return err
-	case "create":
-		keyframe, err := s.CreateKeyframe(ctx, projectID, KeyframeInput{
-			ProductionID:  prodIDPtr,
-			SceneMomentID: sceneMomentIDPtr,
-			ContentUnitID: contentUnitID,
-			Title:         node.Title,
-			Description:   node.Description,
-			Prompt:        node.Prompt,
-			Order:         fallbackInt(node.Order, index+1),
-			Status:        domainsemantic.ProposalDraftStatus(node.Status),
-		})
-		if err != nil {
-			return err
-		}
-		resp.Keyframes = append(resp.Keyframes, keyframe)
-		resp.Counts.KeyframesCreated++
-		return nil
-	default:
-		return invalidProposalAction("keyframe", node.ClientID, node.Action)
 	}
-}
-
-func normalizeProposalAction(action string) string {
-	if action == "" {
-		return "create"
+	keyframe, err := s.CreateKeyframe(ctx, projectID, KeyframeInput{
+		ProductionID:  prodIDPtr,
+		SceneMomentID: sceneMomentIDPtr,
+		ContentUnitID: contentUnitID,
+		Title:         node.Title,
+		Description:   node.Description,
+		Prompt:        node.Prompt,
+		Order:         fallbackInt(node.Order, index+1),
+		Status:        domainsemantic.ProposalDraftStatus(node.Status),
+	})
+	if err != nil {
+		return err
 	}
-	return action
+	resp.Keyframes = append(resp.Keyframes, keyframe)
+	resp.Counts.KeyframesCreated++
+	keptKeyframeIDs[keyframe.ID] = struct{}{}
+	return nil
 }
 
 func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []ProductionProposalPreviewSemanticChange {
@@ -593,7 +525,7 @@ func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []Pro
 		segmentTitle := fallbackProposalTitle(segment.Title, segment.ClientID, "编排段")
 		changes = append(changes, ProductionProposalPreviewSemanticChange{
 			Kind:     "segment",
-			Action:   normalizeProposalAction(segment.Action),
+			Action:   snapshotChangeAction(segment.ID),
 			Title:    segmentTitle,
 			ClientID: segment.ClientID,
 			ID:       segment.ID,
@@ -602,7 +534,7 @@ func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []Pro
 			momentTitle := fallbackProposalTitle(moment.Title, moment.ClientID, "情景")
 			changes = append(changes, ProductionProposalPreviewSemanticChange{
 				Kind:     "scene_moment",
-				Action:   normalizeProposalAction(moment.Action),
+				Action:   snapshotChangeAction(moment.ID),
 				Title:    momentTitle,
 				Parent:   segmentTitle,
 				ClientID: moment.ClientID,
@@ -611,7 +543,7 @@ func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []Pro
 			for _, ref := range moment.CreativeReferences {
 				changes = append(changes, ProductionProposalPreviewSemanticChange{
 					Kind:     "creative_reference",
-					Action:   normalizeProposalAction(ref.Action),
+					Action:   snapshotChangeAction(ref.ID),
 					Title:    fallbackProposalTitle(ref.Name, ref.ClientID, "设定资料"),
 					Parent:   segmentTitle + " / " + momentTitle,
 					ClientID: ref.ClientID,
@@ -621,7 +553,7 @@ func buildProductionProposalPreviewSemanticChanges(proposal *ProposalTree) []Pro
 			for _, slot := range moment.AssetSlots {
 				changes = append(changes, ProductionProposalPreviewSemanticChange{
 					Kind:     "asset_slot",
-					Action:   normalizeProposalAction(slot.Action),
+					Action:   snapshotChangeAction(slot.ID),
 					Title:    fallbackProposalTitle(slot.Name, slot.ClientID, "素材需求"),
 					Parent:   segmentTitle + " / " + momentTitle,
 					ClientID: slot.ClientID,
@@ -641,7 +573,7 @@ func buildProductionProposalPreviewWarnings(proposal *ProposalTree, resp *ApplyP
 	if resp == nil || resp.Counts.SegmentsCreated == 0 && len(resp.Segments) == 0 {
 		warnings = append(warnings, ProductionProposalPreviewWarning{
 			Code:    "NO_SEGMENT_WRITE",
-			Message: "本次预览没有创建新的编排段；如果只复用或更新，请确认目标 ID 都来自当前项目。",
+			Message: "本次预览没有创建新的编排段；snapshot apply 会以保留的 id 为准，未出现在草稿里的旧编排段将被删除。",
 		})
 	}
 	for _, segment := range proposal.Segments {
@@ -663,6 +595,124 @@ func buildProductionProposalPreviewWarnings(proposal *ProposalTree, resp *ApplyP
 	return warnings
 }
 
+func (s *Service) applyProductionProposalSnapshotOmissions(
+	ctx context.Context,
+	projectID uint,
+	req ApplyProductionProposalRequest,
+	keptSegmentIDs map[uint]struct{},
+	keptSceneMomentIDs map[uint]struct{},
+	keptContentUnitIDs map[uint]struct{},
+	keptKeyframeIDs map[uint]struct{},
+	keptAssetSlotIDs map[uint]struct{},
+) error {
+	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ProductionID: req.ProductionID})
+	if err != nil {
+		return err
+	}
+	productionSegmentIDs := make(map[uint]struct{}, len(segments))
+	for _, segment := range segments {
+		productionSegmentIDs[segment.ID] = struct{}{}
+	}
+
+	moments, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, ScriptBlockID: 0})
+	if err != nil {
+		return err
+	}
+	productionSceneMomentIDs := make(map[uint]struct{})
+	for _, moment := range moments {
+		if moment.SegmentID == nil {
+			continue
+		}
+		if _, belongsToProduction := productionSegmentIDs[*moment.SegmentID]; belongsToProduction {
+			productionSceneMomentIDs[moment.ID] = struct{}{}
+		}
+	}
+
+	contentUnits, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ProductionID: req.ProductionID})
+	if err != nil {
+		return err
+	}
+	for _, unit := range contentUnits {
+		if _, ok := keptContentUnitIDs[unit.ID]; ok {
+			continue
+		}
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindContentUnit, fmt.Sprint(unit.ID)); err != nil {
+			return err
+		}
+	}
+
+	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ProductionID: req.ProductionID})
+	if err != nil {
+		return err
+	}
+	for _, keyframe := range keyframes {
+		if _, ok := keptKeyframeIDs[keyframe.ID]; ok {
+			continue
+		}
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindKeyframe, fmt.Sprint(keyframe.ID)); err != nil {
+			return err
+		}
+	}
+
+	slots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, ProductionID: req.ProductionID, IncludeInternal: "true"})
+	if err != nil {
+		return err
+	}
+	for _, slot := range slots {
+		if _, ok := keptAssetSlotIDs[slot.ID]; ok {
+			continue
+		}
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindAssetSlot, fmt.Sprint(slot.ID)); err != nil {
+			return err
+		}
+	}
+
+	usages, err := s.repo.ListCreativeReferenceUsages(ctx, CreativeReferenceUsageFilter{ProjectID: projectID, OwnerType: "scene_moment"})
+	if err != nil {
+		return err
+	}
+	for _, usage := range usages {
+		if _, belongsToProduction := productionSceneMomentIDs[usage.OwnerID]; !belongsToProduction {
+			continue
+		}
+		if _, keepMoment := keptSceneMomentIDs[usage.OwnerID]; keepMoment {
+			continue
+		}
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "creative_reference_usage", fmt.Sprint(usage.ID)); err != nil {
+			return err
+		}
+	}
+
+	for _, moment := range moments {
+		if _, belongsToProduction := productionSceneMomentIDs[moment.ID]; !belongsToProduction {
+			continue
+		}
+		if _, ok := keptSceneMomentIDs[moment.ID]; ok {
+			continue
+		}
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "scene_moment", fmt.Sprint(moment.ID)); err != nil {
+			return err
+		}
+	}
+
+	for _, segment := range segments {
+		if _, ok := keptSegmentIDs[segment.ID]; ok {
+			continue
+		}
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "segment", fmt.Sprint(segment.ID)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func snapshotChangeAction(id *uint) string {
+	if id != nil && *id > 0 {
+		return "update"
+	}
+	return "create"
+}
+
 func fallbackProposalTitle(title string, clientID string, fallback string) string {
 	if strings.TrimSpace(title) != "" {
 		return strings.TrimSpace(title)
@@ -675,8 +725,4 @@ func fallbackProposalTitle(title string, clientID string, fallback string) strin
 
 func missingProposalID(kind string, clientID string, action string) error {
 	return ErrInvalidInput{Err: fmt.Errorf("%s proposal %q requires id for action %q", kind, clientID, action)}
-}
-
-func invalidProposalAction(kind string, clientID string, action string) error {
-	return ErrInvalidInput{Err: fmt.Errorf("%s proposal %q has unsupported action %q", kind, clientID, action)}
 }

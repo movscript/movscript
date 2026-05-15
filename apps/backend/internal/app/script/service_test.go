@@ -41,7 +41,7 @@ func TestNormalizeDefaultsBackfillsContentFromRawSource(t *testing.T) {
 	}
 }
 
-func TestEnsureInitialVersionSyncsRelationsWithoutHooks(t *testing.T) {
+func TestEnsureInitialVersionCreatesImmutableSnapshotWithoutHooks(t *testing.T) {
 	db := newScriptTestDB(t)
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}))
 	ctx := context.Background()
@@ -59,6 +59,7 @@ func TestEnsureInitialVersionSyncsRelationsWithoutHooks(t *testing.T) {
 	if err := db.First(&version, "project_id = ? AND script_id = ? AND version_number = 1", 1, item.ID).Error; err != nil {
 		t.Fatalf("load version: %v", err)
 	}
+	originalUpdatedAt := version.UpdatedAt
 	assertScriptRelationExists(t, db, item.ID, version.ID, model.EntityRelationTypeHasVersion, "confirmed")
 
 	updated, err := service.Update(ctx, UpdateInput{
@@ -71,8 +72,11 @@ func TestEnsureInitialVersionSyncsRelationsWithoutHooks(t *testing.T) {
 	if err := db.First(&version, "project_id = ? AND script_id = ? AND version_number = 1", 1, updated.ID).Error; err != nil {
 		t.Fatalf("reload version: %v", err)
 	}
-	if version.Title != "Pilot Revised" {
-		t.Fatalf("version title = %q, want revised", version.Title)
+	if version.Title != "Pilot" {
+		t.Fatalf("version title = %q, want original snapshot", version.Title)
+	}
+	if !version.UpdatedAt.Equal(originalUpdatedAt) {
+		t.Fatalf("version updated_at changed after script update: got %v, want %v", version.UpdatedAt, originalUpdatedAt)
 	}
 	assertScriptRelationExists(t, db, updated.ID, version.ID, model.EntityRelationTypeHasVersion, "confirmed")
 }

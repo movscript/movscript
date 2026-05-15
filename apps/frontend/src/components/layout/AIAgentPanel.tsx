@@ -67,7 +67,7 @@ import {
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
 import { actionableRunForPlan, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, plannerRunIdForPlanAction, shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
-import { buildDraftReviewPath } from '@/lib/draftDomainModel'
+import { buildDraftArtifactReviewPath, buildDraftReviewPath } from '@/lib/draftDomainModel'
 import {
   AgentBody,
   AgentChatMessage,
@@ -2069,10 +2069,12 @@ function RunActivityPanel({
   defaultOpen?: boolean
   className?: string
 }) {
+  const navigate = useNavigate()
   const { i18n } = useTranslation()
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const displayData = displayRunActivity({ activity, run, events })
   if (!displayData) return null
+  const runId = run?.id ?? activity?.runId
 
   const items = [
     ...displayData.steps.map((step) => ({
@@ -2125,6 +2127,24 @@ function RunActivityPanel({
           <span className="truncate">{title}</span>
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
+          {runId && (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              className="h-5 px-1.5 text-[9px]"
+              title="打开完整运行详情"
+              aria-label="打开完整运行详情"
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                navigate(`/agent/runs/${encodeURIComponent(runId)}`)
+              }}
+            >
+              <Route size={9} />
+              详情
+            </Button>
+          )}
           <Badge variant={runStatusVariant(displayData.status)} className="text-[9px] leading-4 px-1.5 py-0">
             {displayData.status.replace(/_/g, ' ')}
           </Badge>
@@ -2191,9 +2211,11 @@ function RunActivityTitleBubble({
   title?: string
   className?: string
 }) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const displayData = displayRunActivity({ activity, run, events })
   if (!displayData) return null
+  const runId = run?.id ?? activity?.runId
 
   const openCard = () => setOpen(true)
   if (open) {
@@ -2211,27 +2233,43 @@ function RunActivityTitleBubble({
 
   return (
     <div className={cn('mt-2 text-xs', className)}>
-      <button
-        type="button"
-        onDoubleClick={openCard}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') openCard()
-        }}
-        className="flex w-full min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-background/70 px-2.5 py-2 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        title="双击打开运行过程"
-        aria-expanded={open}
-      >
-        <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
-          <Workflow size={12} />
-          <span className="truncate">{title}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5">
-          <Badge variant={runStatusVariant(displayData.status)} className="text-[9px] leading-4 px-1.5 py-0">
-            {displayData.status.replace(/_/g, ' ')}
-          </Badge>
-          <span className="text-[9px] text-muted-foreground">{activitySummary(displayData)}</span>
-        </span>
-      </button>
+      <div className="flex w-full min-w-0 items-center gap-1 rounded-md border border-border bg-background/70 transition-colors hover:bg-muted/30">
+        <button
+          type="button"
+          onDoubleClick={openCard}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') openCard()
+          }}
+          className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2.5 py-2 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          title="双击打开运行过程"
+          aria-expanded={open}
+        >
+          <span className="flex min-w-0 items-center gap-1.5 font-medium text-foreground">
+            <Workflow size={12} />
+            <span className="truncate">{title}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <Badge variant={runStatusVariant(displayData.status)} className="text-[9px] leading-4 px-1.5 py-0">
+              {displayData.status.replace(/_/g, ' ')}
+            </Badge>
+            <span className="text-[9px] text-muted-foreground">{activitySummary(displayData)}</span>
+          </span>
+        </button>
+        {runId && (
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="mr-1 h-6 shrink-0 px-1.5 text-[9px]"
+            title="打开完整运行详情"
+            aria-label="打开完整运行详情"
+            onClick={() => navigate(`/agent/runs/${encodeURIComponent(runId)}`)}
+          >
+            <Route size={10} />
+            详情
+          </Button>
+        )}
+      </div>
     </div>
   )
 }
@@ -3138,7 +3176,7 @@ function AgentDraftResultCards({ artifacts }: { artifacts?: AgentTaskArtifactRef
         const title = draft?.title ?? artifact?.title ?? draftId
         const kind = draft?.kind ?? artifact?.draftKind
         const updatedAt = draft?.updatedAt ?? artifact?.updatedAt
-        const openPath = draft ? buildDraftReviewPath(draft) : null
+        const openPath = draft ? buildDraftReviewPath(draft) : artifact ? buildDraftArtifactReviewPath(artifact) : null
         return (
           <div key={draftId} className="rounded-md border border-border bg-background/70 px-2.5 py-2 text-xs">
             <div className="flex min-w-0 items-start justify-between gap-2">
@@ -3158,7 +3196,7 @@ function AgentDraftResultCards({ artifacts }: { artifacts?: AgentTaskArtifactRef
                 size="xs"
                 variant="outline"
                 className="h-6 shrink-0 px-1.5 text-[10px]"
-                disabled={draftsQuery.isLoading && !draft}
+                disabled={!openPath && draftsQuery.isLoading && !draft}
                 onClick={() => navigate(openPath ?? '/agent/drafts')}
               >
                 <Route size={10} />
@@ -4154,6 +4192,7 @@ function ChatView({
   const activeSendAbortControllerRef = useRef<AbortController | null>(null)
   const streamingAssistantMessageIdRef = useRef<string | null>(null)
   const streamingAssistantTextRef = useRef('')
+  const streamingAssistantTurnsRef = useRef<Map<number, string>>(new Map())
   const streamingFlushTimerRef = useRef<number | null>(null)
   const processedExternalTaskRequestIdRef = useRef<string | null>(null)
   const threadRef = useRef<HTMLDivElement>(null)
@@ -4663,17 +4702,27 @@ function ChatView({
     }
     streamingAssistantMessageIdRef.current = null
     streamingAssistantTextRef.current = ''
+    streamingAssistantTurnsRef.current = new Map()
     setStreamingAssistantMessageId(null)
     setStreamingAssistantText('')
   }, [])
 
-  const updateStreamingAssistantText = useCallback((runId: string, text: string) => {
+  const updateStreamingAssistantText = useCallback((runId: string, text: string, roundIndex?: number) => {
     if (!text.trim()) return
     const messageId = streamingAssistantMessageIdRef.current ?? `stream-${runId}`
+    const turnKey = typeof roundIndex === 'number' ? roundIndex : 0
+    const turns = new Map(streamingAssistantTurnsRef.current)
+    turns.set(turnKey, text)
+    streamingAssistantTurnsRef.current = turns
+    const combined = Array.from(turns.entries())
+      .sort(([left], [right]) => left - right)
+      .map(([, content]) => content.trim())
+      .filter(Boolean)
+      .join('\n\n')
     streamingAssistantMessageIdRef.current = messageId
-    streamingAssistantTextRef.current = text
+    streamingAssistantTextRef.current = combined
     setStreamingAssistantMessageId((current) => current ?? messageId)
-    setStreamingAssistantText((current) => current || text)
+    setStreamingAssistantText((current) => (current === combined ? current : combined))
     if (streamingFlushTimerRef.current !== null) return
     streamingFlushTimerRef.current = window.setTimeout(() => {
       streamingFlushTimerRef.current = null
@@ -4743,7 +4792,7 @@ function ChatView({
       onRunUpdate: (nextRun) => setConversationRun(conv.id, nextRun, { approving: true, loading: true }),
       onStreamEvent: recordLiveTraceEvent,
       onAssistantDelta: (event) => {
-        updateStreamingAssistantText(event.runId, event.accumulated)
+        updateStreamingAssistantText(event.runId, event.accumulated, event.roundIndex)
       },
     })
   }, [conv.id, recordLiveTraceEvent, setConversationRun, updateStreamingAssistantText])
@@ -5069,6 +5118,11 @@ function ChatView({
     timeoutMs?: number
     omitDebugArtifacts?: boolean
   } = {}): Promise<AgentSendDraft> => {
+    const canUseExternalTask = !!externalTask
+      && !externalTask.settledAt
+      && (externalTask.status === 'queued' || externalTask.status === 'claimed')
+    const taskPayload = canUseExternalTask && !options.clientInput && options.message === undefined ? externalTask?.payload : undefined
+    const taskRequestId = canUseExternalTask ? pageToolRequestId : undefined
     const text = (options.message ?? input).trim()
     const sentAttachments = options.message === undefined
       ? composerAttachments
@@ -5081,12 +5135,30 @@ function ChatView({
     const runtimeMessage = options.clientInput?.message ?? normalizeAgentCommandMessage(visibleUserContent)
     const diagnosticCommand = isDiagnosticAgentCommand(runtimeMessage)
     const requestedManifest = options.agentManifest ?? activeConversationManifest
-    const clientInput = options.clientInput ?? buildAgentClientInput({
-      message: runtimeMessage,
-      attachments: sentAttachments,
-      projectId: options.projectId ?? currentProject?.ID,
-      labels: contextLabels,
-    })
+    const clientInput = options.clientInput
+      ?? (taskPayload?.clientInput
+        ? {
+            ...taskPayload.clientInput,
+            message: runtimeMessage,
+            ...(sentAttachments.length > 0
+              ? {
+                  attachments: sentAttachments.map((attachment) => ({
+                    id: attachment.id,
+                    name: attachment.name,
+                    type: attachment.type,
+                    mimeType: attachment.mimeType,
+                    size: attachment.size,
+                    ...(attachment.resourceId ? { resourceId: attachment.resourceId } : {}),
+                  })),
+                }
+              : {}),
+          }
+        : buildAgentClientInput({
+            message: runtimeMessage,
+            attachments: sentAttachments,
+            projectId: options.projectId ?? currentProject?.ID,
+            labels: contextLabels,
+          }))
     const agentContext = buildAgentContext({
       permissionMode: settings.permissionMode,
       autoPlan: settings.autoPlan,
@@ -5106,13 +5178,13 @@ function ChatView({
     const threadId = diagnosticCommand ? undefined : localThreadId || undefined
     const localRuntime: AgentSendDraft['localRuntime'] = {
       ...(threadId ? { threadId } : {}),
-      ...(threadId && options.title ? { title: options.title } : {}),
-      ...(options.projectId !== undefined ? { projectId: options.projectId } : {}),
+      ...(threadId && (options.title ?? taskPayload?.title) ? { title: options.title ?? taskPayload?.title } : {}),
+      ...((options.projectId ?? taskPayload?.projectId) !== undefined ? { projectId: options.projectId ?? taskPayload?.projectId } : {}),
       clientInput,
       ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
-      ...(options.runPolicy ? { runPolicy: options.runPolicy } : {}),
-      ...((options.requestId ?? pageToolRequestId) ? { requestId: options.requestId ?? pageToolRequestId } : {}),
-      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      ...((options.runPolicy ?? taskPayload?.runPolicy) ? { runPolicy: options.runPolicy ?? taskPayload?.runPolicy } : {}),
+      ...((options.requestId ?? taskRequestId) ? { requestId: options.requestId ?? taskRequestId } : {}),
+      ...((options.timeoutMs ?? taskPayload?.timeoutMs) ? { timeoutMs: options.timeoutMs ?? taskPayload?.timeoutMs } : {}),
       diagnosticCommand,
     }
 
@@ -5224,6 +5296,9 @@ function ChatView({
     userId,
     pageToolRequestId,
     activeConversationManifest,
+    externalTask?.payload,
+    externalTask?.settledAt,
+    externalTask?.status,
   ])
 
   const commitSendDraft = useCallback(async (draft: AgentSendDraft) => {

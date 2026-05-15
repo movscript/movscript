@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -72,7 +73,7 @@ func Load() *Config {
 		DBUser:             getEnv("DB_USER", "postgres"),
 		DBPassword:         getEnv("DB_PASSWORD", "postgres"),
 		DBName:             getEnv("DB_NAME", "movscript"),
-		DBPath:             getEnv("DB_PATH", dataDir+"/movscript.db"),
+		DBPath:             getEnv("DB_PATH", filepath.Join(dataDir, "movscript.db")),
 		DBSlowThresholdMS:  getEnvInt("DB_SLOW_THRESHOLD_MS", 200),
 		ServerPort:         getEnv("SERVER_PORT", "8765"),
 		EncryptionKey:      getEnv("ENCRYPTION_KEY", ""),
@@ -94,7 +95,7 @@ func Load() *Config {
 		StorageBackend:        getEnv("STORAGE_BACKEND", "minio"),
 		ImageVerifyBaseURL:    getEnv("IMAGE_VERIFY_BASE_URL", ""),
 		ImageVerifyAPIKey:     getEnv("IMAGE_VERIFY_API_KEY", ""),
-		FilesystemStorageRoot: getEnv("FILESYSTEM_STORAGE_ROOT", dataDir+"/resources"),
+		FilesystemStorageRoot: getEnv("FILESYSTEM_STORAGE_ROOT", filepath.Join(dataDir, "resources")),
 
 		MinIOEndpoint:  getEnv("MINIO_ENDPOINT", "minio:9000"),
 		MinIOAccessKey: getEnv("MINIO_ACCESS_KEY", "minioadmin"),
@@ -248,7 +249,7 @@ func defaultCORSAllowedOrigins() []string {
 
 func defaultDataDir() string {
 	if dir, err := os.UserHomeDir(); err == nil && dir != "" {
-		return dir + "/.movscript"
+		return filepath.Join(dir, ".movscript")
 	}
 	return ".movscript"
 }

@@ -18,24 +18,21 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 	production := createProposalTestProduction(t, db, 1)
 
 	resp, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:          "snapshot",
 		ProductionID:  production.ID,
 		ProposalScope: "production",
 		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
-			Action:   "create",
 			ClientID: "segment-1",
 			Title:    "Opening",
 			SceneMoments: []ProposalSceneMomentNode{{
-				Action:       "create",
 				ClientID:     "scene-1",
 				Title:        "Arrival",
 				LocationText: "Apartment",
 				ContentUnits: []ProposalContentUnitNode{{
-					Action:      "create",
 					ClientID:    "shot-1",
 					Title:       "Medium shot",
 					Description: "Character enters.",
 					Keyframes: []ProposalKeyframeNode{{
-						Action:      "create",
 						ClientID:    "kf-shot-1",
 						Title:       "Door reveal",
 						Description: "Character appears in the doorway.",
@@ -43,13 +40,12 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 					}},
 				}},
 				Keyframes: []ProposalKeyframeNode{{
-					Action:      "create",
 					ClientID:    "kf-scene-1",
 					Title:       "Rainy exterior",
 					Description: "Rain falls outside the apartment.",
 				}},
 				CreativeReferences: []ProposalCreativeRefNode{{
-					Action:   "create",
+					ID:       ptrUint(seedProposalTestCreativeReference(t, db, 1).ID),
 					ClientID: "ref-1",
 					Name:     "Lin Xia",
 					Kind:     "person",
@@ -60,7 +56,6 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 					},
 				}},
 				AssetSlots: []ProposalAssetSlotNode{{
-					Action:      "create",
 					ClientID:    "slot-1",
 					Name:        "Lin Xia reference",
 					Kind:        "image",
@@ -73,7 +68,7 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 		t.Fatalf("apply proposal: %v", err)
 	}
 
-	if resp.Counts.SegmentsCreated != 1 || resp.Counts.SceneMomentsCreated != 1 || resp.Counts.ContentUnitsCreated != 1 || resp.Counts.CreativeReferencesCreated != 1 || resp.Counts.CreativeReferenceUsages != 1 || resp.Counts.AssetSlotsCreated != 1 || resp.Counts.KeyframesCreated != 2 {
+	if resp.Counts.SegmentsCreated != 1 || resp.Counts.SceneMomentsCreated != 1 || resp.Counts.ContentUnitsCreated != 1 || resp.Counts.CreativeReferencesCreated != 0 || resp.Counts.CreativeReferenceUsages != 1 || resp.Counts.AssetSlotsCreated != 1 || resp.Counts.KeyframesCreated != 2 {
 		t.Fatalf("unexpected counts: %+v", resp.Counts)
 	}
 
@@ -117,26 +112,65 @@ func TestApplyProductionProposalCreatesTreeInTopologyOrder(t *testing.T) {
 	}
 }
 
-func TestApplyProductionProposalRejectsReuseWithoutIDAndRollsBack(t *testing.T) {
+func TestApplyProductionProposalPersistsScriptBlockBindings(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+	production := createProposalTestProduction(t, db, 1)
+	script, version, block := seedProposalTestScriptBlock(t, db, 1)
+
+	resp, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ClientID:      "segment-1",
+			Title:         "Opening",
+			ScriptBlockID: &block.ID,
+			SceneMoments: []ProposalSceneMomentNode{{
+				ClientID:      "scene-1",
+				Title:         "Arrival",
+				ScriptBlockID: &block.ID,
+				ContentUnits: []ProposalContentUnitNode{{
+					ClientID:      "shot-1",
+					Title:         "Medium shot",
+					Description:   "Character enters.",
+					ScriptBlockID: &block.ID,
+				}},
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply proposal: %v", err)
+	}
+	if len(resp.Segments) != 1 || resp.Segments[0].ScriptBlockID == nil || *resp.Segments[0].ScriptBlockID != block.ID {
+		t.Fatalf("segment script block not persisted: %+v; script %d version %d", resp.Segments, script.ID, version.ID)
+	}
+	if len(resp.SceneMoments) != 1 || resp.SceneMoments[0].ScriptBlockID == nil || *resp.SceneMoments[0].ScriptBlockID != block.ID {
+		t.Fatalf("scene moment script block not persisted: %+v", resp.SceneMoments)
+	}
+	if len(resp.ContentUnits) != 1 || resp.ContentUnits[0].ScriptBlockID == nil || *resp.ContentUnits[0].ScriptBlockID != block.ID {
+		t.Fatalf("content unit script block not persisted: %+v", resp.ContentUnits)
+	}
+}
+
+func TestApplyProductionProposalRejectsCreativeReferenceWithoutIDAndRollsBack(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)
 	ctx := context.Background()
 	production := createProposalTestProduction(t, db, 1)
 
 	_, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
 		ProductionID: production.ID,
 		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
-			Action:   "create",
 			ClientID: "segment-1",
 			Title:    "Opening",
 			SceneMoments: []ProposalSceneMomentNode{{
-				Action:   "create",
 				ClientID: "scene-1",
 				Title:    "Arrival",
-				ContentUnits: []ProposalContentUnitNode{{
-					Action:   "reuse",
-					ClientID: "shot-1",
-					Title:    "Existing shot",
+				CreativeReferences: []ProposalCreativeRefNode{{
+					ClientID: "ref-missing",
+					Name:     "Missing id",
 				}},
 			}},
 		}}},
@@ -162,13 +196,12 @@ func TestPreviewProductionProposalApplyRollsBack(t *testing.T) {
 	production := createProposalTestProduction(t, db, 1)
 
 	resp, err := service.PreviewProductionProposalApply(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
 		ProductionID: production.ID,
 		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
-			Action:   "create",
 			ClientID: "segment-preview",
 			Title:    "Preview segment",
 			SceneMoments: []ProposalSceneMomentNode{{
-				Action:   "create",
 				ClientID: "scene-preview",
 				Title:    "Preview scene",
 			}},
@@ -209,12 +242,86 @@ func TestPreviewProductionProposalApplyRollsBack(t *testing.T) {
 	}
 }
 
+func TestApplyProductionProposalSnapshotDeletesOmittedTree(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+	production := createProposalTestProduction(t, db, 1)
+	keptSegment := model.Segment{ProjectID: 1, ProductionID: &production.ID, Title: "Kept segment", Status: "draft"}
+	removedSegment := model.Segment{ProjectID: 1, ProductionID: &production.ID, Title: "Removed segment", Status: "draft"}
+	if err := db.Create(&keptSegment).Error; err != nil {
+		t.Fatalf("create kept segment: %v", err)
+	}
+	if err := db.Create(&removedSegment).Error; err != nil {
+		t.Fatalf("create removed segment: %v", err)
+	}
+	keptMoment := model.SceneMoment{ProjectID: 1, SegmentID: &keptSegment.ID, Title: "Kept moment", Status: "draft"}
+	removedMoment := model.SceneMoment{ProjectID: 1, SegmentID: &removedSegment.ID, Title: "Removed moment", Status: "draft"}
+	if err := db.Create(&keptMoment).Error; err != nil {
+		t.Fatalf("create kept moment: %v", err)
+	}
+	if err := db.Create(&removedMoment).Error; err != nil {
+		t.Fatalf("create removed moment: %v", err)
+	}
+	reference := seedProposalTestCreativeReference(t, db, 1)
+	removedUsage := model.CreativeReferenceUsage{
+		ProjectID:           1,
+		OwnerType:           "scene_moment",
+		OwnerID:             removedMoment.ID,
+		CreativeReferenceID: reference.ID,
+		Role:                "character",
+		Status:              "draft",
+	}
+	if err := db.Create(&removedUsage).Error; err != nil {
+		t.Fatalf("create removed usage: %v", err)
+	}
+
+	_, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ID:    &keptSegment.ID,
+			Title: "Kept segment revised",
+			SceneMoments: []ProposalSceneMomentNode{{
+				ID:    &keptMoment.ID,
+				Title: "Kept moment revised",
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply snapshot proposal: %v", err)
+	}
+
+	var removedSegmentCount int64
+	if err := db.Model(&model.Segment{}).Where("id = ?", removedSegment.ID).Count(&removedSegmentCount).Error; err != nil {
+		t.Fatalf("count removed segment: %v", err)
+	}
+	if removedSegmentCount != 0 {
+		t.Fatalf("removed segment count = %d, want 0", removedSegmentCount)
+	}
+	var removedMomentCount int64
+	if err := db.Model(&model.SceneMoment{}).Where("id = ?", removedMoment.ID).Count(&removedMomentCount).Error; err != nil {
+		t.Fatalf("count removed moment: %v", err)
+	}
+	if removedMomentCount != 0 {
+		t.Fatalf("removed moment count = %d, want 0", removedMomentCount)
+	}
+	var removedUsageCount int64
+	if err := db.Model(&model.CreativeReferenceUsage{}).Where("id = ?", removedUsage.ID).Count(&removedUsageCount).Error; err != nil {
+		t.Fatalf("count removed usage: %v", err)
+	}
+	if removedUsageCount != 0 {
+		t.Fatalf("removed usage count = %d, want 0", removedUsageCount)
+	}
+}
+
 func TestApplyProductionProposalRequiresProposal(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)
 	production := createProposalTestProduction(t, db, 1)
 
 	_, err := service.ApplyProductionProposal(context.Background(), 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
 		ProductionID: production.ID,
 	})
 	var invalid ErrInvalidInput
@@ -235,6 +342,9 @@ func newProposalTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(
 		&model.EntityRelation{},
 		&model.Project{},
+		&model.Script{},
+		&model.ScriptVersion{},
+		&model.ScriptBlock{},
 		&model.Production{},
 		&model.Segment{},
 		&model.SceneMoment{},
@@ -263,4 +373,53 @@ func createProposalTestProduction(t *testing.T, db *gorm.DB, projectID uint) mod
 		t.Fatalf("create production: %v", err)
 	}
 	return production
+}
+
+func seedProposalTestScriptBlock(t *testing.T, db *gorm.DB, projectID uint) (model.Script, model.ScriptVersion, model.ScriptBlock) {
+	t.Helper()
+	content := "INT. SHOP - NIGHT\n手机屏幕亮起。"
+	script := model.Script{ProjectID: projectID, Title: "Pilot", Content: content, RawSource: content, AuthorID: 1}
+	if err := db.Create(&script).Error; err != nil {
+		t.Fatalf("create script: %v", err)
+	}
+	version := model.ScriptVersion{
+		ProjectID:     projectID,
+		ScriptID:      script.ID,
+		VersionNumber: 1,
+		Title:         script.Title,
+		SourceType:    "raw",
+		Content:       script.Content,
+		RawSource:     script.RawSource,
+		Status:        "active",
+	}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("create script version: %v", err)
+	}
+	block := model.ScriptBlock{
+		ProjectID:       projectID,
+		ScriptID:        script.ID,
+		ScriptVersionID: version.ID,
+		Kind:            "action",
+		Content:         "手机屏幕亮起。",
+		StartLine:       2,
+		EndLine:         2,
+		Status:          "active",
+	}
+	if err := db.Create(&block).Error; err != nil {
+		t.Fatalf("create script block: %v", err)
+	}
+	return script, version, block
+}
+
+func seedProposalTestCreativeReference(t *testing.T, db *gorm.DB, projectID uint) model.CreativeReference {
+	t.Helper()
+	reference := model.CreativeReference{ProjectID: projectID, Name: "Lin Xia", Kind: "person", Status: "confirmed"}
+	if err := db.Create(&reference).Error; err != nil {
+		t.Fatalf("create creative reference: %v", err)
+	}
+	return reference
+}
+
+func ptrUint(value uint) *uint {
+	return &value
 }

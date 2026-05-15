@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
   Camera,
   Clapperboard,
   Film,
   ImagePlus,
+  LockKeyhole,
   Layers3,
+  PackagePlus,
   Plus,
   Sparkles,
   Trash2,
@@ -17,6 +20,9 @@ import {
 } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
+import { createContentUnitFromStoryboardLine, getSourceLockStatus, listSemanticEntities, semanticEntityConfig, updateSemanticEntity, type SemanticEntityRecord, type SourceLockStatus } from '@/api/semanticEntities'
+import { useProjectStore } from '@/store/projectStore'
+import { toast } from '@/store/toastStore'
 import type { RawResource } from '@/types'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
 import { MediaViewer } from '@/components/shared/MediaViewer'
@@ -29,6 +35,20 @@ interface StoryboardBeat {
   emotion: string
   shot: string
   note: string
+}
+
+type StoryboardLineRecord = SemanticEntityRecord & {
+  storyboard_script_id?: number
+  storyboard_version_id?: number
+  segment_id?: number
+  scene_moment_id?: number
+  script_block_id?: number
+  title?: string
+  description?: string
+  dialogue?: string
+  visual_intent?: string
+  kind?: string
+  status?: string
 }
 
 const EMOTION_PRESETS = ['calm', 'tense', 'joy', 'fear', 'lonely', 'hopeful'] as const
@@ -49,7 +69,11 @@ function createBeat(index: number): StoryboardBeat {
 
 export default function SmartStoryboardPage() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const projectId = useProjectStore((s) => s.current?.ID)
+  const selectedLineId = numberParam(searchParams, 'storyboard_line_id')
   const [activeBucket, setActiveBucket] = useState<AssetBucket>('characters')
   const [characters, setCharacters] = useState<RawResource[]>([])
   const [scenes, setScenes] = useState<RawResource[]>([])
@@ -62,11 +86,87 @@ export default function SmartStoryboardPage() {
   const [rhythm, setRhythm] = useState<(typeof RHYTHMS)[number]>('balanced')
   const [expression, setExpression] = useState('')
   const [beats, setBeats] = useState<StoryboardBeat[]>([createBeat(1), createBeat(2), createBeat(3)])
+  const { data: storyboardLines = [] } = useQuery<StoryboardLineRecord[]>({
+    queryKey: ['smart-storyboard-lines', projectId],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('storyboardLines')) as Promise<StoryboardLineRecord[]>,
+    enabled: Boolean(projectId),
+  })
+  const { data: contentUnits = [] } = useQuery<SemanticEntityRecord[]>({
+    queryKey: ['smart-storyboard-content-units', projectId],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')),
+    enabled: Boolean(projectId),
+  })
+  const saveStoryboardLine = useMutation({
+    mutationFn: () => {
+      if (!projectId || !selectedLine) throw new Error('请选择分镜行')
+      const beat = beats[0]
+      return updateSemanticEntity(projectId, semanticEntityConfig('storyboardLines'), selectedLine.ID, {
+        storyboard_script_id: selectedLine.storyboard_script_id ?? null,
+        storyboard_version_id: selectedLine.storyboard_version_id ?? null,
+        segment_id: selectedLine.segment_id ?? null,
+        scene_moment_id: selectedLine.scene_moment_id ?? null,
+        script_block_id: selectedLine.script_block_id ?? null,
+        order: selectedLine.order ?? 0,
+        kind: selectedLine.kind || 'shot',
+        title: beat?.title || selectedLine.title || `分镜行 #${selectedLine.ID}`,
+        description: expression.trim() || beat?.note || selectedLine.description || '',
+        dialogue: selectedLine.dialogue || '',
+        visual_intent: beat?.shot || selectedLine.visual_intent || '',
+        duration_sec: Number(selectedLine.duration_sec ?? 0),
+        status: selectedLine.status || 'candidate',
+        metadata_json: String(selectedLine.metadata_json ?? ''),
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['smart-storyboard-lines', projectId] })
+      toast.success('分镜行已保存')
+    },
+    onError: () => toast.error('保存分镜行失败'),
+  })
+  const createContentUnit = useMutation({
+    mutationFn: () => {
+      if (!projectId || !selectedLine) throw new Error('请选择分镜行')
+      const beat = beats[0]
+      return createContentUnitFromStoryboardLine(projectId, selectedLine.ID, {
+        title: beat?.title || selectedLine.title || `制作项 #${selectedLine.ID}`,
+        kind: storyboardLineContentKind(selectedLine.kind),
+        description: expression.trim() || beat?.note || selectedLine.description || '',
+        prompt: beat?.shot || selectedLine.visual_intent || expression.trim() || '',
+        shot_size: shotSizeToContentUnit(shotSize),
+        camera_motion: cameraMoveToContentUnit(cameraMove),
+        lens: lensToContentUnit(lens),
+        duration_sec: Number(selectedLine.duration_sec ?? 0),
+        status: 'draft',
+      })
+    },
+    onSuccess: (record) => {
+      queryClient.invalidateQueries({ queryKey: ['semantic-content-positioning', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['smart-storyboard-content-units', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['semantic-source-lock', projectId, 'storyboardLines', selectedLine?.ID] })
+      toast.success('制作项已生成')
+      navigate(`/contents?content_unit_id=${record.ID}`)
+    },
+    onError: () => toast.error('生成制作项失败'),
+  })
 
+  const sortedStoryboardLines = useMemo(
+    () => storyboardLines.slice().sort((a, b) => Number(a.storyboard_version_id ?? 0) - Number(b.storyboard_version_id ?? 0) || Number(a.order ?? 0) - Number(b.order ?? 0) || a.ID - b.ID),
+    [storyboardLines],
+  )
+  const selectedLine = useMemo(() => {
+    if (selectedLineId) return storyboardLines.find((item) => item.ID === selectedLineId) ?? null
+    return sortedStoryboardLines[0] ?? null
+  }, [selectedLineId, sortedStoryboardLines, storyboardLines])
+  const { data: selectedLineSourceLock } = useQuery<SourceLockStatus>({
+    queryKey: ['semantic-source-lock', projectId, 'storyboardLines', selectedLine?.ID],
+    queryFn: () => getSourceLockStatus(projectId!, semanticEntityConfig('storyboardLines'), selectedLine!.ID),
+    enabled: Boolean(projectId && selectedLine?.ID),
+  })
   const selectedIds = useMemo(
     () => [...characters, ...scenes, ...storyboardRefs].map((resource) => resource.ID),
     [characters, scenes, storyboardRefs]
   )
+  const compiledLineIds = useMemo(() => new Set(contentUnits.map((unit) => Number(unit.storyboard_line_id)).filter((id) => Number.isFinite(id) && id > 0)), [contentUnits])
   const bucketCounts = {
     characters: characters.length,
     scenes: scenes.length,
@@ -92,6 +192,18 @@ export default function SmartStoryboardPage() {
   function updateBeat(id: string, patch: Partial<StoryboardBeat>) {
     setBeats((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item))
   }
+
+  function selectStoryboardLine(id: number) {
+    const next = new URLSearchParams(searchParams)
+    next.set('storyboard_line_id', String(id))
+    setSearchParams(next)
+  }
+
+  useEffect(() => {
+    if (!selectedLine) return
+    setExpression(storyboardLinePromptText(selectedLine))
+    setBeats([beatFromStoryboardLine(selectedLine)])
+  }, [selectedLine?.ID])
 
   return (
     <div className="flex h-full flex-col bg-muted/20">
@@ -153,6 +265,7 @@ export default function SmartStoryboardPage() {
                     {t('tools.smartStoryboard.generate')}
                   </Button>
                 </div>
+                {selectedLine ? <StoryboardLineSourceCard line={selectedLine} sourceLock={selectedLineSourceLock} /> : null}
 
                 <div className="grid grid-cols-3 gap-3">
                   <AssetDropZone
@@ -266,15 +379,37 @@ export default function SmartStoryboardPage() {
                     <Film size={15} className="text-primary" />
                     <h2 className="text-sm font-semibold text-foreground">{t('tools.smartStoryboard.beats.title')}</h2>
                   </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setBeats((items) => [...items, createBeat(items.length + 1)])}
-                  >
-                    <Plus size={13} />
-                    {t('common.add')}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => setBeats((items) => [...items, createBeat(items.length + 1)])}
+                    >
+                      <Plus size={13} />
+                      {t('common.add')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="xs"
+                      disabled={!selectedLine}
+                      loading={saveStoryboardLine.isPending}
+                      onClick={() => saveStoryboardLine.mutate()}
+                    >
+                      保存分镜行
+                    </Button>
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      disabled={!selectedLine}
+                      loading={createContentUnit.isPending}
+                      onClick={() => createContentUnit.mutate()}
+                    >
+                      <PackagePlus size={13} />
+                      生成制作项
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {beats.map((beat, index) => (
@@ -326,6 +461,12 @@ export default function SmartStoryboardPage() {
             </div>
 
             <aside className="space-y-4">
+              <StoryboardLineList
+                lines={sortedStoryboardLines}
+                selectedId={selectedLine?.ID ?? null}
+                compiledLineIds={compiledLineIds}
+                onSelect={selectStoryboardLine}
+              />
               <section className="rounded-lg border border-border bg-background p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <ImagePlus size={15} className="text-primary" />
@@ -460,6 +601,88 @@ function AssetDropZone({
   )
 }
 
+function StoryboardLineSourceCard({ line, sourceLock }: { line: StoryboardLineRecord; sourceLock?: SourceLockStatus }) {
+  const sourceLocked = Boolean(sourceLock?.locked)
+  const lockReason = sourceLock?.reasons?.[0]?.message
+  return (
+    <div className="mb-3 rounded-md border border-primary/20 bg-primary/5 p-3">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+        <span className="rounded bg-background px-1.5 py-0.5 font-medium text-foreground">分镜行 #{line.ID}</span>
+        {sourceLocked ? (
+          <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-amber-700 dark:text-amber-300" title={lockReason}>
+            <LockKeyhole size={11} />
+            来源已锁定
+          </span>
+        ) : null}
+        {line.storyboard_version_id ? <span>分镜版本 #{line.storyboard_version_id}</span> : null}
+        {line.script_block_id ? <span>剧本块 #{line.script_block_id}</span> : null}
+        {line.scene_moment_id ? <span>情景 #{line.scene_moment_id}</span> : null}
+        {line.segment_id ? <span>编排段 #{line.segment_id}</span> : null}
+      </div>
+      <p className="mt-2 text-sm font-semibold text-foreground">{line.title || `分镜行 #${line.ID}`}</p>
+      {lockReason ? <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">{lockReason}</p> : null}
+      {line.description ? <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{line.description}</p> : null}
+      {line.dialogue ? <p className="mt-2 rounded bg-background px-2 py-1.5 text-xs leading-5 text-foreground">{line.dialogue}</p> : null}
+      {line.visual_intent ? <p className="mt-2 rounded bg-background px-2 py-1.5 text-xs leading-5 text-foreground">{line.visual_intent}</p> : null}
+    </div>
+  )
+}
+
+function StoryboardLineList({
+  lines,
+  selectedId,
+  compiledLineIds,
+  onSelect,
+}: {
+  lines: StoryboardLineRecord[]
+  selectedId: number | null
+  compiledLineIds: Set<number>
+  onSelect: (id: number) => void
+}) {
+  return (
+    <section className="rounded-lg border border-border bg-background p-4">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-foreground">语义分镜行</h2>
+        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{lines.length}</span>
+      </div>
+      {lines.length === 0 ? (
+        <p className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-6 text-center text-xs text-muted-foreground">暂无分镜行</p>
+      ) : (
+        <div className="max-h-[280px] space-y-1.5 overflow-y-auto pr-1">
+          {lines.map((line) => (
+            <button
+              key={line.ID}
+              type="button"
+              onClick={() => onSelect(line.ID)}
+              className={cn(
+                'w-full rounded-md border px-3 py-2 text-left transition-colors',
+                line.ID === selectedId ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-background hover:bg-muted/40',
+              )}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 truncate text-xs font-medium text-foreground">{line.title || `分镜行 #${line.ID}`}</span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">#{line.ID}</span>
+              </div>
+              <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{storyboardLinePromptText(line) || line.kind || '未填写描述'}</p>
+              <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                {compiledLineIds.has(line.ID) ? (
+                  <span className="inline-flex items-center gap-1 text-foreground">
+                    <LockKeyhole size={10} />
+                    来源锁定
+                  </span>
+                ) : null}
+                {line.storyboard_version_id ? <span>V#{line.storyboard_version_id}</span> : null}
+                {line.script_block_id ? <span>剧本块 #{line.script_block_id}</span> : null}
+                {line.status ? <span>{line.status}</span> : null}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function ControlGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-3 last:mb-0">
@@ -467,6 +690,81 @@ function ControlGroup({ title, children }: { title: string; children: React.Reac
       {children}
     </div>
   )
+}
+
+function numberParam(params: URLSearchParams, key: string) {
+  const value = Number(params.get(key))
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
+function storyboardLinePromptText(line: StoryboardLineRecord) {
+  return [line.description, line.dialogue, line.visual_intent].map((value) => String(value ?? '').trim()).filter(Boolean).join('\n')
+}
+
+function beatFromStoryboardLine(line: StoryboardLineRecord): StoryboardBeat {
+  const prompt = storyboardLinePromptText(line)
+  return {
+    id: `line-${line.ID}`,
+    title: line.title || `分镜行 #${line.ID}`,
+    emotion: line.kind || '情绪待定',
+    shot: line.visual_intent || line.description || '镜头待定',
+    note: prompt || '从语义分镜行继续细化。',
+  }
+}
+
+function storyboardLineContentKind(kind?: string) {
+  switch (kind) {
+    case 'caption':
+      return 'caption_card'
+    case 'narration':
+      return 'narration'
+    case 'transition':
+      return 'transition'
+    case 'shot':
+    case 'beat':
+    default:
+      return 'shot'
+  }
+}
+
+function shotSizeToContentUnit(value: (typeof SHOT_SIZES)[number]) {
+  switch (value) {
+    case 'closeUp':
+      return 'close_up'
+    case 'wide':
+      return 'wide'
+    case 'overShoulder':
+      return 'over_shoulder'
+    case 'medium':
+    default:
+      return 'medium'
+  }
+}
+
+function cameraMoveToContentUnit(value: (typeof CAMERA_MOVES)[number]) {
+  switch (value) {
+    case 'pushIn':
+      return 'push_in'
+    case 'tracking':
+      return 'tracking'
+    case 'handheld':
+      return 'handheld'
+    case 'static':
+    default:
+      return 'static'
+  }
+}
+
+function lensToContentUnit(value: (typeof LENSES)[number]) {
+  switch (value) {
+    case 'wide':
+      return 'wide'
+    case 'telephoto':
+      return 'telephoto'
+    case 'standard':
+    default:
+      return 'standard'
+  }
 }
 
 function SegmentedValue<T extends string>({

@@ -2,6 +2,9 @@ package semantic
 
 import (
 	"context"
+	"errors"
+	"strconv"
+	"strings"
 
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
@@ -37,6 +40,9 @@ func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string
 	if err := s.validateProductionOwners(ctx, projectID, input.ScriptVersionID, input.PreviewTimelineID); err != nil {
 		return item, err
 	}
+	if err := s.ensureProductionSourceCanChange(ctx, projectID, item, input); err != nil {
+		return item, err
+	}
 	patch := domainsemantic.ProductionPatch{
 		ScriptVersionID:   input.ScriptVersionID,
 		PreviewTimelineID: input.PreviewTimelineID,
@@ -51,16 +57,88 @@ func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string
 	return s.repo.PatchProduction(ctx, item, patch)
 }
 
+func (s *Service) ensureProductionSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.Production, input ProductionInput) error {
+	if productionSourcePreserved(item, input) {
+		return nil
+	}
+	textBlocks, err := s.repo.ListProductionTextBlocks(ctx, ProductionTextBlockFilter{ProjectID: projectID, ProductionID: item.ID})
+	if err != nil {
+		return err
+	}
+	if len(textBlocks) > 0 {
+		return ErrInvalidInput{Err: errors.New("production source cannot be changed after production text blocks are created")}
+	}
+	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ProductionID: item.ID})
+	if err != nil {
+		return err
+	}
+	if len(segments) > 0 {
+		return ErrInvalidInput{Err: errors.New("production source cannot be changed after segments are created")}
+	}
+	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ProductionID: item.ID})
+	if err != nil {
+		return err
+	}
+	if len(units) > 0 {
+		return ErrInvalidInput{Err: errors.New("production source cannot be changed after content units are created")}
+	}
+	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ProductionID: item.ID})
+	if err != nil {
+		return err
+	}
+	if len(keyframes) > 0 {
+		return ErrInvalidInput{Err: errors.New("production source cannot be changed after keyframes are created")}
+	}
+	return nil
+}
+
+func productionSourcePreserved(item domainsemantic.Production, input ProductionInput) bool {
+	return optionalUintPatchPreserves(item.ScriptVersionID, input.ScriptVersionID) &&
+		optionalUintPatchPreserves(item.PreviewTimelineID, input.PreviewTimelineID) &&
+		stringPatchPreserves(item.SourceType, input.SourceType)
+}
+
+func stringPatchPreserves(existing string, patch string) bool {
+	patch = strings.TrimSpace(patch)
+	if patch == "" {
+		return true
+	}
+	return strings.TrimSpace(existing) == patch
+}
+
 func (s *Service) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error) {
 	return s.repo.ListContentUnits(ctx, filter)
 }
 
 func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
-	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID); err != nil {
+	if err := s.applyStoryboardLineDefaults(ctx, projectID, &input); err != nil {
+		return domainsemantic.ContentUnit{}, err
+	}
+	resolvedScriptBlockID, err := s.resolveContentUnitScriptBlock(ctx, projectID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID)
+	if err != nil {
+		return domainsemantic.ContentUnit{}, err
+	}
+	input.ScriptBlockID = resolvedScriptBlockID
+	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.StoryboardLineID, input.ScriptBlockID); err != nil {
+		return domainsemantic.ContentUnit{}, err
+	}
+	if err := s.validateContentUnitScriptSource(ctx, projectID, input.SegmentID, input.SceneMomentID, input.StoryboardLineID, input.ScriptBlockID); err != nil {
 		return domainsemantic.ContentUnit{}, err
 	}
 	item := contentUnitFromInput(projectID, input)
 	return s.repo.CreateContentUnit(ctx, item)
+}
+
+func (s *Service) CreateContentUnitFromStoryboardLine(ctx context.Context, projectID uint, storyboardLineID string, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
+	line, err := s.repo.LoadStoryboardLine(ctx, projectID, storyboardLineID)
+	if err != nil {
+		return domainsemantic.ContentUnit{}, err
+	}
+	if input.StoryboardLineID != nil && *input.StoryboardLineID != line.ID {
+		return domainsemantic.ContentUnit{}, ErrInvalidInput{Err: errors.New("storyboard_line_id must match route storyboard line")}
+	}
+	input.StoryboardLineID = &line.ID
+	return s.CreateContentUnit(ctx, projectID, input)
 }
 
 func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id string, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
@@ -68,10 +146,212 @@ func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id strin
 	if err != nil {
 		return item, err
 	}
-	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID); err != nil {
+	if err := lockContentUnitStoryboardLine(&input, item.StoryboardLineID); err != nil {
 		return item, err
 	}
-	return s.repo.PatchContentUnit(ctx, item, contentUnitPatch(input))
+	if err := s.applyStoryboardLineDefaults(ctx, projectID, &input); err != nil {
+		return item, err
+	}
+	resolvedScriptBlockID, err := s.resolveContentUnitScriptBlock(ctx, projectID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID)
+	if err != nil {
+		return item, err
+	}
+	input.ScriptBlockID = resolvedScriptBlockID
+	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.StoryboardLineID, input.ScriptBlockID); err != nil {
+		return item, err
+	}
+	if err := s.validateContentUnitScriptSource(ctx, projectID, input.SegmentID, input.SceneMomentID, input.StoryboardLineID, input.ScriptBlockID); err != nil {
+		return item, err
+	}
+	patch := contentUnitPatch(input)
+	if err := s.ensureContentUnitSourceCanChange(ctx, projectID, item, patch); err != nil {
+		return item, err
+	}
+	return s.repo.PatchContentUnit(ctx, item, patch)
+}
+
+func (s *Service) ensureContentUnitSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.ContentUnit, patch domainsemantic.ContentUnitPatch) error {
+	if contentUnitSourcePreserved(item, patch) {
+		return nil
+	}
+	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ContentUnitID: item.ID})
+	if err != nil {
+		return err
+	}
+	if len(keyframes) > 0 {
+		return ErrInvalidInput{Err: errors.New("content unit source cannot be changed after keyframes are created")}
+	}
+	slots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "content_unit", OwnerID: item.ID, IncludeInternal: "true"})
+	if err != nil {
+		return err
+	}
+	if len(slots) > 0 {
+		return ErrInvalidInput{Err: errors.New("content unit source cannot be changed after asset slots are created")}
+	}
+	return nil
+}
+
+func contentUnitSourcePreserved(item domainsemantic.ContentUnit, patch domainsemantic.ContentUnitPatch) bool {
+	return optionalUintPatchPreserves(item.ProductionID, patch.ProductionID) &&
+		optionalUintPatchPreserves(item.SegmentID, patch.SegmentID) &&
+		optionalUintPatchPreserves(item.SceneMomentID, patch.SceneMomentID) &&
+		optionalUintPatchPreserves(item.StoryboardLineID, patch.StoryboardLineID) &&
+		optionalUintPatchPreserves(item.ScriptBlockID, patch.ScriptBlockID)
+}
+
+func lockContentUnitStoryboardLine(input *ContentUnitInput, existing *uint) error {
+	if input == nil || existing == nil {
+		return nil
+	}
+	if input.StoryboardLineID != nil && *input.StoryboardLineID != *existing {
+		return ErrInvalidInput{Err: errors.New("storyboard_line_id cannot be changed after content unit is linked")}
+	}
+	input.StoryboardLineID = existing
+	return nil
+}
+
+func (s *Service) applyStoryboardLineDefaults(ctx context.Context, projectID uint, input *ContentUnitInput) error {
+	if input == nil || input.StoryboardLineID == nil {
+		return nil
+	}
+	line, err := s.repo.LoadStoryboardLine(ctx, projectID, strconv.FormatUint(uint64(*input.StoryboardLineID), 10))
+	if err != nil {
+		return err
+	}
+	if err := ensureOptionalIDMatches(input.SegmentID, line.SegmentID, "segment_id must match storyboard_line_id"); err != nil {
+		return err
+	}
+	if err := ensureOptionalIDMatches(input.SceneMomentID, line.SceneMomentID, "scene_moment_id must match storyboard_line_id"); err != nil {
+		return err
+	}
+	if err := ensureOptionalIDMatches(input.ScriptBlockID, line.ScriptBlockID, "script_block_id must match storyboard_line_id"); err != nil {
+		return err
+	}
+	input.SegmentID = coalesceUintPtr(input.SegmentID, line.SegmentID)
+	input.SceneMomentID = coalesceUintPtr(input.SceneMomentID, line.SceneMomentID)
+	input.ScriptBlockID = coalesceUintPtr(input.ScriptBlockID, line.ScriptBlockID)
+	if strings.TrimSpace(input.Kind) == "" {
+		input.Kind = storyboardLineContentUnitKind(line.Kind)
+	}
+	if strings.TrimSpace(input.Title) == "" {
+		input.Title = line.Title
+	}
+	if strings.TrimSpace(input.Description) == "" {
+		input.Description = line.Description
+	}
+	if strings.TrimSpace(input.Prompt) == "" {
+		input.Prompt = line.VisualIntent
+	}
+	if input.DurationSec == 0 {
+		input.DurationSec = line.DurationSec
+	}
+	return nil
+}
+
+func ensureOptionalIDMatches(inputID *uint, ownerID *uint, message string) error {
+	if inputID == nil || ownerID == nil {
+		return nil
+	}
+	if *inputID != *ownerID {
+		return ErrInvalidInput{Err: errors.New(message)}
+	}
+	return nil
+}
+
+func coalesceUintPtr(primary *uint, fallback *uint) *uint {
+	if primary != nil {
+		return primary
+	}
+	return fallback
+}
+
+func storyboardLineContentUnitKind(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case "caption":
+		return "caption_card"
+	case "narration":
+		return "narration"
+	case "transition":
+		return "transition"
+	case "shot", "beat":
+		return "shot"
+	default:
+		return "shot"
+	}
+}
+
+func (s *Service) resolveContentUnitScriptBlock(ctx context.Context, projectID uint, segmentID *uint, sceneMomentID *uint, scriptBlockID *uint) (*uint, error) {
+	if scriptBlockID != nil {
+		return scriptBlockID, nil
+	}
+	if sceneMomentID != nil {
+		sceneMoment, err := s.repo.LoadSceneMoment(ctx, projectID, strconv.FormatUint(uint64(*sceneMomentID), 10))
+		if err != nil {
+			return nil, err
+		}
+		if sceneMoment.ScriptBlockID != nil {
+			return sceneMoment.ScriptBlockID, nil
+		}
+		if sceneMoment.SegmentID != nil {
+			segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*sceneMoment.SegmentID), 10))
+			if err != nil {
+				return nil, err
+			}
+			return segment.ScriptBlockID, nil
+		}
+	}
+	if segmentID != nil {
+		segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*segmentID), 10))
+		if err != nil {
+			return nil, err
+		}
+		if segment.ScriptBlockID != nil {
+			return segment.ScriptBlockID, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *Service) validateContentUnitScriptSource(ctx context.Context, projectID uint, segmentID *uint, sceneMomentID *uint, storyboardLineID *uint, scriptBlockID *uint) error {
+	if storyboardLineID != nil {
+		line, err := s.repo.LoadStoryboardLine(ctx, projectID, strconv.FormatUint(uint64(*storyboardLineID), 10))
+		if err != nil {
+			return err
+		}
+		if err := ensureOptionalIDMatches(segmentID, line.SegmentID, "segment_id must match storyboard_line_id"); err != nil {
+			return err
+		}
+		if err := ensureOptionalIDMatches(sceneMomentID, line.SceneMomentID, "scene_moment_id must match storyboard_line_id"); err != nil {
+			return err
+		}
+		if err := ensureOptionalIDMatches(scriptBlockID, line.ScriptBlockID, "script_block_id must match storyboard_line_id"); err != nil {
+			return err
+		}
+	}
+	var segmentScriptBlockID *uint
+	if segmentID != nil {
+		segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*segmentID), 10))
+		if err != nil {
+			return err
+		}
+		segmentScriptBlockID = segment.ScriptBlockID
+	}
+	if sceneMomentID == nil {
+		return s.ensureScriptBlockCompatibleWithAncestor(ctx, projectID, scriptBlockID, segmentScriptBlockID)
+	}
+	sceneMoment, err := s.repo.LoadSceneMoment(ctx, projectID, strconv.FormatUint(uint64(*sceneMomentID), 10))
+	if err != nil {
+		return err
+	}
+	if segmentID != nil {
+		if sceneMoment.SegmentID == nil || *sceneMoment.SegmentID != *segmentID {
+			return ErrInvalidInput{Err: errors.New("scene_moment_id must belong to segment_id")}
+		}
+	}
+	if err := s.ensureScriptBlockCompatibleWithAncestor(ctx, projectID, sceneMoment.ScriptBlockID, segmentScriptBlockID); err != nil {
+		return err
+	}
+	return s.ensureScriptBlockCompatibleWithAncestor(ctx, projectID, scriptBlockID, sceneMoment.ScriptBlockID)
 }
 
 func (s *Service) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error) {
@@ -207,6 +487,7 @@ func contentUnitFromInput(projectID uint, input ContentUnitInput) domainsemantic
 		ProductionID:     input.ProductionID,
 		SegmentID:        input.SegmentID,
 		SceneMomentID:    input.SceneMomentID,
+		StoryboardLineID: input.StoryboardLineID,
 		ScriptBlockID:    input.ScriptBlockID,
 		Kind:             input.Kind,
 		Order:            input.Order,
@@ -238,6 +519,7 @@ func contentUnitPatch(input ContentUnitInput) domainsemantic.ContentUnitPatch {
 		ProductionID:     input.ProductionID,
 		SegmentID:        input.SegmentID,
 		SceneMomentID:    input.SceneMomentID,
+		StoryboardLineID: input.StoryboardLineID,
 		ScriptBlockID:    input.ScriptBlockID,
 		Kind:             input.Kind,
 		Order:            input.Order,

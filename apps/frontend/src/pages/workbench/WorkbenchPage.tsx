@@ -75,11 +75,8 @@ import type { Script } from '@/types'
 import { Badge, Button, Card, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Progress, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { Input, Label, Textarea } from '@movscript/ui'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
-import { ModelSelector } from '@/components/shared/ModelSelector'
 import { AuthedImage } from '@/components/shared/AuthedImage'
 import { ResourceLibraryPicker } from '@/components/shared/ResourceLibraryPicker'
-import { runRuntimeMessage } from '@/lib/runtimeChat'
-import { formatLocalAgentAssistantContent } from '@/components/agent/localRuntime'
 import {
   buildContentUnitGenerationContext,
   createSemanticEntity,
@@ -584,18 +581,6 @@ interface SettingPrepRow {
   linkedProductions: WorkbenchRecord[]
 }
 
-interface AiUnitSuggestion {
-  client_id: string
-  title: string
-  kind: string
-  description?: string
-  prompt?: string
-  duration_sec?: number
-  shot_size?: string
-  camera_angle?: string
-  camera_motion?: string
-}
-
 interface ContentGenerationViewRow {
   id: string
   title: string
@@ -624,6 +609,37 @@ interface ContentGenerationMomentRow {
   assetSlots: WorkbenchRecord[]
   missingSlots: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
+}
+
+type ContentSnapshotDiffState = 'added' | 'changed' | 'unchanged' | 'planned'
+type ContentSnapshotDiffKind = 'content_unit' | 'keyframe' | 'media_plan'
+
+interface ContentSnapshotFieldDiff {
+  label: string
+  before?: string
+  after?: string
+}
+
+interface ContentSnapshotDiff {
+  key: string
+  state: ContentSnapshotDiffState
+  kind: ContentSnapshotDiffKind
+  title: string
+  target: string
+  detail: string
+  impact: string
+  before?: string
+  after?: string
+  fields: ContentSnapshotFieldDiff[]
+}
+
+interface ContentDraftReviewModel {
+  draft: AgentDraft
+  summary: string
+  targetLabel: string
+  diffs: ContentSnapshotDiff[]
+  warnings: string[]
+  stats: Array<{ label: string; value: number }>
 }
 
 async function loadProductionWorkbenchData(projectId: number): Promise<ProductionWorkbenchData> {
@@ -1311,12 +1327,14 @@ function buildGenerationContextStandards(context?: GenerationContext): Workbench
   const missingAssets = context.asset_slots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
   const hasTargetPrompt = Boolean(firstText(target.prompt, target.description))
   const hasScriptSource = Boolean(context.script_block)
+  const hasStoryboardSource = Boolean(context.storyboard_line)
   const hasStoryContext = Boolean(context.scene_moment || context.segment)
   const hasContinuity = context.creative_references.length > 0
   const assetsReady = context.asset_slots.length > 0 && missingAssets === 0 && lockedAssets > 0
   const hasKeyframe = context.keyframes.length > 0
   return [
     { label: '目标提示可读', detail: hasTargetPrompt ? firstText(target.prompt, target.description) : '制作项缺少 prompt 或 description，Agent 难以判断画面目标', done: hasTargetPrompt, tone: hasTargetPrompt ? 'success' : 'warning' },
+    { label: '分镜来源明确', detail: hasStoryboardSource ? storyboardLineContextLabel(context.storyboard_line) : '未绑定分镜行，生成时缺少分镜意图和镜头计划来源', done: hasStoryboardSource, tone: hasStoryboardSource ? 'success' : 'warning' },
     { label: '剧本来源稳定', detail: hasScriptSource ? scriptBlockContextLabel(context.script_block) : '未绑定不可变剧本块，生成缺少可追溯的剧本行文', done: hasScriptSource, tone: hasScriptSource ? 'success' : 'warning' },
     { label: '情景上下文存在', detail: hasStoryContext ? [context.segment ? `编排段：${titleOfRecord(context.segment)}` : null, context.scene_moment ? `情景：${titleOfRecord(context.scene_moment)}` : null].filter(Boolean).join(' / ') : '未绑定情景或编排段，生成会缺少时空、动作和情绪约束', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
     { label: '连续性资料可用', detail: hasContinuity ? `${context.creative_references.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, tone: hasContinuity ? 'success' : 'warning' },
@@ -1334,6 +1352,7 @@ function buildGenerationContextRows(context?: GenerationContext): WorkbenchLinkR
   const assetSummary = summarizeGenerationAssets(context.asset_slots)
   return [
     { label: '后端目标', value: firstText(target.prompt, target.description, titleOfRecord(target)), icon: Target },
+    { label: '分镜来源', value: context.storyboard_line ? storyboardLineContextLabel(context.storyboard_line) : '未绑定分镜行', icon: Clapperboard },
     { label: '剧本来源', value: context.script_block ? firstText(context.script_block.content, scriptBlockContextLabel(context.script_block)) : '未绑定剧本块', icon: ScrollText },
     { label: '情景', value: context.scene_moment ? firstText(context.scene_moment.description, context.scene_moment.action_text, titleOfRecord(context.scene_moment)) : '未绑定情景', icon: Route },
     { label: '设定引用', value: referenceNames.length > 0 ? referenceNames.slice(0, 4).join('、') : '未找到设定引用', icon: Users },
@@ -1341,6 +1360,15 @@ function buildGenerationContextRows(context?: GenerationContext): WorkbenchLinkR
     { label: '镜头关键帧', value: context.keyframes.length > 0 ? context.keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到镜头关键帧', icon: Image },
     { label: '写回范围', value: context.constraints.write_targets.join('、') || '未声明写回范围', icon: ShieldCheck },
   ]
+}
+
+function storyboardLineContextLabel(line?: SemanticEntityRecord) {
+  if (!line) return '未绑定分镜行'
+  const source = [
+    firstText(line.visual_intent, line.description, line.dialogue),
+    titleOfRecord(line),
+  ].filter(Boolean).join(' · ')
+  return source || `分镜行 #${line.ID}`
 }
 
 function scriptBlockContextLabel(block?: SemanticEntityRecord) {
@@ -1384,71 +1412,450 @@ function buildProductionCandidateRows(jobs: Job[]) {
   }))
 }
 
-function parseAiUnitSuggestions(raw: string): AiUnitSuggestion[] {
-  if (!raw || !raw.trim()) return []
-  const jsonPayload = extractJsonBlock(raw)
-  if (!jsonPayload) return []
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(jsonPayload)
-  } catch {
-    return []
+function buildContentDraftReviewModel(
+  draft: AgentDraft,
+  context: {
+    rowByMomentId: Map<number, ContentGenerationMomentRow>
+    rowByUnitId: Map<number, ContentGenerationMomentRow>
+  },
+): ContentDraftReviewModel {
+  const parsed = parseDraftJsonContent(draft.content)
+  const warnings: string[] = []
+  const diffs: ContentSnapshotDiff[] = []
+
+  if (!parsed) {
+    warnings.push('草案内容不是可解析的 JSON。')
+    return {
+      draft,
+      summary: '草案内容无法解析，暂时不能做结构对比。',
+      targetLabel: draft.title,
+      diffs,
+      warnings,
+      stats: [],
+    }
   }
-  const arr = Array.isArray(parsed)
-    ? parsed
-    : Array.isArray((parsed as { units?: unknown })?.units)
-      ? (parsed as { units: unknown[] }).units
-      : []
-  const items: AiUnitSuggestion[] = []
-  const validKinds = new Set(['shot', 'visual_segment', 'caption_card', 'narration', 'transition', 'music_beat', 'product_showcase'])
-  arr.forEach((entry, index) => {
-    if (!entry || typeof entry !== 'object') return
-    const record = entry as Record<string, unknown>
-    const title = String(record.title ?? '').trim()
-    if (!title) return
-    const rawKind = String(record.kind ?? 'shot').trim()
-    const kind = validKinds.has(rawKind) ? rawKind : 'shot'
-    items.push({
-      client_id: `ai_${index}_${Math.random().toString(36).slice(2, 7)}`,
-      title,
-      kind,
-      description: optionalString(record.description),
-      prompt: optionalString(record.prompt),
-      duration_sec: optionalNumber(record.duration_sec),
-      shot_size: optionalString(record.shot_size),
-      camera_angle: optionalString(record.camera_angle),
-      camera_motion: optionalString(record.camera_motion),
+
+  if (draft.kind === 'content_unit_proposal') {
+    const sceneMomentId = draftEntityId(draft.target) || draftEntityId(draft.source) || numberOf(parsed.sceneMomentId ?? parsed.scene_moment_id)
+    const row = sceneMomentId > 0 ? context.rowByMomentId.get(sceneMomentId) ?? null : null
+    const proposal: Record<string, unknown> = isRecord(parsed.proposal) ? parsed.proposal : {}
+    const proposedUnits = draftRecordsArray(proposal.units ?? parsed.units)
+    const currentUnits = row?.units ?? []
+    const usedCurrentIds = new Set<number>()
+
+    if (!row) warnings.push('草案没有指向当前情节，无法做精确当前值对比。')
+
+    proposedUnits.forEach((unit, index) => {
+      if ('action' in unit) warnings.push(`草案单元「${draftUnitTitle(unit, index)}」包含旧版操作字段；snapshot 审阅不会把它当作草案语义。`)
+      const current = matchCurrentContentUnit(unit, currentUnits, usedCurrentIds, index)
+      const fields = compareContentUnitFields(current, unit)
+      const state: ContentSnapshotDiffState = current ? (fields.length > 0 ? 'changed' : 'unchanged') : 'added'
+      if (current) usedCurrentIds.add(current.ID)
+      diffs.push({
+        key: `unit-${index}-${current?.ID ?? unitKey(unit, index)}`,
+        state,
+        kind: 'content_unit',
+        title: draftUnitTitle(unit, index),
+        target: current ? `当前内容单元 #${current.ID}` : '新增内容单元',
+        detail: contentUnitChangeDetail(current, unit, fields),
+        impact: contentUnitChangeImpact(state, current, fields),
+        before: current ? contentUnitSnapshot(current) : undefined,
+        after: contentUnitSnapshotFromProposal(unit),
+        fields,
+      })
     })
-  })
-  return items
+
+    currentUnits.forEach((current) => {
+      if (usedCurrentIds.has(current.ID)) return
+      diffs.push({
+        key: `removed-${current.ID}`,
+        state: 'changed',
+        kind: 'content_unit',
+        title: titleOfRecord(current),
+        target: `现有内容单元 #${current.ID}`,
+        detail: '草案未包含该内容单元，属于收拢或删除候选。',
+        impact: '可能移除当前内容单元。',
+        before: contentUnitSnapshot(current),
+        after: '未出现在草案中',
+        fields: [],
+      })
+      warnings.push(`现有内容单元「${titleOfRecord(current)}」未出现在草案中。`)
+    })
+
+    const summary = [
+      `${diffs.filter((item) => item.state === 'added').length} 个快照新增`,
+      `${diffs.filter((item) => item.state === 'changed').length} 个快照变更`,
+      `${diffs.filter((item) => item.state === 'unchanged').length} 个快照一致`,
+    ].join('，')
+
+    return {
+      draft,
+      summary,
+      targetLabel: row ? titleOfRecord(row.moment) : draft.title,
+      diffs,
+      warnings,
+      stats: [
+        { label: '快照新增', value: diffs.filter((item) => item.state === 'added').length },
+        { label: '快照变更', value: diffs.filter((item) => item.state === 'changed').length },
+        { label: '快照一致', value: diffs.filter((item) => item.state === 'unchanged').length },
+      ],
+    }
+  }
+
+  if (draft.kind === 'content_unit_media_proposal') {
+    const contentUnitId = draftEntityId(draft.target) || draftEntityId(draft.source) || numberOf(parsed.contentUnitId ?? parsed.content_unit_id)
+    const row = contentUnitId > 0 ? context.rowByUnitId.get(contentUnitId) ?? null : null
+    const unit = row?.units.find((item) => item.ID === contentUnitId) ?? null
+    const plans = draftRecordsArray(parsed.media_plans ?? parsed.mediaPlans)
+
+    if (!row) warnings.push('草案没有指向当前内容单元，媒体计划只能做目标级对比。')
+
+    plans.forEach((plan, index) => {
+      diffs.push({
+        key: `media-${index}-${unitKey(plan, index)}`,
+        state: 'planned',
+        kind: 'media_plan',
+        title: firstText(draftFieldString(plan, ['kind']), `媒体计划 ${index + 1}`),
+        target: unit ? titleOfRecord(unit) : '内容单元',
+        detail: compactContentParts([
+          draftFieldString(plan, ['prompt']),
+          draftRecordList(plan.references, '无参考'),
+          draftRecordList(plan.acceptance_criteria, '无验收条件'),
+        ]),
+        impact: '描述生成计划，不直接改写内容单元结构。',
+        after: draftFieldString(plan, ['prompt']),
+        fields: draftMediaPlanFields(plan),
+      })
+    })
+
+    return {
+      draft,
+      summary: `${diffs.length} 条媒体计划，围绕当前内容单元描述生成约束。`,
+      targetLabel: unit ? titleOfRecord(unit) : draft.title,
+      diffs,
+      warnings,
+      stats: [{ label: '计划', value: diffs.length }],
+    }
+  }
+
+  return {
+    draft,
+    summary: '当前草案类型暂不支持内容编排审阅。',
+    targetLabel: draft.title,
+    diffs,
+    warnings,
+    stats: [],
+  }
+}
+
+function parseDraftJsonContent(content: string): Record<string, unknown> | null {
+  const block = extractJsonBlock(content.trim())
+  if (!block) return null
+  try {
+    const parsed = JSON.parse(block)
+    return isRecord(parsed) ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 function extractJsonBlock(raw: string): string | null {
-  const trimmed = raw.trim()
-  if (!trimmed) return null
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(trimmed)
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(raw)
   if (fenced) return fenced[1].trim()
-  const first = trimmed.indexOf('{')
-  const last = trimmed.lastIndexOf('}')
-  if (first >= 0 && last > first) return trimmed.slice(first, last + 1)
-  return trimmed
+  const first = raw.indexOf('{')
+  const last = raw.lastIndexOf('}')
+  if (first >= 0 && last > first) return raw.slice(first, last + 1)
+  return raw.trim() || null
 }
 
-function optionalString(value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  const text = value.trim()
-  return text ? text : undefined
+function draftEntityId(value?: Record<string, unknown>) {
+  return numberOf(value?.entityId)
 }
 
-function optionalNumber(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return Math.round(value)
-  if (typeof value === 'string' && value.trim()) {
-    const num = Number(value)
-    if (Number.isFinite(num) && num > 0) return Math.round(num)
+function draftRecordsArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : []
+}
+
+function draftStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((item) => String(item ?? '').trim()).filter(Boolean)
+    : []
+}
+
+function draftRecordList(value: unknown, emptyLabel: string) {
+  const items = draftStringArray(value)
+  return items.length > 0 ? items.join('、') : emptyLabel
+}
+
+function draftFieldString(value: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (typeof value[key] === 'string' && String(value[key]).trim()) return String(value[key]).trim()
   }
-  return undefined
+  return ''
 }
 
+function draftUnitTitle(unit: Record<string, unknown>, index: number) {
+  return firstText(draftFieldString(unit, ['title']), `内容单元 ${index + 1}`)
+}
+
+function unitKey(unit: Record<string, unknown>, index: number) {
+  return `${normalizeDraftText(draftFieldString(unit, ['title']))}-${index}`
+}
+
+function normalizeDraftText(value: unknown) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function matchCurrentContentUnit(
+  proposed: Record<string, unknown>,
+  currentUnits: WorkbenchRecord[],
+  usedCurrentIds: Set<number>,
+  index: number,
+) {
+  const proposedTitle = normalizeDraftText(draftFieldString(proposed, ['title']))
+  const proposedKind = normalizeDraftText(draftFieldString(proposed, ['kind']))
+  const exact = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeDraftText(titleOfRecord(unit)) === proposedTitle && normalizeDraftText(unit.kind) === proposedKind)
+  if (exact) return exact
+  const byTitle = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeDraftText(titleOfRecord(unit)) === proposedTitle)
+  if (byTitle) return byTitle
+  const byKind = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeDraftText(unit.kind) === proposedKind)
+  if (byKind) return byKind
+  return currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && index === 0) ?? undefined
+}
+
+function contentUnitSnapshot(unit: WorkbenchRecord) {
+  return compactContentParts([
+    titleOfRecord(unit),
+    unit.kind,
+    unit.description,
+    unit.prompt,
+    unit.duration_sec ? `${unit.duration_sec}s` : '',
+    unit.shot_size,
+    unit.camera_angle,
+    unit.camera_motion,
+  ])
+}
+
+function contentUnitSnapshotFromProposal(unit: Record<string, unknown>) {
+  const shot = isRecord(unit.shot) ? unit.shot : undefined
+  return compactContentParts([
+    draftUnitTitle(unit, 0),
+    draftFieldString(unit, ['kind']),
+    draftFieldString(unit, ['description']),
+    draftFieldString(unit, ['prompt']),
+    numberOf(unit.duration_sec) > 0 ? `${numberOf(unit.duration_sec)}s` : '',
+    draftFieldString(shot ?? {}, ['shot_size']),
+    draftFieldString(shot ?? {}, ['camera_angle']),
+    draftFieldString(shot ?? {}, ['camera_movement', 'camera_motion']),
+  ])
+}
+
+function compareContentUnitFields(current: WorkbenchRecord | undefined, proposed: Record<string, unknown>): ContentSnapshotFieldDiff[] {
+  const shot = isRecord(proposed.shot) ? proposed.shot : undefined
+  return compactFieldChanges([
+    { label: '标题', before: current ? titleOfRecord(current) : undefined, after: draftUnitTitle(proposed, 0) },
+    { label: '类型', before: current?.kind, after: draftFieldString(proposed, ['kind']) },
+    { label: '描述', before: current?.description, after: draftFieldString(proposed, ['description']) },
+    { label: '提示词', before: current?.prompt, after: draftFieldString(proposed, ['prompt']) },
+    { label: '时长', before: current?.duration_sec ? `${current.duration_sec}s` : undefined, after: numberOf(proposed.duration_sec) > 0 ? `${numberOf(proposed.duration_sec)}s` : undefined },
+    { label: '景别', before: current?.shot_size, after: draftFieldString(shot ?? {}, ['shot_size']) },
+    { label: '机位', before: current?.camera_angle, after: draftFieldString(shot ?? {}, ['camera_angle']) },
+    { label: '运动', before: current?.camera_motion, after: draftFieldString(shot ?? {}, ['camera_movement', 'camera_motion']) },
+  ])
+}
+
+function draftMediaPlanFields(plan: Record<string, unknown>): ContentSnapshotFieldDiff[] {
+  return compactFieldChanges([
+    { label: '类型', after: draftFieldString(plan, ['kind']) },
+    { label: '提示词', after: draftFieldString(plan, ['prompt']) },
+    { label: '参考', after: draftRecordList(plan.references, '无参考') },
+    { label: '验收', after: draftRecordList(plan.acceptance_criteria, '无验收条件') },
+  ])
+}
+
+function contentUnitChangeDetail(current: WorkbenchRecord | undefined, proposed: Record<string, unknown>, fields: ContentSnapshotFieldDiff[]) {
+  if (!current) return compactContentParts([draftFieldString(proposed, ['description']), draftFieldString(proposed, ['prompt'])])
+  if (fields.length === 0) return '与当前内容单元一致，可视为复用。'
+  return `调整 ${fields.map((field) => field.label).slice(0, 4).join('、')}`
+}
+
+function contentUnitChangeImpact(state: ContentSnapshotDiffState, current: WorkbenchRecord | undefined, fields: ContentSnapshotFieldDiff[]) {
+  if (state === 'added') return '草案快照新增内容单元。'
+  if (state === 'unchanged') return '草案快照与当前内容单元一致。'
+  if (!current) return '新增或替换结构。'
+  if (fields.some((field) => field.label === '标题' || field.label === '类型')) return '会改变该单元的结构定位。'
+  if (fields.some((field) => field.label === '提示词' || field.label === '描述')) return '会改变该单元的创作意图。'
+  return '会改变该单元的执行细节。'
+}
+
+function compactFieldChanges(items: Array<ContentSnapshotFieldDiff>): ContentSnapshotFieldDiff[] {
+  return items.filter((item) => normalizeDraftText(item.before) !== normalizeDraftText(item.after))
+}
+
+function compactContentParts(parts: Array<unknown>) {
+  return parts.map((part) => String(part ?? '').trim()).filter(Boolean).join(' / ')
+}
+
+function dedupeDrafts(drafts: AgentDraft[]) {
+  const seen = new Set<string>()
+  return drafts.filter((draft) => {
+    if (seen.has(draft.id)) return false
+    seen.add(draft.id)
+    return true
+  })
+}
+
+function contentSnapshotStateLabel(state: ContentSnapshotDiffState) {
+  if (state === 'added') return '快照新增'
+  if (state === 'changed') return '快照变更'
+  if (state === 'unchanged') return '快照一致'
+  return '媒体计划'
+}
+
+function contentSnapshotKindLabel(kind: ContentSnapshotDiffKind) {
+  if (kind === 'content_unit') return '内容单元快照'
+  if (kind === 'media_plan') return '媒体计划快照'
+  return '关键帧快照'
+}
+
+function ContentGenerationReviewPanel({
+  reviewMode,
+  drafts,
+  selectedDraft,
+  reviewModel,
+  onSelectDraft,
+  onCloseReview,
+}: {
+  reviewMode: boolean
+  drafts: AgentDraft[]
+  selectedDraft: AgentDraft | null
+  reviewModel: ContentDraftReviewModel | null
+  onSelectDraft: (draftId: string) => void
+  onCloseReview: () => void
+}) {
+  return (
+    <WorkbenchPanel
+      title="AI 草案审阅"
+      icon={ClipboardCheck}
+      action={(
+        <div className="flex items-center gap-2">
+          <Badge variant={drafts.length > 0 ? 'secondary' : 'outline'}>{drafts.length} 个草案</Badge>
+          <Button size="sm" variant="outline" className="h-8 gap-2" onClick={onCloseReview}>
+            <Database size={13} />
+            {reviewMode ? '退出审阅' : '收起审阅'}
+          </Button>
+        </div>
+      )}
+    >
+      {drafts.length === 0 ? (
+        <div className="rounded-md border border-dashed border-border bg-background px-3 py-6 text-sm text-muted-foreground">
+          还没有内容单元草案。先通过 AI 助手生成 snapshot 草案，审阅区会显示当前快照和草案快照的对比。
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="space-y-2">
+            {drafts.map((draft) => {
+              const active = selectedDraft?.id === draft.id
+              return (
+                <button
+                  key={draft.id}
+                  type="button"
+                  onClick={() => onSelectDraft(draft.id)}
+                  className={cn(
+                    'w-full rounded-md border px-3 py-3 text-left transition-colors',
+                    active ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{draft.title}</p>
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">{draft.kind === 'content_unit_media_proposal' ? '媒体计划快照' : '内容单元快照'} · {draft.status}</p>
+                    </div>
+                    <Badge variant={active ? 'secondary' : 'outline'} className="shrink-0 text-[10px]">
+                      {draft.kind === 'content_unit_media_proposal' ? '媒体' : '结构'}
+                    </Badge>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="min-w-0 rounded-md border border-border bg-background p-4">
+            {!selectedDraft || !reviewModel ? (
+              <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择一个草案后查看快照对比。</p>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-semibold text-foreground">{selectedDraft.title}</h3>
+                      <Badge variant="secondary" className="text-[10px]">{selectedDraft.kind === 'content_unit_media_proposal' ? '媒体计划快照' : '内容单元快照'}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {reviewModel.targetLabel} · {reviewModel.summary}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {reviewModel.stats.map((stat) => (
+                      <Badge key={stat.label} variant="outline" className="text-[10px]">{stat.label} {stat.value}</Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {reviewModel.warnings.length > 0 ? (
+                  <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    {reviewModel.warnings.map((warning) => (
+                      <p key={warning}>{warning}</p>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="space-y-2">
+                  {reviewModel.diffs.map((change) => (
+                    <div key={change.key} className="rounded-md border border-border bg-muted/10 px-3 py-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant={change.state === 'added' ? 'secondary' : change.state === 'unchanged' ? 'outline' : 'default'} className="text-[10px]">
+                              {contentSnapshotStateLabel(change.state)}
+                            </Badge>
+                            <Badge variant="outline" className="text-[10px]">{contentSnapshotKindLabel(change.kind)}</Badge>
+                            <span className="truncate text-sm font-medium text-foreground">{change.title}</span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground">{change.target}</p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">{change.impact}</p>
+                      </div>
+                      {change.detail ? <p className="mt-2 text-xs leading-5 text-foreground">{change.detail}</p> : null}
+                      {(change.before || change.after) ? (
+                        <div className="mt-2 grid gap-2 md:grid-cols-2">
+                          {change.before ? <div className="rounded bg-rose-500/10 px-2 py-1 text-xs text-rose-700 dark:text-rose-300">当前：{change.before}</div> : null}
+                          {change.after ? <div className="rounded bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-300">草案：{change.after}</div> : null}
+                        </div>
+                      ) : null}
+                      {change.fields.length > 0 ? (
+                        <div className="mt-2 space-y-1">
+                          {change.fields.map((field) => (
+                            <div key={field.label} className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="w-14 shrink-0 text-muted-foreground">{field.label}</span>
+                              <span className="rounded bg-muted px-2 py-1 text-muted-foreground">{field.before || '空'}</span>
+                              <ArrowRight size={12} className="text-muted-foreground" />
+                              <span className="rounded bg-primary/10 px-2 py-1 text-foreground">{field.after || '空'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </WorkbenchPanel>
+  )
+}
 
 function firstText(...values: Array<unknown>) {
   for (const value of values) {
@@ -2547,6 +2954,7 @@ function ContentGenerationWorkbench() {
   const projectId = project?.ID
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const keyframeUploadInputRef = useRef<HTMLInputElement>(null)
   const { data, isLoading, isError } = useQuery({
@@ -2562,18 +2970,12 @@ function ContentGenerationWorkbench() {
   const [uploading, setUploading] = useState(false)
   const [creatingUnit, setCreatingUnit] = useState(false)
   const [creatingKeyframe, setCreatingKeyframe] = useState(false)
-  const [aiSuggestOpen, setAiSuggestOpen] = useState(false)
-  const [aiSuggestRunning, setAiSuggestRunning] = useState(false)
-  const [aiSuggestError, setAiSuggestError] = useState<string | null>(null)
-  const [aiSuggestions, setAiSuggestions] = useState<AiUnitSuggestion[]>([])
-  const [aiSuggestSelected, setAiSuggestSelected] = useState<Set<string>>(new Set())
-  const [aiSuggestBrief, setAiSuggestBrief] = useState('')
-  const [aiModelId, setAiModelId] = useState<number | null>(null)
-  const [aiModelName, setAiModelName] = useState<string | undefined>(undefined)
   const [keyframeLibraryTarget, setKeyframeLibraryTarget] = useState<WorkbenchRecord | null>(null)
   const [keyframeResourceSearch, setKeyframeResourceSearch] = useState('')
   const [keyframeResourcePage, setKeyframeResourcePage] = useState(1)
   const [uploadKeyframeTarget, setUploadKeyframeTarget] = useState<WorkbenchRecord | null>(null)
+  const reviewDraftId = searchParams.get('draftId')?.trim() ?? ''
+  const reviewMode = searchParams.get('view') === 'review' || reviewDraftId.length > 0
   const productionFilteredRows = useMemo(() => {
     if (productionFilter === 'all') return rows
     if (productionFilter === 'unassigned') return rows.filter((row) => row.productionIds.length === 0)
@@ -2832,6 +3234,48 @@ function ContentGenerationWorkbench() {
 
   const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
   const productionWorkbenchQueryKey = ['workbench', 'production', projectId] as const
+  const reviewDraftsQuery = useQuery<AgentDraft[]>({
+    queryKey: ['workbench', 'production', 'content-drafts', projectId],
+    queryFn: async () => {
+      if (!projectId) return []
+      const [contentUnitProposals, mediaProposals] = await Promise.all([
+        localAgentClient.listDrafts({ projectId, kind: 'content_unit_proposal', limit: 20 }),
+        localAgentClient.listDrafts({ projectId, kind: 'content_unit_media_proposal', limit: 20 }),
+      ])
+      return dedupeDrafts([...contentUnitProposals.drafts, ...mediaProposals.drafts]).filter((draft) => draft.status !== 'rejected')
+    },
+    enabled: !!projectId,
+    retry: false,
+  })
+  const reviewDrafts = reviewDraftsQuery.data ?? []
+  const reviewDraftsById = useMemo(() => new Map(reviewDrafts.map((draft) => [draft.id, draft] as const)), [reviewDrafts])
+  const selectedReviewDraft = reviewDraftId ? reviewDraftsById.get(reviewDraftId) ?? null : reviewDrafts[0] ?? null
+  const contentDraftReview = useMemo(() => {
+    if (!selectedReviewDraft) return null
+    return buildContentDraftReviewModel(selectedReviewDraft, {
+      rowByMomentId: new Map(rows.map((row) => [row.moment.ID, row] as const)),
+      rowByUnitId: new Map(rows.flatMap((row) => row.units.map((unit) => [unit.ID, row] as const))),
+    })
+  }, [rows, selectedReviewDraft])
+
+  function selectReviewDraft(draftId: string) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('view', 'review')
+      next.set('draftId', draftId)
+      return next
+    }, { replace: true })
+  }
+
+  function closeReview() {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('view')
+      next.delete('draftId')
+      return next
+    }, { replace: true })
+  }
+
   const unitCandidates = useMemo(() => {
     if (!selected) return [] as WorkbenchRecord[]
     return selected.units.filter((unit) => {
@@ -2852,125 +3296,39 @@ function ContentGenerationWorkbench() {
       toast.error(apiErrorMessage(error, '候选状态更新失败'))
     },
   })
-  const createUnitsFromAI = useMutation({
-    mutationFn: async (items: AiUnitSuggestion[]) => {
-      if (!projectId) throw new Error('请先选择项目')
-      if (!selected) throw new Error('请先选择情节')
-      const baseOrder = selected.units.length
-      const segmentId = selected.segment?.ID ?? null
-      const momentId = selected.moment.ID
-      const productionId = selectedUnit?.production_id ?? selected.segment?.production_id ?? null
-      const created: SemanticEntityRecord[] = []
-      for (let i = 0; i < items.length; i += 1) {
-        const suggestion = items[i]
-        const payload: SemanticEntityPayload = {
-          title: suggestion.title,
-          kind: suggestion.kind || 'shot',
-          order: baseOrder + i + 1,
-          status: 'candidate',
-          segment_id: segmentId,
-          scene_moment_id: momentId,
-          production_id: productionId,
-        }
-        if (suggestion.description) payload.description = suggestion.description
-        if (suggestion.prompt) payload.prompt = suggestion.prompt
-        if (suggestion.duration_sec) payload.duration_sec = suggestion.duration_sec
-        if (suggestion.shot_size) payload.shot_size = suggestion.shot_size
-        if (suggestion.camera_angle) payload.camera_angle = suggestion.camera_angle
-        if (suggestion.camera_motion) payload.camera_motion = suggestion.camera_motion
-        const saved = await createSemanticEntity(projectId, contentUnitConfig, payload)
-        created.push(saved)
-      }
-      return created
-    },
-    onSuccess: async (records) => {
-      await queryClient.invalidateQueries({ queryKey: productionWorkbenchQueryKey })
-      toast.success(`已加入 ${records.length} 个候选单元`)
-      setAiSuggestions([])
-      setAiSuggestSelected(new Set())
-      setAiSuggestOpen(false)
-    },
-    onError: (error) => {
-      toast.error(apiErrorMessage(error, '候选单元创建失败'))
-    },
-  })
-
-  async function runAiSuggest() {
-    if (!projectId || !selected) return
-    if (!aiModelId) {
-      toast.error('请选择文本模型')
-      return
-    }
-    setAiSuggestRunning(true)
-    setAiSuggestError(null)
-    try {
-      const brief = aiSuggestBrief.trim()
-      const prompt = brief
-        ? `请基于当前情节建议 3-6 条尚未创建的内容单元。\n创作者补充：${brief}`
-        : '请基于当前情节建议 3-6 条尚未创建的内容单元。'
-      const { run, thread } = await runRuntimeMessage({
-        message: prompt,
-        title: '内容单元 AI 建议',
-        modelConfigId: aiModelId,
-        modelName: aiModelName,
-        clientInput: buildCommandFirstClientInput({
-          message: prompt,
-          labels: ['workbench', 'content-unit-suggest'],
-          hints: {
-            projectId,
-            productionId: selectedProduction?.ID,
-            route: { pathname: '/workbench/production' },
-            selection: {
-              entityType: 'scene_moment',
-              entityId: selected.moment.ID,
-              label: selected.title,
-            },
-          },
-        }),
-        timeoutMs: 90_000,
-        pollMs: 500,
-        sessionId: `content_unit_suggest_${projectId}_${selected.moment.ID}_${Date.now()}`,
-        sessionTaskType: 'content_unit_suggest',
-      })
-      const raw = formatLocalAgentAssistantContent(run, thread)
-      const parsed = parseAiUnitSuggestions(raw)
-      if (parsed.length === 0) {
-        setAiSuggestError('模型没有返回可解析的候选单元，请重试或调整补充说明。')
-      } else {
-        setAiSuggestions(parsed)
-        setAiSuggestSelected(new Set(parsed.map((item) => item.client_id)))
-      }
-    } catch (error) {
-      setAiSuggestError(error instanceof Error ? error.message : String(error))
-    } finally {
-      setAiSuggestRunning(false)
-    }
-  }
-
-  function toggleAiSuggestion(clientId: string) {
-    setAiSuggestSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(clientId)) next.delete(clientId)
-      else next.add(clientId)
-      return next
-    })
-  }
-
-  function acceptAiSuggestions() {
-    const items = aiSuggestions.filter((item) => aiSuggestSelected.has(item.client_id))
-    if (items.length === 0) {
-      toast.error('至少勾选一条候选单元')
-      return
-    }
-    createUnitsFromAI.mutate(items)
-  }
 
   function openAiSuggest() {
-    if (!selected) return
-    setAiSuggestError(null)
-    setAiSuggestions([])
-    setAiSuggestSelected(new Set())
-    setAiSuggestOpen(true)
+    if (!projectId || !selected) {
+      toast.info('请先选择情节')
+      return
+    }
+    const prompt = '请基于当前情节生成 content_unit_proposal snapshot 草案：输出 3-6 条完整内容单元快照，包含 title、kind、description、prompt、duration_sec、story_purpose、emotional_intent、shot、performance、lighting、blocking、sound、transition 等可判断字段。不要输出操作字段或增量指令；审阅时会用完整草案快照和当前快照做对比。'
+    const requestId = `content_unit_suggest_${selected.moment.ID}_${Date.now().toString(36)}`
+    openAgentPanelDraft({
+      requestId,
+      taskType: 'content_unit_suggest',
+      message: prompt,
+      title: `内容单元 AI 建议: ${selected.title}`,
+      newConversation: true,
+      autoSend: false,
+      projectId,
+      clientInput: buildCommandFirstClientInput({
+        message: prompt,
+        labels: ['workbench', 'content-unit-suggest'],
+        hints: {
+          projectId,
+          productionId: selectedProduction?.ID,
+          route: { pathname: '/content-unit-orchestrate' },
+          selection: {
+            entityType: 'scene_moment',
+            entityId: selected.moment.ID,
+            label: selected.title,
+          },
+        },
+      }),
+      timeoutMs: 90_000,
+    })
+    toast.success('已打开 AI 助手，可在输入框补充需求后发送')
   }
 
   return (
@@ -3081,7 +3439,7 @@ function ContentGenerationWorkbench() {
                       <Boxes size={13} />
                       添加内容单元
                     </Button>
-                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={openAiSuggest} disabled={!selected || aiSuggestRunning}>
+                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={openAiSuggest} disabled={!selected}>
                       <Sparkles size={13} />
                       AI 建议
                     </Button>
@@ -3089,6 +3447,17 @@ function ContentGenerationWorkbench() {
                 </div>
               </div>
             </section>
+
+            {(reviewMode || reviewDrafts.length > 0 || reviewDraftsQuery.isLoading) ? (
+              <ContentGenerationReviewPanel
+                reviewMode={reviewMode}
+                drafts={reviewDrafts}
+                selectedDraft={selectedReviewDraft}
+                reviewModel={contentDraftReview}
+                onSelectDraft={selectReviewDraft}
+                onCloseReview={closeReview}
+              />
+            ) : null}
 
             <WorkbenchPanel
               title="连续关键帧总览"
@@ -3275,9 +3644,9 @@ function ContentGenerationWorkbench() {
                         <Boxes size={15} />
                         添加内容单元
                       </Button>
-                      <Button variant="outline" className="justify-start gap-2" onClick={openAiSuggest} disabled={!selected || aiSuggestRunning}>
+                      <Button variant="outline" className="justify-start gap-2" onClick={openAiSuggest} disabled={!selected}>
                         <Sparkles size={15} />
-                        {aiSuggestRunning ? 'AI 建议中' : 'AI 建议'}
+                        AI 建议
                       </Button>
                       <Button variant="outline" className="justify-start gap-2" onClick={() => selectedUnit ? openUnitCanvas.mutate(selectedUnit) : setCreatingUnit(true)} loading={openUnitCanvas.isPending} disabled={!selected}>
                         <Play size={15} />
@@ -3563,6 +3932,7 @@ function ContentGenerationWorkbench() {
                   segment_id: selected.segment?.ID ?? null,
                   scene_moment_id: selected.moment.ID,
                   production_id: selectedUnit?.production_id ?? selected.segment?.production_id ?? null,
+                  script_block_id: nullableNumber(selectedUnit?.script_block_id ?? selected.segment?.script_block_id),
                   order: selected.units.length + 1,
                   kind: 'shot',
                   status: 'candidate',
@@ -3615,98 +3985,6 @@ function ContentGenerationWorkbench() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={aiSuggestOpen} onOpenChange={(open) => { if (!open) setAiSuggestOpen(false) }}>
-        <DialogContent className="max-h-[88vh] w-[min(720px,calc(100vw-32px))] overflow-auto p-0">
-          <DialogHeader className="border-b border-border px-5 py-4">
-            <DialogTitle>AI 建议内容单元</DialogTitle>
-            <DialogDescription>
-              {selected ? `基于情节「${selected.title}」生成候选单元，勾选后批量加入。` : '请先选择情节再使用 AI 建议。'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 p-5">
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">文本模型</Label>
-              <ModelSelector
-                capability="text"
-                value={aiModelId}
-                onChange={(id) => setAiModelId(id)}
-                onModelChange={(model) => setAiModelName(model?.short_name || model?.display_name || model?.logical_model_id || undefined)}
-                disabled={aiSuggestRunning}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">补充说明（可选）</Label>
-              <Textarea
-                value={aiSuggestBrief}
-                onChange={(e) => setAiSuggestBrief(e.target.value)}
-                placeholder="例如：强调情绪反差、突出产品细节、加一条旁白..."
-                rows={3}
-                disabled={aiSuggestRunning}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">
-                {aiSuggestions.length > 0
-                  ? `已生成 ${aiSuggestions.length} 条候选，勾选后加入`
-                  : aiSuggestRunning ? '正在生成候选...' : '点击生成后将获得 3-6 条候选单元'}
-              </p>
-              <Button size="sm" className="gap-2" onClick={runAiSuggest} loading={aiSuggestRunning} disabled={!selected || !aiModelId}>
-                <Sparkles size={14} />
-                {aiSuggestions.length > 0 ? '重新生成' : '生成候选'}
-              </Button>
-            </div>
-            {aiSuggestError ? (
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">{aiSuggestError}</p>
-            ) : null}
-            {aiSuggestions.length > 0 ? (
-              <div className="space-y-2">
-                {aiSuggestions.map((item) => {
-                  const checked = aiSuggestSelected.has(item.client_id)
-                  return (
-                    <label
-                      key={item.client_id}
-                      className={cn(
-                        'flex cursor-pointer items-start gap-3 rounded-md border px-3 py-3 transition-colors',
-                        checked ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-1"
-                        checked={checked}
-                        onChange={() => toggleAiSuggestion(item.client_id)}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium text-foreground">{item.title}</span>
-                          <Badge variant="outline">{item.kind}</Badge>
-                          {item.duration_sec ? <Badge variant="outline">{item.duration_sec}s</Badge> : null}
-                          {item.shot_size ? <Badge variant="outline">{item.shot_size}</Badge> : null}
-                          {item.camera_angle ? <Badge variant="outline">{item.camera_angle}</Badge> : null}
-                        </div>
-                        {item.description ? (
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p>
-                        ) : null}
-                        {item.prompt ? (
-                          <p className="mt-1 text-[11px] leading-5 text-muted-foreground">提示词：{item.prompt}</p>
-                        ) : null}
-                      </div>
-                    </label>
-                  )
-                })}
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <Button size="sm" variant="outline" onClick={() => setAiSuggestOpen(false)}>
-                    取消
-                  </Button>
-                  <Button size="sm" onClick={acceptAiSuggestions} loading={createUnitsFromAI.isPending} disabled={aiSuggestSelected.size === 0}>
-                    加入 {aiSuggestSelected.size} 条候选
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

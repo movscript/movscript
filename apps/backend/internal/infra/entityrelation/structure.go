@@ -181,20 +181,37 @@ func syncSceneMomentRelations(tx *gorm.DB, item *SceneMoment) error {
 	if err := deleteTargetEntityRelations(tx, "scene_moment", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeContains)); err != nil {
 		return err
 	}
-	if item.SegmentID == nil {
-		return nil
+	if err := deleteSourceEntityRelations(tx, "scene_moment", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeBasedOn)); err != nil {
+		return err
 	}
-	return syncEntityRelations(tx, nil, []entityRelationSeed{{
-		ProjectID:  item.ProjectID,
-		SourceType: "segment",
-		SourceID:   *item.SegmentID,
-		TargetType: "scene_moment",
-		TargetID:   item.ID,
-		Category:   EntityRelationCategoryStructure,
-		Type:       EntityRelationTypeContains,
-		Order:      item.Order,
-		Status:     relationStatus(item.Status),
-	}})
+	seeds := make([]entityRelationSeed, 0, 2)
+	if item.SegmentID != nil {
+		seeds = append(seeds, entityRelationSeed{
+			ProjectID:  item.ProjectID,
+			SourceType: "segment",
+			SourceID:   *item.SegmentID,
+			TargetType: "scene_moment",
+			TargetID:   item.ID,
+			Category:   EntityRelationCategoryStructure,
+			Type:       EntityRelationTypeContains,
+			Order:      item.Order,
+			Status:     relationStatus(item.Status),
+		})
+	}
+	if item.ScriptBlockID != nil {
+		seeds = append(seeds, entityRelationSeed{
+			ProjectID:  item.ProjectID,
+			SourceType: "scene_moment",
+			SourceID:   item.ID,
+			TargetType: "script_block",
+			TargetID:   *item.ScriptBlockID,
+			Category:   EntityRelationCategoryStructure,
+			Type:       EntityRelationTypeBasedOn,
+			Order:      item.Order,
+			Status:     relationStatus(item.Status),
+		})
+	}
+	return syncEntityRelations(tx, nil, seeds)
 }
 
 func syncContentUnitRelations(tx *gorm.DB, item *ContentUnit) error {
@@ -204,7 +221,10 @@ func syncContentUnitRelations(tx *gorm.DB, item *ContentUnit) error {
 	if err := deleteSourceEntityRelations(tx, "content_unit", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeBasedOn)); err != nil {
 		return err
 	}
-	seeds := make([]entityRelationSeed, 0, 3)
+	if err := deleteTargetEntityRelations(tx, "content_unit", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeCompilesTo)); err != nil {
+		return err
+	}
+	seeds := make([]entityRelationSeed, 0, 4)
 	if item.SegmentID != nil {
 		seeds = append(seeds, entityRelationSeed{
 			ProjectID:  item.ProjectID,
@@ -227,6 +247,19 @@ func syncContentUnitRelations(tx *gorm.DB, item *ContentUnit) error {
 			TargetID:   *item.SceneMomentID,
 			Category:   EntityRelationCategoryStructure,
 			Type:       EntityRelationTypeBasedOn,
+			Order:      item.Order,
+			Status:     relationStatus(item.Status),
+		})
+	}
+	if item.StoryboardLineID != nil {
+		seeds = append(seeds, entityRelationSeed{
+			ProjectID:  item.ProjectID,
+			SourceType: "storyboard_line",
+			SourceID:   *item.StoryboardLineID,
+			TargetType: "content_unit",
+			TargetID:   item.ID,
+			Category:   EntityRelationCategoryStructure,
+			Type:       EntityRelationTypeCompilesTo,
 			Order:      item.Order,
 			Status:     relationStatus(item.Status),
 		})
@@ -301,7 +334,7 @@ func syncStoryboardLineRelations(tx *gorm.DB, item *StoryboardLine) error {
 	if err := deleteTargetEntityRelations(tx, "storyboard_line", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeContains)); err != nil {
 		return err
 	}
-	if err := deleteSourceEntityRelations(tx, "storyboard_line", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeBasedOn, EntityRelationTypeCompilesTo)); err != nil {
+	if err := deleteSourceEntityRelations(tx, "storyboard_line", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeBasedOn)); err != nil {
 		return err
 	}
 	seeds := []entityRelationSeed{{
@@ -333,6 +366,9 @@ func syncStoryboardLineRelations(tx *gorm.DB, item *StoryboardLine) error {
 	}
 	if item.SceneMomentID != nil {
 		seeds = append(seeds, entityRelationSeed{ProjectID: item.ProjectID, SourceType: "storyboard_line", SourceID: item.ID, TargetType: "scene_moment", TargetID: *item.SceneMomentID, Category: EntityRelationCategoryStructure, Type: EntityRelationTypeBasedOn, Order: item.Order, Status: relationStatus(item.Status)})
+	}
+	if item.ScriptBlockID != nil {
+		seeds = append(seeds, entityRelationSeed{ProjectID: item.ProjectID, SourceType: "storyboard_line", SourceID: item.ID, TargetType: "script_block", TargetID: *item.ScriptBlockID, Category: EntityRelationCategoryStructure, Type: EntityRelationTypeBasedOn, Order: item.Order, Status: relationStatus(item.Status)})
 	}
 	return syncEntityRelations(tx, nil, seeds)
 }

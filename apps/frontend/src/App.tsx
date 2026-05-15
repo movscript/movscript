@@ -191,6 +191,11 @@ function LegacyContentUnitOrchestrateRedirect() {
   return <Navigate to={`/content-unit-orchestrate${search}`} replace />
 }
 
+function LegacyPreProductionRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={`/pre-production${search}`} replace />
+}
+
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
   const shell = (
     <div className="fixed inset-0 flex overflow-hidden bg-background text-foreground">
@@ -289,9 +294,9 @@ export default function App() {
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
               <Route path="/pre-production" element={<ProjectGuard><PreProductionPage /></ProjectGuard>} />
-              <Route path="/creative-references" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
+              <Route path="/creative-references" element={<ProjectGuard><LegacyPreProductionRedirect /></ProjectGuard>} />
               <Route path="/reference-relations" element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
-              <Route path="/asset-slots" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
+              <Route path="/asset-slots" element={<ProjectGuard><LegacyPreProductionRedirect /></ProjectGuard>} />
 
               {/* 工具模块 */}
               <Route path="/canvases" element={<Padded><CanvasListPage /></Padded>} />

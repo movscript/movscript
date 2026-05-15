@@ -3,9 +3,13 @@ import type { AgentDraftKind, AgentRun } from '@/lib/localAgentClient'
 export interface AgentTaskArtifactRef {
   type: 'draft'
   draftId: string
+  projectId?: number
   draftKind?: AgentDraftKind
   title?: string
   schema?: string
+  source?: Record<string, unknown>
+  target?: Record<string, unknown>
+  metadata?: Record<string, unknown>
   sourceRunId?: string
   sourceThreadId?: string
   updatedAt?: string
@@ -17,6 +21,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function numberValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  return undefined
 }
 
 function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
@@ -60,15 +73,22 @@ function artifactFromDraftCandidate(
   const updatedAt = stringValue(candidate.updatedAt ?? candidate.updated_at ?? candidate.createdAt ?? candidate.created_at ?? fallback.completedAt)
   const schema = stringValue(candidate.schema)
   const title = stringValue(candidate.title)
+  const projectId = numberValue(candidate.projectId ?? candidate.project_id)
   const source = isRecord(candidate.source) ? candidate.source : undefined
+  const target = isRecord(candidate.target) ? candidate.target : undefined
+  const metadata = isRecord(candidate.metadata) ? candidate.metadata : undefined
   const sourceRunId = stringValue(candidate.createdByRunId ?? candidate.created_by_run_id ?? source?.runId ?? source?.run_id ?? fallback.runId)
   const sourceThreadId = stringValue(candidate.createdByThreadId ?? candidate.created_by_thread_id ?? source?.threadId ?? source?.thread_id ?? fallback.threadId)
   return {
     type: 'draft',
     draftId,
+    ...(projectId !== undefined ? { projectId } : {}),
     ...(draftKind ? { draftKind } : {}),
     ...(title ? { title } : {}),
     ...(schema ? { schema } : {}),
+    ...(source ? { source } : {}),
+    ...(target ? { target } : {}),
+    ...(metadata ? { metadata } : {}),
     ...(sourceRunId ? { sourceRunId } : {}),
     ...(sourceThreadId ? { sourceThreadId } : {}),
     ...(updatedAt ? { updatedAt } : {}),

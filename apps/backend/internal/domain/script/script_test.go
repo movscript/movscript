@@ -93,16 +93,3 @@ func TestScriptPatchSpecAppliesZeroValuesAndNilPointers(t *testing.T) {
 		t.Fatalf("patch zero values not applied: %+v", item)
 	}
 }
-
-func TestInitialVersionSyncActivatesMissingStatus(t *testing.T) {
-	item := ScriptSnapshot{Title: "Draft", SourceType: ScriptSourceTypeRaw, Content: "content", RawSource: "raw", Summary: "summary"}
-	spec := InitialVersionSync(item, ScriptVersion{})
-	if spec.Status == nil || *spec.Status != ScriptVersionStatusActive {
-		t.Fatalf("status = %#v, want active", spec.Status)
-	}
-	version := ScriptVersion{}
-	version.ApplyInitialSync(spec)
-	if version.Title != "Draft" || version.Status != ScriptVersionStatusActive || version.RawSource != "raw" {
-		t.Fatalf("sync not applied: %+v", version)
-	}
-}

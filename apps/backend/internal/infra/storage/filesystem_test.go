@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -83,12 +85,45 @@ func TestFileSystemStorageRejectsEscapingKeys(t *testing.T) {
 	badKeys := []string{
 		"../outside.txt",
 		"/absolute.txt",
+		`C:\outside.txt`,
+		`C:/outside.txt`,
+		`..\outside.txt`,
 		"nested/../../outside.txt",
 	}
 	for _, key := range badKeys {
 		if err := store.Put(context.Background(), key, strings.NewReader("x"), 1, "text/plain"); err == nil {
 			t.Fatalf("Put(%q) returned nil error", key)
 		}
+	}
+}
+
+func TestFileSystemStorageAcceptsBackslashSeparatedRelativeKeys(t *testing.T) {
+	root := t.TempDir()
+	store, err := NewFileSystemStorage(root)
+	if err != nil {
+		t.Fatalf("NewFileSystemStorage: %v", err)
+	}
+
+	ctx := context.Background()
+	key := `canvas\1\clip.txt`
+	if err := store.Put(ctx, key, strings.NewReader("windows key"), int64(len("windows key")), "text/plain"); err != nil {
+		t.Fatalf("Put: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "canvas", "1", "clip.txt")); err != nil {
+		t.Fatalf("stored file stat: %v", err)
+	}
+
+	rc, _, _, err := store.GetObject(ctx, "canvas/1/clip.txt", -1, -1)
+	if err != nil {
+		t.Fatalf("GetObject with slash key: %v", err)
+	}
+	defer rc.Close()
+	data, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	if string(data) != "windows key" {
+		t.Fatalf("data = %q, want windows key", string(data))
 	}
 }
 

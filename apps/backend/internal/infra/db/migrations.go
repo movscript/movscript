@@ -193,6 +193,50 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.Segment{}, &persistencemodel.ContentUnit{})
 			},
 		},
+		{
+			Version: "000017",
+			Name:    "link_scene_moments_to_script_blocks",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.SceneMoment{})
+			},
+		},
+		{
+			Version: "000018",
+			Name:    "link_storyboard_lines_to_script_blocks",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.StoryboardLine{})
+			},
+		},
+		{
+			Version: "000019",
+			Name:    "link_content_units_to_storyboard_lines",
+			Up: func(db *gorm.DB) error {
+				if err := db.AutoMigrate(&persistencemodel.ContentUnit{}); err != nil {
+					return err
+				}
+				return backfillEntityRelationsByRows[persistencemodel.ContentUnit](db)
+			},
+		},
+		{
+			Version: "000020",
+			Name:    "enforce_unique_script_version_numbers",
+			Up: func(db *gorm.DB) error {
+				if err := resequenceScriptVersionNumbers(db); err != nil {
+					return err
+				}
+				return createScriptVersionNumberUniqueIndex(db)
+			},
+		},
+		{
+			Version: "000021",
+			Name:    "enforce_unique_storyboard_version_numbers",
+			Up: func(db *gorm.DB) error {
+				if err := resequenceStoryboardVersionNumbers(db); err != nil {
+					return err
+				}
+				return createStoryboardVersionNumberUniqueIndex(db)
+			},
+		},
 	}
 	return core
 }
@@ -254,6 +298,158 @@ func createJobRunnerIndexes(db *gorm.DB) error {
 		if err := db.Exec(stmt).Error; err != nil {
 			return fmt.Errorf("create jobrunner index %s: %w", idx.name, err)
 		}
+	}
+	return nil
+}
+
+const scriptVersionNumberUniqueIndex = "uidx_script_versions_project_script_number"
+
+type scriptVersionNumberRow struct {
+	ID            uint
+	ProjectID     uint
+	ScriptID      uint
+	VersionNumber int
+}
+
+func resequenceScriptVersionNumbers(db *gorm.DB) error {
+	var rows []scriptVersionNumberRow
+	if err := db.
+		Model(&persistencemodel.ScriptVersion{}).
+		Select("id, project_id, script_id, version_number").
+		Where("deleted_at IS NULL").
+		Order("project_id, script_id, version_number, id").
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("list script versions for resequence: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	for _, row := range rows {
+		if err := db.
+			Session(&gorm.Session{SkipHooks: true}).
+			Model(&persistencemodel.ScriptVersion{}).
+			Where("id = ?", row.ID).
+			Update("version_number", -int(row.ID)).Error; err != nil {
+			return fmt.Errorf("temporarily resequence script version %d: %w", row.ID, err)
+		}
+	}
+
+	var currentProjectID uint
+	var currentScriptID uint
+	nextVersionNumber := 0
+	for _, row := range rows {
+		if row.ProjectID != currentProjectID || row.ScriptID != currentScriptID {
+			currentProjectID = row.ProjectID
+			currentScriptID = row.ScriptID
+			nextVersionNumber = 1
+		} else {
+			nextVersionNumber++
+		}
+		if err := db.
+			Session(&gorm.Session{SkipHooks: true}).
+			Model(&persistencemodel.ScriptVersion{}).
+			Where("id = ?", row.ID).
+			Update("version_number", nextVersionNumber).Error; err != nil {
+			return fmt.Errorf("resequence script version %d: %w", row.ID, err)
+		}
+	}
+	return nil
+}
+
+func createScriptVersionNumberUniqueIndex(db *gorm.DB) error {
+	if db.Migrator().HasIndex(&persistencemodel.ScriptVersion{}, scriptVersionNumberUniqueIndex) {
+		return nil
+	}
+	partial := ""
+	if db.Dialector.Name() == "postgres" || db.Dialector.Name() == "sqlite" {
+		partial = " WHERE deleted_at IS NULL"
+	}
+	stmt := fmt.Sprintf(
+		"CREATE UNIQUE INDEX %s ON script_versions (project_id, script_id, version_number)%s",
+		scriptVersionNumberUniqueIndex,
+		partial,
+	)
+	if err := db.Exec(stmt).Error; err != nil {
+		return fmt.Errorf("create script version number unique index: %w", err)
+	}
+	return nil
+}
+
+const storyboardVersionNumberUniqueIndex = "uidx_storyboard_versions_project_script_number"
+
+type storyboardVersionNumberRow struct {
+	ID                 uint
+	ProjectID          uint
+	StoryboardScriptID uint
+	VersionNumber      int
+}
+
+func resequenceStoryboardVersionNumbers(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.StoryboardVersion{}) {
+		return nil
+	}
+	var rows []storyboardVersionNumberRow
+	if err := db.
+		Model(&persistencemodel.StoryboardVersion{}).
+		Select("id, project_id, storyboard_script_id, version_number").
+		Where("deleted_at IS NULL").
+		Order("project_id, storyboard_script_id, version_number, id").
+		Find(&rows).Error; err != nil {
+		return fmt.Errorf("list storyboard versions for resequence: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	for _, row := range rows {
+		if err := db.
+			Model(&persistencemodel.StoryboardVersion{}).
+			Where("id = ?", row.ID).
+			Update("version_number", -int(row.ID)).Error; err != nil {
+			return fmt.Errorf("temporarily resequence storyboard version %d: %w", row.ID, err)
+		}
+	}
+
+	var currentProjectID uint
+	var currentStoryboardScriptID uint
+	nextVersionNumber := 0
+	for _, row := range rows {
+		if row.ProjectID != currentProjectID || row.StoryboardScriptID != currentStoryboardScriptID {
+			currentProjectID = row.ProjectID
+			currentStoryboardScriptID = row.StoryboardScriptID
+			nextVersionNumber = 1
+		} else {
+			nextVersionNumber++
+		}
+		if err := db.
+			Model(&persistencemodel.StoryboardVersion{}).
+			Where("id = ?", row.ID).
+			Update("version_number", nextVersionNumber).Error; err != nil {
+			return fmt.Errorf("resequence storyboard version %d: %w", row.ID, err)
+		}
+	}
+	return nil
+}
+
+func createStoryboardVersionNumberUniqueIndex(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.StoryboardVersion{}) {
+		return nil
+	}
+	if db.Migrator().HasIndex(&persistencemodel.StoryboardVersion{}, storyboardVersionNumberUniqueIndex) {
+		return nil
+	}
+	partial := ""
+	if db.Dialector.Name() == "postgres" || db.Dialector.Name() == "sqlite" {
+		partial = " WHERE deleted_at IS NULL"
+	}
+	stmt := fmt.Sprintf(
+		"CREATE UNIQUE INDEX %s ON storyboard_versions (project_id, storyboard_script_id, version_number)%s",
+		storyboardVersionNumberUniqueIndex,
+		partial,
+	)
+	if err := db.Exec(stmt).Error; err != nil {
+		return fmt.Errorf("create storyboard version number unique index: %w", err)
 	}
 	return nil
 }

@@ -122,6 +122,7 @@ func SceneMomentFromModel(moment persistencemodel.SceneMoment) SceneMoment {
 		ID:            moment.ID,
 		ProjectID:     moment.ProjectID,
 		SegmentID:     moment.SegmentID,
+		ScriptBlockID: moment.ScriptBlockID,
 		Order:         moment.Order,
 		Title:         moment.Title,
 		Description:   moment.Description,
@@ -147,6 +148,7 @@ func (moment SceneMoment) ApplyToModel(target *persistencemodel.SceneMoment) {
 	target.Model.ID = moment.ID
 	target.ProjectID = moment.ProjectID
 	target.SegmentID = moment.SegmentID
+	target.ScriptBlockID = moment.ScriptBlockID
 	target.Order = moment.Order
 	target.Title = moment.Title
 	target.Description = moment.Description
@@ -168,6 +170,7 @@ func ContentUnitFromModel(unit persistencemodel.ContentUnit) ContentUnit {
 		ProductionID:     unit.ProductionID,
 		SegmentID:        unit.SegmentID,
 		SceneMomentID:    unit.SceneMomentID,
+		StoryboardLineID: unit.StoryboardLineID,
 		ScriptBlockID:    unit.ScriptBlockID,
 		Kind:             unit.Kind,
 		Order:            unit.Order,
@@ -208,6 +211,7 @@ func (unit ContentUnit) ApplyToModel(target *persistencemodel.ContentUnit) {
 	target.ProductionID = unit.ProductionID
 	target.SegmentID = unit.SegmentID
 	target.SceneMomentID = unit.SceneMomentID
+	target.StoryboardLineID = unit.StoryboardLineID
 	target.ScriptBlockID = unit.ScriptBlockID
 	target.Kind = unit.Kind
 	target.Order = unit.Order
@@ -1224,6 +1228,7 @@ func StoryboardLineFromModel(line persistencemodel.StoryboardLine) StoryboardLin
 		StoryboardVersionID: line.StoryboardVersionID,
 		SegmentID:           line.SegmentID,
 		SceneMomentID:       line.SceneMomentID,
+		ScriptBlockID:       line.ScriptBlockID,
 		Order:               line.Order,
 		Kind:                line.Kind,
 		Title:               line.Title,
@@ -1251,6 +1256,7 @@ func (line StoryboardLine) ApplyToModel(target *persistencemodel.StoryboardLine)
 	target.StoryboardVersionID = line.StoryboardVersionID
 	target.SegmentID = line.SegmentID
 	target.SceneMomentID = line.SceneMomentID
+	target.ScriptBlockID = line.ScriptBlockID
 	target.Order = line.Order
 	target.Kind = line.Kind
 	target.Title = line.Title

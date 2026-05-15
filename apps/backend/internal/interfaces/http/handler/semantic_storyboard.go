@@ -79,12 +79,7 @@ func (h *SemanticEntityHandler) CreateStoryboardVersion(c *gin.Context) {
 }
 
 func (h *SemanticEntityHandler) PatchStoryboardVersion(c *gin.Context) {
-	var req semanticapp.StoryboardVersionPatchInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
-		return
-	}
-	item, err := h.semantic.PatchStoryboardVersion(c.Request.Context(), parseID(c.Param("id")), c.Param("storyboardVersionId"), req)
+	item, err := h.semantic.PatchStoryboardVersion(c.Request.Context(), parseID(c.Param("id")), c.Param("storyboardVersionId"))
 	if err != nil {
 		h.writeSemanticAppError(c, err)
 		return
@@ -97,6 +92,7 @@ func (h *SemanticEntityHandler) ListStoryboardLines(c *gin.Context) {
 		ProjectID:           parseID(c.Param("id")),
 		StoryboardScriptID:  parseID(c.Query("storyboard_script_id")),
 		StoryboardVersionID: parseID(c.Query("storyboard_version_id")),
+		ScriptBlockID:       parseID(c.Query("script_block_id")),
 		Status:              c.Query("status"),
 	})
 	if err != nil {

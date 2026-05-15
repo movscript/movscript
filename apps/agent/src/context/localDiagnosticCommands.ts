@@ -13,6 +13,7 @@ import type {
 import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
+import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
 import { parseToolResult } from './runtimeContext.js'
 import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
 import { appendFinalSourceSummary } from '../contextManager/finalSourceSummary.js'
@@ -64,6 +65,7 @@ export function renderLocalDiagnosticCommand(input: {
   run: AgentRun
   manifest: AgentManifest
   skills: ResolvedAgentSkill[]
+  skillDiscovery?: SkillDiscoverySummary
   context: AgentDebugContextPanel
   tools: ResolvedToolCatalog
   policy: AgentRunPolicy
@@ -82,6 +84,7 @@ export function buildLocalDiagnosticCommand(input: {
   run: AgentRun
   manifest: AgentManifest
   skills: ResolvedAgentSkill[]
+  skillDiscovery?: SkillDiscoverySummary
   context: AgentDebugContextPanel
   tools: ResolvedToolCatalog
   policy: AgentRunPolicy
@@ -96,6 +99,7 @@ export function buildLocalDiagnosticCommand(input: {
     const modelTurnContext = contextManager.composeModelTurn({
       manifest: input.manifest,
       skills: input.skills,
+      ...(input.skillDiscovery ? { skillDiscovery: input.skillDiscovery } : {}),
       context: input.context,
       tools: input.tools,
       policy: input.policy,

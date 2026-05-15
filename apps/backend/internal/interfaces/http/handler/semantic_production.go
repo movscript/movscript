@@ -53,10 +53,12 @@ func (h *SemanticEntityHandler) PatchProduction(c *gin.Context) {
 
 func (h *SemanticEntityHandler) ListContentUnits(c *gin.Context) {
 	items, err := h.semantic.ListContentUnits(c.Request.Context(), semanticapp.ContentUnitFilter{
-		ProjectID:     parseID(c.Param("id")),
-		ProductionID:  parseID(c.Query("production_id")),
-		SegmentID:     parseID(c.Query("segment_id")),
-		SceneMomentID: parseID(c.Query("scene_moment_id")),
+		ProjectID:        parseID(c.Param("id")),
+		ProductionID:     parseID(c.Query("production_id")),
+		SegmentID:        parseID(c.Query("segment_id")),
+		SceneMomentID:    parseID(c.Query("scene_moment_id")),
+		StoryboardLineID: parseID(c.Query("storyboard_line_id")),
+		ScriptBlockID:    parseID(c.Query("script_block_id")),
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
@@ -73,6 +75,21 @@ func (h *SemanticEntityHandler) CreateContentUnit(c *gin.Context) {
 		return
 	}
 	item, err := h.semantic.CreateContentUnit(c.Request.Context(), projectID, req)
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, item)
+}
+
+func (h *SemanticEntityHandler) CreateContentUnitFromStoryboardLine(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req semanticapp.ContentUnitInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	item, err := h.semantic.CreateContentUnitFromStoryboardLine(c.Request.Context(), projectID, c.Param("storyboardLineId"), req)
 	if err != nil {
 		h.writeSemanticAppError(c, err)
 		return

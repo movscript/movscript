@@ -3,6 +3,7 @@ import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
+import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { ConfiguredRuntimeModelConfig } from '../model/modelConfig.js'
 import type { ModelCallInput, ModelCallResult } from '../model/modelClient.js'
@@ -24,6 +25,7 @@ import { contextManager } from '../contextManager/contextManager.js'
 export interface PreviewToolPlanInput {
   manifest: AgentManifest
   skills: ResolvedAgentSkill[]
+  skillDiscovery?: SkillDiscoverySummary
   context: AgentDebugContextPanel
   tools: ResolvedToolCatalog
   policy: AgentRunPolicy
@@ -54,6 +56,7 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
   const modelTurnContext = contextManager.composeModelTurn({
     manifest: input.manifest,
     skills: input.skills,
+    ...(input.skillDiscovery ? { skillDiscovery: input.skillDiscovery } : {}),
     context: input.context,
     tools: input.tools,
     policy: input.policy,

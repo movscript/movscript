@@ -29,6 +29,7 @@ import {
 import {
   createSemanticEntity,
   deleteSemanticEntity,
+  getSourceLockStatus,
   listSemanticEntities,
   semanticEntityConfig,
   updateSemanticEntity,
@@ -36,6 +37,7 @@ import {
   type SemanticEntityField,
   type SemanticEntityPayload,
   type SemanticEntityRecord,
+  type SourceLockStatus,
 } from '@/api/semanticEntities'
 import { ContentWorkspaceLayout } from '@/components/layout/ContentWorkspaceLayout'
 import { PreviewDrawer } from '@/components/preview/PreviewDrawer'
@@ -279,7 +281,8 @@ export default function SegmentsPage() {
     const contentUnitIds = new Set(segmentContentUnits.map((item) => item.ID))
     const segmentStoryboardLines = storyboardLines.filter((item) => (
       item.segment_id === segment.ID ||
-      Boolean(item.scene_moment_id && sceneMomentIds.has(item.scene_moment_id))
+      Boolean(item.scene_moment_id && sceneMomentIds.has(item.scene_moment_id)) ||
+      Boolean(segment.script_block_id && item.script_block_id === segment.script_block_id)
     )).sort(compareByOrder)
     const segmentKeyframes = keyframes.filter((item) => (
       Boolean(item.scene_moment_id && sceneMomentIds.has(item.scene_moment_id)) ||
@@ -594,9 +597,10 @@ export default function SegmentsPage() {
         upstream={<div />}
         downstream={<div />}
         bottom={(
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
             <RelatedPanel title="拥有的情景" icon={Film} records={selectedSegment?.sceneMoments ?? []} empty="当前编排段暂无情景" />
             <RelatedPanel title="来源剧本块" icon={ScrollText} records={selectedSegment?.scriptBlock ? [selectedSegment.scriptBlock] : []} empty="当前编排段暂无剧本块来源" />
+            <RelatedPanel title="相关分镜行" icon={Clapperboard} records={selectedSegment?.storyboardLines ?? []} empty="当前编排段暂无分镜行" scriptBlocksById={scriptBlocksById} />
             <RelatedPanel title="涉及到的设定资料" icon={Sparkles} records={selectedSegment?.references ?? []} empty="当前编排段暂无设定资料引用" />
             <RelatedPanel title="所需要的素材需求" icon={PackageCheck} records={selectedSegment?.assetSlots ?? []} empty="当前编排段暂无素材需求" />
             <RelatedPanel title="需要产出的制作项" icon={Boxes} records={selectedSegment?.contentUnits ?? []} empty="当前编排段暂无制作项" />
@@ -676,11 +680,18 @@ function SegmentDetailCard({
   const [form, setForm] = useState<SegmentFormState>(() => buildSegmentInitialForm(fields, record, defaults))
   const [isEditing, setIsEditing] = useState(Boolean(defaults || !record))
   const [previewOpen, setPreviewOpen] = useState(false)
+  const sourceLockEnabled = Boolean(projectId && record?.ID)
 
   useEffect(() => {
     setForm(buildSegmentInitialForm(fields, record, defaults))
     setIsEditing(Boolean(defaults || !record))
   }, [defaults, fields, record])
+
+  const { data: sourceLock } = useQuery<SourceLockStatus>({
+    queryKey: ['semantic-source-lock', projectId, config.kind, record?.ID],
+    queryFn: () => getSourceLockStatus(projectId!, config, record!.ID),
+    enabled: sourceLockEnabled,
+  })
 
   const missingRequiredFields = useMemo(() => fields.filter((field) => field.required && !isSegmentFieldFilled(form[field.key], field.type)), [fields, form])
   const canSave = Boolean(projectId) && missingRequiredFields.length === 0 && (isEditing || !record)
@@ -689,6 +700,9 @@ function SegmentDetailCard({
   const compactEditFields = ['kind', 'order', 'production_id', 'text_block_id', 'script_block_id']
   const fieldByKey = useMemo(() => new Map(fields.map((field) => [field.key, field])), [fields])
   const formId = `segment-detail-${record?.ID ?? 'new'}`
+  const lockedFields = useMemo(() => new Set(sourceLock?.locked_fields ?? []), [sourceLock])
+  const canDeleteRecord = !sourceLock?.locked
+  const sourceLockReason = sourceLockReasonText(sourceLock)
 
   const saveMutation = useMutation({
     mutationFn: (payload: SemanticEntityPayload) => {
@@ -820,14 +834,14 @@ function SegmentDetailCard({
                   <Pencil size={14} />
                   编辑
                 </Button>
-                <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
+                {canDeleteRecord ? <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
                   <Trash2 size={14} />
                   删除
-                </Button>
+                </Button> : null}
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                {record ? (
+                {record && canDeleteRecord ? (
                   <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
                     <Trash2 size={14} />
                     删除
@@ -865,7 +879,7 @@ function SegmentDetailCard({
             </div>
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {compactEditFields.map((key) => fieldByKey.get(key) ? (
-                <SegmentInlineField key={key} field={fieldByKey.get(key)!} value={form[key]} onChange={(value) => updateField(key, value)} />
+                <SegmentInlineField key={key} field={fieldByKey.get(key)!} value={form[key]} disabled={lockedFields.has(key)} lockReason={lockedFields.has(key) ? sourceLockReason : undefined} onChange={(value) => updateField(key, value)} />
               ) : null)}
             </div>
           </div>
@@ -890,7 +904,7 @@ function SegmentDetailCard({
           <div className="space-y-4 border-t border-border p-4">
             {fieldByKey.get('content') ? (
               <SegmentEditSection title="来源文本或补充说明" description="用于保留可追溯来源；情绪、节奏和戏剧功能应写在上方功能说明中。">
-                <SegmentInlineField field={fieldByKey.get('content')!} value={form.content} onChange={(value) => updateField('content', value)} textareaRows={7} />
+                <SegmentInlineField field={fieldByKey.get('content')!} value={form.content} disabled={lockedFields.has('content')} lockReason={lockedFields.has('content') ? sourceLockReason : undefined} onChange={(value) => updateField('content', value)} textareaRows={7} />
               </SegmentEditSection>
             ) : null}
             {advancedFields.filter((field) => !compactEditFields.includes(field.key)).length > 0 ? (
@@ -898,7 +912,7 @@ function SegmentDetailCard({
                 <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-foreground">高级字段</summary>
                 <div className="grid gap-3 border-t border-border bg-card/60 p-3">
                   {advancedFields.filter((field) => !compactEditFields.includes(field.key)).map((field) => (
-                    <SegmentInlineField key={field.key} field={field} value={form[field.key]} onChange={(value) => updateField(field.key, value)} textareaRows={field.key.endsWith('_json') ? 6 : 3} />
+                    <SegmentInlineField key={field.key} field={field} value={form[field.key]} disabled={lockedFields.has(field.key)} lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined} onChange={(value) => updateField(field.key, value)} textareaRows={field.key.endsWith('_json') ? 6 : 3} />
                   ))}
                 </div>
               </details>
@@ -1166,23 +1180,27 @@ function SegmentInlineField({
   field,
   value,
   invalid = false,
+  disabled = false,
   hideLabel = false,
   compact = false,
   surface = 'card',
   label,
   textareaRows,
   inputClassName,
+  lockReason,
   onChange,
 }: {
   field: SemanticEntityField
   value: string | boolean
   invalid?: boolean
+  disabled?: boolean
   hideLabel?: boolean
   compact?: boolean
   surface?: 'card' | 'plain'
   label?: string
   textareaRows?: number
   inputClassName?: string
+  lockReason?: string
   onChange: (value: string | boolean) => void
 }) {
   const id = `segment-detail-field-${field.key}`
@@ -1196,6 +1214,7 @@ function SegmentInlineField({
         <Textarea
           id={id}
           required={field.required}
+          disabled={disabled}
           aria-invalid={invalid || undefined}
           value={String(value ?? '')}
           rows={textareaRows ?? (field.key.endsWith('_json') ? 5 : 4)}
@@ -1207,6 +1226,7 @@ function SegmentInlineField({
         <select
           id={id}
           required={field.required}
+          disabled={disabled}
           aria-invalid={invalid || undefined}
           value={String(value ?? '')}
           onChange={(event) => onChange(event.target.value)}
@@ -1218,14 +1238,15 @@ function SegmentInlineField({
           ))}
         </select>
       ) : field.type === 'boolean' ? (
-        <label className={cn('flex items-center gap-2 rounded-md border border-border/70 bg-background/90 px-3 text-sm text-foreground', compact ? 'h-8 text-xs' : 'h-9')}>
-          <input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
+        <label className={cn('flex items-center gap-2 rounded-md border border-border/70 bg-background/90 px-3 text-sm text-foreground', compact ? 'h-8 text-xs' : 'h-9', disabled && 'opacity-60')}>
+          <input type="checkbox" checked={Boolean(value)} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
           启用
         </label>
       ) : (
         <Input
           id={id}
           required={field.required}
+          disabled={disabled}
           aria-invalid={invalid || undefined}
           type={field.type === 'number' ? 'number' : 'text'}
           step={field.type === 'number' ? 'any' : undefined}
@@ -1235,9 +1256,16 @@ function SegmentInlineField({
           onChange={(event) => onChange(event.target.value)}
         />
       )}
-      {field.helper ? <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p> : null}
+      {lockReason ? <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{lockReason}</p> : field.helper ? <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p> : null}
     </div>
   )
+}
+
+function sourceLockReasonText(status?: SourceLockStatus) {
+  if (!status?.locked) return undefined
+  const first = status.reasons[0]
+  if (!first) return '来源已锁定，已有下游对象引用当前记录'
+  return `${first.message}${status.reasons.length > 1 ? ` 等 ${status.reasons.length} 类下游对象` : ''}`
 }
 
 function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIcon; label: string; value: string | number; detail: string; tone: string }) {
@@ -1257,7 +1285,19 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIc
   )
 }
 
-function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; icon: LucideIcon; records: Array<RelatedRecord | SceneMomentRecord | SegmentRecord | ScriptBlockRecord>; empty: string }) {
+function RelatedPanel({
+  title,
+  icon: Icon,
+  records,
+  empty,
+  scriptBlocksById,
+}: {
+  title: string
+  icon: LucideIcon
+  records: Array<RelatedRecord | SceneMomentRecord | SegmentRecord | ScriptBlockRecord>
+  empty: string
+  scriptBlocksById?: Map<number, ScriptBlockRecord>
+}) {
   return (
     <section className="rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
@@ -1271,16 +1311,17 @@ function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; ic
         {records.length === 0 ? (
           <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">{empty}</p>
         ) : (
-          records.slice(0, 5).map((record) => <RelatedRow key={record.ID} record={record} />)
+          records.slice(0, 5).map((record) => <RelatedRow key={record.ID} record={record} scriptBlocksById={scriptBlocksById} />)
         )}
       </div>
     </section>
   )
 }
 
-function RelatedRow({ record }: { record: RelatedRecord | SceneMomentRecord | SegmentRecord | ScriptBlockRecord }) {
+function RelatedRow({ record, scriptBlocksById }: { record: RelatedRecord | SceneMomentRecord | SegmentRecord | ScriptBlockRecord; scriptBlocksById?: Map<number, ScriptBlockRecord> }) {
   const item = record as RelatedRecord & SceneMomentRecord & SegmentRecord & ScriptBlockRecord
   const title = isScriptBlockRecord(item) ? scriptBlockSourceLabel(item) : titleOf(item)
+  const sourceBlock = !isScriptBlockRecord(item) && item.script_block_id ? scriptBlocksById?.get(item.script_block_id) : undefined
   const detail = isScriptBlockRecord(item)
     ? String(item.content ?? '').trim() || String(item.kind ?? `ID ${item.ID}`)
     : item.description || item.content || item.visual_intent || item.prompt || item.prompt_hint || item.kind || `ID ${item.ID}`
@@ -1297,6 +1338,12 @@ function RelatedRow({ record }: { record: RelatedRecord | SceneMomentRecord | Se
         {item.kind ? <span>{item.kind}</span> : null}
         {item.duration_sec ? <span>{formatDuration(item.duration_sec)}</span> : null}
       </div>
+      {item.script_block_id && !isScriptBlockRecord(item) ? (
+        <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+          <ScrollText size={11} className="shrink-0" />
+          <span className="truncate">{sourceBlock ? scriptBlockSourceLabel(sourceBlock) : `剧本块 #${item.script_block_id}`}</span>
+        </div>
+      ) : null}
     </div>
   )
 }

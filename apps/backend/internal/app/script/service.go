@@ -142,12 +142,12 @@ func (s *Service) ensureInitialVersion(ctx context.Context, item *domainscript.S
 	if item == nil || item.ID == 0 {
 		return nil
 	}
-	version, found, err := s.repo.FindInitialVersion(ctx, item.ProjectID, item.ID)
+	_, found, err := s.repo.FindInitialVersion(ctx, item.ProjectID, item.ID)
 	if err != nil {
 		return err
 	}
 	if found {
-		return s.repo.UpdateScriptVersionWithRelations(ctx, &version, domainscript.InitialVersionSync(*item, version))
+		return nil
 	}
 	domainVersion := domainscript.NewInitialVersion(*item, createdByID)
 	return s.repo.CreateScriptVersionWithRelations(ctx, &domainVersion)

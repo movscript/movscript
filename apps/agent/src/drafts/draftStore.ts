@@ -915,6 +915,9 @@ function validateContentUnitProposalDraft(draft: AgentDraft, issues: AgentDraftV
     if (typeof unit.title !== 'string' || !unit.title.trim()) {
       issues.push({ path: `${base}/title`, message: 'Content unit proposal unit requires title.', severity: 'error' })
     }
+    if ('action' in unit) {
+      issues.push({ path: `${base}/action`, message: 'Content unit proposal uses snapshot mode; remove operation fields and provide the complete proposed unit snapshot.', severity: 'error' })
+    }
     const kind = typeof unit.kind === 'string' ? unit.kind.trim() : ''
     if (!allowedKinds.has(kind)) {
       issues.push({ path: `${base}/kind`, message: 'Content unit proposal unit kind must be shot, visual_segment, caption_card, narration, transition, music_beat, or product_showcase.', severity: 'error' })
@@ -987,6 +990,9 @@ function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftVa
   if (numberValue(parsed.productionId ?? parsed.production_id) === undefined) {
     issues.push({ path: '/productionId', message: 'Production proposal draft requires productionId.', severity: 'error' })
   }
+  if (parsed.mode !== 'snapshot') {
+    issues.push({ path: '/mode', message: 'Production proposal draft requires mode "snapshot".', severity: 'error' })
+  }
   const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
   if (!proposal) {
     issues.push({ path: '/proposal', message: 'Production proposal draft requires proposal.', severity: 'error' })
@@ -1003,8 +1009,8 @@ function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftVa
       issues.push({ path: base, message: 'Production proposal segment must be an object.', severity: 'error' })
       return
     }
-    if (typeof segment.action !== 'string' || !segment.action.trim()) {
-      issues.push({ path: `${base}/action`, message: 'Production proposal segment requires action.', severity: 'error' })
+    if (segment.action !== undefined) {
+      issues.push({ path: `${base}/action`, message: 'Production proposal snapshot must not include action fields.', severity: 'error' })
     }
     if (typeof segment.title !== 'string' || !segment.title.trim()) {
       issues.push({ path: `${base}/title`, message: 'Production proposal segment requires title.', severity: 'error' })
@@ -1019,14 +1025,37 @@ function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftVa
         issues.push({ path: sceneBase, message: 'Scene moment must be an object.', severity: 'error' })
         return
       }
-      if (typeof sceneMoment.action !== 'string' || !sceneMoment.action.trim()) {
-        issues.push({ path: `${sceneBase}/action`, message: 'Scene moment requires action.', severity: 'error' })
+      if (sceneMoment.action !== undefined) {
+        issues.push({ path: `${sceneBase}/action`, message: 'Production proposal snapshot must not include action fields.', severity: 'error' })
       }
       if (typeof sceneMoment.title !== 'string' || !sceneMoment.title.trim()) {
         issues.push({ path: `${sceneBase}/title`, message: 'Scene moment requires title.', severity: 'error' })
       }
       const creativeReferences = Array.isArray(sceneMoment.creative_references) ? sceneMoment.creative_references : []
       const assetSlots = Array.isArray(sceneMoment.asset_slots) ? sceneMoment.asset_slots : []
+      creativeReferences.forEach((reference, referenceIndex) => {
+        const referenceBase = `${sceneBase}/creative_references/${referenceIndex}`
+        if (!isRecord(reference)) {
+          issues.push({ path: referenceBase, message: 'Creative reference binding must be an object.', severity: 'error' })
+          return
+        }
+        if (reference.action !== undefined) {
+          issues.push({ path: `${referenceBase}/action`, message: 'Production proposal snapshot must not include action fields.', severity: 'error' })
+        }
+        if (numberValue(reference.id) === undefined) {
+          issues.push({ path: `${referenceBase}/id`, message: 'Production proposal creative_reference must reference an existing project-level id.', severity: 'error' })
+        }
+      })
+      assetSlots.forEach((slot, slotIndex) => {
+        const slotBase = `${sceneBase}/asset_slots/${slotIndex}`
+        if (!isRecord(slot)) {
+          issues.push({ path: slotBase, message: 'Asset slot must be an object.', severity: 'error' })
+          return
+        }
+        if (slot.action !== undefined) {
+          issues.push({ path: `${slotBase}/action`, message: 'Production proposal snapshot must not include action fields.', severity: 'error' })
+        }
+      })
       if (creativeReferences.length === 0 && assetSlots.length === 0) {
         issues.push({
           path: sceneBase,
@@ -1034,18 +1063,52 @@ function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftVa
           severity: 'warning',
         })
       }
-      forbidProductionProposalDownstreamNode(sceneMoment.content_units, `${sceneBase}/content_units`, 'content_units', issues)
-      forbidProductionProposalDownstreamNode(sceneMoment.keyframes, `${sceneBase}/keyframes`, 'keyframes', issues)
+      validateProductionProposalContentUnits(sceneMoment.content_units, `${sceneBase}/content_units`, issues)
+      validateProductionProposalKeyframes(sceneMoment.keyframes, `${sceneBase}/keyframes`, issues)
     })
   })
 }
 
-function forbidProductionProposalDownstreamNode(value: unknown, basePath: string, fieldName: 'content_units' | 'keyframes', issues: AgentDraftValidationIssue[]): void {
+function validateProductionProposalContentUnits(value: unknown, basePath: string, issues: AgentDraftValidationIssue[]): void {
   if (value === undefined) return
-  issues.push({
-    path: basePath,
-    message: `Production proposal must not contain ${fieldName}; use content_unit_proposal or content_unit_media_proposal instead.`,
-    severity: 'error',
+  if (!Array.isArray(value)) {
+    issues.push({ path: basePath, message: 'Production proposal content_units must be an array.', severity: 'error' })
+    return
+  }
+  value.forEach((unit, index) => {
+    const unitBase = `${basePath}/${index}`
+    if (!isRecord(unit)) {
+      issues.push({ path: unitBase, message: 'Content unit must be an object.', severity: 'error' })
+      return
+    }
+    if (unit.action !== undefined) {
+      issues.push({ path: `${unitBase}/action`, message: 'Production proposal snapshot must not include action fields.', severity: 'error' })
+    }
+    if (typeof unit.title !== 'string' || !unit.title.trim()) {
+      issues.push({ path: `${unitBase}/title`, message: 'Content unit requires title.', severity: 'error' })
+    }
+    validateProductionProposalKeyframes(unit.keyframes, `${unitBase}/keyframes`, issues)
+  })
+}
+
+function validateProductionProposalKeyframes(value: unknown, basePath: string, issues: AgentDraftValidationIssue[]): void {
+  if (value === undefined) return
+  if (!Array.isArray(value)) {
+    issues.push({ path: basePath, message: 'Production proposal keyframes must be an array.', severity: 'error' })
+    return
+  }
+  value.forEach((keyframe, index) => {
+    const keyframeBase = `${basePath}/${index}`
+    if (!isRecord(keyframe)) {
+      issues.push({ path: keyframeBase, message: 'Keyframe must be an object.', severity: 'error' })
+      return
+    }
+    if (keyframe.action !== undefined) {
+      issues.push({ path: `${keyframeBase}/action`, message: 'Production proposal snapshot must not include action fields.', severity: 'error' })
+    }
+    if (typeof keyframe.title !== 'string' || !keyframe.title.trim()) {
+      issues.push({ path: `${keyframeBase}/title`, message: 'Keyframe requires title.', severity: 'error' })
+    }
   })
 }
 
@@ -1112,10 +1175,10 @@ function validateProjectProposalPatchNode(
   if (key === 'asset_slots') {
     validateProjectProposalOwner(node.owner, basePath, issues)
     const ownerType = isRecord(node.owner) ? node.owner.type : fields?.owner_type
-    if (typeof ownerType === 'string' && ownerType.trim() && ownerType.trim() !== 'creative_reference') {
+    if (typeof ownerType === 'string' && ownerType.trim() && !isProjectProposalAssetSlotOwnerType(ownerType)) {
       issues.push({
         path: isRecord(node.owner) ? `${basePath}/owner/type` : `${basePath}/fields/owner_type`,
-        message: 'Project proposal asset slot owner type must use backend snake_case, usually creative_reference.',
+        message: 'Project proposal asset slot owner type must use a backend snake_case owner type such as creative_reference, scene_moment, or content_unit.',
         severity: 'error',
       })
     }
@@ -1161,6 +1224,18 @@ function validateProjectProposalOwner(value: unknown, basePath: string, issues: 
   if (id === undefined && !clientID) {
     issues.push({ path: `${basePath}/owner`, message: 'Project proposal owner requires id or client_id when present.', severity: 'error' })
   }
+}
+
+function isProjectProposalAssetSlotOwnerType(value: string): boolean {
+  return new Set([
+    'creative_reference',
+    'creative_reference_state',
+    'segment',
+    'scene_moment',
+    'content_unit',
+    'storyboard_line',
+    'keyframe',
+  ]).has(value.trim())
 }
 
 function patchFieldsName(fields: Record<string, unknown> | undefined): boolean {

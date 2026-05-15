@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -118,5 +119,206 @@ func TestRunMigrationsAcceptsLegacyNoopChecksum(t *testing.T) {
 				t.Fatalf("RunMigrations() error = %v", err)
 			}
 		})
+	}
+}
+
+func TestMigration000019BackfillsStoryboardLineContentUnitRelations(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:migration-000019-backfill?mode=memory&cache=shared"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(
+		&AppliedMigration{},
+		&model.EntityRelation{},
+		&model.Script{},
+		&model.ScriptVersion{},
+		&model.StoryboardScript{},
+		&model.StoryboardLine{},
+		&model.ContentUnit{},
+	); err != nil {
+		t.Fatalf("migrate baseline: %v", err)
+	}
+	script := model.Script{ProjectID: 1, Title: "Pilot", Content: "content", RawSource: "content", AuthorID: 1}
+	if err := db.Create(&script).Error; err != nil {
+		t.Fatalf("create script: %v", err)
+	}
+	version := model.ScriptVersion{ProjectID: 1, ScriptID: script.ID, VersionNumber: 1, Title: "Pilot", SourceType: "raw", Content: script.Content, RawSource: script.RawSource, Status: "active"}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("create script version: %v", err)
+	}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: "Storyboard", Status: "draft"}
+	if err := db.Create(&storyboardScript).Error; err != nil {
+		t.Fatalf("create storyboard script: %v", err)
+	}
+	line := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, Title: "Shot", Status: "confirmed"}
+	if err := db.Create(&line).Error; err != nil {
+		t.Fatalf("create storyboard line: %v", err)
+	}
+	unit := model.ContentUnit{ProjectID: 1, StoryboardLineID: &line.ID, Title: "Unit", Status: "draft"}
+	if err := db.Create(&unit).Error; err != nil {
+		t.Fatalf("create content unit: %v", err)
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000019" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	var count int64
+	if err := db.Model(&model.EntityRelation{}).
+		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ?", "storyboard_line", line.ID, "content_unit", unit.ID, model.EntityRelationTypeCompilesTo).
+		Count(&count).Error; err != nil {
+		t.Fatalf("count compiles_to relation: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("compiles_to relations = %d, want 1", count)
+	}
+}
+
+func TestMigration000020ResequencesAndEnforcesScriptVersionNumbers(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:migration-000020-script-version-number?mode=memory&cache=shared"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&AppliedMigration{}, &model.Script{}, &model.ScriptVersion{}); err != nil {
+		t.Fatalf("migrate baseline: %v", err)
+	}
+	script := model.Script{ProjectID: 1, Title: "Pilot", Content: "content", RawSource: "content", AuthorID: 1}
+	if err := db.Create(&script).Error; err != nil {
+		t.Fatalf("create script: %v", err)
+	}
+	versions := []model.ScriptVersion{
+		{ProjectID: 1, ScriptID: script.ID, VersionNumber: 1, Title: "v1", SourceType: "raw", Content: "one", Status: "active"},
+		{ProjectID: 1, ScriptID: script.ID, VersionNumber: 1, Title: "duplicate v1", SourceType: "raw", Content: "two", Status: "active"},
+		{ProjectID: 1, ScriptID: script.ID, VersionNumber: 7, Title: "v7", SourceType: "raw", Content: "three", Status: "active"},
+	}
+	for i := range versions {
+		if err := db.Create(&versions[i]).Error; err != nil {
+			t.Fatalf("create script version %d: %v", i, err)
+		}
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000020" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	var persisted []model.ScriptVersion
+	if err := db.Where("script_id = ?", script.ID).Order("id asc").Find(&persisted).Error; err != nil {
+		t.Fatalf("list script versions: %v", err)
+	}
+	got := make([]int, 0, len(persisted))
+	for _, version := range persisted {
+		got = append(got, version.VersionNumber)
+	}
+	want := []int{1, 2, 3}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("version numbers = %v, want %v", got, want)
+		}
+	}
+
+	duplicate := model.ScriptVersion{ProjectID: 1, ScriptID: script.ID, VersionNumber: 2, Title: "duplicate", SourceType: "raw", Content: "duplicate", Status: "active"}
+	if err := db.Create(&duplicate).Error; err == nil {
+		t.Fatal("create duplicate script version number succeeded, want unique constraint error")
+	}
+}
+
+func TestMigration000021ResequencesAndEnforcesStoryboardVersionNumbers(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open("file:migration-000021-storyboard-version-number?mode=memory&cache=shared"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.AutoMigrate(&AppliedMigration{}, &model.Script{}, &model.ScriptVersion{}, &model.StoryboardScript{}, &model.StoryboardVersion{}); err != nil {
+		t.Fatalf("migrate baseline: %v", err)
+	}
+	script := model.Script{ProjectID: 1, Title: "Pilot", Content: "content", RawSource: "content", AuthorID: 1}
+	if err := db.Create(&script).Error; err != nil {
+		t.Fatalf("create script: %v", err)
+	}
+	scriptVersion := model.ScriptVersion{ProjectID: 1, ScriptID: script.ID, VersionNumber: 1, Title: "Pilot", SourceType: "raw", Content: script.Content, RawSource: script.RawSource, Status: "active"}
+	if err := db.Create(&scriptVersion).Error; err != nil {
+		t.Fatalf("create script version: %v", err)
+	}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &scriptVersion.ID, Name: "Storyboard", Status: "draft"}
+	if err := db.Create(&storyboardScript).Error; err != nil {
+		t.Fatalf("create storyboard script: %v", err)
+	}
+	versions := []model.StoryboardVersion{
+		{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, VersionNumber: 1, Title: "v1", Source: "manual", Status: "active"},
+		{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, VersionNumber: 1, Title: "duplicate v1", Source: "manual", Status: "active"},
+		{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, VersionNumber: 9, Title: "v9", Source: "manual", Status: "active"},
+	}
+	for i := range versions {
+		if err := db.Create(&versions[i]).Error; err != nil {
+			t.Fatalf("create storyboard version %d: %v", i, err)
+		}
+	}
+	for _, migration := range RegisteredMigrations() {
+		if migration.Version >= "000021" {
+			break
+		}
+		if err := db.Create(&AppliedMigration{
+			Version:   migration.Version,
+			Name:      migration.Name,
+			Checksum:  migrationChecksum(migration),
+			AppliedAt: time.Now().UTC(),
+		}).Error; err != nil {
+			t.Fatalf("insert migration %s: %v", migration.Version, err)
+		}
+	}
+
+	if err := RunMigrations(db); err != nil {
+		t.Fatalf("RunMigrations() error = %v", err)
+	}
+
+	var persisted []model.StoryboardVersion
+	if err := db.Where("storyboard_script_id = ?", storyboardScript.ID).Order("id asc").Find(&persisted).Error; err != nil {
+		t.Fatalf("list storyboard versions: %v", err)
+	}
+	got := make([]int, 0, len(persisted))
+	for _, version := range persisted {
+		got = append(got, version.VersionNumber)
+	}
+	want := []int{1, 2, 3}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("version numbers = %v, want %v", got, want)
+		}
+	}
+
+	duplicate := model.StoryboardVersion{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, VersionNumber: 2, Title: "duplicate", Source: "manual", Status: "active"}
+	if err := db.Create(&duplicate).Error; err == nil {
+		t.Fatal("create duplicate storyboard version number succeeded, want unique constraint error")
 	}
 }

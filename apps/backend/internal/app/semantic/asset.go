@@ -13,6 +13,7 @@ type AssetSlotFilter struct {
 	ProductionID    uint
 	Status          string
 	OwnerType       string
+	OwnerID         uint
 	IncludeInternal string
 }
 

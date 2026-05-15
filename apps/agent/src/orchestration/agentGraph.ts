@@ -10,6 +10,7 @@ import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ConfiguredRuntimeModelConfig, RuntimeModelAuthContext, RuntimeModelChatMessage, RuntimeModelChatToolCall } from '../model/modelConfig.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
+import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
 import { createDefaultRuntimeModelRouter, type RuntimeModelRouter } from '../model/modelRouter.js'
 import { executeTool, type AgentCatalogToolManager } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
@@ -40,7 +41,7 @@ export interface AgentGraphTraceInput {
 }
 
 export type AgentGraphResult =
-  | { status: 'completed'; finalContent: string; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
+  | { status: 'completed'; finalContent: string; assistantContents: string[]; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
   | { status: 'requires_action'; pendingApprovals: AgentApprovalRequest[]; pendingInputRequests?: AgentInputRequest[]; messages: RuntimeModelChatMessage[]; toolOutcomes: ToolCallOutcome[]; warnings: string[] }
   | { status: 'cancelled'; reason?: string }
   | { status: 'failed'; error: string }
@@ -51,6 +52,7 @@ export interface AgentGraphInput {
   manifest: AgentManifest
   capabilities: ResolvedToolCatalog
   skills: ResolvedAgentSkill[]
+  skillDiscovery?: SkillDiscoverySummary
   context: AgentDebugContextPanel
   memories: AgentMemory[]
   warnings: string[]
@@ -75,6 +77,7 @@ export interface AgentGraphInput {
     manifest: AgentManifest
     capabilities: ResolvedToolCatalog
     skills: ResolvedAgentSkill[]
+    skillDiscovery?: SkillDiscoverySummary
     registry: ToolRegistry
     warnings: string[]
   }>
@@ -199,9 +202,22 @@ export async function runAgentGraph(input: AgentGraphInput): Promise<AgentGraphR
   return {
     status: 'completed',
     finalContent: result.finalContent ?? '',
+    assistantContents: collectAssistantContents(result.history),
     toolOutcomes: result.toolOutcomes,
     warnings: result.warnings,
   }
+}
+
+function collectAssistantContents(history: RuntimeModelChatMessage[]): string[] {
+  const contents: string[] = []
+  for (const message of history) {
+    if (message.role !== 'assistant' || typeof message.content !== 'string') continue
+    const content = message.content.trim()
+    if (!content) continue
+    if (contents.at(-1) === content) continue
+    contents.push(content)
+  }
+  return contents
 }
 
 async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {
@@ -288,6 +304,7 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
   const modelTurnContext = contextManager.composeModelTurn({
     manifest: input.manifest,
     skills: input.skills,
+    ...(input.skillDiscovery ? { skillDiscovery: input.skillDiscovery } : {}),
     context: input.context,
     tools: input.capabilities,
     policy: input.policy,
@@ -795,6 +812,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
     input.manifest = refreshed.manifest
     input.capabilities = refreshed.capabilities
     input.skills = refreshed.skills
+    input.skillDiscovery = refreshed.skillDiscovery
     input.registry = refreshed.registry
     warnings.push(...refreshed.warnings)
     input.onTrace({

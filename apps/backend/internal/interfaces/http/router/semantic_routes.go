@@ -7,15 +7,17 @@ import (
 func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.POST("/projects/:id/preview/generate", h.preview.Generate)
 	protected.GET("/projects/:id/entities/relations", h.semanticEntities.ListEntityRelations)
+	protected.GET("/projects/:id/entities/source-lock/:kind/:entityId", h.semanticEntities.GetSourceLockStatus)
 	protected.GET("/projects/:id/entities/script-versions", h.semanticEntities.ListScriptVersions)
 	protected.POST("/projects/:id/entities/script-versions", h.semanticEntities.CreateScriptVersion)
 	protected.GET("/projects/:id/entities/script-versions/:versionId/lines", h.semanticEntities.ListScriptVersionLines)
-	protected.PATCH("/projects/:id/entities/script-versions/:versionId", h.semanticEntities.PatchScriptVersion)
 	protected.DELETE("/projects/:id/entities/script-versions/:versionId", func(c *gin.Context) {
 		h.semanticEntities.DeleteSemanticItemByKind(c, "script_version", c.Param("versionId"))
 	})
 	protected.GET("/projects/:id/entities/script-blocks", h.semanticEntities.ListScriptBlocks)
+	protected.GET("/projects/:id/entities/script-block-usages", h.semanticEntities.ListScriptBlockUsageMap)
 	protected.POST("/projects/:id/entities/script-blocks", h.semanticEntities.CreateScriptBlock)
+	protected.GET("/projects/:id/entities/script-blocks/:blockId/usages", h.semanticEntities.ListScriptBlockUsages)
 	protected.PATCH("/projects/:id/entities/script-blocks/:blockId", h.semanticEntities.PatchScriptBlock)
 	protected.DELETE("/projects/:id/entities/script-blocks/:blockId", func(c *gin.Context) {
 		h.semanticEntities.DeleteSemanticItemByKind(c, "script_block", c.Param("blockId"))
@@ -68,6 +70,7 @@ func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	})
 	protected.GET("/projects/:id/entities/content-units", h.semanticEntities.ListContentUnits)
 	protected.POST("/projects/:id/entities/content-units", h.semanticEntities.CreateContentUnit)
+	protected.POST("/projects/:id/entities/storyboard-lines/:storyboardLineId/content-units", h.semanticEntities.CreateContentUnitFromStoryboardLine)
 	protected.POST("/projects/:id/entities/content-units/:contentUnitId/generation-context", h.semanticEntities.BuildGenerationContext)
 	protected.PATCH("/projects/:id/entities/content-units/:contentUnitId", h.semanticEntities.PatchContentUnit)
 	protected.DELETE("/projects/:id/entities/content-units/:contentUnitId", func(c *gin.Context) {

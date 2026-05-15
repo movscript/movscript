@@ -12,6 +12,9 @@ function objectSchema(required: string[], properties: Record<string, unknown>): 
 const actionSchema = { enum: ['create', 'update', 'reuse'] }
 const clientIdSchema = { type: 'string', minLength: 1 }
 const proposalModeSchema = { enum: ['patch', 'snapshot'] }
+const assetSlotOwnerTypeSchema = {
+  enum: ['creative_reference', 'creative_reference_state', 'segment', 'scene_moment', 'content_unit', 'storyboard_line', 'keyframe'],
+}
 const projectProposalCreativeReferencesSchema = {
   type: 'array',
   items: objectSchema(['fields'], {
@@ -31,7 +34,7 @@ const projectProposalAssetSlotsSchema = {
     id: { type: 'number' },
     client_id: clientIdSchema,
     owner: objectSchema(['type'], {
-      type: { const: 'creative_reference' },
+      type: assetSlotOwnerTypeSchema,
       id: { type: 'number' },
       client_id: clientIdSchema,
     }),
@@ -39,6 +42,11 @@ const projectProposalAssetSlotsSchema = {
       name: { type: 'string' },
       kind: { enum: ['image', 'video', 'audio', 'text'] },
       description: { type: 'string' },
+      owner_type: assetSlotOwnerTypeSchema,
+      owner_id: { type: 'number' },
+      production_id: { type: 'number' },
+      priority: { type: 'string' },
+      status: { type: 'string' },
     }),
   }),
 }
@@ -161,21 +169,26 @@ export const productionProposalSchema = {
   title: 'Production Proposal',
   version: '1.0.0',
   status: 'active',
-  jsonSchema: objectSchema(['productionId', 'proposalScope', 'proposal'], {
+  jsonSchema: objectSchema(['mode', 'productionId', 'proposalScope', 'proposal'], {
+    mode: { const: 'snapshot' },
+    snapshot_base: { type: 'object' },
     productionId: { type: 'number' },
     proposalScope: { const: 'production' },
     proposal: objectSchema(['segments'], {
       segments: {
         type: 'array',
-        items: objectSchema(['action', 'title', 'scene_moments'], {
-          action: actionSchema,
+        items: objectSchema(['title', 'scene_moments'], {
           id: { type: 'number' },
           client_id: clientIdSchema,
+          kind: { type: 'string' },
+          summary: { type: 'string' },
+          order: { type: 'number' },
+          status: { type: 'string' },
+          script_block_id: { type: 'number' },
           title: { type: 'string' },
           scene_moments: {
             type: 'array',
-            items: objectSchema(['action', 'title'], {
-              action: actionSchema,
+            items: objectSchema(['title'], {
               id: { type: 'number' },
               client_id: clientIdSchema,
               title: { type: 'string' },
@@ -186,10 +199,50 @@ export const productionProposalSchema = {
               description: { type: 'string' },
               order: { type: 'number' },
               status: { type: 'string' },
+              script_block_id: { type: 'number' },
+              content_units: {
+                type: 'array',
+                items: objectSchema(['title', 'kind'], {
+                  id: { type: 'number' },
+                  client_id: clientIdSchema,
+                  title: { type: 'string' },
+                  kind: { type: 'string' },
+                  description: { type: 'string' },
+                  shot_size: { type: 'string' },
+                  camera_angle: { type: 'string' },
+                  duration_sec: { type: 'number' },
+                  order: { type: 'number' },
+                  status: { type: 'string' },
+                  script_block_id: { type: 'number' },
+                  keyframes: {
+                    type: 'array',
+                    items: objectSchema(['title'], {
+                      id: { type: 'number' },
+                      client_id: clientIdSchema,
+                      title: { type: 'string' },
+                      description: { type: 'string' },
+                      prompt: { type: 'string' },
+                      order: { type: 'number' },
+                      status: { type: 'string' },
+                    }),
+                  },
+                }),
+              },
+              keyframes: {
+                type: 'array',
+                items: objectSchema(['title'], {
+                  id: { type: 'number' },
+                  client_id: clientIdSchema,
+                  title: { type: 'string' },
+                  description: { type: 'string' },
+                  prompt: { type: 'string' },
+                  order: { type: 'number' },
+                  status: { type: 'string' },
+                }),
+              },
               creative_references: {
                 type: 'array',
-                items: objectSchema(['action', 'id'], {
-                  action: { const: 'reuse' },
+                items: objectSchema(['id'], {
                   id: { type: 'number' },
                   client_id: clientIdSchema,
                   name: { type: 'string' },
@@ -198,8 +251,7 @@ export const productionProposalSchema = {
               },
               asset_slots: {
                 type: 'array',
-                items: objectSchema(['action', 'name', 'kind'], {
-                  action: actionSchema,
+                items: objectSchema(['name', 'kind'], {
                   id: { type: 'number' },
                   client_id: clientIdSchema,
                   name: { type: 'string' },
@@ -220,31 +272,32 @@ export const productionProposalSchema = {
     '# movscript.production_proposal.v1',
     '',
     'Content shape:',
-    '{ productionId: number, proposalScope: "production", proposal: { segments: Array<{ action, id?, client_id?, title, scene_moments: Array<{ action, id?, client_id?, title, time_text?, location_text?, action_text?, mood?, creative_references?: Array<{ action: "reuse", id, role? }>, asset_slots?: Array<{ action, id?, client_id?, name, kind, description? }> }> }> }, impact_notes?, summary? }',
+    '{ mode: "snapshot", productionId: number, proposalScope: "production", proposal: { segments: Array<{ id?, client_id?, title, kind?, summary?, order?, status?, script_block_id?, scene_moments: Array<{ id?, client_id?, title, time_text?, location_text?, action_text?, mood?, description?, order?, status?, script_block_id?, content_units?: Array<{ id?, client_id?, title, kind, description?, keyframes? }>, keyframes?: Array<{ id?, client_id?, title, description?, prompt? }>, creative_references?: Array<{ id, role? }>, asset_slots?: Array<{ id?, client_id?, name, kind, description?, priority? }> }> }> }, snapshot_base?, impact_notes?, summary? }',
     '',
     'Rules:',
     '- productionId is required and must match the selected production.',
-    '- reuse/update nodes must include existing ids.',
+    '- This schema is snapshot-only. Do not use action fields.',
+    '- Start from the backend seed snapshot, edit that tree, keep existing ids on retained nodes, omit nodes that should be removed, and add new nodes without ids.',
+    '- Existing segments, scene_moments, content_units, keyframes, or production asset_slots omitted from the snapshot are treated as removals by backend apply.',
     '- Each scene_moment should include at least one creative_references reuse node or one asset_slots node unless the gap is intentionally explained in impact_notes.',
-    '- Use creative_references with action "reuse" and existing project-level ids; do not create project-level creative references here.',
+    '- Use creative_references with existing project-level ids; do not create project-level creative references here.',
     '- Use asset_slots for production-local material slots owned by the scene moment; do not create final media resources.',
   ].join('\n'),
   examples: [{
     name: 'basic',
     content: {
+      mode: 'snapshot',
       productionId: 1,
       proposalScope: 'production',
       proposal: {
         segments: [{
-          action: 'create',
           client_id: 'seg-1',
           title: 'Opening tension',
           scene_moments: [{
-            action: 'create',
             client_id: 'moment-1',
             title: 'Opening beat',
-            creative_references: [{ action: 'reuse', id: 1, role: 'character' }],
-            asset_slots: [{ action: 'create', client_id: 'slot-1', name: 'Opening room reference', kind: 'image' }],
+            creative_references: [{ id: 1, role: 'character' }],
+            asset_slots: [{ client_id: 'slot-1', name: 'Opening room reference', kind: 'image' }],
           }],
         }],
       },
@@ -302,6 +355,8 @@ export const contentUnitProposalSchema = {
     '{ schema: "movscript.content_unit_proposal.v1", scope: "content_unit_proposal", productionId: number, segmentId?, sceneMomentId?, proposal: { units: Array<{ title, kind, description, prompt?, duration_sec?, story_purpose?, emotional_intent?, shot?: { shot_size?, camera_angle?, camera_movement?, lens?, focus?, composition? }, performance?, lighting?, blocking?, sound?, transition? }> }, summary? }',
     '',
     'Rules:',
+    '- This is a snapshot proposal: proposal.units is the complete proposed content-unit snapshot for the selected scene moment.',
+    '- Do not include operation fields; proposal.units must be the complete target snapshot, and review computes differences separately.',
     '- Propose 3-6 focused content units for the selected scene moment or explicit production/segment anchor.',
     '- For storyboard units, include concrete camera parameters, actor performance details, lighting, blocking, sound, transition, and duration when useful.',
     '- Avoid duplicates and vague adjectives without visible production detail.',
@@ -399,11 +454,13 @@ export const assetProposalSchema = {
     '# movscript.asset_proposal.v1',
     '',
     'Content shape:',
-    '{ mode?: "patch"|"snapshot", proposal: { creative_references?: [], asset_slots?: Array<{ id?, client_id?, owner?, fields }>, candidate_plans?: Array<{ output_kind, prompt, input_resource_ids?, acceptance_criteria?, risks? }> }, assetSlotId?, slot?, context?, snapshot_base?, impact_notes?, summary?, next_actions? }',
+    '{ mode?: "patch"|"snapshot", proposal: { creative_references?: [], asset_slots?: Array<{ id?, client_id?, owner?: { type, id?, client_id? }, fields: { name, kind, description?, priority?, status? } }>, candidate_plans?: Array<{ output_kind, prompt, input_resource_ids?, acceptance_criteria?, risks? }> }, assetSlotId?, slot?, context?, snapshot_base?, impact_notes?, summary?, next_actions? }',
     '',
     'Rules:',
     '- Asset proposal is the single draft kind for project asset slots and per-slot candidate planning.',
     '- Use proposal.asset_slots to create, update, reassign, waive, or retire asset slot requirements.',
+    '- Put asset slot editable values in fields. New slots require fields.name and fields.kind; do not put name/kind/description/priority at the asset_slots[] top level.',
+    '- Put ownership in owner, for example { type: "scene_moment", id: 7 } or { type: "creative_reference", id: 1 }.',
     '- Use proposal.candidate_plans only after an asset slot exists or is explicitly selected.',
     '- Do not include creative reference edits, generation jobs, or generated resource bindings.',
   ].join('\n'),

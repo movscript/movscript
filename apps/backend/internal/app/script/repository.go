@@ -20,7 +20,6 @@ type repository interface {
 	DeleteScript(ctx context.Context, id uint) (uint, error)
 
 	FindInitialVersion(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptVersion, bool, error)
-	UpdateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion, spec domainscript.InitialVersionSyncSpec) error
 	CreateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion) error
 }
 
@@ -119,20 +118,6 @@ func (r *gormRepository) FindInitialVersion(ctx context.Context, projectID uint,
 	return domainscript.ScriptVersion{}, false, err
 }
 
-func (r *gormRepository) UpdateScriptVersionWithRelations(ctx context.Context, version *domainscript.ScriptVersion, spec domainscript.InitialVersionSyncSpec) error {
-	row := version.ToModel()
-	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
-	updates := initialVersionSyncColumns(spec)
-	if err := db.Model(&row).Updates(updates).Error; err != nil {
-		return err
-	}
-	if err := db.First(&row, row.ID).Error; err != nil {
-		return err
-	}
-	*version = domainscript.ScriptVersionFromModel(row)
-	return entityrelation.SyncCoreEntityRelations(db, &row)
-}
-
 func scriptPatchColumns(spec domainscript.ScriptPatchSpec) map[string]any {
 	updates := map[string]any{}
 	if spec.Title != nil {
@@ -218,20 +203,6 @@ func scriptPatchColumns(spec domainscript.ScriptPatchSpec) map[string]any {
 	}
 	if spec.Order != nil {
 		updates["order"] = *spec.Order
-	}
-	return updates
-}
-
-func initialVersionSyncColumns(spec domainscript.InitialVersionSyncSpec) map[string]any {
-	updates := map[string]any{
-		"title":       spec.Title,
-		"source_type": spec.SourceType,
-		"content":     spec.Content,
-		"raw_source":  spec.RawSource,
-		"summary":     spec.Summary,
-	}
-	if spec.Status != nil {
-		updates["status"] = *spec.Status
 	}
 	return updates
 }

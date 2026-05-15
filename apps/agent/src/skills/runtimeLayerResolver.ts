@@ -1,6 +1,7 @@
 import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { CatalogRegistry, ExpertiseSkill, RuntimeContext, SkillDefinition, WorkflowSkill } from '../catalog/types.js'
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
+import type { SkillDiscoveryItem, SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
 import type { AgentDebugContextPanel, AgentMessage, ResolvedAgentSkill } from '../state/types.js'
 import { resolveProfile } from '../profiles/resolveProfile.js'
 import { composePrompt, renderSkill } from './promptComposer.js'
@@ -10,6 +11,7 @@ export interface RuntimeLayerResolution {
   manifest: AgentManifest
   ctx: RuntimeContext
   skills: ResolvedAgentSkill[]
+  skillDiscovery: SkillDiscoverySummary
   warnings: string[]
   trace: {
     profileId: string
@@ -77,12 +79,19 @@ export function resolveRuntimeLayers(input: {
   ]
     .filter((skill) => composed.parts.some((part) => part.id === skill.id))
     .map((skill, index) => toResolvedSkill(skill, input.registry, ctx, skillById.get(skill), index))
+  const skillDiscovery = buildSkillDiscoverySummary({
+    registry: input.registry,
+    profile: resolvedProfile.profile,
+    activeSkillIds: skills.map((skill) => skill.id),
+    workflowTriggers: selected.trace,
+  })
 
   const manifest = manifestFromProfile(input.baseManifest, resolvedProfile.profile)
   return {
     manifest,
     ctx,
     skills,
+    skillDiscovery,
     warnings: [...resolvedProfile.warnings, ...selected.warnings, ...composed.warnings],
     trace: {
       profileId: resolvedProfile.profile.id,
@@ -136,6 +145,81 @@ function profileResolutionTraceMetadata(trace: NonNullable<RuntimeContext['profi
       version: layer.version,
     })),
   }
+}
+
+function buildSkillDiscoverySummary(input: {
+  registry: CatalogRegistry
+  profile: RuntimeContext['profile']
+  activeSkillIds: string[]
+  workflowTriggers: WorkflowTriggerTrace[]
+}): SkillDiscoverySummary {
+  const enabledPackIds = collectEnabledPackClosure(input.profile.enabledPacks, input.registry.packs)
+  const enabledSkillIds = uniqueStrings(enabledPackIds.flatMap((packId) => input.registry.packs.get(packId)?.skills ?? []))
+  const activeIds = new Set(input.activeSkillIds)
+  const triggerHintsBySkill = new Map(input.workflowTriggers.map((trace) => [trace.id, workflowTraceHint(trace)]))
+  const availableSkills = enabledSkillIds.flatMap((id): SkillDiscoveryItem[] => {
+    const skill = input.registry.skills.get(id)
+    if (!skill || skill.enabled === false) return []
+    const triggerHints = triggerHintsBySkill.get(id) ?? (skill.kind === 'workflow' ? summarizeTriggers(skill.triggers) : [])
+    const useWhen = Array.isArray(skill.metadata?.useWhen)
+      ? skill.metadata.useWhen.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())
+      : undefined
+    return [{
+      id: skill.id,
+      name: skill.name,
+      kind: skill.kind,
+      description: skill.description,
+      active: activeIds.has(skill.id),
+      ...(triggerHints.length > 0 ? { triggerHints } : {}),
+      ...(useWhen && useWhen.length > 0 ? { useWhen } : {}),
+    }]
+  })
+  return {
+    profileId: input.profile.id,
+    profileName: input.profile.name,
+    catalogVersion: input.registry.version,
+    enabledPackIds,
+    availableSkills,
+  }
+}
+
+function collectEnabledPackClosure(ids: string[], packs: CatalogRegistry['packs']): string[] {
+  const visited = new Set<string>()
+  const visit = (id: string): void => {
+    if (visited.has(id)) return
+    visited.add(id)
+    const pack = packs.get(id)
+    if (!pack) return
+    for (const required of Object.keys(pack.requires?.packs ?? {})) visit(required)
+  }
+  for (const id of ids) visit(id)
+  return Array.from(visited)
+}
+
+function workflowTraceHint(trace: WorkflowTriggerTrace): string[] {
+  const hints = trace.trigger ? summarizeTriggers([trace.trigger]) : []
+  if (trace.reason) hints.unshift(trace.reason)
+  return uniqueStrings(hints)
+}
+
+function summarizeTriggers(triggers: WorkflowSkill['triggers']): string[] {
+  return triggers.flatMap((trigger) => {
+    if (trigger.kind === 'always') return ['always']
+    if (trigger.kind === 'intent') return [`intent:${trigger.id}`]
+    if (trigger.kind === 'keyword') return trigger.any.slice(0, 4).map((keyword) => `keyword:${keyword}`)
+    if (trigger.kind === 'regex') return [`regex:${trigger.pattern}`]
+    const selectors = [
+      trigger.selector.route?.length ? `route:${trigger.selector.route.slice(0, 3).join('|')}` : undefined,
+      trigger.selector.selectedKind?.length ? `selectedKind:${trigger.selector.selectedKind.join('|')}` : undefined,
+      trigger.selector.hasProjectId !== undefined ? `hasProjectId:${trigger.selector.hasProjectId}` : undefined,
+      trigger.selector.hasProductionId !== undefined ? `hasProductionId:${trigger.selector.hasProductionId}` : undefined,
+    ].filter((item): item is string => typeof item === 'string')
+    return selectors.length > 0 ? selectors : ['context']
+  })
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.filter((value) => value.trim().length > 0)))
 }
 
 function toResolvedSkill(

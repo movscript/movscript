@@ -1927,6 +1927,78 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
   }
 })
 
+test('assistant content from multiple model turns is preserved in the final chat message', async () => {
+  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-turn-content-'))
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const originalFetch = globalThis.fetch
+  let callCount = 0
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
+    const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+
+    globalThis.fetch = (async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
+      if (isThreadTitleRequest(messages)) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: '保存剧本' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      callCount += 1
+      if (callCount === 1) {
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: '先说明一下，我会先创建剧本，再给出结果。',
+              tool_calls: [{
+                id: 'call_create_script_turn_1',
+                type: 'function',
+                function: {
+                  name: 'movscript_create_script',
+                  arguments: JSON.stringify({
+                    title: '雨夜便利店',
+                    content: '雨夜。便利店。一个外卖员发现柜台后藏着一封没有寄出的信。',
+                    summary: '一个外卖员在雨夜便利店卷入旧信和失踪案。',
+                    hook: '一封没有寄出的信指向十年前同一场雨。',
+                    script_type: 'short_drama',
+                  }),
+                },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: '已完成工具调用，最终结论如下。', finish_reason: 'stop' } }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({ mcpClient: client })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '保存剧本' }] })
+    const run = await createAndWaitForRun(runtime, thread.id, {
+      agentManifest: {
+        ...DEFAULT_AGENT_MANIFEST,
+        tools: [
+          ...DEFAULT_AGENT_MANIFEST.tools,
+          { name: 'movscript_create_script', mode: 'allow', approval: 'never' },
+        ],
+      },
+    })
+    const assistant = runtime.getThread(thread.id)?.messages.find((message) => message.id === run.assistantMessageId)
+
+    assert.equal(callCount >= 2, true)
+    assert.match(assistant?.content ?? '', /先说明一下/)
+    assert.match(assistant?.content ?? '', /已完成工具调用/)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    rmSync(modelConfigDir, { recursive: true, force: true })
+  }
+})
+
 test('oversized tool results are summarized before the next model turn', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-tool-result-budget-'))
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH

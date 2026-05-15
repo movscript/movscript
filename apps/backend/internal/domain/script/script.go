@@ -95,15 +95,6 @@ type ScriptPatchSpec struct {
 	Order                  *int
 }
 
-type InitialVersionSyncSpec struct {
-	Title      string
-	SourceType string
-	Content    string
-	RawSource  string
-	Summary    string
-	Status     *string
-}
-
 func (spec ScriptPatchSpec) Empty() bool {
 	return spec.Title == nil &&
 		spec.Description == nil &&
@@ -133,21 +124,6 @@ func (spec ScriptPatchSpec) Empty() bool {
 		spec.EntityCandidates == nil &&
 		spec.RelationshipCandidates == nil &&
 		spec.Order == nil
-}
-
-func InitialVersionSync(item ScriptSnapshot, existing ScriptVersion) InitialVersionSyncSpec {
-	spec := InitialVersionSyncSpec{
-		Title:      item.Title,
-		SourceType: item.SourceType,
-		Content:    item.Content,
-		RawSource:  item.RawSource,
-		Summary:    item.Summary,
-	}
-	if existing.Status == "" {
-		status := ScriptVersionStatusActive
-		spec.Status = &status
-	}
-	return spec
 }
 
 func (item *ScriptSnapshot) ApplyPatch(spec ScriptPatchSpec) {
@@ -234,17 +210,6 @@ func (item *ScriptSnapshot) ApplyPatch(spec ScriptPatchSpec) {
 	}
 	if spec.Order != nil {
 		item.Order = *spec.Order
-	}
-}
-
-func (version *ScriptVersion) ApplyInitialSync(spec InitialVersionSyncSpec) {
-	version.Title = spec.Title
-	version.SourceType = spec.SourceType
-	version.Content = spec.Content
-	version.RawSource = spec.RawSource
-	version.Summary = spec.Summary
-	if spec.Status != nil {
-		version.Status = *spec.Status
 	}
 }
 

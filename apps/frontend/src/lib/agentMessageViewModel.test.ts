@@ -37,6 +37,7 @@ test('assistantResultPayloadForRun builds the same structured payload from run a
         id: 'draft_1',
         kind: 'project_proposal',
         title: '项目提案',
+        target: { entityType: 'project', entityId: 9 },
       },
       createdAt: '2026-05-09T08:00:01.000Z',
       completedAt: '2026-05-09T08:00:02.000Z',
@@ -75,6 +76,7 @@ test('assistantResultPayloadForRun builds the same structured payload from run a
   assert.equal(payload.attachments?.[0]?.generated?.jobId, 50)
   assert.equal(payload.meta.generationJobs?.[0]?.jobId, 50)
   assert.equal(payload.meta.draftArtifacts?.[0]?.draftId, 'draft_1')
+  assert.deepEqual(payload.meta.draftArtifacts?.[0]?.target, { entityType: 'project', entityId: 9 })
   assert.equal(payload.meta.localRunActivity?.runId, 'run_1')
 })
 

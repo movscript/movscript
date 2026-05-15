@@ -2,6 +2,9 @@ package semantic
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
@@ -13,6 +16,11 @@ func (s *Service) DeleteItemByKind(ctx context.Context, projectID uint, kind str
 		return ErrForbidden{Message: "剧本版本创建后不可删除，请保留历史版本以保证引用稳定"}
 	case "script_block":
 		return ErrForbidden{Message: "剧本块创建后不可删除，请保留稳定锚点以保证后续引用稳定"}
+	case "storyboard_version":
+		return ErrForbidden{Message: "分镜版本创建后不可删除，请保留历史版本以保证引用稳定"}
+	}
+	if err := s.ensureItemCanBeDeleted(ctx, projectID, kind, id); err != nil {
+		return err
 	}
 	deletedProjectID, err := s.repo.DeleteProjectItemByKind(ctx, projectID, kind, id)
 	if err != nil {
@@ -20,6 +28,195 @@ func (s *Service) DeleteItemByKind(ctx context.Context, projectID uint, kind str
 	}
 	s.bumpProgressVersion(ctx, deletedProjectID)
 	return nil
+}
+
+func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, kind string, id string) error {
+	itemID, err := parseDeleteItemID(id)
+	if err != nil {
+		return err
+	}
+	kind = strings.TrimSpace(kind)
+	switch kind {
+	case "production":
+		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
+			deleteBlocker{"production_text_block", func() (int, error) {
+				items, err := s.repo.ListProductionTextBlocks(ctx, ProductionTextBlockFilter{ProjectID: projectID, ProductionID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"segment", func() (int, error) {
+				items, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ProductionID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"content_unit", func() (int, error) {
+				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ProductionID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"keyframe", func() (int, error) {
+				items, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ProductionID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"preview_timeline", func() (int, error) {
+				items, err := s.repo.ListPreviewTimelines(ctx, PreviewTimelineFilter{ProjectID: projectID, ProductionID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"asset_slot", func() (int, error) {
+				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, ProductionID: itemID, IncludeInternal: "true"})
+				return len(items), err
+			}},
+			deleteBlocker{"delivery_version", func() (int, error) {
+				items, err := s.repo.ListDeliveryVersions(ctx, DeliveryVersionFilter{ProjectID: projectID, ProductionID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"work_item", func() (int, error) {
+				items, err := s.repo.ListWorkItems(ctx, WorkItemFilter{ProjectID: projectID, ProductionID: itemID})
+				return len(items), err
+			}},
+		)
+	case "production_text_block":
+		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
+			deleteBlocker{"segment", func() (int, error) {
+				items, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, TextBlockID: itemID})
+				return len(items), err
+			}},
+		)
+	case "segment":
+		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
+			deleteBlocker{"scene_moment", func() (int, error) {
+				items, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, SegmentID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"storyboard_line", func() (int, error) {
+				items, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, SegmentID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"content_unit", func() (int, error) {
+				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SegmentID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"preview_timeline_item", func() (int, error) {
+				count, err := s.repo.CountProjectItems(ctx, "preview_timeline_items", projectID, "segment_id = ?", itemID)
+				return count, err
+			}},
+			deleteBlocker{"asset_slot", func() (int, error) {
+				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "segment", OwnerID: itemID, IncludeInternal: "true"})
+				return len(items), err
+			}},
+			deleteBlocker{"work_item", func() (int, error) {
+				count, err := s.repo.CountProjectItems(ctx, "work_items", projectID, "target_type = ? AND target_id = ?", "segment", itemID)
+				return count, err
+			}},
+		)
+	case "scene_moment":
+		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
+			deleteBlocker{"storyboard_line", func() (int, error) {
+				items, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, SceneMomentID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"content_unit", func() (int, error) {
+				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SceneMomentID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"keyframe", func() (int, error) {
+				items, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, SceneMomentID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"preview_timeline_item", func() (int, error) {
+				count, err := s.repo.CountProjectItems(ctx, "preview_timeline_items", projectID, "scene_moment_id = ?", itemID)
+				return count, err
+			}},
+			deleteBlocker{"asset_slot", func() (int, error) {
+				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "scene_moment", OwnerID: itemID, IncludeInternal: "true"})
+				return len(items), err
+			}},
+			deleteBlocker{"work_item", func() (int, error) {
+				count, err := s.repo.CountProjectItems(ctx, "work_items", projectID, "target_type = ? AND target_id = ?", "scene_moment", itemID)
+				return count, err
+			}},
+		)
+	case "storyboard_script":
+		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
+			deleteBlocker{"storyboard_version", func() (int, error) {
+				items, err := s.repo.ListStoryboardVersions(ctx, StoryboardVersionFilter{ProjectID: projectID, StoryboardScriptID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"storyboard_line", func() (int, error) {
+				items, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, StoryboardScriptID: itemID})
+				return len(items), err
+			}},
+		)
+	case "storyboard_line":
+		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
+			deleteBlocker{"content_unit", func() (int, error) {
+				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, StoryboardLineID: itemID})
+				return len(items), err
+			}},
+		)
+	case "content_unit":
+		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
+			deleteBlocker{"keyframe", func() (int, error) {
+				items, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ContentUnitID: itemID})
+				return len(items), err
+			}},
+			deleteBlocker{"preview_timeline_item", func() (int, error) {
+				count, err := s.repo.CountProjectItems(ctx, "preview_timeline_items", projectID, "content_unit_id = ?", itemID)
+				return count, err
+			}},
+			deleteBlocker{"asset_slot", func() (int, error) {
+				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "content_unit", OwnerID: itemID, IncludeInternal: "true"})
+				return len(items), err
+			}},
+			deleteBlocker{"delivery_timeline_item", func() (int, error) {
+				count, err := s.repo.CountProjectItems(ctx, "delivery_timeline_items", projectID, "content_unit_id = ?", itemID)
+				return count, err
+			}},
+			deleteBlocker{"work_item", func() (int, error) {
+				count, err := s.repo.CountProjectItems(ctx, "work_items", projectID, "target_type = ? AND target_id = ?", "content_unit", itemID)
+				return count, err
+			}},
+		)
+	case "keyframe":
+		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
+			deleteBlocker{"preview_timeline_item", func() (int, error) {
+				count, err := s.repo.CountProjectItems(ctx, "preview_timeline_items", projectID, "keyframe_id = ?", itemID)
+				return count, err
+			}},
+			deleteBlocker{"asset_slot", func() (int, error) {
+				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "keyframe", OwnerID: itemID, IncludeInternal: "true"})
+				return len(items), err
+			}},
+		)
+	default:
+		return nil
+	}
+}
+
+type deleteBlocker struct {
+	entityKind string
+	count      func() (int, error)
+}
+
+func (s *Service) ensureNoDeleteBlockers(ctx context.Context, projectID uint, kind string, blockers ...deleteBlocker) error {
+	for _, blocker := range blockers {
+		count, err := blocker.count()
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrForbidden{Message: fmt.Sprintf("%s 已被 %d 个 %s 引用，不能删除", kind, count, blocker.entityKind)}
+		}
+	}
+	return nil
+}
+
+func parseDeleteItemID(id string) (uint, error) {
+	value, err := strconv.ParseUint(strings.TrimSpace(id), 10, 64)
+	if err != nil || value == 0 {
+		if err == nil {
+			err = errors.New("id must be greater than zero")
+		}
+		return 0, ErrInvalidInput{Err: err}
+	}
+	return uint(value), nil
 }
 
 func (s *Service) ensureProductionInProject(ctx context.Context, projectID uint, productionID uint) error {
@@ -48,7 +245,7 @@ func (s *Service) validateProductionOwners(ctx context.Context, projectID uint, 
 	return nil
 }
 
-func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint, productionID *uint, segmentID *uint, sceneMomentID *uint, scriptBlockID *uint) error {
+func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint, productionID *uint, segmentID *uint, sceneMomentID *uint, storyboardLineID *uint, scriptBlockID *uint) error {
 	if productionID != nil {
 		if err := s.ensureProductionInProject(ctx, projectID, *productionID); err != nil {
 			return err
@@ -61,6 +258,11 @@ func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint,
 	}
 	if sceneMomentID != nil {
 		if err := s.ensureSceneMomentInProject(ctx, projectID, *sceneMomentID); err != nil {
+			return err
+		}
+	}
+	if storyboardLineID != nil {
+		if err := s.ensureOwnerInProject(ctx, projectID, "storyboard_line", *storyboardLineID); err != nil {
 			return err
 		}
 	}

@@ -30,7 +30,6 @@ export type ScriptVersionLine = {
 export type CreateScriptVersionPayload = {
   script_id: number
   parent_version_id?: number | null
-  version_number?: number
   title?: string
   source_type?: ScriptVersionSourceType | string
   content?: string

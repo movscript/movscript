@@ -56,37 +56,6 @@ func TestGormRepositoryPatchScriptPersistsSpecZeroValues(t *testing.T) {
 	}
 }
 
-func TestGormRepositoryUpdateScriptVersionPersistsSyncSpecZeroValues(t *testing.T) {
-	db := newScriptRepositoryTestDB(t)
-	repo := &gormRepository{db: db}
-	row := model.ScriptVersion{
-		ProjectID:     1,
-		ScriptID:      2,
-		VersionNumber: 1,
-		Title:         "Old",
-		SourceType:    domainscript.ScriptSourceTypeRaw,
-		Content:       "old",
-		RawSource:     "old",
-		Summary:       "old",
-	}
-	if err := db.Create(&row).Error; err != nil {
-		t.Fatalf("create version: %v", err)
-	}
-	version := domainscript.ScriptVersionFromModel(row)
-
-	if err := repo.UpdateScriptVersionWithRelations(context.Background(), &version, domainscript.InitialVersionSyncSpec{}); err != nil {
-		t.Fatalf("UpdateScriptVersionWithRelations() error = %v", err)
-	}
-
-	var stored model.ScriptVersion
-	if err := db.First(&stored, row.ID).Error; err != nil {
-		t.Fatalf("load version: %v", err)
-	}
-	if stored.Title != "" || stored.Content != "" || stored.RawSource != "" || stored.Summary != "" {
-		t.Fatalf("zero-value sync was not persisted: %+v", stored)
-	}
-}
-
 func newScriptRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "script_repository.db")), &gorm.Config{

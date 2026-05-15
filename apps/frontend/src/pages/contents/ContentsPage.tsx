@@ -47,6 +47,7 @@ type ContentUnitRecord = SemanticEntityRecord & {
   production_id?: number
   segment_id?: number
   scene_moment_id?: number
+  storyboard_line_id?: number
   script_block_id?: number
   title?: string
   kind?: string
@@ -93,6 +94,7 @@ type SegmentRecord = SemanticEntityRecord & {
 type StoryboardLineRecord = SemanticEntityRecord & {
   scene_moment_id?: number
   segment_id?: number
+  script_block_id?: number
   title?: string
   description?: string
   visual_intent?: string
@@ -186,6 +188,7 @@ interface ContentUnitViewModel {
   assetSlots: AssetSlotRecord[]
   keyframes: KeyframeRecord[]
   storyboardLines: StoryboardLineRecord[]
+  storyboardLineScriptBlocks: Map<number, ScriptBlockRecord>
   targets: ContentTargetViewModel[]
   missingAssets: AssetSlotRecord[]
   readiness: number
@@ -361,6 +364,7 @@ export default function ContentsPage() {
     const sceneMoment = unit.scene_moment_id ? sceneMomentById.get(unit.scene_moment_id) : undefined
     const section = unit.segment_id ? sectionById.get(unit.segment_id) : undefined
     const scriptBlock = unit.script_block_id ? scriptBlocksById.get(unit.script_block_id) : undefined
+    const directStoryboardLine = unit.storyboard_line_id ? storyboardLines.find((item) => item.ID === unit.storyboard_line_id) : undefined
     const unitUsages = usages.filter((item) => item.owner_type === 'content_unit' && item.owner_id === unit.ID)
     const inheritedUsages = sceneMoment ? usages.filter((item) => item.owner_type === 'scene_moment' && item.owner_id === sceneMoment.ID) : []
     const relatedUsages = dedupeUsages([...unitUsages, ...inheritedUsages])
@@ -371,10 +375,20 @@ export default function ContentsPage() {
     const inheritedAssetSlots = sceneMoment ? assetSlots.filter((item) => item.owner_type === 'scene_moment' && item.owner_id === sceneMoment.ID) : []
     const relatedAssetSlots = [...unitAssetSlots, ...inheritedAssetSlots]
     const relatedKeyframes = keyframes.filter((item) => item.content_unit_id === unit.ID || (unit.scene_moment_id && item.scene_moment_id === unit.scene_moment_id))
-    const relatedStoryboardLines = storyboardLines.filter((item) => (
-      (unit.scene_moment_id && item.scene_moment_id === unit.scene_moment_id) ||
-      (unit.segment_id && item.segment_id === unit.segment_id)
-    ))
+    const relatedStoryboardLines = dedupeById([
+      directStoryboardLine,
+      ...storyboardLines.filter((item) => (
+        (unit.scene_moment_id && item.scene_moment_id === unit.scene_moment_id) ||
+        (unit.segment_id && item.segment_id === unit.segment_id) ||
+        (unit.script_block_id && item.script_block_id === unit.script_block_id)
+      )),
+    ])
+    const storyboardLineScriptBlocks = new Map<number, ScriptBlockRecord>()
+    relatedStoryboardLines.forEach((line) => {
+      if (!line.script_block_id) return
+      const block = scriptBlocksById.get(line.script_block_id)
+      if (block) storyboardLineScriptBlocks.set(line.ID, block)
+    })
     const targets = buildContentTargets(relatedAssetSlots, relatedKeyframes, assetCandidatesBySlotId)
     const missingAssets = relatedAssetSlots.filter((item) => ['missing', 'blocked'].includes(String(item.status ?? '')))
     const readiness = calculateReadiness({ unit, sceneMoment, references: relatedReferences, assetSlots: relatedAssetSlots, keyframes: relatedKeyframes })
@@ -384,11 +398,13 @@ export default function ContentsPage() {
       sceneMoment,
       section,
       scriptBlock,
+      directStoryboardLine,
       usages: relatedUsages,
       references: relatedReferences,
       assetSlots: relatedAssetSlots,
       keyframes: relatedKeyframes,
       storyboardLines: relatedStoryboardLines,
+      storyboardLineScriptBlocks,
       targets,
       missingAssets,
       readiness,
@@ -722,6 +738,24 @@ export default function ContentsPage() {
                 subtitle: `${item.kind ?? 'reference'} · ${statusLabel(item.status)}`,
                 status: item.status,
               })) ?? []}
+            />
+            <RelatedPanel
+              title="相关分镜行"
+              icon={Clapperboard}
+              empty="当前制作项暂无分镜行"
+              records={selected?.storyboardLines.map((item) => {
+                const block = selected.storyboardLineScriptBlocks.get(item.ID)
+                const isDirect = selected.unit.storyboard_line_id === item.ID
+                return {
+                  id: item.ID,
+                  title: `${isDirect ? '直接来源 · ' : ''}${item.title || titleOf(item)}`,
+                  subtitle: [
+                    item.visual_intent || item.description || '分镜行',
+                    block ? scriptBlockSourceLabel(block) : item.script_block_id ? `剧本块 #${item.script_block_id}` : '',
+                  ].filter(Boolean).join(' · '),
+                  status: item.status,
+                }
+              }) ?? []}
             />
             <RelatedPanel
               title="涉及的素材需求"
@@ -1217,6 +1251,15 @@ function dedupeUsages(usages: CreativeReferenceUsageRecord[]) {
     const key = `${usage.owner_type}:${usage.owner_id}:${usage.creative_reference_id}:${usage.role ?? ''}`
     if (seen.has(key)) return false
     seen.add(key)
+    return true
+  })
+}
+
+function dedupeById<T extends { ID: number }>(items: Array<T | undefined>) {
+  const seen = new Set<number>()
+  return items.filter((item): item is T => {
+    if (!item || seen.has(item.ID)) return false
+    seen.add(item.ID)
     return true
   })
 }

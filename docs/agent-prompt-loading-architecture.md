@@ -528,6 +528,8 @@ export interface ThreadContextSummary {
 
 ### 10.2 文件结构
 
+当前已实现 `storyboard` collection。`short-drama` 是同一机制下的后续扩展示例，不属于当前验收范围。
+
 ```text
 apps/agent/catalog/knowledge/
   storyboard/
@@ -690,7 +692,7 @@ Output:
 - `movscript.workflow.content-unit-proposal`
 - `movscript.workflow.content-unit-media-proposal`
 - `movscript.workflow.storyboard-gap-review`
-- 未来新增 `movscript.workflow.storyboard-proposal`
+- 可选后续扩展：`movscript.workflow.storyboard-proposal`
 
 不要第一阶段直接加入所有 run 的基础工具，除非 policy 明确要求 Agent 可随时查通用知识。
 
@@ -713,14 +715,14 @@ export interface CapabilityPack {
 
 ```json
 {
-  "id": "movscript.pack.storyboard",
+  "id": "movscript.pack.movscript",
   "version": "1.0.0",
-  "name": "Storyboard Planning",
-  "description": "分镜规划 workflow 和分镜知识索引。",
+  "name": "MovScript",
+  "description": "MovScript workspace、proposal 规划、项目进度审阅和视觉生成能力。",
   "source": "builtin",
   "resources": {
-    "skills": ["movscript/workflow/proposal/storyboard"],
-    "tools": ["agent-core/knowledge"],
+    "skills": ["movscript/workflow/proposal", "movscript/expertise"],
+    "tools": ["movscript/knowledge"],
     "knowledge": ["storyboard"]
   },
   "tools": [
@@ -728,7 +730,10 @@ export interface CapabilityPack {
     "movscript_get_knowledge"
   ],
   "skills": [
-    "movscript.workflow.storyboard-proposal"
+    "movscript.workflow.content-unit-proposal",
+    "movscript.workflow.content-unit-media-proposal",
+    "movscript.workflow.storyboard-gap-review",
+    "movscript.expertise.storyboard.general-director"
   ],
   "knowledge": [
     "movscript.knowledge.storyboard"
@@ -736,8 +741,7 @@ export interface CapabilityPack {
   "requires": {
     "packs": {
       "movscript.pack.agent-core": ">=1.0.0",
-      "movscript.pack.drafts": ">=1.0.0",
-      "movscript.pack.movscript": ">=1.0.0"
+      "movscript.pack.drafts": ">=1.0.0"
     }
   }
 }
@@ -932,6 +936,13 @@ context.ledger_updated
 {
   "totalChars": 18320,
   "byLayer": {
+    "level0_core": 1200,
+    "level1_context": 2400,
+    "level2_behavior": 7600,
+    "retrieved_context": 5200,
+    "runtime_warnings": 320
+  },
+  "byContextLayer": {
     "runtime_contract": 1200,
     "focus": 2400,
     "behavior": 7600,
@@ -951,7 +962,7 @@ context.ledger_updated
 | `src/catalog/loader.ts` | 继续负责 catalog，扩展 knowledge resource loading |
 | `src/skills/runtimeLayerResolver.ts` | 保留为 BehaviorResolver |
 | `src/skills/promptComposer.ts` | 收敛进 ContextManager 的 behavior renderer |
-| `src/orchestration/contextBuilder.ts` | 重构为 ModelContextBuilder |
+| `src/orchestration/contextBuilder.ts` | 兼容导出，实际转接 `contextManager/modelContextBuilder.ts` |
 | `src/context/contextText.ts` | 拆成各 layer renderer |
 | `src/memory/memoryManager.ts` | 保留 memory search/get，接入 ContextLedger |
 | `src/orchestration/toolExecutor.ts` | 增加 knowledge runtime tools |
@@ -971,8 +982,11 @@ src/contextManager/
   contextManager.ts
   contextLedger.ts
   contextBudgeter.ts
-  contextCompactor.ts
   modelContextBuilder.ts
+  retrievedContextStore.ts
+  sourceBoundary.ts
+  toolResultContext.ts
+  finalSourceSummary.ts
   types.ts
 ```
 
@@ -1051,7 +1065,7 @@ src/contextManager/
 
 验收：
 
-- `movscript.pack.storyboard` 能注册 storyboard knowledge。
+- `movscript.pack.movscript` 能注册 storyboard knowledge。
 - catalog inspection 返回 collection summary，不返回全部正文。
 
 ### Phase 6: Retrieval quality
@@ -1069,30 +1083,36 @@ src/contextManager/
 - 超长 chunk 被 lint 或截断。
 - retrieved context 不突破预算。
 
-## 20. 分镜知识接入示例
+## 20. 分镜知识接入落点
 
-新增 pack：
+当前 pack：
 
 ```text
-apps/agent/catalog/packs/storyboard.pack.json
+apps/agent/catalog/packs/movscript.pack.json
 ```
 
-新增 workflow：
+当前接入 workflow：
 
 ```text
-apps/agent/catalog/skills/movscript/workflow/proposal/storyboard/storyboard-proposal/
+apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/content-unit-proposal/
+  skill.workflow.json
+  instruction.md
+apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/content-unit-media-proposal/
+  skill.workflow.json
+  instruction.md
+apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/storyboard-gap-review/
   skill.workflow.json
   instruction.md
 ```
 
-新增 tools：
+当前 tools：
 
 ```text
-apps/agent/catalog/tools/agent-core/knowledge/search-knowledge.tool.json
-apps/agent/catalog/tools/agent-core/knowledge/get-knowledge.tool.json
+apps/agent/catalog/tools/movscript/knowledge/search-knowledge.tool.json
+apps/agent/catalog/tools/movscript/knowledge/get-knowledge.tool.json
 ```
 
-新增 knowledge：
+当前 knowledge：
 
 ```text
 apps/agent/catalog/knowledge/storyboard/
@@ -1108,17 +1128,17 @@ Workflow manifest 示例：
 
 ```json
 {
-  "id": "movscript.workflow.storyboard-proposal",
+  "id": "movscript.workflow.content-unit-proposal",
   "kind": "workflow",
   "version": "1.0.0",
-  "name": "Storyboard Proposal",
-  "description": "规划分镜、镜头节拍、关键帧和内容单元表达。",
+  "name": "Content Unit Proposal",
+  "description": "基于内容单元、scene moment 或 production context 产出可审阅的内容单元 proposal draft。",
   "priority": 150,
   "enabled": true,
   "instructionTemplatePath": "instruction.md",
   "triggers": [
-    { "kind": "intent", "id": "storyboard_proposal" },
-    { "kind": "keyword", "any": ["分镜", "镜头节拍", "关键帧", "钩子"] }
+    { "kind": "intent", "id": "content_unit_proposal" },
+    { "kind": "keyword", "any": ["内容单元", "分镜", "镜头节拍", "关键帧", "钩子"] }
   ],
   "toolRefs": [
     "tool://movscript_search_knowledge",
@@ -1136,14 +1156,14 @@ Workflow manifest 示例：
 1. `ContextBudgeter` 按 layer 裁剪。
 2. `ContextLedger` 按 ref/hash 去重。
 3. `KnowledgeSearch` 支持中文 n-gram。
-4. `HistoryCompactor` 生成 summary 和 refs。
+4. `promptHygiene` / `ThreadContextSummary` 生成 summary 和 refs。
 5. `SourceBoundary` 渲染 retrieved content 为 data。
 
 ### 21.2 集成测试
 
 1. 默认 chat 不注入 knowledge。
-2. 分镜请求触发 storyboard workflow。
-3. storyboard workflow 暴露 knowledge tools。
+2. 分镜请求触发 content-unit proposal 或 storyboard-gap-review workflow。
+3. 已触发的 content-unit/storyboard workflow 暴露 knowledge tools。
 4. search/get 后 tool result 进入当前 run。
 5. 下一 run 只看到 knowledge ref，不看到正文。
 6. catalog reload 后新 run 使用新 snapshot，老 run 不被隐式改写。
@@ -1197,7 +1217,7 @@ Workflow manifest 示例：
 1. 先实现 `ContextLedger` 和 prompt stats 增强。
 2. 再实现 thread history compaction，解决跨 run 重复上下文。
 3. 然后实现 knowledge loader/store/search/get。
-4. 最后扩展 pack schema 和 storyboard workflow。
+4. 最后扩展 pack schema，并接入 content-unit/storyboard 相关 workflow。
 
 原因：
 

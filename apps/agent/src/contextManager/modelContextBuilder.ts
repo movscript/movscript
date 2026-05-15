@@ -20,6 +20,7 @@ import { fitPromptPartsToBudget, renderPromptBudgetParts } from './contextBudget
 export interface ContextBuilderInput {
   manifest: AgentManifest
   skills: ResolvedAgentSkill[]
+  skillDiscovery?: SkillDiscoverySummary
   context: AgentDebugContextPanel
   tools: ResolvedToolCatalog
   policy: AgentRunPolicy
@@ -59,6 +60,24 @@ export type ContextPromptLayer =
   | 'tool_loop'
   | 'thread_continuity'
   | 'warning'
+
+export interface SkillDiscoverySummary {
+  profileId?: string
+  profileName?: string
+  catalogVersion?: string | null
+  enabledPackIds: string[]
+  availableSkills: SkillDiscoveryItem[]
+}
+
+export interface SkillDiscoveryItem {
+  id: string
+  name: string
+  kind: 'persona' | 'policy' | 'workflow' | 'expertise' | string
+  description?: string
+  active: boolean
+  triggerHints?: string[]
+  useWhen?: string[]
+}
 
 export function buildContext(input: ContextBuilderInput): BuiltContext {
   const debugParts: CompiledPromptPreview['debugParts'] = []
@@ -137,6 +156,16 @@ export function buildContext(input: ContextBuilderInput): BuiltContext {
     title: 'Tool use',
     content: renderToolCatalogText(input.tools),
   })
+
+  const skillDiscoveryText = renderSkillDiscoveryText(input.skillDiscovery, input.skills, input.tools)
+  if (skillDiscoveryText) {
+    debugParts.push({
+      id: 'skills.discovery',
+      kind: 'skill',
+      title: 'Skill Discovery',
+      content: skillDiscoveryText,
+    })
+  }
 
   // --- Activated Behavior ---
   for (const skill of orderedActivatedSkills(input.skills)) {
@@ -269,7 +298,7 @@ function buildPromptStats(debugParts: CompiledPromptPreview['debugParts'], syste
 function promptLayerForPart(part: CompiledPromptPreview['debugParts'][number]): PromptLayer {
   if (part.id === 'runtime.core' || part.id === 'runtime.source_boundary' || part.id.startsWith('command.') || part.id === 'tools.available') return 'level0_core'
   if (part.id === 'context.summary') return 'level1_context'
-  if (part.id.startsWith('skill.')) return 'level2_behavior'
+  if (part.id.startsWith('skill.') || part.id === 'skills.discovery') return 'level2_behavior'
   if (part.id === 'context.memories') return 'retrieved_context'
   if (part.id === 'thread.continuity') return 'retrieved_context'
   return 'runtime_warnings'
@@ -278,11 +307,86 @@ function promptLayerForPart(part: CompiledPromptPreview['debugParts'][number]): 
 function contextPromptLayerForPart(part: CompiledPromptPreview['debugParts'][number]): ContextPromptLayer {
   if (part.id === 'runtime.core' || part.id === 'runtime.source_boundary' || part.id.startsWith('command.') || part.id === 'tools.available') return 'runtime_contract'
   if (part.id === 'context.summary') return 'focus'
-  if (part.id.startsWith('skill.')) return 'behavior'
+  if (part.id.startsWith('skill.') || part.id === 'skills.discovery') return 'behavior'
   if (part.id === 'context.memories') return 'retrieved'
   if (part.id === 'thread.continuity') return 'thread_continuity'
   if (part.id === 'context.warnings') return 'warning'
   return 'warning'
+}
+
+function renderSkillDiscoveryText(
+  summary: SkillDiscoverySummary | undefined,
+  activeSkills: ResolvedAgentSkill[],
+  tools: ResolvedToolCatalog,
+): string | undefined {
+  const activeIds = new Set(activeSkills.map((skill) => skill.id))
+  const catalogToolAvailable = tools.available.some((tool) => tool.name === 'movscript_inspect_agent_catalog')
+  const activeIndex = activeSkills.map((skill): SkillDiscoveryItem => ({
+    id: skill.id,
+    name: skill.name,
+    kind: typeof skill.metadata?.kind === 'string' ? skill.metadata.kind : skill.category ?? 'skill',
+    description: skill.description,
+    active: true,
+  }))
+  const items = summary?.availableSkills?.length
+    ? summary.availableSkills.map((skill) => ({ ...skill, active: skill.active || activeIds.has(skill.id) }))
+    : catalogToolAvailable
+      ? activeIndex
+      : []
+  if (items.length === 0 && !catalogToolAvailable) return undefined
+
+  const active = items.filter((skill) => skill.active)
+  const workflows = items.filter((skill) => skill.kind === 'workflow')
+  const expertise = items.filter((skill) => skill.kind === 'expertise')
+  const policies = items.filter((skill) => skill.kind === 'policy' || skill.kind === 'persona')
+  const lines = [
+    'Skill activation is automatic for the current run. Persona and policy skills are loaded from the active profile; workflow skills activate when their trigger hints match the user request, UI context, or inferred intent; expertise skills attach through active workflow metadata.',
+    'Use activated skill instructions as behavior rules for this run. Do not claim that a skill is active unless it appears in the active list below or after inspecting the catalog.',
+    catalogToolAvailable
+      ? 'When the user asks for a specialist, a skill, an expert mode, or a task seems to need a workflow that is not active, call movscript_inspect_agent_catalog with view="summary" or view="skill" before deciding the workflow is unavailable. Set includeInstruction=true only when the skill details are needed to perform the task.'
+      : 'The catalog inspection tool is not available in this run; rely only on the active skills and the short enabled-skill index below.',
+  ]
+  if (summary) {
+    const details = [
+      summary.profileId ? `profile=${summary.profileId}` : undefined,
+      summary.profileName ? `name=${summary.profileName}` : undefined,
+      summary.catalogVersion ? `catalog=${summary.catalogVersion}` : undefined,
+      summary.enabledPackIds.length > 0 ? `packs=${summary.enabledPackIds.join(', ')}` : undefined,
+    ].filter(Boolean).join('; ')
+    if (details) lines.push('', `Current catalog scope: ${details}`)
+  }
+  lines.push('', 'Active skills this run:')
+  lines.push(...(active.length > 0 ? active.slice(0, 12).map(renderSkillDiscoveryLine) : ['- none matched beyond profile defaults.']))
+  if (workflows.length > 0) {
+    lines.push('', 'Enabled workflow skills:')
+    lines.push(...workflows.slice(0, 16).map(renderSkillDiscoveryLine))
+  }
+  if (expertise.length > 0) {
+    lines.push('', 'Enabled expertise skills:')
+    lines.push(...expertise.slice(0, 8).map(renderSkillDiscoveryLine))
+  }
+  if (policies.length > 0) {
+    lines.push('', 'Profile persona and policy skills:')
+    lines.push(...policies.slice(0, 8).map(renderSkillDiscoveryLine))
+  }
+  return lines.join('\n')
+}
+
+function renderSkillDiscoveryLine(skill: SkillDiscoveryItem): string {
+  const details = [
+    `kind=${skill.kind}`,
+    skill.active ? 'active=true' : undefined,
+    skill.triggerHints && skill.triggerHints.length > 0 ? `triggers=${skill.triggerHints.slice(0, 5).join('|')}` : undefined,
+    skill.useWhen && skill.useWhen.length > 0 ? `useWhen=${skill.useWhen.slice(0, 5).join('|')}` : undefined,
+  ].filter(Boolean).join('; ')
+  const description = skill.description ? ` - ${truncateForPrompt(skill.description, 140)}` : ''
+  return `- ${skill.id} (${skill.name}; ${details})${description}`
+}
+
+function truncateForPrompt(value: string, limit: number): string {
+  const text = value.trim().replace(/\s+/g, ' ')
+  if (text.length <= limit) return text
+  return `${text.slice(0, Math.max(0, limit - 1))}...`
 }
 
 const EMPTY_OBJECT_TOOL_SCHEMA = {

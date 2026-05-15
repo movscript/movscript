@@ -142,6 +142,10 @@ func (s *FileSystemStorage) pathForKey(key string) (string, error) {
 	if strings.Contains(key, "\x00") {
 		return "", errors.New("storage key contains null byte")
 	}
+	key = strings.ReplaceAll(key, "\\", "/")
+	if isWindowsDriveKey(key) {
+		return "", fmt.Errorf("invalid storage key %q", key)
+	}
 	clean := filepath.Clean(filepath.FromSlash(key))
 	if clean == "." || filepath.IsAbs(clean) || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == ".." {
 		return "", fmt.Errorf("invalid storage key %q", key)
@@ -152,6 +156,14 @@ func (s *FileSystemStorage) pathForKey(key string) (string, error) {
 		return "", fmt.Errorf("storage key escapes root: %q", key)
 	}
 	return path, nil
+}
+
+func isWindowsDriveKey(key string) bool {
+	if len(key) < 2 || key[1] != ':' {
+		return false
+	}
+	drive := key[0]
+	return (drive >= 'a' && drive <= 'z') || (drive >= 'A' && drive <= 'Z')
 }
 
 func (s *FileSystemStorage) contentType(path string) string {

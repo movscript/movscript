@@ -36,11 +36,13 @@ type SegmentRecord = SemanticEntityRecord & {
   title?: string
   summary?: string
   content?: string
+  script_block_id?: number
   status?: string
 }
 
 type SceneMomentRecord = SemanticEntityRecord & {
   segment_id?: number
+  script_block_id?: number
   title?: string
   description?: string
   time_text?: string
@@ -90,6 +92,7 @@ type ScriptBlockRecord = SemanticEntityRecord & {
 interface MomentWorkspace {
   moment: SceneMomentRecord
   segment?: SegmentRecord
+  scriptBlock?: ScriptBlockRecord
   contentUnits: RelatedRecord[]
   storyboardLines: RelatedRecord[]
   keyframes: RelatedRecord[]
@@ -204,7 +207,10 @@ export default function SceneMomentsPage() {
   const momentWorkspaces = useMemo(() => moments.map((moment) => {
     const momentContentUnits = contentUnits.filter((item) => item.scene_moment_id === moment.ID).sort(compareByOrder)
     const contentUnitIds = new Set(momentContentUnits.map((item) => item.ID))
-    const momentStoryboardLines = storyboardLines.filter((item) => item.scene_moment_id === moment.ID).sort(compareByOrder)
+    const momentStoryboardLines = storyboardLines.filter((item) => (
+      item.scene_moment_id === moment.ID ||
+      (moment.script_block_id && item.script_block_id === moment.script_block_id)
+    )).sort(compareByOrder)
     const momentKeyframes = keyframes.filter((item) => item.scene_moment_id === moment.ID || Boolean(item.content_unit_id && contentUnitIds.has(item.content_unit_id))).sort(compareByOrder)
     const momentUsages = usages.filter((item) => (
       (item.owner_type === 'scene_moment' && item.owner_id === moment.ID) ||
@@ -224,6 +230,7 @@ export default function SceneMomentsPage() {
     return {
       moment,
       segment: moment.segment_id ? segmentById.get(moment.segment_id) : undefined,
+      scriptBlock: moment.script_block_id ? scriptBlocksById.get(moment.script_block_id) : undefined,
       contentUnits: momentContentUnits,
       storyboardLines: momentStoryboardLines,
       keyframes: momentKeyframes,
@@ -232,7 +239,7 @@ export default function SceneMomentsPage() {
       readiness: calculateReadiness(moment, momentContentUnits, momentReferences, momentAssetSlots),
       totalDuration,
     }
-  }), [assetSlots, contentUnits, keyframes, moments, referencesById, segmentById, storyboardLines, usages])
+  }), [assetSlots, contentUnits, keyframes, moments, referencesById, scriptBlocksById, segmentById, storyboardLines, usages])
 
   const filteredMoments = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -253,6 +260,8 @@ export default function SceneMomentsPage() {
         item.moment.action_text,
         item.moment.mood,
         titleOf(item.segment),
+        item.scriptBlock ? scriptBlockSourceLabel(item.scriptBlock) : '',
+        item.scriptBlock?.content,
         item.contentUnits.map((unit) => [
           titleOf(unit),
           unit.description,
@@ -442,7 +451,7 @@ export default function SceneMomentsPage() {
               projectId={projectId}
               config={sceneMomentConfig}
               record={creatingMoment ? null : selected?.moment}
-              defaults={creatingMoment ? { segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, order: momentWorkspaces.length + 1, status: 'draft' } : undefined}
+              defaults={creatingMoment ? { segment_id: selected?.segment?.ID ?? segmentFilterId ?? null, script_block_id: selected?.scriptBlock?.ID ?? selected?.segment?.script_block_id ?? null, order: momentWorkspaces.length + 1, status: 'draft' } : undefined}
               queryKey={['semantic-scene-moment-page', projectId]}
               title={creatingMoment ? '新建情景' : '卡片内编辑情景'}
               description="直接维护情景标题、时空、条件、动作和情绪；引用关系不在这里重写。"
@@ -457,13 +466,13 @@ export default function SceneMomentsPage() {
                 stats: selected && !creatingMoment ? [
                   { label: '时间', value: selected.moment.time_text || '未设定' },
                   { label: '地点', value: selected.moment.location_text || '未设定' },
+                  { label: '剧本来源', value: selected.scriptBlock ? `行 ${selected.scriptBlock.start_line || '?'}-${selected.scriptBlock.end_line || '?'}` : '未绑定' },
                   { label: '制作项', value: selected.contentUnits.length },
-                  { label: '准备度', value: `${selected.readiness}%` },
                 ] : [
                   { label: '默认状态', value: '草稿' },
                   { label: '所属编排段', value: selected?.segment ? titleOf(selected.segment) : '未绑定' },
+                  { label: '剧本来源', value: selected?.scriptBlock ? `行 ${selected.scriptBlock.start_line || '?'}-${selected.scriptBlock.end_line || '?'}` : '继承编排段' },
                   { label: '顺序', value: momentWorkspaces.length + 1 },
-                  { label: '准备度', value: '0%' },
                 ],
               }}
               onSaved={(record) => {
@@ -480,12 +489,29 @@ export default function SceneMomentsPage() {
         upstream={<div />}
         downstream={<div />}
         bottom={(
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
+            <Panel title="来源剧本块" icon={ScrollText}>
+              {selected?.scriptBlock ? (
+                <div className="rounded-md border border-border bg-background px-3 py-2">
+                  <p className="truncate text-xs font-medium text-foreground">{scriptBlockSourceLabel(selected.scriptBlock)}</p>
+                  <p className="mt-1 line-clamp-4 text-[11px] leading-4 text-muted-foreground">{String(selected.scriptBlock.content ?? '').trim() || '暂无剧本块正文'}</p>
+                </div>
+              ) : (
+                <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">当前情景暂无稳定剧本块来源</p>
+              )}
+            </Panel>
             <Panel title="涉及到的设定资料" icon={Sparkles}>
               <RelatedList
                 records={selected?.references ?? []}
                 empty="当前情景暂无设定资料引用"
                 onSelect={(record) => setFilter({ reference_id: record.ID })}
+              />
+            </Panel>
+            <Panel title="相关分镜行" icon={Clapperboard}>
+              <RelatedList
+                records={selected?.storyboardLines ?? []}
+                scriptBlocksById={scriptBlocksById}
+                empty="当前情景暂无分镜行"
               />
             </Panel>
             <Panel title="所需要的素材需求" icon={PackageCheck}>
@@ -538,6 +564,12 @@ function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; sele
         <StatusBadge status={item.moment.status ?? 'draft'} />
       </div>
       <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.moment.description || item.moment.action_text || '暂无情景描述'}</p>
+      {item.scriptBlock ? (
+        <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+          <ScrollText size={11} className="shrink-0" />
+          <span className="truncate">{scriptBlockSourceLabel(item.scriptBlock)}</span>
+        </div>
+      ) : null}
       <div className="mt-3 grid grid-cols-3 gap-2">
         <MiniStat label="内容" value={item.contentUnits.length} />
         <MiniStat label="设定资料" value={item.references.length} />

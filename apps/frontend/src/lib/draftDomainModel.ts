@@ -1,4 +1,5 @@
 import { getActiveSchemaForKind, type JSONSchema7 } from '@movscript/draft-schemas'
+import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 import type { AgentDraft, AgentDraftKind } from '@/lib/localAgentClient'
 
 export type DraftSeedMode = 'empty' | 'snapshot' | 'editable_snapshot'
@@ -70,8 +71,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       writableEntityTypes: ['creative_reference'],
     },
     routes: {
-      fallback: '/creative-references',
-      reviewTemplate: '/creative-references?view=review&draftId=:draftId',
+      fallback: '/pre-production',
+      reviewTemplate: '/pre-production?view=review&draftId=:draftId',
     },
   },
   asset_proposal: {
@@ -96,8 +97,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       writableEntityTypes: ['asset_slot'],
     },
     routes: {
-      fallback: '/asset-slots',
-      reviewTemplate: '/asset-slots?view=review&draftId=:draftId',
+      fallback: '/pre-production',
+      reviewTemplate: '/pre-production?view=review&draftId=:draftId',
     },
   },
   project_proposal: {
@@ -140,21 +141,23 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
         'project_scripts',
         'segments',
         'scene_moments',
+        'content_units',
+        'keyframes',
         'creative_reference_usages',
         'asset_slot_usages',
         'unresolved_requirements',
       ],
       maxDepth: 3,
-      conflictKeys: ['production.updatedAt', 'production_script_brief.scriptVersionUpdatedAt', 'project_scripts[].UpdatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt'],
+      conflictKeys: ['production.updatedAt', 'production_script_brief.scriptVersionUpdatedAt', 'project_scripts[].UpdatedAt', 'segments[].updatedAt', 'scene_moments[].updatedAt', 'content_units[].updatedAt', 'keyframes[].updatedAt'],
     },
     fieldGuide: {
-      owns: ['segments', 'scene_moments', 'production_local_requirements'],
+      owns: ['snapshot.proposal.segments', 'snapshot.proposal.segments[].scene_moments', 'snapshot.proposal.segments[].scene_moments[].content_units', 'snapshot.proposal.segments[].scene_moments[].keyframes', 'production_local_requirements'],
       references: ['project', 'creative_references', 'asset_slots', 'creative_reference_usages', 'asset_slot_usages'],
-      forbids: ['new_project_level_creative_references', 'new_project_level_asset_slots', 'final_media_generation_jobs'],
+      forbids: ['action_patch_payloads', 'new_project_level_creative_references', 'new_project_level_asset_slots', 'final_media_generation_jobs'],
     },
     applyBoundary: {
       backendApply: 'production_proposal',
-      writableEntityTypes: ['segment', 'scene_moment', 'creative_reference_usage', 'asset_slot_usage'],
+      writableEntityTypes: ['segment', 'scene_moment', 'content_unit', 'keyframe', 'creative_reference_usage', 'asset_slot_usage'],
     },
     routes: {
       fallback: '/production-orchestrate',
@@ -176,7 +179,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
     fieldGuide: {
       owns: ['content_units'],
       references: ['production', 'segments', 'scene_moments', 'creative_references', 'asset_slots'],
-      forbids: ['media_generation_jobs', 'generated_resource_bindings', 'project_level_creative_references', 'project_level_asset_slots'],
+      forbids: ['operation_fields', 'media_generation_jobs', 'generated_resource_bindings', 'project_level_creative_references', 'project_level_asset_slots'],
     },
     applyBoundary: {
       backendApply: 'draft_only',
@@ -263,17 +266,21 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
   }
 
   if (draft.kind === 'setting_proposal') {
-    return `/creative-references?view=review&draftId=${encodeURIComponent(draft.id)}`
+    return `/pre-production?view=review&draftId=${encodeURIComponent(draft.id)}`
   }
 
-  if (draft.kind === 'asset_proposal' || sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
+  if (draft.kind === 'asset_proposal') {
     const assetSlotId = sourceEntityId ?? targetEntityId
-    if (draft.kind === 'asset_proposal' && assetSlotId === undefined) {
-      return `/asset-slots?view=review&draftId=${encodeURIComponent(draft.id)}`
-    }
+    const params = new URLSearchParams({ view: 'review', draftId: draft.id })
+    if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
+    return `/pre-production?${params.toString()}`
+  }
+
+  if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
+    const assetSlotId = sourceEntityId ?? targetEntityId
     const params = new URLSearchParams({ draftId: draft.id })
     if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
-    return `/asset-slots?${params.toString()}`
+    return `/pre-production?${params.toString()}`
   }
 
   if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
@@ -313,6 +320,23 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
   }
 
   return null
+}
+
+export function buildDraftArtifactReviewPath(artifact: AgentTaskArtifactRef): string | null {
+  if (!artifact.draftKind) return null
+  return buildDraftReviewPath({
+    id: artifact.draftId,
+    ...(artifact.projectId !== undefined ? { projectId: artifact.projectId } : {}),
+    kind: artifact.draftKind,
+    title: artifact.title ?? artifact.draftId,
+    content: '',
+    status: 'draft',
+    ...(artifact.source ? { source: artifact.source } : {}),
+    ...(artifact.target ? { target: artifact.target } : {}),
+    ...(artifact.metadata ? { metadata: artifact.metadata } : {}),
+    createdAt: artifact.updatedAt ?? '',
+    updatedAt: artifact.updatedAt ?? '',
+  })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

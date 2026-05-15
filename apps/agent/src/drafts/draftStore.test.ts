@@ -251,26 +251,76 @@ test('validateDraft rejects non-snake-case project proposal asset owner type', (
   assert.match(JSON.stringify(validation.issues), /creative_reference/)
 })
 
-test('validateDraft rejects downstream content units and keyframes in production proposal content', () => {
+test('validateDraft accepts content units and keyframes in production proposal snapshot content', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
     kind: 'production_proposal',
     title: 'production proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      mode: 'snapshot',
+      productionId: 12,
+      proposal: {
+        segments: [{
+          title: '情绪段一',
+          scene_moments: [{
+            title: '情节一',
+            content_units: [{
+              title: '内容分镜一',
+              kind: 'shot',
+              keyframes: [{ title: '关键帧一' }],
+            }],
+            creative_references: [{ id: 8, role: 'character' }],
+          }],
+        }],
+      },
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, true)
+  assert.doesNotMatch(JSON.stringify(validation.issues), /content_units/)
+})
+
+test('validateDraft rejects legacy action fields in production proposal snapshot content', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'production_proposal',
+    title: 'production proposal',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      mode: 'snapshot',
       productionId: 12,
       proposal: {
         segments: [{
           action: 'create',
           title: '情绪段一',
+          scene_moments: [],
+        }],
+      },
+    }),
+  })
+
+  const validation = validateDraft(draft)
+  assert.equal(validation.ok, false)
+  assert.match(JSON.stringify(validation.issues), /must not include action/)
+})
+
+test('validateDraft rejects production proposal creative references without existing ids', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    kind: 'production_proposal',
+    title: 'production proposal',
+    content: JSON.stringify({
+      schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      mode: 'snapshot',
+      productionId: 12,
+      proposal: {
+        segments: [{
+          title: '情绪段一',
           scene_moments: [{
-            action: 'create',
             title: '情节一',
-            content_units: [{
-              action: 'create',
-              title: '内容分镜一',
-              keyframes: [{ action: 'create', title: '关键帧一' }],
-            }],
+            creative_references: [{ role: 'character' }],
           }],
         }],
       },
@@ -279,7 +329,7 @@ test('validateDraft rejects downstream content units and keyframes in production
 
   const validation = validateDraft(draft)
   assert.equal(validation.ok, false)
-  assert.match(JSON.stringify(validation.issues), /content_units/)
+  assert.match(JSON.stringify(validation.issues), /existing project-level id/)
 })
 
 test('validateDraft warns when production proposal scene moment lacks context bindings', () => {
@@ -289,13 +339,12 @@ test('validateDraft warns when production proposal scene moment lacks context bi
     title: 'production proposal',
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+      mode: 'snapshot',
       productionId: 12,
       proposal: {
         segments: [{
-          action: 'create',
           title: '情绪段一',
           scene_moments: [{
-            action: 'create',
             title: '情节一',
           }],
         }],

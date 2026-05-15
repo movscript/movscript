@@ -14,7 +14,11 @@ func (s *Service) ListScriptVersions(ctx context.Context, filter ScriptVersionFi
 }
 
 func (s *Service) CreateScriptVersion(ctx context.Context, projectID uint, input CreateScriptVersionInput, createdByID *uint) (domainsemantic.ScriptVersion, error) {
-	item, err := s.repo.CreateScriptVersion(ctx, projectID, input, createdByID)
+	if err := s.validateScriptVersionOwners(ctx, projectID, input); err != nil {
+		return domainsemantic.ScriptVersion{}, err
+	}
+	versionNumber := s.nextScriptVersionNumber(ctx, projectID, input.ScriptID)
+	item, err := s.repo.CreateScriptVersion(ctx, projectID, input, versionNumber, createdByID)
 	if err != nil {
 		return item, err
 	}
@@ -22,7 +26,7 @@ func (s *Service) CreateScriptVersion(ctx context.Context, projectID uint, input
 	return item, nil
 }
 
-func (s *Service) PatchScriptVersion(ctx context.Context, projectID uint, id string, input PatchScriptVersionInput) (domainsemantic.ScriptVersion, error) {
+func (s *Service) PatchScriptVersion(ctx context.Context, projectID uint, id string) (domainsemantic.ScriptVersion, error) {
 	return domainsemantic.ScriptVersion{}, ErrForbidden{Message: "剧本版本创建后不可修改，请新建一个新版本"}
 }
 
@@ -103,6 +107,131 @@ func (s *Service) PatchScriptBlock(ctx context.Context, projectID uint, id strin
 		MetadataJSON:  input.MetadataJSON,
 	}
 	return s.repo.PatchScriptBlock(ctx, item, patch)
+}
+
+type ScriptBlockUsages struct {
+	Segments        []domainsemantic.Segment        `json:"segments"`
+	SceneMoments    []domainsemantic.SceneMoment    `json:"scene_moments"`
+	ContentUnits    []domainsemantic.ContentUnit    `json:"content_units"`
+	StoryboardLines []domainsemantic.StoryboardLine `json:"storyboard_lines"`
+}
+
+type ScriptBlockUsageMap map[uint]ScriptBlockUsages
+
+func (s *Service) ListScriptBlockUsages(ctx context.Context, projectID uint, id string) (ScriptBlockUsages, error) {
+	block, err := s.repo.LoadScriptBlock(ctx, projectID, id)
+	if err != nil {
+		return ScriptBlockUsages{}, err
+	}
+	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ScriptBlockID: block.ID})
+	if err != nil {
+		return ScriptBlockUsages{}, err
+	}
+	sceneMoments, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, ScriptBlockID: block.ID})
+	if err != nil {
+		return ScriptBlockUsages{}, err
+	}
+	contentUnits, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ScriptBlockID: block.ID})
+	if err != nil {
+		return ScriptBlockUsages{}, err
+	}
+	storyboardLines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, ScriptBlockID: block.ID})
+	if err != nil {
+		return ScriptBlockUsages{}, err
+	}
+	return ScriptBlockUsages{
+		Segments:        segments,
+		SceneMoments:    sceneMoments,
+		ContentUnits:    contentUnits,
+		StoryboardLines: storyboardLines,
+	}, nil
+}
+
+func (s *Service) ListScriptBlockUsageMap(ctx context.Context, projectID uint, scriptVersionID uint) (ScriptBlockUsageMap, error) {
+	if scriptVersionID == 0 {
+		return ScriptBlockUsageMap{}, ErrInvalidInput{Err: errors.New("script_version_id is required")}
+	}
+	if _, err := s.repo.LoadScriptVersion(ctx, projectID, strconv.FormatUint(uint64(scriptVersionID), 10)); err != nil {
+		return ScriptBlockUsageMap{}, err
+	}
+	blocks, err := s.repo.ListScriptBlocks(ctx, ScriptBlockFilter{ProjectID: projectID, ScriptVersionID: scriptVersionID})
+	if err != nil {
+		return ScriptBlockUsageMap{}, err
+	}
+	blockIDs := make([]uint, 0, len(blocks))
+	result := ScriptBlockUsageMap{}
+	for _, block := range blocks {
+		blockIDs = append(blockIDs, block.ID)
+		result[block.ID] = ScriptBlockUsages{}
+	}
+	if len(blockIDs) == 0 {
+		return result, nil
+	}
+	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ScriptBlockIDs: blockIDs})
+	if err != nil {
+		return ScriptBlockUsageMap{}, err
+	}
+	sceneMoments, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, ScriptBlockIDs: blockIDs})
+	if err != nil {
+		return ScriptBlockUsageMap{}, err
+	}
+	contentUnits, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ScriptBlockIDs: blockIDs})
+	if err != nil {
+		return ScriptBlockUsageMap{}, err
+	}
+	storyboardLines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, ScriptBlockIDs: blockIDs})
+	if err != nil {
+		return ScriptBlockUsageMap{}, err
+	}
+	for _, segment := range segments {
+		if segment.ScriptBlockID != nil {
+			usage := result[*segment.ScriptBlockID]
+			usage.Segments = append(usage.Segments, segment)
+			result[*segment.ScriptBlockID] = usage
+		}
+	}
+	for _, moment := range sceneMoments {
+		if moment.ScriptBlockID != nil {
+			usage := result[*moment.ScriptBlockID]
+			usage.SceneMoments = append(usage.SceneMoments, moment)
+			result[*moment.ScriptBlockID] = usage
+		}
+	}
+	for _, unit := range contentUnits {
+		if unit.ScriptBlockID != nil {
+			usage := result[*unit.ScriptBlockID]
+			usage.ContentUnits = append(usage.ContentUnits, unit)
+			result[*unit.ScriptBlockID] = usage
+		}
+	}
+	for _, line := range storyboardLines {
+		if line.ScriptBlockID != nil {
+			usage := result[*line.ScriptBlockID]
+			usage.StoryboardLines = append(usage.StoryboardLines, line)
+			result[*line.ScriptBlockID] = usage
+		}
+	}
+	return result, nil
+}
+
+func (s *Service) validateScriptVersionOwners(ctx context.Context, projectID uint, input CreateScriptVersionInput) error {
+	if input.ScriptID == 0 {
+		return ErrInvalidInput{Err: errors.New("script_id is required")}
+	}
+	if _, err := s.repo.LoadScriptForProject(ctx, projectID, input.ScriptID); err != nil {
+		return err
+	}
+	if input.ParentVersionID == nil {
+		return nil
+	}
+	parent, err := s.repo.LoadScriptVersion(ctx, projectID, strconv.FormatUint(uint64(*input.ParentVersionID), 10))
+	if err != nil {
+		return err
+	}
+	if parent.ScriptID != input.ScriptID {
+		return ErrOwnerWrongProject
+	}
+	return nil
 }
 
 func (s *Service) validateScriptBlockOwners(ctx context.Context, projectID uint, scriptID uint, scriptVersionID uint, parentBlockID *uint) (domainsemantic.ScriptVersion, error) {

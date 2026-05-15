@@ -3,10 +3,7 @@ import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_SCOPES } from '@movscript/draft-schemas
 export const PRODUCTION_PROPOSAL_DRAFT_SCHEMA = DRAFT_CONTENT_SCHEMA_IDS.productionProposal
 export const PRODUCTION_PROPOSAL_SCOPE = DRAFT_SCOPES.productionProposal
 
-export type ProductionProposalAction = 'create' | 'reuse' | 'update'
-
-export interface ProductionProposalContentUnitPatch {
-  action: ProductionProposalAction
+export interface ProductionProposalContentUnitSnapshot {
   id?: number
   client_id?: string
   title?: string
@@ -17,28 +14,43 @@ export interface ProductionProposalContentUnitPatch {
   duration_sec?: number
   order?: number
   status?: string
+  script_block_id?: number
+  before?: Record<string, unknown>
+  keyframes?: ProductionProposalKeyframeSnapshot[]
+}
+
+export interface ProductionProposalKeyframeSnapshot {
+  id?: number
+  client_id?: string
+  title?: string
+  description?: string
+  prompt?: string
+  order?: number
+  status?: string
   before?: Record<string, unknown>
 }
 
-export interface ProductionProposalCreativeReferenceUsagePatch {
-  action: ProductionProposalAction
-  id?: number
+export interface ProductionProposalCreativeReferenceUsageSnapshot {
+  id: number
   client_id?: string
-  creative_reference_id?: number
+  name?: string
+  kind?: string
+  role?: string
   source_label?: string
   state?: Record<string, unknown>
 }
 
-export interface ProductionProposalAssetSlotUsagePatch {
-  action: ProductionProposalAction
+export interface ProductionProposalAssetSlotSnapshot {
   id?: number
   client_id?: string
-  asset_slot_id?: number
+  name?: string
+  kind?: string
+  description?: string
+  priority?: string
   source_label?: string
 }
 
-export interface ProductionProposalSceneMomentPatch {
-  action: ProductionProposalAction
+export interface ProductionProposalSceneMomentSnapshot {
   id?: number
   client_id?: string
   title?: string
@@ -50,15 +62,16 @@ export interface ProductionProposalSceneMomentPatch {
   description?: string
   order?: number
   status?: string
-  content_units?: ProductionProposalContentUnitPatch[]
-  creative_references?: ProductionProposalCreativeReferenceUsagePatch[]
-  asset_slots?: ProductionProposalAssetSlotUsagePatch[]
+  script_block_id?: number
+  content_units?: ProductionProposalContentUnitSnapshot[]
+  creative_references?: ProductionProposalCreativeReferenceUsageSnapshot[]
+  asset_slots?: ProductionProposalAssetSlotSnapshot[]
+  keyframes?: ProductionProposalKeyframeSnapshot[]
   rationale?: string
   before?: Record<string, unknown>
 }
 
-export interface ProductionProposalSegmentPatch {
-  action: ProductionProposalAction
+export interface ProductionProposalSegmentSnapshot {
   id?: number
   client_id?: string
   title?: string
@@ -66,7 +79,8 @@ export interface ProductionProposalSegmentPatch {
   summary?: string
   order?: number
   status?: string
-  scene_moments: ProductionProposalSceneMomentPatch[]
+  script_block_id?: number
+  scene_moments: ProductionProposalSceneMomentSnapshot[]
   rationale?: string
   before?: Record<string, unknown>
 }
@@ -74,13 +88,15 @@ export interface ProductionProposalSegmentPatch {
 export interface ProductionProposalDraftContent {
   schema: typeof PRODUCTION_PROPOSAL_DRAFT_SCHEMA
   scope: typeof PRODUCTION_PROPOSAL_SCOPE
+  mode: 'snapshot'
   projectId?: number
   productionId: number
   proposalScope: 'production'
   summary: string
   proposal: {
-    segments: ProductionProposalSegmentPatch[]
+    segments: ProductionProposalSegmentSnapshot[]
   }
+  snapshot_base?: Record<string, unknown>
   impact_notes: string[]
   proposedAt: string
   projectDraftId?: string
@@ -96,6 +112,7 @@ export function buildEmptyProductionProposalDraftContent(input: {
   return {
     schema: PRODUCTION_PROPOSAL_DRAFT_SCHEMA,
     scope: PRODUCTION_PROPOSAL_SCOPE,
+    mode: 'snapshot',
     ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
     productionId: input.productionId,
     proposalScope: 'production',

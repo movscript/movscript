@@ -2,7 +2,6 @@ package semantic
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
@@ -135,6 +134,7 @@ func NewProductionTextBlock(spec ProductionTextBlockSpec) ProductionTextBlock {
 type SceneMomentSpec struct {
 	ProjectID     uint
 	SegmentID     *uint
+	ScriptBlockID *uint
 	Order         int
 	Title         string
 	Description   string
@@ -151,6 +151,7 @@ type SceneMoment struct {
 	ID            uint      `json:"ID"`
 	ProjectID     uint      `json:"project_id"`
 	SegmentID     *uint     `json:"segment_id,omitempty"`
+	ScriptBlockID *uint     `json:"script_block_id,omitempty"`
 	Order         int       `json:"order"`
 	Title         string    `json:"title"`
 	Description   string    `json:"description"`
@@ -167,6 +168,7 @@ type SceneMoment struct {
 
 type SceneMomentPatch struct {
 	SegmentID     *uint
+	ScriptBlockID *uint
 	Order         int
 	Title         string
 	Description   string
@@ -183,6 +185,7 @@ func NewSceneMoment(spec SceneMomentSpec) SceneMoment {
 	return SceneMoment{
 		ProjectID:     spec.ProjectID,
 		SegmentID:     spec.SegmentID,
+		ScriptBlockID: spec.ScriptBlockID,
 		Order:         spec.Order,
 		Title:         spec.Title,
 		Description:   spec.Description,
@@ -201,6 +204,7 @@ type ContentUnitSpec struct {
 	ProductionID     *uint
 	SegmentID        *uint
 	SceneMomentID    *uint
+	StoryboardLineID *uint
 	ScriptBlockID    *uint
 	Kind             string
 	Order            int
@@ -232,6 +236,7 @@ type ContentUnit struct {
 	ProductionID     *uint     `json:"production_id,omitempty"`
 	SegmentID        *uint     `json:"segment_id,omitempty"`
 	SceneMomentID    *uint     `json:"scene_moment_id,omitempty"`
+	StoryboardLineID *uint     `json:"storyboard_line_id,omitempty"`
 	ScriptBlockID    *uint     `json:"script_block_id,omitempty"`
 	Kind             string    `json:"kind"`
 	Order            int       `json:"order"`
@@ -263,6 +268,7 @@ type ContentUnitPatch struct {
 	ProductionID     *uint
 	SegmentID        *uint
 	SceneMomentID    *uint
+	StoryboardLineID *uint
 	ScriptBlockID    *uint
 	Kind             string
 	Order            int
@@ -294,6 +300,7 @@ func NewContentUnit(spec ContentUnitSpec) ContentUnit {
 		ProductionID:     spec.ProductionID,
 		SegmentID:        spec.SegmentID,
 		SceneMomentID:    spec.SceneMomentID,
+		StoryboardLineID: spec.StoryboardLineID,
 		ScriptBlockID:    spec.ScriptBlockID,
 		Kind:             FallbackString(spec.Kind, "shot"),
 		Order:            spec.Order,
@@ -883,15 +890,6 @@ type StoryboardVersion struct {
 	UpdatedAt          time.Time `json:"UpdatedAt"`
 }
 
-type StoryboardVersionPatch struct {
-	ParentVersionID *uint
-	Title           string
-	Source          string
-	Status          string
-	SnapshotJSON    string
-	MetadataJSON    string
-}
-
 func NewStoryboardVersion(spec StoryboardVersionSpec) StoryboardVersion {
 	return StoryboardVersion{
 		ProjectID:          spec.ProjectID,
@@ -912,6 +910,7 @@ type StoryboardLineSpec struct {
 	StoryboardVersionID *uint
 	SegmentID           *uint
 	SceneMomentID       *uint
+	ScriptBlockID       *uint
 	Order               int
 	Kind                string
 	Title               string
@@ -930,6 +929,7 @@ type StoryboardLine struct {
 	StoryboardVersionID *uint     `json:"storyboard_version_id,omitempty"`
 	SegmentID           *uint     `json:"segment_id,omitempty"`
 	SceneMomentID       *uint     `json:"scene_moment_id,omitempty"`
+	ScriptBlockID       *uint     `json:"script_block_id,omitempty"`
 	Order               int       `json:"order"`
 	Kind                string    `json:"kind"`
 	Title               string    `json:"title"`
@@ -948,6 +948,7 @@ type StoryboardLinePatch struct {
 	StoryboardVersionID *uint
 	SegmentID           *uint
 	SceneMomentID       *uint
+	ScriptBlockID       *uint
 	Order               int
 	Kind                string
 	Title               string
@@ -966,6 +967,7 @@ func NewStoryboardLine(spec StoryboardLineSpec) StoryboardLine {
 		StoryboardVersionID: spec.StoryboardVersionID,
 		SegmentID:           spec.SegmentID,
 		SceneMomentID:       spec.SceneMomentID,
+		ScriptBlockID:       spec.ScriptBlockID,
 		Order:               spec.Order,
 		Kind:                FallbackString(spec.Kind, "beat"),
 		Title:               spec.Title,
@@ -1657,26 +1659,6 @@ func NewScriptBlock(spec ScriptBlockSpec) ScriptBlock {
 		Status:          FallbackString(spec.Status, "active"),
 		MetadataJSON:    spec.MetadataJSON,
 	}
-}
-
-type ScriptVersionPatch struct {
-	ParentVersionID *uint
-	Title           string
-	SourceType      string
-	Content         string
-	RawSource       string
-	Summary         string
-	Status          string
-}
-
-func (patch ScriptVersionPatch) Empty() bool {
-	return patch.ParentVersionID == nil &&
-		strings.TrimSpace(patch.Title) == "" &&
-		strings.TrimSpace(patch.SourceType) == "" &&
-		strings.TrimSpace(patch.Content) == "" &&
-		strings.TrimSpace(patch.RawSource) == "" &&
-		strings.TrimSpace(patch.Summary) == "" &&
-		strings.TrimSpace(patch.Status) == ""
 }
 
 func NewScriptVersion(spec ScriptVersionSpec) ScriptVersion {

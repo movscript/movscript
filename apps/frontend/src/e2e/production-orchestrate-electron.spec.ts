@@ -184,15 +184,14 @@ async function mockProductionOrchestrateEntities(page: Parameters<typeof mockGen
           kind: 'production_proposal',
           title: '制作提案草稿',
           content: JSON.stringify({
+            mode: 'snapshot',
             productionId: 301,
             summary: '制作提案草稿',
             proposal: {
               segments: [{
-                action: 'create',
                 title: '进入空间',
                 summary: '主角进入新的场景空间。',
                 scene_moments: [{
-                  action: 'create',
                   title: '进入并停顿',
                   time_text: '0:00-0:10',
                   location_text: '入口',

@@ -5,12 +5,14 @@ import { Pencil, Save, Trash2, X } from 'lucide-react'
 import {
   createSemanticEntity,
   deleteSemanticEntity,
+  getSourceLockStatus,
   listSemanticEntities,
   semanticEntityConfig,
   updateSemanticEntity,
   type SemanticEntityConfig,
   type SemanticEntityPayload,
   type SemanticEntityRecord,
+  type SourceLockStatus,
 } from '@/api/semanticEntities'
 import { cn } from '@/lib/utils'
 import { toast } from '@/store/toastStore'
@@ -69,8 +71,10 @@ export function SemanticEntityInlineEditor({
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [isEditing, setIsEditing] = useState(Boolean(!record))
   const enableCreativeReferenceLookups = config.kind === 'assetSlots' && Boolean(projectId)
-  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments') && Boolean(projectId)
-  const canDeleteRecord = !['scriptVersions', 'scriptBlocks'].includes(config.kind)
+  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments' || config.kind === 'storyboardLines') && Boolean(projectId)
+  const canDeleteRecord = !isDeleteProtectedKind(config.kind)
+  const isImmutableRecord = Boolean(record && isImmutableKind(config.kind))
+  const sourceLockEnabled = Boolean(projectId && record?.ID && sourceLockSupportedKind(config.kind))
 
   const { data: creativeReferences = [] } = useQuery({
     queryKey: ['semantic-inline-editor', projectId, 'creative-references'],
@@ -89,6 +93,15 @@ export function SemanticEntityInlineEditor({
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')),
     enabled: enableScriptBlockLookups,
   })
+
+  const { data: sourceLock } = useQuery<SourceLockStatus>({
+    queryKey: ['semantic-source-lock', projectId, config.kind, record?.ID],
+    queryFn: () => getSourceLockStatus(projectId!, config, record!.ID),
+    enabled: sourceLockEnabled,
+  })
+
+  const lockedFields = useMemo(() => new Set(sourceLock?.locked_fields ?? []), [sourceLock])
+  const sourceLockReason = sourceLockReasonText(sourceLock)
 
   const referenceById = useMemo(() => new Map(creativeReferences.map((item) => [item.ID, item])), [creativeReferences])
   const lookupOptions = useMemo(() => {
@@ -122,7 +135,7 @@ export function SemanticEntityInlineEditor({
   }, [defaults, editKey, fields, record])
 
   const missingRequiredFields = useMemo(() => fields.filter((field) => field.required && !isFieldFilled(form[field.key], field.type)), [fields, form])
-  const canSave = Boolean(projectId) && missingRequiredFields.length === 0 && (isEditing || !record)
+  const canSave = Boolean(projectId) && !isImmutableRecord && missingRequiredFields.length === 0 && (isEditing || !record)
 
   const saveMutation = useMutation({
     mutationFn: (payload: SemanticEntityPayload) => {
@@ -207,12 +220,12 @@ export function SemanticEntityInlineEditor({
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2 text-right">
               {hero.status}
-              {record && !isEditing ? (
+              {record && (!isEditing || isImmutableRecord) ? (
                 <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="shrink-0 gap-2 bg-background/80" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
+                  {isImmutableRecord ? null : <Button size="sm" variant="outline" className="shrink-0 gap-2 bg-background/80" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
                     <Pencil size={14} />
                     编辑
-                  </Button>
+                  </Button>}
                   {canDeleteRecord ? <Button type="button" size="sm" variant="destructive" className="shrink-0 gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
                     <Trash2 size={14} />
                     删除
@@ -269,19 +282,21 @@ export function SemanticEntityInlineEditor({
           </div>
         ) : null}
 
-        <form id={`inline-${config.kind}-${record?.ID ?? 'new'}`} onSubmit={submit} className="space-y-4 border-t border-border p-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            {basicFields.map((field) => (
-              <FieldControl
+	        <form id={`inline-${config.kind}-${record?.ID ?? 'new'}`} onSubmit={submit} className="space-y-4 border-t border-border p-4">
+	          {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
+	          <div className="grid gap-3 md:grid-cols-2">
+	            {basicFields.map((field) => (
+	              <FieldControl
                 key={field.key}
                 configKind={config.kind}
                 field={field}
-                value={form[field.key]}
-                optionsOverride={lookupOptions[field.key]}
-                disabled={!!record && !isEditing}
-                invalid={field.required && !isFieldFilled(form[field.key], field.type)}
-                onChange={(value) => updateField(field.key, value)}
-              />
+	                value={form[field.key]}
+	                optionsOverride={lookupOptions[field.key]}
+	                disabled={!!record && (!isEditing || isImmutableRecord || lockedFields.has(field.key))}
+	                invalid={field.required && !isFieldFilled(form[field.key], field.type)}
+	                lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined}
+	                onChange={(value) => updateField(field.key, value)}
+	              />
             ))}
           </div>
           {advancedFields.length > 0 ? (
@@ -294,12 +309,13 @@ export function SemanticEntityInlineEditor({
                     configKind={config.kind}
                     field={field}
                     advanced
-                    value={form[field.key]}
-                    optionsOverride={lookupOptions[field.key]}
-                    disabled={!!record && !isEditing}
-                    invalid={field.required && !isFieldFilled(form[field.key], field.type)}
-                    onChange={(value) => updateField(field.key, value)}
-                  />
+	                    value={form[field.key]}
+	                    optionsOverride={lookupOptions[field.key]}
+	                    disabled={!!record && (!isEditing || isImmutableRecord || lockedFields.has(field.key))}
+	                    invalid={field.required && !isFieldFilled(form[field.key], field.type)}
+	                    lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined}
+	                    onChange={(value) => updateField(field.key, value)}
+	                  />
                 ))}
               </div>
             </details>
@@ -315,14 +331,14 @@ export function SemanticEntityInlineEditor({
         <div className="min-w-0">
           <p className="text-sm font-semibold text-foreground">{title ?? `${record ? '编辑' : '新建'}${config.label}`}</p>
           {description ? <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p> : null}
-          {!isEditing && record && config.requiredHint ? <p className="mt-1 text-[11px] text-muted-foreground">{config.requiredHint}</p> : null}
+          {(!isEditing || isImmutableRecord) && record && config.requiredHint ? <p className="mt-1 text-[11px] text-muted-foreground">{config.requiredHint}</p> : null}
         </div>
-        {record && !isEditing ? (
+        {record && (!isEditing || isImmutableRecord) ? (
           <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="outline" className="gap-2" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
+            {isImmutableRecord ? null : <Button size="sm" variant="outline" className="gap-2" onClick={() => setIsEditing(true)} disabled={deleteMutation.isPending}>
               <Pencil size={14} />
               编辑
-            </Button>
+            </Button>}
             {canDeleteRecord ? <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
               <Trash2 size={14} />
               删除
@@ -364,19 +380,21 @@ export function SemanticEntityInlineEditor({
           </div>
         )}
       </div>
-      <form id={`inline-${config.kind}-${record?.ID ?? 'new'}`} onSubmit={submit} className="space-y-4 p-4">
-        <div className="grid gap-3">
-          {basicFields.map((field) => (
-            <FieldControl
+	      <form id={`inline-${config.kind}-${record?.ID ?? 'new'}`} onSubmit={submit} className="space-y-4 p-4">
+	        {sourceLock?.locked ? <SourceLockNotice fields={fields} sourceLock={sourceLock} reason={sourceLockReason} /> : null}
+	        <div className="grid gap-3">
+	          {basicFields.map((field) => (
+	            <FieldControl
               key={field.key}
               configKind={config.kind}
               field={field}
-              value={form[field.key]}
-              optionsOverride={lookupOptions[field.key]}
-              disabled={!!record && !isEditing}
-              invalid={field.required && !isFieldFilled(form[field.key], field.type)}
-              onChange={(value) => updateField(field.key, value)}
-            />
+	              value={form[field.key]}
+	              optionsOverride={lookupOptions[field.key]}
+	              disabled={!!record && (!isEditing || isImmutableRecord || lockedFields.has(field.key))}
+	              invalid={field.required && !isFieldFilled(form[field.key], field.type)}
+	              lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined}
+	              onChange={(value) => updateField(field.key, value)}
+	            />
           ))}
         </div>
         {advancedFields.length > 0 ? (
@@ -389,12 +407,13 @@ export function SemanticEntityInlineEditor({
                   configKind={config.kind}
                   field={field}
                   advanced
-                  value={form[field.key]}
-                  optionsOverride={lookupOptions[field.key]}
-                  disabled={!!record && !isEditing}
-                  invalid={field.required && !isFieldFilled(form[field.key], field.type)}
-                  onChange={(value) => updateField(field.key, value)}
-                />
+	                  value={form[field.key]}
+	                  optionsOverride={lookupOptions[field.key]}
+	                  disabled={!!record && (!isEditing || isImmutableRecord || lockedFields.has(field.key))}
+	                  invalid={field.required && !isFieldFilled(form[field.key], field.type)}
+	                  lockReason={lockedFields.has(field.key) ? sourceLockReason : undefined}
+	                  onChange={(value) => updateField(field.key, value)}
+	                />
               ))}
             </div>
           </details>
@@ -412,6 +431,7 @@ function FieldControl({
   advanced = false,
   disabled = false,
   invalid = false,
+  lockReason,
   onChange,
 }: {
   configKind: SemanticEntityConfig['kind']
@@ -421,6 +441,7 @@ function FieldControl({
   advanced?: boolean
   disabled?: boolean
   invalid?: boolean
+  lockReason?: string
   onChange: (value: string | boolean) => void
 }) {
   const id = `semantic-inline-${configKind}-${field.key}`
@@ -474,9 +495,45 @@ function FieldControl({
           />
         )}
       </div>
-      {field.helper ? <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p> : null}
+      {lockReason ? (
+        <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{lockReason}</p>
+      ) : field.helper ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p>
+      ) : null}
     </div>
   )
+}
+
+function SourceLockNotice({ fields, sourceLock, reason }: { fields: SemanticEntityConfig['fields']; sourceLock: SourceLockStatus; reason?: string }) {
+  return (
+    <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+      <p className="text-xs font-medium text-amber-800 dark:text-amber-200">来源已锁定</p>
+      <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
+        {reason ?? '已有下游对象引用当前记录'}。已锁定字段：{sourceLock.locked_fields.map((key) => fieldLabel(fields, key)).join('、')}；其他内容仍可继续编辑。
+      </p>
+    </div>
+  )
+}
+
+function fieldLabel(fields: SemanticEntityConfig['fields'], key: string) {
+  return fields.find((field) => field.key === key)?.label ?? key
+}
+
+function sourceLockReasonText(status?: SourceLockStatus) {
+  if (!status?.locked) return undefined
+  const first = status.reasons[0]
+  if (!first) return '来源已锁定，已有下游对象引用当前记录'
+  const more = status.reasons.length > 1 ? ` 等 ${status.reasons.length} 类下游对象` : ''
+  return `${first.message}${more}`
+}
+
+function sourceLockSupportedKind(kind: SemanticEntityConfig['kind']) {
+  return kind === 'productions' ||
+    kind === 'segments' ||
+    kind === 'sceneMoments' ||
+    kind === 'storyboardScripts' ||
+    kind === 'storyboardLines' ||
+    kind === 'contentUnits'
 }
 
 function formatCreativeReferenceOption(record: SemanticEntityRecord) {
@@ -525,13 +582,17 @@ function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {
 
 const basicIdFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id'],
-  contentUnits: ['segment_id', 'scene_moment_id', 'script_block_id'],
+  sceneMoments: ['segment_id', 'script_block_id'],
+  contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'storyboard_line_id', 'script_block_id'],
+  storyboardLines: ['storyboard_script_id', 'storyboard_version_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
   keyframes: ['scene_moment_id', 'content_unit_id'],
 }
 
 const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id', 'progress'],
-  contentUnits: ['segment_id', 'scene_moment_id', 'script_block_id'],
+  sceneMoments: ['segment_id', 'script_block_id'],
+  contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'storyboard_line_id', 'script_block_id'],
+  storyboardLines: ['storyboard_script_id', 'storyboard_version_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
   assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_slot_id'],
 }
 
@@ -569,4 +630,12 @@ function defaultValueForField(type: SemanticEntityConfig['fields'][number]['type
 function isFieldFilled(value: string | boolean, type: SemanticEntityConfig['fields'][number]['type']) {
   if (type === 'boolean') return Boolean(value)
   return String(value ?? '').trim().length > 0
+}
+
+function isImmutableKind(kind: SemanticEntityConfig['kind']) {
+  return kind === 'scriptVersions' || kind === 'storyboardVersions'
+}
+
+function isDeleteProtectedKind(kind: SemanticEntityConfig['kind']) {
+  return isImmutableKind(kind) || kind === 'scriptBlocks'
 }

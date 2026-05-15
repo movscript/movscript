@@ -2108,7 +2108,7 @@ async function cancelGenerationJob(args: Record<string, unknown>): Promise<unkno
   }
 }
 
-async function applyDraftReview(args: Record<string, unknown>): Promise<unknown> {
+export async function applyDraftReview(args: Record<string, unknown>): Promise<unknown> {
   const review = getReviewParam(args)
   const request = buildApplyRequest(review)
   const response = request.method === 'PATCH'
@@ -2253,8 +2253,19 @@ function normalizeProjectProposalPayload(value: unknown): Record<string, unknown
 
 function normalizeProjectProposalPayloadForKind(value: unknown, kind: AgentDraftKind): Record<string, unknown> {
   const payload = normalizeProjectProposalPayload(value)
-  if (kind !== 'project_proposal') return payload
+  const effectiveKind = inferProjectProposalDraftKind(payload, kind)
   const proposal = isRecord(payload.proposal) ? payload.proposal : {}
+  if (effectiveKind === 'setting_proposal' || effectiveKind === 'asset_proposal') {
+    return {
+      ...payload,
+      proposal: {
+        ...proposal,
+        creative_references: effectiveKind === 'setting_proposal' && Array.isArray(proposal.creative_references) ? proposal.creative_references : [],
+        asset_slots: effectiveKind === 'asset_proposal' && Array.isArray(proposal.asset_slots) ? proposal.asset_slots.map(normalizeProjectProposalAssetSlotPatch) : [],
+      },
+    }
+  }
+  if (effectiveKind !== 'project_proposal') return payload
   return {
     ...payload,
     proposal: {
@@ -2264,6 +2275,62 @@ function normalizeProjectProposalPayloadForKind(value: unknown, kind: AgentDraft
       asset_slots: [],
     },
   }
+}
+
+function inferProjectProposalDraftKind(payload: Record<string, unknown>, kind: AgentDraftKind): AgentDraftKind {
+  if (kind === 'setting_proposal' || kind === 'asset_proposal' || kind === 'project_proposal') return kind
+  const schema = typeof payload.schema === 'string' ? payload.schema : ''
+  if (schema === 'movscript.setting_proposal.v1') return 'setting_proposal'
+  if (schema === 'movscript.asset_proposal.v1') return 'asset_proposal'
+  if (schema === 'movscript.project_proposal.v1') return 'project_proposal'
+  const scope = typeof payload.scope === 'string' ? payload.scope : ''
+  if (scope === 'setting_proposal' || scope === 'asset_proposal' || scope === 'project_proposal') return scope
+  return kind
+}
+
+function normalizeProjectProposalAssetSlotPatch(value: unknown): unknown {
+  if (!isRecord(value)) return value
+  const passthroughKeys = new Set(['client_id', 'id', 'owner', 'fields'])
+  const fieldKeys = [
+    'production_id',
+    'creative_reference_id',
+    'creative_reference_state_id',
+    'owner_type',
+    'owner_id',
+    'kind',
+    'name',
+    'description',
+    'slot_key',
+    'prompt_hint',
+    'status',
+    'priority',
+    'resource_id',
+    'locked_asset_slot_id',
+    'metadata_json',
+  ]
+  const fields: Record<string, unknown> = isRecord(value.fields) ? { ...value.fields } : {}
+  for (const key of fieldKeys) {
+    if (value[key] !== undefined && fields[key] === undefined) fields[key] = value[key]
+  }
+  const owner = isRecord(value.owner)
+    ? value.owner
+    : typeof value.owner_type === 'string' || value.owner_id !== undefined
+      ? {
+          ...(typeof value.owner_type === 'string' ? { type: value.owner_type } : {}),
+          ...(value.owner_id !== undefined ? { id: value.owner_id } : {}),
+        }
+      : undefined
+  const normalized: Record<string, unknown> = {}
+  for (const key of passthroughKeys) {
+    if (key === 'fields') continue
+    if (key === 'owner') {
+      if (owner !== undefined) normalized.owner = owner
+      continue
+    }
+    if (value[key] !== undefined) normalized[key] = value[key]
+  }
+  normalized.fields = fields
+  return normalized
 }
 
 function normalizeProductionProposalPayload(value: unknown, fallbackProductionId: unknown): Record<string, unknown> {
@@ -2285,11 +2352,24 @@ function normalizeProductionProposalPayload(value: unknown, fallbackProductionId
   if (!isRecord(parsed.proposal)) {
     throw new Error('production proposal draft content requires proposal')
   }
+  if (parsed.mode !== 'snapshot') {
+    throw new Error('production proposal draft content requires mode "snapshot"')
+  }
+  if (containsActionField(parsed.proposal)) {
+    throw new Error('production proposal snapshot must not include action fields')
+  }
   return {
     ...parsed,
     production_id: productionId,
     proposal_scope: parsed.proposal_scope ?? parsed.proposalScope ?? 'production',
   }
+}
+
+function containsActionField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsActionField)
+  if (!isRecord(value)) return false
+  if (Object.prototype.hasOwnProperty.call(value, 'action')) return true
+  return Object.values(value).some(containsActionField)
 }
 
 function inferGenerationJobType(args: Record<string, unknown>, inputResourceIds: number[]): string {

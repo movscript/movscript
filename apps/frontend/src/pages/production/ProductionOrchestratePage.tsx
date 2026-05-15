@@ -36,6 +36,7 @@ import {
   applyProductionProposal,
   createSemanticEntity,
   deleteSemanticEntity,
+  getSourceLockStatus,
   listSemanticEntities,
   previewProductionProposalApply,
   semanticEntityConfig,
@@ -161,9 +162,9 @@ interface AIContentUnitCandidate {
   camera_angle?: string
 }
 
-// Legacy tree-form proposal types used only by the local review preview panel.
+type ProposalSnapshotAction = 'create' | 'update'
+
 interface ProposalContentUnitNode {
-  action: 'create' | 'reuse' | 'update'
   id?: number
   client_id?: string
   title?: string
@@ -178,7 +179,6 @@ interface ProposalContentUnitNode {
   keyframes?: ProposalKeyframeNode[]
 }
 interface ProposalKeyframeNode {
-  action: 'create' | 'reuse' | 'update'
   id?: number
   client_id?: string
   title?: string
@@ -189,7 +189,6 @@ interface ProposalKeyframeNode {
   before?: Record<string, unknown>
 }
 interface ProposalCreativeRefNode {
-  action: 'create' | 'reuse' | 'update'
   id?: number
   client_id?: string
   name?: string
@@ -199,7 +198,6 @@ interface ProposalCreativeRefNode {
   state?: Record<string, unknown>
 }
 interface ProposalAssetSlotNode {
-  action: 'create' | 'reuse' | 'update'
   id?: number
   client_id?: string
   name?: string
@@ -209,7 +207,6 @@ interface ProposalAssetSlotNode {
   source_label?: string
 }
 interface ProposalSceneMomentNode {
-  action: 'create' | 'reuse' | 'update'
   id?: number
   client_id?: string
   title?: string
@@ -228,7 +225,6 @@ interface ProposalSceneMomentNode {
   before?: Record<string, unknown>
 }
 interface ProposalSegmentNode {
-  action: 'create' | 'reuse' | 'update'
   id?: number
   client_id?: string
   title?: string
@@ -241,6 +237,7 @@ interface ProposalSegmentNode {
   before?: Record<string, unknown>
 }
 interface ProposalDraftContent {
+  mode?: 'snapshot'
   productionId: number
   proposalScope?: string
   summary?: string
@@ -264,7 +261,7 @@ interface ProposalSimulationResult {
     creative_references_created: number
     creative_reference_usages: number
   }
-  actions: { create: number; reuse: number; update: number }
+  actions: { create: number; update: number }
   preview: ProposalApplyPreview
   backendPreview?: {
     dryRun: boolean
@@ -299,7 +296,7 @@ interface ProposalApplyPreviewItem {
   title: string
   detail: string
   kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'creative_reference' | 'asset_slot'
-  action?: string
+  action?: ProposalSnapshotAction
   parent?: string
 }
 
@@ -322,29 +319,12 @@ interface ProposalBackendPreviewIssue {
   code?: string
 }
 
-interface ProposalConflictEntities {
-  segments: SegmentRecord[]
-  sceneMoments: SceneMomentRecord[]
-  creativeReferences: CreativeReferenceRecord[]
-  assetSlots: AssetSlotRecord[]
-  contentUnits: ContentUnitRecord[]
-}
-
-interface ProposalReplacementPreview {
-  proposal: { segments: ProposalSegmentNode[] }
-  replaced: {
-    segments: number
-    sceneMoments: number
-    creativeReferences: number
-    assetSlots: number
-  }
-}
-
 function parseProductionProposalDraft(draft: AgentDraft): ProposalDraftContent | null {
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
     if (content.schema !== PRODUCTION_PROPOSAL_DRAFT_SCHEMA) return null
     const proposal = isRecordValue(content.proposal) ? content.proposal : {}
+    if (content.mode !== 'snapshot' || containsProposalActionField(proposal)) return null
     const rawSegments = Array.isArray(proposal.segments)
       ? proposal.segments
       : Array.isArray(content.segments)
@@ -358,6 +338,7 @@ function parseProductionProposalDraft(draft: AgentDraft): ProposalDraftContent |
       ?? 0
 
     return {
+      mode: 'snapshot',
       productionId,
       proposalScope: stringDraftField(content.proposalScope) || undefined,
       summary: stringDraftField(content.summary),
@@ -372,6 +353,13 @@ function parseProductionProposalDraft(draft: AgentDraft): ProposalDraftContent |
   } catch {
     return null
   }
+}
+
+function containsProposalActionField(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsProposalActionField)
+  if (!isRecordValue(value)) return false
+  if (Object.prototype.hasOwnProperty.call(value, 'action')) return true
+  return Object.values(value).some(containsProposalActionField)
 }
 
 function numericDraftField(value: unknown) {
@@ -1120,6 +1108,7 @@ export default function ProductionOrchestratePage() {
       status: 'draft',
       order: data.order,
     }
+    if (overwriteId && await isOverwriteChangingLockedSource(projectId, 'segments', overwriteId, lookup.segmentById.get(overwriteId), payload, ['production_id', 'text_block_id', 'script_block_id', 'parent_segment_id'], '编排段')) return
     const saved = overwriteId
       ? await updateSemanticEntity(projectId!, semanticEntityConfig('segments'), overwriteId, payload)
       : await createSemanticEntity(projectId!, semanticEntityConfig('segments'), payload)
@@ -1140,6 +1129,7 @@ export default function ProductionOrchestratePage() {
       status: 'draft',
       order: data.order,
     }
+    if (overwriteId && await isOverwriteChangingLockedSource(projectId, 'sceneMoments', overwriteId, lookup.sceneMomentById.get(overwriteId), payload, ['segment_id', 'script_block_id'], '情景')) return
     const saved = overwriteId
       ? await updateSemanticEntity(projectId!, semanticEntityConfig('sceneMoments'), overwriteId, payload)
       : await createSemanticEntity(projectId!, semanticEntityConfig('sceneMoments'), payload)
@@ -1215,6 +1205,7 @@ export default function ProductionOrchestratePage() {
       segment_id: segmentId ?? null,
       scene_moment_id: sceneMomentId ?? null,
     }
+    if (overwriteId && await isOverwriteChangingLockedSource(projectId, 'contentUnits', overwriteId, lookup.contentUnitById.get(overwriteId), payload, ['production_id', 'segment_id', 'scene_moment_id', 'storyboard_line_id', 'script_block_id'], '下游内容')) return
     const saved = overwriteId
       ? await updateSemanticEntity(projectId!, semanticEntityConfig('contentUnits'), overwriteId, payload)
       : await createSemanticEntity(projectId!, semanticEntityConfig('contentUnits'), payload)
@@ -1368,13 +1359,6 @@ export default function ProductionOrchestratePage() {
                       <ProposalReviewPanel
                         projectId={projectId}
                         proposalDraft={proposalPreviewDraft}
-                        currentEntities={{
-                          segments: allSegments,
-                          sceneMoments: allSceneMoments,
-                          creativeReferences: allCreativeReferences,
-                          assetSlots: allAssetSlots,
-                          contentUnits: allContentUnits,
-                        }}
                         nodeDecisions={proposalNodeDecisions}
                         onNodeDecisionsChange={setProposalNodeDecisions}
                         onAccepted={() => {
@@ -2072,7 +2056,6 @@ function renderReferenceAssetSlots(reference: CreativeReferenceRecord, lookup: O
 function ProposalReviewPanel({
   projectId,
   proposalDraft,
-  currentEntities,
   nodeDecisions,
   onNodeDecisionsChange,
   previewOnly = false,
@@ -2082,7 +2065,6 @@ function ProposalReviewPanel({
 }: {
   projectId?: number
   proposalDraft: ProposalDraftContent
-  currentEntities: ProposalConflictEntities
   nodeDecisions: ProposalNodeDecisions
   onNodeDecisionsChange: Dispatch<SetStateAction<ProposalNodeDecisions>>
   previewOnly?: boolean
@@ -2098,10 +2080,6 @@ function ProposalReviewPanel({
   const [simulationResult, setSimulationResult] = useState<ProposalSimulationResult | null>(null)
   const [backendPreviewDecisionKey, setBackendPreviewDecisionKey] = useState('')
   const segments = proposalDraft.proposal?.segments ?? []
-  const replacementPreview = useMemo(
-    () => buildProposalReplacementPreview(proposalDraft, currentEntities),
-    [currentEntities, proposalDraft],
-  )
   const proposalContext = useMemo(() => collectProposalContextResources(segments), [segments])
   const semanticDiff = useMemo(() => buildProposalSemanticDiff(segments), [segments])
   const currentApplyPreview = useMemo(() => buildProposalApplyPreview(segments, nodeDecisions), [nodeDecisions, segments])
@@ -2249,7 +2227,6 @@ function ProposalReviewPanel({
     setBackendPreviewDecisionKey('')
     onNodeDecisionsChange(Object.fromEntries(
       reviewNodes
-        .filter((node) => !isProjectResourceWriteReviewNode(node))
         .map((node) => [node.key, 'accepted']),
     ))
   }
@@ -2288,18 +2265,16 @@ function ProposalReviewPanel({
               nodeDecisions[proposalNodeDecisionKey('keyframe', keyframe, `${momentFallback}-keyframe-${keyframeIndex}`)] === 'accepted',
             ),
             creative_references: (moment.creative_references ?? []).filter((reference, referenceIndex) =>
-              nodeDecisions[proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)] === 'accepted'
-                && acceptedProposalResourceAllowed(reference.action),
+              nodeDecisions[proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)] === 'accepted',
             ),
             asset_slots: (moment.asset_slots ?? []).filter((slot, slotIndex) =>
-              nodeDecisions[proposalNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`)] === 'accepted'
-                && acceptedProposalResourceAllowed(slot.action),
+              nodeDecisions[proposalNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`)] === 'accepted',
             ),
           }]
         }),
       }]
     })
-    return buildProposalReplacementPreview({ ...proposalDraft, proposal: { segments: acceptedSegments } }, currentEntities).proposal
+    return { segments: acceptedSegments }
   }
 
   function buildSimulationResult() {
@@ -2313,39 +2288,38 @@ function ProposalReviewPanel({
       creative_references_created: 0,
       creative_reference_usages: 0,
     }
-    const actions = { create: 0, reuse: 0, update: 0 }
-    const addAction = (action?: string) => {
-      if (action === 'reuse') actions.reuse += 1
-      else if (action === 'update') actions.update += 1
+    const actions = { create: 0, update: 0 }
+    const addAction = (node: { id?: number | null }) => {
+      const action = proposalSnapshotAction(node)
+      if (action === 'update') actions.update += 1
       else actions.create += 1
     }
 
     for (const segment of proposal.segments) {
-      addAction(segment.action)
-      if (segment.action === 'create') counts.segments_created += 1
+      addAction(segment)
+      if (!snapshotNodeHasID(segment)) counts.segments_created += 1
       for (const moment of segment.scene_moments ?? []) {
-        addAction(moment.action)
-        if (moment.action === 'create') counts.scene_moments_created += 1
+        addAction(moment)
+        if (!snapshotNodeHasID(moment)) counts.scene_moments_created += 1
         for (const unit of moment.content_units ?? []) {
-          addAction(unit.action)
-          if (unit.action === 'create') counts.content_units_created += 1
+          addAction(unit)
+          if (!snapshotNodeHasID(unit)) counts.content_units_created += 1
           for (const keyframe of unit.keyframes ?? []) {
-            addAction(keyframe.action)
-            if (keyframe.action === 'create') counts.keyframes_created += 1
+            addAction(keyframe)
+            if (!snapshotNodeHasID(keyframe)) counts.keyframes_created += 1
           }
         }
         for (const keyframe of moment.keyframes ?? []) {
-          addAction(keyframe.action)
-          if (keyframe.action === 'create') counts.keyframes_created += 1
+          addAction(keyframe)
+          if (!snapshotNodeHasID(keyframe)) counts.keyframes_created += 1
         }
         for (const reference of moment.creative_references ?? []) {
-          addAction(reference.action)
+          addAction(reference)
           counts.creative_reference_usages += 1
-          if (reference.action === 'create') counts.creative_references_created += 1
         }
         for (const slot of moment.asset_slots ?? []) {
-          addAction(slot.action)
-          if (slot.action === 'create') counts.asset_slots_created += 1
+          addAction(slot)
+          if (!snapshotNodeHasID(slot)) counts.asset_slots_created += 1
         }
       }
     }
@@ -2369,15 +2343,16 @@ function ProposalReviewPanel({
       setSimulationResult(localResult)
       return
     }
-    const missingId = findProposalActionMissingId(proposal)
+    const missingId = findProductionProposalSnapshotIssue(proposal)
     if (missingId) {
-      setApplyError(`${missingId.label} 设置为 ${missingId.action}，但缺少已有实体 ID。请重新生成或改为新建后再预览。`)
+      setApplyError(`${missingId.label} 缺少已有实体 ID。制作提案只能引用已有设定资料，请先补齐上游设定后再预览。`)
       setSimulationResult(localResult)
       return
     }
     setSimulating(true)
     try {
       const result = await previewProductionProposalApply(projectId, {
+        mode: 'snapshot',
         production_id: proposalDraft.productionId,
         proposal_scope: proposalDraft.proposalScope ?? 'production',
         proposal,
@@ -2427,9 +2402,9 @@ function ProposalReviewPanel({
       setApplyError('请至少接受一个段落后再写入项目')
       return
     }
-    const missingId = findProposalActionMissingId(proposal)
+    const missingId = findProductionProposalSnapshotIssue(proposal)
     if (missingId) {
-      setApplyError(`${missingId.label} 设置为 ${missingId.action}，但缺少已有实体 ID。请重新生成或改为新建后再写入。`)
+      setApplyError(`${missingId.label} 缺少已有实体 ID。制作提案只能引用已有设定资料，请先补齐上游设定后再写入。`)
       return
     }
     if (backendPreviewDecisionKey !== currentDecisionKey || !simulationResult?.backendPreview) {
@@ -2440,6 +2415,7 @@ function ProposalReviewPanel({
     setApplyError('')
     try {
       const result = await applyProductionProposal(projectId, {
+        mode: 'snapshot',
         production_id: proposalDraft.productionId,
         proposal_scope: proposalDraft.proposalScope ?? 'production',
         proposal,
@@ -2508,7 +2484,7 @@ function ProposalReviewPanel({
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">已接受 {simulationResult.acceptedNodes}</span>
             <span className="rounded bg-rose-500/10 px-1.5 py-1">已拒绝 {simulationResult.rejectedNodes}</span>
             <span className="rounded bg-muted px-1.5 py-1">未审 {simulationResult.unresolvedNodes}</span>
-            <span className="rounded bg-muted px-1.5 py-1">创建 {simulationResult.actions.create}</span>
+            <span className="rounded bg-muted px-1.5 py-1">新增 {simulationResult.actions.create}</span>
           </div>
           <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px] text-emerald-700 dark:text-emerald-300">
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{simulationResult.counts.segments_created}</span>
@@ -2628,18 +2604,12 @@ function ProposalReviewPanel({
               <Target size={13} className="text-primary" />
               <p className="text-xs font-semibold text-foreground">写入影响</p>
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-1.5 text-center text-[10px]">
+            <div className="mt-2 grid grid-cols-2 gap-1.5 text-center text-[10px]">
               <span className="rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700 dark:text-emerald-300">新建 {actionCounts.create}</span>
-              <span className="rounded bg-blue-500/10 px-1.5 py-1 text-blue-700 dark:text-blue-300">复用 {actionCounts.reuse}</span>
               <span className="rounded bg-amber-500/10 px-1.5 py-1 text-amber-700 dark:text-amber-300">更新 {actionCounts.update}</span>
             </div>
-            {replacementPreview.replaced.segments + replacementPreview.replaced.sceneMoments + replacementPreview.replaced.creativeReferences + replacementPreview.replaced.assetSlots > 0 && (
-              <p className="mt-2 rounded bg-amber-500/10 px-2 py-1.5 text-[11px] leading-4 text-amber-700 dark:text-amber-300">
-                检测到同名现有条目，应用时会替换。
-              </p>
-            )}
             <p className="mt-2 text-[11px] leading-4 text-muted-foreground">
-              复用节点引用项目级设定资料或已有素材需求；更新节点会进入二次确认语义，避免直接覆盖已确认内容。
+              制作提案按后端 snapshot 写入：带 ID 的节点会更新，缺少 ID 的节点会新增，旧 snapshot 中未保留的节点会删除。
             </p>
           </div>
           <ProposalContextPanel
@@ -2872,7 +2842,7 @@ function ProjectProposalReviewSummary({
           </Badge>
           {settingDraft ? (
             <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to={`/creative-references?view=review&draftId=${encodeURIComponent(settingDraft.id)}`}>
+              <Link to={`/pre-production?view=review&draftId=${encodeURIComponent(settingDraft.id)}`}>
                 <Sparkles size={12} />
                 打开设定审阅
               </Link>
@@ -2880,7 +2850,7 @@ function ProjectProposalReviewSummary({
           ) : null}
           {assetProposalDraft ? (
             <Button asChild size="sm" variant="outline" className="h-7 gap-1.5 text-xs">
-              <Link to={`/asset-slots?view=review&draftId=${encodeURIComponent(assetProposalDraft.id)}`}>
+              <Link to={`/pre-production?view=review&draftId=${encodeURIComponent(assetProposalDraft.id)}`}>
                 <PackageCheck size={12} />
                 打开素材需求审阅
               </Link>
@@ -2951,17 +2921,6 @@ function ProjectProposalReviewSummary({
   )
 }
 
-function ActionBadge({ action, compact = false }: { action: 'create' | 'reuse' | 'update' | string | undefined; compact?: boolean }) {
-  const cls = compact ? 'px-1 py-0 text-[9px]' : 'px-1 py-0.5 text-[9px]'
-  if (action === 'reuse') {
-    return <span className={cn('shrink-0 rounded bg-blue-500/10 font-medium text-blue-600 dark:text-blue-400', cls)}>复用</span>
-  }
-  if (action === 'update') {
-    return <span className={cn('shrink-0 rounded bg-amber-500/10 font-medium text-amber-600 dark:text-amber-400', cls)}>更新</span>
-  }
-  return <span className={cn('shrink-0 rounded bg-emerald-500/10 font-medium text-emerald-600 dark:text-emerald-400', cls)}>新建</span>
-}
-
 function DecisionBadge({ decision }: { decision: 'accepted' | 'rejected' }) {
   return (
     <span className={cn(
@@ -2989,14 +2948,13 @@ function proposalNodeDecisionKey(type: string, node: { client_id?: string; id?: 
 
 interface ProposalReviewNode {
   key: string
-  action: string
+  action: ProposalSnapshotAction
   kind: 'segment' | 'scene_moment' | 'content_unit' | 'keyframe' | 'creative_reference' | 'asset_slot'
 }
 
 interface ProposalContextItem {
   nodeKey: string
-  action?: string
-  projectBoundaryBlocked?: boolean
+  action?: ProposalSnapshotAction
   title: string
   detail: string
   parent: string
@@ -3013,7 +2971,7 @@ type ProposalSemanticDiffGroup = {
   acceptKeys: string[]
   title: string
   detail: string
-  action?: string
+  action?: ProposalSnapshotAction
   kind: ProposalSemanticDiffKind
   nodeKeys: string[]
   visibleNodeKeys?: string[]
@@ -3025,13 +2983,13 @@ type ProposalSemanticDiffItem = {
   acceptKeys: string[]
   title: string
   detail: string
-  action?: string
+  action?: ProposalSnapshotAction
   kind: ProposalSemanticDiffKind
   before?: string
   after?: string
 }
 type ProposalSemanticDiffDecisionFilter = 'pending' | 'all' | 'accepted' | 'rejected'
-type ProposalSemanticDiffActionFilter = 'all' | 'create' | 'update' | 'reuse'
+type ProposalSemanticDiffActionFilter = 'all' | ProposalSnapshotAction
 type ProposalSemanticDiffKindFilter = 'all' | ProposalSemanticDiffKind
 
 function collectProposalReviewNodes(segments: ProposalSegmentNode[]): ProposalReviewNode[] {
@@ -3041,7 +2999,7 @@ function collectProposalReviewNodes(segments: ProposalSegmentNode[]): ProposalRe
 function collectSegmentProposalReviewNodes(segment: ProposalSegmentNode, index: number): ProposalReviewNode[] {
   const segmentId = proposalNodeIdentity(segment, String(index))
   return [
-    { key: proposalNodeDecisionKey('segment', segment, String(index)), action: segment.action ?? 'create', kind: 'segment' },
+    { key: proposalNodeDecisionKey('segment', segment, String(index)), action: proposalSnapshotAction(segment), kind: 'segment' },
     ...(segment.scene_moments ?? []).flatMap((moment, momentIndex) =>
       collectSceneProposalReviewNodes(moment, `${segmentId}-${momentIndex}`),
     ),
@@ -3050,35 +3008,35 @@ function collectSegmentProposalReviewNodes(segment: ProposalSegmentNode, index: 
 
 function collectSceneProposalReviewNodes(moment: ProposalSceneMomentNode, fallback: string): ProposalReviewNode[] {
   return [
-    { key: proposalNodeDecisionKey('scene_moment', moment, fallback), action: moment.action ?? 'create', kind: 'scene_moment' },
+    { key: proposalNodeDecisionKey('scene_moment', moment, fallback), action: proposalSnapshotAction(moment), kind: 'scene_moment' },
     ...(moment.content_units ?? []).flatMap((unit, index) => {
       const unitFallback = `${fallback}-content-${index}`
       return [
         {
           key: proposalNodeDecisionKey('content_unit', unit, unitFallback),
-          action: unit.action ?? 'create',
+          action: proposalSnapshotAction(unit),
           kind: 'content_unit' as const,
         },
         ...(unit.keyframes ?? []).map((keyframe, keyframeIndex) => ({
           key: proposalNodeDecisionKey('keyframe', keyframe, `${unitFallback}-keyframe-${keyframeIndex}`),
-          action: keyframe.action ?? 'create',
+          action: proposalSnapshotAction(keyframe),
           kind: 'keyframe' as const,
         })),
       ]
     }),
     ...(moment.keyframes ?? []).map((keyframe, index) => ({
       key: proposalNodeDecisionKey('keyframe', keyframe, `${fallback}-keyframe-${index}`),
-      action: keyframe.action ?? 'create',
+      action: proposalSnapshotAction(keyframe),
       kind: 'keyframe' as const,
     })),
     ...(moment.creative_references ?? []).map((reference, index) => ({
       key: proposalNodeDecisionKey('creative_reference', reference, `${fallback}-reference-${index}`),
-      action: reference.action ?? 'create',
+      action: proposalSnapshotAction(reference),
       kind: 'creative_reference' as const,
     })),
     ...(moment.asset_slots ?? []).map((slot, index) => ({
       key: proposalNodeDecisionKey('asset_slot', slot, `${fallback}-asset-${index}`),
-      action: slot.action ?? 'create',
+      action: proposalSnapshotAction(slot),
       kind: 'asset_slot' as const,
     })),
   ]
@@ -3101,8 +3059,7 @@ function collectProposalContextResources(segments: ProposalSegmentNode[]): Propo
       ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
         context.creativeReferences.push({
           nodeKey: proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`),
-          action: reference.action,
-          projectBoundaryBlocked: isProjectResourceWriteAction(reference.action),
+          action: proposalSnapshotAction(reference),
           title: reference.name || '未命名设定资料',
           detail: compactParts([reference.kind, reference.role, reference.source_label, stateSummary(reference.state)]),
           parent,
@@ -3112,8 +3069,7 @@ function collectProposalContextResources(segments: ProposalSegmentNode[]): Propo
       ;(moment.asset_slots ?? []).forEach((slot, slotIndex) => {
         context.assetSlots.push({
           nodeKey: proposalNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`),
-          action: slot.action,
-          projectBoundaryBlocked: isProjectResourceWriteAction(slot.action),
+          action: proposalSnapshotAction(slot),
           title: slot.name || '未命名素材需求',
           detail: compactParts([slot.kind, slot.priority, slot.source_label, slot.description]),
           parent,
@@ -3141,7 +3097,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
         acceptKeys: [segmentKey, momentKey],
         title: moment.title || `情景 ${momentIndex + 1}`,
         detail: compactParts([moment.time_text, moment.location_text, moment.mood, moment.rationale]),
-        action: moment.action,
+        action: proposalSnapshotAction(moment),
         kind: 'structure',
         before: proposalBeforeText(moment.before, ['action_text', 'description', 'title']),
         after: compactParts([moment.action_text, moment.description]),
@@ -3154,7 +3110,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
           acceptKeys: [segmentKey, momentKey, unitKey],
           title: unit.title || `内容单元 ${unitIndex + 1}`,
           detail: compactParts([unit.kind, unit.shot_size, unit.camera_angle, unit.duration_sec ? `${unit.duration_sec}s` : '', unit.description]),
-          action: unit.action,
+          action: proposalSnapshotAction(unit),
           kind: 'content',
           before: proposalBeforeText(unit.before, ['description', 'title']),
           after: compactParts([unit.description]),
@@ -3166,7 +3122,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
             acceptKeys: [segmentKey, momentKey, unitKey, keyframeKey],
             title: keyframe.title || `镜头关键帧 ${keyframeIndex + 1}`,
             detail: compactParts([keyframe.description, keyframe.prompt]),
-            action: keyframe.action,
+            action: proposalSnapshotAction(keyframe),
             kind: 'content',
             before: proposalBeforeText(keyframe.before, ['description', 'prompt', 'title']),
             after: compactParts([keyframe.description, keyframe.prompt]),
@@ -3180,7 +3136,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
           acceptKeys: [segmentKey, momentKey, keyframeKey],
           title: keyframe.title || `情节预演画面 ${keyframeIndex + 1}`,
           detail: compactParts([keyframe.description, keyframe.prompt]),
-          action: keyframe.action,
+          action: proposalSnapshotAction(keyframe),
           kind: 'content',
           before: proposalBeforeText(keyframe.before, ['description', 'prompt', 'title']),
           after: compactParts([keyframe.description, keyframe.prompt]),
@@ -3193,7 +3149,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
           acceptKeys: [segmentKey, momentKey, referenceKey],
           title: reference.name || '设定资料',
           detail: compactParts([reference.kind, reference.role, reference.source_label, stateSummary(reference.state)]),
-          action: reference.action,
+          action: proposalSnapshotAction(reference),
           kind: 'reference',
         })
       })
@@ -3204,7 +3160,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
           acceptKeys: [segmentKey, momentKey, slotKey],
           title: slot.name || '素材需求',
           detail: compactParts([slot.kind, slot.priority, slot.source_label, slot.description]),
-          action: slot.action,
+          action: proposalSnapshotAction(slot),
           kind: 'asset',
         })
       })
@@ -3214,7 +3170,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
       key: segmentKey,
       title: segment.title || `编排段 ${segmentIndex + 1}`,
       detail: compactParts([segment.kind, segment.summary, segment.rationale]),
-      action: segment.action,
+      action: proposalSnapshotAction(segment),
       kind: 'structure',
       acceptKeys: [segmentKey],
       nodeKeys: [segmentKey, ...children.map((item) => item.key)],
@@ -3234,20 +3190,8 @@ function proposalBeforeText(before: Record<string, unknown> | undefined, keys: s
   return compactParts(keys.map((key) => before[key]))
 }
 
-function isProjectResourceWriteReviewNode(node: ProposalReviewNode) {
-  return (node.kind === 'creative_reference' || node.kind === 'asset_slot') && isProjectResourceWriteAction(node.action)
-}
-
-function isProjectResourceWriteAction(action?: string) {
-  return normalizeProposalSemanticAction(action) !== 'reuse'
-}
-
 function isProductionDiffItemBlockedByProjectBoundary(item: ProposalSemanticDiffItem) {
-  return (item.kind === 'reference' || item.kind === 'asset') && isProjectResourceWriteAction(item.action)
-}
-
-function acceptedProposalResourceAllowed(action?: string) {
-  return !isProjectResourceWriteAction(action)
+  return item.kind === 'reference' && item.action === 'create'
 }
 
 function proposalSemanticDiffAcceptKeys(item: ProposalSemanticDiffItem): string[] {
@@ -3312,7 +3256,6 @@ function ProposalSemanticDiffPanel({
               ['all', '全部动作'],
               ['create', '新建'],
               ['update', '更新'],
-              ['reuse', '复用'],
             ]}
             value={actionFilter}
             onChange={(value) => setActionFilter(value as ProposalSemanticDiffActionFilter)}
@@ -3416,7 +3359,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
       title: segmentTitle,
       detail: compactParts([segment.kind, segment.summary, segment.rationale]),
       kind: 'segment',
-      action: segment.action,
+      action: proposalSnapshotAction(segment),
     }, segmentDecision)
 
     ;(segment.scene_moments ?? []).forEach((moment, momentIndex) => {
@@ -3430,7 +3373,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
         title: momentTitle,
         detail: compactParts([moment.time_text, moment.location_text, moment.mood, moment.action_text, moment.description]),
         kind: 'scene_moment',
-        action: moment.action,
+        action: proposalSnapshotAction(moment),
         parent: segmentTitle,
       }, momentDecision, momentBlocked)
 
@@ -3445,7 +3388,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
           title: unitTitle,
           detail: compactParts([unit.kind, unit.shot_size, unit.camera_angle, unit.duration_sec ? `${unit.duration_sec}s` : '', unit.description]),
           kind: 'content_unit',
-          action: unit.action,
+          action: proposalSnapshotAction(unit),
           parent: `${segmentTitle} / ${momentTitle}`,
         }, unitDecision, unitBlocked)
 
@@ -3458,7 +3401,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
             title: keyframe.title || `镜头关键帧 ${keyframeIndex + 1}`,
             detail: compactParts([keyframe.description, keyframe.prompt]),
             kind: 'keyframe',
-            action: keyframe.action,
+            action: proposalSnapshotAction(keyframe),
             parent: `${segmentTitle} / ${momentTitle} / ${unitTitle}`,
           }, keyframeDecision, keyframeBlocked)
         })
@@ -3473,7 +3416,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
           title: keyframe.title || `情节预演画面 ${keyframeIndex + 1}`,
           detail: compactParts([keyframe.description, keyframe.prompt]),
           kind: 'keyframe',
-          action: keyframe.action,
+          action: proposalSnapshotAction(keyframe),
           parent: `${segmentTitle} / ${momentTitle}`,
         }, keyframeDecision, keyframeBlocked)
       })
@@ -3481,13 +3424,13 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
       ;(moment.creative_references ?? []).forEach((reference, referenceIndex) => {
         const referenceKey = proposalNodeDecisionKey('creative_reference', reference, `${momentFallback}-reference-${referenceIndex}`)
         const referenceDecision = decisions[referenceKey]
-        const referenceBlocked = referenceDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted' || isProjectResourceWriteAction(reference.action))
+        const referenceBlocked = referenceDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted' || !snapshotNodeHasID(reference))
         pushByDecision({
           key: referenceKey,
           title: reference.name || '设定资料',
           detail: compactParts([reference.kind, reference.role, reference.source_label, stateSummary(reference.state)]),
           kind: 'creative_reference',
-          action: reference.action,
+          action: proposalSnapshotAction(reference),
           parent: `${segmentTitle} / ${momentTitle}`,
         }, referenceDecision, referenceBlocked)
       })
@@ -3495,13 +3438,13 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
       ;(moment.asset_slots ?? []).forEach((slot, slotIndex) => {
         const slotKey = proposalNodeDecisionKey('asset_slot', slot, `${momentFallback}-asset-${slotIndex}`)
         const slotDecision = decisions[slotKey]
-        const slotBlocked = slotDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted' || isProjectResourceWriteAction(slot.action))
+        const slotBlocked = slotDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted')
         pushByDecision({
           key: slotKey,
           title: slot.name || '素材需求',
           detail: compactParts([slot.kind, slot.priority, slot.source_label, slot.description]),
           kind: 'asset_slot',
-          action: slot.action,
+          action: proposalSnapshotAction(slot),
           parent: `${segmentTitle} / ${momentTitle}`,
         }, slotDecision, slotBlocked)
       })
@@ -3755,11 +3698,8 @@ function proposalApplyPreviewKindLabel(kind: ProposalApplyPreviewItem['kind']) {
   return '素材'
 }
 
-function ProposalDiffActionBadge({ action, compact = false }: { action: 'create' | 'reuse' | 'update' | string | undefined; compact?: boolean }) {
+function ProposalDiffActionBadge({ action, compact = false }: { action: ProposalSnapshotAction | undefined; compact?: boolean }) {
   const cls = compact ? 'px-1 py-0 text-[9px]' : 'px-1.5 py-0.5 text-[9px]'
-  if (action === 'reuse') {
-    return <span className={cn('shrink-0 rounded font-mono font-medium text-blue-600 dark:text-blue-400', cls)}>=</span>
-  }
   if (action === 'update') {
     return <span className={cn('shrink-0 rounded font-mono font-medium text-amber-600 dark:text-amber-400', cls)}>~</span>
   }
@@ -3867,7 +3807,7 @@ function ProposalSemanticDiffRow({
   return (
     <div className={cn(
       'border-l-2 px-3 py-2',
-      item.action === 'update' ? 'border-l-amber-400 bg-amber-500/5' : item.action === 'reuse' ? 'border-l-blue-400 bg-blue-500/5' : 'border-l-emerald-400 bg-emerald-500/5',
+      item.action === 'update' ? 'border-l-amber-400 bg-amber-500/5' : 'border-l-emerald-400 bg-emerald-500/5',
       decision === 'rejected' && 'opacity-60',
     )}>
       <div className="flex items-start gap-2">
@@ -3970,7 +3910,7 @@ function filterProposalSemanticDiffGroups(
 	}
 
 function semanticDiffNodeMatches(
-  node: { key: string; action?: string; kind: ProposalSemanticDiffKind },
+  node: { key: string; action?: ProposalSnapshotAction; kind: ProposalSemanticDiffKind },
   decisions: ProposalNodeDecisions,
   filters: {
     decisionFilter: ProposalSemanticDiffDecisionFilter
@@ -3986,9 +3926,8 @@ function semanticDiffNodeMatches(
   return decisionMatched && actionMatched && kindMatched
 }
 
-function normalizeProposalSemanticAction(action?: string): ProposalSemanticDiffActionFilter {
-  if (action === 'reuse' || action === 'update') return action
-  return 'create'
+function normalizeProposalSemanticAction(action?: ProposalSnapshotAction): ProposalSemanticDiffActionFilter {
+  return action === 'update' ? 'update' : 'create'
 }
 
 function compactParts(values: unknown[]) {
@@ -4018,8 +3957,8 @@ function ProposalContextPanel({
 }) {
   return (
     <div className="space-y-3">
-      <ProposalContextGroup icon={Sparkles} title="设定资料" items={context.creativeReferences} empty="本提案没有新增或复用设定资料" decisions={decisions} onSetDecision={onSetDecision} />
-      <ProposalContextGroup icon={PackageCheck} title="素材需求" items={context.assetSlots} empty="本提案没有新增或复用素材需求" decisions={decisions} onSetDecision={onSetDecision} />
+      <ProposalContextGroup icon={Sparkles} title="设定资料" items={context.creativeReferences} empty="本提案没有设定资料引用" decisions={decisions} onSetDecision={onSetDecision} />
+      <ProposalContextGroup icon={PackageCheck} title="素材需求" items={context.assetSlots} empty="本提案没有素材需求" decisions={decisions} onSetDecision={onSetDecision} />
     </div>
   )
 }
@@ -4054,7 +3993,6 @@ function ProposalContextGroup({
         <div className="divide-y divide-border/60">
           {items.map((item, index) => {
             const decision = decisions[item.nodeKey]
-            const boundaryBlocked = item.projectBoundaryBlocked ?? false
             return (
               <div key={`${item.nodeKey}-${index}`} className={cn('px-3 py-2', decision === 'rejected' && 'opacity-50')}>
                 <div className="flex items-start gap-2">
@@ -4063,7 +4001,6 @@ function ProposalContextGroup({
                     <div className="flex items-center gap-1.5">
                       <p className="truncate text-[11px] font-medium text-foreground">{item.title}</p>
                       {decision && <DecisionBadge decision={decision} />}
-                      {!decision && boundaryBlocked && <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-700 dark:text-amber-300">回上游工作台</span>}
                     </div>
                     <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{item.parent}</p>
                     {item.detail && <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted-foreground">{item.detail}</p>}
@@ -4075,10 +4012,8 @@ function ProposalContextGroup({
                     variant={decision === 'accepted' ? 'secondary' : 'outline'}
                     className="h-6 px-2 text-[10px]"
                     onClick={() => onSetDecision(item.nodeKey, 'accepted')}
-                    disabled={boundaryBlocked}
-                    title={boundaryBlocked ? '设定和素材需求需要回到设定工作台或素材需求工作台处理' : undefined}
                   >
-                    {boundaryBlocked ? '回上游工作台' : '接受'}
+                    接受
 	                  </Button>
 	                  <Button size="sm" variant={decision === 'rejected' ? 'secondary' : 'ghost'} className="h-6 px-2 text-[10px]" onClick={() => onSetDecision(item.nodeKey, 'rejected')}>
 	                    拒绝
@@ -4105,24 +4040,23 @@ function countProposalDecisionSummary(segments: ProposalSegmentNode[], decisions
 }
 
 function countProposalActions(segments: ProposalSegmentNode[]) {
-  const counts = { create: 0, reuse: 0, update: 0 }
-  function add(action?: string) {
-    if (action === 'reuse') counts.reuse += 1
-    else if (action === 'update') counts.update += 1
+  const counts = { create: 0, update: 0 }
+  function add(node: { id?: number | null }) {
+    if (proposalSnapshotAction(node) === 'update') counts.update += 1
     else counts.create += 1
   }
-    for (const segment of segments) {
-      add(segment.action)
-      for (const moment of segment.scene_moments ?? []) {
-        add(moment.action)
-        for (const unit of moment.content_units ?? []) {
-          add(unit.action)
-          for (const keyframe of unit.keyframes ?? []) add(keyframe.action)
-        }
-        for (const keyframe of moment.keyframes ?? []) add(keyframe.action)
-        for (const reference of moment.creative_references ?? []) add(reference.action)
-        for (const slot of moment.asset_slots ?? []) add(slot.action)
+  for (const segment of segments) {
+    add(segment)
+    for (const moment of segment.scene_moments ?? []) {
+      add(moment)
+      for (const unit of moment.content_units ?? []) {
+        add(unit)
+        for (const keyframe of unit.keyframes ?? []) add(keyframe)
       }
+      for (const keyframe of moment.keyframes ?? []) add(keyframe)
+      for (const reference of moment.creative_references ?? []) add(reference)
+      for (const slot of moment.asset_slots ?? []) add(slot)
+    }
   }
   return counts
 }
@@ -4133,110 +4067,25 @@ function proposalDecisionSnapshotKey(nodes: ProposalReviewNode[], decisions: Pro
     .join('|')
 }
 
-function findProposalActionMissingId(proposal: { segments: ProposalSegmentNode[] }): { label: string; action: string } | null {
-  function checkNode(label: string, action?: string, id?: number | null) {
-    if ((action === 'reuse' || action === 'update') && id == null) return { label, action }
-    return null
-  }
+function findProductionProposalSnapshotIssue(proposal: { segments: ProposalSegmentNode[] }): { label: string } | null {
   for (const segment of proposal.segments) {
-    const segmentProblem = checkNode(segment.title ?? segment.client_id ?? '编排段', segment.action, segment.id)
-    if (segmentProblem) return segmentProblem
     for (const moment of segment.scene_moments ?? []) {
-    const momentProblem = checkNode(moment.title ?? moment.client_id ?? '情景', moment.action, moment.id)
-    if (momentProblem) return momentProblem
-      for (const unit of moment.content_units ?? []) {
-        const unitProblem = checkNode(unit.title ?? unit.client_id ?? '内容单元', unit.action, unit.id)
-        if (unitProblem) return unitProblem
-        for (const keyframe of unit.keyframes ?? []) {
-          const keyframeProblem = checkNode(keyframe.title ?? keyframe.client_id ?? '画面锚点', keyframe.action, keyframe.id)
-          if (keyframeProblem) return keyframeProblem
-        }
-      }
-      for (const keyframe of moment.keyframes ?? []) {
-        const keyframeProblem = checkNode(keyframe.title ?? keyframe.client_id ?? '画面锚点', keyframe.action, keyframe.id)
-        if (keyframeProblem) return keyframeProblem
-      }
       for (const reference of moment.creative_references ?? []) {
-        const referenceProblem = checkNode(reference.name ?? reference.client_id ?? '设定资料', reference.action, reference.id)
-        if (referenceProblem) return referenceProblem
-      }
-      for (const slot of moment.asset_slots ?? []) {
-        const slotProblem = checkNode(slot.name ?? slot.client_id ?? '素材需求', slot.action, slot.id)
-        if (slotProblem) return slotProblem
+        if (!snapshotNodeHasID(reference)) {
+          return { label: reference.name ?? reference.client_id ?? '设定资料' }
+        }
       }
     }
   }
   return null
 }
 
-function buildProposalReplacementPreview(proposalDraft: ProposalDraftContent, current: ProposalConflictEntities): ProposalReplacementPreview {
-  const segmentByTitle = titleMap(current.segments)
-  const sceneMomentByTitle = titleMap(current.sceneMoments)
-  const creativeReferenceByTitle = titleMap(current.creativeReferences)
-  const assetSlotByTitle = titleMap(current.assetSlots)
-  const replaced = { segments: 0, sceneMoments: 0, creativeReferences: 0, assetSlots: 0 }
-
-  const segments = (proposalDraft.proposal?.segments ?? []).map((segment) => {
-    const nextSegment = { ...segment }
-    if (nextSegment.action === 'create' || ((nextSegment.action === 'reuse' || nextSegment.action === 'update') && nextSegment.id == null)) {
-      const existing = segmentByTitle.get(normalizeTitleKey(nextSegment.title))
-      if (existing) {
-        if (nextSegment.action === 'create') nextSegment.action = 'update'
-        nextSegment.id = existing.ID
-        nextSegment.before = nextSegment.before ?? { title: titleOfRecord(existing), summary: existing.summary ?? existing.content ?? '' }
-        if (segment.action === 'create') replaced.segments += 1
-      }
-    }
-    nextSegment.scene_moments = (nextSegment.scene_moments ?? []).map((moment) => {
-      const nextMoment = { ...moment }
-      if (nextMoment.action === 'create' || ((nextMoment.action === 'reuse' || nextMoment.action === 'update') && nextMoment.id == null)) {
-        const existing = sceneMomentByTitle.get(normalizeTitleKey(nextMoment.title))
-        if (existing) {
-          if (nextMoment.action === 'create') nextMoment.action = 'update'
-          nextMoment.id = existing.ID
-          nextMoment.before = nextMoment.before ?? { title: titleOfRecord(existing), action_text: existing.action_text ?? existing.description ?? '' }
-          if (moment.action === 'create') replaced.sceneMoments += 1
-        }
-      }
-      nextMoment.creative_references = (nextMoment.creative_references ?? []).map((reference) => {
-        const nextReference = { ...reference }
-        if (nextReference.action === 'create' || ((nextReference.action === 'reuse' || nextReference.action === 'update') && nextReference.id == null)) {
-          const existing = creativeReferenceByTitle.get(normalizeTitleKey(nextReference.name))
-          if (existing) {
-            if (nextReference.action === 'create') nextReference.action = 'update'
-            nextReference.id = existing.ID
-            if (reference.action === 'create') replaced.creativeReferences += 1
-          }
-        }
-        return nextReference
-      })
-      nextMoment.asset_slots = (nextMoment.asset_slots ?? []).map((slot) => {
-        const nextSlot = { ...slot }
-        if (nextSlot.action === 'create' || ((nextSlot.action === 'reuse' || nextSlot.action === 'update') && nextSlot.id == null)) {
-          const existing = assetSlotByTitle.get(normalizeTitleKey(nextSlot.name))
-          if (existing) {
-            if (nextSlot.action === 'create') nextSlot.action = 'update'
-            nextSlot.id = existing.ID
-            if (slot.action === 'create') replaced.assetSlots += 1
-          }
-        }
-        return nextSlot
-      })
-      return nextMoment
-    })
-    return nextSegment
-  })
-
-  return { proposal: { segments }, replaced }
+function snapshotNodeHasID(node: { id?: number | null }) {
+  return typeof node.id === 'number' && node.id > 0
 }
 
-function titleMap<T extends SemanticEntityRecord>(records: T[]): Map<string, T> {
-  const map = new Map<string, T>()
-  for (const record of records) {
-    const key = normalizeTitleKey(titleOfRecord(record))
-    if (key && !map.has(key)) map.set(key, record)
-  }
-  return map
+function proposalSnapshotAction(node: { id?: number | null }): ProposalSnapshotAction {
+  return snapshotNodeHasID(node) ? 'update' : 'create'
 }
 
 function normalizeTitleKey(value: unknown) {
@@ -4455,6 +4304,32 @@ function isPositiveNumber(value: unknown): value is number {
 
 function uniqueNumbers(values: number[]) {
   return Array.from(new Set(values.filter(isPositiveNumber)))
+}
+
+async function isOverwriteChangingLockedSource(projectId: number | undefined, kind: 'segments' | 'sceneMoments' | 'contentUnits', id: number, record: SemanticEntityRecord | undefined, payload: Record<string, unknown>, sourceKeys: string[], label: string) {
+  if (!record) return false
+  const changedKeys = sourceKeys.filter((key) => Object.prototype.hasOwnProperty.call(payload, key) && !sameNullableId(record[key], payload[key]))
+  if (changedKeys.length === 0) return false
+  if (!projectId) return true
+  try {
+    const status = await getSourceLockStatus(projectId, semanticEntityConfig(kind), id)
+    if (!status.locked) return false
+    toast.error(status.reasons?.[0]?.message ?? `${label}已有下游引用，覆盖不能切换来源关系。请改为创建并行对象。`)
+    return true
+  } catch {
+    toast.error(`${label}来源状态检查失败，请稍后重试。`)
+    return true
+  }
+}
+
+function sameNullableId(left: unknown, right: unknown) {
+  return normalizeNullableId(left) === normalizeNullableId(right)
+}
+
+function normalizeNullableId(value: unknown) {
+  if (value === undefined || value === null || value === '') return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
 }
 
 function createDefaultsForType(type: EntityFilter, productionId: number, segmentId?: number, sceneMomentId?: number): Record<string, string | number | boolean | null> {

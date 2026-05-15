@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
 
-import { attachAssetSlotCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
+import { applyDraftReview, attachAssetSlotCandidate, buildGenerationModelParamRules, buildGenerationParamValidationAudit, createGenerationJob, getDraftModelContract, listModels, listTools, normalizeBackendHTTPErrorForMCP, normalizeGenerationExtraParams, preflightGenerationParams, queryCreativeReferences, queryProductionContext, setMCPAPIBaseURL, summarizeModelContractForAgent } from './server'
 
 test('normalizeBackendHTTPErrorForMCP preserves structured generation validation details', () => {
   const body = {
@@ -293,7 +293,13 @@ test('draft model MCP tool exposes frontend-owned field and seed contract', asyn
   assert.deepEqual(result.seedPolicy.include, ['production', 'segments'])
   assert.equal(result.seedPolicy.defaultMode, 'snapshot')
   assert.deepEqual(result.seedPolicy.allowedModes, ['empty', 'snapshot'])
-  assert.deepEqual(result.fieldGuide.owns, ['segments', 'scene_moments', 'production_local_requirements'])
+  assert.deepEqual(result.fieldGuide.owns, [
+    'snapshot.proposal.segments',
+    'snapshot.proposal.segments[].scene_moments',
+    'snapshot.proposal.segments[].scene_moments[].content_units',
+    'snapshot.proposal.segments[].scene_moments[].keyframes',
+    'production_local_requirements',
+  ])
   assert.equal(result.applyBoundary.backendApply, 'production_proposal')
   assert.equal(result.reviewRoute, '/production-orchestrate?productionId=301&draftId=:draftId')
   assert.equal(result.modelRef, 'frontend:DraftDomainModel:production_proposal:v1')
@@ -482,6 +488,87 @@ test('semantic query tools expose production context and content unit generation
     globalThis.fetch = previousFetch
     setMCPAPIBaseURL('http://localhost:8765')
   }
+})
+
+test('applyDraftReview normalizes flat asset proposal slots for backend project proposal apply', async () => {
+  const postedBodies: Array<Record<string, unknown>> = []
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    'POST /projects/4/entities/project-proposals/apply': (body: Record<string, unknown>) => {
+      postedBodies.push(body)
+      return { counts: { asset_slots_created: 3 } }
+    },
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const proposedValue = JSON.stringify({
+      schema: 'movscript.asset_proposal.v1',
+      mode: 'patch',
+      summary: '批量提交：3 项',
+      proposal: {
+        asset_slots: [{
+          client_id: 'slot_001',
+          owner_type: 'scene_moment',
+          owner_id: 7,
+          name: '周建国重生惊醒关键帧',
+          kind: 'image',
+          description: '对应情景ID=7的核心镜头',
+          priority: 'high',
+        }],
+        creative_references: [{ fields: { name: 'Should be dropped' } }],
+      },
+    })
+
+    const result = await applyDraftReview({
+      review: {
+        draftKind: 'note',
+        target: { projectId: 4, entityType: 'project', entityId: 4, field: 'proposal' },
+        proposedValue,
+      },
+    }) as Record<string, any>
+
+    assert.equal(result.performed, true)
+    assert.equal(result.url, 'http://mock.backend/api/v1/projects/4/entities/project-proposals/apply')
+    assert.deepEqual(postedBodies[0].proposal, {
+      creative_references: [],
+      asset_slots: [{
+        client_id: 'slot_001',
+        owner: { type: 'scene_moment', id: 7 },
+        fields: {
+          owner_type: 'scene_moment',
+          owner_id: 7,
+          kind: 'image',
+          name: '周建国重生惊醒关键帧',
+          description: '对应情景ID=7的核心镜头',
+          priority: 'high',
+        },
+      }],
+    })
+  } finally {
+    setMCPAPIBaseURL('http://localhost:8765')
+    globalThis.fetch = previousFetch
+  }
+})
+
+test('applyDraftReview rejects legacy production proposal action payloads', async () => {
+  await assert.rejects(() => applyDraftReview({
+    review: {
+      draftKind: 'production_proposal',
+      target: { projectId: 4, entityType: 'production', entityId: 9, field: 'proposal' },
+      proposedValue: JSON.stringify({
+        schema: 'movscript.production_proposal.v1',
+        mode: 'snapshot',
+        productionId: 9,
+        proposal: {
+          segments: [{
+            action: 'create',
+            title: 'Opening',
+            scene_moments: [],
+          }],
+        },
+      }),
+    },
+  }), /must not include action fields/)
 })
 
 test('listModels returns raw models plus compact agent contracts from backend model contracts', async () => {

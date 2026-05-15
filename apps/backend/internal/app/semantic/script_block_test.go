@@ -181,6 +181,133 @@ func TestScriptBlockCannotBeDeletedByKind(t *testing.T) {
 	}
 }
 
+func TestListScriptBlockUsagesReturnsDirectDownstreamBindings(t *testing.T) {
+	db := newScriptBlockTestDB(t)
+	service := NewService(db)
+	script, version := seedScriptBlockTestScript(t, db, 1)
+	block, err := service.CreateScriptBlock(context.Background(), 1, CreateScriptBlockInput{
+		ScriptID:        script.ID,
+		ScriptVersionID: version.ID,
+		StartLine:       2,
+		EndLine:         2,
+		Status:          "active",
+	})
+	if err != nil {
+		t.Fatalf("create script block: %v", err)
+	}
+	otherBlock, err := service.CreateScriptBlock(context.Background(), 1, CreateScriptBlockInput{
+		ScriptID:        script.ID,
+		ScriptVersionID: version.ID,
+		StartLine:       3,
+		EndLine:         3,
+		Status:          "active",
+	})
+	if err != nil {
+		t.Fatalf("create other script block: %v", err)
+	}
+
+	segment := model.Segment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Beat", Status: "draft"}
+	otherSegment := model.Segment{ProjectID: 1, ScriptBlockID: &otherBlock.ID, Title: "Other", Status: "draft"}
+	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: "Storyboard", Status: "draft"}
+	if err := db.Create(&segment).Error; err != nil {
+		t.Fatalf("create segment: %v", err)
+	}
+	if err := db.Create(&otherSegment).Error; err != nil {
+		t.Fatalf("create other segment: %v", err)
+	}
+	if err := db.Create(&moment).Error; err != nil {
+		t.Fatalf("create scene moment: %v", err)
+	}
+	if err := db.Create(&unit).Error; err != nil {
+		t.Fatalf("create content unit: %v", err)
+	}
+	if err := db.Create(&storyboardScript).Error; err != nil {
+		t.Fatalf("create storyboard script: %v", err)
+	}
+	storyboardLine := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &block.ID, Title: "Storyboard line", Status: "draft"}
+	if err := db.Create(&storyboardLine).Error; err != nil {
+		t.Fatalf("create storyboard line: %v", err)
+	}
+
+	usages, err := service.ListScriptBlockUsages(context.Background(), 1, strconv.FormatUint(uint64(block.ID), 10))
+	if err != nil {
+		t.Fatalf("list script block usages: %v", err)
+	}
+	if len(usages.Segments) != 1 || usages.Segments[0].ID != segment.ID {
+		t.Fatalf("segments = %+v, want only segment %d", usages.Segments, segment.ID)
+	}
+	if len(usages.SceneMoments) != 1 || usages.SceneMoments[0].ID != moment.ID {
+		t.Fatalf("scene moments = %+v, want moment %d", usages.SceneMoments, moment.ID)
+	}
+	if len(usages.ContentUnits) != 1 || usages.ContentUnits[0].ID != unit.ID {
+		t.Fatalf("content units = %+v, want unit %d", usages.ContentUnits, unit.ID)
+	}
+	if len(usages.StoryboardLines) != 1 || usages.StoryboardLines[0].ID != storyboardLine.ID {
+		t.Fatalf("storyboard lines = %+v, want line %d", usages.StoryboardLines, storyboardLine.ID)
+	}
+}
+
+func TestListScriptBlockUsageMapGroupsByVersionBlocks(t *testing.T) {
+	db := newScriptBlockTestDB(t)
+	service := NewService(db)
+	script, version := seedScriptBlockTestScript(t, db, 1)
+	firstBlock, err := service.CreateScriptBlock(context.Background(), 1, CreateScriptBlockInput{
+		ScriptID:        script.ID,
+		ScriptVersionID: version.ID,
+		StartLine:       2,
+		EndLine:         2,
+		Status:          "active",
+	})
+	if err != nil {
+		t.Fatalf("create first script block: %v", err)
+	}
+	secondBlock, err := service.CreateScriptBlock(context.Background(), 1, CreateScriptBlockInput{
+		ScriptID:        script.ID,
+		ScriptVersionID: version.ID,
+		StartLine:       3,
+		EndLine:         3,
+		Status:          "active",
+	})
+	if err != nil {
+		t.Fatalf("create second script block: %v", err)
+	}
+	segment := model.Segment{ProjectID: 1, ScriptBlockID: &firstBlock.ID, Title: "Beat", Status: "draft"}
+	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Moment", Status: "draft"}
+	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Unit", Status: "draft"}
+	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: "Storyboard", Status: "draft"}
+	if err := db.Create(&segment).Error; err != nil {
+		t.Fatalf("create segment: %v", err)
+	}
+	if err := db.Create(&moment).Error; err != nil {
+		t.Fatalf("create scene moment: %v", err)
+	}
+	if err := db.Create(&unit).Error; err != nil {
+		t.Fatalf("create content unit: %v", err)
+	}
+	if err := db.Create(&storyboardScript).Error; err != nil {
+		t.Fatalf("create storyboard script: %v", err)
+	}
+	storyboardLine := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &firstBlock.ID, Title: "Storyboard line", Status: "draft"}
+	if err := db.Create(&storyboardLine).Error; err != nil {
+		t.Fatalf("create storyboard line: %v", err)
+	}
+
+	usages, err := service.ListScriptBlockUsageMap(context.Background(), 1, version.ID)
+	if err != nil {
+		t.Fatalf("list usage map: %v", err)
+	}
+	first := usages[firstBlock.ID]
+	if len(first.Segments) != 1 || first.Segments[0].ID != segment.ID || len(first.SceneMoments) != 0 || len(first.ContentUnits) != 0 || len(first.StoryboardLines) != 1 || first.StoryboardLines[0].ID != storyboardLine.ID {
+		t.Fatalf("first block usages = %+v", first)
+	}
+	second := usages[secondBlock.ID]
+	if len(second.Segments) != 0 || len(second.SceneMoments) != 1 || second.SceneMoments[0].ID != moment.ID || len(second.ContentUnits) != 1 || second.ContentUnits[0].ID != unit.ID || len(second.StoryboardLines) != 0 {
+		t.Fatalf("second block usages = %+v", second)
+	}
+}
+
 func newScriptBlockTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "script-block.db")), &gorm.Config{
@@ -189,7 +316,7 @@ func newScriptBlockTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.EntityRelation{}, &model.Script{}, &model.ScriptVersion{}, &model.ScriptBlock{}); err != nil {
+	if err := db.AutoMigrate(&model.EntityRelation{}, &model.Script{}, &model.ScriptVersion{}, &model.ScriptBlock{}, &model.Segment{}, &model.SceneMoment{}, &model.ContentUnit{}, &model.StoryboardScript{}, &model.StoryboardVersion{}, &model.StoryboardLine{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db

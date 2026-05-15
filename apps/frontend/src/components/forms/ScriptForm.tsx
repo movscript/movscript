@@ -14,9 +14,22 @@ interface ScriptFormProps {
   isSaving?: boolean
   onCreateVersion?: () => void
   isCreatingVersion?: boolean
+  canCreateVersion?: boolean
+  versionStateLabel?: string
+  latestVersionLabel?: string
 }
 
-export function ScriptForm({ draft, onChange, onSave, isSaving, onCreateVersion, isCreatingVersion }: ScriptFormProps) {
+export function ScriptForm({
+  draft,
+  onChange,
+  onSave,
+  isSaving,
+  onCreateVersion,
+  isCreatingVersion,
+  canCreateVersion = true,
+  versionStateLabel,
+  latestVersionLabel,
+}: ScriptFormProps) {
   const { t } = useTranslation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState('')
@@ -61,8 +74,14 @@ export function ScriptForm({ draft, onChange, onSave, isSaving, onCreateVersion,
           {fileError && <span className="text-xs text-destructive">{fileError}</span>}
         </div>
         <div className="flex items-center gap-2">
+          {versionStateLabel && (
+            <div className="hidden text-right sm:block">
+              <p className="text-[11px] font-medium text-foreground">{versionStateLabel}</p>
+              {latestVersionLabel && <p className="text-[10px] text-muted-foreground">{latestVersionLabel}</p>}
+            </div>
+          )}
           {onCreateVersion && (
-            <Button size="sm" variant="outline" onClick={onCreateVersion} disabled={isCreatingVersion} className="gap-1.5">
+            <Button size="sm" variant="outline" onClick={onCreateVersion} disabled={isCreatingVersion || !canCreateVersion} className="gap-1.5">
               <GitBranch size={13} />
               {isCreatingVersion ? '创建中…' : '保存为版本'}
             </Button>

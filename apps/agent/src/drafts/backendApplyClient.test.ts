@@ -48,10 +48,10 @@ test('applyProposal posts production proposal payload with auth headers', async 
   try {
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
     const payload = {
+      mode: 'snapshot',
       production_id: 9,
       proposal: {
         segments: [{
-          action: 'create',
           title: 'Opening',
           scene_moments: [],
         }],
@@ -92,16 +92,15 @@ test('previewApplyReview posts production proposal draft payload to apply-previe
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
     const proposedValue = JSON.stringify({
       schema: 'movscript.production_proposal.v1',
+      mode: 'snapshot',
       productionId: 9,
       proposalScope: 'production',
       proposal: {
         segments: [{
-          action: 'create',
           title: 'Opening',
           scene_moments: [{
-            action: 'create',
             title: 'Wake up',
-            creative_references: [{ action: 'reuse', id: 3, role: 'character' }],
+            creative_references: [{ id: 3, role: 'character' }],
           }],
         }],
       },
@@ -127,18 +126,17 @@ test('previewApplyReview posts production proposal draft payload to apply-previe
     assert.equal((calls[0].init.headers as Record<string, string>)['Content-Type'], 'application/json')
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
       schema: 'movscript.production_proposal.v1',
+      mode: 'snapshot',
       productionId: 9,
       proposalScope: 'production',
       production_id: 9,
       proposal_scope: 'production',
       proposal: {
         segments: [{
-          action: 'create',
           title: 'Opening',
           scene_moments: [{
-            action: 'create',
             title: 'Wake up',
-            creative_references: [{ action: 'reuse', id: 3, role: 'character' }],
+            creative_references: [{ id: 3, role: 'character' }],
           }],
         }],
       },
@@ -147,6 +145,35 @@ test('previewApplyReview posts production proposal draft payload to apply-previe
   } finally {
     globalThis.fetch = originalFetch
   }
+})
+
+test('previewApplyReview rejects legacy production proposal action drafts', async () => {
+  const client = new BackendApplyClient({ baseURL: 'http://backend' })
+  const proposedValue = JSON.stringify({
+    schema: 'movscript.production_proposal.v1',
+    mode: 'snapshot',
+    productionId: 9,
+    proposalScope: 'production',
+    proposal: {
+      segments: [{
+        action: 'create',
+        title: 'Opening',
+        scene_moments: [],
+      }],
+    },
+  })
+
+  await assert.rejects(() => client.previewApplyReview({
+    draftId: 'draft_production',
+    draftTitle: 'Production proposal',
+    draftKind: 'production_proposal',
+    target: { projectId: 42, entityType: 'production', entityId: 9 },
+    currentValue: null,
+    proposedValue,
+    risk: 'write',
+    sideEffect: 'test',
+    requiresBackendApply: true,
+  }), /must not include action fields/)
 })
 
 test('applyReview posts setting proposal payload with auth headers', async () => {
@@ -242,6 +269,67 @@ test('applyReview posts asset slot proposal with settings filtered out', async (
       proposal: {
         creative_references: [],
         asset_slots: payload.proposal.asset_slots,
+      },
+    })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('applyReview normalizes flat asset slot proposal patches', async () => {
+  const originalFetch = globalThis.fetch
+  const calls: Array<{ url: string; init: RequestInit }> = []
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} })
+    return new Response(JSON.stringify({ counts: { asset_slots_created: 1 } }), {
+      status: 201,
+      headers: { 'content-type': 'application/json' },
+    })
+  }) as typeof fetch
+  try {
+    const client = new BackendApplyClient({ baseURL: 'http://backend' })
+    const payload = {
+      schema: 'movscript.asset_proposal.v1',
+      mode: 'patch',
+      proposal: {
+        creative_references: [{ fields: { name: 'Should be dropped' } }],
+        asset_slots: [{
+          client_id: 'slot_001',
+          owner_type: 'scene_moment',
+          owner_id: 7,
+          name: '周建国重生惊醒关键帧',
+          kind: 'image',
+          description: '对应情景ID=7的核心镜头',
+          priority: 'high',
+        }],
+      },
+    }
+
+    await client.applyReview(review({
+      draftKind: 'note',
+      projectId: 4,
+      entityType: 'project',
+      entityId: 4,
+      field: 'proposal',
+      proposedValue: JSON.stringify(payload),
+    }))
+
+    assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
+      ...payload,
+      proposal: {
+        creative_references: [],
+        asset_slots: [{
+          client_id: 'slot_001',
+          owner: { type: 'scene_moment', id: 7 },
+          fields: {
+            owner_type: 'scene_moment',
+            owner_id: 7,
+            kind: 'image',
+            name: '周建国重生惊醒关键帧',
+            description: '对应情景ID=7的核心镜头',
+            priority: 'high',
+          },
+        }],
       },
     })
   } finally {

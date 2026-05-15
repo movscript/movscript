@@ -41,20 +41,6 @@ func (h *SemanticEntityHandler) CreateScriptVersion(c *gin.Context) {
 	c.JSON(http.StatusCreated, item)
 }
 
-func (h *SemanticEntityHandler) PatchScriptVersion(c *gin.Context) {
-	var req semanticapp.PatchScriptVersionInput
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
-		return
-	}
-	item, err := h.semantic.PatchScriptVersion(c.Request.Context(), parseID(c.Param("id")), c.Param("versionId"), req)
-	if err != nil {
-		h.writeSemanticAppError(c, err)
-		return
-	}
-	c.JSON(http.StatusOK, item)
-}
-
 func (h *SemanticEntityHandler) ListScriptVersionLines(c *gin.Context) {
 	items, err := h.semantic.ListScriptVersionLines(c.Request.Context(), parseID(c.Param("id")), c.Param("versionId"))
 	if err != nil {
@@ -107,4 +93,22 @@ func (h *SemanticEntityHandler) PatchScriptBlock(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, item)
+}
+
+func (h *SemanticEntityHandler) ListScriptBlockUsages(c *gin.Context) {
+	items, err := h.semantic.ListScriptBlockUsages(c.Request.Context(), parseID(c.Param("id")), c.Param("blockId"))
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *SemanticEntityHandler) ListScriptBlockUsageMap(c *gin.Context) {
+	items, err := h.semantic.ListScriptBlockUsageMap(c.Request.Context(), parseID(c.Param("id")), parseID(c.Query("script_version_id")))
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, items)
 }

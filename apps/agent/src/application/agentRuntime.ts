@@ -989,6 +989,7 @@ export class AgentRuntime {
     const promptPreview = contextManager.buildPromptPreview({
       manifest: activeManifest,
       skills,
+      ...(layers?.skillDiscovery ? { skillDiscovery: layers.skillDiscovery } : {}),
       context: debugContext,
       tools: capabilities.resolvedTools,
       policy,
@@ -1006,6 +1007,7 @@ export class AgentRuntime {
       previewToolPlan = await planPreviewToolRequests({
         manifest: activeManifest,
         skills,
+        ...(layers?.skillDiscovery ? { skillDiscovery: layers.skillDiscovery } : {}),
         context: debugContext,
         tools: capabilities.resolvedTools,
         policy,
@@ -2281,6 +2283,7 @@ export class AgentRuntime {
           run,
           manifest: activeManifest,
           skills,
+          ...(layers?.skillDiscovery ? { skillDiscovery: layers.skillDiscovery } : {}),
           context: debugContext,
           tools: capabilities.resolvedTools,
           policy: run.policy,
@@ -2521,6 +2524,7 @@ export class AgentRuntime {
         manifest: activeManifest,
         capabilities: capabilities.resolvedTools,
         skills,
+        ...(layers?.skillDiscovery ? { skillDiscovery: layers.skillDiscovery } : {}),
         context: debugContext,
         memories,
         warnings: [...capabilities.warnings],
@@ -2571,6 +2575,7 @@ export class AgentRuntime {
             manifest: refreshedManifest,
             capabilities: refreshedCapabilities.resolvedTools,
             skills: refreshedSkills,
+            ...(refreshedLayers?.skillDiscovery ? { skillDiscovery: refreshedLayers.skillDiscovery } : {}),
             registry: catalogSnapshot.toolRegistry,
             warnings: refreshedCapabilities.warnings,
           }
@@ -2668,7 +2673,8 @@ export class AgentRuntime {
 
       // completed
       const finalRound = buildRunRound(999, 'Final response', 'final')
-      const finalContent = this.formatFinalAssistantContent(lastUser.content, loopResult.finalContent, loopResult.toolOutcomes, loopResult.warnings, memories, run)
+      const visibleModelContent = combineAssistantTurnContents(loopResult.assistantContents, loopResult.finalContent)
+      const finalContent = this.formatFinalAssistantContent(lastUser.content, visibleModelContent, loopResult.toolOutcomes, loopResult.warnings, memories, run)
       const assistant = this.createMessage(thread.id, 'assistant', finalContent || '（无内容）', run.id)
       thread.messages.push(assistant)
       thread.updatedAt = assistant.createdAt
@@ -2692,6 +2698,7 @@ export class AgentRuntime {
       run.metadata = {
         ...(run.metadata ?? {}),
         memoryIds: memories.map((m) => m.id),
+        ...(loopResult.assistantContents.length > 1 ? { assistantContentTurns: loopResult.assistantContents as unknown as JSONValue } : {}),
         ...buildRollbackMetadata(loopResult.toolOutcomes),
       }
 
@@ -4229,6 +4236,19 @@ function assistantMessageForRun(thread: AgentThread | undefined, run: AgentRun):
     if (message) return message
   }
   return [...thread.messages].reverse().find((message) => message.role === 'assistant' && message.runId === run.id)
+}
+
+function combineAssistantTurnContents(contents: string[], fallback: string): string {
+  const turns: string[] = []
+  for (const content of contents) {
+    const trimmed = content.trim()
+    if (!trimmed) continue
+    if (turns.at(-1) === trimmed) continue
+    turns.push(trimmed)
+  }
+  const fallbackContent = fallback.trim()
+  if (fallbackContent && turns.at(-1) !== fallbackContent) turns.push(fallbackContent)
+  return turns.join('\n\n')
 }
 
 function isTerminalRunStatus(status: AgentRun['status']): boolean {

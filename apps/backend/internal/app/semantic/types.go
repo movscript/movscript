@@ -21,17 +21,6 @@ type ScriptVersionFilter struct {
 type CreateScriptVersionInput struct {
 	ScriptID        uint   `json:"script_id" binding:"required"`
 	ParentVersionID *uint  `json:"parent_version_id"`
-	VersionNumber   int    `json:"version_number"`
-	Title           string `json:"title"`
-	SourceType      string `json:"source_type"`
-	Content         string `json:"content"`
-	RawSource       string `json:"raw_source"`
-	Summary         string `json:"summary"`
-	Status          string `json:"status"`
-}
-
-type PatchScriptVersionInput struct {
-	ParentVersionID *uint  `json:"parent_version_id"`
 	Title           string `json:"title"`
 	SourceType      string `json:"source_type"`
 	Content         string `json:"content"`
@@ -87,10 +76,12 @@ type PatchScriptBlockInput struct {
 }
 
 type SegmentFilter struct {
-	ProjectID    uint
-	ProductionID uint
-	TextBlockID  uint
-	Status       string
+	ProjectID      uint
+	ProductionID   uint
+	TextBlockID    uint
+	ScriptBlockID  uint
+	ScriptBlockIDs []uint
+	Status         string
 }
 
 type CreateSegmentInput struct {
@@ -154,12 +145,15 @@ type PatchProductionTextBlockInput struct {
 }
 
 type SceneMomentFilter struct {
-	ProjectID uint
-	SegmentID uint
+	ProjectID      uint
+	SegmentID      uint
+	ScriptBlockID  uint
+	ScriptBlockIDs []uint
 }
 
 type CreateSceneMomentInput struct {
 	SegmentID     *uint  `json:"segment_id"`
+	ScriptBlockID *uint  `json:"script_block_id"`
 	Order         int    `json:"order"`
 	Title         string `json:"title"`
 	Description   string `json:"description"`
@@ -174,6 +168,7 @@ type CreateSceneMomentInput struct {
 
 type PatchSceneMomentInput struct {
 	SegmentID     *uint  `json:"segment_id"`
+	ScriptBlockID *uint  `json:"script_block_id"`
 	Order         int    `json:"order"`
 	Title         string `json:"title"`
 	Description   string `json:"description"`
@@ -205,16 +200,20 @@ type ProductionInput struct {
 }
 
 type ContentUnitFilter struct {
-	ProjectID     uint
-	ProductionID  uint
-	SegmentID     uint
-	SceneMomentID uint
+	ProjectID        uint
+	ProductionID     uint
+	SegmentID        uint
+	SceneMomentID    uint
+	StoryboardLineID uint
+	ScriptBlockID    uint
+	ScriptBlockIDs   []uint
 }
 
 type ContentUnitInput struct {
 	ProductionID     *uint   `json:"production_id"`
 	SegmentID        *uint   `json:"segment_id"`
 	SceneMomentID    *uint   `json:"scene_moment_id"`
+	StoryboardLineID *uint   `json:"storyboard_line_id"`
 	ScriptBlockID    *uint   `json:"script_block_id"`
 	Kind             string  `json:"kind"`
 	Order            int     `json:"order"`

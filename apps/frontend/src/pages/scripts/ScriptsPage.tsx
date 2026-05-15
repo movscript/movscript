@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { createScriptVersion, listScriptVersionLines, listScriptVersions, type ScriptVersion, type ScriptVersionLine } from '@/api/scriptVersions'
-import { createSemanticEntity, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { createSemanticEntity, listScriptBlockUsageMap, listSemanticEntities, semanticEntityConfig, type ScriptBlockUsages, type SemanticEntityRecord } from '@/api/semanticEntities'
 import type { Script } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
@@ -39,6 +39,35 @@ type ScriptBlockRecord = SemanticEntityRecord & {
   end_char?: number
 }
 
+type ScriptBlockUsageRecord = SemanticEntityRecord & {
+  script_block_id?: number
+  production_id?: number
+  segment_id?: number
+  scene_moment_id?: number
+  title?: string
+  name?: string
+  status?: string
+}
+
+type StoryboardScriptRecord = SemanticEntityRecord & {
+  script_version_id?: number
+  name?: string
+  is_primary?: boolean
+}
+
+type StoryboardVersionRecord = SemanticEntityRecord & {
+  storyboard_script_id?: number
+  version_number?: number
+  title?: string
+}
+
+type ScriptBlockUsage = {
+  segments: ScriptBlockUsageRecord[]
+  sceneMoments: ScriptBlockUsageRecord[]
+  contentUnits: ScriptBlockUsageRecord[]
+  storyboardLines: ScriptBlockUsageRecord[]
+}
+
 type ScriptTextSelection = {
   versionId: number
   text: string
@@ -61,6 +90,8 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const [showCreate, setShowCreate] = useState(false)
   const [draft, setDraft] = useState<Partial<Script>>({})
   const scriptBlockConfig = useMemo(() => semanticEntityConfig('scriptBlocks'), [])
+  const storyboardScriptConfig = useMemo(() => semanticEntityConfig('storyboardScripts'), [])
+  const storyboardVersionConfig = useMemo(() => semanticEntityConfig('storyboardVersions'), [])
 
   const { data: rawScripts, isLoading } = useQuery<Script[]>({
     queryKey: ['scripts', projectId],
@@ -75,6 +106,26 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const { data: scriptBlocks = [] } = useQuery<ScriptBlockRecord[]>({
     queryKey: ['semantic-script-blocks', projectId],
     queryFn: () => listSemanticEntities(projectId, scriptBlockConfig) as Promise<ScriptBlockRecord[]>,
+    enabled: !!projectId,
+  })
+  const { data: storyboardScripts = [] } = useQuery<StoryboardScriptRecord[]>({
+    queryKey: ['semantic-script-page-storyboard-scripts', projectId],
+    queryFn: () => listSemanticEntities(projectId, storyboardScriptConfig) as Promise<StoryboardScriptRecord[]>,
+    enabled: !!projectId,
+  })
+  const { data: storyboardVersions = [] } = useQuery<StoryboardVersionRecord[]>({
+    queryKey: ['semantic-script-page-storyboard-versions', projectId],
+    queryFn: () => listSemanticEntities(projectId, storyboardVersionConfig) as Promise<StoryboardVersionRecord[]>,
+    enabled: !!projectId,
+  })
+  const { data: segments = [] } = useQuery<ScriptBlockUsageRecord[]>({
+    queryKey: ['semantic-script-page-segments', projectId],
+    queryFn: () => listSemanticEntities(projectId, semanticEntityConfig('segments')) as Promise<ScriptBlockUsageRecord[]>,
+    enabled: !!projectId,
+  })
+  const { data: sceneMoments = [] } = useQuery<ScriptBlockUsageRecord[]>({
+    queryKey: ['semantic-script-page-scene-moments', projectId],
+    queryFn: () => listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')) as Promise<ScriptBlockUsageRecord[]>,
     enabled: !!projectId,
   })
 
@@ -93,10 +144,22 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       .sort((a, b) => (b.version_number || b.ID) - (a.version_number || a.ID) || b.ID - a.ID)
   }, [selected, scriptVersions])
   const latestVersion = versionsForSelected[0] ?? null
-  const bodyText = selected
-    ? (latestVersion?.content || latestVersion?.raw_source || draft.content || draft.raw_source || selected.content || selected.raw_source || '').trim()
-    : ''
-  const canCreateProduction = versionsForSelected.length > 0 && bodyText.length > 0
+  const draftSourceText = selected ? scriptDraftSourceText(draft, selected) : ''
+  const latestVersionSourceText = latestVersion ? scriptVersionSourceText(latestVersion) : ''
+  const hasDraftBody = draftSourceText.trim().length > 0
+  const lockedBodyText = latestVersionSourceText.trim()
+  const isDraftPublished = Boolean(latestVersion && normalizeComparableScriptText(draftSourceText) === normalizeComparableScriptText(latestVersionSourceText))
+  const versionStateLabel = latestVersion
+    ? isDraftPublished
+      ? '工作稿已发布为最新版本'
+      : '工作稿有未发布改动'
+    : hasDraftBody
+      ? '工作稿尚未创建版本'
+      : '工作稿暂无正文'
+  const latestVersionLabel = latestVersion
+    ? `最新版本 v${latestVersion.version_number || latestVersion.ID} · ${formatDate(latestVersion.UpdatedAt)}`
+    : undefined
+  const canCreateProduction = versionsForSelected.length > 0 && lockedBodyText.length > 0
 
   useEffect(() => {
     if (selected) setDraft({ ...selected })
@@ -121,22 +184,31 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   })
 
   const createVersion = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!selected) throw new Error('请选择剧本')
+      const saved = await saveScriptDraft(projectId, selected.ID, draft)
       return createScriptVersion(projectId, {
-        script_id: selected.ID,
+        script_id: saved.ID,
         parent_version_id: latestVersion?.ID ?? null,
-        title: draft.title ?? selected.title,
-        source_type: selected.source_type ?? 'raw',
-        content: draft.content ?? selected.content ?? draft.raw_source ?? selected.raw_source ?? '',
-        raw_source: draft.raw_source ?? selected.raw_source ?? draft.content ?? selected.content ?? '',
-        summary: draft.summary ?? selected.summary ?? '',
+        title: saved.title,
+        source_type: saved.source_type ?? 'raw',
+        content: saved.content ?? saved.raw_source ?? '',
+        raw_source: saved.raw_source ?? saved.content ?? '',
+        summary: saved.summary ?? '',
         status: 'active',
       })
     },
-    onSuccess: () => {
+    onSuccess: (version) => {
+      setDraft((current) => ({
+        ...current,
+        title: version.title,
+        content: version.content,
+        raw_source: version.raw_source,
+        summary: version.summary,
+      }))
+      qc.invalidateQueries({ queryKey: ['scripts', projectId] })
       qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
-      toast.success('版本已创建')
+      toast.success('工作稿已保存并创建版本')
       setDetailTab('versions')
     },
     onError: () => toast.error('创建版本失败'),
@@ -184,6 +256,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     onSuccess: () => {
       setScriptTextSelection(null)
       qc.invalidateQueries({ queryKey: ['semantic-script-blocks', projectId] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
       toast.success('剧本块已创建')
     },
     onError: () => toast.error('创建剧本块失败'),
@@ -200,14 +273,35 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     }),
     onSuccess: (record) => {
       qc.invalidateQueries({ queryKey: ['semantic-segment-workspace', projectId, 'segments'] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
       toast.success('编排段已创建')
       navigate(`/segments?segment_id=${record.ID}`)
     },
     onError: () => toast.error('创建编排段失败'),
   })
 
+  const createSceneMomentFromScriptBlock = useMutation({
+    mutationFn: ({ block, segmentId }: { block: ScriptBlockRecord; segmentId?: number | null }) => createSemanticEntity(projectId, semanticEntityConfig('sceneMoments'), {
+      segment_id: segmentId ?? null,
+      script_block_id: block.ID,
+      title: titleFromScriptBlock(block),
+      description: String(block.content ?? '').trim(),
+      action_text: String(block.content ?? '').trim(),
+      status: 'draft',
+    }),
+    onSuccess: (record) => {
+      qc.invalidateQueries({ queryKey: ['semantic-scene-moment-page', projectId, 'sceneMoments'] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
+      toast.success('情景已创建')
+      navigate(`/scene-moments?scene_moment_id=${record.ID}`)
+    },
+    onError: () => toast.error('创建情景失败'),
+  })
+
   const createContentUnitFromScriptBlock = useMutation({
-    mutationFn: (block: ScriptBlockRecord) => createSemanticEntity(projectId, semanticEntityConfig('contentUnits'), {
+    mutationFn: ({ block, segmentId, sceneMomentId }: { block: ScriptBlockRecord; segmentId?: number | null; sceneMomentId?: number | null }) => createSemanticEntity(projectId, semanticEntityConfig('contentUnits'), {
+      segment_id: segmentId ?? null,
+      scene_moment_id: sceneMomentId ?? null,
       script_block_id: block.ID,
       kind: contentUnitKindFromScriptBlock(block),
       title: titleFromScriptBlock(block),
@@ -217,10 +311,40 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     }),
     onSuccess: (record) => {
       qc.invalidateQueries({ queryKey: ['semantic-content-positioning', projectId, 'content-units'] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
       toast.success('制作项已创建')
       navigate(`/contents?content_unit_id=${record.ID}`)
     },
     onError: () => toast.error('创建制作项失败'),
+  })
+
+  const createStoryboardLineFromScriptBlock = useMutation({
+    mutationFn: async (block: ScriptBlockRecord) => {
+      const scriptVersionId = Number(block.script_version_id)
+      if (!Number.isFinite(scriptVersionId) || scriptVersionId <= 0) throw new Error('剧本块缺少剧本版本')
+      const scriptForBlock = scripts.find((item) => item.ID === Number(block.script_id)) ?? selected
+      const storyboardScript = await ensureStoryboardScriptForVersion(projectId, storyboardScripts, scriptVersionId, scriptForBlock?.title ?? '分镜脚本')
+      const storyboardVersion = await ensureStoryboardVersionForScript(projectId, storyboardVersions, storyboardScript, block)
+      return createSemanticEntity(projectId, semanticEntityConfig('storyboardLines'), {
+        storyboard_script_id: storyboardScript.ID,
+        storyboard_version_id: storyboardVersion.ID,
+        script_block_id: block.ID,
+        kind: storyboardLineKindFromScriptBlock(block),
+        title: titleFromScriptBlock(block),
+        description: String(block.content ?? '').trim(),
+        dialogue: String(block.kind ?? '') === 'dialogue' ? String(block.content ?? '').trim() : '',
+        visual_intent: String(block.kind ?? '') === 'dialogue' ? '' : String(block.content ?? '').trim(),
+        status: 'candidate',
+      })
+    },
+    onSuccess: (record) => {
+      qc.invalidateQueries({ queryKey: ['semantic-script-page-storyboard-scripts', projectId] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-page-storyboard-versions', projectId] })
+      qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
+      toast.success('分镜行已创建')
+      navigate(`/tools/smart-storyboard?storyboard_line_id=${record.ID}`)
+    },
+    onError: () => toast.error('创建分镜行失败'),
   })
 
   return (
@@ -322,10 +446,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 </div>
               </div>
               <div className="mt-3 grid grid-cols-4 gap-2">
-                <MetricBox icon={ScrollText} label="正文字数" value={`${bodyText.length}`} />
+                <MetricBox icon={ScrollText} label="工作稿字数" value={`${draftSourceText.trim().length}`} />
                 <MetricBox icon={Layers} label="版本总数" value={`${versionsForSelected.length}`} />
                 <MetricBox icon={CheckCircle2} label="已锁定" value={versionsForSelected.length > 0 ? '是' : '否'} />
-                <MetricBox icon={BookOpenCheck} label="完整度" value={`${scriptReadiness(selected, versionsForSelected.length, bodyText.length)}%`} />
+                <MetricBox icon={BookOpenCheck} label="完整度" value={`${scriptReadiness(selected, versionsForSelected.length, draftSourceText.trim().length)}%`} />
               </div>
             </div>
 
@@ -362,6 +486,9 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   isSaving={updateScript.isPending}
                   onCreateVersion={() => createVersion.mutate()}
                   isCreatingVersion={createVersion.isPending}
+                  canCreateVersion={hasDraftBody && !isDraftPublished}
+                  versionStateLabel={versionStateLabel}
+                  latestVersionLabel={latestVersionLabel}
                 />
               )}
 
@@ -372,26 +499,26 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                       <h3 className="text-sm font-semibold text-foreground">版本历史</h3>
                       <p className="mt-0.5 text-xs text-muted-foreground">版本创建后即锁定为历史快照，不支持修改、激活或归档；创建制作时默认使用最新版本。</p>
                     </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={createVersion.isPending}
-                      onClick={() => createVersion.mutate()}
-                    >
-                      <Plus size={13} />
-                      快照当前正文
-                    </Button>
+	                    <Button
+	                      variant="outline"
+	                      size="sm"
+	                      className="gap-1.5"
+	                      disabled={createVersion.isPending || !hasDraftBody || isDraftPublished}
+	                      onClick={() => createVersion.mutate()}
+	                    >
+	                      <Plus size={13} />
+	                      快照当前正文
+	                    </Button>
                   </div>
 
                   {versionsForSelected.length === 0 ? (
                     <div className="rounded-lg border border-dashed border-border bg-card py-10 text-center">
                       <Layers size={28} className="mx-auto text-muted-foreground/30" />
                       <p className="mt-3 text-sm font-medium text-foreground">暂无版本</p>
-                      <p className="mt-1 text-xs text-muted-foreground">保存正文后，点击「快照当前正文」创建第一个版本。</p>
-                      <Button variant="outline" size="sm" className="mt-4" onClick={() => setDetailTab('edit')}>
-                        前往编辑正文
-                      </Button>
+	                      <p className="mt-1 text-xs text-muted-foreground">填写正文后，点击「快照当前正文」创建第一个稳定版本。</p>
+	                      <Button variant="outline" size="sm" className="mt-4" onClick={() => setDetailTab('edit')}>
+	                        前往编辑正文
+	                      </Button>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -435,15 +562,27 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                               <ScriptVersionBlockPanel
                                 blocks={scriptBlocks.filter((block) => Number(block.script_version_id) === version.ID)}
                                 content={content}
+                                sceneMoments={sceneMoments}
+                                segments={segments}
                                 isCreating={createScriptBlock.isPending}
                                 isCreatingContentUnit={createContentUnitFromScriptBlock.isPending}
+                                isCreatingStoryboardLine={createStoryboardLineFromScriptBlock.isPending}
+                                isCreatingSceneMoment={createSceneMomentFromScriptBlock.isPending}
                                 isCreatingSegment={createSegmentFromScriptBlock.isPending}
                                 selection={scriptTextSelection?.versionId === version.ID ? scriptTextSelection : null}
                                 version={version}
                                 projectId={projectId}
                                 onCreate={() => createScriptBlock.mutate()}
-                                onCreateContentUnit={(block) => createContentUnitFromScriptBlock.mutate(block)}
+                                onCreateContentUnit={(block, target) => createContentUnitFromScriptBlock.mutate({ block, ...target })}
+                                onCreateStoryboardLine={(block) => createStoryboardLineFromScriptBlock.mutate(block)}
+                                onCreateSceneMoment={(block, segmentId) => createSceneMomentFromScriptBlock.mutate({ block, segmentId })}
                                 onCreateSegment={(block) => createSegmentFromScriptBlock.mutate(block)}
+                                onOpenUsage={(kind, id) => {
+                                  if (kind === 'segment') navigate(`/segments?segment_id=${id}`)
+                                  else if (kind === 'scene_moment') navigate(`/scene-moments?scene_moment_id=${id}`)
+                                  else if (kind === 'content_unit') navigate(`/contents?content_unit_id=${id}`)
+                                  else navigate('/tools/smart-storyboard')
+                                }}
                                 onSelectionChange={setScriptTextSelection}
                               />
                             )}
@@ -464,7 +603,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   <div className="space-y-2">
                     <ReadinessRow label="剧本分类已设置" done={categoryLabel(selected.script_type) !== '未分类'} />
                     <ReadinessRow label="已有剧本版本" done={versionsForSelected.length > 0} />
-                    <ReadinessRow label="有正文内容" done={bodyText.length > 0} />
+                    <ReadinessRow label="最新版本有正文" done={lockedBodyText.length > 0} />
                   </div>
                   {canCreateProduction ? (
                     <Button
@@ -521,29 +660,45 @@ function ScriptVersionBlockPanel({
   projectId,
   content,
   blocks,
+  sceneMoments,
+  segments,
   selection,
   isCreating,
   isCreatingContentUnit,
+  isCreatingStoryboardLine,
+  isCreatingSceneMoment,
   isCreatingSegment,
   onSelectionChange,
   onCreate,
   onCreateContentUnit,
+  onCreateStoryboardLine,
+  onCreateSceneMoment,
   onCreateSegment,
+  onOpenUsage,
 }: {
   version: ScriptVersion
   projectId: number
   content: string
   blocks: ScriptBlockRecord[]
+  sceneMoments: ScriptBlockUsageRecord[]
+  segments: ScriptBlockUsageRecord[]
   selection: ScriptTextSelection
   isCreating: boolean
   isCreatingContentUnit: boolean
+  isCreatingStoryboardLine: boolean
+  isCreatingSceneMoment: boolean
   isCreatingSegment: boolean
   onSelectionChange: (selection: ScriptTextSelection) => void
   onCreate: () => void
-  onCreateContentUnit: (block: ScriptBlockRecord) => void
+  onCreateContentUnit: (block: ScriptBlockRecord, target: { segmentId?: number | null; sceneMomentId?: number | null }) => void
+  onCreateStoryboardLine: (block: ScriptBlockRecord) => void
+  onCreateSceneMoment: (block: ScriptBlockRecord, segmentId?: number | null) => void
   onCreateSegment: (block: ScriptBlockRecord) => void
+  onOpenUsage: (kind: 'segment' | 'scene_moment' | 'content_unit' | 'storyboard_line', id: number) => void
 }) {
   const [scrollTop, setScrollTop] = useState(0)
+  const [targetContentByBlockId, setTargetContentByBlockId] = useState<Record<number, string>>({})
+  const [targetSegmentByBlockId, setTargetSegmentByBlockId] = useState<Record<number, string>>({})
   const { data: versionLines = [] } = useQuery({
     queryKey: ['semantic-script-version-lines', projectId, version.ID],
     queryFn: () => listScriptVersionLines(projectId, version.ID),
@@ -551,6 +706,18 @@ function ScriptVersionBlockPanel({
   })
   const lineText = useMemo(() => linesToScriptText(versionLines, content), [content, versionLines])
   const displayLines = useMemo(() => scriptDisplayLines(versionLines, lineText), [lineText, versionLines])
+  const { data: usageResponse = {} } = useQuery({
+    queryKey: ['semantic-script-block-usages', projectId, version.ID],
+    queryFn: () => listScriptBlockUsageMap(projectId, version.ID),
+    enabled: Boolean(projectId && version.ID),
+  })
+  const usagesByBlockId = useMemo(() => {
+    const map = new Map<number, ScriptBlockUsage>()
+    blocks.forEach((block) => {
+      map.set(block.ID, scriptBlockUsageFromResponse(usageResponse[String(block.ID)]))
+    })
+    return map
+  }, [blocks, usageResponse])
 
   function captureSelection(event: SyntheticEvent<HTMLTextAreaElement>) {
     const target = event.currentTarget
@@ -612,35 +779,141 @@ function ScriptVersionBlockPanel({
       </div>
       {blocks.length > 0 && (
         <div className="mt-3 grid gap-2 md:grid-cols-2">
-          {blocks.map((block) => (
-            <div key={block.ID} className="rounded-md border border-border bg-card p-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-xs font-medium text-foreground">{scriptBlockLabel(block)}</span>
-                <span className="shrink-0 text-[11px] text-muted-foreground">行 {block.start_line || '?'}-{block.end_line || '?'}</span>
+          {blocks.map((block) => {
+            const usages = usagesByBlockId.get(block.ID) ?? emptyScriptBlockUsage()
+            const targetSegmentValue = targetSegmentByBlockId[block.ID] ?? defaultSegmentValueForScriptBlock(block, usages)
+            const targetSegmentId = Number(targetSegmentValue)
+            const selectedTargetSegment = Number.isFinite(targetSegmentId) && targetSegmentId > 0
+              ? segments.find((segment) => segment.ID === targetSegmentId)
+              : undefined
+            const unrelatedSegments = segments.filter((segment) => !usages.segments.some((used) => used.ID === segment.ID))
+            const targetContentValue = targetContentByBlockId[block.ID] ?? defaultContentTargetValueForScriptBlock(block, usages)
+            const contentTarget = parseContentTargetValue(targetContentValue)
+            const selectedContentTarget = contentTarget.sceneMomentId
+              ? sceneMoments.find((moment) => moment.ID === contentTarget.sceneMomentId)
+              : contentTarget.segmentId
+                ? segments.find((segment) => segment.ID === contentTarget.segmentId)
+                : undefined
+            const unrelatedSceneMoments = sceneMoments.filter((moment) => !usages.sceneMoments.some((used) => used.ID === moment.ID))
+            return (
+              <div key={block.ID} className="rounded-md border border-border bg-card p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-xs font-medium text-foreground">{scriptBlockLabel(block)}</span>
+                  <span className="shrink-0 text-[11px] text-muted-foreground">行 {block.start_line || '?'}-{block.end_line || '?'}</span>
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{String(block.content ?? '')}</p>
+                <ScriptBlockUsageStrip usages={usages} onOpen={onOpenUsage} />
+                <div className="mt-2 grid gap-1.5">
+                  <label className="text-[10px] font-medium text-muted-foreground" htmlFor={`script-block-target-segment-${block.ID}`}>情景归属编排段</label>
+                  <select
+                    id={`script-block-target-segment-${block.ID}`}
+                    value={targetSegmentValue}
+                    onChange={(event) => setTargetSegmentByBlockId((current) => ({ ...current, [block.ID]: event.target.value }))}
+                    className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">不挂载到编排段</option>
+                    {usages.segments.length > 0 ? (
+                      <optgroup label="当前剧本块相关">
+                        {usages.segments.map((segment) => (
+                          <option key={`related-${segment.ID}`} value={segment.ID}>{segmentOptionLabel(segment)}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {unrelatedSegments.length > 0 ? (
+                      <optgroup label="全部编排段">
+                        {unrelatedSegments.map((segment) => (
+                          <option key={segment.ID} value={segment.ID}>{segmentOptionLabel(segment)}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                  {selectedTargetSegment ? (
+                    <p className="truncate text-[10px] text-muted-foreground">将创建到 {segmentOptionLabel(selectedTargetSegment)}</p>
+                  ) : null}
+                </div>
+                <div className="mt-2 grid gap-1.5">
+                  <label className="text-[10px] font-medium text-muted-foreground" htmlFor={`script-block-target-content-${block.ID}`}>制作项归属</label>
+                  <select
+                    id={`script-block-target-content-${block.ID}`}
+                    value={targetContentValue}
+                    onChange={(event) => setTargetContentByBlockId((current) => ({ ...current, [block.ID]: event.target.value }))}
+                    className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">不挂载到情景或编排段</option>
+                    {usages.sceneMoments.length > 0 ? (
+                      <optgroup label="当前剧本块情景">
+                        {usages.sceneMoments.map((moment) => (
+                          <option key={`related-moment-${moment.ID}`} value={contentTargetValue('scene_moment', moment.ID)}>{sceneMomentOptionLabel(moment)}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {usages.segments.length > 0 ? (
+                      <optgroup label="当前剧本块编排段">
+                        {usages.segments.map((segment) => (
+                          <option key={`related-segment-${segment.ID}`} value={contentTargetValue('segment', segment.ID)}>{segmentOptionLabel(segment)}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {unrelatedSceneMoments.length > 0 ? (
+                      <optgroup label="全部情景">
+                        {unrelatedSceneMoments.map((moment) => (
+                          <option key={`moment-${moment.ID}`} value={contentTargetValue('scene_moment', moment.ID)}>{sceneMomentOptionLabel(moment)}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {unrelatedSegments.length > 0 ? (
+                      <optgroup label="全部编排段">
+                        {unrelatedSegments.map((segment) => (
+                          <option key={`segment-${segment.ID}`} value={contentTargetValue('segment', segment.ID)}>{segmentOptionLabel(segment)}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </select>
+                  {selectedContentTarget ? (
+                    <p className="truncate text-[10px] text-muted-foreground">将创建到 {contentTarget.sceneMomentId ? sceneMomentOptionLabel(selectedContentTarget) : segmentOptionLabel(selectedContentTarget)}</p>
+                  ) : null}
+                </div>
+                <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    disabled={isCreatingSegment}
+                    onClick={() => onCreateSegment(block)}
+                  >
+                    生成编排段
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    disabled={isCreatingSceneMoment}
+                    onClick={() => onCreateSceneMoment(block, targetSegmentId > 0 ? targetSegmentId : null)}
+                  >
+                    生成情景
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    disabled={isCreatingStoryboardLine}
+                    onClick={() => onCreateStoryboardLine(block)}
+                  >
+                    生成分镜行
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    disabled={isCreatingContentUnit}
+                    onClick={() => onCreateContentUnit(block, contentTarget)}
+                  >
+                    生成制作项
+                  </Button>
+                </div>
               </div>
-              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{String(block.content ?? '')}</p>
-              <div className="mt-2 flex flex-wrap justify-end gap-1.5">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-xs"
-                  disabled={isCreatingSegment}
-                  onClick={() => onCreateSegment(block)}
-                >
-                  生成编排段
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2 text-xs"
-                  disabled={isCreatingContentUnit}
-                  onClick={() => onCreateContentUnit(block)}
-                >
-                  生成制作项
-                </Button>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -670,6 +943,41 @@ function VersionStatusBadge({ status }: { status: string }) {
       <Clock3 size={10} />
       草稿
     </span>
+  )
+}
+
+function ScriptBlockUsageStrip({
+  usages,
+  onOpen,
+}: {
+  usages: ScriptBlockUsage
+  onOpen: (kind: 'segment' | 'scene_moment' | 'content_unit' | 'storyboard_line', id: number) => void
+}) {
+  const items = [
+    ...usages.segments.slice(0, 2).map((record) => ({ kind: 'segment' as const, label: '编排段', record })),
+    ...usages.sceneMoments.slice(0, 2).map((record) => ({ kind: 'scene_moment' as const, label: '情景', record })),
+    ...usages.contentUnits.slice(0, 2).map((record) => ({ kind: 'content_unit' as const, label: '制作项', record })),
+    ...usages.storyboardLines.slice(0, 2).map((record) => ({ kind: 'storyboard_line' as const, label: '分镜行', record })),
+  ]
+  const total = usages.segments.length + usages.sceneMoments.length + usages.contentUnits.length + usages.storyboardLines.length
+  if (total === 0) {
+    return <p className="mt-2 text-[11px] text-muted-foreground">尚未被下游引用</p>
+  }
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {items.map((item) => (
+        <button
+          key={`${item.kind}-${item.record.ID}`}
+          type="button"
+          onClick={() => onOpen(item.kind, item.record.ID)}
+          className="max-w-full rounded-md border border-border bg-background px-2 py-0.5 text-[10px] text-muted-foreground hover:border-primary/40 hover:text-foreground"
+        >
+          <span className="font-medium">{item.label}</span>
+          <span className="ml-1">{titleOfRecord(item.record)}</span>
+        </button>
+      ))}
+      {total > items.length ? <span className="rounded-md bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">+{total - items.length}</span> : null}
+    </div>
   )
 }
 
@@ -811,6 +1119,99 @@ function contentPromptFromScriptBlock(block: ScriptBlockRecord) {
   return content
 }
 
+function storyboardLineKindFromScriptBlock(block: ScriptBlockRecord) {
+  const kind = String(block.kind ?? '')
+  if (kind === 'dialogue') return 'narration'
+  if (kind === 'transition') return 'transition'
+  if (kind === 'scene_heading') return 'beat'
+  return 'shot'
+}
+
+async function ensureStoryboardScriptForVersion(projectId: number, scripts: StoryboardScriptRecord[], scriptVersionId: number, scriptTitle: string) {
+  const existing = scripts.find((item) => Number(item.script_version_id) === scriptVersionId && Boolean(item.is_primary))
+    ?? scripts.find((item) => Number(item.script_version_id) === scriptVersionId)
+  if (existing) return existing
+  return createSemanticEntity(projectId, semanticEntityConfig('storyboardScripts'), {
+    script_version_id: scriptVersionId,
+    name: `${scriptTitle} 分镜脚本`,
+    description: `来源剧本版本 #${scriptVersionId}`,
+    status: 'draft',
+    is_primary: true,
+  }) as Promise<StoryboardScriptRecord>
+}
+
+async function ensureStoryboardVersionForScript(projectId: number, versions: StoryboardVersionRecord[], storyboardScript: StoryboardScriptRecord, block: ScriptBlockRecord) {
+  const existing = versions
+    .filter((item) => Number(item.storyboard_script_id) === storyboardScript.ID)
+    .slice()
+    .sort((a, b) => (Number(b.version_number) || b.ID) - (Number(a.version_number) || a.ID) || b.ID - a.ID)[0]
+	  if (existing) return existing
+	  return createSemanticEntity(projectId, semanticEntityConfig('storyboardVersions'), {
+	    storyboard_script_id: storyboardScript.ID,
+	    title: `${titleOfRecord(storyboardScript)} v1`,
+    source: 'manual',
+    status: 'active',
+    snapshot_json: JSON.stringify({ source: 'script_block', script_block_id: block.ID, script_version_id: block.script_version_id }),
+  }) as Promise<StoryboardVersionRecord>
+}
+
+function defaultSegmentValueForScriptBlock(block: ScriptBlockRecord, usages: ScriptBlockUsage) {
+  const sameBlockSegment = usages.segments.find((segment) => Number(segment.script_block_id) === block.ID)
+  return sameBlockSegment ? String(sameBlockSegment.ID) : ''
+}
+
+function segmentOptionLabel(segment: ScriptBlockUsageRecord) {
+  const title = titleOfRecord(segment)
+  const production = segment.production_id ? `制作 #${segment.production_id}` : ''
+  const source = segment.script_block_id ? `剧本块 #${segment.script_block_id}` : ''
+  return [title, production, source].filter(Boolean).join(' · ')
+}
+
+function defaultContentTargetValueForScriptBlock(block: ScriptBlockRecord, usages: ScriptBlockUsage) {
+  const sameBlockMoment = usages.sceneMoments.find((moment) => Number(moment.script_block_id) === block.ID)
+  if (sameBlockMoment) return contentTargetValue('scene_moment', sameBlockMoment.ID)
+  const sameBlockSegment = usages.segments.find((segment) => Number(segment.script_block_id) === block.ID)
+  return sameBlockSegment ? contentTargetValue('segment', sameBlockSegment.ID) : ''
+}
+
+function contentTargetValue(kind: 'segment' | 'scene_moment', id: number) {
+  return `${kind}:${id}`
+}
+
+function parseContentTargetValue(value: string): { segmentId?: number | null; sceneMomentId?: number | null } {
+  const [kind, rawId] = value.split(':')
+  const id = Number(rawId)
+  if (!Number.isFinite(id) || id <= 0) return { segmentId: null, sceneMomentId: null }
+  if (kind === 'scene_moment') return { sceneMomentId: id, segmentId: null }
+  if (kind === 'segment') return { segmentId: id, sceneMomentId: null }
+  return { segmentId: null, sceneMomentId: null }
+}
+
+function sceneMomentOptionLabel(moment: ScriptBlockUsageRecord) {
+  const title = titleOfRecord(moment)
+  const segment = moment.segment_id ? `编排段 #${moment.segment_id}` : ''
+  const source = moment.script_block_id ? `剧本块 #${moment.script_block_id}` : ''
+  return [title, segment, source].filter(Boolean).join(' · ')
+}
+
+function scriptBlockUsageFromResponse(response?: ScriptBlockUsages): ScriptBlockUsage {
+  if (!response) return emptyScriptBlockUsage()
+  return {
+    segments: (response.segments ?? []) as ScriptBlockUsageRecord[],
+    sceneMoments: (response.scene_moments ?? []) as ScriptBlockUsageRecord[],
+    contentUnits: (response.content_units ?? []) as ScriptBlockUsageRecord[],
+    storyboardLines: (response.storyboard_lines ?? []) as ScriptBlockUsageRecord[],
+  }
+}
+
+function emptyScriptBlockUsage(): ScriptBlockUsage {
+  return { segments: [], sceneMoments: [], contentUnits: [], storyboardLines: [] }
+}
+
+function titleOfRecord(record: ScriptBlockUsageRecord) {
+  return String(record.title ?? record.name ?? record.label ?? `#${record.ID}`)
+}
+
 function groupScriptsByCategory(scripts: Script[]) {
   const groups = new Map<string, Script[]>()
   for (const script of scripts) {
@@ -835,6 +1236,23 @@ function scriptReadiness(script: Script, versionCount: number, bodyLength: numbe
   if (versionCount > 0) score += 25
   if (script.summary || script.description || script.plot_summary) score += 20
   return Math.min(100, score)
+}
+
+async function saveScriptDraft(projectId: number, scriptId: number, draft: Partial<Script>) {
+  const { data } = await api.put<Script>(`/projects/${projectId}/scripts/${scriptId}`, draft)
+  return data
+}
+
+function scriptDraftSourceText(draft: Partial<Script>, script: Script) {
+  return String(draft.content ?? draft.raw_source ?? script.content ?? script.raw_source ?? '')
+}
+
+function scriptVersionSourceText(version: ScriptVersion) {
+  return String(version.content || version.raw_source || '')
+}
+
+function normalizeComparableScriptText(value: string) {
+  return value.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
 }
 
 function formatDate(value?: string) {

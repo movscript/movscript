@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, SlidersHorizontal, Trash2 } from 'lucide-react'
 
-import { createSemanticEntity, deleteSemanticEntity, listSemanticEntities, semanticEntityConfig, updateSemanticEntity, type SemanticEntityConfig, type SemanticEntityPayload, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { createSemanticEntity, deleteSemanticEntity, getSourceLockStatus, listSemanticEntities, semanticEntityConfig, updateSemanticEntity, type SemanticEntityConfig, type SemanticEntityPayload, type SemanticEntityRecord, type SourceLockStatus } from '@/api/semanticEntities'
 import { toast } from '@/store/toastStore'
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Textarea } from '@movscript/ui'
 
@@ -43,14 +43,25 @@ export function SemanticEntityCrudDialog({
   const advancedFields = useMemo(() => fields.filter((field) => isAdvancedField(config.kind, field.key)), [config.kind, fields])
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments') && Boolean(projectId)
-  const canDeleteRecord = !['scriptVersions', 'scriptBlocks'].includes(config.kind)
+  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments' || config.kind === 'storyboardLines') && Boolean(projectId)
+  const canDeleteRecord = !isDeleteProtectedKind(config.kind)
+  const isImmutableRecord = mode === 'edit' && isImmutableKind(config.kind)
+  const sourceLockEnabled = mode === 'edit' && Boolean(projectId && record?.ID && sourceLockSupportedKind(config.kind))
 
   const { data: scriptBlocks = [] } = useQuery({
     queryKey: ['semantic-crud-dialog', projectId, 'script-blocks'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')),
     enabled: enableScriptBlockLookups,
   })
+
+  const { data: sourceLock } = useQuery<SourceLockStatus>({
+    queryKey: ['semantic-source-lock', projectId, config.kind, record?.ID],
+    queryFn: () => getSourceLockStatus(projectId!, config, record!.ID),
+    enabled: sourceLockEnabled,
+  })
+
+  const lockedFields = useMemo(() => new Set(sourceLock?.locked_fields ?? []), [sourceLock])
+  const sourceLockReason = sourceLockReasonText(sourceLock)
 
   const lookupOptions = useMemo(() => {
     if (!enableScriptBlockLookups) return {}
@@ -133,6 +144,14 @@ export function SemanticEntityCrudDialog({
             {config.requiredHint && mode === 'create' ? (
               <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">{config.requiredHint}</p>
             ) : null}
+            {sourceLock?.locked ? (
+              <div className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">来源已锁定</p>
+                <p className="mt-1 text-xs leading-5 text-amber-700 dark:text-amber-300">
+                  {sourceLockReason}。已锁定字段：{sourceLock.locked_fields.map((key) => fieldLabel(fields, key)).join('、')}；标题、描述、状态等非来源内容仍可继续编辑。
+                </p>
+              </div>
+            ) : null}
             <div className="grid gap-4 md:grid-cols-2">
               {basicFields.map((field) => (
                 <FieldControl
@@ -141,6 +160,8 @@ export function SemanticEntityCrudDialog({
                   field={field}
                   value={form[field.key]}
                   optionsOverride={lookupOptions[field.key]}
+                  locked={lockedFields.has(field.key)}
+                  lockReason={sourceLockReason}
                   onChange={(value) => setForm((prev) => ({ ...prev, [field.key]: value }))}
                 />
               ))}
@@ -169,6 +190,8 @@ export function SemanticEntityCrudDialog({
                         value={form[field.key]}
                         optionsOverride={lookupOptions[field.key]}
                         advanced
+                        locked={lockedFields.has(field.key)}
+                        lockReason={sourceLockReason}
                         onChange={(value) => setForm((prev) => ({ ...prev, [field.key]: value }))}
                       />
                     ))}
@@ -186,7 +209,7 @@ export function SemanticEntityCrudDialog({
               </Button>
             ) : null}
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>取消</Button>
-            <Button type="submit" loading={saving}>{mode === 'create' ? '创建' : '保存'}</Button>
+            {isImmutableRecord ? null : <Button type="submit" loading={saving}>{mode === 'create' ? '创建' : '保存'}</Button>}
           </DialogFooter>
         </form>
       </DialogContent>
@@ -199,6 +222,8 @@ function FieldControl({
   field,
   value,
   optionsOverride,
+  locked = false,
+  lockReason,
   advanced = false,
   onChange,
 }: {
@@ -206,12 +231,15 @@ function FieldControl({
   field: SemanticEntityConfig['fields'][number]
   value: string | boolean
   optionsOverride?: Array<{ value: string; label: string }>
+  locked?: boolean
+  lockReason?: string
   advanced?: boolean
   onChange: (value: string | boolean) => void
 }) {
   const common = {
     id: `semantic-${configKind}-${field.key}`,
     required: field.required,
+    disabled: locked,
   }
 
   return (
@@ -244,6 +272,7 @@ function FieldControl({
             <input
               type="checkbox"
               checked={Boolean(value)}
+              disabled={locked}
               onChange={(event) => onChange(event.target.checked)}
             />
             启用
@@ -259,9 +288,34 @@ function FieldControl({
           />
         )}
       </div>
-      {field.helper ? <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p> : null}
+      {locked && lockReason ? (
+        <p className="mt-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">{lockReason}</p>
+      ) : field.helper ? (
+        <p className="mt-1 text-[11px] text-muted-foreground">{field.helper}</p>
+      ) : null}
     </div>
   )
+}
+
+function fieldLabel(fields: SemanticEntityConfig['fields'], key: string) {
+  return fields.find((field) => field.key === key)?.label ?? key
+}
+
+function sourceLockReasonText(status?: SourceLockStatus) {
+  if (!status?.locked) return undefined
+  const first = status.reasons[0]
+  if (!first) return '来源已锁定，已有下游对象引用当前记录'
+  const more = status.reasons.length > 1 ? ` 等 ${status.reasons.length} 类下游对象` : ''
+  return `${first.message}${more}`
+}
+
+function sourceLockSupportedKind(kind: SemanticEntityConfig['kind']) {
+  return kind === 'productions' ||
+    kind === 'segments' ||
+    kind === 'sceneMoments' ||
+    kind === 'storyboardScripts' ||
+    kind === 'storyboardLines' ||
+    kind === 'contentUnits'
 }
 
 function formatScriptBlockOption(record: SemanticEntityRecord) {
@@ -284,13 +338,17 @@ function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {
 
 const basicIdFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id'],
-  contentUnits: ['segment_id', 'scene_moment_id', 'script_block_id'],
+  sceneMoments: ['segment_id', 'script_block_id'],
+  contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'storyboard_line_id', 'script_block_id'],
+  storyboardLines: ['storyboard_script_id', 'storyboard_version_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
   keyframes: ['scene_moment_id', 'content_unit_id'],
 }
 
 const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id', 'progress'],
-  contentUnits: ['segment_id', 'scene_moment_id', 'script_block_id'],
+  sceneMoments: ['segment_id', 'script_block_id'],
+  contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'storyboard_line_id', 'script_block_id'],
+  storyboardLines: ['storyboard_script_id', 'storyboard_version_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
   assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_slot_id'],
 }
 
@@ -337,4 +395,12 @@ function buildPayload(fields: SemanticEntityConfig['fields'], form: FormState): 
 function defaultValueForField(type: SemanticEntityConfig['fields'][number]['type']) {
   if (type === 'boolean') return false
   return ''
+}
+
+function isImmutableKind(kind: SemanticEntityConfig['kind']) {
+  return kind === 'scriptVersions' || kind === 'storyboardVersions'
+}
+
+function isDeleteProtectedKind(kind: SemanticEntityConfig['kind']) {
+  return isImmutableKind(kind) || kind === 'scriptBlocks'
 }

@@ -10,10 +10,11 @@ import (
 
 func (h *SemanticEntityHandler) ListSegments(c *gin.Context) {
 	items, err := h.semantic.ListSegments(c.Request.Context(), semanticapp.SegmentFilter{
-		ProjectID:    parseID(c.Param("id")),
-		ProductionID: parseID(c.Query("production_id")),
-		TextBlockID:  parseID(c.Query("text_block_id")),
-		Status:       c.Query("status"),
+		ProjectID:     parseID(c.Param("id")),
+		ProductionID:  parseID(c.Query("production_id")),
+		TextBlockID:   parseID(c.Query("text_block_id")),
+		ScriptBlockID: parseID(c.Query("script_block_id")),
+		Status:        c.Query("status"),
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
@@ -95,8 +96,9 @@ func (h *SemanticEntityHandler) PatchProductionTextBlock(c *gin.Context) {
 
 func (h *SemanticEntityHandler) ListSceneMoments(c *gin.Context) {
 	items, err := h.semantic.ListSceneMoments(c.Request.Context(), semanticapp.SceneMomentFilter{
-		ProjectID: parseID(c.Param("id")),
-		SegmentID: parseID(c.Query("segment_id")),
+		ProjectID:     parseID(c.Param("id")),
+		SegmentID:     parseID(c.Query("segment_id")),
+		ScriptBlockID: parseID(c.Query("script_block_id")),
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
