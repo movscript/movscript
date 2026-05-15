@@ -307,15 +307,105 @@ export function plannerPlanSnapshotFixture(): AgentPlanSnapshot {
 }
 
 export function traceSummaryFixture(runId: string): AgentRunTraceSummary {
+  const events = traceEventsFixture(runId)
+  const byKind = events.reduce<AgentRunTraceSummary['byKind']>((counts, event) => {
+    counts[event.kind] = (counts[event.kind] ?? 0) + 1
+    return counts
+  }, {})
   return {
     runId,
-    total: 2,
-    byKind: { run: 1, tool_call: 1 },
-    latestEvent: traceEventsFixture(runId).at(-1),
+    total: events.length,
+    byKind,
+    latestEvent: events.at(-1),
   }
 }
 
 export function traceEventsFixture(runId: string): AgentTraceEvent[] {
+  const modelEvents: AgentTraceEvent[] = runId === WORKER_RUN_ID
+    ? [
+        {
+          id: `trace_${runId}_model_request`,
+          runId,
+          kind: 'model_call',
+          title: 'Model HTTP request sent',
+          status: 'started',
+          summary: 'POST /api/v1/model-gateway/chat/completions',
+          data: {
+            phase: 'request',
+            latencyMs: 0,
+            request: {
+              url: 'http://localhost:8765/api/v1/model-gateway/chat/completions',
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: {
+                model: 'model_config:e2e',
+                messages: [
+                  { role: 'system', content: '你是素材风险审计 worker。' },
+                  { role: 'user', content: '请检查当前项目素材风险。' },
+                ],
+                tools: [{
+                  type: 'function',
+                  function: {
+                    name: 'movscript_review_assets',
+                    description: 'Review asset coverage for a production.',
+                    parameters: {
+                      type: 'object',
+                      properties: {
+                        productionId: { type: 'number' },
+                      },
+                    },
+                  },
+                }],
+                tool_choice: 'auto',
+                stream: false,
+              },
+            },
+          },
+          createdAt: '2026-05-12T09:00:03.000Z',
+        },
+        {
+          id: `trace_${runId}_model_response`,
+          runId,
+          kind: 'model_call',
+          title: 'Model HTTP response received',
+          status: 'completed',
+          summary: 'HTTP 200 in 321ms',
+          data: {
+            phase: 'response',
+            latencyMs: 321,
+            request: {
+              body: {
+                messages: [
+                  { role: 'system', content: '你是素材风险审计 worker。' },
+                  { role: 'user', content: '请检查当前项目素材风险。' },
+                ],
+                tools: [{
+                  type: 'function',
+                  function: { name: 'movscript_review_assets', parameters: { type: 'object', properties: { productionId: { type: 'number' } } } },
+                }],
+                tool_choice: 'auto',
+                stream: false,
+              },
+            },
+            response: {
+              status: 200,
+              statusText: 'OK',
+              ok: true,
+              headers: { 'content-type': 'application/json' },
+              bodyText: '{"id":"chatcmpl_e2e","choices":[{"message":{"content":"发现缺少主视觉覆盖。"}}]}',
+              parsedBody: { id: 'chatcmpl_e2e' },
+              content: '发现缺少主视觉覆盖。',
+            },
+            finish_reason: 'stop',
+            content_chars: 10,
+            usage: { input_tokens: 42, output_tokens: 8 },
+            tool_calls: [],
+          },
+          createdAt: '2026-05-12T09:00:04.000Z',
+          completedAt: '2026-05-12T09:00:04.321Z',
+        },
+      ]
+    : []
   return [
     {
       id: `trace_${runId}_start`,
@@ -326,6 +416,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
       summary: runId === WORKER_RUN_ID ? 'Einstein开始素材风险审计。' : 'Planner started plan orchestration.',
       createdAt: '2026-05-12T09:00:01.000Z',
     },
+    ...modelEvents,
     {
       id: `trace_${runId}_tool`,
       runId,

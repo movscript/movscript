@@ -94,7 +94,7 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 				return len(items), err
 			}},
 			deleteBlocker{"preview_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, "preview_timeline_items", projectID, "segment_id = ?", itemID)
+				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "preview_timeline_items", ForeignKey: "segment_id", ForeignKeyID: itemID})
 				return count, err
 			}},
 			deleteBlocker{"asset_slot", func() (int, error) {
@@ -102,7 +102,7 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 				return len(items), err
 			}},
 			deleteBlocker{"work_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, "work_items", projectID, "target_type = ? AND target_id = ?", "segment", itemID)
+				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "work_items", TargetType: "segment", TargetID: itemID})
 				return count, err
 			}},
 		)
@@ -121,7 +121,7 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 				return len(items), err
 			}},
 			deleteBlocker{"preview_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, "preview_timeline_items", projectID, "scene_moment_id = ?", itemID)
+				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "preview_timeline_items", ForeignKey: "scene_moment_id", ForeignKeyID: itemID})
 				return count, err
 			}},
 			deleteBlocker{"asset_slot", func() (int, error) {
@@ -129,7 +129,7 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 				return len(items), err
 			}},
 			deleteBlocker{"work_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, "work_items", projectID, "target_type = ? AND target_id = ?", "scene_moment", itemID)
+				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "work_items", TargetType: "scene_moment", TargetID: itemID})
 				return count, err
 			}},
 		)
@@ -158,7 +158,7 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 				return len(items), err
 			}},
 			deleteBlocker{"preview_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, "preview_timeline_items", projectID, "content_unit_id = ?", itemID)
+				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "preview_timeline_items", ForeignKey: "content_unit_id", ForeignKeyID: itemID})
 				return count, err
 			}},
 			deleteBlocker{"asset_slot", func() (int, error) {
@@ -166,18 +166,18 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 				return len(items), err
 			}},
 			deleteBlocker{"delivery_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, "delivery_timeline_items", projectID, "content_unit_id = ?", itemID)
+				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "delivery_timeline_items", ForeignKey: "content_unit_id", ForeignKeyID: itemID})
 				return count, err
 			}},
 			deleteBlocker{"work_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, "work_items", projectID, "target_type = ? AND target_id = ?", "content_unit", itemID)
+				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "work_items", TargetType: "content_unit", TargetID: itemID})
 				return count, err
 			}},
 		)
 	case "keyframe":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
 			deleteBlocker{"preview_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, "preview_timeline_items", projectID, "keyframe_id = ?", itemID)
+				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "preview_timeline_items", ForeignKey: "keyframe_id", ForeignKeyID: itemID})
 				return count, err
 			}},
 			deleteBlocker{"asset_slot", func() (int, error) {

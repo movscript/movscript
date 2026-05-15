@@ -56,7 +56,6 @@
     "movscript.workflow.production-proposal",
     "movscript.workflow.asset-candidate-generation",
     "movscript.workflow.content-unit-proposal",
-    "movscript.workflow.content-unit-media-proposal",
     "movscript.workflow.storyboard-gap-review",
     "movscript.workflow.visual-generation",
     "movscript.expertise.storyboard.general-director"

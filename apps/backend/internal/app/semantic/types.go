@@ -12,6 +12,15 @@ type RelationFilter struct {
 	Status     string
 }
 
+type ProjectItemCountFilter struct {
+	ProjectID    uint
+	Table        string
+	ForeignKey   string
+	ForeignKeyID uint
+	TargetType   string
+	TargetID     uint
+}
+
 type ScriptVersionFilter struct {
 	ProjectID uint
 	ScriptID  uint

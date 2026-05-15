@@ -664,7 +664,7 @@ export default function AIAgentRunPage() {
                       <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
                         <ChevronRight size={10} className="open:hidden" />
                         <ChevronDown size={10} className="hidden open:block" />
-                        大模型请求详情
+                        {view.modelDetail.title}
                       </summary>
                       <ModelCallDetail detail={view.modelDetail} />
                     </details>
@@ -738,6 +738,11 @@ function TraceDetailLine({ label, value }: { label: string; value: string }) {
 function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTraceView>['modelDetail']> }) {
   return (
     <div className="mt-1 space-y-1">
+      {detail.note && (
+        <div className="rounded bg-muted/20 px-2 py-1 text-[10px] leading-relaxed text-muted-foreground">
+          {detail.note}
+        </div>
+      )}
       {detail.messages.length > 0 && (
         <div className="space-y-1">
           <div className="text-[9px] uppercase tracking-wide text-muted-foreground">请求消息</div>

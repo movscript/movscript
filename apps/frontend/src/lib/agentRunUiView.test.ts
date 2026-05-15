@@ -132,6 +132,9 @@ test('agentTraceView exposes HTTP response and final model result separately', (
   }))
   const responseGroup = view.contextGroups.find((group) => group.label === 'HTTP 响应')
   const resultGroup = view.contextGroups.find((group) => group.label === '模型结果')
+  assert.equal(view.title, '收到模型 HTTP 响应')
+  assert.equal(view.modelDetail?.kind, 'http')
+  assert.equal(view.modelDetail?.title, '大模型 HTTP 详情')
   assert.equal(responseGroup?.items.some((item) => item.label === '响应预览' && item.value === 'reply body'), true)
   assert.equal(responseGroup?.items.some((item) => item.label === '解析 ID' && item.value === 'chatcmpl_1'), true)
   assert.equal(resultGroup?.items.some((item) => item.label === '结束原因' && item.value === 'stop'), true)
@@ -139,6 +142,24 @@ test('agentTraceView exposes HTTP response and final model result separately', (
   assert.equal(view.modelDetail?.response?.content, 'reply body')
   assert.equal(view.modelDetail?.response?.parsedId, 'chatcmpl_1')
   assert.equal(view.modelDetail?.result?.finishReason, 'stop')
+})
+
+test('agentTraceView distinguishes model result summary from HTTP transport response', () => {
+  const view = agentTraceView(traceEvent({
+    kind: 'model_call',
+    title: 'Model HTTP response received',
+    data: {
+      finish_reason: 'stop',
+      content_chars: 42,
+      usage: { input_tokens: 20, output_tokens: 9 },
+      tool_calls: [],
+    },
+  }))
+  assert.equal(view.title, '汇总模型输出')
+  assert.equal(view.behavior, '记录模型本轮输出摘要')
+  assert.equal(view.modelDetail?.kind, 'result')
+  assert.equal(view.modelDetail?.title, '模型输出汇总')
+  assert.match(view.modelDetail?.note ?? '', /不是底层 HTTP 传输记录/)
 })
 
 test('agentTraceView exposes full model request tools for detail panel', () => {

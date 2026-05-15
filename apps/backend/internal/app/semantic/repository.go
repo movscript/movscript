@@ -21,7 +21,7 @@ type repository interface {
 	WithTx(ctx context.Context, fn func(repository) error) error
 	PatchProjectStyle(ctx context.Context, projectID uint, patch ProjectStylePatch) (domainproject.Project, error)
 	ListRelations(ctx context.Context, filter RelationFilter) ([]domainsemantic.EntityRelation, error)
-	CountProjectItems(ctx context.Context, table string, projectID uint, where string, args ...any) (int, error)
+	CountProjectItems(ctx context.Context, filter ProjectItemCountFilter) (int, error)
 	ListScriptVersions(ctx context.Context, filter ScriptVersionFilter) ([]domainsemantic.ScriptVersion, error)
 	LoadScriptForProject(ctx context.Context, projectID uint, scriptID uint) (domainscript.ScriptSnapshot, error)
 	CreateScriptVersion(ctx context.Context, projectID uint, input CreateScriptVersionInput, versionNumber int, createdByID *uint) (domainsemantic.ScriptVersion, error)
@@ -240,15 +240,18 @@ func entityRelationsFromModels(items []persistencemodel.EntityRelation) []domain
 	return result
 }
 
-func (r *gormRepository) CountProjectItems(ctx context.Context, table string, projectID uint, where string, args ...any) (int, error) {
-	table = strings.TrimSpace(table)
+func (r *gormRepository) CountProjectItems(ctx context.Context, filter ProjectItemCountFilter) (int, error) {
+	table := strings.TrimSpace(filter.Table)
 	if table == "" {
 		return 0, ErrInvalidInput{Err: errors.New("table is required")}
 	}
 	var count int64
-	q := r.db.WithContext(ctx).Table(table).Where("project_id = ? AND deleted_at IS NULL", projectID)
-	if strings.TrimSpace(where) != "" {
-		q = q.Where(where, args...)
+	q := r.db.WithContext(ctx).Table(table).Where("project_id = ? AND deleted_at IS NULL", filter.ProjectID)
+	if foreignKey := strings.TrimSpace(filter.ForeignKey); foreignKey != "" {
+		q = q.Where(fmt.Sprintf("%s = ?", foreignKey), filter.ForeignKeyID)
+	}
+	if targetType := strings.TrimSpace(filter.TargetType); targetType != "" {
+		q = q.Where("target_type = ? AND target_id = ?", targetType, filter.TargetID)
 	}
 	if err := q.Count(&count).Error; err != nil {
 		return 0, err

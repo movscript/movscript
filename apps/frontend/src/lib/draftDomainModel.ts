@@ -1,4 +1,4 @@
-import { getActiveSchemaForKind, type JSONSchema7 } from '@movscript/draft-schemas'
+import { getActiveSchemaForKind, getDraftSchemaEntry, type JSONSchema7 } from '@movscript/draft-schemas'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 import type { AgentDraft, AgentDraftKind } from '@/lib/localAgentClient'
 
@@ -192,7 +192,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
   },
   content_unit_media_proposal: {
     kind: 'content_unit_media_proposal',
-    title: 'Content unit media proposal',
+    title: 'Legacy content unit media proposal',
     targetEntityType: 'content_unit',
     contentSchemaId: 'movscript.content_unit_media_proposal.v1',
     seed: {
@@ -205,7 +205,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
     fieldGuide: {
       owns: ['media_plans', 'acceptance_criteria'],
       references: ['content_unit', 'scene_moments', 'asset_slots', 'reference_resources'],
-      forbids: ['generation_job_submission', 'resource_binding_apply', 'final_media_generation_jobs'],
+      forbids: ['new_draft_creation', 'generation_job_submission', 'resource_binding_apply', 'final_media_generation_jobs'],
     },
     applyBoundary: {
       backendApply: 'draft_only',
@@ -247,9 +247,12 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
 export function getDraftDomainModel(kind: AgentDraftKind): DraftDomainModel | null {
   const model = DRAFT_DOMAIN_MODELS[kind]
   if (!model) return null
+  const schema = model.contentSchemaId
+    ? getDraftSchemaEntry(model.contentSchemaId)?.jsonSchema ?? getActiveSchemaForKind(kind).jsonSchema
+    : undefined
   return {
     ...model,
-    ...(model.contentSchemaId ? { contentSchema: getActiveSchemaForKind(kind).jsonSchema } : {}),
+    ...(schema ? { contentSchema: schema } : {}),
   }
 }
 

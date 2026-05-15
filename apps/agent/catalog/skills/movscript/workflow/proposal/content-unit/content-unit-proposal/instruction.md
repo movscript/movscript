@@ -12,14 +12,15 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 
 边界：
 - 此 workflow 只处理 content unit 结构、表达单元、shot/narration/caption/transition/music beat、剧情推进、情绪推进和钩子等结构性内容。
-- 关键帧、视频候选和生成计划交给 content_unit_media_proposal。
+- 关键帧、图片、视频或镜头真实生成交给 visual_generation；不要创建 content_unit_media_proposal 新草稿。
 - 素材候选计划交给 asset_proposal。
 
 上下文缺失回退：
 - 缺 production、segment 或 scene moment 锚点时，交接 production_proposal 或询问用户。
 - 缺必须引用的角色、地点、道具或世界规则时，交接 setting_proposal。
 - 缺素材需求、asset slot 或素材候选方向时，交接 asset_proposal。
-- 缺关键帧、媒体计划、生成约束或视频候选结构时，交接 content_unit_media_proposal。
+- 缺关键帧、图片、视频或镜头输出时，交接 visual_generation。
+- 缺生成前的镜头职责、表达节拍或 prompt intent 时，先在本 workflow 补齐 content unit 结构。
 - 用户要求真实出图或出视频时，交接 visual_generation；本 workflow 只写内容结构。
 
 允许的工具：
@@ -48,7 +49,7 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 
 校验：
 - Content unit 必须归属到明确 production 或 scene/segment 锚点。
-- 结构、媒体计划和素材候选必须保持分离。
+- 结构、素材候选和真实生成必须保持分离；媒体生成不再通过 content_unit_media_proposal 承接。
 - 情绪和钩子必须服务于当前 scene moment 或 production 目标，不能脱离已有设定和剧本事实另起一段。
 - 不确定 production 或 scene 范围时，应询问用户。
 

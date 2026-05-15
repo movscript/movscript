@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Visual Generation",
-  "description": "在生成目标、参考资源、模型能力和审批边界明确后，创建图片或视频生成任务并监控结果。",
+  "description": "在生成目标、参考资源、模型能力和审批边界明确后，创建关键帧、镜头、图片或视频生成任务并监控结果。",
   "priority": 780,
   "enabled": true,
   "triggers": [
@@ -16,6 +16,13 @@
       "any": [
         "生成图片",
         "生成视频",
+        "生成关键帧",
+        "关键帧",
+        "keyframe generation",
+        "keyframe_generation",
+        "shot generation",
+        "shot_generation",
+        "镜头生成",
         "出图",
         "出视频",
         "编辑图片",
@@ -49,6 +56,6 @@
     "tool://movscript_cancel_generation_job"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回最终任务状态、jobId、可用时的输出资源、一致性参考说明、简洁的匹配理由，以及候选集写入结果。",
+  "outputContract": "返回最终任务状态、jobId、生成类型、目标实体、可用时的输出资源、一致性参考说明、简洁的匹配理由，以及候选集写入结果。",
   "instructionTemplatePath": "instruction.md"
 }

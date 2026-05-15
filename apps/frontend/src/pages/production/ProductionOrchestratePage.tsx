@@ -36,7 +36,6 @@ import {
   applyProductionProposal,
   createSemanticEntity,
   deleteSemanticEntity,
-  getSourceLockStatus,
   listSemanticEntities,
   previewProductionProposalApply,
   semanticEntityConfig,
@@ -371,35 +370,6 @@ function stringDraftField(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : ''
 }
 
-type CandidateStatus =
-  | 'pending'            // no conflict, awaiting user review
-  | 'accepted'           // user accepted
-  | 'rejected'           // user rejected
-  | 'conflict_pending'   // duplicate detected, awaiting user decision
-  | 'conflict_overwrite' // user chose to overwrite existing entity
-  | 'conflict_parallel'  // user chose to create alongside existing entity
-
-interface ConflictInfo {
-  conflict_status?: 'none' | 'duplicate' | 'supersedes'
-  conflict_entity_id?: number
-  conflict_entity_name?: string
-  conflict_similarity?: number
-}
-
-interface TrackedCandidate<T> {
-  data: T & ConflictInfo
-  status: CandidateStatus
-}
-
-interface TrackedCandidates {
-  segments: TrackedCandidate<AISegmentCandidate>[]
-  scene_moments: TrackedCandidate<AISceneMomentCandidate>[]
-  creative_references: TrackedCandidate<AICreativeReferenceCandidate>[]
-  asset_slots: TrackedCandidate<AIAssetSlotCandidate>[]
-  content_units: TrackedCandidate<AIContentUnitCandidate>[]
-}
-
-type GuideCounts = Record<keyof TrackedCandidates, number>
 type ProposalNodeDecision = 'accepted' | 'rejected'
 type ProposalNodeDecisions = Record<string, ProposalNodeDecision>
 
@@ -536,7 +506,6 @@ export default function ProductionOrchestratePage() {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [createType, setCreateType] = useState<EntityFilter | null>(null)
   const [editEntry, setEditEntry] = useState<{ type: EntityFilter; record: SemanticEntityRecord } | null>(null)
-  const [candidates, setCandidates] = useState<TrackedCandidates | null>(null)
   const [proposalPreviewDraft, setProposalPreviewDraft] = useState<ProposalDraftContent | null>(null)
   const [proposalNodeDecisions, setProposalNodeDecisions] = useState<ProposalNodeDecisions>({})
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>('structure')
@@ -811,19 +780,6 @@ export default function ProductionOrchestratePage() {
     if (!exists) setSelectedEntityId(null)
   }, [allAssetSlots, allContentUnits, allCreativeReferences, allSceneMoments, allSegments, filter, selectedEntityId])
 
-  const pendingCandidateCount = candidates
-    ? countPending(candidates.segments) + countPending(candidates.scene_moments) +
-    countPending(candidates.creative_references) + countPending(candidates.asset_slots) +
-    countPending(candidates.content_units)
-    : 0
-  const guideCounts: GuideCounts = {
-    segments: allSegments.length,
-    creative_references: allCreativeReferences.length,
-    scene_moments: allSceneMoments.length,
-    asset_slots: allAssetSlots.length,
-    content_units: allContentUnits.length,
-  }
-
   function toggleExpand(id: string) {
     setExpandedIds((prev) => {
       const next = new Set(prev)
@@ -843,44 +799,6 @@ export default function ProductionOrchestratePage() {
 
   function collapseWorkspaceTree() {
     setExpandedIds(new Set())
-  }
-
-  function handleAcceptCandidate(key: keyof TrackedCandidates, clientId: string) {
-    setCandidates((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        [key]: (prev[key] as TrackedCandidate<{ client_id: string }>[]).map((c) =>
-          c.data.client_id === clientId ? { ...c, status: 'accepted' as CandidateStatus } : c
-        ),
-      }
-    })
-  }
-
-  function handleRejectCandidate(key: keyof TrackedCandidates, clientId: string) {
-    setCandidates((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        [key]: (prev[key] as TrackedCandidate<{ client_id: string }>[]).map((c) =>
-          c.data.client_id === clientId ? { ...c, status: 'rejected' as CandidateStatus } : c
-        ),
-      }
-    })
-  }
-
-  function handleConflictDecision(key: keyof TrackedCandidates, clientId: string, decision: 'overwrite' | 'parallel') {
-    setCandidates((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        [key]: (prev[key] as TrackedCandidate<{ client_id: string }>[]).map((c) =>
-          c.data.client_id === clientId
-            ? { ...c, status: (decision === 'overwrite' ? 'conflict_overwrite' : 'conflict_parallel') as CandidateStatus }
-            : c
-        ),
-      }
-    })
   }
 
   function handleSelectProduction(id: string) {
@@ -1023,58 +941,6 @@ export default function ProductionOrchestratePage() {
     })
   }
 
-  function resolvedCandidateSegmentId(clientId?: string) {
-    const text = String(clientId ?? '')
-    if (!text) return selectedSegment?.ID
-    const numericId = Number(text)
-    if (Number.isFinite(numericId) && allSegmentsById.has(numericId)) return numericId
-    const candidate = candidates?.segments.find((item) => item.data.client_id === text)?.data
-    if (!candidate) return selectedSegment?.ID
-    return allSegments.find((segment) => segment.order === candidate.order || segment.title === candidate.title)?.ID ?? selectedSegment?.ID
-  }
-
-  function resolvedCandidateSceneMomentId(clientId?: string, segmentId?: number) {
-    const text = String(clientId ?? '')
-    if (!text) return selectedSceneMoment?.ID
-    const numericId = Number(text)
-    if (Number.isFinite(numericId) && lookup.sceneMomentById.has(numericId)) return numericId
-    const candidate = candidates?.scene_moments.find((item) => item.data.client_id === text)?.data
-    const scopedMoments = segmentId ? allSceneMoments.filter((moment) => moment.segment_id === segmentId) : allSceneMoments
-    if (!candidate) return scopedMoments[0]?.ID ?? selectedSceneMoment?.ID
-    return scopedMoments.find((moment) => moment.order === candidate.order || moment.title === candidate.title)?.ID ?? scopedMoments[0]?.ID ?? selectedSceneMoment?.ID
-  }
-
-  function resolvedCandidateCreativeReferenceId(clientIdOrName?: string) {
-    const text = String(clientIdOrName ?? '').trim()
-    if (!text) return null
-    const numericId = Number(text)
-    if (Number.isFinite(numericId) && lookup.creativeReferenceById.has(numericId)) return numericId
-    const candidate = candidates?.creative_references.find((item) => item.data.client_id === text || item.data.name === text)?.data
-    const name = candidate?.name ?? text
-    const type = candidate?.type
-    return allCreativeReferences.find((reference) => (
-      String(reference.name ?? '') === name &&
-      (!type || String(reference.kind ?? '') === type)
-    ))?.ID ?? null
-  }
-
-  function resolvedCandidateContentUnitId(clientIdOrTitle?: string, segmentId?: number, sceneMomentId?: number) {
-    const text = String(clientIdOrTitle ?? '').trim()
-    if (!text) return null
-    const numericId = Number(text)
-    if (Number.isFinite(numericId) && lookup.contentUnitById.has(numericId)) return numericId
-    const candidate = candidates?.content_units.find((item) => item.data.client_id === text || item.data.description === text)?.data
-    const scopedUnits = allContentUnits.filter((unit) => (
-      (!segmentId || Number(unit.segment_id) === segmentId) &&
-      (!sceneMomentId || Number(unit.scene_moment_id) === sceneMomentId)
-    ))
-    if (!candidate) return scopedUnits.find((unit) => titleOfRecord(unit) === text)?.ID ?? null
-    return scopedUnits.find((unit) => (
-      Number(unit.order) === candidate.order ||
-      String(unit.description ?? unit.title ?? '') === String(candidate.description ?? '')
-    ))?.ID ?? null
-  }
-
   async function linkReferenceToOwner(ownerType: string, ownerId: number | null | undefined, referenceId: number | null | undefined, evidence?: string, role = 'supporting') {
     if (!projectId || !ownerId || !referenceId) return
     await createSemanticEntity(projectId, semanticEntityConfig('creativeReferenceUsages'), {
@@ -1088,148 +954,8 @@ export default function ProductionOrchestratePage() {
     })
   }
 
-  async function linkCandidateReferencesToOwner(ownerType: string, ownerId: number | null | undefined, clientIds: string[] | undefined, evidence?: string) {
-    const referenceIds = uniqueNumbers((clientIds ?? []).map((clientId) => resolvedCandidateCreativeReferenceId(clientId)).filter(isPositiveNumber))
-    for (const referenceId of referenceIds) {
-      await linkReferenceToOwner(ownerType, ownerId, referenceId, evidence)
-    }
-  }
-
   async function linkReferenceToCurrentSegment(referenceId: number, evidence?: string) {
     await linkReferenceToOwner('segment', selectedSegment?.ID, referenceId, evidence, 'supporting')
-  }
-
-  async function acceptSegmentCandidate(data: AISegmentCandidate, overwriteId?: number) {
-    const payload = {
-      production_id: effectiveProductionId || 0,
-      title: data.title,
-      summary: data.summary,
-      kind: 'emotional_function',
-      status: 'draft',
-      order: data.order,
-    }
-    if (overwriteId && await isOverwriteChangingLockedSource(projectId, 'segments', overwriteId, lookup.segmentById.get(overwriteId), payload, ['production_id', 'text_block_id', 'script_block_id', 'parent_segment_id'], '编排段')) return
-    const saved = overwriteId
-      ? await updateSemanticEntity(projectId!, semanticEntityConfig('segments'), overwriteId, payload)
-      : await createSemanticEntity(projectId!, semanticEntityConfig('segments'), payload)
-    handleAcceptCandidate('segments', data.client_id)
-    toast.success(overwriteId ? `编排段「${saved.title}」已覆盖更新` : `编排段「${saved.title}」已创建`)
-    refetch()
-  }
-
-  async function acceptSceneMomentCandidate(data: AISceneMomentCandidate, overwriteId?: number) {
-    const segmentId = resolvedCandidateSegmentId(data.segment_id)
-    const payload = {
-      segment_id: segmentId ?? null,
-      title: data.title,
-      time_text: data.time_text ?? '',
-      location_text: data.location_text ?? '',
-      action_text: data.action_text ?? '',
-      mood: data.mood ?? '',
-      status: 'draft',
-      order: data.order,
-    }
-    if (overwriteId && await isOverwriteChangingLockedSource(projectId, 'sceneMoments', overwriteId, lookup.sceneMomentById.get(overwriteId), payload, ['segment_id', 'script_block_id'], '情景')) return
-    const saved = overwriteId
-      ? await updateSemanticEntity(projectId!, semanticEntityConfig('sceneMoments'), overwriteId, payload)
-      : await createSemanticEntity(projectId!, semanticEntityConfig('sceneMoments'), payload)
-    handleAcceptCandidate('scene_moments', data.client_id)
-    await linkCandidateReferencesToOwner('scene_moment', saved.ID, data.creative_reference_ids, data.action_text ?? data.title)
-    toast.success(overwriteId ? `情景「${saved.title}」已覆盖更新` : `情景「${saved.title}」已创建`)
-    refetch()
-  }
-
-  async function acceptCreativeReferenceCandidate(data: AICreativeReferenceCandidate, overwriteId?: number) {
-    const payload = {
-      name: data.name,
-      kind: data.type,
-      importance: data.importance,
-      description: data.description ?? '',
-      status: 'draft',
-    }
-    const saved = overwriteId
-      ? await updateSemanticEntity(projectId!, semanticEntityConfig('creativeReferences'), overwriteId, payload)
-      : await createSemanticEntity(projectId!, semanticEntityConfig('creativeReferences'), payload)
-    const segmentIds = uniqueNumbers([
-      ...((data.segment_ids ?? []).map((clientId) => resolvedCandidateSegmentId(clientId)).filter(isPositiveNumber)),
-      ...(data.segment_ids?.length ? [] : [selectedSegment?.ID].filter(isPositiveNumber)),
-    ])
-    const sceneMomentIds = uniqueNumbers((data.scene_moment_ids ?? []).map((clientId) => resolvedCandidateSceneMomentId(clientId)).filter(isPositiveNumber))
-    const contentUnitIds = uniqueNumbers((data.content_unit_ids ?? []).map((clientId) => resolvedCandidateContentUnitId(clientId)).filter(isPositiveNumber))
-    for (const segmentId of segmentIds) await linkReferenceToOwner('segment', segmentId, saved.ID, data.description)
-    for (const sceneMomentId of sceneMomentIds) await linkReferenceToOwner('scene_moment', sceneMomentId, saved.ID, data.description)
-    for (const contentUnitId of contentUnitIds) await linkReferenceToOwner('content_unit', contentUnitId, saved.ID, data.description)
-    handleAcceptCandidate('creative_references', data.client_id)
-    toast.success(overwriteId ? `设定资料「${saved.name}」已覆盖更新` : `设定资料「${saved.name}」已创建`)
-    refetch()
-  }
-
-  async function acceptAssetSlotCandidate(data: AIAssetSlotCandidate, overwriteId?: number) {
-    const segmentId = resolvedCandidateSegmentId(data.segment_id)
-    const sceneMomentId = resolvedCandidateSceneMomentId(data.scene_moment_id, segmentId)
-    const contentUnitId = resolvedCandidateContentUnitId(data.content_unit_id, segmentId, sceneMomentId ?? undefined)
-    const ownerType = contentUnitId ? 'content_unit' : sceneMomentId ? 'scene_moment' : segmentId ? 'segment' : ''
-    const ownerId = contentUnitId ?? sceneMomentId ?? segmentId ?? null
-    const creativeReferenceId = resolvedCandidateCreativeReferenceId(data.creative_reference_id)
-    const payload = {
-      name: data.name,
-      kind: data.type,
-      priority: data.priority,
-      description: data.description ?? '',
-      status: 'missing',
-      production_id: effectiveProductionId || null,
-      owner_type: ownerType,
-      owner_id: ownerId,
-      creative_reference_id: creativeReferenceId,
-    }
-    const saved = overwriteId
-      ? await updateSemanticEntity(projectId!, semanticEntityConfig('assetSlots'), overwriteId, payload)
-      : await createSemanticEntity(projectId!, semanticEntityConfig('assetSlots'), payload)
-    handleAcceptCandidate('asset_slots', data.client_id)
-    toast.success(overwriteId ? `素材需求「${saved.name}」已覆盖更新` : `素材需求「${saved.name}」已创建`)
-    refetch()
-  }
-
-  async function acceptContentUnitCandidate(data: AIContentUnitCandidate, overwriteId?: number) {
-    const segmentId = resolvedCandidateSegmentId(data.segment_id)
-    const sceneMomentId = resolvedCandidateSceneMomentId(data.scene_moment_id, segmentId)
-    const payload = {
-      title: data.description ?? `镜头 ${data.order}`,
-      kind: data.type,
-      description: data.description ?? '',
-      shot_size: data.shot_size ?? '',
-      camera_angle: data.camera_angle ?? '',
-      order: data.order,
-      status: 'draft',
-      production_id: effectiveProductionId || null,
-      segment_id: segmentId ?? null,
-      scene_moment_id: sceneMomentId ?? null,
-    }
-    if (overwriteId && await isOverwriteChangingLockedSource(projectId, 'contentUnits', overwriteId, lookup.contentUnitById.get(overwriteId), payload, ['production_id', 'segment_id', 'scene_moment_id', 'storyboard_line_id', 'script_block_id'], '下游内容')) return
-    const saved = overwriteId
-      ? await updateSemanticEntity(projectId!, semanticEntityConfig('contentUnits'), overwriteId, payload)
-      : await createSemanticEntity(projectId!, semanticEntityConfig('contentUnits'), payload)
-    handleAcceptCandidate('content_units', data.client_id)
-    await linkCandidateReferencesToOwner('content_unit', saved.ID, data.creative_reference_ids, data.description)
-    toast.success(overwriteId ? `下游内容「${saved.title}」已覆盖更新` : `下游内容「${saved.title}」已创建`)
-    refetch()
-  }
-
-  const sharedEntityProps = {
-    projectId,
-    productionId: effectiveProductionId,
-    queryKey,
-    expandedIds,
-    onToggleExpand: toggleExpand,
-    onEdit: (type: EntityFilter, record: SemanticEntityRecord) => setEditEntry({ type, record }),
-    onCreateChild: (type: EntityFilter) => setCreateType(type),
-    onAnalyze: handleAnalyzeTarget,
-    candidates,
-    showDiff: false,
-    onAcceptCandidate: handleAcceptCandidate,
-    onRejectCandidate: handleRejectCandidate,
-    onConflictDecision: handleConflictDecision,
-    lookup,
   }
 
   return (
@@ -4294,42 +4020,8 @@ function byOrder<T extends { order?: number; ID: number }>(a: T, b: T) {
   return ao - bo
 }
 
-function countPending<T>(list: TrackedCandidate<T>[]) {
-  return list.filter((c) => c.status === 'pending' || c.status === 'conflict_pending').length
-}
-
 function isPositiveNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
-}
-
-function uniqueNumbers(values: number[]) {
-  return Array.from(new Set(values.filter(isPositiveNumber)))
-}
-
-async function isOverwriteChangingLockedSource(projectId: number | undefined, kind: 'segments' | 'sceneMoments' | 'contentUnits', id: number, record: SemanticEntityRecord | undefined, payload: Record<string, unknown>, sourceKeys: string[], label: string) {
-  if (!record) return false
-  const changedKeys = sourceKeys.filter((key) => Object.prototype.hasOwnProperty.call(payload, key) && !sameNullableId(record[key], payload[key]))
-  if (changedKeys.length === 0) return false
-  if (!projectId) return true
-  try {
-    const status = await getSourceLockStatus(projectId, semanticEntityConfig(kind), id)
-    if (!status.locked) return false
-    toast.error(status.reasons?.[0]?.message ?? `${label}已有下游引用，覆盖不能切换来源关系。请改为创建并行对象。`)
-    return true
-  } catch {
-    toast.error(`${label}来源状态检查失败，请稍后重试。`)
-    return true
-  }
-}
-
-function sameNullableId(left: unknown, right: unknown) {
-  return normalizeNullableId(left) === normalizeNullableId(right)
-}
-
-function normalizeNullableId(value: unknown) {
-  if (value === undefined || value === null || value === '') return null
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? numeric : null
 }
 
 function createDefaultsForType(type: EntityFilter, productionId: number, segmentId?: number, sceneMomentId?: number): Record<string, string | number | boolean | null> {

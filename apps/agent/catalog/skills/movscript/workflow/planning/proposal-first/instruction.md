@@ -20,11 +20,12 @@
 - 素材需求、asset slot、复用边界、素材候选计划 -> asset_proposal。
 - production segments、scene moments、production-local gaps -> production_proposal。
 - 内容单元结构、情绪、钩子、节拍 -> content_unit_proposal。
-- 关键帧或媒体计划 -> content_unit_media_proposal。
+- 关键帧、镜头、图片或视频输出 -> visual_generation。
+- 内容单元里的镜头职责、表达节拍或生成约束需要先结构化 -> content_unit_proposal。
 - 真实生成图片/视频 -> visual_generation。
 
 上游优先级：
-- 同一请求跨多个层级时，先处理最上游且会阻塞下游判断的缺口：project standards -> settings -> asset slots -> production structure -> content units -> media plan -> generation。
+- 同一请求跨多个层级时，先处理最上游且会阻塞下游判断的缺口：project standards -> settings -> asset slots -> production structure -> content units -> generation。
 - 如果用户直接要求下游结果但缺上游上下文，只创建或推荐上游 proposal draft，不在本 workflow 中补完整内容。
 - 如果上下文已足够且用户目标明确，交接对应 workflow，而不是创建额外泛用 draft。
 

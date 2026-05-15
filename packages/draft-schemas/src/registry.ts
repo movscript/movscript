@@ -387,7 +387,8 @@ export const contentUnitMediaProposalSchema = {
   scope: 'content_unit',
   title: 'Content Unit Media Proposal',
   version: '1.0.0',
-  status: 'active',
+  status: 'deprecated',
+  supersededBy: 'movscript.workflow.visual-generation',
   jsonSchema: objectSchema(['media_plans'], {
     media_plans: {
       type: 'array',
@@ -401,8 +402,10 @@ export const contentUnitMediaProposalSchema = {
   }),
   promptSummary: [
     '# movscript.content_unit_media_proposal.v1',
+    'Status: deprecated. Keep this schema only for legacy draft review.',
+    'Use content_unit_proposal for content-unit structure, and visual_generation for keyframe, shot, image, or video generation.',
     'Content shape: { media_plans: Array<{ kind: "image"|"video", prompt, references?, acceptance_criteria? }> }',
-    'Rules: plan reviewable keyframe or video outputs for one content unit; do not create generation jobs.',
+    'Rules: do not create new drafts with this schema; do not create generation jobs from legacy draft review.',
   ].join('\n'),
   examples: [{ name: 'basic', content: { media_plans: [{ kind: 'image', prompt: 'Clean product keyframe.', acceptance_criteria: ['Product is readable.'] }] } }],
 } satisfies DraftSchemaDefinition

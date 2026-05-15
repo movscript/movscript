@@ -3,9 +3,9 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Content Unit Media Proposal",
-  "description": "为已有 content units 起草媒体、关键帧和生成约束计划，不创建生成任务。",
+  "description": "已弃用。历史 content_unit_media_proposal 草稿只用于兼容审阅；新关键帧、镜头、图片或视频请求应进入 visual_generation。",
   "priority": 820,
-  "enabled": true,
+  "enabled": false,
   "triggers": [
     {
       "kind": "intent",
@@ -14,9 +14,6 @@
     {
       "kind": "keyword",
       "any": [
-        "媒体方案",
-        "关键帧",
-        "content unit media",
         "content_unit_media_proposal"
       ]
     }
@@ -38,6 +35,6 @@
   "schemaRefs": [
     "schema://movscript.content_unit_media_proposal.v1"
   ],
-  "outputContract": "返回 draftId、content unit 目标、计划媒体/关键帧数量、validation/preview 状态、阻塞项和下一步动作。",
+  "outputContract": "不要创建新草稿；说明该 workflow 已弃用，并交接 content_unit_proposal 或 visual_generation。",
   "instructionTemplatePath": "instruction.md"
 }
