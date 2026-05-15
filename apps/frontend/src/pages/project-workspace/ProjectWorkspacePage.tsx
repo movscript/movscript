@@ -88,7 +88,7 @@ interface ProjectProposalAssetGroup {
 }
 
 interface ProjectProposalDraftView {
-  mode: 'patch' | 'snapshot'
+  mode: 'snapshot'
   summary: string
   creativeReferences: ProjectProposalDraftEntry[]
   assetSlots: ProjectProposalDraftEntry[]
@@ -177,15 +177,9 @@ function asKey(value: unknown, fallback = '') {
   return asString(value, fallback)
 }
 
-function nestedFields(item: Record<string, unknown>): Record<string, unknown> {
-  return isRecord(item.fields) ? item.fields : {}
-}
-
 function proposalField(item: Record<string, unknown>, keys: string[]): unknown {
-  const fields = nestedFields(item)
   for (const key of keys) {
     if (item[key] !== undefined) return item[key]
-    if (fields[key] !== undefined) return fields[key]
   }
   return undefined
 }
@@ -207,7 +201,7 @@ function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string, data?: W
     const content = JSON.parse(draft.content) as Record<string, unknown>
     const proposal = isRecord(content.proposal) ? content.proposal : undefined
     const appliedEntryKeys = draftAppliedEntryKeySet(draft)
-    const mode = content.mode === 'snapshot' ? 'snapshot' as const : 'patch' as const
+    const mode = 'snapshot' as const
     const creativeReferences = asRecordArray(proposal?.creative_references).map((item, index) => ({
       key: `${draft.id}:creative_references:${index}`,
       kind: 'creative_references' as const,
@@ -241,13 +235,13 @@ function parseProjectProposalDraft(draft: AgentDraft, pageKey?: string, data?: W
         const value = item.id
         return typeof value === 'number' ? `调整 #${value}` : '新增候选'
       })(),
-      ownerKey: asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), ''),
+      ownerKey: asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']), ''),
       raw: item,
     }))
     const assetSlotGroupsMap = new Map<string, ProjectProposalAssetGroup>()
     asRecordArray(proposal?.asset_slots).forEach((item, index) => {
       const ownerKey = asKey(
-        isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']),
+        isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']),
         '',
       )
       const groupKey = ownerKey || 'ungrouped'
@@ -385,11 +379,9 @@ function inferSnapshotDeletionEntries(
       target: `移出 #${record.ID}`,
       raw: {
         id: record.ID,
-        fields: {
-          name: titleOf(record, `设定 #${record.ID}`),
-          status: 'ignored',
-          description: bodyOf(record, ''),
-        },
+        name: titleOf(record, `设定 #${record.ID}`),
+        status: 'ignored',
+        description: bodyOf(record, ''),
       },
     }]
   })
@@ -411,12 +403,10 @@ function inferSnapshotDeletionEntries(
       raw: {
         id: record.ID,
         owner: record.creative_reference_id ? { type: 'creative_reference', id: record.creative_reference_id } : undefined,
-        fields: {
-          name: titleOf(record, `素材需求 #${record.ID}`),
-          status: 'waived',
-          kind: String(record.kind ?? 'image'),
-          description: bodyOf(record, ''),
-        },
+        name: titleOf(record, `素材需求 #${record.ID}`),
+        status: 'waived',
+        kind: String(record.kind ?? 'image'),
+        description: bodyOf(record, ''),
       },
     }]
   })
@@ -431,35 +421,31 @@ function buildProjectProposalSnapshotFromWorkspace(data: WorkspaceData) {
   return {
     creativeReferences: activeReferences.map((record) => ({
       id: record.ID,
-      fields: {
-        name: titleOf(record, `设定 #${record.ID}`),
-        kind: String(record.kind ?? ''),
-        alias: String(record.alias ?? ''),
-        description: String(record.description ?? ''),
-        content: String(record.content ?? ''),
-        importance: String(record.importance ?? ''),
-        status: String(record.status ?? ''),
-        profile_json: String(record.profile_json ?? ''),
-        tags_json: String(record.tags_json ?? ''),
-      },
+      name: titleOf(record, `设定 #${record.ID}`),
+      kind: String(record.kind ?? ''),
+      alias: String(record.alias ?? ''),
+      description: String(record.description ?? ''),
+      content: String(record.content ?? ''),
+      importance: String(record.importance ?? ''),
+      status: String(record.status ?? ''),
+      profile_json: String(record.profile_json ?? ''),
+      tags_json: String(record.tags_json ?? ''),
     })),
     assetSlots: activeAssetSlots.map((record) => ({
       id: record.ID,
       owner: buildProjectProposalSnapshotOwner(record),
-      fields: {
-        name: titleOf(record, `素材需求 #${record.ID}`),
-        kind: String(record.kind ?? 'image'),
-        description: String(record.description ?? ''),
-        slot_key: String(record.slot_key ?? ''),
-        prompt_hint: String(record.prompt_hint ?? ''),
-        status: String(record.status ?? ''),
-        priority: String(record.priority ?? ''),
-        metadata_json: String(record.metadata_json ?? ''),
-        ...(record.production_id ? { production_id: record.production_id } : {}),
-        ...(record.creative_reference_id ? { creative_reference_id: record.creative_reference_id } : {}),
-        ...(record.resource_id ? { resource_id: record.resource_id } : {}),
-        ...(record.locked_asset_slot_id ? { locked_asset_slot_id: record.locked_asset_slot_id } : {}),
-      },
+      name: titleOf(record, `素材需求 #${record.ID}`),
+      kind: String(record.kind ?? 'image'),
+      description: String(record.description ?? ''),
+      slot_key: String(record.slot_key ?? ''),
+      prompt_hint: String(record.prompt_hint ?? ''),
+      status: String(record.status ?? ''),
+      priority: String(record.priority ?? ''),
+      metadata_json: String(record.metadata_json ?? ''),
+      ...(record.production_id ? { production_id: record.production_id } : {}),
+      ...(record.creative_reference_id ? { creative_reference_id: record.creative_reference_id } : {}),
+      ...(record.resource_id ? { resource_id: record.resource_id } : {}),
+      ...(record.locked_asset_slot_id ? { locked_asset_slot_id: record.locked_asset_slot_id } : {}),
     })),
   }
 }
@@ -477,7 +463,7 @@ function buildProjectStyleApplyPayload(draft: AgentDraft) {
   const proposal = isRecord(content.proposal) ? content.proposal : {}
   return JSON.stringify({
     ...content,
-    mode: 'patch',
+    mode: 'snapshot',
     proposal: {
       ...proposal,
       project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
@@ -565,11 +551,9 @@ function buildProjectProposalEntryDiffRows(
   }
 
   const currentFields = current ? { ...current } as Record<string, unknown> : {}
-  const currentNestedFields = current ? nestedFields(current as Record<string, unknown>) : {}
   const currentField = (keys: string[]) => {
     for (const key of keys) {
       if (currentFields[key] !== undefined) return currentFields[key]
-      if (currentNestedFields[key] !== undefined) return currentNestedFields[key]
     }
     return undefined
   }
@@ -608,10 +592,10 @@ function buildProjectProposalEntryDiffRows(
     pushField('锁定素材', currentField(['locked_asset_slot_id']), proposedField(['locked_asset_slot_id']))
 
     const currentOwnerId = current
-      ? asKey(isRecord(current.owner) ? current.owner.client_id ?? current.owner.id : proposalField(current, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), '')
+      ? asKey(isRecord(current.owner) ? current.owner.client_id ?? current.owner.id : proposalField(current, ['creative_reference_id', 'owner_id', 'reference_id']), '')
       : ''
     const currentOwnerLabel = draftEntryOwnerLabel(entry, referenceLabels, currentOwnerId)
-    const proposedOwnerId = asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), '')
+    const proposedOwnerId = asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']), '')
     const proposedOwnerLabel = draftEntryOwnerLabel(entry, referenceLabels, proposedOwnerId)
     if (entry.changeType === 'added' || currentOwnerLabel !== proposedOwnerLabel) {
       rows.push({
@@ -900,7 +884,7 @@ export default function ProjectOrchestrationPage() {
         title: `项目标准提案草稿 - ${project?.name ?? `#${projectId}`}`,
         content: JSON.stringify(buildEmptyProjectProposalDraftContent({
           projectId,
-          mode: 'patch',
+          mode: 'snapshot',
           projectStyle: buildDefaultProjectStylePatch(),
           creativeReferences: [],
           assetSlots: [],
@@ -923,7 +907,7 @@ export default function ProjectOrchestrationPage() {
         metadata: {
           pageOwned: true,
           proposalScope: 'project_standards',
-          proposalMode: 'patch',
+          proposalMode: 'snapshot',
           backendApply: 'project_proposal',
         },
       })

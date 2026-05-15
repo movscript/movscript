@@ -4,6 +4,7 @@ import test from 'node:test'
 import { MCPError } from '../mcpClient.js'
 import type { AgentRun, JSONValue } from '../state/types.js'
 import { KnowledgeManager, loadBuiltinKnowledgeStore } from '../knowledge/index.js'
+import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { executeTool } from './toolExecutor.js'
 
 function testRun(): AgentRun {
@@ -116,6 +117,73 @@ test('executeTool serves runtime knowledge search and bounded get', async () => 
   assert.match((body.result as any)?.contentHash, /^sha256:/)
   assert.equal(typeof (body.result as any)?.sourcePath, 'string')
   assert.equal(((body.result as any)?.content as string).length <= 32, true)
+})
+
+test('executeTool rejects new content unit media proposal drafts', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  await assert.rejects(
+    executeTool({
+      name: 'movscript_create_draft',
+      args: {
+        kind: 'content_unit_media_proposal',
+        proposal: true,
+        content: JSON.stringify({
+          schema: 'movscript.content_unit_media_proposal.v1',
+          scope: 'content_unit_media_proposal',
+          contentUnitId: 1,
+          proposal: { outputs: [{ kind: 'image', prompt: 'frame' }] },
+        }),
+      },
+    }, {
+      ...testOptions({
+        async initialize(): Promise<JSONValue> {
+          return {}
+        },
+        async callTool(): Promise<JSONValue> {
+          throw new Error('MCP should not be called for runtime draft creation')
+        },
+      }),
+      draftStore,
+    }),
+    /content_unit_media_proposal is deprecated and cannot be created/,
+  )
+  assert.deepEqual(draftStore.listDrafts(), [])
+})
+
+test('executeTool creates content unit proposal drafts after media proposal deprecation', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'movscript_create_draft',
+    args: {
+      kind: 'content_unit_proposal',
+      proposal: true,
+      projectId: 1,
+      content: JSON.stringify({
+        schema: 'movscript.content_unit_proposal.v1',
+        scope: 'content_unit_proposal',
+        proposal: {
+          units: [{
+            title: 'Opening shot',
+            kind: 'shot',
+            description: 'Character enters the room.',
+          }],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime draft creation')
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  assert.equal(draftStore.listDrafts()[0]?.kind, 'content_unit_proposal')
 })
 
 test('executeTool enforces per-run knowledge character budget', async () => {

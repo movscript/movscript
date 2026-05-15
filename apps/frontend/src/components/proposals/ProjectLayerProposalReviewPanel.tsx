@@ -84,7 +84,7 @@ export function ProjectLayerProposalReviewPanel({
     if (!projectId || entries.length === 0) return false
     setApplyingDraftId(lockId)
     try {
-      const proposedValue = proposedValueOverride ?? buildProjectLayerDraftContentForEntries(draft, entries, entries.length === 1
+      const proposedValue = proposedValueOverride ?? buildProjectLayerDraftContentForEntries(draft, entries, data, entries.length === 1
         ? `单项提交：${formatProjectLayerProposalEntry(entries[0])}`
         : `批量提交：${entries.length} 项`)
       await localAgentClient.applyDraft(draft.id, {
@@ -116,7 +116,7 @@ export function ProjectLayerProposalReviewPanel({
 
   async function applyEntry(draft: AgentDraft, entry: ProjectLayerProposalEntry) {
     try {
-      const proposedValue = buildProjectLayerDraftContentForEntries(draft, [entry], `单项提交：${formatProjectLayerProposalEntry(entry)}`)
+      const proposedValue = buildProjectLayerDraftContentForEntries(draft, [entry], data, `单项提交：${formatProjectLayerProposalEntry(entry)}`)
       const helperDraft = await localAgentClient.createDraft({
         projectId,
         kind,

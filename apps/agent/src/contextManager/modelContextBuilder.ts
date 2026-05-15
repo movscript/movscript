@@ -592,7 +592,7 @@ const CREATE_DRAFT_TOOL_SCHEMA = {
   properties: {
     kind: {
       type: 'string',
-      enum: ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal', 'content_unit_media_proposal'],
+      enum: ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal'],
     },
     title: { type: 'string', description: 'Optional. Auto-generated from kind + project when omitted for proposal drafts.' },
     content: { type: 'string', description: 'Draft content. Prefer valid JSON for structured drafts.' },

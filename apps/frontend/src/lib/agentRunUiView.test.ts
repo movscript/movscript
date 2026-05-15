@@ -200,11 +200,15 @@ test('agentTraceView explains assistant messages as history writes', () => {
     data: {
       messageId: 'msg_1',
       chars: 24,
+      content: '最终回复正文',
     },
   }))
   assert.equal(view.title, '写入历史消息')
   assert.match(view.impact ?? '', /线程历史/)
   assert.equal(view.contextGroups.some((group) => group.label === '历史写入'), true)
+  assert.equal(view.contextGroups.some((group) => group.items.some((item) => item.label === '内容预览')), true)
+  assert.equal(view.messageDetail?.title, '历史消息详情')
+  assert.equal(view.messageDetail?.content, '最终回复正文')
 })
 
 test('traceKindLabel localizes event kinds', () => {
@@ -235,4 +239,24 @@ test('agentTraceView keeps behavior and impact separated', () => {
   assert.equal(view.behavior, '调用 movscript_get_focus')
   assert.match(view.impact ?? '', /工具结果会进入 run step/)
   assert.equal(view.contextGroups.some((group) => group.label === '工具执行'), true)
+})
+
+test('agentTraceView localizes common planner and worker trace fallbacks', () => {
+  const workerView = agentTraceView(traceEvent({
+    kind: 'run',
+    title: 'Worker started',
+    summary: 'Found missing hero visual coverage.',
+  }))
+  const dispatchView = agentTraceView(traceEvent({
+    kind: 'tool_call',
+    title: 'Subagent dispatch tool call',
+    toolName: 'movscript_spawn_subagent',
+    summary: 'Spawned worker Einstein.',
+  }))
+
+  assert.equal(workerView.title, '执行器启动')
+  assert.equal(workerView.summary, '发现缺少主视觉覆盖。')
+  assert.match(workerView.behavior ?? '', /启动 worker run/)
+  assert.equal(dispatchView.title, '子代理调度工具调用')
+  assert.equal(dispatchView.summary, '已启动执行器 Einstein。')
 })

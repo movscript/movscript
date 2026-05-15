@@ -292,7 +292,7 @@ function inferIntents(message: string, debugContext: AgentDebugContextPanel): st
     ['asset_candidate_generation', ['生成素材', '生成候选', '生成图片候选', '生成视频候选', '图片候选', '视频候选', 'asset candidate']],
     ['setting_prep', ['设定准备', '设定完善', 'creative reference']],
     ['content_unit_proposal', ['content unit proposal', 'content_unit_proposal']],
-    ['visual_generation', ['content unit media', 'content_unit_media_proposal', '媒体方案', '媒体计划', '关键帧', 'keyframe generation', 'shot generation', 'keyframe_generation', 'shot_generation']],
+    ['visual_generation', ['content unit media', 'content_unit_media_proposal', '媒体方案', '媒体计划', '关键帧', 'keyframe generation', 'keyframe_generation']],
     ['visual_generation', [
       '生成图片',
       '生成视频',
@@ -344,7 +344,6 @@ const LABEL_INTENT_ALIASES: Record<string, string> = {
   content_unit_proposal: 'content_unit_proposal',
   content_unit_media_proposal: 'visual_generation',
   keyframe_generation: 'visual_generation',
-  shot_generation: 'visual_generation',
   setting_prep: 'setting_prep',
   visual_generation: 'visual_generation',
   image_edit: 'visual_generation',

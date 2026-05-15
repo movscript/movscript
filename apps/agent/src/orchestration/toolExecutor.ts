@@ -256,6 +256,9 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_create_draft') {
+    if (args.kind === 'content_unit_media_proposal' || args.proposalKind === 'content_unit_media_proposal') {
+      throw new Error('content_unit_media_proposal is deprecated and cannot be created. Use content_unit_proposal for structure or visual_generation for keyframe, shot, image, or video generation.')
+    }
     if (args.proposal === true || args.proposalKind !== undefined) {
       return createProposalDraft(draftStore, run, args) as unknown as JSONValue
     }
@@ -553,7 +556,6 @@ function normalizeProposalDraftKind(value: JSONValue | undefined): AgentDraftKin
     || value === 'project_proposal'
     || value === 'production_proposal'
     || value === 'content_unit_proposal'
-    || value === 'content_unit_media_proposal'
     ? value
     : undefined
 }
@@ -579,8 +581,6 @@ function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: s
           ? DRAFT_CONTENT_SCHEMA_IDS.assetProposal
           : kind === 'content_unit_proposal'
             ? DRAFT_CONTENT_SCHEMA_IDS.contentUnitProposal
-            : kind === 'content_unit_media_proposal'
-              ? DRAFT_CONTENT_SCHEMA_IDS.contentUnitMediaProposal
           : undefined
   if (!requiredSchema) return
   let parsed: unknown
@@ -632,7 +632,7 @@ function inferProposalDraftTarget(
       field: 'proposal',
     }
   }
-  if (kind === 'content_unit_proposal' || kind === 'content_unit_media_proposal') {
+  if (kind === 'content_unit_proposal') {
     return {
       ...(projectId !== undefined ? { projectId } : {}),
       ...(productionId !== undefined ? { entityType: 'production', entityId: productionId } : {}),
@@ -674,7 +674,6 @@ function defaultProposalDraftTitle(
     return `制作提案 - ${targetLabel}`
   }
   if (kind === 'content_unit_proposal') return `内容单元提案 - ${projectLabel}`
-  if (kind === 'content_unit_media_proposal') return `内容单元媒体提案 - ${projectLabel}`
   return `提案草稿 - ${kind}`
 }
 

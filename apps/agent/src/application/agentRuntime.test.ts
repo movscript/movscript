@@ -1056,6 +1056,7 @@ test('simulateApplyDraft dry-runs backend apply without marking draft applied', 
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
       scope: 'project_proposal',
+      mode: 'snapshot',
       proposal: {
         creative_references: [],
         asset_slots: [],
@@ -1717,6 +1718,11 @@ test('emits assistant_delta events from streamed model content', async () => {
     assert.deepEqual(deltas, ['流式', '响应', '继续', '完成'])
     assert.deepEqual(accumulated, ['流式', '流式响应', '流式响应继续', '流式响应继续完成'])
     assert.equal(runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => event.title === 'Model stream delta'), false)
+    const assistant = runtime.getThread(thread.id)?.messages.find((message) => message.id === completed.assistantMessageId)
+    const assistantTrace = runtime.getRunTraceEvents(completed.id, { limit: Number.MAX_SAFE_INTEGER })
+      .find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
+    assert.equal((assistantTrace?.data as any)?.content, assistant?.content)
+    assert.match(String((assistantTrace?.data as any)?.content ?? ''), /流式完成/)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -1992,6 +1998,10 @@ test('assistant content from multiple model turns is preserved in the final chat
     assert.equal(callCount >= 2, true)
     assert.match(assistant?.content ?? '', /先说明一下/)
     assert.match(assistant?.content ?? '', /已完成工具调用/)
+    const assistantTrace = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+      .find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
+    assert.match(String((assistantTrace?.data as any)?.content ?? ''), /先说明一下/)
+    assert.match(String((assistantTrace?.data as any)?.content ?? ''), /已完成工具调用/)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath

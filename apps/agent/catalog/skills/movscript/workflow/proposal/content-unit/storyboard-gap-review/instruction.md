@@ -15,7 +15,7 @@
 - 发现角色、地点、道具、世界规则或 creative reference 缺失时，建议 setting_proposal。
 - 发现素材需求、asset slot、候选计划或验收标准缺失时，建议 asset_proposal。
 - 发现 production 结构、scene moment 或 content unit 缺失时，建议 production_proposal 或 content_unit_proposal。
-- 发现关键帧、媒体计划或生成参数缺失时，建议 content_unit_media_proposal 或 visual_generation。
+- 发现关键帧、媒体计划或生成参数缺失时，建议 visual_generation；若缺内容单元结构，先建议 content_unit_proposal。
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
@@ -32,9 +32,9 @@
 
 流程：
 1. 读取 focus，确认审阅范围。
-2. 读取相关 drafts，分辨结构 proposal、媒体 proposal 和素材 proposal。
+2. 读取相关 drafts，分辨结构 proposal、历史媒体 proposal 和素材 proposal。
 3. 按 content unit 或 scene beat 分组列出缺口：结构缺口、参考缺口、关键帧缺口、素材缺口、生成参数缺口、验收标准缺口。
-4. 为每个缺口指定下一步 workflow，例如 content_unit_proposal、content_unit_media_proposal、asset_proposal 或 visual_generation。
+4. 为每个缺口指定下一步 workflow，例如 content_unit_proposal、asset_proposal 或 visual_generation；不要把新缺口交给 content_unit_media_proposal。
 5. 如果缺口来自未验证信息，标记为未知而不是事实。
 
 校验：

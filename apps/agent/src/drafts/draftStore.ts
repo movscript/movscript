@@ -726,8 +726,8 @@ function validateProjectProposalDraft(
   if (parsed.scope !== expectedScope) {
     issues.push({ path: '/scope', message: `Project-level proposal draft scope must be ${expectedScope}.`, severity: 'error' })
   }
-  if (parsed.mode !== undefined && parsed.mode !== 'patch' && parsed.mode !== 'snapshot') {
-    issues.push({ path: '/mode', message: 'Project proposal draft mode must be patch or snapshot when present.', severity: 'error' })
+  if (parsed.mode !== 'snapshot') {
+    issues.push({ path: '/mode', message: 'Project proposal draft mode must be "snapshot".', severity: 'error' })
   }
 
   const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
@@ -756,7 +756,7 @@ function validateProjectProposalDraft(
   if (parsed.operations !== undefined) {
       issues.push({
         path: '/operations',
-        message: 'Project proposal drafts must not include operations; use patch mode or snapshot mode over creative_references and asset_slots.',
+        message: 'Project proposal drafts must not include operations; edit the proposed backend snapshot directly.',
         severity: 'error',
       })
   }
@@ -1138,13 +1138,13 @@ function validateProjectProposalPatchNode(
   issues: AgentDraftValidationIssue[],
 ): void {
   const allowedKeys = key === 'creative_references'
-    ? new Set(['client_id', 'id', 'fields', 'merge_candidates'])
-    : new Set(['client_id', 'id', 'owner', 'fields'])
+    ? new Set(['client_id', 'id', 'merge_candidates', 'source_script_id', 'source_analysis_id', 'kind', 'name', 'alias', 'description', 'content', 'importance', 'status', 'profile_json', 'tags_json'])
+    : new Set(['client_id', 'id', 'owner', 'production_id', 'creative_reference_id', 'creative_reference_state_id', 'owner_type', 'owner_id', 'kind', 'name', 'description', 'slot_key', 'prompt_hint', 'status', 'priority', 'resource_id', 'locked_asset_slot_id', 'metadata_json'])
   for (const nodeKey of Object.keys(node)) {
     if (!allowedKeys.has(nodeKey)) {
       issues.push({
         path: `${basePath}/${nodeKey}`,
-        message: 'Project proposal nodes only allow client_id, id, fields, owner, and merge_candidates according to node type. Do not use action.',
+        message: 'Project proposal snapshot nodes only allow direct backend snapshot fields. Do not use fields wrappers or action fields.',
         severity: 'error',
       })
     }
@@ -1153,7 +1153,7 @@ function validateProjectProposalPatchNode(
     if (node[forbidden] !== undefined) {
       issues.push({
         path: `${basePath}/${forbidden}`,
-        message: 'Project proposal nodes are partial merge patches; do not use operation fields.',
+        message: 'Project proposal nodes are editable snapshot rows; do not use operation fields.',
         severity: 'error',
       })
     }
@@ -1162,22 +1162,21 @@ function validateProjectProposalPatchNode(
   if (node.id !== undefined && (id === undefined || id <= 0)) {
     issues.push({ path: `${basePath}/id`, message: 'Project proposal id must be a positive existing entity id when present.', severity: 'error' })
   }
-  const fields = isRecord(node.fields) ? node.fields : undefined
-  if (node.fields !== undefined && !fields) {
-    issues.push({ path: `${basePath}/fields`, message: 'Project proposal fields must be an object.', severity: 'error' })
+  if (node.fields !== undefined) {
+    issues.push({ path: `${basePath}/fields`, message: 'Project proposal snapshot nodes must put editable values directly on the node; fields is deprecated.', severity: 'error' })
   }
-  if (id === undefined && !patchFieldsName(fields)) {
-    issues.push({ path: `${basePath}/fields/name`, message: `New project proposal ${key} entries require fields.name.`, severity: 'error' })
+  if (id === undefined && !snapshotNodeName(node)) {
+    issues.push({ path: `${basePath}/name`, message: `New project proposal ${key} entries require name.`, severity: 'error' })
   }
   if (key === 'creative_references') {
     validateProjectProposalMergeCandidates(node.merge_candidates, id, basePath, issues)
   }
   if (key === 'asset_slots') {
     validateProjectProposalOwner(node.owner, basePath, issues)
-    const ownerType = isRecord(node.owner) ? node.owner.type : fields?.owner_type
+    const ownerType = isRecord(node.owner) ? node.owner.type : node.owner_type
     if (typeof ownerType === 'string' && ownerType.trim() && !isProjectProposalAssetSlotOwnerType(ownerType)) {
       issues.push({
-        path: isRecord(node.owner) ? `${basePath}/owner/type` : `${basePath}/fields/owner_type`,
+        path: isRecord(node.owner) ? `${basePath}/owner/type` : `${basePath}/owner_type`,
         message: 'Project proposal asset slot owner type must use a backend snake_case owner type such as creative_reference, scene_moment, or content_unit.',
         severity: 'error',
       })
@@ -1238,8 +1237,8 @@ function isProjectProposalAssetSlotOwnerType(value: string): boolean {
   ]).has(value.trim())
 }
 
-function patchFieldsName(fields: Record<string, unknown> | undefined): boolean {
-  return typeof fields?.name === 'string' && fields.name.trim().length > 0
+function snapshotNodeName(node: Record<string, unknown>): boolean {
+  return typeof node.name === 'string' && node.name.trim().length > 0
 }
 
 function hasScriptSplitBodyText(value: Record<string, unknown>): boolean {

@@ -11,6 +11,7 @@ export interface AgentTraceView {
   impact?: string
   contextGroups: AgentTraceContextGroup[]
   modelDetail?: AgentTraceModelDetail
+  messageDetail?: AgentTraceMessageDetail
 }
 
 export interface AgentTraceContextGroup {
@@ -53,6 +54,14 @@ export interface AgentTraceModelToolDetail {
   name: string
   description?: string
   parameterKeys: string[]
+}
+
+export interface AgentTraceMessageDetail {
+  title: string
+  messageId?: string
+  source?: string
+  content: string
+  contentChars: number
 }
 
 export function traceEventIdFromHash(hash: string | undefined): string | undefined {
@@ -181,6 +190,7 @@ export function agentTraceView(event: AgentTraceEvent): AgentTraceView {
     impact: traceImpact(event, data, eventType),
     contextGroups: traceContextGroups(event, data, eventType, phase),
     modelDetail: traceModelDetail(event, data),
+    messageDetail: traceMessageDetail(event, data),
   }
 }
 
@@ -218,11 +228,15 @@ function traceTitle(event: AgentTraceEvent, eventType?: string, phase?: string):
   if (event.kind === 'tool_catalog') return '解析可用工具'
   if (event.kind === 'skill') return '激活技能'
   if (event.kind === 'manifest') return '解析 Agent 配置'
+  const localizedTitle = localizedTraceTitle(event.title)
+  if (localizedTitle) return localizedTitle
   return event.title
 }
 
 function traceSummary(event: AgentTraceEvent): string | undefined {
   if (!event.summary) return undefined
+  const localizedSummary = localizedTraceSummary(event.summary)
+  if (localizedSummary) return localizedSummary
   return event.summary.replace(/_/g, ' ')
 }
 
@@ -238,6 +252,8 @@ function traceBehavior(event: AgentTraceEvent, data: Record<string, unknown> | u
   if (event.kind === 'model_call' && event.title === 'Model HTTP response received') return hasModelHTTPResponse(event) ? '解析模型网关返回结果' : '记录模型本轮输出摘要'
   if (event.kind === 'assistant' && event.title === 'Assistant message created') return '把最终回复保存为 assistant 消息'
   if (event.kind === 'tool_call' && event.toolName) return `调用 ${event.toolName}`
+  if (event.kind === 'run' && event.title === 'Worker started') return '启动 worker run，开始执行分配到的任务'
+  if (event.kind === 'run' && event.title === 'Planner started') return '启动 planner run，开始编排任务和子代理'
   if (event.kind === 'policy') return '根据 manifest、风险等级和审批模式判断是否允许工具执行'
   if (event.kind === 'context' && eventType === 'context.run_built') return '把页面焦点、技能、工具和记忆整理成本轮运行输入'
   return undefined
@@ -260,6 +276,8 @@ function traceImpact(event: AgentTraceEvent, data: Record<string, unknown> | und
   }
   if (event.kind === 'tool_call' && event.status === 'completed') return '工具结果会进入 run step，并可能作为下一轮模型上下文'
   if (event.kind === 'tool_call' && event.status === 'failed') return '本次工具没有成功，错误会反馈给模型或用户'
+  if (event.kind === 'run' && event.title === 'Worker started') return '这个 worker 的后续模型调用、工具调用和产物都会归到本次任务'
+  if (event.kind === 'run' && event.title === 'Planner started') return '这个 planner 的后续调度会创建或更新计划任务、worker run 和任务产物'
   if (event.kind === 'assistant' && event.title === 'Assistant message created') return '这条消息会进入线程历史，后续 run 可能把它带入模型请求上下文'
   if (event.kind === 'approval' || event.kind === 'input') return 'run 暂停，等待用户处理后继续'
   return undefined
@@ -369,6 +387,7 @@ function traceContextGroups(event: AgentTraceEvent, data: Record<string, unknown
       item('消息 ID', stringValue(data.messageId)),
       item('回复字符', numberValue(data.chars)),
       item('来源', stringValue(data.source) ?? 'model'),
+      item('内容预览', previewText(data.content)),
     ]))
   }
 
@@ -443,6 +462,19 @@ function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> 
   }
 }
 
+function traceMessageDetail(event: AgentTraceEvent, data: Record<string, unknown> | undefined): AgentTraceMessageDetail | undefined {
+  if (event.kind !== 'assistant' || event.title !== 'Assistant message created' || !data) return undefined
+  const content = stringValue(data.content)
+  if (!content) return undefined
+  return {
+    title: '历史消息详情',
+    messageId: stringValue(data.messageId),
+    source: stringValue(data.source) ?? 'model',
+    content,
+    contentChars: numberValue(data.chars) ?? content.length,
+  }
+}
+
 function hasModelHTTPResponse(event: AgentTraceEvent): boolean {
   return !!recordValue(recordValue(event.data)?.response)
 }
@@ -483,6 +515,29 @@ function tracePhaseLabel(phase: string | undefined): string | undefined {
     case 'retry': return '重试'
     case 'error': return '错误'
     default: return phase
+  }
+}
+
+function localizedTraceTitle(title: string): string | undefined {
+  switch (title) {
+    case 'Worker started': return '执行器启动'
+    case 'Planner started': return '规划器启动'
+    case 'Asset review tool call': return '素材风险审计工具调用'
+    case 'Subagent dispatch tool call': return '子代理调度工具调用'
+    case 'Thread history compacted': return '压缩线程历史'
+    case 'Knowledge searched': return '检索知识库'
+    case 'Knowledge loaded': return '加载知识片段'
+    case 'Tool result body summarized': return '压缩工具结果正文'
+    default: return undefined
+  }
+}
+
+function localizedTraceSummary(summary: string): string | undefined {
+  switch (summary) {
+    case 'Planner started plan orchestration.': return '规划器开始编排计划。'
+    case 'Found missing hero visual coverage.': return '发现缺少主视觉覆盖。'
+    case 'Spawned worker Einstein.': return '已启动执行器 Einstein。'
+    default: return undefined
   }
 }
 

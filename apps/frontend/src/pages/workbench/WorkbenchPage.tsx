@@ -164,7 +164,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   },
   preview: {
     queue: [
-      { id: 'p2', title: '林夏雨中半身', subtitle: '编排段 02 · 镜头关键帧待选', status: 'running', priority: 'high', progress: 72 },
+      { id: 'p2', title: '林夏雨中半身', subtitle: '编排段 02 · 画面锚点待选', status: 'running', priority: 'high', progress: 72 },
       { id: 'p3', title: '纸条特写', subtitle: '编排段 03 · 暂无可看的候选', status: 'review', priority: 'high', progress: 38 },
       { id: 'p5', title: '巷口背影', subtitle: '编排段 05 · 已有候选版本', status: 'ready', priority: 'low', progress: 84 },
     ],
@@ -179,7 +179,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     decisions: [
       { label: '总数', value: '已有 4 个候选' },
       { label: '未生成', value: '编排段 03 还没有候选', tone: 'warning' },
-      { label: '镜头关键帧', value: '编排段 02 候选 4 张' },
+      { label: '画面锚点', value: '编排段 02 候选 4 张' },
       { label: '下一步', value: '先处理已有候选，再补生成缺失候选' },
     ],
     outputTitle: '处理后输出',
@@ -224,7 +224,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
       { id: 'a3', title: '老城区窄巷', subtitle: '地点 · 可用于全景', status: 'ready', priority: 'medium', progress: 88 },
     ],
     evidenceTitle: '素材标准',
-    evidence: ['必须可用于镜头关键帧', '必须和人物状态一致', '必须能解释纸条藏在伞骨里'],
+    evidence: ['必须可用于画面锚点', '必须和人物状态一致', '必须能解释纸条藏在伞骨里'],
     decisionTitle: '采用判断',
     decisions: [
       { label: '缺口', value: '旧伞没有可用正面和特写参考', tone: 'warning' },
@@ -235,7 +235,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     outputs: [
       { label: '素材', value: '锁定素材版本' },
       { label: '资源', value: '写入资源库引用' },
-      { label: '状态', value: '可生成镜头关键帧', tone: 'success' },
+      { label: '状态', value: '可生成画面锚点', tone: 'success' },
     ],
     actions: ['上传参考', '生成候选', '采用素材', '请求返工'],
   },
@@ -898,7 +898,7 @@ function buildProductionMetrics(rows: ContentGenerationViewRow[], data?: Product
   return [
     { label: '制作项', value: String(rows.length), detail: 'content-units', icon: Boxes, status: rows.length > 0 ? 'review' : 'blocked' },
     { label: '可生成', value: String(rows.filter((row) => row.missingSlots.length === 0 && firstText(row.unit.prompt, row.unit.description)).length), detail: '素材需求和提示已具备', icon: CheckCircle2, status: 'ready' },
-    { label: '阻塞镜头', value: String(rows.filter((row) => row.status === 'blocked').length), detail: '存在 missing 素材需求', icon: AlertTriangle, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
+    { label: '阻塞制作项', value: String(rows.filter((row) => row.status === 'blocked').length), detail: '存在 missing 素材需求', icon: AlertTriangle, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
     { label: '视频任务', value: String(runningJobs || succeededJobs), detail: runningJobs > 0 ? '有任务运行中' : '已完成任务', icon: Film, status: runningJobs > 0 ? 'running' : succeededJobs > 0 ? 'ready' : 'review' },
   ]
 }
@@ -909,9 +909,9 @@ function buildMomentMetrics(rows: ContentGenerationMomentRow[], data?: Productio
   const totalUnits = rows.reduce((sum, row) => sum + row.units.length, 0)
   return [
     { label: '情节', value: String(rows.length), detail: '生成工作台的入口层', icon: Route, status: rows.length > 0 ? 'review' : 'blocked' },
-    { label: '已有镜头', value: String(totalUnits), detail: '情节下面的制作项', icon: Boxes, status: totalUnits > 0 ? 'ready' : 'blocked' },
-    { label: '可直接生成', value: String(readyMoments), detail: '情节、镜头和素材输入都已接上', icon: CheckCircle2, status: readyMoments > 0 ? 'ready' : 'review' },
-    { label: '待拆镜头', value: String(uncoveredMoments), detail: '还没有生成制作项的情节', icon: Wand2, status: uncoveredMoments > 0 ? 'blocked' : 'ready' },
+    { label: '已有制作项', value: String(totalUnits), detail: '情节下面的制作项', icon: Boxes, status: totalUnits > 0 ? 'ready' : 'blocked' },
+    { label: '可直接生成', value: String(readyMoments), detail: '情节、制作项和素材输入都已接上', icon: CheckCircle2, status: readyMoments > 0 ? 'ready' : 'review' },
+    { label: '待拆制作项', value: String(uncoveredMoments), detail: '还没有生成制作项的情节', icon: Wand2, status: uncoveredMoments > 0 ? 'blocked' : 'ready' },
   ]
 }
 
@@ -1271,7 +1271,7 @@ function buildProductionContext(row: ContentGenerationViewRow | null): Workbench
   const unit = row.unit
   return [
     { label: '内容目标', value: firstText(unit.description, unit.prompt, titleOfRecord(unit)), icon: Target },
-    { label: '镜头关键帧', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个镜头关键帧：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定镜头关键帧', icon: Image },
+    { label: '画面锚点', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个画面锚点：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定画面锚点', icon: Image },
     { label: '素材需求输入', value: `${row.assetSlots.length} 个素材需求，${row.missingSlots.length} 个缺口`, icon: PackageCheck },
     { label: '生成设置', value: `${unit.kind || '制作项'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `制作 #${unit.production_id}` : '未绑定制作'}`, icon: Settings2 },
   ]
@@ -1286,7 +1286,7 @@ function buildMomentContext(row: ContentGenerationMomentRow | null): WorkbenchLi
     { label: '动作与情绪', value: [moment.condition_text, moment.action_text, moment.mood].filter(Boolean).join(' / ') || '未填写条件、动作或情绪', icon: Film },
     { label: '设定资料', value: summarizeRecordNames(row.references, '尚未关联设定资料'), icon: Users },
     { label: '素材输入', value: summarizeAssetSlots(row.assetSlots, '尚未关联素材输入'), icon: PackageCheck },
-    { label: '镜头制作项', value: row.units.length > 0 ? `${row.units.length} 个，${row.units.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未生成镜头制作项', icon: Boxes },
+    { label: '制作项', value: row.units.length > 0 ? `${row.units.length} 个，${row.units.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未生成制作项', icon: Boxes },
   ]
 }
 
@@ -1299,7 +1299,7 @@ function buildProductionStandards(row: ContentGenerationViewRow | null, jobs: Jo
   return [
     { label: '内容目标明确', detail: hasTarget ? '已有 description 或 prompt' : '需要补充内容目标或生成提示', done: hasTarget, tone: hasTarget ? 'success' : 'warning' },
     { label: '素材需求输入可用', detail: assetsReady ? '没有 missing 素材需求' : `${row.missingSlots.length} 个素材需求缺口阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
-    { label: '镜头关键帧具备', detail: hasKeyframe ? `${row.keyframes.length} 个镜头关键帧可用` : '建议先生成或绑定开头、结尾等镜头关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+    { label: '画面锚点具备', detail: hasKeyframe ? `${row.keyframes.length} 个画面锚点可用` : '建议先生成或绑定开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务或内容已锁定' : '还没有当前项目的视频生成任务', done: hasJob, tone: hasJob ? 'success' : 'warning' },
   ]
 }
@@ -1313,8 +1313,8 @@ function buildMomentStandards(row: ContentGenerationMomentRow | null, jobs: Job[
   const hasJob = jobs.length > 0
   return [
     { label: '情节上下文明确', detail: hasStoryContext ? '已有情节描述、动作或时空条件' : '需要补齐情节描述、动作、时间或地点', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
-    { label: '镜头入口存在', detail: hasUnits ? `${row.units.length} 个镜头制作项可继续拆分` : '还没有镜头制作项，先手动创建或交给 AI 拆镜', done: hasUnits, tone: hasUnits ? 'success' : 'warning' },
-    { label: '镜头提示可用', detail: hasUnitPrompt ? '已有 description 或 prompt，可直接驱动生成' : '需要为镜头补上生成提示或用途说明', done: hasUnitPrompt, tone: hasUnitPrompt ? 'success' : 'warning' },
+    { label: '制作项存在', detail: hasUnits ? `${row.units.length} 个制作项可继续拆分` : '还没有制作项，先手动创建或让 AI 规划内容单元', done: hasUnits, tone: hasUnits ? 'success' : 'warning' },
+    { label: '制作项提示可用', detail: hasUnitPrompt ? '已有 description 或 prompt，可直接驱动生成' : '需要为制作项补上生成提示或用途说明', done: hasUnitPrompt, tone: hasUnitPrompt ? 'success' : 'warning' },
     { label: '素材输入就绪', detail: assetsReady ? '没有未处理的素材缺口' : `${row.missingSlots.length} 个素材缺口仍在阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务记录' : '当前项目还没有生成任务记录', done: hasJob, tone: hasJob ? 'success' : 'warning' },
   ]
@@ -1334,12 +1334,12 @@ function buildGenerationContextStandards(context?: GenerationContext): Workbench
   const hasKeyframe = context.keyframes.length > 0
   return [
     { label: '目标提示可读', detail: hasTargetPrompt ? firstText(target.prompt, target.description) : '制作项缺少 prompt 或 description，Agent 难以判断画面目标', done: hasTargetPrompt, tone: hasTargetPrompt ? 'success' : 'warning' },
-    { label: '分镜来源明确', detail: hasStoryboardSource ? storyboardLineContextLabel(context.storyboard_line) : '未绑定分镜行，生成时缺少分镜意图和镜头计划来源', done: hasStoryboardSource, tone: hasStoryboardSource ? 'success' : 'warning' },
+    { label: '分镜来源明确', detail: hasStoryboardSource ? storyboardLineContextLabel(context.storyboard_line) : '未绑定分镜行，生成时缺少分镜意图和制作项计划来源', done: hasStoryboardSource, tone: hasStoryboardSource ? 'success' : 'warning' },
     { label: '剧本来源稳定', detail: hasScriptSource ? scriptBlockContextLabel(context.script_block) : '未绑定不可变剧本块，生成缺少可追溯的剧本行文', done: hasScriptSource, tone: hasScriptSource ? 'success' : 'warning' },
     { label: '情景上下文存在', detail: hasStoryContext ? [context.segment ? `编排段：${titleOfRecord(context.segment)}` : null, context.scene_moment ? `情景：${titleOfRecord(context.scene_moment)}` : null].filter(Boolean).join(' / ') : '未绑定情景或编排段，生成会缺少时空、动作和情绪约束', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
     { label: '连续性资料可用', detail: hasContinuity ? `${context.creative_references.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, tone: hasContinuity ? 'success' : 'warning' },
     { label: '素材输入可用', detail: context.asset_slots.length === 0 ? '未找到素材需求或参考素材' : `${context.asset_slots.length} 个素材输入，${lockedAssets} 个可用，${missingAssets} 个缺失`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
-    { label: '首帧/镜头关键帧', detail: hasKeyframe ? `${context.keyframes.length} 个镜头关键帧可作为视频生成锚点` : '视频生成前建议先生成或绑定开头、结尾等镜头关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+    { label: '首帧/画面锚点', detail: hasKeyframe ? `${context.keyframes.length} 个画面锚点可作为视频生成锚点` : '视频生成前建议先生成或绑定开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
   ]
 }
 
@@ -1357,7 +1357,7 @@ function buildGenerationContextRows(context?: GenerationContext): WorkbenchLinkR
     { label: '情景', value: context.scene_moment ? firstText(context.scene_moment.description, context.scene_moment.action_text, titleOfRecord(context.scene_moment)) : '未绑定情景', icon: Route },
     { label: '设定引用', value: referenceNames.length > 0 ? referenceNames.slice(0, 4).join('、') : '未找到设定引用', icon: Users },
     { label: '素材输入', value: assetSummary, icon: PackageCheck },
-    { label: '镜头关键帧', value: context.keyframes.length > 0 ? context.keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到镜头关键帧', icon: Image },
+    { label: '画面锚点', value: context.keyframes.length > 0 ? context.keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到画面锚点', icon: Image },
     { label: '写回范围', value: context.constraints.write_targets.join('、') || '未声明写回范围', icon: ShieldCheck },
   ]
 }
@@ -2000,7 +2000,7 @@ function momentScopeLabel(
     productionNames.length > 0 ? `制作 · ${productionNames.slice(0, 2).join('、')}` : '未绑定制作',
     segment ? `编排段 · ${titleOfRecord(segment)}` : '未绑定编排段',
     moment.mood || '情绪未定',
-    units.length > 0 ? `${units.length} 镜头` : '待拆镜头',
+    units.length > 0 ? `${units.length} 制作项` : '待拆制作项',
     keyframes.length > 0 ? `${keyframes.length} 预演画面` : '无预演画面',
     missingSlots.length > 0 ? `${missingSlots.length} 缺口` : null,
   ].filter(Boolean)
@@ -2068,7 +2068,7 @@ function contentUnitScopeLabel(unit: WorkbenchRecord, keyframes: WorkbenchRecord
   const parts = [
     unit.kind || '制作项',
     formatDuration(unit.duration_sec),
-    keyframes.length > 0 ? `镜头关键帧 ${keyframes.length}` : '无镜头关键帧',
+    keyframes.length > 0 ? `画面锚点 ${keyframes.length}` : '无画面锚点',
     missingSlots.length > 0 ? `缺素材需求 ${missingSlots.length}` : '素材需求可用',
   ]
   return parts.join(' / ')
@@ -2857,7 +2857,7 @@ function SettingPreparationWorkbench() {
                       <div className="space-y-2">
                         <p className="text-xs font-medium text-muted-foreground">使用位置</p>
                         {selected.usages.length === 0 ? (
-                          <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">这个设定还没有被情景、编排段或镜头引用。</p>
+                          <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">这个设定还没有被情景、编排段或制作项引用。</p>
                         ) : (
                           selected.usages.slice(0, 6).map((usage) => (
                             <div key={usage.ID} className="rounded-md border border-border bg-background px-3 py-3">
@@ -3477,7 +3477,7 @@ function ContentGenerationWorkbench() {
               ) : selectedKeyframeSequence.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border bg-background px-3 py-6">
                   <p className="text-sm font-medium text-foreground">当前情节还没有内容单元关键帧</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">给各内容单元补开头帧、结尾帧后，这里会按镜头顺序串成一条可扫读的画面连续性检查带。</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">给各内容单元补开头帧、结尾帧后，这里会按制作项顺序串成一条可扫读的画面连续性检查带。</p>
                   <Button size="sm" className="mt-4 gap-2" onClick={openCreateKeyframe} disabled={!selectedUnit}>
                     <Plus size={14} />
                     给当前内容单元添加关键帧
@@ -3553,7 +3553,7 @@ function ContentGenerationWorkbench() {
                 ) : selected.units.length === 0 ? (
                   <div className="rounded-md border border-dashed border-border bg-background px-3 py-8 text-center">
                     <p className="text-sm font-medium text-foreground">这个情节还没有内容单元</p>
-                    <p className="mt-2 text-xs leading-5 text-muted-foreground">先添加镜头、旁白、字幕卡或转场，再进入候选和生成检查。</p>
+                    <p className="mt-2 text-xs leading-5 text-muted-foreground">先添加制作项，比如镜头、旁白、字幕卡或转场，再进入候选和生成检查。</p>
                     <div className="mt-4 flex items-center justify-center gap-2">
                       <Button size="sm" className="gap-2" onClick={() => setCreatingUnit(true)}>
                         <Boxes size={14} />
@@ -3741,7 +3741,7 @@ function ContentGenerationWorkbench() {
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                           <Image size={15} className="text-muted-foreground" />
-                          镜头关键帧轨道
+                          画面锚点轨道
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={selectedUnitKeyframes.length > 0 ? 'secondary' : 'warning'}>
@@ -3757,10 +3757,10 @@ function ContentGenerationWorkbench() {
                         <p className="mb-3 text-xs text-muted-foreground">当前内容单元：{titleOfRecord(selectedUnit)}</p>
                       ) : null}
                       {!selectedUnit ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择或创建内容单元后查看镜头关键帧。</p>
+                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择或创建内容单元后查看画面锚点。</p>
                       ) : selectedUnitKeyframes.length === 0 ? (
                         <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-5">
-                          <p className="text-sm font-medium text-foreground">当前镜头还没有关键帧</p>
+                          <p className="text-sm font-medium text-foreground">当前内容单元还没有关键帧</p>
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">建议至少补开头帧和结尾帧；动作复杂时再补中间帧，用来约束视频生成的状态变化。</p>
                           <Button size="sm" className="mt-4 gap-2" onClick={openCreateKeyframe}>
                             <Plus size={14} />
@@ -3829,7 +3829,7 @@ function ContentGenerationWorkbench() {
                           生成上下文检查
                         </div>
                         {!selectedUnit ? (
-                          <Badge variant="warning">待生成镜头</Badge>
+                          <Badge variant="warning">待生成制作项</Badge>
                         ) : generationContextQuery.isFetching ? (
                           <Badge variant="secondary">检查中</Badge>
                         ) : generationContextQuery.isError ? (
@@ -3999,7 +3999,7 @@ interface PreviewPlanSegment {
   readiness: number
   duration: string
   plots: number
-  shots: number
+  contentUnits: number
   keyframes: number
   gaps: number
   plotRows: PreviewPlotRow[]
@@ -4013,18 +4013,18 @@ interface PreviewPlotRow {
   readiness: number
   duration: string
   durationSec: number
-  shots: number
+  contentUnits: number
   keyframes: number
   gaps: number
-  shotRows: PreviewTimelineShot[]
+  contentUnitRows: PreviewTimelineContentUnit[]
 }
 
-interface PreviewTimelineShot {
+interface PreviewTimelineContentUnit {
   id: string
   title: string
   source: string
   duration: string
-  camera: string
+  cameraPlan: string
   status: PreviewPlanStatus
   assets: string
   keyframes: number
@@ -4220,9 +4220,9 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
         plotUnitIds.has(Number(keyframe.content_unit_id))
       ))
       const plotMissingSlots = plotSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
-      const plotMissingShots = plotUnits.filter((unit) => !plotKeyframes.some((keyframe) => Number(keyframe.content_unit_id) === unit.ID)).length
-      const plotGaps = plotMissingSlots + plotMissingShots
-      const shotRows = plotUnits.map((unit) => {
+      const plotMissingUnits = plotUnits.filter((unit) => !plotKeyframes.some((keyframe) => Number(keyframe.content_unit_id) === unit.ID)).length
+      const plotGaps = plotMissingSlots + plotMissingUnits
+      const contentUnitRows = plotUnits.map((unit) => {
         const unitKeyframes = plotKeyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
         const unitSlots = plotSlots.filter((slot) => (
           slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID
@@ -4236,11 +4236,11 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
             `情节 ${titleOfRecord(moment)}`,
           ].join(' / '),
           duration: formatDuration(Number(unit.duration_sec) || 0),
-          camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
+          cameraPlan: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
           status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
-          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个镜头关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个画面锚点${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
           keyframes: unitKeyframes.length,
-        } satisfies PreviewTimelineShot
+        } satisfies PreviewTimelineContentUnit
       })
       const durationSec = plotUnits.reduce((sum, unit) => sum + (Number(unit.duration_sec) || 0), 0)
       const readiness = clampProgress(
@@ -4259,10 +4259,10 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
         readiness,
         duration: formatDuration(durationSec),
         durationSec,
-        shots: plotUnits.length,
+        contentUnits: plotUnits.length,
         keyframes: plotKeyframes.length,
         gaps: plotGaps,
-        shotRows,
+        contentUnitRows,
       }
     })
     if (orphanUnits.length > 0) {
@@ -4271,7 +4271,7 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
         slot.owner_type === 'content_unit' && orphanUnitIds.has(Number(slot.owner_id))
       ))
       const orphanKeyframes = data.keyframes.filter((keyframe) => orphanUnitIds.has(Number(keyframe.content_unit_id)))
-      const orphanShotRows = orphanUnits.map((unit) => {
+      const orphanContentUnitRows = orphanUnits.map((unit) => {
         const unitKeyframes = orphanKeyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
         const unitSlots = orphanSlots.filter((slot) => Number(slot.owner_id) === unit.ID)
         const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing')
@@ -4280,43 +4280,43 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
           title: titleOfRecord(unit),
           source: `编排段 ${titleOfRecord(segment)} / 未归属情节`,
           duration: formatDuration(Number(unit.duration_sec) || 0),
-          camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
+          cameraPlan: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
           status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
-          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个镜头关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个画面锚点${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
           keyframes: unitKeyframes.length,
-        } satisfies PreviewTimelineShot
+        } satisfies PreviewTimelineContentUnit
       })
       plotRows.push({
         id: `orphan-${segment.ID}`,
         title: '未归属情节',
-        subtitle: '该段中尚未挂到具体情节的镜头',
-        status: orphanShotRows.some((shot) => shot.status === 'blocked') ? 'blocked' : orphanShotRows.some((shot) => shot.status === 'attention') ? 'attention' : 'ready',
+        subtitle: '该段中尚未挂到具体情节的制作项',
+        status: orphanContentUnitRows.some((unit) => unit.status === 'blocked') ? 'blocked' : orphanContentUnitRows.some((unit) => unit.status === 'attention') ? 'attention' : 'ready',
         durationSec: orphanUnits.reduce((sum, unit) => sum + (Number(unit.duration_sec) || 0), 0),
         readiness: clampProgress(
           Math.round(
-            (orphanShotRows.length > 0 ? 28 : 8) +
+            (orphanContentUnitRows.length > 0 ? 28 : 8) +
             (orphanKeyframes.length > 0 ? 34 : 0) +
             (orphanSlots.some((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing') ? 0 : 18) +
-            (orphanShotRows.every((shot) => shot.status !== 'blocked') ? 20 : 0),
+            (orphanContentUnitRows.every((unit) => unit.status !== 'blocked') ? 20 : 0),
           ),
         ),
         duration: formatDuration(orphanUnits.reduce((sum, unit) => sum + (Number(unit.duration_sec) || 0), 0)),
-        shots: orphanUnits.length,
+        contentUnits: orphanUnits.length,
         keyframes: orphanKeyframes.length,
         gaps: orphanSlots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length +
           orphanUnits.filter((unit) => !orphanKeyframes.some((keyframe) => Number(keyframe.content_unit_id) === unit.ID)).length,
-        shotRows: orphanShotRows,
+        contentUnitRows: orphanContentUnitRows,
       })
     }
 
-    const plotShots = plotRows.reduce((sum, plot) => sum + plot.shots, 0)
+    const plotContentUnits = plotRows.reduce((sum, plot) => sum + plot.contentUnits, 0)
     const plotKeyframes = plotRows.reduce((sum, plot) => sum + plot.keyframes, 0)
     const gaps = plotRows.reduce((sum, plot) => sum + plot.gaps, 0)
     const durationSec = plotRows.reduce((sum, plot) => sum + plot.durationSec, 0)
     const readiness = clampProgress(
       Math.round(
         (plotRows.length > 0 ? 22 : 8) +
-        (plotShots > 0 ? 28 : 0) +
+        (plotContentUnits > 0 ? 28 : 0) +
         (plotKeyframes > 0 ? 24 : 0) +
         (gaps === 0 ? 26 : 0),
       ),
@@ -4330,7 +4330,7 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
       readiness,
       duration: formatDuration(durationSec),
       plots: plotRows.length,
-      shots: plotShots,
+      contentUnits: plotContentUnits,
       keyframes: plotKeyframes,
       gaps,
       plotRows,
@@ -4338,7 +4338,7 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
   })
 }
 
-function buildPreviewTimelineShots(record: WorkbenchRecord, data: ProductionPreviewData): PreviewTimelineShot[] {
+function buildPreviewTimelineContentUnits(record: WorkbenchRecord, data: ProductionPreviewData): PreviewTimelineContentUnit[] {
   const segmentIds = relatedSegmentIdsForPreviewProduction(record, data)
   const sceneMomentIds = relatedSceneMomentIdsForPreviewProduction(segmentIds, record, data)
   const units = contentUnitsForPreviewProduction(segmentIds, sceneMomentIds, record, data).sort(byOrder)
@@ -4365,11 +4365,11 @@ function buildPreviewTimelineShots(record: WorkbenchRecord, data: ProductionPrev
       source: [
         segment ? `编排段 ${titleOfRecord(segment)}` : '',
         moment ? `情节 ${titleOfRecord(moment)}` : '',
-      ].filter(Boolean).join(' / ') || `镜头 #${unit.ID}`,
+      ].filter(Boolean).join(' / ') || `制作项 #${unit.ID}`,
       duration: formatDuration(Number(unit.duration_sec) || 0),
-      camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
+      cameraPlan: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
       status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
-      assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个镜头关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+      assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个画面锚点${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
       keyframes: unitKeyframes.length,
     }
   })
@@ -4398,11 +4398,11 @@ function buildPreviewAssetGaps(record: WorkbenchRecord, data: ProductionPreviewD
     if (unitKeyframes.length > 0) continue
     gaps.push({
       name: titleOfRecord(unit),
-      owner: `镜头 · ${titleOfRecord(unit)}`,
+      owner: `制作项 · ${titleOfRecord(unit)}`,
       priority: unit.duration_sec && Number(unit.duration_sec) > 10 ? '中' : '低',
       impact: '影响最终质量',
-      placeholder: '补充镜头关键帧后才能展开真实预演',
-      detail: '当前镜头还没有可展示的开头、结尾等关键画面或预演记录。',
+      placeholder: '补充画面锚点后才能展开真实预演',
+      detail: '当前制作项还没有可展示的开头、结尾等关键画面或预演记录。',
     })
   }
 
@@ -4412,7 +4412,7 @@ function buildPreviewAssetGaps(record: WorkbenchRecord, data: ProductionPreviewD
 function previewAssetSlotScopeLabel(slot: WorkbenchRecord, data: ProductionPreviewData) {
   if (slot.owner_type === 'content_unit' && slot.owner_id) {
     const unit = data.contentUnits.find((item) => item.ID === Number(slot.owner_id))
-    return unit ? `镜头 · ${titleOfRecord(unit)}` : `镜头 #${slot.owner_id}`
+    return unit ? `制作项 · ${titleOfRecord(unit)}` : `制作项 #${slot.owner_id}`
   }
   if (slot.owner_type === 'scene_moment' && slot.owner_id) {
     const moment = data.sceneMoments.find((item) => item.ID === Number(slot.owner_id))
@@ -4446,9 +4446,9 @@ function cameraPlanSummary(row: WorkbenchRecord) {
     .join(' · ')
 }
 
-function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewData, segments: PreviewPlanSegment[], timelineShots: PreviewTimelineShot[], gaps: PreviewAssetGap[]): PreviewWorkTask[] {
+function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewData, segments: PreviewPlanSegment[], timelineUnits: PreviewTimelineContentUnit[], gaps: PreviewAssetGap[]): PreviewWorkTask[] {
   const firstGap = gaps[0]
-  const firstBlockedShot = timelineShots.find((shot) => shot.status === 'blocked') ?? timelineShots.find((shot) => shot.status === 'attention')
+  const firstBlockedUnit = timelineUnits.find((unit) => unit.status === 'blocked') ?? timelineUnits.find((unit) => unit.status === 'attention')
   const firstReadySegment = segments.find((segment) => segment.status === 'ready') ?? segments[0]
   const previewTimelines = previewTimelinesForProduction(record, data)
   const timelineItems = previewTimelineItemsForProduction(record, data)
@@ -4466,15 +4466,15 @@ function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewD
       blocker: firstGap?.detail,
     },
     {
-      id: 'task-shot',
-      title: firstBlockedShot ? `审阅 ${firstBlockedShot.title}` : '审阅情节镜头流',
-      scope: firstBlockedShot?.source ?? `制作 #${record.ID}`,
-      status: firstBlockedShot ? 'review' : 'ready',
-      priority: firstBlockedShot?.status === 'blocked' ? 'high' : 'medium',
-      progress: firstBlockedShot ? 58 : 76,
-      method: firstBlockedShot ? '查看镜头、关键画面和素材需求状态' : '查看全部情节下的镜头与预演画面',
-      output: firstBlockedShot ? '决定补生成或标记为已处理' : '确认情节展开可读',
-      blocker: firstBlockedShot?.assets?.includes('缺口') ? '当前镜头仍有素材需求缺口' : undefined,
+      id: 'task-content-unit',
+      title: firstBlockedUnit ? `审阅 ${firstBlockedUnit.title}` : '审阅情节制作项流',
+      scope: firstBlockedUnit?.source ?? `制作 #${record.ID}`,
+      status: firstBlockedUnit ? 'review' : 'ready',
+      priority: firstBlockedUnit?.status === 'blocked' ? 'high' : 'medium',
+      progress: firstBlockedUnit ? 58 : 76,
+      method: firstBlockedUnit ? '查看制作项、关键画面和素材需求状态' : '查看全部情节下的制作项与预演画面',
+      output: firstBlockedUnit ? '决定补生成或标记为已处理' : '确认情节展开可读',
+      blocker: firstBlockedUnit?.assets?.includes('缺口') ? '当前制作项仍有素材需求缺口' : undefined,
     },
     {
       id: 'task-segment',
@@ -4483,7 +4483,7 @@ function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewD
       status: firstReadySegment ? 'ready' : 'review',
       priority: firstReadySegment?.gaps ? 'medium' : 'low',
       progress: firstReadySegment?.readiness ?? 64,
-      method: '检查情绪入口、情节、镜头和预演画面的真实覆盖',
+      method: '检查情绪入口、情节、制作项和预演画面的真实覆盖',
       output: '确认可以进入下一步制作',
     },
     {
@@ -4500,11 +4500,11 @@ function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewD
   ]
 }
 
-function buildPreviewGateRows(segments: PreviewPlanSegment[], timelineShots: PreviewTimelineShot[], gaps: PreviewAssetGap[]) {
+function buildPreviewGateRows(segments: PreviewPlanSegment[], timelineUnits: PreviewTimelineContentUnit[], gaps: PreviewAssetGap[]) {
   return [
     { label: '情绪入口已接入', detail: `${segments.length} 个编排段已读取真实制作数据`, done: segments.length > 0 },
     { label: '情节已展开', detail: `${segments.reduce((sum, segment) => sum + segment.plots, 0)} 个情节已挂到入口下面`, done: segments.some((segment) => segment.plots > 0) },
-    { label: '镜头 / 预演画面可看', detail: `${timelineShots.length} 个镜头、${timelineShots.reduce((sum, shot) => sum + shot.keyframes, 0)} 个画面锚点已进入预演`, done: timelineShots.length > 0 },
+    { label: '制作项 / 预演画面可看', detail: `${timelineUnits.length} 个制作项、${timelineUnits.reduce((sum, unit) => sum + unit.keyframes, 0)} 个画面锚点已进入预演`, done: timelineUnits.length > 0 },
     { label: '缺口已识别', detail: gaps.length > 0 ? `${gaps.length} 个缺口待处理` : '当前没有明显缺口', done: gaps.length === 0 },
   ]
 }
@@ -4545,8 +4545,8 @@ function ProductionPreviewWorkspace() {
     () => (selectedProduction && data ? buildPreviewPlanSegments(selectedProduction, data) : []),
     [data, selectedProduction],
   )
-  const previewTimelineShots = useMemo(
-    () => (selectedProduction && data ? buildPreviewTimelineShots(selectedProduction, data) : []),
+  const previewTimelineUnits = useMemo(
+    () => (selectedProduction && data ? buildPreviewTimelineContentUnits(selectedProduction, data) : []),
     [data, selectedProduction],
   )
   const previewMissingAssets = useMemo(
@@ -4554,12 +4554,12 @@ function ProductionPreviewWorkspace() {
     [data, selectedProduction],
   )
   const previewGates = useMemo(
-    () => buildPreviewGateRows(previewPlanSegments, previewTimelineShots, previewMissingAssets),
-    [previewMissingAssets, previewPlanSegments, previewTimelineShots],
+    () => buildPreviewGateRows(previewPlanSegments, previewTimelineUnits, previewMissingAssets),
+    [previewMissingAssets, previewPlanSegments, previewTimelineUnits],
   )
   const previewWorkTasks = useMemo(
-    () => (selectedProduction && data ? buildPreviewWorkTasks(selectedProduction, data, previewPlanSegments, previewTimelineShots, previewMissingAssets) : []),
-    [data, previewMissingAssets, previewPlanSegments, previewTimelineShots, selectedProduction],
+    () => (selectedProduction && data ? buildPreviewWorkTasks(selectedProduction, data, previewPlanSegments, previewTimelineUnits, previewMissingAssets) : []),
+    [data, previewMissingAssets, previewPlanSegments, previewTimelineUnits, selectedProduction],
   )
   const previewTimelines = useMemo(
     () => (selectedProduction && data ? previewTimelinesForProduction(selectedProduction, data) : []),
@@ -4589,11 +4589,11 @@ function ProductionPreviewWorkspace() {
   const selectedSegment = previewPlanSegments.find((segment) => segment.id === selectedSegmentId) ?? previewPlanSegments[0] ?? null
   const selectedTask = previewWorkTasks.find((task) => task.id === selectedTaskId) ?? previewWorkTasks[0] ?? null
   const selectedProductionStatus = selectedProduction && data ? previewProductionStatus(selectedProduction, data) : 'draft'
-  const readyShots = previewTimelineShots.filter((shot) => shot.status === 'ready').length
-  const pendingShots = previewTimelineShots.filter((shot) => shot.status === 'attention').length
-  const blockedShots = previewTimelineShots.filter((shot) => shot.status === 'blocked').length
+  const readyUnits = previewTimelineUnits.filter((unit) => unit.status === 'ready').length
+  const pendingUnits = previewTimelineUnits.filter((unit) => unit.status === 'attention').length
+  const blockedUnits = previewTimelineUnits.filter((unit) => unit.status === 'blocked').length
   const totalPlots = previewPlanSegments.reduce((sum, segment) => sum + segment.plots, 0)
-  const totalKeyframes = previewTimelineShots.reduce((sum, shot) => sum + shot.keyframes, 0)
+  const totalKeyframes = previewTimelineUnits.reduce((sum, unit) => sum + unit.keyframes, 0)
 
   const previewSignals: PreviewRunSignal[] = [
     {
@@ -4605,14 +4605,14 @@ function ProductionPreviewWorkspace() {
     {
       label: '情节',
       value: `${totalPlots} 个`,
-      detail: totalPlots > 0 ? '情节下面承载镜头和预演画面' : '当前还没有情节',
+      detail: totalPlots > 0 ? '情节下面承载制作项和预演画面' : '当前还没有情节',
       status: totalPlots > 0 ? 'ready' : 'draft',
     },
     {
-      label: '镜头 / 预演画面',
-      value: `${readyShots}/${previewTimelineShots.length || 0}`,
-      detail: `${totalKeyframes} 个画面锚点已接入，${pendingShots + blockedShots} 个镜头待处理`,
-      status: previewTimelineShots.length > 0 ? 'ready' : 'draft',
+      label: '制作项 / 预演画面',
+      value: `${readyUnits}/${previewTimelineUnits.length || 0}`,
+      detail: `${totalKeyframes} 个画面锚点已接入，${pendingUnits + blockedUnits} 个制作项待处理`,
+      status: previewTimelineUnits.length > 0 ? 'ready' : 'draft',
     },
     {
       label: '预演记录',
@@ -4633,16 +4633,16 @@ function ProductionPreviewWorkspace() {
     {
       label: '情节',
       value: String(totalPlots),
-      detail: `下挂 ${previewTimelineShots.length} 个镜头，${totalKeyframes} 个画面锚点`,
+      detail: `下挂 ${previewTimelineUnits.length} 个制作项，${totalKeyframes} 个画面锚点`,
       icon: GitBranch,
       status: totalPlots > 0 ? 'review' : 'blocked',
     },
     {
-      label: '镜头',
-      value: String(previewTimelineShots.length),
-      detail: `${readyShots} 个可看 · ${pendingShots} 个待处理`,
+      label: '制作项',
+      value: String(previewTimelineUnits.length),
+      detail: `${readyUnits} 个可看 · ${pendingUnits} 个待处理`,
       icon: Film,
-      status: previewTimelineShots.length > 0 ? 'review' : 'blocked',
+      status: previewTimelineUnits.length > 0 ? 'review' : 'blocked',
     },
     {
       label: '缺口',
@@ -4675,7 +4675,7 @@ function ProductionPreviewWorkspace() {
         category="preview"
         kicker="真实数据"
         title="制作预演"
-        description="制作预演只查看真实制作数据：编排段、情节、镜头、预演画面和素材缺口。"
+        description="制作预演只查看真实制作数据：编排段、情节、制作项、预演画面和素材缺口。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         <div className="space-y-5">
@@ -4736,7 +4736,7 @@ function ProductionPreviewWorkspace() {
                             <p className="truncate text-sm font-medium text-foreground">{previewProductionLabel(selectedProduction)}</p>
                             <Badge variant={previewStatusVariant(selectedProductionStatus)}>{previewStatusLabel(selectedProductionStatus)}</Badge>
                           </div>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、镜头和预演画面里。')}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、制作项和预演画面里。')}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/production-orchestrate?productionId=${selectedProduction.ID}`)}>
@@ -4751,7 +4751,7 @@ function ProductionPreviewWorkspace() {
                       </div>
                       <div className="mt-4 grid gap-2 md:grid-cols-3">
                         <WorkbenchMiniStat label="情节" value={totalPlots} detail="入口下面的真正内容层" />
-                        <WorkbenchMiniStat label="镜头" value={previewTimelineShots.length} detail="镜头和画面锚点的承载层" />
+                        <WorkbenchMiniStat label="制作项" value={previewTimelineUnits.length} detail="预演画面和素材需求的承载层" />
                         <WorkbenchMiniStat label="缺口" value={previewMissingAssets.length} detail="需要补齐的素材或画面锚点" />
                       </div>
                     </div>
@@ -4785,11 +4785,11 @@ function ProductionPreviewWorkspace() {
                   </WorkbenchPanel>
 
                   <WorkbenchPanel
-                    title="情节与镜头"
+                    title="情节与制作项"
                     icon={GitBranch}
                     action={<Badge variant="outline">{totalPlots} 个情节</Badge>}
                   >
-                    <p className="mb-3 text-sm font-semibold text-foreground">先看情绪入口，再往下展开情节、镜头和预演画面。</p>
+                    <p className="mb-3 text-sm font-semibold text-foreground">先看情绪入口，再往下展开情节、制作项和预演画面。</p>
                     {selectedSegment ? (
                       selectedSegment.plotRows.length === 0 ? (
                         <EmptyWorkbenchState title="暂无情节" text="当前入口下还没有可展开的情节。" />
@@ -4801,7 +4801,7 @@ function ProductionPreviewWorkspace() {
                         </div>
                       )
                     ) : (
-                      <EmptyWorkbenchState title="暂无入口" text="先选择一个制作入口，再看它下面的情节和镜头。" />
+                      <EmptyWorkbenchState title="暂无入口" text="先选择一个制作入口，再看它下面的情节和制作项。" />
                     )}
                   </WorkbenchPanel>
                 </div>
@@ -4851,7 +4851,7 @@ function ProductionPreviewWorkspace() {
                       </Button>
                       <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(`/contents?production_id=${selectedProduction.ID}`)}>
                         <Film size={15} />
-                        查看镜头内容
+                        查看制作项
                       </Button>
                       <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(`/delivery/workbench?productionId=${selectedProduction.ID}`)}>
                         <CheckCircle2 size={15} />
@@ -4959,7 +4959,7 @@ function PreviewOverviewNode({ segment, index, selected }: { segment: PreviewPla
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <span>{segment.duration}</span>
         <span>{segment.plots} 情节</span>
-        <span>{segment.shots} 镜头</span>
+        <span>{segment.contentUnits} 制作项</span>
         <span>{segment.keyframes} 画面锚点</span>
         {segment.gaps > 0 ? <span className="text-amber-600">缺口 {segment.gaps}</span> : null}
       </div>
@@ -4981,20 +4981,20 @@ function PreviewPlotCard({ plot, index }: { plot: PreviewPlotRow; index: number 
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <span>{plot.duration}</span>
-        <span>{plot.shots} 镜头</span>
+        <span>{plot.contentUnits} 制作项</span>
         <span>{plot.keyframes} 预演画面</span>
         {plot.gaps > 0 ? <span className="text-amber-600">缺口 {plot.gaps}</span> : null}
       </div>
       <Progress value={plot.readiness} className="mt-3 h-1.5" />
-      {plot.shotRows.length > 0 ? (
+      {plot.contentUnitRows.length > 0 ? (
         <div className="mt-3 space-y-2">
-          {plot.shotRows.map((shot, shotIndex) => (
-            <PreviewTimelineRow key={shot.id} shot={shot} index={shotIndex} />
+          {plot.contentUnitRows.map((unit, unitIndex) => (
+            <PreviewTimelineRow key={unit.id} unit={unit} index={unitIndex} />
           ))}
         </div>
       ) : (
         <p className="mt-3 rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          当前情节还没有镜头或预演画面。
+          当前情节还没有制作项或预演画面。
         </p>
       )}
     </div>
@@ -5014,28 +5014,28 @@ function PreviewRunSignalCard({ signal }: { signal: PreviewRunSignal }) {
   )
 }
 
-function PreviewTimelineRow({ shot, index }: { shot: PreviewTimelineShot; index: number }) {
+function PreviewTimelineRow({ unit, index }: { unit: PreviewTimelineContentUnit; index: number }) {
   return (
     <div className="grid gap-3 rounded-md border border-border bg-background px-3 py-3 md:grid-cols-[44px_minmax(0,1.25fr)_110px_120px_auto]">
       <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
         {index + 1}
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-foreground">{shot.title}</p>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{shot.source}</p>
+        <p className="truncate text-sm font-medium text-foreground">{unit.title}</p>
+        <p className="mt-1 truncate text-xs text-muted-foreground">{unit.source}</p>
       </div>
       <div className="min-w-0">
         <p className="text-[11px] text-muted-foreground">时长</p>
-        <p className="mt-1 text-sm text-foreground">{shot.duration}</p>
+        <p className="mt-1 text-sm text-foreground">{unit.duration}</p>
       </div>
       <div className="min-w-0">
-        <p className="text-[11px] text-muted-foreground">镜头</p>
-        <p className="mt-1 truncate text-sm text-foreground">{shot.camera}</p>
+        <p className="text-[11px] text-muted-foreground">镜头参数</p>
+        <p className="mt-1 truncate text-sm text-foreground">{unit.cameraPlan}</p>
       </div>
       <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-        <p className="truncate text-xs text-muted-foreground md:max-w-40">{shot.assets}</p>
-        <Badge variant={shot.keyframes > 0 ? 'secondary' : 'outline'}>{shot.keyframes} 帧</Badge>
-        <Badge variant={previewStatusVariant(shot.status)}>{previewStatusLabel(shot.status)}</Badge>
+        <p className="truncate text-xs text-muted-foreground md:max-w-40">{unit.assets}</p>
+        <Badge variant={unit.keyframes > 0 ? 'secondary' : 'outline'}>{unit.keyframes} 帧</Badge>
+        <Badge variant={previewStatusVariant(unit.status)}>{previewStatusLabel(unit.status)}</Badge>
       </div>
     </div>
   )
@@ -5949,7 +5949,7 @@ function ScriptSplitWorkbench() {
     { label: '生成制作方案', detail: hasPlan ? `${drafts.length} 个制作入口` : '自动拆解设定、段落和制作主体', done: hasPlan, active: hasSourceInput && !hasPlan, icon: Bot },
     { label: '轻确认', detail: selectedDraft ? selectedAction : '确认风格、素材缺口和制作决策', done: hasPlan && !validationErrors.length, active: hasPlan && !hasStartedProduction, icon: ClipboardCheck },
     { label: '开始生成', detail: hasStartedProduction ? '制作入口已写入' : '写入剧本与制作主体', done: hasStartedProduction, active: hasPlan && !hasStartedProduction, icon: Wand2 },
-    { label: '进入预演', detail: '从制作编排继续验证镜头和缺口', done: false, active: hasStartedProduction, icon: Play },
+    { label: '进入预演', detail: '从制作编排继续验证制作项和缺口', done: false, active: hasStartedProduction, icon: Play },
   ]
   const primaryActionLabel = !hasPlan
     ? splitWithAgent.isPending ? '生成方案中' : '一键制作'
@@ -6415,7 +6415,7 @@ function ScriptSplitWorkbench() {
                   <Play size={14} />
                   <span>下一步</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或制作预演，继续检查镜头、预演画面、素材缺口和预演记录。</p>
+                <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或制作预演，继续检查制作项、预演画面、素材缺口和预演记录。</p>
               </div>
               <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate('/workbench/production-plan')}>
                 <Play size={13} />

@@ -415,6 +415,28 @@ test('buildOpenAIChatTools exposes spawn_subagent dispatch controls', () => {
   assert.equal(taskProperties?.workerTimeoutMs?.type, 'number')
 })
 
+test('buildOpenAIChatTools does not expose deprecated content unit media proposal creation', () => {
+  const tools = {
+    discovered: [],
+    blocked: [],
+    byName: {},
+    available: [{
+      name: 'movscript_create_draft',
+      source: 'runtime' as const,
+      registered: true,
+      granted: true,
+      available: true,
+      approval: 'never' as const,
+      requiresApproval: false,
+    }],
+  }
+  const [tool] = buildOpenAIChatTools(tools)
+  const enumValues = ((tool?.function.parameters as any)?.properties?.kind?.enum ?? []) as string[]
+
+  assert.ok(enumValues.includes('content_unit_proposal'))
+  assert.equal(enumValues.includes('content_unit_media_proposal'), false)
+})
+
 test('buildOpenAIChatTools exposes cancel_subagent pending task semantics', () => {
   const tools = {
     discovered: [],

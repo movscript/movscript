@@ -42,7 +42,7 @@ export interface ProjectLayerProposalEntry {
 }
 
 export interface ProjectLayerProposalView {
-  mode: 'patch' | 'snapshot'
+  mode: 'snapshot'
   summary: string
   creativeReferences: ProjectLayerProposalEntry[]
   assetSlots: ProjectLayerProposalEntry[]
@@ -66,7 +66,7 @@ export function parseProjectLayerProposalDraft(
   try {
     const content = JSON.parse(draft.content) as Record<string, unknown>
     const proposal = isRecord(content.proposal) ? content.proposal : {}
-    const mode = content.mode === 'snapshot' ? 'snapshot' as const : 'patch' as const
+    const mode = 'snapshot' as const
     const appliedEntryKeys = draftAppliedEntryKeySet(draft)
 
     const creativeReferences = includeCreativeReferences
@@ -93,7 +93,7 @@ export function parseProjectLayerProposalDraft(
         label: asString(proposalField(item, ['title', 'name', 'label', 'kind']), `素材需求 #${index + 1}`),
         detail: asString(proposalField(item, ['description', 'note', 'reason', 'summary', 'content', 'rationale']), '暂无说明'),
         target: typeof item.id === 'number' ? `调整 #${item.id}` : '新增候选',
-        ownerKey: asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), ''),
+        ownerKey: asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']), ''),
         raw: item,
       }))
       : []
@@ -124,24 +124,89 @@ export function parseProjectLayerProposalDraft(
 export function buildProjectLayerDraftContentForEntries(
   draft: AgentDraft,
   entries: ProjectLayerProposalEntry[],
+  data: ProjectLayerProposalData,
   summary?: string,
 ) {
   const content = JSON.parse(draft.content) as Record<string, unknown>
   const proposal = isRecord(content.proposal) ? { ...content.proposal } : {}
-  const entryItems = (kind: ProjectLayerProposalEntryKind) => entries
-    .filter((entry) => entry.kind === kind)
-    .map((entry) => entry.raw)
+  const creativeReferences = applyProjectLayerEntriesToSnapshot(
+    data.creativeReferences.map(projectLayerCreativeReferenceSnapshot),
+    entries.filter((entry) => entry.kind === 'creative_references'),
+  )
+  const assetSlots = applyProjectLayerEntriesToSnapshot(
+    data.assetSlots.map(projectLayerAssetSlotSnapshot),
+    entries.filter((entry) => entry.kind === 'asset_slots'),
+  )
 
   return JSON.stringify({
     ...content,
-    mode: 'patch',
+    mode: 'snapshot',
     ...(summary ? { summary } : {}),
     proposal: {
       ...proposal,
-      creative_references: entryItems('creative_references'),
-      asset_slots: entryItems('asset_slots'),
+      creative_references: creativeReferences,
+      asset_slots: assetSlots,
     },
   }, null, 2)
+}
+
+function applyProjectLayerEntriesToSnapshot(base: Record<string, unknown>[], entries: ProjectLayerProposalEntry[]) {
+  const next = [...base]
+  for (const entry of entries) {
+    const id = numberOf(entry.raw.id)
+    if (entry.changeType === 'deleted') {
+      if (id > 0) {
+        const index = next.findIndex((item) => numberOf(item.id) === id)
+        if (index >= 0) next.splice(index, 1)
+      }
+      continue
+    }
+    if (id > 0) {
+      const index = next.findIndex((item) => numberOf(item.id) === id)
+      if (index >= 0) {
+        next[index] = { ...next[index], ...entry.raw }
+      } else {
+        next.push(entry.raw)
+      }
+    } else {
+      next.push(entry.raw)
+    }
+  }
+  return next
+}
+
+function projectLayerCreativeReferenceSnapshot(record: ProjectLayerProposalRecord): Record<string, unknown> {
+  return {
+    id: record.ID,
+    name: titleOf(record, `设定 #${record.ID}`),
+    kind: String(record.kind ?? ''),
+    alias: String(record.alias ?? ''),
+    description: String(record.description ?? ''),
+    content: String(record.content ?? ''),
+    importance: String(record.importance ?? ''),
+    status: String(record.status ?? ''),
+    profile_json: String(record.profile_json ?? ''),
+    tags_json: String(record.tags_json ?? ''),
+  }
+}
+
+function projectLayerAssetSlotSnapshot(record: ProjectLayerProposalRecord): Record<string, unknown> {
+  return {
+    id: record.ID,
+    owner: record.creative_reference_id ? { type: 'creative_reference', id: record.creative_reference_id } : undefined,
+    name: titleOf(record, `素材需求 #${record.ID}`),
+    kind: String(record.kind ?? 'image'),
+    description: String(record.description ?? ''),
+    slot_key: String(record.slot_key ?? ''),
+    prompt_hint: String(record.prompt_hint ?? ''),
+    status: String(record.status ?? ''),
+    priority: String(record.priority ?? ''),
+    metadata_json: String(record.metadata_json ?? ''),
+    ...(record.production_id ? { production_id: record.production_id } : {}),
+    ...(record.creative_reference_id ? { creative_reference_id: record.creative_reference_id } : {}),
+    ...(record.resource_id ? { resource_id: record.resource_id } : {}),
+    ...(record.locked_asset_slot_id ? { locked_asset_slot_id: record.locked_asset_slot_id } : {}),
+  }
 }
 
 export function buildProjectLayerProposalEntryDiffRows(
@@ -176,11 +241,9 @@ export function buildProjectLayerProposalEntryDiffRows(
   }
 
   const currentFields = current ? { ...current } as Record<string, unknown> : {}
-  const currentNestedFields = current ? nestedFields(current as Record<string, unknown>) : {}
   const currentField = (keys: string[]) => {
     for (const key of keys) {
       if (currentFields[key] !== undefined) return currentFields[key]
-      if (currentNestedFields[key] !== undefined) return currentNestedFields[key]
     }
     return undefined
   }
@@ -218,9 +281,9 @@ export function buildProjectLayerProposalEntryDiffRows(
     pushField('锁定素材', currentField(['locked_asset_slot_id']), proposedField(['locked_asset_slot_id']))
 
     const currentOwnerId = current
-      ? asKey(isRecord(current.owner) ? current.owner.client_id ?? current.owner.id : proposalField(current, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), '')
+      ? asKey(isRecord(current.owner) ? current.owner.client_id ?? current.owner.id : proposalField(current, ['creative_reference_id', 'owner_id', 'reference_id']), '')
       : ''
-    const proposedOwnerId = asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['owner_client_id', 'owner_id', 'creative_reference_id', 'reference_id']), '')
+    const proposedOwnerId = asKey(isRecord(item.owner) ? item.owner.client_id ?? item.owner.id : proposalField(item, ['creative_reference_id', 'owner_id', 'reference_id']), '')
     const currentOwnerLabel = draftEntryOwnerLabel(entry, referenceLabels, currentOwnerId)
     const proposedOwnerLabel = draftEntryOwnerLabel(entry, referenceLabels, proposedOwnerId)
     if (entry.changeType === 'added' || currentOwnerLabel !== proposedOwnerLabel) {
@@ -343,11 +406,9 @@ function inferSnapshotDeletionEntries(
           target: `移出 #${record.ID}`,
           raw: {
             id: record.ID,
-            fields: {
-              name: titleOf(record, `设定 #${record.ID}`),
-              status: 'ignored',
-              description: bodyOf(record, ''),
-            },
+            name: titleOf(record, `设定 #${record.ID}`),
+            status: 'ignored',
+            description: bodyOf(record, ''),
           },
         }]
       })
@@ -373,12 +434,10 @@ function inferSnapshotDeletionEntries(
           raw: {
             id: record.ID,
             owner: record.creative_reference_id ? { type: 'creative_reference', id: record.creative_reference_id } : undefined,
-            fields: {
-              name: titleOf(record, `素材需求 #${record.ID}`),
-              status: 'waived',
-              kind: String(record.kind ?? 'image'),
-              description: bodyOf(record, ''),
-            },
+            name: titleOf(record, `素材需求 #${record.ID}`),
+            status: 'waived',
+            kind: String(record.kind ?? 'image'),
+            description: bodyOf(record, ''),
           },
         }]
       })
@@ -444,15 +503,9 @@ function numberOf(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-function nestedFields(item: Record<string, unknown>): Record<string, unknown> {
-  return isRecord(item.fields) ? item.fields : {}
-}
-
 function proposalField(item: Record<string, unknown>, keys: string[]): unknown {
-  const fields = nestedFields(item)
   for (const key of keys) {
     if (item[key] !== undefined) return item[key]
-    if (fields[key] !== undefined) return fields[key]
   }
   return undefined
 }

@@ -1825,6 +1825,20 @@ export class AgentRuntime {
   async applyDraftFromUI(input: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }): Promise<JSONValue> {
     const preview = buildApplyDraftPreview(this.draftStore, input)
     const appliedByUserId = input.appliedByUserId
+    if (preview.draft.kind === 'asset_proposal' && !assetProposalContainsAssetSlots(preview.draft.content)) {
+      const finalDraft = markDraftApplied(this.draftStore, preview.draft, preview.review, input, {
+        appliedBy: 'movscript-ui',
+        backendWritePerformed: false,
+        backendApplySkippedReason: 'asset proposal contains candidate plans only; project snapshot apply was skipped',
+      })
+      return {
+        status: 'applied',
+        review: preview.review,
+        draft: finalDraft,
+        message: 'Asset candidate planning draft marked applied locally. Backend project snapshot apply was skipped.',
+        backendApply: { performed: false, skippedReason: 'asset proposal contains candidate plans only' },
+      } as unknown as JSONValue
+    }
     let backendApply: BackendApplyResult
     try {
       backendApply = await this.backendApplyClient.applyReview(preview.review, {
@@ -1842,10 +1856,21 @@ export class AgentRuntime {
       })
       throw error
     }
-    const finalDraft = markDraftApplied(this.draftStore, preview.draft, preview.review, input, {
+    const rebasedContent = canonicalizeProjectProposalDraftContent(preview.draft, backendApply)
+    const rebasedDraft = rebasedContent
+      ? this.draftStore.updateDraft(preview.draft.id, {
+          content: rebasedContent,
+          metadata: {
+            canonicalizedAfterApply: true,
+            canonicalizedAt: new Date().toISOString(),
+          },
+        })
+      : preview.draft
+    const finalDraft = markDraftApplied(this.draftStore, rebasedDraft, preview.review, input, {
       appliedBy: 'movscript-ui',
       backendWritePerformed: backendApply.performed,
       backendApply: backendApply as unknown as JSONValue,
+      ...(rebasedContent ? { canonicalizedAfterApply: true } : {}),
     })
     return {
       status: 'applied',
@@ -2314,7 +2339,7 @@ export class AgentRuntime {
           status: 'completed',
           round: finalRound,
           stepId: step.id,
-          data: { messageId: assistant.id, chars: assistant.content.length, source: 'runtime_rule' },
+          data: { messageId: assistant.id, chars: assistant.content.length, content: assistant.content, source: 'runtime_rule' },
         })
 
         run.assistantMessageId = assistant.id
@@ -2466,7 +2491,7 @@ export class AgentRuntime {
           status: 'completed',
           round: finalRound,
           stepId: step.id,
-          data: { messageId: assistant.id, chars: assistant.content.length, source: 'runtime_rule' },
+          data: { messageId: assistant.id, chars: assistant.content.length, content: assistant.content, source: 'runtime_rule' },
         })
 
         run.assistantMessageId = assistant.id
@@ -2690,7 +2715,7 @@ export class AgentRuntime {
         status: 'completed',
         round: finalRound,
         stepId: step.id,
-        data: { messageId: assistant.id, chars: assistant.content.length },
+        data: { messageId: assistant.id, chars: assistant.content.length, content: assistant.content },
       })
 
       run.assistantMessageId = assistant.id
@@ -3947,6 +3972,40 @@ function assetProposalContainsAssetSlots(content: string): boolean {
   } catch {
     return false
   }
+}
+
+function canonicalizeProjectProposalDraftContent(draft: AgentDraft, backendApply: BackendApplyResult): string | undefined {
+  if (draft.kind !== 'setting_proposal' && draft.kind !== 'asset_proposal' && draft.kind !== 'project_proposal') return undefined
+  const response = isRecord(backendApply.response) ? backendApply.response : undefined
+  const canonicalSnapshot = isRecord(response?.canonical_snapshot) ? response.canonical_snapshot : undefined
+  const canonicalProposal = isRecord(canonicalSnapshot) ? canonicalSnapshot : undefined
+  if (!canonicalProposal) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(draft.content)
+  } catch {
+    return undefined
+  }
+  if (!isRecord(parsed)) return undefined
+  const currentProposal = isRecord(parsed.proposal) ? parsed.proposal : {}
+  const nextProposal: Record<string, unknown> = { ...currentProposal }
+  if (draft.kind === 'setting_proposal') {
+    nextProposal.creative_references = Array.isArray(canonicalProposal.creative_references) ? canonicalProposal.creative_references : []
+    nextProposal.asset_slots = []
+  } else if (draft.kind === 'asset_proposal') {
+    nextProposal.creative_references = []
+    nextProposal.asset_slots = Array.isArray(canonicalProposal.asset_slots) ? canonicalProposal.asset_slots : []
+  } else {
+    nextProposal.project_style = isRecord(currentProposal.project_style) ? currentProposal.project_style : {}
+    nextProposal.creative_references = []
+    nextProposal.asset_slots = []
+  }
+  return JSON.stringify({
+    ...parsed,
+    mode: 'snapshot',
+    snapshot_base: canonicalSnapshot as JSONValue,
+    proposal: nextProposal,
+  }, null, 2)
 }
 
 function normalizeDraftSource(value: unknown): Record<string, JSONValue> | undefined {

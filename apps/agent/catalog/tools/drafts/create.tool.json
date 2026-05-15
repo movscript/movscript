@@ -26,8 +26,7 @@
           "asset_proposal",
           "project_proposal",
           "production_proposal",
-          "content_unit_proposal",
-          "content_unit_media_proposal"
+          "content_unit_proposal"
         ]
       },
       "title": {

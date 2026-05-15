@@ -14,18 +14,42 @@ export interface ProjectProposalOwnerPatch {
   client_id?: string
 }
 
-export interface ProjectProposalCreativeReferencePatch {
+export interface ProjectProposalCreativeReferenceSnapshot {
   client_id?: string
   id?: number
-  fields?: Record<string, unknown>
   merge_candidates?: ProjectProposalMergeCandidate[]
+  source_script_id?: number
+  source_analysis_id?: number
+  kind?: string
+  name: string
+  alias?: string
+  description?: string
+  content?: string
+  importance?: string
+  status?: string
+  profile_json?: string
+  tags_json?: string
 }
 
-export interface ProjectProposalAssetSlotPatch {
+export interface ProjectProposalAssetSlotSnapshot {
   client_id?: string
   id?: number
   owner?: ProjectProposalOwnerPatch
-  fields?: Record<string, unknown>
+  production_id?: number
+  creative_reference_id?: number
+  creative_reference_state_id?: number
+  owner_type?: string
+  owner_id?: number
+  kind: string
+  name: string
+  description?: string
+  slot_key?: string
+  prompt_hint?: string
+  status?: string
+  priority?: string
+  resource_id?: number
+  locked_asset_slot_id?: number
+  metadata_json?: string
 }
 
 export interface ProjectStylePatch {
@@ -42,14 +66,14 @@ export interface ProjectStylePatch {
 export interface ProjectProposalDraftContent {
   schema: typeof PROJECT_PROPOSAL_DRAFT_SCHEMA
   scope: typeof PROJECT_PROPOSAL_SCOPE
-  mode?: 'patch' | 'snapshot'
+  mode: 'snapshot'
   projectId?: number
   productionId?: number
   summary: string
   proposal: {
     project_style: ProjectStylePatch
-    creative_references: ProjectProposalCreativeReferencePatch[]
-    asset_slots: ProjectProposalAssetSlotPatch[]
+    creative_references: ProjectProposalCreativeReferenceSnapshot[]
+    asset_slots: ProjectProposalAssetSlotSnapshot[]
   }
   impact_notes: string[]
   createdAt: string
@@ -58,17 +82,17 @@ export interface ProjectProposalDraftContent {
 export function buildEmptyProjectProposalDraftContent(input: {
   projectId?: number
   productionId?: number
-  mode?: 'patch' | 'snapshot'
+  mode?: 'snapshot'
   projectStyle?: ProjectStylePatch
-  creativeReferences?: ProjectProposalCreativeReferencePatch[]
-  assetSlots?: ProjectProposalAssetSlotPatch[]
+  creativeReferences?: ProjectProposalCreativeReferenceSnapshot[]
+  assetSlots?: ProjectProposalAssetSlotSnapshot[]
   createdAt?: string
   summary?: string
 } = {}): ProjectProposalDraftContent {
   return {
     schema: PROJECT_PROPOSAL_DRAFT_SCHEMA,
     scope: PROJECT_PROPOSAL_SCOPE,
-    mode: input.mode ?? 'patch',
+    mode: input.mode ?? 'snapshot',
     ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
     ...(input.productionId !== undefined ? { productionId: input.productionId } : {}),
     summary: input.summary ?? '',

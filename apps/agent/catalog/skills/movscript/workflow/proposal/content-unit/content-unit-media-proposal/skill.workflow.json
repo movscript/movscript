@@ -32,9 +32,7 @@
     "tool://movscript_request_user_input"
   ],
   "toolScope": "intersect",
-  "schemaRefs": [
-    "schema://movscript.content_unit_media_proposal.v1"
-  ],
+  "schemaRefs": [],
   "outputContract": "不要创建新草稿；说明该 workflow 已弃用，并交接 content_unit_proposal 或 visual_generation。",
   "instructionTemplatePath": "instruction.md"
 }

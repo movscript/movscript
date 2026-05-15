@@ -190,11 +190,14 @@ test('applyReview posts setting proposal payload with auth headers', async () =>
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
     const payload = {
       scope: 'setting_proposal',
+      mode: 'snapshot',
       proposal: {
         creative_references: [{
-          fields: { name: 'Lin Xia', kind: 'person', status: 'draft' },
+          name: 'Lin Xia',
+          kind: 'person',
+          status: 'draft',
         }],
-        asset_slots: [{ fields: { name: 'Should be dropped', kind: 'image' } }],
+        asset_slots: [{ name: 'Should be dropped', kind: 'image' }],
       },
     }
 
@@ -245,11 +248,13 @@ test('applyReview posts asset slot proposal with settings filtered out', async (
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
     const payload = {
       scope: 'asset_proposal',
+      mode: 'snapshot',
       proposal: {
-        creative_references: [{ fields: { name: 'Should be dropped' } }],
+        creative_references: [{ name: 'Should be dropped' }],
         asset_slots: [{
           owner: { type: 'creative_reference', id: 3 },
-          fields: { name: 'Hero portrait', kind: 'image' },
+          name: 'Hero portrait',
+          kind: 'image',
         }],
       },
     }
@@ -276,7 +281,7 @@ test('applyReview posts asset slot proposal with settings filtered out', async (
   }
 })
 
-test('applyReview normalizes flat asset slot proposal patches', async () => {
+test('applyReview posts direct asset slot proposal snapshots', async () => {
   const originalFetch = globalThis.fetch
   const calls: Array<{ url: string; init: RequestInit }> = []
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
@@ -290,9 +295,9 @@ test('applyReview normalizes flat asset slot proposal patches', async () => {
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
     const payload = {
       schema: 'movscript.asset_proposal.v1',
-      mode: 'patch',
+      mode: 'snapshot',
       proposal: {
-        creative_references: [{ fields: { name: 'Should be dropped' } }],
+        creative_references: [{ name: 'Should be dropped' }],
         asset_slots: [{
           client_id: 'slot_001',
           owner_type: 'scene_moment',
@@ -316,19 +321,17 @@ test('applyReview normalizes flat asset slot proposal patches', async () => {
 
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
       ...payload,
+      mode: 'snapshot',
       proposal: {
         creative_references: [],
         asset_slots: [{
           client_id: 'slot_001',
-          owner: { type: 'scene_moment', id: 7 },
-          fields: {
-            owner_type: 'scene_moment',
-            owner_id: 7,
-            kind: 'image',
-            name: '周建国重生惊醒关键帧',
-            description: '对应情景ID=7的核心镜头',
-            priority: 'high',
-          },
+          owner_type: 'scene_moment',
+          owner_id: 7,
+          kind: 'image',
+          name: '周建国重生惊醒关键帧',
+          description: '对应情景ID=7的核心镜头',
+          priority: 'high',
         }],
       },
     })
@@ -351,13 +354,14 @@ test('applyReview posts project proposal with only project style', async () => {
     const client = new BackendApplyClient({ baseURL: 'http://backend' })
     const payload = {
       scope: 'project_proposal',
+      mode: 'snapshot',
       proposal: {
         project_style: {
           aspect_ratio: '9:16',
           visual_style: '竖屏短剧写实',
         },
-        creative_references: [{ fields: { name: 'Should be dropped' } }],
-        asset_slots: [{ fields: { name: 'Also dropped', kind: 'image' } }],
+        creative_references: [{ name: 'Should be dropped' }],
+        asset_slots: [{ name: 'Also dropped', kind: 'image' }],
       },
     }
 

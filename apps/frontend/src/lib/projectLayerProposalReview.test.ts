@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  buildProjectLayerDraftContentForEntries,
   buildProjectLayerProposalEntryDiffRows,
   parseProjectLayerProposalDraft,
 } from './projectLayerProposalReview'
@@ -23,12 +24,13 @@ test('project layer proposal review can isolate setting proposal entries', () =>
       kind: 'setting_proposal',
       content: JSON.stringify({
         summary: '整理角色设定',
+        mode: 'snapshot',
         proposal: {
           creative_references: [
-            { id: 7, fields: { name: '主角', description: '新的角色说明' } },
+            { id: 7, name: '主角', description: '新的角色说明' },
           ],
           asset_slots: [
-            { fields: { name: '角色头像' } },
+            { name: '角色头像', kind: 'image' },
           ],
         },
       }),
@@ -52,15 +54,18 @@ test('project layer proposal review can isolate asset slot proposal entries and 
       id: 'asset-proposal-draft',
       kind: 'asset_proposal',
       content: JSON.stringify({
+        mode: 'snapshot',
         proposal: {
           creative_references: [
-            { fields: { name: '角色设定' } },
+            { name: '角色设定' },
           ],
           asset_slots: [
             {
               id: 12,
               owner: { type: 'creative_reference', id: 9 },
-              fields: { name: '角色半身照', prompt_hint: '正面站姿' },
+              name: '角色半身照',
+              kind: 'image',
+              prompt_hint: '正面站姿',
             },
           ],
         },
@@ -91,4 +96,34 @@ test('project layer proposal review can isolate asset slot proposal entries and 
 
   assert.ok(rows.some((row) => row.label === '用途' && row.before === '侧面站姿' && row.after === '正面站姿'))
   assert.ok(rows.some((row) => row.label === '归属' && row.before === '旧角色' && row.after === '新角色'))
+})
+
+test('buildProjectLayerDraftContentForEntries keeps unselected backend rows in snapshot apply payload', () => {
+  const sourceDraft = draft({
+    id: 'setting-draft',
+    kind: 'setting_proposal',
+    content: JSON.stringify({
+      mode: 'snapshot',
+      proposal: {
+        creative_references: [
+          { id: 7, name: '主角', description: '新的角色说明' },
+        ],
+        asset_slots: [],
+      },
+    }),
+  })
+  const data = {
+    creativeReferences: [
+      { ID: 7, name: '主角', description: '旧的角色说明' },
+      { ID: 8, name: '配角', description: '保留不动' },
+    ],
+    assetSlots: [],
+  }
+  const view = parseProjectLayerProposalDraft(sourceDraft, data, { includeAssetSlots: false })
+  const payload = JSON.parse(buildProjectLayerDraftContentForEntries(sourceDraft, [view!.creativeReferences[0]!], data)) as Record<string, any>
+
+  assert.equal(payload.mode, 'snapshot')
+  assert.deepEqual(payload.proposal.creative_references.map((item: any) => item.id).sort(), [7, 8])
+  assert.equal(payload.proposal.creative_references.find((item: any) => item.id === 7)?.description, '新的角色说明')
+  assert.equal(payload.proposal.creative_references.find((item: any) => item.id === 8)?.description, '保留不动')
 })

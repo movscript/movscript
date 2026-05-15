@@ -118,6 +118,7 @@ test('validateDraft accepts canonical project standards proposal content', () =>
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
       scope: 'project_proposal',
+      mode: 'snapshot',
       summary: '定义项目级制作规范',
       proposal: {
         creative_references: [],
@@ -147,11 +148,13 @@ test('validateDraft accepts canonical setting proposal content', () => {
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
       scope: 'setting_proposal',
+      mode: 'snapshot',
       summary: '整理项目设定',
       proposal: {
         creative_references: [{
           client_id: 'cr_heroine',
-          fields: { name: '女主', kind: 'person' },
+          name: '女主',
+          kind: 'person',
         }],
         asset_slots: [],
       },
@@ -173,11 +176,13 @@ test('validateDraft accepts canonical asset slot proposal content', () => {
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
       scope: 'asset_proposal',
+      mode: 'snapshot',
       summary: '整理素材需求',
       proposal: {
         creative_references: [],
         asset_slots: [{
-          fields: { name: '女主参考图', kind: 'image' },
+          name: '女主参考图',
+          kind: 'image',
           owner: { type: 'creative_reference', id: 12 },
         }],
       },
@@ -199,6 +204,7 @@ test('validateDraft rejects operation-shaped project proposal content', () => {
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.settingProposal,
       scope: 'setting_proposal',
+      mode: 'snapshot',
       summary: '整理项目设定与素材需求',
       proposal: {
         creative_references: [{
@@ -232,13 +238,15 @@ test('validateDraft rejects non-snake-case project proposal asset owner type', (
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
       scope: 'asset_proposal',
+      mode: 'snapshot',
       summary: '整理项目设定与素材需求',
       proposal: {
         creative_references: [],
         asset_slots: [{
           id: 56,
           owner: { type: 'creativeReference', id: 35 },
-          fields: { name: '女主主视图' },
+          name: '女主主视图',
+          kind: 'image',
         }],
       },
       impact_notes: [],
@@ -365,6 +373,7 @@ test('validateDraft accepts canonical asset proposal content', () => {
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
       scope: 'asset_proposal',
+      mode: 'snapshot',
       projectId: 42,
       assetSlotId: 56,
       summary: '为女主主视图准备两版图片候选。',
@@ -404,6 +413,7 @@ test('validateDraft rejects asset proposal with mismatched slot id', () => {
     content: JSON.stringify({
       schema: DRAFT_CONTENT_SCHEMA_IDS.assetProposal,
       scope: 'asset_proposal',
+      mode: 'snapshot',
       assetSlotId: 56,
       slot: { id: 57, name: '女主主视图', kind: 'image' },
       proposal: { candidate_plans: [] },

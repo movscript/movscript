@@ -14,7 +14,7 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 - 不写素材需求 asset_slots；素材需求使用 asset_proposal。
 - 不写候选图方案、prompt、模型参数或生成任务；素材候选计划使用 asset_proposal，真实生成使用 visual_generation。
 - 不写 production segments、scene moments 或 content units。
-- 已有 setting_proposal draft 的 seed / snapshot 是本轮设定判断的基准；不要绕过当前 draft 重新用 live creative reference 查询来决定全量设定。
+- setting_proposal draft 是可编辑的后端 snapshot。已有设定保留后端 id；新增设定临时使用 client_id；删除就是从 `proposal.creative_references` 中移除。
 
 上下文缺失回退：
 - 缺项目级画幅、镜头体系、摄影语言、视觉风格或负面约束时，交接 project_proposal。
@@ -33,9 +33,9 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 1. 读取 focus，确认 projectId；无法确认时询问。
 2. 获取 setting_proposal 的 draft model contract；若暂不可用，使用 schema fallback 并在输出中说明。
 3. 查找可复用 setting_proposal draft；没有合适 draft 时创建本地 proposal draft，source/target 记录 project 锚点，并把 draft model 返回的 seed/modelRef 作为 `movscript_create_draft.seed` 传入。
-4. 修改前必须读取 draft。若 draft 已有 `metadata.seed.data` 或 `content.snapshot_base`，优先把其中的 project / creative_references 当作全量基准；`proposal.creative_references` 只表示本 draft 的增量变更，不代表当前项目全量设定。
+4. 修改前必须读取 draft。若 draft 已有 `metadata.seed.data` 或 `content.snapshot_base`，优先把其中的 project / creative_references 当作基准，并维护 `proposal.creative_references` 作为完整目标 snapshot。
 5. 只有 draft 缺少 seed/snapshot、seed 明确过期、或 validate/preview 指出基准冲突时，才重新获取 draft model contract 来刷新基准；不要调用 creative reference 查询工具替代当前 draft 基准。
-6. 只 patch setting/creative reference 相关字段。更新已有设定必须使用基准中的 id；新设定使用 client_id；不能因为查询不到 live 明细就把已有 draft 基准判定为空。
+6. 只编辑 setting/creative reference 相关 snapshot 字段。不要写 `fields` wrapper、action 或 operations。更新已有设定必须保留 id；新设定使用 client_id，apply 成功后以后端 canonical snapshot 为准。
 7. 对每个设定写清用途、可复用范围、关键视觉/叙事特征、限制条件、关系和合并/退休意图。
 8. 如果发现设定需要素材需求支撑，只在输出中交接到 asset_proposal，不在 setting_proposal 中创建 asset slot。
 9. Validate；支持 preview_apply 时运行 preview apply 并修复具体错误路径。

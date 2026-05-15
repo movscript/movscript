@@ -490,7 +490,7 @@ test('semantic query tools expose production context and content unit generation
   }
 })
 
-test('applyDraftReview normalizes flat asset proposal slots for backend project proposal apply', async () => {
+test('applyDraftReview posts direct asset proposal snapshot rows for backend project proposal apply', async () => {
   const postedBodies: Array<Record<string, unknown>> = []
   const previousFetch = globalThis.fetch
   globalThis.fetch = mockFetch({
@@ -503,7 +503,7 @@ test('applyDraftReview normalizes flat asset proposal slots for backend project 
   try {
     const proposedValue = JSON.stringify({
       schema: 'movscript.asset_proposal.v1',
-      mode: 'patch',
+      mode: 'snapshot',
       summary: '批量提交：3 项',
       proposal: {
         asset_slots: [{
@@ -515,7 +515,7 @@ test('applyDraftReview normalizes flat asset proposal slots for backend project 
           description: '对应情景ID=7的核心镜头',
           priority: 'high',
         }],
-        creative_references: [{ fields: { name: 'Should be dropped' } }],
+        creative_references: [{ name: 'Should be dropped' }],
       },
     })
 
@@ -529,19 +529,17 @@ test('applyDraftReview normalizes flat asset proposal slots for backend project 
 
     assert.equal(result.performed, true)
     assert.equal(result.url, 'http://mock.backend/api/v1/projects/4/entities/project-proposals/apply')
+    assert.equal(postedBodies[0].mode, 'snapshot')
     assert.deepEqual(postedBodies[0].proposal, {
       creative_references: [],
       asset_slots: [{
         client_id: 'slot_001',
-        owner: { type: 'scene_moment', id: 7 },
-        fields: {
-          owner_type: 'scene_moment',
-          owner_id: 7,
-          kind: 'image',
-          name: '周建国重生惊醒关键帧',
-          description: '对应情景ID=7的核心镜头',
-          priority: 'high',
-        },
+        owner_type: 'scene_moment',
+        owner_id: 7,
+        kind: 'image',
+        name: '周建国重生惊醒关键帧',
+        description: '对应情景ID=7的核心镜头',
+        priority: 'high',
       }],
     })
   } finally {

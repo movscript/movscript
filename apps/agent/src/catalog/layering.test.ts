@@ -120,7 +120,6 @@ test('target-state pack files and the default profile are loaded as first-class 
     'movscript.workflow.production-proposal',
     'movscript.workflow.asset-candidate-generation',
     'movscript.workflow.content-unit-proposal',
-    'movscript.workflow.content-unit-media-proposal',
     'movscript.workflow.storyboard-gap-review',
     'movscript.workflow.visual-generation',
   ])

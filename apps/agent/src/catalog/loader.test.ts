@@ -204,9 +204,9 @@ test('loads built-in content unit proposal catalogs by default', () => {
 
   assert.ok(movscriptPack)
   assert.ok(draftPack?.schemas.includes('movscript.content_unit_proposal.v1'))
-  assert.ok(draftPack?.schemas.includes('movscript.content_unit_media_proposal.v1'))
+  assert.equal(draftPack?.schemas.includes('movscript.content_unit_media_proposal.v1'), false)
   assert.ok(movscriptPack?.skills.includes('movscript.workflow.content-unit-proposal'))
-  assert.ok(movscriptPack?.skills.includes('movscript.workflow.content-unit-media-proposal'))
+  assert.equal(movscriptPack?.skills.includes('movscript.workflow.content-unit-media-proposal'), false)
   assert.ok(movscriptPack?.knowledge?.includes('movscript.knowledge.storyboard'))
   assert.ok(catalog.knowledgeCollections.some((collection) => collection.id === 'movscript.knowledge.storyboard'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_draft'))

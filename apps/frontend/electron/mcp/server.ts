@@ -2258,16 +2258,18 @@ function normalizeProjectProposalPayloadForKind(value: unknown, kind: AgentDraft
   if (effectiveKind === 'setting_proposal' || effectiveKind === 'asset_proposal') {
     return {
       ...payload,
+      mode: 'snapshot',
       proposal: {
         ...proposal,
-        creative_references: effectiveKind === 'setting_proposal' && Array.isArray(proposal.creative_references) ? proposal.creative_references : [],
-        asset_slots: effectiveKind === 'asset_proposal' && Array.isArray(proposal.asset_slots) ? proposal.asset_slots.map(normalizeProjectProposalAssetSlotPatch) : [],
+        creative_references: effectiveKind === 'setting_proposal' ? normalizeProjectProposalSnapshotNodes(proposal.creative_references) : [],
+        asset_slots: effectiveKind === 'asset_proposal' ? normalizeProjectProposalSnapshotNodes(proposal.asset_slots) : [],
       },
     }
   }
   if (effectiveKind !== 'project_proposal') return payload
   return {
     ...payload,
+    mode: 'snapshot',
     proposal: {
       ...proposal,
       project_style: isRecord(proposal.project_style) ? proposal.project_style : {},
@@ -2288,49 +2290,14 @@ function inferProjectProposalDraftKind(payload: Record<string, unknown>, kind: A
   return kind
 }
 
-function normalizeProjectProposalAssetSlotPatch(value: unknown): unknown {
-  if (!isRecord(value)) return value
-  const passthroughKeys = new Set(['client_id', 'id', 'owner', 'fields'])
-  const fieldKeys = [
-    'production_id',
-    'creative_reference_id',
-    'creative_reference_state_id',
-    'owner_type',
-    'owner_id',
-    'kind',
-    'name',
-    'description',
-    'slot_key',
-    'prompt_hint',
-    'status',
-    'priority',
-    'resource_id',
-    'locked_asset_slot_id',
-    'metadata_json',
-  ]
-  const fields: Record<string, unknown> = isRecord(value.fields) ? { ...value.fields } : {}
-  for (const key of fieldKeys) {
-    if (value[key] !== undefined && fields[key] === undefined) fields[key] = value[key]
-  }
-  const owner = isRecord(value.owner)
-    ? value.owner
-    : typeof value.owner_type === 'string' || value.owner_id !== undefined
-      ? {
-          ...(typeof value.owner_type === 'string' ? { type: value.owner_type } : {}),
-          ...(value.owner_id !== undefined ? { id: value.owner_id } : {}),
-        }
-      : undefined
-  const normalized: Record<string, unknown> = {}
-  for (const key of passthroughKeys) {
-    if (key === 'fields') continue
-    if (key === 'owner') {
-      if (owner !== undefined) normalized.owner = owner
-      continue
+function normalizeProjectProposalSnapshotNodes(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return []
+  return value.map((item, index) => {
+    if (isRecord(item) && item.fields !== undefined) {
+      throw new Error(`project proposal snapshot node ${index} uses deprecated fields wrapper; put editable values directly on the node`)
     }
-    if (value[key] !== undefined) normalized[key] = value[key]
-  }
-  normalized.fields = fields
-  return normalized
+    return item
+  })
 }
 
 function normalizeProductionProposalPayload(value: unknown, fallbackProductionId: unknown): Record<string, unknown> {

@@ -669,6 +669,16 @@ export default function AIAgentRunPage() {
                       <ModelCallDetail detail={view.modelDetail} />
                     </details>
                   )}
+                  {view.messageDetail && (
+                    <details data-testid="agent-run-message-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
+                      <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+                        <ChevronRight size={10} className="open:hidden" />
+                        <ChevronDown size={10} className="hidden open:block" />
+                        {view.messageDetail.title}
+                      </summary>
+                      <MessageDetail detail={view.messageDetail} />
+                    </details>
+                  )}
                 </div>
                 {event.data !== undefined && expandedEventIds.has(event.id) && (
                   <pre data-testid="agent-run-trace-event-details" className="mt-2 max-h-64 overflow-auto rounded border border-border/70 bg-muted/20 p-2 text-[10px] leading-relaxed text-muted-foreground">
@@ -803,6 +813,21 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function MessageDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTraceView>['messageDetail']> }) {
+  return (
+    <div className="mt-1 rounded border border-border/60 bg-background/90 px-2 py-1">
+      <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
+        {detail.messageId && <span>ID {detail.messageId}</span>}
+        {detail.source && <span>来源 {detail.source}</span>}
+        <span>{detail.contentChars} 字符</span>
+      </div>
+      <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 text-[10px] leading-relaxed text-foreground">
+        {detail.content}
+      </pre>
     </div>
   )
 }

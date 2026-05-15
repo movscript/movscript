@@ -153,6 +153,45 @@ func TestApplyProductionProposalPersistsScriptBlockBindings(t *testing.T) {
 	}
 }
 
+func TestApplyProductionProposalInheritsScriptBlockBindings(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+	production := createProposalTestProduction(t, db, 1)
+	_, _, block := seedProposalTestScriptBlock(t, db, 1)
+
+	resp, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
+		Mode:         "snapshot",
+		ProductionID: production.ID,
+		Proposal: &ProposalTree{Segments: []ProposalSegmentNode{{
+			ClientID:      "segment-1",
+			Title:         "Opening",
+			ScriptBlockID: &block.ID,
+			SceneMoments: []ProposalSceneMomentNode{{
+				ClientID: "scene-1",
+				Title:    "Arrival",
+				ContentUnits: []ProposalContentUnitNode{{
+					ClientID:    "shot-1",
+					Title:       "Medium shot",
+					Description: "Character enters.",
+				}},
+			}},
+		}}},
+	})
+	if err != nil {
+		t.Fatalf("apply proposal: %v", err)
+	}
+	if len(resp.Segments) != 1 || resp.Segments[0].ScriptBlockID == nil || *resp.Segments[0].ScriptBlockID != block.ID {
+		t.Fatalf("segment script block not persisted: %+v", resp.Segments)
+	}
+	if len(resp.SceneMoments) != 1 || resp.SceneMoments[0].ScriptBlockID == nil || *resp.SceneMoments[0].ScriptBlockID != block.ID {
+		t.Fatalf("scene moment did not inherit segment script block: %+v", resp.SceneMoments)
+	}
+	if len(resp.ContentUnits) != 1 || resp.ContentUnits[0].ScriptBlockID == nil || *resp.ContentUnits[0].ScriptBlockID != block.ID {
+		t.Fatalf("content unit did not inherit scene moment script block: %+v", resp.ContentUnits)
+	}
+}
+
 func TestApplyProductionProposalRejectsCreativeReferenceWithoutIDAndRollsBack(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)

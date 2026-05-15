@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
@@ -62,19 +63,15 @@ func TestApplyProjectProposalMergesPartialReferencesAndAssets(t *testing.T) {
 		Proposal: &ProjectProposalTree{
 			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
 				ClientID: "cr_lin_xia",
-				Fields: map[string]any{
-					"name":   "Lin Xia",
-					"kind":   "person",
-					"status": "confirmed",
-				},
+				Name:     "Lin Xia",
+				Kind:     "person",
+				Status:   "confirmed",
 			}},
 			AssetSlots: []ProjectProposalAssetSlotPatch{{
-				Fields: map[string]any{
-					"name":            "Lin Xia portrait",
-					"kind":            "image",
-					"priority":        "high",
-					"owner_client_id": "cr_lin_xia",
-				},
+				Owner:    &ProjectProposalOwnerRef{Type: "creative_reference", ClientID: "cr_lin_xia"},
+				Name:     "Lin Xia portrait",
+				Kind:     "image",
+				Priority: "high",
 			}},
 		},
 	})
@@ -108,6 +105,60 @@ func TestApplyProjectProposalMergesPartialReferencesAndAssets(t *testing.T) {
 	}
 }
 
+func TestApplyProjectProposalSnapshotKeepsCreatedRows(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+
+	resp, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Mode: "snapshot",
+		Proposal: &ProjectProposalTree{
+			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
+				ClientID: "cr_new",
+				Name:     "New reference",
+				Kind:     "person",
+				Status:   "confirmed",
+			}},
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				ClientID: "slot_new",
+				Owner:    &ProjectProposalOwnerRef{Type: "creative_reference", ClientID: "cr_new"},
+				Name:     "New reference portrait",
+				Kind:     "image",
+				Status:   "missing",
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("apply snapshot project proposal: %v", err)
+	}
+	if resp.Counts.CreativeReferencesCreated != 1 || resp.Counts.AssetSlotsCreated != 1 {
+		t.Fatalf("unexpected create counts: %+v", resp.Counts)
+	}
+	if resp.Counts.CreativeReferencesDeleted != 0 || resp.Counts.AssetSlotsDeleted != 0 {
+		t.Fatalf("created rows were treated as omitted: %+v", resp.Counts)
+	}
+
+	var reference model.CreativeReference
+	if err := db.Where("project_id = ? AND name = ?", 1, "New reference").First(&reference).Error; err != nil {
+		t.Fatalf("load creative reference: %v", err)
+	}
+	if reference.Status != "confirmed" {
+		t.Fatalf("reference status = %q, want confirmed", reference.Status)
+	}
+	var slot model.AssetSlot
+	if err := db.Where("project_id = ? AND name = ?", 1, "New reference portrait").First(&slot).Error; err != nil {
+		t.Fatalf("load asset slot: %v", err)
+	}
+	if slot.Status != "missing" {
+		t.Fatalf("slot status = %q, want missing", slot.Status)
+	}
+	if slot.CreativeReferenceID == nil || *slot.CreativeReferenceID != reference.ID {
+		t.Fatalf("slot creative_reference_id = %v, want %d", slot.CreativeReferenceID, reference.ID)
+	}
+	if resp.CanonicalSnapshot == nil || len(resp.CanonicalSnapshot.CreativeReferences) != 1 || resp.CanonicalSnapshot.CreativeReferences[0].ID == nil {
+		t.Fatalf("canonical snapshot did not include created reference with backend id: %#v", resp.CanonicalSnapshot)
+	}
+}
+
 func TestApplyProjectProposalOnlyPatchesMentionedFields(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)
@@ -138,10 +189,8 @@ func TestApplyProjectProposalOnlyPatchesMentionedFields(t *testing.T) {
 	_, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
 		Proposal: &ProjectProposalTree{
 			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
-				ID: &reference.ID,
-				Fields: map[string]any{
-					"name": "New name",
-				},
+				ID:   &reference.ID,
+				Name: "New name",
 			}},
 			AssetSlots: []ProjectProposalAssetSlotPatch{{
 				ID: &slot.ID,
@@ -149,9 +198,7 @@ func TestApplyProjectProposalOnlyPatchesMentionedFields(t *testing.T) {
 					Type: "creative_reference",
 					ID:   &reference.ID,
 				},
-				Fields: map[string]any{
-					"priority": "high",
-				},
+				Priority: "high",
 			}},
 		},
 	})
@@ -208,19 +255,15 @@ func TestApplyProjectProposalSoftDeletesSnapshotOmissions(t *testing.T) {
 		Mode: "patch",
 		Proposal: &ProjectProposalTree{
 			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
-				ID: &reference.ID,
-				Fields: map[string]any{
-					"name":   "Removed reference",
-					"status": "ignored",
-				},
+				ID:     &reference.ID,
+				Name:   "Removed reference",
+				Status: "ignored",
 			}},
 			AssetSlots: []ProjectProposalAssetSlotPatch{{
-				ID: &slot.ID,
-				Fields: map[string]any{
-					"name":   "Removed six-view",
-					"kind":   "image",
-					"status": "waived",
-				},
+				ID:     &slot.ID,
+				Name:   "Removed six-view",
+				Kind:   "image",
+				Status: "waived",
 			}},
 		},
 	})
@@ -276,18 +319,14 @@ func TestApplyProjectProposalSnapshotModeDeletesOmittedActiveItems(t *testing.T)
 		Mode: "snapshot",
 		Proposal: &ProjectProposalTree{
 			CreativeReferences: []ProjectProposalCreativeReferencePatch{{
-				ID: &kept.ID,
-				Fields: map[string]any{
-					"name": kept.Name,
-					"kind": kept.Kind,
-				},
+				ID:   &kept.ID,
+				Name: kept.Name,
+				Kind: kept.Kind,
 			}},
 			AssetSlots: []ProjectProposalAssetSlotPatch{{
-				ID: &keptSlot.ID,
-				Fields: map[string]any{
-					"name": keptSlot.Name,
-					"kind": keptSlot.Kind,
-				},
+				ID:   &keptSlot.ID,
+				Name: keptSlot.Name,
+				Kind: keptSlot.Kind,
 			}},
 		},
 	})
@@ -337,11 +376,9 @@ func TestApplyProjectProposalRejectsAssetSlotReferenceOutsideProjectAndRollsBack
 	_, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
 		Proposal: &ProjectProposalTree{
 			AssetSlots: []ProjectProposalAssetSlotPatch{{
-				Fields: map[string]any{
-					"name":                  "Foreign portrait",
-					"kind":                  "image",
-					"creative_reference_id": float64(foreignReference.ID),
-				},
+				Name:                "Foreign portrait",
+				Kind:                "image",
+				CreativeReferenceID: &foreignReference.ID,
 			}},
 		},
 	})
@@ -355,6 +392,27 @@ func TestApplyProjectProposalRejectsAssetSlotReferenceOutsideProjectAndRollsBack
 	}
 	if slots != 0 {
 		t.Fatalf("asset slots after rollback = %d, want 0", slots)
+	}
+}
+
+func TestApplyProjectProposalRejectsUnresolvedAssetOwnerClientID(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+
+	_, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Proposal: &ProjectProposalTree{
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				Name:  "Detached portrait",
+				Kind:  "image",
+				Owner: &ProjectProposalOwnerRef{Type: "creative_reference", ClientID: "cr_from_old_draft"},
+			}},
+		},
+	})
+	if err == nil {
+		t.Fatal("apply project proposal succeeded, want unresolved owner client_id error")
+	}
+	if !strings.Contains(err.Error(), "cannot be resolved") {
+		t.Fatalf("error = %v, want unresolved client id", err)
 	}
 }
 
