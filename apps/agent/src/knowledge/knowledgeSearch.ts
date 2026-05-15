@@ -25,6 +25,7 @@ export function searchKnowledgeChunks(input: {
       score,
       tags: [...chunk.tags],
       contentHash: chunk.contentHash,
+      ...(chunk.sourcePath ? { sourcePath: chunk.sourcePath } : {}),
       charCount: chunk.charCount,
     }))
 }

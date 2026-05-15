@@ -482,7 +482,7 @@ export default function ProjectHomePage() {
       {
         key: 'assets',
         title: '素材需求',
-        description: '素材需求负责表达缺口、候选和锁定素材，是关键帧和视频生产前的输入门槛。',
+        description: '素材需求负责表达缺口、候选和锁定素材，是画面锚点和视频生产前的输入门槛。',
         primaryLabel: '素材需求',
         primaryValue: data.assetSlots.length,
         secondary: `${counts.missingAssets} 个缺口，${counts.candidateAssets} 个候选，${counts.lockedAssets} 个已锁定`,
@@ -495,10 +495,10 @@ export default function ProjectHomePage() {
       {
         key: 'content',
         title: '内容制作',
-        description: '制作项收拢关键帧、画面、语音和字幕，生产工作台只处理采用和返工决策。',
-        primaryLabel: '制作项/关键帧',
+        description: '制作项收拢镜头关键帧、画面、语音和字幕，生产工作台只处理采用和返工决策。',
+        primaryLabel: '制作项/画面锚点',
         primaryValue: contentTotal,
-        secondary: `${counts.confirmedContents} 个内容可生产，${counts.acceptedKeyframes} 个关键帧已采纳`,
+        secondary: `${counts.confirmedContents} 个内容可生产，${counts.acceptedKeyframes} 个画面锚点已采纳`,
         progress: contentProgress,
         state: contentTotal === 0 ? (planProgress > 0 ? 'active' : 'empty') : contentProgress >= 70 ? 'ready' : 'active',
         href: '/contents',
@@ -564,7 +564,7 @@ export default function ProjectHomePage() {
         area: '素材工作台',
         href: '/asset-slots',
         priority: ['critical', 'high'].includes(String(slot.priority ?? '')) ? 'high' : 'medium',
-        detail: String(slot.description ?? '素材需求缺口会影响关键帧和视频生产'),
+        detail: String(slot.description ?? '素材需求缺口会影响画面锚点和视频生产'),
       })
     }
 

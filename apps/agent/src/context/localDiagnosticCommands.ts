@@ -15,7 +15,8 @@ import type { AgentMemory } from '../memory/types.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import { parseToolResult } from './runtimeContext.js'
 import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
-import { buildContext, buildOpenAIChatTools } from '../orchestration/contextBuilder.js'
+import { appendFinalSourceSummary } from '../contextManager/finalSourceSummary.js'
+import { contextManager } from '../contextManager/contextManager.js'
 
 export function isLocalDiagnosticCommand(name: string): boolean {
   return name === 'context' || name === 'memory'
@@ -92,8 +93,7 @@ export function buildLocalDiagnosticCommand(input: {
   contractResolver: AgentRuntimeContractResolver
 }): { content: string; metadata?: Record<string, JSONValue> } {
   if (input.command.name === 'context') {
-    const runtimeContract = input.contractResolver.find(input.manifest)
-    const builtContext = buildContext({
+    const modelTurnContext = contextManager.composeModelTurn({
       manifest: input.manifest,
       skills: input.skills,
       context: input.context,
@@ -106,7 +106,7 @@ export function buildLocalDiagnosticCommand(input: {
       command: input.command,
       contractResolver: input.contractResolver,
     })
-    const modelTools = buildOpenAIChatTools(input.tools, runtimeContract)
+    const { builtContext } = modelTurnContext
     return {
       content: renderModelGatewayMessagesText(builtContext.messages),
       metadata: {
@@ -124,7 +124,7 @@ export function buildLocalDiagnosticCommand(input: {
           available: compactDiagnosticTools(input.tools.available),
           blocked: compactDiagnosticTools(input.tools.blocked),
           discoveredCount: input.tools.discovered.length,
-          modelTools: modelTools.map((tool) => ({
+          modelTools: modelTurnContext.tools.map((tool) => ({
             name: tool.function.name,
             ...(tool.function.description ? { description: tool.function.description } : {}),
             ...(tool.function.parameters !== undefined ? { parameters: tool.function.parameters as JSONValue } : {}),
@@ -205,7 +205,12 @@ export function renderLocalFinalAssistantContent(input: {
       modelContent: input.modelContent,
     })
   }
-  return input.modelContent
+  return appendFinalSourceSummary(input.modelContent, {
+    run: input.run,
+    toolResults: input.toolResults ?? [],
+    memories: input.memories,
+    userMessage: input.command.payload,
+  })
 }
 
 export interface GenerationDebugCommandSpec {

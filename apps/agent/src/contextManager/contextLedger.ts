@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto'
 import type { JSONValue } from '../types.js'
 import type { ToolCall } from '../state/types.js'
 import type { ToolSource } from '../orchestration/toolExecutor.js'
-import type { ContextLedger, ContextRef, ContextSource, EvidenceLevel, RetrievedContextRecord } from './types.js'
+import type { ContextLedger, ContextRef, RetrievedContextRecord } from './types.js'
+import { normalizeContextSource, normalizeEvidenceLevel, sourceBoundaryForContextRef } from './sourceBoundary.js'
+import { mergeRetrievedRecords, refKey } from './retrievedContextStore.js'
 
 export interface CreateEmptyContextLedgerInput {
   runId: string
@@ -41,19 +43,36 @@ export interface RecordToolResultInContextLedgerInput extends CreateEmptyContext
   usedInPrompt?: boolean
 }
 
+export interface ContextLedgerDedupedRecord {
+  key: string
+  ref: ContextRef
+  incomingTitle: string
+  existingTitle: string
+  existingRetrievedAt: string
+}
+
+export interface RecordToolResultInContextLedgerAudit {
+  ledger: ContextLedger
+  incomingCount: number
+  dedupedRecords: ContextLedgerDedupedRecord[]
+}
+
 export function recordToolResultInContextLedger(input: RecordToolResultInContextLedgerInput): ContextLedger {
+  return recordToolResultInContextLedgerWithAudit(input).ledger
+}
+
+export function recordToolResultInContextLedgerWithAudit(input: RecordToolResultInContextLedgerInput): RecordToolResultInContextLedgerAudit {
   const now = input.now ?? new Date().toISOString()
   const ledger = normalizeContextLedger(input.ledger, { ...input, now })
   const resultHash = input.result === undefined ? undefined : stableHash(input.result)
-  const charCount = input.result === undefined ? undefined : JSON.stringify(input.result).length
   const refs = extractContextRefs(input.call, input.result)
   const records = refs.length > 0
     ? refs.map((ref) => buildRetrievedRecord({
       ref,
       call: input.call,
+      result: input.result,
       source: input.source,
       resultHash,
-      charCount,
       usedInPrompt: input.usedInPrompt !== false,
       now,
     }))
@@ -65,21 +84,38 @@ export function recordToolResultInContextLedger(input: RecordToolResultInContext
         ...(resultHash ? { hash: resultHash } : {}),
       },
       call: input.call,
+      result: input.result,
       source: input.source,
       resultHash,
-      charCount,
       usedInPrompt: input.usedInPrompt !== false,
       now,
     })]
+  const existingByKey = new Map(ledger.retrieved.map((record) => [refKey(record.ref), record]))
+  const dedupedRecords = records.flatMap((record): ContextLedgerDedupedRecord[] => {
+    const key = refKey(record.ref)
+    const existing = existingByKey.get(key)
+    if (!existing) return []
+    return [{
+      key,
+      ref: record.ref,
+      incomingTitle: record.title,
+      existingTitle: existing.title,
+      existingRetrievedAt: existing.retrievedAt,
+    }]
+  })
   const retrieved = mergeRetrievedRecords(ledger.retrieved, records)
   const artifactRefs = mergeRefs(ledger.artifactRefs, refs.filter((ref) => ref.type !== 'tool_result'))
   return {
-    ...ledger,
-    activeSkillIds: uniqueSorted(input.activeSkillIds ?? ledger.activeSkillIds),
-    visibleToolNames: uniqueSorted(input.visibleToolNames ?? ledger.visibleToolNames),
-    retrieved,
-    artifactRefs,
-    updatedAt: now,
+    incomingCount: records.length,
+    dedupedRecords,
+    ledger: {
+      ...ledger,
+      activeSkillIds: uniqueSorted(input.activeSkillIds ?? ledger.activeSkillIds),
+      visibleToolNames: uniqueSorted(input.visibleToolNames ?? ledger.visibleToolNames),
+      retrieved,
+      artifactRefs,
+      updatedAt: now,
+    },
   }
 }
 
@@ -109,13 +145,14 @@ function normalizeContextLedger(value: unknown, fallback: CreateEmptyContextLedg
 function buildRetrievedRecord(input: {
   ref: ContextRef
   call: ToolCall
+  result?: JSONValue
   source: ToolSource
   resultHash?: string
-  charCount?: number
   usedInPrompt: boolean
   now: string
 }): RetrievedContextRecord {
-  const { source, evidence } = sourceBoundaryForRef(input.ref, input.source)
+  const { source, evidence } = sourceBoundaryForContextRef(input.ref, input.source)
+  const charCount = retrievedRecordCharCount(input.ref, input.call, input.result)
   return {
     ref: input.ref,
     source,
@@ -123,10 +160,80 @@ function buildRetrievedRecord(input: {
     title: input.ref.title ?? input.ref.id,
     summary: `${input.call.name} result reference (${input.source})`,
     ...(input.resultHash ? { contentHash: input.resultHash } : {}),
-    ...(input.charCount !== undefined ? { charCount: input.charCount } : {}),
+    charCount,
     retrievedAt: input.now,
     usedInPrompt: input.usedInPrompt,
   }
+}
+
+function retrievedRecordCharCount(ref: ContextRef, call: ToolCall, result: JSONValue | undefined): number {
+  const payload = unwrapResult(result)
+  if (ref.type === 'knowledge') {
+    if (call.name !== 'movscript_get_knowledge') return 0
+    const item = findRefPayload(ref, payload)
+    return positiveNumberField(item, 'charCount')
+      ?? stringLengthField(item, 'content')
+      ?? positiveNumberField(payload, 'charCount')
+      ?? stringLengthField(payload, 'content')
+      ?? 0
+  }
+  if (ref.type === 'memory') {
+    if (call.name === 'movscript_search_memories') return 0
+    const item = findRefPayload(ref, payload)
+    return stringLengthField(item, 'content')
+      ?? stringLengthField(payload, 'content')
+      ?? 0
+  }
+  if (ref.type === 'draft') {
+    if (call.name === 'movscript_list_drafts' || call.name === 'movscript_create_draft' || call.name === 'movscript_update_draft') return 0
+    const item = findRefPayload(ref, payload)
+    return stringLengthField(item, 'content')
+      ?? stringLengthField(item, 'body')
+      ?? stringLengthField(payload, 'content')
+      ?? 0
+  }
+  if (ref.type === 'tool_result') {
+    return result === undefined ? 0 : JSON.stringify(result).length
+  }
+  return 0
+}
+
+function findRefPayload(ref: ContextRef, value: unknown): Record<string, unknown> | undefined {
+  if (isRecord(value) && refMatchesRecord(ref, value)) return value
+  if (isRecord(value)) {
+    for (const key of ['draft', 'memory', 'knowledge', 'project', 'production', 'plan', 'job']) {
+      const nested = value[key]
+      if (isRecord(nested) && refMatchesRecord(ref, nested)) return nested
+    }
+    for (const key of ['results', 'memories', 'drafts', 'items']) {
+      const nested = value[key]
+      if (!Array.isArray(nested)) continue
+      const found = nested.find((item) => isRecord(item) && refMatchesRecord(ref, item))
+      if (isRecord(found)) return found
+    }
+  }
+  return undefined
+}
+
+function refMatchesRecord(ref: ContextRef, value: Record<string, unknown>): boolean {
+  const id = stringField(value.id)
+    ?? stringField(value.memoryId)
+    ?? stringField(value.draftId)
+    ?? stringField(value.draftRef)
+    ?? stringField(value.proposalRef)
+  return id === ref.id
+}
+
+function stringLengthField(value: unknown, key: string): number | undefined {
+  if (!isRecord(value)) return undefined
+  const item = value[key]
+  return typeof item === 'string' ? item.length : undefined
+}
+
+function positiveNumberField(value: unknown, key: string): number | undefined {
+  if (!isRecord(value)) return undefined
+  const item = value[key]
+  return typeof item === 'number' && Number.isFinite(item) && item >= 0 ? item : undefined
 }
 
 function extractContextRefs(call: ToolCall, result: JSONValue | undefined): ContextRef[] {
@@ -135,6 +242,7 @@ function extractContextRefs(call: ToolCall, result: JSONValue | undefined): Cont
   if (isRecord(payload)) {
     refs.push(...extractDraftRefs(payload))
     refs.push(...extractMemoryRefs(payload))
+    refs.push(...extractKnowledgeRefs(payload))
     refs.push(...extractPlanRefs(payload))
     refs.push(...extractGenerationRefs(payload))
     refs.push(...extractProjectRefs(call, payload))
@@ -187,6 +295,33 @@ function extractMemoryRefs(payload: Record<string, unknown>): ContextRef[] {
     title: stringField(payload.title) ?? id,
     ...(stringField(payload.updatedAt) ? { version: stringField(payload.updatedAt) } : {}),
     source: 'memory',
+  }]
+}
+
+function extractKnowledgeRefs(payload: Record<string, unknown>): ContextRef[] {
+  const results = Array.isArray(payload.results) ? payload.results : undefined
+  if (results) {
+    return results.flatMap((item) => {
+      if (!isRecord(item)) return []
+      const id = stringField(item.id)
+      if (!id) return []
+      return [{
+        type: 'knowledge' as const,
+        id,
+        title: stringField(item.title) ?? id,
+        ...(stringField(item.contentHash) ? { hash: stringField(item.contentHash) } : {}),
+        source: 'knowledge',
+      }]
+    })
+  }
+  const id = stringField(payload.id)
+  if (!id || !('collectionId' in payload) || !('contentHash' in payload)) return []
+  return [{
+    type: 'knowledge',
+    id,
+    title: stringField(payload.title) ?? id,
+    ...(stringField(payload.contentHash) ? { hash: stringField(payload.contentHash) } : {}),
+    source: 'knowledge',
   }]
 }
 
@@ -259,24 +394,6 @@ function extractRefsFromArgs(call: ToolCall): ContextRef[] {
   return refs
 }
 
-function sourceBoundaryForRef(ref: ContextRef, toolSource: ToolSource): { source: ContextSource; evidence: EvidenceLevel } {
-  if (ref.type === 'draft') return { source: 'draft', evidence: 'draft' }
-  if (ref.type === 'memory') return { source: 'memory', evidence: 'summary' }
-  if (ref.type === 'project' || ref.type === 'production' || ref.type === 'asset_slot') return { source: toolSource === 'mcp' ? 'mcp' : 'backend', evidence: 'verified' }
-  if (ref.type === 'generation_job') return { source: toolSource === 'mcp' ? 'mcp' : 'tool_result', evidence: 'runtime_state' }
-  return { source: toolSource === 'mcp' ? 'mcp' : 'tool_result', evidence: toolSource === 'sandbox' ? 'advisory' : 'runtime_state' }
-}
-
-function mergeRetrievedRecords(existing: RetrievedContextRecord[], incoming: RetrievedContextRecord[]): RetrievedContextRecord[] {
-  const byKey = new Map<string, RetrievedContextRecord>()
-  for (const record of [...existing, ...incoming]) {
-    const key = refKey(record.ref)
-    const previous = byKey.get(key)
-    byKey.set(key, previous ? { ...previous, ...record, retrievedAt: previous.retrievedAt } : record)
-  }
-  return Array.from(byKey.values())
-}
-
 function mergeRefs(existing: ContextRef[], incoming: ContextRef[]): ContextRef[] {
   const byKey = new Map<string, ContextRef>()
   for (const ref of [...existing, ...incoming]) {
@@ -285,15 +402,11 @@ function mergeRefs(existing: ContextRef[], incoming: ContextRef[]): ContextRef[]
   return Array.from(byKey.values())
 }
 
-function refKey(ref: ContextRef): string {
-  return `${ref.type}:${ref.id}:${ref.version ?? ref.hash ?? ''}`
-}
-
 function normalizeRetrievedRecord(value: unknown): RetrievedContextRecord[] {
   if (!isRecord(value)) return []
   const ref = normalizeContextRef(value.ref)[0]
-  const source = normalizeSource(value.source)
-  const evidence = normalizeEvidence(value.evidence)
+  const source = normalizeContextSource(value.source)
+  const evidence = normalizeEvidenceLevel(value.evidence)
   const title = stringField(value.title)
   const retrievedAt = stringField(value.retrievedAt)
   if (!ref || !source || !evidence || !title || !retrievedAt) return []
@@ -340,40 +453,26 @@ function normalizeRefType(value: unknown): ContextRef['type'] | undefined {
     : undefined
 }
 
-function normalizeSource(value: unknown): ContextSource | undefined {
-  return value === 'system'
-    || value === 'catalog'
-    || value === 'profile'
-    || value === 'skill'
-    || value === 'tool_result'
-    || value === 'mcp'
-    || value === 'backend'
-    || value === 'draft'
-    || value === 'memory'
-    || value === 'knowledge'
-    || value === 'user_input'
-    || value === 'assistant_history'
-    || value === 'thread_summary'
-    ? value
-    : undefined
-}
-
-function normalizeEvidence(value: unknown): EvidenceLevel | undefined {
-  return value === 'verified'
-    || value === 'runtime_state'
-    || value === 'user_claimed'
-    || value === 'draft'
-    || value === 'advisory'
-    || value === 'summary'
-    || value === 'unknown'
-    ? value
-    : undefined
-}
-
 function unwrapResult(value: JSONValue | undefined): unknown {
   if (!isRecord(value)) return value
+  if (value.data !== undefined) return value.data
+  const content = value.content
+  if (Array.isArray(content)) {
+    const first = content[0]
+    if (isRecord(first) && typeof first.text === 'string') {
+      return parseJSONText(first.text)
+    }
+  }
   if ('result' in value && isRecord(value.result)) return value.result
   return value
+}
+
+function parseJSONText(text: string): unknown {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
 }
 
 function stableHash(value: JSONValue): string {

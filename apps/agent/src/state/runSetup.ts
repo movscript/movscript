@@ -1,12 +1,13 @@
 import type { JSONValue } from '../types.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
+import type { ProfileLimits } from '../catalog/types.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { AgentContext } from '../context/runtimeContext.js'
 import type { AgentCapabilitiesResponse, AgentRun, ResolvedAgentSkill } from './types.js'
 import type { AgentMemory } from '../memory/types.js'
 import { buildDebugContext, buildDebugTrace } from '../context/debugContext.js'
-import { createEmptyContextLedger } from '../contextManager/contextLedger.js'
+import { contextManager } from '../contextManager/contextManager.js'
 
 export interface BuildRunSetupMetadataInput {
   run: AgentRun
@@ -23,6 +24,7 @@ export interface BuildRunSetupMetadataInput {
     id: string
     version?: string | null
   }
+  limits?: ProfileLimits
 }
 
 export interface BuiltRunSetupMetadata {
@@ -37,7 +39,7 @@ export function buildRunSetupMetadata(input: BuildRunSetupMetadataInput): BuiltR
   }
   const visibleToolNames = input.capabilities.resolvedTools.available.map((tool) => tool.name)
   const activeSkillIds = input.skills.map((skill) => skill.id)
-  const contextLedger = createEmptyContextLedger({
+  const contextLedger = contextManager.createRunLedger({
     runId: input.run.id,
     threadId: input.run.threadId,
     catalogSnapshotId: input.catalogSnapshot?.id ?? 'unknown',
@@ -56,6 +58,7 @@ export function buildRunSetupMetadata(input: BuildRunSetupMetadataInput): BuiltR
       },
       activeSkillIds,
       visibleToolNames,
+      ...(input.limits ? { limits: input.limits as unknown as JSONValue } : {}),
       contextLedger: contextLedger as unknown as JSONValue,
       debugTrace: buildDebugTrace(input.agentManifest, input.skills, input.capabilities.resolvedTools, []) as unknown as JSONValue,
       skills: input.skills.map((skill) => ({

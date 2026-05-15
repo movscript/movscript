@@ -9,9 +9,16 @@ func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/projects/:id/entities/relations", h.semanticEntities.ListEntityRelations)
 	protected.GET("/projects/:id/entities/script-versions", h.semanticEntities.ListScriptVersions)
 	protected.POST("/projects/:id/entities/script-versions", h.semanticEntities.CreateScriptVersion)
+	protected.GET("/projects/:id/entities/script-versions/:versionId/lines", h.semanticEntities.ListScriptVersionLines)
 	protected.PATCH("/projects/:id/entities/script-versions/:versionId", h.semanticEntities.PatchScriptVersion)
 	protected.DELETE("/projects/:id/entities/script-versions/:versionId", func(c *gin.Context) {
 		h.semanticEntities.DeleteSemanticItemByKind(c, "script_version", c.Param("versionId"))
+	})
+	protected.GET("/projects/:id/entities/script-blocks", h.semanticEntities.ListScriptBlocks)
+	protected.POST("/projects/:id/entities/script-blocks", h.semanticEntities.CreateScriptBlock)
+	protected.PATCH("/projects/:id/entities/script-blocks/:blockId", h.semanticEntities.PatchScriptBlock)
+	protected.DELETE("/projects/:id/entities/script-blocks/:blockId", func(c *gin.Context) {
+		h.semanticEntities.DeleteSemanticItemByKind(c, "script_block", c.Param("blockId"))
 	})
 	protected.GET("/projects/:id/entities/segments", h.semanticEntities.ListSegments)
 	protected.POST("/projects/:id/entities/segments", h.semanticEntities.CreateSegment)

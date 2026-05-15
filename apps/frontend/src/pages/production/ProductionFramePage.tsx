@@ -357,7 +357,7 @@ export default function ProductionFramePage() {
                   <div className="p-4">
                     <p className="text-sm font-medium text-foreground">{selected.preview.title}</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                      预演挂在制作下面，用于追踪编排段、关键帧、素材和内容准备情况。
+                      预演挂在制作下面，用于追踪编排段、预演画面、素材和内容准备情况。
                     </p>
                     <Progress value={selected.preview.progress} className="mt-4 h-2" />
                     <div className="mt-4 space-y-1 text-xs text-muted-foreground">

@@ -1,4 +1,5 @@
-import type { CatalogRegistry, RuntimeContext, SkillDefinition, WorkflowSkill } from '../catalog/types.js'
+import type { CatalogRegistry, ExpertiseSkill, RuntimeContext, SkillDefinition, WorkflowSkill } from '../catalog/types.js'
+import { fitPromptPartsToBudget, renderPromptBudgetParts } from '../contextManager/contextBudgeter.js'
 
 const PLACEHOLDER_RE = /\{\{(tool|schema|ctx):([^}]+)\}\}/g
 
@@ -26,11 +27,13 @@ export function composePrompt(input: {
   persona?: SkillDefinition
   policies: SkillDefinition[]
   workflows: WorkflowSkill[]
+  expertise?: ExpertiseSkill[]
 }): ComposedPrompt {
   const parts: ComposedPrompt['parts'] = []
   if (input.persona) parts.push(toPart(input.persona, input.registry, input.ctx))
   for (const policy of [...input.policies].sort(byPriority)) parts.push(toPart(policy, input.registry, input.ctx))
   for (const workflow of [...input.workflows].sort(byPriority)) parts.push(toPart(workflow, input.registry, input.ctx))
+  for (const expertise of [...(input.expertise ?? [])].sort(byPriority)) parts.push(toPart(expertise, input.registry, input.ctx))
   return fitPromptToLimit(parts, input.ctx.profile.limits?.systemPromptCharLimit)
 }
 
@@ -94,59 +97,22 @@ function byPriority(a: SkillDefinition, b: SkillDefinition): number {
 
 function fitPromptToLimit(parts: ComposedPrompt['parts'], limit: number | undefined): ComposedPrompt {
   const warnings: string[] = []
-  let current = [...parts]
-  let degraded: ComposedPrompt['degraded']
-  let prompt = renderParts(current)
-  if (!limit || prompt.length <= limit) return { parts: current, systemPrompt: prompt, warnings }
-
-  const lowPriorityPolicies = current
-    .filter((part) => part.kind === 'policy')
-    .filter((part) => originalPriority(parts, part.id) < 100)
-    .sort((a, b) => originalPriority(parts, a.id) - originalPriority(parts, b.id) || b.id.localeCompare(a.id))
-  for (const policy of lowPriorityPolicies) {
-    current = current.filter((part) => part.id !== policy.id)
-    degraded = 'dropped_policies'
-    warnings.push(`prompt.size.exceeded: dropped non-critical policy ${policy.id}`)
-    prompt = renderParts(current)
-    if (prompt.length <= limit) return { parts: current, systemPrompt: prompt, warnings, degraded }
+  if (!limit) return { parts, systemPrompt: renderPromptBudgetParts(parts), warnings }
+  const fitted = fitPromptPartsToBudget({
+    parts,
+    limit,
+    warnings,
+    priorityOfPart: (part) => part.priority,
+    lowPriorityDropPredicate: (part) => part.kind === 'policy' && part.priority < 100,
+    lowPriorityDropWarning: (part) => `prompt.size.exceeded: dropped non-critical policy ${part.id}`,
+    secondaryDropPredicate: (part) => part.kind === 'workflow' || part.kind === 'expertise',
+    secondaryDropWarning: (part) => `prompt.size.exceeded: dropped ${part.kind} ${part.id}`,
+    examplesDropWarning: 'prompt.size.exceeded: stripped schema examples sections',
+  })
+  return {
+    parts: fitted.parts,
+    systemPrompt: fitted.prompt,
+    warnings: fitted.warnings,
+    ...(fitted.degraded ? { degraded: fitted.degraded } : {}),
   }
-
-  const workflows = current
-    .filter((part) => part.kind === 'workflow')
-    .sort((a, b) => originalPriority(parts, a.id) - originalPriority(parts, b.id) || b.id.localeCompare(a.id))
-  for (const workflow of workflows) {
-    current = current.filter((part) => part.id !== workflow.id)
-    degraded = 'dropped_workflows'
-    warnings.push(`prompt.size.exceeded: dropped workflow ${workflow.id}`)
-    prompt = renderParts(current)
-    if (prompt.length <= limit) return { parts: current, systemPrompt: prompt, warnings, degraded }
-  }
-
-  const stripped = current.map((part) => ({ ...part, content: stripExamplesSection(part.content) }))
-  const strippedPrompt = renderParts(stripped)
-  if (strippedPrompt.length < prompt.length) {
-    current = stripped
-    degraded = 'dropped_examples'
-    warnings.push('prompt.size.exceeded: stripped schema examples sections')
-    prompt = strippedPrompt
-    if (prompt.length <= limit) return { parts: current, systemPrompt: prompt, warnings, degraded }
-  }
-
-  throw new Error(`prompt.size.exceeded: system prompt ${prompt.length} chars exceeds limit ${limit}`)
-}
-
-function renderParts(parts: ComposedPrompt['parts']): string {
-  return parts.map((part) => `## ${part.title}\n${part.content}`).join('\n\n')
-}
-
-function originalPriority(parts: ComposedPrompt['parts'], id: string): number {
-  const part = parts.find((candidate) => candidate.id === id)
-  return part?.priority ?? 0
-}
-
-function stripExamplesSection(content: string): string {
-  return content
-    .replace(/\n+examples?:[\s\S]*?(?=\n#{1,6}\s|\noutput contract:|$)/gi, '\n')
-    .replace(/\n+示例[:：][\s\S]*?(?=\n#{1,6}\s|\noutput contract:|$)/g, '\n')
-    .trim()
 }

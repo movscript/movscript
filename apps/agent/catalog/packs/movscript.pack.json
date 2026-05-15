@@ -11,12 +11,16 @@
       "movscript/workflow/workspace",
       "movscript/workflow/planning",
       "movscript/workflow/proposal",
-      "movscript/workflow/generation"
+      "movscript/workflow/generation",
+      "movscript/expertise"
     ],
     "tools": [
       "movscript/workspace",
       "movscript/visual-generation",
       "movscript/knowledge"
+    ],
+    "knowledge": [
+      "storyboard"
     ]
   },
   "schemas": [],
@@ -54,7 +58,11 @@
     "movscript.workflow.content-unit-proposal",
     "movscript.workflow.content-unit-media-proposal",
     "movscript.workflow.storyboard-gap-review",
-    "movscript.workflow.visual-generation"
+    "movscript.workflow.visual-generation",
+    "movscript.expertise.storyboard.general-director"
+  ],
+  "knowledge": [
+    "movscript.knowledge.storyboard"
   ],
   "requires": {
     "packs": {

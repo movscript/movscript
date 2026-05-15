@@ -111,6 +111,11 @@ function mergeLimits(left: AgentProfile['limits'], right: AgentProfile['limits']
   return {
     maxActiveWorkflows: minDefined(left.maxActiveWorkflows, right.maxActiveWorkflows),
     systemPromptCharLimit: minDefined(left.systemPromptCharLimit, right.systemPromptCharLimit),
+    maxRetrievedContextChars: minDefined(left.maxRetrievedContextChars, right.maxRetrievedContextChars),
+    maxKnowledgeCharsPerRun: minDefined(left.maxKnowledgeCharsPerRun, right.maxKnowledgeCharsPerRun),
+    maxKnowledgeChunksPerRun: minDefined(left.maxKnowledgeChunksPerRun, right.maxKnowledgeChunksPerRun),
+    maxHistoryMessages: minDefined(left.maxHistoryMessages, right.maxHistoryMessages),
+    maxThreadSummaryChars: minDefined(left.maxThreadSummaryChars, right.maxThreadSummaryChars),
   }
 }
 

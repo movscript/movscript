@@ -15,6 +15,7 @@ import {
   Plus,
   RefreshCcw,
   Route,
+  ScrollText,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react'
@@ -55,6 +56,7 @@ type RelatedRecord = SemanticEntityRecord & {
   segment_id?: number
   scene_moment_id?: number
   content_unit_id?: number
+  script_block_id?: number
   owner_type?: string
   owner_id?: number
   creative_reference_id?: number
@@ -70,6 +72,19 @@ type RelatedRecord = SemanticEntityRecord & {
   status?: string
   duration_sec?: number
   order?: number
+}
+
+type ScriptBlockRecord = SemanticEntityRecord & {
+  script_id?: number
+  script_version_id?: number
+  kind?: string
+  speaker?: string
+  content?: string
+  start_line?: number
+  end_line?: number
+  start_char?: number
+  end_char?: number
+  status?: string
 }
 
 interface MomentWorkspace {
@@ -141,6 +156,11 @@ export default function SceneMomentsPage() {
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')) as Promise<RelatedRecord[]>,
     enabled: !!projectId,
   })
+  const scriptBlocksQuery = useQuery({
+    queryKey: ['semantic-scene-moment-page', projectId, 'script-blocks'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')) as Promise<ScriptBlockRecord[]>,
+    enabled: !!projectId,
+  })
   const storyboardLinesQuery = useQuery({
     queryKey: ['semantic-scene-moment-page', projectId, 'storyboard-lines'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('storyboardLines')) as Promise<RelatedRecord[]>,
@@ -170,6 +190,7 @@ export default function SceneMomentsPage() {
   const segments = segmentsQuery.data ?? []
   const moments = useMemo(() => (sceneMomentsQuery.data ?? []).slice().sort(compareByOrder), [sceneMomentsQuery.data])
   const contentUnits = contentUnitsQuery.data ?? []
+  const scriptBlocks = scriptBlocksQuery.data ?? []
   const storyboardLines = storyboardLinesQuery.data ?? []
   const keyframes = keyframesQuery.data ?? []
   const references = referencesQuery.data ?? []
@@ -178,6 +199,7 @@ export default function SceneMomentsPage() {
 
   const segmentById = useMemo(() => new Map(segments.map((item) => [item.ID, item])), [segments])
   const referencesById = useMemo(() => new Map(references.map((item) => [item.ID, item])), [references])
+  const scriptBlocksById = useMemo(() => new Map(scriptBlocks.map((item) => [item.ID, item])), [scriptBlocks])
 
   const momentWorkspaces = useMemo(() => moments.map((moment) => {
     const momentContentUnits = contentUnits.filter((item) => item.scene_moment_id === moment.ID).sort(compareByOrder)
@@ -231,13 +253,19 @@ export default function SceneMomentsPage() {
         item.moment.action_text,
         item.moment.mood,
         titleOf(item.segment),
-        item.contentUnits.map((unit) => [titleOf(unit), unit.description, unit.prompt].join(' ')).join(' '),
+        item.contentUnits.map((unit) => [
+          titleOf(unit),
+          unit.description,
+          unit.prompt,
+          unit.script_block_id ? scriptBlockSourceLabel(scriptBlocksById.get(unit.script_block_id)) : '',
+          unit.script_block_id ? scriptBlocksById.get(unit.script_block_id)?.content : '',
+        ].join(' ')).join(' '),
         item.references.map((reference) => titleOf(reference)).join(' '),
         item.assetSlots.map((slot) => titleOf(slot)).join(' '),
       ].filter(Boolean).join(' ').toLowerCase()
       return haystack.includes(q)
     })
-  }, [assetSlotFilterId, contentUnitFilterId, momentWorkspaces, query, referenceFilterId, segmentFilterId, selectedMomentId, statusFilter])
+  }, [assetSlotFilterId, contentUnitFilterId, momentWorkspaces, query, referenceFilterId, scriptBlocksById, segmentFilterId, selectedMomentId, statusFilter])
 
   const selected = useMemo(() => {
     if (selectedMomentId) {
@@ -254,7 +282,7 @@ export default function SceneMomentsPage() {
     : 0
   const totalDuration = momentWorkspaces.reduce((sum, item) => sum + item.totalDuration, 0)
   const isLoading = sceneMomentsQuery.isLoading || segmentsQuery.isLoading
-  const isFetching = segmentsQuery.isFetching || sceneMomentsQuery.isFetching || contentUnitsQuery.isFetching || storyboardLinesQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
+  const isFetching = segmentsQuery.isFetching || sceneMomentsQuery.isFetching || contentUnitsQuery.isFetching || scriptBlocksQuery.isFetching || storyboardLinesQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
 
   function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
     setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
@@ -264,6 +292,7 @@ export default function SceneMomentsPage() {
     segmentsQuery.refetch()
     sceneMomentsQuery.refetch()
     contentUnitsQuery.refetch()
+    scriptBlocksQuery.refetch()
     storyboardLinesQuery.refetch()
     keyframesQuery.refetch()
     referencesQuery.refetch()
@@ -393,6 +422,7 @@ export default function SceneMomentsPage() {
           <Panel title="内容设计" icon={Boxes}>
             <RelatedList
               records={selected?.contentUnits ?? []}
+              scriptBlocksById={scriptBlocksById}
               empty="当前情景暂无制作项"
               onSelect={(record) => setFilter({ content_unit_id: record.ID })}
             />
@@ -468,6 +498,7 @@ export default function SceneMomentsPage() {
             <Panel title="需要产出的制作项" icon={Boxes}>
               <RelatedList
                 records={selected?.contentUnits ?? []}
+                scriptBlocksById={scriptBlocksById}
                 empty="当前情景暂无制作项"
                 onSelect={(record) => setFilter({ content_unit_id: record.ID })}
               />
@@ -520,7 +551,17 @@ function MomentButton({ item, selected, onClick }: { item: MomentWorkspace; sele
   )
 }
 
-function RelatedList({ records, empty, onSelect }: { records: RelatedRecord[]; empty: string; onSelect?: (record: RelatedRecord) => void }) {
+function RelatedList({
+  records,
+  empty,
+  scriptBlocksById,
+  onSelect,
+}: {
+  records: RelatedRecord[]
+  empty: string
+  scriptBlocksById?: Map<number, ScriptBlockRecord>
+  onSelect?: (record: RelatedRecord) => void
+}) {
   if (records.length === 0) {
     return <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs text-muted-foreground">{empty}</p>
   }
@@ -528,12 +569,22 @@ function RelatedList({ records, empty, onSelect }: { records: RelatedRecord[]; e
   return (
     <div className="space-y-2">
       {records.slice(0, 8).map((record) => {
+        const scriptBlock = record.script_block_id ? scriptBlocksById?.get(record.script_block_id) : undefined
         const content = (
           <>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-xs font-medium text-foreground">{titleOf(record)}</p>
                 <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{record.description || record.content || record.prompt || record.prompt_hint || record.visual_intent || record.kind || `ID ${record.ID}`}</p>
+                {record.script_block_id ? (
+                  <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground">
+                    <ScrollText size={11} className="shrink-0" />
+                    <span className="truncate">{scriptBlockSourceLabel(scriptBlock) || `剧本块 #${record.script_block_id}`}</span>
+                  </div>
+                ) : null}
+                {scriptBlock?.content ? (
+                  <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{String(scriptBlock.content)}</p>
+                ) : null}
               </div>
               <StatusBadge status={record.status ?? 'draft'} />
             </div>
@@ -633,6 +684,13 @@ function calculateReadiness(moment: SceneMomentRecord, contentUnits: RelatedReco
 function titleOf(record?: RelatedRecord | SceneMomentRecord | SegmentRecord | null) {
   if (!record) return '未命名'
   return String(record.title ?? record.name ?? record.label ?? `#${record.ID}`)
+}
+
+function scriptBlockSourceLabel(block?: ScriptBlockRecord) {
+  if (!block) return ''
+  const startLine = block.start_line || '?'
+  const endLine = block.end_line || '?'
+  return `剧本块 #${block.ID} · 行 ${startLine}-${endLine}`
 }
 
 function orderOf(record: { order?: number; ID: number }) {

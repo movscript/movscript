@@ -2,19 +2,26 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { MCPError } from '../mcpClient.js'
-import type { JSONValue } from '../state/types.js'
+import type { AgentRun, JSONValue } from '../state/types.js'
+import { KnowledgeManager, loadBuiltinKnowledgeStore } from '../knowledge/index.js'
 import { executeTool } from './toolExecutor.js'
 
-function testRun() {
+function testRun(): AgentRun {
   return {
     id: 'run-1',
     threadId: 'thread-1',
-    status: 'running',
-    policy: { approvals: [] },
+    status: 'in_progress',
+    policy: {
+      approvalMode: 'interactive',
+      maxToolCalls: 20,
+      maxIterations: 20,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
     steps: [],
-  } as never
+  }
 }
 
 function testOptions(mcpClient: { initialize(): Promise<JSONValue>; callTool(name: string, args?: Record<string, JSONValue>): Promise<JSONValue> }) {
@@ -72,6 +79,125 @@ test('executeTool retries generation once with backend suggested_fix', async () 
     extra_params: { resolution: '480p' },
     repair_note: 'Retried once with backend suggested_fix after generation parameter validation failed.',
   })
+})
+
+test('executeTool serves runtime knowledge search and bounded get', async () => {
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime knowledge tools')
+      },
+    }),
+    knowledgeManager: new KnowledgeManager(loadBuiltinKnowledgeStore()),
+  }
+
+  const search = await executeTool({
+    name: 'movscript_search_knowledge',
+    args: { query: '关键帧 分镜', domain: 'storyboard', limit: 2 },
+  }, options)
+  const results = (search.result as any)?.results as any[]
+  assert.equal(Array.isArray(results), true)
+  assert.equal(results.length > 0, true)
+  assert.equal(results.some((result) => result.content !== undefined), false)
+  assert.equal(typeof results[0]!.title, 'string')
+  assert.equal(results[0]!.domain, 'storyboard')
+  assert.match(results[0]!.contentHash, /^sha256:/)
+  assert.equal(typeof results[0]!.sourcePath, 'string')
+
+  const body = await executeTool({
+    name: 'movscript_get_knowledge',
+    args: { id: results[0]!.id, maxChars: 32 },
+  }, options)
+  assert.equal((body.result as any)?.id, results[0]!.id)
+  assert.equal((body.result as any)?.domain, 'storyboard')
+  assert.match((body.result as any)?.contentHash, /^sha256:/)
+  assert.equal(typeof (body.result as any)?.sourcePath, 'string')
+  assert.equal(((body.result as any)?.content as string).length <= 32, true)
+})
+
+test('executeTool enforces per-run knowledge character budget', async () => {
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime knowledge tools')
+      },
+    }),
+    run: {
+      ...testRun(),
+      metadata: {
+        limits: { maxKnowledgeCharsPerRun: 50, maxKnowledgeChunksPerRun: 3 },
+        contextLedger: {
+          schema: 'movscript.context-ledger.v1',
+          retrieved: [{
+            ref: { type: 'knowledge', id: 'storyboard.rhythm.basic' },
+            source: 'knowledge',
+            evidence: 'advisory',
+            title: '分镜节奏基础',
+            summary: 'movscript_get_knowledge result reference (runtime)',
+            charCount: 30,
+            retrievedAt: new Date(0).toISOString(),
+            usedInPrompt: true,
+          }],
+        },
+      },
+    },
+    knowledgeManager: new KnowledgeManager(loadBuiltinKnowledgeStore()),
+  }
+
+  const body = await executeTool({
+    name: 'movscript_get_knowledge',
+    args: { id: 'storyboard.hook.short_drama', maxChars: 100 },
+  }, options)
+
+  assert.equal(((body.result as any)?.content as string).length <= 20, true)
+  assert.equal((body.result as any)?.truncated, true)
+})
+
+test('executeTool enforces per-run knowledge chunk budget', async () => {
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime knowledge tools')
+      },
+    }),
+    run: {
+      ...testRun(),
+      metadata: {
+        limits: { maxKnowledgeCharsPerRun: 8000, maxKnowledgeChunksPerRun: 1 },
+        contextLedger: {
+          schema: 'movscript.context-ledger.v1',
+          retrieved: [{
+            ref: { type: 'knowledge', id: 'storyboard.rhythm.basic' },
+            source: 'knowledge',
+            evidence: 'advisory',
+            title: '分镜节奏基础',
+            summary: 'movscript_get_knowledge result reference (runtime)',
+            charCount: 120,
+            retrievedAt: new Date(0).toISOString(),
+            usedInPrompt: true,
+          }],
+        },
+      },
+    },
+    knowledgeManager: new KnowledgeManager(loadBuiltinKnowledgeStore()),
+  }
+
+  await assert.rejects(
+    () => executeTool({
+      name: 'movscript_get_knowledge',
+      args: { id: 'storyboard.hook.short_drama', maxChars: 100 },
+    }, options),
+    /knowledge chunk budget exceeded/,
+  )
 })
 
 test('executeTool returns repaired generation param audit for UI extraction', async () => {

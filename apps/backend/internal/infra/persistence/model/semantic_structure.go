@@ -21,6 +21,29 @@ type ScriptVersion struct {
 	CreatedByID     *uint   `json:"created_by_id,omitempty"`
 }
 
+// ScriptBlock is a structured, addressable slice of a script version. Scene
+// moments and content units can cite blocks instead of copying raw script text.
+type ScriptBlock struct {
+	gorm.Model
+	ProjectID       uint           `gorm:"not null;index" json:"project_id"`
+	ScriptID        uint           `gorm:"not null;index" json:"script_id"`
+	Script          *Script        `gorm:"foreignKey:ScriptID" json:"script,omitempty"`
+	ScriptVersionID uint           `gorm:"not null;index" json:"script_version_id"`
+	ScriptVersion   *ScriptVersion `gorm:"foreignKey:ScriptVersionID" json:"script_version,omitempty"`
+	ParentBlockID   *uint          `gorm:"index" json:"parent_block_id,omitempty"`
+	ParentBlock     *ScriptBlock   `gorm:"foreignKey:ParentBlockID" json:"parent_block,omitempty"`
+	Order           int            `gorm:"not null;default:0;index" json:"order"`
+	Kind            string         `gorm:"not null;default:'action';index" json:"kind"` // scene_heading|action|dialogue|parenthetical|transition|note
+	Speaker         string         `gorm:"index" json:"speaker"`
+	Content         string         `gorm:"type:text" json:"content"`
+	StartLine       int            `gorm:"not null;default:0;index" json:"start_line"`
+	EndLine         int            `gorm:"not null;default:0;index" json:"end_line"`
+	StartChar       int            `gorm:"not null;default:0" json:"start_char"`
+	EndChar         int            `gorm:"not null;default:0" json:"end_char"`
+	Status          string         `gorm:"not null;default:'active';index" json:"status"` // active|draft|archived
+	MetadataJSON    string         `gorm:"type:text" json:"metadata_json"`
+}
+
 // Segment is an episode-level orchestration unit. It represents an internal
 // emotional, rhythm, or dramatic-function phase of the episode, not a script
 // paragraph, scene synonym, or raw footage fragment.
@@ -31,6 +54,8 @@ type Segment struct {
 	Production      *Production          `gorm:"foreignKey:ProductionID" json:"production,omitempty"`
 	TextBlockID     *uint                `gorm:"index" json:"text_block_id,omitempty"`
 	TextBlock       *ProductionTextBlock `gorm:"foreignKey:TextBlockID" json:"text_block,omitempty"`
+	ScriptBlockID   *uint                `gorm:"index" json:"script_block_id,omitempty"`
+	ScriptBlock     *ScriptBlock         `gorm:"foreignKey:ScriptBlockID" json:"script_block,omitempty"`
 	ParentSegmentID *uint                `gorm:"index" json:"parent_segment_id,omitempty"`
 	Kind            string               `gorm:"not null;default:'emotional_function';index" json:"kind"` // emotional_function|rhythm_shift|dramatic_function|setup|escalation|release|reversal|transition
 	Order           int                  `gorm:"not null;default:0;index" json:"order"`
@@ -126,6 +151,8 @@ type ContentUnit struct {
 	Segment          *Segment     `gorm:"foreignKey:SegmentID" json:"segment,omitempty"`
 	SceneMomentID    *uint        `gorm:"index" json:"scene_moment_id,omitempty"`
 	SceneMoment      *SceneMoment `gorm:"foreignKey:SceneMomentID" json:"scene_moment,omitempty"`
+	ScriptBlockID    *uint        `gorm:"index" json:"script_block_id,omitempty"`
+	ScriptBlock      *ScriptBlock `gorm:"foreignKey:ScriptBlockID" json:"script_block,omitempty"`
 	Kind             string       `gorm:"not null;default:'shot';index" json:"kind"` // shot|visual_segment|product_showcase|caption_card|narration|transition|music_beat
 	Order            int          `gorm:"not null;default:0;index" json:"order"`
 	Title            string       `json:"title"`

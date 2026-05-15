@@ -459,7 +459,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">引用关系工作台</h1>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-              校正 AI 提取的设定资料引用，维护情景、制作项、关键帧与人物、地点、道具、风格之间的关系。
+              校正 AI 提取的设定资料引用，维护情景、制作项、画面锚点与人物、地点、道具、风格之间的关系。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -894,7 +894,7 @@ function RelationGraphOverview({
 
         <Panel title="图例">
           <LegendItem tone="bg-sky-500" label="设定资料节点" detail="人物、地点、道具、风格等设定资料" />
-          <LegendItem tone="bg-zinc-500" label="结构对象节点" detail="编排段、情景、制作项、关键帧" />
+          <LegendItem tone="bg-zinc-500" label="结构对象节点" detail="编排段、情景、制作项、画面锚点" />
           <LegendItem tone="bg-blue-500" label="主角/连续性" detail="protagonist 或 continuity" />
           <LegendItem tone="bg-orange-500" label="地点使用" detail="location" />
           <LegendItem tone="bg-violet-500" label="道具/依赖" detail="prop 或 dependency" />

@@ -24,7 +24,15 @@ Draft schema：{{schema:movscript.content_unit_media_proposal.v1.id}}
 - Focus：{{tool:movscript_get_focus}}
 - 内容和素材上下文：{{tool:movscript_query_production_context}} {{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}}
 - Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Knowledge：{{tool:movscript_search_knowledge}} {{tool:movscript_get_knowledge}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
+
+知识检索：
+- 涉及关键帧选择、镜头职责、媒体计划或分镜节奏时，先 search domain=storyboard。
+- search 只返回摘要；只有摘要不足以完成判断时才 get。
+- 每次最多 get 3 条，每条 maxChars 不超过 4000。
+- 使用 knowledge 时注明 knowledge id 和标题。
+- knowledge 是通用建议，不是当前项目事实；项目事实仍以 production context、creative references、asset slots 和 draft 为准。
 
 流程：
 1. 读取 focus，确认目标 content unit、scene beat 或 keyframe target；如目标是 content unit，查询 production context，并在需要时读取 generation context。

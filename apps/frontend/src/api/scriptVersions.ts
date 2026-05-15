@@ -20,6 +20,13 @@ export type ScriptVersion = {
   UpdatedAt: string
 }
 
+export type ScriptVersionLine = {
+  line_number: number
+  content: string
+  start_char: number
+  end_char: number
+}
+
 export type CreateScriptVersionPayload = {
   script_id: number
   parent_version_id?: number | null
@@ -47,9 +54,7 @@ export async function createScriptVersion(projectId: number, payload: CreateScri
   return res.data
 }
 
-export type PatchScriptVersionPayload = Partial<Pick<ScriptVersion, 'title' | 'status' | 'summary' | 'content' | 'raw_source' | 'source_type'>>
-
-export async function patchScriptVersion(projectId: number, versionId: number, payload: PatchScriptVersionPayload) {
-  const res = await api.patch<ScriptVersion>(`/projects/${projectId}/entities/script-versions/${versionId}`, payload)
+export async function listScriptVersionLines(projectId: number, versionId: number) {
+  const res = await api.get<ScriptVersionLine[]>(`/projects/${projectId}/entities/script-versions/${versionId}/lines`)
   return res.data
 }

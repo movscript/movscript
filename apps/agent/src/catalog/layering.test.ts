@@ -42,6 +42,9 @@ test('draft schema registry is keyed by full schema id and supports active kind 
   assert.equal(getDraftSchemaEntry('movscript.project_proposal.v1')?.kind, 'project_proposal')
   assert.equal(getActiveSchemaForKind('project_proposal').id, 'movscript.project_proposal.v1')
   assert.deepEqual(listSchemasByKind('project_proposal').map((schema) => schema.id), ['movscript.project_proposal.v1'])
+  assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /shot_size/)
+  assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /lighting/)
+  assert.match(getActiveSchemaForKind('content_unit_proposal').promptSummary, /performance/)
 })
 
 test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries', () => {
@@ -51,7 +54,10 @@ test('layered catalog registry exposes schema/tool/skill/pack/profile boundaries
   assert.ok(registry.schemas.has('movscript.project_proposal.v1'))
   assert.ok(registry.tools.has('movscript_update_draft'))
   assert.ok(registry.tools.has('movscript_get_draft_model'))
+  assert.ok(registry.tools.has('movscript_search_knowledge'))
+  assert.ok(registry.tools.has('movscript_get_knowledge'))
   assert.ok(registry.skills.has('movscript.policy.drafts'))
+  assert.ok(registry.skills.has('movscript.expertise.storyboard.general-director'))
   assert.ok(registry.packs.has('movscript.pack.default'))
   assert.ok(registry.packs.has('movscript.pack.agent-core'))
   assert.ok(registry.packs.has('movscript.pack.drafts'))
@@ -80,6 +86,16 @@ test('target-state pack files and the default profile are loaded as first-class 
   assert.ok(movscriptPack.skills.includes('movscript.workflow.production-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.content-unit-proposal'))
   assert.ok(movscriptPack.skills.includes('movscript.workflow.visual-generation'))
+  assert.ok(movscriptPack.skills.includes('movscript.expertise.storyboard.general-director'))
+  assert.ok(movscriptPack.tools.includes('movscript_search_knowledge'))
+  assert.ok(movscriptPack.tools.includes('movscript_get_knowledge'))
+  assert.ok(movscriptPack.knowledge?.includes('movscript.knowledge.storyboard'))
+  assert.ok(catalog.layeredRegistry.knowledge.has('movscript.knowledge.storyboard'))
+  const directorExpertise = catalog.layeredRegistry.skills.get('movscript.expertise.storyboard.general-director')
+  assert.equal(directorExpertise?.kind, 'expertise')
+  assert.equal(defaultProfile?.limits?.maxKnowledgeCharsPerRun, 8000)
+  assert.equal(defaultProfile?.limits?.maxKnowledgeChunksPerRun, 3)
+  assert.equal(defaultProfile?.limits?.maxHistoryMessages, 6)
   const corePack = catalog.packs.find((pack) => pack.id === 'movscript.pack.agent-core')
   const draftPack = catalog.packs.find((pack) => pack.id === 'movscript.pack.drafts')
   assert.ok(corePack?.skills.includes('movscript.workflow.planner-subagents'))
@@ -341,6 +357,76 @@ test('asset candidate preparation is separated from generation execution', () =>
   assert.ok(createJobProperties.reference_type)
   assert.ok(createJobProperties.aspect_ratio)
   assert.ok(createJobProperties.duration)
+})
+
+test('storyboard knowledge tools are only visible for content unit workflows', () => {
+  const catalog = loadAgentPluginCatalog()
+  const contentUnit = catalog.layeredRegistry.skills.get('movscript.workflow.content-unit-proposal')
+  assert.ok(contentUnit?.kind === 'workflow')
+
+  const inactive = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: catalog.manifest,
+    currentProjectId: 4,
+    activeSkills: [],
+    userMessage: '普通聊天',
+  })
+  assert.equal(inactive.byName.movscript_search_knowledge?.available, false)
+  assert.equal(inactive.byName.movscript_search_knowledge?.unavailableReason, 'workflow_scope')
+
+  const active = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: catalog.manifest,
+    currentProjectId: 4,
+    activeSkills: [{
+      id: contentUnit.id,
+      name: contentUnit.name,
+      description: contentUnit.description,
+      enabled: contentUnit.enabled,
+      category: contentUnit.kind,
+      instruction: contentUnit.instructionTemplate,
+      compiledInstruction: contentUnit.instructionTemplate,
+      toolHints: contentUnit.toolRefs,
+      resolvedPriority: contentUnit.priority,
+      activationReason: 'trigger',
+      warnings: [],
+      metadata: { kind: 'workflow' },
+    }],
+    userMessage: '规划内容单元分镜节奏',
+  })
+  assert.equal(active.byName.movscript_search_knowledge?.available, true)
+  assert.equal(active.byName.movscript_get_knowledge?.available, true)
+})
+
+test('content unit proposal activates general director storyboard expertise', () => {
+  const catalog = loadAgentPluginCatalog()
+  const layers = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: catalog.manifest,
+    message: '请用普通导演的方式给这个情节做分镜，写出镜头参数、人物动作和光线',
+    debugContext: {
+      route: { pathname: '/content-unit-orchestrate' },
+      projects: [{ id: 4, name: '测试项目' }],
+      project: { id: 4, name: '测试项目' },
+      selection: { entityType: 'scene_moment', entityId: 8 },
+      productionId: 2,
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: [],
+    },
+  })
+
+  assert.ok(layers.trace.workflowIds.includes('movscript.workflow.content-unit-proposal'))
+  assert.ok(layers.skills.some((skill) => skill.id === 'movscript.workflow.content-unit-proposal'))
+  const expertise = layers.skills.find((skill) => skill.id === 'movscript.expertise.storyboard.general-director')
+  assert.ok(expertise)
+  assert.equal(expertise.category, 'expertise')
+  assert.match(expertise.compiledInstruction, /镜头参数/)
+  assert.match(expertise.compiledInstruction, /人物动作/)
+  assert.match(expertise.compiledInstruction, /光线/)
 })
 
 test('visual generation prompt exposes backend generation validation error codes', () => {
@@ -708,6 +794,31 @@ test('linter flags workflow language in tool descriptions', () => {
 
   const issues = lintCatalog(registry)
   assert.ok(issues.some((issue) => issue.code === 'tool.description.polluted'))
+})
+
+test('linter warns when knowledge chunks exceed the chunk size budget', () => {
+  const registry = buildLayeredCatalogRegistry({
+    manifest: {
+      schema: 'movscript.agent.current',
+      id: 'test',
+      version: '1.0.0',
+      name: 'Test',
+      tools: [],
+    },
+    tools: [],
+    knowledgeCollections: [{
+      id: 'studio.knowledge.large',
+      version: '1.0.0',
+      domain: 'storyboard',
+      name: 'Large Knowledge',
+      tags: [],
+      chunkIds: ['large.chunk'],
+      chunks: [{ id: 'large.chunk', title: 'Large', charCount: 12001 }],
+    } as never],
+  })
+
+  const issues = lintCatalog(registry)
+  assert.ok(issues.some((issue) => issue.code === 'knowledge.chunk.too_large'))
 })
 
 test('profile resolution, trigger selection, prompt refs, and tool scope work together', () => {

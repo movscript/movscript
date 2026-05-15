@@ -9,6 +9,7 @@ import type {
   ToolDefinition,
   ToolGrant,
 } from './types.js'
+import type { KnowledgeCollection } from '../knowledge/types.js'
 
 const EMPTY_OBJECT_SCHEMA = {
   type: 'object',
@@ -24,6 +25,7 @@ export function createEmptyCatalogRegistry(version = new Date().toISOString()): 
     skills: new Map(),
     packs: new Map(),
     profiles: new Map(),
+    knowledge: new Map(),
   }
 }
 
@@ -34,6 +36,7 @@ export function buildLayeredCatalogRegistry(input: {
   profiles?: AgentProfile[]
   layeredSkills?: SkillDefinition[]
   layeredTools?: ToolDefinition[]
+  knowledgeCollections?: KnowledgeCollection[]
   version?: string
 }): CatalogRegistry {
   const registry = createEmptyCatalogRegistry(input.version)
@@ -41,6 +44,7 @@ export function buildLayeredCatalogRegistry(input: {
   for (const tool of input.layeredTools ?? []) registry.tools.set(tool.name, tool)
   for (const skill of input.layeredSkills ?? []) registry.skills.set(skill.id, skill)
   for (const pack of input.packs ?? []) registry.packs.set(pack.id, pack)
+  for (const collection of input.knowledgeCollections ?? []) registry.knowledge.set(collection.id, collection)
   registry.packs.set('movscript.pack.default', {
     id: 'movscript.pack.default',
     version: '1.0.0',

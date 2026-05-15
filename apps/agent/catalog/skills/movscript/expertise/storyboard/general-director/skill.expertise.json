@@ -1,0 +1,16 @@
+{
+  "id": "movscript.expertise.storyboard.general-director",
+  "kind": "expertise",
+  "version": "1.0.0",
+  "name": "General Director Storyboard Expertise",
+  "description": "普通导演视角的分镜拆解：根据剧本定位、情绪和情节目标规划镜头参数、人物动作、光线、调度和剪辑节奏。",
+  "priority": 710,
+  "enabled": true,
+  "metadata": {
+    "domains": ["storyboard", "content_unit"],
+    "styles": ["general_director", "narrative"],
+    "useWhen": ["分镜", "内容单元", "镜头参数", "人物动作", "光线", "情绪表达", "情节处理"],
+    "knowledgeRefs": ["knowledge://storyboard/rhythm", "knowledge://storyboard/shot-size"]
+  },
+  "instructionTemplatePath": "instruction.md"
+}

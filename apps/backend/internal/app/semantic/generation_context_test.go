@@ -43,11 +43,45 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&sceneMoment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	script := model.Script{ProjectID: projectID, Title: "Pilot", Content: "INT. SHOP - NIGHT\n手机屏幕亮起。", RawSource: "INT. SHOP - NIGHT\n手机屏幕亮起。", AuthorID: 1}
+	if err := db.Create(&script).Error; err != nil {
+		t.Fatalf("create script: %v", err)
+	}
+	version := model.ScriptVersion{
+		ProjectID:     projectID,
+		ScriptID:      script.ID,
+		VersionNumber: 1,
+		Title:         "Pilot v1",
+		SourceType:    "raw",
+		Content:       script.Content,
+		RawSource:     script.RawSource,
+		Status:        "active",
+	}
+	if err := db.Create(&version).Error; err != nil {
+		t.Fatalf("create script version: %v", err)
+	}
+	scriptBlock := model.ScriptBlock{
+		ProjectID:       projectID,
+		ScriptID:        script.ID,
+		ScriptVersionID: version.ID,
+		Order:           1,
+		Kind:            "action",
+		Content:         "手机屏幕亮起。",
+		StartLine:       2,
+		EndLine:         2,
+		StartChar:       0,
+		EndChar:         7,
+		Status:          "active",
+	}
+	if err := db.Create(&scriptBlock).Error; err != nil {
+		t.Fatalf("create script block: %v", err)
+	}
 	contentUnit := model.ContentUnit{
 		ProjectID:     projectID,
 		ProductionID:  &production.ID,
 		SegmentID:     &segment.ID,
 		SceneMomentID: &sceneMoment.ID,
+		ScriptBlockID: &scriptBlock.ID,
 		Kind:          "shot",
 		Title:         "手机特写",
 		Prompt:        "手机屏幕亮起",
@@ -168,6 +202,9 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if got.SceneMoment == nil || got.SceneMoment.ID != sceneMoment.ID {
 		t.Fatalf("missing scene moment: %+v", got.SceneMoment)
 	}
+	if got.ScriptBlock == nil || got.ScriptBlock.ID != scriptBlock.ID || got.ScriptBlock.Content != scriptBlock.Content || got.ScriptBlock.StartLine != scriptBlock.StartLine || got.ScriptBlock.EndLine != scriptBlock.EndLine {
+		t.Fatalf("missing script block source: %+v", got.ScriptBlock)
+	}
 	if len(got.CreativeReferences) != 1 || got.CreativeReferences[0].Reference == nil || got.CreativeReferences[0].Reference.ID != ref.ID || got.CreativeReferences[0].State == nil || got.CreativeReferences[0].State.ID != state.ID {
 		t.Fatalf("unexpected creative references: %+v", got.CreativeReferences)
 	}
@@ -189,6 +226,9 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	}
 	if len(got.Constraints.WriteTargets) == 0 {
 		t.Fatalf("missing write targets: %+v", got.Constraints)
+	}
+	if !containsString(got.Constraints.ReadOnlyEntities, "script_block") {
+		t.Fatalf("script block must be read-only source context: %+v", got.Constraints)
 	}
 }
 
@@ -227,6 +267,9 @@ func newGenerationContextTestDB(t *testing.T) *gorm.DB {
 	}
 	if err := db.AutoMigrate(
 		&model.Production{},
+		&model.Script{},
+		&model.ScriptVersion{},
+		&model.ScriptBlock{},
 		&model.Segment{},
 		&model.SceneMoment{},
 		&model.ContentUnit{},
@@ -240,4 +283,13 @@ func newGenerationContextTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("migrate: %v", err)
 	}
 	return db
+}
+
+func containsString(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }

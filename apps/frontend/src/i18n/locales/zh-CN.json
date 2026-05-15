@@ -261,7 +261,7 @@
     "assetSlots": "素材需求",
     "storyboardLines": "分镜行",
     "contentUnits": "制作项",
-    "keyframes": "关键帧",
+    "keyframes": "画面锚点",
     "assets": "素材",
     "episodes": "制作",
     "scenes": "分场",
@@ -345,11 +345,11 @@
     "noAssetViews": "暂无视角图，请在素材管理页上传",
     "mediaLibrary": "素材库",
     "imageVideo": "图片 / 视频",
-    "keyframes": "关键帧",
+    "keyframes": "画面锚点",
     "referenceImages": "参考图片",
     "rawSourceVideo": "底稿视频",
-    "uploadKeyframe": "上传关键帧",
-    "generateKeyframe": "AI 生成关键帧",
+    "uploadKeyframe": "上传画面锚点",
+    "generateKeyframe": "AI 生成画面锚点",
     "draftVideo": "底稿视频",
     "cameraReference": "镜头控制参考",
     "noDraftVideo": "暂无底稿视频",
@@ -2027,8 +2027,8 @@
     },
     "smartStoryboard": {
       "title": "智能分镜",
-      "subtitle": "把人物、场景和分镜示意图组织成镜头语言，用情绪和表达生成关键帧方案。",
-      "generate": "生成关键帧",
+      "subtitle": "把人物、场景和分镜示意图组织成镜头语言，用情绪和表达生成画面锚点方案。",
+      "generate": "生成画面锚点",
       "buckets": {
         "characters": "人物",
         "scenes": "场景",
@@ -2092,7 +2092,7 @@
         }
       },
       "preview": {
-        "title": "关键帧预览"
+        "title": "画面锚点预览"
       },
       "prompt": {
         "title": "生成提示摘要"

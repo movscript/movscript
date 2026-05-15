@@ -27,6 +27,10 @@ type repository interface {
 	LoadScriptVersion(ctx context.Context, projectID uint, id string) (domainsemantic.ScriptVersion, error)
 	PatchScriptVersion(ctx context.Context, item domainsemantic.ScriptVersion, patch domainsemantic.ScriptVersionPatch) (domainsemantic.ScriptVersion, error)
 	NextScriptVersionNumber(ctx context.Context, projectID uint, scriptID uint) int
+	ListScriptBlocks(ctx context.Context, filter ScriptBlockFilter) ([]domainsemantic.ScriptBlock, error)
+	CreateScriptBlock(ctx context.Context, item domainsemantic.ScriptBlock) (domainsemantic.ScriptBlock, error)
+	LoadScriptBlock(ctx context.Context, projectID uint, id string) (domainsemantic.ScriptBlock, error)
+	PatchScriptBlock(ctx context.Context, item domainsemantic.ScriptBlock, patch domainsemantic.ScriptBlockPatch) (domainsemantic.ScriptBlock, error)
 	ListSegments(ctx context.Context, filter SegmentFilter) ([]domainsemantic.Segment, error)
 	CreateSegment(ctx context.Context, item domainsemantic.Segment) (domainsemantic.Segment, error)
 	LoadSegment(ctx context.Context, projectID uint, id string) (domainsemantic.Segment, error)
@@ -285,6 +289,9 @@ func (r *gormRepository) loadProjectItem(ctx context.Context, projectID uint, it
 }
 
 func (r *gormRepository) DeleteProjectItemByKind(ctx context.Context, projectID uint, kind string, id string) (uint, error) {
+	if strings.TrimSpace(kind) == domainworkflow.EntityKindScriptVersion {
+		return 0, ErrForbidden{Message: "剧本版本创建后不可删除，请保留历史版本以保证引用稳定"}
+	}
 	item, err := newDeleteItemModel(kind)
 	if err != nil {
 		return 0, err
@@ -302,6 +309,8 @@ func newDeleteItemModel(kind string) (any, error) {
 	switch kind {
 	case domainworkflow.EntityKindScriptVersion:
 		return &persistencemodel.ScriptVersion{}, nil
+	case "script_block":
+		return &persistencemodel.ScriptBlock{}, nil
 	case domainworkflow.EntityKindSegment:
 		return &persistencemodel.Segment{}, nil
 	case "production_text_block":
@@ -478,6 +487,84 @@ func (r *gormRepository) NextScriptVersionNumber(ctx context.Context, projectID 
 	return maxVersion + 1
 }
 
+func (r *gormRepository) ListScriptBlocks(ctx context.Context, filter ScriptBlockFilter) ([]domainsemantic.ScriptBlock, error) {
+	items := make([]persistencemodel.ScriptBlock, 0)
+	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
+	if filter.ScriptID > 0 {
+		q = q.Where("script_id = ?", filter.ScriptID)
+	}
+	if filter.ScriptVersionID > 0 {
+		q = q.Where("script_version_id = ?", filter.ScriptVersionID)
+	}
+	if filter.ParentBlockID > 0 {
+		q = q.Where("parent_block_id = ?", filter.ParentBlockID)
+	}
+	if kind := strings.TrimSpace(filter.Kind); kind != "" {
+		q = q.Where("kind = ?", kind)
+	}
+	if status := strings.TrimSpace(filter.Status); status != "" {
+		q = q.Where("status = ?", status)
+	}
+	if err := q.Order(`script_version_id, "order", start_line, id`).Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return scriptBlocksFromModels(items), nil
+}
+
+func scriptBlocksFromModels(items []persistencemodel.ScriptBlock) []domainsemantic.ScriptBlock {
+	result := make([]domainsemantic.ScriptBlock, 0, len(items))
+	for _, item := range items {
+		result = append(result, domainsemantic.ScriptBlockFromModel(item))
+	}
+	return result
+}
+
+func (r *gormRepository) CreateScriptBlock(ctx context.Context, item domainsemantic.ScriptBlock) (domainsemantic.ScriptBlock, error) {
+	modelItem := item.ToModel()
+	if err := r.createItem(ctx, &modelItem); err != nil {
+		return domainsemantic.ScriptBlockFromModel(modelItem), err
+	}
+	return domainsemantic.ScriptBlockFromModel(modelItem), nil
+}
+
+func (r *gormRepository) LoadScriptBlock(ctx context.Context, projectID uint, id string) (domainsemantic.ScriptBlock, error) {
+	var item persistencemodel.ScriptBlock
+	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
+		return domainsemantic.ScriptBlock{}, err
+	}
+	return domainsemantic.ScriptBlockFromModel(item), nil
+}
+
+func (r *gormRepository) PatchScriptBlock(ctx context.Context, item domainsemantic.ScriptBlock, patch domainsemantic.ScriptBlockPatch) (domainsemantic.ScriptBlock, error) {
+	modelItem := item.ToModel()
+	if err := r.patchItem(ctx, &modelItem, scriptBlockPatchColumns(patch)); err != nil {
+		return domainsemantic.ScriptBlockFromModel(modelItem), err
+	}
+	return domainsemantic.ScriptBlockFromModel(modelItem), nil
+}
+
+func scriptBlockPatchColumns(patch domainsemantic.ScriptBlockPatch) map[string]any {
+	updates := map[string]any{
+		"order": patch.Order,
+	}
+	if patch.ParentBlockID != nil {
+		updates["parent_block_id"] = patch.ParentBlockID
+	}
+	if strings.TrimSpace(patch.Kind) != "" {
+		updates["kind"] = patch.Kind
+	}
+	if strings.TrimSpace(patch.Speaker) != "" {
+		updates["speaker"] = patch.Speaker
+	}
+	if strings.TrimSpace(patch.Status) != "" {
+		updates["status"] = patch.Status
+	}
+	if strings.TrimSpace(patch.MetadataJSON) != "" {
+		updates["metadata_json"] = patch.MetadataJSON
+	}
+	return updates
+}
+
 func (r *gormRepository) ListSegments(ctx context.Context, filter SegmentFilter) ([]domainsemantic.Segment, error) {
 	items := make([]persistencemodel.Segment, 0)
 	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
@@ -537,6 +624,9 @@ func segmentPatchColumns(patch domainsemantic.SegmentPatch) map[string]any {
 	}
 	if patch.TextBlockID != nil {
 		updates["text_block_id"] = *patch.TextBlockID
+	}
+	if patch.ScriptBlockID != nil {
+		updates["script_block_id"] = patch.ScriptBlockID
 	}
 	if patch.ParentSegmentID != nil {
 		updates["parent_segment_id"] = patch.ParentSegmentID
@@ -924,6 +1014,8 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 		return nil
 	case "script_version":
 		return r.EnsureScriptVersionInProject(ctx, projectID, ownerID)
+	case "script_block":
+		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.ScriptBlock{})
 	case "segment":
 		return r.EnsureSegmentInProject(ctx, projectID, ownerID)
 	case "scene_moment":
@@ -1187,6 +1279,9 @@ func contentUnitPatchColumns(patch domainsemantic.ContentUnitPatch) map[string]a
 	}
 	if patch.SceneMomentID != nil {
 		updates["scene_moment_id"] = patch.SceneMomentID
+	}
+	if patch.ScriptBlockID != nil {
+		updates["script_block_id"] = patch.ScriptBlockID
 	}
 	if strings.TrimSpace(patch.Kind) != "" {
 		updates["kind"] = patch.Kind

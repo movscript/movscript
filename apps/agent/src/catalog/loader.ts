@@ -18,6 +18,8 @@ import type { JSONValue } from '../types.js'
 import { buildLayeredCatalogRegistry } from './registry.js'
 import { lintCatalog } from './linter.js'
 import type { AgentProfile, CapabilityPack, CatalogIssue, CatalogRegistry, ContextSelector, PolicyScope, SkillDefinition, ToolDefinition } from './types.js'
+import { loadAgentKnowledgeStore } from '../knowledge/knowledgeLoader.js'
+import type { KnowledgeCollection } from '../knowledge/types.js'
 
 export interface AgentPluginCatalog {
   skillsDir: string
@@ -32,6 +34,7 @@ export interface AgentPluginCatalog {
   profiles: AgentProfile[]
   layeredSkills: SkillDefinition[]
   layeredTools: ToolDefinition[]
+  knowledgeCollections: KnowledgeCollection[]
   toolGrants: AgentToolGrant[]
   manifest: AgentManifest
   registry: ToolRegistry
@@ -88,6 +91,7 @@ export function loadAgentPluginCatalog(options: {
     ...builtinLayeredToolResult.tools,
     ...localLayeredToolResult.tools,
   ])
+  const knowledgeCollections = loadAgentKnowledgeStore().listCollections()
   const layeredRegisteredTools = layeredTools.map(registeredToolFromLayeredTool)
   const layeredToolGrants = layeredTools.map((tool): AgentToolGrant => ({
     name: tool.name,
@@ -124,6 +128,7 @@ export function loadAgentPluginCatalog(options: {
     profiles,
     layeredSkills,
     layeredTools,
+    knowledgeCollections,
   })
   const catalogIssues = lintCatalog(layeredRegistry)
   const resourcePaths = {
@@ -146,6 +151,7 @@ export function loadAgentPluginCatalog(options: {
     profiles,
     layeredSkills,
     layeredTools,
+    knowledgeCollections,
     toolGrants: layeredToolGrants,
     manifest,
     registry,
@@ -335,7 +341,7 @@ function loadLayeredSkillsForPacks(rootDir: string, packs: CapabilityPack[]): { 
   const warnings: string[] = []
   const skills: SkillDefinition[] = []
   const paths: Record<string, string> = {}
-  for (const filePath of listPackResourceJSONFiles(rootDir, packs, 'skills', warnings, /\.(persona|workflow|policy)\.json$/i)) {
+  for (const filePath of listPackResourceJSONFiles(rootDir, packs, 'skills', warnings, /\.(persona|workflow|policy|expertise)\.json$/i)) {
     const parsed = readJSONFile(filePath, warnings)
     if (parsed === undefined) continue
     const normalizedSkills = normalizeLayeredSkillFile(parsed, filePath, warnings)
@@ -366,7 +372,7 @@ function loadLayeredSkillDirectory(dir: string): { skills: SkillDefinition[]; wa
   const skills: SkillDefinition[] = []
   const paths: Record<string, string> = {}
   for (const filePath of listPluginJSONFiles(dir)) {
-    if (!/\.(persona|workflow|policy)\.json$/i.test(filePath)) continue
+    if (!/\.(persona|workflow|policy|expertise)\.json$/i.test(filePath)) continue
     const parsed = readJSONFile(filePath, warnings)
     if (parsed === undefined) continue
     const normalizedSkills = normalizeLayeredSkillFile(parsed, filePath, warnings)
@@ -507,6 +513,7 @@ function normalizeCapabilityPack(input: unknown, filePath: string, warnings: str
     ...(nonEmptyString(input.description) ? { description: nonEmptyString(input.description) } : {}),
     source,
     ...(normalizePackResources(input.resources) ? { resources: normalizePackResources(input.resources) } : {}),
+    ...(stringArray(input.knowledge).length > 0 ? { knowledge: stringArray(input.knowledge) } : {}),
     schemas: stringArray(input.schemas),
     tools: stringArray(input.tools),
     skills: stringArray(input.skills),
@@ -523,8 +530,9 @@ function normalizePackResources(input: unknown): CapabilityPack['resources'] | u
   const resources = {
     ...(stringArray(input.skills).length > 0 ? { skills: stringArray(input.skills) } : {}),
     ...(stringArray(input.tools).length > 0 ? { tools: stringArray(input.tools) } : {}),
+    ...(stringArray(input.knowledge).length > 0 ? { knowledge: stringArray(input.knowledge) } : {}),
   }
-  return resources.skills || resources.tools ? resources : undefined
+  return resources.skills || resources.tools || resources.knowledge ? resources : undefined
 }
 
 function normalizePackRequires(input: Record<string, unknown>): NonNullable<CapabilityPack['requires']> {
@@ -585,7 +593,7 @@ function normalizeLayeredSkillFile(input: unknown, filePath: string, warnings: s
 function normalizeLayeredSkill(input: unknown, filePath: string, warnings: string[]): SkillDefinition | undefined {
   if (!isRecord(input)) return undefined
   const id = nonEmptyString(input.id)
-  const kind = input.kind === 'persona' || input.kind === 'workflow' || input.kind === 'policy' ? input.kind : undefined
+  const kind = input.kind === 'persona' || input.kind === 'workflow' || input.kind === 'policy' || input.kind === 'expertise' ? input.kind : undefined
   const name = nonEmptyString(input.name) ?? id
   const description = nonEmptyString(input.description) ?? ''
   const instructionTemplate = resolveInstructionTemplate(input, filePath, warnings)
@@ -615,6 +623,7 @@ function normalizeLayeredSkill(input: unknown, filePath: string, warnings: strin
       ...(normalizePolicyScope(input.scope) ? { scope: normalizePolicyScope(input.scope) } : {}),
     }
   }
+  if (kind === 'expertise') return { ...base, kind: 'expertise' }
   return {
     ...base,
     kind: 'workflow',
@@ -759,6 +768,11 @@ function normalizeProfileLimits(input: Record<string, unknown>): NonNullable<Age
   return {
     ...(positiveNumber(input.maxActiveWorkflows) ? { maxActiveWorkflows: positiveNumber(input.maxActiveWorkflows) } : {}),
     ...(positiveNumber(input.systemPromptCharLimit) ? { systemPromptCharLimit: positiveNumber(input.systemPromptCharLimit) } : {}),
+    ...(positiveNumber(input.maxRetrievedContextChars) ? { maxRetrievedContextChars: positiveNumber(input.maxRetrievedContextChars) } : {}),
+    ...(positiveNumber(input.maxKnowledgeCharsPerRun) ? { maxKnowledgeCharsPerRun: positiveNumber(input.maxKnowledgeCharsPerRun) } : {}),
+    ...(positiveNumber(input.maxKnowledgeChunksPerRun) ? { maxKnowledgeChunksPerRun: positiveNumber(input.maxKnowledgeChunksPerRun) } : {}),
+    ...(positiveNumber(input.maxHistoryMessages) ? { maxHistoryMessages: positiveNumber(input.maxHistoryMessages) } : {}),
+    ...(positiveNumber(input.maxThreadSummaryChars) ? { maxThreadSummaryChars: positiveNumber(input.maxThreadSummaryChars) } : {}),
   }
 }
 

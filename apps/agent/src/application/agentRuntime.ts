@@ -12,7 +12,7 @@ import { resolveAgentCapabilities } from '../tools/capabilityResolver.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from '../memory/types.js'
-import { KnowledgeManager, loadBuiltinKnowledgeStore } from '../knowledge/index.js'
+import { KnowledgeManager, loadAgentKnowledgeStore } from '../knowledge/index.js'
 import { InMemoryAgentStore, type AgentStore, type AgentTraceQuery } from '../state/store.js'
 import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from '../tools/toolRegistry.js'
 import {
@@ -28,8 +28,7 @@ import { MCPBackendApplyClient } from '../drafts/mcpBackendApplyClient.js'
 import { runAgentGraph } from '../orchestration/agentGraph.js'
 import { planSupervisorDispatch } from '../orchestration/supervisorGraph.js'
 import { generatePlanTasks } from '../orchestration/planGenerator.js'
-import { buildPromptPreview } from '../orchestration/contextBuilder.js'
-import { buildPromptMemoryIndex } from '../context/promptHygiene.js'
+import { buildPromptMemoryIndex, buildThreadContextSummary, normalizeThreadContextSummary } from '../context/promptHygiene.js'
 import { resolveRuntimeLayers } from '../skills/runtimeLayerResolver.js'
 import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
@@ -38,6 +37,7 @@ import {
 import { buildAgentRun } from '../state/runFactory.js'
 import { appendTraceEvent, buildRunStep } from '../state/runTrace.js'
 import { buildRunSetupMetadata } from '../state/runSetup.js'
+import { contextManager } from '../contextManager/contextManager.js'
 import type {
   AgentApprovalRequest,
   AgentPlan,
@@ -243,7 +243,7 @@ export class AgentRuntime {
     this.backendApplyClient = options.backendApplyClient ?? new MCPBackendApplyClient(this.mcpClient)
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
-    this.knowledgeManager = new KnowledgeManager(loadBuiltinKnowledgeStore())
+    this.knowledgeManager = new KnowledgeManager(loadAgentKnowledgeStore())
     const initialCatalog = options.pluginCatalog
     const builtinCatalog = initialCatalog ?? (!options.pluginCatalogLoader
       && !options.defaultAgentManifest
@@ -410,6 +410,7 @@ export class AgentRuntime {
           enabledPacks: enabledPackIds.length,
           skills: registry.skills.size,
           tools: registry.tools.size,
+          knowledge: registry.knowledge.size,
           profiles: registry.profiles.size,
         },
         enabledPackIds,
@@ -420,6 +421,7 @@ export class AgentRuntime {
           ...profile.enabledWorkflows,
         ]) : [],
         toolNames: profile?.toolGrants.map((grant) => grant.name) ?? [],
+        knowledgeCollections: summarizeEnabledKnowledgeCollections(enabledPackIds, registry),
         warnings: snapshot.pluginWarnings,
       } as unknown as JSONValue
     }
@@ -431,6 +433,10 @@ export class AgentRuntime {
       return {
         ...base,
         pack: summarizeCatalogPack(pack),
+        knowledgeCollections: (pack.knowledge ?? []).flatMap((collectionId) => {
+          const collection = registry.knowledge.get(collectionId)
+          return collection ? [summarizeKnowledgeCollection(collection)] : []
+        }),
         enabled: enabledPackSet.has(pack.id),
       } as unknown as JSONValue
     }
@@ -462,6 +468,15 @@ export class AgentRuntime {
         ...base,
         profile: summarizeCatalogProfile(target),
         isCurrent: target.id === profile?.id,
+      } as unknown as JSONValue
+    }
+    if (view === 'knowledge') {
+      const collection = registry.knowledge.get(id)
+      if (!collection) throw new Error(`catalog knowledge collection not found: ${id}`)
+      return {
+        ...base,
+        knowledge: summarizeKnowledgeCollection(collection),
+        enabledByPack: enabledPackIds.some((packId) => registry.packs.get(packId)?.knowledge?.includes(collection.id)),
       } as unknown as JSONValue
     }
     throw new Error(`unsupported catalog inspect view: ${view}`)
@@ -971,7 +986,7 @@ export class AgentRuntime {
       runRole: 'planner',
     })
     const policy = defaultRunPolicy({ sandboxMode: input.sandboxMode !== false, policy: input.policy })
-    const promptPreview = buildPromptPreview({
+    const promptPreview = contextManager.buildPromptPreview({
       manifest: activeManifest,
       skills,
       context: debugContext,
@@ -1558,6 +1573,7 @@ export class AgentRuntime {
     thread.messages.push(assistant)
     thread.updatedAt = assistant.createdAt
     this.applyThreadRunProjection(thread, run)
+    this.updateThreadContextSummary(thread, run)
     run.assistantMessageId = assistant.id
     const step = this.createStep(run, 'message')
     step.status = 'completed'
@@ -2007,6 +2023,13 @@ export class AgentRuntime {
       if (!lastUser) throw new Error('run requires at least one user message')
       const command = parseAgentCommand(lastUser.content)
       const clientInput = normalizeClientInput(run.metadata?.clientInput ?? thread.metadata?.lastClientInput)
+      const threadContextSummary = normalizeThreadContextSummary(thread.metadata?.threadContextSummary)
+      if (threadContextSummary) {
+        run.metadata = {
+          ...(run.metadata ?? {}),
+          threadContextSummary: threadContextSummary as unknown as JSONValue,
+        }
+      }
 
       this.recordTraceEvent(run, {
         kind: 'message',
@@ -2096,6 +2119,7 @@ export class AgentRuntime {
         : undefined
       const activeManifest = layers?.manifest ?? agentManifest
       run.agentManifest = activeManifest
+      const profileLimits = layers?.ctx.profile.limits
       const runtimeContract = this.contractResolver.find(activeManifest)
       const skills = layers?.skills ?? []
       const capabilityStartedAt = Date.now()
@@ -2127,6 +2151,7 @@ export class AgentRuntime {
           id: catalogSnapshot.id,
           version: catalogSnapshot.catalogVersion,
         },
+        ...(profileLimits ? { limits: profileLimits } : {}),
       })
       const debugContext = this.withRunPlanContext(setup.debugContext, run)
 
@@ -2197,6 +2222,32 @@ export class AgentRuntime {
           durationMs: capabilityDurationMs,
           startedAt: new Date(capabilityStartedAt).toISOString(),
           completedAt: isoNow(),
+        },
+      })
+      this.recordTraceEvent(run, {
+        kind: 'context',
+        title: 'Run context built',
+        summary: `${skills.length} active skill(s), ${capabilities.resolvedTools.available.length} visible tool(s), ${memories.length} memory ref(s).`,
+        status: 'completed',
+        round: setupRound,
+        data: {
+          eventType: 'context.run_built',
+          runId: run.id,
+          threadId: run.threadId,
+          catalogSnapshotId: catalogSnapshot.id,
+          catalogSnapshotVersion: catalogSnapshot.catalogVersion,
+          profileId: layers?.trace.profileId,
+          activeSkillIds: skills.map((skill) => skill.id),
+          visibleToolNames: capabilities.resolvedTools.available.map((tool) => tool.name),
+          blockedToolCount: capabilities.resolvedTools.blocked.length,
+          memoryRefCount: memories.length,
+          warningCount: [...catalogSnapshot.pluginWarnings, ...contextWarnings, ...(layers?.warnings ?? []), ...capabilities.warnings].length,
+          focus: {
+            route: debugContext.route,
+            project: debugContext.project,
+            selection: debugContext.selection,
+            productionId: debugContext.productionId,
+          } as unknown as JSONValue,
         },
       })
 
@@ -2283,6 +2334,7 @@ export class AgentRuntime {
         })
         this.applyThreadRunProjection(thread, run)
         thread.updatedAt = run.updatedAt
+        this.updateThreadContextSummary(thread, run)
         this.store.updateThread(thread)
         this.store.updateRun(run)
         this.emitAssistantMessage(run, assistant)
@@ -2434,6 +2486,7 @@ export class AgentRuntime {
         })
         this.applyThreadRunProjection(thread, run)
         thread.updatedAt = run.updatedAt
+        this.updateThreadContextSummary(thread, run)
         this.store.updateThread(thread)
         this.store.updateRun(run)
         this.emitAssistantMessage(run, assistant)
@@ -2655,6 +2708,7 @@ export class AgentRuntime {
       })
       this.applyThreadRunProjection(thread, run)
       thread.updatedAt = run.updatedAt
+      this.updateThreadContextSummary(thread, run)
       this.store.updateThread(thread)
       this.store.updateRun(run)
       this.emitAssistantMessage(run, assistant)
@@ -3824,6 +3878,26 @@ export class AgentRuntime {
     else if (thread.activeRunId === run.id) delete thread.activeRunId
   }
 
+  private updateThreadContextSummary(thread: AgentThread, run: AgentRun): void {
+    const limits = isRecord(run.metadata?.limits) ? run.metadata.limits : undefined
+    const summary = buildThreadContextSummary({
+      threadId: thread.id,
+      messages: thread.messages,
+      run,
+      now: run.completedAt ?? isoNow(),
+      previous: normalizeThreadContextSummary(thread.metadata?.threadContextSummary),
+      maxSummaryChars: numberField(limits?.maxThreadSummaryChars) ?? 4000,
+    })
+    thread.metadata = {
+      ...(thread.metadata ?? {}),
+      threadContextSummary: summary as unknown as JSONValue,
+    }
+    run.metadata = {
+      ...(run.metadata ?? {}),
+      threadContextSummary: summary as unknown as JSONValue,
+    }
+  }
+
   private formatFinalAssistantContent(
     userMessage: string,
     modelContent: string,
@@ -4373,6 +4447,10 @@ function normalizeNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+function numberField(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
 function normalizeThreadTitle(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const firstLine = value
@@ -4482,8 +4560,8 @@ function isBlockingCatalogIssue(issue: { level: string; code: string; resourceId
   return true
 }
 
-function normalizeCatalogInspectView(value: unknown): 'summary' | 'pack' | 'skill' | 'tool' | 'profile' {
-  if (value === 'pack' || value === 'skill' || value === 'tool' || value === 'profile') return value
+function normalizeCatalogInspectView(value: unknown): 'summary' | 'pack' | 'skill' | 'tool' | 'profile' | 'knowledge' {
+  if (value === 'pack' || value === 'skill' || value === 'tool' || value === 'profile' || value === 'knowledge') return value
   return 'summary'
 }
 
@@ -4536,8 +4614,32 @@ function summarizeCatalogPack(pack: CapabilityPack): JSONValue {
     skills: pack.skills,
     tools: pack.tools,
     schemas: pack.schemas,
+    ...(pack.knowledge ? { knowledge: pack.knowledge } : {}),
+    ...(pack.resources?.knowledge ? { knowledgeResources: pack.resources.knowledge } : {}),
     ...(pack.requires ? { requires: pack.requires as unknown as JSONValue } : {}),
     ...(pack.conflicts ? { conflicts: pack.conflicts } : {}),
+  }
+}
+
+function summarizeEnabledKnowledgeCollections(enabledPackIds: string[], registry: AgentPluginCatalog['layeredRegistry']): JSONValue {
+  return enabledPackIds.flatMap((packId) => {
+    const pack = registry.packs.get(packId)
+    return (pack?.knowledge ?? []).flatMap((collectionId) => {
+      const collection = registry.knowledge.get(collectionId)
+      return collection ? [summarizeKnowledgeCollection(collection)] : []
+    })
+  }) as unknown as JSONValue
+}
+
+function summarizeKnowledgeCollection(collection: { id: string; version: string; domain: string; name: string; description?: string; tags: string[]; chunkIds: string[] }): JSONValue {
+  return {
+    id: collection.id,
+    version: collection.version,
+    domain: collection.domain,
+    name: collection.name,
+    ...(collection.description ? { description: collection.description } : {}),
+    tags: collection.tags,
+    chunkIds: collection.chunkIds,
   }
 }
 
@@ -4558,6 +4660,7 @@ function summarizeCatalogSkill(skill: SkillDefinition, includeInstruction: boole
     ...(skill.kind !== 'workflow' && skill.toolRefs ? { toolRefs: skill.toolRefs } : {}),
     ...(skill.schemaRefs ? { schemaRefs: skill.schemaRefs } : {}),
     ...(skill.outputContract ? { outputContract: skill.outputContract } : {}),
+    ...(skill.metadata ? { metadata: skill.metadata as unknown as JSONValue } : {}),
     ...(includeInstruction ? { instructionTemplate: skill.instructionTemplate } : {}),
   }
 }

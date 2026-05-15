@@ -8,6 +8,7 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 输入：
 - 当前 focus 中的 project、production、selected segment、scene moment 或用户提供的内容目标。
 - 必要时读取的剧本事实、已有 production proposal、已有 content unit draft 和用户约束。
+- 如果 focus 中有 scene moment，应围绕该情节的剧本定位、要表达的情绪、要处理的动作/冲突/信息释放来规划分镜内容单元。
 
 边界：
 - 此 workflow 只处理 content unit 结构、表达单元、shot/narration/caption/transition/music beat、剧情推进、情绪推进和钩子等结构性内容。
@@ -23,16 +24,27 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
+- Production context：{{tool:movscript_query_production_context}}
 - Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Knowledge：{{tool:movscript_search_knowledge}} {{tool:movscript_get_knowledge}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
+
+知识检索：
+- 涉及分镜节奏、镜头结构、钩子、关键帧或内容单元节拍判断时，先 search domain=storyboard。
+- search 只用于找摘要；摘要不足以判断时才 get。
+- 每次最多 get 3 条，每条 maxChars 不超过 4000。
+- 使用 knowledge 时注明 knowledge id 和标题。
+- knowledge 是通用建议，不是当前项目事实；项目事实仍以 focus、draft 和工具查询为准。
 
 流程：
 1. 读取 focus，确认 production、segment、scene moment 或用户希望结构化的内容范围。
-2. 查找可复用的 content_unit_proposal draft；没有则创建新的 proposal draft。
-3. 将内容拆成可审阅的 content units，并写明每个 unit 的表达目标、时长、画面意图、剧情信息、情绪转折、钩子设计和文本/节奏要点。
-4. 用 JSON Pointer operations patch draft。
-5. 总结前先 validate；支持 preview apply 时运行 preview apply 并修复具体错误路径。
-6. 对媒体或素材需求只留下引用和需求，不把它们写成已生成资产。
+2. 如有 production、segment、scene moment 或 content unit 锚点，读取 production context；优先围绕当前 scene moment 的剧情定位、情绪、动作、冲突和信息释放，不要脱离情节另写一段。
+3. 查找可复用的 content_unit_proposal draft；没有则创建新的 proposal draft。
+4. 将情节拆成可审阅的 content units，并写明每个 unit 的表达目标、时长、画面意图、剧情信息、情绪转折、钩子设计和文本/节奏要点。
+5. 对分镜类 unit，尽量补齐可拍摄细节：`story_purpose`、`emotional_intent`、`shot`、`performance`、`lighting`、`blocking`、`sound`、`transition`。镜头参数应包括景别、机位、镜头运动、焦点/构图和建议时长；人物动作应包含表情、视线、停顿、手部或身体细节；光线应说明方向、明暗、色温或阴影关系。
+6. 用 JSON Pointer operations patch draft。
+7. 总结前先 validate；支持 preview apply 时运行 preview apply 并修复具体错误路径。
+8. 对媒体或素材需求只留下引用和需求，不把它们写成已生成资产。
 
 校验：
 - Content unit 必须归属到明确 production 或 scene/segment 锚点。

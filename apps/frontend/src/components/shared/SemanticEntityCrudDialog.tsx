@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, SlidersHorizontal, Trash2 } from 'lucide-react'
 
-import { createSemanticEntity, deleteSemanticEntity, updateSemanticEntity, type SemanticEntityConfig, type SemanticEntityPayload, type SemanticEntityRecord } from '@/api/semanticEntities'
+import { createSemanticEntity, deleteSemanticEntity, listSemanticEntities, semanticEntityConfig, updateSemanticEntity, type SemanticEntityConfig, type SemanticEntityPayload, type SemanticEntityRecord } from '@/api/semanticEntities'
 import { toast } from '@/store/toastStore'
 import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Textarea } from '@movscript/ui'
 
@@ -43,6 +43,24 @@ export function SemanticEntityCrudDialog({
   const advancedFields = useMemo(() => fields.filter((field) => isAdvancedField(config.kind, field.key)), [config.kind, fields])
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments') && Boolean(projectId)
+  const canDeleteRecord = !['scriptVersions', 'scriptBlocks'].includes(config.kind)
+
+  const { data: scriptBlocks = [] } = useQuery({
+    queryKey: ['semantic-crud-dialog', projectId, 'script-blocks'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')),
+    enabled: enableScriptBlockLookups,
+  })
+
+  const lookupOptions = useMemo(() => {
+    if (!enableScriptBlockLookups) return {}
+    return {
+      script_block_id: scriptBlocks.map((item) => ({
+        value: String(item.ID),
+        label: formatScriptBlockOption(item),
+      })),
+    } as Record<string, Array<{ value: string; label: string }>>
+  }, [enableScriptBlockLookups, scriptBlocks])
 
   useEffect(() => {
     if (open) {
@@ -122,6 +140,7 @@ export function SemanticEntityCrudDialog({
                   configKind={config.kind}
                   field={field}
                   value={form[field.key]}
+                  optionsOverride={lookupOptions[field.key]}
                   onChange={(value) => setForm((prev) => ({ ...prev, [field.key]: value }))}
                 />
               ))}
@@ -148,6 +167,7 @@ export function SemanticEntityCrudDialog({
                         configKind={config.kind}
                         field={field}
                         value={form[field.key]}
+                        optionsOverride={lookupOptions[field.key]}
                         advanced
                         onChange={(value) => setForm((prev) => ({ ...prev, [field.key]: value }))}
                       />
@@ -159,7 +179,7 @@ export function SemanticEntityCrudDialog({
           </div>
 
           <DialogFooter className="gap-2">
-            {mode === 'edit' && record ? (
+            {mode === 'edit' && record && canDeleteRecord ? (
               <Button type="button" variant="destructive" onClick={remove} loading={deleteMutation.isPending} className="mr-auto gap-2">
                 <Trash2 size={14} />
                 删除
@@ -178,12 +198,14 @@ function FieldControl({
   configKind,
   field,
   value,
+  optionsOverride,
   advanced = false,
   onChange,
 }: {
   configKind: SemanticEntityConfig['kind']
   field: SemanticEntityConfig['fields'][number]
   value: string | boolean
+  optionsOverride?: Array<{ value: string; label: string }>
   advanced?: boolean
   onChange: (value: string | boolean) => void
 }) {
@@ -205,7 +227,7 @@ function FieldControl({
             className={field.key.endsWith('_json') ? 'font-mono text-xs' : undefined}
             onChange={(event) => onChange(event.target.value)}
           />
-        ) : field.type === 'select' ? (
+        ) : field.type === 'select' || optionsOverride ? (
           <select
             {...common}
             value={String(value ?? '')}
@@ -213,7 +235,7 @@ function FieldControl({
             className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="">未设置</option>
-            {field.options?.map((option) => (
+            {(optionsOverride ?? field.options)?.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </select>
@@ -242,6 +264,14 @@ function FieldControl({
   )
 }
 
+function formatScriptBlockOption(record: SemanticEntityRecord) {
+  const startLine = record.start_line || '?'
+  const endLine = record.end_line || '?'
+  const content = String(record.content ?? '').trim().replace(/\s+/g, ' ')
+  const excerpt = content.length > 40 ? `${content.slice(0, 40)}...` : content
+  return [`剧本块 #${record.ID}`, `行 ${startLine}-${endLine}`, record.speaker || record.kind, excerpt].filter(Boolean).join(' · ')
+}
+
 function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {
   if (key.endsWith('_json') || key.endsWith('Json')) return true
   if (key === 'metadata_json' || key === 'profile_json' || key === 'tags_json' || key === 'snapshot_json' || key === 'value_json') return true
@@ -254,13 +284,13 @@ function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {
 
 const basicIdFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id'],
-  contentUnits: ['segment_id', 'scene_moment_id'],
+  contentUnits: ['segment_id', 'scene_moment_id', 'script_block_id'],
   keyframes: ['scene_moment_id', 'content_unit_id'],
 }
 
 const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id', 'progress'],
-  contentUnits: ['segment_id', 'scene_moment_id'],
+  contentUnits: ['segment_id', 'scene_moment_id', 'script_block_id'],
   assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_slot_id'],
 }
 

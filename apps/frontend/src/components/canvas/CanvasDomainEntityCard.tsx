@@ -530,7 +530,7 @@ function domainLinks(kind: CanvasDomainEntityKind, semanticValues?: EntitySemant
   if (kind === 'scene_moment') {
     return [
       { label: '所属编排段', value: idLabel(values.segment_id), inputPortId: 'segment_id', outputPortId: 'segment_id' },
-      { label: '生成上下文', value: '关键帧/视频', tone: 'ready', outputPortId: 'content_units' },
+      { label: '生成上下文', value: '画面锚点/视频', tone: 'ready', outputPortId: 'content_units' },
     ]
   }
   if (kind === 'creative_reference') {

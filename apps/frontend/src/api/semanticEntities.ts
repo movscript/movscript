@@ -3,6 +3,7 @@ import type { Project } from '@/types'
 
 export type SemanticEntityKind =
   | 'scriptVersions'
+  | 'scriptBlocks'
   | 'segments'
   | 'productionTextBlocks'
   | 'sceneMoments'
@@ -144,6 +145,7 @@ export interface GenerationContext {
   production?: SemanticEntityRecord
   segment?: SemanticEntityRecord
   scene_moment?: SemanticEntityRecord
+  script_block?: SemanticEntityRecord
   creative_references: GenerationContextReference[]
   asset_slots: SemanticEntityRecord[]
   keyframes: SemanticEntityRecord[]
@@ -275,15 +277,38 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
     cfg('scriptVersions', 'script-versions', '剧本版本', '导入剧本、brief 或修订文本后的稳定版本，是编排段和预演的源头。', 'text-sky-600', ['title', 'source_type', 'status', 'summary'], [
       num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
       text('title', '标题', true),
-      select('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai']),
-      area('content', '正文'),
-      area('raw_source', '原文'),
+      selectCreateOnly('source_type', '来源类型', ['raw', 'adapted', 'revised', 'ai'], false, '创建后不可修改；如需调整请创建新版本'),
+      areaCreateOnly('content', '正文', '创建后不可修改；后续对象应引用稳定版本或剧本块'),
+      areaCreateOnly('raw_source', '原文', '创建后不可修改；后续对象应引用稳定版本或剧本块'),
       area('summary', '摘要'),
-      select('status', '状态', ['draft', 'active', 'archived']),
-    ], '需要先在旧版剧本页创建 Script，创建版本时填写 script_id。'),
+      selectCreateOnly('status', '状态', ['draft', 'active', 'archived'], false, '创建后不可修改；版本保留为历史快照'),
+    ], '需要先在旧版剧本页创建 Script，创建版本即形成稳定快照；后续修改请创建新版本。'),
+    cfg('scriptBlocks', 'script-blocks', '剧本块', '绑定到某个剧本版本的可引用文本块，用于让情节和内容单元稳定引用具体行。', 'text-sky-700', ['kind', 'speaker', 'start_line', 'end_line', 'content'], [
+      num('script_id', 'Script ID', true, true, '关联旧 Script 记录'),
+      num('script_version_id', 'ScriptVersion ID', true, true, '绑定到稳定剧本版本'),
+      num('parent_block_id', '父剧本块 ID'),
+      num('order', '顺序'),
+      selectOptions('kind', '类型', [
+        { value: 'scene_heading', label: '场景标题' },
+        { value: 'action', label: '动作' },
+        { value: 'dialogue', label: '对白' },
+        { value: 'parenthetical', label: '括注' },
+        { value: 'transition', label: '转场' },
+        { value: 'note', label: '备注' },
+      ]),
+      text('speaker', '说话人'),
+      areaCreateOnly('content', '文本内容', '由后端根据版本行/字符范围派生，创建后不可修改'),
+      num('start_line', '起始行', false, true, '创建后不可修改，保证引用到稳定剧本版本行号'),
+      num('end_line', '结束行', false, true, '创建后不可修改，保证引用到稳定剧本版本行号'),
+      num('start_char', '起始字符', false, true, '创建后不可修改，保证引用到稳定剧本版本字符范围'),
+      num('end_char', '结束字符', false, true, '创建后不可修改，保证引用到稳定剧本版本字符范围'),
+      select('status', '状态', ['active', 'draft', 'archived']),
+      area('metadata_json', '元数据 JSON'),
+    ], '创建时需要填写 script_id 和 script_version_id；建议从剧本版本正文中拉选文本自动创建。'),
     cfg('segments', 'segments', '编排段', '本集内部的情绪、节奏和戏剧功能段，可选绑定制作文本块作为来源。', 'text-cyan-600', ['title', 'kind', 'status', 'summary'], [
       num('production_id', 'Production ID'),
       num('text_block_id', '文本块 ID'),
+      num('script_block_id', '剧本块 ID'),
       text('title', '标题', true),
       selectOptions('kind', '类型', [
         { value: 'emotional_function', label: '情绪功能' },
@@ -385,6 +410,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('production_id', 'Production ID'),
       num('segment_id', '所属编排段 ID'),
       num('scene_moment_id', '所属情景 ID'),
+      num('script_block_id', '剧本块 ID'),
       text('title', '标题', true),
       selectOptions('kind', '类型', [
         { value: 'shot', label: '镜头' },
@@ -480,7 +506,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       ]),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('keyframes', 'keyframes', '关键帧', '情景或制作项的视觉锚点，用于驱动预演时间线。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
+    cfg('keyframes', 'keyframes', '画面锚点', '情节预演画面或镜头关键帧，用于驱动预演时间线和生产画面约束。', 'text-rose-600', ['title', 'status', 'description', 'prompt'], [
       num('production_id', 'Production ID'),
       num('scene_moment_id', 'SceneMoment ID'),
       num('content_unit_id', 'ContentUnit ID'),
@@ -502,7 +528,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       select('status', '状态', ['draft', 'playable', 'confirmed', 'archived']),
       area('metadata_json', '元数据 JSON'),
     ]),
-    cfg('previewTimelineItems', 'preview-timeline-items', '预演时间线项', '预演时间线上的关键帧、制作项、缺口或备注项。', 'text-emerald-600', ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
+    cfg('previewTimelineItems', 'preview-timeline-items', '预演时间线项', '预演时间线上的预演画面、制作项、缺口或备注项。', 'text-emerald-600', ['label', 'kind', 'order', 'status'], timelineFields('preview_timeline_id', 'PreviewTimeline ID'), '创建时需要填写 preview_timeline_id。'),
     cfg('creativeReferences', 'creative-references', '设定资料', '人物、地点、道具、产品、风格和规则等项目设定资料。', 'text-violet-600', ['name', 'kind', 'importance', 'status'], [
       selectOptions('kind', '类型', [
         { value: 'person', label: '人物' },
@@ -718,6 +744,10 @@ function area(key: string, label: string): SemanticEntityField {
   return { key, label, type: 'textarea' }
 }
 
+function areaCreateOnly(key: string, label: string, helper?: string): SemanticEntityField {
+  return { key, label, type: 'textarea', createOnly: true, helper }
+}
+
 function num(key: string, label: string, required = false, createOnly = false, helper?: string): SemanticEntityField {
   return { key, label, type: 'number', required, createOnly, helper }
 }
@@ -728,6 +758,10 @@ function bool(key: string, label: string): SemanticEntityField {
 
 function select(key: string, label: string, values: string[], required = false): SemanticEntityField {
   return { key, label, type: 'select', required, options: options(values) }
+}
+
+function selectCreateOnly(key: string, label: string, values: string[], required = false, helper?: string): SemanticEntityField {
+  return { key, label, type: 'select', required, options: options(values), createOnly: true, helper }
 }
 
 function selectOptions(key: string, label: string, options: SemanticEntityOption[], required = false): SemanticEntityField {

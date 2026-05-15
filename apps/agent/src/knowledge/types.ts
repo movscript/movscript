@@ -6,6 +6,15 @@ export interface KnowledgeCollection {
   description?: string
   tags: string[]
   chunkIds: string[]
+  chunks?: KnowledgeChunkSummary[]
+}
+
+export interface KnowledgeChunkSummary {
+  id: string
+  title: string
+  charCount: number
+  contentHash: string
+  sourcePath?: string
 }
 
 export interface KnowledgeChunk {
@@ -31,5 +40,6 @@ export interface KnowledgeSearchResult {
   score: number
   tags: string[]
   contentHash: string
+  sourcePath?: string
   charCount: number
 }

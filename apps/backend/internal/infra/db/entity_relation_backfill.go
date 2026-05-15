@@ -22,6 +22,7 @@ func backfillCoreEntityRelations(db *gorm.DB) error {
 		run  func() error
 	}{
 		{"script_versions", func() error { return backfillEntityRelationsByRows[persistencemodel.ScriptVersion](db) }},
+		{"script_blocks", func() error { return backfillEntityRelationsByRows[persistencemodel.ScriptBlock](db) }},
 		{"productions", func() error { return backfillEntityRelationsByRows[persistencemodel.Production](db) }},
 		{"production_text_blocks", func() error { return backfillEntityRelationsByRows[persistencemodel.ProductionTextBlock](db) }},
 		{"creative_references", func() error { return backfillEntityRelationsByRows[persistencemodel.CreativeReference](db) }},

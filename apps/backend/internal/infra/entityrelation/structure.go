@@ -33,6 +33,37 @@ func syncScriptVersionRelations(tx *gorm.DB, item *ScriptVersion) error {
 	return syncEntityRelations(tx, nil, seeds)
 }
 
+func syncScriptBlockRelations(tx *gorm.DB, item *ScriptBlock) error {
+	if err := deleteTargetEntityRelations(tx, "script_block", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeContains)); err != nil {
+		return err
+	}
+	seeds := []entityRelationSeed{{
+		ProjectID:  item.ProjectID,
+		SourceType: "script_version",
+		SourceID:   item.ScriptVersionID,
+		TargetType: "script_block",
+		TargetID:   item.ID,
+		Category:   EntityRelationCategoryStructure,
+		Type:       EntityRelationTypeContains,
+		Order:      item.Order,
+		Status:     relationStatus(item.Status),
+	}}
+	if item.ParentBlockID != nil {
+		seeds = append(seeds, entityRelationSeed{
+			ProjectID:  item.ProjectID,
+			SourceType: "script_block",
+			SourceID:   *item.ParentBlockID,
+			TargetType: "script_block",
+			TargetID:   item.ID,
+			Category:   EntityRelationCategoryStructure,
+			Type:       EntityRelationTypeContains,
+			Order:      item.Order,
+			Status:     relationStatus(item.Status),
+		})
+	}
+	return syncEntityRelations(tx, nil, seeds)
+}
+
 func syncProductionRelations(tx *gorm.DB, item *Production) error {
 	if err := deleteSourceEntityRelations(tx, "production", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeDerivedFrom, EntityRelationTypeUsesPreview)); err != nil {
 		return err
@@ -100,7 +131,10 @@ func syncSegmentRelations(tx *gorm.DB, item *Segment) error {
 	if err := deleteTargetEntityRelations(tx, "segment", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeContains)); err != nil {
 		return err
 	}
-	seeds := make([]entityRelationSeed, 0, 2)
+	if err := deleteSourceEntityRelations(tx, "segment", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeBasedOn)); err != nil {
+		return err
+	}
+	seeds := make([]entityRelationSeed, 0, 3)
 	if item.ProductionID != nil {
 		seeds = append(seeds, entityRelationSeed{
 			ProjectID:  item.ProjectID,
@@ -123,6 +157,19 @@ func syncSegmentRelations(tx *gorm.DB, item *Segment) error {
 			TargetID:   item.ID,
 			Category:   EntityRelationCategoryStructure,
 			Type:       EntityRelationTypeContains,
+			Order:      item.Order,
+			Status:     relationStatus(item.Status),
+		})
+	}
+	if item.ScriptBlockID != nil {
+		seeds = append(seeds, entityRelationSeed{
+			ProjectID:  item.ProjectID,
+			SourceType: "segment",
+			SourceID:   item.ID,
+			TargetType: "script_block",
+			TargetID:   *item.ScriptBlockID,
+			Category:   EntityRelationCategoryStructure,
+			Type:       EntityRelationTypeBasedOn,
 			Order:      item.Order,
 			Status:     relationStatus(item.Status),
 		})
@@ -157,7 +204,7 @@ func syncContentUnitRelations(tx *gorm.DB, item *ContentUnit) error {
 	if err := deleteSourceEntityRelations(tx, "content_unit", item.ID, EntityRelationCategoryStructure, relationTypeList(EntityRelationTypeBasedOn)); err != nil {
 		return err
 	}
-	seeds := make([]entityRelationSeed, 0, 2)
+	seeds := make([]entityRelationSeed, 0, 3)
 	if item.SegmentID != nil {
 		seeds = append(seeds, entityRelationSeed{
 			ProjectID:  item.ProjectID,
@@ -178,6 +225,19 @@ func syncContentUnitRelations(tx *gorm.DB, item *ContentUnit) error {
 			SourceID:   item.ID,
 			TargetType: "scene_moment",
 			TargetID:   *item.SceneMomentID,
+			Category:   EntityRelationCategoryStructure,
+			Type:       EntityRelationTypeBasedOn,
+			Order:      item.Order,
+			Status:     relationStatus(item.Status),
+		})
+	}
+	if item.ScriptBlockID != nil {
+		seeds = append(seeds, entityRelationSeed{
+			ProjectID:  item.ProjectID,
+			SourceType: "content_unit",
+			SourceID:   item.ID,
+			TargetType: "script_block",
+			TargetID:   *item.ScriptBlockID,
 			Category:   EntityRelationCategoryStructure,
 			Type:       EntityRelationTypeBasedOn,
 			Order:      item.Order,

@@ -18,11 +18,13 @@ import {
   GitBranch,
   Image,
   Layers,
+  Library,
   ListChecks,
   Loader2,
   LockKeyhole,
   PackageCheck,
   Play,
+  Plus,
   RefreshCw,
   Route,
   ScrollText,
@@ -68,12 +70,14 @@ import { useAgentStore } from '@/store/agentStore'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import type { Canvas, CanvasStage, Job, PublicModel, RawResource } from '@/types'
+import type { Canvas, CanvasStage, Job, PaginatedResponse, PublicModel, RawResource } from '@/types'
 import type { Script } from '@/types'
 import { Badge, Button, Card, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Progress, ScrollArea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { Input, Label, Textarea } from '@movscript/ui'
 import { SemanticEntityInlineEditor } from '@/components/shared/SemanticEntityInlineEditor'
 import { ModelSelector } from '@/components/shared/ModelSelector'
+import { AuthedImage } from '@/components/shared/AuthedImage'
+import { ResourceLibraryPicker } from '@/components/shared/ResourceLibraryPicker'
 import { runRuntimeMessage } from '@/lib/runtimeChat'
 import { formatLocalAgentAssistantContent } from '@/components/agent/localRuntime'
 import {
@@ -163,7 +167,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
   },
   preview: {
     queue: [
-      { id: 'p2', title: '林夏雨中半身', subtitle: '编排段 02 · 关键帧待选', status: 'running', priority: 'high', progress: 72 },
+      { id: 'p2', title: '林夏雨中半身', subtitle: '编排段 02 · 镜头关键帧待选', status: 'running', priority: 'high', progress: 72 },
       { id: 'p3', title: '纸条特写', subtitle: '编排段 03 · 暂无可看的候选', status: 'review', priority: 'high', progress: 38 },
       { id: 'p5', title: '巷口背影', subtitle: '编排段 05 · 已有候选版本', status: 'ready', priority: 'low', progress: 84 },
     ],
@@ -178,7 +182,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     decisions: [
       { label: '总数', value: '已有 4 个候选' },
       { label: '未生成', value: '编排段 03 还没有候选', tone: 'warning' },
-      { label: '关键帧', value: '编排段 02 候选 4 张' },
+      { label: '镜头关键帧', value: '编排段 02 候选 4 张' },
       { label: '下一步', value: '先处理已有候选，再补生成缺失候选' },
     ],
     outputTitle: '处理后输出',
@@ -206,7 +210,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
       { label: '人物', value: '林夏状态需锁定', tone: 'warning' },
       { label: '道具', value: '旧伞是剧情证据，不是装饰' },
       { label: '风格', value: '低饱和、强反差、克制表演' },
-      { label: '影响', value: '分镜、素材需求、关键帧一致性' },
+      { label: '影响', value: '分镜、素材需求、画面锚点一致性' },
     ],
     outputTitle: '确认后输出',
     outputs: [
@@ -223,7 +227,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
       { id: 'a3', title: '老城区窄巷', subtitle: '地点 · 可用于全景', status: 'ready', priority: 'medium', progress: 88 },
     ],
     evidenceTitle: '素材标准',
-    evidence: ['必须可用于关键帧', '必须和人物状态一致', '必须能解释纸条藏在伞骨里'],
+    evidence: ['必须可用于镜头关键帧', '必须和人物状态一致', '必须能解释纸条藏在伞骨里'],
     decisionTitle: '采用判断',
     decisions: [
       { label: '缺口', value: '旧伞没有可用正面和特写参考', tone: 'warning' },
@@ -234,7 +238,7 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
     outputs: [
       { label: '素材', value: '锁定素材版本' },
       { label: '资源', value: '写入资源库引用' },
-      { label: '状态', value: '可生成关键帧', tone: 'success' },
+      { label: '状态', value: '可生成镜头关键帧', tone: 'success' },
     ],
     actions: ['上传参考', '生成候选', '采用素材', '请求返工'],
   },
@@ -1251,7 +1255,7 @@ function buildProductionContext(row: ContentGenerationViewRow | null): Workbench
   const unit = row.unit
   return [
     { label: '内容目标', value: firstText(unit.description, unit.prompt, titleOfRecord(unit)), icon: Target },
-    { label: '关键帧', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个关键帧：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定关键帧', icon: Image },
+    { label: '镜头关键帧', value: row.keyframes.length > 0 ? `${row.keyframes.length} 个镜头关键帧：${row.keyframes.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未绑定镜头关键帧', icon: Image },
     { label: '素材需求输入', value: `${row.assetSlots.length} 个素材需求，${row.missingSlots.length} 个缺口`, icon: PackageCheck },
     { label: '生成设置', value: `${unit.kind || '制作项'} / ${formatDuration(unit.duration_sec)} / ${unit.production_id ? `制作 #${unit.production_id}` : '未绑定制作'}`, icon: Settings2 },
   ]
@@ -1279,7 +1283,7 @@ function buildProductionStandards(row: ContentGenerationViewRow | null, jobs: Jo
   return [
     { label: '内容目标明确', detail: hasTarget ? '已有 description 或 prompt' : '需要补充内容目标或生成提示', done: hasTarget, tone: hasTarget ? 'success' : 'warning' },
     { label: '素材需求输入可用', detail: assetsReady ? '没有 missing 素材需求' : `${row.missingSlots.length} 个素材需求缺口阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
-    { label: '关键帧具备', detail: hasKeyframe ? `${row.keyframes.length} 个关键帧可用` : '建议先生成或绑定关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+    { label: '镜头关键帧具备', detail: hasKeyframe ? `${row.keyframes.length} 个镜头关键帧可用` : '建议先生成或绑定开头、结尾等镜头关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务或内容已锁定' : '还没有当前项目的视频生成任务', done: hasJob, tone: hasJob ? 'success' : 'warning' },
   ]
 }
@@ -1306,16 +1310,18 @@ function buildGenerationContextStandards(context?: GenerationContext): Workbench
   const lockedAssets = context.asset_slots.filter((slot) => isGenerationAssetUsable(slot)).length
   const missingAssets = context.asset_slots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
   const hasTargetPrompt = Boolean(firstText(target.prompt, target.description))
+  const hasScriptSource = Boolean(context.script_block)
   const hasStoryContext = Boolean(context.scene_moment || context.segment)
   const hasContinuity = context.creative_references.length > 0
   const assetsReady = context.asset_slots.length > 0 && missingAssets === 0 && lockedAssets > 0
   const hasKeyframe = context.keyframes.length > 0
   return [
     { label: '目标提示可读', detail: hasTargetPrompt ? firstText(target.prompt, target.description) : '制作项缺少 prompt 或 description，Agent 难以判断画面目标', done: hasTargetPrompt, tone: hasTargetPrompt ? 'success' : 'warning' },
+    { label: '剧本来源稳定', detail: hasScriptSource ? scriptBlockContextLabel(context.script_block) : '未绑定不可变剧本块，生成缺少可追溯的剧本行文', done: hasScriptSource, tone: hasScriptSource ? 'success' : 'warning' },
     { label: '情景上下文存在', detail: hasStoryContext ? [context.segment ? `编排段：${titleOfRecord(context.segment)}` : null, context.scene_moment ? `情景：${titleOfRecord(context.scene_moment)}` : null].filter(Boolean).join(' / ') : '未绑定情景或编排段，生成会缺少时空、动作和情绪约束', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
     { label: '连续性资料可用', detail: hasContinuity ? `${context.creative_references.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, tone: hasContinuity ? 'success' : 'warning' },
     { label: '素材输入可用', detail: context.asset_slots.length === 0 ? '未找到素材需求或参考素材' : `${context.asset_slots.length} 个素材输入，${lockedAssets} 个可用，${missingAssets} 个缺失`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
-    { label: '首帧/关键帧', detail: hasKeyframe ? `${context.keyframes.length} 个关键帧可作为视频生成锚点` : '视频生成前建议先生成或绑定关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
+    { label: '首帧/镜头关键帧', detail: hasKeyframe ? `${context.keyframes.length} 个镜头关键帧可作为视频生成锚点` : '视频生成前建议先生成或绑定开头、结尾等镜头关键帧', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
   ]
 }
 
@@ -1328,12 +1334,23 @@ function buildGenerationContextRows(context?: GenerationContext): WorkbenchLinkR
   const assetSummary = summarizeGenerationAssets(context.asset_slots)
   return [
     { label: '后端目标', value: firstText(target.prompt, target.description, titleOfRecord(target)), icon: Target },
+    { label: '剧本来源', value: context.script_block ? firstText(context.script_block.content, scriptBlockContextLabel(context.script_block)) : '未绑定剧本块', icon: ScrollText },
     { label: '情景', value: context.scene_moment ? firstText(context.scene_moment.description, context.scene_moment.action_text, titleOfRecord(context.scene_moment)) : '未绑定情景', icon: Route },
     { label: '设定引用', value: referenceNames.length > 0 ? referenceNames.slice(0, 4).join('、') : '未找到设定引用', icon: Users },
     { label: '素材输入', value: assetSummary, icon: PackageCheck },
-    { label: '关键帧', value: context.keyframes.length > 0 ? context.keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到关键帧', icon: Image },
+    { label: '镜头关键帧', value: context.keyframes.length > 0 ? context.keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到镜头关键帧', icon: Image },
     { label: '写回范围', value: context.constraints.write_targets.join('、') || '未声明写回范围', icon: ShieldCheck },
   ]
+}
+
+function scriptBlockContextLabel(block?: SemanticEntityRecord) {
+  if (!block) return '未绑定剧本块'
+  const lines = Number(block.start_line) > 0 && Number(block.end_line) > 0
+    ? `行 ${block.start_line}-${block.end_line}`
+    : `剧本块 #${block.ID}`
+  const kind = String(block.kind ?? '').trim()
+  const speaker = String(block.speaker ?? '').trim()
+  return [lines, kind, speaker].filter(Boolean).join(' · ')
 }
 
 function summarizeGenerationAssets(slots: SemanticEntityRecord[]) {
@@ -1577,7 +1594,7 @@ function momentScopeLabel(
     segment ? `编排段 · ${titleOfRecord(segment)}` : '未绑定编排段',
     moment.mood || '情绪未定',
     units.length > 0 ? `${units.length} 镜头` : '待拆镜头',
-    keyframes.length > 0 ? `${keyframes.length} 关键帧` : '无关键帧',
+    keyframes.length > 0 ? `${keyframes.length} 预演画面` : '无预演画面',
     missingSlots.length > 0 ? `${missingSlots.length} 缺口` : null,
   ].filter(Boolean)
   return parts.join(' / ')
@@ -1644,10 +1661,67 @@ function contentUnitScopeLabel(unit: WorkbenchRecord, keyframes: WorkbenchRecord
   const parts = [
     unit.kind || '制作项',
     formatDuration(unit.duration_sec),
-    keyframes.length > 0 ? `关键帧 ${keyframes.length}` : '无关键帧',
+    keyframes.length > 0 ? `镜头关键帧 ${keyframes.length}` : '无镜头关键帧',
     missingSlots.length > 0 ? `缺素材需求 ${missingSlots.length}` : '素材需求可用',
   ]
   return parts.join(' / ')
+}
+
+function buildMomentKeyframeSequence(row: ContentGenerationMomentRow) {
+  const sequence: Array<{
+    keyframe: WorkbenchRecord
+    unit?: WorkbenchRecord
+    role: string
+    sequence: number
+  }> = []
+  for (const unit of row.units.slice().sort(byOrder)) {
+    const unitKeyframes = row.keyframes
+      .filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID)
+      .slice()
+      .sort(byOrder)
+    unitKeyframes.forEach((keyframe, index) => {
+      sequence.push({
+        keyframe,
+        unit,
+        role: frameRoleLabel(index, unitKeyframes.length),
+        sequence: sequence.length + 1,
+      })
+    })
+  }
+  return sequence
+}
+
+function frameRoleLabel(index: number, total: number) {
+  if (total <= 1) return '关键画面'
+  if (index <= 0) return '开头帧'
+  if (index >= total - 1) return '结尾帧'
+  if (total === 3) return '中间帧'
+  return `中间帧 ${index}`
+}
+
+function resourceFileUrl(resourceId?: number | null) {
+  return resourceId ? `/api/v1/resources/${resourceId}/file` : ''
+}
+
+function keyframeResourcePatchPayload(keyframe: WorkbenchRecord, resourceId: number): SemanticEntityPayload {
+  return {
+    production_id: nullableNumber(keyframe.production_id),
+    scene_moment_id: nullableNumber(keyframe.scene_moment_id),
+    content_unit_id: nullableNumber(keyframe.content_unit_id),
+    resource_id: resourceId,
+    canvas_id: nullableNumber(keyframe.canvas_id),
+    title: String(keyframe.title ?? ''),
+    description: String(keyframe.description ?? ''),
+    prompt: String(keyframe.prompt ?? ''),
+    order: numberOf(keyframe.order),
+    status: firstText(keyframe.status, 'attached') === 'rejected' ? 'attached' : firstText(keyframe.status, 'attached'),
+    metadata_json: String(keyframe.metadata_json ?? ''),
+  }
+}
+
+function nullableNumber(value: unknown) {
+  const num = Number(value)
+  return Number.isFinite(num) && num > 0 ? num : null
 }
 
 function jobToWorkStatus(job: Job): WorkStatus {
@@ -2474,6 +2548,7 @@ function ContentGenerationWorkbench() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const uploadInputRef = useRef<HTMLInputElement>(null)
+  const keyframeUploadInputRef = useRef<HTMLInputElement>(null)
   const { data, isLoading, isError } = useQuery({
     queryKey: ['workbench', 'production', projectId],
     queryFn: () => loadProductionWorkbenchData(projectId!),
@@ -2483,8 +2558,10 @@ function ContentGenerationWorkbench() {
   const [productionFilter, setProductionFilter] = useState('all')
   const [segmentFilter, setSegmentFilter] = useState('all')
   const [selectedId, setSelectedId] = useState('')
+  const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
   const [creatingUnit, setCreatingUnit] = useState(false)
+  const [creatingKeyframe, setCreatingKeyframe] = useState(false)
   const [aiSuggestOpen, setAiSuggestOpen] = useState(false)
   const [aiSuggestRunning, setAiSuggestRunning] = useState(false)
   const [aiSuggestError, setAiSuggestError] = useState<string | null>(null)
@@ -2493,6 +2570,10 @@ function ContentGenerationWorkbench() {
   const [aiSuggestBrief, setAiSuggestBrief] = useState('')
   const [aiModelId, setAiModelId] = useState<number | null>(null)
   const [aiModelName, setAiModelName] = useState<string | undefined>(undefined)
+  const [keyframeLibraryTarget, setKeyframeLibraryTarget] = useState<WorkbenchRecord | null>(null)
+  const [keyframeResourceSearch, setKeyframeResourceSearch] = useState('')
+  const [keyframeResourcePage, setKeyframeResourcePage] = useState(1)
+  const [uploadKeyframeTarget, setUploadKeyframeTarget] = useState<WorkbenchRecord | null>(null)
   const productionFilteredRows = useMemo(() => {
     if (productionFilter === 'all') return rows
     if (productionFilter === 'unassigned') return rows.filter((row) => row.productionIds.length === 0)
@@ -2562,7 +2643,19 @@ function ContentGenerationWorkbench() {
   }, [filteredRows, selectedId])
 
   const selected = filteredRows.find((item) => item.id === selectedId) ?? filteredRows[0] ?? null
-  const selectedUnit = selected?.units.find((unit) => firstText(unit.prompt, unit.description)) ?? selected?.units[0] ?? null
+
+  useEffect(() => {
+    if (!selected) {
+      if (selectedUnitId !== null) setSelectedUnitId(null)
+      return
+    }
+    if (selectedUnitId !== null && !selected.units.some((unit) => unit.ID === selectedUnitId)) {
+      setSelectedUnitId(null)
+    }
+  }, [selected, selectedUnitId])
+
+  const fallbackSelectedUnit = selected?.units.find((unit) => firstText(unit.prompt, unit.description)) ?? selected?.units[0] ?? null
+  const selectedUnit = selected?.units.find((unit) => unit.ID === selectedUnitId) ?? fallbackSelectedUnit
   const selectedProduction = selected?.productionIds[0]
     ? data?.productions.find((production) => production.ID === selected.productionIds[0])
     : null
@@ -2572,6 +2665,22 @@ function ContentGenerationWorkbench() {
     queryFn: () => buildContentUnitGenerationContext(projectId!, selectedUnit!.ID, 'video'),
     enabled: !!projectId && !!selectedUnit?.ID,
   })
+  const keyframeResourcePageSize = 8
+  const keyframeResourcesQuery = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['resources', 'keyframe-picker', keyframeResourceSearch, keyframeResourcePage],
+    queryFn: () => api.get('/resources', {
+      params: {
+        page: keyframeResourcePage,
+        page_size: keyframeResourcePageSize,
+        type: 'image',
+        q: keyframeResourceSearch.trim() || undefined,
+      },
+    }).then((r) => r.data),
+    enabled: Boolean(keyframeLibraryTarget),
+  })
+  const keyframeResourceItems = keyframeResourcesQuery.data?.items ?? []
+  const keyframeResourceTotal = keyframeResourcesQuery.data?.total ?? 0
+  const keyframeResourcePageCount = Math.max(1, Math.ceil(keyframeResourceTotal / keyframeResourcePageSize))
   const uploadCandidate = useMutation({
     mutationFn: async (file: File) => {
       if (!projectId) throw new Error('请先选择项目')
@@ -2620,6 +2729,47 @@ function ContentGenerationWorkbench() {
     },
     onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
   })
+  const bindKeyframeResource = useMutation({
+    mutationFn: async ({ keyframe, resourceId }: { keyframe: WorkbenchRecord; resourceId: number }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      return updateSemanticEntity(projectId, semanticEntityConfig('keyframes'), keyframe.ID, keyframeResourcePatchPayload(keyframe, resourceId))
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['workbench', 'production', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['resources'] }),
+      ])
+      setKeyframeLibraryTarget(null)
+      toast.success('关键帧已绑定资源')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '绑定关键帧资源失败'))
+    },
+  })
+  const uploadKeyframeResource = useMutation({
+    mutationFn: async ({ keyframe, file }: { keyframe: WorkbenchRecord; file: File }) => {
+      if (!projectId) throw new Error('请先选择项目')
+      const fd = new FormData()
+      fd.append('file', file)
+      const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
+      await updateSemanticEntity(projectId, semanticEntityConfig('keyframes'), keyframe.ID, keyframeResourcePatchPayload(keyframe, resource.ID))
+      return resource
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['workbench', 'production', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['resources'] }),
+      ])
+      setUploadKeyframeTarget(null)
+      if (keyframeUploadInputRef.current) keyframeUploadInputRef.current.value = ''
+      toast.success('关键帧素材已上传并绑定')
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '上传关键帧素材失败'))
+      setUploadKeyframeTarget(null)
+      if (keyframeUploadInputRef.current) keyframeUploadInputRef.current.value = ''
+    },
+  })
   const metrics = buildMomentMetrics(filteredRows, data)
   const candidateRows = buildProductionCandidateRows(data?.jobs ?? [])
   const standards = generationContextQuery.data
@@ -2627,6 +2777,23 @@ function ContentGenerationWorkbench() {
     : buildMomentStandards(selected, data?.jobs ?? [])
   const contextRows = buildMomentContext(selected)
   const generationContextRows = buildGenerationContextRows(generationContextQuery.data)
+  const selectedUnitKeyframes = selected && selectedUnit
+    ? selected.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === selectedUnit.ID).slice().sort(byOrder)
+    : []
+  const selectedKeyframeSequence = selected ? buildMomentKeyframeSequence(selected) : []
+  const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
+  const nextKeyframeRole = frameRoleLabel(selectedUnitKeyframes.length, selectedUnitKeyframes.length + 1)
+  const keyframeDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
+    if (!selected || !selectedUnit) return undefined
+    return {
+      production_id: nullableNumber(selectedUnit.production_id ?? selected.segment?.production_id ?? selected.moment.production_id ?? selected.productionIds[0]),
+      scene_moment_id: selected.moment.ID,
+      content_unit_id: selectedUnit.ID,
+      title: `${nextKeyframeRole} · ${titleOfRecord(selectedUnit)}`,
+      order: selectedUnitKeyframes.length + 1,
+      status: 'candidate',
+    }
+  }, [nextKeyframeRole, selected, selectedUnit, selectedUnitKeyframes.length])
   const missingGenerationContext = generationContextQuery.data
     ? buildGenerationContextStandards(generationContextQuery.data).filter((item) => !item.done)
     : []
@@ -2640,6 +2807,27 @@ function ContentGenerationWorkbench() {
     if (!file || !uploadTargetSlot || uploadCandidate.isPending) return
     setUploading(true)
     uploadCandidate.mutate(file)
+  }
+
+  function openKeyframeUpload(keyframe: WorkbenchRecord) {
+    setUploadKeyframeTarget(keyframe)
+    keyframeUploadInputRef.current?.click()
+  }
+
+  function handleKeyframeUpload(file?: File) {
+    if (!file || !uploadKeyframeTarget || uploadKeyframeResource.isPending) return
+    uploadKeyframeResource.mutate({ keyframe: uploadKeyframeTarget, file })
+  }
+
+  function openKeyframeLibrary(keyframe: WorkbenchRecord) {
+    setKeyframeLibraryTarget(keyframe)
+    setKeyframeResourceSearch('')
+    setKeyframeResourcePage(1)
+  }
+
+  function openCreateKeyframe() {
+    if (!selectedUnit) return
+    setCreatingKeyframe(true)
   }
 
   const contentUnitConfig = useMemo(() => semanticEntityConfig('contentUnits'), [])
@@ -2902,6 +3090,89 @@ function ContentGenerationWorkbench() {
               </div>
             </section>
 
+            <WorkbenchPanel
+              title="连续关键帧总览"
+              icon={Image}
+              action={
+                <div className="flex items-center gap-2">
+                  <Badge variant={selectedKeyframeSequence.length > 0 ? 'secondary' : 'warning'}>{selectedKeyframeSequence.length} 帧</Badge>
+                  <Button size="sm" className="h-8 gap-1.5" onClick={openCreateKeyframe} disabled={!selectedUnit}>
+                    <Plus size={13} />
+                    添加关键帧
+                  </Button>
+                </div>
+              }
+            >
+              {!selected ? (
+                <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后查看连续关键帧。</p>
+              ) : selectedKeyframeSequence.length === 0 ? (
+                <div className="rounded-md border border-dashed border-border bg-background px-3 py-6">
+                  <p className="text-sm font-medium text-foreground">当前情节还没有内容单元关键帧</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">给各内容单元补开头帧、结尾帧后，这里会按镜头顺序串成一条可扫读的画面连续性检查带。</p>
+                  <Button size="sm" className="mt-4 gap-2" onClick={openCreateKeyframe} disabled={!selectedUnit}>
+                    <Plus size={14} />
+                    给当前内容单元添加关键帧
+                  </Button>
+                  {!selectedUnit ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">请先添加或选择内容单元。</p> : null}
+                </div>
+              ) : (
+                <div className="-mx-1 overflow-x-auto px-1 pb-1">
+                  <div className="flex min-w-max gap-3">
+                    {selectedKeyframeSequence.map((item) => (
+                      <div key={`${item.keyframe.ID}-${item.sequence}`} className="w-[210px] shrink-0 overflow-hidden rounded-md border border-border bg-background">
+                        <div className="relative aspect-video bg-muted">
+                          {item.keyframe.resource_id ? (
+                            <AuthedImage
+                              src={resourceFileUrl(item.keyframe.resource_id)}
+                              alt={titleOfRecord(item.keyframe)}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                              <Image size={22} />
+                              <span className="text-xs">文字锚点</span>
+                            </div>
+                          )}
+                          <span className="absolute left-2 top-2 rounded bg-background/90 px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-foreground shadow-sm">
+                            {String(item.sequence).padStart(2, '0')}
+                          </span>
+                          <Badge variant="secondary" className="absolute right-2 top-2 bg-background/90 text-[10px] shadow-sm">
+                            {item.role}
+                          </Badge>
+                          <div className="absolute inset-x-2 bottom-2 grid grid-cols-2 gap-1.5">
+                            <Button size="sm" variant="secondary" className="h-7 gap-1 bg-background/95 px-2 text-[11px] shadow-sm hover:bg-background" onClick={() => openKeyframeUpload(item.keyframe)} disabled={uploadKeyframeResource.isPending || bindKeyframeResource.isPending}>
+                              <Upload size={12} />
+                              上传图片
+                            </Button>
+                            <Button size="sm" variant="secondary" className="h-7 gap-1 bg-background/95 px-2 text-[11px] shadow-sm hover:bg-background" onClick={() => openKeyframeLibrary(item.keyframe)} disabled={uploadKeyframeResource.isPending || bindKeyframeResource.isPending}>
+                              <Library size={12} />
+                              选资源
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="px-3 py-3">
+                          <p className="truncate text-xs text-muted-foreground">{item.unit ? titleOfRecord(item.unit) : '未绑定内容单元'}</p>
+                          <p className="mt-1 truncate text-sm font-medium text-foreground">{titleOfRecord(item.keyframe)}</p>
+                          <p className="mt-1 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{firstText(item.keyframe.prompt, item.keyframe.description, '暂无画面描述')}</p>
+                        </div>
+                      </div>
+                    ))}
+                    {selectedUnit ? (
+                      <button
+                        type="button"
+                        onClick={openCreateKeyframe}
+                        className="flex w-[190px] shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-border bg-background px-4 text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
+                      >
+                        <Plus size={18} />
+                        <span className="mt-2 font-medium">添加关键帧</span>
+                        <span className="mt-1 text-[11px] leading-4">写入当前内容单元</span>
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+            </WorkbenchPanel>
+
             <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
               <WorkbenchPanel
                 title="内容单元列表"
@@ -2935,7 +3206,7 @@ function ContentGenerationWorkbench() {
                         <button
                           key={unit.ID}
                           type="button"
-                          onClick={() => navigate(`/contents?content_unit_id=${unit.ID}&scene_moment_id=${selected.moment.ID}`)}
+                          onClick={() => setSelectedUnitId(unit.ID)}
                           className={cn(
                             'w-full rounded-md border px-3 py-3 text-left transition-colors',
                             selectedUnit?.ID === unit.ID ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
@@ -2953,6 +3224,9 @@ function ContentGenerationWorkbench() {
                             <Badge variant="outline">{unit.kind || 'shot'}</Badge>
                             <Badge variant="outline">{formatDuration(unit.duration_sec)}</Badge>
                             <Badge variant={unitSlots.length > 0 ? 'secondary' : 'warning'}>{unitSlots.length} 素材</Badge>
+                            <Badge variant={selectedUnit?.ID === unit.ID ? 'secondary' : 'outline'}>
+                              {selectedUnit?.ID === unit.ID ? '当前单元' : '可选择'}
+                            </Badge>
                           </div>
                         </button>
                       )
@@ -3097,6 +3371,91 @@ function ContentGenerationWorkbench() {
                     <div className="rounded-md border border-border bg-background p-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Image size={15} className="text-muted-foreground" />
+                          镜头关键帧轨道
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={selectedUnitKeyframes.length > 0 ? 'secondary' : 'warning'}>
+                            {selectedUnitKeyframes.length > 0 ? `${selectedUnitKeyframes.length} 帧` : '待补'}
+                          </Badge>
+                          <Button size="sm" className="h-8 gap-1.5" onClick={openCreateKeyframe} disabled={!selectedUnit}>
+                            <Plus size={13} />
+                            添加关键帧
+                          </Button>
+                        </div>
+                      </div>
+                      {selectedUnit ? (
+                        <p className="mb-3 text-xs text-muted-foreground">当前内容单元：{titleOfRecord(selectedUnit)}</p>
+                      ) : null}
+                      {!selectedUnit ? (
+                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择或创建内容单元后查看镜头关键帧。</p>
+                      ) : selectedUnitKeyframes.length === 0 ? (
+                        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-5">
+                          <p className="text-sm font-medium text-foreground">当前镜头还没有关键帧</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">建议至少补开头帧和结尾帧；动作复杂时再补中间帧，用来约束视频生成的状态变化。</p>
+                          <Button size="sm" className="mt-4 gap-2" onClick={openCreateKeyframe}>
+                            <Plus size={14} />
+                            添加第一张关键帧
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+                          <div className="flex min-w-max gap-3">
+                          {selectedUnitKeyframes.map((keyframe, index) => (
+                            <div key={keyframe.ID} className="w-[240px] shrink-0 overflow-hidden rounded-md border border-border bg-card">
+                              <div className="relative aspect-video bg-muted">
+                                {keyframe.resource_id ? (
+                                  <AuthedImage
+                                    src={resourceFileUrl(keyframe.resource_id)}
+                                    alt={titleOfRecord(keyframe)}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                                    <Image size={22} />
+                                    <span className="text-xs">文字锚点</span>
+                                  </div>
+                                )}
+                                <Badge variant="secondary" className="absolute left-2 top-2 bg-background/90 text-[10px] shadow-sm">
+                                  {frameRoleLabel(index, selectedUnitKeyframes.length)}
+                                </Badge>
+                                <Badge variant={keyframe.resource_id ? 'success' : 'outline'} className="absolute right-2 top-2 bg-background/90 text-[10px] shadow-sm">
+                                  {keyframe.resource_id ? '有素材' : '待出图'}
+                                </Badge>
+                                <div className="absolute inset-x-2 bottom-2 grid grid-cols-2 gap-1.5">
+                                  <Button size="sm" variant="secondary" className="h-7 gap-1 bg-background/95 px-2 text-[11px] shadow-sm hover:bg-background" onClick={() => openKeyframeUpload(keyframe)} disabled={uploadKeyframeResource.isPending || bindKeyframeResource.isPending}>
+                                    <Upload size={12} />
+                                    上传图片
+                                  </Button>
+                                  <Button size="sm" variant="secondary" className="h-7 gap-1 bg-background/95 px-2 text-[11px] shadow-sm hover:bg-background" onClick={() => openKeyframeLibrary(keyframe)} disabled={uploadKeyframeResource.isPending || bindKeyframeResource.isPending}>
+                                    <Library size={12} />
+                                    选资源
+                                  </Button>
+                                </div>
+                              </div>
+                              <div className="px-3 py-3">
+                                <p className="truncate text-sm font-medium text-foreground">{titleOfRecord(keyframe)}</p>
+                                <p className="mt-1 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{firstText(keyframe.prompt, keyframe.description, '暂无画面描述')}</p>
+                              </div>
+                            </div>
+                          ))}
+                            <button
+                              type="button"
+                              onClick={openCreateKeyframe}
+                              className="flex w-[180px] shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-border bg-card px-4 text-center text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground"
+                            >
+                              <Plus size={18} />
+                              <span className="mt-2 font-medium">添加关键帧</span>
+                              <span className="mt-1 text-[11px] leading-4">{nextKeyframeRole}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-md border border-border bg-background p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                           <ClipboardCheck size={15} className="text-muted-foreground" />
                           生成上下文检查
                         </div>
@@ -3147,9 +3506,44 @@ function ContentGenerationWorkbench() {
               </div>
             </div>
             <input ref={uploadInputRef} type="file" className="hidden" accept={RESOURCE_UPLOAD_ACCEPT} onChange={(e) => handleCandidateUpload(e.target.files?.[0])} />
+            <input ref={keyframeUploadInputRef} type="file" className="hidden" accept="image/*" onChange={(e) => handleKeyframeUpload(e.target.files?.[0])} />
           </div>
         )}
       </main>
+
+      <Dialog open={Boolean(keyframeLibraryTarget)} onOpenChange={(open) => { if (!open) setKeyframeLibraryTarget(null) }}>
+        <DialogContent className="max-h-[88vh] w-[min(560px,calc(100vw-32px))] overflow-auto p-0">
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle>从资源库选择关键帧素材</DialogTitle>
+            <DialogDescription>
+              {keyframeLibraryTarget ? `绑定到：${titleOfRecord(keyframeLibraryTarget)}` : '选择一个图片资源绑定到关键帧。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-5">
+            <ResourceLibraryPicker
+              resources={keyframeResourceItems}
+              selectedResource={null}
+              search={keyframeResourceSearch}
+              type="image"
+              typeOptions={['image']}
+              page={keyframeResourcePage}
+              pageCount={keyframeResourcePageCount}
+              total={keyframeResourceTotal}
+              isLoading={keyframeResourcesQuery.isLoading || bindKeyframeResource.isPending}
+              onSearch={(value) => {
+                setKeyframeResourceSearch(value)
+                setKeyframeResourcePage(1)
+              }}
+              onType={() => {}}
+              onPage={setKeyframeResourcePage}
+              onSelect={(resource) => {
+                if (!keyframeLibraryTarget) return
+                bindKeyframeResource.mutate({ keyframe: keyframeLibraryTarget, resourceId: resource.ID })
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={creatingUnit} onOpenChange={(open) => { if (!open) setCreatingUnit(false) }}>
         <DialogContent className="max-h-[88vh] w-[min(760px,calc(100vw-32px))] overflow-auto p-0">
@@ -3183,6 +3577,38 @@ function ContentGenerationWorkbench() {
             ) : (
               <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
                 请先在左侧筛选中选择情节。
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={creatingKeyframe} onOpenChange={(open) => { if (!open) setCreatingKeyframe(false) }}>
+        <DialogContent className="max-h-[88vh] w-[min(760px,calc(100vw-32px))] overflow-auto p-0">
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle>添加关键帧</DialogTitle>
+            <DialogDescription>
+              {selectedUnit ? `将写入当前内容单元：${titleOfRecord(selectedUnit)}` : '请先选择内容单元再添加关键帧。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-5">
+            {selected && selectedUnit && keyframeDefaults ? (
+              <SemanticEntityInlineEditor
+                projectId={projectId}
+                config={keyframeConfig}
+                record={null}
+                defaults={keyframeDefaults}
+                queryKey={productionWorkbenchQueryKey}
+                title="新建关键帧"
+                description="保存后会出现在连续关键帧总览和当前内容单元的镜头关键帧轨道中。随后可以上传图片或从资源库选择素材。"
+                onSaved={(record) => {
+                  setCreatingKeyframe(false)
+                  setSelectedUnitId(Number(record.content_unit_id) || selectedUnit.ID)
+                }}
+              />
+            ) : (
+              <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+                请先在内容单元列表中选择一个单元；如果当前情节还没有内容单元，请先添加内容单元。
               </p>
             )}
           </div>
@@ -3534,7 +3960,7 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
           duration: formatDuration(Number(unit.duration_sec) || 0),
           camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
           status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
-          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个镜头关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
           keyframes: unitKeyframes.length,
         } satisfies PreviewTimelineShot
       })
@@ -3578,7 +4004,7 @@ function buildPreviewPlanSegments(record: WorkbenchRecord, data: ProductionPrevi
           duration: formatDuration(Number(unit.duration_sec) || 0),
           camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
           status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
-          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+          assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个镜头关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
           keyframes: unitKeyframes.length,
         } satisfies PreviewTimelineShot
       })
@@ -3665,7 +4091,7 @@ function buildPreviewTimelineShots(record: WorkbenchRecord, data: ProductionPrev
       duration: formatDuration(Number(unit.duration_sec) || 0),
       camera: cameraPlanSummary(unit) || firstText(unit.kind, '待补镜头参数'),
       status: missingSlots.length > 0 ? 'blocked' : unitKeyframes.length > 0 ? 'ready' : 'attention',
-      assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
+      assets: `${unitSlots.length} 个素材需求 · ${unitKeyframes.length} 个镜头关键帧${missingSlots.length > 0 ? ` · ${missingSlots.length} 个缺口` : ''}`,
       keyframes: unitKeyframes.length,
     }
   })
@@ -3697,8 +4123,8 @@ function buildPreviewAssetGaps(record: WorkbenchRecord, data: ProductionPreviewD
       owner: `镜头 · ${titleOfRecord(unit)}`,
       priority: unit.duration_sec && Number(unit.duration_sec) > 10 ? '中' : '低',
       impact: '影响最终质量',
-      placeholder: '补充关键帧后才能展开真实预演',
-      detail: '当前镜头还没有可展示的关键帧或预演记录。',
+      placeholder: '补充镜头关键帧后才能展开真实预演',
+      detail: '当前镜头还没有可展示的开头、结尾等关键画面或预演记录。',
     })
   }
 
@@ -3757,7 +4183,7 @@ function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewD
       status: firstGap ? 'running' : 'ready',
       priority: firstGap && firstGap.priority === '高' ? 'high' : 'medium',
       progress: firstGap ? 42 : 88,
-      method: firstGap ? '定位素材需求或关键帧缺口' : '复核当前制作是否可推进',
+      method: firstGap ? '定位素材需求或画面锚点缺口' : '复核当前制作是否可推进',
       output: firstGap ? '补齐缺口后进入下一轮预演' : '确认制作预演状态',
       blocker: firstGap?.detail,
     },
@@ -3768,7 +4194,7 @@ function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewD
       status: firstBlockedShot ? 'review' : 'ready',
       priority: firstBlockedShot?.status === 'blocked' ? 'high' : 'medium',
       progress: firstBlockedShot ? 58 : 76,
-      method: firstBlockedShot ? '查看镜头、关键帧和素材需求状态' : '查看全部情节下的镜头与关键帧',
+      method: firstBlockedShot ? '查看镜头、关键画面和素材需求状态' : '查看全部情节下的镜头与预演画面',
       output: firstBlockedShot ? '决定补生成或标记为已处理' : '确认情节展开可读',
       blocker: firstBlockedShot?.assets?.includes('缺口') ? '当前镜头仍有素材需求缺口' : undefined,
     },
@@ -3779,7 +4205,7 @@ function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewD
       status: firstReadySegment ? 'ready' : 'review',
       priority: firstReadySegment?.gaps ? 'medium' : 'low',
       progress: firstReadySegment?.readiness ?? 64,
-      method: '检查情绪入口、情节、镜头和关键帧的真实覆盖',
+      method: '检查情绪入口、情节、镜头和预演画面的真实覆盖',
       output: '确认可以进入下一步制作',
     },
     {
@@ -3800,7 +4226,7 @@ function buildPreviewGateRows(segments: PreviewPlanSegment[], timelineShots: Pre
   return [
     { label: '情绪入口已接入', detail: `${segments.length} 个编排段已读取真实制作数据`, done: segments.length > 0 },
     { label: '情节已展开', detail: `${segments.reduce((sum, segment) => sum + segment.plots, 0)} 个情节已挂到入口下面`, done: segments.some((segment) => segment.plots > 0) },
-    { label: '镜头 / 关键帧可看', detail: `${timelineShots.length} 个镜头、${timelineShots.reduce((sum, shot) => sum + shot.keyframes, 0)} 个关键帧已进入预演`, done: timelineShots.length > 0 },
+    { label: '镜头 / 预演画面可看', detail: `${timelineShots.length} 个镜头、${timelineShots.reduce((sum, shot) => sum + shot.keyframes, 0)} 个画面锚点已进入预演`, done: timelineShots.length > 0 },
     { label: '缺口已识别', detail: gaps.length > 0 ? `${gaps.length} 个缺口待处理` : '当前没有明显缺口', done: gaps.length === 0 },
   ]
 }
@@ -3901,13 +4327,13 @@ function ProductionPreviewWorkspace() {
     {
       label: '情节',
       value: `${totalPlots} 个`,
-      detail: totalPlots > 0 ? '情节下面承载镜头和关键帧' : '当前还没有情节',
+      detail: totalPlots > 0 ? '情节下面承载镜头和预演画面' : '当前还没有情节',
       status: totalPlots > 0 ? 'ready' : 'draft',
     },
     {
-      label: '镜头 / 关键帧',
+      label: '镜头 / 预演画面',
       value: `${readyShots}/${previewTimelineShots.length || 0}`,
-      detail: `${totalKeyframes} 个关键帧已接入，${pendingShots + blockedShots} 个镜头待处理`,
+      detail: `${totalKeyframes} 个画面锚点已接入，${pendingShots + blockedShots} 个镜头待处理`,
       status: previewTimelineShots.length > 0 ? 'ready' : 'draft',
     },
     {
@@ -3929,7 +4355,7 @@ function ProductionPreviewWorkspace() {
     {
       label: '情节',
       value: String(totalPlots),
-      detail: `下挂 ${previewTimelineShots.length} 个镜头，${totalKeyframes} 个关键帧`,
+      detail: `下挂 ${previewTimelineShots.length} 个镜头，${totalKeyframes} 个画面锚点`,
       icon: GitBranch,
       status: totalPlots > 0 ? 'review' : 'blocked',
     },
@@ -3943,7 +4369,7 @@ function ProductionPreviewWorkspace() {
     {
       label: '缺口',
       value: String(previewMissingAssets.length),
-      detail: previewMissingAssets.length > 0 ? '素材或关键帧仍需补齐' : '当前没有明显缺口',
+      detail: previewMissingAssets.length > 0 ? '素材或画面锚点仍需补齐' : '当前没有明显缺口',
       icon: AlertTriangle,
       status: previewMissingAssets.length > 0 ? 'blocked' : 'ready',
     },
@@ -3971,7 +4397,7 @@ function ProductionPreviewWorkspace() {
         category="preview"
         kicker="真实数据"
         title="制作预演"
-        description="制作预演只查看真实制作数据：编排段、情节、镜头、关键帧和素材缺口。"
+        description="制作预演只查看真实制作数据：编排段、情节、镜头、预演画面和素材缺口。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-5">
         <div className="space-y-5">
@@ -4032,7 +4458,7 @@ function ProductionPreviewWorkspace() {
                             <p className="truncate text-sm font-medium text-foreground">{previewProductionLabel(selectedProduction)}</p>
                             <Badge variant={previewStatusVariant(selectedProductionStatus)}>{previewStatusLabel(selectedProductionStatus)}</Badge>
                           </div>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、镜头和关键帧里。')}</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、镜头和预演画面里。')}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/production-orchestrate?productionId=${selectedProduction.ID}`)}>
@@ -4047,8 +4473,8 @@ function ProductionPreviewWorkspace() {
                       </div>
                       <div className="mt-4 grid gap-2 md:grid-cols-3">
                         <WorkbenchMiniStat label="情节" value={totalPlots} detail="入口下面的真正内容层" />
-                        <WorkbenchMiniStat label="镜头" value={previewTimelineShots.length} detail="镜头和关键帧的承载层" />
-                        <WorkbenchMiniStat label="缺口" value={previewMissingAssets.length} detail="需要补齐的素材或关键帧" />
+                        <WorkbenchMiniStat label="镜头" value={previewTimelineShots.length} detail="镜头和画面锚点的承载层" />
+                        <WorkbenchMiniStat label="缺口" value={previewMissingAssets.length} detail="需要补齐的素材或画面锚点" />
                       </div>
                     </div>
                     {selectedSegment ? (
@@ -4085,7 +4511,7 @@ function ProductionPreviewWorkspace() {
                     icon={GitBranch}
                     action={<Badge variant="outline">{totalPlots} 个情节</Badge>}
                   >
-                    <p className="mb-3 text-sm font-semibold text-foreground">先看情绪入口，再往下展开情节、镜头和关键帧。</p>
+                    <p className="mb-3 text-sm font-semibold text-foreground">先看情绪入口，再往下展开情节、镜头和预演画面。</p>
                     {selectedSegment ? (
                       selectedSegment.plotRows.length === 0 ? (
                         <EmptyWorkbenchState title="暂无情节" text="当前入口下还没有可展开的情节。" />
@@ -4110,7 +4536,7 @@ function ProductionPreviewWorkspace() {
                   >
                     <div className="space-y-3">
                       {previewMissingAssets.length === 0 ? (
-                        <EmptyWorkbenchState title="暂无缺口" text="当前制作没有明显的素材或关键帧缺口。" />
+                        <EmptyWorkbenchState title="暂无缺口" text="当前制作没有明显的素材或画面锚点缺口。" />
                       ) : (
                         previewMissingAssets.map((asset) => (
                           <div key={`${asset.owner}-${asset.name}`} className="rounded-md border border-border bg-background px-3 py-3">
@@ -4256,7 +4682,7 @@ function PreviewOverviewNode({ segment, index, selected }: { segment: PreviewPla
         <span>{segment.duration}</span>
         <span>{segment.plots} 情节</span>
         <span>{segment.shots} 镜头</span>
-        <span>{segment.keyframes} 关键帧</span>
+        <span>{segment.keyframes} 画面锚点</span>
         {segment.gaps > 0 ? <span className="text-amber-600">缺口 {segment.gaps}</span> : null}
       </div>
       <Progress value={segment.readiness} className="mt-3 h-1.5" />
@@ -4278,7 +4704,7 @@ function PreviewPlotCard({ plot, index }: { plot: PreviewPlotRow; index: number 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <span>{plot.duration}</span>
         <span>{plot.shots} 镜头</span>
-        <span>{plot.keyframes} 关键帧</span>
+        <span>{plot.keyframes} 预演画面</span>
         {plot.gaps > 0 ? <span className="text-amber-600">缺口 {plot.gaps}</span> : null}
       </div>
       <Progress value={plot.readiness} className="mt-3 h-1.5" />
@@ -4290,7 +4716,7 @@ function PreviewPlotCard({ plot, index }: { plot: PreviewPlotRow; index: number 
         </div>
       ) : (
         <p className="mt-3 rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          当前情节还没有镜头或关键帧。
+          当前情节还没有镜头或预演画面。
         </p>
       )}
     </div>
@@ -4391,7 +4817,7 @@ const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, {
   production: {
     title: '内容编排工作台',
     stage: 'generation',
-    description: '复用现有画布工作流来串联制作项、提示词、关键帧、视频候选、返工和正式输出。',
+    description: '复用现有画布工作流来串联制作项、提示词、画面锚点、视频候选、返工和正式输出。',
     canvasName: '内容编排画布',
     icon: Wand2,
   },
@@ -5711,7 +6137,7 @@ function ScriptSplitWorkbench() {
                   <Play size={14} />
                   <span>下一步</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或制作预演，继续检查镜头、关键帧、素材缺口和预演记录。</p>
+                <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或制作预演，继续检查镜头、预演画面、素材缺口和预演记录。</p>
               </div>
               <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate('/workbench/production-plan')}>
                 <Play size={13} />

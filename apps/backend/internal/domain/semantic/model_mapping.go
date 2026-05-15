@@ -37,6 +37,7 @@ func SegmentFromModel(segment persistencemodel.Segment) Segment {
 		ProjectID:       segment.ProjectID,
 		ProductionID:    segment.ProductionID,
 		TextBlockID:     segment.TextBlockID,
+		ScriptBlockID:   segment.ScriptBlockID,
 		ParentSegmentID: segment.ParentSegmentID,
 		Kind:            segment.Kind,
 		Order:           segment.Order,
@@ -61,6 +62,7 @@ func (segment Segment) ApplyToModel(target *persistencemodel.Segment) {
 	target.ProjectID = segment.ProjectID
 	target.ProductionID = segment.ProductionID
 	target.TextBlockID = segment.TextBlockID
+	target.ScriptBlockID = segment.ScriptBlockID
 	target.ParentSegmentID = segment.ParentSegmentID
 	target.Kind = segment.Kind
 	target.Order = segment.Order
@@ -166,6 +168,7 @@ func ContentUnitFromModel(unit persistencemodel.ContentUnit) ContentUnit {
 		ProductionID:     unit.ProductionID,
 		SegmentID:        unit.SegmentID,
 		SceneMomentID:    unit.SceneMomentID,
+		ScriptBlockID:    unit.ScriptBlockID,
 		Kind:             unit.Kind,
 		Order:            unit.Order,
 		Title:            unit.Title,
@@ -205,6 +208,7 @@ func (unit ContentUnit) ApplyToModel(target *persistencemodel.ContentUnit) {
 	target.ProductionID = unit.ProductionID
 	target.SegmentID = unit.SegmentID
 	target.SceneMomentID = unit.SceneMomentID
+	target.ScriptBlockID = unit.ScriptBlockID
 	target.Kind = unit.Kind
 	target.Order = unit.Order
 	target.Title = unit.Title
@@ -1300,4 +1304,52 @@ func (version ScriptVersion) ApplyToModel(target *persistencemodel.ScriptVersion
 	target.CreatedByID = version.CreatedByID
 	target.CreatedAt = version.CreatedAt
 	target.UpdatedAt = version.UpdatedAt
+}
+
+func ScriptBlockFromModel(block persistencemodel.ScriptBlock) ScriptBlock {
+	return ScriptBlock{
+		ID:              block.ID,
+		ProjectID:       block.ProjectID,
+		ScriptID:        block.ScriptID,
+		ScriptVersionID: block.ScriptVersionID,
+		ParentBlockID:   block.ParentBlockID,
+		Order:           block.Order,
+		Kind:            block.Kind,
+		Speaker:         block.Speaker,
+		Content:         block.Content,
+		StartLine:       block.StartLine,
+		EndLine:         block.EndLine,
+		StartChar:       block.StartChar,
+		EndChar:         block.EndChar,
+		Status:          block.Status,
+		MetadataJSON:    block.MetadataJSON,
+		CreatedAt:       block.CreatedAt,
+		UpdatedAt:       block.UpdatedAt,
+	}
+}
+
+func (block ScriptBlock) ToModel() persistencemodel.ScriptBlock {
+	var target persistencemodel.ScriptBlock
+	block.ApplyToModel(&target)
+	return target
+}
+
+func (block ScriptBlock) ApplyToModel(target *persistencemodel.ScriptBlock) {
+	target.Model.ID = block.ID
+	target.ProjectID = block.ProjectID
+	target.ScriptID = block.ScriptID
+	target.ScriptVersionID = block.ScriptVersionID
+	target.ParentBlockID = block.ParentBlockID
+	target.Order = block.Order
+	target.Kind = block.Kind
+	target.Speaker = block.Speaker
+	target.Content = block.Content
+	target.StartLine = block.StartLine
+	target.EndLine = block.EndLine
+	target.StartChar = block.StartChar
+	target.EndChar = block.EndChar
+	target.Status = block.Status
+	target.MetadataJSON = block.MetadataJSON
+	target.CreatedAt = block.CreatedAt
+	target.UpdatedAt = block.UpdatedAt
 }

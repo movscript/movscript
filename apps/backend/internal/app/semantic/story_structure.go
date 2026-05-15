@@ -15,10 +15,16 @@ func (s *Service) CreateSegment(ctx context.Context, projectID uint, input Creat
 	if err != nil {
 		return domainsemantic.Segment{}, err
 	}
+	if input.ScriptBlockID != nil {
+		if err := s.ensureScriptBlockInProject(ctx, projectID, *input.ScriptBlockID); err != nil {
+			return domainsemantic.Segment{}, err
+		}
+	}
 	item := domainsemantic.NewSegment(domainsemantic.SegmentSpec{
 		ProjectID:       projectID,
 		ProductionID:    productionID,
 		TextBlockID:     textBlockID,
+		ScriptBlockID:   input.ScriptBlockID,
 		ParentSegmentID: input.ParentSegmentID,
 		Kind:            input.Kind,
 		Order:           input.Order,
@@ -37,6 +43,7 @@ func (s *Service) PatchSegment(ctx context.Context, projectID uint, id string, i
 		return item, err
 	}
 	patch := domainsemantic.SegmentPatch{
+		ScriptBlockID:   input.ScriptBlockID,
 		ParentSegmentID: input.ParentSegmentID,
 		Kind:            input.Kind,
 		Order:           input.Order,
@@ -53,6 +60,11 @@ func (s *Service) PatchSegment(ctx context.Context, projectID uint, id string, i
 		}
 		patch.ProductionID = productionID
 		patch.TextBlockID = textBlockID
+	}
+	if input.ScriptBlockID != nil {
+		if err := s.ensureScriptBlockInProject(ctx, projectID, *input.ScriptBlockID); err != nil {
+			return item, err
+		}
 	}
 	return s.repo.PatchSegment(ctx, item, patch)
 }

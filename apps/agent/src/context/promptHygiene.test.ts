@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildPromptMemoryIndex, compactPromptHistory, filterPromptHistory, filterPromptMemories } from './promptHygiene.js'
+import { buildPromptMemoryIndex, buildThreadContextSummary, compactPromptHistory, filterPromptHistory, filterPromptMemories, normalizeThreadContextSummary } from './promptHygiene.js'
 
 test('prompt hygiene filters runtime failure messages and memories from future model context', () => {
   const createdAt = '2026-01-01T00:00:00.000Z'
@@ -49,4 +49,54 @@ test('compactPromptHistory keeps recent messages and summarizes older continuity
   assert.match(compacted.summary ?? '', /5 older message/)
   assert.match(compacted.summary ?? '', /not a source of current project facts/)
   assert.equal((compacted.summary ?? '').includes('message 1 '.repeat(20)), false)
+})
+
+test('thread context summary keeps refs and prompt compaction renders persisted summary', () => {
+  const createdAt = '2026-01-01T00:00:00.000Z'
+  const messages = [
+    { id: 'u1', threadId: 't', role: 'user' as const, content: '帮我做分镜方案', createdAt },
+    { id: 'a1', threadId: 't', role: 'assistant' as const, content: '已参考分镜节奏基础，生成方案摘要。'.repeat(20), runId: 'run_1', createdAt },
+  ]
+  const summary = buildThreadContextSummary({
+    threadId: 't',
+    messages,
+    run: {
+      id: 'run_1',
+      threadId: 't',
+      status: 'completed',
+      policy: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
+      metadata: {
+        contextLedger: {
+          retrieved: [{
+            ref: { type: 'knowledge', id: 'storyboard.rhythm.basic', title: '分镜节奏基础' },
+            source: 'knowledge',
+            evidence: 'advisory',
+            title: '分镜节奏基础',
+            retrievedAt: createdAt,
+            usedInPrompt: true,
+          }],
+          artifactRefs: [{ type: 'knowledge', id: 'storyboard.rhythm.basic', title: '分镜节奏基础' }],
+        },
+      },
+      assistantMessageId: 'a1',
+      createdAt,
+      updatedAt: createdAt,
+      completedAt: createdAt,
+      steps: [],
+    },
+    now: createdAt,
+    maxSummaryChars: 80,
+  })
+
+  assert.equal(summary.schema, 'movscript.thread-context-summary.v1')
+  assert.equal(summary.userGoal, '帮我做分镜方案')
+  assert.deepEqual(summary.artifactRefs.map((ref) => ref.id), ['storyboard.rhythm.basic'])
+  assert.deepEqual(summary.recentRunRefs[0]?.retrievedRefs.map((ref) => ref.id), ['storyboard.rhythm.basic'])
+
+  const restored = normalizeThreadContextSummary(summary)
+  const compacted = compactPromptHistory(messages, 1, restored)
+  assert.equal(compacted.messages.length, 1)
+  assert.match(compacted.summary ?? '', /Persisted thread context summary/)
+  assert.match(compacted.summary ?? '', /knowledge#storyboard.rhythm.basic/)
+  assert.equal((compacted.summary ?? '').includes('已参考分镜节奏基础，生成方案摘要。'.repeat(20)), false)
 })

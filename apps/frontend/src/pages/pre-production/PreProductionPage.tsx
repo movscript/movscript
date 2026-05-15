@@ -1585,7 +1585,7 @@ const ownerTypeLabels: Record<string, string> = {
   content_unit: '制作项',
   script: '剧本',
   script_version: '剧本版本',
-  keyframe: '关键帧',
+  keyframe: '画面锚点',
   delivery_version: '交付版本',
   canvas: '画布',
   asset_slot: '素材需求',

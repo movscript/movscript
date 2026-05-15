@@ -12,6 +12,7 @@ type SegmentSpec struct {
 	ProjectID       uint
 	ProductionID    *uint
 	TextBlockID     *uint
+	ScriptBlockID   *uint
 	ParentSegmentID *uint
 	Kind            string
 	Order           int
@@ -27,6 +28,7 @@ type Segment struct {
 	ProjectID       uint      `json:"project_id"`
 	ProductionID    *uint     `json:"production_id,omitempty"`
 	TextBlockID     *uint     `json:"text_block_id,omitempty"`
+	ScriptBlockID   *uint     `json:"script_block_id,omitempty"`
 	ParentSegmentID *uint     `json:"parent_segment_id,omitempty"`
 	Kind            string    `json:"kind"`
 	Order           int       `json:"order"`
@@ -42,6 +44,7 @@ type Segment struct {
 type SegmentPatch struct {
 	ProductionID    *uint
 	TextBlockID     *uint
+	ScriptBlockID   *uint
 	ParentSegmentID *uint
 	Kind            string
 	Order           int
@@ -57,6 +60,7 @@ func NewSegment(spec SegmentSpec) Segment {
 		ProjectID:       spec.ProjectID,
 		ProductionID:    spec.ProductionID,
 		TextBlockID:     spec.TextBlockID,
+		ScriptBlockID:   spec.ScriptBlockID,
 		ParentSegmentID: spec.ParentSegmentID,
 		Kind:            FallbackString(spec.Kind, "emotional_function"),
 		Order:           spec.Order,
@@ -197,6 +201,7 @@ type ContentUnitSpec struct {
 	ProductionID     *uint
 	SegmentID        *uint
 	SceneMomentID    *uint
+	ScriptBlockID    *uint
 	Kind             string
 	Order            int
 	Title            string
@@ -227,6 +232,7 @@ type ContentUnit struct {
 	ProductionID     *uint     `json:"production_id,omitempty"`
 	SegmentID        *uint     `json:"segment_id,omitempty"`
 	SceneMomentID    *uint     `json:"scene_moment_id,omitempty"`
+	ScriptBlockID    *uint     `json:"script_block_id,omitempty"`
 	Kind             string    `json:"kind"`
 	Order            int       `json:"order"`
 	Title            string    `json:"title"`
@@ -257,6 +263,7 @@ type ContentUnitPatch struct {
 	ProductionID     *uint
 	SegmentID        *uint
 	SceneMomentID    *uint
+	ScriptBlockID    *uint
 	Kind             string
 	Order            int
 	Title            string
@@ -287,6 +294,7 @@ func NewContentUnit(spec ContentUnitSpec) ContentUnit {
 		ProductionID:     spec.ProductionID,
 		SegmentID:        spec.SegmentID,
 		SceneMomentID:    spec.SceneMomentID,
+		ScriptBlockID:    spec.ScriptBlockID,
 		Kind:             FallbackString(spec.Kind, "shot"),
 		Order:            spec.Order,
 		Title:            spec.Title,
@@ -1579,6 +1587,76 @@ type ScriptVersion struct {
 	CreatedByID     *uint     `json:"created_by_id,omitempty"`
 	CreatedAt       time.Time `json:"CreatedAt"`
 	UpdatedAt       time.Time `json:"UpdatedAt"`
+}
+
+type ScriptBlockSpec struct {
+	ProjectID       uint
+	ScriptID        uint
+	ScriptVersionID uint
+	ParentBlockID   *uint
+	Order           int
+	Kind            string
+	Speaker         string
+	Content         string
+	StartLine       int
+	EndLine         int
+	StartChar       int
+	EndChar         int
+	Status          string
+	MetadataJSON    string
+}
+
+type ScriptBlock struct {
+	ID              uint      `json:"ID"`
+	ProjectID       uint      `json:"project_id"`
+	ScriptID        uint      `json:"script_id"`
+	ScriptVersionID uint      `json:"script_version_id"`
+	ParentBlockID   *uint     `json:"parent_block_id,omitempty"`
+	Order           int       `json:"order"`
+	Kind            string    `json:"kind"`
+	Speaker         string    `json:"speaker"`
+	Content         string    `json:"content"`
+	StartLine       int       `json:"start_line"`
+	EndLine         int       `json:"end_line"`
+	StartChar       int       `json:"start_char"`
+	EndChar         int       `json:"end_char"`
+	Status          string    `json:"status"`
+	MetadataJSON    string    `json:"metadata_json"`
+	CreatedAt       time.Time `json:"CreatedAt"`
+	UpdatedAt       time.Time `json:"UpdatedAt"`
+}
+
+type ScriptBlockPatch struct {
+	ParentBlockID *uint
+	Order         int
+	Kind          string
+	Speaker       string
+	Content       string
+	StartLine     int
+	EndLine       int
+	StartChar     int
+	EndChar       int
+	Status        string
+	MetadataJSON  string
+}
+
+func NewScriptBlock(spec ScriptBlockSpec) ScriptBlock {
+	return ScriptBlock{
+		ProjectID:       spec.ProjectID,
+		ScriptID:        spec.ScriptID,
+		ScriptVersionID: spec.ScriptVersionID,
+		ParentBlockID:   spec.ParentBlockID,
+		Order:           spec.Order,
+		Kind:            FallbackString(spec.Kind, "action"),
+		Speaker:         spec.Speaker,
+		Content:         spec.Content,
+		StartLine:       spec.StartLine,
+		EndLine:         spec.EndLine,
+		StartChar:       spec.StartChar,
+		EndChar:         spec.EndChar,
+		Status:          FallbackString(spec.Status, "active"),
+		MetadataJSON:    spec.MetadataJSON,
+	}
 }
 
 type ScriptVersionPatch struct {

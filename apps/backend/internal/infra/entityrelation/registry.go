@@ -16,6 +16,12 @@ func SyncCoreEntityRelations(db *gorm.DB, item any) error {
 			return err
 		}
 		return syncScriptVersionRelations(db, &current)
+	case *ScriptBlock:
+		var current ScriptBlock
+		if err := db.First(&current, v.ID).Error; err != nil {
+			return err
+		}
+		return syncScriptBlockRelations(db, &current)
 	case *Production:
 		var current Production
 		if err := db.First(&current, v.ID).Error; err != nil {
@@ -196,6 +202,8 @@ func DeleteCoreEntityRelations(db *gorm.DB, item any) error {
 	switch v := item.(type) {
 	case *ScriptVersion:
 		return deleteEntityRelations(db, "script_version", v.ID)
+	case *ScriptBlock:
+		return deleteEntityRelations(db, "script_block", v.ID)
 	case *Production:
 		return deleteEntityRelations(db, "production", v.ID)
 	case *ProductionTextBlock:

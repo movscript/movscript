@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { StaticAgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
+import { buildContext, buildOpenAIChatTools } from './modelContextBuilder.js'
 
 test('buildContext emits multiple textual system messages instead of one JSON-packed prompt', () => {
   const built = buildContext({

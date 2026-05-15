@@ -26,6 +26,7 @@ type GenerationContext struct {
 	Production         *domainsemantic.Production   `json:"production,omitempty"`
 	Segment            *domainsemantic.Segment      `json:"segment,omitempty"`
 	SceneMoment        *domainsemantic.SceneMoment  `json:"scene_moment,omitempty"`
+	ScriptBlock        *domainsemantic.ScriptBlock  `json:"script_block,omitempty"`
 	CreativeReferences []GenerationContextReference `json:"creative_references"`
 	AssetSlots         []domainsemantic.AssetSlot   `json:"asset_slots"`
 	Keyframes          []domainsemantic.Keyframe    `json:"keyframes"`
@@ -100,7 +101,7 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 		},
 		Intent: intent,
 		Constraints: GenerationContextConstraints{
-			ReadOnlyEntities: []string{"production", "segment", "scene_moment", "creative_reference", "creative_reference_state", "content_unit"},
+			ReadOnlyEntities: []string{"production", "segment", "scene_moment", "script_block", "creative_reference", "creative_reference_state", "content_unit"},
 			WriteTargets:     generationWriteTargets(intent),
 		},
 	}
@@ -131,6 +132,13 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 			}
 			result.Segment = &segment
 		}
+	}
+	if contentUnit.ScriptBlockID != nil {
+		scriptBlock, err := s.repo.LoadScriptBlock(ctx, projectID, strconv.FormatUint(uint64(*contentUnit.ScriptBlockID), 10))
+		if err != nil {
+			return GenerationContext{}, generationContextLoadError(projectID, "load_script_block", "script_block", *contentUnit.ScriptBlockID, err)
+		}
+		result.ScriptBlock = &scriptBlock
 	}
 
 	references, err := s.collectGenerationReferences(ctx, projectID, contentUnit, result.Segment, result.SceneMoment)

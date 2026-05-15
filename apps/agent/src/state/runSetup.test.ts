@@ -81,6 +81,7 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
     },
     authMetadata: { backendAuthToken: 'token_1' },
     catalogSnapshot: { id: 'catalog_1', version: '2026.05.15' },
+    limits: { maxActiveWorkflows: 2, maxKnowledgeCharsPerRun: 8000, maxKnowledgeChunksPerRun: 3 },
   })
 
   assert.equal(result.debugContext.project?.id, 42)
@@ -93,12 +94,14 @@ test('buildRunSetupMetadata assembles debug context and run metadata', () => {
   assert.equal((result.metadata.skills as any[])?.[0]?.instruction, 'compiled core instruction')
   assert.deepEqual(result.metadata.activeSkillIds, ['movscript.policy.agent-core'])
   assert.deepEqual(result.metadata.visibleToolNames, ['movscript_search_memories'])
+  assert.deepEqual(result.metadata.limits, { maxActiveWorkflows: 2, maxKnowledgeCharsPerRun: 8000, maxKnowledgeChunksPerRun: 3 })
   assert.equal((result.metadata.catalogSnapshot as any)?.id, 'catalog_1')
   assert.equal((result.metadata.catalogSnapshot as any)?.version, '2026.05.15')
   assert.equal((result.metadata.contextLedger as any)?.schema, 'movscript.context-ledger.v1')
   assert.equal((result.metadata.contextLedger as any)?.runId, 'run_1')
   assert.equal((result.metadata.contextLedger as any)?.threadId, 'thread_1')
   assert.equal((result.metadata.contextLedger as any)?.catalogSnapshotId, 'catalog_1')
+  assert.equal((result.metadata.contextLedger as any)?.catalogSnapshotVersion, '2026.05.15')
   assert.deepEqual((result.metadata.contextLedger as any)?.activeSkillIds, ['movscript.policy.agent-core'])
   assert.deepEqual((result.metadata.contextLedger as any)?.visibleToolNames, ['movscript_search_memories'])
   assert.deepEqual((result.metadata.contextLedger as any)?.retrieved, [])

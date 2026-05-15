@@ -15,6 +15,11 @@
   "toolGrants": [],
   "limits": {
     "maxActiveWorkflows": 2,
-    "systemPromptCharLimit": 32000
+    "systemPromptCharLimit": 32000,
+    "maxRetrievedContextChars": 12000,
+    "maxKnowledgeCharsPerRun": 8000,
+    "maxKnowledgeChunksPerRun": 3,
+    "maxHistoryMessages": 6,
+    "maxThreadSummaryChars": 4000
   }
 }

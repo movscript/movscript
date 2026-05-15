@@ -164,7 +164,7 @@ const targetTypeLabels: Record<WorkTargetType, string> = {
   scene_moment: '情景',
   content_unit: '制作项',
   asset_slot: '素材需求',
-  keyframe: '关键帧',
+  keyframe: '画面锚点',
   delivery_version: '交付版本',
 }
 
@@ -233,7 +233,7 @@ const resultTypeMeta: Record<WorkItemResultType, { label: string; description: s
   none: { label: '只完成任务', description: '不改变生产实体' },
   status_change: { label: '更新目标状态', description: '通过审核后更新目标对象状态' },
   lock_asset_candidate: { label: '锁定素材候选', description: '把素材需求锁定到指定候选' },
-  accept_keyframe: { label: '接受关键帧', description: '将关键帧标记为 accepted' },
+  accept_keyframe: { label: '采纳画面锚点', description: '将画面锚点标记为 accepted' },
   approve_delivery_version: { label: '批准交付版本', description: '将交付版本标记为 approved' },
 }
 
@@ -278,12 +278,12 @@ const taskPurposeMeta: Record<TaskPurpose, {
     defaultTitle: '确认制作项',
   },
   accept_keyframe: {
-    label: '接受关键帧',
-    description: '通过后将关键帧状态变为 accepted',
+    label: '采纳画面锚点',
+    description: '通过后将画面锚点状态变为 accepted',
     taskType: 'review',
     resultType: 'accept_keyframe',
     targetTypes: ['keyframe'],
-    defaultTitle: '接受关键帧',
+    defaultTitle: '采纳画面锚点',
   },
   approve_delivery: {
     label: '批准交付版本',
@@ -519,7 +519,7 @@ function resultSummary(resultType: WorkItemResultType, resultJSON: string) {
     }
   }
   if (resultType === 'lock_asset_candidate') return '通过后系统会锁定素材需求到指定候选。'
-  if (resultType === 'accept_keyframe') return '通过后关键帧状态会变为 accepted。'
+  if (resultType === 'accept_keyframe') return '通过后画面锚点状态会变为 accepted。'
   if (resultType === 'approve_delivery_version') return '通过后交付版本状态会变为 approved。'
   return '通过后应用任务结果。'
 }
@@ -988,7 +988,7 @@ export default function CollaborationPage() {
       ...segments.map((record) => targetOption('segment', record, '编排段')),
       ...contentUnits.map((record) => targetOption('content_unit', record, '制作项')),
       ...assetSlots.map((record) => targetOption('asset_slot', record, '素材需求')),
-      ...keyframes.map((record) => targetOption('keyframe', record, '关键帧')),
+      ...keyframes.map((record) => targetOption('keyframe', record, '画面锚点')),
       ...deliveryVersions.map((record) => targetOption('delivery_version', record, '交付版本')),
     ]
   }, [assetSlots, contentUnits, deliveryVersions, keyframes, productions, project?.name, projectId, segments])

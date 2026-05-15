@@ -261,7 +261,7 @@
     "assetSlots": "Asset Slots",
     "storyboardLines": "Storyboard Lines",
     "contentUnits": "Content Units",
-    "keyframes": "Keyframes",
+    "keyframes": "Visual Anchors",
     "assets": "Assets",
     "episodes": "Productions",
     "scenes": "Scenes",
@@ -345,11 +345,11 @@
     "noAssetViews": "No view images yet. Upload them from the asset page.",
     "mediaLibrary": "Asset Library",
     "imageVideo": "Images / Videos",
-    "keyframes": "Keyframes",
+    "keyframes": "Visual Anchors",
     "referenceImages": "Reference Images",
     "rawSourceVideo": "Raw Source Video",
-    "uploadKeyframe": "Upload Keyframe",
-    "generateKeyframe": "AI Generate Keyframe",
+    "uploadKeyframe": "Upload Visual Anchor",
+    "generateKeyframe": "AI Generate Visual Anchor",
     "draftVideo": "Draft Video",
     "cameraReference": "Camera control reference",
     "noDraftVideo": "No draft video",
@@ -2143,8 +2143,8 @@
     },
     "smartStoryboard": {
       "title": "Smart Storyboard",
-      "subtitle": "Organize characters, scenes, and storyboard sketches into cinematic language, then shape keyframe plans through emotion and performance.",
-      "generate": "Generate Keyframes",
+      "subtitle": "Organize characters, scenes, and storyboard sketches into cinematic language, then shape visual anchor plans through emotion and performance.",
+      "generate": "Generate Visual Anchors",
       "buckets": {
         "characters": "Characters",
         "scenes": "Scenes",
@@ -2208,7 +2208,7 @@
         }
       },
       "preview": {
-        "title": "Keyframe Preview"
+        "title": "Visual Anchor Preview"
       },
       "prompt": {
         "title": "Prompt Summary"

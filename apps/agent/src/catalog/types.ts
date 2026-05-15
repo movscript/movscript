@@ -1,8 +1,9 @@
 import type { DraftKind, DraftScope, DraftSchemaDefinition, JSONSchema7 } from '@movscript/draft-schemas'
 import type { JSONValue } from '../types.js'
 import type { ToolRiskLevel } from '../tools/toolRegistry.js'
+import type { KnowledgeCollection } from '../knowledge/types.js'
 
-export type SkillKind = 'persona' | 'workflow' | 'policy'
+export type SkillKind = 'persona' | 'workflow' | 'policy' | 'expertise'
 export type ToolSource = 'runtime' | 'plugin' | 'mcp'
 export type PackSource = 'builtin' | 'plugin' | 'mcp'
 export type ApprovalMode = 'never' | 'always' | 'on_write'
@@ -81,7 +82,8 @@ export type PolicySkill = SkillDefinitionBase & {
   kind: 'policy'
   scope?: PolicyScope
 }
-export type SkillDefinition = PersonaSkill | WorkflowSkill | PolicySkill
+export type ExpertiseSkill = SkillDefinitionBase & { kind: 'expertise' }
+export type SkillDefinition = PersonaSkill | WorkflowSkill | PolicySkill | ExpertiseSkill
 
 export interface CapabilityPack {
   id: string
@@ -92,7 +94,9 @@ export interface CapabilityPack {
   resources?: {
     skills?: string[]
     tools?: string[]
+    knowledge?: string[]
   }
+  knowledge?: string[]
   schemas: string[]
   tools: string[]
   skills: string[]
@@ -137,6 +141,11 @@ export interface ToolGrant {
 export interface ProfileLimits {
   maxActiveWorkflows?: number
   systemPromptCharLimit?: number
+  maxRetrievedContextChars?: number
+  maxKnowledgeCharsPerRun?: number
+  maxKnowledgeChunksPerRun?: number
+  maxHistoryMessages?: number
+  maxThreadSummaryChars?: number
 }
 
 export interface ModelBinding {
@@ -185,6 +194,7 @@ export interface CatalogRegistry {
   skills: Map<string, SkillDefinition>
   packs: Map<string, CapabilityPack>
   profiles: Map<string, AgentProfile>
+  knowledge: Map<string, KnowledgeCollection>
 }
 
 export interface CatalogIssue {

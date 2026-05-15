@@ -69,6 +69,8 @@ export function SemanticEntityInlineEditor({
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [isEditing, setIsEditing] = useState(Boolean(!record))
   const enableCreativeReferenceLookups = config.kind === 'assetSlots' && Boolean(projectId)
+  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments') && Boolean(projectId)
+  const canDeleteRecord = !['scriptVersions', 'scriptBlocks'].includes(config.kind)
 
   const { data: creativeReferences = [] } = useQuery({
     queryKey: ['semantic-inline-editor', projectId, 'creative-references'],
@@ -82,24 +84,37 @@ export function SemanticEntityInlineEditor({
     enabled: enableCreativeReferenceLookups,
   })
 
+  const { data: scriptBlocks = [] } = useQuery({
+    queryKey: ['semantic-inline-editor', projectId, 'script-blocks'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')),
+    enabled: enableScriptBlockLookups,
+  })
+
   const referenceById = useMemo(() => new Map(creativeReferences.map((item) => [item.ID, item])), [creativeReferences])
   const lookupOptions = useMemo(() => {
-    if (!enableCreativeReferenceLookups) return {}
-    const selectedReferenceId = Number(String(form.creative_reference_id ?? '').trim()) || 0
-    const states = selectedReferenceId
-      ? creativeReferenceStates.filter((item) => Number(item.creative_reference_id) === selectedReferenceId)
-      : creativeReferenceStates
-    return {
-      creative_reference_id: creativeReferences.map((item) => ({
+    const options: Record<string, Array<{ value: string; label: string }>> = {}
+    if (enableCreativeReferenceLookups) {
+      const selectedReferenceId = Number(String(form.creative_reference_id ?? '').trim()) || 0
+      const states = selectedReferenceId
+        ? creativeReferenceStates.filter((item) => Number(item.creative_reference_id) === selectedReferenceId)
+        : creativeReferenceStates
+      options.creative_reference_id = creativeReferences.map((item) => ({
         value: String(item.ID),
         label: formatCreativeReferenceOption(item),
-      })),
-      creative_reference_state_id: states.map((item) => ({
+      }))
+      options.creative_reference_state_id = states.map((item) => ({
         value: String(item.ID),
         label: formatCreativeReferenceStateOption(item, referenceById.get(Number(item.creative_reference_id))),
-      })),
-    } as Record<string, Array<{ value: string; label: string }>>
-  }, [creativeReferenceStates, creativeReferences, enableCreativeReferenceLookups, form.creative_reference_id, referenceById])
+      }))
+    }
+    if (enableScriptBlockLookups) {
+      options.script_block_id = scriptBlocks.map((item) => ({
+        value: String(item.ID),
+        label: formatScriptBlockOption(item),
+      }))
+    }
+    return options
+  }, [creativeReferenceStates, creativeReferences, enableCreativeReferenceLookups, enableScriptBlockLookups, form.creative_reference_id, referenceById, scriptBlocks])
 
   useEffect(() => {
     setForm(buildInitialForm(fields, record, defaults))
@@ -198,14 +213,14 @@ export function SemanticEntityInlineEditor({
                     <Pencil size={14} />
                     编辑
                   </Button>
-                  <Button type="button" size="sm" variant="destructive" className="shrink-0 gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
+                  {canDeleteRecord ? <Button type="button" size="sm" variant="destructive" className="shrink-0 gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
                     <Trash2 size={14} />
                     删除
-                  </Button>
+                  </Button> : null}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  {record ? (
+                  {record && canDeleteRecord ? (
                     <Button type="button" size="sm" variant="destructive" className="shrink-0 gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
                       <Trash2 size={14} />
                       删除
@@ -308,14 +323,14 @@ export function SemanticEntityInlineEditor({
               <Pencil size={14} />
               编辑
             </Button>
-            <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
+            {canDeleteRecord ? <Button type="button" size="sm" variant="destructive" className="gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
               <Trash2 size={14} />
               删除
-            </Button>
+            </Button> : null}
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            {record ? (
+            {record && canDeleteRecord ? (
               <Button type="button" size="sm" variant="destructive" className="shrink-0 gap-2" onClick={removeRecord} loading={deleteMutation.isPending}>
                 <Trash2 size={14} />
                 删除
@@ -474,6 +489,14 @@ function formatCreativeReferenceStateOption(record: SemanticEntityRecord, refere
   return [record.name || `状态 #${record.ID}`, referenceName, scope, `#${record.ID}`].filter(Boolean).join(' · ')
 }
 
+function formatScriptBlockOption(record: SemanticEntityRecord) {
+  const startLine = record.start_line || '?'
+  const endLine = record.end_line || '?'
+  const content = String(record.content ?? '').trim().replace(/\s+/g, ' ')
+  const excerpt = content.length > 40 ? `${content.slice(0, 40)}...` : content
+  return [`剧本块 #${record.ID}`, `行 ${startLine}-${endLine}`, record.speaker || record.kind, excerpt].filter(Boolean).join(' · ')
+}
+
 function kindLabel(kind: unknown) {
   const labels: Record<string, string> = {
     person: '人物',
@@ -502,13 +525,13 @@ function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {
 
 const basicIdFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id'],
-  contentUnits: ['segment_id', 'scene_moment_id'],
+  contentUnits: ['segment_id', 'scene_moment_id', 'script_block_id'],
   keyframes: ['scene_moment_id', 'content_unit_id'],
 }
 
 const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id', 'progress'],
-  contentUnits: ['segment_id', 'scene_moment_id'],
+  contentUnits: ['segment_id', 'scene_moment_id', 'script_block_id'],
   assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_slot_id'],
 }
 

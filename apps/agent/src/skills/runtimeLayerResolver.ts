@@ -1,5 +1,5 @@
 import type { AgentManifest } from '../catalog/agentManifest.js'
-import type { CatalogRegistry, RuntimeContext, SkillDefinition, WorkflowSkill } from '../catalog/types.js'
+import type { CatalogRegistry, ExpertiseSkill, RuntimeContext, SkillDefinition, WorkflowSkill } from '../catalog/types.js'
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { AgentDebugContextPanel, AgentMessage, ResolvedAgentSkill } from '../state/types.js'
 import { resolveProfile } from '../profiles/resolveProfile.js'
@@ -54,12 +54,14 @@ export function resolveRuntimeLayers(input: {
     return skill?.kind === 'workflow' && skill.enabled !== false ? [skill] : []
   })
   const selected = selectActiveWorkflowsWithTrace(candidateWorkflows, ctx)
+  const expertise = selectWorkflowExpertise(input.registry, selected.workflows)
   const composed = composePrompt({
     registry: input.registry,
     ctx,
     ...(persona?.kind === 'persona' && persona.enabled !== false ? { persona } : {}),
     policies,
     workflows: selected.workflows,
+    expertise,
   })
 
   const skillById = new Map<SkillDefinition, string>()
@@ -71,6 +73,7 @@ export function resolveRuntimeLayers(input: {
     ...(persona?.kind === 'persona' && persona.enabled !== false ? [persona] : []),
     ...policies,
     ...selected.workflows,
+    ...expertise,
   ]
     .filter((skill) => composed.parts.some((part) => part.id === skill.id))
     .map((skill, index) => toResolvedSkill(skill, input.registry, ctx, skillById.get(skill), index))
@@ -159,10 +162,22 @@ function toResolvedSkill(
       ...(skill.kind === 'workflow' && skill.toolScope ? { toolScope: skill.toolScope } : {}),
     },
     resolvedPriority: skill.priority,
-    activationReason: skill.kind === 'workflow' ? 'trigger' : 'profile',
+    activationReason: skill.kind === 'workflow' ? 'trigger' : skill.kind === 'expertise' ? 'default' : 'profile',
     compiledInstruction: rendered ?? renderSkill(skill, registry, ctx),
     warnings: [],
   }
+}
+
+function selectWorkflowExpertise(registry: CatalogRegistry, workflows: WorkflowSkill[]): ExpertiseSkill[] {
+  const ids = new Set<string>()
+  for (const workflow of workflows) {
+    const refs = Array.isArray(workflow.metadata?.expertiseRefs) ? workflow.metadata.expertiseRefs : []
+    for (const ref of refs) if (typeof ref === 'string' && ref.trim()) ids.add(ref.trim())
+  }
+  return Array.from(ids).flatMap((id) => {
+    const skill = registry.skills.get(id)
+    return skill?.kind === 'expertise' && skill.enabled !== false ? [skill] : []
+  })
 }
 
 function buildUIContext(debugContext: AgentDebugContextPanel): RuntimeContext['uiContext'] {

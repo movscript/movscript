@@ -18,7 +18,12 @@ export class InMemoryKnowledgeStore implements KnowledgeStore {
   }
 
   listCollections(): KnowledgeCollection[] {
-    return this.collections.map((collection) => ({ ...collection, tags: [...collection.tags], chunkIds: [...collection.chunkIds] }))
+    return this.collections.map((collection) => ({
+      ...collection,
+      tags: [...collection.tags],
+      chunkIds: [...collection.chunkIds],
+      ...(collection.chunks ? { chunks: collection.chunks.map((chunk) => ({ ...chunk })) } : {}),
+    }))
   }
 
   listChunks(): KnowledgeChunk[] {

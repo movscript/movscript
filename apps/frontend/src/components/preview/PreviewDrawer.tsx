@@ -124,7 +124,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
               ) : isError ? (
                 <ErrorBlock />
               ) : storyNodes.length === 0 ? (
-                <EmptyBlock title="暂无编排段结构" detail="需要先补充制作项和关键帧，预演才能形成可观看的剧情树。" />
+                <EmptyBlock title="暂无预演结构" detail="需要先补充制作项或情节预演画面，预演才能形成可观看的剧情树。" />
               ) : (
                 <div className="space-y-2">
                   <button
@@ -137,7 +137,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                   >
                     <div className="flex items-center gap-2">
                       <Film size={14} className="text-muted-foreground" />
-                      <span className="text-sm font-semibold text-foreground">整集剧情流</span>
+                      <span className="text-sm font-semibold text-foreground">整集预演画面</span>
                     </div>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">从上到下查看全部真实剧情画面。</p>
                   </button>
@@ -187,7 +187,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                         真实剧情流
                       </div>
                       <p className="mt-1 max-w-2xl text-xs leading-5 text-muted-foreground">
-                        画面从上到下就是观众看到的剧情顺序；没有素材的关键帧保留为待补画面。
+                        画面从上到下就是观众看到的剧情顺序；镜头关键帧会按开头、中间、结尾承接生产约束。
                       </p>
                     </div>
                     <Badge variant="outline" className="text-[10px]">
@@ -204,7 +204,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
                           key={keyframe.id}
                           keyframe={keyframe}
                           index={index}
-                          unit={findUnitForKeyframe(storyNodes, keyframe)}
+                          frameContext={frameContextFor(storyNodes, keyframe, index, selectedNode)}
                         />
                       ))}
                     </div>
@@ -308,18 +308,19 @@ function StoryTreeNode({
             <span>·</span>
             <span>{duration}</span>
             <span>·</span>
-            <span>{node.keyframes.length} 画面</span>
+            <span>{node.keyframes.length} 镜头关键帧</span>
           </div>
         </button>
       </div>
       {expanded && (
         <div className="space-y-1 border-t border-border px-3 py-2">
           {node.keyframes.length === 0 ? (
-            <p className="px-8 py-1 text-[11px] text-muted-foreground">暂无关键画面</p>
-          ) : node.keyframes.map((keyframe) => (
+            <p className="px-8 py-1 text-[11px] text-muted-foreground">暂无镜头关键帧</p>
+          ) : node.keyframes.map((keyframe, keyframeIndex) => (
             <div key={keyframe.id} className="ml-8 flex items-center gap-2 text-[11px] text-muted-foreground">
               <span className={cn('h-1.5 w-1.5 rounded-full', keyframe.has_asset ? 'bg-emerald-500' : 'bg-amber-500')} />
-              <span className="truncate">{keyframe.title || `关键帧 #${keyframe.id}`}</span>
+              <span className="shrink-0 text-[10px]">{frameRoleLabel(keyframeIndex, node.keyframes.length)}</span>
+              <span className="truncate">{keyframe.title || `画面 #${keyframe.id}`}</span>
             </div>
           ))}
         </div>
@@ -328,7 +329,14 @@ function StoryTreeNode({
   )
 }
 
-function StoryFrame({ keyframe, index, unit }: { keyframe: PreviewKeyframe; index: number; unit?: PreviewContentUnit }) {
+type FrameContext = {
+  unit?: PreviewContentUnit
+  localIndex: number
+  total: number
+  scopeLabel: string
+}
+
+function StoryFrame({ keyframe, index, frameContext }: { keyframe: PreviewKeyframe; index: number; frameContext: FrameContext }) {
   return (
     <article className="grid gap-4 p-4 md:grid-cols-[minmax(220px,42%)_1fr]">
       <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
@@ -348,7 +356,8 @@ function StoryFrame({ keyframe, index, unit }: { keyframe: PreviewKeyframe; inde
       </div>
       <div className="min-w-0 py-1">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <Badge variant="outline" className="text-[10px]">{unit?.title || '未绑定制作项'}</Badge>
+          <Badge variant="outline" className="text-[10px]">{frameContext.unit?.title || frameContext.scopeLabel}</Badge>
+          <Badge variant="secondary" className="text-[10px]">{frameRoleLabel(frameContext.localIndex, frameContext.total)}</Badge>
           <span className={cn(
             'rounded px-1.5 py-0.5 text-[10px] font-medium',
             keyframe.has_asset
@@ -358,7 +367,7 @@ function StoryFrame({ keyframe, index, unit }: { keyframe: PreviewKeyframe; inde
             {keyframe.has_asset ? '可预演' : '待补素材资源'}
           </span>
         </div>
-        <h3 className="text-sm font-semibold leading-5 text-foreground">{keyframe.title || '未命名关键帧'}</h3>
+        <h3 className="text-sm font-semibold leading-5 text-foreground">{keyframe.title || '未命名预演画面'}</h3>
         {keyframe.description && (
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{keyframe.description}</p>
         )}
@@ -370,8 +379,30 @@ function StoryFrame({ keyframe, index, unit }: { keyframe: PreviewKeyframe; inde
   )
 }
 
-function findUnitForKeyframe(nodes: PreviewStoryNode[], keyframe: PreviewKeyframe) {
-  return nodes.find((node) => node.unit.id === keyframe.content_unit_id)?.unit
+function frameContextFor(nodes: PreviewStoryNode[], keyframe: PreviewKeyframe, fallbackIndex: number, selectedNode?: PreviewStoryNode): FrameContext {
+  const node = nodes.find((item) => item.unit.id === keyframe.content_unit_id) ?? selectedNode
+  if (!node) {
+    return {
+      localIndex: fallbackIndex,
+      total: 1,
+      scopeLabel: '情节预演画面',
+    }
+  }
+  const localIndex = Math.max(0, node.keyframes.findIndex((item) => item.id === keyframe.id))
+  return {
+    unit: node.unit,
+    localIndex: localIndex >= 0 ? localIndex : fallbackIndex,
+    total: Math.max(1, node.keyframes.length),
+    scopeLabel: '镜头关键帧',
+  }
+}
+
+function frameRoleLabel(index: number, total: number) {
+  if (total <= 1) return '关键画面'
+  if (index <= 0) return '开头帧'
+  if (index >= total - 1) return '结尾帧'
+  if (total === 3) return '中间帧'
+  return `中间帧 ${index}`
 }
 
 function PreviewStats({ data }: { data: PreviewGenerateResponse }) {
@@ -408,13 +439,13 @@ function MobileTree({ data, nodes }: { data: PreviewGenerateResponse; nodes: Pre
       </div>
       <div className="space-y-2">
         {nodes.length === 0 ? (
-          <EmptyBlock title="暂无编排段结构" detail="需要先补充制作项和关键帧。" />
+          <EmptyBlock title="暂无预演结构" detail="需要先补充制作项或预演画面。" />
         ) : nodes.map((node, index) => (
           <div key={node.unit.id} className="rounded-md border border-border bg-background p-3">
             <div className="flex items-center gap-2">
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">{String(index + 1).padStart(2, '0')}</span>
               <p className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{node.unit.title || `制作项 #${node.unit.id}`}</p>
-              <Badge variant="outline" className="text-[10px]">{node.keyframes.length} 画面</Badge>
+              <Badge variant="outline" className="text-[10px]">{node.keyframes.length} 帧</Badge>
             </div>
             <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{node.unit.description || '暂无段落说明'}</p>
           </div>
@@ -428,8 +459,8 @@ function EmptyStoryFlow() {
   return (
     <div className="flex min-h-60 flex-col items-center justify-center gap-2 p-8 text-center">
       <Image size={24} className="text-muted-foreground" />
-      <p className="text-sm font-medium text-foreground">暂无剧情画面</p>
-      <p className="max-w-sm text-xs leading-5 text-muted-foreground">补充关键帧后，这里会按从上到下的顺序呈现真实剧情。</p>
+      <p className="text-sm font-medium text-foreground">暂无预演画面</p>
+      <p className="max-w-sm text-xs leading-5 text-muted-foreground">补充情节预演画面或镜头关键帧后，这里会按从上到下的顺序呈现真实剧情。</p>
     </div>
   )
 }

@@ -18,12 +18,13 @@ export class KnowledgeManager {
     }
   }
 
-  get(input: Record<string, JSONValue>): JSONValue {
+  get(input: Record<string, JSONValue>, options: { maxChars?: number } = {}): JSONValue {
     const id = stringField(input.id)
     if (!id) throw new Error('get_knowledge requires id')
     const chunk = this.store.getChunk(id)
     if (!chunk) throw new Error(`knowledge chunk not found: ${id}`)
-    const maxChars = numberField(input.maxChars) ?? 4000
+    const requestedMaxChars = numberField(input.maxChars) ?? 4000
+    const maxChars = Math.min(requestedMaxChars, options.maxChars ?? requestedMaxChars)
     const content = chunk.content.slice(0, Math.max(0, maxChars))
     return {
       id: chunk.id,

@@ -23,6 +23,7 @@ import {
   Plus,
   RefreshCcw,
   Route,
+  ScrollText,
   ShieldCheck,
   Sparkles,
   Wand2,
@@ -46,6 +47,7 @@ type ContentUnitRecord = SemanticEntityRecord & {
   production_id?: number
   segment_id?: number
   scene_moment_id?: number
+  script_block_id?: number
   title?: string
   kind?: string
   order?: number
@@ -146,6 +148,19 @@ type AssetSlotCandidateRecord = SemanticEntityRecord & {
   note?: string
 }
 
+type ScriptBlockRecord = SemanticEntityRecord & {
+  script_id?: number
+  script_version_id?: number
+  kind?: string
+  speaker?: string
+  content?: string
+  start_line?: number
+  end_line?: number
+  start_char?: number
+  end_char?: number
+  status?: string
+}
+
 type ContentTargetKind = 'keyframe' | 'visual' | 'voice' | 'subtitle'
 
 interface ContentTargetViewModel {
@@ -165,6 +180,7 @@ interface ContentUnitViewModel {
   unit: ContentUnitRecord
   sceneMoment?: SceneMomentRecord
   section?: SegmentRecord
+  scriptBlock?: ScriptBlockRecord
   usages: CreativeReferenceUsageRecord[]
   references: CreativeReferenceRecord[]
   assetSlots: AssetSlotRecord[]
@@ -269,6 +285,11 @@ export default function ContentsPage() {
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')) as Promise<ContentUnitRecord[]>,
     enabled: !!projectId,
   })
+  const scriptBlocksQuery = useQuery({
+    queryKey: ['semantic-content-positioning', projectId, 'script-blocks'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')) as Promise<ScriptBlockRecord[]>,
+    enabled: !!projectId,
+  })
   const sceneMomentsQuery = useQuery({
     queryKey: ['semantic-content-positioning', projectId, 'sceneMoments'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
@@ -311,6 +332,7 @@ export default function ContentsPage() {
   })
 
   const contentUnits = useMemo(() => (contentUnitsQuery.data ?? []).slice().sort(compareByOrder), [contentUnitsQuery.data])
+  const scriptBlocks = scriptBlocksQuery.data ?? []
   const sceneMoments = sceneMomentsQuery.data ?? []
   const sections = sectionsQuery.data ?? []
   const storyboardLines = storyboardLinesQuery.data ?? []
@@ -321,6 +343,7 @@ export default function ContentsPage() {
   const assetSlotCandidates = assetSlotCandidatesQuery.data ?? []
 
   const referencesById = useMemo(() => new Map(references.map((item) => [item.ID, item])), [references])
+  const scriptBlocksById = useMemo(() => new Map(scriptBlocks.map((item) => [item.ID, item])), [scriptBlocks])
   const sceneMomentById = useMemo(() => new Map(sceneMoments.map((item) => [item.ID, item])), [sceneMoments])
   const sectionById = useMemo(() => new Map(sections.map((item) => [item.ID, item])), [sections])
   const assetCandidatesBySlotId = useMemo(() => {
@@ -337,6 +360,7 @@ export default function ContentsPage() {
   const unitViewModels = useMemo(() => contentUnits.map((unit) => {
     const sceneMoment = unit.scene_moment_id ? sceneMomentById.get(unit.scene_moment_id) : undefined
     const section = unit.segment_id ? sectionById.get(unit.segment_id) : undefined
+    const scriptBlock = unit.script_block_id ? scriptBlocksById.get(unit.script_block_id) : undefined
     const unitUsages = usages.filter((item) => item.owner_type === 'content_unit' && item.owner_id === unit.ID)
     const inheritedUsages = sceneMoment ? usages.filter((item) => item.owner_type === 'scene_moment' && item.owner_id === sceneMoment.ID) : []
     const relatedUsages = dedupeUsages([...unitUsages, ...inheritedUsages])
@@ -359,6 +383,7 @@ export default function ContentsPage() {
       unit,
       sceneMoment,
       section,
+      scriptBlock,
       usages: relatedUsages,
       references: relatedReferences,
       assetSlots: relatedAssetSlots,
@@ -368,7 +393,7 @@ export default function ContentsPage() {
       missingAssets,
       readiness,
     }
-  }), [assetCandidatesBySlotId, assetSlots, contentUnits, keyframes, referencesById, sectionById, sceneMomentById, storyboardLines, usages])
+  }), [assetCandidatesBySlotId, assetSlots, contentUnits, keyframes, referencesById, scriptBlocksById, sectionById, sceneMomentById, storyboardLines, usages])
 
   const filteredUnits = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -389,6 +414,8 @@ export default function ContentsPage() {
         titleOf(item.unit),
         item.unit.description,
         item.unit.prompt,
+        item.scriptBlock?.content,
+        item.scriptBlock ? scriptBlockSourceLabel(item.scriptBlock) : '',
         titleOf(item.sceneMoment),
         item.sceneMoment?.description,
         item.sceneMoment?.action_text,
@@ -416,10 +443,11 @@ export default function ContentsPage() {
     ? Math.round(unitViewModels.reduce((sum, item) => sum + item.readiness, 0) / unitViewModels.length)
     : 0
   const isLoading = contentUnitsQuery.isLoading || sceneMomentsQuery.isLoading
-  const isFetching = contentUnitsQuery.isFetching || sceneMomentsQuery.isFetching || sectionsQuery.isFetching || storyboardLinesQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching || assetSlotCandidatesQuery.isFetching
+  const isFetching = contentUnitsQuery.isFetching || scriptBlocksQuery.isFetching || sceneMomentsQuery.isFetching || sectionsQuery.isFetching || storyboardLinesQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching || assetSlotCandidatesQuery.isFetching
 
   function refreshAll() {
     contentUnitsQuery.refetch()
+    scriptBlocksQuery.refetch()
     sceneMomentsQuery.refetch()
     sectionsQuery.refetch()
     storyboardLinesQuery.refetch()
@@ -569,6 +597,7 @@ export default function ContentsPage() {
               defaults={creatingContentUnit ? {
                 segment_id: selected?.unit.segment_id ?? segmentFilterId ?? null,
                 scene_moment_id: selected?.unit.scene_moment_id ?? sceneMomentFilterId ?? null,
+                script_block_id: selected?.unit.script_block_id ?? null,
                 order: unitViewModels.length + 1,
                 kind: 'shot',
                 status: 'draft',
@@ -587,7 +616,7 @@ export default function ContentsPage() {
                 stats: selected && !creatingContentUnit ? [
                   { label: '类型', value: kindLabel(selected.unit.kind) },
                   { label: '时长', value: formatDuration(selected.unit.duration_sec) },
-                  { label: '候选目标', value: `${selected.targets.filter((target) => target.status !== 'missing').length}/4` },
+                  { label: '剧本来源', value: selected.scriptBlock ? scriptBlockSourceLabel(selected.scriptBlock) : selected.unit.script_block_id ? `剧本块 #${selected.unit.script_block_id}` : '未绑定' },
                   { label: '准备度', value: `${selected.readiness}%` },
                 ] : [
                   { label: '默认类型', value: '镜头' },
@@ -651,6 +680,17 @@ export default function ContentsPage() {
         bottom={(
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
             <RelatedPanel
+              title="来源剧本块"
+              icon={ScrollText}
+              empty="当前制作项暂无剧本块来源"
+              records={selected?.scriptBlock ? [{
+                id: selected.scriptBlock.ID,
+                title: scriptBlockSourceLabel(selected.scriptBlock),
+                subtitle: selected.scriptBlock.content || selected.scriptBlock.kind || '剧本块来源',
+                status: selected.scriptBlock.status,
+              }] : []}
+            />
+            <RelatedPanel
               title="涉及到的编排段"
               icon={Route}
               empty="当前制作项暂无编排段引用"
@@ -695,10 +735,15 @@ export default function ContentsPage() {
               })) ?? []}
             />
             <RelatedPanel
-              title="被引用的成片"
-              icon={Play}
-              empty="当前制作项暂无成片引用"
-              records={[]}
+              title="关键帧"
+              icon={Image}
+              empty="当前制作项暂无关键帧"
+              records={selected?.keyframes.map((item) => ({
+                id: item.ID,
+                title: item.title || titleOf(item),
+                subtitle: item.prompt || item.description || '视觉锚点',
+                status: item.status,
+              })) ?? []}
             />
           </div>
         )}
@@ -745,7 +790,7 @@ function ContentUnitCard({
         ) : null}
         <div className="mt-3 grid grid-cols-2 gap-2">
           <InfoChip icon={Route} label={sceneMomentTitle} />
-          <InfoChip icon={Clock3} label={item.sceneMoment?.time_text || item.sceneMoment?.location_text || '情景待补'} />
+          <InfoChip icon={ScrollText} label={item.scriptBlock ? scriptBlockSourceLabel(item.scriptBlock) : item.unit.script_block_id ? `剧本块 #${item.unit.script_block_id}` : '来源待补'} />
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           <Badge variant="outline" className="text-[10px]">设定资料 {item.references.length}</Badge>
@@ -815,11 +860,14 @@ function ContentUnitDetail({
           <Progress value={item.readiness} className="h-2" />
         </div>
         <CheckRow ok={Boolean(item.sceneMoment)} label="已绑定情景" detail={item.sceneMoment ? titleOf(item.sceneMoment) : '缺少时间、地点、动作上下文'} />
+        <CheckRow ok={Boolean(item.scriptBlock)} label="已绑定剧本来源" detail={item.scriptBlock ? scriptBlockSourceLabel(item.scriptBlock) : item.unit.script_block_id ? `剧本块 #${item.unit.script_block_id} 暂未加载` : '缺少稳定剧本块来源'} />
         <CheckRow ok={Boolean(item.unit.prompt || item.unit.description)} label="有生成意图" detail={item.unit.prompt || item.unit.description || '需要补充描述或提示词'} />
         <CheckRow ok={item.references.length > 0} label="有设定资料" detail={`${item.references.length} 个设定资料约束`} />
         <CheckRow ok={item.missingAssets.length === 0} label="素材需求可收敛" detail={item.missingAssets.length ? `${item.missingAssets.length} 个素材需求待补齐` : `${item.assetSlots.length} 个素材需求可用或未要求`} />
         <CheckRow ok={item.targets.some((target) => target.status !== 'missing')} label="有候选目标" detail={targetSummary(item.targets)} />
         <InfoBlock label="情景" value={item.sceneMoment?.description || item.sceneMoment?.action_text || '暂无情景描述'} />
+        <InfoBlock label="来源剧本块" value={item.scriptBlock ? scriptBlockSourceLabel(item.scriptBlock) : item.unit.script_block_id ? `剧本块 #${item.unit.script_block_id}` : '未绑定剧本块'} />
+        {item.scriptBlock ? <InfoBlock label="来源文本" value={String(item.scriptBlock.content ?? '').trim() || '暂无剧本块正文'} /> : null}
         <InfoBlock label="生成提示" value={item.unit.prompt || item.unit.description || '暂无提示词'} />
         <InfoBlock label="运镜设计" value={cameraSummary(item.unit) || '暂无运镜参数'} />
         <div className="grid grid-cols-2 gap-2">
@@ -1192,6 +1240,12 @@ function kindLabel(kind?: string) {
 
 function statusLabel(status?: string) {
   return statusMeta[String(status ?? '')]?.label ?? status ?? '未知'
+}
+
+function scriptBlockSourceLabel(block: ScriptBlockRecord) {
+  const startLine = block.start_line || '?'
+  const endLine = block.end_line || '?'
+  return `剧本块 #${block.ID} · 行 ${startLine}-${endLine}`
 }
 
 function formatDuration(value?: number) {

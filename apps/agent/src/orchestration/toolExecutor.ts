@@ -10,6 +10,7 @@ import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentMemoryKind } from '../memory/types.js'
 import { runtimeToolName } from '../tools/toolNames.js'
 import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
+import { buildRetrievedContextStore, countRetrievedContextChars, selectRetrievedContext, uniqueRetrievedContextRefs } from '../contextManager/retrievedContextStore.js'
 
 export type ToolSource = 'runtime' | 'mcp' | 'sandbox'
 
@@ -364,7 +365,14 @@ async function callRuntimeTool(
 
   if (toolName === 'movscript_get_knowledge') {
     if (!knowledgeManager) throw new Error('knowledge manager unavailable')
-    return knowledgeManager.get(args)
+    const budget = remainingKnowledgeBudget(run, stringField(args.id))
+    if (budget.remainingChunks <= 0) {
+      throw new Error(`knowledge chunk budget exceeded for this run (maxKnowledgeChunksPerRun=${budget.maxChunks})`)
+    }
+    if (budget.remainingChars <= 0) {
+      throw new Error(`knowledge character budget exceeded for this run (maxKnowledgeCharsPerRun=${budget.maxChars})`)
+    }
+    return knowledgeManager.get(args, { maxChars: budget.remainingChars })
   }
 
   if (toolName === 'movscript_get_memory') {
@@ -496,6 +504,37 @@ function numberField(value: JSONValue | undefined): number | undefined {
     return Number.isFinite(parsed) ? parsed : undefined
   }
   return undefined
+}
+
+function remainingKnowledgeBudget(run: AgentRun, requestedId?: string): {
+  maxChars: number
+  maxChunks: number
+  remainingChars: number
+  remainingChunks: number
+} {
+  const metadata = isRecord(run.metadata) ? run.metadata : undefined
+  const limits = isRecord(metadata?.limits) ? metadata.limits : {}
+  const maxChars = positiveInteger(limits.maxKnowledgeCharsPerRun) ?? 8000
+  const maxChunks = positiveInteger(limits.maxKnowledgeChunksPerRun) ?? 3
+  const loadedKnowledge = selectRetrievedContext({
+    store: buildRetrievedContextStore(metadata?.contextLedger),
+    source: 'knowledge',
+    refType: 'knowledge',
+    summaryPrefix: 'movscript_get_knowledge ',
+  })
+  const uniqueLoadedChunks = new Set(uniqueRetrievedContextRefs(loadedKnowledge).map((ref) => ref.id))
+  const usedChars = countRetrievedContextChars(loadedKnowledge)
+  const requestedChunkAlreadyLoaded = requestedId ? uniqueLoadedChunks.has(requestedId) : false
+  return {
+    maxChars,
+    maxChunks,
+    remainingChars: Math.max(0, maxChars - usedChars),
+    remainingChunks: requestedChunkAlreadyLoaded ? 1 : Math.max(0, maxChunks - uniqueLoadedChunks.size),
+  }
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.floor(value) : undefined
 }
 
 function normalizeProposalDraftKind(value: JSONValue | undefined): AgentDraftKind | undefined {

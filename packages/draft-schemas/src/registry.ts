@@ -260,24 +260,69 @@ export const contentUnitProposalSchema = {
   title: 'Content Unit Proposal',
   version: '1.0.0',
   status: 'active',
-  jsonSchema: objectSchema(['units'], {
-    units: {
-      type: 'array',
-      items: objectSchema(['title', 'kind', 'description'], {
-        title: { type: 'string' },
-        kind: { enum: ['shot', 'visual_segment', 'caption_card', 'narration', 'transition', 'music_beat', 'product_showcase'] },
-        description: { type: 'string' },
-        prompt: { type: 'string' },
-        duration_sec: { type: 'number' },
-      }),
-    },
+  jsonSchema: objectSchema(['schema', 'scope', 'productionId', 'proposal'], {
+    schema: { const: 'movscript.content_unit_proposal.v1' },
+    scope: { const: 'content_unit_proposal' },
+    productionId: { type: 'number' },
+    segmentId: { type: 'number' },
+    sceneMomentId: { type: 'number' },
+    proposal: objectSchema(['units'], {
+      units: {
+        type: 'array',
+        items: objectSchema(['title', 'kind', 'description'], {
+          title: { type: 'string' },
+          kind: { enum: ['shot', 'visual_segment', 'caption_card', 'narration', 'transition', 'music_beat', 'product_showcase'] },
+          description: { type: 'string' },
+          prompt: { type: 'string' },
+          duration_sec: { type: 'number' },
+          story_purpose: { type: 'string' },
+          emotional_intent: { type: 'string' },
+          shot: objectSchema([], {
+            shot_size: { type: 'string' },
+            camera_angle: { type: 'string' },
+            camera_movement: { type: 'string' },
+            lens: { type: 'string' },
+            focus: { type: 'string' },
+            composition: { type: 'string' },
+          }),
+          performance: { type: 'string' },
+          lighting: { type: 'string' },
+          blocking: { type: 'string' },
+          sound: { type: 'string' },
+          transition: { type: 'string' },
+        }),
+      },
+    }),
+    summary: { type: 'string' },
   }),
   promptSummary: [
     '# movscript.content_unit_proposal.v1',
-    'Content shape: { units: Array<{ title, kind, description, prompt?, duration_sec? }> }',
-    'Rules: propose 3-6 focused content units; avoid duplicates and vague adjectives without production detail.',
+    '',
+    'Content shape:',
+    '{ schema: "movscript.content_unit_proposal.v1", scope: "content_unit_proposal", productionId: number, segmentId?, sceneMomentId?, proposal: { units: Array<{ title, kind, description, prompt?, duration_sec?, story_purpose?, emotional_intent?, shot?: { shot_size?, camera_angle?, camera_movement?, lens?, focus?, composition? }, performance?, lighting?, blocking?, sound?, transition? }> }, summary? }',
+    '',
+    'Rules:',
+    '- Propose 3-6 focused content units for the selected scene moment or explicit production/segment anchor.',
+    '- For storyboard units, include concrete camera parameters, actor performance details, lighting, blocking, sound, transition, and duration when useful.',
+    '- Avoid duplicates and vague adjectives without visible production detail.',
   ].join('\n'),
-  examples: [{ name: 'basic', content: { units: [{ title: 'Reveal shot', kind: 'shot', description: 'A close reveal of the object.' }] } }],
+  examples: [{
+    name: 'basic',
+    content: {
+      schema: 'movscript.content_unit_proposal.v1',
+      scope: 'content_unit_proposal',
+      productionId: 1,
+      proposal: {
+        units: [{
+          title: 'Reveal shot',
+          kind: 'shot',
+          description: 'A close reveal of the object.',
+          shot: { shot_size: 'close-up', camera_angle: 'eye-level', camera_movement: 'slow push-in' },
+          lighting: 'Soft key from screen left with low fill.',
+        }],
+      },
+    },
+  }],
 } satisfies DraftSchemaDefinition
 
 export const contentUnitMediaProposalSchema = {

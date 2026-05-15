@@ -18,8 +18,8 @@ import type {
 } from '../state/types.js'
 import { resolveRuntimeChatModelConfig } from '../model/modelConfig.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
-import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
 import { callModel } from '../model/modelClient.js'
+import { contextManager } from '../contextManager/contextManager.js'
 
 export interface PreviewToolPlanInput {
   manifest: AgentManifest
@@ -51,7 +51,7 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
   const modelConfig = input.modelConfig === undefined ? resolveRuntimeChatModelConfig() : input.modelConfig
   if (!modelConfig) return emptyPreviewToolPlan()
 
-  const { messages } = buildContext({
+  const modelTurnContext = contextManager.composeModelTurn({
     manifest: input.manifest,
     skills: input.skills,
     context: input.context,
@@ -64,12 +64,11 @@ export async function planPreviewToolRequests(input: PreviewToolPlanInput): Prom
     command: input.command,
     contractResolver: input.contractResolver,
   })
-  const modelTools = buildOpenAIChatTools(input.tools, input.contractResolver.find(input.manifest))
   const callPreviewModel = input.callModel ?? callModel
   const modelResult = await callPreviewModel({
-    messages,
-    tools: modelTools,
-    toolChoice: modelTools.length > 0 ? 'auto' : undefined,
+    messages: modelTurnContext.messages,
+    tools: modelTurnContext.tools,
+    toolChoice: modelTurnContext.tools.length > 0 ? 'auto' : undefined,
     config: modelConfig,
     auth: {},
   })

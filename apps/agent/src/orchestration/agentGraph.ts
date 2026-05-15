@@ -10,21 +10,18 @@ import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ConfiguredRuntimeModelConfig, RuntimeModelAuthContext, RuntimeModelChatMessage, RuntimeModelChatToolCall } from '../model/modelConfig.js'
 import type { ToolRegistry } from '../tools/toolRegistry.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
-import { buildContext, buildOpenAIChatTools } from './contextBuilder.js'
 import { createDefaultRuntimeModelRouter, type RuntimeModelRouter } from '../model/modelRouter.js'
 import { executeTool, type AgentCatalogToolManager } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { formatToolNameForDisplay } from '../tools/toolNames.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
-import { compactPromptHistory, filterPromptMemories } from '../context/promptHygiene.js'
 import {
   buildGenerationEvent,
   buildGenerationTimeoutEvent,
   extractGenerationMonitorRequest,
   type GenerationEvent,
 } from '../generation/generationEvents.js'
-import { recordToolResultInContextLedger } from '../contextManager/contextLedger.js'
-import type { ContextLedger } from '../contextManager/types.js'
+import { contextManager } from '../contextManager/contextManager.js'
 
 export interface AgentGraphTraceInput {
   kind: AgentTraceEventKind
@@ -242,21 +239,23 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     && message.id !== lastUser.id
     && (rootIndex < 0 || index <= rootIndex || message.role !== 'user')
   ))
-  const promptHistory = compactPromptHistory(promptHistoryInput)
-  if (promptHistory.compactedCount > 0) {
+  const maxHistoryMessages = numberField(input.run.metadata?.limits, 'maxHistoryMessages')
+  const promptHistory = contextManager.compactThreadHistory({
+    messages: promptHistoryInput,
+    maxMessages: maxHistoryMessages,
+    threadSummary: input.run.metadata?.threadContextSummary,
+  })
+  const historyTrace = contextManager.buildHistoryCompactedTrace(promptHistory)
+  if (historyTrace) {
     input.onTrace({
       kind: 'context',
-      title: 'Thread history compacted',
-      summary: `${promptHistory.compactedCount} older message(s) summarized before prompt composition.`,
+      title: historyTrace.title,
+      summary: historyTrace.summary,
       status: 'completed',
       roundIndex: currentRoundIndex,
       roundLabel,
       roundSource: 'model',
-      data: {
-        eventType: 'context.history_compacted',
-        compactedCount: promptHistory.compactedCount,
-        retainedCount: promptHistory.messages.length,
-      },
+      data: historyTrace.data,
     })
   }
 
@@ -286,48 +285,33 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     }
   }
 
-  const builtContext = buildContext({
+  const modelTurnContext = contextManager.composeModelTurn({
     manifest: input.manifest,
     skills: input.skills,
     context: input.context,
     tools: input.capabilities,
     policy: input.policy,
-    memories: filterPromptMemories(input.memories),
+    memories: input.memories,
     warnings: state.warnings,
     history: promptHistory.messages,
     userMessage: effectiveUserMessage,
+    toolLoopHistory: state.history,
     ...(promptHistory.summary ? { threadSummary: promptHistory.summary } : {}),
     ...(input.command ? { command: input.command } : {}),
     ...(input.contractResolver ? { contractResolver: input.contractResolver } : {}),
   })
+  const { builtContext } = modelTurnContext
   input.onTrace({
     kind: 'prompt',
-    title: 'Prompt composed',
-    summary: `${builtContext.systemPrompt.length} system prompt chars, ${input.skills.length} active skill(s).`,
+    title: modelTurnContext.promptTrace.title,
+    summary: modelTurnContext.promptTrace.summary,
     status: 'completed',
     roundIndex: currentRoundIndex,
     roundLabel,
     roundSource: 'model',
-    data: {
-      eventType: 'prompt.composed',
-      charCount: builtContext.systemPrompt.length,
-      promptStats: builtContext.promptStats,
-      skillIds: input.skills.map((skill) => skill.id),
-      availableToolNames: input.capabilities.available.map((tool) => tool.name),
-      blockedToolCount: input.capabilities.blocked.length,
-      debugPartIds: builtContext.debugParts.map((part) => part.id),
-      ...(builtContext.degraded ? { degraded: builtContext.degraded } : {}),
-      warnings: builtContext.warnings,
-    },
+    data: modelTurnContext.promptTrace.data,
   })
-  const { messages: baseMessages } = builtContext
-  const messages = [
-    ...baseMessages.slice(0, -1),
-    ...state.history,
-    baseMessages.at(-1)!,
-  ]
-  const runtimeContract = input.contractResolver?.find(input.manifest)
-  const tools = buildOpenAIChatTools(input.capabilities, runtimeContract)
+  const { messages, tools } = modelTurnContext
   const modelRouter = input.modelRouter ?? createDefaultRuntimeModelRouter(input.config)
   const reasoningRoute = modelRouter.resolve('reasoning')
   if (!reasoningRoute) {
@@ -650,7 +634,8 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
       throwIfAborted(input.signal)
       const durationMs = Date.now() - startedAt
       input.onStepComplete(stepId, execResult.result, undefined, execResult.sandboxed)
-      const ledger = updateRunContextLedger(input, call, execResult.result, execResult.source)
+      const ledgerAudit = updateRunContextLedger(input, call, execResult.result, execResult.source)
+      const { ledger } = ledgerAudit
       input.onTrace({
         kind: 'tool_call',
         title: execResult.sandboxed ? `Tool sandboxed: ${call.name}` : `Tool completed: ${call.name}`,
@@ -664,29 +649,49 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         data: { source: execResult.source, result: execResult.result, sandboxed: execResult.sandboxed, durationMs },
         durationMs,
       })
+      const ledgerUpdatedTrace = contextManager.buildLedgerUpdatedTrace(ledger)
       input.onTrace({
         kind: 'context',
-        title: 'Context ledger updated',
-        summary: `${ledger.retrieved.length} retrieved ref(s), ${ledger.artifactRefs.length} artifact ref(s).`,
+        title: ledgerUpdatedTrace.title,
+        summary: ledgerUpdatedTrace.summary,
         status: 'completed',
         roundIndex: currentRoundIndex,
         roundLabel,
         roundSource: effectiveRoundSource,
         stepId,
         toolName: call.name,
-        data: {
-          eventType: 'context.ledger_updated',
-          retrievedCount: ledger.retrieved.length,
-          artifactRefCount: ledger.artifactRefs.length,
-          refs: ledger.retrieved.map((record) => ({
-            type: record.ref.type,
-            id: record.ref.id,
-            title: record.ref.title,
-            source: record.source,
-            evidence: record.evidence,
-          })),
-        },
+        data: ledgerUpdatedTrace.data,
       })
+      const dedupedTrace = contextManager.buildLedgerDedupedTrace(call.name, ledgerAudit)
+      if (dedupedTrace) {
+        input.onTrace({
+          kind: 'context',
+          title: dedupedTrace.title,
+          summary: dedupedTrace.summary,
+          status: 'completed',
+          roundIndex: currentRoundIndex,
+          roundLabel,
+          roundSource: effectiveRoundSource,
+          stepId,
+          toolName: call.name,
+          data: dedupedTrace.data,
+        })
+      }
+      const knowledgeTrace = contextManager.buildKnowledgeTrace({ call, result: execResult.result, ledger })
+      if (knowledgeTrace) {
+        input.onTrace({
+          kind: 'context',
+          title: knowledgeTrace.title,
+          summary: knowledgeTrace.summary,
+          status: 'completed',
+          roundIndex: currentRoundIndex,
+          roundLabel,
+          roundSource: effectiveRoundSource,
+          stepId,
+          toolName: call.name,
+          data: knowledgeTrace.data,
+        })
+      }
       const generationEvent = buildGenerationEvent(call, execResult.result)
       if (generationEvent && input.onGenerationEvent) {
         input.onGenerationEvent(generationEvent, {
@@ -708,6 +713,22 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
           throwIfAborted(input.signal)
         }
       }
+      const modelToolResult = contextManager.buildToolResultContext({ run: input.run, call, result: execResult.result })
+      const droppedTrace = contextManager.buildToolResultDroppedTrace(call.name, modelToolResult)
+      if (droppedTrace) {
+        input.onTrace({
+          kind: 'context',
+          title: droppedTrace.title,
+          summary: droppedTrace.summary,
+          status: 'completed',
+          roundIndex: currentRoundIndex,
+          roundLabel,
+          roundSource: effectiveRoundSource,
+          stepId,
+          toolName: call.name,
+          data: droppedTrace.data,
+        })
+      }
       return {
         outcome: {
           call,
@@ -716,7 +737,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         },
         turnResult: {
           toolCall: normalizeToolCall(call),
-          content: JSON.stringify({ result: execResult.result ?? null, call: { name: formatToolNameForDisplay(call.name), args: call.args } }),
+          content: modelToolResult.content,
         },
       }
     } catch (error) {
@@ -737,12 +758,13 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         data: { error: message, durationMs },
         durationMs,
       })
+      const modelToolResult = contextManager.buildToolResultContext({ run: input.run, call, error: message })
       return {
         outcome: { call, error: message },
         warning: `${formatToolNameForDisplay(call.name)} 未完成：${message}`,
         turnResult: {
           toolCall: normalizeToolCall(call),
-          content: JSON.stringify({ error: message, call: { name: formatToolNameForDisplay(call.name), args: call.args } }),
+          content: modelToolResult.content,
         },
       }
     }
@@ -831,14 +853,14 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   }
 }
 
-function updateRunContextLedger(input: AgentGraphInput, call: ToolCall, result: JSONValue | undefined, source: 'runtime' | 'mcp' | 'sandbox'): ContextLedger {
+function updateRunContextLedger(input: AgentGraphInput, call: ToolCall, result: JSONValue | undefined, source: 'runtime' | 'mcp' | 'sandbox'): ReturnType<typeof contextManager.recordToolResult> {
   const catalogSnapshotValue = input.run.metadata?.catalogSnapshot
   const catalogSnapshot = catalogSnapshotValue && typeof catalogSnapshotValue === 'object' && !Array.isArray(catalogSnapshotValue)
     ? catalogSnapshotValue as Record<string, JSONValue>
     : undefined
   const catalogSnapshotId = typeof catalogSnapshot?.id === 'string' ? catalogSnapshot.id : 'unknown'
   const catalogSnapshotVersion = typeof catalogSnapshot?.version === 'string' ? catalogSnapshot.version : undefined
-  const ledger = recordToolResultInContextLedger({
+  const audit = contextManager.recordToolResult({
     ledger: input.run.metadata?.contextLedger,
     runId: input.run.id,
     threadId: input.run.threadId,
@@ -852,9 +874,9 @@ function updateRunContextLedger(input: AgentGraphInput, call: ToolCall, result: 
   })
   input.run.metadata = {
     ...(input.run.metadata ?? {}),
-    contextLedger: ledger as unknown as JSONValue,
+    contextLedger: audit.ledger as unknown as JSONValue,
   }
-  return ledger
+  return audit
 }
 
 async function monitorGenerationJob(
@@ -1050,6 +1072,15 @@ function booleanField(value: unknown): boolean {
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function numberField(value: unknown, key?: string): number | undefined {
+  const candidate = key && isJSONRecordValue(value) ? value[key] : value
+  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined
+}
+
+function isJSONRecordValue(value: unknown): value is Record<string, JSONValue> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function makeId(prefix: string): string {

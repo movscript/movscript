@@ -20,7 +20,15 @@
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}}
+- Knowledge：{{tool:movscript_search_knowledge}} {{tool:movscript_get_knowledge}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
+
+知识检索：
+- 涉及分镜节奏、镜头景别、钩子或关键帧缺口判断时，先 search domain=storyboard。
+- search 只返回摘要；只有摘要不足以判断缺口时才 get。
+- 每次最多 get 3 条，每条 maxChars 不超过 4000。
+- 使用 knowledge 时注明 knowledge id 和标题。
+- knowledge 是通用建议，不是当前项目事实；缺口来源仍必须指向 focus、draft、工具结果或用户输入。
 
 流程：
 1. 读取 focus，确认审阅范围。

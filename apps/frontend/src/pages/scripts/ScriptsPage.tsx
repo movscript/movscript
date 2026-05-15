@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type SyntheticEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { createScriptVersion, listScriptVersions, patchScriptVersion, type ScriptVersion } from '@/api/scriptVersions'
-import { createSemanticEntity, semanticEntityConfig } from '@/api/semanticEntities'
+import { createScriptVersion, listScriptVersionLines, listScriptVersions, type ScriptVersion, type ScriptVersionLine } from '@/api/scriptVersions'
+import { createSemanticEntity, listSemanticEntities, semanticEntityConfig, type SemanticEntityRecord } from '@/api/semanticEntities'
 import type { Script } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
@@ -15,7 +15,6 @@ import {
   Clock3,
   FileText,
   Layers,
-  Lock,
   Plus,
   ScrollText,
 } from 'lucide-react'
@@ -28,6 +27,27 @@ import { useTranslation } from 'react-i18next'
 
 type ScriptDetailTab = 'edit' | 'versions' | 'production'
 
+type ScriptBlockRecord = SemanticEntityRecord & {
+  script_id?: number
+  script_version_id?: number
+  kind?: string
+  speaker?: string
+  content?: string
+  start_line?: number
+  end_line?: number
+  start_char?: number
+  end_char?: number
+}
+
+type ScriptTextSelection = {
+  versionId: number
+  text: string
+  startLine: number
+  endLine: number
+  startChar: number
+  endChar: number
+} | null
+
 // ─── Scripts Section ────────────────────────────────────────────────────────
 
 function ScriptsSection({ projectId }: { projectId: number }) {
@@ -37,8 +57,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [detailTab, setDetailTab] = useState<ScriptDetailTab>('edit')
   const [expandedVersionId, setExpandedVersionId] = useState<number | null>(null)
+  const [scriptTextSelection, setScriptTextSelection] = useState<ScriptTextSelection>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [draft, setDraft] = useState<Partial<Script>>({})
+  const scriptBlockConfig = useMemo(() => semanticEntityConfig('scriptBlocks'), [])
 
   const { data: rawScripts, isLoading } = useQuery<Script[]>({
     queryKey: ['scripts', projectId],
@@ -50,6 +72,11 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     queryFn: () => listScriptVersions(projectId),
     enabled: !!projectId,
   })
+  const { data: scriptBlocks = [] } = useQuery<ScriptBlockRecord[]>({
+    queryKey: ['semantic-script-blocks', projectId],
+    queryFn: () => listSemanticEntities(projectId, scriptBlockConfig) as Promise<ScriptBlockRecord[]>,
+    enabled: !!projectId,
+  })
 
   const scripts = rawScripts ?? []
   const sortedScripts = useMemo(
@@ -58,15 +85,18 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   )
   const scriptGroups = useMemo(() => groupScriptsByCategory(sortedScripts), [sortedScripts])
   const selected = scripts.find((s) => s.ID === selectedId) ?? sortedScripts[0] ?? null
-  const versionsForSelected = useMemo(
-    () => selected ? scriptVersions.filter((v) => v.script_id === selected.ID) : [],
-    [selected, scriptVersions],
-  )
-  const activeVersion = versionsForSelected.find((v) => v.status === 'active') ?? versionsForSelected[0] ?? null
+  const versionsForSelected = useMemo(() => {
+    if (!selected) return []
+    return scriptVersions
+      .filter((v) => v.script_id === selected.ID)
+      .slice()
+      .sort((a, b) => (b.version_number || b.ID) - (a.version_number || a.ID) || b.ID - a.ID)
+  }, [selected, scriptVersions])
+  const latestVersion = versionsForSelected[0] ?? null
   const bodyText = selected
-    ? (activeVersion?.content || activeVersion?.raw_source || draft.content || draft.raw_source || selected.content || selected.raw_source || '').trim()
+    ? (latestVersion?.content || latestVersion?.raw_source || draft.content || draft.raw_source || selected.content || selected.raw_source || '').trim()
     : ''
-  const canCreateProduction = versionsForSelected.some((v) => v.status === 'active') && bodyText.length > 0
+  const canCreateProduction = versionsForSelected.length > 0 && bodyText.length > 0
 
   useEffect(() => {
     if (selected) setDraft({ ...selected })
@@ -75,6 +105,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   // Reset expanded version when script changes
   useEffect(() => {
     setExpandedVersionId(null)
+    setScriptTextSelection(null)
   }, [selected?.ID])
 
   const updateScript = useMutation({
@@ -94,44 +125,26 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       if (!selected) throw new Error('请选择剧本')
       return createScriptVersion(projectId, {
         script_id: selected.ID,
-        parent_version_id: activeVersion?.ID ?? null,
+        parent_version_id: latestVersion?.ID ?? null,
         title: draft.title ?? selected.title,
         source_type: selected.source_type ?? 'raw',
         content: draft.content ?? selected.content ?? draft.raw_source ?? selected.raw_source ?? '',
         raw_source: draft.raw_source ?? selected.raw_source ?? draft.content ?? selected.content ?? '',
         summary: draft.summary ?? selected.summary ?? '',
-        status: 'draft',
+        status: 'active',
       })
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
-      toast.success('草稿版本已创建')
+      toast.success('版本已创建')
       setDetailTab('versions')
     },
     onError: () => toast.error('创建版本失败'),
   })
 
-  const activateVersion = useMutation({
-    mutationFn: (versionId: number) => patchScriptVersion(projectId, versionId, { status: 'active' }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
-      toast.success('版本已激活，可用于创建制作')
-    },
-    onError: () => toast.error('操作失败'),
-  })
-
-  const archiveVersion = useMutation({
-    mutationFn: (versionId: number) => patchScriptVersion(projectId, versionId, { status: 'archived' }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['semantic-script-versions', projectId] })
-      toast.info('版本已归档')
-    },
-    onError: () => toast.error('操作失败'),
-  })
-
   const createProduction = useMutation({
     mutationFn: async () => {
-      if (!selected || !activeVersion) throw new Error('请先激活一个剧本版本')
+      if (!selected || !latestVersion) throw new Error('请先创建一个剧本版本')
       const record = await createSemanticEntity(projectId, semanticEntityConfig('productions'), {
         name: `${selected.title} 制作`,
         description: selected.summary || selected.description || `${selected.title} 的制作`,
@@ -139,7 +152,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
         status: 'planning',
         owner_label: '导演组',
         progress: 0,
-        script_version_id: activeVersion.ID,
+        script_version_id: latestVersion.ID,
       })
       return record
     },
@@ -148,6 +161,66 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       navigate(`/production?productionId=${record.ID}&created=1`)
     },
     onError: () => toast.error('创建制作失败'),
+  })
+
+  const createScriptBlock = useMutation({
+    mutationFn: () => {
+      if (!selected || !scriptTextSelection) throw new Error('请选择剧本正文')
+      const blocksForVersion = scriptBlocks.filter((block) => Number(block.script_version_id) === scriptTextSelection.versionId)
+      const inferred = inferScriptBlockKind(scriptTextSelection.text)
+      return createSemanticEntity(projectId, scriptBlockConfig, {
+        script_id: selected.ID,
+        script_version_id: scriptTextSelection.versionId,
+        order: blocksForVersion.length + 1,
+        kind: inferred.kind,
+        speaker: inferred.speaker,
+        start_line: scriptTextSelection.startLine,
+        end_line: scriptTextSelection.endLine,
+        start_char: scriptTextSelection.startChar,
+        end_char: scriptTextSelection.endChar,
+        status: 'active',
+      })
+    },
+    onSuccess: () => {
+      setScriptTextSelection(null)
+      qc.invalidateQueries({ queryKey: ['semantic-script-blocks', projectId] })
+      toast.success('剧本块已创建')
+    },
+    onError: () => toast.error('创建剧本块失败'),
+  })
+
+  const createSegmentFromScriptBlock = useMutation({
+    mutationFn: (block: ScriptBlockRecord) => createSemanticEntity(projectId, semanticEntityConfig('segments'), {
+      script_block_id: block.ID,
+      kind: 'dramatic_function',
+      title: titleFromScriptBlock(block),
+      summary: `来源剧本块 #${block.ID}`,
+      content: String(block.content ?? '').trim(),
+      status: 'draft',
+    }),
+    onSuccess: (record) => {
+      qc.invalidateQueries({ queryKey: ['semantic-segment-workspace', projectId, 'segments'] })
+      toast.success('编排段已创建')
+      navigate(`/segments?segment_id=${record.ID}`)
+    },
+    onError: () => toast.error('创建编排段失败'),
+  })
+
+  const createContentUnitFromScriptBlock = useMutation({
+    mutationFn: (block: ScriptBlockRecord) => createSemanticEntity(projectId, semanticEntityConfig('contentUnits'), {
+      script_block_id: block.ID,
+      kind: contentUnitKindFromScriptBlock(block),
+      title: titleFromScriptBlock(block),
+      description: String(block.content ?? '').trim(),
+      prompt: contentPromptFromScriptBlock(block),
+      status: 'draft',
+    }),
+    onSuccess: (record) => {
+      qc.invalidateQueries({ queryKey: ['semantic-content-positioning', projectId, 'content-units'] })
+      toast.success('制作项已创建')
+      navigate(`/contents?content_unit_id=${record.ID}`)
+    },
+    onError: () => toast.error('创建制作项失败'),
   })
 
   return (
@@ -186,7 +259,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   <div className="space-y-0.5">
                     {group.scripts.map((script) => {
                       const vers = scriptVersions.filter((v) => v.script_id === script.ID)
-                      const hasActive = vers.some((v) => v.status === 'active')
+                      const hasVersions = vers.length > 0
                       const isSelected = selected?.ID === script.ID
                       return (
                         <button
@@ -201,10 +274,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-medium">{script.title}</p>
                             <p className="mt-0.5 text-[11px] text-muted-foreground">
-                              {vers.length} 版本 · {hasActive ? '已激活' : vers.length ? '草稿' : '待版本'}
+                              {vers.length} 版本 · {hasVersions ? '已锁定' : '待版本'}
                             </p>
                           </div>
-                          {hasActive && <Lock size={11} className="shrink-0 text-emerald-500" />}
+                          {hasVersions && <CheckCircle2 size={11} className="shrink-0 text-emerald-500" />}
                         </button>
                       )
                     })}
@@ -235,10 +308,10 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <ScriptTypeBadge script={selected} />
-                    <ScriptStageBadge versionCount={versionsForSelected.length} hasActive={versionsForSelected.some((v) => v.status === 'active')} />
-                    {activeVersion && (
+                    <ScriptStageBadge versionCount={versionsForSelected.length} />
+                    {latestVersion && (
                       <span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
-                        激活版本 v{activeVersion.version_number || activeVersion.ID}
+                        最新版本 v{latestVersion.version_number || latestVersion.ID}
                       </span>
                     )}
                   </div>
@@ -251,7 +324,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
               <div className="mt-3 grid grid-cols-4 gap-2">
                 <MetricBox icon={ScrollText} label="正文字数" value={`${bodyText.length}`} />
                 <MetricBox icon={Layers} label="版本总数" value={`${versionsForSelected.length}`} />
-                <MetricBox icon={Lock} label="已激活" value={versionsForSelected.filter((v) => v.status === 'active').length > 0 ? '是' : '否'} />
+                <MetricBox icon={CheckCircle2} label="已锁定" value={versionsForSelected.length > 0 ? '是' : '否'} />
                 <MetricBox icon={BookOpenCheck} label="完整度" value={`${scriptReadiness(selected, versionsForSelected.length, bodyText.length)}%`} />
               </div>
             </div>
@@ -297,7 +370,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                   <div className="mb-4 flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">版本历史</h3>
-                      <p className="mt-0.5 text-xs text-muted-foreground">激活版本后可用于创建制作；归档版本保留记录但不参与制作。</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">版本创建后即锁定为历史快照，不支持修改、激活或归档；创建制作时默认使用最新版本。</p>
                     </div>
                     <Button
                       variant="outline"
@@ -324,16 +397,14 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     <div className="space-y-2">
                       {versionsForSelected.map((version) => {
                         const isExpanded = expandedVersionId === version.ID
-                        const isActive = version.status === 'active'
-                        const isArchived = version.status === 'archived'
-                        const content = (version.content || version.raw_source || '').trim()
+                        const content = version.content || version.raw_source || ''
+                        const contentLength = content.trim().length
                         return (
                           <div
                             key={version.ID}
                             className={cn(
                               'overflow-hidden rounded-lg border transition-colors',
-                              isActive ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20' : 'border-border bg-card',
-                              isArchived && 'opacity-60',
+                              'border-border bg-card',
                             )}
                           >
                             <div className="flex items-center gap-3 px-4 py-3">
@@ -346,11 +417,11 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                                   <span className="text-xs text-muted-foreground">{version.title}</span>
                                 </div>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
-                                  {content.length} 字 · {formatDate(version.UpdatedAt)}
+                                  {contentLength} 字 · {formatDate(version.UpdatedAt)}
                                 </p>
                               </div>
                               <div className="flex shrink-0 items-center gap-1.5">
-                                {content && (
+                                {contentLength > 0 && (
                                   <button
                                     onClick={() => setExpandedVersionId(isExpanded ? null : version.ID)}
                                     className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
@@ -358,43 +429,23 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                                     {isExpanded ? '收起' : '查看'}
                                   </button>
                                 )}
-                                {!isActive && !isArchived && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 gap-1 px-2 text-xs"
-                                    disabled={activateVersion.isPending}
-                                    onClick={() => activateVersion.mutate(version.ID)}
-                                  >
-                                    <Lock size={11} />
-                                    激活
-                                  </Button>
-                                )}
-                                {isActive && (
-                                  <button
-                                    className="rounded-md px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:bg-background hover:text-destructive"
-                                    onClick={() => archiveVersion.mutate(version.ID)}
-                                  >
-                                    归档
-                                  </button>
-                                )}
-                                {isArchived && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-7 gap-1 px-2 text-xs"
-                                    disabled={activateVersion.isPending}
-                                    onClick={() => activateVersion.mutate(version.ID)}
-                                  >
-                                    重新激活
-                                  </Button>
-                                )}
                               </div>
                             </div>
-                            {isExpanded && content && (
-                              <div className="border-t border-border bg-background px-4 py-3">
-                                <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-foreground">{content}</pre>
-                              </div>
+                            {isExpanded && contentLength > 0 && (
+                              <ScriptVersionBlockPanel
+                                blocks={scriptBlocks.filter((block) => Number(block.script_version_id) === version.ID)}
+                                content={content}
+                                isCreating={createScriptBlock.isPending}
+                                isCreatingContentUnit={createContentUnitFromScriptBlock.isPending}
+                                isCreatingSegment={createSegmentFromScriptBlock.isPending}
+                                selection={scriptTextSelection?.versionId === version.ID ? scriptTextSelection : null}
+                                version={version}
+                                projectId={projectId}
+                                onCreate={() => createScriptBlock.mutate()}
+                                onCreateContentUnit={(block) => createContentUnitFromScriptBlock.mutate(block)}
+                                onCreateSegment={(block) => createSegmentFromScriptBlock.mutate(block)}
+                                onSelectionChange={setScriptTextSelection}
+                              />
                             )}
                           </div>
                         )
@@ -408,13 +459,12 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                 <div className="p-5">
                   <div className="mb-4">
                     <h3 className="text-sm font-semibold text-foreground">创建制作项目</h3>
-                    <p className="mt-0.5 text-xs text-muted-foreground">基于已激活的剧本版本创建制作，制作将锁定版本作为来源。</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">基于最新的剧本版本创建制作，制作将锁定该版本作为来源。</p>
                   </div>
                   <div className="space-y-2">
                     <ReadinessRow label="剧本分类已设置" done={categoryLabel(selected.script_type) !== '未分类'} />
                     <ReadinessRow label="已有剧本版本" done={versionsForSelected.length > 0} />
                     <ReadinessRow label="有正文内容" done={bodyText.length > 0} />
-                    <ReadinessRow label="版本已激活（必须）" done={versionsForSelected.some((v) => v.status === 'active')} />
                   </div>
                   {canCreateProduction ? (
                     <Button
@@ -431,16 +481,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                         <Clapperboard size={15} />
                         创建制作项目
                       </Button>
-                      {!versionsForSelected.some((v) => v.status === 'active') && versionsForSelected.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full gap-1.5"
-                          onClick={() => setDetailTab('versions')}
-                        >
-                          前往版本管理 → 激活版本
-                        </Button>
-                      )}
                       {versionsForSelected.length === 0 && (
                         <Button
                           variant="outline"
@@ -454,11 +494,11 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     </div>
                   )}
 
-                  {activeVersion && (
+                  {latestVersion && (
                     <div className="mt-4 rounded-lg border border-border bg-muted/40 p-3">
-                      <p className="text-xs font-medium text-foreground">将使用激活版本</p>
+                      <p className="text-xs font-medium text-foreground">将使用最新版本</p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        v{activeVersion.version_number || activeVersion.ID} · {activeVersion.title} · {formatDate(activeVersion.UpdatedAt)}
+                        v{latestVersion.version_number || latestVersion.ID} · {latestVersion.title} · {formatDate(latestVersion.UpdatedAt)}
                       </p>
                     </div>
                   )}
@@ -476,14 +516,145 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   )
 }
 
+function ScriptVersionBlockPanel({
+  version,
+  projectId,
+  content,
+  blocks,
+  selection,
+  isCreating,
+  isCreatingContentUnit,
+  isCreatingSegment,
+  onSelectionChange,
+  onCreate,
+  onCreateContentUnit,
+  onCreateSegment,
+}: {
+  version: ScriptVersion
+  projectId: number
+  content: string
+  blocks: ScriptBlockRecord[]
+  selection: ScriptTextSelection
+  isCreating: boolean
+  isCreatingContentUnit: boolean
+  isCreatingSegment: boolean
+  onSelectionChange: (selection: ScriptTextSelection) => void
+  onCreate: () => void
+  onCreateContentUnit: (block: ScriptBlockRecord) => void
+  onCreateSegment: (block: ScriptBlockRecord) => void
+}) {
+  const [scrollTop, setScrollTop] = useState(0)
+  const { data: versionLines = [] } = useQuery({
+    queryKey: ['semantic-script-version-lines', projectId, version.ID],
+    queryFn: () => listScriptVersionLines(projectId, version.ID),
+    enabled: Boolean(projectId && version.ID),
+  })
+  const lineText = useMemo(() => linesToScriptText(versionLines, content), [content, versionLines])
+  const displayLines = useMemo(() => scriptDisplayLines(versionLines, lineText), [lineText, versionLines])
+
+  function captureSelection(event: SyntheticEvent<HTMLTextAreaElement>) {
+    const target = event.currentTarget
+    const start = target.selectionStart ?? 0
+    const end = target.selectionEnd ?? 0
+    if (start === end) {
+      onSelectionChange(null)
+      return
+    }
+    const text = target.value.slice(Math.min(start, end), Math.max(start, end))
+    if (!text.trim()) {
+      onSelectionChange(null)
+      return
+    }
+    const range = scriptLineRange(target.value, start, end, versionLines)
+    onSelectionChange({
+      versionId: version.ID,
+      text,
+      ...range,
+    })
+  }
+
+  return (
+    <div className="border-t border-border bg-background px-4 py-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="min-w-0 text-xs text-muted-foreground">
+          {selection ? `已选 ${selection.startLine}-${selection.endLine} 行 · ${selection.text.trim().length} 字` : `${blocks.length} 个剧本块`}
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1.5 px-2 text-xs"
+          disabled={!selection || isCreating}
+          onClick={onCreate}
+        >
+          <Plus size={12} />
+          {isCreating ? '创建中' : '创建剧本块'}
+        </Button>
+      </div>
+      <div className="relative">
+        <div className="pointer-events-none absolute bottom-px left-px top-px w-12 overflow-hidden rounded-l-md border-r border-border bg-muted/40 py-2 font-mono text-[11px] leading-5 text-muted-foreground">
+          <div style={{ transform: `translateY(-${scrollTop}px)` }}>
+            {displayLines.map((line) => (
+              <div key={line.line_number} className="h-5 pr-2 text-right tabular-nums">
+                {line.line_number}
+              </div>
+            ))}
+          </div>
+        </div>
+        <textarea
+          readOnly
+          wrap="off"
+          value={lineText}
+          onKeyUp={captureSelection}
+          onMouseUp={captureSelection}
+          onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
+          className="min-h-[260px] w-full resize-y rounded-md border border-border bg-card py-2 pl-14 pr-3 font-mono text-xs leading-5 text-foreground outline-none"
+        />
+      </div>
+      {blocks.length > 0 && (
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {blocks.map((block) => (
+            <div key={block.ID} className="rounded-md border border-border bg-card p-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="truncate text-xs font-medium text-foreground">{scriptBlockLabel(block)}</span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">行 {block.start_line || '?'}-{block.end_line || '?'}</span>
+              </div>
+              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{String(block.content ?? '')}</p>
+              <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  disabled={isCreatingSegment}
+                  onClick={() => onCreateSegment(block)}
+                >
+                  生成编排段
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  disabled={isCreatingContentUnit}
+                  onClick={() => onCreateContentUnit(block)}
+                >
+                  生成制作项
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Version status badge ─────────────────────────────────────────────────────
 
 function VersionStatusBadge({ status }: { status: string }) {
   if (status === 'active') {
     return (
       <span className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
-        <Lock size={10} />
-        已激活
+        <CheckCircle2 size={10} />
+        已锁定
       </span>
     )
   }
@@ -506,12 +677,11 @@ function ScriptTypeBadge({ script }: { script: Script }) {
   return <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{categoryLabel(script.script_type)}</span>
 }
 
-function ScriptStageBadge({ versionCount, hasActive }: { versionCount: number; hasActive: boolean }) {
-  const stage = !versionCount ? '无版本' : !hasActive ? '待激活' : '已就绪'
+function ScriptStageBadge({ versionCount }: { versionCount: number }) {
+  const stage = !versionCount ? '无版本' : '已锁定'
   const config = {
     '无版本': { className: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300', icon: AlertTriangle },
-    '待激活': { className: 'border-border bg-muted text-muted-foreground', icon: Clock3 },
-    '已就绪': { className: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300', icon: CheckCircle2 },
+    '已锁定': { className: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300', icon: CheckCircle2 },
   }[stage]
   const Icon = config.icon
   return (
@@ -541,6 +711,104 @@ function ReadinessRow({ label, done }: { label: string; done: boolean }) {
       </span>
     </div>
   )
+}
+
+function linesToScriptText(lines: ScriptVersionLine[], fallback: string) {
+  if (lines.length === 0) return fallback
+  return lines
+    .slice()
+    .sort((a, b) => a.line_number - b.line_number)
+    .map((line) => line.content)
+    .join('\n')
+}
+
+function scriptDisplayLines(lines: ScriptVersionLine[], text: string) {
+  if (lines.length > 0) return lines.slice().sort((a, b) => a.line_number - b.line_number)
+  return text.split('\n').map((content, index) => ({
+    line_number: index + 1,
+    content,
+    start_char: 0,
+    end_char: Array.from(content).length,
+  }))
+}
+
+function scriptLineRange(text: string, selectionStart: number, selectionEnd: number, lines: ScriptVersionLine[] = []) {
+  const start = Math.min(selectionStart, selectionEnd)
+  const end = Math.max(selectionStart, selectionEnd)
+  if (lines.length > 0) {
+    const sorted = lines.slice().sort((a, b) => a.line_number - b.line_number)
+    return {
+      startLine: lineNumberAtOffset(sorted, text, start),
+      endLine: lineNumberAtOffset(sorted, text, end),
+      startChar: charOffsetInLine(text.slice(0, start)),
+      endChar: charOffsetInLine(text.slice(0, end)),
+    }
+  }
+  const beforeStart = text.slice(0, start)
+  const beforeEnd = text.slice(0, end)
+  return {
+    startLine: beforeStart.split('\n').length,
+    endLine: beforeEnd.split('\n').length,
+    startChar: charOffsetInLine(beforeStart),
+    endChar: charOffsetInLine(beforeEnd),
+  }
+}
+
+function lineNumberAtOffset(lines: ScriptVersionLine[], text: string, offset: number) {
+  let cursor = 0
+  for (const line of lines) {
+    const lineLength = String(line.content ?? '').length
+    const lineEnd = cursor + lineLength
+    if (offset <= lineEnd) return line.line_number
+    cursor = lineEnd + 1
+  }
+  return lines[lines.length - 1]?.line_number ?? text.slice(0, offset).split('\n').length
+}
+
+function charOffsetInLine(text: string) {
+  const lastBreak = text.lastIndexOf('\n')
+  const lineText = lastBreak < 0 ? text : text.slice(lastBreak + 1)
+  return Array.from(lineText).length
+}
+
+function inferScriptBlockKind(text: string) {
+  const firstLine = text.trim().split(/\r?\n/)[0]?.trim() ?? ''
+  const speakerMatch = firstLine.match(/^([^：:]{1,24})[：:]\s*(.+)$/)
+  if (speakerMatch) {
+    return { kind: 'dialogue', speaker: speakerMatch[1].trim() }
+  }
+  if (/^(INT\.|EXT\.|内景|外景|场景|第.+场)/i.test(firstLine)) {
+    return { kind: 'scene_heading', speaker: '' }
+  }
+  return { kind: 'action', speaker: '' }
+}
+
+function scriptBlockLabel(block: ScriptBlockRecord) {
+  const kind = String(block.kind ?? 'block')
+  const speaker = String(block.speaker ?? '').trim()
+  return speaker ? `${kind} · ${speaker}` : kind
+}
+
+function titleFromScriptBlock(block: ScriptBlockRecord) {
+  const content = String(block.content ?? '').trim()
+  const firstLine = content.split(/\r?\n/).find((line) => line.trim())?.trim() ?? ''
+  if (!firstLine) return `剧本块 #${block.ID}`
+  return firstLine.length > 32 ? `${firstLine.slice(0, 32)}...` : firstLine
+}
+
+function contentUnitKindFromScriptBlock(block: ScriptBlockRecord) {
+  const kind = String(block.kind ?? '')
+  if (kind === 'dialogue') return 'narration'
+  if (kind === 'transition') return 'transition'
+  if (kind === 'scene_heading') return 'visual_segment'
+  return 'shot'
+}
+
+function contentPromptFromScriptBlock(block: ScriptBlockRecord) {
+  const content = String(block.content ?? '').trim()
+  const speaker = String(block.speaker ?? '').trim()
+  if (speaker) return `${speaker}: ${content}`
+  return content
 }
 
 function groupScriptsByCategory(scripts: Script[]) {

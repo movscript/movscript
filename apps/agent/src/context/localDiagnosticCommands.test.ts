@@ -8,6 +8,7 @@ import {
   renderLocalDiagnosticCommand,
   renderLocalFinalAssistantContent,
 } from './localDiagnosticCommands.js'
+import type { AgentRun } from '../state/types.js'
 
 test('local diagnostic command detection is limited to deterministic diagnostics', () => {
   assert.equal(isLocalDiagnosticCommand('context'), true)
@@ -102,7 +103,46 @@ test('renderLocalFinalAssistantContent renders local context command output', ()
   assert.doesNotMatch(content, /model output should not be used/)
 })
 
-function buildTestRun() {
+test('renderLocalFinalAssistantContent appends source summary for ordinary final replies', () => {
+  const run = buildTestRun()
+  run.metadata = {
+    contextLedger: {
+      retrieved: [{
+        ref: { type: 'knowledge', id: 'storyboard.rhythm.basic', title: '分镜节奏基础' },
+        source: 'knowledge',
+        evidence: 'advisory',
+        title: '分镜节奏基础',
+        summary: 'movscript_get_knowledge result reference (runtime)',
+        charCount: 100,
+        retrievedAt: '2026-05-06T00:00:00.000Z',
+        usedInPrompt: true,
+      }],
+    },
+  }
+  const content = renderLocalFinalAssistantContent({
+    command: {
+      name: 'chat',
+      rawName: undefined,
+      payload: '检查分镜节奏',
+      contextProfile: 'minimal',
+      outputMode: 'natural',
+      requiredTools: [],
+      systemContract: '',
+    },
+    run,
+    context: buildTestContext() as unknown as Record<string, unknown>,
+    warnings: [],
+    memories: [],
+    modelContent: '建议按三段节奏组织分镜。',
+  })
+
+  assert.match(content, /建议按三段节奏组织分镜。/)
+  assert.match(content, /来源：/)
+  assert.match(content, /通用知识建议：knowledge#storyboard\.rhythm\.basic/)
+  assert.match(content, /用户输入：本轮消息（source=user_input; evidence=user_claimed）/)
+})
+
+function buildTestRun(): AgentRun {
   return {
     id: 'run_1',
     threadId: 'thread_1',

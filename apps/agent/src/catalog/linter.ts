@@ -1,11 +1,14 @@
+import type { KnowledgeCollection } from '../knowledge/types.js'
 import type { CatalogIssue, CatalogRegistry, PolicyScope, SkillDefinition, ToolDefinition } from './types.js'
 
 const PLACEHOLDER_RE = /\{\{(tool|schema|ctx):([^}]+)\}\}/g
+const MAX_KNOWLEDGE_CHUNK_CHARS = 12000
 
 export function lintCatalog(registry: CatalogRegistry): CatalogIssue[] {
   const issues: CatalogIssue[] = []
   for (const skill of registry.skills.values()) lintSkill(skill, registry, issues)
   for (const tool of registry.tools.values()) lintTool(tool, issues)
+  for (const collection of registry.knowledge.values()) lintKnowledgeCollection(collection, issues)
   for (const pack of registry.packs.values()) {
     if (requiresResourcePaths(pack) && pack.skills.length > 0 && (pack.resources?.skills?.length ?? 0) === 0) {
       error(issues, 'pack.resources.skills.missing', `pack ${pack.id} declares skills but does not declare resources.skills paths`, pack.id)
@@ -13,9 +16,13 @@ export function lintCatalog(registry: CatalogRegistry): CatalogIssue[] {
     if (requiresResourcePaths(pack) && pack.tools.length > 0 && (pack.resources?.tools?.length ?? 0) === 0) {
       error(issues, 'pack.resources.tools.missing', `pack ${pack.id} declares tools but does not declare resources.tools paths`, pack.id)
     }
+    if ((pack.knowledge?.length ?? 0) > 0 && (pack.resources?.knowledge?.length ?? 0) === 0) {
+      warning(issues, 'pack.resources.knowledge.missing', `pack ${pack.id} declares knowledge but does not declare resources.knowledge paths`, pack.id)
+    }
     for (const schema of pack.schemas) if (!registry.schemas.has(schema)) error(issues, 'pack.schema.missing', `pack ${pack.id} references missing schema ${schema}`, pack.id)
     for (const tool of pack.tools) if (!registry.tools.has(tool)) error(issues, 'pack.tool.missing', `pack ${pack.id} references missing tool ${tool}`, pack.id)
     for (const skill of pack.skills) if (!registry.skills.has(skill)) error(issues, 'pack.skill.missing', `pack ${pack.id} references missing skill ${skill}`, pack.id)
+    for (const collection of pack.knowledge ?? []) if (!registry.knowledge.has(collection)) error(issues, 'pack.knowledge.missing', `pack ${pack.id} references missing knowledge collection ${collection}`, pack.id)
     lintPackClosure(pack.id, registry, issues)
   }
   for (const profile of registry.profiles.values()) {
@@ -52,6 +59,18 @@ export function lintCatalog(registry: CatalogRegistry): CatalogIssue[] {
   return issues
 }
 
+function lintKnowledgeCollection(collection: KnowledgeCollection, issues: CatalogIssue[]): void {
+  for (const chunk of collection.chunks ?? []) {
+    if (chunk.charCount <= MAX_KNOWLEDGE_CHUNK_CHARS) continue
+    warning(
+      issues,
+      'knowledge.chunk.too_large',
+      `knowledge chunk ${chunk.id} in ${collection.id} has ${chunk.charCount} chars; keep chunks <= ${MAX_KNOWLEDGE_CHUNK_CHARS} chars or split them`,
+      collection.id,
+    )
+  }
+}
+
 function requiresResourcePaths(pack: { id: string; source: string }): boolean {
   return pack.id !== 'movscript.pack.default' && pack.source !== 'mcp'
 }
@@ -82,6 +101,14 @@ function lintPackClosure(packId: string, registry: CatalogRegistry, issues: Cata
       const schema = stripRef(ref, 'schema://')
       if (!coveredSchemas.has(schema)) {
         error(issues, 'pack.schema_ref.uncovered', `pack ${pack.id} includes skill ${skill.id} but neither the pack nor its required packs include schema ${schema}`, pack.id)
+      }
+    }
+    for (const ref of metadataStringArray(skill.metadata, 'expertiseRefs')) {
+      const expertise = registry.skills.get(ref)
+      if (!expertise || expertise.kind !== 'expertise') {
+        error(issues, 'pack.expertise_ref.missing', `pack ${pack.id} includes skill ${skill.id} but expertiseRef ${ref} is missing or not expertise`, pack.id)
+      } else if (!pack.skills.includes(ref)) {
+        error(issues, 'pack.expertise_ref.uncovered', `pack ${pack.id} includes skill ${skill.id} but does not include expertise ${ref}`, pack.id)
       }
     }
   }
@@ -193,6 +220,11 @@ function lintPolicyScope(scope: PolicyScope | undefined, registry: CatalogRegist
 
 function stripRef(ref: string, prefix: string): string {
   return ref.startsWith(prefix) ? ref.slice(prefix.length) : ref
+}
+
+function metadataStringArray(metadata: SkillDefinition['metadata'], key: string): string[] {
+  const value = metadata?.[key]
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim()) : []
 }
 
 function approvalRank(value: 'never' | 'on_write' | 'always'): number {

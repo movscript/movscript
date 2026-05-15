@@ -101,7 +101,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     icon: PackageCheck,
     purpose: '管理素材需求、参考图、候选图和最终锁定素材。',
     owns: '素材需求缺口、候选素材、锁定版本、资源引用',
-    output: '可进入关键帧和视频生产的素材包',
+    output: '可进入画面锚点和视频生产的素材包',
   },
   {
     key: 'plan',
@@ -119,7 +119,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     shortTitle: '生产',
     href: '/production',
     icon: Wand2,
-    purpose: '组织关键帧、视频候选、返工意见和采用决策。',
+    purpose: '组织镜头关键帧、视频候选、返工意见和采用决策。',
     owns: '生成任务、候选版本、采用记录、返工要求',
     output: '可进入交付检查的正式片段',
   },
@@ -142,8 +142,8 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
     shortTitle: '预演',
     href: '/workbench/production-plan',
     icon: Clapperboard,
-    purpose: '对照制作编排读取真实制作数据，先看编排段这个情绪入口，再展开情节、镜头、关键帧和缺口。',
-    decision: '先确认入口是否有情节承接，再检查镜头、关键帧、缺口和预演记录。',
+    purpose: '对照制作编排读取真实制作数据，先看编排段这个情绪入口，再展开情节、镜头、预演画面和缺口。',
+    decision: '先确认入口是否有情节承接，再检查镜头、预演画面、缺口和预演记录。',
     output: '真实制作预演状态、缺口清单和下一步动作。',
   },
   {
@@ -164,7 +164,7 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
     icon: PackageCheck,
     purpose: '统一维护素材需求、候选素材、上传、生成、挑选和锁定。',
     decision: '审阅素材需求提案，选择参考，上传或生成候选，采用素材或继续返工。',
-    output: '可用于关键帧和视频生产的素材版本。',
+    output: '可用于画面锚点和视频生产的素材版本。',
   },
   {
     value: 'reference-relations',

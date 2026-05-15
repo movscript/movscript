@@ -2,8 +2,21 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { InMemoryKnowledgeStore } from './knowledgeStore.js'
+import { InMemoryKnowledgeStore, type KnowledgeStore } from './knowledgeStore.js'
 import type { KnowledgeChunk, KnowledgeCollection } from './types.js'
+
+export const AGENT_KNOWLEDGE_DIR_ENV = 'MOVSCRIPT_AGENT_KNOWLEDGE_DIR'
+
+export interface AgentKnowledgeStoreOptions {
+  knowledgeDir?: string | null
+}
+
+export function loadAgentKnowledgeStore(options: AgentKnowledgeStoreOptions = {}): InMemoryKnowledgeStore {
+  const stores: KnowledgeStore[] = [loadBuiltinKnowledgeStore()]
+  const knowledgeDir = resolveConfiguredKnowledgeDir(options)
+  if (knowledgeDir) stores.push(loadKnowledgeStore(knowledgeDir))
+  return mergeKnowledgeStores(stores)
+}
 
 export function loadBuiltinKnowledgeStore(): InMemoryKnowledgeStore {
   return loadKnowledgeStore(resolveBuiltinKnowledgeDir())
@@ -22,7 +35,17 @@ export function loadKnowledgeStore(rootDir: string): InMemoryKnowledgeStore {
       const chunkPath = resolveInside(collectionDir, resourcePath)
       return chunkPath ? normalizeChunk(readFileSync(chunkPath, 'utf8'), chunkPath, collection) : []
     })
-    collections.push({ ...collection, chunkIds: collectionChunks.map((chunk) => chunk.id) })
+    collections.push({
+      ...collection,
+      chunkIds: collectionChunks.map((chunk) => chunk.id),
+      chunks: collectionChunks.map((chunk) => ({
+        id: chunk.id,
+        title: chunk.title,
+        charCount: chunk.charCount,
+        contentHash: chunk.contentHash,
+        ...(chunk.sourcePath ? { sourcePath: chunk.sourcePath } : {}),
+      })),
+    })
     chunks.push(...collectionChunks)
   }
   return new InMemoryKnowledgeStore({ collections, chunks })
@@ -30,6 +53,36 @@ export function loadKnowledgeStore(rootDir: string): InMemoryKnowledgeStore {
 
 export function resolveBuiltinKnowledgeDir(): string {
   return resolve(fileURLToPath(new URL('../../catalog/knowledge', import.meta.url)))
+}
+
+export function mergeKnowledgeStores(stores: KnowledgeStore[]): InMemoryKnowledgeStore {
+  const collectionsById = new Map<string, KnowledgeCollection>()
+  const chunksById = new Map<string, KnowledgeChunk>()
+  for (const store of stores) {
+    const storeCollections = store.listCollections()
+    for (const collection of storeCollections) {
+      if (collectionsById.has(collection.id)) {
+        for (const [chunkId, chunk] of chunksById) {
+          if (chunk.collectionId === collection.id) chunksById.delete(chunkId)
+        }
+      }
+      collectionsById.set(collection.id, collection)
+    }
+    for (const chunk of store.listChunks()) chunksById.set(chunk.id, chunk)
+  }
+  return new InMemoryKnowledgeStore({
+    collections: Array.from(collectionsById.values()),
+    chunks: Array.from(chunksById.values()),
+  })
+}
+
+function resolveConfiguredKnowledgeDir(options: AgentKnowledgeStoreOptions): string | undefined {
+  const configured = Object.hasOwn(options, 'knowledgeDir')
+    ? options.knowledgeDir
+    : process.env[AGENT_KNOWLEDGE_DIR_ENV]
+  return typeof configured === 'string' && configured.trim().length > 0
+    ? resolve(configured.trim())
+    : undefined
 }
 
 function listKnowledgeIndexFiles(rootDir: string): string[] {

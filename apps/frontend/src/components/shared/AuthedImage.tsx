@@ -46,7 +46,7 @@ function useAuthBlobUrl(src: string | undefined): string | undefined {
 
 async function fetchMediaBlob(src: string): Promise<Blob> {
   if (requiresAPIAuth(src)) {
-    const res = await api.get(src, { baseURL: '', responseType: 'blob' })
+    const res = await api.get(normalizeAPIAuthPath(src), { responseType: 'blob' })
     return res.data
   }
   const res = await fetch(src)
@@ -94,6 +94,15 @@ function requiresAPIAuth(src: string): boolean {
     return url.pathname.startsWith('/api/v1/resources/')
   } catch {
     return src.startsWith('/api/v1/resources/')
+  }
+}
+
+function normalizeAPIAuthPath(src: string): string {
+  try {
+    const url = new URL(src, window.location.origin)
+    return url.pathname.replace(/^\/api\/v1/, '') + url.search
+  } catch {
+    return src.replace(/^\/api\/v1/, '')
   }
 }
 

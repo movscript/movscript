@@ -63,7 +63,7 @@ export function ScriptDetail({ script, onClose, onDelete }: Props) {
       content: draft.content ?? script.content ?? draft.raw_source ?? script.raw_source ?? '',
       raw_source: draft.raw_source ?? script.raw_source ?? draft.content ?? script.content ?? '',
       summary: draft.summary ?? script.summary ?? '',
-      status: 'draft',
+      status: 'active',
     }),
     onSuccess: (version) => {
       setSelectedVersionId(version.ID)
@@ -155,7 +155,7 @@ function ScriptVersionViewer({
               className="inline-flex h-7 items-center gap-1 rounded-md border border-border bg-background px-2 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
             >
               <Plus size={12} />
-              {isCreating ? '新增中' : '新增版本'}
+              {isCreating ? '新增中' : '新增快照'}
             </button>
           </div>
           <div className="space-y-2 p-3">
@@ -212,7 +212,7 @@ function scriptVersionText(version: ScriptVersion) {
 }
 
 function formatScriptVersionStatus(status: string) {
-  if (status === 'active') return '当前正式版'
+  if (status === 'active') return '已锁定'
   if (status === 'archived') return '已归档'
   return '草稿'
 }

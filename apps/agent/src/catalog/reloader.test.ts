@@ -83,6 +83,7 @@ function testCatalog(input: { version: string; tools: string[] }): AgentPluginCa
     profiles: [],
     layeredSkills: [],
     layeredTools: [],
+    knowledgeCollections: [],
     toolGrants: [],
     manifest: DEFAULT_AGENT_MANIFEST,
     registry: toolRegistry,

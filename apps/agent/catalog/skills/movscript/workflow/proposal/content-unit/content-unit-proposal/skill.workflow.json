@@ -15,6 +15,10 @@
       "kind": "keyword",
       "any": [
         "内容单元",
+        "分镜",
+        "镜头参数",
+        "导演分镜",
+        "普通导演",
         "content unit",
         "content_unit_proposal"
       ]
@@ -22,6 +26,7 @@
   ],
   "toolRefs": [
     "tool://movscript_get_focus",
+    "tool://movscript_query_production_context",
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",
     "tool://movscript_get_draft",
@@ -35,5 +40,10 @@
     "schema://movscript.content_unit_proposal.v1"
   ],
   "outputContract": "返回 draftId、productionId、content unit 数量、validation/preview 状态、结构缺口和下一步媒体或素材工作建议。",
+  "metadata": {
+    "expertiseRefs": [
+      "movscript.expertise.storyboard.general-director"
+    ]
+  },
   "instructionTemplatePath": "instruction.md"
 }

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 import { loadAgentPluginCatalog } from './loader.js'
+import { AGENT_KNOWLEDGE_DIR_ENV } from '../knowledge/index.js'
 
 test('loads target-state tool catalog but only enabled packs grant runtime access', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-plugins-'))
@@ -206,6 +207,8 @@ test('loads built-in content unit proposal catalogs by default', () => {
   assert.ok(draftPack?.schemas.includes('movscript.content_unit_media_proposal.v1'))
   assert.ok(movscriptPack?.skills.includes('movscript.workflow.content-unit-proposal'))
   assert.ok(movscriptPack?.skills.includes('movscript.workflow.content-unit-media-proposal'))
+  assert.ok(movscriptPack?.knowledge?.includes('movscript.knowledge.storyboard'))
+  assert.ok(catalog.knowledgeCollections.some((collection) => collection.id === 'movscript.knowledge.storyboard'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_create_draft'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_read_draft'))
   assert.ok(catalog.layeredTools.some((tool) => tool.name === 'movscript_update_draft'))
@@ -213,6 +216,48 @@ test('loads built-in content unit proposal catalogs by default', () => {
   assert.equal(catalog.registry.get('movscript_submit_script_split_draft'), undefined)
   assert.equal(catalog.registry.get('movscript_update_proposal_node'), undefined)
   assert.deepEqual(catalog.warnings, [])
+})
+
+test('loads local knowledge directory into catalog registry', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-catalog-knowledge-'))
+  const previousKnowledgeDir = process.env[AGENT_KNOWLEDGE_DIR_ENV]
+
+  try {
+    writeKnowledgeFile(dir, 'index.knowledge.json', {
+      id: 'studio.knowledge.catalog',
+      version: '1.0.0',
+      name: 'Studio Catalog Knowledge',
+      domain: 'storyboard',
+      resources: ['chunks/catalog.md'],
+      tags: ['catalog'],
+    })
+    mkdirSync(join(dir, 'chunks'), { recursive: true })
+    writeFileSync(join(dir, 'chunks', 'catalog.md'), `---
+id: studio.catalog.chunk
+domain: storyboard
+title: Catalog Knowledge
+tags:
+  - catalog
+summary: Local catalog knowledge summary.
+version: 1.0.0
+---
+
+Local catalog knowledge body.
+`, 'utf8')
+    process.env[AGENT_KNOWLEDGE_DIR_ENV] = dir
+
+    const catalog = loadAgentPluginCatalog()
+    const collection = catalog.layeredRegistry.knowledge.get('studio.knowledge.catalog')
+
+    assert.ok(catalog.knowledgeCollections.some((item) => item.id === 'studio.knowledge.catalog'))
+    assert.equal(collection?.name, 'Studio Catalog Knowledge')
+    assert.equal(collection?.chunks?.some((chunk) => chunk.id === 'studio.catalog.chunk'), true)
+    assert.deepEqual(catalog.catalogIssues.filter((issue) => issue.resourceId === 'studio.knowledge.catalog'), [])
+  } finally {
+    if (previousKnowledgeDir === undefined) delete process.env[AGENT_KNOWLEDGE_DIR_ENV]
+    else process.env[AGENT_KNOWLEDGE_DIR_ENV] = previousKnowledgeDir
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 test('pack loading ignores unreferenced local catalog files', () => {
@@ -471,4 +516,9 @@ function writePluginFile(dir: string, filename: string, value: unknown): void {
   const filePath = join(dir, filename)
   mkdirSync(dir, { recursive: true })
   writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+}
+
+function writeKnowledgeFile(dir: string, filename: string, value: unknown): void {
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, filename), `${JSON.stringify(value, null, 2)}\n`, 'utf8')
 }

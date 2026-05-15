@@ -2,11 +2,18 @@ package semantic
 
 import (
 	"context"
+	"strings"
 
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
 func (s *Service) DeleteItemByKind(ctx context.Context, projectID uint, kind string, id string) error {
+	switch strings.TrimSpace(kind) {
+	case "script_version":
+		return ErrForbidden{Message: "剧本版本创建后不可删除，请保留历史版本以保证引用稳定"}
+	case "script_block":
+		return ErrForbidden{Message: "剧本块创建后不可删除，请保留稳定锚点以保证后续引用稳定"}
+	}
 	deletedProjectID, err := s.repo.DeleteProjectItemByKind(ctx, projectID, kind, id)
 	if err != nil {
 		return err
@@ -41,7 +48,7 @@ func (s *Service) validateProductionOwners(ctx context.Context, projectID uint, 
 	return nil
 }
 
-func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint, productionID *uint, segmentID *uint, sceneMomentID *uint) error {
+func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint, productionID *uint, segmentID *uint, sceneMomentID *uint, scriptBlockID *uint) error {
 	if productionID != nil {
 		if err := s.ensureProductionInProject(ctx, projectID, *productionID); err != nil {
 			return err
@@ -54,6 +61,11 @@ func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint,
 	}
 	if sceneMomentID != nil {
 		if err := s.ensureSceneMomentInProject(ctx, projectID, *sceneMomentID); err != nil {
+			return err
+		}
+	}
+	if scriptBlockID != nil {
+		if err := s.ensureScriptBlockInProject(ctx, projectID, *scriptBlockID); err != nil {
 			return err
 		}
 	}
@@ -94,6 +106,10 @@ func (s *Service) EnsurePreviewTimelineInProject(ctx context.Context, projectID 
 
 func (s *Service) ensureScriptVersionInProject(ctx context.Context, projectID uint, scriptVersionID uint) error {
 	return s.repo.EnsureScriptVersionInProject(ctx, projectID, scriptVersionID)
+}
+
+func (s *Service) ensureScriptBlockInProject(ctx context.Context, projectID uint, scriptBlockID uint) error {
+	return s.repo.EnsureOwnerInProject(ctx, projectID, "script_block", scriptBlockID)
 }
 
 func (s *Service) ensurePreviewTimelineInProject(ctx context.Context, projectID uint, previewTimelineID uint) error {

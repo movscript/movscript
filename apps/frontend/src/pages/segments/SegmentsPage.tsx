@@ -13,7 +13,6 @@ import {
   Database,
   Film,
   GitBranch,
-  Image,
   MapPin,
   PackageCheck,
   Pencil,
@@ -22,6 +21,7 @@ import {
   Save,
   ShieldCheck,
   Sparkles,
+  ScrollText,
   Trash2,
   X,
 } from 'lucide-react'
@@ -51,6 +51,7 @@ type StatusFilter = 'all' | 'ready' | 'attention' | 'confirmed'
 type SegmentRecord = SemanticEntityRecord & {
   production_id?: number
   text_block_id?: number
+  script_block_id?: number
   title?: string
   kind?: string
   summary?: string
@@ -76,6 +77,7 @@ type RelatedRecord = SemanticEntityRecord & {
   segment_id?: number
   scene_moment_id?: number
   content_unit_id?: number
+  script_block_id?: number
   owner_type?: string
   owner_id?: number
   creative_reference_id?: number
@@ -94,8 +96,22 @@ type RelatedRecord = SemanticEntityRecord & {
   order?: number
 }
 
+type ScriptBlockRecord = SemanticEntityRecord & {
+  script_id?: number
+  script_version_id?: number
+  kind?: string
+  speaker?: string
+  content?: string
+  start_line?: number
+  end_line?: number
+  start_char?: number
+  end_char?: number
+  status?: string
+}
+
 type SegmentWorkspace = {
   segment: SegmentRecord
+  scriptBlock: ScriptBlockRecord | null
   sceneMoments: SceneMomentRecord[]
   storyboardLines: RelatedRecord[]
   contentUnits: RelatedRecord[]
@@ -198,6 +214,11 @@ export default function SegmentsPage() {
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('segments')) as Promise<SegmentRecord[]>,
     enabled: !!projectId,
   })
+  const scriptBlocksQuery = useQuery({
+    queryKey: ['semantic-segment-workspace', projectId, 'script-blocks'],
+    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')) as Promise<ScriptBlockRecord[]>,
+    enabled: !!projectId,
+  })
   const sceneMomentsQuery = useQuery({
     queryKey: ['semantic-segment-workspace', projectId, 'sceneMoments'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
@@ -235,6 +256,7 @@ export default function SegmentsPage() {
   })
 
   const segments = useMemo(() => (segmentsQuery.data ?? []).slice().sort(compareByOrder), [segmentsQuery.data])
+  const scriptBlocks = scriptBlocksQuery.data ?? []
   const sceneMoments = useMemo(() => (sceneMomentsQuery.data ?? []).slice().sort(compareByOrder), [sceneMomentsQuery.data])
   const storyboardLines = storyboardLinesQuery.data ?? []
   const contentUnits = contentUnitsQuery.data ?? []
@@ -244,8 +266,10 @@ export default function SegmentsPage() {
   const assetSlots = assetSlotsQuery.data ?? []
 
   const referencesById = useMemo(() => new Map(references.map((item) => [item.ID, item])), [references])
+  const scriptBlocksById = useMemo(() => new Map(scriptBlocks.map((item) => [item.ID, item])), [scriptBlocks])
 
   const segmentWorkspaces = useMemo(() => segments.map((segment) => {
+    const scriptBlock = segment.script_block_id ? scriptBlocksById.get(segment.script_block_id) ?? null : null
     const segmentSceneMoments = sceneMoments.filter((item) => item.segment_id === segment.ID).sort(compareByOrder)
     const sceneMomentIds = new Set(segmentSceneMoments.map((item) => item.ID))
     const segmentContentUnits = contentUnits.filter((item) => (
@@ -278,6 +302,7 @@ export default function SegmentsPage() {
 
     return {
       segment,
+      scriptBlock,
       sceneMoments: segmentSceneMoments,
       storyboardLines: segmentStoryboardLines,
       contentUnits: segmentContentUnits,
@@ -287,7 +312,7 @@ export default function SegmentsPage() {
       readiness: calculateReadiness(segment, segmentSceneMoments, segmentContentUnits, segmentReferences, segmentAssetSlots),
       totalDuration,
     }
-  }), [assetSlots, contentUnits, keyframes, referencesById, sceneMoments, segments, storyboardLines, usages])
+  }), [assetSlots, contentUnits, keyframes, referencesById, sceneMoments, scriptBlocksById, segments, storyboardLines, usages])
 
   const visibleSegments = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -301,6 +326,7 @@ export default function SegmentsPage() {
         titleOf(item.segment),
         item.segment.summary,
         item.segment.content,
+        item.scriptBlock?.content,
         item.sceneMoments.map((sceneMoment) => [titleOf(sceneMoment), sceneMoment.description, sceneMoment.action_text, sceneMoment.location_text, sceneMoment.mood].join(' ')).join(' '),
         item.contentUnits.map((unit) => [titleOf(unit), unit.description, unit.prompt].join(' ')).join(' '),
         item.references.map((reference) => titleOf(reference)).join(' '),
@@ -338,6 +364,9 @@ export default function SegmentsPage() {
     }
     return selectedSegment.contentUnits[0] ?? null
   }, [selectedContentUnitId, selectedSceneMoment, selectedSegment])
+  const selectedContentUnitScriptBlock = selectedContentUnit?.script_block_id
+    ? scriptBlocksById.get(selectedContentUnit.script_block_id) ?? null
+    : null
 
   const readyCount = segmentWorkspaces.filter((item) => item.readiness >= 70 && item.assetSlots.every((slot) => !isAssetGap(slot))).length
   const attentionCount = segmentWorkspaces.filter((item) => item.readiness < 70 || item.assetSlots.some(isAssetGap)).length
@@ -346,10 +375,11 @@ export default function SegmentsPage() {
     : 0
   const totalDuration = segmentWorkspaces.reduce((sum, item) => sum + item.totalDuration, 0)
   const isLoading = segmentsQuery.isLoading || sceneMomentsQuery.isLoading
-  const isFetching = segmentsQuery.isFetching || sceneMomentsQuery.isFetching || storyboardLinesQuery.isFetching || contentUnitsQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
+  const isFetching = segmentsQuery.isFetching || scriptBlocksQuery.isFetching || sceneMomentsQuery.isFetching || storyboardLinesQuery.isFetching || contentUnitsQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
 
   function refreshAll() {
     segmentsQuery.refetch()
+    scriptBlocksQuery.refetch()
     sceneMomentsQuery.refetch()
     storyboardLinesQuery.refetch()
     contentUnitsQuery.refetch()
@@ -396,7 +426,7 @@ export default function SegmentsPage() {
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-normal text-foreground">编排段</h1>
             <p className="mt-1 max-w-4xl text-sm leading-relaxed text-muted-foreground">
-              编排段定义本集内部的情绪、节奏和戏剧功能；一个编排段持有多个情景，并汇总制作项、设定资料、素材需求和关键帧。
+              编排段定义本集内部的情绪、节奏和戏剧功能；一个编排段持有多个情景，并汇总制作项、设定资料、素材需求和预演画面。
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -527,6 +557,7 @@ export default function SegmentsPage() {
                           item={item}
                           selected={selectedContentUnit?.ID === item.ID}
                           sceneMoment={selectedSegment.sceneMoments.find((sceneMoment) => sceneMoment.ID === item.scene_moment_id)}
+                          scriptBlock={item.script_block_id ? scriptBlocksById.get(item.script_block_id) ?? null : null}
                           assetCount={selectedSegment.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && slot.owner_id === item.ID).length}
                           keyframeCount={selectedSegment.keyframes.filter((keyframe) => keyframe.content_unit_id === item.ID).length}
                           onSelect={() => setFilter({ segment_id: selectedSegment.segment.ID, scene_moment_id: item.scene_moment_id ?? null, content_unit_id: item.ID })}
@@ -557,18 +588,18 @@ export default function SegmentsPage() {
               }}
             />
             <SceneMomentDetail sceneMoment={selectedSceneMoment} segment={selectedSegment?.segment ?? null} />
-            <ContentUnitDetail contentUnit={selectedContentUnit} sceneMoment={selectedSceneMoment} />
+            <ContentUnitDetail contentUnit={selectedContentUnit} sceneMoment={selectedSceneMoment} scriptBlock={selectedContentUnitScriptBlock} />
           </>
         )}
         upstream={<div />}
         downstream={<div />}
         bottom={(
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-4">
             <RelatedPanel title="拥有的情景" icon={Film} records={selectedSegment?.sceneMoments ?? []} empty="当前编排段暂无情景" />
+            <RelatedPanel title="来源剧本块" icon={ScrollText} records={selectedSegment?.scriptBlock ? [selectedSegment.scriptBlock] : []} empty="当前编排段暂无剧本块来源" />
             <RelatedPanel title="涉及到的设定资料" icon={Sparkles} records={selectedSegment?.references ?? []} empty="当前编排段暂无设定资料引用" />
             <RelatedPanel title="所需要的素材需求" icon={PackageCheck} records={selectedSegment?.assetSlots ?? []} empty="当前编排段暂无素材需求" />
             <RelatedPanel title="需要产出的制作项" icon={Boxes} records={selectedSegment?.contentUnits ?? []} empty="当前编排段暂无制作项" />
-            <RelatedPanel title="最终的成片" icon={Image} records={[]} empty="当前编排段暂无成片引用" />
           </div>
         )}
       />
@@ -598,6 +629,12 @@ function SegmentButton({ item, selected, onClick }: { item: SegmentWorkspace; se
             </div>
           </div>
           <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.segment.summary || item.segment.content || '暂无情绪、节奏或戏剧功能说明'}</p>
+          {item.scriptBlock ? (
+            <div className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground">
+              <ScrollText size={12} className="shrink-0" />
+              <span className="truncate">{scriptBlockSourceLabel(item.scriptBlock)}</span>
+            </div>
+          ) : null}
         </div>
         <StatusBadge status={item.segment.status ?? 'draft'} />
       </div>
@@ -649,7 +686,7 @@ function SegmentDetailCard({
   const canSave = Boolean(projectId) && missingRequiredFields.length === 0 && (isEditing || !record)
   const primaryFields = fields.filter((field) => ['title', 'kind', 'status', 'summary', 'content'].includes(field.key))
   const advancedFields = fields.filter((field) => !primaryFields.includes(field))
-  const compactEditFields = ['kind', 'order', 'production_id', 'text_block_id']
+  const compactEditFields = ['kind', 'order', 'production_id', 'text_block_id', 'script_block_id']
   const fieldByKey = useMemo(() => new Map(fields.map((field) => [field.key, field])), [fields])
   const formId = `segment-detail-${record?.ID ?? 'new'}`
 
@@ -711,6 +748,13 @@ function SegmentDetailCard({
   const status = isEditing ? String(form.status ?? 'draft') : String(record?.status ?? 'draft')
   const summary = isEditing ? String(form.summary ?? '') : String(record?.summary || record?.content || '')
   const isNew = !record
+  const sourceLabel = item?.scriptBlock
+    ? scriptBlockSourceLabel(item.scriptBlock)
+    : record?.script_block_id
+      ? `剧本块 #${record.script_block_id}`
+      : record?.text_block_id
+        ? `文本块 #${record.text_block_id}`
+        : '项目编排段'
 
   return (
     <>
@@ -724,7 +768,7 @@ function SegmentDetailCard({
                 <BookOpenText size={19} />
               </span>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">{sectionKinds[kind] ?? (kind || '编排段')} · {isNew ? '新建编排段' : record?.text_block_id ? `文本块 #${record.text_block_id}` : '项目编排段'}</p>
+                <p className="text-xs text-muted-foreground">{sectionKinds[kind] ?? (kind || '编排段')} · {isNew ? '新建编排段' : sourceLabel}</p>
                 {isEditing && fieldByKey.get('title') ? (
                   <SegmentInlineField
                     field={fieldByKey.get('title')!}
@@ -861,7 +905,7 @@ function SegmentDetailCard({
             ) : null}
           </div>
         ) : record ? (
-          <SegmentReadOnlyDetails fields={fields} record={record} />
+          <SegmentReadOnlyDetails fields={fields} record={record} scriptBlock={item?.scriptBlock ?? null} />
         ) : null}
       </form>
     </section>
@@ -925,6 +969,7 @@ function ContentUnitRow({
   item,
   selected,
   sceneMoment,
+  scriptBlock,
   assetCount,
   keyframeCount,
   onSelect,
@@ -932,6 +977,7 @@ function ContentUnitRow({
   item: RelatedRecord
   selected: boolean
   sceneMoment?: SceneMomentRecord
+  scriptBlock?: ScriptBlockRecord | null
   assetCount: number
   keyframeCount: number
   onSelect: () => void
@@ -956,8 +1002,9 @@ function ContentUnitRow({
         <Badge variant="outline" className="text-[10px]">{item.kind ?? '制作项'}</Badge>
         <Badge variant="outline" className="text-[10px]">情景 {sceneMoment ? titleOf(sceneMoment) : '未绑定'}</Badge>
         <Badge variant="outline" className="text-[10px]">素材需求 {assetCount}</Badge>
-        <Badge variant="outline" className="text-[10px]">关键帧 {keyframeCount}</Badge>
+        <Badge variant="outline" className="text-[10px]">画面锚点 {keyframeCount}</Badge>
         {item.duration_sec ? <Badge variant="outline" className="text-[10px]">{formatDuration(item.duration_sec)}</Badge> : null}
+        {scriptBlock ? <Badge variant="outline" className="max-w-full truncate text-[10px]">{scriptBlockSourceLabel(scriptBlock)}</Badge> : null}
       </div>
     </button>
   )
@@ -995,7 +1042,7 @@ function SceneMomentDetail({ sceneMoment, segment }: { sceneMoment: SceneMomentR
   )
 }
 
-function ContentUnitDetail({ contentUnit, sceneMoment }: { contentUnit: RelatedRecord | null; sceneMoment: SceneMomentRecord | null }) {
+function ContentUnitDetail({ contentUnit, sceneMoment, scriptBlock }: { contentUnit: RelatedRecord | null; sceneMoment: SceneMomentRecord | null; scriptBlock?: ScriptBlockRecord | null }) {
   if (!contentUnit) {
     return null
   }
@@ -1015,6 +1062,8 @@ function ContentUnitDetail({ contentUnit, sceneMoment }: { contentUnit: RelatedR
           <p className="mt-1 text-xs text-muted-foreground">{contentUnit.kind ?? '制作项'} · {formatDuration(contentUnit.duration_sec)}</p>
         </div>
         <InfoBlock label="所属情景" value={sceneMoment ? titleOf(sceneMoment) : '未绑定情景'} />
+        <InfoBlock label="来源剧本块" value={scriptBlock ? scriptBlockSourceLabel(scriptBlock) : contentUnit.script_block_id ? `剧本块 #${contentUnit.script_block_id}` : '未绑定剧本块'} />
+        {scriptBlock ? <InfoBlock label="来源文本" value={String(scriptBlock.content ?? '').trim() || '暂无剧本块正文'} /> : null}
         <InfoBlock label="生成提示" value={contentUnit.prompt || contentUnit.description || '暂无提示词'} />
         <InfoBlock label="运镜" value={compactJoin([
           contentUnit.shot_size,
@@ -1031,7 +1080,7 @@ function ContentUnitDetail({ contentUnit, sceneMoment }: { contentUnit: RelatedR
   )
 }
 
-function SegmentReadOnlyDetails({ fields, record }: { fields: SemanticEntityField[]; record: SegmentRecord }) {
+function SegmentReadOnlyDetails({ fields, record, scriptBlock }: { fields: SemanticEntityField[]; record: SegmentRecord; scriptBlock?: ScriptBlockRecord | null }) {
   const visibleFields = fields.filter((field) => {
     if (field.key === 'title' || field.key === 'summary') return false
     return true
@@ -1041,6 +1090,21 @@ function SegmentReadOnlyDetails({ fields, record }: { fields: SemanticEntityFiel
 
   return (
     <div className="space-y-4 border-t border-border p-4">
+      {scriptBlock ? (
+        <SegmentPreviewSection title="来源剧本块">
+          <div className="rounded-md border border-border/70 bg-card px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+              <ScrollText size={12} />
+              <span>{scriptBlockSourceLabel(scriptBlock)}</span>
+              {scriptBlock.kind ? <span>{String(scriptBlock.kind)}</span> : null}
+              {scriptBlock.speaker ? <span>{String(scriptBlock.speaker)}</span> : null}
+            </div>
+            <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
+              {String(scriptBlock.content ?? '').trim() || '暂无剧本块正文'}
+            </p>
+          </div>
+        </SegmentPreviewSection>
+      ) : null}
       {contentField ? (
         <SegmentPreviewSection title="编排段正文">
           <SegmentPreviewValue field={contentField} value={record[contentField.key]} prominent />
@@ -1193,7 +1257,7 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: LucideIc
   )
 }
 
-function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; icon: LucideIcon; records: Array<RelatedRecord | SceneMomentRecord | SegmentRecord>; empty: string }) {
+function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; icon: LucideIcon; records: Array<RelatedRecord | SceneMomentRecord | SegmentRecord | ScriptBlockRecord>; empty: string }) {
   return (
     <section className="rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-2.5">
@@ -1214,14 +1278,17 @@ function RelatedPanel({ title, icon: Icon, records, empty }: { title: string; ic
   )
 }
 
-function RelatedRow({ record }: { record: RelatedRecord | SceneMomentRecord | SegmentRecord }) {
-  const item = record as RelatedRecord & SceneMomentRecord & SegmentRecord
-  const detail = item.description || item.content || item.visual_intent || item.prompt || item.prompt_hint || item.kind || `ID ${item.ID}`
+function RelatedRow({ record }: { record: RelatedRecord | SceneMomentRecord | SegmentRecord | ScriptBlockRecord }) {
+  const item = record as RelatedRecord & SceneMomentRecord & SegmentRecord & ScriptBlockRecord
+  const title = isScriptBlockRecord(item) ? scriptBlockSourceLabel(item) : titleOf(item)
+  const detail = isScriptBlockRecord(item)
+    ? String(item.content ?? '').trim() || String(item.kind ?? `ID ${item.ID}`)
+    : item.description || item.content || item.visual_intent || item.prompt || item.prompt_hint || item.kind || `ID ${item.ID}`
   return (
     <div className="rounded-md border border-border bg-background px-3 py-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium text-foreground">{titleOf(item)}</p>
+          <p className="truncate text-xs font-medium text-foreground">{title}</p>
           <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
         </div>
         <StatusBadge status={item.status ?? item.priority ?? 'draft'} />
@@ -1232,6 +1299,10 @@ function RelatedRow({ record }: { record: RelatedRecord | SceneMomentRecord | Se
       </div>
     </div>
   )
+}
+
+function isScriptBlockRecord(record: RelatedRecord & SceneMomentRecord & SegmentRecord & ScriptBlockRecord) {
+  return record.script_version_id !== undefined && (record.start_line !== undefined || record.end_line !== undefined)
 }
 
 function MiniStat({ label, value }: { label: string; value: string | number }) {
@@ -1332,6 +1403,12 @@ function isAssetGap(record: RelatedRecord) {
 
 function statusLabel(status?: string) {
   return statusLabels[String(status ?? '')] ?? status ?? '未知'
+}
+
+function scriptBlockSourceLabel(block: ScriptBlockRecord) {
+  const startLine = block.start_line || '?'
+  const endLine = block.end_line || '?'
+  return `剧本块 #${block.ID} · 行 ${startLine}-${endLine}`
 }
 
 function compactJoin(values: unknown[]) {

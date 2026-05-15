@@ -680,6 +680,7 @@ test('explicit write agent can create_project without a current project after ap
   assert.equal(run.pendingApprovals?.[0].toolName, 'movscript_create_project')
   assert.equal(client.calls.some((call) => call.name === 'movscript_create_project'), false)
   assertRunTraceEventTypes(runtime, run.id, [
+    'context.run_built',
     'profile.resolved',
     'trigger.evaluated',
     'prompt.composed',
@@ -1383,6 +1384,212 @@ test('preference memories are written and searchable by the next run', async () 
   assert.match(JSON.stringify(memoryStep?.result ?? {}), /手持纪实/)
 })
 
+test('completed runs persist thread context summaries and reuse refs in later prompts', async () => {
+  const originalFetch = globalThis.fetch
+  const seenSystemPrompts: string[] = []
+  let knowledgeCallCount = 0
+  try {
+    globalThis.fetch = (async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
+      if (isThreadTitleRequest(messages)) {
+        const userMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+        return new Response(JSON.stringify({ choices: [{ message: { content: userMsg.slice(0, 12) }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      const systemPrompt = messages.filter((m) => m.role === 'system').map((m) => m.content ?? '').join('\n\n')
+      seenSystemPrompts.push(systemPrompt)
+      const userMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+      const toolMessages = messages.filter((m) => m.role === 'tool')
+      const tools = (body.tools as Array<{ function: { name: string } }>) ?? []
+      const toolNames = new Set(tools.map((t) => t.function.name))
+      if (/分镜缺口/.test(userMsg) && toolMessages.length === 0 && toolNames.has('movscript_search_knowledge')) {
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: 'call_search_knowledge_1',
+                type: 'function',
+                function: { name: 'movscript_search_knowledge', arguments: JSON.stringify({ query: '分镜 节奏', domain: 'storyboard', limit: 2 }) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (/分镜缺口/.test(userMsg) && toolMessages.length < 3 && toolNames.has('movscript_get_knowledge')) {
+        knowledgeCallCount += 1
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: `call_get_knowledge_${knowledgeCallCount}`,
+                type: 'function',
+                function: { name: 'movscript_get_knowledge', arguments: JSON.stringify({ id: 'storyboard.rhythm.basic', maxChars: 80 }) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: toolMessages.length > 0 ? '已完成分镜缺口审阅。' : '好的，继续。' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({ mcpClient: client })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '检查分镜缺口' }] })
+    const firstRun = await createAndWaitForRun(runtime, thread.id)
+    const afterFirst = runtime.getThread(thread.id)
+    const firstAssistant = afterFirst?.messages.find((message) => message.id === firstRun.assistantMessageId)
+    const summary = afterFirst?.metadata?.threadContextSummary as any
+
+    const searchedTrace = findTraceEventByEventType(runtime, firstRun.id, 'context.knowledge_searched')
+    assert.equal(searchedTrace?.data?.query, '分镜 节奏')
+    assert.equal(searchedTrace?.data?.domain, 'storyboard')
+    assert.equal(typeof searchedTrace?.data?.resultCount, 'number')
+    const loadedTrace = findTraceEventByEventType(runtime, firstRun.id, 'context.knowledge_loaded')
+    assert.equal(loadedTrace?.data?.id, 'storyboard.rhythm.basic')
+    assert.equal(loadedTrace?.data?.truncated, true)
+    assert.equal((loadedTrace?.data?.refs as any[])?.some((ref) => ref.id === 'storyboard.rhythm.basic' && ref.evidence === 'advisory'), true)
+    const dedupedTrace = findTraceEventByEventType(runtime, firstRun.id, 'context.item_deduped')
+    assert.equal(dedupedTrace?.data?.dedupedCount, 1)
+    assert.equal((dedupedTrace?.data?.records as any[])?.some((record) => record.type === 'knowledge' && record.id === 'storyboard.rhythm.basic'), true)
+
+    assert.equal(summary?.schema, 'movscript.thread-context-summary.v1')
+    assert.equal(firstRun.metadata?.threadContextSummary && (firstRun.metadata.threadContextSummary as any).schema, 'movscript.thread-context-summary.v1')
+    assert.ok(summary.recentRunRefs?.[0]?.retrievedRefs?.some((ref: any) => ref.type === 'knowledge' && ref.id === 'storyboard.rhythm.basic'))
+    assert.match(firstAssistant?.content ?? '', /来源：/)
+    assert.match(firstAssistant?.content ?? '', /通用知识建议：.*knowledge#storyboard\.rhythm\.basic《分镜节奏基础》.*（source=knowledge; evidence=advisory）/)
+    assert.match(firstAssistant?.content ?? '', /用户输入：本轮消息（source=user_input; evidence=user_claimed）/)
+
+    runtime.addMessage(thread.id, { role: 'user', content: '继续' })
+    const secondRun = await createAndWaitForRun(runtime, thread.id)
+    const promptEvent = findTraceEventByEventType(runtime, secondRun.id, 'prompt.composed')
+    const parts = (promptEvent?.data?.promptStats as any)?.parts as any[]
+
+    assert.ok(parts.some((part) => part.id === 'thread.continuity'))
+    assert.match(seenSystemPrompts.at(-1) ?? '', /Persisted thread context summary/)
+    assert.match(seenSystemPrompts.at(-1) ?? '', /knowledge#storyboard.rhythm.basic/)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('content unit storyboard proposal searches knowledge and creates a proposal draft', async () => {
+  const originalFetch = globalThis.fetch
+  try {
+    globalThis.fetch = (async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
+      if (isThreadTitleRequest(messages)) {
+        const userMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+        return new Response(JSON.stringify({ choices: [{ message: { content: userMsg.slice(0, 12) }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      const userMsg = [...messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+      const toolMessages = messages.filter((m) => m.role === 'tool')
+      const tools = (body.tools as Array<{ function: { name: string } }>) ?? []
+      const toolNames = new Set(tools.map((t) => t.function.name))
+      if (/内容单元分镜 proposal/.test(userMsg) && toolMessages.length === 0 && toolNames.has('movscript_search_knowledge')) {
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: 'call_search_storyboard_knowledge',
+                type: 'function',
+                function: { name: 'movscript_search_knowledge', arguments: JSON.stringify({ query: '内容单元 分镜 节奏', domain: 'storyboard', limit: 2 }) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (/内容单元分镜 proposal/.test(userMsg) && toolMessages.length === 1 && toolNames.has('movscript_get_knowledge')) {
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: 'call_get_storyboard_knowledge',
+                type: 'function',
+                function: { name: 'movscript_get_knowledge', arguments: JSON.stringify({ id: 'storyboard.rhythm.basic', maxChars: 120 }) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      if (/内容单元分镜 proposal/.test(userMsg) && toolMessages.length === 2 && toolNames.has('movscript_create_draft')) {
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: 'call_create_content_unit_proposal',
+                type: 'function',
+                function: {
+                  name: 'movscript_create_draft',
+                  arguments: JSON.stringify({
+                    proposal: true,
+                    kind: 'content_unit_proposal',
+                    title: '内容单元分镜 proposal',
+                    projectId: 42,
+                    productionId: 4,
+                    content: {
+                      schema: 'movscript.content_unit_proposal.v1',
+                      scope: 'content_unit_proposal',
+                      productionId: 4,
+                      proposal: {
+                        units: [{
+                          title: '雨夜开场推进',
+                          kind: 'shot',
+                          description: '用一个低机位跟拍把主角带入便利店门口。',
+                          shot: {
+                            shot_size: 'medium shot',
+                            camera_angle: 'low angle',
+                            camera_movement: 'slow tracking',
+                          },
+                          lighting: '雨棚冷光和店内暖光形成反差。',
+                        }],
+                      },
+                      summary: '基于 storyboard.rhythm.basic 创建内容单元分镜 proposal。',
+                    },
+                  }),
+                },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: '已创建内容单元分镜 proposal draft。', finish_reason: 'stop' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    const runtime = createTestRuntime({ mcpClient: client })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '请创建内容单元分镜 proposal 草稿' }] })
+    const run = await createAndWaitForRun(runtime, thread.id)
+    const draft = runtime.listDrafts({ projectId: 42, kind: 'content_unit_proposal' })[0]
+    const assistant = runtime.getThread(thread.id)?.messages.find((message) => message.id === run.assistantMessageId)
+
+    assert.equal(run.steps.some((step) => step.toolName === 'movscript_search_knowledge' && step.status === 'completed'), true)
+    assert.equal(run.steps.some((step) => step.toolName === 'movscript_get_knowledge' && step.status === 'completed'), true)
+    assert.equal(run.steps.some((step) => step.toolName === 'movscript_create_draft' && step.status === 'completed'), true)
+    assert.equal(draft?.kind, 'content_unit_proposal')
+    assert.match(draft?.content ?? '', /movscript\.content_unit_proposal\.v1/)
+    assert.equal((draft?.metadata as any)?.proposal, true)
+    assert.equal((draft?.target as any)?.entityType, 'production')
+    assert.equal((draft?.target as any)?.entityId, 4)
+    assert.match(assistant?.content ?? '', /通用知识建议：.*knowledge#storyboard\.rhythm\.basic/)
+    assert.match(assistant?.content ?? '', /本地草稿：draft#/)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 test('records backend model gateway HTTP request and response in run trace', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-trace-'))
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
@@ -1429,12 +1636,19 @@ test('records backend model gateway HTTP request and response in run trace', asy
     assert.equal(responseData.response.content, 'trace reply')
     assert.equal(typeof responseData.latencyMs, 'number')
     assertRunTraceEventTypes(runtime, run.id, [
+      'context.run_built',
       'profile.resolved',
       'trigger.evaluated',
       'prompt.composed',
     ])
+    const runBuiltEvent = findTraceEventByEventType(runtime, run.id, 'context.run_built')
+    assert.ok(Array.isArray((runBuiltEvent?.data as any)?.activeSkillIds))
+    assert.ok(Array.isArray((runBuiltEvent?.data as any)?.visibleToolNames))
     const promptEvent = findTraceEventByEventType(runtime, run.id, 'prompt.composed')
     const promptStats = promptEvent?.data?.promptStats as any
+    assert.equal(promptEvent?.data?.contextEventType, 'context.prompt_composed')
+    assert.equal(typeof promptEvent?.data?.messageCount, 'number')
+    assert.equal(typeof promptEvent?.data?.systemMessageCount, 'number')
     assert.equal(typeof promptStats?.totalChars, 'number')
     assert.ok(promptStats.byLayer.level0_core > 0)
     assert.ok(promptStats.byLayer.level1_context > 0)
@@ -1706,6 +1920,73 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
       }
     }), false)
     assert.match(assistant?.content ?? '', /status/)
+  } finally {
+    globalThis.fetch = originalFetch
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
+    rmSync(modelConfigDir, { recursive: true, force: true })
+  }
+})
+
+test('oversized tool results are summarized before the next model turn', async () => {
+  const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-tool-result-budget-'))
+  const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
+  const originalFetch = globalThis.fetch
+  const requests: Array<Record<string, unknown>> = []
+  let callCount = 0
+  try {
+    process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = join(modelConfigDir, 'model-config.json')
+    const { RuntimeModelConfigStore } = await import('../model/modelConfig.js')
+    new RuntimeModelConfigStore().save({ modelConfigId: 13, model: 'model_config:13' })
+
+    globalThis.fetch = (async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      const messages = (body.messages as Array<{ role: string; content: string | null }>) ?? []
+      if (isThreadTitleRequest(messages)) {
+        return new Response(JSON.stringify({ choices: [{ message: { content: '读取剧本' }, finish_reason: 'stop' }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      callCount += 1
+      requests.push(body)
+      if (callCount === 1) {
+        return new Response(JSON.stringify({
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [{
+                id: 'call_read_scripts',
+                type: 'function',
+                function: { name: 'movscript_read_project_scripts', arguments: JSON.stringify({ projectId: 42 }) },
+              }],
+            },
+            finish_reason: 'tool_calls',
+          }],
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'done', finish_reason: 'stop' } }] }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const client = new FakeMCPClient()
+    client.projectId = 42
+    client.toolResults.set('movscript_read_project_scripts', {
+      projectId: 42,
+      scripts: [{ id: 1, title: '长剧本', content: '雨夜便利店。'.repeat(1200) }],
+    })
+    const runtime = createTestRuntime({ mcpClient: client })
+    const thread = runtime.createThread({ messages: [{ role: 'user', content: '读取项目剧本' }] })
+    const run = await createAndWaitForRun(runtime, thread.id, {
+      agentManifest: {
+        ...DEFAULT_AGENT_MANIFEST,
+        metadata: { limits: { maxRetrievedContextChars: 1000 } },
+      },
+    })
+
+    const secondMessages = requests[1]?.messages as any[]
+    const toolMessage = secondMessages.find((message) => message?.role === 'tool' && message.tool_call_id === 'call_read_scripts')
+    assert.ok(toolMessage)
+    assert.equal(String(toolMessage.content).length <= 1000, true)
+    assert.match(String(toolMessage.content), /contextControl/)
+    assert.match(String(toolMessage.content), /omitted_text_body/)
+    assert.doesNotMatch(String(toolMessage.content), /雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。雨夜便利店。/)
+    assert.equal(runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER }).some((event) => (event.data as any)?.eventType === 'context.item_dropped'), true)
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -4386,6 +4667,8 @@ test('inspect agent catalog returns current snapshot summary and skill details',
   assert.equal(summary.profile.id, 'movscript.profile.default')
   assert.equal(summary.enabledPackIds.includes('movscript.pack.agent-core'), true)
   assert.equal(summary.toolNames.includes('movscript_inspect_agent_catalog'), true)
+  assert.equal(summary.counts.knowledge >= 1, true)
+  assert.equal(summary.knowledgeCollections.some((collection: any) => collection.id === 'movscript.knowledge.storyboard'), true)
 
   const skill = runtime.inspectAgentCatalog(run, {
     view: 'skill',
@@ -4401,6 +4684,15 @@ test('inspect agent catalog returns current snapshot summary and skill details',
     includeInstruction: true,
   }) as any
   assert.match(skillWithInstruction.skill.instructionTemplate, /catalog inspection/)
+
+  const knowledge = runtime.inspectAgentCatalog(run, {
+    view: 'knowledge',
+    id: 'movscript.knowledge.storyboard',
+  }) as any
+  assert.equal(knowledge.knowledge.id, 'movscript.knowledge.storyboard')
+  assert.equal(knowledge.knowledge.chunkIds.includes('storyboard.rhythm.basic'), true)
+  assert.equal(knowledge.knowledge.content, undefined)
+  assert.equal(knowledge.enabledByPack, true)
 })
 
 test('user conversation runs default to planner role with subagent scheduling tools', async () => {

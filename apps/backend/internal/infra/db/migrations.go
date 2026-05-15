@@ -179,6 +179,20 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(&persistencemodel.Project{})
 			},
 		},
+		{
+			Version: "000015",
+			Name:    "add_script_blocks",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.ScriptBlock{})
+			},
+		},
+		{
+			Version: "000016",
+			Name:    "link_story_and_content_to_script_blocks",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(&persistencemodel.Segment{}, &persistencemodel.ContentUnit{})
+			},
+		},
 	}
 	return core
 }
@@ -472,6 +486,7 @@ func allModels() []any {
 		&persistencemodel.ProjectMember{},
 		&persistencemodel.Script{},
 		&persistencemodel.ScriptVersion{},
+		&persistencemodel.ScriptBlock{},
 		&persistencemodel.Production{},
 		&persistencemodel.ProductionTextBlock{},
 		&persistencemodel.Segment{},

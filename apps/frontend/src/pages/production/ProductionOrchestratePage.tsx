@@ -1587,7 +1587,7 @@ function ProductionOrchestrationWorkspace({
             </div>
             <h1 className="mt-1 text-lg font-semibold text-foreground">制作编排树</h1>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-              这里只处理情绪段和情节展开；设定资料来自设定工作台，素材需求来自素材需求工作台，制作编排只能只读引用。
+              这里只确认情绪段、情节展开和上层预演画面；镜头级关键帧交给内容编排承接，设定资料和素材需求在这里只读引用。
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -2514,7 +2514,7 @@ function ProposalReviewPanel({
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">编排段 +{simulationResult.counts.segments_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">情景 +{simulationResult.counts.scene_moments_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">内容 +{simulationResult.counts.content_units_created}</span>
-            <span className="rounded bg-emerald-500/10 px-1.5 py-1">关键帧 +{simulationResult.counts.keyframes_created}</span>
+            <span className="rounded bg-emerald-500/10 px-1.5 py-1">画面锚点 +{simulationResult.counts.keyframes_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">设定资料 +{simulationResult.counts.creative_references_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">素材需求 +{simulationResult.counts.asset_slots_created}</span>
             <span className="rounded bg-emerald-500/10 px-1.5 py-1">引用 +{simulationResult.counts.creative_reference_usages}</span>
@@ -2531,7 +2531,7 @@ function ProposalReviewPanel({
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回编排段 {simulationResult.backendPreview.returned.segments}</span>
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回情景 {simulationResult.backendPreview.returned.sceneMoments}</span>
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回内容 {simulationResult.backendPreview.returned.contentUnits}</span>
-              <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回关键帧 {simulationResult.backendPreview.returned.keyframes}</span>
+              <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回画面锚点 {simulationResult.backendPreview.returned.keyframes}</span>
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">返回素材 {simulationResult.backendPreview.returned.assetSlots}</span>
               <span className="rounded bg-muted px-1.5 py-1 text-foreground">新设定 {simulationResult.backendPreview.returned.creativeReferences}</span>
             </div>
@@ -3164,7 +3164,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
           children.push({
             key: keyframeKey,
             acceptKeys: [segmentKey, momentKey, unitKey, keyframeKey],
-            title: keyframe.title || `关键帧 ${keyframeIndex + 1}`,
+            title: keyframe.title || `镜头关键帧 ${keyframeIndex + 1}`,
             detail: compactParts([keyframe.description, keyframe.prompt]),
             action: keyframe.action,
             kind: 'content',
@@ -3178,7 +3178,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
         children.push({
           key: keyframeKey,
           acceptKeys: [segmentKey, momentKey, keyframeKey],
-          title: keyframe.title || `关键帧 ${keyframeIndex + 1}`,
+          title: keyframe.title || `情节预演画面 ${keyframeIndex + 1}`,
           detail: compactParts([keyframe.description, keyframe.prompt]),
           action: keyframe.action,
           kind: 'content',
@@ -3455,7 +3455,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
           const keyframeBlocked = keyframeDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted' || unitDecision !== 'accepted')
           pushByDecision({
             key: keyframeKey,
-            title: keyframe.title || `关键帧 ${keyframeIndex + 1}`,
+            title: keyframe.title || `镜头关键帧 ${keyframeIndex + 1}`,
             detail: compactParts([keyframe.description, keyframe.prompt]),
             kind: 'keyframe',
             action: keyframe.action,
@@ -3470,7 +3470,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
         const keyframeBlocked = keyframeDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted')
         pushByDecision({
           key: keyframeKey,
-          title: keyframe.title || `关键帧 ${keyframeIndex + 1}`,
+          title: keyframe.title || `情节预演画面 ${keyframeIndex + 1}`,
           detail: compactParts([keyframe.description, keyframe.prompt]),
           kind: 'keyframe',
           action: keyframe.action,
@@ -3750,7 +3750,7 @@ function proposalApplyPreviewKindLabel(kind: ProposalApplyPreviewItem['kind']) {
   if (kind === 'segment') return '编排段'
   if (kind === 'scene_moment') return '情景'
   if (kind === 'content_unit') return '内容'
-  if (kind === 'keyframe') return '关键帧'
+  if (kind === 'keyframe') return '画面锚点'
   if (kind === 'creative_reference') return '设定'
   return '素材'
 }
@@ -3770,7 +3770,7 @@ function productionPreviewChangeKindLabel(kind: string) {
   if (kind === 'segment') return '编排段'
   if (kind === 'scene_moment') return '情景'
   if (kind === 'content_unit') return '内容'
-  if (kind === 'keyframe') return '关键帧'
+  if (kind === 'keyframe') return '画面锚点'
   if (kind === 'creative_reference') return '设定'
   if (kind === 'asset_slot') return '素材'
   return kind
@@ -4148,12 +4148,12 @@ function findProposalActionMissingId(proposal: { segments: ProposalSegmentNode[]
         const unitProblem = checkNode(unit.title ?? unit.client_id ?? '内容单元', unit.action, unit.id)
         if (unitProblem) return unitProblem
         for (const keyframe of unit.keyframes ?? []) {
-          const keyframeProblem = checkNode(keyframe.title ?? keyframe.client_id ?? '关键帧', keyframe.action, keyframe.id)
+          const keyframeProblem = checkNode(keyframe.title ?? keyframe.client_id ?? '画面锚点', keyframe.action, keyframe.id)
           if (keyframeProblem) return keyframeProblem
         }
       }
       for (const keyframe of moment.keyframes ?? []) {
-        const keyframeProblem = checkNode(keyframe.title ?? keyframe.client_id ?? '关键帧', keyframe.action, keyframe.id)
+        const keyframeProblem = checkNode(keyframe.title ?? keyframe.client_id ?? '画面锚点', keyframe.action, keyframe.id)
         if (keyframeProblem) return keyframeProblem
       }
       for (const reference of moment.creative_references ?? []) {

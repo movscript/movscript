@@ -48,6 +48,7 @@ type (
 	Project                = persistencemodel.Project
 	Script                 = persistencemodel.Script
 	ScriptVersion          = persistencemodel.ScriptVersion
+	ScriptBlock            = persistencemodel.ScriptBlock
 	Production             = persistencemodel.Production
 	ProductionTextBlock    = persistencemodel.ProductionTextBlock
 	CreativeReference      = persistencemodel.CreativeReference

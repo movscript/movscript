@@ -49,11 +49,61 @@ func (h *SemanticEntityHandler) PatchScriptVersion(c *gin.Context) {
 	}
 	item, err := h.semantic.PatchScriptVersion(c.Request.Context(), parseID(c.Param("id")), c.Param("versionId"), req)
 	if err != nil {
-		if errors.Is(err, semanticapp.ErrNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("对象不存在"))
-			return
-		}
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, item)
+}
+
+func (h *SemanticEntityHandler) ListScriptVersionLines(c *gin.Context) {
+	items, err := h.semantic.ListScriptVersionLines(c.Request.Context(), parseID(c.Param("id")), c.Param("versionId"))
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *SemanticEntityHandler) ListScriptBlocks(c *gin.Context) {
+	items, err := h.semantic.ListScriptBlocks(c.Request.Context(), semanticapp.ScriptBlockFilter{
+		ProjectID:       parseID(c.Param("id")),
+		ScriptID:        parseID(c.Query("script_id")),
+		ScriptVersionID: parseID(c.Query("script_version_id")),
+		ParentBlockID:   parseID(c.Query("parent_block_id")),
+		Kind:            c.Query("kind"),
+		Status:          c.Query("status"),
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, items)
+}
+
+func (h *SemanticEntityHandler) CreateScriptBlock(c *gin.Context) {
+	projectID := parseID(c.Param("id"))
+	var req semanticapp.CreateScriptBlockInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	item, err := h.semantic.CreateScriptBlock(c.Request.Context(), projectID, req)
+	if err != nil {
+		h.writeSemanticAppError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, item)
+}
+
+func (h *SemanticEntityHandler) PatchScriptBlock(c *gin.Context) {
+	var req semanticapp.PatchScriptBlockInput
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		return
+	}
+	item, err := h.semantic.PatchScriptBlock(c.Request.Context(), parseID(c.Param("id")), c.Param("blockId"), req)
+	if err != nil {
+		h.writeSemanticAppError(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, item)

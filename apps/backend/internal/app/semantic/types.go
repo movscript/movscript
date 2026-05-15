@@ -40,6 +40,52 @@ type PatchScriptVersionInput struct {
 	Status          string `json:"status"`
 }
 
+type ScriptVersionLine struct {
+	LineNumber int    `json:"line_number"`
+	Content    string `json:"content"`
+	StartChar  int    `json:"start_char"`
+	EndChar    int    `json:"end_char"`
+}
+
+type ScriptBlockFilter struct {
+	ProjectID       uint
+	ScriptID        uint
+	ScriptVersionID uint
+	ParentBlockID   uint
+	Kind            string
+	Status          string
+}
+
+type CreateScriptBlockInput struct {
+	ScriptID        uint   `json:"script_id" binding:"required"`
+	ScriptVersionID uint   `json:"script_version_id" binding:"required"`
+	ParentBlockID   *uint  `json:"parent_block_id"`
+	Order           int    `json:"order"`
+	Kind            string `json:"kind"`
+	Speaker         string `json:"speaker"`
+	Content         string `json:"content"`
+	StartLine       int    `json:"start_line"`
+	EndLine         int    `json:"end_line"`
+	StartChar       int    `json:"start_char"`
+	EndChar         int    `json:"end_char"`
+	Status          string `json:"status"`
+	MetadataJSON    string `json:"metadata_json"`
+}
+
+type PatchScriptBlockInput struct {
+	ParentBlockID *uint  `json:"parent_block_id"`
+	Order         int    `json:"order"`
+	Kind          string `json:"kind"`
+	Speaker       string `json:"speaker"`
+	Content       string `json:"content"`
+	StartLine     int    `json:"start_line"`
+	EndLine       int    `json:"end_line"`
+	StartChar     int    `json:"start_char"`
+	EndChar       int    `json:"end_char"`
+	Status        string `json:"status"`
+	MetadataJSON  string `json:"metadata_json"`
+}
+
 type SegmentFilter struct {
 	ProjectID    uint
 	ProductionID uint
@@ -50,6 +96,7 @@ type SegmentFilter struct {
 type CreateSegmentInput struct {
 	ProductionID    *uint  `json:"production_id"`
 	TextBlockID     *uint  `json:"text_block_id"`
+	ScriptBlockID   *uint  `json:"script_block_id"`
 	ParentSegmentID *uint  `json:"parent_segment_id"`
 	Kind            string `json:"kind"`
 	Order           int    `json:"order"`
@@ -63,6 +110,7 @@ type CreateSegmentInput struct {
 type PatchSegmentInput struct {
 	ProductionID    *uint  `json:"production_id"`
 	TextBlockID     *uint  `json:"text_block_id"`
+	ScriptBlockID   *uint  `json:"script_block_id"`
 	ParentSegmentID *uint  `json:"parent_segment_id"`
 	Kind            string `json:"kind"`
 	Order           int    `json:"order"`
@@ -167,6 +215,7 @@ type ContentUnitInput struct {
 	ProductionID     *uint   `json:"production_id"`
 	SegmentID        *uint   `json:"segment_id"`
 	SceneMomentID    *uint   `json:"scene_moment_id"`
+	ScriptBlockID    *uint   `json:"script_block_id"`
 	Kind             string  `json:"kind"`
 	Order            int     `json:"order"`
 	Title            string  `json:"title"`

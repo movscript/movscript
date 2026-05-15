@@ -56,7 +56,7 @@ func (s *Service) ListContentUnits(ctx context.Context, filter ContentUnitFilter
 }
 
 func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
-	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID); err != nil {
+	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID); err != nil {
 		return domainsemantic.ContentUnit{}, err
 	}
 	item := contentUnitFromInput(projectID, input)
@@ -68,7 +68,7 @@ func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id strin
 	if err != nil {
 		return item, err
 	}
-	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID); err != nil {
+	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID); err != nil {
 		return item, err
 	}
 	return s.repo.PatchContentUnit(ctx, item, contentUnitPatch(input))
@@ -207,6 +207,7 @@ func contentUnitFromInput(projectID uint, input ContentUnitInput) domainsemantic
 		ProductionID:     input.ProductionID,
 		SegmentID:        input.SegmentID,
 		SceneMomentID:    input.SceneMomentID,
+		ScriptBlockID:    input.ScriptBlockID,
 		Kind:             input.Kind,
 		Order:            input.Order,
 		Title:            input.Title,
@@ -237,6 +238,7 @@ func contentUnitPatch(input ContentUnitInput) domainsemantic.ContentUnitPatch {
 		ProductionID:     input.ProductionID,
 		SegmentID:        input.SegmentID,
 		SceneMomentID:    input.SceneMomentID,
+		ScriptBlockID:    input.ScriptBlockID,
 		Kind:             input.Kind,
 		Order:            input.Order,
 		Title:            input.Title,

@@ -259,10 +259,14 @@ function isToolVisibleForActiveBehavior(name: string, activeSkills: ResolvedAgen
   for (const skill of activeSkills) {
     if (skill.metadata?.kind !== 'workflow' && skill.category !== 'workflow') continue
     if (skill.metadata?.toolScope === 'union') return true
-    for (const hint of skill.toolHints ?? []) activeToolHints.add(publicToolName(hint))
+    for (const hint of skill.toolHints ?? []) activeToolHints.add(publicToolName(normalizeToolRef(hint)))
   }
   if (activeToolHints.size === 0) return false
   return activeToolHints.has(name)
+}
+
+function normalizeToolRef(value: string): string {
+  return value.startsWith('tool://') ? value.slice('tool://'.length) : value
 }
 
 function findManifestToolGrant(manifest: AgentManifest, toolName: string) {

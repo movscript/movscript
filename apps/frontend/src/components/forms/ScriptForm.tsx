@@ -111,7 +111,7 @@ export function ScriptForm({ draft, onChange, onSave, isSaving, onCreateVersion,
           <div className="rounded-lg border border-border bg-muted/40 p-3">
             <p className="text-xs leading-relaxed text-muted-foreground">
               <strong className="font-medium text-foreground">保存</strong> — 更新剧本正文草稿。<br />
-              <strong className="font-medium text-foreground">保存为版本</strong> — 基于当前正文创建快照，可在「版本管理」中激活用于制作。
+              <strong className="font-medium text-foreground">保存为版本</strong> — 基于当前正文创建锁定快照，可直接用于制作。
             </p>
           </div>
         </aside>
