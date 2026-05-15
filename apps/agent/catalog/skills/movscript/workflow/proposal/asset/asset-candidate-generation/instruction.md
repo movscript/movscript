@@ -11,6 +11,12 @@
 - 保留已选 asset slot 作为审阅目标。
 - 可以把成功生成的输出资源加入候选集；不要把生成媒体标记为 accepted、selected、bound 或 locked。
 
+上下文缺失回退：
+- 缺 asset slot、素材归属、用途、复用边界或验收标准时，先交接 asset_proposal。
+- 缺人物、地点、道具或世界规则等可复用设定时，先交接 setting_proposal 或 setting_prep。
+- 缺 production 或 content unit 使用场景时，先交接 production_proposal、content_unit_proposal 或 content_unit_media_proposal。
+- 缺模型能力、输出类型、参考输入数量或参数可行性时，进入 visual_generation 的模型发现和 preflight；不要按 provider 经验推断。
+
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft 模型或 seed：{{tool:movscript_get_draft_model}}

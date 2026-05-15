@@ -10,6 +10,12 @@
 - 不创建正式 creative reference。
 - 不直接修改 project proposal；如果需要落地为可审阅设定变更，交接到 setting_proposal workflow。素材需求归属变更交接到 asset_proposal。
 
+上下文缺失回退：
+- 缺项目级制作标准时，交接 project_proposal。
+- 需要正式新增、合并、重命名或退休设定时，交接 setting_proposal。
+- 需要把设定转成素材需求、asset slot 或候选制作计划时，交接 asset_proposal。
+- 需要把设定用于具体 production、scene moment 或 content unit 时，交接 production_proposal 或 content_unit_proposal。
+
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}

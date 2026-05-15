@@ -23,6 +23,11 @@
 - 关键帧或媒体计划 -> content_unit_media_proposal。
 - 真实生成图片/视频 -> visual_generation。
 
+上游优先级：
+- 同一请求跨多个层级时，先处理最上游且会阻塞下游判断的缺口：project standards -> settings -> asset slots -> production structure -> content units -> media plan -> generation。
+- 如果用户直接要求下游结果但缺上游上下文，只创建或推荐上游 proposal draft，不在本 workflow 中补完整内容。
+- 如果上下文已足够且用户目标明确，交接对应 workflow，而不是创建额外泛用 draft。
+
 流程：
 1. 读取 focus，并检查相关已有 drafts。
 2. 判断用户请求属于哪一层；如果跨层，先选择最上游缺口对应的 proposal。

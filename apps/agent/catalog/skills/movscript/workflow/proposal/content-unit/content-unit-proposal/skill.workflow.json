@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Content Unit Proposal",
-  "description": "以本地审阅 draft 形式起草内容单元结构、情绪推进、钩子和节拍 proposal。",
+  "description": "以本地审阅 draft 形式起草内容单元结构、剧情推进、情绪推进、钩子和节拍 proposal。",
   "priority": 830,
   "enabled": true,
   "triggers": [

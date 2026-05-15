@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Visual Generation",
-  "description": "创建图片或视频生成任务，并监控结果。",
+  "description": "在生成目标、参考资源、模型能力和审批边界明确后，创建图片或视频生成任务并监控结果。",
   "priority": 780,
   "enabled": true,
   "triggers": [

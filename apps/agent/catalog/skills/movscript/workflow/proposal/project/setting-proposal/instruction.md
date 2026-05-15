@@ -15,6 +15,13 @@ Draft schema：{{schema:movscript.setting_proposal.v1.id}}
 - 不写候选图方案、prompt、模型参数或生成任务；素材候选计划使用 asset_proposal，真实生成使用 visual_generation。
 - 不写 production segments、scene moments 或 content units。
 
+上下文缺失回退：
+- 缺项目级画幅、镜头体系、摄影语言、视觉风格或负面约束时，交接 project_proposal。
+- 设定目标不清或只需要最小事实澄清时，交接 setting_prep 或询问用户。
+- 设定已经明确但缺素材需求、asset slot、用途、归属或复用边界时，交接 asset_proposal。
+- 用户要求根据设定直接生成候选图片/视频时，先确认 asset slot；缺 slot 交接 asset_proposal，已有 slot 交接 asset_candidate_generation 或 visual_generation。
+- 缺 production 使用场景、剧情节拍或情绪钩子时，交接 production_proposal 或 content_unit_proposal。
+
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft 模型：{{tool:movscript_get_draft_model}}

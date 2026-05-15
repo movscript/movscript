@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Asset Candidate Generation",
-  "description": "为已选 asset slot 创建并监控可审阅的图片或视频候选，并在成功后加入候选集。",
+  "description": "在 asset slot、设定和验收标准明确后，创建并监控可审阅的图片或视频候选，并在成功后加入候选集。",
   "priority": 770,
   "enabled": true,
   "triggers": [

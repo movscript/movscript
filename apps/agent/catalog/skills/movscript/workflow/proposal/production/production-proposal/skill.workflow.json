@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Production Proposal",
-  "description": "以本地审阅 patches 的形式起草 production 层 segment、scene-moment 和 production-ready gap proposals。",
+  "description": "以本地审阅 patches 的形式起草 production 层 segment、scene-moment 和 production-ready gap proposals，并把缺失 project 设定或素材槽回退到上游 proposal。",
   "priority": 860,
   "enabled": true,
   "triggers": [
@@ -34,6 +34,6 @@
   "schemaRefs": [
     "schema://movscript.production_proposal.v1"
   ],
-  "outputContract": "回复 draftId、projectId、productionId、draft status、最近一次 preview_apply 的 ok/stage，以及 segments 和 scene moments 数量。",
+  "outputContract": "回复 draftId、projectId、productionId、draft status、最近一次 preview_apply 的 ok/stage、segments/scene moments 数量和未解决上游缺口。",
   "instructionTemplatePath": "instruction.md"
 }

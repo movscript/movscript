@@ -363,7 +363,7 @@ function summarizeResourceRoots(ids: string[], pathsById: Record<string, string>
 function resourceRoot(filePath: string, rootDir: string): string | undefined {
   const rel = relative(rootDir, dirname(filePath))
   if (!rel || rel.startsWith('..')) return undefined
-  const parts = rel.split('/').filter(Boolean)
+  const parts = rel.split(/[\\/]+/).filter(Boolean)
   return parts.slice(0, 2).join('/') || '.'
 }
 

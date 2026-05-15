@@ -23,6 +23,13 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 - 缺少可选素材或资源时，可以在 production draft 中记录 unresolved requirements / production-ready gaps；缺少“必须引用”的 project 层设定资料时先创建或更新 setting_proposal draft，缺少 project 层素材需求时先创建或更新 asset_proposal draft。
 - 每个新增或更新的 scene_moment 都必须在节点内写入可追溯上下文：优先用 `creative_references: [{ action: "reuse", id, role }]` 绑定已有 project 设定；需要 production-local 素材需求时写入 `asset_slots`。只在最终回复里说“已检查到对象存在”不算绑定。
 
+上下文缺失回退：
+- 缺项目级制作标准时，先交接 project_proposal。
+- 缺必须引用的人物、地点、道具、世界规则或 creative reference 时，先交接 setting_proposal。
+- 缺必须引用的素材需求、asset slot、归属或复用边界时，先交接 asset_proposal。
+- 缺具体内容单元、镜头节拍、旁白、字幕、转场、音乐节拍、情绪推进或钩子时，交接 content_unit_proposal。
+- 缺关键帧、媒体计划或生成约束时，交接 content_unit_media_proposal；真实生成交接 visual_generation。
+
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft 模型：{{tool:movscript_get_draft_model}}

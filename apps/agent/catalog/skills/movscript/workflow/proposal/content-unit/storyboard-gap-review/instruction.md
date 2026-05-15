@@ -10,6 +10,13 @@
 - 不编造缺失媒体，不把计划中的 keyframe 当成已生成结果。
 - 缺口必须指向具体 content unit、scene beat、asset slot 或 keyframe target。
 
+上下文缺失回退：
+- 发现 project 级标准缺失时，建议 project_proposal。
+- 发现角色、地点、道具、世界规则或 creative reference 缺失时，建议 setting_proposal。
+- 发现素材需求、asset slot、候选计划或验收标准缺失时，建议 asset_proposal。
+- 发现 production 结构、scene moment 或 content unit 缺失时，建议 production_proposal 或 content_unit_proposal。
+- 发现关键帧、媒体计划或生成参数缺失时，建议 content_unit_media_proposal 或 visual_generation。
+
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}}

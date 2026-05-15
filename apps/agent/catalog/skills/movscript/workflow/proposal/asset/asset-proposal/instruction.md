@@ -21,6 +21,13 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 - 不创建或修改 project 层 creative reference；设定资料使用 setting_proposal。
 - 不把候选计划说成已生成、已选中、已绑定或已锁定的素材。
 
+上下文缺失回退：
+- 缺项目级制作标准，导致素材需求无法判断画幅、风格、镜头语言或负面约束时，交接 project_proposal。
+- 缺人物、地点、道具、世界规则或 creative reference，导致素材归属不清时，交接 setting_proposal 或 setting_prep。
+- 缺 production 目标、scene moment 或使用场景，导致素材用途不清时，交接 production_proposal。
+- 缺剧情节拍、情绪推进、钩子或 content unit 目标，导致候选方向不清时，交接 content_unit_proposal。
+- 缺真实生成参数但素材候选目标已明确时，补齐 candidate plan 后交接 visual_generation；用户明确要生成时，不停留在文字 proposal。
+
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - 设定/素材查询：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}} {{tool:movscript_query_production_context}}

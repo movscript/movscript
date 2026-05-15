@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Proposal First",
-  "description": "在正式写入前，把宽泛或跨层变更请求路由到最小必要的本地 proposal draft。",
+  "description": "在正式写入前，把宽泛、跨层或缺上游上下文的请求路由到最小必要的本地 proposal draft。",
   "priority": 700,
   "enabled": true,
   "triggers": [

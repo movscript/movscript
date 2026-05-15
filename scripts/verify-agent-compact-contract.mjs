@@ -1,7 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const root = path.resolve(new URL('..', import.meta.url).pathname)
+const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
 const schemaPath = path.join(root, 'docs/agent-compact-contract-v1.schema.json')
 const fixturePath = path.join(root, 'docs/agent-compact-contract-v1.fixture.json')
 const auditSchemaPath = path.join(root, 'docs/agent-param-validation-audit-v1.schema.json')

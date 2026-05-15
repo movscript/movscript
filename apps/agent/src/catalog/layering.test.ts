@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { DRAFT_SCHEMA_REGISTRY, getActiveSchemaForKind, getDraftSchemaEntry, listSchemasByKind } from '@movscript/draft-schemas'
 import { buildLayeredCatalogRegistry } from './registry.js'
 import { lintCatalog } from './linter.js'
@@ -15,7 +16,7 @@ import { resolveToolCatalog } from '../tools/capabilityResolver.js'
 import { resolveVisibleTools } from '../tools/toolCatalogResolver.js'
 
 const CATALOG_SKILLS_DIR = new URL('../../catalog/skills/', import.meta.url)
-const REPO_ROOT = resolve(new URL('../../../../', import.meta.url).pathname)
+const REPO_ROOT = resolve(fileURLToPath(new URL('../../../../', import.meta.url)))
 
 function schemaProperties(value: unknown): Record<string, unknown> {
   return isRecord(value) && isRecord(value.properties) ? value.properties : {}

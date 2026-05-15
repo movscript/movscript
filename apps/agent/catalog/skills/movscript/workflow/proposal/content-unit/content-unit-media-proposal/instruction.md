@@ -14,6 +14,12 @@ Draft schema：{{schema:movscript.content_unit_media_proposal.v1.id}}
 - 不创建 generation job，不接受或锁定媒体，不修改 content unit 结构。
 - 如果缺少 content unit，应先交接到 content_unit_proposal，而不是凭空创建媒体计划。
 
+上下文缺失回退：
+- 缺 production、scene moment 或 content unit 目标时，先交接 production_proposal 或 content_unit_proposal。
+- 缺人物、地点、道具、世界规则或 reference 约束时，先交接 setting_proposal。
+- 缺 asset slot、素材用途、复用边界或候选验收标准时，先交接 asset_proposal。
+- 缺真实生成所需的模型能力、参考输入、画幅比例、时长或参数时，交接 visual_generation 做模型发现和 preflight。
+
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - 内容和素材上下文：{{tool:movscript_query_production_context}} {{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}}

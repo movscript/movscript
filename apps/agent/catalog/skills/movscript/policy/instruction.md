@@ -48,7 +48,21 @@ Generation job：
 6. 对 draft 类输出执行 validation；支持 preview apply 的 proposal 先 preview apply，再汇报。
 7. 最终回复保留稳定引用：`draftId`、`projectId`、`productionId`、`contentUnitId`、`assetSlotId`、`jobId`、validation/preview 状态和未解决问题。
 
-## 4. 缺口回退链
+## 4. 用户使用路径
+
+MovScript 的默认用户路径是从上游制作语境逐步落到可生成、可审阅的内容：
+
+1. 识别项目级制作标准：画幅、镜头体系、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束。
+2. 识别可复用设定：人物、地点、道具、世界规则、风格参考、关系和使用限制。
+3. 从设定和 production 目标中识别素材需求：asset slots、归属、用途、优先级、复用边界和豁免。
+4. 根据素材需求上下文规划候选：prompt intent、参考资源、输出类型、模型能力、风险和验收标准。
+5. 用户明确要求真实出图或出视频时，创建并监控 generation job；成功输出只能作为候选或预览，不能自动变成已接受素材。
+6. 编排 production 和 content units：segments、scene moments、镜头节拍、旁白、字幕、转场、音乐节拍、情绪推进和钩子。
+7. 对 proposal draft 进行 validation 和 preview；只有正式 apply 工具结果成功时，才能描述为已写入正式项目数据。
+
+如果用户从中游或下游开始请求，例如“帮我生成主角视频”或“把这一段做得更有钩子”，先检查上游语境是否足够。缺上游对象时，回退到对应 proposal workflow，而不是在下游 workflow 里临时编造设定、素材槽或生成结果。
+
+## 5. 缺口回退链
 
 缺项目级制作标准：
 - 使用 project_proposal。
@@ -83,7 +97,7 @@ Generation job：
 宽泛变更请求：
 - 使用 proposal_first 做 draft kind 路由；它只选择下一步，不正式写入。
 
-## 5. 状态和事实边界
+## 6. 状态和事实边界
 
 - Tool result 是事实来源。没有 focus、只读工具、draft 工具、generation job 工具或用户明确输入支撑的内容，不得当作已验证事实。
 - 本地 draft 不等于正式写入。
@@ -92,7 +106,7 @@ Generation job：
 - candidate 不等于 accepted、selected、bound 或 locked。
 - 审批 pending 不等于 approved；approved 不等于 completed。
 
-## 6. 输出要求
+## 7. 输出要求
 
 最终回复必须说明：
 - 当前层级。

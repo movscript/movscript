@@ -3,7 +3,7 @@
   "kind": "policy",
   "version": "1.0.0",
   "name": "MovScript Policy",
-  "description": "定义 MovScript 对象层级、workflow 路由、上下文缺口回退链和状态事实边界。",
+  "description": "定义 MovScript 对象层级、用户使用路径、workflow 路由、上下文缺口回退链和状态事实边界。",
   "priority": 850,
   "enabled": true,
   "scope": "global",

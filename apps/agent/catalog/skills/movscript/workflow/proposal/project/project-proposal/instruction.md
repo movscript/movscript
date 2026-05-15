@@ -23,6 +23,13 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 - 不写 production segments、scene moments、content units、生成任务或已生成资源绑定。
 - 当前 project_proposal 是本地审阅规范；除非 runtime draft model contract 或工具结果明确给出正式 apply target，不要声称已正式写入后端。
 
+上下文缺失回退：
+- 缺人物、地点、道具、世界规则、关系或 creative reference 时，交接 setting_proposal。
+- 缺素材需求、asset slot、归属、用途、复用边界或豁免时，交接 asset_proposal。
+- 缺 production 结构、segments 或 scene moments 时，交接 production_proposal。
+- 缺剧情、情绪推进、钩子或内容单元结构时，交接 content_unit_proposal。
+- 缺候选图/视频方向、prompt、参考资源或验收标准时，交接 asset_proposal；用户明确要求真实生成时交接 visual_generation。
+
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
 - Draft 模型：{{tool:movscript_get_draft_model}}
