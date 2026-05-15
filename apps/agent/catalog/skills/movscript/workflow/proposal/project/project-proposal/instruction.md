@@ -1,11 +1,12 @@
-目标：产出或编辑一个本地 project_proposal draft，作为项目级制作规范的可审阅提案。它定义镜头大小体系、画幅、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束；不要写入最终项目实体。
+目标：
+产出或编辑一个本地 project_proposal draft，作为项目级制作规范的可审阅提案。它只定义镜头大小体系、画幅、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束；不要写入最终项目实体。
 
 Draft schema：{{schema:movscript.project_proposal.v1.id}}
 
 {{schema:movscript.project_proposal.v1}}
 
 模型契约：
-- 字段含义、seed 策略、review route 和 apply 边界应以 frontend DraftDomainModel 为唯一来源。
+- 字段含义、seed 策略、review route 和 apply 边界应以 runtime draft model contract 为准。
 - 当前运行环境若提供 draft model MCP 工具，创建或编辑 draft 前必须先读取该模型契约。
 - 如果 draft model MCP 工具尚不可用，临时使用上方 schema 和当前 focus；不要把本 skill 中的字段描述当成长期唯一字段源。
 
@@ -20,7 +21,7 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 - 素材需求创建/归属/复用/豁免使用 asset_proposal。
 - 素材候选图方向、prompt、参考资源、模型参数、风险和验收标准使用 asset_proposal。
 - 不写 production segments、scene moments、content units、生成任务或已生成资源绑定。
-- 当前 project_proposal 是本地审阅规范；除非 DraftDomainModel/工具结果明确给出正式 apply target，不要声称已正式写入后端。
+- 当前 project_proposal 是本地审阅规范；除非 runtime draft model contract 或工具结果明确给出正式 apply target，不要声称已正式写入后端。
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
@@ -50,7 +51,7 @@ Draft schema：{{schema:movscript.project_proposal.v1.id}}
 - 如果用户要求“需要哪些素材”“素材需求归属”“素材复用边界”，切换到 asset_proposal。
 - 如果用户要求“候选图方案”“prompt”“出图方向”，切换到 asset_proposal。
 
-输出：
+输出合同：
 回复 draftId、projectId、draft status、validation 状态、项目规范摘要和未解决的镜头/风格决策。
 
 绝不：

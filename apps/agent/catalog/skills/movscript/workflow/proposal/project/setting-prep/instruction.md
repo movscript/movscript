@@ -25,7 +25,7 @@
 - 只把 focus 或用户明确输入中的设定当作已存在。
 - 建议必须能映射到 project 层 creative references；素材需求建议只能作为 asset_proposal 的交接项。
 
-输出：
+输出合同：
 返回改进建议、缺失事实、建议落入的 proposal 字段，以及是否需要 setting_proposal 或 asset_proposal draft。
 
 绝不：

@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Setting Prep",
-  "description": "准备或改进一个已选 creative reference。",
+  "description": "识别或补齐已选 creative reference 达到 production-ready 所需的最小设定事实。",
   "priority": 760,
   "enabled": true,
   "triggers": [
@@ -25,6 +25,6 @@
     "tool://movscript_request_user_input"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回改进建议、缺失数据点，以及下一步是否需要 proposal draft。",
+  "outputContract": "返回改进建议、缺失事实、建议落入的 proposal 字段，以及下一步是否需要 setting_proposal 或 asset_proposal draft。",
   "instructionTemplatePath": "instruction.md"
 }

@@ -1,62 +1,106 @@
-## 1. MovScript 核心概念
+## 1. 目标
 
-MovScript 的工作对象按层级收敛：Project、Production、script 或 creative material、segment 或 scene beat、content unit、asset need、keyframe、review draft、delivery review。每次回复都要说明当前正在修改或审阅哪一层。
+这条 policy 是 MovScript 业务总控层。它负责定义对象层级、workflow 路由、上下文缺口回退和状态边界。具体执行步骤由对应 workflow instruction 负责。
 
-Project 是项目级制作规范、设定资料和素材需求锚点的归属层。项目级制作规范包括镜头大小体系、画幅、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束。设定资料和素材需求分别由独立 proposal 维护，素材候选图方案、prompt 组、模型参数或生成任务不属于 Project 层规范。
+## 2. 核心对象层级
 
-Production 是一次具体制作的编排层。Production 层可以维护 segments、scene moments、content unit 组织、引用使用状态和未解决的 production-ready 缺口。
+MovScript 的工作对象按层级收敛：
 
-Content unit 是可审阅的表达单元。它描述镜头、旁白、字幕、转场、音乐节拍、画面意图、prompt intent 或关键帧需求，但不等于已经生成或已经锁定的媒体。
+`Project -> Production -> segment/scene moment -> content unit -> media/keyframe -> asset candidate/generation job -> review draft/apply`
 
-Asset need / asset slot 是可复用素材的需求锚点，说明“需要什么素材”和归属/用途/复用边界。素材候选计划、参考约束、验收标准和生成风险属于 asset proposal；生成结果只有在工具结果证明存在时才可被报告。
+每轮回复都要说明当前正在修改、审阅或建议的是哪一层。
 
-Draft 是本地可审阅方案，不是正式项目数据。Proposal 是带 schema 的 draft，用于表达某一层可审阅的变更或生成计划。Agent 可以创建和修改 draft，但不能把 draft 说成已正式写入。
+Project：
+- 归属项目级制作标准、可复用设定和素材需求锚点。
+- 项目级制作标准包括镜头大小体系、画幅、摄影语言、视觉风格、灯光色彩、节奏规则和负面约束。
+- 可复用设定由 setting_proposal 维护。
+- 素材需求和 asset slots 由 asset_proposal 维护。
 
-Tool result 是事实来源。没有通过 focus、窄读取工具、draft 工具或 generation job 工具得到的事实，不要当作已验证状态。
+Production：
+- 归属一次具体制作的 segments、scene moments、引用使用、content-unit 组织提示和 production-local unresolved requirements。
+- Production 可以引用 project 层对象，但不在本层定义新的 project 级人物、地点或 asset slot。
 
-## 2. MovScript 通用工作流程
+Content unit：
+- 是可审阅表达单元，描述镜头、旁白、字幕、转场、音乐节拍、画面意图、prompt intent、情绪推进或钩子。
+- Content unit 不等于已生成媒体，也不等于已锁定关键帧。
 
-每轮任务按以下顺序执行：
+Asset need / asset slot：
+- 是可复用素材需求锚点，说明需要什么素材、归属、用途、优先级和复用边界。
+- 候选 prompt、参考约束、模型能力、风险和验收标准属于 asset proposal 或 asset candidate generation。
 
-1. 先确认 focus：当前 route、project、production、selected entity、user intent 和必要执行锚点。
-2. 判断用户请求属于哪个层级和哪类工作需求；只激活最少必要 workflow。
-3. 只读取完成任务所需的窄上下文，例如项目剧本、已有 drafts、memory、generation jobs 或模型 contracts。
-4. 产出或修改本地 draft / proposal，或执行允许的只读审阅、状态总结、生成任务创建。
-5. 对 draft 类输出先 validate；支持 preview apply 的 proposal 先 preview apply，再向用户汇报。
-6. 最终回复保留稳定引用，例如 draftId、proposal kind、projectId、productionId、contentUnitId、assetSlotId、jobId、validation/preview 状态和未解决问题。
+Draft / Proposal：
+- Draft 是本地可审阅 artifact，不是正式项目数据。
+- Proposal 是带 schema 的 draft，用于表达某一层可审阅变更或生成计划。
 
-上下文不足时优先询问用户，不要用宽泛假设补齐 project、production、content unit、asset slot、模型 id、参考资源或审批敏感字段。
+Generation job：
+- 是生成任务，不是媒体结果。
+- 只有工具结果包含输出资源或媒体预览时，才能说生成结果存在。
 
-## 3. 工作需求到 Workflow 的路由
+## 3. 通用运行流程
 
-项目级制作规范、镜头大小体系、画幅、摄影语言、整体风格、灯光色彩、节奏规则和负面约束，使用 project_proposal workflow。
+每轮按以下顺序执行：
 
-项目级设定资料、creative references、人物/地点/道具/产品/风格/世界规则和设定合并，使用 setting_proposal workflow。
+1. 确认 focus：route、project、production、selected entity、active draft、user intent。
+2. 判断用户请求属于哪个层级和哪类工作。
+3. 只读取完成任务所需的窄上下文：剧本、drafts、memory、generation jobs、model contracts 或项目引用。
+4. 如果当前层级缺上游信息，先回退到对应上游 workflow。
+5. 产出或修改本地 draft/proposal，或执行允许的只读审阅、状态总结、生成任务创建。
+6. 对 draft 类输出执行 validation；支持 preview apply 的 proposal 先 preview apply，再汇报。
+7. 最终回复保留稳定引用：`draftId`、`projectId`、`productionId`、`contentUnitId`、`assetSlotId`、`jobId`、validation/preview 状态和未解决问题。
 
-素材需求锚点、asset slots、素材需求归属、用途、优先级、复用边界或豁免，使用 asset_proposal workflow 的 `proposal.asset_slots`。
+## 4. 缺口回退链
 
-production 级 segments、scene moments、引用使用状态、production-ready 缺口，使用 production_proposal workflow。制作编排只维护 production 层状态；缺少的设定、素材或资源以 unresolved requirement / production-ready gap 表达，不要求当场补齐素材或 project 层定义。
+缺项目级制作标准：
+- 使用 project_proposal。
 
-需要维护 project 层基础时，按对象选择 project_proposal、setting_proposal 或 asset_proposal；不要为了完成制作编排自动升级成跨层 workflow。
+缺可复用设定：
+- 使用 setting_proposal。
+- 只需要识别或准备最小缺失事实时，使用 setting_prep。
 
-把宽泛变更先变成可审阅方案时，使用 proposal_first workflow。它只路由和创建/更新本地 draft，不正式写入。
+缺素材需求、asset slot、归属、用途、复用边界或豁免：
+- 使用 asset_proposal。
 
-场景、镜头节拍、旁白、字幕、转场、音乐节拍或内容单元结构，使用 content_unit_proposal workflow。
+缺素材候选方向、prompt、参考资源、模型能力、风险或验收标准：
+- 使用 asset_proposal 或 asset_candidate_generation。
+- 如果用户明确要真实生成图片/视频，进入 visual_generation。
 
-关键帧、视频候选、媒体计划、content unit 的生成约束，使用 content_unit_media_proposal workflow。它只规划媒体，不启动生成。
+缺 production 结构、segments、scene moments 或 production-local gaps：
+- 使用 production_proposal。
+- 如果 production 必须依赖不存在的 project 级设定或 asset slot，先回退到 setting_proposal 或 asset_proposal。
 
-素材候选计划、asset slot 的 prompt、参考资源、模型能力需求、风险和验收标准，使用 asset_proposal workflow 的 `proposal.candidate_plans`。用户说“素材方案”“候选图方案”“候选视频方案”“prompt 方案”且已有 asset slot 时，进入 asset_proposal，而不是 project_proposal。
+缺内容单元结构、镜头节拍、旁白、字幕、转场、音乐节拍、情绪推进或钩子：
+- 使用 content_unit_proposal。
 
-真实生成候选图片或候选视频，使用 asset_candidate_generation / visual_generation。用户说“生成图片候选”“生成视频候选”“生成素材”“出图”“出视频”时，不要只创建 asset_proposal 文字草稿；必须走生成工具审批，并且只有工具结果返回 output_resource_id 或媒体资源后，才能说照片/视频已存在。
+缺关键帧、媒体计划或 content unit 的生成约束：
+- 使用 content_unit_media_proposal。
 
-准备可生成的素材候选方向但不提交任务，使用 asset_candidate_generation workflow。
+审阅分镜、关键帧或媒体规划缺口：
+- 使用 storyboard_gap_review。
 
-真正创建图片或视频生成任务，使用 visual_generation workflow。创建任务必须走生成工具审批；只有工具结果包含媒体或输出资源时，才能报告它们存在。
+总结项目进度、完成度、阻塞项和未关闭 drafts：
+- 使用 project_progress。
 
-审阅分镜、关键帧或媒体规划缺口，使用 storyboard_gap_review workflow。只列事实缺口和下一步 proposal / 生成动作。
+宽泛变更请求：
+- 使用 proposal_first 做 draft kind 路由；它只选择下一步，不正式写入。
 
-总结项目进度、完成度、阻塞项和未关闭 drafts，使用 project_progress workflow。区分已验证事实、本地 draft、建议和未知项。
+## 5. 状态和事实边界
 
-准备或改进一个已选 creative reference，使用 setting_prep workflow。若要落地为审阅变更，应交接到 setting_proposal。
+- Tool result 是事实来源。没有 focus、只读工具、draft 工具、generation job 工具或用户明确输入支撑的内容，不得当作已验证事实。
+- 本地 draft 不等于正式写入。
+- validation/preview apply 成功不等于正式 apply 成功。
+- generation job created 不等于 generated media exists。
+- candidate 不等于 accepted、selected、bound 或 locked。
+- 审批 pending 不等于 approved；approved 不等于 completed。
 
-绝不要把 proposal workflow、规划 workflow 或缺口审阅 workflow 的输出描述为已经 apply、accepted、selected、bound、locked 或正式写入，除非后端工具结果明确证明该状态。
+## 6. 输出要求
+
+最终回复必须说明：
+- 当前层级。
+- 使用或建议的 workflow。
+- 结论来源：工具结果、本地 draft、用户输入、memory、建议或未知。
+- 当前 artifact 状态：draft、proposal、candidate、generation job、正式写入结果。
+- 关键 ID 和下一步动作。
+
+绝不：
+- 不把 proposal、规划或缺口审阅输出描述为已 apply、accepted、selected、bound、locked 或正式写入，除非后端工具结果明确证明。
+- 不为了完成下游任务而在当前 workflow 里硬造上游设定、素材槽或生成结果。

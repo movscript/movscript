@@ -404,7 +404,7 @@ test('buildContext renders planner subagent workflow when runtime layers activat
       enabled: true,
       instruction: '',
       compiledInstruction: [
-        '简单、单上下文任务由 planner 自己完成。',
+        '简单、单上下文、立即阻塞的任务由 planner 自己完成。',
         '每个 worker 应显式使用短的人类可读英文 subagentName，例如 Einstein、Turing、Curie、Newton、Darwin。',
         '用 maxWorkers 控制并发，用 retryFailed 和 maxTaskAttempts 处理失败或取消的任务重试，用 workerTimeoutMs 取消过期 active workers。',
         '不要用 worker、subagent 这种猜测名称。',
@@ -420,7 +420,7 @@ test('buildContext renders planner subagent workflow when runtime layers activat
     userMessage: '请并行处理这些任务',
   })
   const plannerPolicy = withPlannerIntent.debugParts.find((part) => part.id === 'skill.movscript.workflow.planner-subagents')
-  assert.match(plannerPolicy?.content ?? '', /简单、单上下文任务由 planner 自己完成/)
+  assert.match(plannerPolicy?.content ?? '', /简单、单上下文、立即阻塞的任务由 planner 自己完成/)
   assert.match(plannerPolicy?.content ?? '', /retryFailed/)
   assert.match(plannerPolicy?.content ?? '', /maxTaskAttempts/)
   assert.match(plannerPolicy?.content ?? '', /workerTimeoutMs/)

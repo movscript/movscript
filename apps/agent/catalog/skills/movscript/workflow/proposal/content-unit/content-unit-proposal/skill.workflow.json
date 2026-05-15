@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Content Unit Proposal",
-  "description": "以本地审阅 patches 的形式起草 content-unit 结构 proposals。",
+  "description": "以本地审阅 draft 形式起草内容单元结构、情绪推进、钩子和节拍 proposal。",
   "priority": 830,
   "enabled": true,
   "triggers": [
@@ -32,6 +32,6 @@
   "schemaRefs": [
     "schema://movscript.content_unit_proposal.v1"
   ],
-  "outputContract": "返回 draftId、已知时的 productionId、content unit 数量、preview 状态和结构缺口。",
+  "outputContract": "返回 draftId、productionId、content unit 数量、validation/preview 状态、结构缺口和下一步媒体或素材工作建议。",
   "instructionTemplatePath": "instruction.md"
 }

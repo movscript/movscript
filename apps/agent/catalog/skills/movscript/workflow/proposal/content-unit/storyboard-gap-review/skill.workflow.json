@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Storyboard Gap Review",
-  "description": "审阅已选内容的分镜或媒体规划缺口。",
+  "description": "审阅已选内容的分镜、关键帧、素材或媒体规划缺口，并建议下一步 workflow。",
   "priority": 650,
   "enabled": true,
   "triggers": [
@@ -24,6 +24,6 @@
     "tool://movscript_request_user_input"
   ],
   "toolScope": "intersect",
-  "outputContract": "按目标 content unit 或 scene 分组返回缺口，并给出下一步 proposal 或生成动作。",
+  "outputContract": "按目标返回缺口、来源、严重度、建议 workflow 和需要用户确认的问题。",
   "instructionTemplatePath": "instruction.md"
 }

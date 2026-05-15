@@ -150,7 +150,7 @@ test('draft lifecycle workflow describes read-before-write draft handling', () =
   assert.deepEqual(selected.workflows.map((item) => item.id), ['movscript.workflow.draft-lifecycle'])
 })
 
-test('proposal workflows reference frontend draft model contract before field-specific edits', () => {
+test('proposal workflows reference runtime draft model contract before field-specific edits', () => {
   const catalog = loadAgentPluginCatalog()
   const workflowIds = [
     'movscript.workflow.draft-lifecycle',
@@ -161,7 +161,7 @@ test('proposal workflows reference frontend draft model contract before field-sp
   for (const workflowId of workflowIds) {
     const workflow = catalog.layeredRegistry.skills.get(workflowId)
     assert.ok(workflow?.kind === 'workflow', `${workflowId} should be a workflow`)
-    assert.match(workflow.instructionTemplate, /DraftDomainModel/, `${workflowId} should point to the frontend draft domain model`)
+    assert.match(workflow.instructionTemplate, /runtime draft model contract|模型契约/, `${workflowId} should point to the runtime draft model contract`)
     assert.match(workflow.instructionTemplate, /MCP/, `${workflowId} should route field contracts through MCP`)
     assert.match(workflow.instructionTemplate, /schema fallback|schema.*fallback/i, `${workflowId} should define the current schema fallback`)
     assert.ok(workflow.toolRefs.includes('tool://movscript_get_draft_model'), `${workflowId} should be able to call the draft model MCP contract tool`)
@@ -176,7 +176,7 @@ test('planner subagent behavior is provided by agent-core workflow skill', () =>
   assert.ok(workflow?.kind === 'workflow')
   assert.ok(workflow.toolRefs.includes('tool://movscript_spawn_subagent'))
   assert.ok(workflow.toolRefs.includes('tool://movscript_wait_subagent'))
-  assert.match(workflow.instructionTemplate, /简单、单上下文任务由 planner 自己完成/)
+  assert.match(workflow.instructionTemplate, /简单、单上下文、立即阻塞的任务由 planner 自己完成/)
   assert.match(workflow.instructionTemplate, /maxWorkers/)
   assert.match(workflow.instructionTemplate, /workerTimeoutMs/)
 
@@ -492,7 +492,7 @@ test('target-state skill and tool files define the active runtime resources', ()
   assert.ok(workflow?.kind === 'workflow')
   assert.equal(workflow.version, '1.0.0')
   assert.ok(workflow.schemaRefs?.includes('schema://movscript.project_proposal.v1'))
-  assert.match(workflow.instructionTemplate, /目标：产出或编辑一个本地 project_proposal draft/)
+  assert.match(workflow.instructionTemplate, /目标：\n产出或编辑一个本地 project_proposal draft/)
   assert.match(workflow.instructionTemplate, /\{\{schema:movscript\.project_proposal\.v1\}\}/)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.script-split'), false)
   assert.equal(catalog.layeredRegistry.skills.has('movscript.workflow.script-writing'), false)

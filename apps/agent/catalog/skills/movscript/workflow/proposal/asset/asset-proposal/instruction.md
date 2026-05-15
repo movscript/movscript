@@ -46,7 +46,7 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 - 角色/场景候选必须说明与已有设定材料或素材资源的关系：复用、延续、缺失或需要用户确认。
 - 缺少 target、输出类型、关键参考或验收标准时，应标记阻塞或询问。不得退化成普通内容提案。
 
-输出：
+输出合同：
 返回 draftId、projectId、素材需求变更数量、asset target、候选计划数量、validation/preview 状态、未解决风险和下一步审阅或生成动作。
 
 绝不：

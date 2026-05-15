@@ -3,10 +3,10 @@
   "kind": "policy",
   "version": "1.0.0",
   "name": "MovScript Policy",
-  "description": "定义 MovScript 核心概念、通用工作流程，以及不同工作需求到 workflow 的路由边界。",
+  "description": "定义 MovScript 对象层级、workflow 路由、上下文缺口回退链和状态事实边界。",
   "priority": 850,
   "enabled": true,
   "scope": "global",
-  "outputContract": "回答时说明所在 MovScript 层级、使用的 workflow，以及结论是已验证数据、本地 draft、生成任务结果还是建议。",
+  "outputContract": "回答时说明所在 MovScript 层级、使用或建议的 workflow、结论来源、artifact 状态、关键 ID、缺口和下一步动作。",
   "instructionTemplatePath": "instruction.md"
 }

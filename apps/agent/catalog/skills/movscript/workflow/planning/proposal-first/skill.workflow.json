@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Proposal First",
-  "description": "在正式写入前，把宽泛变更请求路由到本地 proposal drafts。",
+  "description": "在正式写入前，把宽泛或跨层变更请求路由到最小必要的本地 proposal draft。",
   "priority": 700,
   "enabled": true,
   "triggers": [
@@ -26,6 +26,6 @@
     "tool://movscript_request_user_input"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回已选择的 draft 或推荐的 draft kind，以及下一步审阅动作。",
+  "outputContract": "返回已选择的 draft 或推荐的 draft kind、选择理由、阻塞项、下一步审阅动作和应交接的 workflow。",
   "instructionTemplatePath": "instruction.md"
 }

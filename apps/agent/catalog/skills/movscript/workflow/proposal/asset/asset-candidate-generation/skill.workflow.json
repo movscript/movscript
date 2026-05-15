@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Asset Candidate Generation",
-  "description": "为 asset slot 准备可审阅的视觉候选方向，但不提交生成任务。",
+  "description": "为已选 asset slot 创建并监控可审阅的图片或视频候选，并在成功后加入候选集。",
   "priority": 770,
   "enabled": true,
   "triggers": [
@@ -27,6 +27,7 @@
     "tool://movscript_query_asset_slots",
     "tool://movscript_query_production_context",
     "tool://movscript_get_draft_model",
+    "tool://movscript_request_user_input",
     "tool://movscript_list_models",
     "tool://movscript_create_generation_job",
     "tool://movscript_attach_asset_slot_candidate",
@@ -34,6 +35,6 @@
     "tool://movscript_list_generation_jobs"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、所需模型能力、已知的引用/资源 id、验收标准、阻塞项和下一步动作。",
+  "outputContract": "返回已选 asset target、候选 prompt 方向、已有设定/素材检查结果、所需模型能力、生成 jobId、output_resource_id、候选写入结果、阻塞项和下一步动作。",
   "instructionTemplatePath": "instruction.md"
 }

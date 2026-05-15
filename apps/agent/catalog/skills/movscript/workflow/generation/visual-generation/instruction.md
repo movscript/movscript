@@ -23,7 +23,7 @@
 
 流程：
 1. 创建任务前先补齐缺失的生成字段。
-2. 在确定 prompt 和参考资源前，确认当前设定材料是否已有素材：读取 focus；如果目标关联 creative reference、asset slot 或 content unit，优先使用查询工具检查 creative references、asset slots、production context 和 content unit generation context；必要时再使用 DraftDomainModel seed 检查补充快照。已有角色/场景素材必须优先作为一致性约束。
+2. 在确定 prompt 和参考资源前，确认当前设定材料是否已有素材：读取 focus；如果目标关联 creative reference、asset slot 或 content unit，优先使用查询工具检查 creative references、asset slots、production context 和 content unit generation context；必要时再使用 runtime draft model seed 检查补充快照。已有角色/场景素材必须优先作为一致性约束。
 3. 根据设定材料状态和全局定位修正 prompt：主角、核心反派、重要常驻角色要保持可长期复用的美术价值；剧情里的“丑”“狼狈”“不起眼”应转译为朴素、疲惫、妆发凌乱、衣着压低、被环境误读等可控特征，不要生成真实低质或不可用的丑化形象，除非用户明确要求丑化。
 4. 对场景素材，延续已有空间结构、年代地域、色彩/光线气质、关键道具和可复用识别点；没有参考时说明缺失，而不是凭空假定已有素材。
 5. 选择模型或模型专用参数前，先使用模型发现。优先用 `model_contracts` 做紧凑规划；只有紧凑 contract 不足时，才检查对应 raw model 的 `params_schema`。

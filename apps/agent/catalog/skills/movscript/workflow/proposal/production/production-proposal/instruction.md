@@ -6,7 +6,7 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 {{schema:movscript.production_proposal.v1}}
 
 模型契约：
-- 字段含义、seed 策略、review route 和 apply 边界应以 frontend DraftDomainModel 为唯一来源。
+- 字段含义、seed 策略、review route 和 apply 边界应以 runtime draft model contract 为准。
 - 当前运行环境若提供 draft model MCP 工具，创建或编辑 draft 前必须先读取该模型契约。
 - 如果 draft model MCP 工具尚不可用，临时使用上方 schema、当前 focus 和已读 project 层对象；不要把本 skill 中的字段描述当成长期唯一字段源。
 
@@ -45,7 +45,7 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 - Validate 或 preview apply 出现 `SCENE_MOMENT_WITHOUT_CONTEXT` 时，必须 patch 对应 scene_moment，添加已有 creative reference reuse 或明确的 asset_slots 素材需求后再次 preview。
 - 不确定 segment 或 scene moment 范围时，应询问用户。
 
-输出：
+输出合同：
 回复 draftId、projectId、productionId、draft status、最近一次 preview apply 的 ok/stage、segments 和 scene moments 数量，以及未解决缺口。
 
 绝不：

@@ -32,7 +32,7 @@ Draft schema：{{schema:movscript.content_unit_proposal.v1.id}}
 - 结构、媒体计划和素材候选必须保持分离。
 - 不确定 production 或 scene 范围时，应询问用户。
 
-输出：
+输出合同：
 返回 draftId、productionId、content unit 数量、validation/preview 状态、结构缺口和下一步媒体/素材工作建议。
 
 绝不：

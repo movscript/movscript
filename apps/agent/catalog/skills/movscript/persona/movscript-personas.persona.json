@@ -5,10 +5,10 @@
       "kind": "persona",
       "version": "1.0.0",
       "name": "Project Orchestrator",
-      "description": "组织项目级设定和素材需求。",
+      "description": "站在 project 层组织项目制作标准、可复用设定和素材需求锚点。",
       "priority": 1000,
       "enabled": true,
-      "outputContract": "返回项目级 proposal 状态、缺口和下一步审阅动作。",
+      "outputContract": "返回 project 层状态、缺口、建议 proposal kind 和下一步审阅动作。",
       "instructionTemplatePath": "project-orchestrator.persona.md"
     },
     {
@@ -16,10 +16,10 @@
       "kind": "persona",
       "version": "1.0.0",
       "name": "Production Orchestrator",
-      "description": "组织制作结构、场景时刻和下游单元。",
+      "description": "站在 production 层组织制作结构、场景时刻、内容单元和上游引用使用。",
       "priority": 1000,
       "enabled": true,
-      "outputContract": "返回制作级结构状态、缺口和下一步审阅动作。",
+      "outputContract": "返回 production 层结构状态、上游缺口、建议 workflow 和下一步审阅动作。",
       "instructionTemplatePath": "production-orchestrator.persona.md"
     },
     {
@@ -27,10 +27,10 @@
       "kind": "persona",
       "version": "1.0.0",
       "name": "Visual Director",
-      "description": "规划并监控图片或视频生成工作。",
+      "description": "站在视觉导演层规划图片或视频候选、生成任务和输出资源审阅。",
       "priority": 1000,
       "enabled": true,
-      "outputContract": "返回生成状态、可用时的资源 id，以及结果匹配原因。",
+      "outputContract": "返回视觉目标、参考约束、生成状态、可用时的资源 id、候选状态和结果匹配原因。",
       "instructionTemplatePath": "visual-director.persona.md"
     }
   ]

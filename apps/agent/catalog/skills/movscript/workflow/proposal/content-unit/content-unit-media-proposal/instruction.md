@@ -33,7 +33,7 @@ Draft schema：{{schema:movscript.content_unit_media_proposal.v1.id}}
 - 不得把未生成媒体写成已有资源。
 - 不得把模型 provider 假设写成已验证能力；需要验证时交给 visual_generation 的模型发现流程。
 
-输出：
+输出合同：
 返回 draftId、content unit 目标、计划媒体/关键帧数量、validation/preview 状态、阻塞项和下一步动作。
 
 绝不：

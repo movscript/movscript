@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Project Progress",
-  "description": "根据上下文、剧本、drafts 和可用状态总结当前项目进度。",
+  "description": "根据已验证上下文、剧本、drafts 和可用状态总结当前项目或 production 进度。",
   "priority": 660,
   "enabled": true,
   "triggers": [
@@ -23,6 +23,6 @@
     "tool://movscript_list_drafts"
   ],
   "toolScope": "intersect",
-  "outputContract": "返回已验证进度、未关闭 drafts、阻塞项和推荐下一步。",
+  "outputContract": "返回已验证进度、未关闭 drafts、阻塞项、未知项和推荐下一步 workflow。",
   "instructionTemplatePath": "instruction.md"
 }
