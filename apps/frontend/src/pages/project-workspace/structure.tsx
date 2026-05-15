@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  BookOpenCheck,
   Clapperboard,
   ClipboardCheck,
   FileText,
@@ -137,16 +136,6 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
 ]
 
 export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
-  {
-    value: 'script',
-    title: '一键制作',
-    shortTitle: '制作',
-    href: '/workbench/script',
-    icon: Wand2,
-    purpose: '用剧本、brief 或提示词启动制作，自动生成设定上下文、素材需求线索、制作入口和预演前置方案。',
-    decision: '轻确认风格、素材缺口、制作主体和是否复用已有制作，再把方案写入项目。',
-    output: '可继续生成、编排和预演的一键制作方案。',
-  },
   {
     value: 'preview',
     title: '制作预演',

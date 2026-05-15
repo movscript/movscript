@@ -6,6 +6,7 @@ import type { AgentContext } from '../context/runtimeContext.js'
 import type { AgentCapabilitiesResponse, AgentRun, ResolvedAgentSkill } from './types.js'
 import type { AgentMemory } from '../memory/types.js'
 import { buildDebugContext, buildDebugTrace } from '../context/debugContext.js'
+import { createEmptyContextLedger } from '../contextManager/contextLedger.js'
 
 export interface BuildRunSetupMetadataInput {
   run: AgentRun
@@ -18,6 +19,10 @@ export interface BuildRunSetupMetadataInput {
   command: AgentCommandRuntime
   clientInput?: NormalizedClientInput
   authMetadata?: Record<string, JSONValue>
+  catalogSnapshot?: {
+    id: string
+    version?: string | null
+  }
 }
 
 export interface BuiltRunSetupMetadata {
@@ -30,10 +35,28 @@ export function buildRunSetupMetadata(input: BuildRunSetupMetadataInput): BuiltR
   if (typeof input.context.currentProductionId === 'number') {
     debugContext.productionId = input.context.currentProductionId
   }
+  const visibleToolNames = input.capabilities.resolvedTools.available.map((tool) => tool.name)
+  const activeSkillIds = input.skills.map((skill) => skill.id)
+  const contextLedger = createEmptyContextLedger({
+    runId: input.run.id,
+    threadId: input.run.threadId,
+    catalogSnapshotId: input.catalogSnapshot?.id ?? 'unknown',
+    catalogSnapshotVersion: input.catalogSnapshot?.version,
+    activeSkillIds,
+    visibleToolNames,
+    now: input.run.createdAt,
+  })
   return {
     debugContext,
     metadata: {
       ...(input.run.metadata ?? {}),
+      catalogSnapshot: {
+        id: input.catalogSnapshot?.id ?? 'unknown',
+        ...(input.catalogSnapshot?.version ? { version: input.catalogSnapshot.version } : {}),
+      },
+      activeSkillIds,
+      visibleToolNames,
+      contextLedger: contextLedger as unknown as JSONValue,
       debugTrace: buildDebugTrace(input.agentManifest, input.skills, input.capabilities.resolvedTools, []) as unknown as JSONValue,
       skills: input.skills.map((skill) => ({
         id: skill.id,

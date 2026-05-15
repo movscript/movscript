@@ -5734,7 +5734,7 @@ function CategoryContent({ category }: { category: WorkbenchCategory }) {
   return <ScenarioWorkspace category={category} />
 }
 
-export function WorkbenchContent({ initialCategory = 'script', showCategoryTabs = true }: WorkbenchContentProps) {
+export function WorkbenchContent({ initialCategory = 'preview', showCategoryTabs = true }: WorkbenchContentProps) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [category, setCategory] = useState<WorkbenchCategory>(() => {

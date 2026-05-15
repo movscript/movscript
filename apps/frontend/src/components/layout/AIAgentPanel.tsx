@@ -9,7 +9,7 @@ import {
   Sparkles, Search, ListChecks, Upload, Eye, Wand2,
   Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
   SlidersHorizontal, Wrench, Route, PlayIcon,
-  MessageSquareText, Braces, FileJson,
+  MessageSquareText, Braces, FileJson, MoreHorizontal,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSettled, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
@@ -93,6 +93,11 @@ import {
   AgentTitle,
   Badge,
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
   ScrollArea,
   Select,
   SelectContent,
@@ -1629,8 +1634,9 @@ function upsertActivityEvent(events: ChatRunActivityEvent[], item: ChatRunActivi
 }
 
 interface ThinkingBubbleState {
-  status: 'preparing_request' | 'thinking' | 'preparing_tool_call' | 'calling_tool'
+  status: 'preparing_request' | 'thinking' | 'preparing_tool_call' | 'calling_tool' | 'retrying_model'
   toolName?: string
+  label?: string
 }
 
 function toolNameFromToolCallStreamEvent(event: ChatRunActivityEvent): string | undefined {
@@ -1651,6 +1657,8 @@ async function cancelGenerationJobIfActive(state: GenerationProgressState | null
 }
 
 function getThinkingBubbleState(run: AgentRun | null, events: ChatRunActivityEvent[]): ThinkingBubbleState {
+  const retryStatus = latestModelRetryStatus(events)
+  if (retryStatus) return { status: 'retrying_model', label: retryStatus }
   if (!run || run.status !== 'in_progress') return { status: 'thinking' }
   const activeToolStep = [...run.steps].reverse().find((step) => step.type === 'tool_call' && step.status === 'in_progress')
   if (activeToolStep) {
@@ -1672,6 +1680,19 @@ function getThinkingBubbleState(run: AgentRun | null, events: ChatRunActivityEve
   }
 }
 
+function latestModelRetryStatus(events: ChatRunActivityEvent[]): string | undefined {
+  const event = [...events].reverse().find((candidate) => candidate.kind === 'model_call' && candidate.title === 'Model retry scheduled')
+  if (!event) return undefined
+  const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
+  const retry = data?.retry && typeof data.retry === 'object' ? data.retry as Record<string, unknown> : undefined
+  const nextAttempt = typeof retry?.nextAttempt === 'number' ? retry.nextAttempt : undefined
+  const maxAttempts = typeof retry?.maxAttempts === 'number' ? retry.maxAttempts : undefined
+  const delayMs = typeof retry?.delayMs === 'number' ? retry.delayMs : undefined
+  const attemptLabel = nextAttempt !== undefined && maxAttempts !== undefined ? `第 ${nextAttempt}/${maxAttempts} 次` : '下一次'
+  const delayLabel = delayMs !== undefined ? `，等待 ${formatDurationLabel(delayMs)}` : ''
+  return `模型请求暂时不可用，正在${attemptLabel}重试${delayLabel}`
+}
+
 function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentRun | null; state?: ThinkingBubbleState }) {
   const reasoning = ''
   const label = state.status === 'calling_tool'
@@ -1680,26 +1701,41 @@ function ThinkingBubble({ state = { status: 'thinking' } }: { run: AgentRun | nu
       ? `准备调用工具${state.toolName ? `：${state.toolName}` : ''}`
       : state.status === 'preparing_request'
         ? '准备请求中'
-      : '思考中'
+        : state.status === 'retrying_model' ? state.label ?? '模型请求重试中' : '思考中'
   return (
-    <AgentChatMessage
-      role="assistant"
-      avatar={<Bot size={13} />}
-      author="MovScript Agent"
-      footer={(
-        <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
-          {label}
-        </Badge>
-      )}
-    >
-      <div className="space-y-1.5">
-        <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <Loader2 size={11} className="animate-spin" />
-          <span>{label}</span>
+    <div className="space-y-1">
+      <AgentBubbleStatusText label={label} />
+      <AgentChatMessage
+        role="assistant"
+        avatar={<Bot size={13} />}
+        author="MovScript Agent"
+        footer={(
+          <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
+            {label}
+          </Badge>
+        )}
+      >
+        <div className="space-y-1.5">
+          <div className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <Loader2 size={11} className="animate-spin" />
+            <span>{label}</span>
+          </div>
+          {reasoning ? <MarkdownContent text={reasoning} /> : <div className="text-[11px] text-muted-foreground">...</div>}
         </div>
-        {reasoning ? <MarkdownContent text={reasoning} /> : <div className="text-[11px] text-muted-foreground">...</div>}
+      </AgentChatMessage>
+    </div>
+  )
+}
+
+function AgentBubbleStatusText({ label }: { label?: string }) {
+  if (!label) return null
+  return (
+    <div className="flex justify-start pl-8">
+      <div className="inline-flex max-w-[80%] items-center gap-1.5 text-[10px] leading-4 text-muted-foreground">
+        <Loader2 size={10} className="animate-spin" />
+        <span className="truncate">{label}</span>
       </div>
-    </AgentChatMessage>
+    </div>
   )
 }
 
@@ -2942,25 +2978,41 @@ function LiveRunActivityBubble({
   events: ChatRunActivityEvent[]
 }) {
   if (!run && events.length === 0) return null
+  const statusLabel = latestModelRetryStatus(events) ?? latestAgentStatusLabel(run, events)
   return (
-    <AgentChatMessage
-      role="assistant"
-      avatar={<Bot size={13} />}
-      author="MovScript Agent"
-      footer={(
-        <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
-          运行中
-        </Badge>
-      )}
-    >
-      <RunActivityTitleBubble
-        run={run}
-        events={events}
-        title="运行过程"
-        className="mt-0"
-      />
-    </AgentChatMessage>
+    <div className="space-y-1">
+      <AgentBubbleStatusText label={statusLabel} />
+      <AgentChatMessage
+        role="assistant"
+        avatar={<Bot size={13} />}
+        author="MovScript Agent"
+        footer={(
+          <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
+            运行中
+          </Badge>
+        )}
+      >
+        <RunActivityTitleBubble
+          run={run}
+          events={events}
+          title="运行过程"
+          className="mt-0"
+        />
+      </AgentChatMessage>
+    </div>
   )
+}
+
+function latestAgentStatusLabel(run: AgentRun | null, events: ChatRunActivityEvent[]): string | undefined {
+  const latest = [...events].reverse().find((event) => event.status === 'started' || event.status === 'info')
+  if (latest?.title === 'Model HTTP request sent') return '正在请求模型'
+  if (latest?.title === 'Prompt composed') return '正在整理上下文'
+  if (latest?.title === 'Model stream delta') return '正在接收模型回复'
+  if (latest?.title === 'Model tool call delta') return '正在准备工具调用'
+  if (latest?.kind === 'tool_call') return latest.toolName ? `正在调用工具：${latest.toolName}` : '正在调用工具'
+  if (run?.status === 'queued') return '等待 agent 开始'
+  if (run?.status === 'in_progress') return 'agent 正在运行'
+  return undefined
 }
 
 const MEMORY_SCOPES: AgentMemoryScope[] = ['global', 'project', 'thread']
@@ -4033,6 +4085,7 @@ function ChatView({
   onSelectConversation,
   onNewConversation,
   onCloseConversation,
+  onCloseConversations,
   externalTask,
   pageToolRequestId,
   onExternalDraftConsumed,
@@ -4045,6 +4098,7 @@ function ChatView({
   onSelectConversation: (id: string) => void
   onNewConversation: () => void
   onCloseConversation: (id: string) => void
+  onCloseConversations: (ids: string[]) => void
   externalTask?: AgentPageTaskState | null
   pageToolRequestId?: string
   onExternalDraftConsumed?: () => void
@@ -4113,10 +4167,20 @@ function ChatView({
   }), [settings.planMaxWorkers, settings.planMaxTaskAttempts, settings.planWorkerTimeoutMs])
   const conversationTabs = useMemo(() => {
     const ordered = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt)
-    const visible = ordered.slice(0, 6)
-    if (visible.some((item) => item.id === conv.id)) return visible
-    return [conv, ...visible].slice(0, 6)
+    if (ordered.some((item) => item.id === conv.id)) return ordered
+    return [conv, ...ordered]
   }, [conversations, conv])
+  const closeAllConversationTabs = useCallback(() => {
+    onCloseConversations(conversationTabs.map((item) => item.id))
+  }, [conversationTabs, onCloseConversations])
+  const closeOtherConversationTabs = useCallback((id: string) => {
+    onCloseConversations(conversationTabs.filter((item) => item.id !== id).map((item) => item.id))
+  }, [conversationTabs, onCloseConversations])
+  const closeRightConversationTabs = useCallback((id: string) => {
+    const index = conversationTabs.findIndex((item) => item.id === id)
+    if (index < 0) return
+    onCloseConversations(conversationTabs.slice(index + 1).map((item) => item.id))
+  }, [conversationTabs, onCloseConversations])
   const currentConversationTitle = conversationDisplayTitle(conv, t)
   const updatePlanDispatchSettings = useCallback((next: PlanDispatchSettings) => {
     updateSettings({
@@ -5551,41 +5615,95 @@ function ChatView({
               </Button>
               <AgentTitle>{t('agents.chat.aiAssistant')}</AgentTitle>
             </div>
-            <div className="ai-agent-panel-conversation-tabs" role="tablist" aria-label={t('agents.chat.conversationTabs')}>
-              {conversationTabs.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={item.id === conv.id}
-                  aria-label={conversationDisplayTitle(item, t)}
-                  className="ai-agent-panel-conversation-tab"
-                  title={conversationDisplayTitle(item, t)}
-                  onClick={() => onSelectConversation(item.id)}
-                >
-                  <MessageSquareText size={11} aria-hidden="true" />
-                  <span>{conversationDisplayTitle(item, t)}</span>
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="ai-agent-panel-conversation-tab-close"
-                    aria-label={t('agents.chat.deleteConversation')}
-                    title={t('agents.chat.deleteConversation')}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onCloseConversation(item.id)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return
-                      event.preventDefault()
-                      event.stopPropagation()
-                      onCloseConversation(item.id)
-                    }}
+            <div
+              className="ai-agent-panel-conversation-tabs"
+              role="tablist"
+              aria-label={t('agents.chat.conversationTabs')}
+              data-density={conversationTabs.length > 4 ? 'scroll' : 'fit'}
+              style={{ '--ai-agent-panel-tab-count': conversationTabs.length } as React.CSSProperties}
+            >
+              {conversationTabs.map((item, index) => {
+                const title = conversationDisplayTitle(item, t)
+                const hasRightTabs = index < conversationTabs.length - 1
+                return (
+                  <div
+                    key={item.id}
+                    className="ai-agent-panel-conversation-tab"
+                    data-active={item.id === conv.id ? 'true' : 'false'}
                   >
-                    <X size={10} aria-hidden="true" />
-                  </span>
-                </button>
-              ))}
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={item.id === conv.id}
+                      aria-label={title}
+                      className="ai-agent-panel-conversation-tab-main"
+                      title={title}
+                      onClick={() => onSelectConversation(item.id)}
+                      onAuxClick={(event) => {
+                        if (event.button !== 1) return
+                        event.preventDefault()
+                        onCloseConversation(item.id)
+                      }}
+                    >
+                      <MessageSquareText size={11} aria-hidden="true" />
+                      <span className="ai-agent-panel-conversation-tab-title">{title}</span>
+                      {item.messages.length > 0 ? (
+                        <span className="ai-agent-panel-conversation-tab-count" aria-label={t('agents.chat.messagesCount', { count: item.messages.length })}>
+                          {item.messages.length}
+                        </span>
+                      ) : null}
+                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="ai-agent-panel-conversation-tab-menu"
+                          aria-label={t('agents.chat.tabActions')}
+                          title={t('agents.chat.tabActions')}
+                        >
+                          <MoreHorizontal size={11} aria-hidden="true" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-36">
+                        <DropdownMenuItem onSelect={() => onCloseConversation(item.id)}>
+                          {t('agents.chat.closeConversation')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={conversationTabs.length <= 1}
+                          onSelect={() => closeOtherConversationTabs(item.id)}
+                        >
+                          {t('agents.chat.closeOtherConversations')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={!hasRightTabs}
+                          onSelect={() => closeRightConversationTabs(item.id)}
+                        >
+                          {t('agents.chat.closeRightConversations')}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={closeAllConversationTabs}
+                        >
+                          {t('agents.chat.closeAllConversations')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <button
+                      type="button"
+                      className="ai-agent-panel-conversation-tab-close"
+                      aria-label={t('agents.chat.closeConversation')}
+                      title={t('agents.chat.closeConversation')}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onCloseConversation(item.id)
+                      }}
+                    >
+                      <X size={10} aria-hidden="true" />
+                    </button>
+                  </div>
+                )
+              })}
             </div>
             <AgentSubtitle className="sr-only">{currentConversationTitle}</AgentSubtitle>
           </AgentHeaderContent>
@@ -6056,6 +6174,7 @@ function BuiltinChat({ userId, onCollapse }: { userId: string; onCollapse: () =>
     createConversation,
     setActiveConversation,
     deleteConversation,
+    deleteConversations,
     addMessage,
     updateConversationTitle,
   } = useAgentStore()
@@ -6133,6 +6252,7 @@ function BuiltinChat({ userId, onCollapse }: { userId: string; onCollapse: () =>
           onSelectConversation={(id) => setActiveConversation(userId, id)}
           onNewConversation={handleNew}
           onCloseConversation={(id) => deleteConversation(userId, id)}
+          onCloseConversations={(ids) => deleteConversations(userId, ids)}
           externalTask={activeTask}
           pageToolRequestId={activeTask?.requestId}
         />

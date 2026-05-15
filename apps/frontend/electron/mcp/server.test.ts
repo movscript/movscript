@@ -404,9 +404,38 @@ test('semantic query tools expose creative references and linked asset slots', a
     }) as Record<string, any>
 
     assert.equal(result.returned, 1)
+    assert.equal(result.count, 1)
+    assert.equal(result.total_count, 2)
     assert.deepEqual(result.references.map((item: any) => item.ID), [11])
     assert.deepEqual(result.states.map((item: any) => item.ID), [21])
     assert.deepEqual(result.asset_slots.map((item: any) => item.ID), [31, 32])
+  } finally {
+    globalThis.fetch = previousFetch
+    setMCPAPIBaseURL('http://localhost:8765')
+  }
+})
+
+test('semantic query creative reference count is filtered and total_count preserves raw backend total', async () => {
+  const previousFetch = globalThis.fetch
+  globalThis.fetch = mockFetch({
+    '/projects/42/entities/creative-references?kind=person': [
+      { ID: 11, project_id: 42, kind: 'person', name: '女主', description: '主角', status: 'confirmed' },
+      { ID: 12, project_id: 42, kind: 'person', name: '路人', description: '背景角色', status: 'draft' },
+    ],
+  }) as typeof fetch
+  setMCPAPIBaseURL('http://mock.backend')
+  try {
+    const result = await queryCreativeReferences({
+      projectId: 42,
+      kind: 'person',
+      query: '不存在的设定',
+    }) as Record<string, any>
+
+    assert.equal(result.count, 0)
+    assert.equal(result.total_count, 2)
+    assert.equal(result.returned, 0)
+    assert.deepEqual(result.references, [])
+    assert.match(result.note, /Filters matched no creative references/)
   } finally {
     globalThis.fetch = previousFetch
     setMCPAPIBaseURL('http://localhost:8765')

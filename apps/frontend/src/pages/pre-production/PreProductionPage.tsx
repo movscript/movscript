@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient, type QueryClient, type UseMutationResult } from '@tanstack/react-query'
-import { Bot, ChevronRight, CircleDashed, Database, FileAudio, FileText, GitBranch, Image, Lock, Package, PackageCheck, Plus, Sparkles, Upload, Video, Wand2, type LucideIcon } from 'lucide-react'
+import { Bot, Check, ChevronRight, Database, FileAudio, FileText, GitBranch, Image, Package, PackageCheck, Plus, Sparkles, Upload, Video, Wand2, type LucideIcon } from 'lucide-react'
 
 import { ProjectLayerProposalReviewPanel } from '@/components/proposals/ProjectLayerProposalReviewPanel'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
@@ -20,7 +20,7 @@ import { localAgentClient, type AgentDraft } from '@/lib/localAgentClient'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
-import type { Canvas, PaginatedResponse, RawResource } from '@/types'
+import type { Canvas, RawResource } from '@/types'
 import { Badge, Button } from '@movscript/ui'
 
 type SlotStatus = 'missing' | 'candidate' | 'locked' | 'waived'
@@ -159,7 +159,9 @@ function slotPreview(slot?: AssetSlotRecord): { src?: string; video: boolean } {
   }
 }
 
-function SlotThumb({ slot, className }: { slot?: AssetSlotRecord; className?: string }) {
+type MediaFit = 'cover' | 'contain'
+
+function SlotThumb({ slot, className, fit = 'cover' }: { slot?: AssetSlotRecord; className?: string; fit?: MediaFit }) {
   const preview = slotPreview(slot)
   if (!preview.src) {
     return (
@@ -169,8 +171,8 @@ function SlotThumb({ slot, className }: { slot?: AssetSlotRecord; className?: st
     )
   }
   return preview.video
-    ? <AuthedVideo src={preview.src} className={cn('object-cover', className)} muted playsInline />
-    : <AuthedImage src={preview.src} alt={slot?.name ?? ''} className={cn('object-cover', className)} />
+    ? <AuthedVideo src={preview.src} className={cn(fit === 'contain' ? 'object-contain bg-black' : 'object-cover', className)} muted playsInline />
+    : <AuthedImage src={preview.src} alt={slot?.name ?? ''} className={cn(fit === 'contain' ? 'object-contain bg-muted' : 'object-cover', className)} />
 }
 
 function resourcePreview(resource?: RawResource): { src?: string; video: boolean } {
@@ -243,13 +245,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     enabled: !!projectId,
   })
 
-  const { data: resourcesData } = useQuery<PaginatedResponse<RawResource> | RawResource[]>({
-    queryKey: ['resources', 'asset-slot-candidate-library'],
-    queryFn: () => api.get('/resources', {
-      params: { page: 1, page_size: 100, type: 'image,video,audio,text,file' },
-    }).then((r) => r.data),
-    enabled: !!projectId,
-  })
   const assetProposalDraftsQuery = useQuery<AgentDraft[]>({
     queryKey: ['asset-proposal-drafts', projectId],
     queryFn: async () => {
@@ -284,12 +279,14 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     mutationFn: () => {
       if (!projectId) throw new Error('请先选择项目')
       const kind = kindFilter === 'all' ? 'image' : kindFilter
+      const selectedSlotRecord = selectedId ? slots.find((slot) => slot.ID === selectedId) : undefined
+      const referenceId = selectedReferenceParam ?? selectedSlotRecord?.creative_reference_id
       return createSemanticEntity(projectId, slotConfig, {
         kind,
         name: `未命名${assetKindLabel(kind)}素材`,
         status: 'missing',
         priority: 'normal',
-        ...(selectedReferenceParam ? { creative_reference_id: selectedReferenceParam } : {}),
+        ...(referenceId ? { creative_reference_id: referenceId, owner_type: 'creative_reference', owner_id: referenceId } : {}),
       }) as Promise<AssetSlotRecord>
     },
     onSuccess: async (record) => {
@@ -463,7 +460,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
   const rows = useMemo(() => buildRows(visibleSlots, candidates, slotById), [candidates, slotById, visibleSlots])
   const referenceById = useMemo(() => new Map(creativeReferences.map((reference) => [reference.ID, reference])), [creativeReferences])
   const clusters = useMemo(() => buildReferenceAssetClusters(creativeReferences, rows), [creativeReferences, rows])
-  const resourceLibrary = useMemo(() => Array.isArray(resourcesData) ? resourcesData : (resourcesData?.items ?? []), [resourcesData])
   const filtered = useMemo(() => {
     return rows.filter((row) => {
       if (kindFilter !== 'all' && row.kind !== kindFilter) return false
@@ -475,14 +471,11 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     rows: cluster.rows.filter((row) => kindFilter === 'all' || row.kind === kindFilter),
   })), [clusters, kindFilter])
   const selected = selectedId ? rows.find((row) => row.slot.ID === selectedId) ?? null : null
-  const selectedReferenceId = selectedReferenceParam ?? selected?.slot.creative_reference_id ?? filteredClusters[0]?.reference?.ID
+  const selectedReferenceId = selected
+    ? selectedReferenceParam ?? selected.slot.creative_reference_id ?? null
+    : selectedReferenceParam ?? filteredClusters[0]?.reference?.ID
   const selectedReference = selectedReferenceId ? referenceById.get(selectedReferenceId) ?? null : null
   const selectedCluster = filteredClusters.find((cluster) => (cluster.reference?.ID ?? 0) === (selectedReferenceId ?? 0)) ?? filteredClusters[0] ?? null
-  const candidateResources = useMemo(() => {
-    if (!selected) return []
-    const existingResourceIds = new Set(selected.candidates.map((candidate) => candidate.candidate_asset_slot?.resource?.ID ?? candidate.candidate_asset_slot?.resource_id).filter(Boolean) as number[])
-    return resourceLibrary.filter((resource) => !existingResourceIds.has(resource.ID) && isResourceCompatibleWithSlot(resource, selected.kind))
-  }, [resourceLibrary, selected])
 
   const missingCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'missing').length
   const candidateCount = visibleSlots.filter((slot) => normalizeSlotStatus(slot.status) === 'candidate').length
@@ -514,19 +507,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
     updateSlotMutation.mutate({
       id: selected.slot.ID,
       payload: { status: 'locked', locked_asset_slot_id: candidateSlotID },
-    })
-  }
-
-  function addCandidate(resourceID: number) {
-    if (!selected) return
-    const existing = selected.candidates.find((candidate) => candidate.candidate_asset_slot?.resource_id === resourceID || candidate.candidate_asset_slot?.resource?.ID === resourceID)
-    if (existing) return
-    addCandidateMutation.mutate({
-      asset_slot_id: selected.slot.ID,
-      resource_id: resourceID,
-      source_type: 'manual',
-      status: 'candidate',
-      note: '由素材库加入',
     })
   }
 
@@ -613,13 +593,15 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       clientInput: buildCommandFirstClientInput({
         message: [
           `请梳理当前项目「${projectLabel}」的前期准备。`,
-          '读取现有 creative_references 和 asset_slots，输出可审阅草稿：',
+          '读取当前 draft model / 已有 proposal draft 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅草稿：',
           '1. 如果设定资料缺漏、重复、状态不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，proposal.asset_slots 必须为空。',
           '2. 如果素材需求缺漏、归属不清晰、优先级/状态/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
-          '3. 不要生成候选素材，不要创建生成任务，不要把候选图 prompt 写成本轮结果。',
-          '4. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
+          '3. 本轮只做设定与素材需求提案；不处理图片/视频输出、媒体任务或候选 prompt。',
+          '4. 已有 setting_proposal draft 时，优先使用 draft 的 metadata.seed.data 或 content.snapshot_base；不要用 live creative reference 查询覆盖 draft 基准。',
+          '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
+          '6. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
         ].join('\n'),
-        labels: ['pre-production', 'setting-and-asset-prep', 'draft-review'],
+        labels: ['pre-production', 'setting_proposal', 'asset_proposal', 'draft-review'],
         hints: {
           projectId,
           route: { pathname: '/pre-production' },
@@ -642,7 +624,6 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
       referenceConfig={referenceConfig}
       newReferenceEditKey={newReferenceEditKey}
       selected={selected}
-      candidateResources={candidateResources}
       referenceCount={creativeReferences.length}
       visibleSlotCount={visibleSlots.length}
       missingCount={missingCount}
@@ -684,14 +665,17 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
         setFilter({ reference_id: null, asset_slot_id: null, selected: null })
       }}
       onLock={lockToSlot}
-      onAddCandidate={addCandidate}
       onUploadCandidate={triggerUpload}
       onGenerateProposal={generateCandidate}
       onGenerateMedia={generateMediaCandidate}
       onOpenAssistant={openAssistantForSlot}
       onOrganizeCurrentPrep={organizeCurrentPrep}
       onOpenCanvas={() => selected && openCanvasMutation.mutate(selected)}
-      onSelectSlot={(slotId) => setFilter({ asset_slot_id: slotId })}
+      onSelectSlot={(slotId) => {
+        const row = rows.find((item) => item.slot.ID === slotId)
+        setNewReferenceEditKey(null)
+        setFilter({ reference_id: row?.slot.creative_reference_id ?? null, asset_slot_id: slotId })
+      }}
       onSelectReference={(referenceId) => {
         setNewReferenceEditKey(null)
         setFilter({ reference_id: referenceId, asset_slot_id: null, selected: null })
@@ -743,7 +727,6 @@ function PreProductionWorkspace({
   referenceConfig,
   newReferenceEditKey,
   selected,
-  candidateResources,
   referenceCount,
   visibleSlotCount,
   missingCount,
@@ -773,7 +756,6 @@ function PreProductionWorkspace({
   onReferenceSaved,
   onReferenceDeleted,
   onLock,
-  onAddCandidate,
   onUploadCandidate,
   onGenerateProposal,
   onGenerateMedia,
@@ -790,7 +772,6 @@ function PreProductionWorkspace({
   referenceConfig: ReturnType<typeof semanticEntityConfig>
   newReferenceEditKey: string | number | null
   selected: AssetSlotViewModel | null
-  candidateResources: RawResource[]
   referenceCount: number
   visibleSlotCount: number
   missingCount: number
@@ -820,7 +801,6 @@ function PreProductionWorkspace({
   onReferenceSaved: (record: SemanticEntityRecord) => void
   onReferenceDeleted: () => void
   onLock: (candidateSlotID: number) => void
-  onAddCandidate: (resourceID: number) => void
   onUploadCandidate: () => void
   onGenerateProposal: (kind: CandidateGenerationKind) => void
   onGenerateMedia: (kind: CandidateGenerationKind) => void
@@ -832,6 +812,8 @@ function PreProductionWorkspace({
 }) {
   const clusterRows = selectedCluster?.rows ?? []
   const busy = updateSlotMutationPending || addCandidateMutationPending || uploadCandidatePending || openCanvasPending || generateCandidatePending
+  const headerActionButtonClass = 'h-8 w-[132px] justify-center gap-1.5 text-xs'
+  const creatingReference = Boolean(newReferenceEditKey)
   return (
     <div className="min-h-full overflow-y-auto bg-background p-4">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -842,35 +824,42 @@ function PreProductionWorkspace({
           <CompactMetric label="候选" value={candidateCount} />
           <CompactMetric label="锁定" value={lockedCount} detail={`${waivedCount} 豁免`} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={onOrganizeCurrentPrep} loading={prepAuditLaunching} disabled={!projectId || prepAuditLaunching}>
-            <Bot size={14} />
-            梳理设定+素材
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => setWorkspaceView('review')}>
-            <GitBranch size={14} />
-            审阅提案
-          </Button>
-          <Button size="sm" variant="outline" onClick={startCreateReference} disabled={!projectId}>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <Button size="sm" variant="outline" className={headerActionButtonClass} onClick={startCreateReference} disabled={!projectId}>
             <Sparkles size={14} />
             新建设定
           </Button>
-          <Button size="sm" onClick={startCreate} loading={createSlotPending} disabled={!projectId || createSlotPending}>
+          <Button size="sm" variant="outline" className={headerActionButtonClass} onClick={startCreate} loading={createSlotPending} disabled={!projectId || createSlotPending || creatingReference}>
             <Plus size={14} />
             新建素材
+          </Button>
+          <Button size="sm" variant="outline" className={headerActionButtonClass} onClick={onOrganizeCurrentPrep} loading={prepAuditLaunching} disabled={!projectId || prepAuditLaunching}>
+            <Bot size={14} />
+            梳理设定+素材
+          </Button>
+          <Button size="sm" variant="outline" className={headerActionButtonClass} onClick={() => setWorkspaceView('review')}>
+            <GitBranch size={14} />
+            审阅提案
           </Button>
         </div>
       </div>
 
       <main className="space-y-4">
+        <PreparationFlowBar
+          creatingReference={creatingReference}
+          hasReference={creatingReference || Boolean(selectedReference)}
+          hasAsset={Boolean(selected)}
+        />
+
         <section className="rounded-lg border border-border bg-card p-3">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-xs font-semibold text-foreground">设定</p>
-            <Badge variant="outline" className="text-[10px]">{clusters.length}</Badge>
+            <Badge variant="outline" className="text-[10px]">{clusters.length + (creatingReference ? 1 : 0)}</Badge>
           </div>
           {loading ? <p className="py-8 text-center text-xs text-muted-foreground">加载中</p> : null}
-          {!loading && clusters.length === 0 ? <EmptyPreview title="暂无前期资料" description="先创建设定资料，再为它建立素材包。" /> : null}
+          {!loading && clusters.length === 0 && !creatingReference ? <EmptyPreview title="暂无前期资料" description="先创建设定资料，再为它建立素材包。" /> : null}
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            {creatingReference ? <DraftReferenceClusterButton /> : null}
             {clusters.map((cluster) => (
               <ReferenceClusterButton
                 key={cluster.reference?.ID ?? 'unbound'}
@@ -882,59 +871,70 @@ function PreProductionWorkspace({
           </div>
         </section>
 
-        <ReferenceMaterialStrip
-          reference={selectedReference}
-          rows={clusterRows}
-          selected={selected}
-          loading={loading}
-          kindFilter={kindFilter}
-          onKindChange={(value) => setFilter({ kind: value })}
-          onSelectSlot={onSelectSlot}
-        />
+        {!creatingReference ? (
+          <ReferenceMaterialStrip
+            reference={selectedReference}
+            rows={clusterRows}
+            selected={selected}
+            loading={loading}
+            kindFilter={kindFilter}
+            onKindChange={(value) => setFilter({ kind: value })}
+            onSelectSlot={onSelectSlot}
+          />
+        ) : null}
 
         {selected ? (
-          <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_380px]">
-            <SemanticEntityInlineEditor
-              projectId={projectId}
-              config={slotConfig}
-              record={selected.slot}
-              queryKey={['semantic-asset-slots-page', projectId]}
-              editKey={selected.slot.ID === newSlotEditId ? newSlotEditId : null}
-              title="素材需求"
-              description="维护素材名称、类型、说明、提示词、优先级和设定归属。"
-              hero={{
-                icon: <SlotKindIcon kind={selected.kind} />,
-                eyebrow: assetKindLabel(selected.kind),
-                title: selected.slot.name || `素材需求 #${selected.slot.ID}`,
-                subtitle: slotScopeLabel(selected.slot),
-                summary: selected.slot.description || selected.slot.prompt_hint || '暂无素材需求描述。',
-                accentClassName: assetKindMeta[selected.kind].accent,
-                status: <SlotStatusBadge status={normalizeSlotStatus(selected.slot.status)} />,
-                stats: [
-                  { label: '候选', value: selected.candidates.length },
-                  { label: '资源', value: selected.hasResource ? '已关联' : '未关联' },
-                  { label: '锁定', value: selected.lockedSlot?.name || (selected.slot.locked_asset_slot_id ? `#${selected.slot.locked_asset_slot_id}` : '未锁定') },
-                  { label: '状态', value: slotStatusLabel(normalizeSlotStatus(selected.slot.status)) },
-                ],
-              }}
-              onSaved={onSaved}
-              onDeleted={onDeleted}
-            />
+          <section className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className="grid items-start gap-3 xl:grid-cols-[minmax(340px,0.9fr)_minmax(420px,1.1fr)]">
+              <div className="space-y-3">
+                <SemanticEntityInlineEditor
+                  projectId={projectId}
+                  config={referenceConfig}
+                  record={selectedReference}
+                  queryKey={['pre-production-creative-references', projectId]}
+                  title="一级设定"
+                  description="素材继承这里的设定上下文；切换右侧素材时，一级设定保持不变。"
+                  emptyTitle="当前素材未绑定设定"
+                  emptyDescription="这个素材需求还没有归属到具体设定。可以在右侧素材字段中补充设定归属。"
+                  onSaved={onReferenceSaved}
+                  onDeleted={onReferenceDeleted}
+                />
+                <BoundAssetCardPanel
+                  rows={clusterRows}
+                  selected={selected}
+                  onSelectSlot={onSelectSlot}
+                  onCreateAsset={startCreate}
+                  creating={createSlotPending}
+                  disabled={!projectId || creatingReference}
+                />
+              </div>
 
-            <AssetSlotDetail
-              row={selected}
-              candidateResources={candidateResources}
-              onLock={onLock}
-              onAddCandidate={onAddCandidate}
-              onUploadCandidate={onUploadCandidate}
-              onGenerateCandidate={onGenerateProposal}
-              onGenerateMediaCandidate={onGenerateMedia}
-              onOpenAssistant={onOpenAssistant}
-              onOpenCanvas={onOpenCanvas}
-              busy={busy}
-              uploading={uploading}
-              generatingKind={generatingKind}
-            />
+              <div className="space-y-3">
+                <SemanticEntityInlineEditor
+                  projectId={projectId}
+                  config={slotConfig}
+                  record={selected.slot}
+                  queryKey={['semantic-asset-slots-page', projectId]}
+                  editKey={selected.slot.ID === newSlotEditId ? newSlotEditId : null}
+                  title="二级素材"
+                  description="维护当前素材需求、候选和锁定结果。"
+                  onSaved={onSaved}
+                  onDeleted={onDeleted}
+                />
+                <AssetSlotDetail
+                  row={selected}
+                  onLock={onLock}
+                  onUploadCandidate={onUploadCandidate}
+                  onGenerateCandidate={onGenerateProposal}
+                  onGenerateMediaCandidate={onGenerateMedia}
+                  onOpenAssistant={onOpenAssistant}
+                  onOpenCanvas={onOpenCanvas}
+                  busy={busy}
+                  uploading={uploading}
+                  generatingKind={generatingKind}
+                />
+              </div>
+            </div>
           </section>
         ) : (
           <section className="grid items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -958,13 +958,73 @@ function PreProductionWorkspace({
               onSelectSlot={onSelectSlot}
               onCreateAsset={startCreate}
               creating={createSlotPending}
-              disabled={!projectId}
+              disabled={!projectId || creatingReference}
             />
           </section>
         )}
       </main>
     </div>
   )
+}
+
+function PreparationFlowBar({ creatingReference, hasReference, hasAsset }: { creatingReference: boolean; hasReference: boolean; hasAsset: boolean }) {
+  const steps = [
+    {
+      key: 'reference',
+      icon: Sparkles,
+      title: '设定',
+      detail: creatingReference ? '编辑中' : hasReference ? '已选择' : '未选择',
+      active: creatingReference || hasReference,
+      done: hasReference && !creatingReference,
+    },
+    {
+      key: 'asset-pack',
+      icon: PackageCheck,
+      title: '素材包',
+      detail: hasReference ? '已开放' : '待设定',
+      active: hasReference,
+      done: hasAsset,
+    },
+    {
+      key: 'asset-detail',
+      icon: Image,
+      title: '素材详情',
+      detail: hasAsset ? '已选择' : '待素材',
+      active: hasAsset,
+      done: false,
+    },
+  ]
+
+  return (
+    <section className="rounded-lg border border-border bg-card p-2">
+      <div className="grid gap-2 md:grid-cols-3">
+        {steps.map((step, index) => {
+          const Icon = step.icon
+          return (
+            <div
+              key={step.key}
+              className={cn(
+                'flex min-w-0 items-center gap-3 rounded-md border px-3 py-2',
+                step.active ? 'border-primary/40 bg-primary/5' : 'border-border bg-background',
+              )}
+            >
+              <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md', step.done ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : step.active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
+                {step.done ? <CheckIcon /> : <Icon size={15} />}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-foreground">{index + 1}. {step.title}</p>
+                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{step.detail}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function CheckIcon() {
+  return <Check size={14} />
 }
 
 function PreProductionReviewWorkspace({
@@ -1008,8 +1068,8 @@ function PreProductionReviewWorkspace({
           返回工作区
         </Button>
       </header>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-4">
           <ProjectLayerProposalReviewPanel
             projectId={projectId}
             kind="setting_proposal"
@@ -1033,7 +1093,7 @@ function PreProductionReviewWorkspace({
             onApplied={onApplied}
           />
         </div>
-        <div className="space-y-3">
+        <div className="min-w-0 space-y-3">
           <AssetInfoPanel title="审阅边界" icon={GitBranch}>
             <AssetInfoRow label="设定资料" value="人物、地点、道具、风格等前期核心" />
             <AssetInfoRow label="素材需求" value="围绕设定形成素材包" />
@@ -1072,6 +1132,25 @@ function ReferenceClusterButton({ cluster, selected, onSelect }: { cluster: Refe
         <span className="rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700 dark:text-emerald-300">{cluster.locked} 锁定</span>
       </div>
     </button>
+  )
+}
+
+function DraftReferenceClusterButton() {
+  return (
+    <div className="w-full rounded-md border border-primary bg-primary/5 p-2 text-left ring-1 ring-primary/30">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold text-foreground">未命名设定</p>
+          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">人物 · 编辑中</p>
+        </div>
+        <Badge variant="outline" className="text-[10px]">新建</Badge>
+      </div>
+      <div className="mt-2 grid grid-cols-3 gap-1 text-[10px]">
+        <span className="rounded bg-amber-500/10 px-1.5 py-1 text-amber-700 dark:text-amber-300">0 缺口</span>
+        <span className="rounded bg-sky-500/10 px-1.5 py-1 text-sky-700 dark:text-sky-300">0 候选</span>
+        <span className="rounded bg-emerald-500/10 px-1.5 py-1 text-emerald-700 dark:text-emerald-300">0 锁定</span>
+      </div>
+    </div>
   )
 }
 
@@ -1229,9 +1308,7 @@ function AssetSlotCard({ row, selected, onSelect }: { row: AssetSlotViewModel; s
 
 function AssetSlotDetail({
   row,
-  candidateResources,
   onLock,
-  onAddCandidate,
   onUploadCandidate,
   onGenerateCandidate,
   onGenerateMediaCandidate,
@@ -1242,9 +1319,7 @@ function AssetSlotDetail({
   generatingKind,
 }: {
   row: AssetSlotViewModel | null
-  candidateResources: RawResource[]
   onLock: (candidateSlotID: number) => void
-  onAddCandidate: (resourceID: number) => void
   onUploadCandidate: () => void
   onGenerateCandidate: (kind: CandidateGenerationKind) => void
   onGenerateMediaCandidate: (kind: CandidateGenerationKind) => void
@@ -1254,23 +1329,29 @@ function AssetSlotDetail({
   uploading: boolean
   generatingKind?: CandidateGenerationKind
 }) {
-  if (!row) return <EmptyPreview title="选择素材需求" description="查看缺口、候选和已锁定素材需求。" />
+  if (!row) {
+    return (
+      <section className="rounded-lg border border-border bg-card p-3">
+        <EmptyPreview title="选择素材需求" description="查看缺口、候选和已锁定素材需求。" />
+      </section>
+    )
+  }
   const slot = row.slot
   const preferredKind: CandidateGenerationKind = row.kind === 'video' ? 'video' : 'image'
   const canGenerate = row.kind === 'image' || row.kind === 'video'
   return (
-    <div className="space-y-5">
+    <section className="space-y-3 rounded-lg border border-border bg-card p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{slot.name || `素材需求 #${slot.ID}`}</p>
-          <p className="mt-1 text-xs text-muted-foreground">{slotScopeLabel(slot)}</p>
+          <p className="text-xs font-semibold text-foreground">候选与锁定</p>
+          <p className="mt-1 truncate text-xs text-muted-foreground">{slot.name || `素材需求 #${slot.ID}`} · {slotScopeLabel(slot)}</p>
         </div>
         <SlotStatusBadge status={normalizeSlotStatus(slot.status)} />
       </div>
 
-      <SlotThumb slot={row.lockedSlot ?? slot} className="aspect-video w-full rounded-md border border-border" />
+      <SlotThumb slot={row.lockedSlot ?? slot} fit="contain" className="aspect-[16/7] max-h-44 w-full rounded-md border border-border" />
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <MiniStat label="状态" value={slotStatusLabel(normalizeSlotStatus(slot.status))} />
         <MiniStat label="类型" value={assetKindLabel(row.kind)} />
         <MiniStat label="优先级" value={slot.priority || 'normal'} />
@@ -1319,7 +1400,7 @@ function AssetSlotDetail({
           </div>
         </div>
         <div className="space-y-2">
-          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description={canGenerate ? '先生成素材候选提案，审阅提示词、参考素材和候选计划后再执行生成。' : '通过 AI 助手或从下方素材库加入候选。'} /> : null}
+          {row.candidates.length === 0 ? <EmptyPreview title="暂无候选" description={canGenerate ? '先生成素材候选提案，审阅提示词、参考素材和候选计划后再执行生成。' : '通过 AI 助手或上传添加候选。'} /> : null}
           {row.candidates.map((candidate) => (
             <CandidateRow
               key={candidate.ID}
@@ -1331,20 +1412,7 @@ function AssetSlotDetail({
           ))}
         </div>
       </section>
-
-      <section>
-        <p className="mb-2 text-xs font-medium text-foreground">可加入候选</p>
-        <div className="grid grid-cols-2 gap-2">
-          {candidateResources.slice(0, 8).map((resource) => (
-            <button key={resource.ID} disabled={busy} onClick={() => onAddCandidate(resource.ID)} className="overflow-hidden rounded-md border border-border bg-background text-left hover:border-primary/40 disabled:opacity-60">
-              <ResourceThumb resource={resource} className="aspect-[4/3] w-full" />
-              <p className="truncate p-2 text-[11px] text-foreground">{resource.name || `资源 #${resource.ID}`}</p>
-            </button>
-          ))}
-        </div>
-        {candidateResources.length === 0 ? <EmptyPreview title="暂无可加入资源" description="素材库中没有匹配当前素材类型的资源。" /> : null}
-      </section>
-    </div>
+    </section>
   )
 }
 
@@ -1353,7 +1421,7 @@ function CandidateRow({ candidate, selected, onConfirm, busy }: { candidate: Ass
   return (
     <div className={cn('rounded-md border p-2', selected ? 'border-primary bg-primary/5' : 'border-border bg-background')}>
       <div className="flex gap-2">
-        <SlotThumb slot={slot} className="h-14 w-20 rounded border border-border" />
+        <SlotThumb slot={slot} fit="contain" className="h-14 w-20 rounded border border-border" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{slot?.name || `素材需求 #${candidate.candidate_asset_slot_id}`}</p>
           <p className="truncate text-xs text-muted-foreground">{candidate.note || sourceTypeLabel(candidate.source_type)}</p>
@@ -1415,12 +1483,6 @@ function buildReferenceAssetClusters(references: CreativeReferenceRecord[], rows
 
 function isInternalCandidateSlot(slot: AssetSlotRecord) {
   return slot.owner_type === 'asset_slot'
-}
-
-function isResourceCompatibleWithSlot(resource: RawResource, kind: Exclude<AssetKind, 'all'>) {
-  if (kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'text') return resource.type === kind
-  if (kind === 'brand_pack' || kind === 'reference' || kind === 'other') return true
-  return true
 }
 
 function candidateReferenceResourceIds(row: AssetSlotViewModel) {
@@ -1603,7 +1665,7 @@ function CandidateInfoCard({ candidate }: { candidate: AssetSlotCandidateRecord 
   return (
     <div className="rounded-md border border-border bg-background p-2">
       <div className="flex gap-2">
-        <SlotThumb slot={slot} className="h-12 w-16 rounded border border-border" />
+        <SlotThumb slot={slot} fit="contain" className="h-12 w-16 rounded border border-border" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium text-foreground">{slot?.resource?.name || slot?.name || `候选 #${candidate.candidate_asset_slot_id}`}</p>
           <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{candidate.note || sourceTypeLabel(candidate.source_type)}</p>

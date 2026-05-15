@@ -1220,12 +1220,13 @@ export async function queryCreativeReferences(args: Record<string, unknown>): Pr
   const limit = normalizeListLimit(args.limit, 50, 200)
   const path = withQuery(`/projects/${projectId}/entities/creative-references`, { kind })
   const rawReferences = await backendList(path)
-  const references = limitItems(rawReferences.filter((item) => {
+  const matchedReferences = rawReferences.filter((item) => {
     if (referenceId !== undefined && entityId(item) !== referenceId) return false
     if (status && normalizedStringField(item, 'status') !== status) return false
     if (query && !recordMatchesQuery(item, query, ['name', 'alias', 'description', 'content', 'profile_json', 'tags_json'])) return false
     return true
-  }), limit)
+  })
+  const references = limitItems(matchedReferences, limit)
   const referenceIds = new Set(references.map(entityId).filter((id): id is number => id !== undefined))
 
   const includeStates = args.include_states === true || args.includeStates === true || args.include_asset_slots === true || args.includeAssetSlots === true
@@ -1257,8 +1258,10 @@ export async function queryCreativeReferences(args: Record<string, unknown>): Pr
     projectId,
     kind: 'creative_references',
     filters: compactObject({ creative_reference_id: referenceId, kind, status, query, limit }),
-    count: rawReferences.length,
+    count: matchedReferences.length,
+    total_count: rawReferences.length,
     returned: references.length,
+    ...(rawReferences.length > 0 && matchedReferences.length === 0 ? { note: 'Filters matched no creative references. count is the filtered match count; total_count is the unfiltered backend count.' } : {}),
     references: references.map(summarizeCreativeReference),
     ...(includeStates ? { states: states.map(summarizeCreativeReferenceState) } : {}),
     ...(includeUsages ? { usages: usages.map(summarizeCreativeReferenceUsage) } : {}),
@@ -1290,7 +1293,7 @@ export async function queryAssetSlots(args: Record<string, unknown>): Promise<un
     include_internal: includeInternal ? 'true' : undefined,
   })
   const rawSlots = await backendList(path)
-  const slots = limitItems(rawSlots.filter((slot) => {
+  const matchedSlots = rawSlots.filter((slot) => {
     if (assetSlotId !== undefined && entityId(slot) !== assetSlotId) return false
     const slotOwnerType = normalizedStringField(slot, 'owner_type') ?? normalizedStringField(slot, 'ownerType')
     const slotOwnerId = numericValue(isRecord(slot) ? slot.owner_id ?? slot.ownerId : undefined)
@@ -1315,7 +1318,8 @@ export async function queryAssetSlots(args: Record<string, unknown>): Promise<un
     }
     if (query && !recordMatchesQuery(slot, query, ['name', 'description', 'prompt_hint', 'slot_key', 'metadata_json'])) return false
     return true
-  }), limit)
+  })
+  const slots = limitItems(matchedSlots, limit)
 
   const candidates = includeCandidates
     ? await queryAssetSlotCandidates(projectId, slots)
@@ -1337,8 +1341,10 @@ export async function queryAssetSlots(args: Record<string, unknown>): Promise<un
       include_candidates: includeCandidates,
       limit,
     }),
-    count: rawSlots.length,
+    count: matchedSlots.length,
+    total_count: rawSlots.length,
     returned: slots.length,
+    ...(rawSlots.length > 0 && matchedSlots.length === 0 ? { note: 'Filters matched no asset slots. count is the filtered match count; total_count is the unfiltered backend count.' } : {}),
     asset_slots: slots.map(summarizeAssetSlot),
     ...(includeCandidates ? { candidates: candidates.map(summarizeAssetSlotCandidate) } : {}),
   }

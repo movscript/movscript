@@ -261,6 +261,7 @@ interface AgentStore {
 
   createConversation: (userId: string) => string
   deleteConversation: (userId: string, id: string) => void
+  deleteConversations: (userId: string, ids: string[]) => void
   setActiveConversation: (userId: string, id: string | null) => void
   addMessage: (userId: string, conversationId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => void
   upsertMessage: (userId: string, conversationId: string, messageId: string, msg: Omit<ChatMessage, 'id' | 'timestamp'> & { timestamp?: number }) => void
@@ -364,6 +365,29 @@ export const useAgentStore = create<AgentStore>()(
           [userId]: {
             conversations,
             activeConversationId: cur.activeConversationId === id
+              ? (conversations[0]?.id ?? null)
+              : cur.activeConversationId,
+            draftsByConversation,
+          },
+        },
+      }
+    }),
+
+    deleteConversations: (userId, ids) => set((state) => {
+      const idsToDelete = new Set(ids)
+      if (idsToDelete.size === 0) return {}
+      const cur = getUserState(state, userId)
+      const conversations = cur.conversations.filter((c) => !idsToDelete.has(c.id))
+      const draftsByConversation = { ...cur.draftsByConversation }
+      idsToDelete.forEach((id) => {
+        delete draftsByConversation[id]
+      })
+      return {
+        convsByUser: {
+          ...state.convsByUser,
+          [userId]: {
+            conversations,
+            activeConversationId: cur.activeConversationId && idsToDelete.has(cur.activeConversationId)
               ? (conversations[0]?.id ?? null)
               : cur.activeConversationId,
             draftsByConversation,

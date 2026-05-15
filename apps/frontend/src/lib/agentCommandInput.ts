@@ -91,8 +91,8 @@ export function normalizePageRoute(route?: { pathname?: string; search?: string;
 function inferRouteFromLabels(labels: string[] | undefined) {
   const list = labels ?? []
   if (list.some((label) => /production-orchestrate/i.test(label))) return { pathname: '/production-orchestrate' }
-  if (list.some((label) => /creative-workbench/i.test(label))) return { pathname: '/creative-workbench' }
-  if (list.some((label) => /script-split|workbench/i.test(label))) return { pathname: '/workbench/script' }
+  if (list.some((label) => /creative-workbench/i.test(label))) return { pathname: '/pre-production' }
+  if (list.some((label) => /script-split|workbench/i.test(label))) return { pathname: '/workbench/production-plan' }
   return undefined
 }
 

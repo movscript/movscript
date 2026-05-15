@@ -446,6 +446,54 @@ test('asset candidate generation activates visual generation tools on asset slot
   assert.notEqual(tools.byName.movscript_create_generation_job?.unavailableReason, 'workflow_scope')
 })
 
+test('pre-production prep routes to setting and asset proposal drafts without generation tools', () => {
+  const catalog = loadAgentPluginCatalog()
+  const message = [
+    '请梳理当前项目「测试项目」的前期准备。',
+    '读取当前 draft model / 已有 proposal draft 的 seed 与 snapshot 作为设定基准，再检查 asset_slots，输出可审阅草稿：',
+    '1. 如果设定资料缺漏、重复、状态不清晰，创建或更新 setting_proposal；只修改 proposal.creative_references，proposal.asset_slots 必须为空。',
+    '2. 如果素材需求缺漏、归属不清晰、优先级/状态/类型需要修正，创建或更新 asset_proposal；只修改 proposal.asset_slots，proposal.creative_references 必须为空。',
+    '3. 不要生成候选素材，不要创建生成任务，不要把候选图 prompt 写成本轮结果。',
+    '4. 已有 setting_proposal draft 时，优先使用 draft 的 metadata.seed.data 或 content.snapshot_base；不要用 live creative reference 查询覆盖 draft 基准。',
+    '5. 如果查询工具返回 total_count > 0 但 count/returned = 0，说明当前筛选没有可用明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有资料但不能编辑”。',
+    '6. 保留已确认信息，在 summary 或 impact_notes 中列出关键缺口和建议审阅顺序。',
+  ].join('\n')
+  const layers = resolveRuntimeLayers({
+    registry: catalog.layeredRegistry,
+    baseManifest: catalog.manifest,
+    message,
+    debugContext: {
+      route: { pathname: '/pre-production' },
+      projects: [{ id: 4, name: '测试项目' }],
+      project: { id: 4, name: '测试项目' },
+      selection: { entityType: 'project', entityId: 4 },
+      recentResources: [],
+      attachments: [],
+      memories: [],
+      labels: ['pre-production', 'setting_proposal', 'asset_proposal', 'draft-review'],
+    },
+  })
+
+  assert.deepEqual(layers.trace.workflowIds, [
+    'movscript.workflow.setting-proposal',
+    'movscript.workflow.asset-proposal',
+  ])
+  assert.ok(!layers.ctx.intents.includes('asset_candidate_generation'))
+  assert.ok(!layers.ctx.intents.includes('visual_generation'))
+
+  const tools = resolveToolCatalog({
+    mcpTools: [],
+    registry: catalog.registry,
+    manifest: layers.manifest,
+    currentProjectId: 4,
+    activeSkills: layers.skills,
+    userMessage: message,
+  })
+  assert.ok(tools.available.some((tool) => tool.name === 'movscript_create_draft'))
+  assert.ok(tools.available.some((tool) => tool.name === 'movscript_update_draft'))
+  assert.equal(tools.byName.movscript_create_generation_job?.unavailableReason, 'workflow_scope')
+})
+
 test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('workflow/general-workflows.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('workflow/project-proposal.workflow.json', CATALOG_SKILLS_DIR)), false)

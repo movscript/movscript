@@ -34,7 +34,6 @@ export async function generatePlanTasks(input: GeneratePlanTasksInput): Promise<
       auth: input.auth,
       jsonMode: true,
       temperature: 0.1,
-      retry: { maxAttempts: 1 },
     })
     const tasks = normalizePlannerResponse(result.content, maxTasks)
     if (tasks.length > 0) return { tasks, source: 'model', warnings: [] }

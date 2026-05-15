@@ -42,6 +42,18 @@ export interface ModelCallResult {
   trace: RuntimeModelHTTPTrace
 }
 
+class ModelCallHTTPError extends Error {
+  readonly status: number
+  readonly bodyText: string
+
+  constructor(status: number, bodyText: string) {
+    super(`backend model gateway HTTP ${status}: ${bodyText}`)
+    this.name = 'ModelCallHTTPError'
+    this.status = status
+    this.bodyText = bodyText
+  }
+}
+
 export async function callModel(input: ModelCallInput): Promise<ModelCallResult> {
   const retry = normalizeModelCallRetryOptions(input.retry)
   let attempt = 1
@@ -56,7 +68,21 @@ export async function callModel(input: ModelCallInput): Promise<ModelCallResult>
         throw error
       }
       throwIfAborted(input.signal)
-      await sleep(getRetryDelayMs(attempt, retry))
+      const delayMs = getRetryDelayMs(attempt, retry)
+      const reason = error instanceof Error ? error.message : String(error)
+      input.onTrace?.({
+        phase: 'retry',
+        trace: minimalRetryTrace(input),
+        error: reason,
+        retry: {
+          attempt,
+          nextAttempt: attempt + 1,
+          maxAttempts: retry.maxAttempts,
+          delayMs,
+          reason,
+        },
+      })
+      await sleep(delayMs)
       attempt++
     }
   }
@@ -135,9 +161,9 @@ async function callModelOnce(input: ModelCallInput): Promise<ModelCallResult> {
   onTrace?.({ phase: 'response', trace })
 
   if (!response.ok) {
-    const error = `backend model gateway HTTP ${response.status}: ${responseText}`
-    onTrace?.({ phase: 'error', trace, error })
-    throw new Error(error)
+    const error = new ModelCallHTTPError(response.status, responseText)
+    onTrace?.({ phase: 'error', trace, error: error.message })
+    throw error
   }
   if (!parsedResult.ok) {
     const error = parsedResult.error ?? 'backend model gateway returned invalid response'
@@ -154,13 +180,18 @@ async function callModelOnce(input: ModelCallInput): Promise<ModelCallResult> {
 }
 
 function shouldRetryModelCall(error: unknown): boolean {
-  return error instanceof Error
-    && error.message === 'backend model gateway returned no assistant content and no tool calls'
+  if (!(error instanceof Error)) return false
+  if (isAbortError(error)) return false
+  if (error.message === 'backend model gateway returned no assistant content and no tool calls') return true
+  if (error instanceof ModelCallHTTPError) {
+    return RETRYABLE_MODEL_HTTP_STATUSES.has(error.status) || isWrappedRateLimitGatewayError(error)
+  }
+  return false
 }
 
 function normalizeModelCallRetryOptions(input?: ModelCallRetryOptions): Required<ModelCallRetryOptions> {
   return {
-    maxAttempts: Math.max(1, Math.trunc(input?.maxAttempts ?? 3)),
+    maxAttempts: Math.max(1, Math.trunc(input?.maxAttempts ?? 5)),
     initialDelayMs: Math.max(0, Math.trunc(input?.initialDelayMs ?? 1000)),
     maxDelayMs: Math.max(0, Math.trunc(input?.maxDelayMs ?? 30000)),
   }
@@ -174,6 +205,30 @@ function getRetryDelayMs(attempt: number, retry: Required<ModelCallRetryOptions>
 function throwIfAborted(signal?: AbortSignal): void {
   if (signal?.aborted) {
     throw signal.reason ?? new DOMException('Aborted', 'AbortError')
+  }
+}
+
+const RETRYABLE_MODEL_HTTP_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504])
+
+function isWrappedRateLimitGatewayError(error: ModelCallHTTPError): boolean {
+  return error.status >= 500
+    && /rate[_-]?limit|requests-per-minute limit exceeded|upstream rate limit exceeded|HTTP 429|status\s*429/i.test(error.bodyText)
+}
+
+function isAbortError(error: Error): boolean {
+  return error.name === 'AbortError'
+}
+
+function minimalRetryTrace(input: ModelCallInput): RuntimeModelHTTPTrace {
+  const request = buildBackendGatewayChatRequest(input.config, input.messages, input.auth ?? {}, {
+    temperature: input.temperature,
+    jsonMode: input.jsonMode,
+    tools: input.tools && input.tools.length > 0 ? input.tools : undefined,
+    toolChoice: input.tools && input.tools.length > 0 ? (input.toolChoice ?? 'auto') : undefined,
+  })
+  return {
+    request: sanitizeRequestSnapshot(request),
+    latencyMs: 0,
   }
 }
 

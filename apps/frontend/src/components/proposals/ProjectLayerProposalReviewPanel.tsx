@@ -166,9 +166,9 @@ export function ProjectLayerProposalReviewPanel({
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+    <section className="min-w-0 rounded-lg border border-border bg-card p-4">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
             <GitBranch size={13} />
             <span>{kind}</span>
@@ -179,7 +179,7 @@ export function ProjectLayerProposalReviewPanel({
         <Badge variant="secondary" className="shrink-0">{drafts.length} drafts</Badge>
       </div>
 
-      <div className="mt-3 grid gap-3">
+      <div className="mt-3 grid min-w-0 gap-3">
         {loading ? <p className="rounded-md border border-border bg-background px-3 py-3 text-xs text-muted-foreground">读取审阅草稿...</p> : null}
         {!loading && drafts.length === 0 ? <p className="rounded-md border border-dashed border-border bg-background px-3 py-3 text-xs text-muted-foreground">{emptyMessage}</p> : null}
         {drafts.filter((draft) => !isHelperDraft(draft)).map((draft) => {
@@ -192,13 +192,13 @@ export function ProjectLayerProposalReviewPanel({
           const modifiedEntries = entries.filter((entry) => entry.changeType === 'modified')
           const deletedEntries = entries.filter((entry) => entry.changeType === 'deleted')
           return (
-            <div key={draft.id} className="rounded-md border border-border bg-background p-3">
-              <div className="flex flex-wrap items-start justify-between gap-2">
+            <div key={draft.id} className="min-w-0 rounded-md border border-border bg-background p-3">
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <p className="truncate text-xs font-semibold text-foreground">{draft.title}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground">{formatDate(draft.updatedAt)} · {draft.id}</p>
+                  <p className="mt-1 break-all text-[10px] text-muted-foreground">{formatDate(draft.updatedAt)} · {draft.id}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
                   <Badge variant={draft.status === 'applied' ? 'success' : 'outline'} className="text-[10px]">{draft.status}</Badge>
                   <Badge variant="outline" className="text-[10px]">{entries.length} 条变更</Badge>
                 </div>
@@ -217,7 +217,7 @@ export function ProjectLayerProposalReviewPanel({
                         {rejectedEntries.length > 0 ? <Badge variant="destructive" className="h-5 rounded-full px-1.5 text-[10px]">{rejectedEntries.length} 已忽略</Badge> : null}
                       </div>
                     </div>
-                    <div className="mt-2 flex justify-end gap-1.5">
+                    <div className="mt-2 flex flex-wrap justify-end gap-1.5">
                       <Button
                         size="sm"
                         variant="outline"
@@ -258,10 +258,10 @@ export function ProjectLayerProposalReviewPanel({
                                 ? 'border-border/60 bg-muted/20'
                                 : 'border-border/70 bg-card',
                           )}>
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div className="min-w-0">
+                            <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1 basis-64">
                                 <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="text-[10px] font-medium text-foreground">{formatProjectLayerProposalEntry(entry)}</span>
+                                  <span className="min-w-0 break-words text-[10px] font-medium text-foreground">{formatProjectLayerProposalEntry(entry)}</span>
                                   <Badge variant={entry.changeType === 'deleted' ? 'destructive' : entry.changeType === 'added' ? 'secondary' : 'outline'} className="h-5 rounded-full px-1.5 text-[9px]">
                                     {entry.changeType === 'deleted' ? <Trash2 size={9} /> : null}
                                     {projectLayerProposalEntryChangeLabel(entry)}
@@ -273,7 +273,7 @@ export function ProjectLayerProposalReviewPanel({
                                 </div>
                                 <p className="mt-1 text-[10px] leading-4 text-muted-foreground">{entry.detail}</p>
                               </div>
-                              <div className="flex shrink-0 items-center gap-1.5">
+                              <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                                 {isSubmitted ? null : (
                                   <Button
                                     size="sm"
@@ -300,7 +300,7 @@ export function ProjectLayerProposalReviewPanel({
                             {rows.length > 0 ? (
                               <div className="mt-2 space-y-1 rounded border border-dashed border-border/60 bg-muted/20 px-2 py-1">
                                 {rows.map((row, index) => (
-                                  <div key={`${entry.key}-${row.label}-${index}`} className="flex items-start gap-1.5 text-[10px] leading-4">
+                                  <div key={`${entry.key}-${row.label}-${index}`} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-1.5 text-[10px] leading-4">
                                     <span className="shrink-0 rounded bg-muted px-1 py-0.5 text-muted-foreground">{row.label}</span>
                                     <span className={cn('min-w-0 flex-1 truncate', row.before ? 'line-through text-muted-foreground' : 'text-muted-foreground')}>
                                       {row.before || '新增'}

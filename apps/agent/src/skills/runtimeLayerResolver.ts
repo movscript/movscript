@@ -217,7 +217,7 @@ function inferIntents(message: string, debugContext: AgentDebugContextPanel): st
     ['planner_subagents', ['subagent', 'worker', 'parallel', '并行', '子代理', '多任务', '拆分任务', '分工']],
   ] as const
   for (const [intent, needles] of mappings) {
-    if (needles.some((needle) => normalized.includes(needle.toLowerCase()))) intents.add(intent)
+    if (needles.some((needle) => matchesIntentNeedle(normalized, needle.toLowerCase(), intent))) intents.add(intent)
   }
   const route = debugContext.route.pathname.toLowerCase()
   if (route.includes('project-workspace')) intents.add('project_proposal')
@@ -265,11 +265,32 @@ function isVisualGenerationLabel(label: string): boolean {
   ].some((needle) => label.includes(needle))
 }
 
+function matchesIntentNeedle(message: string, needle: string, intent: string): boolean {
+  if (!message.includes(needle)) return false
+  if (intent !== 'asset_candidate_generation' && intent !== 'visual_generation') return true
+  return hasNonNegatedNeedle(message, needle)
+}
+
+function hasNonNegatedNeedle(message: string, needle: string): boolean {
+  let index = message.indexOf(needle)
+  while (index >= 0) {
+    if (!isNegatedIntentMatch(message, index)) return true
+    index = message.indexOf(needle, index + needle.length)
+  }
+  return false
+}
+
+function isNegatedIntentMatch(message: string, matchIndex: number): boolean {
+  const prefix = message.slice(Math.max(0, matchIndex - 12), matchIndex)
+  return /(?:不要|不必|不用|无需|不需要|禁止|避免|别|不|do not|don't|dont|no)\s*$/.test(prefix)
+    || /(?:不要|不必|不用|无需|不需要|禁止|避免|别|不)\s*(?:创建|调用|进入|执行|启动|发起)?\s*$/.test(prefix)
+}
+
 function isVisualGenerationRequest(message: string, debugContext: AgentDebugContextPanel): boolean {
   if (message.trim().length === 0) return false
-  if (hasAny(message, DIRECT_VISUAL_GENERATION_NEEDLES)) return true
+  if (hasAnyNonNegated(message, DIRECT_VISUAL_GENERATION_NEEDLES)) return true
   if (!hasImageContext(debugContext)) return false
-  return hasAny(message, IMAGE_CONTEXT_EDIT_NEEDLES)
+  return hasAnyNonNegated(message, IMAGE_CONTEXT_EDIT_NEEDLES)
 }
 
 function hasImageContext(debugContext: AgentDebugContextPanel): boolean {
@@ -288,8 +309,8 @@ function isImageLike(item: { name?: string; type?: string; mimeType?: string }):
     || /\.(png|jpe?g|webp|gif|bmp|tiff?)$/i.test(name)
 }
 
-function hasAny(value: string, needles: readonly string[]): boolean {
-  return needles.some((needle) => value.includes(needle))
+function hasAnyNonNegated(value: string, needles: readonly string[]): boolean {
+  return needles.some((needle) => hasNonNegatedNeedle(value, needle))
 }
 
 const DIRECT_VISUAL_GENERATION_NEEDLES = [

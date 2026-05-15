@@ -39,7 +39,6 @@ import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
 import ProjectHomePage from './pages/project-home/ProjectHomePage'
 import ProjectOrchestrationPage from './pages/project-workspace/ProjectWorkspacePage'
-import CreativeWorkbenchPage from './pages/creative-workbench/CreativeWorkbenchPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
 import SegmentsPage from './pages/segments/SegmentsPage'
@@ -48,6 +47,8 @@ import FinalVideosPage from './pages/final-videos/FinalVideosPage'
 import FinalVideosWorkspacePage from './pages/final-videos/FinalVideosWorkspacePage'
 import AIDraftsPage from './pages/agent/AIDraftsPage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
+import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
+import AIAgentSettingsPage from './pages/agent/AIAgentSettingsPage'
 import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 import { Loader2 } from 'lucide-react'
@@ -178,16 +179,6 @@ function OrgGuard({ children }: { children: React.ReactNode }) {
 
 function Padded({ children }: { children: React.ReactNode }) {
   return <div className="h-full overflow-auto p-6">{children}</div>
-}
-
-function LegacyAgentDebugRedirect() {
-  const adminBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL.replace(/\/+$/, ''))
-
-  useEffect(() => {
-    window.location.replace(`${adminBaseURL}/admin/agent-debug`)
-  }, [adminBaseURL])
-
-  return null
 }
 
 function LegacyDeliveryWorkbenchRedirect() {
@@ -329,11 +320,11 @@ export default function App() {
               <Route path="/delivery-workbench" element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
               <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
               <Route path="/project-workspace" element={<ProjectGuard><ProjectOrchestrationPage /></ProjectGuard>} />
-              <Route path="/creative-workbench" element={<ProjectGuard><CreativeWorkbenchPage /></ProjectGuard>} />
+              <Route path="/creative-workbench" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
               <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
-              <Route path="/workbench" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" /></ProjectGuard>} />
-              <Route path="/script-split-workbench" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />
-              <Route path="/workbench/script" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="script" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path="/workbench" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
+              <Route path="/script-split-workbench" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
+              <Route path="/workbench/script" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
               <Route path="/workbench/production-plan" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="preview" showCategoryTabs={false} /></ProjectGuard>} />
               <Route path="/workbench/preview" element={<ProjectGuard><Navigate to="/workbench/production-plan" replace /></ProjectGuard>} />
               <Route path="/workbench/creative" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
@@ -362,12 +353,11 @@ export default function App() {
               <Route path="/jobs" element={<JobsPage />} />
               <Route path="/plugins" element={<ClientPluginsPage />} />
               <Route path="/agent/drafts" element={<Padded><AIDraftsPage /></Padded>} />
+              <Route path="/agent/settings" element={<AIAgentSettingsPage />} />
+              <Route path="/agent/debug" element={<AIAgentDebugPage />} />
               <Route path="/agent/runs/:runId" element={<AIAgentRunPage />} />
 
-              {/* Agent debug moved to the admin application. */}
-              <Route path="/agent/debug" element={<LegacyAgentDebugRedirect />} />
-              <Route path="/agent/settings" element={<LegacyAgentDebugRedirect />} />
-              <Route path="/agents" element={<LegacyAgentDebugRedirect />} />
+              <Route path="/agents" element={<Navigate to="/agent/settings" replace />} />
               </Routes>
             </ShellLayout>
           } />

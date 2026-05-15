@@ -606,6 +606,7 @@ export interface CompiledPromptPreview {
     totalChars: number
     parts: Array<{ id: string; title: string; kind: string; layer: string; chars: number }>
     byLayer: Record<string, number>
+    byContextLayer?: Record<string, number>
   }
 }
 

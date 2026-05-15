@@ -4,6 +4,7 @@ import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentApprovalRequest, AgentDebugContextPanel, AgentInputRequest, AgentMessage, AgentRun, AgentRunPolicy, AgentRunStatus, AgentTraceEventKind, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall, ToolCallOutcome, JSONValue } from '../state/types.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
+import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { BackendApplyClient } from '../drafts/backendApplyClient.js'
 import type { ConfiguredRuntimeModelConfig, RuntimeModelAuthContext, RuntimeModelChatMessage, RuntimeModelChatToolCall } from '../model/modelConfig.js'
@@ -15,13 +16,15 @@ import { executeTool, type AgentCatalogToolManager } from './toolExecutor.js'
 import { applyToolPolicy } from '../tools/toolPolicy.js'
 import { formatToolNameForDisplay } from '../tools/toolNames.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
-import { filterPromptHistory, filterPromptMemories } from '../context/promptHygiene.js'
+import { compactPromptHistory, filterPromptMemories } from '../context/promptHygiene.js'
 import {
   buildGenerationEvent,
   buildGenerationTimeoutEvent,
   extractGenerationMonitorRequest,
   type GenerationEvent,
 } from '../generation/generationEvents.js'
+import { recordToolResultInContextLedger } from '../contextManager/contextLedger.js'
+import type { ContextLedger } from '../contextManager/types.js'
 
 export interface AgentGraphTraceInput {
   kind: AgentTraceEventKind
@@ -66,6 +69,7 @@ export interface AgentGraphInput {
   registry: ToolRegistry
   contractResolver?: AgentRuntimeContractResolver
   memoryManager?: MemoryManager
+  knowledgeManager?: KnowledgeManager
   catalogManager?: AgentCatalogToolManager
   forcedToolCalls?: ToolCall[]
   approvedToolNames?: string[]
@@ -233,11 +237,28 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       ...supplementalUserMessages.map((message) => message.content),
     ].join('\n')
     : lastUser.content
-  const promptHistory: AgentMessage[] = filterPromptHistory(input.threadMessages.filter((message, index) => (
+  const promptHistoryInput: AgentMessage[] = input.threadMessages.filter((message, index) => (
     message.role !== 'system'
     && message.id !== lastUser.id
     && (rootIndex < 0 || index <= rootIndex || message.role !== 'user')
-  )))
+  ))
+  const promptHistory = compactPromptHistory(promptHistoryInput)
+  if (promptHistory.compactedCount > 0) {
+    input.onTrace({
+      kind: 'context',
+      title: 'Thread history compacted',
+      summary: `${promptHistory.compactedCount} older message(s) summarized before prompt composition.`,
+      status: 'completed',
+      roundIndex: currentRoundIndex,
+      roundLabel,
+      roundSource: 'model',
+      data: {
+        eventType: 'context.history_compacted',
+        compactedCount: promptHistory.compactedCount,
+        retainedCount: promptHistory.messages.length,
+      },
+    })
+  }
 
   if (currentRoundIndex === 1 && input.forcedToolCalls && input.forcedToolCalls.length > 0) {
     const forcedToolCalls = input.forcedToolCalls.map(normalizeToolCall)
@@ -273,8 +294,9 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     policy: input.policy,
     memories: filterPromptMemories(input.memories),
     warnings: state.warnings,
-    history: promptHistory,
+    history: promptHistory.messages,
     userMessage: effectiveUserMessage,
+    ...(promptHistory.summary ? { threadSummary: promptHistory.summary } : {}),
     ...(input.command ? { command: input.command } : {}),
     ...(input.contractResolver ? { contractResolver: input.contractResolver } : {}),
   })
@@ -360,13 +382,19 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
       }
       input.onTrace({
         kind: 'model_call',
-        title: event.phase === 'request' ? 'Model HTTP request sent' : event.phase === 'response' ? 'Model HTTP response received' : 'Model HTTP call failed',
-        summary: event.error ?? (event.trace.response ? `HTTP ${event.trace.response.status} in ${event.trace.latencyMs}ms` : undefined),
-        status: event.phase === 'request' ? 'started' : event.phase === 'error' ? 'failed' : event.trace.response?.ok === false ? 'failed' : 'completed',
+        title: event.phase === 'request'
+          ? 'Model HTTP request sent'
+          : event.phase === 'response'
+            ? 'Model HTTP response received'
+            : event.phase === 'retry' ? 'Model retry scheduled' : 'Model HTTP call failed',
+        summary: event.phase === 'retry' && event.retry
+          ? `Rate limited or temporarily unavailable. Retry ${event.retry.nextAttempt}/${event.retry.maxAttempts} in ${Math.round(event.retry.delayMs / 1000)}s.`
+          : event.error ?? (event.trace.response ? `HTTP ${event.trace.response.status} in ${event.trace.latencyMs}ms` : undefined),
+        status: event.phase === 'request' ? 'started' : event.phase === 'error' ? 'failed' : event.phase === 'retry' ? 'info' : event.trace.response?.ok === false ? 'failed' : 'completed',
         roundIndex: currentRoundIndex,
         roundLabel,
         roundSource: 'model',
-        data: { phase: event.phase, ...event.trace, ...(event.error ? { error: event.error } : {}) },
+        data: { phase: event.phase, ...event.trace, ...(event.error ? { error: event.error } : {}), ...(event.retry ? { retry: event.retry } : {}) },
       })
     },
   }).catch((error) => {
@@ -614,6 +642,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         backendApplyClient: input.backendApplyClient,
         registry: input.registry,
         memoryManager: input.memoryManager,
+        knowledgeManager: input.knowledgeManager,
         catalogManager: input.catalogManager,
         sandboxMode: input.policy.sandboxMode === true,
         signal: input.signal,
@@ -621,6 +650,7 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
       throwIfAborted(input.signal)
       const durationMs = Date.now() - startedAt
       input.onStepComplete(stepId, execResult.result, undefined, execResult.sandboxed)
+      const ledger = updateRunContextLedger(input, call, execResult.result, execResult.source)
       input.onTrace({
         kind: 'tool_call',
         title: execResult.sandboxed ? `Tool sandboxed: ${call.name}` : `Tool completed: ${call.name}`,
@@ -633,6 +663,29 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
         toolName: call.name,
         data: { source: execResult.source, result: execResult.result, sandboxed: execResult.sandboxed, durationMs },
         durationMs,
+      })
+      input.onTrace({
+        kind: 'context',
+        title: 'Context ledger updated',
+        summary: `${ledger.retrieved.length} retrieved ref(s), ${ledger.artifactRefs.length} artifact ref(s).`,
+        status: 'completed',
+        roundIndex: currentRoundIndex,
+        roundLabel,
+        roundSource: effectiveRoundSource,
+        stepId,
+        toolName: call.name,
+        data: {
+          eventType: 'context.ledger_updated',
+          retrievedCount: ledger.retrieved.length,
+          artifactRefCount: ledger.artifactRefs.length,
+          refs: ledger.retrieved.map((record) => ({
+            type: record.ref.type,
+            id: record.ref.id,
+            title: record.ref.title,
+            source: record.source,
+            evidence: record.evidence,
+          })),
+        },
       })
       const generationEvent = buildGenerationEvent(call, execResult.result)
       if (generationEvent && input.onGenerationEvent) {
@@ -778,6 +831,32 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
   }
 }
 
+function updateRunContextLedger(input: AgentGraphInput, call: ToolCall, result: JSONValue | undefined, source: 'runtime' | 'mcp' | 'sandbox'): ContextLedger {
+  const catalogSnapshotValue = input.run.metadata?.catalogSnapshot
+  const catalogSnapshot = catalogSnapshotValue && typeof catalogSnapshotValue === 'object' && !Array.isArray(catalogSnapshotValue)
+    ? catalogSnapshotValue as Record<string, JSONValue>
+    : undefined
+  const catalogSnapshotId = typeof catalogSnapshot?.id === 'string' ? catalogSnapshot.id : 'unknown'
+  const catalogSnapshotVersion = typeof catalogSnapshot?.version === 'string' ? catalogSnapshot.version : undefined
+  const ledger = recordToolResultInContextLedger({
+    ledger: input.run.metadata?.contextLedger,
+    runId: input.run.id,
+    threadId: input.run.threadId,
+    catalogSnapshotId,
+    catalogSnapshotVersion,
+    activeSkillIds: input.skills.map((skill) => skill.id),
+    visibleToolNames: input.capabilities.available.map((tool) => tool.name),
+    call,
+    result,
+    source,
+  })
+  input.run.metadata = {
+    ...(input.run.metadata ?? {}),
+    contextLedger: ledger as unknown as JSONValue,
+  }
+  return ledger
+}
+
 async function monitorGenerationJob(
   request: NonNullable<ReturnType<typeof extractGenerationMonitorRequest>>,
   initialEvent: GenerationEvent,
@@ -798,6 +877,7 @@ async function monitorGenerationJob(
       backendApplyClient: input.backendApplyClient,
       registry: input.registry,
       memoryManager: input.memoryManager,
+      knowledgeManager: input.knowledgeManager,
       catalogManager: input.catalogManager,
       sandboxMode: input.policy.sandboxMode === true,
       signal: input.signal,

@@ -528,8 +528,8 @@ export default function ProjectHomePage() {
       items.push({
         key: 'script',
         title: '建立或导入剧本版本',
-        area: '理解确认工作台',
-        href: '/workbench/script',
+        area: '剧本管理',
+        href: '/scripts',
         priority: 'high',
         detail: '没有剧本版本时，编排段、情景、制作和素材都缺少来源',
       })

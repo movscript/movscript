@@ -12,6 +12,7 @@ import { resolveAgentCapabilities } from '../tools/capabilityResolver.js'
 import { MemoryManager } from '../memory/memoryManager.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from '../memory/memoryStore.js'
 import type { AgentMemory, MemoryQuery } from '../memory/types.js'
+import { KnowledgeManager, loadBuiltinKnowledgeStore } from '../knowledge/index.js'
 import { InMemoryAgentStore, type AgentStore, type AgentTraceQuery } from '../state/store.js'
 import { DEFAULT_TOOL_REGISTRY, type ToolRegistry } from '../tools/toolRegistry.js'
 import {
@@ -217,6 +218,7 @@ export class AgentRuntime {
   private readonly backendApplyClient: BackendApplyClient
   private readonly memoryStore: AgentMemoryStore
   private readonly memoryManager: MemoryManager
+  private readonly knowledgeManager: KnowledgeManager
   private defaultAgentManifest: AgentManifest
   private toolRegistry: ToolRegistry
   private layeredRegistry: AgentPluginCatalog['layeredRegistry']
@@ -241,6 +243,7 @@ export class AgentRuntime {
     this.backendApplyClient = options.backendApplyClient ?? new MCPBackendApplyClient(this.mcpClient)
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
+    this.knowledgeManager = new KnowledgeManager(loadBuiltinKnowledgeStore())
     const initialCatalog = options.pluginCatalog
     const builtinCatalog = initialCatalog ?? (!options.pluginCatalogLoader
       && !options.defaultAgentManifest
@@ -1914,6 +1917,7 @@ export class AgentRuntime {
           },
         ],
         signal,
+        retry: { maxAttempts: 1 },
       })
       thread.title = normalizeThreadTitle(result.content) ?? fallbackTitle
       thread.metadata = {
@@ -2119,6 +2123,10 @@ export class AgentRuntime {
         command,
         ...(clientInput ? { clientInput } : {}),
         authMetadata: this.getRunAuth(run.id),
+        catalogSnapshot: {
+          id: catalogSnapshot.id,
+          version: catalogSnapshot.catalogVersion,
+        },
       })
       const debugContext = this.withRunPlanContext(setup.debugContext, run)
 
@@ -2338,6 +2346,7 @@ export class AgentRuntime {
             backendApplyClient: this.backendApplyClient,
             registry: catalogSnapshot.toolRegistry,
             memoryManager: this.memoryManager,
+            knowledgeManager: this.knowledgeManager,
             catalogManager: this,
             sandboxMode: run.policy.sandboxMode === true,
             signal,
@@ -2473,6 +2482,7 @@ export class AgentRuntime {
         registry: catalogSnapshot.toolRegistry,
         contractResolver: this.contractResolver,
         memoryManager: this.memoryManager,
+        knowledgeManager: this.knowledgeManager,
         catalogManager: this,
         onCatalogRefresh: async () => {
           catalogSnapshot = this.captureRunCatalogSnapshot(run.id)

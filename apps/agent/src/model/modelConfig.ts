@@ -132,10 +132,17 @@ export interface RuntimeModelStreamTrace {
 }
 
 export type RuntimeModelTraceCallback = (event: {
-  phase: 'request' | 'response' | 'error' | 'stream'
+  phase: 'request' | 'response' | 'error' | 'stream' | 'retry'
   trace: RuntimeModelHTTPTrace
   error?: string
   stream?: RuntimeModelStreamTrace
+  retry?: {
+    attempt: number
+    nextAttempt: number
+    maxAttempts: number
+    delayMs: number
+    reason: string
+  }
 }) => void
 
 const DEFAULT_BACKEND_API_BASE_URL = 'http://localhost:8765/api/v1'

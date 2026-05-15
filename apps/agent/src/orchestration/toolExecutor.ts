@@ -9,6 +9,7 @@ import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentMemoryKind } from '../memory/types.js'
 import { runtimeToolName } from '../tools/toolNames.js'
+import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 
 export type ToolSource = 'runtime' | 'mcp' | 'sandbox'
 
@@ -28,6 +29,7 @@ export interface ToolExecutorOptions {
   backendApplyClient: BackendApplyClient
   registry: ToolRegistry
   memoryManager?: MemoryManager
+  knowledgeManager?: KnowledgeManager
   catalogManager?: AgentCatalogToolManager
   sandboxMode: boolean
   signal?: AbortSignal
@@ -46,7 +48,7 @@ export interface AgentCatalogToolManager {
 }
 
 export async function executeTool(call: ToolCall, options: ToolExecutorOptions): Promise<ToolExecutionResult> {
-  const { run, mcpClient, draftStore, backendApplyClient, registry, memoryManager, catalogManager, sandboxMode } = options
+  const { run, mcpClient, draftStore, backendApplyClient, registry, memoryManager, knowledgeManager, catalogManager, sandboxMode } = options
   throwIfAborted(options.signal)
   const args = call.args ?? {}
 
@@ -64,7 +66,7 @@ export async function executeTool(call: ToolCall, options: ToolExecutorOptions):
   }
 
   // Runtime tools handled locally
-  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, memoryManager, catalogManager, sandboxMode)
+  const runtimeResult = await callRuntimeTool(call.name, args, run, draftStore, backendApplyClient, memoryManager, knowledgeManager, catalogManager, sandboxMode)
   throwIfAborted(options.signal)
   if (runtimeResult !== undefined) {
     return { call, result: runtimeResult, source: 'runtime' }
@@ -203,6 +205,7 @@ async function callRuntimeTool(
   draftStore: AgentDraftStore,
   backendApplyClient: BackendApplyClient,
   memoryManager: MemoryManager | undefined,
+  knowledgeManager: KnowledgeManager | undefined,
   catalogManager: AgentCatalogToolManager | undefined,
   _sandboxMode: boolean,
 ): Promise<JSONValue | undefined> {
@@ -352,6 +355,16 @@ async function callRuntimeTool(
       })),
       count: memories.length,
     } as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_search_knowledge') {
+    if (!knowledgeManager) return { results: [] } as unknown as JSONValue
+    return knowledgeManager.search(args) as unknown as JSONValue
+  }
+
+  if (toolName === 'movscript_get_knowledge') {
+    if (!knowledgeManager) throw new Error('knowledge manager unavailable')
+    return knowledgeManager.get(args)
   }
 
   if (toolName === 'movscript_get_memory') {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildPromptMemoryIndex, filterPromptHistory, filterPromptMemories } from './promptHygiene.js'
+import { buildPromptMemoryIndex, compactPromptHistory, filterPromptHistory, filterPromptMemories } from './promptHygiene.js'
 
 test('prompt hygiene filters runtime failure messages and memories from future model context', () => {
   const createdAt = '2026-01-01T00:00:00.000Z'
@@ -29,4 +29,24 @@ test('prompt memory index keeps ids and titles but drops memory content', () => 
   assert.equal(index[0]?.id, 'm1')
   assert.equal(index[0]?.title, '默认镜头风格')
   assert.equal(index[0]?.content, '')
+})
+
+test('compactPromptHistory keeps recent messages and summarizes older continuity', () => {
+  const createdAt = '2026-01-01T00:00:00.000Z'
+  const messages = Array.from({ length: 8 }, (_, index) => ({
+    id: `msg_${index + 1}`,
+    threadId: 't',
+    role: index % 2 === 0 ? 'user' as const : 'assistant' as const,
+    content: `message ${index + 1} `.repeat(20),
+    createdAt,
+  }))
+
+  const compacted = compactPromptHistory(messages, 3)
+
+  assert.deepEqual(compacted.messages.map((message) => message.id), ['msg_6', 'msg_7', 'msg_8'])
+  assert.equal(compacted.compactedCount, 5)
+  assert.match(compacted.summary ?? '', /Earlier thread continuity summary/)
+  assert.match(compacted.summary ?? '', /5 older message/)
+  assert.match(compacted.summary ?? '', /not a source of current project facts/)
+  assert.equal((compacted.summary ?? '').includes('message 1 '.repeat(20)), false)
 })

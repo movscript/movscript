@@ -1439,7 +1439,13 @@ test('records backend model gateway HTTP request and response in run trace', asy
     assert.ok(promptStats.byLayer.level0_core > 0)
     assert.ok(promptStats.byLayer.level1_context > 0)
     assert.ok(promptStats.byLayer.level2_behavior > 0)
+    assert.ok(promptStats.byContextLayer.runtime_contract > 0)
+    assert.ok(promptStats.byContextLayer.focus > 0)
+    assert.ok(promptStats.byContextLayer.behavior > 0)
     assert.ok(Array.isArray(promptStats.parts))
+    assert.equal(run.metadata?.contextLedger && (run.metadata.contextLedger as any).schema, 'movscript.context-ledger.v1')
+    assert.ok(Array.isArray(run.metadata?.activeSkillIds))
+    assert.ok(Array.isArray(run.metadata?.visibleToolNames))
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -1680,6 +1686,13 @@ test('model tool_calls are executed and fed back into the next model turn', asyn
     assert.equal(run.warnings?.join('\n') ?? '', '')
     assert.equal(callCount >= 2, true)
     assert.equal(runtime.listDrafts({ projectId: 42 }).length, 0)
+    const ledger = run.metadata?.contextLedger as any
+    assert.equal(ledger?.schema, 'movscript.context-ledger.v1')
+    assert.equal(ledger?.retrieved?.some((record: any) => record.ref?.type === 'project' && record.ref?.id === '42'), true)
+    assert.equal(ledger?.artifactRefs?.some((ref: any) => ref.type === 'project' && ref.id === '42'), true)
+    const ledgerEvent = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+      .find((event) => event.data && (event.data as any).eventType === 'context.ledger_updated')
+    assert.equal((ledgerEvent?.data as any)?.retrievedCount >= 1, true)
     const secondMessages = requests[1]?.messages as any[]
     assert.equal(secondMessages.some((message) => message?.role === 'assistant' && Array.isArray(message.tool_calls)), true)
     assert.equal(secondMessages.some((message) => message?.role === 'tool' && message.tool_call_id === 'call_read_context'), true)

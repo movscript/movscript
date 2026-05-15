@@ -72,3 +72,146 @@ test('callModel stops retrying empty assistant responses after the configured at
     globalThis.fetch = originalFetch
   }
 })
+
+test('callModel retries direct HTTP 429 gateway responses with exponential backoff', async () => {
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  try {
+    globalThis.fetch = (async () => {
+      calls++
+      if (calls === 1) {
+        return new Response(JSON.stringify({
+          error: {
+            message: 'user requests-per-minute limit exceeded',
+            type: 'rate_limit_exceeded',
+          },
+        }), { status: 429 })
+      }
+      return new Response(JSON.stringify({
+        choices: [{
+          message: { role: 'assistant', content: 'after retry' },
+          finish_reason: 'stop',
+        }],
+      }), { status: 200 })
+    }) as typeof fetch
+
+    const result = await callModel({
+      config: CONFIG,
+      messages: [{ role: 'user', content: 'hello' }],
+      retry: { maxAttempts: 2, initialDelayMs: 0 },
+    })
+
+    assert.equal(calls, 2)
+    assert.equal(result.content, 'after retry')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('callModel retries backend 502 responses that wrap provider rate limits', async () => {
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  const retryEvents: Array<{ retry?: { attempt: number; nextAttempt: number; maxAttempts: number; delayMs: number; reason: string } }> = []
+  try {
+    globalThis.fetch = (async () => {
+      calls++
+      if (calls === 1) {
+        return new Response(JSON.stringify({
+          error: {
+            message: 'openai chat stream HTTP 429: {"error":{"message":"user requests-per-minute limit exceeded","type":"rate_limit_exceeded"}}',
+            type: 'server_error',
+            param: 'stream',
+            code: 'provider_error',
+          },
+        }), { status: 502 })
+      }
+      return new Response(JSON.stringify({
+        choices: [{
+          message: { role: 'assistant', content: 'provider recovered' },
+          finish_reason: 'stop',
+        }],
+      }), { status: 200 })
+    }) as typeof fetch
+
+    const result = await callModel({
+      config: CONFIG,
+      messages: [{ role: 'user', content: 'hello' }],
+      retry: { maxAttempts: 2, initialDelayMs: 0 },
+      onTrace: (event) => {
+        if (event.phase === 'retry') retryEvents.push({ retry: event.retry })
+      },
+    })
+
+    assert.equal(calls, 2)
+    assert.equal(result.content, 'provider recovered')
+    assert.deepEqual(retryEvents.map((event) => event.retry?.nextAttempt), [2])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('callModel retries backend 502 responses that wrap upstream rate_limit_error', async () => {
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  try {
+    globalThis.fetch = (async () => {
+      calls++
+      if (calls === 1) {
+        return new Response(JSON.stringify({
+          error: {
+            message: 'openai chat stream HTTP 429: {"error":{"message":"Upstream rate limit exceeded, please retry later","type":"rate_limit_error","param":"","code":null}}',
+            type: 'server_error',
+            param: 'stream',
+            code: 'provider_error',
+          },
+        }), { status: 502 })
+      }
+      return new Response(JSON.stringify({
+        choices: [{
+          message: { role: 'assistant', content: 'upstream recovered' },
+          finish_reason: 'stop',
+        }],
+      }), { status: 200 })
+    }) as typeof fetch
+
+    const result = await callModel({
+      config: CONFIG,
+      messages: [{ role: 'user', content: 'hello' }],
+      retry: { maxAttempts: 2, initialDelayMs: 0 },
+    })
+
+    assert.equal(calls, 2)
+    assert.equal(result.content, 'upstream recovered')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('callModel stops retrying rate limited gateway responses after the configured attempts', async () => {
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  try {
+    globalThis.fetch = (async () => {
+      calls++
+      return new Response(JSON.stringify({
+        error: {
+          message: 'user requests-per-minute limit exceeded',
+          type: 'rate_limit_exceeded',
+        },
+      }), { status: 429 })
+    }) as typeof fetch
+
+    await assert.rejects(
+      callModel({
+        config: CONFIG,
+        messages: [{ role: 'user', content: 'hello' }],
+        retry: { maxAttempts: 3, initialDelayMs: 0 },
+      }),
+      /backend model gateway HTTP 429/,
+    )
+
+    assert.equal(calls, 3)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
