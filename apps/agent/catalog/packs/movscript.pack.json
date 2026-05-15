@@ -15,7 +15,8 @@
     ],
     "tools": [
       "movscript/workspace",
-      "movscript/visual-generation"
+      "movscript/visual-generation",
+      "movscript/knowledge"
     ]
   },
   "schemas": [],
@@ -33,7 +34,9 @@
     "movscript_attach_asset_slot_candidate",
     "movscript_get_generation_job",
     "movscript_list_generation_jobs",
-    "movscript_cancel_generation_job"
+    "movscript_cancel_generation_job",
+    "movscript_search_knowledge",
+    "movscript_get_knowledge"
   ],
   "skills": [
     "movscript.policy.movscript",

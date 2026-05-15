@@ -1,0 +1,36 @@
+{
+  "name": "movscript_search_knowledge",
+  "description": "搜索内置通用知识库，返回摘要和引用，不返回正文。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "query": {
+        "type": "string"
+      },
+      "domain": {
+        "type": "string"
+      },
+      "tags": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "limit": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 20
+      }
+    }
+  },
+  "permission": "knowledge.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "搜索通用知识片段摘要；不会返回知识正文。"
+}

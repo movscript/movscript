@@ -1,0 +1,30 @@
+{
+  "name": "movscript_get_knowledge",
+  "description": "按 knowledge id 读取一条通用知识正文，并按 maxChars 截断。",
+  "inputSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "id"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "maxChars": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 12000
+      }
+    }
+  },
+  "permission": "knowledge.read",
+  "risk": "read",
+  "projectScoped": false,
+  "defaults": {
+    "grant": "allow",
+    "approval": "never"
+  },
+  "source": "runtime",
+  "capability": "读取通用知识正文；knowledge 是建议性资料，不是当前项目事实。"
+}

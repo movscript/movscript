@@ -1,0 +1,19 @@
+{
+  "id": "movscript.knowledge.storyboard",
+  "version": "1.0.0",
+  "name": "Storyboard Knowledge",
+  "domain": "storyboard",
+  "description": "分镜、镜头节拍、关键帧和内容单元规划知识。",
+  "resources": [
+    "chunks/rhythm.md",
+    "chunks/shot-size.md",
+    "chunks/hook.md",
+    "chunks/keyframe.md"
+  ],
+  "tags": [
+    "storyboard",
+    "shot",
+    "content_unit",
+    "keyframe"
+  ]
+}

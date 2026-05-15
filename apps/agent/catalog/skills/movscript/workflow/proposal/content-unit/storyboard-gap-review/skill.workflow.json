@@ -21,6 +21,8 @@
     "tool://movscript_get_focus",
     "tool://movscript_list_drafts",
     "tool://movscript_get_draft",
+    "tool://movscript_search_knowledge",
+    "tool://movscript_get_knowledge",
     "tool://movscript_request_user_input"
   ],
   "toolScope": "intersect",
