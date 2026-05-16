@@ -1,26 +1,5 @@
 package semantic
 
-type RelationFilter struct {
-	ProjectID  uint
-	Category   string
-	Type       string
-	Source     string
-	SourceType string
-	SourceID   uint
-	TargetType string
-	TargetID   uint
-	Status     string
-}
-
-type ProjectItemCountFilter struct {
-	ProjectID    uint
-	Table        string
-	ForeignKey   string
-	ForeignKeyID uint
-	TargetType   string
-	TargetID     uint
-}
-
 type ScriptVersionFilter struct {
 	ProjectID uint
 	ScriptID  uint

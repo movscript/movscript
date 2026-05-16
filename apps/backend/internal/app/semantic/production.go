@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -29,7 +31,20 @@ func (s *Service) CreateProduction(ctx context.Context, projectID uint, input Pr
 		Progress:          input.Progress,
 		MetadataJSON:      input.MetadataJSON,
 	})
-	return s.repo.CreateProduction(ctx, item)
+	var created domainsemantic.Production
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateProduction(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertProductionRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string, input ProductionInput) (domainsemantic.Production, error) {
@@ -54,48 +69,73 @@ func (s *Service) PatchProduction(ctx context.Context, projectID uint, id string
 		Progress:          input.Progress,
 		MetadataJSON:      input.MetadataJSON,
 	}
-	return s.repo.PatchProduction(ctx, item, patch)
+	var patched domainsemantic.Production
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchProduction(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertProductionRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
 }
 
 func (s *Service) ensureProductionSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.Production, input ProductionInput) error {
 	if productionSourcePreserved(item, input) {
 		return nil
 	}
-	textBlocks, err := s.repo.ListProductionTextBlocks(ctx, ProductionTextBlockFilter{ProjectID: projectID, ProductionID: item.ID})
+	status, err := s.productionSourceLockStatus(ctx, projectID, item)
 	if err != nil {
 		return err
 	}
-	if len(textBlocks) > 0 {
-		return ErrInvalidInput{Err: errors.New("production source cannot be changed after production text blocks are created")}
-	}
-	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ProductionID: item.ID})
-	if err != nil {
-		return err
-	}
-	if len(segments) > 0 {
-		return ErrInvalidInput{Err: errors.New("production source cannot be changed after segments are created")}
-	}
-	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ProductionID: item.ID})
-	if err != nil {
-		return err
-	}
-	if len(units) > 0 {
-		return ErrInvalidInput{Err: errors.New("production source cannot be changed after content units are created")}
-	}
-	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ProductionID: item.ID})
-	if err != nil {
-		return err
-	}
-	if len(keyframes) > 0 {
-		return ErrInvalidInput{Err: errors.New("production source cannot be changed after keyframes are created")}
-	}
-	return nil
+	return status.ErrSourceChangeLocked("production source cannot be changed after downstream items are created")
 }
 
 func productionSourcePreserved(item domainsemantic.Production, input ProductionInput) bool {
 	return optionalUintPatchPreserves(item.ScriptVersionID, input.ScriptVersionID) &&
 		optionalUintPatchPreserves(item.PreviewTimelineID, input.PreviewTimelineID) &&
 		stringPatchPreserves(item.SourceType, input.SourceType)
+}
+
+func (s *Service) upsertProductionRelations(ctx context.Context, item domainsemantic.Production) error {
+	for _, edgeType := range []string{domainrelation.TypeDerivedFrom, domainrelation.TypeUsesPreview} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryStructure,
+			Type:      edgeType,
+			Source:    domainrelation.NewEntityRef("production", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.ScriptVersionID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("production", item.ID),
+			Target:    domainrelation.NewEntityRef("script_version", *item.ScriptVersionID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeDerivedFrom,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.PreviewTimelineID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("production", item.ID),
+			Target:    domainrelation.NewEntityRef("preview_timeline", *item.PreviewTimelineID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeUsesPreview,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 func stringPatchPreserves(existing string, patch string) bool {
@@ -107,7 +147,75 @@ func stringPatchPreserves(existing string, patch string) bool {
 }
 
 func (s *Service) ListContentUnits(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error) {
+	if contentUnitFilterUsesRelations(filter) {
+		return s.listContentUnitsFromRelations(ctx, filter)
+	}
 	return s.repo.ListContentUnits(ctx, filter)
+}
+
+func contentUnitFilterUsesRelations(filter ContentUnitFilter) bool {
+	return filter.ProductionID > 0 || filter.SegmentID > 0 || filter.SceneMomentID > 0 || filter.ScriptBlockID > 0 || len(filter.ScriptBlockIDs) > 0
+}
+
+func (s *Service) listContentUnitsFromRelations(ctx context.Context, filter ContentUnitFilter) ([]domainsemantic.ContentUnit, error) {
+	selection := relationIDSelection{}
+	if filter.ProductionID > 0 {
+		ids, err := s.relatedTargetIDs(ctx, structureContainsFilter(filter.ProjectID, "production", filter.ProductionID), "content_unit")
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	if filter.SegmentID > 0 {
+		ids, err := s.relatedTargetIDs(ctx, structureContainsFilter(filter.ProjectID, "segment", filter.SegmentID), "content_unit")
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	if filter.SceneMomentID > 0 {
+		ids, err := s.relatedSourceIDs(ctx, structureBasedOnTargetFilter(filter.ProjectID, "scene_moment", filter.SceneMomentID), "content_unit")
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	if filter.ScriptBlockID > 0 {
+		ids, err := s.relatedSourceIDs(ctx, structureBasedOnTargetFilter(filter.ProjectID, "script_block", filter.ScriptBlockID), "content_unit")
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	if len(filter.ScriptBlockIDs) > 0 {
+		union := relationIDSelection{}
+		for _, scriptBlockID := range filter.ScriptBlockIDs {
+			ids, err := s.relatedSourceIDs(ctx, structureBasedOnTargetFilter(filter.ProjectID, "script_block", scriptBlockID), "content_unit")
+			if err != nil {
+				return nil, err
+			}
+			for _, id := range ids {
+				if _, ok := union.seen[id]; ok {
+					continue
+				}
+				if union.seen == nil {
+					union.seen = make(map[uint]struct{})
+				}
+				union.seen[id] = struct{}{}
+				union.ordered = append(union.ordered, id)
+			}
+		}
+		selection = selection.intersect(union.ordered)
+	}
+	units := make([]domainsemantic.ContentUnit, 0, len(selection.ordered))
+	for _, id := range selection.ordered {
+		unit, err := s.repo.LoadContentUnit(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		units = append(units, unit)
+	}
+	return units, nil
 }
 
 func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
@@ -123,7 +231,20 @@ func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input C
 		return domainsemantic.ContentUnit{}, err
 	}
 	item := contentUnitFromInput(projectID, input)
-	return s.repo.CreateContentUnit(ctx, item)
+	var created domainsemantic.ContentUnit
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateContentUnit(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertContentUnitRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id string, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
@@ -146,28 +267,31 @@ func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id strin
 	if err := s.ensureContentUnitSourceCanChange(ctx, projectID, item, patch); err != nil {
 		return item, err
 	}
-	return s.repo.PatchContentUnit(ctx, item, patch)
+	var patched domainsemantic.ContentUnit
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchContentUnit(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertContentUnitRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
 }
 
 func (s *Service) ensureContentUnitSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.ContentUnit, patch domainsemantic.ContentUnitPatch) error {
 	if contentUnitSourcePreserved(item, patch) {
 		return nil
 	}
-	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ContentUnitID: item.ID})
+	status, err := s.contentUnitSourceLockStatus(ctx, projectID, item)
 	if err != nil {
 		return err
 	}
-	if len(keyframes) > 0 {
-		return ErrInvalidInput{Err: errors.New("content unit source cannot be changed after keyframes are created")}
-	}
-	slots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "content_unit", OwnerID: item.ID, IncludeInternal: "true"})
-	if err != nil {
-		return err
-	}
-	if len(slots) > 0 {
-		return ErrInvalidInput{Err: errors.New("content unit source cannot be changed after asset slots are created")}
-	}
-	return nil
+	return status.ErrSourceChangeLocked("content unit source cannot be changed after downstream items are created")
 }
 
 func contentUnitSourcePreserved(item domainsemantic.ContentUnit, patch domainsemantic.ContentUnitPatch) bool {
@@ -175,6 +299,78 @@ func contentUnitSourcePreserved(item domainsemantic.ContentUnit, patch domainsem
 		optionalUintPatchPreserves(item.SegmentID, patch.SegmentID) &&
 		optionalUintPatchPreserves(item.SceneMomentID, patch.SceneMomentID) &&
 		optionalUintPatchPreserves(item.ScriptBlockID, patch.ScriptBlockID)
+}
+
+func (s *Service) upsertContentUnitRelations(ctx context.Context, item domainsemantic.ContentUnit) error {
+	for _, edgeType := range []string{domainrelation.TypeContains, domainrelation.TypeCompilesTo} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryStructure,
+			Type:      edgeType,
+			Target:    domainrelation.NewEntityRef("content_unit", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeBasedOn,
+		Source:    domainrelation.NewEntityRef("content_unit", item.ID),
+	}); err != nil {
+		return err
+	}
+	if item.ProductionID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("production", *item.ProductionID),
+			Target:    domainrelation.NewEntityRef("content_unit", item.ID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeContains,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.SegmentID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("segment", *item.SegmentID),
+			Target:    domainrelation.NewEntityRef("content_unit", item.ID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeContains,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.SceneMomentID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("content_unit", item.ID),
+			Target:    domainrelation.NewEntityRef("scene_moment", *item.SceneMomentID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeBasedOn,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.ScriptBlockID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("content_unit", item.ID),
+			Target:    domainrelation.NewEntityRef("script_block", *item.ScriptBlockID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeBasedOn,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 func ensureOptionalIDMatches(inputID *uint, ownerID *uint, message string) error {
@@ -247,7 +443,48 @@ func (s *Service) validateContentUnitScriptSource(ctx context.Context, projectID
 }
 
 func (s *Service) ListKeyframes(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error) {
+	if keyframeFilterUsesRelations(filter) {
+		return s.listKeyframesFromRelations(ctx, filter)
+	}
 	return s.repo.ListKeyframes(ctx, filter)
+}
+
+func keyframeFilterUsesRelations(filter KeyframeFilter) bool {
+	return filter.ProductionID > 0 || filter.SceneMomentID > 0 || filter.ContentUnitID > 0
+}
+
+func (s *Service) listKeyframesFromRelations(ctx context.Context, filter KeyframeFilter) ([]domainsemantic.Keyframe, error) {
+	selection := relationIDSelection{}
+	if filter.ProductionID > 0 {
+		ids, err := s.relatedTargetIDs(ctx, structureHasKeyframeFilter(filter.ProjectID, "production", filter.ProductionID), "keyframe")
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	if filter.SceneMomentID > 0 {
+		ids, err := s.relatedTargetIDs(ctx, structureHasKeyframeFilter(filter.ProjectID, "scene_moment", filter.SceneMomentID), "keyframe")
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	if filter.ContentUnitID > 0 {
+		ids, err := s.relatedTargetIDs(ctx, structureHasKeyframeFilter(filter.ProjectID, "content_unit", filter.ContentUnitID), "keyframe")
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	keyframes := make([]domainsemantic.Keyframe, 0, len(selection.ordered))
+	for _, id := range selection.ordered {
+		keyframe, err := s.repo.LoadKeyframe(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		keyframes = append(keyframes, keyframe)
+	}
+	return keyframes, nil
 }
 
 func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input KeyframeInput) (domainsemantic.Keyframe, error) {
@@ -268,7 +505,20 @@ func (s *Service) CreateKeyframe(ctx context.Context, projectID uint, input Keyf
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
 	})
-	return s.repo.CreateKeyframe(ctx, item)
+	var created domainsemantic.Keyframe
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateKeyframe(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertKeyframeRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, input KeyframeInput) (domainsemantic.Keyframe, error) {
@@ -292,11 +542,113 @@ func (s *Service) PatchKeyframe(ctx context.Context, projectID uint, id string, 
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
 	}
-	return s.repo.PatchKeyframe(ctx, item, patch)
+	var patched domainsemantic.Keyframe
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchKeyframe(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertKeyframeRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertKeyframeRelations(ctx context.Context, item domainsemantic.Keyframe) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeHasKeyframe,
+		Target:    domainrelation.NewEntityRef("keyframe", item.ID),
+	}); err != nil {
+		return err
+	}
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryAsset,
+		Type:      domainrelation.TypeUsesResource,
+		Source:    domainrelation.NewEntityRef("keyframe", item.ID),
+	}); err != nil {
+		return err
+	}
+	if item.ProductionID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("production", *item.ProductionID),
+			Target:    domainrelation.NewEntityRef("keyframe", item.ID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeHasKeyframe,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.SceneMomentID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("scene_moment", *item.SceneMomentID),
+			Target:    domainrelation.NewEntityRef("keyframe", item.ID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeHasKeyframe,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.ContentUnitID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("content_unit", *item.ContentUnitID),
+			Target:    domainrelation.NewEntityRef("keyframe", item.ID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeHasKeyframe,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.ResourceID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("keyframe", item.ID),
+			Target:    domainrelation.NewEntityRef("raw_resource", *item.ResourceID),
+			Category:  domainrelation.CategoryAsset,
+			Type:      domainrelation.TypeUsesResource,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 func (s *Service) ListPreviewTimelines(ctx context.Context, filter PreviewTimelineFilter) ([]domainsemantic.PreviewTimeline, error) {
+	if filter.ProductionID > 0 {
+		return s.listPreviewTimelinesFromRelations(ctx, filter)
+	}
 	return s.repo.ListPreviewTimelines(ctx, filter)
+}
+
+func (s *Service) listPreviewTimelinesFromRelations(ctx context.Context, filter PreviewTimelineFilter) ([]domainsemantic.PreviewTimeline, error) {
+	ids, err := s.relatedSourceIDs(ctx, structureDerivedFromTargetFilter(filter.ProjectID, "production", filter.ProductionID), "preview_timeline")
+	if err != nil {
+		return nil, err
+	}
+	timelines := make([]domainsemantic.PreviewTimeline, 0, len(ids))
+	for _, id := range ids {
+		timeline, err := s.repo.LoadPreviewTimeline(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		timelines = append(timelines, timeline)
+	}
+	return timelines, nil
 }
 
 func (s *Service) CreatePreviewTimeline(ctx context.Context, projectID uint, input PreviewTimelineInput) (domainsemantic.PreviewTimeline, error) {
@@ -313,7 +665,20 @@ func (s *Service) CreatePreviewTimeline(ctx context.Context, projectID uint, inp
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
 	})
-	return s.repo.CreatePreviewTimeline(ctx, item)
+	var created domainsemantic.PreviewTimeline
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreatePreviewTimeline(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertPreviewTimelineRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchPreviewTimeline(ctx context.Context, projectID uint, id string, input PreviewTimelineInput) (domainsemantic.PreviewTimeline, error) {
@@ -333,7 +698,54 @@ func (s *Service) PatchPreviewTimeline(ctx context.Context, projectID uint, id s
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
 	}
-	return s.repo.PatchPreviewTimeline(ctx, item, patch)
+	var patched domainsemantic.PreviewTimeline
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchPreviewTimeline(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertPreviewTimelineRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertPreviewTimelineRelations(ctx context.Context, item domainsemantic.PreviewTimeline) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeDerivedFrom,
+		Source:    domainrelation.NewEntityRef("preview_timeline", item.ID),
+	}); err != nil {
+		return err
+	}
+	if item.ProductionID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("preview_timeline", item.ID),
+			Target:    domainrelation.NewEntityRef("production", *item.ProductionID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeDerivedFrom,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.ScriptVersionID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("preview_timeline", item.ID),
+			Target:    domainrelation.NewEntityRef("script_version", *item.ScriptVersionID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeDerivedFrom,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 func (s *Service) ListPreviewTimelineItems(ctx context.Context, filter PreviewTimelineItemFilter) ([]domainsemantic.PreviewTimelineItem, error) {
@@ -348,7 +760,20 @@ func (s *Service) CreatePreviewTimelineItem(ctx context.Context, projectID uint,
 		return domainsemantic.PreviewTimelineItem{}, err
 	}
 	item := previewTimelineItemFromInput(projectID, timelineID, input)
-	return s.repo.CreatePreviewTimelineItem(ctx, item)
+	var created domainsemantic.PreviewTimelineItem
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreatePreviewTimelineItem(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertPreviewTimelineItemRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchPreviewTimelineItem(ctx context.Context, projectID uint, id string, timelineID uint, input PreviewTimelineItemInput) (domainsemantic.PreviewTimelineItem, error) {
@@ -370,7 +795,78 @@ func (s *Service) PatchPreviewTimelineItem(ctx context.Context, projectID uint, 
 	if timelineID > 0 && input.PreviewTimelineID > 0 {
 		patch.PreviewTimelineID = timelineID
 	}
-	return s.repo.PatchPreviewTimelineItem(ctx, item, patch)
+	var patched domainsemantic.PreviewTimelineItem
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchPreviewTimelineItem(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertPreviewTimelineItemRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertPreviewTimelineItemRelations(ctx context.Context, item domainsemantic.PreviewTimelineItem) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeContains,
+		Target:    domainrelation.NewEntityRef("preview_timeline_item", item.ID),
+	}); err != nil {
+		return err
+	}
+	for _, edgeType := range []string{domainrelation.TypeRepresents, domainrelation.TypeUses} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryStructure,
+			Type:      edgeType,
+			Source:    domainrelation.NewEntityRef("preview_timeline_item", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("preview_timeline", item.PreviewTimelineID),
+		Target:    domainrelation.NewEntityRef("preview_timeline_item", item.ID),
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeContains,
+		Order:     item.Order,
+		Status:    semanticRelationStatus(item.Status),
+	}); err != nil {
+		return err
+	}
+	for _, target := range []struct {
+		entityType string
+		id         *uint
+		edgeType   string
+	}{
+		{entityType: "segment", id: item.SegmentID, edgeType: domainrelation.TypeRepresents},
+		{entityType: "scene_moment", id: item.SceneMomentID, edgeType: domainrelation.TypeRepresents},
+		{entityType: "content_unit", id: item.ContentUnitID, edgeType: domainrelation.TypeRepresents},
+		{entityType: "keyframe", id: item.KeyframeID, edgeType: domainrelation.TypeUses},
+	} {
+		if target.id == nil {
+			continue
+		}
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("preview_timeline_item", item.ID),
+			Target:    domainrelation.NewEntityRef(target.entityType, *target.id),
+			Category:  domainrelation.CategoryStructure,
+			Type:      target.edgeType,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func contentUnitFromInput(projectID uint, input ContentUnitInput) domainsemantic.ContentUnit {

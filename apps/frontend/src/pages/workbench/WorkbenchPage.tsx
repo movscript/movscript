@@ -23,6 +23,7 @@ import {
   Loader2,
   LockKeyhole,
   PackageCheck,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -37,6 +38,8 @@ import {
   Upload,
   Users,
   Wand2,
+  X,
+  type LucideIcon,
 } from 'lucide-react'
 
 import ReferenceRelationsPage from '@/pages/reference-relations/ReferenceRelationsPage'
@@ -65,6 +68,28 @@ import {
 } from '@/lib/scriptSplitDraft'
 import { localAgentClient, type AgentDraft, type AgentDraftValidationResult, type AgentRun } from '@/lib/localAgentClient'
 import { SCRIPT_DOCUMENT_ACCEPT, readScriptDocument, scriptDocumentTitleFromName } from '@/lib/scriptDocuments'
+import { buildContentWorkbenchActivityFeed, type ContentWorkbenchActivityFeed } from '@/lib/contentWorkbenchActivity'
+import { buildContentWorkbenchAiSuggestPrompt } from '@/lib/contentWorkbenchAiPrompt'
+import { pickContentWorkbenchFirstUsableUnit, pickContentWorkbenchFocusAfterIgnoredCandidate } from '@/lib/contentWorkbenchCandidateFocus'
+import {
+  contentWorkbenchProposalDefaults,
+  contentWorkbenchProposalFieldString,
+  contentWorkbenchProposalSnapshot,
+  contentWorkbenchProposalUnitKey,
+  contentWorkbenchProposalUnitTitle,
+  normalizeContentWorkbenchProposalText,
+} from '@/lib/contentWorkbenchDraftProposal'
+import { buildContentWorkbenchCanvasPayload, findContentWorkbenchCanvas } from '@/lib/contentWorkbenchCanvas'
+import { buildContentWorkbenchCommandBrief, type ContentWorkbenchCommandBriefKey } from '@/lib/contentWorkbenchCommandBrief'
+import { buildContentWorkbenchDeliveryBrief, type ContentWorkbenchDeliveryBrief } from '@/lib/contentWorkbenchDeliveryBrief'
+import { pickContentWorkbenchRelevantJobs } from '@/lib/contentWorkbenchJobScope'
+import { buildContentWorkbenchNextActions, type ContentWorkbenchNextActionKey } from '@/lib/contentWorkbenchNextActions'
+import { buildContentWorkbenchPipeline, type ContentWorkbenchPipelineStep, type ContentWorkbenchPipelineStepKey } from '@/lib/contentWorkbenchPipeline'
+import { buildContentWorkbenchReadinessSummary } from '@/lib/contentWorkbenchReadiness'
+import { buildContentWorkbenchReviewQueueSummary, type ContentWorkbenchReviewQueueSummary } from '@/lib/contentWorkbenchReviewQueue'
+import { buildContentWorkbenchRouteSearch, pickContentWorkbenchRowIdForDeepLink } from '@/lib/contentWorkbenchRoute'
+import { buildContentWorkbenchUnitTrack } from '@/lib/contentWorkbenchUnitTrack'
+import { pickContentWorkbenchUploadTarget } from '@/lib/contentWorkbenchUploadTarget'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
@@ -632,6 +657,8 @@ interface ContentSnapshotDiff {
   before?: string
   after?: string
   fields: ContentSnapshotFieldDiff[]
+  currentUnitId?: number
+  proposal?: Record<string, unknown>
 }
 
 interface ContentDraftReviewModel {
@@ -1314,10 +1341,23 @@ function buildMomentStandards(row: ContentGenerationMomentRow | null, jobs: Job[
   const hasJob = jobs.length > 0
   return [
     { label: '情节上下文明确', detail: hasStoryContext ? '已有情节描述、动作或时空条件' : '需要补齐情节描述、动作、时间或地点', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
-    { label: '制作项存在', detail: hasUnits ? `${row.units.length} 个制作项可继续拆分` : '还没有制作项，先手动创建或让 AI 规划内容单元', done: hasUnits, tone: hasUnits ? 'success' : 'warning' },
+    { label: '制作项存在', detail: hasUnits ? `${row.units.length} 个制作项可继续拆分` : '还没有制作项，先手动创建或让 AI 规划制作项', done: hasUnits, tone: hasUnits ? 'success' : 'warning' },
     { label: '制作项提示可用', detail: hasUnitPrompt ? '已有 description 或 prompt，可直接驱动生成' : '需要为制作项补上生成提示或用途说明', done: hasUnitPrompt, tone: hasUnitPrompt ? 'success' : 'warning' },
     { label: '素材输入就绪', detail: assetsReady ? '没有未处理的素材缺口' : `${row.missingSlots.length} 个素材缺口仍在阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务记录' : '当前项目还没有生成任务记录', done: hasJob, tone: hasJob ? 'success' : 'warning' },
+  ]
+}
+
+function appendReviewGate(rows: WorkbenchGate[], pendingDraftCount: number): WorkbenchGate[] {
+  if (rows.length === 0) return rows
+  return [
+    ...rows,
+    {
+      label: 'AI 草案已处理',
+      detail: pendingDraftCount > 0 ? `${pendingDraftCount} 个制作项草案仍需人工审阅` : '没有待处理的制作项草案',
+      done: pendingDraftCount === 0,
+      tone: pendingDraftCount === 0 ? 'success' : 'warning',
+    },
   ]
 }
 
@@ -1435,22 +1475,24 @@ function buildContentDraftReviewModel(
     if (!row) warnings.push('草案没有指向当前情节，无法做精确当前值对比。')
 
     proposedUnits.forEach((unit, index) => {
-      if ('action' in unit) warnings.push(`草案单元「${draftUnitTitle(unit, index)}」包含旧版操作字段；snapshot 审阅不会把它当作草案语义。`)
+      if ('action' in unit) warnings.push(`草案制作项「${contentWorkbenchProposalUnitTitle(unit, index)}」包含旧版操作字段；snapshot 审阅不会把它当作草案语义。`)
       const current = matchCurrentContentUnit(unit, currentUnits, usedCurrentIds, index)
       const fields = compareContentUnitFields(current, unit)
       const state: ContentSnapshotDiffState = current ? (fields.length > 0 ? 'changed' : 'unchanged') : 'added'
       if (current) usedCurrentIds.add(current.ID)
       diffs.push({
-        key: `unit-${index}-${current?.ID ?? unitKey(unit, index)}`,
+        key: `unit-${index}-${current?.ID ?? contentWorkbenchProposalUnitKey(unit, index)}`,
         state,
         kind: 'content_unit',
-        title: draftUnitTitle(unit, index),
-        target: current ? `当前内容单元 #${current.ID}` : '新增内容单元',
+        title: contentWorkbenchProposalUnitTitle(unit, index),
+        target: current ? `当前制作项 #${current.ID}` : '新增制作项',
         detail: contentUnitChangeDetail(current, unit, fields),
         impact: contentUnitChangeImpact(state, current, fields),
         before: current ? contentUnitSnapshot(current) : undefined,
-        after: contentUnitSnapshotFromProposal(unit),
+        after: contentWorkbenchProposalSnapshot(unit),
         fields,
+        currentUnitId: current?.ID,
+        proposal: current ? undefined : unit,
       })
     })
 
@@ -1461,14 +1503,14 @@ function buildContentDraftReviewModel(
         state: 'changed',
         kind: 'content_unit',
         title: titleOfRecord(current),
-        target: `现有内容单元 #${current.ID}`,
-        detail: '草案未包含该内容单元，属于收拢或删除候选。',
-        impact: '可能移除当前内容单元。',
+        target: `现有制作项 #${current.ID}`,
+        detail: '草案未包含该制作项，属于收拢或删除候选。',
+        impact: '可能移除当前制作项。',
         before: contentUnitSnapshot(current),
         after: '未出现在草案中',
         fields: [],
       })
-      warnings.push(`现有内容单元「${titleOfRecord(current)}」未出现在草案中。`)
+      warnings.push(`现有制作项「${titleOfRecord(current)}」未出现在草案中。`)
     })
 
     const summary = [
@@ -1529,38 +1571,19 @@ function draftRecordsArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter(isRecord) : []
 }
 
-function draftFieldString(value: Record<string, unknown>, keys: string[]) {
-  for (const key of keys) {
-    if (typeof value[key] === 'string' && String(value[key]).trim()) return String(value[key]).trim()
-  }
-  return ''
-}
-
-function draftUnitTitle(unit: Record<string, unknown>, index: number) {
-  return firstText(draftFieldString(unit, ['title']), `内容单元 ${index + 1}`)
-}
-
-function unitKey(unit: Record<string, unknown>, index: number) {
-  return `${normalizeDraftText(draftFieldString(unit, ['title']))}-${index}`
-}
-
-function normalizeDraftText(value: unknown) {
-  return String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
-}
-
 function matchCurrentContentUnit(
   proposed: Record<string, unknown>,
   currentUnits: WorkbenchRecord[],
   usedCurrentIds: Set<number>,
   index: number,
 ) {
-  const proposedTitle = normalizeDraftText(draftFieldString(proposed, ['title']))
-  const proposedKind = normalizeDraftText(draftFieldString(proposed, ['kind']))
-  const exact = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeDraftText(titleOfRecord(unit)) === proposedTitle && normalizeDraftText(unit.kind) === proposedKind)
+  const proposedTitle = normalizeContentWorkbenchProposalText(contentWorkbenchProposalFieldString(proposed, ['title']))
+  const proposedKind = normalizeContentWorkbenchProposalText(contentWorkbenchProposalFieldString(proposed, ['kind']))
+  const exact = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchProposalText(titleOfRecord(unit)) === proposedTitle && normalizeContentWorkbenchProposalText(unit.kind) === proposedKind)
   if (exact) return exact
-  const byTitle = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeDraftText(titleOfRecord(unit)) === proposedTitle)
+  const byTitle = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchProposalText(titleOfRecord(unit)) === proposedTitle)
   if (byTitle) return byTitle
-  const byKind = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeDraftText(unit.kind) === proposedKind)
+  const byKind = currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && normalizeContentWorkbenchProposalText(unit.kind) === proposedKind)
   if (byKind) return byKind
   return currentUnits.find((unit) => !usedCurrentIds.has(unit.ID) && index === 0) ?? undefined
 }
@@ -1578,51 +1601,37 @@ function contentUnitSnapshot(unit: WorkbenchRecord) {
   ])
 }
 
-function contentUnitSnapshotFromProposal(unit: Record<string, unknown>) {
-  const shot = isRecord(unit.shot) ? unit.shot : undefined
-  return compactContentParts([
-    draftUnitTitle(unit, 0),
-    draftFieldString(unit, ['kind']),
-    draftFieldString(unit, ['description']),
-    draftFieldString(unit, ['prompt']),
-    numberOf(unit.duration_sec) > 0 ? `${numberOf(unit.duration_sec)}s` : '',
-    draftFieldString(shot ?? {}, ['shot_size']),
-    draftFieldString(shot ?? {}, ['camera_angle']),
-    draftFieldString(shot ?? {}, ['camera_movement', 'camera_motion']),
-  ])
-}
-
 function compareContentUnitFields(current: WorkbenchRecord | undefined, proposed: Record<string, unknown>): ContentSnapshotFieldDiff[] {
   const shot = isRecord(proposed.shot) ? proposed.shot : undefined
   return compactFieldChanges([
-    { label: '标题', before: current ? titleOfRecord(current) : undefined, after: draftUnitTitle(proposed, 0) },
-    { label: '类型', before: current?.kind, after: draftFieldString(proposed, ['kind']) },
-    { label: '描述', before: current?.description, after: draftFieldString(proposed, ['description']) },
-    { label: '提示词', before: current?.prompt, after: draftFieldString(proposed, ['prompt']) },
+    { label: '标题', before: current ? titleOfRecord(current) : undefined, after: contentWorkbenchProposalUnitTitle(proposed, 0) },
+    { label: '类型', before: current?.kind, after: contentWorkbenchProposalFieldString(proposed, ['kind']) },
+    { label: '描述', before: current?.description, after: contentWorkbenchProposalFieldString(proposed, ['description']) },
+    { label: '提示词', before: current?.prompt, after: contentWorkbenchProposalFieldString(proposed, ['prompt']) },
     { label: '时长', before: current?.duration_sec ? `${current.duration_sec}s` : undefined, after: numberOf(proposed.duration_sec) > 0 ? `${numberOf(proposed.duration_sec)}s` : undefined },
-    { label: '景别', before: current?.shot_size, after: draftFieldString(shot ?? {}, ['shot_size']) },
-    { label: '机位', before: current?.camera_angle, after: draftFieldString(shot ?? {}, ['camera_angle']) },
-    { label: '运动', before: current?.camera_motion, after: draftFieldString(shot ?? {}, ['camera_movement', 'camera_motion']) },
+    { label: '景别', before: current?.shot_size, after: contentWorkbenchProposalFieldString(shot ?? {}, ['shot_size']) },
+    { label: '机位', before: current?.camera_angle, after: contentWorkbenchProposalFieldString(shot ?? {}, ['camera_angle']) },
+    { label: '运动', before: current?.camera_motion, after: contentWorkbenchProposalFieldString(shot ?? {}, ['camera_movement', 'camera_motion']) },
   ])
 }
 
 function contentUnitChangeDetail(current: WorkbenchRecord | undefined, proposed: Record<string, unknown>, fields: ContentSnapshotFieldDiff[]) {
-  if (!current) return compactContentParts([draftFieldString(proposed, ['description']), draftFieldString(proposed, ['prompt'])])
-  if (fields.length === 0) return '与当前内容单元一致，可视为复用。'
+  if (!current) return compactContentParts([contentWorkbenchProposalFieldString(proposed, ['description']), contentWorkbenchProposalFieldString(proposed, ['prompt'])])
+  if (fields.length === 0) return '与当前制作项一致，可视为复用。'
   return `调整 ${fields.map((field) => field.label).slice(0, 4).join('、')}`
 }
 
 function contentUnitChangeImpact(state: ContentSnapshotDiffState, current: WorkbenchRecord | undefined, fields: ContentSnapshotFieldDiff[]) {
-  if (state === 'added') return '草案快照新增内容单元。'
-  if (state === 'unchanged') return '草案快照与当前内容单元一致。'
+  if (state === 'added') return '草案快照新增制作项。'
+  if (state === 'unchanged') return '草案快照与当前制作项一致。'
   if (!current) return '新增或替换结构。'
-  if (fields.some((field) => field.label === '标题' || field.label === '类型')) return '会改变该单元的结构定位。'
-  if (fields.some((field) => field.label === '提示词' || field.label === '描述')) return '会改变该单元的创作意图。'
-  return '会改变该单元的执行细节。'
+  if (fields.some((field) => field.label === '标题' || field.label === '类型')) return '会改变该制作项的结构定位。'
+  if (fields.some((field) => field.label === '提示词' || field.label === '描述')) return '会改变该制作项的创作意图。'
+  return '会改变该制作项的执行细节。'
 }
 
 function compactFieldChanges(items: Array<ContentSnapshotFieldDiff>): ContentSnapshotFieldDiff[] {
-  return items.filter((item) => normalizeDraftText(item.before) !== normalizeDraftText(item.after))
+  return items.filter((item) => normalizeContentWorkbenchProposalText(item.before) !== normalizeContentWorkbenchProposalText(item.after))
 }
 
 function compactContentParts(parts: Array<unknown>) {
@@ -1646,7 +1655,7 @@ function contentSnapshotStateLabel(state: ContentSnapshotDiffState) {
 }
 
 function contentSnapshotKindLabel(kind: ContentSnapshotDiffKind) {
-  if (kind === 'content_unit') return '内容单元快照'
+  if (kind === 'content_unit') return '制作项快照'
   return '关键帧快照'
 }
 
@@ -1655,23 +1664,41 @@ function ContentGenerationReviewPanel({
   drafts,
   selectedDraft,
   reviewModel,
+  queueSummary,
+  rejectingDraft,
+  markingDraftReviewed,
+  onOpenAiSuggest,
   onSelectDraft,
+  onCreateUnitFromProposal,
+  onEditCurrentUnit,
+  onMarkDraftReviewed,
+  onRejectDraft,
   onCloseReview,
 }: {
   reviewMode: boolean
   drafts: AgentDraft[]
   selectedDraft: AgentDraft | null
   reviewModel: ContentDraftReviewModel | null
+  queueSummary: ContentWorkbenchReviewQueueSummary
+  rejectingDraft: boolean
+  markingDraftReviewed: boolean
+  onOpenAiSuggest: () => void
   onSelectDraft: (draftId: string) => void
+  onCreateUnitFromProposal: (proposal: Record<string, unknown>) => void
+  onEditCurrentUnit: (unitId: number) => void
+  onMarkDraftReviewed: (draft: AgentDraft) => void
+  onRejectDraft: (draft: AgentDraft) => void
   onCloseReview: () => void
 }) {
   return (
     <WorkbenchPanel
-      title="AI 草案审阅"
+      title="AI 审稿队列"
       icon={ClipboardCheck}
       action={(
         <div className="flex items-center gap-2">
-          <Badge variant={drafts.length > 0 ? 'secondary' : 'outline'}>{drafts.length} 个草案</Badge>
+          <Badge variant={queueSummary.tone === 'success' ? 'success' : queueSummary.tone === 'warning' ? 'warning' : 'outline'}>
+            {queueSummary.pending > 0 ? `${queueSummary.pending} 待审` : `${queueSummary.total} 草案`}
+          </Badge>
           <Button size="sm" variant="outline" className="h-8 gap-2" onClick={onCloseReview}>
             <Database size={13} />
             {reviewMode ? '退出审阅' : '收起审阅'}
@@ -1679,9 +1706,49 @@ function ContentGenerationReviewPanel({
         </div>
       )}
     >
+      <div
+        className={cn(
+          'mb-4 rounded-md border px-3 py-3',
+          queueSummary.tone === 'warning'
+            ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+            : queueSummary.tone === 'success'
+              ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+              : 'border-border bg-background',
+        )}
+        data-testid="content-workbench-review-queue"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Bot size={15} className="text-muted-foreground" />
+              {queueSummary.title}
+            </div>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{queueSummary.detail}</p>
+          </div>
+          <Button
+            size="sm"
+            variant={queueSummary.total === 0 ? 'default' : 'outline'}
+            className="h-8 gap-2"
+            onClick={queueSummary.total === 0 ? onOpenAiSuggest : undefined}
+            disabled={queueSummary.total > 0}
+          >
+            <Sparkles size={13} />
+            {queueSummary.actionLabel}
+          </Button>
+        </div>
+        {queueSummary.total > 0 ? (
+          <div className="mt-3 grid gap-2 sm:grid-cols-4">
+            <QueueMiniMetric label="待审" value={queueSummary.pending} tone={queueSummary.pending > 0 ? 'warning' : 'default'} />
+            <QueueMiniMetric label="新增" value={queueSummary.addedCount} />
+            <QueueMiniMetric label="变更" value={queueSummary.changedCount} tone={queueSummary.changedCount > 0 ? 'warning' : 'default'} />
+            <QueueMiniMetric label="风险" value={queueSummary.warningCount} tone={queueSummary.warningCount > 0 ? 'warning' : 'default'} />
+          </div>
+        ) : null}
+      </div>
+
       {drafts.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-background px-3 py-6 text-sm text-muted-foreground">
-          还没有内容单元草案。先通过 AI 助手生成 snapshot 草案，审阅区会显示当前快照和草案快照的对比。
+          还没有制作项草案。先通过 AI 助手生成 snapshot 草案，审阅区会显示当前快照和草案快照的对比。
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -1701,7 +1768,7 @@ function ContentGenerationReviewPanel({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">{draft.title}</p>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">内容单元快照 · {draft.status}</p>
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">制作项快照 · {draft.status}</p>
                     </div>
                     <Badge variant={active ? 'secondary' : 'outline'} className="shrink-0 text-[10px]">
                       结构
@@ -1721,7 +1788,7 @@ function ContentGenerationReviewPanel({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-semibold text-foreground">{selectedDraft.title}</h3>
-                      <Badge variant="secondary" className="text-[10px]">内容单元快照</Badge>
+                      <Badge variant="secondary" className="text-[10px]">制作项快照</Badge>
                     </div>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {reviewModel.targetLabel} · {reviewModel.summary}
@@ -1731,6 +1798,35 @@ function ContentGenerationReviewPanel({
                     {reviewModel.stats.map((stat) => (
                       <Badge key={stat.label} variant="outline" className="text-[10px]">{stat.label} {stat.value}</Badge>
                     ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2">
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    内容编排草案当前只做 snapshot 审阅；按差异创建、编辑或确认无需写入后，可标记为人工已处理，或退回草案清理待审队列。
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="h-8 gap-2"
+                      data-testid="content-workbench-mark-draft-reviewed"
+                      onClick={() => onMarkDraftReviewed(selectedDraft)}
+                      loading={markingDraftReviewed}
+                      disabled={markingDraftReviewed || selectedDraft.status === 'applied'}
+                    >
+                      <CheckCircle2 size={13} />
+                      {selectedDraft.status === 'applied' ? '已处理' : '标记人工已处理'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-2"
+                      onClick={() => onRejectDraft(selectedDraft)}
+                      loading={rejectingDraft}
+                      disabled={rejectingDraft || selectedDraft.status === 'rejected'}
+                    >
+                      <X size={13} />
+                      退回草案
+                    </Button>
                   </div>
                 </div>
 
@@ -1759,6 +1855,30 @@ function ContentGenerationReviewPanel({
                         <p className="text-[11px] text-muted-foreground">{change.impact}</p>
                       </div>
                       {change.detail ? <p className="mt-2 text-xs leading-5 text-foreground">{change.detail}</p> : null}
+                      {change.state === 'added' && change.proposal ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 h-8 gap-2"
+                          data-testid="content-workbench-create-proposal-unit"
+                          onClick={() => onCreateUnitFromProposal(change.proposal!)}
+                        >
+                          <Plus size={13} />
+                          带入新建制作项
+                        </Button>
+                      ) : null}
+                      {change.state === 'changed' && change.currentUnitId ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2 h-8 gap-2"
+                          data-testid="content-workbench-edit-current-unit"
+                          onClick={() => onEditCurrentUnit(change.currentUnitId!)}
+                        >
+                          <Pencil size={13} />
+                          编辑当前制作项
+                        </Button>
+                      ) : null}
                       {(change.before || change.after) ? (
                         <div className="mt-2 grid gap-2 md:grid-cols-2">
                           {change.before ? <div className="rounded bg-rose-500/10 px-2 py-1 text-xs text-rose-700 dark:text-rose-300">当前：{change.before}</div> : null}
@@ -2211,12 +2331,12 @@ function WorkbenchPanel({
 }) {
   return (
     <section className={cn('rounded-lg border border-border bg-card', className)}>
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <Icon size={16} className="shrink-0 text-muted-foreground" />
           <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
         </div>
-        {action}
+        {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       <div className={cn('p-4', bodyClassName)}>{children}</div>
     </section>
@@ -2270,11 +2390,96 @@ function SpecializedQueue({
   )
 }
 
-function QueueMiniMetric({ label, value, tone = 'default' }: { label: string; value: number | string; tone?: 'default' | 'warning' }) {
-  return (
-    <div className="min-w-14 rounded-md border border-border bg-background px-2 py-1.5">
+function QueueMiniMetric({ label, value, tone = 'default', onClick }: { label: string; value: number | string; tone?: 'default' | 'warning'; onClick?: () => void }) {
+  const content = (
+    <>
       <p className="text-[10px] text-muted-foreground">{label}</p>
       <p className={cn('mt-0.5 text-sm font-semibold tabular-nums', tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>{value}</p>
+    </>
+  )
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="min-w-14 rounded-md border border-border bg-background px-2 py-1.5 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+      >
+        {content}
+      </button>
+    )
+  }
+  return (
+    <div className="min-w-14 rounded-md border border-border bg-background px-2 py-1.5">
+      {content}
+    </div>
+  )
+}
+
+function ProductionPipeline({
+  title,
+  detail,
+  steps,
+  icons,
+}: {
+  title: string
+  detail: string
+  steps: ContentWorkbenchPipelineStep[]
+  icons: Record<ContentWorkbenchPipelineStepKey, LucideIcon>
+}) {
+  return (
+    <div className="rounded-md border border-border bg-background p-3" data-testid="content-workbench-production-pipeline">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Route size={15} className="text-muted-foreground" />
+            {title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</p>
+        </div>
+        <Badge variant={steps.some((step) => step.tone === 'current' || step.tone === 'blocked') ? 'warning' : 'success'}>
+          {steps.filter((step) => step.tone === 'done').length}/{steps.length}
+        </Badge>
+      </div>
+      <div className="mt-3 overflow-x-auto pb-1">
+        <div className="flex min-w-max items-stretch gap-2">
+          {steps.map((step, index) => {
+            const Icon = icons[step.key]
+            return (
+              <div key={step.key} className="flex items-stretch gap-2">
+                <div
+                  className={cn(
+                    'w-[150px] rounded-md border px-3 py-2',
+                    step.tone === 'done'
+                      ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+                      : step.tone === 'current'
+                        ? 'border-primary/60 bg-primary/5'
+                        : step.tone === 'blocked'
+                          ? 'border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/20'
+                          : 'border-border bg-card',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <Icon size={13} className="shrink-0 text-muted-foreground" />
+                      <span className="truncate text-[11px] font-medium text-muted-foreground">{step.label}</span>
+                    </div>
+                    <Badge variant={step.tone === 'done' ? 'success' : step.tone === 'current' || step.tone === 'blocked' ? 'warning' : 'outline'} className="shrink-0 text-[10px]">
+                      {step.tone === 'done' ? '完成' : step.tone === 'current' ? '当前' : step.tone === 'blocked' ? '待补' : '等待'}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 truncate text-sm font-semibold text-foreground">{step.value}</p>
+                  <p className="mt-1 line-clamp-2 min-h-8 text-[11px] leading-4 text-muted-foreground">{step.detail}</p>
+                </div>
+                {index < steps.length - 1 ? (
+                  <div className="flex items-center text-muted-foreground">
+                    <ChevronRight size={16} />
+                  </div>
+                ) : null}
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
@@ -2313,6 +2518,284 @@ function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{row.detail}</p>
         </div>
       ))}
+    </div>
+  )
+}
+
+function ReadinessSummaryCard({ rows }: { rows: WorkbenchGate[] }) {
+  const summary = buildContentWorkbenchReadinessSummary(rows)
+  return (
+    <div
+      className={cn(
+        'mb-3 rounded-md border px-3 py-3',
+        summary.tone === 'ready'
+          ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+          : summary.tone === 'warning'
+            ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+            : 'border-rose-200 bg-rose-50/80 dark:border-rose-900/60 dark:bg-rose-950/20',
+      )}
+      data-testid="content-workbench-readiness-summary"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            {summary.tone === 'ready' ? <CheckCircle2 size={15} className="text-emerald-600" /> : <ShieldCheck size={15} className="text-muted-foreground" />}
+            {summary.title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-lg font-semibold tabular-nums text-foreground">{summary.percent}%</p>
+          <p className="text-[10px] text-muted-foreground">{summary.passed}/{summary.total} 通过</p>
+        </div>
+      </div>
+      {summary.primaryBlocker ? (
+        <div className="mt-3 rounded bg-background/70 px-2 py-1.5 text-xs leading-5 text-muted-foreground">
+          {summary.primaryBlocker}
+        </div>
+      ) : null}
+      {summary.total > 0 ? <Progress value={summary.percent} className="mt-3 h-1.5" /> : null}
+    </div>
+  )
+}
+
+function DeliveryBriefCard({
+  brief,
+  primaryActionLabel,
+  primaryActionIcon: PrimaryActionIcon,
+  primaryActionLoading,
+  primaryActionDisabled,
+  onPrimaryAction,
+}: {
+  brief: ContentWorkbenchDeliveryBrief
+  primaryActionLabel?: string
+  primaryActionIcon?: LucideIcon
+  primaryActionLoading?: boolean
+  primaryActionDisabled?: boolean
+  onPrimaryAction?: () => void
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-md border px-3 py-3',
+        brief.tone === 'ready'
+          ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+          : brief.tone === 'warning'
+            ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+            : 'border-border bg-background',
+      )}
+      data-testid="content-workbench-delivery-brief"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <PackageCheck size={15} className="text-muted-foreground" />
+            {brief.title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{brief.detail}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={brief.tone === 'ready' ? 'success' : brief.tone === 'blocked' ? 'warning' : 'outline'}>
+            {brief.progress}%
+          </Badge>
+          {primaryActionLabel && onPrimaryAction ? (
+            <Button size="sm" className="h-8 gap-2" onClick={onPrimaryAction} loading={primaryActionLoading} disabled={primaryActionDisabled}>
+              {PrimaryActionIcon ? <PrimaryActionIcon size={13} /> : null}
+              {primaryActionLabel}
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+        {brief.metrics.map((metric) => (
+          <div key={metric.label} className="rounded-md border border-border bg-card px-2 py-2">
+            <p className="text-[10px] text-muted-foreground">{metric.label}</p>
+            <p className={cn('mt-0.5 truncate text-sm font-semibold', metric.done ? 'text-foreground' : 'text-amber-700 dark:text-amber-300')}>{metric.value}</p>
+          </div>
+        ))}
+      </div>
+      {brief.blockers.length > 0 ? (
+        <div className="mt-3 space-y-1 rounded-md border border-border bg-card px-2 py-2">
+          {brief.blockers.slice(0, 4).map((blocker) => (
+            <div key={blocker} className="flex items-center gap-2 text-xs leading-5 text-muted-foreground">
+              <AlertTriangle size={12} className="shrink-0 text-amber-600" />
+              <span>{blocker}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {brief.progress > 0 ? <Progress value={brief.progress} className="mt-3 h-1.5" /> : null}
+    </div>
+  )
+}
+
+function ActivityFeedCard({
+  feed,
+  actionIcons,
+  actionHandlers,
+}: {
+  feed: ContentWorkbenchActivityFeed
+  actionIcons: Record<ContentWorkbenchNextActionKey, LucideIcon>
+  actionHandlers: Partial<Record<ContentWorkbenchNextActionKey, () => void>>
+}) {
+  return (
+    <div className="rounded-md border border-border bg-background p-3" data-testid="content-workbench-activity-feed">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Clock3 size={15} className="text-muted-foreground" />
+            {feed.title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{feed.detail}</p>
+        </div>
+        <Badge variant={feed.items.some((item) => item.tone === 'blocked') ? 'warning' : feed.items.some((item) => item.tone === 'running') ? 'secondary' : 'success'}>
+          {feed.items.length} 条
+        </Badge>
+      </div>
+      <div className="mt-3 space-y-2">
+        {feed.items.map((item) => {
+          const actionHandler = item.actionKey ? actionHandlers[item.actionKey] : undefined
+          const ActionIcon = item.actionKey ? actionIcons[item.actionKey] : undefined
+          return (
+            <div key={item.key} className="flex items-start gap-3 rounded-md border border-border bg-card px-3 py-2">
+              <span
+                className={cn(
+                  'mt-1.5 h-2 w-2 shrink-0 rounded-full',
+                  item.tone === 'done'
+                    ? 'bg-emerald-500'
+                    : item.tone === 'running'
+                      ? 'bg-primary'
+                      : item.tone === 'blocked'
+                        ? 'bg-amber-500'
+                        : 'bg-muted-foreground/50',
+                )}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">{item.title}</p>
+                <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.detail}</p>
+              </div>
+              {item.actionKey && actionHandler ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 gap-1.5 px-2 text-[11px]"
+                  data-action-key={item.actionKey}
+                  onClick={actionHandler}
+                >
+                  {ActionIcon ? <ActionIcon size={12} /> : null}
+                  {item.actionLabel ?? '处理'}
+                </Button>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function formatTrackDuration(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '未设时长'
+  if (seconds < 60) return `${Math.round(seconds)}s`
+  const minutes = Math.floor(seconds / 60)
+  const rest = Math.round(seconds % 60)
+  return rest > 0 ? `${minutes}m ${rest}s` : `${minutes}m`
+}
+
+function UnitProductionTrack({
+  row,
+  selectedUnitId,
+  onSelectUnit,
+}: {
+  row: ContentGenerationMomentRow | null
+  selectedUnitId?: number
+  onSelectUnit: (unitId: number) => void
+}) {
+  const summary = buildContentWorkbenchUnitTrack((row?.units ?? []).slice().sort(byOrder).map((unit) => {
+    const unitSlots = row?.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === unit.ID) ?? []
+    const missingSlots = unitSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+    const keyframes = row?.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === unit.ID) ?? []
+    return {
+      id: unit.ID,
+      title: titleOfRecord(unit),
+      kind: unit.kind,
+      durationSec: numberOf(unit.duration_sec),
+      status: unit.status,
+      hasPrompt: Boolean(firstText(unit.prompt, unit.description)),
+      assetSlotCount: unitSlots.length,
+      missingSlotCount: missingSlots.length,
+      keyframeCount: keyframes.length,
+      selected: selectedUnitId === unit.ID,
+    }
+  }))
+
+  if (!row || summary.total === 0) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-background px-3 py-6 text-sm text-muted-foreground" data-testid="content-workbench-unit-track">
+        <p className="font-medium text-foreground">{summary.title}</p>
+        <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-md border border-border bg-background p-3" data-testid="content-workbench-unit-track">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Route size={15} className="text-muted-foreground" />
+            {summary.title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
+        </div>
+        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-4">
+          <QueueMiniMetric label="制作项" value={summary.total} />
+          <QueueMiniMetric label="总时长" value={formatTrackDuration(summary.durationSec)} />
+          <QueueMiniMetric label="阻塞" value={summary.blockedCount} tone={summary.blockedCount > 0 ? 'warning' : 'default'} />
+          <QueueMiniMetric label="关键帧" value={summary.keyframeCount} tone={summary.keyframeCount > 0 ? 'default' : 'warning'} />
+        </div>
+      </div>
+
+      <div className="mt-3 overflow-x-auto pb-1">
+        <div className="flex min-w-max gap-2">
+          {summary.items.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onSelectUnit(Number(item.id))}
+              className={cn(
+                'w-[220px] shrink-0 rounded-md border px-3 py-3 text-left transition-colors',
+                item.selected
+                  ? 'border-primary/60 bg-primary/5'
+                  : item.tone === 'blocked'
+                    ? 'border-amber-200 bg-amber-50/60 hover:border-primary/50 hover:bg-primary/5 dark:border-amber-900/60 dark:bg-amber-950/20'
+                    : 'border-border bg-card hover:border-primary/50 hover:bg-primary/5',
+              )}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground">#{String(index + 1).padStart(2, '0')} · {item.kind}</p>
+                  <p className="mt-1 truncate text-sm font-medium text-foreground">{item.title}</p>
+                </div>
+                <Badge variant={item.tone === 'blocked' ? 'warning' : item.tone === 'ready' ? 'success' : item.tone === 'running' ? 'secondary' : 'outline'} className="shrink-0 text-[10px]">
+                  {item.readiness}%
+                </Badge>
+              </div>
+              <Progress value={item.readiness} className="mt-3 h-1.5" />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {item.labels.map((label) => (
+                  <Badge key={label} variant="outline" className="text-[10px]">{label}</Badge>
+                ))}
+              </div>
+              {item.blockers.length > 0 ? (
+                <p className="mt-2 truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers.join(' / ')}</p>
+              ) : (
+                <p className="mt-2 truncate text-[11px] text-emerald-700 dark:text-emerald-300">基础输入可用</p>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -2614,7 +3097,7 @@ function SettingPreparationWorkbench() {
                   title="设定完善面板"
                   icon={Sparkles}
                   action={selected ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <SettingPrepStateBadge status={draft?.status ?? selected.rawStatus} />
                       <Badge variant="outline">准备度 {selected.progress}%</Badge>
                     </div>
@@ -2900,14 +3383,25 @@ function ContentGenerationWorkbench() {
   const [selectedId, setSelectedId] = useState('')
   const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [candidateUploadTargetSlot, setCandidateUploadTargetSlot] = useState<WorkbenchRecord | null>(null)
   const [creatingUnit, setCreatingUnit] = useState(false)
+  const [unitDraftDefaults, setUnitDraftDefaults] = useState<Partial<SemanticEntityPayload> | null>(null)
+  const [optimisticSelectedUnit, setOptimisticSelectedUnit] = useState<WorkbenchRecord | null>(null)
+  const [editingUnit, setEditingUnit] = useState(false)
+  const [reviewPanelCollapsed, setReviewPanelCollapsed] = useState(false)
   const [creatingKeyframe, setCreatingKeyframe] = useState(false)
   const [keyframeLibraryTarget, setKeyframeLibraryTarget] = useState<WorkbenchRecord | null>(null)
   const [keyframeResourceSearch, setKeyframeResourceSearch] = useState('')
   const [keyframeResourcePage, setKeyframeResourcePage] = useState(1)
   const [uploadKeyframeTarget, setUploadKeyframeTarget] = useState<WorkbenchRecord | null>(null)
+  const linkedProductionId = numberOf(searchParams.get('productionId'))
+  const linkedSceneMomentId = numberOf(searchParams.get('scene_moment_id'))
+  const linkedContentUnitId = numberOf(searchParams.get('content_unit_id'))
   const reviewDraftId = searchParams.get('draftId')?.trim() ?? ''
   const reviewMode = searchParams.get('view') === 'review' || reviewDraftId.length > 0
+  useEffect(() => {
+    if (reviewMode) setReviewPanelCollapsed(false)
+  }, [reviewMode])
   const productionFilteredRows = useMemo(() => {
     if (productionFilter === 'all') return rows
     if (productionFilter === 'unassigned') return rows.filter((row) => row.productionIds.length === 0)
@@ -2935,6 +3429,12 @@ function ContentGenerationWorkbench() {
       })),
     ]
   }, [data?.productions, rows])
+  useEffect(() => {
+    const target = linkedProductionId > 0 ? String(linkedProductionId) : ''
+    if (target && productionFilter !== target && productionFilterOptions.some((option) => option.value === target)) {
+      setProductionFilter(target)
+    }
+  }, [linkedProductionId, productionFilter, productionFilterOptions])
   const segmentFilterOptions = useMemo(() => {
     const segmentMap = new Map<string, { value: string; label: string; count: number }>()
     let unassignedCount = 0
@@ -2971,29 +3471,114 @@ function ContentGenerationWorkbench() {
       if (selectedId) setSelectedId('')
       return
     }
+    const linkedRowId = pickContentWorkbenchRowIdForDeepLink(filteredRows, { sceneMomentId: linkedSceneMomentId, contentUnitId: linkedContentUnitId })
+    if (linkedRowId && selectedId !== linkedRowId) {
+      setSelectedId(linkedRowId)
+      return
+    }
     if (!selectedId || !filteredRows.some((row) => row.id === selectedId)) {
       setSelectedId(filteredRows[0].id)
     }
-  }, [filteredRows, selectedId])
+  }, [filteredRows, linkedContentUnitId, linkedSceneMomentId, selectedId])
 
   const selected = filteredRows.find((item) => item.id === selectedId) ?? filteredRows[0] ?? null
 
   useEffect(() => {
     if (!selected) {
       if (selectedUnitId !== null) setSelectedUnitId(null)
+      if (editingUnit) setEditingUnit(false)
+      return
+    }
+    const linkedUnit = linkedContentUnitId > 0 ? selected.units.find((unit) => unit.ID === linkedContentUnitId) : undefined
+    if (linkedUnit && selectedUnitId !== linkedUnit.ID) {
+      setSelectedUnitId(linkedUnit.ID)
       return
     }
     if (selectedUnitId !== null && !selected.units.some((unit) => unit.ID === selectedUnitId)) {
       setSelectedUnitId(null)
+      if (editingUnit) setEditingUnit(false)
     }
-  }, [selected, selectedUnitId])
+  }, [editingUnit, linkedContentUnitId, selected, selectedUnitId])
+
+  useEffect(() => {
+    if (!selected || linkedSceneMomentId > 0 || linkedContentUnitId <= 0) return
+    if (!selected.units.some((unit) => unit.ID === linkedContentUnitId)) return
+    setSearchParams((current) => {
+      if (current.get('scene_moment_id')) return current
+      const next = new URLSearchParams(current)
+      next.set('scene_moment_id', String(selected.moment.ID))
+      return next
+    }, { replace: true })
+  }, [linkedContentUnitId, linkedSceneMomentId, selected, setSearchParams])
 
   const fallbackSelectedUnit = selected?.units.find((unit) => firstText(unit.prompt, unit.description)) ?? selected?.units[0] ?? null
-  const selectedUnit = selected?.units.find((unit) => unit.ID === selectedUnitId) ?? fallbackSelectedUnit
+  const selectedUnitFromRows = selected?.units.find((unit) => unit.ID === selectedUnitId) ?? null
+  const optimisticUnitForSelection = optimisticSelectedUnit && selectedUnitId === optimisticSelectedUnit.ID && selected?.moment.ID === Number(optimisticSelectedUnit.scene_moment_id)
+    ? optimisticSelectedUnit
+    : null
+  const selectedUnit = selectedUnitFromRows ?? optimisticUnitForSelection ?? (selectedUnitId ? null : fallbackSelectedUnit)
   const selectedProduction = selected?.productionIds[0]
     ? data?.productions.find((production) => production.ID === selected.productionIds[0])
     : null
-  const uploadTargetSlot = selected?.missingSlots[0] ?? selected?.assetSlots[0] ?? null
+
+  function selectSceneMoment(rowId: string, options: { replace?: boolean } = {}) {
+    const row = filteredRows.find((item) => item.id === rowId) ?? rows.find((item) => item.id === rowId)
+    setOptimisticSelectedUnit(null)
+    setSelectedId(rowId)
+    if (!row) return
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set('scene_moment_id', String(row.moment.ID))
+      next.delete('content_unit_id')
+      return next
+    }, { replace: options.replace ?? true })
+  }
+
+  function selectContentUnit(unitId: number | null, options: { replace?: boolean } = {}) {
+    if (!unitId || optimisticSelectedUnit?.ID !== unitId) setOptimisticSelectedUnit(null)
+    setSelectedUnitId(unitId)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (selected?.moment.ID) next.set('scene_moment_id', String(selected.moment.ID))
+      if (unitId && unitId > 0) next.set('content_unit_id', String(unitId))
+      else next.delete('content_unit_id')
+      return next
+    }, { replace: options.replace ?? true })
+  }
+
+  function selectProductionFilter(value: string) {
+    setOptimisticSelectedUnit(null)
+    setSelectedUnitId(null)
+    setProductionFilter(value)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (value !== 'all' && value !== 'unassigned' && Number(value) > 0) next.set('productionId', value)
+      else next.delete('productionId')
+      next.delete('scene_moment_id')
+      next.delete('content_unit_id')
+      return next
+    }, { replace: true })
+  }
+
+  function selectSegmentFilter(value: string) {
+    setOptimisticSelectedUnit(null)
+    setSelectedUnitId(null)
+    setSegmentFilter(value)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('scene_moment_id')
+      next.delete('content_unit_id')
+      return next
+    }, { replace: true })
+  }
+
+  useEffect(() => {
+    if (!optimisticSelectedUnit) return
+    if (!selected || Number(optimisticSelectedUnit.scene_moment_id) !== selected.moment.ID || selected.units.some((unit) => unit.ID === optimisticSelectedUnit.ID)) {
+      setOptimisticSelectedUnit(null)
+    }
+  }, [optimisticSelectedUnit, selected])
+
   const generationContextQuery = useQuery({
     queryKey: ['workbench', 'production', 'generation-context', projectId, selectedUnit?.ID],
     queryFn: () => buildContentUnitGenerationContext(projectId!, selectedUnit!.ID, 'video'),
@@ -3016,14 +3601,13 @@ function ContentGenerationWorkbench() {
   const keyframeResourceTotal = keyframeResourcesQuery.data?.total ?? 0
   const keyframeResourcePageCount = Math.max(1, Math.ceil(keyframeResourceTotal / keyframeResourcePageSize))
   const uploadCandidate = useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, slot }: { file: File; slot: WorkbenchRecord }) => {
       if (!projectId) throw new Error('请先选择项目')
-      if (!uploadTargetSlot) throw new Error('当前情节没有可挂载候选的素材需求')
       const fd = new FormData()
       fd.append('file', file)
       const resource = await api.post('/resources/upload', fd).then((r) => r.data as RawResource)
       await api.post(`/projects/${projectId}/entities/asset-slot-candidates`, {
-        asset_slot_id: uploadTargetSlot.ID,
+        asset_slot_id: slot.ID,
         resource_id: resource.ID,
         source_type: 'upload',
         source_id: resource.ID,
@@ -3046,22 +3630,34 @@ function ContentGenerationWorkbench() {
     },
     onSettled: () => {
       setUploading(false)
+      setCandidateUploadTargetSlot(null)
       if (uploadInputRef.current) uploadInputRef.current.value = ''
     },
   })
   const openUnitCanvas = useMutation({
-    mutationFn: (unit: WorkbenchRecord) => {
+    mutationFn: async (unit: WorkbenchRecord) => {
       if (!projectId) throw new Error('请先选择项目')
-      return api.post('/canvases', {
-        name: `${titleOfRecord(unit)} · 内容编排`,
-        project_id: projectId,
-        canvas_type: 'workflow',
-        stage: 'generation',
-        ref_type: 'content_unit',
-        ref_id: unit.ID,
-      }).then((r) => r.data as Canvas)
+      const canvases = await api.get('/canvases', {
+        params: {
+          project_id: projectId,
+          type: 'workflow',
+          stage: 'generation',
+          ref_type: 'content_unit',
+          ref_id: unit.ID,
+        },
+      }).then((r) => r.data as Canvas[])
+      const existingCanvas = findContentWorkbenchCanvas(canvases, unit.ID)
+      if (existingCanvas) return existingCanvas
+      return api.post('/canvases', buildContentWorkbenchCanvasPayload({
+        projectId,
+        contentUnitId: unit.ID,
+        title: titleOfRecord(unit),
+      })).then((r) => r.data as Canvas)
     },
     onSuccess: (canvas) => navigate(`/canvases/${canvas.ID}`),
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, '打开生成画布失败'))
+    },
   })
   const bindKeyframeResource = useMutation({
     mutationFn: async ({ keyframe, resourceId }: { keyframe: WorkbenchRecord; resourceId: number }) => {
@@ -3104,9 +3700,8 @@ function ContentGenerationWorkbench() {
       if (keyframeUploadInputRef.current) keyframeUploadInputRef.current.value = ''
     },
   })
-  const metrics = buildMomentMetrics(filteredRows, data)
   const candidateRows = buildProductionCandidateRows(data?.jobs ?? [])
-  const standards = generationContextQuery.data
+  const baseStandards = generationContextQuery.data
     ? buildGenerationContextStandards(generationContextQuery.data)
     : buildMomentStandards(selected, data?.jobs ?? [])
   const contextRows = buildMomentContext(selected)
@@ -3114,6 +3709,25 @@ function ContentGenerationWorkbench() {
   const selectedUnitKeyframes = selected && selectedUnit
     ? selected.keyframes.filter((keyframe) => Number(keyframe.content_unit_id) === selectedUnit.ID).slice().sort(byOrder)
     : []
+  const selectedUnitAssetSlots = selected && selectedUnit
+    ? selected.assetSlots.filter((slot) => slot.owner_type === 'content_unit' && Number(slot.owner_id) === selectedUnit.ID)
+    : []
+  const selectedUnitMissingSlots = selectedUnitAssetSlots.filter((slot) => normalizeAssetSlotStatus(slot.status) === 'missing')
+  const uploadTargetSlot = pickContentWorkbenchUploadTarget({
+    selectedUnitAssetSlots,
+    momentAssetSlots: selected?.assetSlots ?? [],
+  })
+  const selectedUnitResourceIds = [
+    ...selectedUnitAssetSlots.map((slot) => numberOf(slot.resource_id)),
+    ...selectedUnitKeyframes.map((keyframe) => numberOf(keyframe.resource_id)),
+  ].filter((id) => id > 0)
+  const selectedUnitJobs = pickContentWorkbenchRelevantJobs({
+    jobs: data?.jobs ?? [],
+    contentUnitId: selectedUnit?.ID,
+    contentUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
+    resourceIds: selectedUnitResourceIds,
+  })
+  const selectedUnitStatus = selectedUnit ? contentUnitWorkStatus(selectedUnit, selectedUnitMissingSlots) : 'blocked'
   const selectedKeyframeSequence = selected ? buildMomentKeyframeSequence(selected) : []
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
   const nextKeyframeRole = frameRoleLabel(selectedUnitKeyframes.length, selectedUnitKeyframes.length + 1)
@@ -3134,13 +3748,25 @@ function ContentGenerationWorkbench() {
 
   function triggerCandidateUpload() {
     if (!uploadTargetSlot || uploading || uploadCandidate.isPending) return
+    setCandidateUploadTargetSlot(uploadTargetSlot)
     uploadInputRef.current?.click()
   }
 
   function handleCandidateUpload(file?: File) {
-    if (!file || !uploadTargetSlot || uploadCandidate.isPending) return
+    const slot = candidateUploadTargetSlot ?? uploadTargetSlot
+    if (!file) {
+      setCandidateUploadTargetSlot(null)
+      if (uploadInputRef.current) uploadInputRef.current.value = ''
+      return
+    }
+    if (!slot) {
+      setCandidateUploadTargetSlot(null)
+      if (uploadInputRef.current) uploadInputRef.current.value = ''
+      return
+    }
+    if (uploadCandidate.isPending) return
     setUploading(true)
-    uploadCandidate.mutate(file)
+    uploadCandidate.mutate({ file, slot })
   }
 
   function openKeyframeUpload(keyframe: WorkbenchRecord) {
@@ -3170,8 +3796,8 @@ function ContentGenerationWorkbench() {
     queryKey: ['workbench', 'production', 'content-drafts', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      const contentUnitProposals = await localAgentClient.listDrafts({ projectId, kind: 'content_unit_proposal', limit: 20 })
-      return dedupeDrafts(contentUnitProposals.drafts).filter((draft) => draft.status !== 'rejected')
+      const contentUnitProposals = await localAgentClient.listDrafts({ projectId, kind: 'content_unit_proposal', status: ['draft', 'accepted'], limit: 20 })
+      return dedupeDrafts(contentUnitProposals.drafts)
     },
     enabled: !!projectId,
     retry: false,
@@ -3186,8 +3812,19 @@ function ContentGenerationWorkbench() {
       rowByUnitId: new Map(rows.flatMap((row) => row.units.map((unit) => [unit.ID, row] as const))),
     })
   }, [rows, selectedReviewDraft])
+  const reviewQueueSummary = useMemo(() => buildContentWorkbenchReviewQueueSummary({
+    drafts: reviewDrafts,
+    selectedReview: contentDraftReview ? {
+      warningCount: contentDraftReview.warnings.length,
+      diffCount: contentDraftReview.diffs.length,
+      addedCount: contentDraftReview.diffs.filter((diff) => diff.state === 'added').length,
+      changedCount: contentDraftReview.diffs.filter((diff) => diff.state === 'changed').length,
+    } : null,
+  }), [contentDraftReview, reviewDrafts])
+  const standards = useMemo(() => appendReviewGate(baseStandards, reviewQueueSummary.pending), [baseStandards, reviewQueueSummary.pending])
 
   function selectReviewDraft(draftId: string) {
+    setReviewPanelCollapsed(false)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.set('view', 'review')
@@ -3197,6 +3834,7 @@ function ContentGenerationWorkbench() {
   }
 
   function closeReview() {
+    setReviewPanelCollapsed(true)
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.delete('view')
@@ -3205,6 +3843,45 @@ function ContentGenerationWorkbench() {
     }, { replace: true })
   }
 
+  const rejectContentDraft = useMutation({
+    mutationFn: async (draft: AgentDraft) => localAgentClient.rejectDraft(draft.id, '用户在内容编排工作台退回该制作项草案'),
+    onSuccess: async () => {
+      toast.success('AI 草案已退回')
+      await reviewDraftsQuery.refetch()
+      closeReview()
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, 'AI 草案退回失败'))
+    },
+  })
+  const markContentDraftReviewed = useMutation({
+    mutationFn: async (draft: AgentDraft) => localAgentClient.updateDraft(draft.id, {
+      status: 'applied',
+      target: {
+        ...(isRecord(draft.target) ? draft.target : {}),
+        projectId,
+        entityType: 'scene_moment',
+        entityId: selected?.moment.ID ?? draftEntityId(draft.target) ?? draftEntityId(draft.source),
+        field: 'content_unit_proposal_review',
+      },
+      metadata: {
+        ...(isRecord(draft.metadata) ? draft.metadata : {}),
+        reviewedFrom: 'content-workbench',
+        reviewedAt: new Date().toISOString(),
+        backendWritePerformed: false,
+        reviewDisposition: 'manual_review_completed',
+      },
+    }),
+    onSuccess: async () => {
+      toast.success('AI 草案已标记为处理完成')
+      await reviewDraftsQuery.refetch()
+      closeReview()
+    },
+    onError: (error) => {
+      toast.error(apiErrorMessage(error, 'AI 草案状态更新失败'))
+    },
+  })
+
   const unitCandidates = useMemo(() => {
     if (!selected) return [] as WorkbenchRecord[]
     return selected.units.filter((unit) => {
@@ -3212,6 +3889,56 @@ function ContentGenerationWorkbench() {
       return status === '' || status === 'draft' || status === 'candidate'
     })
   }, [selected])
+  const totalUnitCount = filteredRows.reduce((sum, row) => sum + row.units.length, 0)
+  const totalKeyframeCount = filteredRows.reduce((sum, row) => sum + row.keyframes.length, 0)
+  const totalMissingSlotCount = filteredRows.reduce((sum, row) => sum + row.missingSlots.length, 0)
+  const readyMomentCount = filteredRows.filter((row) => row.units.length > 0 && row.missingSlots.length === 0 && row.units.some((unit) => firstText(unit.prompt, unit.description))).length
+  const runningJobCount = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
+  const completedJobCount = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
+  const selectedProductionIdSet = new Set(selected?.productionIds ?? [])
+  const selectedPreviewItemCount = data?.previewTimelineItems.filter((item) => (
+    selectedProductionIdSet.has(numberOf(item.production_id)) ||
+    (selected?.moment.ID && numberOf(item.scene_moment_id) === selected.moment.ID) ||
+    (selectedUnit?.ID && numberOf(item.content_unit_id) === selectedUnit.ID)
+  )).length ?? 0
+  const selectedDeliveryVersionCount = data?.deliveryVersions.filter((item) => (
+    selectedProductionIdSet.has(numberOf(item.production_id)) ||
+    (selectedUnit?.ID && numberOf(item.content_unit_id) === selectedUnit.ID)
+  )).length ?? 0
+  const commandStageRows = [
+    { label: '情节', value: filteredRows.length, detail: selected ? titleOfRecord(selected.moment) : '未选择', active: Boolean(selected), tone: filteredRows.length > 0 ? 'default' : 'warning' },
+    { label: '制作项', value: totalUnitCount, detail: selectedUnit ? titleOfRecord(selectedUnit) : '待选择', active: Boolean(selectedUnit), tone: totalUnitCount > 0 ? 'default' : 'warning' },
+    { label: '画面锚点', value: totalKeyframeCount, detail: selectedKeyframeSequence.length > 0 ? `${selectedKeyframeSequence.length} 帧在当前情节` : '待补关键帧', active: selectedKeyframeSequence.length > 0, tone: totalKeyframeCount > 0 ? 'default' : 'warning' },
+    { label: '生成门禁', value: totalMissingSlotCount, detail: totalMissingSlotCount > 0 ? '素材缺口待处理' : '素材输入可用', active: totalMissingSlotCount === 0 && totalUnitCount > 0, tone: totalMissingSlotCount > 0 ? 'warning' : 'default' },
+  ] as const
+  const readinessSummary = buildContentWorkbenchReadinessSummary(standards)
+  const productionPipeline = buildContentWorkbenchPipeline({
+    productionTitle: selectedProduction ? titleOfRecord(selectedProduction) : undefined,
+    segmentTitle: selected?.segment ? titleOfRecord(selected.segment) : undefined,
+    sceneMomentTitle: selected ? titleOfRecord(selected.moment) : undefined,
+    selectedUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
+    unitCount: selected?.units.length ?? 0,
+    keyframeCount: selectedKeyframeSequence.length,
+    missingSlotCount: selected?.missingSlots.length ?? 0,
+    generationContextReady: Boolean(selectedUnit && generationContextQuery.data && missingGenerationContext.length === 0),
+    pendingReviewDraftCount: reviewQueueSummary.pending,
+    runningJobCount,
+    completedJobCount,
+    previewItemCount: selectedPreviewItemCount,
+    deliveryVersionCount: selectedDeliveryVersionCount,
+  })
+  const productionPipelineIcons: Record<ContentWorkbenchPipelineStepKey, LucideIcon> = {
+    production: Clapperboard,
+    segment: GitBranch,
+    scene_moment: Route,
+    content_units: Boxes,
+    keyframes: Image,
+    assets: Upload,
+    generation_context: ClipboardCheck,
+    ai_review: ShieldCheck,
+    generation_plan: Play,
+    preview_delivery: Film,
+  }
   const confirmCandidate = useMutation({
     mutationFn: async ({ unitId, next }: { unitId: number; next: 'confirmed' | 'ignored' }) => {
       if (!projectId) throw new Error('请先选择项目')
@@ -3219,6 +3946,18 @@ function ContentGenerationWorkbench() {
     },
     onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries({ queryKey: productionWorkbenchQueryKey })
+      if (variables.next === 'confirmed') {
+        selectContentUnit(variables.unitId)
+      } else if (selectedUnit?.ID === variables.unitId) {
+        const nextUnitId = selected
+          ? pickContentWorkbenchFocusAfterIgnoredCandidate(
+            selected.units.map((unit) => ({ id: unit.ID, status: unit.status })),
+            variables.unitId,
+          )
+          : null
+        if (nextUnitId) selectContentUnit(nextUnitId)
+        else if (selected) selectSceneMoment(selected.id)
+      }
       toast.success(variables.next === 'confirmed' ? '候选已确认' : '候选已忽略')
     },
     onError: (error) => {
@@ -3231,13 +3970,24 @@ function ContentGenerationWorkbench() {
       toast.info('请先选择情节')
       return
     }
-    const prompt = '请基于当前情节生成 content_unit_proposal snapshot 草案：输出 3-6 条完整内容单元快照，包含 title、kind、description、prompt、duration_sec、story_purpose、emotional_intent、shot、performance、lighting、blocking、sound、transition 等可判断字段。不要输出操作字段或增量指令；审阅时会用完整草案快照和当前快照做对比。'
+    const prompt = buildContentWorkbenchAiSuggestPrompt({
+      momentTitle: selected.title,
+      sceneMomentId: selected.moment.ID,
+      momentScope: selected.scope,
+      existingUnits: selected.units.map((unit) => ({
+        title: titleOfRecord(unit),
+        kind: unit.kind,
+        status: unit.status,
+        prompt: unit.prompt,
+        description: unit.description,
+      })),
+    })
     const requestId = `content_unit_suggest_${selected.moment.ID}_${Date.now().toString(36)}`
     openAgentPanelDraft({
       requestId,
       taskType: 'content_unit_suggest',
       message: prompt,
-      title: `内容单元 AI 建议: ${selected.title}`,
+      title: `制作项 AI 建议: ${selected.title}`,
       newConversation: true,
       autoSend: false,
       projectId,
@@ -3247,7 +3997,10 @@ function ContentGenerationWorkbench() {
         hints: {
           projectId,
           productionId: selectedProduction?.ID,
-          route: { pathname: ROUTES.project.contentUnitWorkbench },
+          route: {
+            pathname: ROUTES.project.contentUnitWorkbench,
+            search: buildContentWorkbenchRouteSearch({ sceneMomentId: selected.moment.ID }),
+          },
           selection: {
             entityType: 'scene_moment',
             entityId: selected.moment.ID,
@@ -3259,6 +4012,154 @@ function ContentGenerationWorkbench() {
     })
     toast.success('已打开 AI 助手，可在输入框补充需求后发送')
   }
+
+  function openReviewQueue() {
+    setReviewPanelCollapsed(false)
+    const draft = selectedReviewDraft ?? reviewDrafts[0]
+    if (!draft) {
+      openAiSuggest()
+      return
+    }
+    selectReviewDraft(draft.id)
+  }
+
+  function openEditSelectedUnit(unitId?: number) {
+    const targetUnit = unitId && selected?.units.some((unit) => unit.ID === unitId)
+      ? selected.units.find((unit) => unit.ID === unitId) ?? null
+      : selectedUnit
+    if (!targetUnit) {
+      setCreatingUnit(true)
+      return
+    }
+    selectContentUnit(targetUnit.ID)
+    setEditingUnit(true)
+  }
+
+  function openCreateUnitFromProposal(proposal: Record<string, unknown>) {
+    setUnitDraftDefaults(contentWorkbenchProposalDefaults(proposal))
+    setCreatingUnit(true)
+  }
+
+  function openSelectedUnitCanvas() {
+    if (openUnitCanvas.isPending) return
+    if (!selectedUnit) {
+      setCreatingUnit(true)
+      return
+    }
+    openUnitCanvas.mutate(selectedUnit)
+  }
+
+  function selectFirstSceneMoment() {
+    const firstRow = filteredRows[0]
+    if (!firstRow) {
+      toast.info('暂无可选择的情节')
+      return
+    }
+    selectSceneMoment(firstRow.id)
+  }
+
+  function selectFirstContentUnit() {
+    if (!selected) {
+      selectFirstSceneMoment()
+      return
+    }
+    const targetUnitId = pickContentWorkbenchFirstUsableUnit(selected.units.map((unit) => ({ id: unit.ID, status: unit.status })))
+    if (!targetUnitId) {
+      setCreatingUnit(true)
+      return
+    }
+    selectContentUnit(targetUnitId)
+  }
+
+  const nextActions = buildContentWorkbenchNextActions({
+    hasSelectedMoment: Boolean(selected),
+    unitCount: selected?.units.length ?? 0,
+    hasSelectedUnit: Boolean(selectedUnit),
+    hasUnitPrompt: Boolean(selectedUnit && firstText(selectedUnit.prompt, selectedUnit.description)),
+    missingSlotCount: selectedUnitMissingSlots.length,
+    keyframeCount: selectedUnitKeyframes.length,
+    pendingReviewDraftCount: reviewQueueSummary.pending,
+    missingGenerationContext,
+    completedJobCount,
+    previewItemCount: selectedPreviewItemCount,
+    deliveryVersionCount: selectedDeliveryVersionCount,
+  })
+  const nextActionIcons: Record<ContentWorkbenchNextActionKey, LucideIcon> = {
+    select_scene_moment: Route,
+    ai_plan_units: Sparkles,
+    manual_add_unit: Boxes,
+    select_unit: Target,
+    complete_unit_prompt: FileText,
+    upload_missing_assets: Upload,
+    add_first_keyframe: Image,
+    resolve_generation_context: AlertTriangle,
+    review_ai_drafts: ClipboardCheck,
+    open_generation_canvas: Play,
+    open_preview_workspace: Film,
+    open_delivery_workspace: PackageCheck,
+  }
+  const nextActionHandlers: Partial<Record<ContentWorkbenchNextActionKey, () => void>> = {
+    select_scene_moment: selectFirstSceneMoment,
+    ai_plan_units: openAiSuggest,
+    manual_add_unit: () => setCreatingUnit(true),
+    select_unit: selectFirstContentUnit,
+    complete_unit_prompt: () => openEditSelectedUnit(),
+    upload_missing_assets: triggerCandidateUpload,
+    add_first_keyframe: openCreateKeyframe,
+    resolve_generation_context: () => openEditSelectedUnit(),
+    review_ai_drafts: openReviewQueue,
+    open_generation_canvas: selectedUnit ? openSelectedUnitCanvas : undefined,
+    open_preview_workspace: () => navigate(withRouteParams(ROUTES.project.productionPreview, { productionId: selectedProduction?.ID })),
+    open_delivery_workspace: () => navigate(withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: selectedProduction?.ID })),
+  }
+  const deliveryBrief = buildContentWorkbenchDeliveryBrief({
+    hasSelectedUnit: Boolean(selectedUnit),
+    unitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
+    hasPrompt: Boolean(selectedUnit && firstText(selectedUnit.prompt, selectedUnit.description)),
+    assetSlotCount: selectedUnitAssetSlots.length,
+    missingSlotCount: selectedUnitMissingSlots.length,
+    keyframeCount: selectedUnitKeyframes.length,
+    generationContextReady: Boolean(selectedUnit && generationContextQuery.data && missingGenerationContext.length === 0),
+    generationContextLoading: !generationContextQuery.data && (generationContextQuery.isLoading || generationContextQuery.isFetching),
+    generationContextError: generationContextQuery.isError,
+    pendingReviewDraftCount: reviewQueueSummary.pending,
+  })
+  const deliveryPrimaryAction = nextActions[0]
+  const deliveryPrimaryActionHandler = deliveryPrimaryAction ? nextActionHandlers[deliveryPrimaryAction.key] : undefined
+  const deliveryPrimaryActionDisabled = deliveryPrimaryAction?.key === 'open_generation_canvas' && openUnitCanvas.isPending
+  const activityFeed = buildContentWorkbenchActivityFeed({
+    hasSelectedUnit: Boolean(selectedUnit),
+    selectedUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
+    missingAssetTitles: selectedUnitMissingSlots.map((slot) => titleOfRecord(slot)),
+    keyframeTitles: selectedUnitKeyframes.map((keyframe) => titleOfRecord(keyframe)),
+    generationContextReady: Boolean(selectedUnit && generationContextQuery.data && missingGenerationContext.length === 0),
+    generationContextLoading: !generationContextQuery.data && (generationContextQuery.isLoading || generationContextQuery.isFetching),
+    generationContextError: generationContextQuery.isError,
+    pendingReviewDraftCount: reviewQueueSummary.pending,
+    jobs: selectedUnitJobs.map((job) => ({
+      id: job.ID,
+      title: job.title,
+      type: job.job_type,
+      status: job.status,
+      outputResourceId: job.output_resource_id,
+      error: job.error_msg,
+    })),
+  })
+  const commandBriefRows = buildContentWorkbenchCommandBrief({
+    selectedMomentTitle: selected?.title,
+    selectedUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
+    selectedUnitDetail: selectedUnit ? firstText(selectedUnit.prompt, selectedUnit.description, '暂无生成提示') : undefined,
+    readiness: readinessSummary,
+    nextActions,
+    reviewQueue: reviewQueueSummary,
+  })
+  const commandBriefIcons: Record<ContentWorkbenchCommandBriefKey, LucideIcon> = {
+    focus: Target,
+    blocker: ShieldCheck,
+    next_action: nextActionIcons[nextActions[0]?.key ?? 'select_scene_moment'],
+    review: ClipboardCheck,
+  }
+  const showReviewPanel = reviewMode || reviewDraftsQuery.isLoading || (reviewDrafts.length > 0 && !reviewPanelCollapsed)
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
@@ -3278,53 +4179,152 @@ function ContentGenerationWorkbench() {
           <EmptyWorkbenchState title="内容编排数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : (
           <div className="production-workbench space-y-5">
-            <section className="rounded-lg border border-border bg-card">
-              <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-                        <ListChecks size={14} />
-                        生产队列
-                      </div>
-                      <p className="mt-1 truncate text-base font-semibold text-foreground">{selected ? selected.title : '暂无情节'}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">{selected ? selected.scope : '选择制作后查看情节队列'}</p>
+            <section className="overflow-hidden rounded-lg border border-border bg-card" data-testid="content-workbench-command-center">
+              <div className="border-b border-border bg-muted/25 px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <Wand2 size={14} />
+                      AI 内容生产指挥台
                     </div>
-                    <div className="grid grid-cols-4 gap-2 text-center">
-                      <QueueMiniMetric label="情节" value={filteredRows.length} />
-                      <QueueMiniMetric label="单元" value={selected?.units.length ?? 0} />
-                      <QueueMiniMetric label="素材" value={selected?.assetSlots.length ?? 0} />
-                      <QueueMiniMetric label="缺口" value={selected?.missingSlots.length ?? 0} tone={(selected?.missingSlots.length ?? 0) > 0 ? 'warning' : 'default'} />
-                    </div>
+                    <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{selected ? selected.title : '暂无情节'}</h2>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected ? selected.scope : '选择制作和情节后，开始拆制作项、补画面锚点并检查生成上下文。'}</p>
                   </div>
-                  <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-                    {filteredRows.map((row) => (
-                      <button
-                        key={row.id}
-                        type="button"
-                        onClick={() => setSelectedId(row.id)}
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <QueueMiniMetric label="可生成" value={readyMomentCount} tone={readyMomentCount > 0 ? 'default' : 'warning'} />
+                    <QueueMiniMetric label="待审草案" value={reviewQueueSummary.pending} tone={reviewQueueSummary.pending > 0 ? 'warning' : 'default'} onClick={openReviewQueue} />
+                    <QueueMiniMetric label="运行任务" value={runningJobCount} tone={runningJobCount > 0 ? 'warning' : 'default'} />
+                    <QueueMiniMetric label="完成任务" value={completedJobCount} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+                <div className="min-w-0 space-y-4">
+                  <div className="grid gap-2 md:grid-cols-4">
+                    {commandStageRows.map((stage, index) => (
+                      <div
+                        key={stage.label}
                         className={cn(
-                          'min-w-[220px] rounded-md border px-3 py-2 text-left transition-colors',
-                          selected?.id === row.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
+                          'relative rounded-md border bg-background p-3',
+                          stage.active ? 'border-primary/50' : stage.tone === 'warning' ? 'border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20' : 'border-border',
                         )}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-sm font-medium text-foreground">{row.title}</span>
-                          <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                          <span className="text-[11px] font-medium text-muted-foreground">{String(index + 1).padStart(2, '0')} / {stage.label}</span>
+                          <Badge variant={stage.active ? 'success' : stage.tone === 'warning' ? 'warning' : 'outline'}>{stage.active ? '就绪' : '待处理'}</Badge>
                         </div>
-                        <p className="mt-1 truncate text-xs text-muted-foreground">
-                          {row.units.length === 0 ? '待添加内容单元' : `${row.units.length} 单元 / ${row.missingSlots.length} 缺口`}
-                        </p>
-                      </button>
+                        <p className="mt-2 text-2xl font-semibold tabular-nums text-foreground">{stage.value}</p>
+                        <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{stage.detail}</p>
+                      </div>
                     ))}
                   </div>
+
+                  <ProductionPipeline
+                    title={productionPipeline.title}
+                    detail={productionPipeline.detail}
+                    steps={productionPipeline.steps}
+                    icons={productionPipelineIcons}
+                  />
+
+                  <div className="grid gap-2 md:grid-cols-2" data-testid="content-workbench-command-brief">
+                    {commandBriefRows.map((item) => {
+                      const Icon = commandBriefIcons[item.key]
+                      const onClick = item.actionKey ? nextActionHandlers[item.actionKey] : undefined
+                      const disabled = item.actionKey === 'open_generation_canvas' && openUnitCanvas.isPending
+                      const clickable = typeof onClick === 'function' && !disabled
+                      const className = cn(
+                        'rounded-md border px-3 py-3 text-left transition-colors',
+                        item.tone === 'warning'
+                          ? 'border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20'
+                          : 'border-border bg-background',
+                        clickable ? 'hover:border-primary/50 hover:bg-primary/5' : '',
+                      )
+                      const content = (
+                        <div className="flex items-start gap-3">
+                          <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-card text-muted-foreground">
+                            <Icon size={15} />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-medium text-muted-foreground">{item.label}</p>
+                            <p className="mt-1 line-clamp-1 text-sm font-semibold text-foreground">{item.value}</p>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.detail}</p>
+                          </div>
+                        </div>
+                      )
+                      if (clickable) {
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            data-action-key={item.actionKey}
+                            onClick={onClick}
+                            disabled={disabled}
+                            className={className}
+                          >
+                            {content}
+                          </button>
+                        )
+                      }
+                      return (
+                        <div
+                          key={item.key}
+                          className={className}
+                        >
+                          {content}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <div className="rounded-md border border-border bg-background p-3">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                        <ListChecks size={15} className="text-muted-foreground" />
+                        情节生产队列
+                      </div>
+                      <Badge variant="secondary">{filteredRows.length}</Badge>
+                    </div>
+                    {filteredRows.length === 0 ? (
+                      <div className="rounded-md border border-dashed border-border bg-card px-4 py-5">
+                        <p className="text-sm font-medium text-foreground">还没有可编排的情节入口</p>
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">先到制作编排建立情绪段和情节，内容编排会在这里继续拆制作项、关键帧和生成上下文。</p>
+                        <Button size="sm" variant="outline" className="mt-4 gap-2" onClick={() => navigate(ROUTES.project.productionOrchestration)}>
+                          <Route size={14} />
+                          进入制作编排
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {filteredRows.map((row) => (
+                          <button
+                            key={row.id}
+                            type="button"
+                            onClick={() => selectSceneMoment(row.id)}
+                            className={cn(
+                              'min-w-[240px] rounded-md border px-3 py-3 text-left transition-colors',
+                              selected?.id === row.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-card hover:bg-muted/30',
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-sm font-medium text-foreground">{row.title}</span>
+                              <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                            </div>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">{row.units.length === 0 ? '待拆制作项' : `${row.units.length} 制作项 / ${row.keyframes.length} 帧 / ${row.missingSlots.length} 缺口`}</p>
+                            <Progress value={row.progress} className="mt-3 h-1.5" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
                 <div className="rounded-md border border-border bg-background p-3">
                   <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                     <Settings2 size={14} />
-                    入口与筛选
+                    入口、筛选与动作
                   </div>
-                  <Select value={productionFilter} onValueChange={setProductionFilter}>
+                  <Select value={productionFilter} onValueChange={selectProductionFilter}>
                     <SelectTrigger className="mt-3 h-9">
                       <SelectValue placeholder="选择制作" />
                     </SelectTrigger>
@@ -3336,7 +4336,7 @@ function ContentGenerationWorkbench() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={segmentFilter} onValueChange={setSegmentFilter}>
+                  <Select value={segmentFilter} onValueChange={selectSegmentFilter}>
                     <SelectTrigger className="mt-2 h-9">
                       <SelectValue placeholder="选择情绪段" />
                     </SelectTrigger>
@@ -3348,42 +4348,60 @@ function ContentGenerationWorkbench() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <Select value={selected?.id ?? ''} onValueChange={setSelectedId} disabled={sceneMomentFilterOptions.length === 0}>
+                  <Select value={selected?.id ?? ''} onValueChange={selectSceneMoment} disabled={sceneMomentFilterOptions.length === 0}>
                     <SelectTrigger className="mt-2 h-9">
                       <SelectValue placeholder="选择情节" />
                     </SelectTrigger>
                     <SelectContent>
                       {sceneMomentFilterOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                          {option.label} · {option.count} 单元
+                          {option.label} · {option.count} 制作项
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted-foreground">
-                    添加单元会写入当前情节：{selected ? titleOfRecord(selected.moment) : '未选择情节'}
-                  </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={() => setCreatingUnit(true)} disabled={!selected}>
+                  <div className="mt-3 rounded-md border border-border bg-card px-3 py-2">
+                    <p className="text-[11px] text-muted-foreground">当前写入目标</p>
+                    <p className="mt-1 line-clamp-2 text-sm font-medium leading-5 text-foreground">{selected ? titleOfRecord(selected.moment) : '未选择情节'}</p>
+                  </div>
+                  {filteredRows.length === 0 ? (
+                    <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                      当前项目还没有情节入口，先完成制作编排后再进入制作项生成。
+                    </div>
+                  ) : null}
+                  <div className="mt-3 grid gap-2">
+                    <Button size="sm" className="h-8 justify-start gap-2" onClick={() => setCreatingUnit(true)} disabled={!selected}>
                       <Boxes size={13} />
-                      添加内容单元
+                      添加制作项
                     </Button>
-                    <Button size="sm" variant="outline" className="h-8 gap-2" onClick={openAiSuggest} disabled={!selected}>
+                    <Button size="sm" variant="outline" className="h-8 justify-start gap-2" onClick={openAiSuggest} disabled={!selected}>
                       <Sparkles size={13} />
-                      AI 建议
+                      让 AI 规划制作项
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-8 justify-start gap-2" onClick={openSelectedUnitCanvas} loading={openUnitCanvas.isPending} disabled={!selected || openUnitCanvas.isPending}>
+                      <Play size={13} />
+                      {selectedUnit ? '打开生成画布' : '先创建制作项'}
                     </Button>
                   </div>
                 </div>
               </div>
             </section>
 
-            {(reviewMode || reviewDrafts.length > 0 || reviewDraftsQuery.isLoading) ? (
+            {showReviewPanel ? (
               <ContentGenerationReviewPanel
                 reviewMode={reviewMode}
                 drafts={reviewDrafts}
                 selectedDraft={selectedReviewDraft}
                 reviewModel={contentDraftReview}
+                queueSummary={reviewQueueSummary}
+                rejectingDraft={rejectContentDraft.isPending}
+                markingDraftReviewed={markContentDraftReviewed.isPending}
+                onOpenAiSuggest={openAiSuggest}
                 onSelectDraft={selectReviewDraft}
+                onCreateUnitFromProposal={openCreateUnitFromProposal}
+                onEditCurrentUnit={openEditSelectedUnit}
+                onMarkDraftReviewed={(draft) => markContentDraftReviewed.mutate(draft)}
+                onRejectDraft={(draft) => rejectContentDraft.mutate(draft)}
                 onCloseReview={closeReview}
               />
             ) : null}
@@ -3405,13 +4423,13 @@ function ContentGenerationWorkbench() {
                 <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后查看连续关键帧。</p>
               ) : selectedKeyframeSequence.length === 0 ? (
                 <div className="rounded-md border border-dashed border-border bg-background px-3 py-6">
-                  <p className="text-sm font-medium text-foreground">当前情节还没有内容单元关键帧</p>
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">给各内容单元补开头帧、结尾帧后，这里会按制作项顺序串成一条可扫读的画面连续性检查带。</p>
+                  <p className="text-sm font-medium text-foreground">当前情节还没有制作项关键帧</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">给各制作项补开头帧、结尾帧后，这里会按制作项顺序串成一条可扫读的画面连续性检查带。</p>
                   <Button size="sm" className="mt-4 gap-2" onClick={openCreateKeyframe} disabled={!selectedUnit}>
                     <Plus size={14} />
-                    给当前内容单元添加关键帧
+                    给当前制作项添加关键帧
                   </Button>
-                  {!selectedUnit ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">请先添加或选择内容单元。</p> : null}
+                  {!selectedUnit ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">请先添加或选择制作项。</p> : null}
                 </div>
               ) : (
                 <div className="-mx-1 overflow-x-auto px-1 pb-1">
@@ -3449,7 +4467,7 @@ function ContentGenerationWorkbench() {
                           </div>
                         </div>
                         <div className="px-3 py-3">
-                          <p className="truncate text-xs text-muted-foreground">{item.unit ? titleOfRecord(item.unit) : '未绑定内容单元'}</p>
+                          <p className="truncate text-xs text-muted-foreground">{item.unit ? titleOfRecord(item.unit) : '未绑定制作项'}</p>
                           <p className="mt-1 truncate text-sm font-medium text-foreground">{titleOfRecord(item.keyframe)}</p>
                           <p className="mt-1 line-clamp-2 min-h-10 text-xs leading-5 text-muted-foreground">{firstText(item.keyframe.prompt, item.keyframe.description, '暂无画面描述')}</p>
                         </div>
@@ -3463,7 +4481,7 @@ function ContentGenerationWorkbench() {
                       >
                         <Plus size={18} />
                         <span className="mt-2 font-medium">添加关键帧</span>
-                        <span className="mt-1 text-[11px] leading-4">写入当前内容单元</span>
+                        <span className="mt-1 text-[11px] leading-4">写入当前制作项</span>
                       </button>
                     ) : null}
                   </div>
@@ -3471,22 +4489,22 @@ function ContentGenerationWorkbench() {
               )}
             </WorkbenchPanel>
 
-            <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+            <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)] 2xl:grid-cols-[320px_minmax(0,1fr)_360px]" data-testid="content-workbench-production-grid">
               <WorkbenchPanel
-                title="内容单元列表"
+                title="制作项列表"
                 icon={Boxes}
                 action={<Badge variant={selected?.units.length ? 'secondary' : 'warning'}>{selected?.units.length ?? 0} 个</Badge>}
               >
                 {!selected ? (
-                  <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后查看内容单元。</p>
+                  <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后查看制作项。</p>
                 ) : selected.units.length === 0 ? (
                   <div className="rounded-md border border-dashed border-border bg-background px-3 py-8 text-center">
-                    <p className="text-sm font-medium text-foreground">这个情节还没有内容单元</p>
+                    <p className="text-sm font-medium text-foreground">这个情节还没有制作项</p>
                     <p className="mt-2 text-xs leading-5 text-muted-foreground">先添加制作项，比如镜头、旁白、字幕卡或转场，再进入候选和生成检查。</p>
                     <div className="mt-4 flex items-center justify-center gap-2">
                       <Button size="sm" className="gap-2" onClick={() => setCreatingUnit(true)}>
                         <Boxes size={14} />
-                        添加内容单元
+                        添加制作项
                       </Button>
                       <Button size="sm" variant="outline" className="gap-2" onClick={openAiSuggest}>
                         <Sparkles size={14} />
@@ -3504,7 +4522,7 @@ function ContentGenerationWorkbench() {
                         <button
                           key={unit.ID}
                           type="button"
-                          onClick={() => setSelectedUnitId(unit.ID)}
+                          onClick={() => selectContentUnit(unit.ID)}
                           className={cn(
                             'w-full rounded-md border px-3 py-3 text-left transition-colors',
                             selectedUnit?.ID === unit.ID ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
@@ -3512,7 +4530,7 @@ function ContentGenerationWorkbench() {
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-[11px] text-muted-foreground">内容单元 {index + 1}</p>
+                              <p className="text-[11px] text-muted-foreground">制作项 {index + 1}</p>
                               <p className="mt-1 truncate text-sm font-medium text-foreground">{titleOfRecord(unit)}</p>
                               <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(unit.description, unit.prompt, '暂无描述或生成提示')}</p>
                             </div>
@@ -3523,7 +4541,7 @@ function ContentGenerationWorkbench() {
                             <Badge variant="outline">{formatDuration(unit.duration_sec)}</Badge>
                             <Badge variant={unitSlots.length > 0 ? 'secondary' : 'warning'}>{unitSlots.length} 素材</Badge>
                             <Badge variant={selectedUnit?.ID === unit.ID ? 'secondary' : 'outline'}>
-                              {selectedUnit?.ID === unit.ID ? '当前单元' : '可选择'}
+                              {selectedUnit?.ID === unit.ID ? '当前制作项' : '可选择'}
                             </Badge>
                           </div>
                         </button>
@@ -3534,36 +4552,8 @@ function ContentGenerationWorkbench() {
               </WorkbenchPanel>
 
               <div className="min-w-0 space-y-5">
-                <WorkbenchPanel title="情节上下文" icon={Layers}>
-                  {selected ? (
-                    <>
-                      <div className="mb-4 grid gap-3 rounded-md border border-border bg-background p-3 md:grid-cols-[1fr_auto]">
-                        <div className="min-w-0">
-                          <p className="text-xs text-muted-foreground">当前情节</p>
-                          <h2 className="mt-1 truncate text-xl font-semibold text-foreground">{selected.title}</h2>
-                          <p className="mt-1 truncate text-sm text-muted-foreground">{selected.scope}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
-                          <Badge variant="outline">准备度 {selected.progress}%</Badge>
-                        </div>
-                      </div>
-                      <ContextStack
-                        rows={[
-                          { label: '制作', value: selectedProduction ? titleOfRecord(selectedProduction) : '未绑定制作', icon: Clapperboard },
-                          { label: '情绪段', value: selected.segment ? titleOfRecord(selected.segment) : '未绑定情绪段', icon: GitBranch },
-                          ...contextRows,
-                        ]}
-                        className="production-context-stack"
-                      />
-                    </>
-                  ) : (
-                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无情节</p>
-                  )}
-                </WorkbenchPanel>
-
                 <WorkbenchPanel
-                  title="内容单元候选"
+                  title="制作项轨道"
                   icon={Play}
                   action={<Badge variant={unitCandidates.length > 0 ? 'secondary' : 'outline'}>{unitCandidates.length} 条待确认</Badge>}
                 >
@@ -3571,22 +4561,23 @@ function ContentGenerationWorkbench() {
                     <div className="grid gap-2 md:grid-cols-3">
                       <Button className="justify-start gap-2" onClick={() => setCreatingUnit(true)} disabled={!selected}>
                         <Boxes size={15} />
-                        添加内容单元
+                        添加制作项
                       </Button>
                       <Button variant="outline" className="justify-start gap-2" onClick={openAiSuggest} disabled={!selected}>
                         <Sparkles size={15} />
                         AI 建议
                       </Button>
-                      <Button variant="outline" className="justify-start gap-2" onClick={() => selectedUnit ? openUnitCanvas.mutate(selectedUnit) : setCreatingUnit(true)} loading={openUnitCanvas.isPending} disabled={!selected}>
+                      <Button variant="outline" className="justify-start gap-2" onClick={openSelectedUnitCanvas} loading={openUnitCanvas.isPending} disabled={!selected || openUnitCanvas.isPending}>
                         <Play size={15} />
-                        {selectedUnit ? '打开编排画布' : '先创建内容单元'}
+                        {selectedUnit ? '打开编排画布' : '先创建制作项'}
                       </Button>
                     </div>
+                    <UnitProductionTrack row={selected} selectedUnitId={selectedUnit?.ID} onSelectUnit={selectContentUnit} />
                     {!selected ? (
-                      <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后查看候选单元。</p>
+                      <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后查看候选制作项。</p>
                     ) : unitCandidates.length === 0 ? (
                       <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-                        当前情节没有待确认的候选单元。通过「添加内容单元」或「AI 建议」可新增候选。
+                        当前情节没有待确认的候选制作项。通过「添加制作项」或「AI 建议」可新增候选。
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -3640,35 +4631,6 @@ function ContentGenerationWorkbench() {
                     <div className="rounded-md border border-border bg-background p-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <Upload size={15} className="text-muted-foreground" />
-                          素材候选上传
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-2"
-                          onClick={triggerCandidateUpload}
-                          disabled={!uploadTargetSlot || uploading || uploadCandidate.isPending}
-                        >
-                          <Upload size={13} />
-                          {uploading || uploadCandidate.isPending ? '上传中' : '上传素材候选'}
-                        </Button>
-                      </div>
-                      {uploadTargetSlot ? (
-                        <p className="text-xs text-muted-foreground">会挂到素材需求：{titleOfRecord(uploadTargetSlot)}</p>
-                      ) : (
-                        <p className="text-xs text-amber-700 dark:text-amber-300">当前情节暂无素材需求，先添加素材需求后即可上传素材候选。</p>
-                      )}
-                      {candidateRows.length > 0 ? (
-                        <div className="mt-3">
-                          <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" rowClassName="production-candidate-row" />
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="rounded-md border border-border bg-background p-3">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                           <Image size={15} className="text-muted-foreground" />
                           画面锚点轨道
                         </div>
@@ -3683,13 +4645,13 @@ function ContentGenerationWorkbench() {
                         </div>
                       </div>
                       {selectedUnit ? (
-                        <p className="mb-3 text-xs text-muted-foreground">当前内容单元：{titleOfRecord(selectedUnit)}</p>
+                        <p className="mb-3 text-xs text-muted-foreground">当前制作项：{titleOfRecord(selectedUnit)}</p>
                       ) : null}
                       {!selectedUnit ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择或创建内容单元后查看画面锚点。</p>
+                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择或创建制作项后查看画面锚点。</p>
                       ) : selectedUnitKeyframes.length === 0 ? (
                         <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-5">
-                          <p className="text-sm font-medium text-foreground">当前内容单元还没有关键帧</p>
+                          <p className="text-sm font-medium text-foreground">当前制作项还没有关键帧</p>
                           <p className="mt-1 text-xs leading-5 text-muted-foreground">建议至少补开头帧和结尾帧；动作复杂时再补中间帧，用来约束视频生成的状态变化。</p>
                           <Button size="sm" className="mt-4 gap-2" onClick={openCreateKeyframe}>
                             <Plus size={14} />
@@ -3750,6 +4712,180 @@ function ContentGenerationWorkbench() {
                         </div>
                       )}
                     </div>
+                  </div>
+                </WorkbenchPanel>
+              </div>
+
+              <div className="min-w-0 space-y-5 xl:col-span-2 2xl:col-span-1">
+                <WorkbenchPanel title="上下文 Inspector" icon={Layers}>
+                  {selected ? (
+                    <>
+                      <div className="mb-4 rounded-md border border-border bg-background p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs text-muted-foreground">当前情节</p>
+                            <h2 className="mt-1 line-clamp-2 text-lg font-semibold leading-6 text-foreground">{selected.title}</h2>
+                            <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected.scope}</p>
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            <Badge variant={statusVariant(selected.status)}>{statusLabel(selected.status)}</Badge>
+                            <Badge variant="outline">准备度 {selected.progress}%</Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <ContextStack
+                        rows={[
+                          { label: '制作', value: selectedProduction ? titleOfRecord(selectedProduction) : '未绑定制作', icon: Clapperboard },
+                          { label: '情绪段', value: selected.segment ? titleOfRecord(selected.segment) : '未绑定情绪段', icon: GitBranch },
+                          ...contextRows,
+                        ]}
+                        className="production-context-stack"
+                      />
+                    </>
+                  ) : (
+                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无情节</p>
+                  )}
+                </WorkbenchPanel>
+
+                <WorkbenchPanel
+                  title="生成门禁"
+                  icon={ShieldCheck}
+                  action={<Badge variant={standards.every((item) => item.done) ? 'success' : 'warning'}>{standards.filter((item) => item.done).length}/{standards.length}</Badge>}
+                >
+                  <ReadinessSummaryCard rows={standards} />
+                  <GateChecklist rows={standards} />
+                </WorkbenchPanel>
+
+                <WorkbenchPanel
+                  title="当前制作项"
+                  icon={Target}
+                  action={selectedUnit ? (
+                    <div className="flex items-center gap-2">
+                      <Badge variant={statusVariant(selectedUnitStatus)}>{statusLabel(selectedUnitStatus)}</Badge>
+                      <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => openEditSelectedUnit()}>
+                        <Pencil size={13} />
+                        编辑
+                      </Button>
+                    </div>
+                  ) : <Badge variant="warning">未选择</Badge>}
+                >
+                  {selectedUnit ? (
+                    <div className="space-y-3" data-testid="content-workbench-current-unit-panel">
+                      <div className="rounded-md border border-border bg-background p-3">
+                        <p className="text-xs text-muted-foreground">生成目标</p>
+                        <h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-foreground">{titleOfRecord(selectedUnit)}</h3>
+                        <p className="mt-2 line-clamp-4 text-xs leading-5 text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <QueueMiniMetric label="时长" value={formatDuration(selectedUnit.duration_sec)} />
+                        <QueueMiniMetric label="素材" value={selectedUnitAssetSlots.length} tone={selectedUnitMissingSlots.length > 0 ? 'warning' : 'default'} />
+                        <QueueMiniMetric label="关键帧" value={selectedUnitKeyframes.length} tone={selectedUnitKeyframes.length > 0 ? 'default' : 'warning'} />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
+                        {selectedUnit.shot_size ? <Badge variant="outline">景别 {selectedUnit.shot_size}</Badge> : null}
+                        {selectedUnit.camera_angle ? <Badge variant="outline">机位 {selectedUnit.camera_angle}</Badge> : null}
+                        {selectedUnit.camera_motion ? <Badge variant="outline">运动 {selectedUnit.camera_motion}</Badge> : null}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">从左侧选择一个制作项后查看执行状态。</p>
+                  )}
+                </WorkbenchPanel>
+
+                <WorkbenchPanel title="生成交付包" icon={PackageCheck}>
+                  <DeliveryBriefCard
+                    brief={deliveryBrief}
+                    primaryActionLabel={deliveryPrimaryAction?.title}
+                    primaryActionIcon={deliveryPrimaryAction ? nextActionIcons[deliveryPrimaryAction.key] : undefined}
+                    primaryActionLoading={deliveryPrimaryAction?.key === 'open_generation_canvas' && openUnitCanvas.isPending}
+                    primaryActionDisabled={deliveryPrimaryActionDisabled}
+                    onPrimaryAction={deliveryPrimaryActionHandler}
+                  />
+                </WorkbenchPanel>
+
+                <WorkbenchPanel title="生产活动流" icon={Clock3}>
+                  <ActivityFeedCard feed={activityFeed} actionIcons={nextActionIcons} actionHandlers={nextActionHandlers} />
+                </WorkbenchPanel>
+
+                <WorkbenchPanel
+                  title="下一步动作"
+                  icon={Settings2}
+                  action={<Badge variant={nextActions.some((action) => action.tone === 'warning') ? 'warning' : 'success'}>{nextActions.length}</Badge>}
+                >
+                  <div className="space-y-2" data-testid="content-workbench-next-actions">
+                    {nextActions.map((action, index) => {
+                      const Icon = nextActionIcons[action.key]
+                      const onClick = nextActionHandlers[action.key]
+                      const disabled = action.key === 'open_generation_canvas' && openUnitCanvas.isPending
+                      const clickable = typeof onClick === 'function' && !disabled
+                      return (
+                        <button
+                          key={`${action.title}-${index}`}
+                          type="button"
+                          data-action-key={action.key}
+                          onClick={onClick}
+                          disabled={!clickable || disabled}
+                          className={cn(
+                            'w-full rounded-md border px-3 py-3 text-left transition-colors',
+                            action.tone === 'success'
+                              ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+                              : action.tone === 'warning'
+                                ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+                                : 'border-border bg-background',
+                            clickable ? 'hover:border-primary/50 hover:bg-primary/5' : 'cursor-default',
+                          )}
+                        >
+                          <div className="flex items-start gap-3">
+                            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
+                              <Icon size={15} />
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="truncate text-sm font-medium text-foreground">{action.title}</p>
+                                <Badge variant={action.tone === 'success' ? 'success' : action.tone === 'warning' ? 'warning' : 'outline'}>
+                                  {action.tone === 'success' ? '可执行' : action.tone === 'warning' ? '优先' : '建议'}
+                                </Badge>
+                              </div>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">{action.detail}</p>
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </WorkbenchPanel>
+
+                <WorkbenchPanel title="素材与生成上下文" icon={ClipboardCheck}>
+                  <div className="space-y-4">
+                    <div className="rounded-md border border-border bg-background p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <Upload size={15} className="text-muted-foreground" />
+                          素材候选上传
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 gap-2"
+                          onClick={triggerCandidateUpload}
+                          disabled={!uploadTargetSlot || uploading || uploadCandidate.isPending}
+                        >
+                          <Upload size={13} />
+                          {uploading || uploadCandidate.isPending ? '上传中' : '上传素材候选'}
+                        </Button>
+                      </div>
+                      {uploadTargetSlot ? (
+                        <p className="text-xs text-muted-foreground">会挂到素材需求：{titleOfRecord(uploadTargetSlot)}</p>
+                      ) : (
+                        <p className="text-xs text-amber-700 dark:text-amber-300">当前情节暂无素材需求，先添加素材需求后即可上传素材候选。</p>
+                      )}
+                      {candidateRows.length > 0 ? (
+                        <div className="mt-3">
+                          <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" rowClassName="production-candidate-row" />
+                        </div>
+                      ) : null}
+                    </div>
 
                     <div className="rounded-md border border-border bg-background p-3">
                       <div className="mb-3 flex items-center justify-between gap-3">
@@ -3772,7 +4908,7 @@ function ContentGenerationWorkbench() {
                       {!selected ? (
                         <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后检查生成上下文。</p>
                       ) : !selectedUnit ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">当前情节还没有内容单元，暂时不能读取内容单元级生成上下文。</p>
+                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">当前情节还没有制作项，暂时不能读取制作项级生成上下文。</p>
                       ) : generationContextQuery.isLoading ? (
                         <p className="rounded-md border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">正在读取后端生成上下文...</p>
                       ) : generationContextQuery.isError ? (
@@ -3793,7 +4929,7 @@ function ContentGenerationWorkbench() {
                             </div>
                           ) : (
                             <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
-                              当前内容单元的后端生成上下文已具备，可以进入生成计划阶段。
+                              当前制作项的后端生成上下文已具备，可以进入生成计划阶段。
                             </div>
                           )}
                         </div>
@@ -3843,12 +4979,12 @@ function ContentGenerationWorkbench() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={creatingUnit} onOpenChange={(open) => { if (!open) setCreatingUnit(false) }}>
+      <Dialog open={creatingUnit} onOpenChange={(open) => { if (!open) { setCreatingUnit(false); setUnitDraftDefaults(null) } }}>
         <DialogContent className="max-h-[88vh] w-[min(760px,calc(100vw-32px))] overflow-auto p-0">
           <DialogHeader className="border-b border-border px-5 py-4">
-            <DialogTitle>添加内容单元</DialogTitle>
+            <DialogTitle>添加制作项</DialogTitle>
             <DialogDescription>
-              {selected ? `将作为候选加入当前情节：${selected.title}` : '请先选择情节再添加内容单元。'}
+              {selected ? `将作为候选加入当前情节：${selected.title}` : '请先选择情节再添加制作项。'}
             </DialogDescription>
           </DialogHeader>
           <div className="p-5">
@@ -3858,19 +4994,23 @@ function ContentGenerationWorkbench() {
                 config={contentUnitConfig}
                 record={null}
                 defaults={{
+                  kind: 'shot',
+                  status: 'candidate',
+                  ...unitDraftDefaults,
                   segment_id: selected.segment?.ID ?? null,
                   scene_moment_id: selected.moment.ID,
                   production_id: selectedUnit?.production_id ?? selected.segment?.production_id ?? null,
                   script_block_id: nullableNumber(selectedUnit?.script_block_id ?? selected.segment?.script_block_id),
                   order: selected.units.length + 1,
-                  kind: 'shot',
-                  status: 'candidate',
                 }}
                 queryKey={productionWorkbenchQueryKey}
-                title="新建内容单元"
+                title="新建制作项"
                 description="填写制作项基本信息后保存，加入当前情节候选。"
-                onSaved={() => {
+                onSaved={(record) => {
+                  selectContentUnit(record.ID)
+                  setOptimisticSelectedUnit(record)
                   setCreatingUnit(false)
+                  setUnitDraftDefaults(null)
                 }}
               />
             ) : (
@@ -3882,12 +5022,44 @@ function ContentGenerationWorkbench() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={editingUnit} onOpenChange={(open) => { if (!open) setEditingUnit(false) }}>
+        <DialogContent className="max-h-[88vh] w-[min(820px,calc(100vw-32px))] overflow-auto p-0">
+          <DialogHeader className="border-b border-border px-5 py-4">
+            <DialogTitle>编辑制作项</DialogTitle>
+            <DialogDescription>
+              {selectedUnit ? `补齐生成目标、提示词和镜头参数：${titleOfRecord(selectedUnit)}` : '请先选择制作项。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-5">
+            {selectedUnit ? (
+              <SemanticEntityInlineEditor
+                projectId={projectId}
+                config={contentUnitConfig}
+                record={selectedUnit}
+                queryKey={productionWorkbenchQueryKey}
+                editKey={selectedUnit.ID}
+                title="编辑制作项"
+                description="保存后会刷新制作项轨道、生成门禁和下一步动作。"
+                onSaved={(record) => {
+                  selectContentUnit(record.ID)
+                  setEditingUnit(false)
+                }}
+              />
+            ) : (
+              <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
+                请先在制作项列表中选择一个制作项。
+              </p>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={creatingKeyframe} onOpenChange={(open) => { if (!open) setCreatingKeyframe(false) }}>
         <DialogContent className="max-h-[88vh] w-[min(760px,calc(100vw-32px))] overflow-auto p-0">
           <DialogHeader className="border-b border-border px-5 py-4">
             <DialogTitle>添加关键帧</DialogTitle>
             <DialogDescription>
-              {selectedUnit ? `将写入当前内容单元：${titleOfRecord(selectedUnit)}` : '请先选择内容单元再添加关键帧。'}
+              {selectedUnit ? `将写入当前制作项：${titleOfRecord(selectedUnit)}` : '请先选择制作项再添加关键帧。'}
             </DialogDescription>
           </DialogHeader>
           <div className="p-5">
@@ -3899,15 +5071,15 @@ function ContentGenerationWorkbench() {
                 defaults={keyframeDefaults}
                 queryKey={productionWorkbenchQueryKey}
                 title="新建关键帧"
-                description="保存后会出现在连续关键帧总览和当前内容单元的画面锚点轨道中。随后可以上传图片或从资源库选择素材。"
+                description="保存后会出现在连续关键帧总览和当前制作项的画面锚点轨道中。随后可以上传图片或从资源库选择素材。"
                 onSaved={(record) => {
                   setCreatingKeyframe(false)
-                  setSelectedUnitId(Number(record.content_unit_id) || selectedUnit.ID)
+                  selectContentUnit(Number(record.content_unit_id) || selectedUnit.ID)
                 }}
               />
             ) : (
               <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-                请先在内容单元列表中选择一个单元；如果当前情节还没有内容单元，请先添加内容单元。
+                请先在制作项列表中选择一个制作项；如果当前情节还没有制作项，请先添加制作项。
               </p>
             )}
           </div>

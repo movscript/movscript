@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import { DEFAULT_TOOL_REGISTRY } from '../tools/toolRegistry.js'
-import { RuntimeCatalogSnapshotRegistry, buildRuntimeCatalogSnapshot } from './runtimeCatalogSnapshot.js'
+import {
+  RuntimeCatalogSnapshotRegistry,
+  buildRuntimeCatalogSnapshot,
+  createRuntimeCatalogSnapshot,
+} from './runtimeCatalogSnapshot.js'
 
 const emptyLayeredRegistry = {
   version: 'test',
@@ -49,6 +53,21 @@ test('buildRuntimeCatalogSnapshot defaults absent plugin metadata to a stable em
   assert.equal(snapshot.catalogVersion, null)
   assert.equal(snapshot.pluginCatalogInfo, undefined)
   assert.deepEqual(snapshot.pluginWarnings, [])
+})
+
+test('createRuntimeCatalogSnapshot allocates ids and captures current catalog state', () => {
+  const snapshot = createRuntimeCatalogSnapshot({
+    makeId: () => 'catalog_generated',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: DEFAULT_TOOL_REGISTRY,
+    layeredRegistry: emptyLayeredRegistry,
+    pluginWarnings: ['warning'],
+  })
+
+  assert.equal(snapshot.id, 'catalog_generated')
+  assert.equal(snapshot.defaultAgentManifest, DEFAULT_AGENT_MANIFEST)
+  assert.equal(snapshot.toolRegistry, DEFAULT_TOOL_REGISTRY)
+  assert.deepEqual(snapshot.pluginWarnings, ['warning'])
 })
 
 test('RuntimeCatalogSnapshotRegistry keeps in-flight run snapshots stable across current replacements', () => {

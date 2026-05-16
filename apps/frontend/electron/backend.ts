@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { join, resolve } from 'path'
 import { app } from 'electron'
 import { createHash } from 'crypto'
+import { LOCAL_BACKEND_PORT, LOCAL_BACKEND_URL } from './backendConstants'
 
 let proc: ChildProcess | null = null
 let startPromise: Promise<BackendStatus> | null = null
@@ -15,8 +16,7 @@ export interface BackendStatus {
   message?: string
 }
 
-export const LOCAL_BACKEND_PORT = '8766'
-export const LOCAL_BACKEND_URL = `http://localhost:${LOCAL_BACKEND_PORT}`
+export { LOCAL_BACKEND_PORT, LOCAL_BACKEND_URL }
 
 let currentStatus: BackendStatus = { state: 'idle', baseURL: LOCAL_BACKEND_URL }
 

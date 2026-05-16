@@ -133,7 +133,15 @@
     "hidePassword": "隐藏密码",
     "loginFailed": "登录失败",
     "registerFailed": "注册失败",
-    "passwordMismatch": "两次密码不一致"
+    "passwordMismatch": "两次密码不一致",
+    "email": "邮箱",
+    "sendCode": "发送验证码",
+    "sendingCode": "发送中…",
+    "emailCode": "邮箱验证码",
+    "emailCodeRequired": "请先填写邮箱并完成验证码验证",
+    "codeSendFailed": "验证码发送失败",
+    "registrationClosed": "注册已关闭",
+    "registrationClosedHint": "注册已关闭，请联系管理员创建账号。"
   },
   "onboarding": {
     "title": "选择使用方式",
@@ -190,13 +198,19 @@
     "testFailedWithReason": "连接失败：{{reason}}",
     "resetDefault": "恢复默认",
     "savedReloading": "已保存，正在重新加载客户端…",
-    "returnToLogin": "返回登录"
+    "returnToLogin": "返回登录",
+    "adminConsole": "管理后台",
+    "openAdminConsole": "打开管理后台",
+    "adminConsoleHelp": "本地模式下请在管理后台配置供应商凭据、启用模型、设置功能路由和调试生成任务。"
   },
   "backendBoot": {
     "startingTitle": "正在启动本地工作区",
     "startingDescription": "正在准备由前端托管的后端、SQLite 数据库和本地文件存储。",
     "errorTitle": "本地后端启动失败",
-    "errorDescription": "请查看后端日志，或在应用设置中切换启动方式后重试。"
+    "errorDescription": "请查看后端日志，或在应用设置中切换启动方式后重试。",
+    "retry": "重试启动",
+    "retrying": "正在重试…",
+    "openSettings": "打开应用设置"
   },
   "domain": {
     "assetTypes": {
@@ -689,7 +703,56 @@
       "previousPage": "上一页",
       "nextPage": "下一页",
       "edit": "编辑",
-      "renameResource": "重命名资源"
+      "renameResource": "重命名资源",
+      "clipVideo": "剪辑",
+      "clipVideoTitle": "剪辑视频片段",
+      "clipLoadingSource": "正在加载源视频…",
+      "clipLoadProgress": "{{loaded}} / {{total}}",
+      "clipRetryLoad": "重试加载",
+      "clipLoadSourceFailed": "源视频加载失败，请稍后重试。",
+      "clipSourceMissing": "源视频尚未加载完成。",
+      "clipSourceEmpty": "源视频文件为空，无法剪辑。",
+      "clipSourceTooLarge": "源视频过大（{{size}}），本机剪辑当前支持最大 {{max}}。",
+      "clipDesktopOnly": "当前环境不支持本机视频剪辑，请在桌面端使用。",
+      "clipFFmpegMissing": "未找到 ffmpeg。请安装 ffmpeg，或在桌面包中配置 vendor/ffmpeg。",
+      "clipTooLong": "单次剪辑片段过长，请缩短到 10 分钟以内。",
+      "clipInvalidRange": "剪辑范围无效。",
+      "clipTimeout": "本机剪辑超时。请缩短片段、换用更小的源视频，或稍后重试。",
+      "clipFailed": "视频剪辑失败。",
+      "clipPlaySegment": "播放片段",
+      "clipPause": "暂停",
+      "clipGoStart": "回到起点",
+      "clipSetStart": "设为起点",
+      "clipSetEnd": "设为终点",
+      "clipStart": "起点",
+      "clipEnd": "终点",
+      "clipOutputName": "输出文件名",
+      "clipOutputNameRequired": "请输入输出文件名。",
+      "clipOutputNameMp4": "剪辑输出当前仅支持 MP4 文件名。",
+      "clipOutputNameInvalid": "文件名不能包含路径、控制字符或特殊符号。",
+      "clipOutputNameTooLong": "文件名过长，请控制在 80 个字符以内。",
+      "clipMode": "剪辑模式",
+      "clipAccurate": "精准",
+      "clipFast": "快速",
+      "clipDuration": "片段时长",
+      "clipMaxDuration": "单次上限",
+      "clipSource": "源视频",
+      "clipSourceSize": "源文件大小",
+      "clipOutput": "输出为",
+      "clipLocalHint": "剪辑在本机前端执行，完成后会作为新视频上传到资源库。",
+      "clipBusyHint": "正在处理片段，请等待本机剪辑和上传完成。",
+      "clipCheckingFFmpeg": "正在检查本机 ffmpeg…",
+      "clipFFmpegReady": "本机 ffmpeg 可用：{{version}}",
+      "clipFFmpegExpectedPath": "预期随包路径：{{path}}",
+      "clipPhases": {
+        "preparing": "正在准备源视频…",
+        "clipping": "正在本机剪辑…",
+        "uploading": "正在上传片段…"
+      },
+      "clipCreated": "视频片段已加入资源库",
+      "clipFallbackApplied": "{{name}}。快速模式未能直接复制片段，已自动改用精准模式完成。",
+      "clipCreating": "生成中…",
+      "clipCreate": "生成片段"
     },
     "collaboration": {
       "roles": {
@@ -802,6 +865,11 @@
       "empty": "还没有项目",
       "emptyHint": "创建你的第一个短剧项目，开始管理剧本、制作和素材",
       "createFirst": "创建第一个项目",
+      "localAdminPrompt": {
+        "title": "先配置本地 AI 模型",
+        "description": "你正在使用本地工作区。开始生成图片、视频或使用 Agent 前，请先在管理后台添加供应商凭据并启用可用模型。",
+        "openModels": "打开模型管理"
+      },
       "templateSteps": {
         "episodeScript": "制作剧本",
         "sceneScript": "分场剧本"
@@ -1119,6 +1187,11 @@
       "platformTemplates": "平台模板",
       "selectAgent": "选择 Agent",
       "selectModelFirst": "请先选择一个模型。",
+      "modelSetupAction": {
+        "title": "需要先配置模型",
+        "description": "当前本地后端没有可用模型或供应商凭据。请在管理后台添加凭据、启用模型后再重试。",
+        "openModels": "打开模型管理"
+      },
       "startChat": "开始对话吧",
       "identity": "身份",
       "uploadAttachment": "上传图片、视频、音频或文本",
@@ -2671,6 +2744,7 @@
       "agentSettings": "Agent 设置",
       "user": "用户资料",
       "admin": "管理后台",
+      "adminConsole": "管理后台",
       "adminDebug": "管理调试",
       "adminUiPreview": "UI 预览",
       "default": "Movscript"

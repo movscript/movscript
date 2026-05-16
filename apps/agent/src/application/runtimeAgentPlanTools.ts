@@ -2,6 +2,7 @@ import type { JSONValue } from '../types.js'
 import type {
   AgentPlanSnapshot,
   AgentRun,
+  CreatePlanInput,
   ReplanRunInput,
   ReplanRunResult,
 } from '../state/types.js'
@@ -77,6 +78,48 @@ export function buildRuntimeAgentPlanToolResult(input: {
   } as unknown as JSONValue
 }
 
+export async function applyRuntimeAgentPlanCreationToolFlow(input: {
+  store: Pick<AgentStore, 'getRun' | 'getPlan' | 'listPlans' | 'updateRun' | 'updatePlan'>
+  plannerRunId: string
+  request?: Record<string, JSONValue>
+  now: () => string
+  createPlan: (planInput: CreatePlanInput) => Promise<AgentPlanSnapshot>
+  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+}): Promise<JSONValue> {
+  const creation = prepareRuntimeAgentPlanCreation({
+    store: input.store,
+    plannerRunId: input.plannerRunId,
+    now: input.now(),
+  })
+  if (creation.status !== 'create') {
+    return buildRuntimeAgentPlanToolResult({
+      status: creation.status,
+      planId: creation.planId,
+      plannerRunId: creation.plannerRun.id,
+      snapshot: input.getPlanSnapshot(creation.planId),
+    })
+  }
+
+  const snapshot = await input.createPlan({
+    ...input.request,
+    threadId: creation.plannerRun.threadId,
+    createPlannerRun: false,
+  })
+  const finalized = finalizeRuntimeAgentPlanCreation({
+    store: input.store,
+    plannerRunId: creation.plannerRun.id,
+    planId: snapshot.plan.id,
+    taskCount: snapshot.tasks.length,
+    now: input.now(),
+  })
+  return buildRuntimeAgentPlanToolResult({
+    status: 'created',
+    planId: finalized.planId,
+    plannerRunId: finalized.plannerRun.id,
+    snapshot: input.getPlanSnapshot(finalized.planId),
+  })
+}
+
 export function getRuntimeAgentPlan(input: {
   store: Pick<AgentStore, 'getRun' | 'getPlan' | 'listPlans'>
   plannerRunId: string
@@ -121,6 +164,29 @@ export function prepareRuntimeAgentReplan(input: {
       plannerRunId: plannerRun.id,
     },
   }
+}
+
+export function applyRuntimeAgentReplanToolFlow(input: {
+  store: Pick<AgentStore, 'getRun' | 'getPlan' | 'listPlans' | 'updateRun' | 'updatePlan'>
+  plannerRunId: string
+  request?: Record<string, JSONValue>
+  now: () => string
+  replanRun: (runId: string, replanInput: ReplanRunInput) => ReplanRunResult
+  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+}): JSONValue {
+  const prepared = prepareRuntimeAgentReplan({
+    store: input.store,
+    plannerRunId: input.plannerRunId,
+    request: input.request,
+    now: input.now(),
+  })
+  const result = input.replanRun(prepared.plannerRun.id, prepared.replanInput)
+  return buildRuntimeAgentReplanResult({
+    planId: prepared.planId,
+    plannerRunId: prepared.plannerRun.id,
+    result,
+    snapshot: input.getPlanSnapshot(prepared.planId),
+  })
 }
 
 export function buildRuntimeAgentReplanResult(input: {

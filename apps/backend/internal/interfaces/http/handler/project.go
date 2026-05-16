@@ -55,6 +55,9 @@ func (h *ProjectHandler) AdminList(c *gin.Context) {
 		Page:     intQuery(c, "page", 1),
 		PageSize: intQuery(c, "page_size", 50),
 	}
+	if projectID := parseID(c.Query("project_id")); projectID != 0 {
+		filter.ProjectID = &projectID
+	}
 	if ownerID := parseID(c.Query("owner_id")); ownerID != 0 {
 		filter.OwnerID = &ownerID
 	}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse } from '@/types'
@@ -18,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 import { translateAPIRequestError, translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
 import {
+  cloudFileConfigToggleConfirmKey,
   credentialToggleConfirmKey,
   featureToggleConfirmKey,
   modelConfigDisplayName,
@@ -27,6 +28,25 @@ import {
 import { emptyJobMonitorFilters, jobUrlSearchParams } from '@/lib/adminJobQueryParams'
 import { auditLogsHref, relativePastDateInput, usageLogsHref } from '@/lib/adminLogQueryParams'
 import { gatewayKeyAuditHref, gatewayKeyUsageHref } from '@/lib/adminGatewayKeyLinks'
+import { adminHref } from '@/lib/adminRoutes'
+import { groupAdminFeatures } from '@/lib/adminFeatureGroups'
+import {
+  emptyProjectListFilters,
+  projectFiltersFromSearchParams,
+  projectListHref,
+  projectPageFromSearchParams,
+  projectSearchParams,
+  type ProjectListFilters,
+} from '@/lib/adminProjectQueryParams'
+import {
+  emptyResourceListFilters,
+  resourceFiltersFromSearchParams,
+  resourceListHref,
+  resourcePageFromSearchParams,
+  resourceSearchParams,
+  type ResourceListFilters,
+} from '@/lib/adminResourceQueryParams'
+import { userListHref } from '@/lib/adminUserQueryParams'
 import {
   PARAM_TEMPLATES,
   adapterParamsForCapabilities,
@@ -2389,6 +2409,7 @@ interface AdminProjectDetail {
 export function ProjectOwnerManagementPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [ownerDialog, setOwnerDialog] = useState<AdminProject | null>(null)
   const [editDialog, setEditDialog] = useState<AdminProject | null>(null)
@@ -2400,24 +2421,23 @@ export function ProjectOwnerManagementPage() {
   const [selectedOwnerId, setSelectedOwnerId] = useState('')
   const [editProjectName, setEditProjectName] = useState('')
   const [editProjectStatus, setEditProjectStatus] = useState('planning')
-  const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [ownerFilter, setOwnerFilter] = useState('')
-  const [orgFilter, setOrgFilter] = useState('')
-  const [page, setPage] = useState(1)
+  const [projectFilters, setProjectFilters] = useState<ProjectListFilters>(() => projectFiltersFromSearchParams(searchParams))
+  const [page, setPage] = useState(() => projectPageFromSearchParams(searchParams))
   const [memberDialog, setMemberDialog] = useState<AdminProject | null>(null)
   const [newMemberUserId, setNewMemberUserId] = useState('')
   const [newMemberRole, setNewMemberRole] = useState('viewer')
   const [projectError, setProjectError] = useState('')
+  const { query, projectId: projectIdFilter, status: statusFilter, ownerId: ownerFilter, orgId: orgFilter } = projectFilters
 
   const { data, isFetching, refetch, error: projectsQueryError } = useQuery<{ projects: AdminProject[]; total: number }>({
-    queryKey: ['admin', 'projects', query, statusFilter, ownerFilter, orgFilter, page],
+    queryKey: ['admin', 'projects', query, projectIdFilter, statusFilter, ownerFilter, orgFilter, page],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(page),
         page_size: '25',
       })
       if (query.trim()) params.set('q', query.trim())
+      if (projectIdFilter) params.set('project_id', projectIdFilter)
       if (statusFilter) params.set('status', statusFilter)
       if (ownerFilter) params.set('owner_id', ownerFilter)
       if (orgFilter) params.set('org_id', orgFilter)
@@ -2539,12 +2559,23 @@ export function ProjectOwnerManagementPage() {
     setEditProjectStatus(project.status || 'planning')
   }
 
-  const clearFilters = () => {
-    setQuery('')
-    setStatusFilter('')
-    setOwnerFilter('')
-    setOrgFilter('')
+  function updateProjectFilter(key: keyof ProjectListFilters, value: string) {
+    const next = { ...projectFilters, [key]: value }
+    setProjectFilters(next)
     setPage(1)
+    setSearchParams(projectSearchParams(next, 1), { replace: true })
+  }
+
+  const clearFilters = () => {
+    setProjectFilters(emptyProjectListFilters)
+    setPage(1)
+    setSearchParams({}, { replace: true })
+  }
+
+  function updateProjectPage(nextPage: number) {
+    const normalized = Math.max(1, Math.min(pageCount, nextPage))
+    setPage(normalized)
+    setSearchParams(projectSearchParams(projectFilters, normalized), { replace: true })
   }
 
   const removeProject = (project: AdminProject) => {
@@ -2573,11 +2604,12 @@ export function ProjectOwnerManagementPage() {
   }
 
   useEffect(() => {
-    setPage(1)
-  }, [query, statusFilter, ownerFilter, orgFilter])
+    setProjectFilters(projectFiltersFromSearchParams(searchParams))
+    setPage(projectPageFromSearchParams(searchParams))
+  }, [searchParams])
 
   useEffect(() => {
-    if (page > pageCount) setPage(pageCount)
+    if (page > pageCount) updateProjectPage(pageCount)
   }, [page, pageCount])
 
   return (
@@ -2599,16 +2631,22 @@ export function ProjectOwnerManagementPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 rounded-lg border border-border bg-card p-3 md:grid-cols-[minmax(180px,1fr)_150px_130px_130px_auto]">
+      <div className="grid gap-3 rounded-lg border border-border bg-card p-3 md:grid-cols-[minmax(180px,1fr)_110px_150px_130px_130px_auto]">
         <Input
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => updateProjectFilter('query', event.target.value)}
           placeholder={t('admin.projects.searchPlaceholder')}
+          className="h-9"
+        />
+        <Input
+          value={projectIdFilter}
+          onChange={(event) => updateProjectFilter('projectId', event.target.value.replace(/[^\d]/g, ''))}
+          placeholder={t('admin.projects.projectId')}
           className="h-9"
         />
         <select
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
+          onChange={(event) => updateProjectFilter('status', event.target.value)}
           className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="">{t('admin.projects.allStatuses')}</option>
@@ -2618,13 +2656,13 @@ export function ProjectOwnerManagementPage() {
         </select>
         <Input
           value={ownerFilter}
-          onChange={(event) => setOwnerFilter(event.target.value.replace(/[^\d]/g, ''))}
+          onChange={(event) => updateProjectFilter('ownerId', event.target.value.replace(/[^\d]/g, ''))}
           placeholder={t('admin.projects.ownerId')}
           className="h-9"
         />
         <Input
           value={orgFilter}
-          onChange={(event) => setOrgFilter(event.target.value.replace(/[^\d]/g, ''))}
+          onChange={(event) => updateProjectFilter('orgId', event.target.value.replace(/[^\d]/g, ''))}
           placeholder={t('admin.projects.orgId')}
           className="h-9"
         />
@@ -2725,10 +2763,10 @@ export function ProjectOwnerManagementPage() {
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">{t('admin.projects.pageStatus', { page, pageCount })}</span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+            <Button variant="outline" size="sm" onClick={() => updateProjectPage(page - 1)} disabled={page === 1}>
               {t('admin.projects.previousPage')}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>
+            <Button variant="outline" size="sm" onClick={() => updateProjectPage(page + 1)} disabled={page === pageCount}>
               {t('admin.projects.nextPage')}
             </Button>
           </div>
@@ -2778,28 +2816,28 @@ export function ProjectOwnerManagementPage() {
                     value={formatAdminCredits(projectDetailQuery.data.usage.cost)}
                     detail={t('admin.projects.detailUsageCalls', { count: formatAdminNumber(projectDetailQuery.data.usage.calls) })}
                   />
-	                  <ProjectDetailMetric
-	                    label={t('admin.projects.detailAuditRecords')}
-	                    value={formatAdminNumber(projectDetailQuery.data.audit.records)}
-	                    detail={projectDetailQuery.data.audit.last_action ? `${projectDetailQuery.data.audit.last_action} · ${projectDetailQuery.data.audit.last_at ? new Date(projectDetailQuery.data.audit.last_at).toLocaleString() : '-'}` : undefined}
-	                  />
-	                </div>
-	              )}
-	              <div className="mt-3 flex flex-wrap gap-2">
-	                <Button asChild type="button" variant="outline" size="sm">
-	                  <Link to={usageLogsHref({ projectId: memberDialog.ID })}>
-	                    <BarChart3 size={14} className="mr-2" />
-	                    {t('admin.projects.viewUsageLogs')}
-	                  </Link>
-	                </Button>
-	                <Button asChild type="button" variant="outline" size="sm">
-	                  <Link to={auditLogsHref({ projectId: memberDialog.ID })}>
-	                    <ScrollText size={14} className="mr-2" />
-	                    {t('admin.projects.viewAuditLogs')}
-	                  </Link>
-	                </Button>
-	              </div>
-	            </div>
+                  <ProjectDetailMetric
+                    label={t('admin.projects.detailAuditRecords')}
+                    value={formatAdminNumber(projectDetailQuery.data.audit.records)}
+                    detail={projectDetailQuery.data.audit.last_action ? `${projectDetailQuery.data.audit.last_action} · ${projectDetailQuery.data.audit.last_at ? new Date(projectDetailQuery.data.audit.last_at).toLocaleString() : '-'}` : undefined}
+                  />
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button asChild type="button" variant="outline" size="sm">
+                  <Link to={usageLogsHref({ projectId: memberDialog.ID })}>
+                    <BarChart3 size={14} className="mr-2" />
+                    {t('admin.projects.viewUsageLogs')}
+                  </Link>
+                </Button>
+                <Button asChild type="button" variant="outline" size="sm">
+                  <Link to={auditLogsHref({ projectId: memberDialog.ID })}>
+                    <ScrollText size={14} className="mr-2" />
+                    {t('admin.projects.viewAuditLogs')}
+                  </Link>
+                </Button>
+              </div>
+            </div>
             <div className="grid gap-2 border-b border-border bg-card/60 px-5 py-3 md:grid-cols-[minmax(0,1fr)_150px_auto]">
               <ActiveUserSelect
                 value={newMemberUserId}
@@ -2856,10 +2894,12 @@ export function ProjectOwnerManagementPage() {
                   {(projectMembersQuery.data ?? []).map((member) => (
                     <tr key={member.ID}>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-foreground">{member.user?.display_name || member.user?.username || `#${member.user_id}`}</div>
-                        <div className="font-mono text-xs text-muted-foreground">
+                        <Link to={userListHref({ userId: member.user_id })} className="block font-medium text-foreground underline-offset-2 hover:underline">
+                          {member.user?.display_name || member.user?.username || `#${member.user_id}`}
+                        </Link>
+                        <Link to={userListHref({ userId: member.user_id })} className="block font-mono text-xs text-muted-foreground underline-offset-2 hover:underline">
                           #{member.user_id}{member.user?.primary_email ? ` · ${member.user.primary_email}` : ''}
-                        </div>
+                        </Link>
                       </td>
                       <td className="px-4 py-3">
                         {member.role === 'owner' ? (
@@ -3112,6 +3152,7 @@ function FeatureRow({
   const qc = useQueryClient()
   const [showPrompt, setShowPrompt] = useState(false)
   const [promptOverride, setPromptOverride] = useState(feature.system_prompt_override)
+  const [maxTokensOverride, setMaxTokensOverride] = useState(() => feature.max_tokens_override > 0 ? String(feature.max_tokens_override) : '')
   const [promptSaved, setPromptSaved] = useState(false)
   // Inline model editing state: modelId → edit form open
   const [editingModelId, setEditingModelId] = useState<number | null>(null)
@@ -3126,6 +3167,8 @@ function FeatureRow({
   })
 
   const allowed = new Set(feature.allowed_model_ids)
+  const parsedMaxTokensOverride = maxTokensOverride.trim() === '' ? 0 : Number(maxTokensOverride)
+  const maxTokensOverrideValid = Number.isInteger(parsedMaxTokensOverride) && parsedMaxTokensOverride >= 0
 
   const patchModel = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) =>
@@ -3167,10 +3210,19 @@ function FeatureRow({
   }
 
   function savePrompt() {
-    onUpdatePrompt({ system_prompt_override: promptOverride })
+    if (!maxTokensOverrideValid) return
+    onUpdatePrompt({
+      system_prompt_override: promptOverride,
+      max_tokens_override: parsedMaxTokensOverride,
+    })
     setPromptSaved(true)
     setTimeout(() => setPromptSaved(false), 2000)
   }
+
+  useEffect(() => {
+    setPromptOverride(feature.system_prompt_override)
+    setMaxTokensOverride(feature.max_tokens_override > 0 ? String(feature.max_tokens_override) : '')
+  }, [feature.feature_key, feature.system_prompt_override, feature.max_tokens_override])
 
   const effectivePrompt = promptOverride || feature.default_system_prompt
   const hasOverride = promptOverride !== '' && promptOverride !== feature.default_system_prompt
@@ -3251,10 +3303,23 @@ function FeatureRow({
               rows={3}
               className="w-full text-xs font-mono border border-border rounded p-2 bg-background resize-none focus:outline-none focus:ring-1 focus:ring-ring"
             />
-            <div className="flex justify-end mt-1">
+            <div className="mt-2 flex items-end justify-end gap-3">
+              <div className="mr-auto max-w-[180px]">
+                <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.features.maxTokensOverride')}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={maxTokensOverride}
+                  onChange={(event) => setMaxTokensOverride(event.target.value)}
+                  placeholder={feature.max_tokens > 0 ? String(feature.max_tokens) : '0'}
+                  className={cn('h-7 text-xs', !maxTokensOverrideValid && 'border-destructive')}
+                />
+                <p className="mt-1 text-[10px] text-muted-foreground">{t('admin.features.maxTokensOverrideHint')}</p>
+              </div>
               <button
                 onClick={savePrompt}
-                disabled={isPending}
+                disabled={isPending || !maxTokensOverrideValid}
                 className="text-xs px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 {promptSaved ? t('admin.features.saved') : t('admin.features.saveOverride')}
@@ -3483,6 +3548,12 @@ export function FeatureConfigPage() {
     update.mutate({ key: feature.feature_key, data })
   }
 
+  const { toolFeatures, systemFeatures } = groupAdminFeatures(features)
+  const featureGroups = [
+    { key: 'tool', title: t('admin.features.toolFeatures'), items: toolFeatures },
+    { key: 'system', title: t('admin.features.systemFeatures'), items: systemFeatures },
+  ].filter((group) => group.items.length > 0)
+
   return (
     <div className="space-y-4 max-w-2xl">
       <div>
@@ -3511,10 +3582,10 @@ export function FeatureConfigPage() {
       )}
 
       <div className="space-y-3">
-        {features.filter((f) => !f.is_internal).length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">{t('admin.features.toolFeatures')}</p>
-            {features.filter((f) => !f.is_internal).map((f) => (
+        {featureGroups.map((group) => (
+          <div key={group.key} className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">{group.title}</p>
+            {group.items.map((f) => (
               <FeatureRow
                 key={f.feature_key}
                 feature={f}
@@ -3525,8 +3596,8 @@ export function FeatureConfigPage() {
               />
             ))}
           </div>
-        )}
-        {!featuresQueryError && features.filter((f) => !f.is_internal).length === 0 && (
+        ))}
+        {!featuresQueryError && featureGroups.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">{t('admin.features.empty')}</p>
         )}
       </div>
@@ -3544,15 +3615,10 @@ type ResourceAdminDetail = {
 export function StoragePage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [resourcePage, setResourcePage] = useState(1)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [resourcePage, setResourcePage] = useState(() => resourcePageFromSearchParams(searchParams))
   const [detailResource, setDetailResource] = useState<RawResource | null>(null)
-  const [resourceFilters, setResourceFilters] = useState({
-    q: '',
-    type: '',
-    storageBackend: '',
-    userId: '',
-    orgId: '',
-  })
+  const [resourceFilters, setResourceFilters] = useState<ResourceListFilters>(() => resourceFiltersFromSearchParams(searchParams))
   const [resourceError, setResourceError] = useState('')
   const { data: backends, error: backendsQueryError } = useQuery<{ default: string; backends: { name: string; available: boolean }[] }>({
     queryKey: ['admin-storage-backends'],
@@ -3582,6 +3648,7 @@ export function StoragePage() {
     queryKey: ['admin-storage-resources', resourceParams],
     queryFn: () => api.get('/admin/resource-storage/resources', { params: resourceParams }).then(r => r.data),
   })
+  const resourcePageCount = Math.max(1, Math.ceil((resources?.total ?? 0) / 50))
   const resourceDetailQuery = useQuery<ResourceAdminDetail>({
     queryKey: ['admin-storage-resources', detailResource?.ID, 'detail'],
     queryFn: () => api.get(`/admin/resource-storage/resources/${detailResource?.ID}/detail`).then(r => r.data),
@@ -3603,9 +3670,21 @@ export function StoragePage() {
     if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
     return `${(b / 1024 / 1024).toFixed(1)} MB`
   }
-  function updateResourceFilter(key: keyof typeof resourceFilters, value: string) {
-    setResourceFilters((current) => ({ ...current, [key]: value }))
+  function updateResourceFilter(key: keyof ResourceListFilters, value: string) {
+    const next = { ...resourceFilters, [key]: value }
+    setResourceFilters(next)
     setResourcePage(1)
+    setSearchParams(resourceSearchParams(next, 1), { replace: true })
+  }
+  function clearResourceFilters() {
+    setResourceFilters(emptyResourceListFilters)
+    setResourcePage(1)
+    setSearchParams({}, { replace: true })
+  }
+  function updateResourcePage(nextPage: number) {
+    const normalized = Math.max(1, Math.min(resourcePageCount, nextPage))
+    setResourcePage(normalized)
+    setSearchParams(resourceSearchParams(resourceFilters, normalized), { replace: true })
   }
   function formatDate(value?: string) {
     if (!value) return '-'
@@ -3613,6 +3692,15 @@ export function StoragePage() {
     if (Number.isNaN(date.getTime())) return value
     return date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
+
+  useEffect(() => {
+    setResourceFilters(resourceFiltersFromSearchParams(searchParams))
+    setResourcePage(resourcePageFromSearchParams(searchParams))
+  }, [searchParams])
+
+  useEffect(() => {
+    if (resourcePage > resourcePageCount) updateResourcePage(resourcePageCount)
+  }, [resourcePage, resourcePageCount])
 
   // Group by user
   const byUser: Record<number, { username: string; backends: Record<string, { count: number; size: number }> }> = {}
@@ -3687,7 +3775,14 @@ export function StoragePage() {
                     <tr key={`${uid}-${backend}`} className="border-t border-border/50 hover:bg-muted/20">
                       <td className="px-4 py-2.5 text-foreground">{idx === 0 ? u.username : ''}</td>
                       <td className="px-4 py-2.5 text-muted-foreground capitalize">{backend}</td>
-                      <td className="px-4 py-2.5 text-right tabular-nums">{info.count}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">
+                        <Link
+                          to={resourceListHref({ userId: uid, storageBackend: backend })}
+                          className="underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                        >
+                          {info.count}
+                        </Link>
+                      </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">{formatBytes(info.size)}</td>
                     </tr>
                   ))
@@ -3738,7 +3833,7 @@ export function StoragePage() {
               variant="ghost"
               size="sm"
               className="self-end"
-              onClick={() => { setResourceFilters({ q: '', type: '', storageBackend: '', userId: '', orgId: '' }); setResourcePage(1) }}
+              onClick={clearResourceFilters}
             >
               {t('admin.storage.clear')}
             </Button>
@@ -3772,19 +3867,19 @@ export function StoragePage() {
                   <td className="px-4 py-2.5 text-xs text-muted-foreground">{resource.storage_backend || '-'}</td>
                   <td className="px-4 py-2.5 text-right font-mono text-xs">{formatBytes(resource.size || 0)}</td>
                   <td className="whitespace-nowrap px-4 py-2.5 text-xs text-muted-foreground">{formatDate(resource.CreatedAt)}</td>
-	                  <td className="px-4 py-2.5 text-right">
-	                    <Button
-	                      type="button"
-	                      variant="ghost"
-	                      size="sm"
-	                      onClick={() => setDetailResource(resource)}
-	                    >
-	                      <Eye size={13} className="mr-1" />
-	                      {t('admin.storage.details')}
-	                    </Button>
-	                    <Button
-	                      type="button"
-	                      variant="ghost"
+                  <td className="px-4 py-2.5 text-right">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDetailResource(resource)}
+                    >
+                      <Eye size={13} className="mr-1" />
+                      {t('admin.storage.details')}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
                       size="sm"
                       onClick={() => { if (window.confirm(t('admin.storage.confirmDeleteResource', { name: resource.name }))) deleteResource.mutate(resource.ID) }}
                       disabled={deleteResource.isPending}
@@ -3806,121 +3901,128 @@ export function StoragePage() {
           </table>
         </div>
         <div className="mt-3 flex items-center justify-end gap-3">
-          <span className="text-xs text-muted-foreground">{t('admin.logs.pageStatus', { page: resourcePage, pageCount: Math.max(1, Math.ceil((resources?.total ?? 0) / 50)) })}</span>
-          <Button type="button" variant="outline" size="sm" disabled={resourcePage <= 1} onClick={() => setResourcePage((value) => Math.max(1, value - 1))}>{t('admin.logs.previousPage')}</Button>
-          <Button type="button" variant="outline" size="sm" disabled={resourcePage >= Math.max(1, Math.ceil((resources?.total ?? 0) / 50))} onClick={() => setResourcePage((value) => value + 1)}>{t('admin.logs.nextPage')}</Button>
-	        </div>
-	      </div>
-	      {detailResource && (
-	        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-	          <div className="w-full max-w-5xl rounded-xl bg-background shadow-2xl">
-	            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
-	              <div>
-	                <h3 className="text-sm font-semibold text-foreground">{t('admin.storage.detailsTitle', { name: detailResource.name })}</h3>
-	                <p className="mt-0.5 font-mono text-xs text-muted-foreground">#{detailResource.ID} · {detailResource.type} · {detailResource.mime_type || '-'}</p>
-	              </div>
-	              <div className="flex items-center gap-2">
-	                <Button asChild type="button" variant="outline" size="sm">
-	                  <Link to={auditLogsHref({ targetType: 'resource', targetId: detailResource.ID, orgId: detailResource.org_id })}>
-	                    <ScrollText size={14} className="mr-2" />
-	                    {t('admin.storage.viewAuditLogs')}
-	                  </Link>
-	                </Button>
-	                <button
-	                  type="button"
-	                  onClick={() => setDetailResource(null)}
-	                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-	                  aria-label={t('common.close')}
-	                >
-	                  <X size={16} />
-	                </button>
-	              </div>
-	            </div>
-	            <div className="max-h-[75vh] overflow-auto px-5 py-4">
-	              {resourceDetailQuery.error && (
-	                <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-	                  {translateAPIRequestError(resourceDetailQuery.error)}
-	                </div>
-	              )}
-	              {resourceDetailQuery.isLoading && (
-	                <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{t('common.loading')}</div>
-	              )}
-	              {(() => {
-	                const detail = resourceDetailQuery.data
-	                const resource = detail?.resource ?? detailResource
-	                return (
-	                  <div className="space-y-4">
-	                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-	                      <ResourceDetailField label={t('admin.storage.owner')} value={`${resource.owner?.username ?? `#${resource.owner_id}`} (#${resource.owner_id})`} />
-	                      <ResourceDetailField label={t('admin.logs.orgId')} value={resource.org_id ? `#${resource.org_id}` : '-'} />
-	                      <ResourceDetailField label={t('admin.storage.internalBackend')} value={resource.storage_backend || '-'} />
-	                      <ResourceDetailField label={t('admin.storage.usedSpace')} value={formatBytes(resource.size || 0)} />
-	                      <ResourceDetailField label={t('admin.storage.createdAt')} value={formatDate(resource.CreatedAt)} />
-	                      <ResourceDetailField label={t('admin.storage.updatedAt')} value={formatDate(resource.UpdatedAt)} />
-	                      <ResourceDetailField label={t('admin.storage.shared')} value={resource.is_shared ? t('admin.storage.sharedYes') : t('admin.storage.sharedNo')} />
-	                      <ResourceDetailField label={t('admin.storage.verification')} value={resource.verification_status || '-'} />
-	                    </div>
-	                    {resource.storage_key && (
-	                      <div>
-	                        <p className="mb-1 text-xs font-medium text-muted-foreground">{t('admin.storage.storageKey')}</p>
-	                        <div className="break-all rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-muted-foreground">{resource.storage_key}</div>
-	                      </div>
-	                    )}
-	                    <div>
-	                      <div className="mb-2 flex items-center justify-between gap-3">
-	                        <div>
-	                          <h4 className="text-sm font-semibold text-foreground">{t('admin.storage.bindings')}</h4>
-	                          <p className="mt-0.5 text-xs text-muted-foreground">
-	                            {t('admin.storage.bindingCount', { count: detail?.binding_count ?? 0 })}
-	                            {detail && detail.binding_count > detail.bindings.length ? ` · ${t('admin.storage.showingBindings', { count: detail.bindings.length })}` : ''}
-	                          </p>
-	                        </div>
-	                      </div>
-	                      <div className="overflow-hidden rounded-lg border border-border">
-	                        <table className="w-full text-sm">
-	                          <thead className="bg-muted/30">
-	                            <tr>
-	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.project')}</th>
-	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingOwner')}</th>
-	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingRole')}</th>
-	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingSource')}</th>
-	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.createdAt')}</th>
-	                            </tr>
-	                          </thead>
-	                          <tbody className="divide-y divide-border">
-	                            {(detail?.bindings ?? []).map((binding) => (
-	                              <tr key={binding.ID}>
-	                                <td className="px-4 py-3 font-mono text-xs">#{binding.project_id}</td>
-	                                <td className="px-4 py-3">
-	                                  <div className="font-mono text-xs text-foreground">{binding.owner_type} #{binding.owner_id}</div>
-	                                  <div className="text-xs text-muted-foreground">{binding.slot || '-'}</div>
-	                                </td>
-	                                <td className="px-4 py-3 text-xs text-muted-foreground">
-	                                  <div>{binding.role}{binding.is_primary ? ` · ${t('admin.storage.primary')}` : ''}</div>
-	                                  <div>{binding.status || '-'}</div>
-	                                </td>
-	                                <td className="px-4 py-3 text-xs text-muted-foreground">
-	                                  <div>{binding.source_type || '-'}</div>
-	                                  <div className="font-mono">{binding.source_id ? `#${binding.source_id}` : '-'}</div>
-	                                </td>
-	                                <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatDate(binding.CreatedAt)}</td>
-	                              </tr>
-	                            ))}
-	                            {!resourceDetailQuery.isLoading && (detail?.bindings ?? []).length === 0 && (
-	                              <tr>
-	                                <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">{t('admin.storage.noBindings')}</td>
-	                              </tr>
-	                            )}
-	                          </tbody>
-	                        </table>
-	                      </div>
-	                    </div>
-	                  </div>
-	                )
-	              })()}
-	            </div>
-	          </div>
-	        </div>
+          <span className="text-xs text-muted-foreground">{t('admin.logs.pageStatus', { page: resourcePage, pageCount: resourcePageCount })}</span>
+          <Button type="button" variant="outline" size="sm" disabled={resourcePage <= 1} onClick={() => updateResourcePage(resourcePage - 1)}>{t('admin.logs.previousPage')}</Button>
+          <Button type="button" variant="outline" size="sm" disabled={resourcePage >= resourcePageCount} onClick={() => updateResourcePage(resourcePage + 1)}>{t('admin.logs.nextPage')}</Button>
+        </div>
+      </div>
+      {detailResource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-5xl rounded-xl bg-background shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">{t('admin.storage.detailsTitle', { name: detailResource.name })}</h3>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">#{detailResource.ID} · {detailResource.type} · {detailResource.mime_type || '-'}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button asChild type="button" variant="outline" size="sm">
+                  <Link to={auditLogsHref({ targetType: 'resource', targetId: detailResource.ID, orgId: detailResource.org_id })}>
+                    <ScrollText size={14} className="mr-2" />
+                    {t('admin.storage.viewAuditLogs')}
+                  </Link>
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => setDetailResource(null)}
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  aria-label={t('common.close')}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="max-h-[75vh] overflow-auto px-5 py-4">
+              {resourceDetailQuery.error && (
+                <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {translateAPIRequestError(resourceDetailQuery.error)}
+                </div>
+              )}
+              {resourceDetailQuery.isLoading && (
+                <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{t('common.loading')}</div>
+              )}
+              {(() => {
+                const detail = resourceDetailQuery.data
+                const resource = detail?.resource ?? detailResource
+                return (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                      <ResourceDetailField label={t('admin.storage.owner')} value={`${resource.owner?.username ?? `#${resource.owner_id}`} (#${resource.owner_id})`} />
+                      <ResourceDetailField label={t('admin.logs.orgId')} value={resource.org_id ? `#${resource.org_id}` : '-'} />
+                      <ResourceDetailField label={t('admin.storage.internalBackend')} value={resource.storage_backend || '-'} />
+                      <ResourceDetailField label={t('admin.storage.usedSpace')} value={formatBytes(resource.size || 0)} />
+                      <ResourceDetailField label={t('admin.storage.createdAt')} value={formatDate(resource.CreatedAt)} />
+                      <ResourceDetailField label={t('admin.storage.updatedAt')} value={formatDate(resource.UpdatedAt)} />
+                      <ResourceDetailField label={t('admin.storage.shared')} value={resource.is_shared ? t('admin.storage.sharedYes') : t('admin.storage.sharedNo')} />
+                      <ResourceDetailField label={t('admin.storage.verification')} value={resource.verification_status || '-'} />
+                    </div>
+                    {resource.storage_key && (
+                      <div>
+                        <p className="mb-1 text-xs font-medium text-muted-foreground">{t('admin.storage.storageKey')}</p>
+                        <div className="break-all rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-muted-foreground">{resource.storage_key}</div>
+                      </div>
+                    )}
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-foreground">{t('admin.storage.bindings')}</h4>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {t('admin.storage.bindingCount', { count: detail?.binding_count ?? 0 })}
+                            {detail && detail.binding_count > detail.bindings.length ? ` · ${t('admin.storage.showingBindings', { count: detail.bindings.length })}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="overflow-hidden rounded-lg border border-border">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/30">
+                            <tr>
+                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.project')}</th>
+                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingOwner')}</th>
+                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingRole')}</th>
+                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingSource')}</th>
+                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.createdAt')}</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border">
+                            {(detail?.bindings ?? []).map((binding) => (
+                              <tr key={binding.ID}>
+                                <td className="px-4 py-3 font-mono text-xs">
+                                  <Link
+                                    to={projectListHref({ projectId: binding.project_id })}
+                                    className="underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                                  >
+                                    #{binding.project_id}
+                                  </Link>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="font-mono text-xs text-foreground">{binding.owner_type} #{binding.owner_id}</div>
+                                  <div className="text-xs text-muted-foreground">{binding.slot || '-'}</div>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground">
+                                  <div>{binding.role}{binding.is_primary ? ` · ${t('admin.storage.primary')}` : ''}</div>
+                                  <div>{binding.status || '-'}</div>
+                                </td>
+                                <td className="px-4 py-3 text-xs text-muted-foreground">
+                                  <div>{binding.source_type || '-'}</div>
+                                  <div className="font-mono">{binding.source_id ? `#${binding.source_id}` : '-'}</div>
+                                </td>
+                                <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatDate(binding.CreatedAt)}</td>
+                              </tr>
+                            ))}
+                            {!resourceDetailQuery.isLoading && (detail?.bindings ?? []).length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">{t('admin.storage.noBindings')}</td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
 	      )}
 	    </div>
 	  )
@@ -4094,6 +4196,7 @@ export function CloudFileConfigPage() {
   }
 
   async function toggleEnabled(cfg: CloudFileConfig) {
+    if (!window.confirm(t(cloudFileConfigToggleConfirmKey(cfg), { name: cfg.name }))) return
     setCloudFileError('')
     try {
       await api.put(`/admin/cloud-file-configs/${cfg.ID}`, { is_enabled: !cfg.is_enabled })
@@ -4104,7 +4207,8 @@ export function CloudFileConfigPage() {
   }
 
   async function deleteCfg(id: number) {
-    if (!confirm(t('admin.cloudFiles.confirmDelete'))) return
+    const cfg = configs.find((item) => item.ID === id)
+    if (!window.confirm(t('admin.cloudFiles.confirmDelete', { name: cfg?.name ?? `#${id}` }))) return
     setCloudFileError('')
     try {
       await api.delete(`/admin/cloud-file-configs/${id}`)
@@ -4327,14 +4431,6 @@ const adminSectionHref: Record<AdminSectionKey, string> = {
 
 function navigateToAdminSection(section: AdminSectionKey) {
   window.location.assign(adminHref(adminSectionHref[section]))
-}
-
-function adminHref(href: string) {
-  const normalized = href.startsWith('/') ? href : `/${href}`
-  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
-    return `/admin${normalized}`
-  }
-  return normalized
 }
 
 interface AdminOverviewSummary {

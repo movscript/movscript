@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Eye, EyeOff, Settings } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -13,6 +13,13 @@ import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 
 type Tab = 'login' | 'register'
+
+type AuthConfig = {
+  registration_enabled: boolean
+  require_email_verification: boolean
+  email_verification_enabled: boolean
+  local_bootstrap_enabled: boolean
+}
 
 function PasswordInput({ placeholder, value, onChange, onKeyDown }: {
   placeholder: string
@@ -53,7 +60,19 @@ export default function AuthPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
+  const [challengeId, setChallengeId] = useState('')
   const [error, setError] = useState('')
+
+  const authConfig = useQuery<AuthConfig>({
+    queryKey: ['auth', 'config'],
+    queryFn: () => api.get('/auth/config').then((r) => r.data),
+  })
+  const config = authConfig.data
+  const localMode = isLocalLaunchMode(settings)
+  const registrationEnabled = !!config?.registration_enabled || localMode
+  const requiresEmail = tab === 'register' && !localMode && !!config?.require_email_verification
 
   const login = useMutation({
     mutationFn: () => api.post('/auth/login', { username, password }).then((r) => r.data as AuthSession),
@@ -65,17 +84,30 @@ export default function AuthPage() {
     mutationFn: () => api.post('/auth/register', {
       username,
       password,
-      localAdmin: isLocalLaunchMode(settings),
+      challengeId,
+      code,
+      localAdmin: localMode,
     }).then((r) => r.data as AuthSession),
     onSuccess: setSession,
     onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.registerFailed'))
+  })
+  const startCode = useMutation({
+    mutationFn: () => api.post('/auth/code/start', { target: email, purpose: 'register' }).then((r) => r.data as { challengeId: string; expiresIn: number; devCode?: string }),
+    onSuccess: (result) => {
+      setChallengeId(result.challengeId)
+      if (result.devCode) setCode(result.devCode)
+      setError('')
+    },
+    onError: (e: any) => setError(translateApiError(e.response?.data, 'auth.codeSendFailed')),
   })
 
   function handleSubmit() {
     setError('')
     if (!username.trim() || !password) return
     if (tab === 'register') {
+      if (!registrationEnabled) { setError(t('auth.registrationClosed')); return }
       if (password !== confirm) { setError(t('auth.passwordMismatch')); return }
+      if (requiresEmail && (!email.trim() || !challengeId || !code.trim())) { setError(t('auth.emailCodeRequired')); return }
       register.mutate()
     } else {
       login.mutate()
@@ -100,7 +132,7 @@ export default function AuthPage() {
         <p className="text-sm text-muted-foreground mb-8">{t('auth.tagline')}</p>
 
         <div className="flex border-b border-border mb-6">
-          {(['login', 'register'] as Tab[]).map((tabName) => (
+          {(['login', 'register'] as Tab[]).filter((tabName) => tabName !== 'register' || registrationEnabled).map((tabName) => (
             <button
               key={tabName}
               onClick={() => { setTab(tabName); setError('') }}
@@ -129,7 +161,36 @@ export default function AuthPage() {
           </div>
           <PasswordInput placeholder={t('auth.password')} value={password} onChange={setPassword} onKeyDown={onEnter} />
           {tab === 'register' && (
-            <PasswordInput placeholder={t('auth.confirmPassword')} value={confirm} onChange={setConfirm} onKeyDown={onEnter} />
+            <>
+              {requiresEmail && (
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="sr-only">{t('auth.email')}</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder={t('auth.email')}
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value)
+                        setChallengeId('')
+                      }}
+                      onKeyDown={onEnter}
+                    />
+                    <Button type="button" variant="outline" onClick={() => startCode.mutate()} disabled={startCode.isPending || !email.trim()}>
+                      {startCode.isPending ? t('auth.sendingCode') : t('auth.sendCode')}
+                    </Button>
+                  </div>
+                  <Input
+                    placeholder={t('auth.emailCode')}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    onKeyDown={onEnter}
+                  />
+                </div>
+              )}
+              <PasswordInput placeholder={t('auth.confirmPassword')} value={confirm} onChange={setConfirm} onKeyDown={onEnter} />
+            </>
           )}
 
           {error && <p className="text-xs text-destructive">{error}</p>}
@@ -152,8 +213,12 @@ export default function AuthPage() {
 
         {tab === 'login' && (
           <p className="text-xs text-muted-foreground text-center mt-5">
-            {t('auth.noAccount')}
-            <button onClick={() => setTab('register')} className="text-foreground hover:underline ml-1 transition-colors">{t('auth.registerNow')}</button>
+            {registrationEnabled ? (
+              <>
+                {t('auth.noAccount')}
+                <button onClick={() => setTab('register')} className="text-foreground hover:underline ml-1 transition-colors">{t('auth.registerNow')}</button>
+              </>
+            ) : t('auth.registrationClosedHint')}
           </p>
         )}
       </div>

@@ -33,6 +33,24 @@ export function buildRuntimeCatalogSnapshot(input: {
   }
 }
 
+export function createRuntimeCatalogSnapshot(input: {
+  makeId: () => string
+  defaultAgentManifest: AgentManifest
+  toolRegistry: ToolRegistry
+  layeredRegistry: AgentPluginCatalog['layeredRegistry']
+  pluginCatalogInfo?: AgentCapabilitiesResponse['pluginCatalog']
+  pluginWarnings?: string[]
+}): AgentRuntimeCatalogSnapshot {
+  return buildRuntimeCatalogSnapshot({
+    id: input.makeId(),
+    defaultAgentManifest: input.defaultAgentManifest,
+    toolRegistry: input.toolRegistry,
+    layeredRegistry: input.layeredRegistry,
+    ...(input.pluginCatalogInfo ? { pluginCatalogInfo: input.pluginCatalogInfo } : {}),
+    ...(input.pluginWarnings ? { pluginWarnings: input.pluginWarnings } : {}),
+  })
+}
+
 export class RuntimeCatalogSnapshotRegistry {
   private currentSnapshot: AgentRuntimeCatalogSnapshot
   private readonly snapshotsByRunId = new Map<string, AgentRuntimeCatalogSnapshot>()

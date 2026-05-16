@@ -189,6 +189,7 @@ func assertResourceBindingRelationExists(t *testing.T, db *gorm.DB, marker strin
 	var count int64
 	if err := db.Model(&model.EntityRelation{}).
 		Where("metadata_json LIKE ?", `%`+marker+`":`+strconv.FormatUint(uint64(id), 10)+`%`).
+		Where("valid_to IS NULL").
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relation metadata: %v", err)
 	}
@@ -202,6 +203,7 @@ func assertResourceBindingRelationMissing(t *testing.T, db *gorm.DB, marker stri
 	var count int64
 	if err := db.Model(&model.EntityRelation{}).
 		Where("metadata_json LIKE ?", `%`+marker+`":`+strconv.FormatUint(uint64(id), 10)+`%`).
+		Where("valid_to IS NULL").
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relation metadata: %v", err)
 	}
@@ -229,6 +231,7 @@ func countResourceBindingEdges(t *testing.T, db *gorm.DB, sourceType string, sou
 	var count int64
 	if err := db.Model(&model.EntityRelation{}).
 		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ?", sourceType, sourceID, targetType, targetID, relationType).
+		Where("valid_to IS NULL").
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relation: %v", err)
 	}

@@ -71,6 +71,7 @@ type ChallengeStartResult struct {
 	ChallengeID string `json:"challengeId"`
 	ExpiresIn   int    `json:"expiresIn"`
 	DevCode     string `json:"devCode,omitempty"`
+	Code        string `json:"-"`
 }
 
 type ChallengeVerifyInput struct {
@@ -276,6 +277,7 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 	result := ChallengeStartResult{
 		ChallengeID: fmt.Sprint(challenge.ID),
 		ExpiresIn:   domainauth.ChallengeExpiresInSec,
+		Code:        code,
 	}
 	if s.localAppMode {
 		result.DevCode = code

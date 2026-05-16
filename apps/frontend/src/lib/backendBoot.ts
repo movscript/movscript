@@ -48,6 +48,23 @@ export function shouldGateLocalBackendRequests(): boolean {
   return normalizeAPIBaseURL(settings.apiBaseURL) === getLocalAPIBaseURL()
 }
 
+export function canManageLocalBackend(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!window.api?.getBackendStatus && !!window.api?.setAppSettings
+}
+
+export async function probeLocalBackendStatus(baseURL: string): Promise<BackendBootStatus> {
+  const normalized = normalizeAPIBaseURL(baseURL)
+  if (await isLocalBackendHTTPReady(normalized)) {
+    return { state: 'ready', baseURL: normalized }
+  }
+  return {
+    state: 'error',
+    baseURL: normalized,
+    message: `Local backend is not reachable at ${normalized}.`,
+  }
+}
+
 export async function waitForLocalBackendReady(timeoutMs = 20_000): Promise<void> {
   if (!shouldGateLocalBackendRequests()) return
   if (!readyPromise) {

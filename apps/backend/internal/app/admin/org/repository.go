@@ -60,6 +60,9 @@ func (r *gormRepository) Create(ctx context.Context, input CreateInput) (Organiz
 
 func (r *gormRepository) List(ctx context.Context, filter ListFilter) (Page, error) {
 	q := r.db.WithContext(ctx).Model(&persistencemodel.Organization{})
+	if filter.OrgID != nil {
+		q = q.Where("organizations.id = ?", *filter.OrgID)
+	}
 	if filter.Query != "" {
 		like := "%" + filter.Query + "%"
 		if r.db.Dialector.Name() == "postgres" {

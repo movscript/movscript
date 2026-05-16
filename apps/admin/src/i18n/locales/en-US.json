@@ -2177,6 +2177,14 @@
       "previousPage": "Previous",
       "nextPage": "Next"
     },
+    "pagination": {
+      "range": "{{start}}-{{end}} of {{total}} records",
+      "pageStatus": "Page {{page}} / {{pageCount}}",
+      "firstPage": "First",
+      "previousPage": "Previous",
+      "nextPage": "Next",
+      "lastPage": "Last"
+    },
     "tabs": {
       "models": "Models",
       "features": "Features",
@@ -2188,7 +2196,8 @@
       "debug": "Debug",
       "uiPreview": "UI Preview",
       "storage": "Resource Storage",
-      "cloudFiles": "Input Relay"
+      "cloudFiles": "Input Relay",
+      "settings": "System Settings"
     },
     "home": {
       "metrics": {
@@ -2213,6 +2222,7 @@
         "usageLogs": "Filter {{count}} AI usage records by provider, model, user, and project.",
         "storage": "Manage {{count}} internal resource files, storage backends, and user usage.",
         "cloudFiles": "Public object relay and cloud file storage configuration.",
+        "settings": "Registration policy, email verification, and basic auth settings.",
         "debug": "System health, slow requests, job queues, and provider call debugging."
       }
     },
@@ -2485,6 +2495,8 @@
       "viewAuditLogs": "View audit logs",
       "organizations": "Organizations",
       "projects": "Projects",
+      "userId": "User ID",
+      "userIdPlaceholder": "Exact ID",
       "joinedAt": "Joined",
       "noOrgs": "No organization memberships",
       "noProjects": "No project memberships",
@@ -2529,6 +2541,8 @@
       "clear": "Clear filters",
       "search": "Search",
       "searchPlaceholder": "Organization name, slug, or join code",
+      "orgId": "Org ID",
+      "orgIdPlaceholder": "Exact ID",
       "org": "Organization",
       "kind": "Kind",
       "plan": "Plan",
@@ -2807,6 +2821,8 @@
       "outputSchema": "Output format (OutputSchema)",
       "customOverride": "Custom override",
       "customOverrideHint": "(blank = use default)",
+      "maxTokensOverride": "Max tokens override",
+      "maxTokensOverrideHint": "Blank or 0 = use default",
       "saved": "Saved ✓",
       "saveOverride": "Save override",
       "availableModels": "Available models",
@@ -2936,7 +2952,9 @@
       "confirmDeleteResource": "Delete resource \"{{name}}\"? Related bindings will also be removed."
     },
     "cloudFiles": {
-      "confirmDelete": "Delete this cloud storage configuration?",
+      "confirmDelete": "Delete cloud storage configuration \"{{name}}\"?",
+      "confirmEnable": "Enable cloud storage configuration \"{{name}}\"?",
+      "confirmDisable": "Disable cloud storage configuration \"{{name}}\"? Workers will stop using it to upload input assets.",
       "publicObjectRelay": "Public Object Relay",
       "publicObjectRelayDescription": "S3, OSS, and TOS buckets must be publicly reachable by providers for image-to-video and video reference inputs that only accept URLs.",
       "providerFilesAPI": "Provider Files API",
@@ -2971,6 +2989,29 @@
         "region": "Region",
         "secret_key": "Secret Key"
       }
+    },
+    "settings": {
+      "title": "System Settings",
+      "description": "Control account registration policy, email verification, and SMTP delivery.",
+      "registration": "Registration Policy",
+      "openRegistration": "Allow self-service registration",
+      "openRegistrationHint": "When disabled, new accounts must be created manually by an admin.",
+      "requireEmailVerification": "Require email verification",
+      "requireEmailVerificationHint": "Forced on while registration is open so accounts cannot register without a verified mailbox.",
+      "smtp": "Email Verification SMTP",
+      "enableEmail": "Enable verification email sending",
+      "enableEmailHint": "Used for registration verification codes. Email login codes reuse this configuration.",
+      "smtpHost": "SMTP Host",
+      "smtpPort": "Port",
+      "smtpUsername": "Username",
+      "smtpPassword": "Password",
+      "smtpPasswordSet": "Saved; leave blank to keep unchanged",
+      "fromEmail": "From email",
+      "fromName": "From name",
+      "useStartTLS": "STARTTLS",
+      "useTLS": "TLS",
+      "registrationRequiresEmail": "Email sending requires SMTP host, port, and from email; open registration also requires email verification.",
+      "saved": "Saved"
     },
     "debug": {
       "copy": "Copy",

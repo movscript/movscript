@@ -2,7 +2,6 @@ import { isJSONRecord, isRecord } from '../jsonValue.js'
 import type { AgentStore } from '../state/store.js'
 import type {
   AgentPlanSnapshot,
-  AgentRun,
   AgentTask,
   DispatchPlanInput,
   DispatchPlanResult,
@@ -27,6 +26,7 @@ import {
   collectSubagentNames,
 } from '../state/subagentNameValidation.js'
 import { toSubagentRunSummary } from '../state/subagentRunView.js'
+import { requireRuntimePlannerRun } from './runtimePlanBinding.js'
 import { normalizeNonEmptyString, uniqueStrings } from './runtimeScalarInput.js'
 import { requireRuntimeTask } from './runtimeStoreLookup.js'
 
@@ -45,12 +45,13 @@ export interface RuntimeSubagentSpawnApplication {
 }
 
 export function prepareRuntimeSubagentSpawn(input: {
-  store: Pick<AgentStore, 'getTask' | 'listTasks' | 'listRuns'>
-  plannerRun: AgentRun
+  store: Pick<AgentStore, 'getRun' | 'getTask' | 'listTasks' | 'listRuns'>
+  plannerRunId: string
   request?: Record<string, JSONValue>
   now: string
 }): RuntimeSubagentSpawnPreparation {
-  const { store, plannerRun, now } = input
+  const { store, now } = input
+  const plannerRun = requireRuntimePlannerRun(store, input.plannerRunId)
   const planId = plannerRun.planId
   if (!planId) throw new Error(SPAWN_SUBAGENT_PLAN_REQUIRED_MESSAGE)
   const request = input.request ?? {}

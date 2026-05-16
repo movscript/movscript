@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -39,136 +41,105 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 	switch kind {
 	case "production":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"production_text_block", func() (int, error) {
-				items, err := s.repo.ListProductionTextBlocks(ctx, ProductionTextBlockFilter{ProjectID: projectID, ProductionID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"segment", func() (int, error) {
-				items, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ProductionID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"content_unit", func() (int, error) {
-				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ProductionID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"keyframe", func() (int, error) {
-				items, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ProductionID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"preview_timeline", func() (int, error) {
-				items, err := s.repo.ListPreviewTimelines(ctx, PreviewTimelineFilter{ProjectID: projectID, ProductionID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"asset_slot", func() (int, error) {
-				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, ProductionID: itemID, IncludeInternal: "true"})
-				return len(items), err
-			}},
-			deleteBlocker{"delivery_version", func() (int, error) {
-				items, err := s.repo.ListDeliveryVersions(ctx, DeliveryVersionFilter{ProjectID: projectID, ProductionID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"work_item", func() (int, error) {
-				items, err := s.repo.ListWorkItems(ctx, WorkItemFilter{ProjectID: projectID, ProductionID: itemID})
-				return len(items), err
-			}},
+			s.deleteBlockerFrom(ctx, "production_text_block", projectID, "production", itemID, domainrelation.CategoryStructure, domainrelation.TypeContains),
+			s.deleteBlockerFrom(ctx, "segment", projectID, "production", itemID, domainrelation.CategoryStructure, domainrelation.TypeContains),
+			s.deleteBlockerFrom(ctx, "content_unit", projectID, "production", itemID, domainrelation.CategoryStructure, domainrelation.TypeContains),
+			s.deleteBlockerFrom(ctx, "keyframe", projectID, "production", itemID, domainrelation.CategoryStructure, domainrelation.TypeHasKeyframe),
+			s.deleteBlockerTo(ctx, "preview_timeline", projectID, "production", itemID, domainrelation.CategoryStructure, domainrelation.TypeDerivedFrom),
+			s.deleteBlockerFrom(ctx, "asset_slot", projectID, "production", itemID, domainrelation.CategoryAsset, ""),
+			s.deleteBlockerTo(ctx, "delivery_version", projectID, "production", itemID, domainrelation.CategoryDelivery, domainrelation.TypeDerivedFrom),
+			s.deleteBlockerFrom(ctx, "work_item", projectID, "production", itemID, domainrelation.CategoryWorkflow, domainrelation.TypeContains),
 		)
 	case "production_text_block":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"segment", func() (int, error) {
-				items, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, TextBlockID: itemID})
-				return len(items), err
-			}},
+			s.deleteBlockerTo(ctx, "segment", projectID, "production_text_block", itemID, domainrelation.CategoryStructure, domainrelation.TypeBasedOn),
 		)
 	case "segment":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"scene_moment", func() (int, error) {
-				items, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, SegmentID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"content_unit", func() (int, error) {
-				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SegmentID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"preview_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "preview_timeline_items", ForeignKey: "segment_id", ForeignKeyID: itemID})
-				return count, err
-			}},
-			deleteBlocker{"asset_slot", func() (int, error) {
-				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "segment", OwnerID: itemID, IncludeInternal: "true"})
-				return len(items), err
-			}},
-			deleteBlocker{"work_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "work_items", TargetType: "segment", TargetID: itemID})
-				return count, err
-			}},
+			s.deleteBlockerFrom(ctx, "scene_moment", projectID, "segment", itemID, domainrelation.CategoryStructure, domainrelation.TypeContains),
+			s.deleteBlockerFrom(ctx, "content_unit", projectID, "segment", itemID, domainrelation.CategoryStructure, domainrelation.TypeContains),
+			s.deleteBlockerTo(ctx, "preview_timeline_item", projectID, "segment", itemID, domainrelation.CategoryStructure, domainrelation.TypeRepresents),
+			s.deleteBlockerFrom(ctx, "asset_slot", projectID, "segment", itemID, domainrelation.CategoryAsset, ""),
+			s.deleteBlockerTo(ctx, "work_item", projectID, "segment", itemID, domainrelation.CategoryWorkflow, domainrelation.TypeTargets),
 		)
 	case "scene_moment":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"content_unit", func() (int, error) {
-				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SceneMomentID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"keyframe", func() (int, error) {
-				items, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, SceneMomentID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"preview_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "preview_timeline_items", ForeignKey: "scene_moment_id", ForeignKeyID: itemID})
-				return count, err
-			}},
-			deleteBlocker{"asset_slot", func() (int, error) {
-				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "scene_moment", OwnerID: itemID, IncludeInternal: "true"})
-				return len(items), err
-			}},
-			deleteBlocker{"work_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "work_items", TargetType: "scene_moment", TargetID: itemID})
-				return count, err
-			}},
+			s.deleteBlockerTo(ctx, "content_unit", projectID, "scene_moment", itemID, domainrelation.CategoryStructure, domainrelation.TypeBasedOn),
+			s.deleteBlockerFrom(ctx, "keyframe", projectID, "scene_moment", itemID, domainrelation.CategoryStructure, domainrelation.TypeHasKeyframe),
+			s.deleteBlockerTo(ctx, "preview_timeline_item", projectID, "scene_moment", itemID, domainrelation.CategoryStructure, domainrelation.TypeRepresents),
+			s.deleteBlockerFrom(ctx, "asset_slot", projectID, "scene_moment", itemID, domainrelation.CategoryAsset, ""),
+			s.deleteBlockerTo(ctx, "work_item", projectID, "scene_moment", itemID, domainrelation.CategoryWorkflow, domainrelation.TypeTargets),
 		)
 	case "storyboard_script":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"storyboard_version", func() (int, error) {
-				items, err := s.repo.ListStoryboardVersions(ctx, StoryboardVersionFilter{ProjectID: projectID, StoryboardScriptID: itemID})
-				return len(items), err
-			}},
+			s.deleteBlockerFrom(ctx, "storyboard_version", projectID, "storyboard_script", itemID, domainrelation.CategoryStructure, domainrelation.TypeHasVersion),
 		)
 	case "content_unit":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"keyframe", func() (int, error) {
-				items, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ContentUnitID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"preview_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "preview_timeline_items", ForeignKey: "content_unit_id", ForeignKeyID: itemID})
-				return count, err
-			}},
-			deleteBlocker{"asset_slot", func() (int, error) {
-				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "content_unit", OwnerID: itemID, IncludeInternal: "true"})
-				return len(items), err
-			}},
-			deleteBlocker{"delivery_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "delivery_timeline_items", ForeignKey: "content_unit_id", ForeignKeyID: itemID})
-				return count, err
-			}},
-			deleteBlocker{"work_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "work_items", TargetType: "content_unit", TargetID: itemID})
-				return count, err
-			}},
+			s.deleteBlockerFrom(ctx, "keyframe", projectID, "content_unit", itemID, domainrelation.CategoryStructure, domainrelation.TypeHasKeyframe),
+			s.deleteBlockerTo(ctx, "preview_timeline_item", projectID, "content_unit", itemID, domainrelation.CategoryStructure, domainrelation.TypeRepresents),
+			s.deleteBlockerFrom(ctx, "asset_slot", projectID, "content_unit", itemID, domainrelation.CategoryAsset, ""),
+			s.deleteBlockerTo(ctx, "delivery_timeline_item", projectID, "content_unit", itemID, domainrelation.CategoryDelivery, domainrelation.TypeUses),
+			s.deleteBlockerTo(ctx, "work_item", projectID, "content_unit", itemID, domainrelation.CategoryWorkflow, domainrelation.TypeTargets),
 		)
 	case "keyframe":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"preview_timeline_item", func() (int, error) {
-				count, err := s.repo.CountProjectItems(ctx, ProjectItemCountFilter{ProjectID: projectID, Table: "preview_timeline_items", ForeignKey: "keyframe_id", ForeignKeyID: itemID})
-				return count, err
-			}},
-			deleteBlocker{"asset_slot", func() (int, error) {
-				items, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "keyframe", OwnerID: itemID, IncludeInternal: "true"})
-				return len(items), err
-			}},
+			s.deleteBlockerTo(ctx, "preview_timeline_item", projectID, "keyframe", itemID, domainrelation.CategoryStructure, domainrelation.TypeUses),
+			s.deleteBlockerFrom(ctx, "asset_slot", projectID, "keyframe", itemID, domainrelation.CategoryAsset, ""),
 		)
 	default:
 		return nil
 	}
+}
+
+func (s *Service) deleteBlockerFrom(ctx context.Context, entityKind string, projectID uint, sourceType string, sourceID uint, category string, relationType string) deleteBlocker {
+	return deleteBlocker{entityKind: entityKind, count: func() (int, error) {
+		edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: projectID,
+			Category:  category,
+			Type:      relationType,
+			Source:    domainrelation.NewEntityRef(sourceType, sourceID),
+		})
+		if err != nil {
+			return 0, err
+		}
+		return len(edgesWithTargetType(edges, entityKind)), err
+	}}
+}
+
+func (s *Service) deleteBlockerTo(ctx context.Context, entityKind string, projectID uint, targetType string, targetID uint, category string, relationType string) deleteBlocker {
+	return deleteBlocker{entityKind: entityKind, count: func() (int, error) {
+		edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: projectID,
+			Category:  category,
+			Type:      relationType,
+			Target:    domainrelation.NewEntityRef(targetType, targetID),
+		})
+		if err != nil {
+			return 0, err
+		}
+		return len(edgesWithSourceType(edges, entityKind)), err
+	}}
+}
+
+func edgesWithTargetType(edges []domainrelation.Edge, targetType string) []domainrelation.Edge {
+	matches := make([]domainrelation.Edge, 0, len(edges))
+	for _, edge := range edges {
+		if edge.Target.Type == targetType {
+			matches = append(matches, edge)
+		}
+	}
+	return matches
+}
+
+func edgesWithSourceType(edges []domainrelation.Edge, sourceType string) []domainrelation.Edge {
+	matches := make([]domainrelation.Edge, 0, len(edges))
+	for _, edge := range edges {
+		if edge.Source.Type == sourceType {
+			matches = append(matches, edge)
+		}
+	}
+	return matches
 }
 
 type deleteBlocker struct {

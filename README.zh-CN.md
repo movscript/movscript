@@ -49,6 +49,10 @@ pnpm install
 
 ### 2. 启动本地基础设施
 
+如果只是体验本地桌面版，可以跳过 Docker。前端托管的本地模式会启动内置后端，使用 SQLite 和本地文件存储。
+
+需要单独运行后端、PostgreSQL 或 MinIO 时再启动基础设施：
+
 ```bash
 docker compose up -d db
 ```
@@ -83,6 +87,20 @@ MOVSCRIPT_DATA_DIR=$HOME/.movscript
 
 ### 4. 启动后端和前端
 
+本地桌面体验优先使用一条命令：
+
+```bash
+make dev-frontend-local
+```
+
+这会构建后端和管理后台，由 Electron 托管本地后端到 `http://localhost:8766`。首次进入选择“本地启动”并创建本地管理员后，请打开管理后台配置供应商凭据和模型：
+
+```text
+http://localhost:8766/admin
+```
+
+如果你在开发外部后端，使用两终端模式：
+
 ```bash
 make dev-backend
 ```
@@ -105,6 +123,7 @@ curl http://localhost:8765/health
 ```bash
 make dev-backend          # Go API server
 make dev-frontend         # Electron 桌面应用
+make dev-frontend-local   # 本地桌面一键启动，托管后端、SQLite 和管理后台
 make dev-agent            # 本地 Agent
 make test                 # 后端测试 + workspace typecheck
 make build                # 后端、packages、apps 和 plugins 构建

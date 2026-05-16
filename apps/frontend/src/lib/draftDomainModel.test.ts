@@ -105,7 +105,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'content_unit_proposal',
       target: { entityType: 'scene_moment', entityId: 77 },
     })),
-    '/project/content-units/workbench?draftId=draft-content-unit&scene_moment_id=77',
+    '/project/content-units/workbench?view=review&draftId=draft-content-unit&scene_moment_id=77',
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -113,7 +113,15 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'content_unit_proposal',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/project/content-units/workbench?draftId=draft-content-unit-production&productionId=301',
+    '/project/content-units/workbench?view=review&draftId=draft-content-unit-production&productionId=301',
+  )
+  assert.equal(
+    buildDraftReviewPath(draft({
+      id: 'draft-content-unit-existing',
+      kind: 'content_unit_proposal',
+      target: { entityType: 'content_unit', entityId: 801 },
+    })),
+    '/project/content-units/workbench?view=review&draftId=draft-content-unit-existing&content_unit_id=801',
   )
 })
 

@@ -2,7 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Moon, Route as RouteIcon, ScrollText, Settings2, ShieldCheck, Sun, UsersRound, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Moon, Route as RouteIcon, ScrollText, Settings, Settings2, ShieldCheck, Sun, UsersRound, type LucideIcon } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
@@ -14,6 +14,7 @@ import { DebugPage } from '@admin/pages/admin/DebugPage'
 import { UsageLogsPage } from '@admin/pages/admin/UsageLogsPage'
 import { UserManagementPage } from '@admin/pages/admin/UserManagementPage'
 import { OrgManagementPage } from '@admin/pages/admin/OrgManagementPage'
+import { SystemSettingsPage } from '@admin/pages/admin/SystemSettingsPage'
 import { runtimeNavItems, runtimeRoutes } from '@admin-runtime'
 import { Toaster } from '@/components/ui/Toaster'
 import { initTheme, useTheme } from '@/hooks/useTheme'
@@ -121,6 +122,7 @@ const baseNavItems: { to: string; labelKey: string; icon: LucideIcon; end?: bool
   { to: '/usage-logs', labelKey: 'admin.tabs.logs', icon: BarChart3 },
   { to: '/storage', labelKey: 'admin.tabs.storage', icon: HardDrive },
   { to: '/cloud-files', labelKey: 'admin.tabs.cloudFiles', icon: CloudUpload },
+  { to: '/settings', labelKey: 'admin.tabs.settings', icon: Settings },
   { to: '/debug', labelKey: 'admin.tabs.debug', icon: Bug },
 ]
 
@@ -281,6 +283,7 @@ function App() {
         <Route path="/usage-logs" element={<AdminShell><UsageLogsPage /></AdminShell>} />
         <Route path="/storage" element={<AdminShell><StoragePage /></AdminShell>} />
         <Route path="/cloud-files" element={<AdminShell><CloudFileConfigPage /></AdminShell>} />
+        <Route path="/settings" element={<AdminShell><SystemSettingsPage /></AdminShell>} />
         {runtimeRoutes.map((route) => (
           <Route key={route.path} path={route.path} element={<AdminShell>{route.element}</AdminShell>} />
         ))}

@@ -25,6 +25,7 @@ import {
 } from '@/lib/adminJobQueryParams'
 import { jobActionConfirmKey, type AdminJobAction } from '@/lib/adminActionGuards'
 import { auditLogsHref, usageLogsHref } from '@/lib/adminLogQueryParams'
+import { adminHref } from '@/lib/adminRoutes'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -144,14 +145,6 @@ function formatDateTime(value?: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-}
-
-function adminHref(href: string) {
-  const normalized = href.startsWith('/') ? href : `/${href}`
-  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
-    return `/admin${normalized}`
-  }
-  return normalized
 }
 
 const STATUS_COLOR: Record<string, string> = {

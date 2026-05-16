@@ -521,7 +521,7 @@ func assertRelationExists(t *testing.T, db *gorm.DB, sourceType string, sourceID
 	t.Helper()
 	var count int64
 	if err := db.Model(&model.EntityRelation{}).
-		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ?", sourceType, sourceID, targetType, targetID, relationType).
+		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ? AND valid_to IS NULL", sourceType, sourceID, targetType, targetID, relationType).
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relation: %v", err)
 	}
@@ -534,7 +534,7 @@ func assertRelationWithMetadataExists(t *testing.T, db *gorm.DB, marker string, 
 	t.Helper()
 	var count int64
 	if err := db.Model(&model.EntityRelation{}).
-		Where("metadata_json LIKE ?", `%`+marker+`":`+strconv.FormatUint(uint64(id), 10)+`%`).
+		Where("metadata_json LIKE ? AND valid_to IS NULL", `%`+marker+`":`+strconv.FormatUint(uint64(id), 10)+`%`).
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relation metadata: %v", err)
 	}

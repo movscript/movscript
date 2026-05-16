@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
+	"github.com/movscript/movscript/internal/app/coregraph"
 	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
@@ -79,7 +79,7 @@ func (r *gormRepository) CreateBinding(ctx context.Context, binding domainbindin
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		if err := relation.SyncCoreEntityRelations(tx, &row); err != nil {
+		if err := coregraph.NewWriter(tx).Write(ctx, &row); err != nil {
 			return err
 		}
 		if row.IsPrimary {
@@ -122,7 +122,7 @@ func (r *gormRepository) UpdateBinding(ctx context.Context, binding domainbindin
 				return err
 			}
 		}
-		return relation.SyncCoreEntityRelations(tx, &row)
+		return coregraph.NewWriter(tx).Write(ctx, &row)
 	}); err != nil {
 		return domainbinding.BindingFromModel(row), err
 	}
@@ -171,7 +171,7 @@ func (r *gormRepository) DeleteBinding(ctx context.Context, binding domainbindin
 		if err := tx.Delete(&row).Error; err != nil {
 			return err
 		}
-		return relation.DeleteCoreEntityRelations(tx, &row)
+		return coregraph.NewWriter(tx).Expire(ctx, &row)
 	})
 }
 
@@ -304,7 +304,7 @@ func (r *gormRepository) BackfillAssetSlotResource(ctx context.Context, binding 
 	}
 	slot := persistencemodel.AssetSlot{}
 	slot.ID = binding.OwnerID
-	return relation.SyncCoreEntityRelations(db, &slot)
+	return coregraph.NewWriter(db).Write(ctx, &slot)
 }
 
 func (r *gormRepository) ClearAssetSlotResourceIfDeleted(ctx context.Context, binding domainbinding.Binding) error {
@@ -327,7 +327,7 @@ func (r *gormRepository) ClearAssetSlotResourceIfDeleted(ctx context.Context, bi
 		if update.RowsAffected > 0 {
 			slot := persistencemodel.AssetSlot{}
 			slot.ID = binding.OwnerID
-			return relation.SyncCoreEntityRelations(db, &slot)
+			return coregraph.NewWriter(db).Write(ctx, &slot)
 		}
 		return nil
 	}
@@ -345,7 +345,7 @@ func (r *gormRepository) ClearAssetSlotResourceIfDeleted(ctx context.Context, bi
 	}
 	slot := persistencemodel.AssetSlot{}
 	slot.ID = binding.OwnerID
-	return relation.SyncCoreEntityRelations(db, &slot)
+	return coregraph.NewWriter(db).Write(ctx, &slot)
 }
 
 func (r *gormRepository) nextSortOrderWithDB(db *gorm.DB, projectID uint, ownerType string, ownerID uint, role string, slot string) int {

@@ -204,7 +204,7 @@ func assertSemanticRelationExists(t *testing.T, db *gorm.DB, sourceType string, 
 	t.Helper()
 	var count int64
 	if err := db.Model(&model.EntityRelation{}).
-		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ?", sourceType, sourceID, targetType, targetID, relationType).
+		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ? AND valid_to IS NULL", sourceType, sourceID, targetType, targetID, relationType).
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relation: %v", err)
 	}

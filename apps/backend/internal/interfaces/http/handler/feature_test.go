@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -49,6 +50,16 @@ func TestFeatureAdminUpdatesWriteAuditLogs(t *testing.T) {
 	if countAuditAction(t, db, "feature.prompt.admin_updated") != 1 {
 		t.Fatalf("expected feature prompt update audit log")
 	}
+	assertAuditMetadataDoesNotContain(t, db, "feature.prompt.admin_updated", "Use a consistent visual style.")
+	var promptResp struct {
+		MaxTokensOverride int `json:"max_tokens_override"`
+	}
+	if err := json.Unmarshal(promptRes.Body.Bytes(), &promptResp); err != nil {
+		t.Fatalf("decode prompt response: %v", err)
+	}
+	if promptResp.MaxTokensOverride != 2048 {
+		t.Fatalf("max_tokens_override = %d, want 2048", promptResp.MaxTokensOverride)
+	}
 }
 
 func TestFeatureAdminUpdateMissingDoesNotWriteAudit(t *testing.T) {
@@ -66,6 +77,67 @@ func TestFeatureAdminUpdateMissingDoesNotWriteAudit(t *testing.T) {
 	}
 	if countAuditAction(t, db, "feature.admin_updated") != 0 {
 		t.Fatalf("expected no audit log for failed feature update")
+	}
+}
+
+func TestFeatureAdminUpdateClearsDefaultModelID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestFeatureRouter(t)
+
+	defaultModelID := uint(1)
+	if err := db.Model(&persistencemodel.FeatureConfig{}).
+		Where("feature_key = ?", "image-generation").
+		Update("default_model_id", &defaultModelID).Error; err != nil {
+		t.Fatalf("seed default model id: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPut, "/admin/features/image-generation", strings.NewReader(`{"default_model_id":null}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected default model clear to succeed, got %d: %s", res.Code, res.Body.String())
+	}
+	var resp struct {
+		DefaultModelID *uint `json:"default_model_id"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode update response: %v", err)
+	}
+	if resp.DefaultModelID != nil {
+		t.Fatalf("default_model_id = %v, want nil", *resp.DefaultModelID)
+	}
+	var row persistencemodel.FeatureConfig
+	if err := db.Where("feature_key = ?", "image-generation").First(&row).Error; err != nil {
+		t.Fatalf("reload feature: %v", err)
+	}
+	if row.DefaultModelID != nil {
+		t.Fatalf("stored default_model_id = %v, want nil", *row.DefaultModelID)
+	}
+	if countAuditAction(t, db, "feature.admin_updated") != 1 {
+		t.Fatalf("expected clear default model update audit log")
+	}
+}
+
+func TestFeatureAdminPromptRejectsNegativeMaxTokensAndDoesNotAudit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestFeatureRouter(t)
+
+	req := httptest.NewRequest(http.MethodPut, "/admin/features/image-generation/prompt", strings.NewReader(`{
+		"system_prompt_override":"bad prompt",
+		"max_tokens_override":-1
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected negative max token override to return 400, got %d: %s", res.Code, res.Body.String())
+	}
+	if countAuditAction(t, db, "feature.prompt.admin_updated") != 0 {
+		t.Fatalf("expected no audit log for failed feature prompt update")
 	}
 }
 

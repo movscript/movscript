@@ -34,6 +34,7 @@ func NewService(db *gorm.DB) *Service {
 
 type ListFilter struct {
 	Query      string
+	UserID     *uint
 	SystemRole string
 	Status     string
 	Page       int

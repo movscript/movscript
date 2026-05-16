@@ -7,12 +7,13 @@ const backendDir = resolve(repoRoot, 'apps/backend')
 const binDir = resolve(backendDir, 'bin')
 
 const targetOS = process.env.GOOS || process.platform
+const targetArch = process.env.GOARCH || process.arch
 const isWindows = targetOS === 'win32' || targetOS === 'windows'
 const serverName = isWindows ? 'server.exe' : 'server'
 const outputPath = resolve(binDir, serverName)
 
 console.log(`[build-backend] Platform: ${process.platform} ${process.arch}`)
-console.log(`[build-backend] Target OS: ${targetOS}`)
+console.log(`[build-backend] Target: ${targetOS} ${targetArch}`)
 console.log(`[build-backend] Backend directory: ${backendDir}`)
 console.log(`[build-backend] Output path: ${outputPath}`)
 

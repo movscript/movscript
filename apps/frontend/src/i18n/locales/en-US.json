@@ -133,7 +133,15 @@
     "hidePassword": "Hide password",
     "loginFailed": "Login failed",
     "registerFailed": "Registration failed",
-    "passwordMismatch": "Passwords do not match"
+    "passwordMismatch": "Passwords do not match",
+    "email": "Email",
+    "sendCode": "Send code",
+    "sendingCode": "Sending...",
+    "emailCode": "Email verification code",
+    "emailCodeRequired": "Enter your email and verification code first",
+    "codeSendFailed": "Failed to send verification code",
+    "registrationClosed": "Registration is closed",
+    "registrationClosedHint": "Registration is closed. Contact an administrator to create an account."
   },
   "onboarding": {
     "title": "Choose How to Use Movscript",
@@ -190,13 +198,19 @@
     "testFailedWithReason": "Connection failed: {{reason}}",
     "resetDefault": "Reset Default",
     "savedReloading": "Saved. Reloading the client...",
-    "returnToLogin": "Back to login"
+    "returnToLogin": "Back to login",
+    "adminConsole": "Admin Console",
+    "openAdminConsole": "Open Admin Console",
+    "adminConsoleHelp": "In local mode, use the admin console to add provider credentials, enable models, configure feature routing, and debug generation jobs."
   },
   "backendBoot": {
     "startingTitle": "Starting local workspace",
     "startingDescription": "Preparing the frontend-managed backend, SQLite database, and local file storage.",
     "errorTitle": "Local backend failed to start",
-    "errorDescription": "Check the backend logs and try switching modes from App Settings."
+    "errorDescription": "Check the backend logs and try switching modes from App Settings.",
+    "retry": "Retry Start",
+    "retrying": "Retrying...",
+    "openSettings": "Open App Settings"
   },
   "domain": {
     "assetTypes": {
@@ -689,7 +703,56 @@
       "previousPage": "Previous",
       "nextPage": "Next",
       "edit": "Edit",
-      "renameResource": "Rename resource"
+      "renameResource": "Rename resource",
+      "clipVideo": "Clip",
+      "clipVideoTitle": "Clip video segment",
+      "clipLoadingSource": "Loading source video...",
+      "clipLoadProgress": "{{loaded}} / {{total}}",
+      "clipRetryLoad": "Retry load",
+      "clipLoadSourceFailed": "Failed to load the source video. Try again later.",
+      "clipSourceMissing": "The source video is still loading.",
+      "clipSourceEmpty": "The source video file is empty and cannot be clipped.",
+      "clipSourceTooLarge": "The source video is too large ({{size}}). Local clipping currently supports up to {{max}}.",
+      "clipDesktopOnly": "Local video clipping is only available in the desktop app.",
+      "clipFFmpegMissing": "ffmpeg was not found. Install ffmpeg or bundle it under vendor/ffmpeg.",
+      "clipTooLong": "The selected segment is too long. Keep clips under 10 minutes.",
+      "clipInvalidRange": "The clip range is invalid.",
+      "clipTimeout": "Local clipping timed out. Shorten the segment, use a smaller source video, or try again later.",
+      "clipFailed": "Video clipping failed.",
+      "clipPlaySegment": "Play segment",
+      "clipPause": "Pause",
+      "clipGoStart": "Go to start",
+      "clipSetStart": "Set start",
+      "clipSetEnd": "Set end",
+      "clipStart": "Start",
+      "clipEnd": "End",
+      "clipOutputName": "Output file name",
+      "clipOutputNameRequired": "Enter an output file name.",
+      "clipOutputNameMp4": "Clip output currently supports MP4 file names only.",
+      "clipOutputNameInvalid": "File names cannot include paths, control characters, or reserved symbols.",
+      "clipOutputNameTooLong": "File names must be 80 characters or fewer.",
+      "clipMode": "Clip mode",
+      "clipAccurate": "Accurate",
+      "clipFast": "Fast",
+      "clipDuration": "Segment duration",
+      "clipMaxDuration": "Per-clip limit",
+      "clipSource": "Source video",
+      "clipSourceSize": "Source size",
+      "clipOutput": "Output",
+      "clipLocalHint": "Clipping runs locally in the desktop frontend, then uploads a new video to the resource library.",
+      "clipBusyHint": "Processing the clip. Wait for local clipping and upload to finish.",
+      "clipCheckingFFmpeg": "Checking local ffmpeg...",
+      "clipFFmpegReady": "Local ffmpeg is ready: {{version}}",
+      "clipFFmpegExpectedPath": "Expected bundle path: {{path}}",
+      "clipPhases": {
+        "preparing": "Preparing source video...",
+        "clipping": "Clipping locally...",
+        "uploading": "Uploading clip..."
+      },
+      "clipCreated": "Video clip added to the resource library",
+      "clipFallbackApplied": "{{name}}. Fast mode could not copy the segment directly, so accurate mode was used automatically.",
+      "clipCreating": "Creating...",
+      "clipCreate": "Create clip"
     },
     "collaboration": {
       "roles": {
@@ -802,6 +865,11 @@
       "empty": "No projects yet",
       "emptyHint": "Create your first short drama project to start managing scripts, productions, and assets.",
       "createFirst": "Create the first project",
+      "localAdminPrompt": {
+        "title": "Configure local AI models first",
+        "description": "You are using a local workspace. Before generating images, videos, or using the agent, add provider credentials and enable models in the admin console.",
+        "openModels": "Open Model Management"
+      },
       "templateSteps": {
         "episodeScript": "Production Script",
         "sceneScript": "Scene Script"
@@ -1119,6 +1187,11 @@
       "platformTemplates": "Platform Templates",
       "selectAgent": "Select Agent",
       "selectModelFirst": "Please select a model first.",
+      "modelSetupAction": {
+        "title": "Model setup required",
+        "description": "The local backend has no usable model or provider credential. Add credentials and enable models in the admin console, then try again.",
+        "openModels": "Open Model Management"
+      },
       "startChat": "Start a conversation",
       "identity": "Identity",
       "uploadAttachment": "Upload image, video, audio, or text",
@@ -2787,6 +2860,7 @@
       "agentSettings": "Agent Settings",
       "user": "User Profile",
       "admin": "Admin",
+      "adminConsole": "Admin Console",
       "adminDebug": "Admin Debug",
       "adminUiPreview": "UI Preview",
       "default": "Movscript"

@@ -8,7 +8,7 @@ import {
 import { completeRunStep } from '../state/runTrace.js'
 import type { AgentStore } from '../state/store.js'
 import type {
-  AgentMessage,
+  CancelRunInput,
   AgentRun,
   AgentRunStep,
   AgentTraceEvent,
@@ -56,7 +56,6 @@ export function applyRuntimeRunCancellationFlow(input: {
   abortRun: (runId: string, error: Error) => void
   recordTrace: (run: AgentRun, trace: RuntimeRunCancellationTraceInput) => void
   createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
-  emitAssistantMessage: (run: AgentRun, message: AgentMessage) => void
   emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
 }): AgentRun {
   const run = requireRuntimeRun(input.store, input.runId)
@@ -97,7 +96,6 @@ export function applyRuntimeRunCancellationFlow(input: {
       result: { messageId: assistant.id, cancelled: true },
     })
     input.store.updateThread(thread)
-    input.emitAssistantMessage(current, assistant)
   }
   input.store.updateRun(current)
   updateRuntimeThreadRunStatus({
@@ -109,6 +107,31 @@ export function applyRuntimeRunCancellationFlow(input: {
   })
   input.emitRunSnapshot(current, { done: true })
   return current
+}
+
+export function applyRuntimeRunCancellationRequest(input: {
+  store: Pick<AgentStore, 'getRun' | 'getThread' | 'updateRun' | 'updateThread'>
+  runId: string
+  cancelInput?: CancelRunInput
+  messageId: string
+  now: () => string
+  abortRun: (runId: string, error: Error) => void
+  recordTrace: (run: AgentRun, trace: RuntimeRunCancellationTraceInput) => void
+  createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
+  emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
+}): AgentRun {
+  return applyRuntimeRunCancellationFlow({
+    store: input.store,
+    runId: input.runId,
+    reason: input.cancelInput?.reason,
+    messageId: input.messageId,
+    now: input.now(),
+    projectionNow: input.now(),
+    abortRun: input.abortRun,
+    recordTrace: input.recordTrace,
+    createStep: input.createStep,
+    emitRunSnapshot: input.emitRunSnapshot,
+  })
 }
 
 export function planRuntimeSubtreeCancellation(input: {
@@ -137,4 +160,21 @@ export function applyRuntimeSubtreeCancellation(input: {
     cancelledRunIds.push(runId)
   }
   return { cancelledRunIds }
+}
+
+export function applyRuntimeSubtreeCancellationRequest(input: {
+  store: Pick<AgentStore, 'getRun' | 'listChildRuns'>
+  runId: string
+  reason?: unknown
+  cancelRun: (runId: string, reason: string) => void
+}): { cancelledRunIds: string[] } {
+  const plan = planRuntimeSubtreeCancellation({
+    store: input.store,
+    runId: input.runId,
+    reason: input.reason,
+  })
+  return applyRuntimeSubtreeCancellation({
+    plan,
+    cancelRun: input.cancelRun,
+  })
 }

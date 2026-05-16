@@ -37,6 +37,8 @@ func TestUserAdminWritesAuditForCreateUpdatePasswordAndSessionRevoke(t *testing.
 	if countAuditAction(t, db, "user.admin_created") != 1 {
 		t.Fatalf("expected create audit log")
 	}
+	assertAuditMetadataDoesNotContain(t, db, "user.admin_created", "secret123")
+	assertAuditMetadataDoesNotContain(t, db, "user.admin_created", "password")
 
 	updateRes := performUserAdminJSON(router, http.MethodPatch, "/admin/users/"+strconv.FormatUint(uint64(created.ID), 10), `{
 		"display_name":"Updated User",
@@ -58,6 +60,8 @@ func TestUserAdminWritesAuditForCreateUpdatePasswordAndSessionRevoke(t *testing.
 	if countAuditAction(t, db, "user.password.admin_reset") != 1 {
 		t.Fatalf("expected password reset audit log")
 	}
+	assertAuditMetadataDoesNotContain(t, db, "user.password.admin_reset", "newpass123")
+	assertAuditMetadataDoesNotContain(t, db, "user.password.admin_reset", "password")
 
 	session := persistencemodel.AuthSession{UserID: created.ID, TokenHash: "single-session", ExpiresAt: time.Now().Add(time.Hour)}
 	if err := db.Create(&session).Error; err != nil {
@@ -150,11 +154,49 @@ func TestUserAdminRevokeAllSessionsWritesAudit(t *testing.T) {
 	}
 }
 
+func TestUserAdminListFiltersByUserID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestUserAdminRouter(t)
+	target := persistencemodel.User{Username: "target-user", SystemRole: "user", Status: "active"}
+	other := persistencemodel.User{Username: "other-user", SystemRole: "user", Status: "active"}
+	if err := db.Create(&target).Error; err != nil {
+		t.Fatalf("create target user: %v", err)
+	}
+	if err := db.Create(&other).Error; err != nil {
+		t.Fatalf("create other user: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/users?user_id="+strconv.FormatUint(uint64(target.ID), 10), nil)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected user list, got %d: %s", res.Code, res.Body.String())
+	}
+	var body struct {
+		Items []persistencemodel.User `json:"items"`
+		Total int64                   `json:"total"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode user list: %v", err)
+	}
+	if body.Total != 1 || len(body.Items) != 1 || body.Items[0].ID != target.ID {
+		t.Fatalf("unexpected user list body: %+v", body)
+	}
+
+	invalidReq := httptest.NewRequest(http.MethodGet, "/admin/users?user_id=bad", nil)
+	invalidRes := httptest.NewRecorder()
+	router.ServeHTTP(invalidRes, invalidReq)
+	if invalidRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid user_id rejected, got %d: %s", invalidRes.Code, invalidRes.Body.String())
+	}
+}
+
 func newTestUserAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	db := testutil.OpenSQLite(t, "handler-user-admin.db", &persistencemodel.User{}, &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{}, &persistencemodel.AuthSession{}, &persistencemodel.AuditLog{})
 	handler := NewUserAdminHandler(db.Session(&gorm.Session{SkipHooks: true}))
 	router := gin.New()
+	router.GET("/admin/users", handler.List)
 	router.POST("/admin/users", handler.Create)
 	router.PATCH("/admin/users/:id", handler.Update)
 	router.PUT("/admin/users/:id/password", handler.ResetPassword)

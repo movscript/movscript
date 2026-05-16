@@ -4,7 +4,7 @@ import { api } from '@/lib/api'
 import type { Project } from '@/types'
 import { useProjectStore } from '@/store/projectStore'
 import { useState, useEffect } from 'react'
-import { Plus, Trash2, ArrowRight, FolderOpen } from 'lucide-react'
+import { Plus, Trash2, ArrowRight, FolderOpen, Settings2, X } from 'lucide-react'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Textarea } from '@movscript/ui'
@@ -19,6 +19,10 @@ import {
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
 import { ROUTES } from '@/routes/projectRoutes'
+import { isLocalLaunchMode } from '@/lib/config'
+import { openAdminConsole } from '@/lib/adminConsole'
+import { useAppSettingsStore } from '@/store/appSettingsStore'
+import { useUserStore } from '@/store/userStore'
 
 type ProjectStatus = 'planning' | 'script_analysis' | 'asset_prep' | 'production' | 'editing' | 'done'
 
@@ -39,6 +43,8 @@ const STATUS_BADGE_VARIANT: Record<ProjectStatus, 'secondary' | 'default' | 'out
   editing:         'secondary',
   done:            'default',
 }
+
+const LOCAL_ADMIN_PROMPT_DISMISSED_KEY = 'movscript-local-admin-prompt-dismissed'
 
 interface ContentUnitProgress {
   total: number
@@ -240,7 +246,16 @@ export default function ProjectsPage() {
   const navigate = useNavigate()
   const current = useProjectStore((s) => s.current)
   const setCurrent = useProjectStore((s) => s.setCurrent)
+  const currentUser = useUserStore((s) => s.currentUser)
+  const settings = useAppSettingsStore((s) => s.settings)
   const [showCreate, setShowCreate] = useState(false)
+  const [adminPromptDismissed, setAdminPromptDismissed] = useState(() => {
+    try {
+      return localStorage.getItem(LOCAL_ADMIN_PROMPT_DISMISSED_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
 
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ['projects'],
@@ -286,8 +301,51 @@ export default function ProjectsPage() {
     navigate(ROUTES.project.overview)
   }
 
+  function dismissAdminPrompt() {
+    setAdminPromptDismissed(true)
+    try { localStorage.setItem(LOCAL_ADMIN_PROMPT_DISMISSED_KEY, 'true') } catch {}
+  }
+
+  const showAdminPrompt = isLocalLaunchMode(settings)
+    && currentUser?.system_role === 'super_admin'
+    && !adminPromptDismissed
+
   return (
     <div className="max-w-3xl">
+      {showAdminPrompt && (
+        <div className="mb-5 rounded-lg border border-primary/30 bg-primary/5 p-4 text-sm">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+              <Settings2 size={16} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-foreground">{t('pages.projects.localAdminPrompt.title')}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{t('pages.projects.localAdminPrompt.description')}</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void openAdminConsole(settings.apiBaseURL, '/models')}
+                >
+                  {t('pages.projects.localAdminPrompt.openModels')}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={dismissAdminPrompt}>
+                  {t('common.dismiss')}
+                </Button>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={dismissAdminPrompt}
+              className="text-muted-foreground transition-colors hover:text-foreground"
+              aria-label={t('common.close')}
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-lg font-semibold text-foreground">{t('pages.projects.myProjects')}</h1>
         {!isLoading && projects.length > 0 && (

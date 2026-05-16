@@ -16,6 +16,21 @@ export type RuntimeCatalogReloadResult =
     response: JSONValue
   }
 
+export function applyRuntimeAgentCatalogReload(input: {
+  load?: () => AgentPluginCatalog
+  current: CatalogReloadSnapshot
+  commit: (reload: Extract<RuntimeCatalogReloadResult, { status: 'reloaded' }>) => void
+}): JSONValue {
+  const reload = reloadRuntimeAgentCatalog({
+    load: input.load,
+    current: input.current,
+  })
+  if (reload.status === 'reloaded') {
+    input.commit(reload)
+  }
+  return reload.response
+}
+
 export function reloadRuntimeAgentCatalog(input: {
   load?: () => AgentPluginCatalog
   current: CatalogReloadSnapshot

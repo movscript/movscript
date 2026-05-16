@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentRun, AgentTask } from '../state/types.js'
+import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
 import {
   applyRuntimeTaskRunSync,
+  applyRuntimeTaskRunSyncRequest,
   syncRuntimeTaskFromRun,
 } from './runtimeTaskRunSync.js'
 
@@ -78,6 +79,38 @@ test('applyRuntimeTaskRunSync invokes plan and task callbacks after projection',
   assert.deepEqual(events, ['plan:plan_1', 'plan_1:running->failed:task_1'])
 })
 
+test('applyRuntimeTaskRunSyncRequest recomputes plan before task protocol and stream callbacks', () => {
+  const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ id: 'run_root', role: 'planner', taskId: undefined }))
+  store.createPlan(makePlan({ rootRunId: 'run_root' }))
+  store.createRun(makeRun({
+    id: 'run_worker',
+    status: 'completed',
+    completedAt: '2026-01-01T00:00:02.000Z',
+    taskId: 'task_1',
+  }))
+  store.createTask(makeTask({ id: 'task_1', status: 'running', progress: 0.4 }))
+  const events: string[] = []
+
+  const result = applyRuntimeTaskRunSyncRequest({
+    store,
+    runId: 'run_worker',
+    now: '2026-01-01T00:00:03.000Z',
+    recomputePlanStatus: (planId) => events.push(`plan:${planId}`),
+    recordTrace: (_run, trace) => events.push(`protocol:${trace.title}`),
+    emitPlanTaskEvent: (planId, task) => events.push(`event:${planId}:${task.id}`),
+  })
+
+  assert.equal(result?.task.status, 'done')
+  assert.deepEqual(events, [
+    'plan:plan_1',
+    'protocol:Task completed',
+    'protocol:Task progress updated',
+    'protocol:Task artifact created',
+    'event:plan_1:task_1',
+  ])
+})
+
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
   return {
     id: 'run_1',
@@ -108,6 +141,19 @@ function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
     progress: 0,
     deps: [],
     artifacts: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {
+  return {
+    id: 'plan_1',
+    threadId: 'thread_1',
+    title: 'Plan',
+    status: 'running',
+    progress: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,

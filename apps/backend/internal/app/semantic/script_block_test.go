@@ -34,7 +34,7 @@ func TestCreateScriptBlockPersistsSourceRelations(t *testing.T) {
 	}
 
 	var relation model.EntityRelation
-	if err := db.Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ?",
+	if err := db.Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ? AND valid_to IS NULL",
 		"script_version", version.ID, "script_block", block.ID, model.EntityRelationTypeContains,
 	).First(&relation).Error; err != nil {
 		t.Fatalf("load script block relation: %v", err)
@@ -212,15 +212,19 @@ func TestListScriptBlockUsagesReturnsDirectDownstreamBindings(t *testing.T) {
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &segment)
 	if err := db.Create(&otherSegment).Error; err != nil {
 		t.Fatalf("create other segment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &otherSegment)
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &moment)
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &unit)
 
 	usages, err := service.ListScriptBlockUsages(context.Background(), 1, strconv.FormatUint(uint64(block.ID), 10))
 	if err != nil {
@@ -267,12 +271,15 @@ func TestListScriptBlockUsageMapGroupsByVersionBlocks(t *testing.T) {
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &segment)
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &moment)
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &unit)
 
 	usages, err := service.ListScriptBlockUsageMap(context.Background(), 1, version.ID)
 	if err != nil {

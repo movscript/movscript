@@ -30,6 +30,9 @@ type gormRepository struct {
 func (r *gormRepository) List(ctx context.Context, filter ListFilter) (Page, error) {
 	users := make([]persistencemodel.User, 0)
 	q := r.db.WithContext(ctx).Model(&persistencemodel.User{})
+	if filter.UserID != nil {
+		q = q.Where("id = ?", *filter.UserID)
+	}
 	if filter.Query != "" {
 		like := "%" + filter.Query + "%"
 		if r.db.Dialector.Name() == "postgres" {

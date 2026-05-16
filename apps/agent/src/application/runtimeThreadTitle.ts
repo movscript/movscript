@@ -1,4 +1,4 @@
-import type { AgentMessage, AgentThread } from '../state/types.js'
+import type { AgentMessage, AgentRunStreamEvent, AgentThread } from '../state/types.js'
 import {
   applyThreadTitleGenerationFallback,
   applyThreadTitleGenerationResult,
@@ -17,6 +17,8 @@ export async function ensureRuntimeThreadTitle(input: {
   signal?: AbortSignal
   now: () => string
   updateThread: (thread: AgentThread) => void
+  runId?: string
+  emitRunStreamEvent?: (runId: string, event: AgentRunStreamEvent) => void
   resolveModelConfig?: () => ConfiguredRuntimeModelConfig | undefined
   callModel?: (input: ModelCallInput) => Promise<ModelCallResult>
 }): Promise<AgentThread | undefined> {
@@ -72,5 +74,40 @@ export async function ensureRuntimeThreadTitle(input: {
 
   thread.updatedAt = input.now()
   input.updateThread(thread)
+  if (input.runId && thread.title?.trim()) {
+    input.emitRunStreamEvent?.(input.runId, {
+      type: 'thread_title',
+      runId: input.runId,
+      threadId: thread.id,
+      title: thread.title.trim(),
+      updatedAt: thread.updatedAt,
+    })
+  }
   return thread
+}
+
+export function applyRuntimeThreadTitleRequest(input: {
+  thread: AgentThread
+  userMessage: AgentMessage | undefined
+  authInput?: { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }
+  signal?: AbortSignal
+  now: () => string
+  updateThread: (thread: AgentThread) => void
+  runId?: string
+  emitRunStreamEvent?: (runId: string, event: AgentRunStreamEvent) => void
+  resolveModelConfig?: () => ConfiguredRuntimeModelConfig | undefined
+  callModel?: (input: ModelCallInput) => Promise<ModelCallResult>
+}): Promise<AgentThread | undefined> {
+  return ensureRuntimeThreadTitle({
+    thread: input.thread,
+    userMessage: input.userMessage,
+    authInput: input.authInput ?? {},
+    signal: input.signal,
+    now: input.now,
+    updateThread: input.updateThread,
+    ...(input.runId ? { runId: input.runId } : {}),
+    ...(input.emitRunStreamEvent ? { emitRunStreamEvent: input.emitRunStreamEvent } : {}),
+    ...(input.resolveModelConfig ? { resolveModelConfig: input.resolveModelConfig } : {}),
+    ...(input.callModel ? { callModel: input.callModel } : {}),
+  })
 }

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { BrowserRouter, HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom'
 import { Sidebar } from './components/layout/Sidebar'
 import { Header } from './components/layout/Header'
 import { AIAgentPanel } from './components/layout/AIAgentPanel'
@@ -7,7 +7,7 @@ import { Toaster } from './components/ui/Toaster'
 import { useProjectStore } from './store/projectStore'
 import { useUserStore } from './store/userStore'
 import { useAppSettingsStore } from './store/appSettingsStore'
-import { isBackendBootStatus, type BackendBootStatus } from './lib/backendBoot'
+import { canManageLocalBackend, isBackendBootStatus, probeLocalBackendStatus, type BackendBootStatus } from './lib/backendBoot'
 import ProjectsPage from './pages/projects/ProjectsPage'
 import PreProductionPage from './pages/pre-production/PreProductionPage'
 import TasksPage from './pages/project/tasks/TasksPage'
@@ -94,9 +94,20 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 function BackendBootOverlay() {
   const settings = useAppSettingsStore((s) => s.settings)
   const [status, setStatus] = React.useState<BackendBootStatus | null>(null)
+  const [retrying, setRetrying] = React.useState(false)
 
   useEffect(() => {
     let disposed = false
+    if (!canManageLocalBackend()) {
+      setStatus({ state: 'starting', baseURL: settings.apiBaseURL })
+      void probeLocalBackendStatus(settings.apiBaseURL).then((next) => {
+        if (!disposed) setStatus(next)
+      })
+      return () => {
+        disposed = true
+      }
+    }
+
     const off = window.api?.onBackendStatus?.((next) => {
       if (isBackendBootStatus(next)) setStatus(next)
     })
@@ -107,7 +118,7 @@ function BackendBootOverlay() {
       disposed = true
       off?.()
     }
-  }, [])
+  }, [settings.apiBaseURL])
 
   if (settings.launchMode !== 'local') return null
   if (status?.state === 'ready') return null
@@ -117,6 +128,28 @@ function BackendBootOverlay() {
     baseURL: settings.apiBaseURL,
   }
   const isError = displayStatus.state === 'error'
+  async function retryLocalBackend() {
+    setRetrying(true)
+    setStatus({ state: 'starting', baseURL: settings.apiBaseURL })
+    try {
+      if (!canManageLocalBackend()) {
+        setStatus(await probeLocalBackendStatus(settings.apiBaseURL))
+        return
+      }
+      await window.api?.setAppSettings?.(settings)
+      const next = await window.api?.getBackendStatus?.()
+      if (isBackendBootStatus(next)) setStatus(next)
+    } catch (error) {
+      setStatus({
+        state: 'error',
+        baseURL: settings.apiBaseURL,
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setRetrying(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/92 px-6 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-lg border border-border bg-card p-6 text-center shadow-lg">
@@ -132,6 +165,24 @@ function BackendBootOverlay() {
         <p className="mt-4 truncate rounded-md bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
           {displayStatus.baseURL}
         </p>
+        {isError && (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => void retryLocalBackend()}
+              disabled={retrying}
+              className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {retrying ? i18n.t('backendBoot.retrying') : i18n.t('backendBoot.retry')}
+            </button>
+            <Link
+              to={ROUTES.appSettings}
+              className="inline-flex h-8 items-center rounded-md border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              {i18n.t('backendBoot.openSettings')}
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   )

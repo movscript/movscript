@@ -4,7 +4,7 @@ import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
 import type { AgentPluginCatalog } from '../catalog/loader.js'
 import type { CatalogRegistry, SkillDefinition, ToolDefinition } from '../catalog/types.js'
 import { StaticToolRegistry } from '../tools/toolRegistry.js'
-import { reloadRuntimeAgentCatalog } from './runtimeCatalogReload.js'
+import { applyRuntimeAgentCatalogReload, reloadRuntimeAgentCatalog } from './runtimeCatalogReload.js'
 
 test('reloadRuntimeAgentCatalog reports unchanged when dynamic loading is unavailable', () => {
   const result = reloadRuntimeAgentCatalog({
@@ -93,6 +93,37 @@ test('reloadRuntimeAgentCatalog returns committed catalog state and public respo
     warnings: ['warning-a'],
     catalogIssueCount: 0,
   })
+})
+
+test('applyRuntimeAgentCatalogReload commits only successful reloads', () => {
+  const catalog = makeCatalog({
+    version: 'catalog-v2',
+    skills: [makeSkill('skill_a')],
+  })
+  const commits: string[] = []
+
+  const unchanged = applyRuntimeAgentCatalogReload({
+    current: {
+      catalogVersion: 'catalog-v1',
+      skillCount: 0,
+      toolCount: 0,
+    },
+    commit: () => commits.push('unchanged'),
+  })
+  assert.equal((unchanged as Record<string, unknown>).status, 'unchanged')
+
+  const reloaded = applyRuntimeAgentCatalogReload({
+    current: {
+      catalogVersion: 'catalog-v1',
+      skillCount: 0,
+      toolCount: 0,
+    },
+    load: () => catalog,
+    commit: (reload) => commits.push(`${reload.catalog.layeredRegistry.version}:${reload.pluginCatalogInfo.skillCount}`),
+  })
+
+  assert.equal((reloaded as Record<string, unknown>).status, 'reloaded')
+  assert.deepEqual(commits, ['catalog-v2:1'])
 })
 
 function makeCatalog(input: {

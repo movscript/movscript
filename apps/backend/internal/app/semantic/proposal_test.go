@@ -290,17 +290,21 @@ func TestApplyProductionProposalSnapshotDeletesOmittedTree(t *testing.T) {
 	if err := db.Create(&keptSegment).Error; err != nil {
 		t.Fatalf("create kept segment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &keptSegment)
 	if err := db.Create(&removedSegment).Error; err != nil {
 		t.Fatalf("create removed segment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &removedSegment)
 	keptMoment := model.SceneMoment{ProjectID: 1, SegmentID: &keptSegment.ID, Title: "Kept moment", Status: "draft"}
 	removedMoment := model.SceneMoment{ProjectID: 1, SegmentID: &removedSegment.ID, Title: "Removed moment", Status: "draft"}
 	if err := db.Create(&keptMoment).Error; err != nil {
 		t.Fatalf("create kept moment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &keptMoment)
 	if err := db.Create(&removedMoment).Error; err != nil {
 		t.Fatalf("create removed moment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &removedMoment)
 	reference := seedProposalTestCreativeReference(t, db, 1)
 	removedUsage := model.CreativeReferenceUsage{
 		ProjectID:           1,
@@ -313,6 +317,7 @@ func TestApplyProductionProposalSnapshotDeletesOmittedTree(t *testing.T) {
 	if err := db.Create(&removedUsage).Error; err != nil {
 		t.Fatalf("create removed usage: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &removedUsage)
 
 	_, err := service.ApplyProductionProposal(ctx, 1, ApplyProductionProposalRequest{
 		Mode:         "snapshot",

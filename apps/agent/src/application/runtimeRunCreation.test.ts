@@ -7,6 +7,8 @@ import type { AgentThread } from '../state/types.js'
 import { StaticToolRegistry } from '../tools/toolRegistry.js'
 import { buildRuntimeCatalogSnapshot } from './runtimeCatalogSnapshot.js'
 import {
+  applyRuntimeCreateRunRequest,
+  applyRuntimeCreateToolRunRequest,
   applyRuntimeRunCreation,
   buildRuntimeCreateRun,
   buildRuntimeCreateToolRun,
@@ -196,6 +198,95 @@ test('applyRuntimeRunCreation persists run creation side effects in order', () =
     'create:run_apply',
     'thread:thread_1:run_apply:2026-01-01T00:00:02.000Z',
     'start:run_apply',
+  ])
+})
+
+test('applyRuntimeCreateRunRequest builds and applies normal run creation', () => {
+  const thread = makeThread()
+  const catalogSnapshot = buildRuntimeCatalogSnapshot({
+    id: 'catalog_request',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: new StaticToolRegistry([]),
+    layeredRegistry: buildLayeredCatalogRegistry({ manifest: DEFAULT_AGENT_MANIFEST, tools: [] }),
+  })
+  const calls: string[] = []
+
+  const run = applyRuntimeCreateRunRequest({
+    runInput: { threadId: thread.id, userMessage: 'Request task' },
+    thread,
+    catalogSnapshot,
+    contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+    runId: 'run_request',
+    now: '2026-01-01T00:00:04.000Z',
+    rememberCatalogRun: (runId, snapshot) => calls.push(`catalog:${runId}:${snapshot.id}`),
+    rememberRunAuth: (runId) => calls.push(`auth:${runId}`),
+    createRun: (targetRun) => calls.push(`create:${targetRun.id}:${targetRun.input?.userMessage}`),
+    updateThread: (targetThread) => calls.push(`thread:${targetThread.activeRunId}:${targetThread.updatedAt}`),
+    startRunExecution: (runId) => calls.push(`start:${runId}`),
+  })
+
+  assert.equal(run.id, 'run_request')
+  assert.equal(run.input?.userMessage, 'Request task')
+  assert.equal(thread.activeRunId, 'run_request')
+  assert.deepEqual(calls, [
+    'catalog:run_request:catalog_request',
+    'auth:run_request',
+    'create:run_request:Request task',
+    'thread:run_request:2026-01-01T00:00:04.000Z',
+    'start:run_request',
+  ])
+})
+
+test('applyRuntimeCreateToolRunRequest builds and applies forced tool run creation', () => {
+  const thread = makeThread()
+  const userMessage = {
+    id: 'msg_tool_request',
+    threadId: thread.id,
+    role: 'user' as const,
+    content: 'Run tool request',
+    createdAt: '2026-01-01T00:00:04.000Z',
+  }
+  const toolCall = {
+    id: 'call_request',
+    name: 'tool_a',
+    arguments: { value: 2 },
+  }
+  const catalogSnapshot = buildRuntimeCatalogSnapshot({
+    id: 'catalog_tool_request',
+    defaultAgentManifest: DEFAULT_AGENT_MANIFEST,
+    toolRegistry: new StaticToolRegistry([]),
+    layeredRegistry: buildLayeredCatalogRegistry({ manifest: DEFAULT_AGENT_MANIFEST, tools: [] }),
+  })
+  const calls: string[] = []
+
+  const run = applyRuntimeCreateToolRunRequest({
+    runInput: { threadId: thread.id, toolCall },
+    thread,
+    userMessage,
+    toolCall,
+    catalogSnapshot,
+    contractResolver: EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
+    runId: 'run_tool_request',
+    now: '2026-01-01T00:00:05.000Z',
+    rememberCatalogRun: (runId, snapshot) => calls.push(`catalog:${runId}:${snapshot.id}`),
+    rememberRunAuth: (runId) => calls.push(`auth:${runId}`),
+    createRun: (targetRun) => calls.push(`create:${targetRun.id}:${targetRun.input?.sourceMessageId}`),
+    updateThread: (targetThread) => calls.push(`thread:${targetThread.activeRunId}:${targetThread.updatedAt}`),
+    startRunExecution: (runId) => calls.push(`start:${runId}`),
+  })
+
+  assert.equal(run.id, 'run_tool_request')
+  assert.equal(run.role, 'worker')
+  assert.equal(run.input?.sourceMessageId, 'msg_tool_request')
+  assert.deepEqual(run.input?.forcedToolCall, toolCall)
+  assert.deepEqual(run.metadata?.forcedToolCall, toolCall)
+  assert.equal(thread.activeRunId, 'run_tool_request')
+  assert.deepEqual(calls, [
+    'catalog:run_tool_request:catalog_tool_request',
+    'auth:run_tool_request',
+    'create:run_tool_request:msg_tool_request',
+    'thread:run_tool_request:2026-01-01T00:00:05.000Z',
+    'start:run_tool_request',
   ])
 })
 

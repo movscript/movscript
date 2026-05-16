@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import type { ModelCallInput, ModelCallResult } from '../model/modelClient.js'
 import type { ConfiguredRuntimeModelConfig } from '../model/modelConfig.js'
-import type { AgentMessage, AgentThread } from '../state/types.js'
-import { ensureRuntimeThreadTitle } from './runtimeThreadTitle.js'
+import type { AgentMessage, AgentRunStreamEvent, AgentThread } from '../state/types.js'
+import { applyRuntimeThreadTitleRequest, ensureRuntimeThreadTitle } from './runtimeThreadTitle.js'
 
 test('ensureRuntimeThreadTitle generates and persists a model title', async () => {
   const thread = makeThread()
@@ -33,6 +33,59 @@ test('ensureRuntimeThreadTitle generates and persists a model title', async () =
   assert.equal(modelCalls[0]?.auth?.backendAPIBaseURL, 'https://backend.test')
   assert.match(String(modelCalls[0]?.messages[0]?.content), /short chat thread titles/i)
   assert.equal(modelCalls[0]?.messages[1]?.content, '请帮我写一个雨夜短片。')
+})
+
+test('ensureRuntimeThreadTitle emits a thread_title event after title persistence', async () => {
+  const thread = makeThread()
+  const userMessage = makeMessage({ content: '请帮我写一个雨夜短片。' })
+  const events: AgentRunStreamEvent[] = []
+
+  await ensureRuntimeThreadTitle({
+    thread,
+    userMessage,
+    runId: 'run_1',
+    now: stableNow,
+    updateThread: () => {},
+    emitRunStreamEvent: (_runId, event) => events.push(event),
+    resolveModelConfig: () => makeModelConfig(),
+    callModel: async () => makeModelResult('雨夜短片创作'),
+  })
+
+  assert.equal(events.length, 1)
+  assert.deepEqual(events[0], {
+    type: 'thread_title',
+    runId: 'run_1',
+    threadId: 'thread_1',
+    title: '雨夜短片创作',
+    updatedAt: stableNow(),
+  })
+})
+
+test('applyRuntimeThreadTitleRequest bridges persistence and stream callbacks', async () => {
+  const thread = makeThread()
+  const userMessage = makeMessage({ content: '请帮我写一个雨夜短片。' })
+  const updates: AgentThread[] = []
+  const events: AgentRunStreamEvent[] = []
+
+  const result = await applyRuntimeThreadTitleRequest({
+    thread,
+    userMessage,
+    authInput: { backendAuthToken: 'token' },
+    runId: 'run_1',
+    now: stableNow,
+    updateThread: (updatedThread) => updates.push({ ...updatedThread }),
+    emitRunStreamEvent: (_runId, event) => events.push(event),
+    resolveModelConfig: () => makeModelConfig(),
+    callModel: async (input) => {
+      assert.equal(input.auth?.backendAuthToken, 'token')
+      return makeModelResult('雨夜短片创作')
+    },
+  })
+
+  assert.equal(result?.title, '雨夜短片创作')
+  assert.equal(updates.length, 2)
+  assert.equal(events[0]?.type, 'thread_title')
+  assert.equal(events[0]?.runId, 'run_1')
 })
 
 test('ensureRuntimeThreadTitle falls back when no chat model is configured', async () => {

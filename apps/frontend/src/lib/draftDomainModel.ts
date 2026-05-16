@@ -186,7 +186,7 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
     },
     routes: {
       fallback: ROUTES.project.contentUnitWorkbench,
-      reviewTemplate: `${ROUTES.project.contentUnitWorkbench}?scene_moment_id=:targetEntityId&draftId=:draftId`,
+      reviewTemplate: `${ROUTES.project.contentUnitWorkbench}?view=review&scene_moment_id=:targetEntityId&draftId=:draftId`,
     },
   },
   script_split_proposal: {
@@ -259,20 +259,22 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
     return withRouteParams(ROUTES.project.standards, { draftId: draft.id })
   }
 
+  if (draft.kind === 'content_unit_proposal') {
+    const targetId = sourceEntityId ?? targetEntityId
+    const params: Record<string, string | number | undefined> = { view: 'review', draftId: draft.id }
+    if ((sourceEntityType === 'scene_moment' || targetEntityType === 'scene_moment') && targetId !== undefined) {
+      params.scene_moment_id = targetId
+    } else if ((sourceEntityType === 'content_unit' || targetEntityType === 'content_unit') && targetId !== undefined) {
+      params.content_unit_id = targetId
+    } else if ((sourceEntityType === 'production' || targetEntityType === 'production') && targetId !== undefined) {
+      params.productionId = targetId
+    }
+    return withRouteParams(ROUTES.project.contentUnitWorkbench, params)
+  }
+
   if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
     const contentUnitId = sourceEntityId ?? targetEntityId
     return withRouteParams(ROUTES.project.contentUnits, { draftId: draft.id, content_unit_id: contentUnitId })
-  }
-
-  if (draft.kind === 'content_unit_proposal') {
-    const sceneMomentId = sourceEntityId ?? targetEntityId
-    const params: Record<string, string | number | undefined> = { draftId: draft.id }
-    if ((sourceEntityType === 'scene_moment' || targetEntityType === 'scene_moment') && sceneMomentId !== undefined) {
-      params.scene_moment_id = sceneMomentId
-    } else if ((sourceEntityType === 'production' || targetEntityType === 'production') && sceneMomentId !== undefined) {
-      params.productionId = sceneMomentId
-    }
-    return withRouteParams(ROUTES.project.contentUnitWorkbench, params)
   }
 
   const productionId = sourceEntityId ?? targetEntityId

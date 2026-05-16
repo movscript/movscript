@@ -14,3 +14,15 @@ export function resolveRuntimePlanTreeCancellationRoot(input: {
   }
   return run.id
 }
+
+export function applyRuntimePlanTreeCancellationRequest(input: {
+  store: Pick<AgentStore, 'getRun' | 'getPlan'>
+  runId: string
+  cancelSubtree: (runId: string) => { cancelledRunIds: string[] }
+}): { cancelledRunIds: string[] } {
+  const rootRunId = resolveRuntimePlanTreeCancellationRoot({
+    store: input.store,
+    runId: input.runId,
+  })
+  return input.cancelSubtree(rootRunId)
+}

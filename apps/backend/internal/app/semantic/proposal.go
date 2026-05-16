@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 )
@@ -186,7 +188,7 @@ func (s *Service) PreviewProductionProposalApply(ctx context.Context, projectID 
 
 	var resp *ApplyProductionProposalResponse
 	err := s.repo.WithTx(ctx, func(txRepo repository) error {
-		txSvc := &Service{repo: txRepo, cache: s.cache}
+		txSvc := s.withRepository(txRepo)
 		var err error
 		resp, err = txSvc.applyProductionProposalTree(ctx, projectID, req)
 		if err != nil {
@@ -216,7 +218,7 @@ func buildProductionProposalPreviewResponse(proposal *ProposalTree, resp *ApplyP
 func (s *Service) applyProductionProposalInTx(ctx context.Context, projectID uint, req ApplyProductionProposalRequest) (*ApplyProductionProposalResponse, error) {
 	var resp *ApplyProductionProposalResponse
 	err := s.repo.WithTx(ctx, func(txRepo repository) error {
-		txSvc := &Service{repo: txRepo, cache: s.cache}
+		txSvc := s.withRepository(txRepo)
 		var err error
 		resp, err = txSvc.applyProductionProposalTree(ctx, projectID, req)
 		return err
@@ -605,105 +607,157 @@ func (s *Service) applyProductionProposalSnapshotOmissions(
 	keptKeyframeIDs map[uint]struct{},
 	keptAssetSlotIDs map[uint]struct{},
 ) error {
-	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ProductionID: req.ProductionID})
+	segments, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryStructure, domainrelation.TypeContains, "segment")
 	if err != nil {
 		return err
 	}
 	productionSegmentIDs := make(map[uint]struct{}, len(segments))
-	for _, segment := range segments {
-		productionSegmentIDs[segment.ID] = struct{}{}
+	for _, segmentID := range segments {
+		productionSegmentIDs[segmentID] = struct{}{}
 	}
 
-	moments, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, ScriptBlockID: 0})
-	if err != nil {
-		return err
-	}
+	moments := make([]uint, 0)
 	productionSceneMomentIDs := make(map[uint]struct{})
-	for _, moment := range moments {
-		if moment.SegmentID == nil {
-			continue
+	for segmentID := range productionSegmentIDs {
+		ids, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("segment", segmentID), domainrelation.CategoryStructure, domainrelation.TypeContains, "scene_moment")
+		if err != nil {
+			return err
 		}
-		if _, belongsToProduction := productionSegmentIDs[*moment.SegmentID]; belongsToProduction {
-			productionSceneMomentIDs[moment.ID] = struct{}{}
+		for _, id := range ids {
+			if _, seen := productionSceneMomentIDs[id]; seen {
+				continue
+			}
+			productionSceneMomentIDs[id] = struct{}{}
+			moments = append(moments, id)
 		}
 	}
 
-	contentUnits, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ProductionID: req.ProductionID})
+	contentUnits, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryStructure, domainrelation.TypeContains, "content_unit")
 	if err != nil {
 		return err
 	}
-	for _, unit := range contentUnits {
-		if _, ok := keptContentUnitIDs[unit.ID]; ok {
+	for _, unitID := range contentUnits {
+		if _, ok := keptContentUnitIDs[unitID]; ok {
 			continue
 		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindContentUnit, fmt.Sprint(unit.ID)); err != nil {
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindContentUnit, fmt.Sprint(unitID)); err != nil {
 			return err
 		}
 	}
 
-	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ProductionID: req.ProductionID})
+	keyframes, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryStructure, domainrelation.TypeHasKeyframe, "keyframe")
 	if err != nil {
 		return err
 	}
-	for _, keyframe := range keyframes {
-		if _, ok := keptKeyframeIDs[keyframe.ID]; ok {
+	for _, keyframeID := range keyframes {
+		if _, ok := keptKeyframeIDs[keyframeID]; ok {
 			continue
 		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindKeyframe, fmt.Sprint(keyframe.ID)); err != nil {
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindKeyframe, fmt.Sprint(keyframeID)); err != nil {
 			return err
 		}
 	}
 
-	slots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, ProductionID: req.ProductionID, IncludeInternal: "true"})
+	slots, err := s.proposalSnapshotTargets(ctx, projectID, domainrelation.NewEntityRef("production", req.ProductionID), domainrelation.CategoryAsset, "", "asset_slot")
 	if err != nil {
 		return err
 	}
-	for _, slot := range slots {
-		if _, ok := keptAssetSlotIDs[slot.ID]; ok {
+	for _, slotID := range slots {
+		if _, ok := keptAssetSlotIDs[slotID]; ok {
 			continue
 		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindAssetSlot, fmt.Sprint(slot.ID)); err != nil {
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, domainworkflow.EntityKindAssetSlot, fmt.Sprint(slotID)); err != nil {
 			return err
 		}
 	}
 
-	usages, err := s.repo.ListCreativeReferenceUsages(ctx, CreativeReferenceUsageFilter{ProjectID: projectID, OwnerType: "scene_moment"})
-	if err != nil {
-		return err
+	for momentID := range productionSceneMomentIDs {
+		if _, keepMoment := keptSceneMomentIDs[momentID]; keepMoment {
+			continue
+		}
+		usageIDs, err := s.proposalSnapshotRelationMetadataIDs(ctx, projectID, domainrelation.NewEntityRef("scene_moment", momentID), domainrelation.CategoryCreative, domainrelation.TypeUses, "creative_reference", "creative_reference_usage_id")
+		if err != nil {
+			return err
+		}
+		for _, usageID := range usageIDs {
+			if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "creative_reference_usage", fmt.Sprint(usageID)); err != nil {
+				return err
+			}
+		}
 	}
-	for _, usage := range usages {
-		if _, belongsToProduction := productionSceneMomentIDs[usage.OwnerID]; !belongsToProduction {
+
+	for _, momentID := range moments {
+		if _, ok := keptSceneMomentIDs[momentID]; ok {
 			continue
 		}
-		if _, keepMoment := keptSceneMomentIDs[usage.OwnerID]; keepMoment {
-			continue
-		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "creative_reference_usage", fmt.Sprint(usage.ID)); err != nil {
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "scene_moment", fmt.Sprint(momentID)); err != nil {
 			return err
 		}
 	}
 
-	for _, moment := range moments {
-		if _, belongsToProduction := productionSceneMomentIDs[moment.ID]; !belongsToProduction {
+	for _, segmentID := range segments {
+		if _, ok := keptSegmentIDs[segmentID]; ok {
 			continue
 		}
-		if _, ok := keptSceneMomentIDs[moment.ID]; ok {
-			continue
-		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "scene_moment", fmt.Sprint(moment.ID)); err != nil {
-			return err
-		}
-	}
-
-	for _, segment := range segments {
-		if _, ok := keptSegmentIDs[segment.ID]; ok {
-			continue
-		}
-		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "segment", fmt.Sprint(segment.ID)); err != nil {
+		if _, err := s.repo.DeleteProjectItemByKind(ctx, projectID, "segment", fmt.Sprint(segmentID)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s *Service) proposalSnapshotTargets(ctx context.Context, projectID uint, source domainrelation.EntityRef, category string, relationType string, targetType string) ([]uint, error) {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  category,
+		Type:      relationType,
+		Source:    source,
+	})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(edges))
+	seen := make(map[uint]struct{})
+	for _, edge := range edges {
+		if edge.Target.Type != targetType {
+			continue
+		}
+		if _, ok := seen[edge.Target.ID]; ok {
+			continue
+		}
+		seen[edge.Target.ID] = struct{}{}
+		ids = append(ids, edge.Target.ID)
+	}
+	return ids, nil
+}
+
+func (s *Service) proposalSnapshotRelationMetadataIDs(ctx context.Context, projectID uint, source domainrelation.EntityRef, category string, relationType string, targetType string, metadataKey string) ([]uint, error) {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  category,
+		Type:      relationType,
+		Source:    source,
+	})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(edges))
+	seen := make(map[uint]struct{})
+	for _, edge := range edges {
+		if edge.Target.Type != targetType {
+			continue
+		}
+		id := relationMetadataUint(edge.Metadata, metadataKey)
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func snapshotChangeAction(id *uint) string {

@@ -336,7 +336,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
             request: {
               url: 'http://localhost:8765/api/v1/model-gateway/chat/completions?api_key=e2e-model-url-secret&request_id=req_e2e',
               method: 'POST',
-              headers: { 'content-type': 'application/json' },
+              headers: { authorization: 'Bearer e2e-header-secret', 'content-type': 'application/json' },
               body: {
                 model: 'model_config:e2e',
                 messages: [
@@ -391,7 +391,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
               status: 200,
               statusText: 'OK',
               ok: true,
-              headers: { 'content-type': 'application/json' },
+              headers: { 'content-type': 'application/json', 'set-cookie': 'session=e2e-response-cookie-secret', 'x-trace-id': 'trace-e2e' },
               bodyText: '{"id":"chatcmpl_e2e","api_key":"e2e-response-secret","choices":[{"message":{"content":"发现缺少主视觉覆盖。"}}]}',
               parsedBody: { id: 'chatcmpl_e2e' },
               content: '发现缺少主视觉覆盖。',

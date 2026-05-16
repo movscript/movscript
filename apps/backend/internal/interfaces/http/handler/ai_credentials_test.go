@@ -41,7 +41,11 @@ func TestCredentialAdminWritesAuditAndDeleteNotFound(t *testing.T) {
 
 	updateReq := httptest.NewRequest(http.MethodPut, "/admin/credentials/1", strings.NewReader(`{
 		"display_name":"OpenAI Updated",
-		"is_enabled":false
+		"is_enabled":false,
+		"base_url":"https://api.updated.example.com/v1?token=updated-query-secret",
+		"api_key":"sk-updated-secret",
+		"files_api_enabled":true,
+		"files_api_key":"files-updated-secret"
 	}`))
 	updateReq.Header.Set("Content-Type", "application/json")
 	updateRes := httptest.NewRecorder()
@@ -54,6 +58,9 @@ func TestCredentialAdminWritesAuditAndDeleteNotFound(t *testing.T) {
 	if countAuditAction(t, db, "ai_credential.admin_updated") != 1 {
 		t.Fatalf("expected update audit log")
 	}
+	assertAuditMetadataDoesNotContain(t, db, "ai_credential.admin_updated", "sk-updated-secret")
+	assertAuditMetadataDoesNotContain(t, db, "ai_credential.admin_updated", "files-updated-secret")
+	assertAuditMetadataDoesNotContain(t, db, "ai_credential.admin_updated", "updated-query-secret")
 
 	deleteReq := httptest.NewRequest(http.MethodDelete, "/admin/credentials/1", nil)
 	deleteRes := httptest.NewRecorder()

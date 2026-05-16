@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -26,8 +27,19 @@ func (h *OrgAdminHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
+	var orgID *uint
+	if rawOrgID := strings.TrimSpace(c.Query("org_id")); rawOrgID != "" {
+		parsed, err := strconv.ParseUint(rawOrgID, 10, 64)
+		if err != nil || parsed == 0 {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("组织 ID 无效"))
+			return
+		}
+		value := uint(parsed)
+		orgID = &value
+	}
 	result, err := h.service.List(c.Request.Context(), adminorg.ListFilter{
 		Query:      c.Query("q"),
+		OrgID:      orgID,
 		Plan:       c.Query("plan"),
 		Status:     c.Query("status"),
 		IsPersonal: isPersonal,
@@ -72,7 +84,6 @@ func (h *OrgAdminHandler) Create(c *gin.Context) {
 			"name":          created.Name,
 			"slug":          created.Slug,
 			"owner_user_id": created.CreatedBy,
-			"join_code":     created.JoinCode,
 		},
 	})
 	c.JSON(http.StatusCreated, created)

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -21,6 +23,13 @@ type SourceLockReason struct {
 	Message    string `json:"message"`
 	EntityKind string `json:"entity_kind"`
 	Count      int    `json:"count"`
+}
+
+func (status SourceLockStatus) ErrSourceChangeLocked(message string) error {
+	if !status.Locked {
+		return nil
+	}
+	return ErrInvalidInput{Err: errors.New(message)}
 }
 
 func (s *Service) SourceLockStatus(ctx context.Context, projectID uint, kind string, id string) (SourceLockStatus, error) {
@@ -63,81 +72,59 @@ func (s *Service) SourceLockStatus(ctx context.Context, projectID uint, kind str
 
 func (s *Service) productionSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.Production) (SourceLockStatus, error) {
 	status := newSourceLockStatus("production", item.ID)
-	textBlocks, err := s.repo.ListProductionTextBlocks(ctx, ProductionTextBlockFilter{ProjectID: projectID, ProductionID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "production_text_blocks", "已有制作文本块，制作来源不可再切换", "production_text_block", domainrelation.NewEntityRef("production", item.ID), domainrelation.CategoryStructure, domainrelation.TypeContains); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("production_text_blocks", "已有制作文本块，制作来源不可再切换", "production_text_block", len(textBlocks))
-	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ProductionID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "segments", "已有编排段，制作来源不可再切换", "segment", domainrelation.NewEntityRef("production", item.ID), domainrelation.CategoryStructure, domainrelation.TypeContains); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("segments", "已有编排段，制作来源不可再切换", "segment", len(segments))
-	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ProductionID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "content_units", "已有制作项，制作来源不可再切换", "content_unit", domainrelation.NewEntityRef("production", item.ID), domainrelation.CategoryStructure, domainrelation.TypeContains); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("content_units", "已有制作项，制作来源不可再切换", "content_unit", len(units))
-	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ProductionID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "keyframes", "已有关键帧，制作来源不可再切换", "keyframe", domainrelation.NewEntityRef("production", item.ID), domainrelation.CategoryStructure, domainrelation.TypeHasKeyframe); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("keyframes", "已有关键帧，制作来源不可再切换", "keyframe", len(keyframes))
 	return status, nil
 }
 
 func (s *Service) segmentSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.Segment) (SourceLockStatus, error) {
 	status := newSourceLockStatus("segment", item.ID)
-	moments, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, SegmentID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "scene_moments", "已有情景，编排段来源不可再切换", "scene_moment", domainrelation.NewEntityRef("segment", item.ID), domainrelation.CategoryStructure, domainrelation.TypeContains); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("scene_moments", "已有情景，编排段来源不可再切换", "scene_moment", len(moments))
-	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SegmentID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "content_units", "已有制作项，编排段来源不可再切换", "content_unit", domainrelation.NewEntityRef("segment", item.ID), domainrelation.CategoryStructure, domainrelation.TypeContains); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("content_units", "已有制作项，编排段来源不可再切换", "content_unit", len(units))
 	return status, nil
 }
 
 func (s *Service) sceneMomentSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.SceneMoment) (SourceLockStatus, error) {
 	status := newSourceLockStatus("scene_moment", item.ID)
-	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SceneMomentID: item.ID})
-	if err != nil {
+	if err := status.addSourceRelationReason(ctx, s, projectID, "content_units", "已有制作项，情景来源不可再切换", "content_unit", domainrelation.NewEntityRef("scene_moment", item.ID), domainrelation.CategoryStructure, domainrelation.TypeBasedOn); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("content_units", "已有制作项，情景来源不可再切换", "content_unit", len(units))
-	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, SceneMomentID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "keyframes", "已有关键帧，情景来源不可再切换", "keyframe", domainrelation.NewEntityRef("scene_moment", item.ID), domainrelation.CategoryStructure, domainrelation.TypeHasKeyframe); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("keyframes", "已有关键帧，情景来源不可再切换", "keyframe", len(keyframes))
 	return status, nil
 }
 
 func (s *Service) storyboardScriptSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.StoryboardScript) (SourceLockStatus, error) {
 	status := newSourceLockStatus("storyboard_script", item.ID)
-	versions, err := s.repo.ListStoryboardVersions(ctx, StoryboardVersionFilter{ProjectID: projectID, StoryboardScriptID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "storyboard_versions", "已有分镜版本，分镜脚本来源不可再切换", "storyboard_version", domainrelation.NewEntityRef("storyboard_script", item.ID), domainrelation.CategoryStructure, domainrelation.TypeHasVersion); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("storyboard_versions", "已有分镜版本，分镜脚本来源不可再切换", "storyboard_version", len(versions))
 	return status, nil
 }
 
 func (s *Service) contentUnitSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.ContentUnit) (SourceLockStatus, error) {
 	status := newSourceLockStatus("content_unit", item.ID)
-	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ContentUnitID: item.ID})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "keyframes", "已有关键帧，制作项来源不可再切换", "keyframe", domainrelation.NewEntityRef("content_unit", item.ID), domainrelation.CategoryStructure, domainrelation.TypeHasKeyframe); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("keyframes", "已有关键帧，制作项来源不可再切换", "keyframe", len(keyframes))
-	slots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{ProjectID: projectID, OwnerType: "content_unit", OwnerID: item.ID, IncludeInternal: "true"})
-	if err != nil {
+	if err := status.addTargetRelationReason(ctx, s, projectID, "asset_slots", "已有素材需求，制作项来源不可再切换", "asset_slot", domainrelation.NewEntityRef("content_unit", item.ID), domainrelation.CategoryAsset, ""); err != nil {
 		return SourceLockStatus{}, err
 	}
-	status.addReason("asset_slots", "已有素材需求，制作项来源不可再切换", "asset_slot", len(slots))
 	return status, nil
 }
 
@@ -164,6 +151,34 @@ func (status *SourceLockStatus) addReason(code string, message string, entityKin
 		EntityKind: entityKind,
 		Count:      count,
 	})
+}
+
+func (status *SourceLockStatus) addTargetRelationReason(ctx context.Context, s *Service, projectID uint, code string, message string, targetType string, source domainrelation.EntityRef, category string, relationType string) error {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  category,
+		Type:      relationType,
+		Source:    source,
+	})
+	if err != nil {
+		return err
+	}
+	status.addReason(code, message, targetType, len(edgesWithTargetType(edges, targetType)))
+	return nil
+}
+
+func (status *SourceLockStatus) addSourceRelationReason(ctx context.Context, s *Service, projectID uint, code string, message string, sourceType string, target domainrelation.EntityRef, category string, relationType string) error {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  category,
+		Type:      relationType,
+		Target:    target,
+	})
+	if err != nil {
+		return err
+	}
+	status.addReason(code, message, sourceType, len(edgesWithSourceType(edges, sourceType)))
+	return nil
 }
 
 func sourceLockFields(kind string) []string {

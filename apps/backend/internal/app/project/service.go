@@ -127,12 +127,13 @@ type Progress struct {
 }
 
 type AdminListFilter struct {
-	Query    string
-	Status   string
-	OwnerID  *uint
-	OrgID    *uint
-	Page     int
-	PageSize int
+	Query     string
+	ProjectID *uint
+	Status    string
+	OwnerID   *uint
+	OrgID     *uint
+	Page      int
+	PageSize  int
 }
 
 type ProjectPage struct {

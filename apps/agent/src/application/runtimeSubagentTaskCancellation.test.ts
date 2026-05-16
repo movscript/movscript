@@ -198,12 +198,13 @@ test('buildRuntimeSubagentRunCancellationResult summarizes the cancelled worker 
 
 test('applyRuntimeSubagentCancellationFlow cancels pending task targets through update boundary', () => {
   const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ planId: 'plan_1' }))
   store.createTask(makeTask({ id: 'task_pending', metadata: { subagentName: 'Writer' } }))
   const calls: string[] = []
 
   const result = applyRuntimeSubagentCancellationFlow({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRunId: 'run_planner',
     request: { subagentName: 'Writer', reason: 'stop task' },
     updateTask: (taskId, update) => {
       calls.push(`update:${taskId}:${update.status}:${update.blockedReason}`)
@@ -227,6 +228,7 @@ test('applyRuntimeSubagentCancellationFlow cancels pending task targets through 
 
 test('applyRuntimeSubagentCancellationFlow cancels worker run targets through subtree boundary', () => {
   const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ planId: 'plan_1' }))
   store.createTask(makeTask({ id: 'task_owned', ownerRunId: 'run_worker', metadata: { subagentName: 'Turing' } }))
   store.createRun(makeRun({
     id: 'run_worker',
@@ -239,7 +241,7 @@ test('applyRuntimeSubagentCancellationFlow cancels worker run targets through su
 
   const result = applyRuntimeSubagentCancellationFlow({
     store,
-    plannerRun: makeRun({ planId: 'plan_1' }),
+    plannerRunId: 'run_planner',
     request: { taskId: 'task_owned', reason: 'stop worker' },
     updateTask: () => {
       throw new Error('updateTask should not be called')
@@ -259,6 +261,35 @@ test('applyRuntimeSubagentCancellationFlow cancels worker run targets through su
   assert.equal(result.status, 'cancelled')
   assert.deepEqual(result.cancelledRunIds, ['run_worker'])
   assert.equal(((result.target as Record<string, unknown>).run as Record<string, unknown>).subagentName, 'Turing')
+})
+
+test('applyRuntimeSubagentCancellationFlow validates the planner run before cancellation side effects', () => {
+  const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ id: 'run_worker', role: 'worker', planId: 'plan_1' }))
+  store.createTask(makeTask({ id: 'task_pending', metadata: { subagentName: 'Writer' } }))
+
+  const input = {
+    store,
+    request: { subagentName: 'Writer' },
+    updateTask: failUpdate,
+    cancelSubtree: () => {
+      throw new Error('cancelSubtree should not be called')
+    },
+    getPlanSnapshot: () => ({
+      plan: makePlan(),
+      tasks: store.listTasks('plan_1'),
+      runs: store.listRuns({ planId: 'plan_1' }),
+    }),
+  }
+
+  assert.throws(() => applyRuntimeSubagentCancellationFlow({
+    ...input,
+    plannerRunId: 'missing',
+  }), /run not found: missing/)
+  assert.throws(() => applyRuntimeSubagentCancellationFlow({
+    ...input,
+    plannerRunId: 'run_worker',
+  }), /run run_worker is not a planner run/)
 })
 
 function failUpdate(): AgentTask {

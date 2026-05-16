@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/movscript/movscript/internal/app/coregraph"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
@@ -22,6 +23,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&production).Error; err != nil {
 		t.Fatalf("create production: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &production)
 	segment := model.Segment{
 		ProjectID:    projectID,
 		ProductionID: &production.ID,
@@ -32,6 +34,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &segment)
 	sceneMoment := model.SceneMoment{
 		ProjectID:    projectID,
 		SegmentID:    &segment.ID,
@@ -43,6 +46,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&sceneMoment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &sceneMoment)
 	script := model.Script{ProjectID: projectID, Title: "Pilot", Content: "INT. SHOP - NIGHT\n手机屏幕亮起。", RawSource: "INT. SHOP - NIGHT\n手机屏幕亮起。", AuthorID: 1}
 	if err := db.Create(&script).Error; err != nil {
 		t.Fatalf("create script: %v", err)
@@ -60,6 +64,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&version).Error; err != nil {
 		t.Fatalf("create script version: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &version)
 	scriptBlock := model.ScriptBlock{
 		ProjectID:       projectID,
 		ScriptID:        script.ID,
@@ -76,6 +81,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&scriptBlock).Error; err != nil {
 		t.Fatalf("create script block: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &scriptBlock)
 	contentUnit := model.ContentUnit{
 		ProjectID:     projectID,
 		ProductionID:  &production.ID,
@@ -90,6 +96,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&contentUnit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &contentUnit)
 	ref := model.CreativeReference{
 		ProjectID:   projectID,
 		Kind:        "character",
@@ -114,6 +121,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&state).Error; err != nil {
 		t.Fatalf("create creative state: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &state)
 	usage := model.CreativeReferenceUsage{
 		ProjectID:                projectID,
 		OwnerType:                "scene_moment",
@@ -127,6 +135,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&usage).Error; err != nil {
 		t.Fatalf("create usage: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &usage)
 	resource := model.RawResource{
 		OwnerID:        1,
 		Type:           "image",
@@ -153,6 +162,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&slot).Error; err != nil {
 		t.Fatalf("create asset slot: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &slot)
 	referenceSlot := model.AssetSlot{
 		ProjectID:                projectID,
 		ProductionID:             &production.ID,
@@ -169,6 +179,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&referenceSlot).Error; err != nil {
 		t.Fatalf("create reference asset slot: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &referenceSlot)
 	keyframe := model.Keyframe{
 		ProjectID:     projectID,
 		ProductionID:  &production.ID,
@@ -181,6 +192,7 @@ func TestBuildGenerationContextForContentUnit(t *testing.T) {
 	if err := db.Create(&keyframe).Error; err != nil {
 		t.Fatalf("create keyframe: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &keyframe)
 
 	got, err := NewService(db).BuildGenerationContext(context.Background(), projectID, GenerationContextRequest{
 		TargetType: "content_unit",
@@ -245,6 +257,7 @@ func TestBuildGenerationContextFallsBackToSceneMomentScriptBlock(t *testing.T) {
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &segment)
 	sceneMoment := model.SceneMoment{
 		ProjectID:     projectID,
 		SegmentID:     &segment.ID,
@@ -255,6 +268,7 @@ func TestBuildGenerationContextFallsBackToSceneMomentScriptBlock(t *testing.T) {
 	if err := db.Create(&sceneMoment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &sceneMoment)
 	contentUnit := model.ContentUnit{
 		ProjectID:     projectID,
 		SegmentID:     &segment.ID,
@@ -266,6 +280,7 @@ func TestBuildGenerationContextFallsBackToSceneMomentScriptBlock(t *testing.T) {
 	if err := db.Create(&contentUnit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &contentUnit)
 
 	got, err := NewService(db).BuildGenerationContext(context.Background(), projectID, GenerationContextRequest{
 		TargetType: "content_unit",
@@ -294,6 +309,7 @@ func TestBuildGenerationContextFallsBackToSegmentScriptBlock(t *testing.T) {
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &segment)
 	sceneMoment := model.SceneMoment{
 		ProjectID: projectID,
 		SegmentID: &segment.ID,
@@ -303,6 +319,7 @@ func TestBuildGenerationContextFallsBackToSegmentScriptBlock(t *testing.T) {
 	if err := db.Create(&sceneMoment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &sceneMoment)
 	contentUnit := model.ContentUnit{
 		ProjectID:     projectID,
 		SegmentID:     &segment.ID,
@@ -314,6 +331,7 @@ func TestBuildGenerationContextFallsBackToSegmentScriptBlock(t *testing.T) {
 	if err := db.Create(&contentUnit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &contentUnit)
 
 	got, err := NewService(db).BuildGenerationContext(context.Background(), projectID, GenerationContextRequest{
 		TargetType: "content_unit",
@@ -373,6 +391,7 @@ func newGenerationContextTestDB(t *testing.T) *gorm.DB {
 		&model.CreativeReferenceUsage{},
 		&model.AssetSlot{},
 		&model.RawResource{},
+		&model.EntityRelation{},
 	)
 }
 
@@ -396,6 +415,7 @@ func seedGenerationContextScriptBlock(t *testing.T, db *gorm.DB, projectID uint)
 	if err := db.Create(&version).Error; err != nil {
 		t.Fatalf("create script version: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &version)
 	block := model.ScriptBlock{
 		ProjectID:       projectID,
 		ScriptID:        script.ID,
@@ -409,7 +429,15 @@ func seedGenerationContextScriptBlock(t *testing.T, db *gorm.DB, projectID uint)
 	if err := db.Create(&block).Error; err != nil {
 		t.Fatalf("create script block: %v", err)
 	}
+	syncGenerationContextRelations(t, db, &block)
 	return script, version, block
+}
+
+func syncGenerationContextRelations(t *testing.T, db *gorm.DB, item any) {
+	t.Helper()
+	if err := coregraph.NewWriter(db).Write(context.Background(), item); err != nil {
+		t.Fatalf("sync relations for %T: %v", item, err)
+	}
 }
 
 func containsString(items []string, target string) bool {

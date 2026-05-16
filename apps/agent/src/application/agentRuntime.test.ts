@@ -1654,6 +1654,8 @@ test('records backend model gateway HTTP request and response in run trace', asy
     assert.equal(requestData.request.body.model, 'model_config:13')
     assert.ok(Array.isArray(requestData.request.body.messages))
     assert.equal(responseData.response.status, 200)
+    assert.equal(responseData.response.headers['content-type'], 'application/json')
+    assert.equal(responseData.response.headers['x-trace-id'], 'trace-test')
     assert.match(responseData.response.bodyText, /trace reply/)
     assert.equal(responseData.response.parsedBody.id, 'chatcmpl_trace_test')
     assert.equal(responseData.response.content, 'trace reply')
@@ -1690,12 +1692,20 @@ test('records backend model gateway HTTP request and response in run trace', asy
 
     const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(statePath) })
     const restoredTraceEvents = rebuilt.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+    const restoredRequestData = restoredTraceEvents
+      .find((event) => event.kind === 'model_call' && event.title === 'Model HTTP request sent')
+      ?.data as any
     const restoredResponseData = restoredTraceEvents
       .find((event) => event.kind === 'model_call' && event.title === 'Model HTTP response received')
       ?.data as any
     const restoredAssistantData = restoredTraceEvents
       .find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
       ?.data as any
+    assert.equal(restoredRequestData.request.body.model, 'model_config:13')
+    assert.ok(Array.isArray(restoredRequestData.request.body.messages))
+    assert.equal(restoredRequestData.request.headers.Authorization, undefined)
+    assert.equal(restoredResponseData.response.headers['content-type'], 'application/json')
+    assert.equal(restoredResponseData.response.headers['x-trace-id'], 'trace-test')
     assert.match(restoredResponseData.response.bodyText, /trace reply/)
     assert.equal(restoredResponseData.response.parsedBody.id, 'chatcmpl_trace_test')
     assert.equal(restoredResponseData.response.content, 'trace reply')
@@ -3758,7 +3768,7 @@ test('task protocol emits needs_input events for blocked worker input requests',
     status: 'running',
     ownerRunId: worker.id,
   })
-  ;(runtime as any).syncTaskFromRun(worker.id)
+  ;(runtime as any).taskRunSync.syncTaskFromRun(worker.id)
 
   const task = runtime.getPlanSnapshot(plan.plan.id).tasks.find((item) => item.id === 'task_input')
   assert.equal(task?.status, 'blocked')

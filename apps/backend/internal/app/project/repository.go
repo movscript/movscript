@@ -56,6 +56,9 @@ func (r *gormRepository) AdminList(ctx context.Context, filter AdminListFilter) 
 		like := "%" + strings.ToLower(q) + "%"
 		query = query.Where("LOWER(name) LIKE ? OR LOWER(description) LIKE ?", like, like)
 	}
+	if filter.ProjectID != nil {
+		query = query.Where("id = ?", *filter.ProjectID)
+	}
 	if filter.Status != "" {
 		query = query.Where("status = ?", filter.Status)
 	}

@@ -9,7 +9,7 @@ import (
 	"github.com/movscript/movscript/internal/testutil"
 )
 
-func TestRepositoryItemPersistenceSyncsEntityRelationsExplicitly(t *testing.T) {
+func TestRepositoryItemPersistenceDoesNotImplicitlySyncEntityRelations(t *testing.T) {
 	db := testutil.OpenSQLite(t, "repository_item_persistence.db", &model.EntityRelation{}, &model.CreativeReference{})
 
 	repo := newRepository(db)
@@ -22,42 +22,36 @@ func TestRepositoryItemPersistenceSyncsEntityRelationsExplicitly(t *testing.T) {
 		Status:     "draft",
 	}
 
-	if err := repo.createItem(ctx, &item); err != nil {
+	if err := repo.createItemOnly(ctx, &item); err != nil {
 		t.Fatalf("create item: %v", err)
 	}
 
-	var relation model.EntityRelation
-	if err := db.Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ?",
-		"project", item.ProjectID, "creative_reference", item.ID,
-	).First(&relation).Error; err != nil {
-		t.Fatalf("load create relation: %v", err)
+	var count int64
+	if err := db.Model(&model.EntityRelation{}).Where("target_type = ? AND target_id = ? AND valid_to IS NULL", "creative_reference", item.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count create relations: %v", err)
 	}
-	if relation.Status != "draft" {
-		t.Fatalf("create relation status = %q, want draft", relation.Status)
+	if count != 0 {
+		t.Fatalf("active relations after create = %d, want 0", count)
 	}
 
-	if err := repo.patchItem(ctx, &item, map[string]any{"status": "confirmed"}); err != nil {
+	if err := repo.patchItemOnly(ctx, &item, map[string]any{"status": "confirmed"}); err != nil {
 		t.Fatalf("patch item: %v", err)
 	}
-	relation = model.EntityRelation{}
-	if err := db.Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ?",
-		"project", item.ProjectID, "creative_reference", item.ID,
-	).First(&relation).Error; err != nil {
-		t.Fatalf("reload patch relation: %v", err)
+	if err := db.Model(&model.EntityRelation{}).Where("target_type = ? AND target_id = ? AND valid_to IS NULL", "creative_reference", item.ID).Count(&count).Error; err != nil {
+		t.Fatalf("count patch relations: %v", err)
 	}
-	if relation.Status != "confirmed" {
-		t.Fatalf("patch relation status = %q, want confirmed", relation.Status)
+	if count != 0 {
+		t.Fatalf("active relations after patch = %d, want 0", count)
 	}
 
 	if err := repo.deleteItem(ctx, &item); err != nil {
 		t.Fatalf("delete item: %v", err)
 	}
-	var count int64
-	if err := db.Model(&model.EntityRelation{}).Where("target_type = ? AND target_id = ?", "creative_reference", item.ID).Count(&count).Error; err != nil {
+	if err := db.Model(&model.EntityRelation{}).Where("target_type = ? AND target_id = ? AND valid_to IS NULL", "creative_reference", item.ID).Count(&count).Error; err != nil {
 		t.Fatalf("count relations: %v", err)
 	}
 	if count != 0 {
-		t.Fatalf("relations after delete = %d, want 0", count)
+		t.Fatalf("active relations after delete = %d, want 0", count)
 	}
 }
 

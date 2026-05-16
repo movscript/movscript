@@ -1,15 +1,20 @@
 package db
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/movscript/movscript/internal/app/coregraph"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
 func backfillCoreEntityRelations(db *gorm.DB) error {
 	if db == nil {
 		return nil
+	}
+	if err := dropLegacyEntityRelationUniqueIndex(db); err != nil {
+		return err
 	}
 	if err := db.AutoMigrate(&persistencemodel.EntityRelation{}); err != nil {
 		return err
@@ -59,13 +64,24 @@ func backfillCoreEntityRelations(db *gorm.DB) error {
 	return nil
 }
 
+func dropLegacyEntityRelationUniqueIndex(db *gorm.DB) error {
+	migrator := db.Migrator()
+	if migrator.HasIndex(&persistencemodel.EntityRelation{}, "idx_entity_relation_unique") {
+		if err := migrator.DropIndex(&persistencemodel.EntityRelation{}, "idx_entity_relation_unique"); err != nil {
+			return fmt.Errorf("drop entity relation legacy unique index: %w", err)
+		}
+	}
+	return nil
+}
+
 func backfillEntityRelationsByRows[T any](db *gorm.DB) error {
 	var rows []T
 	if err := db.Find(&rows).Error; err != nil {
 		return err
 	}
+	writer := coregraph.NewWriter(db)
 	for i := range rows {
-		if err := relation.SyncCoreEntityRelations(db, &rows[i]); err != nil {
+		if err := writer.Write(context.Background(), &rows[i]); err != nil {
 			return err
 		}
 	}

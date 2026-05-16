@@ -1,15 +1,27 @@
 import { cpSync, existsSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
-const source = resolve(repoRoot, 'apps/admin/dist')
-const target = resolve(repoRoot, 'apps/backend/bin/admin')
 
-if (!existsSync(source)) {
-  throw new Error(`admin build output does not exist: ${source}`)
+if (isDirectRun()) {
+  copyAdminAssets(repoRoot)
 }
 
-rmSync(target, { recursive: true, force: true })
-cpSync(source, target, { recursive: true })
+export function copyAdminAssets(root = repoRoot) {
+  const source = resolve(root, 'apps/admin/dist')
+  const target = resolve(root, 'apps/backend/bin/admin')
 
-console.log(`Copied admin assets: ${source} -> ${target}`)
+  if (!existsSync(source)) {
+    throw new Error(`admin build output does not exist: ${source}`)
+  }
+
+  rmSync(target, { recursive: true, force: true })
+  cpSync(source, target, { recursive: true })
+
+  console.log(`Copied admin assets: ${source} -> ${target}`)
+}
+
+function isDirectRun() {
+  return process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])
+}

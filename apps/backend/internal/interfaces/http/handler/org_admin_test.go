@@ -93,6 +93,15 @@ func TestOrgAdminCreateWritesAuditAndRejectsDuplicateSlug(t *testing.T) {
 	if countAuditAction(t, db, "org.admin_created") != 1 {
 		t.Fatalf("expected create org audit log")
 	}
+	var created persistencemodel.Organization
+	if err := json.Unmarshal(res.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created org: %v", err)
+	}
+	if created.JoinCode == "" {
+		t.Fatalf("expected created org response to include join code")
+	}
+	assertAuditMetadataDoesNotContain(t, db, "org.admin_created", created.JoinCode)
+	assertAuditMetadataDoesNotContain(t, db, "org.admin_created", "join_code")
 
 	duplicateReq := httptest.NewRequest(http.MethodPost, "/admin/orgs", strings.NewReader(`{"name":"Admin Team Copy","slug":"admin-team","owner_user_id":1}`))
 	duplicateReq.Header.Set("Content-Type", "application/json")
@@ -119,6 +128,53 @@ func TestOrgAdminCreateWritesAuditAndRejectsDuplicateSlug(t *testing.T) {
 	}
 	if countAuditAction(t, db, "org.admin_created") != 1 {
 		t.Fatalf("disabled owner should not add audit log")
+	}
+}
+
+func TestOrgAdminListFiltersByOrgID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-org-admin-list.db", &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{})
+	target := persistencemodel.Organization{Name: "Target", Slug: "target", Plan: "team", Status: "active", CreatedBy: 1}
+	other := persistencemodel.Organization{Name: "Other", Slug: "other", Plan: "team", Status: "active", CreatedBy: 2}
+	if err := db.Create(&target).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&other).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: target.ID, UserID: 1, Role: "owner"}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	handler := NewOrgAdminHandler(db.Session(&gorm.Session{SkipHooks: true}))
+	router := gin.New()
+	router.GET("/admin/orgs", handler.List)
+
+	res := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/admin/orgs?org_id=%d", target.ID), nil)
+	router.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected org list, got %d: %s", res.Code, res.Body.String())
+	}
+	var body struct {
+		Items []struct {
+			ID          uint  `json:"ID"`
+			MemberCount int64 `json:"member_count"`
+		} `json:"items"`
+		Total int64 `json:"total"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode org list: %v", err)
+	}
+	if body.Total != 1 || len(body.Items) != 1 || body.Items[0].ID != target.ID || body.Items[0].MemberCount != 1 {
+		t.Fatalf("unexpected org list body: %+v", body)
+	}
+
+	invalidRes := httptest.NewRecorder()
+	invalidReq := httptest.NewRequest(http.MethodGet, "/admin/orgs?org_id=bad", nil)
+	router.ServeHTTP(invalidRes, invalidReq)
+	if invalidRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid org_id rejected, got %d: %s", invalidRes.Code, invalidRes.Body.String())
 	}
 }
 
@@ -208,6 +264,9 @@ func TestOrgAdminRotateJoinCodeWritesAuditAndRejectsPersonalOrg(t *testing.T) {
 	if updated.JoinCode == "" || updated.JoinCode == "OLDTEAM123" {
 		t.Fatalf("join code was not rotated: %+v", updated)
 	}
+	assertAuditMetadataDoesNotContain(t, db, "org.join_code.admin_rotated", "OLDTEAM123")
+	assertAuditMetadataDoesNotContain(t, db, "org.join_code.admin_rotated", updated.JoinCode)
+	assertAuditMetadataDoesNotContain(t, db, "org.join_code.admin_rotated", "join_code")
 
 	personalReq := httptest.NewRequest(http.MethodPost, "/admin/orgs/2/join-code/rotate", nil)
 	personalRes := httptest.NewRecorder()

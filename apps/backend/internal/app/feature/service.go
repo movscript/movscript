@@ -9,7 +9,10 @@ import (
 	"gorm.io/gorm"
 )
 
-var ErrNotFound = errors.New("feature not found")
+var (
+	ErrNotFound         = errors.New("feature not found")
+	ErrInvalidMaxTokens = errors.New("max tokens override must be zero or positive")
+)
 
 type Service struct {
 	repo repository
@@ -22,10 +25,11 @@ func NewService(db *gorm.DB) *Service {
 type Response = domainfeature.Response
 
 type UpdateInput struct {
-	IsEnabled       *bool
-	AllowedModelIDs []uint
-	DefaultModelID  *uint
-	AllowedRoles    []string
+	IsEnabled         *bool
+	AllowedModelIDs   []uint
+	DefaultModelIDSet bool
+	DefaultModelID    *uint
+	AllowedRoles      []string
 }
 
 type PromptInput struct {
@@ -60,7 +64,7 @@ func (s *Service) Update(ctx context.Context, key string, input UpdateInput) (Re
 	if input.AllowedModelIDs != nil {
 		f.AllowedModelIDs = domainfeature.EncodeUintIDs(input.AllowedModelIDs)
 	}
-	if input.DefaultModelID != nil {
+	if input.DefaultModelIDSet {
 		f.DefaultModelID = domainfeature.NormalizeDefaultModelID(input.DefaultModelID)
 	}
 	if input.AllowedRoles != nil {
@@ -76,6 +80,9 @@ func (s *Service) UpdatePrompt(ctx context.Context, key string, input PromptInpu
 	f, err := s.repo.GetFeature(ctx, key)
 	if err != nil {
 		return Response{}, err
+	}
+	if input.MaxTokensOverride != nil && *input.MaxTokensOverride < 0 {
+		return Response{}, ErrInvalidMaxTokens
 	}
 	if input.SystemPromptOverride != nil {
 		f.SystemPromptOverride = *input.SystemPromptOverride

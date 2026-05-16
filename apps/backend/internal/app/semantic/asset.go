@@ -4,7 +4,9 @@ import (
 	"context"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
 	"github.com/movscript/movscript/internal/app/workflow"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -118,7 +120,58 @@ type ReviewEventInput struct {
 }
 
 func (s *Service) ListAssetSlots(ctx context.Context, filter AssetSlotFilter) ([]domainsemantic.AssetSlot, error) {
+	if assetSlotFilterUsesRelations(filter) {
+		return s.listAssetSlotsFromRelations(ctx, filter)
+	}
 	return s.repo.ListAssetSlots(ctx, filter)
+}
+
+func assetSlotFilterUsesRelations(filter AssetSlotFilter) bool {
+	return filter.ProductionID > 0 || (strings.TrimSpace(filter.OwnerType) != "" && filter.OwnerID > 0)
+}
+
+func (s *Service) listAssetSlotsFromRelations(ctx context.Context, filter AssetSlotFilter) ([]domainsemantic.AssetSlot, error) {
+	selection := relationIDSelection{}
+	if filter.ProductionID > 0 {
+		ids, err := s.relatedTargetIDsOfTypes(ctx,
+			assetSourceFilter(filter.ProjectID, "production", filter.ProductionID),
+			"asset_slot",
+			domainrelation.TypeNeedsAsset,
+			domainrelation.TypeUsesAsset,
+		)
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" && filter.OwnerID > 0 {
+		ids, err := s.relatedTargetIDsOfTypes(ctx,
+			assetSourceFilter(filter.ProjectID, ownerType, filter.OwnerID),
+			"asset_slot",
+			domainrelation.TypeNeedsAsset,
+			domainrelation.TypeUsesAsset,
+			domainrelation.TypeHasAsset,
+		)
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	slots := make([]domainsemantic.AssetSlot, 0, len(selection.ordered))
+	for _, id := range selection.ordered {
+		slot, err := s.repo.LoadAssetSlot(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(filter.Status) != "" && slot.Status != strings.TrimSpace(filter.Status) {
+			continue
+		}
+		if !truthyFilter(filter.IncludeInternal) && strings.TrimSpace(slot.OwnerType) == "asset_slot" {
+			continue
+		}
+		slots = append(slots, slot)
+	}
+	return slots, nil
 }
 
 func (s *Service) CreateAssetSlot(ctx context.Context, projectID uint, input AssetSlotInput) (domainsemantic.AssetSlot, error) {
@@ -143,7 +196,20 @@ func (s *Service) CreateAssetSlot(ctx context.Context, projectID uint, input Ass
 		LockedAssetSlotID:        input.LockedAssetSlotID,
 		MetadataJSON:             input.MetadataJSON,
 	})
-	return s.repo.CreateAssetSlot(ctx, item)
+	var created domainsemantic.AssetSlot
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateAssetSlot(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertAssetSlotRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchAssetSlot(ctx context.Context, projectID uint, id string, input PatchAssetSlotInput) (domainsemantic.AssetSlot, error) {
@@ -171,11 +237,186 @@ func (s *Service) PatchAssetSlot(ctx context.Context, projectID uint, id string,
 		LockedAssetSlotID:        input.LockedAssetSlotID,
 		MetadataJSON:             input.MetadataJSON,
 	}
-	return s.repo.PatchAssetSlot(ctx, item, patch)
+	var patched domainsemantic.AssetSlot
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchAssetSlot(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertAssetSlotRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertAssetSlotRelations(ctx context.Context, item domainsemantic.AssetSlot) error {
+	for _, edgeType := range []string{domainrelation.TypeHasAsset, domainrelation.TypeNeedsAsset, domainrelation.TypeUsesAsset} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryAsset,
+			Type:      edgeType,
+			Target:    domainrelation.NewEntityRef("asset_slot", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	for _, edgeType := range []string{domainrelation.TypeUsesResource, domainrelation.TypeLocks} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryAsset,
+			Type:      edgeType,
+			Source:    domainrelation.NewEntityRef("asset_slot", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.ProductionID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("production", *item.ProductionID),
+			Target:    domainrelation.NewEntityRef("asset_slot", item.ID),
+			Category:  domainrelation.CategoryAsset,
+			Type:      domainrelation.TypeNeedsAsset,
+			Label:     item.SlotKey,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.CreativeReferenceID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("creative_reference", *item.CreativeReferenceID),
+			Target:    domainrelation.NewEntityRef("asset_slot", item.ID),
+			Category:  domainrelation.CategoryAsset,
+			Type:      domainrelation.TypeHasAsset,
+			Label:     item.SlotKey,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.CreativeReferenceStateID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("creative_reference_state", *item.CreativeReferenceStateID),
+			Target:    domainrelation.NewEntityRef("asset_slot", item.ID),
+			Category:  domainrelation.CategoryAsset,
+			Type:      domainrelation.TypeHasAsset,
+			Label:     item.SlotKey,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.OwnerID != nil && strings.TrimSpace(item.OwnerType) != "" {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef(item.OwnerType, *item.OwnerID),
+			Target:    domainrelation.NewEntityRef("asset_slot", item.ID),
+			Category:  domainrelation.CategoryAsset,
+			Type:      assetSlotOwnerRelationType(item),
+			Label:     item.SlotKey,
+			Status:    semanticRelationStatus(item.Status),
+			Metadata: semanticRelationMetadata(map[string]any{
+				"asset_slot_id": item.ID,
+				"status":        item.Status,
+				"kind":          item.Kind,
+			}),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.ResourceID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("asset_slot", item.ID),
+			Target:    domainrelation.NewEntityRef("raw_resource", *item.ResourceID),
+			Category:  domainrelation.CategoryAsset,
+			Type:      domainrelation.TypeUsesResource,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.LockedAssetSlotID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("asset_slot", item.ID),
+			Target:    domainrelation.NewEntityRef("asset_slot", *item.LockedAssetSlotID),
+			Category:  domainrelation.CategoryAsset,
+			Type:      domainrelation.TypeLocks,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) upsertRelationEdge(ctx context.Context, input relationapp.EdgeInput) error {
+	_, err := s.relations.UpsertEdge(ctx, input)
+	return err
+}
+
+func assetSlotOwnerRelationType(slot domainsemantic.AssetSlot) string {
+	switch strings.TrimSpace(slot.Status) {
+	case "locked", "selected", "approved", "final":
+		return domainrelation.TypeUsesAsset
+	default:
+		if slot.ResourceID != nil || slot.LockedAssetSlotID != nil {
+			return domainrelation.TypeUsesAsset
+		}
+		return domainrelation.TypeNeedsAsset
+	}
 }
 
 func (s *Service) ListAssetSlotCandidates(ctx context.Context, filter AssetSlotCandidateFilter) ([]domainsemantic.AssetSlotCandidate, error) {
+	if filter.AssetSlotID > 0 {
+		return s.listAssetSlotCandidatesFromRelations(ctx, filter)
+	}
 	return s.repo.ListAssetSlotCandidates(ctx, filter)
+}
+
+func (s *Service) listAssetSlotCandidatesFromRelations(ctx context.Context, filter AssetSlotCandidateFilter) ([]domainsemantic.AssetSlotCandidate, error) {
+	edges, err := s.relations.ListEdges(ctx, assetCandidateForTargetFilter(filter.ProjectID, filter.AssetSlotID))
+	if err != nil {
+		return nil, err
+	}
+	selection := relationIDSelection{}
+	for _, edge := range edges {
+		if edge.Source.Type != "asset_slot" || edge.Target.Type != "asset_slot" || edge.Type != domainrelation.TypeCandidateFor {
+			continue
+		}
+		id := relationMetadataUint(edge.Metadata, "asset_slot_candidate_id")
+		if id == 0 {
+			continue
+		}
+		if selection.seen == nil {
+			selection.seen = make(map[uint]struct{})
+		}
+		if _, ok := selection.seen[id]; ok {
+			continue
+		}
+		selection.seen[id] = struct{}{}
+		selection.ordered = append(selection.ordered, id)
+	}
+	candidates := make([]domainsemantic.AssetSlotCandidate, 0, len(selection.ordered))
+	for _, id := range selection.ordered {
+		candidate, err := s.repo.LoadAssetSlotCandidate(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(filter.Status) != "" && candidate.Status != strings.TrimSpace(filter.Status) {
+			continue
+		}
+		candidates = append(candidates, candidate)
+	}
+	return candidates, nil
 }
 
 func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, input AssetSlotCandidateInput, userID uint) (domainsemantic.AssetSlotCandidate, error) {
@@ -212,7 +453,20 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 		Status:               input.Status,
 		Note:                 input.Note,
 	})
-	return s.repo.CreateAssetSlotCandidate(ctx, item)
+	var created domainsemantic.AssetSlotCandidate
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateAssetSlotCandidate(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertAssetSlotCandidateRelation(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchAssetSlotCandidate(ctx context.Context, projectID uint, id string, input AssetSlotCandidateInput) (domainsemantic.AssetSlotCandidate, error) {
@@ -235,7 +489,46 @@ func (s *Service) PatchAssetSlotCandidate(ctx context.Context, projectID uint, i
 		Status:               input.Status,
 		Note:                 input.Note,
 	}
-	return s.repo.PatchAssetSlotCandidate(ctx, item, patch)
+	var patched domainsemantic.AssetSlotCandidate
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchAssetSlotCandidate(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertAssetSlotCandidateRelation(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertAssetSlotCandidateRelation(ctx context.Context, item domainsemantic.AssetSlotCandidate) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID:        item.ProjectID,
+		Category:         domainrelation.CategoryAsset,
+		MetadataContains: semanticRelationMetadataMarker("asset_slot_candidate_id", item.ID),
+	}); err != nil {
+		return err
+	}
+	_, err := s.relations.UpsertEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("asset_slot", item.CandidateAssetSlotID),
+		Target:    domainrelation.NewEntityRef("asset_slot", item.AssetSlotID),
+		Category:  domainrelation.CategoryAsset,
+		Type:      domainrelation.TypeCandidateFor,
+		Weight:    item.Score,
+		Status:    semanticRelationStatus(item.Status),
+		Origin:    semanticRelationOrigin(item.SourceType),
+		Evidence:  item.Note,
+		Metadata: semanticRelationMetadata(map[string]any{
+			"asset_slot_candidate_id": item.ID,
+			"source_id":               item.SourceID,
+		}),
+	})
+	return err
 }
 
 func (s *Service) ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]domainsemantic.CandidateDecision, error) {
@@ -262,7 +555,20 @@ func (s *Service) CreateCandidateDecision(ctx context.Context, projectID uint, i
 		AppliedAt:         input.AppliedAt,
 		MetadataJSON:      input.MetadataJSON,
 	})
-	return s.repo.CreateCandidateDecision(ctx, item)
+	var created domainsemantic.CandidateDecision
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateCandidateDecision(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCandidateDecisionRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchCandidateDecision(ctx context.Context, projectID uint, id string, input CandidateDecisionInput) (domainsemantic.CandidateDecision, error) {
@@ -288,7 +594,64 @@ func (s *Service) PatchCandidateDecision(ctx context.Context, projectID uint, id
 		AppliedAt:         input.AppliedAt,
 		MetadataJSON:      input.MetadataJSON,
 	}
-	return s.repo.PatchCandidateDecision(ctx, item, patch)
+	var patched domainsemantic.CandidateDecision
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchCandidateDecision(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCandidateDecisionRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertCandidateDecisionRelations(ctx context.Context, item domainsemantic.CandidateDecision) error {
+	for _, edgeType := range []string{domainrelation.TypeDecides, domainrelation.TypeAppliesTo} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryWorkflow,
+			Type:      edgeType,
+			Source:    domainrelation.NewEntityRef("candidate_decision", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.CandidateID != nil && strings.TrimSpace(item.CandidateType) != "" {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("candidate_decision", item.ID),
+			Target:    domainrelation.NewEntityRef(item.CandidateType, *item.CandidateID),
+			Category:  domainrelation.CategoryWorkflow,
+			Type:      domainrelation.TypeDecides,
+			Label:     item.Decision,
+			Status:    semanticRelationStatus(item.Status),
+			Origin:    semanticRelationOrigin(item.Source),
+			Evidence:  item.Reason,
+		}); err != nil {
+			return err
+		}
+	}
+	if item.TargetID != nil && strings.TrimSpace(item.TargetType) != "" {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("candidate_decision", item.ID),
+			Target:    domainrelation.NewEntityRef(item.TargetType, *item.TargetID),
+			Category:  domainrelation.CategoryWorkflow,
+			Type:      domainrelation.TypeAppliesTo,
+			Label:     item.Decision,
+			Status:    semanticRelationStatus(item.Status),
+			Origin:    semanticRelationOrigin(item.Source),
+			Evidence:  item.Note,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) ListReviewEvents(ctx context.Context, filter ReviewEventFilter) ([]domainsemantic.ReviewEvent, error) {
@@ -313,7 +676,20 @@ func (s *Service) CreateReviewEvent(ctx context.Context, projectID uint, input R
 		ActorID:         input.ActorID,
 		MetadataJSON:    input.MetadataJSON,
 	})
-	return s.repo.CreateReviewEvent(ctx, item)
+	var created domainsemantic.ReviewEvent
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateReviewEvent(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertReviewEventRelation(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchReviewEvent(ctx context.Context, projectID uint, id string, input ReviewEventInput) (domainsemantic.ReviewEvent, error) {
@@ -337,7 +713,50 @@ func (s *Service) PatchReviewEvent(ctx context.Context, projectID uint, id strin
 		ActorID:         input.ActorID,
 		MetadataJSON:    input.MetadataJSON,
 	}
-	return s.repo.PatchReviewEvent(ctx, item, patch)
+	var patched domainsemantic.ReviewEvent
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchReviewEvent(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertReviewEventRelation(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertReviewEventRelation(ctx context.Context, item domainsemantic.ReviewEvent) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryWorkflow,
+		Type:      domainrelation.TypeReviews,
+		Source:    domainrelation.NewEntityRef("review_event", item.ID),
+	}); err != nil {
+		return err
+	}
+	if item.SubjectID == nil || strings.TrimSpace(item.SubjectType) == "" {
+		return nil
+	}
+	return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("review_event", item.ID),
+		Target:    domainrelation.NewEntityRef(item.SubjectType, *item.SubjectID),
+		Category:  domainrelation.CategoryWorkflow,
+		Type:      domainrelation.TypeReviews,
+		Label:     item.EventType,
+		Status:    semanticRelationStatus(item.ToStatus),
+		Origin:    semanticRelationOrigin(item.Source),
+		Evidence:  item.Comment,
+		Metadata: semanticRelationMetadata(map[string]any{
+			"from_status": item.FromStatus,
+			"to_status":   item.ToStatus,
+			"reason":      item.Reason,
+		}),
+	})
 }
 
 func (s *Service) validateAssetSlotOwners(ctx context.Context, projectID uint, productionID *uint, creativeReferenceID *uint, creativeReferenceStateID *uint, ownerType string, ownerID *uint, lockedAssetSlotID *uint) error {

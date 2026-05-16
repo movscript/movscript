@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, buildDebugCoverageSummary, buildDebugReportText, buildModelCallSummaries, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventStatusLabel, traceKindLabel } from './agentRunUi'
+import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventStatusLabel, traceKindLabel } from './agentRunUi'
 import type { AgentTraceEvent } from './localAgentClient'
 
 function traceEvent(overrides: Partial<AgentTraceEvent>): AgentTraceEvent {
@@ -49,6 +49,10 @@ test('agentTraceView translates prompt composition into readable Chinese summary
   assert.equal(view.promptDetail?.contextLayers[0]?.label, '运行契约')
   assert.equal(view.promptDetail?.parts[0]?.id, 'runtime.contract')
   assert.equal(view.promptDetail?.parts[0]?.layer, '核心契约')
+  assert.deepEqual(view.promptDetail?.partGroups.map((group) => [group.contextLayer, group.count, group.chars]), [
+    ['运行契约', 1, '300'],
+    ['页面焦点', 1, '200'],
+  ])
   assert.deepEqual(view.promptDetail?.skills, ['skill.a', 'skill.b'])
   assert.deepEqual(view.promptDetail?.tools, ['movscript_get_focus'])
 })
@@ -62,6 +66,10 @@ test('agentTraceView separates model HTTP request and impact', () => {
       phase: 'request',
       latencyMs: 234,
       request: {
+        headers: {
+          Authorization: 'Bearer should-redact',
+          'content-type': 'application/json',
+        },
         body: {
           messages: [{ role: 'system', content: 'a' }, { role: 'user', content: 'b' }],
           tools: [{ name: 'x' }],
@@ -81,6 +89,16 @@ test('agentTraceView separates model HTTP request and impact', () => {
   assert.equal(view.modelDetail?.request?.messageCount, '2')
   assert.equal(view.modelDetail?.request?.toolChoice, 'auto')
   assert.equal(view.modelDetail?.request?.toolChoiceLabel, '自动选择 (auto)')
+  assert.deepEqual(view.modelDetail?.request?.headers, [
+    { name: 'Authorization', value: 'Bearer should-redact' },
+    { name: 'content-type', value: 'application/json' },
+  ])
+  assert.deepEqual(view.modelDetail?.request?.payload, {
+    messages: [{ role: 'system', content: 'a' }, { role: 'user', content: 'b' }],
+    tools: [{ name: 'x' }],
+    tool_choice: 'auto',
+    stream: true,
+  })
 })
 
 test('agentTraceView explains ledger updates as impact', () => {
@@ -128,8 +146,33 @@ test('agentTraceView expands model request context by role', () => {
   assert.equal(previewGroup?.items.some((item) => item.label === '1. 系统'), true)
   assert.equal(previewGroup?.items.length, 4)
   assert.equal(view.modelDetail?.messages.length, 4)
+  assert.deepEqual(view.modelDetail?.messageGroups.map((group) => [group.role, group.count, group.contentChars]), [
+    ['system', 1, 'system prompt'.length],
+    ['user', 1, 'user message'.length],
+    ['assistant', 1, 'assistant context'.length],
+    ['tool', 1, 'tool output'.length],
+  ])
+  assert.equal(view.modelDetail?.messageGroups[0]?.messages[0]?.index, 1)
   assert.equal(view.modelDetail?.messages[0]?.content, 'system prompt')
   assert.equal(view.modelDetail?.messages[3]?.roleLabel, '工具')
+})
+
+test('agentTraceView preserves raw request message content for UI-level redaction', () => {
+  const view = agentTraceView(traceEvent({
+    kind: 'model_call',
+    title: 'Model HTTP request sent',
+    data: {
+      phase: 'request',
+      request: {
+        body: {
+          messages: [
+            { role: 'user', content: '{"api_key":"request-secret","prompt":"inspect"}' },
+          ],
+        },
+      },
+    },
+  }))
+  assert.equal(view.modelDetail?.messages[0]?.content, '{"api_key":"request-secret","prompt":"inspect"}')
 })
 
 test('agentTraceView exposes HTTP response and final model result separately', () => {
@@ -142,7 +185,7 @@ test('agentTraceView exposes HTTP response and final model result separately', (
       response: {
         status: 200,
         ok: true,
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-trace-id': 'trace-123' },
         bodyText: '{"id":"chatcmpl_1","choices":[{"message":{"content":"reply body"}}]}',
         parsedBody: { id: 'chatcmpl_1' },
         content: 'reply body',
@@ -164,6 +207,10 @@ test('agentTraceView exposes HTTP response and final model result separately', (
   assert.equal(resultGroup?.items.some((item) => item.label === '回复 token' && item.value === '5'), true)
   assert.equal(view.modelDetail?.response?.content, 'reply body')
   assert.equal(view.modelDetail?.response?.parsedId, 'chatcmpl_1')
+  assert.deepEqual(view.modelDetail?.response?.headers, [
+    { name: 'content-type', value: 'application/json' },
+    { name: 'x-trace-id', value: 'trace-123' },
+  ])
   assert.equal(view.modelDetail?.request?.stream, undefined)
   assert.equal(view.modelDetail?.result?.finishReason, 'stop')
   assert.equal(view.modelDetail?.result?.finishReasonLabel, '正常结束 (stop)')
@@ -285,6 +332,38 @@ test('agentTraceView keeps behavior and impact separated', () => {
   assert.equal(view.behavior, '调用 movscript_get_focus')
   assert.match(view.impact ?? '', /工具结果会进入运行步骤/)
   assert.equal(view.contextGroups.some((group) => group.label === '工具执行'), true)
+  assert.equal(view.toolDetail?.title, '工具调用详情')
+  assert.equal(view.toolDetail?.toolName, 'movscript_get_focus')
+  assert.equal(view.toolDetail?.statusLabel, '已完成')
+  assert.equal(view.toolDetail?.source, 'runtime')
+  assert.equal(view.toolDetail?.duration, '42ms')
+  assert.equal(view.toolDetail?.sandboxed, '否')
+})
+
+test('agentTraceView exposes tool call result fields without requiring raw JSON', () => {
+  const view = agentTraceView(traceEvent({
+    kind: 'tool_call',
+    title: 'Asset review tool call',
+    toolName: 'movscript_review_assets',
+    summary: 'Found missing hero visual coverage.',
+    data: {
+      findings: ['missing_hero_visual'],
+      artifactId: 'artifact_einstein_risk',
+      authorization: 'Bearer secret-token',
+      nestedResult: { status: 'ok', count: 1 },
+    },
+    completedAt: '2026-05-15T00:00:04.000Z',
+  }))
+
+  assert.equal(view.toolDetail?.title, '工具调用详情')
+  assert.equal(view.toolDetail?.duration, '4s')
+  assert.equal(view.toolDetail?.summary, '发现缺少主视觉覆盖。')
+  assert.deepEqual(view.toolDetail?.fields.map((field) => [field.label, field.value, field.sensitive]), [
+    ['发现', 'missing_hero_visual', false],
+    ['产物 ID', 'artifact_einstein_risk', false],
+    ['authorization', 'Bearer secret-token', true],
+    ['nestedResult', 'status, count', false],
+  ])
 })
 
 test('agentTraceView localizes common planner and worker trace fallbacks', () => {
@@ -344,7 +423,7 @@ test('buildModelCallSummaries groups model request, response, and missing respon
         phase: 'response',
         latencyMs: 120,
         request: { body: { messages: [{ role: 'user', content: 'hello' }] } },
-        response: { status: 200, content: 'reply' },
+        response: { status: 200, content: 'reply', bodyText: '{"choices":[{"message":{"content":"reply"}}]}' },
         usage: { input_tokens: 10, output_tokens: 4 },
       },
     }),
@@ -365,16 +444,103 @@ test('buildModelCallSummaries groups model request, response, and missing respon
   assert.equal(summaries[0]?.statusLabel, '请求和响应完整')
   assert.equal(summaries[0]?.requestEventId, 'request_1')
   assert.equal(summaries[0]?.responseEventId, 'response_1')
+  assert.equal(summaries[0]?.roundIndex, 1)
+  assert.equal(summaries[0]?.roundLabel, '第 1 轮')
+  assert.deepEqual(summaries[0]?.eventIds, ['request_1', 'response_1'])
   assert.equal(summaries[0]?.model, 'model_config:1')
   assert.equal(summaries[0]?.messageCount, '1')
   assert.equal(summaries[0]?.toolCount, '1')
   assert.equal(summaries[0]?.httpStatus, '200')
   assert.equal(summaries[0]?.latency, '120ms')
+  assert.equal(summaries[0]?.hasRequestPayload, true)
+  assert.equal(summaries[0]?.hasResponseBody, true)
   assert.equal(summaries[0]?.inputTokens, '10')
   assert.equal(summaries[1]?.status, 'request_only')
+  assert.equal(summaries[1]?.hasRequestPayload, true)
+  assert.equal(summaries[1]?.hasResponseBody, false)
   assert.equal(summaries[1]?.issue?.includes('只看到 HTTP 请求'), true)
   assert.equal(summaries[1]?.issue?.includes('旧运行'), true)
   assert.equal(summaries[1]?.issue?.includes('响应正文'), true)
+})
+
+test('buildModelCallDebugContext relates same-round history writes and tool calls', () => {
+  const events = [
+    traceEvent({
+      id: 'request_1',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      roundIndex: 1,
+      roundLabel: '第 1 轮',
+      data: { phase: 'request', request: { body: { messages: [{ role: 'user', content: 'hello' }] } } },
+    }),
+    traceEvent({
+      id: 'response_1',
+      kind: 'model_call',
+      title: 'Model HTTP response received',
+      roundIndex: 1,
+      roundLabel: '第 1 轮',
+      data: { phase: 'response', response: { status: 200, content: 'reply', bodyText: '{"ok":true}' }, content_chars: 5 },
+    }),
+    traceEvent({
+      id: 'tool_1',
+      kind: 'tool_call',
+      title: 'Tool completed: movscript_get_focus',
+      toolName: 'movscript_get_focus',
+      roundIndex: 1,
+      data: { source: 'runtime', durationMs: 42 },
+    }),
+    traceEvent({
+      id: 'assistant_1',
+      kind: 'assistant',
+      title: 'Assistant message created',
+      roundIndex: 1,
+      data: { messageId: 'msg_1', source: 'model', content: 'reply', chars: 5 },
+    }),
+    traceEvent({
+      id: 'tool_2',
+      kind: 'tool_call',
+      title: 'Tool completed: unrelated',
+      toolName: 'unrelated',
+      roundIndex: 2,
+    }),
+  ]
+  const [call] = buildModelCallSummaries(events)
+  assert.ok(call)
+  const context = buildModelCallDebugContext({ call, events })
+  const contexts = buildModelCallDebugContexts({ modelCalls: [call], events })
+
+  assert.equal(context.correlationLabel, '第 1 轮')
+  assert.deepEqual(context.modelEvents.map((event) => event.id), ['request_1', 'response_1'])
+  assert.deepEqual(context.toolCalls.map((event) => event.id), ['tool_1'])
+  assert.deepEqual(context.messageWrites.map((event) => event.id), ['assistant_1'])
+  assert.equal(context.issue, undefined)
+  assert.equal(contexts[0]?.call.id, call.id)
+})
+
+test('buildModelCallDebugContext warns when model reply has no history write', () => {
+  const events = [
+    traceEvent({
+      id: 'request_1',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      roundIndex: 1,
+      roundLabel: '第 1 轮',
+      data: { phase: 'request', request: { body: { messages: [{ role: 'user', content: 'hello' }] } } },
+    }),
+    traceEvent({
+      id: 'response_1',
+      kind: 'model_call',
+      title: 'Model HTTP response received',
+      roundIndex: 1,
+      roundLabel: '第 1 轮',
+      data: { phase: 'response', response: { status: 200, content: 'reply', bodyText: '{"ok":true}' }, content_chars: 5 },
+    }),
+  ]
+  const [call] = buildModelCallSummaries(events)
+  assert.ok(call)
+  const context = buildModelCallDebugContext({ call, events })
+
+  assert.match(context.issue ?? '', /没有找到同轮 assistant 历史写入/)
 })
 
 test('buildModelCallSummaries exposes retry and error events as failed model calls', () => {
@@ -450,21 +616,37 @@ test('buildDebugCoverageSummary reports trace completeness and missing details',
       title: 'Model HTTP request sent',
       data: { phase: 'request', request: { body: { messages: [{ role: 'user', content: 'again' }] } } },
     }),
+    traceEvent({
+      id: 'tool_1',
+      kind: 'tool_call',
+      title: 'Tool completed: movscript_get_focus',
+      toolName: 'movscript_get_focus',
+      data: { source: 'runtime', durationMs: 42 },
+    }),
   ]
   const modelCalls = buildModelCallSummaries(events)
-  const summary = buildDebugCoverageSummary({ events, total: 6, hasMore: true, modelCalls })
+  const summary = buildDebugCoverageSummary({ events, total: 7, hasMore: true, modelCalls })
 
-  assert.equal(summary.loadedLabel, '4 / 6')
+  assert.equal(summary.loadedLabel, '5 / 7')
   assert.equal(summary.hasUnloadedTrace, true)
   assert.equal(summary.modelCallsLabel, '2')
   assert.equal(summary.httpResponsesLabel, '1')
+  assert.equal(summary.requestPayloadsLabel, '2')
   assert.equal(summary.httpResponseBodiesLabel, '0')
   assert.equal(summary.promptDetailsLabel, '1')
   assert.equal(summary.messageWritesLabel, '0')
+  assert.equal(summary.toolDetailsLabel, '1 / 1')
   assert.equal(summary.issues.some((issue) => issue.includes('未加载运行事件')), true)
   assert.equal(summary.issues.some((issue) => issue.includes('缺少请求或响应')), true)
   assert.equal(summary.issues.some((issue) => issue.includes('没有原始响应正文')), true)
   assert.equal(summary.issues.some((issue) => issue.includes('旧运行')), true)
+  const checklist = buildDebugReadinessChecklist(summary)
+  assert.equal(checklist.find((item) => item.id === 'trace_loaded')?.status, 'warning')
+  assert.match(checklist.find((item) => item.id === 'trace_loaded')?.action ?? '', /加载全部事件/)
+  assert.equal(checklist.find((item) => item.id === 'response_body')?.status, 'warning')
+  assert.match(checklist.find((item) => item.id === 'response_body')?.action ?? '', /交叉验证/)
+  assert.equal(checklist.find((item) => item.id === 'tool_detail')?.status, 'ok')
+  assert.match(checklist.find((item) => item.id === 'tool_detail')?.action ?? '', /展开工具详情/)
 })
 
 test('buildDebugCoverageSummary treats known total gaps as unloaded trace', () => {
@@ -484,13 +666,90 @@ test('buildDebugCoverageSummary treats known total gaps as unloaded trace', () =
   assert.equal(summary.issues.some((issue) => issue.includes('上下文组装事件')), true)
 })
 
-test('buildDebugReportText creates a shareable run summary', () => {
+test('buildDebugCoverageSummary reports model calls without request payloads', () => {
+  const events = [
+    traceEvent({
+      id: 'request_without_body',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      data: { phase: 'request', request: { method: 'POST' } },
+    }),
+  ]
+  const modelCalls = buildModelCallSummaries(events)
+  const summary = buildDebugCoverageSummary({ events, total: 1, hasMore: false, modelCalls })
+
+  assert.equal(summary.modelCallsLabel, '1')
+  assert.equal(summary.requestPayloadsLabel, '0')
+  assert.equal(summary.issues.some((issue) => issue.includes('没有请求负载')), true)
+  assert.equal(summary.issues.some((issue) => issue.includes('messages/tools/body')), true)
+  const report = buildDebugReportText({ runId: 'run_missing_payload', coverage: summary, modelCalls, events })
+  assert.match(report, /请求负载: 0/)
+  assert.match(report, /请求负载缺失/)
+})
+
+test('buildDebugCoverageSummary warns when model replies have no assistant history write', () => {
   const events = [
     traceEvent({
       id: 'request_1',
       kind: 'model_call',
       title: 'Model HTTP request sent',
-      data: { phase: 'request', request: { body: { model: 'model_config:1', messages: [{ role: 'user', content: 'hello' }] } } },
+      data: { phase: 'request', request: { body: { messages: [{ role: 'user', content: 'hello' }] } } },
+    }),
+    traceEvent({
+      id: 'response_1',
+      kind: 'model_call',
+      title: 'Model HTTP response received',
+      data: { phase: 'response', response: { status: 200, content: 'reply', bodyText: '{"reply":"ok"}' }, content_chars: 5 },
+    }),
+  ]
+  const modelCalls = buildModelCallSummaries(events)
+  const summary = buildDebugCoverageSummary({ events, total: 2, hasMore: false, modelCalls })
+  const report = buildDebugReportText({ runId: 'run_missing_history_write', coverage: summary, modelCalls, events })
+
+  assert.equal(summary.messageWritesLabel, '0')
+  assert.equal(summary.issues.some((issue) => issue.includes('没有 assistant 历史写入')), true)
+  assert.match(report, /模型调用有回复内容/)
+})
+
+test('buildDebugReportText creates a shareable run summary', () => {
+  const events = [
+    traceEvent({
+      id: 'prompt_1',
+      kind: 'prompt',
+      title: 'Prompt composed',
+      data: {
+        messageCount: 2,
+        promptStats: {
+          totalChars: 300,
+          parts: [
+            { id: 'runtime.contract', contextLayer: 'runtime_contract', chars: 180 },
+            { id: 'focus.project', contextLayer: 'focus', chars: 120 },
+          ],
+        },
+      },
+    }),
+    traceEvent({
+      id: 'request_1',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      data: {
+        phase: 'request',
+        request: {
+          body: {
+            model: 'model_config:1',
+            messages: [
+              { role: 'system', content: 'system prompt' },
+              { role: 'user', content: 'hello' },
+            ],
+            tools: [{
+              type: 'function',
+              function: { name: 'movscript_review_assets', parameters: { type: 'object', properties: { productionId: { type: 'number' } } } },
+            }],
+            tool_choice: 'auto',
+            stream: false,
+          },
+        },
+      },
     }),
     traceEvent({
       id: 'response_1',
@@ -499,17 +758,91 @@ test('buildDebugReportText creates a shareable run summary', () => {
       data: { phase: 'response', latencyMs: 80, response: { status: 200, content: 'reply', bodyText: '{"choices":[{"message":{"content":"reply"}}]}' } },
       completedAt: '2026-05-15T00:00:00.080Z',
     }),
+    traceEvent({
+      id: 'assistant_1',
+      kind: 'assistant',
+      title: 'Assistant message created',
+      data: { messageId: 'msg_1', source: 'model', content: 'reply api_key=history-secret', chars: 28 },
+    }),
+    traceEvent({
+      id: 'tool_1',
+      kind: 'tool_call',
+      title: 'Asset review tool call',
+      toolName: 'movscript_review_assets',
+      summary: 'Found missing hero visual coverage.',
+      data: {
+        findings: ['missing_hero_visual'],
+        artifactId: 'artifact_einstein_risk',
+        authorization: 'Bearer report-secret',
+      },
+      completedAt: '2026-05-15T00:00:04.000Z',
+    }),
   ]
   const modelCalls = buildModelCallSummaries(events)
-  const coverage = buildDebugCoverageSummary({ events, total: 2, hasMore: false, modelCalls })
-  const report = buildDebugReportText({ runId: 'run_debug', coverage, modelCalls, events })
+  const coverage = buildDebugCoverageSummary({ events, total: 5, hasMore: false, modelCalls })
+  const report = buildDebugReportText({
+    runId: 'run_debug',
+    run: {
+      status: 'completed_with_warnings',
+      role: 'worker',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      startedAt: '2026-05-15T00:00:01.000Z',
+      completedAt: '2026-05-15T00:00:05.000Z',
+      warnings: ['tool result was summarized'],
+      pendingApprovals: [],
+      pendingInputRequests: [],
+    },
+    coverage,
+    modelCalls,
+    events,
+  })
 
   assert.match(report, /AgentRun 调试摘要/)
   assert.match(report, /运行: run_debug/)
-  assert.match(report, /事件: 2 \/ 2/)
+  assert.match(report, /状态: 完成但有警告/)
+  assert.match(report, /角色: 执行器/)
+  assert.match(report, /创建: 2026\/05\/15 08:00:00 \(2026-05-15T00:00:00.000Z\)/)
+  assert.match(report, /开始: 2026\/05\/15 08:00:01 \(2026-05-15T00:00:01.000Z\)/)
+  assert.match(report, /结束: 2026\/05\/15 08:00:05 \(2026-05-15T00:00:05.000Z\)/)
+  assert.match(report, /耗时: 4s/)
+  assert.match(report, /警告: tool result was summarized/)
+  assert.match(report, /事件: 5 \/ 5/)
+  assert.match(report, /请求负载: 1/)
   assert.match(report, /响应正文: 1/)
+  assert.match(report, /诊断清单:/)
+  assert.match(report, /已满足 事件完整性: 已加载 5 \/ 5。/)
+  assert.match(report, /下一步: 可以基于当前事件继续判断。/)
+  assert.match(report, /已满足 请求负载可展开: 已保存 1 \/ 1 个请求负载。/)
+  assert.match(report, /下一步: 展开“完整请求负载”和“请求消息”核对发送给模型的上下文。/)
+  assert.match(report, /已满足 历史写入可追踪: 已记录 1 条历史写入。/)
+  assert.match(report, /调试口径:/)
+  assert.match(report, /模型请求: 发送给模型网关的 headers、payload、messages、tools。/)
+  assert.match(report, /历史写入: assistant 回复是否已经进入线程历史/)
+  assert.equal(coverage.issues.some((issue) => issue.includes('没有 assistant 历史写入')), false)
   assert.match(report, /模型调用:/)
+  assert.match(report, /工具详情: 1 \/ 1/)
   assert.match(report, /模型调用 1: 请求和响应完整/)
+  assert.match(report, /请求负载已存/)
+  assert.match(report, /响应正文已存/)
+  assert.match(report, /请求上下文: 消息 2条，角色 系统 1条\/13字，用户 1条\/5字，工具定义 1个 \(movscript_review_assets\)，工具选择 自动选择 \(auto\)，流式返回 否/)
+  assert.match(report, /轮次关联:/)
+  assert.match(report, /模型调用 1: 关联方式 相邻事件窗口，模型事件 2，工具调用 1，历史写入 1/)
+  assert.match(report, /事件: 请求 request_1，响应 response_1/)
+  assert.match(report, /工具: movscript_review_assets/)
+  assert.match(report, /历史: msg_1/)
+  assert.match(report, /工具调用:/)
+  assert.match(report, /已完成 movscript_review_assets/)
+  assert.match(report, /发现缺少主视觉覆盖。/)
+  assert.match(report, /字段: 发现=missing_hero_visual，产物 ID=artifact_einstein_risk，authorization=\[已脱敏\]/)
+  assert.match(report, /历史写入:/)
+  assert.match(report, /msg_1，来源 模型输出 \(model\)，28 字符/)
+  assert.match(report, /内容: reply api_key=\[已脱敏\]/)
+  assert.doesNotMatch(report, /report-secret/)
+  assert.doesNotMatch(report, /history-secret/)
+  assert.match(report, /上下文详情:/)
+  assert.match(report, /运行契约 1段\/180字/)
+  assert.match(report, /页面焦点 1段\/120字/)
+  assert.match(report, /runtime\.contract, focus\.project/)
   assert.match(report, /最近事件:/)
   assert.match(report, /2026\/05\/15 08:00:00 \(2026-05-15T00:00:00.000Z\)/)
   assert.match(report, /耗时 80ms/)
@@ -538,11 +871,81 @@ test('buildDebugReportText includes failed model call retry and error details', 
     }),
   ]
   const modelCalls = buildModelCallSummaries(events)
+  const attentionEvents = buildDebugAttentionEvents(events)
   const coverage = buildDebugCoverageSummary({ events, total: 3, hasMore: false, modelCalls })
-  const report = buildDebugReportText({ runId: 'run_failed', coverage, modelCalls, events })
+  const report = buildDebugReportText({
+    runId: 'run_failed',
+    run: {
+      status: 'failed',
+      role: 'planner',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      failedAt: '2026-05-15T00:00:03.000Z',
+      error: 'model failed permanently',
+      pendingApprovals: [],
+      pendingInputRequests: [],
+    },
+    coverage,
+    modelCalls,
+    events,
+  })
 
+  assert.equal(attentionEvents.length, 1)
+  assert.equal(attentionEvents[0]?.eventId, 'error_1')
+  assert.equal(attentionEvents[0]?.statusLabel, '失败')
+  assert.equal(attentionEvents[0]?.error, 'HTTP 429')
+  assert.match(report, /状态: 失败/)
+  assert.match(report, /角色: 规划器/)
+  assert.match(report, /错误: model failed permanently/)
   assert.match(report, /模型调用 1: 模型请求失败/)
   assert.match(report, /重试 1 次/)
   assert.match(report, /错误 HTTP 429/)
   assert.match(report, /模型 HTTP 调用失败/)
+  assert.match(report, /异常\/需关注事件:/)
+  assert.match(report, /模型调用 失败: 模型请求失败/)
+  assert.match(report, /错误: HTTP 429/)
+})
+
+test('buildDebugReportText includes pending approvals and input requests', () => {
+  const coverage = buildDebugCoverageSummary({ events: [], total: 0, hasMore: false, modelCalls: [] })
+  const report = buildDebugReportText({
+    runId: 'run_requires_action',
+    run: {
+      status: 'requires_action',
+      createdAt: '2026-05-15T00:00:00.000Z',
+      pendingApprovals: [{
+        id: 'approval_1',
+        runId: 'run_requires_action',
+        toolName: 'movscript_publish_assets',
+        reason: 'Publish reviewed asset metadata back to the project.',
+        risk: 'write',
+        permission: 'project.assets.write',
+        status: 'pending',
+        createdAt: '2026-05-15T00:00:00.000Z',
+        updatedAt: '2026-05-15T00:00:00.000Z',
+      }],
+      pendingInputRequests: [{
+        id: 'input_1',
+        runId: 'run_requires_action',
+        title: '确认素材范围',
+        question: '这次风险审计是否包含临时占位素材？',
+        inputType: 'choice',
+        choices: [
+          { id: 'include', label: '包含占位素材' },
+          { id: 'exclude', label: '不包含占位素材' },
+        ],
+        allowCustomAnswer: true,
+        status: 'pending',
+        createdAt: '2026-05-15T00:00:00.000Z',
+        updatedAt: '2026-05-15T00:00:00.000Z',
+      }],
+    },
+    coverage,
+    modelCalls: [],
+    events: [],
+  })
+
+  assert.match(report, /待处理:/)
+  assert.match(report, /待审批 movscript_publish_assets，风险 写入，权限 项目素材写入，原因 Publish reviewed asset metadata back to the project\./)
+  assert.match(report, /待输入 确认素材范围，类型 选择，问题 这次风险审计是否包含临时占位素材？/)
+  assert.match(report, /选项 包含占位素材, 不包含占位素材，允许自定义答案/)
 })

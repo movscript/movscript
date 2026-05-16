@@ -15,6 +15,7 @@ func (h *SemanticEntityHandler) ListAssetSlots(c *gin.Context) {
 		ProductionID:    parseID(c.Query("production_id")),
 		Status:          c.Query("status"),
 		OwnerType:       c.Query("owner_type"),
+		OwnerID:         parseID(c.Query("owner_id")),
 		IncludeInternal: c.Query("include_internal"),
 	})
 	if err != nil {

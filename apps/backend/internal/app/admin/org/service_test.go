@@ -59,6 +59,35 @@ func TestCreateCreatesTeamOrgWithOwnerAndRejectsDuplicateSlug(t *testing.T) {
 	}
 }
 
+func TestListFiltersByOrgID(t *testing.T) {
+	db := testutil.OpenSQLite(t, "adminorg-list-filter.db", &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{})
+	target := persistencemodel.Organization{Name: "Target Team", Slug: "target-team", Plan: "team", Status: "active", CreatedBy: 1}
+	other := persistencemodel.Organization{Name: "Other Team", Slug: "other-team", Plan: "team", Status: "active", CreatedBy: 2}
+	if err := db.Create(&target).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&other).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: target.ID, UserID: 1, Role: "owner"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&persistencemodel.OrganizationMember{OrgID: other.ID, UserID: 2, Role: "owner"}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := NewService(db).List(context.Background(), ListFilter{OrgID: &target.ID})
+	if err != nil {
+		t.Fatalf("List returned error: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 {
+		t.Fatalf("expected one filtered org, got total=%d items=%d", page.Total, len(page.Items))
+	}
+	if page.Items[0].ID != target.ID || page.Items[0].MemberCount != 1 {
+		t.Fatalf("unexpected filtered org: %#v", page.Items[0])
+	}
+}
+
 func TestAddMemberCreatesRejectsDuplicateAndRestoresSoftDeletedMember(t *testing.T) {
 	db := testutil.OpenSQLite(t, "adminorg.db", &persistencemodel.User{}, &persistencemodel.Organization{}, &persistencemodel.OrganizationMember{}, &persistencemodel.OrgInvitation{})
 	user := persistencemodel.User{Username: "member-user", SystemRole: "user"}

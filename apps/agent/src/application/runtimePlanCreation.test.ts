@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { defaultRunPolicy } from '../state/runPolicy.js'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentPlan, AgentRun, AgentThread, CreateRunInput } from '../state/types.js'
+import type { AgentPlan, AgentPlanSnapshot, AgentRun, AgentThread, CreateRunInput } from '../state/types.js'
 import {
   applyRuntimePlanCreationFlow,
+  applyRuntimePlanCreationRequest,
   applyRuntimePlanCreationRootRun,
   createRuntimePlanWithTasks,
   prepareRuntimePlanCreation,
@@ -261,6 +262,51 @@ test('applyRuntimePlanCreationFlow persists plan, records created tasks, then ap
   assert.equal(store.getTask('task_1')?.ownerRunId, 'run_root')
 })
 
+test('applyRuntimePlanCreationRequest resolves tasks, persists plan, and returns the snapshot', async () => {
+  const store = new InMemoryAgentStore()
+  const thread = makeThread()
+  store.createThread(thread)
+  const calls: string[] = []
+
+  const snapshot = await applyRuntimePlanCreationRequest({
+    store,
+    planId: 'plan_1',
+    planInput: { threadId: thread.id, goal: 'Launch the agent workstream' },
+    now: '2026-01-01T00:00:01.000Z',
+    generatePlanTasks: async (input) => {
+      calls.push(`generate:${input.goal}`)
+      return {
+        tasks: [{ id: 'task_generated', title: 'Generated task' }],
+        source: 'model',
+        warnings: [],
+      }
+    },
+    createRun: (runInput) => {
+      calls.push(`run:${runInput.planId}:${runInput.taskId}`)
+      const run = makeRunFromInput(runInput, { id: 'run_root' })
+      store.createRun(run)
+      return run
+    },
+    getPlanSnapshot: (planId) => {
+      calls.push(`snapshot:${planId}`)
+      return makeSnapshot(store, planId)
+    },
+    onTaskCreated: (task) => calls.push(`created:${task.id}`),
+    onInlineTaskAssigned: (task, previousTask) => calls.push(`assigned:${previousTask.status}->${task.status}:${task.ownerRunId}`),
+  })
+
+  assert.equal(snapshot.plan.id, 'plan_1')
+  assert.deepEqual(calls, [
+    'generate:Launch the agent workstream',
+    'created:task_generated',
+    'run:plan_1:task_generated',
+    'assigned:pending->running:run_root',
+    'snapshot:plan_1',
+  ])
+  assert.equal(store.getPlan('plan_1')?.rootRunId, 'run_root')
+  assert.equal(store.getTask('task_generated')?.ownerRunId, 'run_root')
+})
+
 function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {
   return {
     id: 'thread_1',
@@ -299,5 +345,15 @@ function makeRunFromInput(input: CreateRunInput, overrides: Partial<AgentRun> = 
     updatedAt: '2026-01-01T00:00:01.000Z',
     steps: [],
     ...overrides,
+  }
+}
+
+function makeSnapshot(store: InMemoryAgentStore, planId: string): AgentPlanSnapshot {
+  const plan = store.getPlan(planId)
+  assert.ok(plan)
+  return {
+    plan,
+    tasks: store.listTasks(planId),
+    runs: store.listRuns({ planId }),
   }
 }

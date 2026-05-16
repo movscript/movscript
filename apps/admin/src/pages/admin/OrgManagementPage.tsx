@@ -1,6 +1,6 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { BarChart3, Building2, Edit3, PlusCircle, RefreshCcw, RefreshCw, ScrollText, Search, Trash2, UserPlus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, Input, Label } from '@movscript/ui'
@@ -8,17 +8,18 @@ import { ActiveUserSelect } from '@/components/admin/ActiveUserSelect'
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
 import { auditLogsHref, usageLogsHref } from '@/lib/adminLogQueryParams'
+import {
+  emptyOrgListFilters,
+  orgFiltersFromSearchParams,
+  orgPageFromSearchParams,
+  orgSearchParams,
+  type OrgListFilters,
+} from '@/lib/adminOrgQueryParams'
+import { userListHref } from '@/lib/adminUserQueryParams'
 import { cn } from '@/lib/utils'
 import type { OrgInvitation, Organization, OrganizationMember, PaginatedResponse } from '@/types'
 
 const PAGE_SIZE = 50
-
-type OrgFilters = {
-  query: string
-  plan: string
-  status: string
-  isPersonal: string
-}
 
 interface AdminOrgDetail {
   org: Organization
@@ -47,13 +48,6 @@ interface AdminOrgDetail {
   }
 }
 
-const emptyFilters: OrgFilters = {
-  query: '',
-  plan: '',
-  status: '',
-  isPersonal: '',
-}
-
 function formatDate(value: string, locale: string): string {
   if (!value) return '-'
   const date = new Date(value)
@@ -78,8 +72,9 @@ function formatCredits(value: number | undefined): string {
 export function OrgManagementPage() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
-  const [page, setPage] = useState(1)
-  const [filters, setFilters] = useState<OrgFilters>(emptyFilters)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [page, setPage] = useState(() => orgPageFromSearchParams(searchParams))
+  const [filters, setFilters] = useState<OrgListFilters>(() => orgFiltersFromSearchParams(searchParams))
   const [error, setError] = useState('')
   const [memberDialog, setMemberDialog] = useState<Organization | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -97,6 +92,7 @@ export function OrgManagementPage() {
     page,
     page_size: PAGE_SIZE,
     q: filters.query.trim() || undefined,
+    org_id: filters.orgId.trim() || undefined,
     plan: filters.plan || undefined,
     status: filters.status || undefined,
     is_personal: filters.isPersonal || undefined,
@@ -219,14 +215,23 @@ export function OrgManagementPage() {
   const hasFilters = Object.values(filters).some((value) => value.trim() !== '')
   const queryError = orgsQuery.error
 
-  function updateFilter<K extends keyof OrgFilters>(key: K, value: OrgFilters[K]) {
-    setFilters((current) => ({ ...current, [key]: value }))
+  function updateFilter<K extends keyof OrgListFilters>(key: K, value: OrgListFilters[K]) {
+    const next = { ...filters, [key]: value }
+    setFilters(next)
     setPage(1)
+    setSearchParams(orgSearchParams(next, 1), { replace: true })
   }
 
   function clearFilters() {
-    setFilters(emptyFilters)
+    setFilters(emptyOrgListFilters)
     setPage(1)
+    setSearchParams({}, { replace: true })
+  }
+
+  function updatePage(nextPage: number) {
+    const normalized = Math.max(1, Math.min(pageCount, nextPage))
+    setPage(normalized)
+    setSearchParams(orgSearchParams(filters, normalized), { replace: true })
   }
 
   function patchOrg(org: Organization, patch: Partial<Pick<Organization, 'name' | 'plan' | 'status'>>) {
@@ -276,6 +281,15 @@ export function OrgManagementPage() {
     }
   }
 
+  useEffect(() => {
+    setFilters(orgFiltersFromSearchParams(searchParams))
+    setPage(orgPageFromSearchParams(searchParams))
+  }, [searchParams])
+
+  useEffect(() => {
+    if (page > pageCount) updatePage(pageCount)
+  }, [page, pageCount])
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -301,8 +315,9 @@ export function OrgManagementPage() {
       </div>
 
       <div className="rounded-lg border border-border bg-card p-3">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px_160px_160px_auto]">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_130px_150px_150px_150px_auto]">
           <FilterField label={t('admin.orgs.search')} value={filters.query} onChange={(value) => updateFilter('query', value)} placeholder={t('admin.orgs.searchPlaceholder')} />
+          <FilterField label={t('admin.orgs.orgId')} value={filters.orgId} onChange={(value) => updateFilter('orgId', value)} placeholder={t('admin.orgs.orgIdPlaceholder')} />
           <SelectField label={t('admin.orgs.plan')} value={filters.plan} onChange={(value) => updateFilter('plan', value)}>
             <option value="">{t('admin.orgs.allPlans')}</option>
             <option value="personal">{t('admin.orgs.plans.personal')}</option>
@@ -440,10 +455,10 @@ export function OrgManagementPage() {
 
       <div className="flex items-center justify-end gap-3">
         <span className="text-xs text-muted-foreground">{t('admin.orgs.pageStatus', { page, pageCount })}</span>
-        <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+        <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => updatePage(page - 1)}>
           {t('admin.orgs.previousPage')}
         </Button>
-        <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>
+        <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => updatePage(page + 1)}>
           {t('admin.orgs.nextPage')}
         </Button>
       </div>
@@ -601,8 +616,12 @@ export function OrgManagementPage() {
                     {(membersQuery.data ?? []).map((member) => (
                       <tr key={member.ID}>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-foreground">{member.user?.display_name || member.user?.username || `#${member.user_id}`}</div>
-                          <div className="font-mono text-xs text-muted-foreground">#{member.user_id}{member.user?.primary_email ? ` · ${member.user.primary_email}` : ''}</div>
+                          <Link to={userListHref({ userId: member.user_id })} className="block font-medium text-foreground underline-offset-2 hover:underline">
+                            {member.user?.display_name || member.user?.username || `#${member.user_id}`}
+                          </Link>
+                          <Link to={userListHref({ userId: member.user_id })} className="block font-mono text-xs text-muted-foreground underline-offset-2 hover:underline">
+                            #{member.user_id}{member.user?.primary_email ? ` · ${member.user.primary_email}` : ''}
+                          </Link>
                         </td>
                         <td className="px-4 py-3">
                           <select
@@ -739,7 +758,12 @@ export function OrgManagementPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate font-medium text-foreground">{project.name}</div>
-                          <div className="mt-0.5 font-mono text-xs text-muted-foreground">#{project.ID} · {t('admin.orgs.owner')}: #{project.owner_id}</div>
+                          <div className="mt-0.5 font-mono text-xs text-muted-foreground">
+                            #{project.ID} · {t('admin.orgs.owner')}:{' '}
+                            <Link to={userListHref({ userId: project.owner_id })} className="underline-offset-2 hover:text-foreground hover:underline">
+                              #{project.owner_id}
+                            </Link>
+                          </div>
                         </div>
                         <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{project.status || '-'}</span>
                       </div>

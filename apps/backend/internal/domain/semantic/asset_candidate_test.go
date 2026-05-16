@@ -56,7 +56,6 @@ func TestNormalizeAssetSlotCandidateKeepsDecisionStatuses(t *testing.T) {
 }
 
 func TestModelAssetCandidateAdaptersKeepBehavior(t *testing.T) {
-	resourceID := uint(42)
 	candidateSlotID := uint(9)
 	slot := model.AssetSlot{Status: AssetSlotStatusMissing}
 	MarkAssetSlotCandidate(&slot)
@@ -66,25 +65,12 @@ func TestModelAssetCandidateAdaptersKeepBehavior(t *testing.T) {
 
 	candidate := model.AssetSlotCandidate{
 		CandidateAssetSlotID: candidateSlotID,
-		CandidateAssetSlot:   &model.AssetSlot{ResourceID: &resourceID},
 	}
 	MarkAssetSlotLockedToCandidate(&slot, candidate)
-	if slot.LockedAssetSlotID == nil || *slot.LockedAssetSlotID != candidateSlotID || slot.ResourceID == nil || *slot.ResourceID != resourceID {
+	if slot.LockedAssetSlotID == nil || *slot.LockedAssetSlotID != candidateSlotID {
 		t.Fatalf("unexpected locked model slot: %+v", slot)
 	}
-}
-
-func TestModelAssetCandidateAdaptersPreserveAssociations(t *testing.T) {
-	resourceID := uint(42)
-	slot := model.AssetSlot{Resource: &model.RawResource{FilePath: "/tmp/a.png"}}
-	candidate := model.AssetSlotCandidate{
-		CandidateAssetSlotID: 9,
-		CandidateAssetSlot:   &model.AssetSlot{ResourceID: &resourceID},
-	}
-
-	MarkAssetSlotLockedToCandidate(&slot, candidate)
-
-	if slot.Resource == nil || slot.Resource.FilePath != "/tmp/a.png" {
-		t.Fatalf("resource association was not preserved: %+v", slot)
+	if slot.ResourceID != nil {
+		t.Fatalf("model adapter should not infer candidate resource without an explicit resource id: %+v", slot)
 	}
 }

@@ -160,6 +160,7 @@ func assertCanvasRelationMissing(t *testing.T, db *gorm.DB, sourceType string, s
 	var count int64
 	if err := db.Model(&persistencemodel.EntityRelation{}).
 		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ?", sourceType, sourceID, targetType, targetID, relationType).
+		Where("valid_to IS NULL").
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relation: %v", err)
 	}
@@ -173,6 +174,7 @@ func assertCanvasRelationStatus(t *testing.T, db *gorm.DB, sourceType string, so
 	var relation persistencemodel.EntityRelation
 	if err := db.
 		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ?", sourceType, sourceID, targetType, targetID, relationType).
+		Where("valid_to IS NULL").
 		First(&relation).Error; err != nil {
 		t.Fatalf("load relation: %v", err)
 	}
@@ -186,6 +188,7 @@ func assertCanvasRelationExists(t *testing.T, db *gorm.DB, sourceType string, so
 	var count int64
 	if err := db.Model(&persistencemodel.EntityRelation{}).
 		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ? AND type = ?", sourceType, sourceID, targetType, targetID, relationType).
+		Where("valid_to IS NULL").
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relation: %v", err)
 	}

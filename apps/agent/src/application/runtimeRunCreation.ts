@@ -147,3 +147,83 @@ export function applyRuntimeRunCreation(input: {
     thread: input.thread,
   }
 }
+
+export function applyRuntimeCreateRunRequest(input: {
+  runInput: CreateRunInput
+  thread: AgentThread
+  clientInput?: NormalizedClientInput
+  catalogSnapshot: AgentRuntimeCatalogSnapshot
+  contractResolver: AgentRuntimeContractResolver
+  runId: string
+  now: string
+  rememberCatalogRun: (runId: string, catalogSnapshot: AgentRuntimeCatalogSnapshot) => void
+  rememberRunAuth: (runId: string, runInput: CreateRunInput) => void
+  createRun: (run: AgentRun) => void
+  updateThread: (thread: AgentThread) => void
+  startRunExecution: (runId: string) => void
+}): AgentRun {
+  const run = buildRuntimeCreateRun({
+    runInput: input.runInput,
+    thread: input.thread,
+    ...(input.clientInput ? { clientInput: input.clientInput } : {}),
+    catalogSnapshot: input.catalogSnapshot,
+    contractResolver: input.contractResolver,
+    runId: input.runId,
+    now: input.now,
+  })
+  applyRuntimeRunCreation({
+    run,
+    thread: input.thread,
+    catalogSnapshot: input.catalogSnapshot,
+    runInput: input.runInput,
+    now: input.now,
+    rememberCatalogRun: input.rememberCatalogRun,
+    rememberRunAuth: input.rememberRunAuth,
+    createRun: input.createRun,
+    updateThread: input.updateThread,
+    startRunExecution: input.startRunExecution,
+  })
+  return run
+}
+
+export function applyRuntimeCreateToolRunRequest(input: {
+  runInput: CreateToolRunInput
+  thread: AgentThread
+  userMessage: AgentMessage
+  toolCall: ToolCall
+  clientInput?: NormalizedClientInput
+  catalogSnapshot: AgentRuntimeCatalogSnapshot
+  contractResolver: AgentRuntimeContractResolver
+  runId: string
+  now: string
+  rememberCatalogRun: (runId: string, catalogSnapshot: AgentRuntimeCatalogSnapshot) => void
+  rememberRunAuth: (runId: string, runInput: CreateToolRunInput) => void
+  createRun: (run: AgentRun) => void
+  updateThread: (thread: AgentThread) => void
+  startRunExecution: (runId: string) => void
+}): AgentRun {
+  const run = buildRuntimeCreateToolRun({
+    runInput: input.runInput,
+    thread: input.thread,
+    userMessage: input.userMessage,
+    toolCall: input.toolCall,
+    ...(input.clientInput ? { clientInput: input.clientInput } : {}),
+    catalogSnapshot: input.catalogSnapshot,
+    contractResolver: input.contractResolver,
+    runId: input.runId,
+    now: input.now,
+  })
+  applyRuntimeRunCreation({
+    run,
+    thread: input.thread,
+    catalogSnapshot: input.catalogSnapshot,
+    runInput: input.runInput,
+    now: input.now,
+    rememberCatalogRun: input.rememberCatalogRun,
+    rememberRunAuth: input.rememberRunAuth,
+    createRun: input.createRun,
+    updateThread: input.updateThread,
+    startRunExecution: input.startRunExecution,
+  })
+  return run
+}

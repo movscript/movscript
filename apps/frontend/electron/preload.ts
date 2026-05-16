@@ -13,7 +13,10 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('backend:status', listener)
   },
   getBackendStatus: () => ipcRenderer.invoke('backend:get-status'),
+  openAdminConsole: (input?: { baseURL?: string; path?: string }) => ipcRenderer.invoke('app:open-admin-console', input),
   ensureAgentRuntime: (input?: { baseURL?: string }) => ipcRenderer.invoke('agent:ensure-running', input),
+  clipVideo: (input: unknown) => ipcRenderer.invoke('video:clip', input),
+  getVideoClipStatus: () => ipcRenderer.invoke('video:clip-status'),
   onMCPOpenRoute: (handler: (route: string) => void) => {
     const listener = (_event: unknown, route: string) => handler(route)
     ipcRenderer.on('mcp:open-route', listener)

@@ -13,6 +13,7 @@ export interface AgentTraceView {
   promptDetail?: AgentTracePromptDetail
   modelDetail?: AgentTraceModelDetail
   messageDetail?: AgentTraceMessageDetail
+  toolDetail?: AgentTraceToolDetail
 }
 
 export interface AgentTraceContextGroup {
@@ -33,12 +34,16 @@ export interface AgentTraceModelDetail {
     toolChoice?: string
     toolChoiceLabel?: string
     stream?: string
+    headers: Array<{ name: string; value: string }>
+    payload?: unknown
   }
+  messageGroups: AgentTraceModelMessageGroup[]
   messages: AgentTraceModelMessageDetail[]
   tools: AgentTraceModelToolDetail[]
   response?: {
     status?: string
     contentType?: string
+    headers: Array<{ name: string; value: string }>
     content?: string
     bodyText?: string
     parsedId?: string
@@ -61,6 +66,14 @@ export interface AgentTraceModelMessageDetail {
   contentChars: number
 }
 
+export interface AgentTraceModelMessageGroup {
+  role: string
+  roleLabel: string
+  count: number
+  contentChars: number
+  messages: AgentTraceModelMessageDetail[]
+}
+
 export interface AgentTraceModelToolDetail {
   index: number
   name: string
@@ -77,6 +90,24 @@ export interface AgentTraceMessageDetail {
   contentChars: number
 }
 
+export interface AgentTraceToolDetail {
+  title: string
+  toolName?: string
+  status: string
+  statusLabel: string
+  source?: string
+  sandboxed?: string
+  duration?: string
+  summary?: string
+  fields: AgentTraceToolField[]
+}
+
+export interface AgentTraceToolField {
+  label: string
+  value: string
+  sensitive?: boolean
+}
+
 export interface AgentTracePromptDetail {
   title: string
   totalChars?: string
@@ -87,6 +118,7 @@ export interface AgentTracePromptDetail {
   tools: string[]
   layers: AgentTracePromptMetric[]
   contextLayers: AgentTracePromptMetric[]
+  partGroups: AgentTracePromptPartGroup[]
   parts: AgentTracePromptPart[]
 }
 
@@ -102,9 +134,20 @@ export interface AgentTracePromptPart {
   chars?: string
 }
 
+export interface AgentTracePromptPartGroup {
+  contextLayer: string
+  count: number
+  chars: string
+  parts: AgentTracePromptPart[]
+}
+
 export interface AgentModelCallSummary {
   id: string
   label: string
+  roundId?: string
+  roundIndex?: number
+  roundLabel?: string
+  eventIds: string[]
   status: 'complete' | 'request_only' | 'response_only' | 'result_only' | 'failed'
   statusLabel: string
   requestEventId?: string
@@ -121,6 +164,31 @@ export interface AgentModelCallSummary {
   retryCount?: string
   error?: string
   issue?: string
+  hasRequestPayload: boolean
+  hasResponseBody: boolean
+}
+
+export interface AgentModelCallDebugContext {
+  call: AgentModelCallSummary
+  modelEvents: AgentTraceEvent[]
+  messageWrites: AgentTraceEvent[]
+  toolCalls: AgentTraceEvent[]
+  correlationLabel: string
+  issue?: string
+}
+
+export interface AgentDebugAttentionEvent {
+  eventId: string
+  createdAt: string
+  kind: AgentTraceEvent['kind']
+  kindLabel: string
+  status: AgentTraceEvent['status']
+  statusLabel: string
+  title: string
+  summary?: string
+  behavior?: string
+  impact?: string
+  error?: string
 }
 
 export interface AgentDebugCoverageSummary {
@@ -129,17 +197,57 @@ export interface AgentDebugCoverageSummary {
   modelCallsLabel: string
   promptDetailsLabel: string
   messageWritesLabel: string
+  toolDetailsLabel: string
   httpResponsesLabel: string
+  requestPayloadsLabel: string
   httpResponseBodiesLabel: string
   issues: string[]
 }
 
+export interface AgentDebugReadinessItem {
+  id: string
+  label: string
+  status: 'ok' | 'warning'
+  detail: string
+  action: string
+}
+
+export interface AgentDebugFieldGuideItem {
+  id: string
+  label: string
+  description: string
+}
+
 export interface AgentDebugReportInput {
   runId: string
+  run?: Pick<AgentRun, 'status' | 'role' | 'createdAt' | 'startedAt' | 'completedAt' | 'failedAt' | 'cancelledAt' | 'error' | 'warnings' | 'pendingApprovals' | 'pendingInputRequests'>
   coverage: AgentDebugCoverageSummary
   modelCalls: AgentModelCallSummary[]
   events: AgentTraceEvent[]
 }
+
+export const AGENT_DEBUG_FIELD_GUIDE: AgentDebugFieldGuideItem[] = [
+  {
+    id: 'model_request',
+    label: '模型请求',
+    description: '发送给模型网关的 headers、payload、messages、tools。',
+  },
+  {
+    id: 'model_response',
+    label: '模型响应',
+    description: '网关返回的 headers、原始 body、解析后的 usage 和 finish reason。',
+  },
+  {
+    id: 'history_write',
+    label: '历史写入',
+    description: 'assistant 回复是否已经进入线程历史，后续 run 可能会再次带入上下文。',
+  },
+  {
+    id: 'missing_data',
+    label: '缺失项',
+    description: '优先加载全部事件；如果仍缺失，通常是旧运行、异常中断或当时未采集。',
+  },
+]
 
 export function traceEventIdFromHash(hash: string | undefined): string | undefined {
   if (!hash?.startsWith('#event-')) return undefined
@@ -380,6 +488,7 @@ export function agentTraceView(event: AgentTraceEvent): AgentTraceView {
     promptDetail: tracePromptDetail(event, data),
     modelDetail: traceModelDetail(event, data),
     messageDetail: traceMessageDetail(event, data),
+    toolDetail: traceToolDetail(event, data),
   }
 }
 
@@ -391,16 +500,24 @@ export function buildDebugCoverageSummary(input: {
 }): AgentDebugCoverageSummary {
   const promptDetails = input.events.filter((event) => !!agentTraceView(event).promptDetail).length
   const messageWrites = input.events.filter((event) => !!agentTraceView(event).messageDetail).length
+  const toolCalls = input.events.filter((event) => event.kind === 'tool_call').length
+  const toolDetails = input.events.filter((event) => !!agentTraceView(event).toolDetail).length
   const httpResponses = input.modelCalls.filter((call) => call.responseEventId).length
+  const requestPayloads = input.modelCalls.filter((call) => call.hasRequestPayload).length
   const httpResponseBodies = input.events.filter((event) => !!agentTraceView(event).modelDetail?.response?.bodyText).length
+  const modelCallsWithoutRequestPayload = input.modelCalls.filter((call) => !call.hasRequestPayload && call.status !== 'result_only').length
   const httpResponsesWithoutBody = Math.max(0, httpResponses - httpResponseBodies)
   const incompleteModelCalls = input.modelCalls.filter((call) => call.status !== 'complete')
+  const modelCallsWithReply = input.modelCalls.filter((call) => Number(call.responseChars ?? 0) > 0)
   const hasUnloadedTrace = input.hasMore || (typeof input.total === 'number' && input.events.length < input.total)
   const issues = [
     hasUnloadedTrace ? '还有未加载运行事件，当前统计只覆盖已加载事件。' : undefined,
     incompleteModelCalls.length > 0 ? `${incompleteModelCalls.length} 次模型调用缺少请求或响应事件；请先加载全部事件，如果仍缺失，多半是旧运行或异常中断时没有采集到完整 HTTP 详情。` : undefined,
+    modelCallsWithoutRequestPayload > 0 ? `${modelCallsWithoutRequestPayload} 次模型调用没有请求负载；无法展开当时发送给模型的完整 messages/tools/body。` : undefined,
     httpResponsesWithoutBody > 0 ? `${httpResponsesWithoutBody} 次模型 HTTP 响应没有原始响应正文；可以看到状态和解析结果，但无法展开完整回复 body。` : undefined,
     input.events.length > 0 && promptDetails === 0 ? '当前已加载事件里没有模型上下文详情；可能是旧运行未记录上下文组成，或这批分页还没有加载到上下文组装事件（Prompt composed）。' : undefined,
+    modelCallsWithReply.length > 0 && messageWrites === 0 ? `${modelCallsWithReply.length} 次模型调用有回复内容，但当前已加载事件里没有 assistant 历史写入；请检查最终回复是否保存到线程历史，或加载全部事件。` : undefined,
+    toolCalls > 0 && toolDetails < toolCalls ? `${toolCalls - toolDetails} 次工具调用没有结构化详情；只能查看原始事件数据。` : undefined,
   ].filter((issue): issue is string => !!issue)
   return {
     loadedLabel: typeof input.total === 'number' ? `${input.events.length} / ${input.total}` : `${input.events.length}`,
@@ -408,32 +525,208 @@ export function buildDebugCoverageSummary(input: {
     modelCallsLabel: `${input.modelCalls.length}`,
     promptDetailsLabel: `${promptDetails}`,
     messageWritesLabel: `${messageWrites}`,
+    toolDetailsLabel: `${toolDetails} / ${toolCalls}`,
     httpResponsesLabel: `${httpResponses}`,
+    requestPayloadsLabel: `${requestPayloads}`,
     httpResponseBodiesLabel: `${httpResponseBodies}`,
     issues,
   }
 }
 
+export function buildDebugReadinessChecklist(summary: AgentDebugCoverageSummary): AgentDebugReadinessItem[] {
+  const modelCalls = firstNumber(summary.modelCallsLabel)
+  const promptDetails = firstNumber(summary.promptDetailsLabel)
+  const messageWrites = firstNumber(summary.messageWritesLabel)
+  const requestPayloads = firstNumber(summary.requestPayloadsLabel)
+  const httpResponses = firstNumber(summary.httpResponsesLabel)
+  const httpResponseBodies = firstNumber(summary.httpResponseBodiesLabel)
+  const [toolDetails, toolCalls] = slashNumbers(summary.toolDetailsLabel)
+  const items: AgentDebugReadinessItem[] = [
+    {
+      id: 'trace_loaded',
+      label: '事件完整性',
+      status: summary.hasUnloadedTrace ? 'warning' : 'ok',
+      detail: summary.hasUnloadedTrace ? `当前只加载 ${summary.loadedLabel}，请先加载全部事件。` : `已加载 ${summary.loadedLabel}。`,
+      action: summary.hasUnloadedTrace ? '点击“加载全部事件”，再重新复制摘要或调试包。' : '可以基于当前事件继续判断。',
+    },
+    {
+      id: 'context_detail',
+      label: '上下文可解释',
+      status: promptDetails > 0 ? 'ok' : 'warning',
+      detail: promptDetails > 0 ? `已记录 ${promptDetails} 条模型上下文详情。` : '没有模型上下文详情，难以判断 agent 当时看到了什么。',
+      action: promptDetails > 0 ? '展开“上下文详情”查看来源层级和片段。' : '先加载全部事件；如果仍缺失，按旧运行或采集缺口处理。',
+    },
+    {
+      id: 'model_http',
+      label: '模型 HTTP 链路',
+      status: modelCalls === 0 || httpResponses >= modelCalls ? 'ok' : 'warning',
+      detail: modelCalls === 0 ? '当前没有模型调用。' : `模型调用 ${modelCalls} 次，HTTP 响应 ${httpResponses} 次。`,
+      action: modelCalls === 0 ? '无需检查模型 HTTP。' : httpResponses >= modelCalls ? '展开“大模型调用总览”核对请求、响应和结果。' : '先加载全部事件；如果仍缺响应，检查失败、取消或重试事件。',
+    },
+    {
+      id: 'request_payload',
+      label: '请求负载可展开',
+      status: modelCalls === 0 || requestPayloads >= modelCalls ? 'ok' : 'warning',
+      detail: modelCalls === 0 ? '当前没有模型请求负载。' : `已保存 ${requestPayloads} / ${modelCalls} 个请求负载。`,
+      action: modelCalls === 0 ? '无需检查请求负载。' : requestPayloads >= modelCalls ? '展开“完整请求负载”和“请求消息”核对发送给模型的上下文。' : '定位缺失轮次；旧运行可能无法补齐，只能重新运行采集。',
+    },
+    {
+      id: 'response_body',
+      label: '响应正文可展开',
+      status: httpResponses === 0 || httpResponseBodies >= httpResponses ? 'ok' : 'warning',
+      detail: httpResponses === 0 ? '当前没有 HTTP 响应。' : `已保存 ${httpResponseBodies} / ${httpResponses} 个响应正文。`,
+      action: httpResponses === 0 ? '无需检查响应正文。' : httpResponseBodies >= httpResponses ? '展开“HTTP 响应”核对原始 body 和模型结果。' : '定位缺失响应正文；流式或旧采集数据只能用模型结果和历史写入交叉验证。',
+    },
+    {
+      id: 'history_write',
+      label: '历史写入可追踪',
+      status: modelCalls === 0 || messageWrites > 0 ? 'ok' : 'warning',
+      detail: messageWrites > 0 ? `已记录 ${messageWrites} 条历史写入。` : '没有 assistant 历史写入，需确认模型回复是否进入线程历史。',
+      action: messageWrites > 0 ? '在同轮详情里对照模型回复和 assistant 历史写入。' : '检查模型是否只产出工具调用、是否失败，或最终回复是否未写入线程。',
+    },
+    {
+      id: 'tool_detail',
+      label: '工具结果可解释',
+      status: toolCalls === 0 || toolDetails >= toolCalls ? 'ok' : 'warning',
+      detail: toolCalls === 0 ? '当前没有工具调用。' : `结构化工具详情 ${toolDetails} / ${toolCalls}。`,
+      action: toolCalls === 0 ? '无需检查工具详情。' : toolDetails >= toolCalls ? '展开工具详情查看输入、结果、耗时和沙箱信息。' : '用原始事件数据兜底；必要时补充工具结果结构化采集。',
+    },
+  ]
+  return items
+}
+
 export function buildDebugReportText(input: AgentDebugReportInput): string {
+  const runEndedAt = input.run?.completedAt ?? input.run?.failedAt ?? input.run?.cancelledAt
+  const runDuration = formatReportDuration(input.run?.startedAt ?? input.run?.createdAt, runEndedAt)
   const lines = [
     'AgentRun 调试摘要',
     `运行: ${input.runId}`,
+    ...(input.run ? [
+      `状态: ${runStatusLabel(input.run.status)}`,
+      `角色: ${runRoleLabel(input.run.role)}`,
+      `创建: ${formatReportTimestamp(input.run.createdAt)}`,
+      input.run.startedAt ? `开始: ${formatReportTimestamp(input.run.startedAt)}` : undefined,
+      runEndedAt ? `结束: ${formatReportTimestamp(runEndedAt)}` : undefined,
+      runDuration ? `耗时: ${runDuration}` : undefined,
+      input.run.error ? `错误: ${input.run.error}` : undefined,
+      input.run.warnings && input.run.warnings.length > 0 ? `警告: ${input.run.warnings.join('；')}` : undefined,
+    ].filter((line): line is string => !!line) : []),
     `事件: ${input.coverage.loadedLabel}`,
     `模型调用: ${input.coverage.modelCallsLabel}`,
     `HTTP 响应: ${input.coverage.httpResponsesLabel}`,
+    `请求负载: ${input.coverage.requestPayloadsLabel}`,
     `响应正文: ${input.coverage.httpResponseBodiesLabel}`,
     `上下文详情: ${input.coverage.promptDetailsLabel}`,
     `历史写入: ${input.coverage.messageWritesLabel}`,
+    `工具详情: ${input.coverage.toolDetailsLabel}`,
   ]
+  const readinessChecklist = buildDebugReadinessChecklist(input.coverage)
+  if (readinessChecklist.length > 0) {
+    lines.push('', '诊断清单:')
+    for (const item of readinessChecklist) {
+      lines.push(`- ${item.status === 'ok' ? '已满足' : '需补全'} ${item.label}: ${item.detail}`)
+      lines.push(`  - 下一步: ${item.action}`)
+    }
+  }
+  lines.push('', '调试口径:')
+  for (const item of AGENT_DEBUG_FIELD_GUIDE) {
+    lines.push(`- ${item.label}: ${item.description}`)
+  }
   if (input.coverage.issues.length > 0) {
     lines.push('', '需关注:')
     for (const issue of input.coverage.issues) lines.push(`- ${issue}`)
   }
+  const pendingActions = debugReportPendingActions(input.run)
+  if (pendingActions.length > 0) {
+    lines.push('', '待处理:')
+    for (const action of pendingActions) lines.push(`- ${action}`)
+  }
   if (input.modelCalls.length > 0) {
     lines.push('', '模型调用:')
     for (const call of input.modelCalls) {
-      lines.push(`- ${call.label}: ${call.statusLabel}${call.model ? `，模型 ${call.model}` : ''}${call.httpStatus ? `，HTTP ${call.httpStatus}` : ''}${call.latency ? `，${call.latency}` : ''}${call.retryCount ? `，重试 ${call.retryCount} 次` : ''}${call.error ? `，错误 ${call.error}` : ''}`)
+      const capture = [
+        call.hasRequestPayload ? '请求负载已存' : '请求负载缺失',
+        call.responseEventId ? (call.hasResponseBody ? '响应正文已存' : '响应正文缺失') : undefined,
+      ].filter(Boolean).join('，')
+      lines.push(`- ${call.label}: ${call.statusLabel}${call.model ? `，模型 ${call.model}` : ''}${call.httpStatus ? `，HTTP ${call.httpStatus}` : ''}${call.latency ? `，${call.latency}` : ''}${capture ? `，${capture}` : ''}${call.retryCount ? `，重试 ${call.retryCount} 次` : ''}${call.error ? `，错误 ${call.error}` : ''}`)
+      const requestContext = debugReportModelRequestContext(call, input.events)
+      if (requestContext) lines.push(`  - 请求上下文: ${requestContext}`)
       if (call.issue) lines.push(`  - ${call.issue}`)
+    }
+  }
+  const modelCallContexts = buildModelCallDebugContexts({ modelCalls: input.modelCalls, events: input.events })
+  if (modelCallContexts.length > 0) {
+    lines.push('', '轮次关联:')
+    for (const context of modelCallContexts) {
+      const call = context.call
+      lines.push(`- ${call.label}: 关联方式 ${context.correlationLabel}，模型事件 ${context.modelEvents.length}，工具调用 ${context.toolCalls.length}，历史写入 ${context.messageWrites.length}`)
+      const eventLinks = [
+        call.requestEventId ? `请求 ${call.requestEventId}` : undefined,
+        call.responseEventId ? `响应 ${call.responseEventId}` : undefined,
+        call.resultEventId ? `结果 ${call.resultEventId}` : undefined,
+      ].filter(Boolean).join('，')
+      if (eventLinks) lines.push(`  - 事件: ${eventLinks}`)
+      const toolPreview = context.toolCalls.slice(0, 4).map((event) => {
+        const detail = agentTraceView(event).toolDetail
+        return detail?.toolName ?? event.toolName ?? event.title
+      }).join('，')
+      if (toolPreview) lines.push(`  - 工具: ${toolPreview}${context.toolCalls.length > 4 ? `, +${context.toolCalls.length - 4}` : ''}`)
+      const historyPreview = context.messageWrites.slice(0, 3).map((event) => {
+        const detail = agentTraceView(event).messageDetail
+        return detail?.messageId ?? event.id
+      }).join('，')
+      if (historyPreview) lines.push(`  - 历史: ${historyPreview}${context.messageWrites.length > 3 ? `, +${context.messageWrites.length - 3}` : ''}`)
+      if (context.issue) lines.push(`  - ${context.issue}`)
+    }
+  }
+  const attentionEvents = buildDebugAttentionEvents(input.events)
+  if (attentionEvents.length > 0) {
+    lines.push('', '异常/需关注事件:')
+    for (const event of attentionEvents.slice(0, 8)) {
+      lines.push(`- ${formatReportTimestamp(event.createdAt)} ${event.kindLabel} ${event.statusLabel}: ${event.title}${event.summary ? ` - ${event.summary}` : ''}`)
+      if (event.behavior) lines.push(`  - 行为: ${event.behavior}`)
+      if (event.impact) lines.push(`  - 影响: ${event.impact}`)
+      if (event.error) lines.push(`  - 错误: ${event.error}`)
+    }
+  }
+  const promptDetails = input.events
+    .map((event) => ({ event, view: agentTraceView(event) }))
+    .filter((entry) => !!entry.view.promptDetail)
+    .slice(-3)
+  if (promptDetails.length > 0) {
+    lines.push('', '上下文详情:')
+    for (const { event, view } of promptDetails) {
+      const detail = view.promptDetail!
+      const groups = detail.partGroups.slice(0, 4).map((group) => `${group.contextLayer} ${group.count}段/${group.chars}字`).join('，')
+      const partIds = detail.parts.slice(0, 6).map((part) => part.id).join(', ')
+      lines.push(`- ${formatReportTimestamp(event.createdAt)}: ${detail.totalChars ?? '-'} 字符${detail.messageCount ? `，${detail.messageCount} 条消息` : ''}${groups ? `，来源 ${groups}` : ''}`)
+      if (partIds) lines.push(`  - 片段: ${partIds}${detail.parts.length > 6 ? `, +${detail.parts.length - 6}` : ''}`)
+    }
+  }
+  const toolDetails = input.events
+    .map((event) => ({ event, view: agentTraceView(event) }))
+    .filter((entry) => !!entry.view.toolDetail)
+    .slice(-5)
+  if (toolDetails.length > 0) {
+    lines.push('', '工具调用:')
+    for (const { event, view } of toolDetails) {
+      const detail = view.toolDetail!
+      const fieldPreview = detail.fields.slice(0, 4).map((field) => `${field.label}=${field.sensitive ? '[已脱敏]' : field.value}`).join('，')
+      lines.push(`- ${formatReportTimestamp(event.createdAt)}: ${detail.statusLabel}${detail.toolName ? ` ${detail.toolName}` : ''}${detail.duration ? `，耗时 ${detail.duration}` : ''}${detail.summary ? `，${detail.summary}` : ''}`)
+      if (fieldPreview) lines.push(`  - 字段: ${fieldPreview}${detail.fields.length > 4 ? `, +${detail.fields.length - 4}` : ''}`)
+    }
+  }
+  const messageWrites = input.events
+    .map((event) => ({ event, view: agentTraceView(event) }))
+    .filter((entry) => !!entry.view.messageDetail)
+    .slice(-5)
+  if (messageWrites.length > 0) {
+    lines.push('', '历史写入:')
+    for (const { event, view } of messageWrites) {
+      const detail = view.messageDetail!
+      const preview = reportPreviewText(detail.content)
+      lines.push(`- ${formatReportTimestamp(event.createdAt)}: ${detail.messageId ?? '-'}${detail.sourceLabel ? `，来源 ${detail.sourceLabel}` : ''}，${detail.contentChars} 字符`)
+      if (preview) lines.push(`  - 内容: ${preview}`)
     }
   }
   const latestEvents = input.events.slice(-5)
@@ -480,6 +773,113 @@ export function buildModelCallSummaries(events: AgentTraceEvent[]): AgentModelCa
   return groups.map((group, index) => modelCallSummaryFromGroup(group, index + 1))
 }
 
+export function buildModelCallDebugContext(input: {
+  call: AgentModelCallSummary
+  events: AgentTraceEvent[]
+}): AgentModelCallDebugContext {
+  const modelEvents = input.call.eventIds
+    .flatMap((eventId) => input.events.find((event) => event.id === eventId) ?? [])
+  const relatedEvents = input.events.filter((event) => {
+    if (event.kind !== 'assistant' && event.kind !== 'tool_call') return false
+    if (input.call.roundId && event.roundId === input.call.roundId) return true
+    if (input.call.roundIndex !== undefined && event.roundIndex === input.call.roundIndex) return true
+    return eventFallsInsideModelCallWindow(event, input.call, input.events)
+  })
+  const messageWrites = relatedEvents.filter((event) => event.kind === 'assistant')
+  const toolCalls = relatedEvents.filter((event) => event.kind === 'tool_call')
+  const correlationLabel = input.call.roundLabel
+    ?? (input.call.roundIndex !== undefined ? `第 ${input.call.roundIndex} 轮` : input.call.roundId ? `轮次 ${input.call.roundId}` : '相邻事件窗口')
+  const issue = input.call.responseChars && messageWrites.length === 0
+    ? '这次模型调用有回复内容，但没有找到同轮 assistant 历史写入。请加载全部事件，或检查回复是否只返回给调用方而未写入线程历史。'
+    : undefined
+  return {
+    call: input.call,
+    modelEvents,
+    messageWrites,
+    toolCalls,
+    correlationLabel,
+    issue,
+  }
+}
+
+export function buildModelCallDebugContexts(input: {
+  modelCalls: AgentModelCallSummary[]
+  events: AgentTraceEvent[]
+}): AgentModelCallDebugContext[] {
+  return input.modelCalls.map((call) => buildModelCallDebugContext({ call, events: input.events }))
+}
+
+export function buildDebugAttentionEvents(events: AgentTraceEvent[]): AgentDebugAttentionEvent[] {
+  return events
+    .filter((event) => event.status === 'failed' || event.status === 'blocked' || event.kind === 'error' || agentTraceView(event).category === 'attention')
+    .map((event) => {
+      const view = agentTraceView(event)
+      const data = recordValue(event.data)
+      return {
+        eventId: event.id,
+        createdAt: event.createdAt,
+        kind: event.kind,
+        kindLabel: traceKindLabel(event.kind),
+        status: event.status,
+        statusLabel: traceEventStatusLabel(event.status),
+        title: view.title,
+        ...(view.summary ? { summary: redactReportInlineSecrets(view.summary) } : {}),
+        ...(view.behavior ? { behavior: redactReportInlineSecrets(view.behavior) } : {}),
+        ...(view.impact ? { impact: redactReportInlineSecrets(view.impact) } : {}),
+        ...(stringValue(data?.error) ? { error: redactReportInlineSecrets(stringValue(data?.error)!) } : {}),
+      }
+    })
+}
+
+function debugReportPendingActions(run: AgentDebugReportInput['run']): string[] {
+  if (!run || run.status !== 'requires_action') return []
+  const approvals = (run.pendingApprovals ?? [])
+    .filter((approval) => approval.status === 'pending')
+    .map((approval) => {
+      const parts = [
+        `待审批 ${approval.toolName}`,
+        approval.risk ? `风险 ${approvalRiskLabel(approval.risk)}` : undefined,
+        approval.permission ? `权限 ${approvalPermissionLabel(approval.permission)}` : undefined,
+        approval.reason ? `原因 ${approval.reason}` : undefined,
+      ].filter(Boolean)
+      return parts.join('，')
+    })
+  const inputs = (run.pendingInputRequests ?? [])
+    .filter((request) => request.status === 'pending')
+    .map((request) => {
+      const choices = request.choices.length > 0 ? `选项 ${request.choices.map((choice) => choice.label).slice(0, 4).join(', ')}${request.choices.length > 4 ? `, +${request.choices.length - 4}` : ''}` : undefined
+      const parts = [
+        `待输入 ${request.title}`,
+        `类型 ${inputTypeLabel(request.inputType)}`,
+        request.question ? `问题 ${request.question}` : undefined,
+        choices,
+        request.allowCustomAnswer ? '允许自定义答案' : undefined,
+      ].filter(Boolean)
+      return parts.join('，')
+    })
+  return [...approvals, ...inputs]
+}
+
+function debugReportModelRequestContext(call: AgentModelCallSummary, events: AgentTraceEvent[]): string | undefined {
+  const event = events.find((entry) => entry.id === call.requestEventId)
+    ?? events.find((entry) => entry.id === call.responseEventId)
+    ?? events.find((entry) => entry.id === call.resultEventId)
+  const detail = event ? agentTraceView(event).modelDetail : undefined
+  if (!detail) return undefined
+  const messageGroups = detail.messageGroups
+    .map((group) => `${group.roleLabel} ${group.count}条/${group.contentChars}字`)
+    .join('，')
+  const tools = detail.tools.slice(0, 5).map((tool) => tool.name).join(', ')
+  const parts = [
+    detail.request?.messageCount ? `消息 ${detail.request.messageCount}条` : undefined,
+    messageGroups ? `角色 ${messageGroups}` : undefined,
+    detail.request?.toolCount ? `工具定义 ${detail.request.toolCount}个${tools ? ` (${tools}${detail.tools.length > 5 ? `, +${detail.tools.length - 5}` : ''})` : ''}` : undefined,
+    detail.request?.toolChoiceLabel ? `工具选择 ${detail.request.toolChoiceLabel}` : undefined,
+    detail.request?.stream ? `流式返回 ${detail.request.stream}` : undefined,
+  ].filter(Boolean)
+  return parts.length > 0 ? parts.join('，') : undefined
+}
+
 function traceCategory(event: AgentTraceEvent, eventType?: string, phase?: string): AgentTraceCategory {
   if (event.status === 'failed' || event.status === 'blocked' || event.kind === 'approval' || event.kind === 'input') return 'attention'
   if (eventType === 'context.ledger_updated' || eventType === 'context.item_deduped' || event.title.includes('Context ledger') || event.title.includes('deduped')) return 'impact'
@@ -521,6 +921,10 @@ function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number)
   return {
     id: group.id,
     label: source?.roundLabel ?? `模型调用 ${index}`,
+    ...(source?.roundId ? { roundId: source.roundId } : {}),
+    ...(source?.roundIndex !== undefined ? { roundIndex: source.roundIndex } : {}),
+    ...(source?.roundLabel ? { roundLabel: source.roundLabel } : {}),
+    eventIds: group.events.map((event) => event.id),
     status,
     statusLabel: modelCallStatusLabel(status),
     requestEventId: group.request?.id,
@@ -537,7 +941,25 @@ function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number)
     retryCount: group.retries.length > 0 ? String(group.retries.length) : undefined,
     error: stringValue(errorData?.error),
     issue: modelCallIssue(status),
+    hasRequestPayload: !!requestBody,
+    hasResponseBody: !!stringValue(response?.bodyText),
   }
+}
+
+function eventFallsInsideModelCallWindow(event: AgentTraceEvent, call: AgentModelCallSummary, events: AgentTraceEvent[]): boolean {
+  if (call.roundId || call.roundIndex !== undefined) return false
+  const startEvent = events.find((entry) => entry.id === call.requestEventId)
+    ?? events.find((entry) => entry.id === call.responseEventId)
+    ?? events.find((entry) => entry.id === call.resultEventId)
+  if (!startEvent) return false
+  const startTime = Date.parse(startEvent.createdAt)
+  const eventTime = Date.parse(event.createdAt)
+  if (!Number.isFinite(startTime) || !Number.isFinite(eventTime) || eventTime < startTime) return false
+  const nextModelStart = events
+    .filter((entry) => entry.kind === 'model_call' && entry.id !== startEvent.id && Date.parse(entry.createdAt) > startTime)
+    .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt))[0]
+  const endTime = nextModelStart ? Date.parse(nextModelStart.createdAt) : startTime + 10 * 60 * 1000
+  return eventTime < endTime
 }
 
 function modelCallStatusLabel(status: AgentModelCallSummary['status']): string {
@@ -587,8 +1009,29 @@ function tracePromptDetail(event: AgentTraceEvent, data: Record<string, unknown>
     tools,
     layers: byLayer,
     contextLayers: byContextLayer,
+    partGroups: promptPartGroups(parts),
     parts,
   }
+}
+
+function promptPartGroups(parts: AgentTracePromptPart[]): AgentTracePromptPartGroup[] {
+  const groups = new Map<string, { contextLayer: string; count: number; chars: number; parts: AgentTracePromptPart[] }>()
+  for (const part of parts) {
+    const key = part.contextLayer ?? '未分类'
+    const group = groups.get(key) ?? { contextLayer: key, count: 0, chars: 0, parts: [] }
+    group.count += 1
+    group.chars += Number(part.chars ?? 0) || 0
+    group.parts.push(part)
+    groups.set(key, group)
+  }
+  return Array.from(groups.values())
+    .sort((left, right) => right.chars - left.chars || left.contextLayer.localeCompare(right.contextLayer))
+    .map((group) => ({
+      contextLayer: group.contextLayer,
+      count: group.count,
+      chars: String(group.chars),
+      parts: group.parts,
+    }))
 }
 
 function metricEntries(record: Record<string, unknown> | undefined, labeler: (value: string | undefined) => string | undefined): AgentTracePromptMetric[] {
@@ -841,6 +1284,7 @@ function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> 
       contentChars: content?.length ?? 0,
     }
   }) ?? []
+  const messageGroups = modelMessageGroups(messages)
   const tools = arrayValue(body?.tools)?.map((tool, index) => {
     const record = recordValue(tool)
     const fn = recordValue(record?.function)
@@ -856,6 +1300,7 @@ function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> 
   const parsedBody = recordValue(response?.parsedBody)
   const usage = recordValue(data.usage)
   const resultToolCalls = arrayValue(data.tool_calls)
+  const headers = headerEntries(recordValue(request?.headers))
   const requestDetail = request ? {
     method: stringValue(request.method),
     url: stringValue(request.url),
@@ -865,10 +1310,13 @@ function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> 
     toolChoice: stringValue(body?.tool_choice),
     toolChoiceLabel: modelToolChoiceLabel(stringValue(body?.tool_choice)),
     stream: booleanLabel(body?.stream),
+    headers,
+    ...(body ? { payload: body } : {}),
   } : undefined
   const responseDetail = response ? {
     status: numberValue(response.status) !== undefined ? String(numberValue(response.status)) : undefined,
     contentType: stringValue(recordValue(response.headers)?.['content-type']),
+    headers: headerEntries(recordValue(response.headers)),
     content: stringValue(response.content),
     bodyText: stringValue(response.bodyText),
     parsedId: stringValue(parsedBody?.id),
@@ -888,6 +1336,7 @@ function traceModelDetail(event: AgentTraceEvent, data: Record<string, unknown> 
     title: kind === 'http' ? '大模型 HTTP 详情' : kind === 'request' ? '大模型 HTTP 请求' : '模型输出汇总',
     ...(kind === 'result' ? { note: '这条事件是模型输出摘要，不是底层 HTTP 传输记录；HTTP 请求/响应请查看同一轮相邻的模型调用事件。' } : {}),
     ...(requestDetail ? { request: requestDetail } : {}),
+    messageGroups,
     messages,
     tools,
     ...(responseDetail ? { response: responseDetail } : {}),
@@ -906,6 +1355,33 @@ function traceMessageDetail(event: AgentTraceEvent, data: Record<string, unknown
     sourceLabel: messageSourceLabel(stringValue(data.source) ?? 'model'),
     content,
     contentChars: numberValue(data.chars) ?? content.length,
+  }
+}
+
+function traceToolDetail(event: AgentTraceEvent, data: Record<string, unknown> | undefined): AgentTraceToolDetail | undefined {
+  if (event.kind !== 'tool_call') return undefined
+  const duration = numberValue(data?.durationMs) !== undefined
+    ? formatMs(numberValue(data?.durationMs))
+    : formatReportDuration(event.createdAt, event.completedAt)
+  const fields = data
+    ? Object.entries(data)
+      .filter(([key]) => !['source', 'durationMs', 'sandboxed'].includes(key))
+      .flatMap(([key, value]) => {
+        const displayValue = toolFieldValue(value)
+        return displayValue ? [{ label: toolFieldLabel(key), value: displayValue, sensitive: isSensitiveFieldName(key) }] : []
+      })
+      .slice(0, 12)
+    : []
+  return {
+    title: event.status === 'failed' ? '工具调用失败详情' : '工具调用详情',
+    toolName: event.toolName,
+    status: event.status,
+    statusLabel: traceEventStatusLabel(event.status),
+    source: stringValue(data?.source),
+    sandboxed: booleanLabel(data?.sandboxed),
+    duration,
+    summary: traceSummary(event),
+    fields,
   }
 }
 
@@ -930,6 +1406,17 @@ function arrayValue(value: unknown): unknown[] | undefined {
   return Array.isArray(value) ? value : undefined
 }
 
+function headerEntries(headers: Record<string, unknown> | undefined): Array<{ name: string; value: string }> {
+  if (!headers) return []
+  return Object.entries(headers)
+    .flatMap(([name, value]) => {
+      const normalized = stringValue(name)
+      const label = typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? String(value) : undefined
+      return normalized && label ? [{ name: normalized, value: label }] : []
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
@@ -940,6 +1427,37 @@ function numberValue(value: unknown): number | undefined {
 
 function booleanLabel(value: unknown): string | undefined {
   return typeof value === 'boolean' ? (value ? '是' : '否') : undefined
+}
+
+function toolFieldValue(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined
+  if (typeof value === 'string') return previewText(value)
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) {
+    const values = value.map((entry) => stringValue(entry) ?? (typeof entry === 'number' || typeof entry === 'boolean' ? String(entry) : undefined)).filter(Boolean)
+    return values.length > 0 ? values.slice(0, 6).join(', ') : `${value.length} 项`
+  }
+  if (typeof value === 'object') {
+    const keys = Object.keys(value as Record<string, unknown>)
+    return keys.length > 0 ? keys.slice(0, 8).join(', ') : undefined
+  }
+  return undefined
+}
+
+function toolFieldLabel(key: string): string {
+  switch (key) {
+    case 'artifactId': return '产物 ID'
+    case 'findings': return '发现'
+    case 'subagentName': return '子代理'
+    case 'taskId': return '任务 ID'
+    case 'error': return '错误'
+    case 'result': return '结果'
+    default: return key.replace(/[_-]/g, ' ')
+  }
+}
+
+function isSensitiveFieldName(key: string): boolean {
+  return /authorization|cookie|api[-_]?key|token|secret|signed/i.test(key)
 }
 
 function formatReportTimestamp(value: string): string {
@@ -1090,10 +1608,34 @@ function formatMs(value: number | undefined): string | undefined {
   return value === undefined ? undefined : `${Math.round(value)}ms`
 }
 
+function firstNumber(value: string): number {
+  const match = value.match(/\d+/)
+  return match ? Number(match[0]) : 0
+}
+
+function slashNumbers(value: string): [number, number] {
+  const match = value.match(/(\d+)\s*\/\s*(\d+)/)
+  if (!match) return [firstNumber(value), firstNumber(value)]
+  return [Number(match[1]), Number(match[2])]
+}
+
 function previewText(value: unknown): string | undefined {
   const text = stringValue(value)
   if (!text) return undefined
   return text.length > 90 ? `${text.slice(0, 87)}...` : text
+}
+
+function reportPreviewText(value: string): string | undefined {
+  const text = value.trim()
+  if (!text) return undefined
+  const redacted = redactReportInlineSecrets(text)
+  return redacted.length > 160 ? `${redacted.slice(0, 157)}...` : redacted
+}
+
+function redactReportInlineSecrets(value: string): string {
+  return value
+    .replace(/\b(authorization\s*[:=]\s*)(bearer\s+)?[^\s"',;&]+/gi, (_match, prefix: string, bearer = '') => `${prefix}${bearer}[已脱敏]`)
+    .replace(/\b((?:api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret|secret|password)\s*[:=]\s*)[^\s"',;&]+/gi, (_match, prefix: string) => `${prefix}[已脱敏]`)
 }
 
 function messageContentText(value: unknown): string | undefined {
@@ -1104,6 +1646,33 @@ function messageContentText(value: unknown): string | undefined {
   } catch {
     return String(value)
   }
+}
+
+function modelMessageGroups(messages: AgentTraceModelMessageDetail[]): AgentTraceModelMessageGroup[] {
+  const order = ['system', 'user', 'assistant', 'tool']
+  const groups = new Map<string, AgentTraceModelMessageGroup>()
+  for (const message of messages) {
+    const key = message.role || 'unknown'
+    const group = groups.get(key) ?? {
+      role: key,
+      roleLabel: message.roleLabel,
+      count: 0,
+      contentChars: 0,
+      messages: [],
+    }
+    group.count += 1
+    group.contentChars += message.contentChars
+    group.messages.push(message)
+    groups.set(key, group)
+  }
+  return Array.from(groups.values()).sort((a, b) => {
+    const left = order.indexOf(a.role)
+    const right = order.indexOf(b.role)
+    if (left === -1 && right === -1) return a.role.localeCompare(b.role)
+    if (left === -1) return 1
+    if (right === -1) return -1
+    return left - right
+  })
 }
 
 function countMessagesByRole(messages: unknown[] | undefined): Record<'system' | 'user' | 'assistant' | 'tool', number> {

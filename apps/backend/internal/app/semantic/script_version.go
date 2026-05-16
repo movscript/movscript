@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -18,7 +20,16 @@ func (s *Service) CreateScriptVersion(ctx context.Context, projectID uint, input
 		return domainsemantic.ScriptVersion{}, err
 	}
 	versionNumber := s.nextScriptVersionNumber(ctx, projectID, input.ScriptID)
-	item, err := s.repo.CreateScriptVersion(ctx, projectID, input, versionNumber, createdByID)
+	var item domainsemantic.ScriptVersion
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		item, err = txSvc.repo.CreateScriptVersion(ctx, projectID, input, versionNumber, createdByID)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertScriptVersionRelations(ctx, item)
+	})
 	if err != nil {
 		return item, err
 	}
@@ -85,7 +96,20 @@ func (s *Service) CreateScriptBlock(ctx context.Context, projectID uint, input C
 		Status:          input.Status,
 		MetadataJSON:    input.MetadataJSON,
 	})
-	return s.repo.CreateScriptBlock(ctx, item)
+	var created domainsemantic.ScriptBlock
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateScriptBlock(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertScriptBlockRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchScriptBlock(ctx context.Context, projectID uint, id string, input PatchScriptBlockInput) (domainsemantic.ScriptBlock, error) {
@@ -106,7 +130,96 @@ func (s *Service) PatchScriptBlock(ctx context.Context, projectID uint, id strin
 		Status:        input.Status,
 		MetadataJSON:  input.MetadataJSON,
 	}
-	return s.repo.PatchScriptBlock(ctx, item, patch)
+	var patched domainsemantic.ScriptBlock
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchScriptBlock(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertScriptBlockRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertScriptVersionRelations(ctx context.Context, item domainsemantic.ScriptVersion) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeHasVersion,
+		Target:    domainrelation.NewEntityRef("script_version", item.ID),
+	}); err != nil {
+		return err
+	}
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeDerivedFrom,
+		Source:    domainrelation.NewEntityRef("script_version", item.ID),
+	}); err != nil {
+		return err
+	}
+	if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("script", item.ScriptID),
+		Target:    domainrelation.NewEntityRef("script_version", item.ID),
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeHasVersion,
+		Order:     item.VersionNumber,
+		Status:    semanticRelationStatus(item.Status),
+	}); err != nil {
+		return err
+	}
+	if item.ParentVersionID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("script_version", item.ID),
+			Target:    domainrelation.NewEntityRef("script_version", *item.ParentVersionID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeDerivedFrom,
+			Order:     item.VersionNumber,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
+}
+
+func (s *Service) upsertScriptBlockRelations(ctx context.Context, item domainsemantic.ScriptBlock) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeContains,
+		Target:    domainrelation.NewEntityRef("script_block", item.ID),
+	}); err != nil {
+		return err
+	}
+	if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("script_version", item.ScriptVersionID),
+		Target:    domainrelation.NewEntityRef("script_block", item.ID),
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeContains,
+		Order:     item.Order,
+		Status:    semanticRelationStatus(item.Status),
+	}); err != nil {
+		return err
+	}
+	if item.ParentBlockID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("script_block", *item.ParentBlockID),
+			Target:    domainrelation.NewEntityRef("script_block", item.ID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeContains,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 type ScriptBlockUsages struct {
@@ -122,23 +235,7 @@ func (s *Service) ListScriptBlockUsages(ctx context.Context, projectID uint, id 
 	if err != nil {
 		return ScriptBlockUsages{}, err
 	}
-	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ScriptBlockID: block.ID})
-	if err != nil {
-		return ScriptBlockUsages{}, err
-	}
-	sceneMoments, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, ScriptBlockID: block.ID})
-	if err != nil {
-		return ScriptBlockUsages{}, err
-	}
-	contentUnits, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ScriptBlockID: block.ID})
-	if err != nil {
-		return ScriptBlockUsages{}, err
-	}
-	return ScriptBlockUsages{
-		Segments:     segments,
-		SceneMoments: sceneMoments,
-		ContentUnits: contentUnits,
-	}, nil
+	return s.scriptBlockUsagesFromRelations(ctx, projectID, block.ID)
 }
 
 func (s *Service) ListScriptBlockUsageMap(ctx context.Context, projectID uint, scriptVersionID uint) (ScriptBlockUsageMap, error) {
@@ -148,53 +245,101 @@ func (s *Service) ListScriptBlockUsageMap(ctx context.Context, projectID uint, s
 	if _, err := s.repo.LoadScriptVersion(ctx, projectID, strconv.FormatUint(uint64(scriptVersionID), 10)); err != nil {
 		return ScriptBlockUsageMap{}, err
 	}
-	blocks, err := s.repo.ListScriptBlocks(ctx, ScriptBlockFilter{ProjectID: projectID, ScriptVersionID: scriptVersionID})
+	blockIDs, err := s.scriptVersionBlockIDsFromRelations(ctx, projectID, scriptVersionID)
 	if err != nil {
 		return ScriptBlockUsageMap{}, err
 	}
-	blockIDs := make([]uint, 0, len(blocks))
 	result := ScriptBlockUsageMap{}
-	for _, block := range blocks {
-		blockIDs = append(blockIDs, block.ID)
-		result[block.ID] = ScriptBlockUsages{}
+	for _, blockID := range blockIDs {
+		result[blockID] = ScriptBlockUsages{}
 	}
 	if len(blockIDs) == 0 {
 		return result, nil
 	}
-	segments, err := s.repo.ListSegments(ctx, SegmentFilter{ProjectID: projectID, ScriptBlockIDs: blockIDs})
-	if err != nil {
-		return ScriptBlockUsageMap{}, err
-	}
-	sceneMoments, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, ScriptBlockIDs: blockIDs})
-	if err != nil {
-		return ScriptBlockUsageMap{}, err
-	}
-	contentUnits, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, ScriptBlockIDs: blockIDs})
-	if err != nil {
-		return ScriptBlockUsageMap{}, err
-	}
-	for _, segment := range segments {
-		if segment.ScriptBlockID != nil {
-			usage := result[*segment.ScriptBlockID]
-			usage.Segments = append(usage.Segments, segment)
-			result[*segment.ScriptBlockID] = usage
+	for _, blockID := range blockIDs {
+		usages, err := s.scriptBlockUsagesFromRelations(ctx, projectID, blockID)
+		if err != nil {
+			return ScriptBlockUsageMap{}, err
 		}
-	}
-	for _, moment := range sceneMoments {
-		if moment.ScriptBlockID != nil {
-			usage := result[*moment.ScriptBlockID]
-			usage.SceneMoments = append(usage.SceneMoments, moment)
-			result[*moment.ScriptBlockID] = usage
-		}
-	}
-	for _, unit := range contentUnits {
-		if unit.ScriptBlockID != nil {
-			usage := result[*unit.ScriptBlockID]
-			usage.ContentUnits = append(usage.ContentUnits, unit)
-			result[*unit.ScriptBlockID] = usage
-		}
+		result[blockID] = usages
 	}
 	return result, nil
+}
+
+func (s *Service) scriptVersionBlockIDsFromRelations(ctx context.Context, projectID uint, scriptVersionID uint) ([]uint, error) {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeContains,
+		Source:    domainrelation.NewEntityRef("script_version", scriptVersionID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(edges))
+	seen := make(map[uint]struct{})
+	for _, edge := range edges {
+		if edge.Target.Type != "script_block" {
+			continue
+		}
+		if _, ok := seen[edge.Target.ID]; ok {
+			continue
+		}
+		seen[edge.Target.ID] = struct{}{}
+		ids = append(ids, edge.Target.ID)
+	}
+	return ids, nil
+}
+
+func (s *Service) scriptBlockUsagesFromRelations(ctx context.Context, projectID uint, scriptBlockID uint) (ScriptBlockUsages, error) {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeBasedOn,
+		Target:    domainrelation.NewEntityRef("script_block", scriptBlockID),
+	})
+	if err != nil {
+		return ScriptBlockUsages{}, err
+	}
+	usages := ScriptBlockUsages{}
+	seenSegments := make(map[uint]struct{})
+	seenMoments := make(map[uint]struct{})
+	seenUnits := make(map[uint]struct{})
+	for _, edge := range edges {
+		switch edge.Source.Type {
+		case "segment":
+			if _, ok := seenSegments[edge.Source.ID]; ok {
+				continue
+			}
+			segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(edge.Source.ID), 10))
+			if err != nil {
+				return ScriptBlockUsages{}, err
+			}
+			seenSegments[edge.Source.ID] = struct{}{}
+			usages.Segments = append(usages.Segments, segment)
+		case "scene_moment":
+			if _, ok := seenMoments[edge.Source.ID]; ok {
+				continue
+			}
+			moment, err := s.repo.LoadSceneMoment(ctx, projectID, strconv.FormatUint(uint64(edge.Source.ID), 10))
+			if err != nil {
+				return ScriptBlockUsages{}, err
+			}
+			seenMoments[edge.Source.ID] = struct{}{}
+			usages.SceneMoments = append(usages.SceneMoments, moment)
+		case "content_unit":
+			if _, ok := seenUnits[edge.Source.ID]; ok {
+				continue
+			}
+			unit, err := s.repo.LoadContentUnit(ctx, projectID, strconv.FormatUint(uint64(edge.Source.ID), 10))
+			if err != nil {
+				return ScriptBlockUsages{}, err
+			}
+			seenUnits[edge.Source.ID] = struct{}{}
+			usages.ContentUnits = append(usages.ContentUnits, unit)
+		}
+	}
+	return usages, nil
 }
 
 func (s *Service) validateScriptVersionOwners(ctx context.Context, projectID uint, input CreateScriptVersionInput) error {

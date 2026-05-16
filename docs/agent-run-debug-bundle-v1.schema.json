@@ -1,0 +1,596 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json",
+  "title": "AgentRun debug bundle v1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "schemaUrl",
+    "generatedAt",
+    "capabilities",
+    "runId",
+    "run",
+    "runSummary",
+    "trace",
+    "fieldGuide",
+    "coverage",
+    "readinessChecklist",
+    "modelCalls",
+    "modelCallContexts",
+    "promptDetails",
+    "messageWrites",
+    "toolCalls",
+    "attentionEvents",
+    "pendingActions",
+    "events"
+  ],
+  "properties": {
+    "schema": {
+      "const": "movscript.agent-run-debug-bundle.v1"
+    },
+    "schemaUrl": {
+      "const": "https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/capability"
+      },
+      "contains": {
+        "const": "redactedDebugData"
+      },
+      "uniqueItems": true,
+      "minItems": 1
+    },
+    "runId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run": {
+      "$ref": "#/$defs/runSnapshot"
+    },
+    "runSummary": {
+      "$ref": "#/$defs/runSummary"
+    },
+    "trace": {
+      "$ref": "#/$defs/traceSummary"
+    },
+    "fieldGuide": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fieldGuideItem"
+      },
+      "minItems": 1
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "readinessChecklist": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/readinessItem"
+      }
+    },
+    "modelCalls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/modelCall"
+      }
+    },
+    "modelCallContexts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/modelCallContext"
+      }
+    },
+    "promptDetails": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "messageWrites": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/messageWrite"
+      }
+    },
+    "toolCalls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/toolCall"
+      }
+    },
+    "attentionEvents": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/attentionEvent"
+      }
+    },
+    "pendingActions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "$defs": {
+    "capability": {
+      "type": "string",
+      "enum": [
+        "runSummary",
+        "readinessChecklist",
+        "modelCallContexts",
+        "promptDetails",
+        "messageWrites",
+        "toolCalls",
+        "attentionEvents",
+        "pendingActions",
+        "fieldGuide",
+        "redactedDebugData"
+      ]
+    },
+    "runSnapshot": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "threadId",
+        "status",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "threadId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "fieldGuideItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "runSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "status",
+        "statusLabel",
+        "role",
+        "roleLabel",
+        "createdAt"
+      ],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "statusLabel": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "roleLabel": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "terminalAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "warningCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pendingApprovals": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pendingInputs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "traceSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loaded",
+        "hasMore"
+      ],
+      "properties": {
+        "loaded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loadedLabel",
+        "hasUnloadedTrace",
+        "modelCallsLabel",
+        "promptDetailsLabel",
+        "messageWritesLabel",
+        "toolDetailsLabel",
+        "httpResponsesLabel",
+        "requestPayloadsLabel",
+        "httpResponseBodiesLabel",
+        "issues"
+      ],
+      "properties": {
+        "loadedLabel": {
+          "type": "string"
+        },
+        "hasUnloadedTrace": {
+          "type": "boolean"
+        },
+        "modelCallsLabel": {
+          "type": "string"
+        },
+        "promptDetailsLabel": {
+          "type": "string"
+        },
+        "messageWritesLabel": {
+          "type": "string"
+        },
+        "toolDetailsLabel": {
+          "type": "string"
+        },
+        "httpResponsesLabel": {
+          "type": "string"
+        },
+        "requestPayloadsLabel": {
+          "type": "string"
+        },
+        "httpResponseBodiesLabel": {
+          "type": "string"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "readinessItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "status",
+        "detail",
+        "action"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "warning"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        }
+      }
+    },
+    "modelCall": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "label",
+        "eventIds",
+        "status",
+        "statusLabel",
+        "hasRequestPayload",
+        "hasResponseBody"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "eventIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "request_only",
+            "response_only",
+            "result_only",
+            "failed"
+          ]
+        },
+        "statusLabel": {
+          "type": "string"
+        },
+        "hasRequestPayload": {
+          "type": "boolean"
+        },
+        "hasResponseBody": {
+          "type": "boolean"
+        }
+      }
+    },
+    "modelCallContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "callId",
+        "label",
+        "status",
+        "statusLabel",
+        "correlationLabel",
+        "modelEventIds",
+        "toolCalls",
+        "messageWrites"
+      ],
+      "properties": {
+        "callId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "statusLabel": {
+          "type": "string"
+        },
+        "correlationLabel": {
+          "type": "string"
+        },
+        "requestEventId": {
+          "type": "string"
+        },
+        "responseEventId": {
+          "type": "string"
+        },
+        "resultEventId": {
+          "type": "string"
+        },
+        "modelEventIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "toolCalls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/toolCallRef"
+          }
+        },
+        "messageWrites": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/messageWrite"
+          }
+        }
+      }
+    },
+    "toolCallRef": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "eventId"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string"
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "statusLabel": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      }
+    },
+    "messageWrite": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "eventId"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sourceLabel": {
+          "type": "string"
+        },
+        "contentChars": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contentPreview": {
+          "type": "string"
+        }
+      }
+    },
+    "toolCall": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "eventId"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string"
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "sandboxed": {
+          "type": "boolean"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "summary": {
+          "type": "string"
+        },
+        "dataPreview": {
+          "type": "string"
+        }
+      }
+    },
+    "attentionEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eventId",
+        "createdAt",
+        "kind",
+        "kindLabel",
+        "status",
+        "statusLabel",
+        "title"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "kindLabel": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "statusLabel": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "behavior": {
+          "type": "string"
+        },
+        "impact": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

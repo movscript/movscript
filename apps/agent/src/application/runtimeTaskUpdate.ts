@@ -1,5 +1,5 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentTask, UpdatePlanTaskInput } from '../state/types.js'
+import type { AgentRun, AgentTask, UpdatePlanTaskInput } from '../state/types.js'
 import { applyPlanTaskUpdate } from '../state/planTaskUpdate.js'
 import { assertRunCanOwnTask } from '../state/planTaskOwner.js'
 import { snapshotTaskForProtocolEvent } from '../state/taskProtocolEvent.js'
@@ -8,6 +8,10 @@ import {
   requireRuntimeRun,
   requireRuntimeTask,
 } from './runtimeStoreLookup.js'
+import {
+  applyRuntimeTaskProtocolEvents,
+  type RuntimeTaskProtocolTraceInput,
+} from './runtimeTaskProtocolEvents.js'
 
 export interface RuntimeTaskUpdateResult {
   task: AgentTask
@@ -65,4 +69,31 @@ export function applyRuntimeTaskUpdate(input: {
   input.onPlanRecomputed(result.task.planId)
   input.onTaskUpdated(result.task, result.previousTask)
   return result
+}
+
+export function applyRuntimeTaskUpdateRequest(input: {
+  store: Pick<AgentStore, 'getTask' | 'getRun' | 'listTasks' | 'listRuns' | 'updateTask' | 'getPlan'>
+  taskId: string
+  update: UpdatePlanTaskInput
+  now: string
+  recomputePlanStatus: (planId: string) => void
+  recordTrace: (run: AgentRun, trace: RuntimeTaskProtocolTraceInput) => void
+  emitPlanTaskEvent: (planId: string, task: AgentTask) => void
+}): RuntimeTaskUpdateResult {
+  return applyRuntimeTaskUpdate({
+    store: input.store,
+    taskId: input.taskId,
+    update: input.update,
+    now: input.now,
+    onPlanRecomputed: input.recomputePlanStatus,
+    onTaskUpdated: (task, previousTask) => {
+      applyRuntimeTaskProtocolEvents({
+        store: input.store,
+        task,
+        previous: previousTask,
+        recordTrace: input.recordTrace,
+      })
+      input.emitPlanTaskEvent(task.planId, task)
+    },
+  })
 }

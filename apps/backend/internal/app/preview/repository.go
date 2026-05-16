@@ -14,9 +14,9 @@ type repository interface {
 	GetSceneMomentByID(ctx context.Context, momentID uint) (sceneMomentProjection, error)
 	GetContentUnit(ctx context.Context, projectID uint, unitID uint) (contentUnitProjection, error)
 	GetSegmentByID(ctx context.Context, segmentID uint) (segmentProjection, error)
-	ListContentUnits(ctx context.Context, projectID uint, field string, id uint) ([]contentUnitProjection, error)
-	ListKeyframesForUnits(ctx context.Context, projectID uint, ids []uint) ([]keyframeProjection, error)
-	ListMissingAssets(ctx context.Context, projectID uint, ownerType string, ownerID uint) ([]assetSlotProjection, error)
+	ListContentUnitsByIDs(ctx context.Context, projectID uint, ids []uint) ([]contentUnitProjection, error)
+	ListKeyframesByIDs(ctx context.Context, projectID uint, ids []uint) ([]keyframeProjection, error)
+	ListMissingAssetsByIDs(ctx context.Context, projectID uint, ids []uint) ([]assetSlotProjection, error)
 }
 
 type gormRepository struct {
@@ -70,27 +70,35 @@ func normalizeNotFound(err error) error {
 	return err
 }
 
-func (r *gormRepository) ListContentUnits(ctx context.Context, projectID uint, field string, id uint) ([]contentUnitProjection, error) {
+func (r *gormRepository) ListContentUnitsByIDs(ctx context.Context, projectID uint, ids []uint) ([]contentUnitProjection, error) {
+	if len(ids) == 0 {
+		return []contentUnitProjection{}, nil
+	}
 	units := make([]persistencemodel.ContentUnit, 0)
-	if err := r.db.WithContext(ctx).Where("project_id = ? AND "+field+" = ?", projectID, id).
+	if err := r.db.WithContext(ctx).Where("project_id = ? AND id IN ?", projectID, ids).
 		Order(`"order" asc, id asc`).Find(&units).Error; err != nil {
 		return nil, err
 	}
 	return contentUnitsFromModels(units), nil
 }
 
-func (r *gormRepository) ListKeyframesForUnits(ctx context.Context, projectID uint, ids []uint) ([]keyframeProjection, error) {
+func (r *gormRepository) ListKeyframesByIDs(ctx context.Context, projectID uint, ids []uint) ([]keyframeProjection, error) {
+	if len(ids) == 0 {
+		return []keyframeProjection{}, nil
+	}
 	keyframes := make([]persistencemodel.Keyframe, 0)
-	if err := r.db.WithContext(ctx).Where("project_id = ? AND content_unit_id IN ?", projectID, ids).Order(`"order" asc, id asc`).Find(&keyframes).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("project_id = ? AND id IN ?", projectID, ids).Order(`"order" asc, id asc`).Find(&keyframes).Error; err != nil {
 		return nil, err
 	}
 	return keyframesFromModels(keyframes), nil
 }
 
-func (r *gormRepository) ListMissingAssets(ctx context.Context, projectID uint, ownerType string, ownerID uint) ([]assetSlotProjection, error) {
+func (r *gormRepository) ListMissingAssetsByIDs(ctx context.Context, projectID uint, ids []uint) ([]assetSlotProjection, error) {
+	if len(ids) == 0 {
+		return []assetSlotProjection{}, nil
+	}
 	slots := make([]persistencemodel.AssetSlot, 0)
-	if err := r.db.WithContext(ctx).Where("project_id = ? AND owner_type = ? AND owner_id = ? AND status IN ?",
-		projectID, ownerType, ownerID, []string{"missing", "candidate"}).
+	if err := r.db.WithContext(ctx).Where("project_id = ? AND id IN ? AND status IN ?", projectID, ids, []string{"missing", "candidate"}).
 		Order("priority desc, id asc").Find(&slots).Error; err != nil {
 		return nil, err
 	}

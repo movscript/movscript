@@ -1,6 +1,10 @@
 import type { AgentStore } from '../state/store.js'
-import type { AgentPlan, AgentTask } from '../state/types.js'
+import type { AgentPlan, AgentRun, AgentTask } from '../state/types.js'
 import { projectTasksOntoPlan, type PlanTaskProjectionResult } from '../state/planProjection.js'
+import {
+  applyRuntimePlanCompletionTrace,
+  type RuntimePlanCompletionTraceInput,
+} from './runtimePlanCompletionTrace.js'
 
 export interface RuntimePlanProjectionResult {
   plan: AgentPlan
@@ -20,4 +24,26 @@ export function recomputeRuntimePlanStatus(input: {
   const projection = projectTasksOntoPlan(plan, tasks, now)
   store.updatePlan(plan)
   return { plan, tasks, projection }
+}
+
+export function applyRuntimePlanStatusRecomputeRequest(input: {
+  store: Pick<AgentStore, 'getPlan' | 'listTasks' | 'updatePlan' | 'getRun' | 'listRuns'>
+  planId: string
+  now: string
+  recordTrace: (run: AgentRun, trace: RuntimePlanCompletionTraceInput) => void
+}): RuntimePlanProjectionResult | undefined {
+  const result = recomputeRuntimePlanStatus({
+    store: input.store,
+    planId: input.planId,
+    now: input.now,
+  })
+  if (result?.projection.completedNow) {
+    applyRuntimePlanCompletionTrace({
+      store: input.store,
+      plan: result.plan,
+      tasks: result.tasks,
+      recordTrace: input.recordTrace,
+    })
+  }
+  return result
 }

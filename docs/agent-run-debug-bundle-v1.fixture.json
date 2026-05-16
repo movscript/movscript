@@ -1,0 +1,285 @@
+{
+  "schema": "movscript.agent-run-debug-bundle.v1",
+  "schemaUrl": "https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json",
+  "generatedAt": "2026-05-16T08:00:06.000Z",
+  "capabilities": [
+    "runSummary",
+    "readinessChecklist",
+    "modelCallContexts",
+    "promptDetails",
+    "messageWrites",
+    "toolCalls",
+    "attentionEvents",
+    "pendingActions",
+    "fieldGuide",
+    "redactedDebugData"
+  ],
+  "runId": "run_debug_fixture",
+  "run": {
+    "id": "run_debug_fixture",
+    "threadId": "thread_debug_fixture",
+    "status": "completed",
+    "createdAt": "2026-05-16T08:00:00.000Z"
+  },
+  "runSummary": {
+    "status": "completed",
+    "statusLabel": "已完成",
+    "role": "worker",
+    "roleLabel": "执行者",
+    "createdAt": "2026-05-16T08:00:00.000Z",
+    "startedAt": "2026-05-16T08:00:01.000Z",
+    "terminalAt": "2026-05-16T08:00:05.000Z",
+    "duration": "4s",
+    "warningCount": 0,
+    "pendingApprovals": 0,
+    "pendingInputs": 0
+  },
+  "trace": {
+    "loaded": 4,
+    "total": 4,
+    "hasMore": false
+  },
+  "fieldGuide": [
+    {
+      "id": "model_request",
+      "label": "模型请求",
+      "description": "发送给模型网关的 headers、payload、messages、tools。"
+    },
+    {
+      "id": "model_response",
+      "label": "模型响应",
+      "description": "网关返回的 headers、原始 body、解析后的 usage 和 finish reason。"
+    },
+    {
+      "id": "history_write",
+      "label": "历史写入",
+      "description": "assistant 回复是否已经进入线程历史，后续 run 可能会再次带入上下文。"
+    },
+    {
+      "id": "missing_data",
+      "label": "缺失项",
+      "description": "优先加载全部事件；如果仍缺失，通常是旧运行、异常中断或当时未采集。"
+    }
+  ],
+  "coverage": {
+    "loadedLabel": "4 / 4",
+    "hasUnloadedTrace": false,
+    "modelCallsLabel": "1 次",
+    "promptDetailsLabel": "1 条",
+    "messageWritesLabel": "1 条",
+    "toolDetailsLabel": "1 条",
+    "httpResponsesLabel": "1 条",
+    "requestPayloadsLabel": "1 / 1",
+    "httpResponseBodiesLabel": "1 / 1",
+    "issues": []
+  },
+  "readinessChecklist": [
+    {
+      "id": "model-http",
+      "label": "模型 HTTP 链路",
+      "status": "ok",
+      "detail": "模型调用 1 次，HTTP 响应 1 次。",
+      "action": "展开“大模型调用总览”核对请求、响应和结果。"
+    },
+    {
+      "id": "request-payload",
+      "label": "请求负载可展开",
+      "status": "ok",
+      "detail": "已保存 1 / 1 个请求负载。",
+      "action": "展开“完整请求负载”和“请求消息”核对发送给模型的上下文。"
+    }
+  ],
+  "modelCalls": [
+    {
+      "id": "model_call_1",
+      "label": "第 1 轮",
+      "eventIds": [
+        "evt_model_request",
+        "evt_model_response"
+      ],
+      "status": "complete",
+      "statusLabel": "请求和响应完整",
+      "hasRequestPayload": true,
+      "hasResponseBody": true,
+      "requestEventId": "evt_model_request",
+      "responseEventId": "evt_model_response",
+      "model": "gpt-5.4",
+      "httpStatus": 200
+    }
+  ],
+  "modelCallContexts": [
+    {
+      "callId": "model_call_1",
+      "label": "第 1 轮",
+      "status": "complete",
+      "statusLabel": "请求和响应完整",
+      "correlationLabel": "按事件轮次关联",
+      "requestEventId": "evt_model_request",
+      "responseEventId": "evt_model_response",
+      "modelEventIds": [
+        "evt_model_request",
+        "evt_model_response"
+      ],
+      "toolCalls": [
+        {
+          "eventId": "evt_tool_call",
+          "toolName": "read_context",
+          "status": "completed",
+          "statusLabel": "已完成",
+          "summary": "读取上下文片段"
+        }
+      ],
+      "messageWrites": [
+        {
+          "eventId": "evt_message_write",
+          "messageId": "msg_assistant_1",
+          "source": "assistant",
+          "sourceLabel": "assistant",
+          "contentChars": 18,
+          "contentPreview": "已完成调试说明。"
+        }
+      ]
+    }
+  ],
+  "promptDetails": [
+    {
+      "eventId": "evt_prompt",
+      "title": "Prompt context assembled",
+      "totalChars": 120,
+      "messageCount": 3,
+      "systemMessageCount": 1,
+      "blockedToolCount": 0,
+      "skills": [],
+      "tools": [
+        "read_context"
+      ],
+      "layers": [
+        "system",
+        "thread"
+      ],
+      "contextLayers": [
+        "system",
+        "thread"
+      ],
+      "partGroups": [
+        {
+          "contextLayer": "thread",
+          "count": 1,
+          "chars": 42,
+          "partIds": [
+            "part_thread_latest"
+          ]
+        }
+      ],
+      "parts": [
+        {
+          "id": "part_thread_latest",
+          "contextLayer": "thread",
+          "source": "message",
+          "chars": 42
+        }
+      ]
+    }
+  ],
+  "messageWrites": [
+    {
+      "eventId": "evt_message_write",
+      "messageId": "msg_assistant_1",
+      "source": "assistant",
+      "sourceLabel": "assistant",
+      "contentChars": 18,
+      "contentPreview": "已完成调试说明。"
+    }
+  ],
+  "toolCalls": [
+    {
+      "eventId": "evt_tool_call",
+      "toolName": "read_context",
+      "title": "Tool call completed",
+      "status": "completed",
+      "source": "local",
+      "sandboxed": true,
+      "durationMs": 12,
+      "summary": "读取上下文片段",
+      "dataPreview": "{\n  \"ok\": true\n}"
+    }
+  ],
+  "attentionEvents": [],
+  "pendingActions": [],
+  "events": [
+    {
+      "id": "evt_prompt",
+      "kind": "prompt",
+      "status": "completed",
+      "title": "Prompt context assembled",
+      "createdAt": "2026-05-16T08:00:01.000Z"
+    },
+    {
+      "id": "evt_model_request",
+      "kind": "model_call",
+      "status": "running",
+      "title": "Model HTTP request sent",
+      "createdAt": "2026-05-16T08:00:02.000Z",
+      "data": {
+        "phase": "request",
+        "method": "POST",
+        "url": "https://api.openai.com/v1/responses",
+        "model": "gpt-5.4",
+        "request": {
+          "headers": {
+            "authorization": "[REDACTED]"
+          },
+          "payload": {
+            "model": "gpt-5.4",
+            "messages": [
+              {
+                "role": "system",
+                "content": "You are a debugging assistant."
+              },
+              {
+                "role": "user",
+                "content": "解释这次 AgentRun。"
+              }
+            ],
+            "tools": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "read_context"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_model_response",
+      "kind": "model_call",
+      "status": "completed",
+      "title": "Model HTTP response received",
+      "createdAt": "2026-05-16T08:00:04.000Z",
+      "data": {
+        "phase": "response",
+        "status": 200,
+        "response": {
+          "headers": {
+            "content-type": "application/json"
+          },
+          "bodyText": "{\"id\":\"resp_fixture\",\"output_text\":\"已完成调试说明。\"}"
+        },
+        "usage": {
+          "input_tokens": 128,
+          "output_tokens": 32
+        }
+      }
+    },
+    {
+      "id": "evt_message_write",
+      "kind": "assistant",
+      "status": "completed",
+      "title": "Assistant message created",
+      "createdAt": "2026-05-16T08:00:05.000Z"
+    }
+  ]
+}

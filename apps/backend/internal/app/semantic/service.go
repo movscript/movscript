@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )
@@ -20,8 +21,15 @@ var ErrTextBlockNotFound = errors.New("production text block not found")
 var ErrSegmentProductionMismatch = errors.New("segment production does not match text block production")
 
 type Service struct {
-	repo  repository
-	cache cache.Cache
+	repo      repository
+	relations relationStore
+	cache     cache.Cache
+}
+
+type relationStore interface {
+	ListEdges(ctx context.Context, filter relationapp.EdgeFilter) ([]domainrelation.Edge, error)
+	UpsertEdge(ctx context.Context, input relationapp.EdgeInput) (domainrelation.Edge, error)
+	ExpireEdges(ctx context.Context, filter relationapp.EdgeFilter) error
 }
 
 type ErrInvalidInput struct {
@@ -58,7 +66,15 @@ func NewService(db *gorm.DB, cacheStore ...cache.Cache) *Service {
 	if c == nil {
 		c = cache.NewNoop()
 	}
-	return &Service{repo: newRepository(db), cache: c}
+	return &Service{repo: newRepository(db), relations: relationapp.NewService(db), cache: c}
+}
+
+func (s *Service) withRepository(repo repository) *Service {
+	relations := s.relations
+	if gormRepo, ok := repo.(*gormRepository); ok {
+		relations = relationapp.NewService(gormRepo.db)
+	}
+	return &Service{repo: repo, relations: relations, cache: s.cache}
 }
 
 func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
@@ -66,36 +82,4 @@ func (s *Service) bumpProgressVersion(ctx context.Context, projectID uint) {
 		return
 	}
 	_, _ = s.cache.BumpVersion(ctx, fmt.Sprintf("project:%d:progress", projectID))
-}
-
-func (s *Service) ListRelations(ctx context.Context, filter RelationFilter) ([]domainsemantic.EntityRelation, error) {
-	return s.repo.ListRelations(ctx, filter)
-}
-
-func (s *Service) ListRelationsByEntity(ctx context.Context, projectID uint, entityType string, entityID uint, category string, relationType string) ([]domainsemantic.EntityRelation, error) {
-	filter := RelationFilter{
-		ProjectID: projectID,
-		Category:  category,
-		Type:      relationType,
-	}
-	if strings.TrimSpace(entityType) != "" && entityID > 0 {
-		filter.SourceType = entityType
-		filter.SourceID = entityID
-	}
-	return s.ListRelations(ctx, filter)
-}
-
-func (s *Service) ListRelationsBySource(ctx context.Context, projectID uint, sourceType string, sourceID uint, category string, relationType string) ([]domainsemantic.EntityRelation, error) {
-	return s.ListRelationsByEntity(ctx, projectID, sourceType, sourceID, category, relationType)
-}
-
-func (s *Service) ListRelationsByTarget(ctx context.Context, projectID uint, targetType string, targetID uint, category string, relationType string) ([]domainsemantic.EntityRelation, error) {
-	filter := RelationFilter{
-		ProjectID:  projectID,
-		Category:   category,
-		Type:       relationType,
-		TargetType: targetType,
-		TargetID:   targetID,
-	}
-	return s.ListRelations(ctx, filter)
 }

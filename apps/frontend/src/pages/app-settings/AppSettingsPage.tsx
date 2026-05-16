@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, CheckCircle2, RefreshCw, Server, Settings } from 'lucide-react'
 import { Button, Input, Label } from '@movscript/ui'
-import { getDefaultAPIBaseURL, normalizeAPIBaseURL } from '@/lib/config'
+import { getDefaultAPIBaseURL, isLocalLaunchMode, normalizeAPIBaseURL } from '@/lib/config'
+import { adminConsoleURL, openAdminConsole } from '@/lib/adminConsole'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useUserStore } from '@/store/userStore'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -39,6 +40,8 @@ export default function AppSettingsPage() {
   }, [apiBaseURL])
   const hasChanged = normalized !== settings.apiBaseURL
   const isValid = /^https?:\/\/.+/i.test(normalized)
+  const localMode = isLocalLaunchMode(settings)
+  const adminURL = isValid ? adminConsoleURL(normalized) : ''
 
   function saveSettings() {
     if (!isValid) return
@@ -170,6 +173,25 @@ export default function AppSettingsPage() {
             <div className="mt-5 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
               {t('appSettings.effectiveEndpoint')}: <span className="font-mono text-foreground">{isValid ? `${normalized}/api/v1` : '-'}</span>
             </div>
+
+            {localMode && isValid && (
+              <div className="mt-3 rounded-md border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    {t('appSettings.adminConsole')}: <span className="font-mono text-foreground">{adminURL}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void openAdminConsole(normalized)}
+                  >
+                    {t('appSettings.openAdminConsole')}
+                  </Button>
+                </div>
+                <p className="mt-2 leading-5">{t('appSettings.adminConsoleHelp')}</p>
+              </div>
+            )}
 
             {testState.message && (
               <p className={`mt-3 text-xs ${testState.status === 'error' ? 'text-destructive' : testState.status === 'success' ? 'text-emerald-600' : 'text-muted-foreground'}`}>

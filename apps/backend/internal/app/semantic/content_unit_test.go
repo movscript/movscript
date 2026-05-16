@@ -63,6 +63,7 @@ func TestCreateContentUnitInheritsScriptBlockFromSceneMomentSegment(t *testing.T
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &moment)
 
 	unit, err := service.CreateContentUnit(context.Background(), 1, ContentUnitInput{
 		SceneMomentID: &moment.ID,
@@ -340,6 +341,7 @@ func TestPatchSegmentRejectsSourceChangeAfterSceneMoments(t *testing.T) {
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &moment)
 
 	_, err := service.PatchSegment(context.Background(), 1, strconv.FormatUint(uint64(segment.ID), 10), PatchSegmentInput{
 		ScriptBlockID: &secondBlock.ID,
@@ -400,6 +402,7 @@ func TestSourceLockStatusReportsSegmentLockedFields(t *testing.T) {
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &moment)
 
 	status, err := service.SourceLockStatus(context.Background(), 1, "segments", strconv.FormatUint(uint64(segment.ID), 10))
 	if err != nil {
@@ -427,6 +430,7 @@ func TestDeleteSegmentRejectsDownstreamSceneMoments(t *testing.T) {
 	if err := db.Create(&moment).Error; err != nil {
 		t.Fatalf("create scene moment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &moment)
 
 	err := service.DeleteItemByKind(context.Background(), 1, "segment", strconv.FormatUint(uint64(segment.ID), 10))
 	var forbidden ErrForbidden
@@ -459,6 +463,7 @@ func TestPatchSceneMomentRejectsSourceChangeAfterContentUnits(t *testing.T) {
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &unit)
 
 	_, err := service.PatchSceneMoment(context.Background(), 1, strconv.FormatUint(uint64(moment.ID), 10), PatchSceneMomentInput{
 		ScriptBlockID: &secondBlock.ID,
@@ -490,6 +495,7 @@ func TestDeleteSceneMomentRejectsDownstreamContentUnits(t *testing.T) {
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &unit)
 
 	err := service.DeleteItemByKind(context.Background(), 1, "scene_moment", strconv.FormatUint(uint64(moment.ID), 10))
 	var forbidden ErrForbidden
@@ -602,6 +608,7 @@ func TestPatchContentUnitRejectsSourceChangeAfterKeyframes(t *testing.T) {
 	if err := db.Create(&keyframe).Error; err != nil {
 		t.Fatalf("create keyframe: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &keyframe)
 
 	_, err := service.PatchContentUnit(context.Background(), 1, strconv.FormatUint(uint64(unit.ID), 10), ContentUnitInput{
 		ScriptBlockID: &secondBlock.ID,
@@ -663,6 +670,7 @@ func TestSourceLockStatusReportsContentUnitLockedFields(t *testing.T) {
 	if err := db.Create(&slot).Error; err != nil {
 		t.Fatalf("create asset slot: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &slot)
 
 	status, err := service.SourceLockStatus(context.Background(), 1, "content-units", strconv.FormatUint(uint64(unit.ID), 10))
 	if err != nil {
@@ -690,6 +698,7 @@ func TestDeleteContentUnitRejectsDownstreamKeyframes(t *testing.T) {
 	if err := db.Create(&keyframe).Error; err != nil {
 		t.Fatalf("create keyframe: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &keyframe)
 
 	err := service.DeleteItemByKind(context.Background(), 1, "content_unit", strconv.FormatUint(uint64(unit.ID), 10))
 	var forbidden ErrForbidden

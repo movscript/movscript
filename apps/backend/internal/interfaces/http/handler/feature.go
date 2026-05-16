@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -42,15 +43,22 @@ func (h *FeatureHandler) Update(c *gin.Context) {
 		DefaultModelID  *uint    `json:"default_model_id"`
 		AllowedRoles    []string `json:"allowed_roles"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var raw map[string]json.RawMessage
+	if err := c.ShouldBindJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if err := decodeOptionalFeatureUpdate(raw, &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	_, defaultModelIDSet := raw["default_model_id"]
 	resp, err := h.service.Update(c.Request.Context(), c.Param("key"), featureapp.UpdateInput{
-		IsEnabled:       req.IsEnabled,
-		AllowedModelIDs: req.AllowedModelIDs,
-		DefaultModelID:  req.DefaultModelID,
-		AllowedRoles:    req.AllowedRoles,
+		IsEnabled:         req.IsEnabled,
+		AllowedModelIDs:   req.AllowedModelIDs,
+		DefaultModelIDSet: defaultModelIDSet,
+		DefaultModelID:    req.DefaultModelID,
+		AllowedRoles:      req.AllowedRoles,
 	})
 	if err != nil {
 		respondFeature(c, resp, err)
@@ -69,6 +77,39 @@ func (h *FeatureHandler) Update(c *gin.Context) {
 		},
 	})
 	c.JSON(http.StatusOK, resp)
+}
+
+func decodeOptionalFeatureUpdate(raw map[string]json.RawMessage, req *struct {
+	IsEnabled       *bool    `json:"is_enabled"`
+	AllowedModelIDs []uint   `json:"allowed_model_ids"`
+	DefaultModelID  *uint    `json:"default_model_id"`
+	AllowedRoles    []string `json:"allowed_roles"`
+}) error {
+	if value, ok := raw["is_enabled"]; ok {
+		var decoded bool
+		if err := json.Unmarshal(value, &decoded); err != nil {
+			return err
+		}
+		req.IsEnabled = &decoded
+	}
+	if value, ok := raw["allowed_model_ids"]; ok {
+		if err := json.Unmarshal(value, &req.AllowedModelIDs); err != nil {
+			return err
+		}
+	}
+	if value, ok := raw["default_model_id"]; ok && string(value) != "null" {
+		var decoded uint
+		if err := json.Unmarshal(value, &decoded); err != nil {
+			return err
+		}
+		req.DefaultModelID = &decoded
+	}
+	if value, ok := raw["allowed_roles"]; ok {
+		if err := json.Unmarshal(value, &req.AllowedRoles); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // UpdatePrompt sets the system prompt override and/or max tokens override for a feature.
@@ -118,6 +159,10 @@ func respondFeature(c *gin.Context, resp featureapp.Response, err error) {
 	if err != nil {
 		if errors.Is(err, featureapp.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "feature not found"})
+			return
+		}
+		if errors.Is(err, featureapp.ErrInvalidMaxTokens) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "max_tokens_override must be zero or positive"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

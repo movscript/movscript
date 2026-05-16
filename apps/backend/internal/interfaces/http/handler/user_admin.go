@@ -3,6 +3,8 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	adminuser "github.com/movscript/movscript/internal/app/admin/user"
@@ -21,8 +23,19 @@ func NewUserAdminHandler(db *gorm.DB) *UserAdminHandler {
 }
 
 func (h *UserAdminHandler) List(c *gin.Context) {
+	var userID *uint
+	if rawUserID := strings.TrimSpace(c.Query("user_id")); rawUserID != "" {
+		parsed, err := strconv.ParseUint(rawUserID, 10, 64)
+		if err != nil || parsed == 0 {
+			c.JSON(http.StatusBadRequest, api.InvalidInput("用户 ID 无效"))
+			return
+		}
+		value := uint(parsed)
+		userID = &value
+	}
 	result, err := h.service.List(c.Request.Context(), adminuser.ListFilter{
 		Query:      c.Query("q"),
+		UserID:     userID,
 		SystemRole: c.Query("system_role"),
 		Status:     c.Query("status"),
 		Page:       parsePositiveInt(c.Query("page"), 1),

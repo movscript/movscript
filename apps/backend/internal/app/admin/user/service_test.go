@@ -117,7 +117,7 @@ func TestListFiltersAndPaginatesUsers(t *testing.T) {
 	db := newTestDB(t)
 	createUser(t, db, "alice", domainauth.SystemRoleSuperAdmin, domainauth.UserStatusActive)
 	createUser(t, db, "bob", domainauth.SystemRoleUser, "disabled")
-	createUser(t, db, "carol", domainauth.SystemRoleUser, domainauth.UserStatusActive)
+	carol := createUser(t, db, "carol", domainauth.SystemRoleUser, domainauth.UserStatusActive)
 
 	service := NewService(db)
 	page, err := service.List(context.Background(), ListFilter{
@@ -131,6 +131,18 @@ func TestListFiltersAndPaginatesUsers(t *testing.T) {
 	}
 	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].Username != "carol" {
 		t.Fatalf("unexpected page: %+v", page)
+	}
+
+	page, err = service.List(context.Background(), ListFilter{
+		UserID:   &carol.ID,
+		Page:     1,
+		PageSize: 10,
+	})
+	if err != nil {
+		t.Fatalf("List by user ID returned error: %v", err)
+	}
+	if page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != carol.ID {
+		t.Fatalf("unexpected user ID page: %+v", page)
 	}
 }
 

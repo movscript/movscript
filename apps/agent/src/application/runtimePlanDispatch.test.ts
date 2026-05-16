@@ -6,6 +6,7 @@ import {
   applyRuntimePlanDispatch,
   applyRuntimePlanDispatchDecision,
   applyRuntimePlanDispatchFlow,
+  applyRuntimePlanDispatchRequest,
   buildRuntimePlanDispatchDecision,
   resolveRuntimePlanDispatchRequest,
 } from './runtimePlanDispatch.js'
@@ -274,6 +275,50 @@ test('applyRuntimePlanDispatchFlow applies timeouts and retry resets before disp
   assert.deepEqual(result.retriedTaskIds, ['task_retry'])
   assert.deepEqual(result.spawnedRuns.map((run) => run.taskId), ['task_ready', 'task_retry'])
   assert.equal(store.getTask('task_timeout')?.metadata?.timedOutRunId, 'run_timeout')
+})
+
+test('applyRuntimePlanDispatchRequest resolves the request and applies the full dispatch flow', () => {
+  const store = new InMemoryAgentStore()
+  store.createPlan(makePlan())
+  store.createRun(makeRun({ id: 'run_planner', role: 'planner', planId: 'plan_1' }))
+  store.createTask(makeTask({ id: 'task_ready' }))
+  store.createTask(makeTask({ id: 'task_blocked', deps: ['task_ready'] }))
+  const calls: string[] = []
+
+  const result = applyRuntimePlanDispatchRequest({
+    store,
+    dispatchInput: { planId: 'plan_1', plannerRunId: 'run_planner', maxWorkers: 2 },
+    now: '2026-01-01T00:00:01.000Z',
+    nowMs: new Date('2026-01-01T00:00:01.000Z').getTime(),
+    updateTask: (taskId, update) => applyTaskUpdate(store, taskId, update),
+    createRun: (input) => {
+      calls.push(`create:${input.taskId}`)
+      const run = makeRun({
+        id: 'run_worker',
+        role: 'worker',
+        parentRunId: typeof input.parentRunId === 'string' ? input.parentRunId : undefined,
+        planId: typeof input.planId === 'string' ? input.planId : undefined,
+        taskId: typeof input.taskId === 'string' ? input.taskId : undefined,
+      })
+      store.createRun(run)
+      return run
+    },
+    cancelRun: (runId, reason) => calls.push(`cancel:${runId}:${reason}`),
+    syncTaskFromRun: (runId) => calls.push(`sync:${runId}`),
+    recomputePlan: (planId) => calls.push(`recompute:${planId}`),
+    onTaskBlocked: (task) => calls.push(`blocked:${task.id}`),
+    onTaskDispatched: (task, previousTask) => calls.push(`dispatch:${previousTask.status}->${task.status}:${task.id}`),
+  })
+
+  assert.deepEqual(calls, [
+    'blocked:task_blocked',
+    'create:task_ready',
+    'dispatch:pending->running:task_ready',
+    'recompute:plan_1',
+  ])
+  assert.deepEqual(result.spawnedRuns.map((run) => run.id), ['run_worker'])
+  assert.deepEqual(result.blockedTaskIds, ['task_blocked'])
+  assert.equal(store.getTask('task_ready')?.ownerRunId, 'run_worker')
 })
 
 function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {

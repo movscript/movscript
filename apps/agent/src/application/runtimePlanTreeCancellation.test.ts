@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
 import type { AgentPlan, AgentRun } from '../state/types.js'
-import { resolveRuntimePlanTreeCancellationRoot } from './runtimePlanTreeCancellation.js'
+import {
+  applyRuntimePlanTreeCancellationRequest,
+  resolveRuntimePlanTreeCancellationRoot,
+} from './runtimePlanTreeCancellation.js'
 
 test('resolveRuntimePlanTreeCancellationRoot accepts only the attached root planner run', () => {
   const store = new InMemoryAgentStore()
@@ -16,6 +19,25 @@ test('resolveRuntimePlanTreeCancellationRoot accepts only the attached root plan
   assert.throws(() => resolveRuntimePlanTreeCancellationRoot({ store, runId: 'run_worker' }), /is not a planner run/)
   assert.throws(() => resolveRuntimePlanTreeCancellationRoot({ store, runId: 'run_second_planner' }), /is not the root planner/)
   assert.throws(() => resolveRuntimePlanTreeCancellationRoot({ store, runId: 'run_unattached' }), /is not attached to a plan/)
+})
+
+test('applyRuntimePlanTreeCancellationRequest resolves the root and delegates subtree cancellation', () => {
+  const store = new InMemoryAgentStore()
+  store.createPlan(makePlan())
+  store.createRun(makeRun({ id: 'run_root', role: 'planner', planId: 'plan_1' }))
+  const calls: string[] = []
+
+  const result = applyRuntimePlanTreeCancellationRequest({
+    store,
+    runId: 'run_root',
+    cancelSubtree: (runId) => {
+      calls.push(`subtree:${runId}`)
+      return { cancelledRunIds: [runId] }
+    },
+  })
+
+  assert.deepEqual(result.cancelledRunIds, ['run_root'])
+  assert.deepEqual(calls, ['subtree:run_root'])
 })
 
 function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  cloudFileConfigToggleConfirmKey,
   credentialToggleConfirmKey,
   featureToggleConfirmKey,
   jobActionConfirmKey,
@@ -34,4 +35,9 @@ test('job action guard maps operational actions to confirmation keys', () => {
   assert.equal(jobActionConfirmKey('retry'), 'admin.debug.jobs.confirmRetry')
   assert.equal(jobActionConfirmKey('cancel'), 'admin.debug.jobs.confirmCancel')
   assert.equal(jobActionConfirmKey('delete'), 'admin.debug.jobs.confirmDelete')
+})
+
+test('cloud file config toggle guard maps current state to confirmation key', () => {
+  assert.equal(cloudFileConfigToggleConfirmKey({ is_enabled: false }), 'admin.cloudFiles.confirmEnable')
+  assert.equal(cloudFileConfigToggleConfirmKey({ is_enabled: true }), 'admin.cloudFiles.confirmDisable')
 })

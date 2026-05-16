@@ -3,6 +3,8 @@ import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
 import type { AgentPlan, AgentPlanSnapshot, AgentRun } from '../state/types.js'
 import {
+  applyRuntimeAgentPlanCreationToolFlow,
+  applyRuntimeAgentReplanToolFlow,
   buildRuntimeAgentReplanResult,
   finalizeRuntimeAgentPlanCreation,
   getRuntimeAgentPlan,
@@ -68,6 +70,58 @@ test('finalizeRuntimeAgentPlanCreation attaches planner and starts or blocks the
   assert.equal(store.getPlan('plan_empty')?.status, 'blocked')
 })
 
+test('applyRuntimeAgentPlanCreationToolFlow returns existing plans without creating another plan', async () => {
+  const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ id: 'run_planner', planId: 'plan_existing' }))
+  store.createPlan(makePlan({ id: 'plan_existing' }))
+
+  const result = await applyRuntimeAgentPlanCreationToolFlow({
+    store,
+    plannerRunId: 'run_planner',
+    now: () => '2026-01-01T00:00:00.000Z',
+    createPlan: async () => {
+      throw new Error('createPlan should not be called')
+    },
+    getPlanSnapshot: makeSnapshot,
+  }) as { status?: string; planId?: string; plannerRunId?: string }
+
+  assert.equal(result.status, 'exists')
+  assert.equal(result.planId, 'plan_existing')
+  assert.equal(result.plannerRunId, 'run_planner')
+})
+
+test('applyRuntimeAgentPlanCreationToolFlow creates and finalizes a new session plan', async () => {
+  const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ id: 'run_planner', threadId: 'thread_1' }))
+  const calls: string[] = []
+
+  const result = await applyRuntimeAgentPlanCreationToolFlow({
+    store,
+    plannerRunId: 'run_planner',
+    request: { goal: 'Draft a launch plan', title: 'Ignored by test' },
+    now: () => '2026-01-01T00:00:00.000Z',
+    createPlan: async (planInput) => {
+      calls.push(`create:${String(planInput.threadId)}:${String(planInput.createPlannerRun)}:${String(planInput.goal)}`)
+      store.createPlan(makePlan({ id: 'plan_created', threadId: String(planInput.threadId), status: 'pending' }))
+      return makeSnapshotWithTasks('plan_created', 1)
+    },
+    getPlanSnapshot: (planId) => {
+      calls.push(`snapshot:${planId}`)
+      return makeSnapshotWithTasks(planId, 1)
+    },
+  }) as { status?: string; planId?: string; plannerRunId?: string }
+
+  assert.deepEqual(calls, [
+    'create:thread_1:false:Draft a launch plan',
+    'snapshot:plan_created',
+  ])
+  assert.equal(result.status, 'created')
+  assert.equal(result.planId, 'plan_created')
+  assert.equal(result.plannerRunId, 'run_planner')
+  assert.equal(store.getRun('run_planner')?.planId, 'plan_created')
+  assert.equal(store.getPlan('plan_created')?.status, 'running')
+})
+
 test('getRuntimeAgentPlan resolves plan ids and enforces thread boundaries', () => {
   const store = new InMemoryAgentStore()
   store.createRun(makeRun({ id: 'run_planner', planId: 'plan_1' }))
@@ -120,6 +174,42 @@ test('prepareRuntimeAgentReplan attaches implicit thread plans and builds stable
 
   assert.equal(response.status, 'updated')
   assert.deepEqual(response.createdTaskIds, ['task_new'])
+})
+
+test('applyRuntimeAgentReplanToolFlow prepares, replans, and projects the updated snapshot', () => {
+  const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ id: 'run_planner' }))
+  store.createPlan(makePlan({ id: 'plan_1' }))
+  const calls: string[] = []
+
+  const result = applyRuntimeAgentReplanToolFlow({
+    store,
+    plannerRunId: 'run_planner',
+    request: { dispatch: false },
+    now: () => '2026-01-01T00:00:00.000Z',
+    replanRun: (runId, replanInput) => {
+      calls.push(`replan:${runId}:${String(replanInput.planId)}:${String(replanInput.plannerRunId)}:${String(replanInput.dispatch)}`)
+      return {
+        plan: makePlan({ id: String(replanInput.planId) }),
+        createdTaskIds: ['task_new'],
+        updatedTaskIds: ['task_existing'],
+        resetTaskIds: [],
+      }
+    },
+    getPlanSnapshot: (planId) => {
+      calls.push(`snapshot:${planId}`)
+      return makeSnapshot(planId)
+    },
+  }) as { status?: string; createdTaskIds?: string[]; updatedTaskIds?: string[] }
+
+  assert.deepEqual(calls, [
+    'replan:run_planner:plan_1:run_planner:false',
+    'snapshot:plan_1',
+  ])
+  assert.equal(result.status, 'updated')
+  assert.deepEqual(result.createdTaskIds, ['task_new'])
+  assert.deepEqual(result.updatedTaskIds, ['task_existing'])
+  assert.equal(store.getRun('run_planner')?.planId, 'plan_1')
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {
@@ -179,5 +269,22 @@ function makeSnapshot(planId = 'plan_1'): AgentPlanSnapshot {
       needsReviewTaskIds: [],
       failedTaskIds: [],
     },
+  }
+}
+
+function makeSnapshotWithTasks(planId: string, taskCount: number): AgentPlanSnapshot {
+  return {
+    ...makeSnapshot(planId),
+    tasks: Array.from({ length: taskCount }, (_, index) => ({
+      id: `task_${index + 1}`,
+      planId,
+      title: `Task ${index + 1}`,
+      status: 'pending',
+      progress: 0,
+      deps: [],
+      artifacts: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })),
   }
 }

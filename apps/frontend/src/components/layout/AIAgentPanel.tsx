@@ -10,6 +10,7 @@ import {
   Trash2, RefreshCw, History, Database, Save, FolderOpen, GripHorizontal,
   SlidersHorizontal, Wrench, Route, PlayIcon,
   MessageSquareText, Braces, FileJson, MoreHorizontal,
+  Settings2,
 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSettled, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
@@ -30,6 +31,8 @@ import { compactRunActivity, compactRunTraceEvents, liveTraceEventKey, mergeRunA
 import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, inputTypeLabel, runApprovalModeLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceEventStatusLabel, traceKindLabel } from '@/lib/agentRunUi'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { toastMCPError, toastMCPStatus } from '@/lib/mcpStatus'
+import { needsModelSetupAction } from '@/lib/actionableErrors'
+import { openAdminConsole } from '@/lib/adminConsole'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
 import { GenerationJobSummaryCard, GenerationParamAuditCard, GenerationProgressCard, GenerationTraceSummaryCard, GenerationValidationErrorCard } from '@/components/agent/GenerationCards'
@@ -108,6 +111,7 @@ import {
 } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
+import { useAppSettingsStore } from '@/store/appSettingsStore'
 import {
   useAgentStore,
   type ChatGenerationJob,
@@ -2965,7 +2969,8 @@ function PlanOverviewPanel({
 // ── Message bubble ────────────────────────────────────────────────────────────
 
 function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: number }) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const [copied, setCopied] = useState(false)
   const isUser = msg.role === 'user'
   const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
@@ -2993,6 +2998,7 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
   const displayContent = contextDiagnostic
     ? ''
     : showLargeMedia ? hideGeneratedResultTechnicalSummary(msg.content) : msg.content
+  const showModelSetupAction = !isUser && needsModelSetupAction(msg.content)
 
   function copy() {
     navigator.clipboard.writeText(msg.content)
@@ -3028,6 +3034,26 @@ function MessageBubble({ msg, projectId }: { msg: ChatMessage; projectId?: numbe
       )}
     >
       {displayContent && <MarkdownContent text={displayContent} attachments={messageAttachments} />}
+      {showModelSetupAction && (
+        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-2 text-[10px]">
+          <div className="flex items-start gap-2">
+            <Settings2 size={13} className="mt-0.5 shrink-0 text-amber-600" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-foreground">{t('agents.chat.modelSetupAction.title')}</p>
+              <p className="mt-0.5 leading-relaxed text-muted-foreground">{t('agents.chat.modelSetupAction.description')}</p>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                className="mt-2"
+                onClick={() => void openAdminConsole(apiBaseURL, '/models')}
+              >
+                {t('agents.chat.modelSetupAction.openModels')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {contextDiagnostic && <ContextDiagnosticCard diagnostic={contextDiagnostic} />}
       {!isUser && <GenerationTraceSummaryCard jobs={msg.meta?.generationJobs} />}
       {!isUser && <GenerationValidationErrorCard errors={msg.meta?.generationValidationErrors} />}

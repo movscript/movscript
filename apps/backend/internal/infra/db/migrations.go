@@ -227,6 +227,16 @@ func RegisteredMigrations() []Migration {
 				return db.AutoMigrate(currentSchemaBackfillModels()...)
 			},
 		},
+		{
+			Version: "000023",
+			Name:    "zipper_entity_relations",
+			Up: func(db *gorm.DB) error {
+				if err := dropLegacyEntityRelationUniqueIndex(db); err != nil {
+					return err
+				}
+				return db.AutoMigrate(&persistencemodel.EntityRelation{})
+			},
+		},
 	}
 	return core
 }
@@ -302,6 +312,9 @@ type scriptVersionNumberRow struct {
 }
 
 func resequenceScriptVersionNumbers(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.ScriptVersion{}) {
+		return nil
+	}
 	var rows []scriptVersionNumberRow
 	if err := db.
 		Model(&persistencemodel.ScriptVersion{}).
@@ -348,6 +361,9 @@ func resequenceScriptVersionNumbers(db *gorm.DB) error {
 }
 
 func createScriptVersionNumberUniqueIndex(db *gorm.DB) error {
+	if !db.Migrator().HasTable(&persistencemodel.ScriptVersion{}) {
+		return nil
+	}
 	if db.Migrator().HasIndex(&persistencemodel.ScriptVersion{}, scriptVersionNumberUniqueIndex) {
 		return nil
 	}

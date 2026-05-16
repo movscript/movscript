@@ -27,6 +27,36 @@ declare global {
       setAppSettings?: (settings: AppSettings) => Promise<void>
       onBackendStatus?: (handler: (status: BackendStatus) => void) => () => void
       getBackendStatus?: () => Promise<BackendStatus>
+      openAdminConsole?: (input?: { baseURL?: string; path?: string }) => Promise<{ url: string }>
+      clipVideo?: (input: {
+        sourceData?: ArrayBuffer | Uint8Array
+        sourcePath?: string
+        sourceName?: string
+        startMs: number
+        endMs: number
+        outputName?: string
+        mode?: 'fast' | 'accurate'
+      }) => Promise<{
+        ok: boolean
+        outputPath?: string
+        outputName?: string
+        mode?: 'fast' | 'accurate'
+        fallbackApplied?: boolean
+        data?: Uint8Array
+        size?: number
+        mimeType?: string
+        error?: string
+        code?: string
+      }>
+      getVideoClipStatus?: () => Promise<{
+        available: boolean
+        path?: string
+        version?: string
+        error?: string
+        expectedBundledPath?: string
+        platform?: string
+        arch?: string
+      }>
       ensureAgentRuntime?: (input?: { baseURL?: string }) => Promise<{
         ok: boolean
         running: boolean

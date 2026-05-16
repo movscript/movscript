@@ -140,7 +140,7 @@ func (s *Service) PreviewProjectProposalApply(ctx context.Context, projectID uin
 
 	var resp *ApplyProjectProposalResponse
 	err := s.repo.WithTx(ctx, func(txRepo repository) error {
-		txSvc := &Service{repo: txRepo, cache: s.cache}
+		txSvc := s.withRepository(txRepo)
 		var err error
 		resp, err = txSvc.applyProjectProposalInTx(ctx, projectID, req)
 		if err != nil {
@@ -166,7 +166,7 @@ func (s *Service) applyProjectProposalInTx(ctx context.Context, projectID uint, 
 	}
 
 	err := s.repo.WithTx(ctx, func(txRepo repository) error {
-		txSvc := &Service{repo: txRepo, cache: s.cache}
+		txSvc := s.withRepository(txRepo)
 		if req.Proposal.ProjectStyle != nil && req.Proposal.ProjectStyle.hasChanges() {
 			if _, err := txRepo.PatchProjectStyle(ctx, projectID, *req.Proposal.ProjectStyle); err != nil {
 				return err
@@ -504,7 +504,7 @@ func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projec
 			continue
 		}
 
-		usages, err := s.repo.ListCreativeReferenceUsages(ctx, CreativeReferenceUsageFilter{ProjectID: projectID, CreativeReferenceID: sourceID})
+		usages, err := s.ListCreativeReferenceUsages(ctx, CreativeReferenceUsageFilter{ProjectID: projectID, CreativeReferenceID: sourceID})
 		if err != nil {
 			return err
 		}
@@ -527,7 +527,7 @@ func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projec
 			resp.Counts.CreativeReferenceUsages++
 		}
 
-		relationships, err := s.repo.ListCreativeRelationships(ctx, CreativeRelationshipFilter{ProjectID: projectID, CreativeReferenceID: sourceID})
+		relationships, err := s.ListCreativeRelationships(ctx, CreativeRelationshipFilter{ProjectID: projectID, CreativeReferenceID: sourceID})
 		if err != nil {
 			return err
 		}
@@ -621,7 +621,19 @@ func (s *Service) applyProjectCreativeReferenceMerge(ctx context.Context, projec
 		if err != nil {
 			return err
 		}
-		if _, err := s.repo.PatchCreativeReference(ctx, source, domainsemantic.CreativeReferencePatch{Status: "merged"}); err != nil {
+		if _, err := s.PatchCreativeReference(ctx, projectID, fmt.Sprint(source.ID), CreativeReferenceInput{
+			SourceScriptID:   source.SourceScriptID,
+			SourceAnalysisID: source.SourceAnalysisID,
+			Kind:             source.Kind,
+			Name:             source.Name,
+			Alias:            source.Alias,
+			Description:      source.Description,
+			Content:          source.Content,
+			Importance:       source.Importance,
+			Status:           "merged",
+			ProfileJSON:      source.ProfileJSON,
+			TagsJSON:         source.TagsJSON,
+		}); err != nil {
 			return err
 		}
 	}

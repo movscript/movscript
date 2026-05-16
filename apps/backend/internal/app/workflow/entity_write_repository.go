@@ -6,12 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/movscript/movscript/internal/app/coregraph"
+	relationapp "github.com/movscript/movscript/internal/app/relation"
 	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +21,7 @@ func (r *gormRepository) WriteEntityPorts(ctx context.Context, kind string, id u
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		txDB := tx.Session(&gorm.Session{SkipHooks: true})
 		txRepo := &gormRepository{db: txDB}
-		txSvc := &EntityIOService{repo: txRepo}
+		txSvc := &EntityIOService{repo: txRepo, relations: relationapp.NewService(txDB)}
 		oldValues, _ := txSvc.ReadPorts(ctx, kind, id)
 		if err := txRepo.writeEntityFields(ctx, kind, id, values); err != nil {
 			return err
@@ -112,16 +113,12 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 		if resourceID == 0 {
 			continue
 		}
-		var existingCandidate persistencemodel.AssetSlotCandidate
-		err := r.db.WithContext(ctx).
-			Joins("JOIN asset_slots candidate_slots ON candidate_slots.id = asset_slot_candidates.candidate_asset_slot_id").
-			Where("asset_slot_candidates.asset_slot_id = ? AND candidate_slots.resource_id = ?", slotID, resourceID).
-			First(&existingCandidate).Error
-		if err == nil {
-			continue
-		}
-		if err != nil && err != gorm.ErrRecordNotFound {
+		existingCandidateSlotID, err := r.findCandidateAssetSlotIDByResourceRelation(ctx, projectID, slotID, resourceID)
+		if err != nil {
 			return bindingIDs, err
+		}
+		if existingCandidateSlotID > 0 {
+			continue
 		}
 		candidateSlot := domainsemantic.NewAssetSlot(domainsemantic.AssetSlotSpec{
 			ProjectID:                projectID,
@@ -143,7 +140,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 		if err := r.db.WithContext(ctx).Create(&candidateSlot).Error; err != nil {
 			return bindingIDs, err
 		}
-		if err := relation.SyncCoreEntityRelations(r.db.WithContext(ctx), &candidateSlot); err != nil {
+		if err := r.writeCoreGraph(ctx, &candidateSlot); err != nil {
 			return bindingIDs, err
 		}
 		candidate := domainsemantic.NewAssetSlotCandidate(domainsemantic.AssetSlotCandidateSpec{
@@ -160,7 +157,7 @@ func (r *gormRepository) writeAssetSlotCandidates(ctx context.Context, slotID ui
 		if err := r.db.WithContext(ctx).Create(&candidate).Error; err != nil {
 			return bindingIDs, err
 		}
-		if err := relation.SyncCoreEntityRelations(r.db.WithContext(ctx), &candidate); err != nil {
+		if err := r.writeCoreGraph(ctx, &candidate); err != nil {
 			return bindingIDs, err
 		}
 		binding := domainresourcebinding.New(domainresourcebinding.CreateInput{
@@ -201,23 +198,23 @@ func (r *gormRepository) syncEntityRelationsForKind(ctx context.Context, kind st
 	case domainworkflow.EntityKindSegment:
 		item := persistencemodel.Segment{}
 		item.ID = id
-		return relation.SyncCoreEntityRelations(db, &item)
+		return coregraph.NewWriter(db).Write(ctx, &item)
 	case domainworkflow.EntityKindSceneMoment:
 		item := persistencemodel.SceneMoment{}
 		item.ID = id
-		return relation.SyncCoreEntityRelations(db, &item)
+		return coregraph.NewWriter(db).Write(ctx, &item)
 	case domainworkflow.EntityKindCreativeReference:
 		item := persistencemodel.CreativeReference{}
 		item.ID = id
-		return relation.SyncCoreEntityRelations(db, &item)
+		return coregraph.NewWriter(db).Write(ctx, &item)
 	case domainworkflow.EntityKindAssetSlot:
 		item := persistencemodel.AssetSlot{}
 		item.ID = id
-		return relation.SyncCoreEntityRelations(db, &item)
+		return coregraph.NewWriter(db).Write(ctx, &item)
 	case domainworkflow.EntityKindContentUnit:
 		item := persistencemodel.ContentUnit{}
 		item.ID = id
-		return relation.SyncCoreEntityRelations(db, &item)
+		return coregraph.NewWriter(db).Write(ctx, &item)
 	default:
 		return nil
 	}

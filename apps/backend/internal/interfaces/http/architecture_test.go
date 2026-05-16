@@ -16,7 +16,7 @@ const domainModelImport = "github.com/movscript/movscript/internal/domain/model"
 const persistenceModelImport = "github.com/movscript/movscript/internal/infra/persistence/model"
 
 func TestHandlersAndRoutersDoNotImportPersistenceModels(t *testing.T) {
-	for _, root := range []string{"handler", "router", "auditlog", "middleware"} {
+	for _, root := range []string{"handler", "router", "audit", "middleware"} {
 		t.Run(root, func(t *testing.T) {
 			assertNoDomainModelImports(t, root)
 		})

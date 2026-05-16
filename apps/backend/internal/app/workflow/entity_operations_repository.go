@@ -3,26 +3,26 @@ package workflow
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
+	"github.com/movscript/movscript/internal/app/coregraph"
 	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
 type repository interface {
 	AttachAssetSlotCandidate(ctx context.Context, input AttachAssetSlotCandidateInput) (AttachAssetSlotCandidateResult, error)
 	WriteEntityPorts(ctx context.Context, kind string, id uint, values map[string]EntityPortValue, projectID uint, sourceType string, meta EntityWriteMeta) (EntityWriteResult, error)
-	FirstBindingBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) (resourceBindingProjection, bool, error)
-	FirstBindingByRole(ctx context.Context, ownerType string, ownerID uint, role string) (resourceBindingProjection, bool, error)
-	ListBindingsBySlot(ctx context.Context, ownerType string, ownerID uint, slot string) ([]resourceBindingDetailProjection, error)
 	LoadEntityRow(ctx context.Context, table string, columns []string, id uint) (EntityRow, error)
 	LoadScriptComputedFields(ctx context.Context, id uint) (scriptComputedProjection, error)
-	ListAssetSlotCandidates(ctx context.Context, assetSlotID uint) ([]assetSlotCandidateProjection, error)
+	LoadRawResources(ctx context.Context, ids []uint) ([]rawResourceProjection, error)
+	LoadAssetSlots(ctx context.Context, ids []uint) ([]assetSlotProjection, error)
 }
 
 type gormRepository struct {
@@ -79,7 +79,7 @@ func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input Att
 			if err := txRepo.db.WithContext(ctx).Model(&sourceSlot).Update("status", sourceSlot.Status).Error; err != nil {
 				return err
 			}
-			if err := relation.SyncCoreEntityRelations(txRepo.db.WithContext(ctx), &sourceSlot); err != nil {
+			if err := txRepo.writeCoreGraph(ctx, &sourceSlot); err != nil {
 				return err
 			}
 		}
@@ -116,15 +116,15 @@ func attachAssetSlotCandidateSourceType(input AttachAssetSlotCandidateInput) str
 
 func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sourceSlot persistencemodel.AssetSlot, resource persistencemodel.RawResource, input AttachAssetSlotCandidateInput) (persistencemodel.AssetSlot, error) {
 	var candidateSlot persistencemodel.AssetSlot
-	err := r.db.WithContext(ctx).
-		Where("project_id = ? AND owner_type = ? AND owner_id = ? AND resource_id = ?", input.ProjectID, domainresourcebinding.OwnerTypeAssetSlot, sourceSlot.ID, input.ResourceID).
-		Order("id asc").
-		First(&candidateSlot).Error
-	if err == nil {
-		return candidateSlot, nil
-	}
-	if err != gorm.ErrRecordNotFound {
+	candidateSlotID, err := r.findCandidateAssetSlotIDByResourceRelation(ctx, input.ProjectID, sourceSlot.ID, input.ResourceID)
+	if err != nil {
 		return candidateSlot, err
+	}
+	if candidateSlotID > 0 {
+		if err := r.db.WithContext(ctx).First(&candidateSlot, candidateSlotID).Error; err != nil {
+			return candidateSlot, err
+		}
+		return candidateSlot, nil
 	}
 	ownerID := sourceSlot.ID
 	name := strings.TrimSpace(sourceSlot.Name)
@@ -152,7 +152,7 @@ func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sou
 	if err := r.db.WithContext(ctx).Create(&candidateSlot).Error; err != nil {
 		return candidateSlot, err
 	}
-	if err := relation.SyncCoreEntityRelations(r.db.WithContext(ctx), &candidateSlot); err != nil {
+	if err := r.writeCoreGraph(ctx, &candidateSlot); err != nil {
 		return candidateSlot, err
 	}
 	return candidateSlot, nil
@@ -160,15 +160,15 @@ func (r *gormRepository) findOrCreateCandidateAssetSlot(ctx context.Context, sou
 
 func (r *gormRepository) findOrCreateCandidateResourceBinding(ctx context.Context, candidateSlot persistencemodel.AssetSlot, input AttachAssetSlotCandidateInput, sourceType string, slot string) (persistencemodel.ResourceBinding, error) {
 	var binding persistencemodel.ResourceBinding
-	err := r.db.WithContext(ctx).Where(
-		"project_id = ? AND resource_id = ? AND owner_type = ? AND owner_id = ? AND role = ? AND slot = ? AND version = ?",
-		input.ProjectID, input.ResourceID, domainresourcebinding.OwnerTypeAssetSlot, candidateSlot.ID, domainresourcebinding.RoleOutput, slot, 1,
-	).First(&binding).Error
-	if err == nil {
-		return binding, nil
-	}
-	if err != gorm.ErrRecordNotFound {
+	bindingID, err := r.findResourceBindingIDByRelation(ctx, input.ProjectID, domainresourcebinding.OwnerTypeAssetSlot, candidateSlot.ID, input.ResourceID, domainresourcebinding.RoleOutput, slot, 1)
+	if err != nil {
 		return binding, err
+	}
+	if bindingID > 0 {
+		if err := r.db.WithContext(ctx).First(&binding, bindingID).Error; err != nil {
+			return binding, err
+		}
+		return binding, nil
 	}
 	binding = domainresourcebinding.New(domainresourcebinding.CreateInput{
 		ProjectID:    input.ProjectID,
@@ -193,10 +193,14 @@ func (r *gormRepository) findOrCreateCandidateResourceBinding(ctx context.Contex
 
 func (r *gormRepository) findOrCreateAssetSlotCandidate(ctx context.Context, sourceSlot persistencemodel.AssetSlot, candidateSlot persistencemodel.AssetSlot, input AttachAssetSlotCandidateInput, sourceType string) (persistencemodel.AssetSlotCandidate, error) {
 	var candidate persistencemodel.AssetSlotCandidate
-	err := r.db.WithContext(ctx).
-		Where("project_id = ? AND asset_slot_id = ? AND candidate_asset_slot_id = ?", input.ProjectID, sourceSlot.ID, candidateSlot.ID).
-		First(&candidate).Error
-	if err == nil {
+	candidateID, err := r.findAssetSlotCandidateIDByRelation(ctx, input.ProjectID, candidateSlot.ID, sourceSlot.ID)
+	if err != nil {
+		return candidate, err
+	}
+	if candidateID > 0 {
+		if err := r.db.WithContext(ctx).First(&candidate, candidateID).Error; err != nil {
+			return candidate, err
+		}
 		updates := map[string]any{"source_type": sourceType}
 		if input.SourceID != nil {
 			updates["source_id"] = input.SourceID
@@ -216,13 +220,10 @@ func (r *gormRepository) findOrCreateAssetSlotCandidate(ctx context.Context, sou
 			return candidate, err
 		}
 		_ = r.db.WithContext(ctx).First(&candidate, candidate.ID).Error
-		if err := relation.SyncCoreEntityRelations(r.db.WithContext(ctx), &candidate); err != nil {
+		if err := r.writeCoreGraph(ctx, &candidate); err != nil {
 			return candidate, err
 		}
 		return candidate, nil
-	}
-	if err != gorm.ErrRecordNotFound {
-		return candidate, err
 	}
 	note := strings.TrimSpace(input.Note)
 	if note == "" {
@@ -241,10 +242,91 @@ func (r *gormRepository) findOrCreateAssetSlotCandidate(ctx context.Context, sou
 	if err := r.db.WithContext(ctx).Create(&candidate).Error; err != nil {
 		return candidate, err
 	}
-	if err := relation.SyncCoreEntityRelations(r.db.WithContext(ctx), &candidate); err != nil {
+	if err := r.writeCoreGraph(ctx, &candidate); err != nil {
 		return candidate, err
 	}
 	return candidate, nil
+}
+
+func (r *gormRepository) findCandidateAssetSlotIDByResourceRelation(ctx context.Context, projectID uint, sourceSlotID uint, resourceID uint) (uint, error) {
+	candidateSlotIDs, err := r.candidateSlotIDsForTargetSlot(ctx, projectID, sourceSlotID)
+	if err != nil || len(candidateSlotIDs) == 0 {
+		return 0, err
+	}
+	var edge persistencemodel.EntityRelation
+	err = r.db.WithContext(ctx).
+		Where("project_id = ? AND category = ? AND type = ? AND source_type = ? AND source_id IN ? AND target_type = ? AND target_id = ?",
+			projectID, domainrelation.CategoryAsset, domainrelation.TypeUsesResource, "asset_slot", candidateSlotIDs, "raw_resource", resourceID).
+		Order("id asc").
+		First(&edge).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return edge.SourceID, nil
+}
+
+func (r *gormRepository) findAssetSlotCandidateIDByRelation(ctx context.Context, projectID uint, candidateSlotID uint, sourceSlotID uint) (uint, error) {
+	var edge persistencemodel.EntityRelation
+	err := r.db.WithContext(ctx).
+		Where("project_id = ? AND category = ? AND type = ? AND source_type = ? AND source_id = ? AND target_type = ? AND target_id = ?",
+			projectID, domainrelation.CategoryAsset, domainrelation.TypeCandidateFor, "asset_slot", candidateSlotID, "asset_slot", sourceSlotID).
+		Order("id asc").
+		First(&edge).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	return relationMetadataUint(edge.MetadataJSON, "asset_slot_candidate_id"), nil
+}
+
+func (r *gormRepository) findResourceBindingIDByRelation(ctx context.Context, projectID uint, ownerType string, ownerID uint, resourceID uint, role string, slot string, version int) (uint, error) {
+	edges := make([]persistencemodel.EntityRelation, 0)
+	if err := r.db.WithContext(ctx).
+		Where("project_id = ? AND category = ? AND type = ? AND source_type = ? AND source_id = ? AND target_type = ? AND target_id = ?",
+			projectID, domainrelation.CategoryAsset, domainrelation.TypeUsesResource, ownerType, ownerID, "raw_resource", resourceID).
+		Order("id asc").
+		Find(&edges).Error; err != nil {
+		return 0, err
+	}
+	for _, edge := range edges {
+		if relationMetadataString(edge.MetadataJSON, "role") != role {
+			continue
+		}
+		if relationMetadataString(edge.MetadataJSON, "slot") != slot {
+			continue
+		}
+		if version > 0 && relationMetadataUint(edge.MetadataJSON, "version") != uint(version) {
+			continue
+		}
+		return relationMetadataUint(edge.MetadataJSON, "resource_binding_id"), nil
+	}
+	return 0, nil
+}
+
+func (r *gormRepository) candidateSlotIDsForTargetSlot(ctx context.Context, projectID uint, sourceSlotID uint) ([]uint, error) {
+	edges := make([]persistencemodel.EntityRelation, 0)
+	if err := r.db.WithContext(ctx).
+		Where("project_id = ? AND category = ? AND type = ? AND source_type = ? AND target_type = ? AND target_id = ?",
+			projectID, domainrelation.CategoryAsset, domainrelation.TypeCandidateFor, "asset_slot", "asset_slot", sourceSlotID).
+		Order("id asc").
+		Find(&edges).Error; err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(edges))
+	seen := map[uint]struct{}{}
+	for _, edge := range edges {
+		if _, ok := seen[edge.SourceID]; ok {
+			continue
+		}
+		seen[edge.SourceID] = struct{}{}
+		ids = append(ids, edge.SourceID)
+	}
+	return ids, nil
 }
 
 func (r *gormRepository) createEntityResourceBinding(ctx context.Context, binding *persistencemodel.ResourceBinding) error {
@@ -252,7 +334,7 @@ func (r *gormRepository) createEntityResourceBinding(ctx context.Context, bindin
 	if err := db.Create(binding).Error; err != nil {
 		return err
 	}
-	if err := relation.SyncCoreEntityRelations(db, binding); err != nil {
+	if err := coregraph.NewWriter(db).Write(ctx, binding); err != nil {
 		return err
 	}
 	if binding.IsPrimary {
@@ -273,7 +355,7 @@ func (r *gormRepository) createEntityResourceBinding(ctx context.Context, bindin
 		if update.RowsAffected > 0 {
 			slot := persistencemodel.AssetSlot{}
 			slot.ID = binding.OwnerID
-			if err := relation.SyncCoreEntityRelations(db, &slot); err != nil {
+			if err := coregraph.NewWriter(db).Write(ctx, &slot); err != nil {
 				return err
 			}
 		}

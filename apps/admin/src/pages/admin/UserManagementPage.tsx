@@ -1,23 +1,26 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { BarChart3, Pencil, Plus, RefreshCw, ScrollText, Search, ShieldCheck, UsersRound, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, Input, Label } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
 import { auditLogsHref, usageLogsHref } from '@/lib/adminLogQueryParams'
+import { orgListHref } from '@/lib/adminOrgQueryParams'
+import { projectListHref } from '@/lib/adminProjectQueryParams'
+import {
+  emptyUserListFilters,
+  userFiltersFromSearchParams,
+  userPageFromSearchParams,
+  userSearchParams,
+  type UserListFilters,
+} from '@/lib/adminUserQueryParams'
 import { cn } from '@/lib/utils'
 import { useUserStore } from '@/store/userStore'
 import type { PaginatedResponse, User } from '@/types'
 
 const PAGE_SIZE = 50
-
-type UserFilters = {
-  query: string
-  systemRole: string
-  status: string
-}
 
 type CreateUserForm = {
   username: string
@@ -72,12 +75,6 @@ interface AdminUserDetail {
   }
 }
 
-const emptyFilters: UserFilters = {
-  query: '',
-  systemRole: '',
-  status: '',
-}
-
 const emptyCreateUserForm: CreateUserForm = {
   username: '',
   password: '',
@@ -110,8 +107,9 @@ export function UserManagementPage() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const currentUser = useUserStore((state) => state.currentUser)
-  const [page, setPage] = useState(1)
-  const [filters, setFilters] = useState<UserFilters>(emptyFilters)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [page, setPage] = useState(() => userPageFromSearchParams(searchParams))
+  const [filters, setFilters] = useState<UserListFilters>(() => userFiltersFromSearchParams(searchParams))
   const [error, setError] = useState('')
   const [detailUser, setDetailUser] = useState<User | null>(null)
   const [editUser, setEditUser] = useState<User | null>(null)
@@ -125,6 +123,7 @@ export function UserManagementPage() {
     page,
     page_size: PAGE_SIZE,
     q: filters.query.trim() || undefined,
+    user_id: filters.userId.trim() || undefined,
     system_role: filters.systemRole || undefined,
     status: filters.status || undefined,
   }), [filters, page])
@@ -209,14 +208,23 @@ export function UserManagementPage() {
   const hasFilters = Object.values(filters).some((value) => value.trim() !== '')
   const queryError = usersQuery.error
 
-  function updateFilter<K extends keyof UserFilters>(key: K, value: UserFilters[K]) {
-    setFilters((current) => ({ ...current, [key]: value }))
+  function updateFilter<K extends keyof UserListFilters>(key: K, value: UserListFilters[K]) {
+    const next = { ...filters, [key]: value }
+    setFilters(next)
     setPage(1)
+    setSearchParams(userSearchParams(next, 1), { replace: true })
   }
 
   function clearFilters() {
-    setFilters(emptyFilters)
+    setFilters(emptyUserListFilters)
     setPage(1)
+    setSearchParams({}, { replace: true })
+  }
+
+  function updatePage(nextPage: number) {
+    const normalized = Math.max(1, Math.min(pageCount, nextPage))
+    setPage(normalized)
+    setSearchParams(userSearchParams(filters, normalized), { replace: true })
   }
 
   function patchUser(user: User, patch: Record<string, unknown>) {
@@ -261,6 +269,15 @@ export function UserManagementPage() {
     })
   }
 
+  useEffect(() => {
+    setFilters(userFiltersFromSearchParams(searchParams))
+    setPage(userPageFromSearchParams(searchParams))
+  }, [searchParams])
+
+  useEffect(() => {
+    if (page > pageCount) updatePage(pageCount)
+  }, [page, pageCount])
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -286,12 +303,18 @@ export function UserManagementPage() {
       </div>
 
       <div className="rounded-lg border border-border bg-card p-3">
-        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px_auto]">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_130px_160px_160px_auto]">
           <FilterField
             label={t('admin.users.search')}
             value={filters.query}
             onChange={(value) => updateFilter('query', value)}
             placeholder={t('admin.users.searchPlaceholder')}
+          />
+          <FilterField
+            label={t('admin.users.userId')}
+            value={filters.userId}
+            onChange={(value) => updateFilter('userId', value)}
+            placeholder={t('admin.users.userIdPlaceholder')}
           />
           <SelectField label={t('admin.users.role')} value={filters.systemRole} onChange={(value) => updateFilter('systemRole', value)}>
             <option value="">{t('admin.users.allRoles')}</option>
@@ -481,32 +504,32 @@ export function UserManagementPage() {
               )}
               {userDetailQuery.data && (
                 <div className="space-y-5">
-	                  <div className="grid gap-3 md:grid-cols-4">
-	                    <DetailMetric label={t('admin.users.usageCalls')} value={formatNumber(userDetailQuery.data.usage.calls)} />
-	                    <DetailMetric label={t('admin.users.usageCost')} value={formatCredits(userDetailQuery.data.usage.cost)} detail="credits" />
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <DetailMetric label={t('admin.users.usageCalls')} value={formatNumber(userDetailQuery.data.usage.calls)} />
+                    <DetailMetric label={t('admin.users.usageCost')} value={formatCredits(userDetailQuery.data.usage.cost)} detail="credits" />
                     <DetailMetric label={t('admin.users.auditRecords')} value={formatNumber(userDetailQuery.data.audit.records)} />
                     <DetailMetric
                       label={t('admin.users.lastAudit')}
                       value={userDetailQuery.data.audit.last_action || '-'}
-	                      detail={formatDate(userDetailQuery.data.audit.last_at, i18n.language)}
-	                    />
-	                  </div>
-	                  <div className="flex flex-wrap gap-2">
-	                    <Button asChild type="button" variant="outline" size="sm">
-	                      <Link to={usageLogsHref({ userId: detailUser.ID })}>
-	                        <BarChart3 size={14} className="mr-2" />
-	                        {t('admin.users.viewUsageLogs')}
-	                      </Link>
-	                    </Button>
-	                    <Button asChild type="button" variant="outline" size="sm">
-	                      <Link to={auditLogsHref({ actorId: detailUser.ID })}>
-	                        <ScrollText size={14} className="mr-2" />
-	                        {t('admin.users.viewAuditLogs')}
-	                      </Link>
-	                    </Button>
-	                  </div>
+                      detail={formatDate(userDetailQuery.data.audit.last_at, i18n.language)}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild type="button" variant="outline" size="sm">
+                      <Link to={usageLogsHref({ userId: detailUser.ID })}>
+                        <BarChart3 size={14} className="mr-2" />
+                        {t('admin.users.viewUsageLogs')}
+                      </Link>
+                    </Button>
+                    <Button asChild type="button" variant="outline" size="sm">
+                      <Link to={auditLogsHref({ actorId: detailUser.ID })}>
+                        <ScrollText size={14} className="mr-2" />
+                        {t('admin.users.viewAuditLogs')}
+                      </Link>
+                    </Button>
+                  </div>
 
-	                  <div className="rounded-lg border border-border bg-card p-3">
+                  <div className="rounded-lg border border-border bg-card p-3">
                     <div className="mb-2 text-xs font-medium text-muted-foreground">{t('admin.users.resetPassword')}</div>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Input
@@ -597,8 +620,12 @@ export function UserManagementPage() {
                         <div key={org.ID} className="border-b border-border px-4 py-3 last:border-b-0">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-medium text-foreground">{org.name}</div>
-                              <div className="font-mono text-xs text-muted-foreground">#{org.ID} · {org.slug}</div>
+                              <Link to={orgListHref({ orgId: org.ID })} className="block truncate text-sm font-medium text-foreground underline-offset-2 hover:underline">
+                                {org.name}
+                              </Link>
+                              <Link to={orgListHref({ orgId: org.ID })} className="block font-mono text-xs text-muted-foreground underline-offset-2 hover:underline">
+                                #{org.ID} · {org.slug}
+                              </Link>
                             </div>
                             <div className="text-right text-xs text-muted-foreground">
                               <div>{t(`admin.orgs.memberRoles.${org.role}`, { defaultValue: org.role })}</div>
@@ -615,8 +642,12 @@ export function UserManagementPage() {
                         <div key={project.ID} className="border-b border-border px-4 py-3 last:border-b-0">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="truncate text-sm font-medium text-foreground">{project.name || t('common.emptyTitle')}</div>
-                              <div className="font-mono text-xs text-muted-foreground">#{project.ID}{project.org_id ? ` · org #${project.org_id}` : ''}</div>
+                              <Link to={projectListHref({ projectId: project.ID })} className="block truncate text-sm font-medium text-foreground underline-offset-2 hover:underline">
+                                {project.name || t('common.emptyTitle')}
+                              </Link>
+                              <Link to={projectListHref({ projectId: project.ID })} className="block font-mono text-xs text-muted-foreground underline-offset-2 hover:underline">
+                                #{project.ID}{project.org_id ? ` · org #${project.org_id}` : ''}
+                              </Link>
                             </div>
                             <div className="text-right text-xs text-muted-foreground">
                               <div>{t(`admin.projects.memberRoles.${project.role}`, { defaultValue: project.role })}</div>
@@ -670,10 +701,10 @@ export function UserManagementPage() {
 
       <div className="flex items-center justify-end gap-3">
         <span className="text-xs text-muted-foreground">{t('admin.users.pageStatus', { page, pageCount })}</span>
-        <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>
+        <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => updatePage(page - 1)}>
           {t('admin.users.previousPage')}
         </Button>
-        <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))}>
+        <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => updatePage(page + 1)}>
           {t('admin.users.nextPage')}
         </Button>
       </div>

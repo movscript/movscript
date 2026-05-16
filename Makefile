@@ -1,16 +1,15 @@
-.PHONY: build build-agent build-apps build-admin build-backend build-backend-with-admin build-frontend build-movcli build-packages build-plugins dev-agent dev-backend dev-frontend dev-frontend-local dev-frontend-cloud dev-movcli migrate-backend migrate-backend-status test test-backend typecheck-frontend typecheck-packages tidy
+.PHONY: build build-agent build-apps build-admin build-backend build-backend-with-admin build-frontend build-movcli build-packages build-plugins dev-agent dev-backend dev-frontend dev-frontend-local dev-frontend-cloud dev-movcli migrate-backend migrate-backend-status test test-agent-run-debugging test-backend typecheck-frontend typecheck-packages tidy
 
 build: build-packages build-admin build-backend build-apps build-plugins
 
 build-admin:
-	pnpm --filter movscript-admin build
+	pnpm run build:admin
 
 build-backend:
-	cd apps/backend && go build -o bin/server ./cmd/server
+	pnpm run build:backend
 
-build-backend-with-admin: build-admin build-backend
-	rm -rf apps/backend/bin/admin
-	cp -R apps/admin/dist apps/backend/bin/admin
+build-backend-with-admin:
+	pnpm run build:backend:with-admin
 
 build-packages:
 	pnpm run build:packages
@@ -40,13 +39,13 @@ migrate-backend-status:
 	cd apps/backend && go run ./cmd/migrate status
 
 dev-frontend:
-	MOVSCRIPT_BACKEND_POLICY=external pnpm --filter movscript-frontend dev
+	node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=external pnpm --filter movscript-frontend dev
 
 dev-frontend-local: build-backend-with-admin
-	MOVSCRIPT_BACKEND_POLICY=spawn pnpm --filter movscript-frontend dev
+	node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=spawn MOVSCRIPT_AI_STREAM_DEBUG=1 pnpm --filter movscript-frontend dev
 
 dev-frontend-cloud:
-	MOVSCRIPT_BACKEND_POLICY=cloud pnpm --filter movscript-frontend dev
+	node scripts/run-with-env.mjs MOVSCRIPT_BACKEND_POLICY=cloud pnpm --filter movscript-frontend dev
 
 dev-agent:
 	pnpm --filter movscript-agent dev
@@ -60,10 +59,13 @@ tidy:
 test-backend:
 	cd apps/backend && go test ./...
 
+test-agent-run-debugging:
+	pnpm run test:agent-run-debugging
+
 typecheck-frontend:
 	pnpm --filter movscript-frontend typecheck
 
 typecheck-packages:
 	pnpm -r --if-present typecheck
 
-test: test-backend typecheck-packages
+test: test-backend typecheck-packages test-agent-run-debugging

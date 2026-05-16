@@ -1,13 +1,14 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import type { RawResource, ResourceFolder, ResourceFolderPermission, User, PaginatedResponse } from '@/types'
 import {
-  Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File,
+  Upload, Trash2, Search, Image as ImageIcon, Video, FileAudio, File as FileIcon,
   FolderPlus, Folder, FolderOpen, Share2,
   ChevronRight, MoreHorizontal, Globe, MoveRight,
   ShieldCheck, Pencil, Eye, PenLine, X as XIcon,
   LayoutGrid, List, ChevronLeft, Download, FileText,
+  Scissors, Play, Pause,
 } from 'lucide-react'
 import { MediaViewer, downloadResource, resolveResourceUrl } from '@/components/shared/MediaViewer'
 import { ResourceListItem } from '@/components/shared/ResourcePanel'
@@ -16,9 +17,20 @@ import * as Dialog from '@radix-ui/react-dialog'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useTranslation } from 'react-i18next'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
+import { toast } from '@/store/toastStore'
+import {
+  clipOutputNameError,
+  clipRangeError,
+  clipSourceError,
+  defaultClipOutputName,
+  MAX_CLIP_DURATION_MS,
+  MAX_CLIP_SOURCE_BYTES,
+  parseClipTimecode,
+} from '@/lib/videoClipUi'
 
 type TypeFilter = 'all' | 'image' | 'video' | 'audio' | 'text'
 type Tab = 'mine' | 'shared'
+type ClipPhase = 'idle' | 'preparing' | 'clipping' | 'uploading'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -32,7 +44,7 @@ function TypeIcon({ type }: { type: string }) {
     case 'video': return <Video size={13} />
     case 'audio': return <FileAudio size={13} />
     case 'text': return <FileText size={13} />
-    default: return <File size={13} />
+    default: return <FileIcon size={13} />
   }
 }
 
@@ -377,6 +389,573 @@ function RenameResourceDialog({
   )
 }
 
+function VideoClipDialog({
+  resource,
+  folderId,
+  onClose,
+  onCreated,
+}: {
+  resource: RawResource
+  folderId?: number
+  onClose: () => void
+  onCreated: () => void
+}) {
+  const { t } = useTranslation()
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [sourceBlob, setSourceBlob] = useState<Blob | null>(null)
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [duration, setDuration] = useState(0)
+  const [startMs, setStartMs] = useState(0)
+  const [endMs, setEndMs] = useState(0)
+  const [currentMs, setCurrentMs] = useState(0)
+  const [outputName, setOutputName] = useState(defaultClipOutputName(resource.name))
+  const [mode, setMode] = useState<'accurate' | 'fast'>('accurate')
+  const [playing, setPlaying] = useState(false)
+  const [loadingSource, setLoadingSource] = useState(true)
+  const [sourceProgress, setSourceProgress] = useState<{ loaded: number; total?: number }>({ loaded: 0 })
+  const [sourceLoadAttempt, setSourceLoadAttempt] = useState(0)
+  const [sourceError, setSourceError] = useState('')
+  const [sourceErrorRetryable, setSourceErrorRetryable] = useState(false)
+  const [clipError, setClipError] = useState('')
+  const [clipPhase, setClipPhase] = useState<ClipPhase>('idle')
+  const [clipStatus, setClipStatus] = useState<{
+    loading: boolean
+    available: boolean
+    version?: string
+    error?: string
+    expectedBundledPath?: string
+    platform?: string
+    arch?: string
+  }>({
+    loading: true,
+    available: false,
+  })
+
+  const uploadClip = useMutation({
+    mutationFn: async () => {
+      if (!sourceBlob) throw new Error(t('pages.resources.clipSourceMissing'))
+      const clipVideo = window.api?.clipVideo
+      if (!clipVideo) throw new Error(t('pages.resources.clipDesktopOnly'))
+      setClipError('')
+      setClipPhase('preparing')
+      const sourceData = await sourceBlob.arrayBuffer()
+      setClipPhase('clipping')
+      const result = await clipVideo({
+        sourceData,
+        sourceName: resource.name,
+        startMs,
+        endMs,
+        outputName,
+        mode,
+      })
+      if (!result.ok || !result.data) {
+        throw new Error(clipErrorMessage(result.code, result.error, t))
+      }
+      const clipBytes = new Uint8Array(result.data)
+      const clipBuffer = clipBytes.buffer.slice(clipBytes.byteOffset, clipBytes.byteOffset + clipBytes.byteLength) as ArrayBuffer
+      const file = new window.File([clipBuffer], result.outputName || outputName, { type: result.mimeType || 'video/mp4' })
+      const fd = new FormData()
+      fd.append('file', file)
+      if (folderId) fd.append('folder_id', String(folderId))
+      setClipPhase('uploading')
+      const created = await api.post('/resources/upload', fd).then(r => r.data as RawResource)
+      return { created, fallbackApplied: result.fallbackApplied === true }
+    },
+    onSuccess: ({ created, fallbackApplied }) => {
+      setClipPhase('idle')
+      toast.success(t('pages.resources.clipCreated'), fallbackApplied ? t('pages.resources.clipFallbackApplied', { name: created.name }) : created.name)
+      onCreated()
+    },
+    onError: (error) => {
+      setClipPhase('idle')
+      setClipError(error instanceof Error ? error.message : t('pages.resources.clipFailed'))
+    },
+  })
+
+  useEffect(() => {
+    let active = true
+    let objectUrl = ''
+    const controller = new AbortController()
+    setLoadingSource(true)
+    setSourceError('')
+    setSourceErrorRetryable(false)
+    setSourceProgress({ loaded: 0, total: resource.size || undefined })
+    const initialSourceError = clipSourceError(resource.size)
+    if (initialSourceError) {
+      setSourceError(sourceErrorMessage(initialSourceError, resource.size, t))
+      setSourceErrorRetryable(false)
+      setLoadingSource(false)
+      setSourceBlob(null)
+      setSourceUrl('')
+      return () => {
+        active = false
+      }
+    }
+    api.get(resolveResourceUrl(resource), {
+      baseURL: '',
+      responseType: 'blob',
+      signal: controller.signal,
+      onDownloadProgress: (event) => {
+        if (!active) return
+        setSourceProgress({
+          loaded: event.loaded,
+          total: event.total || resource.size || undefined,
+        })
+      },
+    })
+      .then((response) => {
+        if (!active) return
+        const blob = response.data as Blob
+        const downloadedSourceError = clipSourceError(blob.size)
+        if (downloadedSourceError) {
+          setSourceError(sourceErrorMessage(downloadedSourceError, blob.size, t))
+          setSourceErrorRetryable(false)
+          return
+        }
+        objectUrl = URL.createObjectURL(blob)
+        setSourceBlob(blob)
+        setSourceUrl(objectUrl)
+      })
+      .catch(() => {
+        if (active) {
+          setSourceError(t('pages.resources.clipLoadSourceFailed'))
+          setSourceErrorRetryable(true)
+        }
+      })
+      .finally(() => {
+        if (active) setLoadingSource(false)
+      })
+    return () => {
+      active = false
+      controller.abort()
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [resource, sourceLoadAttempt, t])
+
+  useEffect(() => {
+    let active = true
+    const getStatus = window.api?.getVideoClipStatus
+    if (!getStatus) {
+      setClipStatus({ loading: false, available: false, error: t('pages.resources.clipDesktopOnly') })
+      return
+    }
+    setClipStatus({ loading: true, available: false })
+    getStatus()
+      .then((status) => {
+        if (!active) return
+        setClipStatus({
+          loading: false,
+          available: status.available,
+          version: status.version,
+          error: status.available ? undefined : status.error || t('pages.resources.clipFFmpegMissing'),
+          expectedBundledPath: status.expectedBundledPath,
+          platform: status.platform,
+          arch: status.arch,
+        })
+      })
+      .catch(() => {
+        if (active) setClipStatus({ loading: false, available: false, error: t('pages.resources.clipFFmpegMissing') })
+      })
+    return () => {
+      active = false
+    }
+  }, [t])
+
+  const durationMs = Math.max(0, Math.round(duration * 1000))
+  const selectedDurationMs = Math.max(0, endMs - startMs)
+  const rangeMax = Math.max(durationMs, 1000)
+  const rangeError = clipRangeError(startMs, endMs, MAX_CLIP_DURATION_MS)
+  const sourceSizeError = clipSourceError(sourceBlob?.size ?? resource.size)
+  const outputNameError = clipOutputNameError(outputName)
+  const isBusy = uploadClip.isPending
+  const canClip = Boolean(sourceBlob) && clipStatus.available && !rangeError && !sourceSizeError && !outputNameError && !uploadClip.isPending
+  const progressPct = durationMs > 0 ? Math.min(100, Math.max(0, currentMs / durationMs * 100)) : 0
+  const sourceProgressPct = sourceProgress.total ? Math.min(100, Math.max(0, sourceProgress.loaded / sourceProgress.total * 100)) : 0
+  const selectedPct = durationMs > 0 ? Math.min(100, Math.max(0, selectedDurationMs / durationMs * 100)) : 0
+  const phaseLabel = clipPhase === 'idle' ? '' : t(`pages.resources.clipPhases.${clipPhase}`)
+
+  function handleMetadata() {
+    const nextDuration = videoRef.current?.duration ?? 0
+    if (!Number.isFinite(nextDuration) || nextDuration <= 0) return
+    const nextDurationMs = Math.round(nextDuration * 1000)
+    setDuration(nextDuration)
+    setStartMs(0)
+    setEndMs(Math.min(nextDurationMs, MAX_CLIP_DURATION_MS))
+  }
+
+  function setStart(value: number) {
+    const next = clamp(value, 0, Math.max(0, endMs - 500))
+    setStartMs(next)
+    seekTo(next)
+  }
+
+  function setEnd(value: number) {
+    const next = clamp(value, startMs + 500, rangeMax)
+    setEndMs(next)
+    if (currentMs > next) seekTo(next)
+  }
+
+  function setStartFromCurrent() {
+    setStart(currentMs)
+  }
+
+  function setEndFromCurrent() {
+    setEnd(currentMs)
+  }
+
+  function setTimecodeTarget(target: 'start' | 'end', value: string) {
+    const parsed = parseClipTimecode(value)
+    if (parsed == null) return
+    if (target === 'start') {
+      setStart(parsed)
+      return
+    }
+    setEnd(parsed)
+  }
+
+  function seekTo(ms: number) {
+    if (videoRef.current) videoRef.current.currentTime = ms / 1000
+    setCurrentMs(ms)
+  }
+
+  function togglePlayback() {
+    const video = videoRef.current
+    if (!video) return
+    if (video.paused) {
+      if (video.currentTime * 1000 < startMs || video.currentTime * 1000 >= endMs) {
+        video.currentTime = startMs / 1000
+      }
+      void video.play()
+    } else {
+      video.pause()
+    }
+  }
+
+  return (
+    <Dialog.Root open onOpenChange={v => !v && !isBusy && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 flex max-h-[90vh] w-[min(880px,94vw)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-background shadow-xl">
+          <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+            <Scissors size={16} className="text-primary" />
+            <Dialog.Title className="min-w-0 flex-1 truncate text-sm font-semibold">{t('pages.resources.clipVideoTitle')}</Dialog.Title>
+            <Dialog.Close
+              disabled={isBusy}
+              className="text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label={t('common.close')}
+            >
+              <XIcon size={16} />
+            </Dialog.Close>
+          </div>
+
+          <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_260px] overflow-hidden max-lg:grid-cols-1">
+            <div className="min-h-0 overflow-auto p-4">
+              <div className="aspect-video overflow-hidden rounded-lg bg-black">
+                {loadingSource ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 px-8 text-sm text-white/70">
+                    <span>{t('pages.resources.clipLoadingSource')}</span>
+                    <div className="h-1.5 w-full max-w-72 overflow-hidden rounded-full bg-white/15">
+                      <div className="h-full rounded-full bg-white/70" style={{ width: `${sourceProgressPct}%` }} />
+                    </div>
+                    <span className="text-xs text-white/50">
+                      {sourceProgress.total
+                        ? t('pages.resources.clipLoadProgress', { loaded: formatBytes(sourceProgress.loaded), total: formatBytes(sourceProgress.total) })
+                        : formatBytes(sourceProgress.loaded)}
+                    </span>
+                  </div>
+                ) : sourceError ? (
+                  <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-white/70">
+                    <span>{sourceError}</span>
+                    {sourceErrorRetryable && (
+                      <button
+                        onClick={() => setSourceLoadAttempt(attempt => attempt + 1)}
+                        className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-white/80 hover:bg-white/10"
+                        aria-label={t('pages.resources.clipRetryLoad')}
+                      >
+                        {t('pages.resources.clipRetryLoad')}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <video
+                    ref={videoRef}
+                    src={sourceUrl}
+                    className="h-full w-full object-contain"
+                    controls={false}
+                    playsInline
+                    onLoadedMetadata={handleMetadata}
+                    onPlay={() => setPlaying(true)}
+                    onPause={() => setPlaying(false)}
+                    onTimeUpdate={(event) => {
+                      const ms = Math.round(event.currentTarget.currentTime * 1000)
+                      setCurrentMs(ms)
+                      if (endMs > startMs && ms >= endMs) {
+                        event.currentTarget.pause()
+                        event.currentTarget.currentTime = startMs / 1000
+                      }
+                    }}
+                  />
+                )}
+              </div>
+
+              <div className="mt-3 space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={togglePlayback}
+                    disabled={!sourceBlob}
+                    className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    title={playing ? t('pages.resources.clipPause') : t('pages.resources.clipPlaySegment')}
+                    aria-label={playing ? t('pages.resources.clipPause') : t('pages.resources.clipPlaySegment')}
+                  >
+                    {playing ? <Pause size={14} /> : <Play size={14} />}
+                  </button>
+                  <button
+                    onClick={() => seekTo(startMs)}
+                    disabled={!sourceBlob || isBusy}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    aria-label={t('pages.resources.clipGoStart')}
+                  >
+                    {t('pages.resources.clipGoStart')}
+                  </button>
+                  <button
+                    onClick={setStartFromCurrent}
+                    disabled={!sourceBlob || isBusy}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    aria-label={t('pages.resources.clipSetStart')}
+                  >
+                    {t('pages.resources.clipSetStart')}
+                  </button>
+                  <button
+                    onClick={setEndFromCurrent}
+                    disabled={!sourceBlob || isBusy}
+                    className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted disabled:opacity-50"
+                    aria-label={t('pages.resources.clipSetEnd')}
+                  >
+                    {t('pages.resources.clipSetEnd')}
+                  </button>
+                  <div className="min-w-40 flex-1">
+                    <div className="relative h-2 rounded-full bg-muted">
+                      <div className="absolute inset-y-0 rounded-full bg-primary/20" style={{ left: `${durationMs ? startMs / durationMs * 100 : 0}%`, width: `${selectedPct}%` }} />
+                      <div className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 bg-primary" style={{ left: `${progressPct}%` }} />
+                    </div>
+                  </div>
+                  <span className="w-24 text-right text-xs tabular-nums text-muted-foreground">{formatTime(currentMs)} / {formatTime(durationMs)}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <RangeField
+                    label={t('pages.resources.clipStart')}
+                    value={startMs}
+                    max={rangeMax}
+                    onChange={setStart}
+                    onTimecodeCommit={value => setTimecodeTarget('start', value)}
+                    disabled={isBusy}
+                  />
+                  <RangeField
+                    label={t('pages.resources.clipEnd')}
+                    value={endMs}
+                    max={rangeMax}
+                    onChange={setEnd}
+                    onTimecodeCommit={value => setTimecodeTarget('end', value)}
+                    disabled={isBusy}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="border-l border-border p-4 max-lg:border-l-0 max-lg:border-t">
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t('pages.resources.clipOutputName')}</label>
+                  <input
+                    value={outputName}
+                    onChange={event => setOutputName(event.target.value)}
+                    disabled={isBusy}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs text-muted-foreground">{t('pages.resources.clipMode')}</label>
+                  <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border text-xs">
+                    <button disabled={isBusy} onClick={() => setMode('accurate')} className={`px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'accurate' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
+                      {t('pages.resources.clipAccurate')}
+                    </button>
+                    <button disabled={isBusy} onClick={() => setMode('fast')} className={`px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-60 ${mode === 'fast' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
+                      {t('pages.resources.clipFast')}
+                    </button>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <span>{t('pages.resources.clipDuration')}</span>
+                    <span className="font-medium text-foreground">{formatTime(selectedDurationMs)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span>{t('pages.resources.clipMaxDuration')}</span>
+                    <span className="font-medium text-foreground">{formatTime(MAX_CLIP_DURATION_MS)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span>{t('pages.resources.clipSource')}</span>
+                    <span className="max-w-36 truncate text-foreground" title={resource.name}>{resource.name}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span>{t('pages.resources.clipSourceSize')}</span>
+                    <span className="font-medium text-foreground">{formatBytes(sourceBlob?.size ?? resource.size)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span>{t('pages.resources.clipOutput')}</span>
+                    <span className="max-w-36 truncate text-foreground" title={outputName}>{outputName}</span>
+                  </div>
+                </div>
+                {phaseLabel && (
+                  <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 text-xs text-primary">
+                    {phaseLabel}
+                  </div>
+                )}
+                {isBusy && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                    {t('pages.resources.clipBusyHint')}
+                  </div>
+                )}
+                {rangeError && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                    {rangeError === 'too_long' ? t('pages.resources.clipTooLong') : t('pages.resources.clipInvalidRange')}
+                  </div>
+                )}
+                {sourceSizeError && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                    {sourceErrorMessage(sourceSizeError, sourceBlob?.size ?? resource.size, t)}
+                  </div>
+                )}
+                {outputNameError && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                    {outputNameError === 'unsupported_extension'
+                      ? t('pages.resources.clipOutputNameMp4')
+                      : outputNameError === 'invalid_filename'
+                        ? t('pages.resources.clipOutputNameInvalid')
+                        : outputNameError === 'too_long'
+                          ? t('pages.resources.clipOutputNameTooLong')
+                        : t('pages.resources.clipOutputNameRequired')}
+                  </div>
+                )}
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {t('pages.resources.clipLocalHint')}
+                </p>
+                <div className={`rounded-lg border p-3 text-xs ${
+                  clipStatus.loading
+                    ? 'border-border bg-muted/30 text-muted-foreground'
+                    : clipStatus.available
+                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700'
+                      : 'border-destructive/30 bg-destructive/10 text-destructive'
+                }`}>
+                  {clipStatus.loading
+                    ? t('pages.resources.clipCheckingFFmpeg')
+                    : clipStatus.available
+                      ? t('pages.resources.clipFFmpegReady', { version: clipStatus.version || 'ffmpeg' })
+                      : (
+                        <span>
+                          {clipStatus.error || t('pages.resources.clipFFmpegMissing')}
+                          {clipStatus.expectedBundledPath && (
+                            <span className="mt-1 block break-all font-mono text-[11px] leading-4">
+                              {t('pages.resources.clipFFmpegExpectedPath', { path: clipStatus.expectedBundledPath })}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                </div>
+                {(clipError || !window.api?.clipVideo) && (
+                  <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                    {clipError || t('pages.resources.clipDesktopOnly')}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+            <Button variant="outline" size="sm" onClick={onClose} disabled={isBusy}>{t('common.cancel')}</Button>
+            <Button size="sm" onClick={() => uploadClip.mutate()} disabled={!canClip}>
+              <Scissors size={13} />
+              {uploadClip.isPending ? (phaseLabel || t('pages.resources.clipCreating')) : t('pages.resources.clipCreate')}
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  )
+}
+
+function RangeField({ label, value, max, onChange, onTimecodeCommit, disabled = false }: {
+  label: string
+  value: number
+  max: number
+  onChange: (value: number) => void
+  onTimecodeCommit: (value: string) => void
+  disabled?: boolean
+}) {
+  const [timecode, setTimecode] = useState(formatTime(value))
+
+  useEffect(() => {
+    setTimecode(formatTime(value))
+  }, [value])
+
+  function commitTimecode() {
+    onTimecodeCommit(timecode)
+    setTimecode(formatTime(value))
+  }
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <label className="text-xs text-muted-foreground">{label}</label>
+        <input
+          value={timecode}
+          onChange={event => setTimecode(event.target.value)}
+          onBlur={commitTimecode}
+          disabled={disabled}
+          onKeyDown={event => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+            if (event.key === 'Escape') {
+              setTimecode(formatTime(value))
+              event.currentTarget.blur()
+            }
+          }}
+          className="h-7 w-20 rounded-md border border-border bg-background px-2 text-right text-xs tabular-nums text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label={label}
+        />
+      </div>
+      <input type="range" min={0} max={max} step={100} value={value} onChange={event => onChange(Number(event.target.value))} disabled={disabled} className="w-full disabled:opacity-60" />
+    </div>
+  )
+}
+
+function formatTime(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  const millis = Math.floor((Math.max(0, ms) % 1000) / 100)
+  return `${minutes}:${String(seconds).padStart(2, '0')}.${millis}`
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
+}
+
+function clipErrorMessage(code: string | undefined, fallback: string | undefined, t: ReturnType<typeof useTranslation>['t']): string {
+  if (code === 'FFMPEG_NOT_FOUND') return t('pages.resources.clipFFmpegMissing')
+  if (code === 'CLIP_TOO_LONG') return t('pages.resources.clipTooLong')
+  if (code === 'CLIP_TIMEOUT') return t('pages.resources.clipTimeout')
+  if (code === 'INVALID_RANGE') return t('pages.resources.clipInvalidRange')
+  if (code === 'SOURCE_EMPTY') return t('pages.resources.clipSourceEmpty')
+  if (code === 'SOURCE_TOO_LARGE') return t('pages.resources.clipSourceTooLarge', { size: '', max: formatBytes(MAX_CLIP_SOURCE_BYTES) })
+  return fallback || t('pages.resources.clipFailed')
+}
+
+function sourceErrorMessage(error: 'empty' | 'too_large', size: number | undefined, t: ReturnType<typeof useTranslation>['t']): string {
+  if (error === 'empty') return t('pages.resources.clipSourceEmpty')
+  return t('pages.resources.clipSourceTooLarge', { size: formatBytes(size ?? 0), max: formatBytes(MAX_CLIP_SOURCE_BYTES) })
+}
+
 function FolderOption({ label, selected, isShared, onClick }: {
   label: string; selected: boolean; isShared?: boolean; onClick: () => void
 }) {
@@ -401,6 +980,7 @@ function ResourceCard({
   onMove,
   onRename,
   onDownload,
+  onClip,
   isSharedView,
 }: {
   resource: RawResource
@@ -408,6 +988,7 @@ function ResourceCard({
   onMove: () => void
   onRename: () => void
   onDownload: () => void
+  onClip?: () => void
   isSharedView?: boolean
 }) {
   const { t } = useTranslation()
@@ -475,6 +1056,15 @@ function ResourceCard({
                   {t('pages.resources.moveToFolder')}
                 </DropdownMenu.Item>
               )}
+              {!isSharedView && resource.type === 'video' && onClip && (
+                <DropdownMenu.Item
+                  className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground"
+                  onSelect={onClip}
+                >
+                  <Scissors size={13} />
+                  {t('pages.resources.clipVideo')}
+                </DropdownMenu.Item>
+              )}
               {!isSharedView && onDelete && (
                 <>
                   <DropdownMenu.Separator className="my-1 border-t border-border" />
@@ -529,6 +1119,7 @@ export default function ResourcesPage() {
   const [folderDialog, setFolderDialog] = useState<{ open: boolean; folder?: ResourceFolder | null }>({ open: false })
   const [moveResource, setMoveResource] = useState<RawResource | null>(null)
   const [renameResource, setRenameResource] = useState<RawResource | null>(null)
+  const [clipResource, setClipResource] = useState<RawResource | null>(null)
   const [permissionsFolder, setPermissionsFolder] = useState<ResourceFolder | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [page, setPage] = useState(1)
@@ -823,6 +1414,7 @@ export default function ResourcesPage() {
                   onDelete={!isSharedView ? () => remove.mutate(r.ID) : undefined}
                   onMove={() => setMoveResource(r)}
                   onRename={() => setRenameResource(r)}
+                  onClip={() => setClipResource(r)}
                   onDownload={() => downloadResource(resolveResourceUrl(r), r.name)}
                 />
               ))}
@@ -858,6 +1450,11 @@ export default function ResourcesPage() {
                           {!isSharedView && (
                             <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setMoveResource(r)}>
                               <MoveRight size={13} />{t('pages.resources.moveToFolder')}
+                            </DropdownMenu.Item>
+                          )}
+                          {!isSharedView && r.type === 'video' && (
+                            <DropdownMenu.Item className="px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-muted text-foreground" onSelect={() => setClipResource(r)}>
+                              <Scissors size={13} />{t('pages.resources.clipVideo')}
                             </DropdownMenu.Item>
                           )}
                           {!isSharedView && (
@@ -912,6 +1509,17 @@ export default function ResourcesPage() {
         <RenameResourceDialog
           resource={renameResource}
           onClose={() => setRenameResource(null)}
+        />
+      )}
+      {clipResource && (
+        <VideoClipDialog
+          resource={clipResource}
+          folderId={typeof selectedFolder === 'number' && selectedFolderTab === 'mine' ? selectedFolder : undefined}
+          onClose={() => setClipResource(null)}
+          onCreated={() => {
+            qc.invalidateQueries({ queryKey: ['resources'] })
+            setClipResource(null)
+          }}
         />
       )}
       {permissionsFolder && (

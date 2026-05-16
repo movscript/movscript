@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	"gorm.io/gorm"
 )
@@ -37,11 +39,16 @@ type EntityWriteResult struct {
 }
 
 type EntityIOService struct {
-	repo repository
+	repo      repository
+	relations relationReader
+}
+
+type relationReader interface {
+	ListEdges(ctx context.Context, filter relationapp.EdgeFilter) ([]domainrelation.Edge, error)
 }
 
 func NewEntityIOService(db *gorm.DB) *EntityIOService {
-	return &EntityIOService{repo: &gormRepository{db: db}}
+	return &EntityIOService{repo: &gormRepository{db: db}, relations: relationapp.NewService(db)}
 }
 
 func (s *EntityIOService) ReadPorts(ctx context.Context, kind string, id uint) (map[string]EntityPortValue, error) {
@@ -75,7 +82,7 @@ func (s *EntityIOService) ReadPortsByIDs(ctx context.Context, kind string, id ui
 			return
 		}
 		if field.Binding.Multiple {
-			bindings, err := s.repo.ListBindingsBySlot(ctx, kind, id, field.Binding.Slot)
+			bindings, err := s.listResourceBindings(ctx, kind, id, relationBindingFilter{Slot: field.Binding.Slot})
 			if err != nil {
 				return
 			}
@@ -93,11 +100,11 @@ func (s *EntityIOService) ReadPortsByIDs(ctx context.Context, kind string, id ui
 			}
 			return
 		}
-		if binding, ok, _ := s.repo.FirstBindingBySlot(ctx, kind, id, field.Binding.Slot); ok {
+		if binding, ok, _ := s.firstResourceBinding(ctx, kind, id, relationBindingFilter{Slot: field.Binding.Slot}); ok {
 			values[portID] = EntityPortValue{Type: field.ValueType, ResourceIDs: []uint{binding.ResourceID}}
 			return
 		}
-		if binding, ok, _ := s.repo.FirstBindingByRole(ctx, kind, id, field.Binding.Role); ok {
+		if binding, ok, _ := s.firstResourceBinding(ctx, kind, id, relationBindingFilter{Role: field.Binding.Role}); ok {
 			values[portID] = EntityPortValue{Type: field.ValueType, ResourceIDs: []uint{binding.ResourceID}}
 		}
 	}
@@ -110,6 +117,123 @@ func (s *EntityIOService) ReadPortsByIDs(ctx context.Context, kind string, id ui
 		}
 	}
 	return values, nil
+}
+
+type relationBindingFilter struct {
+	Role string
+	Slot string
+}
+
+func (s *EntityIOService) firstResourceBinding(ctx context.Context, ownerType string, ownerID uint, filter relationBindingFilter) (resourceBindingProjection, bool, error) {
+	bindings, err := s.listResourceBindings(ctx, ownerType, ownerID, filter)
+	if err != nil || len(bindings) == 0 {
+		return resourceBindingProjection{}, false, err
+	}
+	return resourceBindingProjection{ResourceID: bindings[0].ResourceID}, bindings[0].ResourceID != 0, nil
+}
+
+func (s *EntityIOService) listResourceBindings(ctx context.Context, ownerType string, ownerID uint, filter relationBindingFilter) ([]resourceBindingDetailProjection, error) {
+	projectID, err := s.ProjectID(ctx, ownerType, ownerID, nil)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryAsset,
+		Type:      domainrelation.TypeUsesResource,
+		Source:    domainrelation.NewEntityRef(ownerType, ownerID),
+		Target:    domainrelation.EntityRef{Type: "raw_resource"},
+	})
+	if err != nil {
+		return nil, err
+	}
+	items := make([]resourceBindingDetailProjection, 0, len(edges))
+	seen := map[uint]struct{}{}
+	for _, edge := range edges {
+		role := relationMetadataString(edge.Metadata, "role")
+		slot := relationMetadataString(edge.Metadata, "slot")
+		if strings.TrimSpace(filter.Role) != "" && role != filter.Role {
+			continue
+		}
+		if strings.TrimSpace(filter.Slot) != "" && slot != filter.Slot {
+			continue
+		}
+		bindingID := relationMetadataUint(edge.Metadata, "resource_binding_id")
+		if bindingID != 0 {
+			if _, ok := seen[bindingID]; ok {
+				continue
+			}
+			seen[bindingID] = struct{}{}
+		}
+		items = append(items, resourceBindingDetailProjection{
+			ID:         bindingID,
+			ResourceID: edge.Target.ID,
+			OwnerType:  edge.Source.Type,
+			OwnerID:    edge.Source.ID,
+			Role:       role,
+			Slot:       slot,
+			Status:     edge.Status,
+			SourceType: edge.Origin,
+		})
+	}
+	resourceIDs := make([]uint, 0, len(items))
+	for _, item := range items {
+		resourceIDs = append(resourceIDs, item.ResourceID)
+	}
+	resources, err := s.repo.LoadRawResources(ctx, resourceIDs)
+	if err != nil {
+		return nil, err
+	}
+	resourcesByID := make(map[uint]rawResourceProjection, len(resources))
+	for _, resource := range resources {
+		resourcesByID[resource.ID] = resource
+	}
+	for i := range items {
+		if resource, ok := resourcesByID[items[i].ResourceID]; ok {
+			items[i].ResourceType = resource.Type
+			items[i].ResourceName = resource.Name
+			items[i].ResourceMime = resource.MimeType
+		}
+	}
+	return items, nil
+}
+
+func relationMetadataString(metadata string, key string) string {
+	if strings.TrimSpace(metadata) == "" || key == "" {
+		return ""
+	}
+	values := map[string]any{}
+	if err := json.Unmarshal([]byte(metadata), &values); err != nil {
+		return ""
+	}
+	value, _ := values[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func relationMetadataUint(metadata string, key string) uint {
+	if strings.TrimSpace(metadata) == "" || key == "" {
+		return 0
+	}
+	values := map[string]any{}
+	if err := json.Unmarshal([]byte(metadata), &values); err != nil {
+		return 0
+	}
+	switch value := values[key].(type) {
+	case float64:
+		if value > 0 {
+			return uint(value)
+		}
+	case int:
+		if value > 0 {
+			return uint(value)
+		}
+	case string:
+		id, err := strconv.ParseUint(value, 10, 64)
+		if err == nil {
+			return uint(id)
+		}
+	}
+	return 0
 }
 
 func (s *EntityIOService) readStoredPorts(ctx context.Context, schema EntitySchema, id uint, values map[string]EntityPortValue, selection map[string]struct{}) error {

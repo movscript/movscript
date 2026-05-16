@@ -9,29 +9,38 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
 	authapp "github.com/movscript/movscript/internal/app/auth"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/config"
+	"github.com/movscript/movscript/internal/infra/mail"
 	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
 )
 
 type AuthHandler struct {
-	db      *gorm.DB
-	service *authapp.Service
+	db              *gorm.DB
+	service         *authapp.Service
+	settingsService *adminsettings.Service
+	mailSender      mail.Sender
+	localAppMode    bool
 }
 
 func NewAuthHandler(db *gorm.DB, tokens *auth.Manager) *AuthHandler {
-	return &AuthHandler{db: db, service: authapp.NewService(db, tokens)}
+	return &AuthHandler{db: db, service: authapp.NewService(db, tokens), settingsService: adminsettings.NewService(db), mailSender: mail.SMTPSender{}}
 }
 
 func NewAuthHandlerWithConfig(db *gorm.DB, tokens *auth.Manager, cfg *config.Config) *AuthHandler {
 	if cfg != nil && strings.TrimSpace(cfg.AppMode) == "local" {
-		return &AuthHandler{db: db, service: authapp.NewLocalService(db, tokens)}
+		return &AuthHandler{db: db, service: authapp.NewLocalService(db, tokens), settingsService: adminsettings.NewService(db, cfg.EncryptionKey), mailSender: mail.SMTPSender{}, localAppMode: true}
 	}
-	return NewAuthHandler(db, tokens)
+	handler := NewAuthHandler(db, tokens)
+	if cfg != nil {
+		handler.settingsService = adminsettings.NewService(db, cfg.EncryptionKey)
+	}
+	return handler
 }
 
 type authResponse struct {
@@ -67,7 +76,22 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	settings, err := h.settingsService.PublicAuthSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取注册设置失败"})
+		return
+	}
+	if !req.LocalAdmin && !settings.RegistrationEnabled {
+		c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭，请联系管理员创建账号"})
+		return
+	}
 	input := authapp.RegisterInput{Username: req.Username, Password: req.Password, BootstrapSystemAdmin: req.LocalAdmin}
+	if settings.RequireEmailVerification && !req.LocalAdmin {
+		if req.ChallengeID == "" || req.Code == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "请先完成邮箱验证码验证"})
+			return
+		}
+	}
 	if req.ChallengeID != "" || req.Code != "" {
 		challenge, err := h.verifyChallengeRequest(c, req.ChallengeID, req.Code)
 		if err != nil {
@@ -155,9 +179,18 @@ func isLoopbackRequest(c *gin.Context) bool {
 }
 
 func (h *AuthHandler) Config(c *gin.Context) {
+	settings, err := h.settingsService.PublicAuthSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取认证配置失败"})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{
+		"registration_enabled":       settings.RegistrationEnabled,
+		"require_email_verification": settings.RequireEmailVerification,
+		"email_verification_enabled": settings.Email.Enabled,
+		"local_bootstrap_enabled":    h.localAppMode,
 		"providers": gin.H{
-			"email": true,
+			"email": settings.Email.Enabled,
 		},
 	})
 }
@@ -210,9 +243,23 @@ func (h *AuthHandler) StartCode(c *gin.Context) {
 	var req struct {
 		Channel string `json:"channel"`
 		Target  string `json:"target" binding:"required"`
+		Purpose string `json:"purpose"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	settings, err := h.settingsService.AuthSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取邮箱设置失败"})
+		return
+	}
+	if strings.TrimSpace(req.Purpose) == "register" && !settings.RegistrationEnabled && !h.localAppMode {
+		c.JSON(http.StatusForbidden, gin.H{"error": "注册已关闭，请联系管理员创建账号"})
+		return
+	}
+	if !settings.Email.Enabled {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "邮箱验证码未启用"})
 		return
 	}
 	result, err := h.service.StartChallenge(c.Request.Context(), authapp.ChallengeStartInput{Channel: req.Channel, Target: req.Target})
@@ -223,6 +270,16 @@ func (h *AuthHandler) StartCode(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+	if !h.localAppMode {
+		if err := h.mailSender.Send(c.Request.Context(), settings.SMTPConfig(), mail.Message{
+			To:      req.Target,
+			Subject: "Movscript verification code",
+			Text:    "Your Movscript verification code is " + result.Code + ". It expires in 10 minutes.",
+		}); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "验证码邮件发送失败，请检查邮箱配置"})
+			return
+		}
 	}
 	c.JSON(http.StatusOK, result)
 }

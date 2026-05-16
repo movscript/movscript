@@ -106,3 +106,13 @@ test('redactAgentTraceDebugText redacts model detail URL and raw JSON body strin
   assert.match(rawBody, /保留模型回复/)
   assert.doesNotMatch(rawBody, /provider-secret/)
 })
+
+test('redactAgentTraceDebugText redacts inline text secrets without hiding normal content', () => {
+  const text = redactAgentTraceDebugText('Authorization: Bearer provider-secret api_key=plain-secret prompt=保留调试文本')
+
+  assert.match(text, /Authorization: Bearer \[已脱敏\]/)
+  assert.match(text, /api_key=\[已脱敏\]/)
+  assert.match(text, /prompt=保留调试文本/)
+  assert.doesNotMatch(text, /provider-secret/)
+  assert.doesNotMatch(text, /plain-secret/)
+})

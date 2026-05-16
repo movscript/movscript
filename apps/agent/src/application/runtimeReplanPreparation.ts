@@ -23,6 +23,7 @@ import { assertSubagentNamesUniqueForTaskMap } from '../state/subagentNameValida
 import { requireRuntimePlan, requireRuntimeRun } from './runtimeStoreLookup.js'
 import { requireRuntimePlannerRun } from './runtimePlanBinding.js'
 import { buildRuntimeReplanTasksToCreate } from './runtimeReplanTaskCreation.js'
+import { applyRuntimeReplanTaskReset } from './runtimePlanTaskMaintenance.js'
 
 export interface RuntimeReplanPreparation {
   run: AgentRun
@@ -145,6 +146,55 @@ export function finalizeRuntimeReplan(input: {
     resetTaskIds: input.resetTaskIds,
     ...(dispatch ? { dispatch } : {}),
   }
+}
+
+export function applyRuntimeReplanRunRequest(input: {
+  store: Pick<AgentStore, 'getRun' | 'getPlan' | 'getTask' | 'listTasks' | 'listRuns' | 'createTask' | 'updateTask'>
+  runId: string
+  replanInput?: ReplanRunInput
+  now: string
+  resetNow: string
+  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  recomputePlan: (planId: string) => void
+  dispatchPlan: (dispatchInput: DispatchPlanInput) => DispatchPlanResult
+  onTaskCreated?: (task: AgentTask) => void
+  onTaskReset?: (task: AgentTask, previousTask: AgentTask) => void
+}): ReplanRunResult {
+  const replanInput = input.replanInput ?? {}
+  const prepared = prepareRuntimeReplan({
+    store: input.store,
+    runId: input.runId,
+    replanInput,
+    now: input.now,
+  })
+  const appliedTasks = applyRuntimeReplanTaskChanges({
+    store: input.store,
+    tasksToCreate: prepared.tasksToCreate,
+    updatesToApply: prepared.updatesToApply,
+    updateTask: input.updateTask,
+    onTaskCreated: input.onTaskCreated,
+  })
+  const resetTaskIds = applyRuntimeReplanTaskReset({
+    store: input.store,
+    planId: prepared.plan.id,
+    resetTaskIds: replanInput.resetTaskIds,
+    resetBlocked: replanInput.resetBlocked,
+    resetNeedsReview: replanInput.resetNeedsReview,
+    resetFailed: replanInput.resetFailed,
+    resetCancelled: replanInput.resetCancelled,
+    now: input.resetNow,
+    onTaskReset: input.onTaskReset,
+  }).resetTaskIds
+  return finalizeRuntimeReplan({
+    store: input.store,
+    planId: prepared.plan.id,
+    plannerRunId: prepared.plannerRunId,
+    replanInput,
+    appliedTasks,
+    resetTaskIds,
+    recomputePlan: input.recomputePlan,
+    dispatchPlan: input.dispatchPlan,
+  })
 }
 
 function uniqueStrings(values: string[]): string[] {

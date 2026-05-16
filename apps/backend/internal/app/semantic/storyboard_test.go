@@ -53,6 +53,7 @@ func TestPatchStoryboardScriptRejectsSourceChangeAfterVersionCreated(t *testing.
 	if err := db.Create(&storyboardVersion).Error; err != nil {
 		t.Fatalf("create storyboard version: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &storyboardVersion)
 
 	_, err := service.PatchStoryboardScript(context.Background(), 1, strconv.FormatUint(uint64(storyboardScript.ID), 10), StoryboardScriptInput{
 		ScriptVersionID: &secondVersion.ID,
@@ -171,6 +172,7 @@ func TestDeleteStoryboardScriptRejectsDownstreamVersions(t *testing.T) {
 	if err := db.Create(&storyboardVersion).Error; err != nil {
 		t.Fatalf("create storyboard version: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &storyboardVersion)
 
 	err := service.DeleteItemByKind(context.Background(), 1, "storyboard_script", strconv.FormatUint(uint64(storyboardScript.ID), 10))
 	var forbidden ErrForbidden

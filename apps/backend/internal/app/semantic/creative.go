@@ -2,8 +2,12 @@ package semantic
 
 import (
 	"context"
+	"encoding/json"
+	"strconv"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -108,7 +112,20 @@ func (s *Service) CreateCreativeReference(ctx context.Context, projectID uint, i
 		ProfileJSON:      input.ProfileJSON,
 		TagsJSON:         input.TagsJSON,
 	})
-	return s.repo.CreateCreativeReference(ctx, item)
+	var created domainsemantic.CreativeReference
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateCreativeReference(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCreativeReferenceRelation(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchCreativeReference(ctx context.Context, projectID uint, id string, input CreativeReferenceInput) (domainsemantic.CreativeReference, error) {
@@ -129,11 +146,43 @@ func (s *Service) PatchCreativeReference(ctx context.Context, projectID uint, id
 		ProfileJSON:      input.ProfileJSON,
 		TagsJSON:         input.TagsJSON,
 	}
-	return s.repo.PatchCreativeReference(ctx, item, patch)
+	var patched domainsemantic.CreativeReference
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchCreativeReference(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCreativeReferenceRelation(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
 }
 
 func (s *Service) ListCreativeReferenceStates(ctx context.Context, filter CreativeReferenceStateFilter) ([]domainsemantic.CreativeReferenceState, error) {
+	if filter.CreativeReferenceID > 0 {
+		return s.listCreativeReferenceStatesFromRelations(ctx, filter)
+	}
 	return s.repo.ListCreativeReferenceStates(ctx, filter)
+}
+
+func (s *Service) listCreativeReferenceStatesFromRelations(ctx context.Context, filter CreativeReferenceStateFilter) ([]domainsemantic.CreativeReferenceState, error) {
+	ids, err := s.relatedTargetIDs(ctx, creativeHasStateFilter(filter.ProjectID, filter.CreativeReferenceID), "creative_reference_state")
+	if err != nil {
+		return nil, err
+	}
+	states := make([]domainsemantic.CreativeReferenceState, 0, len(ids))
+	for _, id := range ids {
+		state, err := s.repo.LoadCreativeReferenceState(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		states = append(states, state)
+	}
+	return states, nil
 }
 
 func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID uint, input CreativeReferenceStateInput) (domainsemantic.CreativeReferenceState, error) {
@@ -155,7 +204,20 @@ func (s *Service) CreateCreativeReferenceState(ctx context.Context, projectID ui
 		TagsJSON:            input.TagsJSON,
 		MetadataJSON:        input.MetadataJSON,
 	})
-	return s.repo.CreateCreativeReferenceState(ctx, item)
+	var created domainsemantic.CreativeReferenceState
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateCreativeReferenceState(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCreativeReferenceStateRelation(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchCreativeReferenceState(ctx context.Context, projectID uint, id string, input CreativeReferenceStateInput) (domainsemantic.CreativeReferenceState, error) {
@@ -180,11 +242,86 @@ func (s *Service) PatchCreativeReferenceState(ctx context.Context, projectID uin
 		TagsJSON:            input.TagsJSON,
 		MetadataJSON:        input.MetadataJSON,
 	}
-	return s.repo.PatchCreativeReferenceState(ctx, item, patch)
+	var patched domainsemantic.CreativeReferenceState
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchCreativeReferenceState(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCreativeReferenceStateRelation(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
 }
 
 func (s *Service) ListCreativeReferenceUsages(ctx context.Context, filter CreativeReferenceUsageFilter) ([]domainsemantic.CreativeReferenceUsage, error) {
-	return s.repo.ListCreativeReferenceUsages(ctx, filter)
+	return s.listCreativeReferenceUsagesFromRelations(ctx, filter)
+}
+
+func (s *Service) listCreativeReferenceUsagesFromRelations(ctx context.Context, filter CreativeReferenceUsageFilter) ([]domainsemantic.CreativeReferenceUsage, error) {
+	selectionIDs, err := s.creativeReferenceUsageIDsFromEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: filter.ProjectID,
+		Category:  domainrelation.CategoryCreative,
+		Type:      domainrelation.TypeUses,
+	})
+	if err != nil {
+		return nil, err
+	}
+	selection := newRelationIDSelection(selectionIDs)
+	if filter.CreativeReferenceID > 0 {
+		ids, err := s.creativeReferenceUsageIDsFromEdges(ctx, creativeUsesTargetFilter(filter.ProjectID, filter.CreativeReferenceID))
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	if ownerType := strings.TrimSpace(filter.OwnerType); ownerType != "" {
+		ids, err := s.creativeReferenceUsageIDsFromEdges(ctx, creativeUsesSourceFilter(filter.ProjectID, ownerType, filter.OwnerID))
+		if err != nil {
+			return nil, err
+		}
+		selection = selection.intersect(ids)
+	}
+	usages := make([]domainsemantic.CreativeReferenceUsage, 0, len(selection.ordered))
+	for _, id := range selection.ordered {
+		usage, err := s.repo.LoadCreativeReferenceUsage(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(filter.Status) != "" && usage.Status != strings.TrimSpace(filter.Status) {
+			continue
+		}
+		usages = append(usages, usage)
+	}
+	return usages, nil
+}
+
+func (s *Service) creativeReferenceUsageIDsFromEdges(ctx context.Context, filter relationapp.EdgeFilter) ([]uint, error) {
+	edges, err := s.relations.ListEdges(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(edges))
+	seen := make(map[uint]struct{}, len(edges))
+	for _, edge := range edges {
+		if edge.Type != domainrelation.TypeUses || edge.Target.Type != "creative_reference" {
+			continue
+		}
+		id := relationMetadataUint(edge.Metadata, "creative_reference_usage_id")
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID uint, input CreativeReferenceUsageInput) (domainsemantic.CreativeReferenceUsage, error) {
@@ -204,7 +341,20 @@ func (s *Service) CreateCreativeReferenceUsage(ctx context.Context, projectID ui
 		Status:                   input.Status,
 		MetadataJSON:             input.MetadataJSON,
 	})
-	return s.repo.CreateCreativeReferenceUsage(ctx, item)
+	var created domainsemantic.CreativeReferenceUsage
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateCreativeReferenceUsage(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCreativeReferenceUsageRelation(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchCreativeReferenceUsage(ctx context.Context, projectID uint, id string, input CreativeReferenceUsageInput) (domainsemantic.CreativeReferenceUsage, error) {
@@ -227,11 +377,104 @@ func (s *Service) PatchCreativeReferenceUsage(ctx context.Context, projectID uin
 		Status:                   input.Status,
 		MetadataJSON:             input.MetadataJSON,
 	}
-	return s.repo.PatchCreativeReferenceUsage(ctx, item, patch)
+	var patched domainsemantic.CreativeReferenceUsage
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchCreativeReferenceUsage(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCreativeReferenceUsageRelation(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
 }
 
 func (s *Service) ListCreativeRelationships(ctx context.Context, filter CreativeRelationshipFilter) ([]domainsemantic.CreativeRelationship, error) {
-	return s.repo.ListCreativeRelationships(ctx, filter)
+	return s.listCreativeRelationshipsFromRelations(ctx, filter)
+}
+
+func (s *Service) listCreativeRelationshipsFromRelations(ctx context.Context, filter CreativeRelationshipFilter) ([]domainsemantic.CreativeRelationship, error) {
+	baseFilter := relationapp.EdgeFilter{
+		ProjectID: filter.ProjectID,
+		Category:  domainrelation.CategoryCreative,
+	}
+	if strings.TrimSpace(filter.Status) != "" {
+		baseFilter.Status = strings.TrimSpace(filter.Status)
+	}
+	ids, err := s.creativeRelationshipIDsFromEdges(ctx, baseFilter, 0)
+	if err != nil {
+		return nil, err
+	}
+	selection := newRelationIDSelection(ids)
+	if filter.CreativeReferenceID > 0 {
+		outgoing, err := s.creativeRelationshipIDsFromEdges(ctx, creativeReferenceEdgeFilter(filter.ProjectID, filter.CreativeReferenceID), filter.CreativeReferenceID)
+		if err != nil {
+			return nil, err
+		}
+		incoming, err := s.creativeRelationshipIDsFromEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: filter.ProjectID,
+			Category:  domainrelation.CategoryCreative,
+			Target:    domainrelation.NewEntityRef("creative_reference", filter.CreativeReferenceID),
+		}, filter.CreativeReferenceID)
+		if err != nil {
+			return nil, err
+		}
+		referenceSelection := newRelationIDSelection(outgoing)
+		for _, id := range incoming {
+			if _, ok := referenceSelection.seen[id]; ok {
+				continue
+			}
+			referenceSelection.seen[id] = struct{}{}
+			referenceSelection.ordered = append(referenceSelection.ordered, id)
+		}
+		selection = selection.intersect(referenceSelection.ordered)
+	}
+	relationships := make([]domainsemantic.CreativeRelationship, 0, len(selection.ordered))
+	for _, id := range selection.ordered {
+		relationship, err := s.repo.LoadCreativeRelationship(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(filter.ScopeType) != "" && relationship.ScopeType != strings.TrimSpace(filter.ScopeType) {
+			continue
+		}
+		if strings.TrimSpace(filter.Status) != "" && relationship.Status != strings.TrimSpace(filter.Status) {
+			continue
+		}
+		relationships = append(relationships, relationship)
+	}
+	return relationships, nil
+}
+
+func (s *Service) creativeRelationshipIDsFromEdges(ctx context.Context, filter relationapp.EdgeFilter, referenceID uint) ([]uint, error) {
+	edges, err := s.relations.ListEdges(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(edges))
+	seen := make(map[uint]struct{}, len(edges))
+	for _, edge := range edges {
+		if edge.Source.Type != "creative_reference" || edge.Target.Type != "creative_reference" {
+			continue
+		}
+		if referenceID > 0 && edge.Source.ID != referenceID && edge.Target.ID != referenceID {
+			continue
+		}
+		id := relationMetadataUint(edge.Metadata, "creative_relationship_id")
+		if id == 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }
 
 func (s *Service) CreateCreativeRelationship(ctx context.Context, projectID uint, input CreativeRelationshipInput) (domainsemantic.CreativeRelationship, error) {
@@ -253,7 +496,20 @@ func (s *Service) CreateCreativeRelationship(ctx context.Context, projectID uint
 		Evidence:                  input.Evidence,
 		MetadataJSON:              input.MetadataJSON,
 	})
-	return s.repo.CreateCreativeRelationship(ctx, item)
+	var created domainsemantic.CreativeRelationship
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateCreativeRelationship(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCreativeRelationshipRelation(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchCreativeRelationship(ctx context.Context, projectID uint, id string, input CreativeRelationshipInput) (domainsemantic.CreativeRelationship, error) {
@@ -278,7 +534,170 @@ func (s *Service) PatchCreativeRelationship(ctx context.Context, projectID uint,
 		Evidence:                  input.Evidence,
 		MetadataJSON:              input.MetadataJSON,
 	}
-	return s.repo.PatchCreativeRelationship(ctx, item, patch)
+	var patched domainsemantic.CreativeRelationship
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchCreativeRelationship(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCreativeRelationshipRelation(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertCreativeReferenceRelation(ctx context.Context, item domainsemantic.CreativeReference) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryCreative,
+		Type:      domainrelation.TypeOwns,
+		Target:    domainrelation.NewEntityRef("creative_reference", item.ID),
+	}); err != nil {
+		return err
+	}
+	_, err := s.relations.UpsertEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("project", item.ProjectID),
+		Target:    domainrelation.NewEntityRef("creative_reference", item.ID),
+		Category:  domainrelation.CategoryCreative,
+		Type:      domainrelation.TypeOwns,
+		Status:    semanticRelationStatus(item.Status),
+	})
+	return err
+}
+
+func (s *Service) upsertCreativeReferenceStateRelation(ctx context.Context, item domainsemantic.CreativeReferenceState) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryCreative,
+		Type:      domainrelation.TypeHasState,
+		Target:    domainrelation.NewEntityRef("creative_reference_state", item.ID),
+	}); err != nil {
+		return err
+	}
+	_, err := s.relations.UpsertEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("creative_reference", item.CreativeReferenceID),
+		Target:    domainrelation.NewEntityRef("creative_reference_state", item.ID),
+		Category:  domainrelation.CategoryCreative,
+		Type:      domainrelation.TypeHasState,
+		Scope:     semanticRelationScope(item.ScopeType, item.ScopeID),
+		Status:    semanticRelationStatus(item.Status),
+	})
+	return err
+}
+
+func (s *Service) upsertCreativeReferenceUsageRelation(ctx context.Context, item domainsemantic.CreativeReferenceUsage) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID:        item.ProjectID,
+		Category:         domainrelation.CategoryCreative,
+		MetadataContains: semanticRelationMetadataMarker("creative_reference_usage_id", item.ID),
+	}); err != nil {
+		return err
+	}
+	_, err := s.relations.UpsertEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef(item.OwnerType, item.OwnerID),
+		Target:    domainrelation.NewEntityRef("creative_reference", item.CreativeReferenceID),
+		Category:  domainrelation.CategoryCreative,
+		Type:      domainrelation.TypeUses,
+		Label:     item.Role,
+		Order:     item.Order,
+		Status:    semanticRelationStatus(item.Status),
+		Origin:    semanticRelationOrigin(item.Source),
+		Evidence:  item.Evidence,
+		Metadata: semanticRelationMetadata(map[string]any{
+			"creative_reference_usage_id": item.ID,
+			"role":                        item.Role,
+			"creative_reference_state_id": item.CreativeReferenceStateID,
+		}),
+	})
+	return err
+}
+
+func (s *Service) upsertCreativeRelationshipRelation(ctx context.Context, item domainsemantic.CreativeRelationship) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID:        item.ProjectID,
+		Category:         domainrelation.CategoryCreative,
+		MetadataContains: semanticRelationMetadataMarker("creative_relationship_id", item.ID),
+	}); err != nil {
+		return err
+	}
+	category := strings.TrimSpace(item.Category)
+	if category == "" || category == "relationship" {
+		category = domainrelation.CategoryCreative
+	}
+	relationType := strings.TrimSpace(item.Type)
+	if relationType == "" {
+		relationType = domainrelation.TypeRelatedTo
+	}
+	_, err := s.relations.UpsertEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("creative_reference", item.SourceCreativeReferenceID),
+		Target:    domainrelation.NewEntityRef("creative_reference", item.TargetCreativeReferenceID),
+		Category:  category,
+		Type:      relationType,
+		Label:     item.Label,
+		Scope:     semanticRelationScope(item.ScopeType, item.ScopeID),
+		Status:    semanticRelationStatus(item.Status),
+		Origin:    semanticRelationOrigin(item.Source),
+		Evidence:  item.Evidence,
+		Metadata: semanticRelationMetadata(map[string]any{
+			"creative_relationship_id": item.ID,
+			"description":              item.Description,
+		}),
+	})
+	return err
+}
+
+func semanticRelationScope(scopeType string, scopeID *uint) domainrelation.EntityRef {
+	scope := domainrelation.EntityRef{Type: strings.TrimSpace(scopeType)}
+	if scopeID != nil {
+		scope.ID = *scopeID
+	}
+	return scope
+}
+
+func semanticRelationOrigin(origin string) string {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return domainrelation.OriginSystem
+	}
+	return origin
+}
+
+func semanticRelationStatus(status string) string {
+	status = strings.TrimSpace(status)
+	switch status {
+	case "", "active", "locked", "selected", "approved", domainrelation.StatusConfirmed:
+		return domainrelation.StatusConfirmed
+	case "ignored", "rejected", "archived":
+		return status
+	default:
+		return status
+	}
+}
+
+func semanticRelationMetadata(values map[string]any) string {
+	if len(values) == 0 {
+		return ""
+	}
+	raw, err := json.Marshal(values)
+	if err != nil {
+		return ""
+	}
+	return string(raw)
+}
+
+func semanticRelationMetadataMarker(key string, id uint) string {
+	if key == "" || id == 0 {
+		return ""
+	}
+	return `"` + key + `":` + strconv.FormatUint(uint64(id), 10)
 }
 
 func (s *Service) validateCreativeReferenceUsageOwners(ctx context.Context, projectID uint, input CreativeReferenceUsageInput) error {

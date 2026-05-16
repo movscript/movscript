@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 )
 
@@ -185,7 +187,7 @@ func (s *EntityIOService) readRelatedDetailValues(ctx context.Context, kind stri
 
 func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string, id uint, field domainworkflow.EntitySemanticField) ([]map[string]any, error) {
 	if kind == domainworkflow.EntityKindAssetSlot && field.ID == "candidates" {
-		candidates, err := s.repo.ListAssetSlotCandidates(ctx, id)
+		candidates, err := s.assetSlotCandidatesFromRelations(ctx, id)
 		if err != nil {
 			return nil, err
 		}
@@ -207,7 +209,7 @@ func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string,
 		return items, nil
 	}
 	if kind == domainworkflow.EntityKindContentUnit && field.ID == "generated_media" {
-		bindings, err := s.repo.ListBindingsBySlot(ctx, kind, id, "generated_media")
+		bindings, err := s.listResourceBindings(ctx, kind, id, relationBindingFilter{Slot: "generated_media"})
 		if err != nil {
 			return nil, err
 		}
@@ -239,6 +241,64 @@ func (s *EntityIOService) relatedItemsForField(ctx context.Context, kind string,
 		return items, nil
 	}
 	return []map[string]any{}, nil
+}
+
+func (s *EntityIOService) assetSlotCandidatesFromRelations(ctx context.Context, assetSlotID uint) ([]assetSlotCandidateProjection, error) {
+	projectID, err := s.ProjectID(ctx, domainworkflow.EntityKindAssetSlot, assetSlotID, nil)
+	if err != nil {
+		return nil, err
+	}
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryAsset,
+		Type:      domainrelation.TypeCandidateFor,
+		Target:    domainrelation.NewEntityRef("asset_slot", assetSlotID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	candidateSlotIDs := make([]uint, 0, len(edges))
+	for _, edge := range edges {
+		if edge.Source.Type == "asset_slot" {
+			candidateSlotIDs = append(candidateSlotIDs, edge.Source.ID)
+		}
+	}
+	slots, err := s.repo.LoadAssetSlots(ctx, candidateSlotIDs)
+	if err != nil {
+		return nil, err
+	}
+	slotsByID := make(map[uint]assetSlotProjection, len(slots))
+	for _, slot := range slots {
+		slotsByID[slot.ID] = slot
+	}
+	items := make([]assetSlotCandidateProjection, 0, len(edges))
+	for _, edge := range edges {
+		if edge.Source.Type != "asset_slot" {
+			continue
+		}
+		item := assetSlotCandidateProjection{
+			ID:                   relationMetadataUint(edge.Metadata, "asset_slot_candidate_id"),
+			CandidateAssetSlotID: edge.Source.ID,
+			SourceType:           edge.Origin,
+			Score:                edge.Weight,
+			Status:               edge.Status,
+			Note:                 edge.Evidence,
+		}
+		if slot, ok := slotsByID[edge.Source.ID]; ok {
+			item.CandidateAssetSlot = &slot
+		}
+		items = append(items, item)
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Status != items[j].Status {
+			return items[i].Status > items[j].Status
+		}
+		if items[i].Score != items[j].Score {
+			return items[i].Score > items[j].Score
+		}
+		return items[i].ID > items[j].ID
+	})
+	return items, nil
 }
 
 func compactAssetSlot(slot assetSlotProjection) map[string]any {

@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsx ../../apps/movcli/src/index.ts build"
+    "build": "node --import tsx ../../apps/movcli/src/index.ts build"
   },
   "devDependencies": {
     "@movscript/plugin-sdk": "workspace:*",

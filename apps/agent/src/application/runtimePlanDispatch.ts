@@ -247,3 +247,44 @@ export function applyRuntimePlanDispatchFlow(input: {
     onTaskDispatched: input.onTaskDispatched,
   })
 }
+
+export function applyRuntimePlanDispatchRequest(input: {
+  store: Pick<AgentStore, 'getPlan' | 'getRun' | 'getTask' | 'listTasks' | 'listRuns' | 'updateTask'>
+  dispatchInput: DispatchPlanInput
+  now: string
+  nowMs: number
+  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  createRun: (input: CreateRunInput) => AgentRun
+  cancelRun: (runId: string, reason: string) => void
+  syncTaskFromRun: (runId: string) => void
+  recomputePlan: (planId: string) => void
+  onTaskTimedOut?: (task: AgentTask) => void
+  onTaskRetryReset?: (task: AgentTask, previousTask: AgentTask) => void
+  onTasksRetried?: (retriedTaskIds: string[]) => void
+  onTaskBlocked?: (task: AgentTask) => void
+  onTaskDispatched?: (task: AgentTask, previousTask: AgentTask) => void
+}): DispatchPlanResult {
+  const { plan, dispatch, plannerRun } = resolveRuntimePlanDispatchRequest({
+    store: input.store,
+    dispatchInput: input.dispatchInput,
+  })
+  return applyRuntimePlanDispatchFlow({
+    store: input.store,
+    plan,
+    dispatch,
+    plannerRun,
+    dispatchInput: input.dispatchInput,
+    now: input.now,
+    nowMs: input.nowMs,
+    updateTask: input.updateTask,
+    createRun: input.createRun,
+    cancelRun: input.cancelRun,
+    syncTaskFromRun: input.syncTaskFromRun,
+    recomputePlan: input.recomputePlan,
+    onTaskTimedOut: input.onTaskTimedOut,
+    onTaskRetryReset: input.onTaskRetryReset,
+    onTasksRetried: input.onTasksRetried,
+    onTaskBlocked: input.onTaskBlocked,
+    onTaskDispatched: input.onTaskDispatched,
+  })
+}

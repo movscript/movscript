@@ -118,6 +118,55 @@ func TestModelGatewayAPIKeyRequiresAuthentication(t *testing.T) {
 	}
 }
 
+func TestModelGatewayAPIKeyUpdateClearsProjectScope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestModelGatewayAPIKeyRouter(t)
+	org := persistencemodel.Organization{Name: "Gateway Org", Slug: "gateway-org", Plan: "team", Status: "active", CreatedBy: 7}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("seed org: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Gateway Project", OwnerID: 7, OrgID: &org.ID, Status: "planning"}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
+	createReq := authenticatedGatewayRequest(http.MethodPost, "/model-gateway/api-keys", fmt.Sprintf(`{
+		"name":"agent service",
+		"project_id":%d
+	}`, project.ID))
+	createReq.Header.Set("X-Org-ID", fmt.Sprint(org.ID))
+	createRes := httptest.NewRecorder()
+	router.ServeHTTP(createRes, createReq)
+	if createRes.Code != http.StatusCreated {
+		t.Fatalf("expected api key to be created, got %d: %s", createRes.Code, createRes.Body.String())
+	}
+
+	updateReq := authenticatedGatewayRequest(http.MethodPatch, "/model-gateway/api-keys/1", `{"project_id":null}`)
+	updateReq.Header.Set("X-Org-ID", fmt.Sprint(org.ID))
+	updateRes := httptest.NewRecorder()
+	router.ServeHTTP(updateRes, updateReq)
+
+	if updateRes.Code != http.StatusOK {
+		t.Fatalf("expected api key project scope to be cleared, got %d: %s", updateRes.Code, updateRes.Body.String())
+	}
+	var updated struct {
+		ProjectID *uint `json:"project_id"`
+	}
+	if err := json.Unmarshal(updateRes.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode update response: %v", err)
+	}
+	if updated.ProjectID != nil {
+		t.Fatalf("project_id = %v, want nil", *updated.ProjectID)
+	}
+	var key persistencemodel.GatewayAPIKey
+	if err := db.First(&key, 1).Error; err != nil {
+		t.Fatalf("reload gateway key: %v", err)
+	}
+	if key.ProjectID != nil {
+		t.Fatalf("stored project_id = %v, want nil", *key.ProjectID)
+	}
+	assertGatewayAPIKeyAuditOrgOnly(t, db, "model_gateway.api_key.admin_updated", org.ID)
+}
+
 func newTestModelGatewayAPIKeyRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
 	db := testutil.OpenSQLite(t, "handler-model-gateway-keys.db", &persistencemodel.GatewayAPIKey{}, &persistencemodel.Project{}, &persistencemodel.Organization{}, &persistencemodel.AuditLog{})
@@ -173,5 +222,19 @@ func assertGatewayAPIKeyAuditScope(t *testing.T, db *gorm.DB, action string, org
 	}
 	if row.ProjectID == nil || *row.ProjectID != projectID {
 		t.Fatalf("%s audit project_id = %#v, want %d", action, row.ProjectID, projectID)
+	}
+}
+
+func assertGatewayAPIKeyAuditOrgOnly(t *testing.T, db *gorm.DB, action string, orgID uint) {
+	t.Helper()
+	var row persistencemodel.AuditLog
+	if err := db.Where("action = ?", action).First(&row).Error; err != nil {
+		t.Fatalf("load audit log %s: %v", action, err)
+	}
+	if row.OrgID == nil || *row.OrgID != orgID {
+		t.Fatalf("%s audit org_id = %#v, want %d", action, row.OrgID, orgID)
+	}
+	if row.ProjectID != nil {
+		t.Fatalf("%s audit project_id = %#v, want nil", action, row.ProjectID)
 	}
 }

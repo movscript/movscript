@@ -3,10 +3,10 @@ package market
 import (
 	"context"
 
+	"github.com/movscript/movscript/internal/app/coregraph"
 	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	domainmarket "github.com/movscript/movscript/internal/domain/workflow/market"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
@@ -60,7 +60,7 @@ func (r *gormRepository) CreateCanvasFromTemplate(ctx context.Context, ownerID u
 		if err := tx.Create(&cv).Error; err != nil {
 			return err
 		}
-		if err := relation.SyncCoreEntityRelations(tx, &cv); err != nil {
+		if err := coregraph.NewWriter(tx).Write(ctx, &cv); err != nil {
 			return err
 		}
 		nodes := templateNodeRowsForCanvas(cv.ID, tpl.Nodes)

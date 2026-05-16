@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"time"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	"gorm.io/gorm"
 )
 
@@ -15,11 +17,16 @@ var (
 )
 
 type Service struct {
-	repo repository
+	repo      repository
+	relations relationReader
+}
+
+type relationReader interface {
+	ListEdges(ctx context.Context, filter relationapp.EdgeFilter) ([]domainrelation.Edge, error)
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{repo: &gormRepository{db: db}}
+	return &Service{repo: &gormRepository{db: db}, relations: relationapp.NewService(db)}
 }
 
 type GenerateInput struct {
@@ -150,7 +157,16 @@ func (s *Service) loadSegmentPreview(ctx context.Context, projectID, segmentID u
 	}
 	resp.Entity = EntitySummary{ID: seg.ID, Title: seg.Title, Description: seg.Summary}
 
-	units, err := s.repo.ListContentUnits(ctx, projectID, "segment_id", segmentID)
+	unitIDs, err := s.relatedTargetIDs(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeContains,
+		Source:    domainrelation.NewEntityRef("segment", segmentID),
+	}, "content_unit")
+	if err != nil {
+		return err
+	}
+	units, err := s.repo.ListContentUnitsByIDs(ctx, projectID, unitIDs)
 	if err != nil {
 		return err
 	}
@@ -168,13 +184,31 @@ func (s *Service) loadSceneMomentPreview(ctx context.Context, projectID, momentI
 	}
 	resp.Entity = EntitySummary{ID: moment.ID, Title: moment.Title, Description: moment.Description}
 
-	if moment.SegmentID != nil {
-		if seg, err := s.repo.GetSegmentByID(ctx, *moment.SegmentID); err == nil {
+	segmentIDs, err := s.relatedSourceIDs(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeContains,
+		Target:    domainrelation.NewEntityRef("scene_moment", momentID),
+	}, "segment")
+	if err != nil {
+		return err
+	}
+	if len(segmentIDs) > 0 {
+		if seg, err := s.repo.GetSegmentByID(ctx, segmentIDs[0]); err == nil {
 			resp.Context.SegmentTitle = seg.Title
 		}
 	}
 
-	units, err := s.repo.ListContentUnits(ctx, projectID, "scene_moment_id", momentID)
+	unitIDs, err := s.relatedSourceIDs(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeBasedOn,
+		Target:    domainrelation.NewEntityRef("scene_moment", momentID),
+	}, "content_unit")
+	if err != nil {
+		return err
+	}
+	units, err := s.repo.ListContentUnitsByIDs(ctx, projectID, unitIDs)
 	if err != nil {
 		return err
 	}
@@ -193,13 +227,31 @@ func (s *Service) loadContentUnitPreview(ctx context.Context, projectID, unitID 
 	resp.Entity = EntitySummary{ID: unit.ID, Title: unit.Title, Description: unit.Description}
 	resp.ContentUnits = contentUnitResponses([]contentUnitProjection{unit})
 
-	if unit.SegmentID != nil {
-		if seg, err := s.repo.GetSegmentByID(ctx, *unit.SegmentID); err == nil {
+	segmentIDs, err := s.relatedSourceIDs(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeContains,
+		Target:    domainrelation.NewEntityRef("content_unit", unitID),
+	}, "segment")
+	if err != nil {
+		return err
+	}
+	if len(segmentIDs) > 0 {
+		if seg, err := s.repo.GetSegmentByID(ctx, segmentIDs[0]); err == nil {
 			resp.Context.SegmentTitle = seg.Title
 		}
 	}
-	if unit.SceneMomentID != nil {
-		if moment, err := s.repo.GetSceneMomentByID(ctx, *unit.SceneMomentID); err == nil {
+	momentIDs, err := s.relatedTargetIDs(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeBasedOn,
+		Source:    domainrelation.NewEntityRef("content_unit", unitID),
+	}, "scene_moment")
+	if err != nil {
+		return err
+	}
+	if len(momentIDs) > 0 {
+		if moment, err := s.repo.GetSceneMomentByID(ctx, momentIDs[0]); err == nil {
 			resp.Context.SceneMomentTitle = moment.Title
 		}
 	}
@@ -225,11 +277,20 @@ func (s *Service) loadKeyframesForUnits(ctx context.Context, projectID uint, uni
 	if len(units) == 0 {
 		return nil
 	}
-	ids := make([]uint, len(units))
-	for i, u := range units {
-		ids[i] = u.ID
+	ids := make([]uint, 0, len(units))
+	for _, unit := range units {
+		keyframeIDs, err := s.relatedTargetIDs(ctx, relationapp.EdgeFilter{
+			ProjectID: projectID,
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeHasKeyframe,
+			Source:    domainrelation.NewEntityRef("content_unit", unit.ID),
+		}, "keyframe")
+		if err != nil {
+			return err
+		}
+		ids = append(ids, keyframeIDs...)
 	}
-	keyframes, err := s.repo.ListKeyframesForUnits(ctx, projectID, ids)
+	keyframes, err := s.repo.ListKeyframesByIDs(ctx, projectID, ids)
 	if err != nil {
 		return err
 	}
@@ -257,7 +318,15 @@ func previewResourceURL(id *uint) string {
 }
 
 func (s *Service) loadMissingAssetsForOwner(ctx context.Context, projectID uint, ownerType string, ownerID uint, resp *GenerateResponse) error {
-	slots, err := s.repo.ListMissingAssets(ctx, projectID, ownerType, ownerID)
+	slotIDs, err := s.relatedTargetIDsOfTypes(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryAsset,
+		Source:    domainrelation.NewEntityRef(ownerType, ownerID),
+	}, "asset_slot", domainrelation.TypeNeedsAsset, domainrelation.TypeUsesAsset)
+	if err != nil {
+		return err
+	}
+	slots, err := s.repo.ListMissingAssetsByIDs(ctx, projectID, slotIDs)
 	if err != nil {
 		return err
 	}
@@ -267,4 +336,59 @@ func (s *Service) loadMissingAssetsForOwner(ctx context.Context, projectID uint,
 		})
 	}
 	return nil
+}
+
+func (s *Service) relatedTargetIDs(ctx context.Context, filter relationapp.EdgeFilter, targetType string) ([]uint, error) {
+	return s.relatedTargetIDsOfTypes(ctx, filter, targetType)
+}
+
+func (s *Service) relatedTargetIDsOfTypes(ctx context.Context, filter relationapp.EdgeFilter, targetType string, edgeTypes ...string) ([]uint, error) {
+	edges, err := s.relations.ListEdges(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	allowed := map[string]struct{}{}
+	for _, edgeType := range edgeTypes {
+		if edgeType != "" {
+			allowed[edgeType] = struct{}{}
+		}
+	}
+	ids := make([]uint, 0, len(edges))
+	seen := make(map[uint]struct{}, len(edges))
+	for _, edge := range edges {
+		if edge.Target.Type != targetType {
+			continue
+		}
+		if len(allowed) > 0 {
+			if _, ok := allowed[edge.Type]; !ok {
+				continue
+			}
+		}
+		if _, ok := seen[edge.Target.ID]; ok {
+			continue
+		}
+		seen[edge.Target.ID] = struct{}{}
+		ids = append(ids, edge.Target.ID)
+	}
+	return ids, nil
+}
+
+func (s *Service) relatedSourceIDs(ctx context.Context, filter relationapp.EdgeFilter, sourceType string) ([]uint, error) {
+	edges, err := s.relations.ListEdges(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(edges))
+	seen := make(map[uint]struct{}, len(edges))
+	for _, edge := range edges {
+		if edge.Source.Type != sourceType {
+			continue
+		}
+		if _, ok := seen[edge.Source.ID]; ok {
+			continue
+		}
+		seen[edge.Source.ID] = struct{}{}
+		ids = append(ids, edge.Source.ID)
+	}
+	return ids, nil
 }

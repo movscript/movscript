@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strconv"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -105,47 +107,60 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 			WriteTargets:     generationWriteTargets(intent),
 		},
 	}
-	if contentUnit.ProductionID != nil {
-		production, err := s.repo.LoadProduction(ctx, projectID, strconv.FormatUint(uint64(*contentUnit.ProductionID), 10))
+	relations, err := s.contentUnitContextRelations(ctx, projectID, contentUnit.ID)
+	if err != nil {
+		return GenerationContext{}, err
+	}
+	if productionID := relations.firstSourceID("production", domainrelation.TypeContains); productionID > 0 {
+		production, err := s.repo.LoadProduction(ctx, projectID, strconv.FormatUint(uint64(productionID), 10))
 		if err != nil {
-			return GenerationContext{}, generationContextLoadError(projectID, "load_production", "production", *contentUnit.ProductionID, err)
+			return GenerationContext{}, generationContextLoadError(projectID, "load_production", "production", productionID, err)
 		}
 		result.Production = &production
 	}
-	if contentUnit.SegmentID != nil {
-		segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*contentUnit.SegmentID), 10))
+	if segmentID := relations.firstSourceID("segment", domainrelation.TypeContains); segmentID > 0 {
+		segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(segmentID), 10))
 		if err != nil {
-			return GenerationContext{}, generationContextLoadError(projectID, "load_segment", "segment", *contentUnit.SegmentID, err)
+			return GenerationContext{}, generationContextLoadError(projectID, "load_segment", "segment", segmentID, err)
 		}
 		result.Segment = &segment
 	}
-	if contentUnit.SceneMomentID != nil {
-		sceneMoment, err := s.repo.LoadSceneMoment(ctx, projectID, strconv.FormatUint(uint64(*contentUnit.SceneMomentID), 10))
+	if sceneMomentID := relations.firstTargetID("scene_moment", domainrelation.TypeBasedOn); sceneMomentID > 0 {
+		sceneMoment, err := s.repo.LoadSceneMoment(ctx, projectID, strconv.FormatUint(uint64(sceneMomentID), 10))
 		if err != nil {
-			return GenerationContext{}, generationContextLoadError(projectID, "load_scene_moment", "scene_moment", *contentUnit.SceneMomentID, err)
+			return GenerationContext{}, generationContextLoadError(projectID, "load_scene_moment", "scene_moment", sceneMomentID, err)
 		}
 		result.SceneMoment = &sceneMoment
-		if result.Segment == nil && sceneMoment.SegmentID != nil {
-			segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*sceneMoment.SegmentID), 10))
+		if result.Segment == nil {
+			segmentID, err := s.firstIncomingRelationSourceID(ctx, projectID, domainrelation.NewEntityRef("scene_moment", sceneMoment.ID), "segment", domainrelation.TypeContains)
 			if err != nil {
-				return GenerationContext{}, generationContextLoadError(projectID, "load_scene_moment_segment", "segment", *sceneMoment.SegmentID, err)
+				return GenerationContext{}, err
 			}
-			result.Segment = &segment
+			if segmentID > 0 {
+				segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(segmentID), 10))
+				if err != nil {
+					return GenerationContext{}, generationContextLoadError(projectID, "load_scene_moment_segment", "segment", segmentID, err)
+				}
+				result.Segment = &segment
+			}
 		}
 	}
-	if contentUnit.ScriptBlockID != nil {
-		scriptBlock, err := s.repo.LoadScriptBlock(ctx, projectID, strconv.FormatUint(uint64(*contentUnit.ScriptBlockID), 10))
+	if scriptBlockID := relations.firstTargetID("script_block", domainrelation.TypeBasedOn); scriptBlockID > 0 {
+		scriptBlock, err := s.repo.LoadScriptBlock(ctx, projectID, strconv.FormatUint(uint64(scriptBlockID), 10))
 		if err != nil {
-			return GenerationContext{}, generationContextLoadError(projectID, "load_script_block", "script_block", *contentUnit.ScriptBlockID, err)
+			return GenerationContext{}, generationContextLoadError(projectID, "load_script_block", "script_block", scriptBlockID, err)
 		}
 		result.ScriptBlock = &scriptBlock
 	}
 	if result.ScriptBlock == nil {
-		fallbackID := fallbackGenerationScriptBlockID(result.SceneMoment, result.Segment)
-		if fallbackID != nil {
-			scriptBlock, err := s.repo.LoadScriptBlock(ctx, projectID, strconv.FormatUint(uint64(*fallbackID), 10))
+		scriptBlockID, err := s.fallbackGenerationScriptBlockID(ctx, projectID, result.SceneMoment, result.Segment)
+		if err != nil {
+			return GenerationContext{}, err
+		}
+		if scriptBlockID > 0 {
+			scriptBlock, err := s.repo.LoadScriptBlock(ctx, projectID, strconv.FormatUint(uint64(scriptBlockID), 10))
 			if err != nil {
-				return GenerationContext{}, generationContextLoadError(projectID, "load_fallback_script_block", "script_block", *fallbackID, err)
+				return GenerationContext{}, generationContextLoadError(projectID, "load_fallback_script_block", "script_block", scriptBlockID, err)
 			}
 			result.ScriptBlock = &scriptBlock
 		}
@@ -163,10 +178,7 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 	}
 	result.AssetSlots = assetSlots
 
-	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{
-		ProjectID:     projectID,
-		ContentUnitID: contentUnit.ID,
-	})
+	keyframes, err := s.collectGenerationKeyframes(ctx, projectID, contentUnit.ID)
 	if err != nil {
 		return GenerationContext{}, err
 	}
@@ -174,14 +186,126 @@ func (s *Service) BuildGenerationContext(ctx context.Context, projectID uint, re
 	return result, nil
 }
 
-func fallbackGenerationScriptBlockID(sceneMoment *domainsemantic.SceneMoment, segment *domainsemantic.Segment) *uint {
-	if sceneMoment != nil && sceneMoment.ScriptBlockID != nil {
-		return sceneMoment.ScriptBlockID
+type generationRelationSet []domainrelation.Edge
+
+func (relations generationRelationSet) firstSourceID(sourceType string, edgeType string) uint {
+	for _, edge := range relations {
+		if edge.Source.Type == sourceType && edge.Type == edgeType {
+			return edge.Source.ID
+		}
 	}
-	if segment != nil && segment.ScriptBlockID != nil {
-		return segment.ScriptBlockID
+	return 0
+}
+
+func (relations generationRelationSet) firstTargetID(targetType string, edgeType string) uint {
+	for _, edge := range relations {
+		if edge.Target.Type == targetType && edge.Type == edgeType {
+			return edge.Target.ID
+		}
 	}
-	return nil
+	return 0
+}
+
+func (s *Service) contentUnitContextRelations(ctx context.Context, projectID uint, contentUnitID uint) (generationRelationSet, error) {
+	incoming, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Target:    domainrelation.NewEntityRef("content_unit", contentUnitID),
+	})
+	if err != nil {
+		return nil, GenerationContextError{Code: "GENERATION_CONTEXT_RELATION_QUERY_FAILED", Message: "生成上下文读取内容单元关系失败", Step: "list_content_unit_incoming_relations", ProjectID: projectID, EntityType: "content_unit", EntityID: contentUnitID, Cause: err.Error()}
+	}
+	outgoing, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Source:    domainrelation.NewEntityRef("content_unit", contentUnitID),
+	})
+	if err != nil {
+		return nil, GenerationContextError{Code: "GENERATION_CONTEXT_RELATION_QUERY_FAILED", Message: "生成上下文读取内容单元关系失败", Step: "list_content_unit_outgoing_relations", ProjectID: projectID, EntityType: "content_unit", EntityID: contentUnitID, Cause: err.Error()}
+	}
+	return append(generationRelationSet(incoming), outgoing...), nil
+}
+
+func (s *Service) firstIncomingRelationSourceID(ctx context.Context, projectID uint, target domainrelation.EntityRef, sourceType string, edgeType string) (uint, error) {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      edgeType,
+		Target:    target,
+	})
+	if err != nil {
+		return 0, GenerationContextError{Code: "GENERATION_CONTEXT_RELATION_QUERY_FAILED", Message: "生成上下文读取上游关系失败", Step: "list_incoming_relations", ProjectID: projectID, EntityType: target.Type, EntityID: target.ID, Cause: err.Error()}
+	}
+	for _, edge := range edges {
+		if edge.Source.Type == sourceType {
+			return edge.Source.ID, nil
+		}
+	}
+	return 0, nil
+}
+
+func (s *Service) fallbackGenerationScriptBlockID(ctx context.Context, projectID uint, sceneMoment *domainsemantic.SceneMoment, segment *domainsemantic.Segment) (uint, error) {
+	if sceneMoment != nil {
+		scriptBlockID, err := s.firstOutgoingRelationTargetID(ctx, projectID, domainrelation.NewEntityRef("scene_moment", sceneMoment.ID), "script_block", domainrelation.TypeBasedOn)
+		if err != nil || scriptBlockID > 0 {
+			return scriptBlockID, err
+		}
+	}
+	if segment != nil {
+		return s.firstOutgoingRelationTargetID(ctx, projectID, domainrelation.NewEntityRef("segment", segment.ID), "script_block", domainrelation.TypeBasedOn)
+	}
+	return 0, nil
+}
+
+func (s *Service) firstOutgoingRelationTargetID(ctx context.Context, projectID uint, source domainrelation.EntityRef, targetType string, edgeType string) (uint, error) {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      edgeType,
+		Source:    source,
+	})
+	if err != nil {
+		return 0, GenerationContextError{Code: "GENERATION_CONTEXT_RELATION_QUERY_FAILED", Message: "生成上下文读取下游关系失败", Step: "list_outgoing_relations", ProjectID: projectID, EntityType: source.Type, EntityID: source.ID, Cause: err.Error()}
+	}
+	for _, edge := range edges {
+		if edge.Target.Type == targetType {
+			return edge.Target.ID, nil
+		}
+	}
+	return 0, nil
+}
+
+func (s *Service) targetIDsFromOutgoingRelations(ctx context.Context, projectID uint, source domainrelation.EntityRef, category string, edgeTypes []string, targetType string, step string) ([]uint, error) {
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  category,
+		Source:    source,
+	})
+	if err != nil {
+		return nil, GenerationContextError{Code: "GENERATION_CONTEXT_RELATION_QUERY_FAILED", Message: "生成上下文读取关系失败", Step: step, ProjectID: projectID, EntityType: source.Type, EntityID: source.ID, Cause: err.Error()}
+	}
+	allowed := map[string]struct{}{}
+	for _, edgeType := range edgeTypes {
+		allowed[edgeType] = struct{}{}
+	}
+	result := make([]uint, 0)
+	seen := map[uint]struct{}{}
+	for _, edge := range edges {
+		if edge.Target.Type != targetType {
+			continue
+		}
+		if len(allowed) > 0 {
+			if _, ok := allowed[edge.Type]; !ok {
+				continue
+			}
+		}
+		if _, ok := seen[edge.Target.ID]; ok {
+			continue
+		}
+		seen[edge.Target.ID] = struct{}{}
+		result = append(result, edge.Target.ID)
+	}
+	return result, nil
 }
 
 func generationContextLoadError(projectID uint, step string, entityType string, entityID uint, err error) GenerationContextError {
@@ -219,62 +343,52 @@ func generationWriteTargets(intent string) []string {
 }
 
 func (s *Service) collectGenerationReferences(ctx context.Context, projectID uint, contentUnit domainsemantic.ContentUnit, segment *domainsemantic.Segment, sceneMoment *domainsemantic.SceneMoment) ([]GenerationContextReference, error) {
-	owners := []struct {
-		kind string
-		id   uint
-	}{
-		{kind: "content_unit", id: contentUnit.ID},
-	}
+	owners := []domainrelation.EntityRef{domainrelation.NewEntityRef("content_unit", contentUnit.ID)}
 	if sceneMoment != nil {
-		owners = append(owners, struct {
-			kind string
-			id   uint
-		}{kind: "scene_moment", id: sceneMoment.ID})
+		owners = append(owners, domainrelation.NewEntityRef("scene_moment", sceneMoment.ID))
 	}
 	if segment != nil {
-		owners = append(owners, struct {
-			kind string
-			id   uint
-		}{kind: "segment", id: segment.ID})
+		owners = append(owners, domainrelation.NewEntityRef("segment", segment.ID))
 	}
 
 	items := make([]GenerationContextReference, 0)
 	seen := make(map[uint]struct{})
 	for _, owner := range owners {
-		usages, err := s.repo.ListCreativeReferenceUsages(ctx, CreativeReferenceUsageFilter{
+		edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
 			ProjectID: projectID,
-			OwnerType: owner.kind,
-			OwnerID:   owner.id,
+			Category:  domainrelation.CategoryCreative,
+			Type:      domainrelation.TypeUses,
+			Source:    owner,
 		})
 		if err != nil {
-			return nil, GenerationContextError{
-				Code:       "GENERATION_CONTEXT_REFERENCE_USAGE_QUERY_FAILED",
-				Message:    fmt.Sprintf("生成上下文读取设定引用失败：%s #%d", owner.kind, owner.id),
-				Step:       "list_creative_reference_usages",
-				ProjectID:  projectID,
-				EntityType: "creative_reference_usage",
-				OwnerType:  owner.kind,
-				OwnerID:    owner.id,
-				Cause:      err.Error(),
-			}
+			return nil, GenerationContextError{Code: "GENERATION_CONTEXT_RELATION_QUERY_FAILED", Message: "生成上下文读取设定引用关系失败", Step: "list_creative_reference_usage_relations", ProjectID: projectID, EntityType: owner.Type, EntityID: owner.ID, Cause: err.Error()}
 		}
-		for _, usage := range usages {
-			if _, ok := seen[usage.ID]; ok {
+		for _, edge := range edges {
+			if edge.Target.Type != "creative_reference" {
 				continue
 			}
-			seen[usage.ID] = struct{}{}
-			item := GenerationContextReference{Usage: usage}
-			if usage.CreativeReferenceID > 0 {
-				ref, err := s.repo.LoadCreativeReference(ctx, projectID, strconv.FormatUint(uint64(usage.CreativeReferenceID), 10))
-				if err != nil {
-					return nil, generationContextLoadError(projectID, "load_creative_reference", "creative_reference", usage.CreativeReferenceID, err)
-				}
-				item.Reference = &ref
+			referenceID := edge.Target.ID
+			if _, ok := seen[referenceID]; ok {
+				continue
 			}
-			if usage.CreativeReferenceStateID != nil {
-				state, err := s.repo.LoadCreativeReferenceState(ctx, projectID, strconv.FormatUint(uint64(*usage.CreativeReferenceStateID), 10))
+			seen[referenceID] = struct{}{}
+			item := GenerationContextReference{}
+			if usageID := relationMetadataUint(edge.Metadata, "creative_reference_usage_id"); usageID > 0 {
+				usage, err := s.repo.LoadCreativeReferenceUsage(ctx, projectID, strconv.FormatUint(uint64(usageID), 10))
 				if err != nil {
-					return nil, generationContextLoadError(projectID, "load_creative_reference_state", "creative_reference_state", *usage.CreativeReferenceStateID, err)
+					return nil, generationContextLoadError(projectID, "load_creative_reference_usage", "creative_reference_usage", usageID, err)
+				}
+				item.Usage = usage
+			}
+			ref, err := s.repo.LoadCreativeReference(ctx, projectID, strconv.FormatUint(uint64(referenceID), 10))
+			if err != nil {
+				return nil, generationContextLoadError(projectID, "load_creative_reference", "creative_reference", referenceID, err)
+			}
+			item.Reference = &ref
+			if stateID := relationMetadataUint(edge.Metadata, "creative_reference_state_id"); stateID > 0 {
+				state, err := s.repo.LoadCreativeReferenceState(ctx, projectID, strconv.FormatUint(uint64(stateID), 10))
+				if err != nil {
+					return nil, generationContextLoadError(projectID, "load_creative_reference_state", "creative_reference_state", stateID, err)
 				}
 				item.State = &state
 			}
@@ -285,106 +399,64 @@ func (s *Service) collectGenerationReferences(ctx context.Context, projectID uin
 }
 
 func (s *Service) collectGenerationAssetSlots(ctx context.Context, projectID uint, contentUnit domainsemantic.ContentUnit, segment *domainsemantic.Segment, sceneMoment *domainsemantic.SceneMoment, references []GenerationContextReference) ([]domainsemantic.AssetSlot, error) {
-	owners := []struct {
-		kind string
-		id   uint
-	}{
-		{kind: "content_unit", id: contentUnit.ID},
-	}
+	owners := []domainrelation.EntityRef{domainrelation.NewEntityRef("content_unit", contentUnit.ID)}
 	if sceneMoment != nil {
-		owners = append(owners, struct {
-			kind string
-			id   uint
-		}{kind: "scene_moment", id: sceneMoment.ID})
+		owners = append(owners, domainrelation.NewEntityRef("scene_moment", sceneMoment.ID))
 	}
 	if segment != nil {
-		owners = append(owners, struct {
-			kind string
-			id   uint
-		}{kind: "segment", id: segment.ID})
+		owners = append(owners, domainrelation.NewEntityRef("segment", segment.ID))
 	}
-	referenceIDs := make(map[uint]struct{})
-	stateIDs := make(map[uint]struct{})
 	for _, ref := range references {
 		if ref.Reference != nil {
-			referenceIDs[ref.Reference.ID] = struct{}{}
-			owners = append(owners, struct {
-				kind string
-				id   uint
-			}{kind: "creative_reference", id: ref.Reference.ID})
+			owners = append(owners, domainrelation.NewEntityRef("creative_reference", ref.Reference.ID))
 		}
 		if ref.State != nil {
-			stateIDs[ref.State.ID] = struct{}{}
-			owners = append(owners, struct {
-				kind string
-				id   uint
-			}{kind: "creative_reference_state", id: ref.State.ID})
+			owners = append(owners, domainrelation.NewEntityRef("creative_reference_state", ref.State.ID))
 		}
 	}
 
 	items := make([]domainsemantic.AssetSlot, 0)
 	seen := make(map[uint]struct{})
 	for _, owner := range owners {
-		slots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{
-			ProjectID:       projectID,
-			OwnerType:       owner.kind,
-			IncludeInternal: "true",
-		})
+		slotIDs, err := s.targetIDsFromOutgoingRelations(ctx, projectID, owner, domainrelation.CategoryAsset, []string{domainrelation.TypeNeedsAsset, domainrelation.TypeUsesAsset, domainrelation.TypeHasAsset}, "asset_slot", "list_asset_slot_relations")
 		if err != nil {
-			return nil, GenerationContextError{
-				Code:       "GENERATION_CONTEXT_ASSET_SLOT_QUERY_FAILED",
-				Message:    fmt.Sprintf("生成上下文读取素材输入失败：%s #%d", owner.kind, owner.id),
-				Step:       "list_asset_slots_by_owner",
-				ProjectID:  projectID,
-				EntityType: "asset_slot",
-				OwnerType:  owner.kind,
-				OwnerID:    owner.id,
-				Cause:      err.Error(),
-			}
+			return nil, err
 		}
-		for _, slot := range slots {
-			if slot.OwnerID == nil || *slot.OwnerID != owner.id {
+		for _, slotID := range slotIDs {
+			if _, ok := seen[slotID]; ok {
 				continue
 			}
-			if _, ok := seen[slot.ID]; ok {
-				continue
+			seen[slotID] = struct{}{}
+			slot, err := s.repo.LoadAssetSlot(ctx, projectID, strconv.FormatUint(uint64(slotID), 10))
+			if err != nil {
+				return nil, generationContextLoadError(projectID, "load_asset_slot", "asset_slot", slotID, err)
 			}
-			seen[slot.ID] = struct{}{}
 			items = append(items, slot)
 		}
 	}
-	if len(referenceIDs) > 0 || len(stateIDs) > 0 {
-		slots, err := s.repo.ListAssetSlots(ctx, AssetSlotFilter{
-			ProjectID:       projectID,
-			IncludeInternal: "true",
-		})
+	return items, nil
+}
+
+func (s *Service) collectGenerationKeyframes(ctx context.Context, projectID uint, contentUnitID uint) ([]domainsemantic.Keyframe, error) {
+	keyframeIDs, err := s.targetIDsFromOutgoingRelations(
+		ctx,
+		projectID,
+		domainrelation.NewEntityRef("content_unit", contentUnitID),
+		domainrelation.CategoryStructure,
+		[]string{domainrelation.TypeHasKeyframe},
+		"keyframe",
+		"list_content_unit_keyframe_relations",
+	)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]domainsemantic.Keyframe, 0, len(keyframeIDs))
+	for _, keyframeID := range keyframeIDs {
+		keyframe, err := s.repo.LoadKeyframe(ctx, projectID, strconv.FormatUint(uint64(keyframeID), 10))
 		if err != nil {
-			return nil, GenerationContextError{
-				Code:       "GENERATION_CONTEXT_ASSET_SLOT_QUERY_FAILED",
-				Message:    "生成上下文读取设定资料素材输入失败",
-				Step:       "list_asset_slots_by_reference",
-				ProjectID:  projectID,
-				EntityType: "asset_slot",
-				Cause:      err.Error(),
-			}
+			return nil, generationContextLoadError(projectID, "load_keyframe", "keyframe", keyframeID, err)
 		}
-		for _, slot := range slots {
-			matched := false
-			if slot.CreativeReferenceID != nil {
-				_, matched = referenceIDs[*slot.CreativeReferenceID]
-			}
-			if !matched && slot.CreativeReferenceStateID != nil {
-				_, matched = stateIDs[*slot.CreativeReferenceStateID]
-			}
-			if !matched {
-				continue
-			}
-			if _, ok := seen[slot.ID]; ok {
-				continue
-			}
-			seen[slot.ID] = struct{}{}
-			items = append(items, slot)
-		}
+		items = append(items, keyframe)
 	}
 	return items, nil
 }

@@ -25,6 +25,10 @@ extraResources:
       - dist/**
       - catalog/**
       - package.json
+  - from: vendor/ffmpeg
+    to: ffmpeg
+    filter:
+      - "**/*"
 
 mac:
   target:

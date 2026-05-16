@@ -3,6 +3,7 @@ import {
   applyAnsweredRunInputInteraction,
   applyApprovedRunInteraction,
   applyRejectedRunInteraction,
+  applyRequiredRunAction,
   approveRunInteraction,
   formatInputAnswerMessage,
   rejectedRunInteractionWarning,
@@ -15,6 +16,8 @@ import { projectRunOntoThread } from '../state/runProjection.js'
 import { completeRunStep } from '../state/runTrace.js'
 import type { AgentStore } from '../state/store.js'
 import type {
+  AgentApprovalRequest,
+  AgentInputRequest,
   AgentTraceEvent,
   AgentTraceEventKind,
   AgentMessage,
@@ -62,6 +65,47 @@ export interface RuntimeRunRejectionResult {
   rejection: RejectedRunInteraction
   warning: string
   message: AgentMessage
+}
+
+export function applyRuntimeRunRequiredActionFlow(input: {
+  store: Pick<AgentStore, 'getThread' | 'updateThread' | 'updateRun'>
+  run: AgentRun
+  pendingApprovals: AgentApprovalRequest[]
+  pendingInputRequests?: AgentInputRequest[]
+  warnings?: string[]
+  now: string
+  projectionNow?: string
+  recordTrace: (run: AgentRun, trace: RuntimeRunInteractionTraceInput) => void
+  emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
+}): AgentRun {
+  const pendingInputRequests = input.pendingInputRequests ?? []
+  const warnings = input.warnings ?? []
+  const requiredAction = applyRequiredRunAction(input.run, {
+    pendingApprovals: input.pendingApprovals,
+    pendingInputRequests,
+    warnings,
+    now: input.now,
+  })
+  const inputOnly = requiredAction.pendingInputCount > 0 && input.pendingApprovals.length === 0
+  input.recordTrace(input.run, {
+    kind: inputOnly ? 'input' : 'approval',
+    title: inputOnly ? 'User input required' : 'Approval required',
+    summary: inputOnly
+      ? `${requiredAction.pendingInputCount} user input request(s) paused the run.`
+      : `${input.pendingApprovals.length} tool action(s) paused the run.`,
+    status: 'blocked',
+    data: { approvals: input.pendingApprovals, inputRequests: input.run.pendingInputRequests },
+  })
+  input.store.updateRun(input.run)
+  updateRuntimeThreadRunStatus({
+    store: input.store,
+    threadId: input.run.threadId,
+    status: input.run.status,
+    runId: input.run.id,
+    now: input.projectionNow ?? input.now,
+  })
+  input.emitRunSnapshot(input.run, { done: true })
+  return input.run
 }
 
 export function applyRuntimeRunApprovalFlow(input: {
@@ -140,6 +184,53 @@ export function applyRuntimeRunInputAnswerFlow(input: {
   return run
 }
 
+export function applyRuntimeRunApprovalRequest(input: {
+  store: Pick<AgentStore, 'getRun' | 'updateRun' | 'getThread' | 'updateThread'>
+  runId: string
+  approvalInput?: ApproveRunInput
+  now: () => string
+  recordTrace: (run: AgentRun, trace: RuntimeRunInteractionTraceInput) => void
+  emitRunSnapshot: (run: AgentRun) => void
+  rememberRunAuth: (runId: string, value: unknown) => void
+  startRunExecution: (runId: string) => void
+}): AgentRun {
+  return applyRuntimeRunApprovalFlow({
+    store: input.store,
+    runId: input.runId,
+    approvalInput: input.approvalInput,
+    now: input.now(),
+    projectionNow: input.now(),
+    recordTrace: input.recordTrace,
+    emitRunSnapshot: input.emitRunSnapshot,
+    rememberRunAuth: input.rememberRunAuth,
+    startRunExecution: input.startRunExecution,
+  })
+}
+
+export function applyRuntimeRunInputAnswerRequest(input: {
+  store: Pick<AgentStore, 'getRun' | 'updateRun' | 'getThread' | 'updateThread'>
+  runId: string
+  answerInput?: AnswerRunInputRequestInput
+  messageId: string
+  now: () => string
+  recordTrace: (run: AgentRun, trace: RuntimeRunInteractionTraceInput) => void
+  emitRunSnapshot: (run: AgentRun) => void
+  rememberRunAuth: (runId: string, value: unknown) => void
+  startRunExecution: (runId: string) => void
+}): AgentRun {
+  return applyRuntimeRunInputAnswerFlow({
+    store: input.store,
+    runId: input.runId,
+    answerInput: input.answerInput,
+    messageId: input.messageId,
+    now: input.now(),
+    recordTrace: input.recordTrace,
+    emitRunSnapshot: input.emitRunSnapshot,
+    rememberRunAuth: input.rememberRunAuth,
+    startRunExecution: input.startRunExecution,
+  })
+}
+
 export function applyRuntimeRunRejectionFlow(input: {
   store: Pick<AgentStore, 'getRun' | 'updateRun' | 'getThread' | 'updateThread'>
   runId: string
@@ -181,6 +272,29 @@ export function applyRuntimeRunRejectionFlow(input: {
   })
   input.emitRunSnapshot(run, { done: true })
   return run
+}
+
+export function applyRuntimeRunRejectionRequest(input: {
+  store: Pick<AgentStore, 'getRun' | 'updateRun' | 'getThread' | 'updateThread'>
+  runId: string
+  rejectionInput?: RejectRunInput
+  messageId: string
+  now: () => string
+  recordTrace: (run: AgentRun, trace: RuntimeRunInteractionTraceInput) => void
+  createStep: (run: AgentRun, type: AgentRunStep['type'], round?: AgentRunRoundInfo, toolName?: string) => AgentRunStep
+  emitRunSnapshot: (run: AgentRun, options: { done?: boolean }) => void
+}): AgentRun {
+  return applyRuntimeRunRejectionFlow({
+    store: input.store,
+    runId: input.runId,
+    rejectionInput: input.rejectionInput,
+    messageId: input.messageId,
+    now: input.now(),
+    summaryNow: input.now(),
+    recordTrace: input.recordTrace,
+    createStep: input.createStep,
+    emitRunSnapshot: input.emitRunSnapshot,
+  })
 }
 
 export function approveRuntimeRunInteraction(input: {

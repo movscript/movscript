@@ -5,6 +5,7 @@ import { BarChart3, Download, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button, Input, Label } from '@movscript/ui'
 import { api } from '@/lib/api'
+import { PaginationControls } from '@/components/admin/PaginationControls'
 import { downloadAdminCSV } from '@/lib/adminExport'
 import {
   emptyUsageFilters,
@@ -122,15 +123,22 @@ export function UsageLogsPage() {
 
   const items = logsQuery.data?.items ?? []
   const total = logsQuery.data?.total ?? 0
+  const responsePageSize = logsQuery.data?.page_size ?? PAGE_SIZE
   const summary = summaryQuery.data
   const credentials = credentialsQuery.data ?? []
-  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const pageCount = Math.max(1, Math.ceil(total / responsePageSize))
   const models = credentials.flatMap((credential) =>
     (credential.models ?? []).map((model) => ({ ...model, providerName: credential.display_name })),
   )
   const providerById = new Map(credentials.map((credential) => [credential.ID, credential.display_name]))
   const hasFilters = Object.values(filters).some((value) => value.trim() !== '')
   const queryError = credentialsQuery.error || logsQuery.error || summaryQuery.error
+
+  useEffect(() => {
+    if (logsQuery.data && page > pageCount) {
+      updatePage(pageCount)
+    }
+  }, [logsQuery.data, page, pageCount])
 
   function updateFilter<K extends keyof UsageFilters>(key: K, value: UsageFilters[K]) {
     const next = { ...filters, [key]: value }
@@ -351,15 +359,7 @@ export function UsageLogsPage() {
         </table>
       </div>
 
-      <div className="flex items-center justify-end gap-3">
-        <span className="text-xs text-muted-foreground">{t('admin.logs.pageStatus', { page, pageCount })}</span>
-        <Button type="button" variant="outline" size="sm" disabled={page <= 1} onClick={() => updatePage(page - 1)}>
-          {t('admin.logs.previousPage')}
-        </Button>
-        <Button type="button" variant="outline" size="sm" disabled={page >= pageCount} onClick={() => updatePage(page + 1)}>
-          {t('admin.logs.nextPage')}
-        </Button>
-      </div>
+      <PaginationControls page={page} pageCount={pageCount} pageSize={responsePageSize} total={total} onPageChange={updatePage} disabled={logsQuery.isFetching} />
     </div>
   )
 }

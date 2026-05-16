@@ -33,6 +33,7 @@ type handlers struct {
 	audit            *handler.AuditHandler
 	usageAdmin       *handler.UsageAdminHandler
 	cloudFileConfig  *handler.CloudFileConfigHandler
+	adminSettings    *handler.AdminSettingsHandler
 	entitlement      *handler.EntitlementHandler
 	org              *handler.OrgHandler
 	orgAdmin         *handler.OrgAdminHandler
@@ -78,6 +79,7 @@ func newHandlers(deps Dependencies) handlers {
 		audit:            handler.NewAuditHandler(db),
 		usageAdmin:       handler.NewUsageAdminHandler(db),
 		cloudFileConfig:  handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey),
+		adminSettings:    handler.NewAdminSettingsHandler(db, cfg.EncryptionKey),
 		entitlement:      handler.NewEntitlementHandler(deps.Entitlements),
 		org:              handler.NewOrgHandler(db),
 		orgAdmin:         handler.NewOrgAdminHandler(db),

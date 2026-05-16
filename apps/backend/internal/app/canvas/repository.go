@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/movscript/movscript/internal/app/coregraph"
 	resourcebinding "github.com/movscript/movscript/internal/app/resource/binding"
 	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	domainplugin "github.com/movscript/movscript/internal/domain/plugin"
@@ -14,7 +15,6 @@ import (
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
@@ -183,8 +183,10 @@ func (r *gormRepository) DeleteCanvas(ctx context.Context, cv canvasdomain.Canva
 		if err := tx.Where("canvas_id = ?", modelCV.ID).Delete(&persistencemodel.CanvasRun{}).Error; err != nil {
 			return err
 		}
+		graph := coregraph.NewWriter(tx)
 		for i := range runs {
-			if err := relation.DeleteCoreEntityRelations(tx, &runs[i]); err != nil {
+			runs[i].CanvasID = modelCV.ID
+			if err := graph.Expire(ctx, &runs[i]); err != nil {
 				return err
 			}
 		}
@@ -197,7 +199,7 @@ func (r *gormRepository) DeleteCanvas(ctx context.Context, cv canvasdomain.Canva
 		if err := tx.Delete(&modelCV).Error; err != nil {
 			return err
 		}
-		return relation.DeleteCoreEntityRelations(tx, &modelCV)
+		return graph.Expire(ctx, &modelCV)
 	})
 }
 
@@ -478,7 +480,7 @@ func (r *gormRepository) CreateCanvasRun(ctx context.Context, run canvasdomain.C
 	if err := db.Create(&modelRun).Error; err != nil {
 		return canvasdomain.CanvasRunFromModel(modelRun), err
 	}
-	if err := relation.SyncCoreEntityRelations(db, &modelRun); err != nil {
+	if err := coregraph.NewWriter(db).Write(ctx, &modelRun); err != nil {
 		return canvasdomain.CanvasRunFromModel(modelRun), err
 	}
 	return canvasdomain.CanvasRunFromModel(modelRun), nil
@@ -490,7 +492,7 @@ func (r *gormRepository) SaveCanvasRun(ctx context.Context, run canvasdomain.Can
 	if err := db.Save(&modelRun).Error; err != nil {
 		return err
 	}
-	return relation.SyncCoreEntityRelations(db, &modelRun)
+	return coregraph.NewWriter(db).Write(ctx, &modelRun)
 }
 
 func (r *gormRepository) FindCanvasRun(ctx context.Context, runID uint) (canvasdomain.CanvasRun, error) {
@@ -801,7 +803,7 @@ func (r *gormRepository) attachGeneratedAssetSlotCandidate(ctx context.Context, 
 			if err := db.Create(&candidateSlot).Error; err != nil {
 				return nil
 			}
-			if err := relation.SyncCoreEntityRelations(db, &candidateSlot); err != nil {
+			if err := coregraph.NewWriter(db).Write(ctx, &candidateSlot); err != nil {
 				return nil
 			}
 		}
@@ -860,7 +862,7 @@ func (r *gormRepository) attachGeneratedAssetSlotCandidate(ctx context.Context, 
 		if err := db.Create(&existing).Error; err != nil {
 			return nil
 		}
-		if err := relation.SyncCoreEntityRelations(db, &existing); err != nil {
+		if err := coregraph.NewWriter(db).Write(ctx, &existing); err != nil {
 			return nil
 		}
 	} else {
@@ -870,7 +872,7 @@ func (r *gormRepository) attachGeneratedAssetSlotCandidate(ctx context.Context, 
 		if err := db.Save(&existing).Error; err != nil {
 			return nil
 		}
-		if err := relation.SyncCoreEntityRelations(db, &existing); err != nil {
+		if err := coregraph.NewWriter(db).Write(ctx, &existing); err != nil {
 			return nil
 		}
 	}
@@ -880,7 +882,7 @@ func (r *gormRepository) attachGeneratedAssetSlotCandidate(ctx context.Context, 
 		if err := db.Save(&target).Error; err != nil {
 			return nil
 		}
-		_ = relation.SyncCoreEntityRelations(db, &target)
+		_ = coregraph.NewWriter(db).Write(ctx, &target)
 	}
 	return nil
 }
@@ -966,7 +968,7 @@ func saveCanvasWithRelations(db *gorm.DB, cv *persistencemodel.Canvas) error {
 	if err := db.Save(cv).Error; err != nil {
 		return err
 	}
-	return relation.SyncCoreEntityRelations(db, cv)
+	return coregraph.NewWriter(db).Write(context.Background(), cv)
 }
 
 func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *persistencemodel.Canvas) error {

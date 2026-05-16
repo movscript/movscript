@@ -9,14 +9,20 @@ import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import {
   AlertTriangle,
+  Bot,
   BookOpenCheck,
   CheckCircle2,
   Clapperboard,
   Clock3,
   FileText,
+  GitBranch,
   Layers,
+  ListChecks,
   Plus,
+  Route,
   ScrollText,
+  Sparkles,
+  Wand2,
 } from 'lucide-react'
 import { CreateDialog } from '@/components/shared/CreateDialog'
 import { ScriptCreateForm } from '@/components/shared/EntityCreateForms'
@@ -25,6 +31,8 @@ import { Button } from '@movscript/ui'
 import { ScriptForm } from '@/components/forms/ScriptForm'
 import { useTranslation } from 'react-i18next'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
+import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
+import { openAgentPanelDraft } from '@/lib/agentPanelBridge'
 
 type ScriptDetailTab = 'edit' | 'versions' | 'production'
 
@@ -294,74 +302,143 @@ function ScriptsSection({ projectId }: { projectId: number }) {
     onError: () => toast.error('创建制作项失败'),
   })
 
+  const selectedVersionIds = useMemo(() => new Set(versionsForSelected.map((version) => version.ID)), [versionsForSelected])
+  const selectedScriptBlocks = useMemo(() => {
+    if (!selected) return []
+    return scriptBlocks.filter((block) => Number(block.script_id) === selected.ID || selectedVersionIds.has(Number(block.script_version_id)))
+  }, [scriptBlocks, selected, selectedVersionIds])
+  const selectedScriptBlockIds = useMemo(() => new Set(selectedScriptBlocks.map((block) => block.ID)), [selectedScriptBlocks])
+  const linkedSegments = useMemo(
+    () => segments.filter((segment) => selectedScriptBlockIds.has(Number(segment.script_block_id))),
+    [segments, selectedScriptBlockIds],
+  )
+  const linkedSceneMoments = useMemo(
+    () => sceneMoments.filter((moment) => selectedScriptBlockIds.has(Number(moment.script_block_id))),
+    [sceneMoments, selectedScriptBlockIds],
+  )
+  const selectedReadiness = selected ? scriptReadiness(selected, versionsForSelected.length, draftSourceText.trim().length) : 0
+
+  function launchScriptAgent(mode: 'diagnose' | 'rewrite' | 'breakdown') {
+    if (!selected) return
+    const requestId = `script_workbench_${mode}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+    const title = selected.title || `剧本 #${selected.ID}`
+    const body = draftSourceText.trim()
+    const prompts = {
+      diagnose: `请作为影视创意编排搭档，审阅剧本《${title}》。重点指出结构、人物动机、情景拆分、道具证据和制作可执行性问题，并给出可执行修改建议。当前正文如下：\n\n${body || '当前剧本正文为空，请先给出创作 brief 和结构提纲建议。'}`,
+      rewrite: `请协助完善剧本《${title}》。保持现有核心设定，优先提升冲突、动作可视化、对白克制程度和镜头可拍性。请输出修改建议和可直接替换的片段。当前正文如下：\n\n${body || '当前剧本正文为空，请先根据标题和摘要起草一个可拍摄的短片段。'}`,
+      breakdown: `请把剧本《${title}》拆解为专业制作编排方案。输出情景、编排段、关键画面、人物/地点/道具设定资料、素材缺口和下游制作风险。当前正文如下：\n\n${body || '当前剧本正文为空，请先列出需要补齐的信息清单。'}`,
+    }
+    openAgentPanelDraft({
+      requestId,
+      taskType: `script_${mode}`,
+      message: mode === 'diagnose' ? `审阅剧本: ${title}` : mode === 'rewrite' ? `完善剧本: ${title}` : `拆解编排: ${title}`,
+      title: mode === 'diagnose' ? `剧本审阅: ${title}` : mode === 'rewrite' ? `剧本完善: ${title}` : `剧本编排: ${title}`,
+      newConversation: true,
+      autoSend: true,
+      projectId,
+      clientInput: buildCommandFirstClientInput({
+        message: prompts[mode],
+        labels: ['script-workbench', 'creative-orchestration', 'human-ai-collaboration'],
+        hints: {
+          projectId,
+          route: { pathname: ROUTES.project.scripts },
+          selection: { entityType: 'script', entityId: selected.ID, label: title },
+        },
+      }),
+      runPolicy: { maxToolCalls: 12, maxIterations: 8 },
+      timeoutMs: 240_000,
+      renderMode: 'page',
+    })
+    toast.info('已把剧本上下文发送到 AI 协作面板')
+  }
+
   return (
-    <div className="flex h-full overflow-hidden bg-background">
-      {/* ── Left sidebar: script list ── */}
-      <div className="flex w-64 shrink-0 flex-col overflow-hidden border-r border-border bg-card">
-        <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <ScrollText size={14} className="text-muted-foreground" />
-            <span className="text-sm font-semibold text-foreground">剧本列表</span>
+    <div className="script-workbench-shell h-full overflow-auto bg-muted/30">
+      <div className="script-workbench-frame min-h-full p-4">
+        <header className="script-workbench-topbar border-b border-border bg-background px-4 py-3">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Clapperboard size={14} />
+                影视创意编排工作台
+              </div>
+              <h1 className="mt-1 truncate text-xl font-semibold text-foreground">剧本协作与制作拆解</h1>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <WorkspaceStat icon={ScrollText} label="剧本" value={String(scripts.length)} />
+              <WorkspaceStat icon={GitBranch} label="版本" value={String(scriptVersions.length)} />
+              <WorkspaceStat icon={Route} label="下游" value={String(segments.length + sceneMoments.length)} />
+            </div>
           </div>
-          <Button variant="default" size="icon" onClick={() => setShowCreate(true)} className="h-7 w-7">
-            <Plus size={14} />
-          </Button>
-        </div>
+        </header>
 
-        <div className="flex-1 overflow-y-auto p-2">
-          {isLoading ? (
-            <p className="px-2 py-4 text-xs text-muted-foreground">{t('common.loadingShort')}</p>
-          ) : scripts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
-              <FileText size={28} className="opacity-30" />
-              <p className="text-xs">{t('pages.scripts.empty')}</p>
-              <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground">
-                {t('pages.scripts.createOne')}
-              </button>
+        <div className="script-workbench-layout min-h-0 bg-background">
+          <aside className="script-workbench-rail min-h-0 border-r border-border">
+            <div className="flex h-12 items-center justify-between border-b border-border px-3">
+              <div className="flex items-center gap-2">
+                <ScrollText size={14} className="text-muted-foreground" />
+                <span className="text-sm font-semibold text-foreground">剧本库</span>
+              </div>
+              <Button variant="default" size="icon" onClick={() => setShowCreate(true)} className="h-7 w-7" aria-label="新建剧本">
+                <Plus size={14} />
+              </Button>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {scriptGroups.map((group) => (
-                <div key={group.category}>
-                  <div className="mb-1.5 flex items-center justify-between px-1">
-                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group.category}</p>
-                    <span className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">{group.scripts.length}</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    {group.scripts.map((script) => {
-                      const vers = scriptVersions.filter((v) => v.script_id === script.ID)
-                      const hasVersions = vers.length > 0
-                      const isSelected = selected?.ID === script.ID
-                      return (
-                        <button
-                          key={script.ID}
-                          type="button"
-                          onClick={() => setSelectedId(script.ID)}
-                          className={cn(
-                            'flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left transition-colors',
-                            isSelected ? 'bg-primary/10 text-foreground' : 'text-foreground hover:bg-muted',
-                          )}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">{script.title}</p>
-                            <p className="mt-0.5 text-[11px] text-muted-foreground">
-                              {vers.length} 版本 · {hasVersions ? '已锁定' : '待版本'}
-                            </p>
-                          </div>
-                          {hasVersions && <CheckCircle2 size={11} className="shrink-0 text-emerald-500" />}
-                        </button>
-                      )
-                    })}
-                  </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {isLoading ? (
+                <p className="px-2 py-4 text-xs text-muted-foreground">{t('common.loadingShort')}</p>
+              ) : scripts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-12 text-muted-foreground">
+                  <FileText size={28} className="opacity-30" />
+                  <p className="text-xs">{t('pages.scripts.empty')}</p>
+                  <button onClick={() => setShowCreate(true)} className="text-xs hover:text-foreground">
+                    {t('pages.scripts.createOne')}
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <div className="space-y-4">
+                  {scriptGroups.map((group) => (
+                    <div key={group.category}>
+                      <div className="mb-1.5 flex items-center justify-between px-1">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{group.category}</p>
+                        <span className="rounded border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] text-muted-foreground">{group.scripts.length}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {group.scripts.map((script) => {
+                          const vers = scriptVersions.filter((v) => v.script_id === script.ID)
+                          const bodyLength = String(script.content || script.raw_source || '').trim().length
+                          const hasVersions = vers.length > 0
+                          const isSelected = selected?.ID === script.ID
+                          return (
+                            <button
+                              key={script.ID}
+                              type="button"
+                              onClick={() => setSelectedId(script.ID)}
+                              className={cn(
+                                'w-full rounded-md border px-2.5 py-2.5 text-left transition-colors',
+                                isSelected ? 'border-primary/40 bg-primary/10 text-foreground' : 'border-transparent text-foreground hover:border-border hover:bg-muted/50',
+                              )}
+                            >
+                              <div className="flex items-start gap-2">
+                                <div className={cn('mt-1 h-2 w-2 shrink-0 rounded-full', hasVersions ? 'bg-emerald-500' : bodyLength > 0 ? 'bg-amber-500' : 'bg-muted-foreground/30')} />
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-medium">{script.title}</p>
+                                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                    {vers.length} 版本 · {bodyLength} 字 · {hasVersions ? '可制作' : '待锁定'}
+                                  </p>
+                                </div>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </aside>
 
-      {/* ── Right detail panel ── */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <main className="min-h-0 min-w-0 overflow-hidden">
         {!selected ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
             <ScrollText size={36} className="opacity-20" />
@@ -373,8 +450,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
           </div>
         ) : (
           <>
-            {/* Script header */}
-            <div className="shrink-0 border-b border-border bg-card px-5 py-4">
+            <div className="shrink-0 border-b border-border bg-background px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -391,17 +467,26 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                     <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{selected.summary || selected.description}</p>
                   )}
                 </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => launchScriptAgent('diagnose')}>
+                    <Bot size={14} />
+                    AI 审阅
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => launchScriptAgent('breakdown')}>
+                    <Wand2 size={14} />
+                    拆解编排
+                  </Button>
+                </div>
               </div>
-              <div className="mt-3 grid grid-cols-4 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
                 <MetricBox icon={ScrollText} label="工作稿字数" value={`${draftSourceText.trim().length}`} />
                 <MetricBox icon={Layers} label="版本总数" value={`${versionsForSelected.length}`} />
-                <MetricBox icon={CheckCircle2} label="已锁定" value={versionsForSelected.length > 0 ? '是' : '否'} />
-                <MetricBox icon={BookOpenCheck} label="完整度" value={`${scriptReadiness(selected, versionsForSelected.length, draftSourceText.trim().length)}%`} />
+                <MetricBox icon={ListChecks} label="剧本块" value={`${selectedScriptBlocks.length}`} />
+                <MetricBox icon={BookOpenCheck} label="完整度" value={`${selectedReadiness}%`} />
               </div>
             </div>
 
-            {/* Tab bar */}
-            <div className="flex shrink-0 items-center gap-0 border-b border-border bg-card px-4">
+            <div className="flex shrink-0 items-center gap-0 border-b border-border bg-background px-4">
               {([
                 { key: 'edit', label: '编辑正文' },
                 { key: 'versions', label: `版本管理 (${versionsForSelected.length})` },
@@ -590,11 +675,190 @@ function ScriptsSection({ projectId }: { projectId: number }) {
             </div>
           </>
         )}
+          </main>
+
+          <aside className="script-workbench-inspector min-h-0 border-l border-border">
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              <ScriptCollaborationPanel
+                canCreateProduction={canCreateProduction}
+                hasDraftBody={hasDraftBody}
+                isDraftPublished={isDraftPublished}
+                latestVersion={latestVersion}
+                linkedSceneMomentCount={linkedSceneMoments.length}
+                linkedSegmentCount={linkedSegments.length}
+                readiness={selectedReadiness}
+                script={selected}
+                scriptBlockCount={selectedScriptBlocks.length}
+                versionCount={versionsForSelected.length}
+                onCreateVersion={() => createVersion.mutate()}
+                onLaunchAgent={launchScriptAgent}
+                onSetTab={setDetailTab}
+              />
+            </div>
+          </aside>
+        </div>
       </div>
 
       <CreateDialog open={showCreate} onClose={() => setShowCreate(false)} title={t('pages.scripts.createTitle')}>
         <ScriptCreateForm projectId={projectId} onSuccess={() => setShowCreate(false)} onCancel={() => setShowCreate(false)} />
       </CreateDialog>
+    </div>
+  )
+}
+
+function WorkspaceStat({ icon: Icon, label, value }: { icon: typeof FileText; label: string; value: string }) {
+  return (
+    <div className="min-w-[86px] rounded-md border border-border bg-muted/30 px-3 py-2">
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Icon size={12} />
+        {label}
+      </div>
+      <p className="mt-0.5 text-base font-semibold leading-5 text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function ScriptCollaborationPanel({
+  canCreateProduction,
+  hasDraftBody,
+  isDraftPublished,
+  latestVersion,
+  linkedSceneMomentCount,
+  linkedSegmentCount,
+  readiness,
+  script,
+  scriptBlockCount,
+  versionCount,
+  onCreateVersion,
+  onLaunchAgent,
+  onSetTab,
+}: {
+  canCreateProduction: boolean
+  hasDraftBody: boolean
+  isDraftPublished: boolean
+  latestVersion: ScriptVersion | null
+  linkedSceneMomentCount: number
+  linkedSegmentCount: number
+  readiness: number
+  script: Script | null
+  scriptBlockCount: number
+  versionCount: number
+  onCreateVersion: () => void
+  onLaunchAgent: (mode: 'diagnose' | 'rewrite' | 'breakdown') => void
+  onSetTab: (tab: ScriptDetailTab) => void
+}) {
+  if (!script) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center rounded-md border border-dashed border-border p-6 text-center text-muted-foreground">
+        <Sparkles size={28} className="opacity-30" />
+        <p className="mt-2 text-sm">选择剧本后查看协作状态</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <section className="rounded-md border border-border bg-background p-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-foreground">AI 创意搭档</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">围绕当前剧本做审阅、改写和制作拆解，结果回到右侧 AI 面板继续协作。</p>
+          </div>
+          <Bot size={16} className="shrink-0 text-muted-foreground" />
+        </div>
+        <div className="mt-3 grid gap-2">
+          <Button variant="default" size="sm" className="justify-start gap-2" onClick={() => onLaunchAgent('rewrite')}>
+            <Sparkles size={14} />
+            协作完善剧本
+          </Button>
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onLaunchAgent('diagnose')}>
+              <BookOpenCheck size={13} />
+              审阅
+            </Button>
+            <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onLaunchAgent('breakdown')}>
+              <Route size={13} />
+              拆解
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-border bg-background p-3">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-semibold text-foreground">制作就绪</p>
+          <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{readiness}%</span>
+        </div>
+        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-primary" style={{ width: `${readiness}%` }} />
+        </div>
+        <div className="mt-3 space-y-2">
+          <ReadinessRow label="有可审正文" done={hasDraftBody} />
+          <ReadinessRow label="已锁定版本" done={versionCount > 0} />
+          <ReadinessRow label="可创建制作" done={canCreateProduction} />
+        </div>
+        <div className="mt-3 grid gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="justify-start gap-1.5"
+            disabled={!hasDraftBody || isDraftPublished}
+            onClick={onCreateVersion}
+          >
+            <GitBranch size={13} />
+            锁定当前版本
+          </Button>
+          <Button variant="outline" size="sm" className="justify-start gap-1.5" onClick={() => onSetTab('production')}>
+            <Clapperboard size={13} />
+            查看制作入口
+          </Button>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-border bg-background p-3">
+        <p className="text-xs font-semibold text-foreground">剧本到制作链路</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <PipelineMetric label="版本" value={versionCount} />
+          <PipelineMetric label="剧本块" value={scriptBlockCount} />
+          <PipelineMetric label="编排段" value={linkedSegmentCount} />
+          <PipelineMetric label="情景" value={linkedSceneMomentCount} />
+        </div>
+        <div className="mt-3 rounded-md border border-border bg-muted/30 p-2.5">
+          <p className="text-[11px] font-medium text-foreground">当前锁定源</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            {latestVersion ? `v${latestVersion.version_number || latestVersion.ID} · ${formatDate(latestVersion.UpdatedAt)}` : '尚无可用于制作的锁定版本'}
+          </p>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-border bg-background p-3">
+        <p className="text-xs font-semibold text-foreground">专业工作流</p>
+        <div className="mt-3 space-y-2">
+          <WorkflowStep index="01" title="完善正文" active={!hasDraftBody || !isDraftPublished} />
+          <WorkflowStep index="02" title="锁定版本" active={hasDraftBody && versionCount === 0} />
+          <WorkflowStep index="03" title="选择文本生成剧本块" active={versionCount > 0 && scriptBlockCount === 0} />
+          <WorkflowStep index="04" title="拆成编排段和情景" active={scriptBlockCount > 0 && linkedSceneMomentCount === 0} />
+          <WorkflowStep index="05" title="进入制作提案" active={canCreateProduction} />
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function PipelineMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border bg-muted/30 px-2.5 py-2">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold leading-6 text-foreground">{value}</p>
+    </div>
+  )
+}
+
+function WorkflowStep({ index, title, active }: { index: string; title: string; active: boolean }) {
+  return (
+    <div className={cn('flex items-center gap-2 rounded-md border px-2.5 py-2', active ? 'border-primary/30 bg-primary/10' : 'border-border bg-muted/20')}>
+      <span className={cn('shrink-0 font-mono text-[11px]', active ? 'text-primary' : 'text-muted-foreground')}>{index}</span>
+      <span className={cn('min-w-0 truncate text-xs', active ? 'font-medium text-foreground' : 'text-muted-foreground')}>{title}</span>
     </div>
   )
 }

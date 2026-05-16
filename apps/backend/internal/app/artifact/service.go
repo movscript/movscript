@@ -2,11 +2,14 @@ package artifact
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	domainresourcebinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
@@ -18,11 +21,16 @@ const timeFormatRFC3339 = "2006-01-02T15:04:05Z07:00"
 type ResourceURLFunc func(id uint) string
 
 type Service struct {
-	repo repository
+	repo      repository
+	relations relationReader
+}
+
+type relationReader interface {
+	ListEdges(ctx context.Context, filter relationapp.EdgeFilter) ([]domainrelation.Edge, error)
 }
 
 func NewService(db *gorm.DB) *Service {
-	return &Service{repo: &gormRepository{db: db}}
+	return &Service{repo: &gormRepository{db: db}, relations: relationapp.NewService(db)}
 }
 
 type ListFilter struct {
@@ -264,8 +272,32 @@ func (s *Service) deliveryVersionRefs(ctx context.Context, projectID uint) ([]Re
 }
 
 func (s *Service) firstBoundResource(ctx context.Context, projectID uint, ownerType string, ownerID uint, resourceURL ResourceURLFunc, roles ...string) *domainresource.RawResource {
-	resource, _ := s.repo.FirstBoundResource(ctx, projectID, ownerType, ownerID, roles...)
-	return withResourceURL(resource, resourceURL)
+	edges, err := s.relations.ListEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: projectID,
+		Category:  domainrelation.CategoryAsset,
+		Type:      domainrelation.TypeUsesResource,
+		Source:    domainrelation.NewEntityRef(ownerType, ownerID),
+		Target:    domainrelation.EntityRef{Type: "raw_resource"},
+	})
+	if err != nil {
+		return nil
+	}
+	allowedRoles := stringSet(roles)
+	resourceIDs := make([]uint, 0, len(edges))
+	for _, edge := range edges {
+		if len(allowedRoles) > 0 {
+			role := relationMetadataString(edge.Metadata, "role")
+			if _, ok := allowedRoles[role]; !ok {
+				continue
+			}
+		}
+		resourceIDs = append(resourceIDs, edge.Target.ID)
+	}
+	resources, err := s.repo.LoadResourcesByIDs(ctx, projectID, resourceIDs)
+	if err != nil || len(resources) == 0 {
+		return nil
+	}
+	return withResourceURL(&resources[0], resourceURL)
 }
 
 func withResourceURL(resource *domainresource.RawResource, resourceURL ResourceURLFunc) *domainresource.RawResource {
@@ -284,4 +316,27 @@ func fallbackTitle(value string, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func stringSet(values []string) map[string]struct{} {
+	out := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			out[value] = struct{}{}
+		}
+	}
+	return out
+}
+
+func relationMetadataString(metadata string, key string) string {
+	if strings.TrimSpace(metadata) == "" || key == "" {
+		return ""
+	}
+	values := map[string]any{}
+	if err := json.Unmarshal([]byte(metadata), &values); err != nil {
+		return ""
+	}
+	value, _ := values[key].(string)
+	return strings.TrimSpace(value)
 }

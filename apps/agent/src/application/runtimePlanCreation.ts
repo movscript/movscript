@@ -5,6 +5,7 @@ import type {
 } from '../orchestration/planGenerator.js'
 import type {
   AgentPlan,
+  AgentPlanSnapshot,
   AgentRun,
   AgentTask,
   AgentThread,
@@ -215,4 +216,38 @@ export function applyRuntimePlanCreationFlow(input: {
     tasks,
     ...(root.rootRun ? { rootRun: root.rootRun } : {}),
   }
+}
+
+export async function applyRuntimePlanCreationRequest(input: {
+  store: Pick<AgentStore, 'getThread' | 'listPlans' | 'getTask' | 'createPlan' | 'createTask' | 'updatePlan' | 'getRun' | 'updateTask'>
+  planInput: CreatePlanInput
+  planId: string
+  now: string
+  generatePlanTasks: (input: GeneratePlanTasksInput) => Promise<GeneratePlanTasksResult>
+  createRun: (runInput: CreateRunInput) => AgentRun
+  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+  onTaskCreated?: (task: AgentTask) => void
+  onInlineTaskAssigned?: (task: AgentTask, previousTask: AgentTask) => void
+}): Promise<AgentPlanSnapshot> {
+  const preparation = prepareRuntimePlanCreation({
+    store: input.store,
+    planInput: input.planInput,
+  })
+  const resolvedTasks = await resolveRuntimePlanCreationTasks({
+    preparation,
+    planInput: input.planInput,
+    generatePlanTasks: input.generatePlanTasks,
+  })
+  const { plan } = applyRuntimePlanCreationFlow({
+    store: input.store,
+    planId: input.planId,
+    preparation,
+    planInput: input.planInput,
+    resolvedTasks,
+    now: input.now,
+    createRun: input.createRun,
+    ...(input.onTaskCreated ? { onTaskCreated: input.onTaskCreated } : {}),
+    ...(input.onInlineTaskAssigned ? { onInlineTaskAssigned: input.onInlineTaskAssigned } : {}),
+  })
+  return input.getPlanSnapshot(plan.id)
 }

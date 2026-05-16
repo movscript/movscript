@@ -11,10 +11,11 @@ import {
 
 test('prepareRuntimeSubagentSpawn creates worker task targets with stable subagent names', () => {
   const store = new InMemoryAgentStore()
+  store.createRun(makeRun())
 
   const result = prepareRuntimeSubagentSpawn({
     store,
-    plannerRun: makeRun(),
+    plannerRunId: 'run_planner',
     request: {
       tasks: [
         { id: 'task_created_a', title: 'Created A' },
@@ -37,12 +38,13 @@ test('prepareRuntimeSubagentSpawn creates worker task targets with stable subage
 
 test('prepareRuntimeSubagentSpawn maps existing tasks and rejects duplicate names atomically', () => {
   const store = new InMemoryAgentStore()
+  store.createRun(makeRun())
   store.createTask(makeTask({ id: 'task_existing_a' }))
   store.createTask(makeTask({ id: 'task_existing_b' }))
 
   assert.throws(() => prepareRuntimeSubagentSpawn({
     store,
-    plannerRun: makeRun(),
+    plannerRunId: 'run_planner',
     request: {
       taskIds: ['task_existing_a', 'task_existing_b'],
       subagentNames: ['Einstein', 'Einstein'],
@@ -52,7 +54,7 @@ test('prepareRuntimeSubagentSpawn maps existing tasks and rejects duplicate name
 
   const result = prepareRuntimeSubagentSpawn({
     store,
-    plannerRun: makeRun(),
+    plannerRunId: 'run_planner',
     request: {
       taskIds: ['task_existing_a', 'task_existing_b'],
       subagentNames: {
@@ -72,18 +74,20 @@ test('prepareRuntimeSubagentSpawn maps existing tasks and rejects duplicate name
 
 test('prepareRuntimeSubagentSpawn validates planner plan and target plan boundaries', () => {
   const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ id: 'run_no_plan', planId: undefined }))
+  store.createRun(makeRun())
   store.createTask(makeTask({ id: 'task_other_plan', planId: 'plan_2' }))
 
   assert.throws(() => prepareRuntimeSubagentSpawn({
     store,
-    plannerRun: makeRun({ planId: undefined }),
+    plannerRunId: 'run_no_plan',
     request: { taskId: 'task_other_plan' },
     now: '2026-01-01T00:00:01.000Z',
   }), /requires the planner run to be attached/)
 
   assert.throws(() => prepareRuntimeSubagentSpawn({
     store,
-    plannerRun: makeRun(),
+    plannerRunId: 'run_planner',
     request: {
       taskId: 'task_other_plan',
       tasks: [{ id: 'task_should_not_write', title: 'Should not write' }],
@@ -94,13 +98,35 @@ test('prepareRuntimeSubagentSpawn validates planner plan and target plan boundar
   assert.equal(store.getTask('task_should_not_write'), undefined)
 })
 
+test('prepareRuntimeSubagentSpawn validates the planner run lookup before task creation', () => {
+  const store = new InMemoryAgentStore()
+  store.createRun(makeRun({ id: 'run_worker', role: 'worker' }))
+
+  assert.throws(() => prepareRuntimeSubagentSpawn({
+    store,
+    plannerRunId: 'missing',
+    request: { tasks: [{ id: 'task_should_not_write', title: 'Should not write' }] },
+    now: '2026-01-01T00:00:01.000Z',
+  }), /run not found: missing/)
+
+  assert.throws(() => prepareRuntimeSubagentSpawn({
+    store,
+    plannerRunId: 'run_worker',
+    request: { tasks: [{ id: 'task_should_not_write', title: 'Should not write' }] },
+    now: '2026-01-01T00:00:01.000Z',
+  }), /run run_worker is not a planner run/)
+
+  assert.equal(store.getTask('task_should_not_write'), undefined)
+})
+
 test('applyRuntimeSubagentSpawnPreparation creates tasks, writes names, and resets stale targets', () => {
   const store = new InMemoryAgentStore()
+  store.createRun(makeRun())
   store.createTask(makeTask({ id: 'task_existing', metadata: {}, status: 'blocked', blockedReason: 'needs input' }))
   store.createTask(makeTask({ id: 'task_failed', status: 'failed', metadata: { subagentName: 'Feynman' } }))
   const spawn = prepareRuntimeSubagentSpawn({
     store,
-    plannerRun: makeRun(),
+    plannerRunId: 'run_planner',
     request: {
       tasks: [{ id: 'task_created', title: 'Created', subagentName: 'Curie' }],
       taskIds: ['task_existing', 'task_failed'],
@@ -140,10 +166,11 @@ test('applyRuntimeSubagentSpawnPreparation creates tasks, writes names, and rese
 
 test('applyRuntimeSubagentSpawnPreparation keeps failed targets when retryFailed is true', () => {
   const store = new InMemoryAgentStore()
+  store.createRun(makeRun())
   store.createTask(makeTask({ id: 'task_failed', status: 'failed' }))
   const spawn = prepareRuntimeSubagentSpawn({
     store,
-    plannerRun: makeRun(),
+    plannerRunId: 'run_planner',
     request: { taskId: 'task_failed' },
     now: '2026-01-01T00:00:01.000Z',
   })
@@ -160,9 +187,10 @@ test('applyRuntimeSubagentSpawnPreparation keeps failed targets when retryFailed
 
 test('applyRuntimeSubagentSpawnFlow applies targets, dispatches requested tasks, and projects result', () => {
   const store = new InMemoryAgentStore()
+  store.createRun(makeRun())
   const spawn = prepareRuntimeSubagentSpawn({
     store,
-    plannerRun: makeRun(),
+    plannerRunId: 'run_planner',
     request: {
       tasks: [{ id: 'task_created', title: 'Created', subagentName: 'Curie' }],
       maxWorkers: 2,

@@ -39,7 +39,7 @@ func TestAdminListFiltersAndPaginatesProjects(t *testing.T) {
 	owner := createProjectUser(t, db, "owner")
 	otherOwner := createProjectUser(t, db, "other")
 	orgID := uint(10)
-	createProjectRecord(t, db, "Alpha Film", "pilot", "planning", owner.ID, &orgID)
+	alpha := createProjectRecord(t, db, "Alpha Film", "pilot", "planning", owner.ID, &orgID)
 	createProjectRecord(t, db, "Beta Cut", "editorial", "editing", otherOwner.ID, nil)
 	createProjectRecord(t, db, "Alpha Second", "follow-up", "planning", owner.ID, &orgID)
 
@@ -60,6 +60,18 @@ func TestAdminListFiltersAndPaginatesProjects(t *testing.T) {
 	}
 	if page.Items[0].Owner == nil || page.Items[0].Owner.ID != owner.ID {
 		t.Fatalf("owner not preloaded: %+v", page.Items[0])
+	}
+
+	projectPage, err := service.AdminList(context.Background(), AdminListFilter{
+		ProjectID: &alpha.ID,
+		Page:      1,
+		PageSize:  50,
+	})
+	if err != nil {
+		t.Fatalf("AdminList with project id returned error: %v", err)
+	}
+	if projectPage.Total != 1 || len(projectPage.Items) != 1 || projectPage.Items[0].ID != alpha.ID {
+		t.Fatalf("project id filter returned %+v", projectPage)
 	}
 }
 

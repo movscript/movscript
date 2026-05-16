@@ -1,17 +1,31 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, ChevronRight, Copy, History, Loader2, RefreshCw, Route, XCircle } from 'lucide-react'
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerationArtifacts'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/lib/agentPlanUi'
-import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugCoverageSummary, buildDebugReportText, buildModelCallSummaries, buildTraceEventLink, canCancelWorkerRun, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugCoverageSummary, type AgentModelCallSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
+import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildTraceEventLink, canCancelWorkerRun, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
 import { localAgentClient, type AgentRun, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
 import { agentRunPath } from '@/routes/projectRoutes'
 
 const TRACE_PAGE_SIZE = 25
 const TRACE_BULK_PAGE_SIZE = 100
+const DEBUG_BUNDLE_SCHEMA = 'movscript.agent-run-debug-bundle.v1'
+const DEBUG_BUNDLE_SCHEMA_URL = 'https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json'
+const DEBUG_BUNDLE_CAPABILITIES = [
+  'runSummary',
+  'readinessChecklist',
+  'modelCallContexts',
+  'promptDetails',
+  'messageWrites',
+  'toolCalls',
+  'attentionEvents',
+  'pendingActions',
+  'fieldGuide',
+  'redactedDebugData',
+] as const
 
 interface LoadedTraceEventsResult {
   events: AgentTraceEvent[]
@@ -96,6 +110,7 @@ export default function AIAgentRunPage() {
     view: agentTraceView(event),
   })), [visibleEvents])
   const modelCallSummaries = useMemo(() => buildModelCallSummaries(events), [events])
+  const attentionEvents = useMemo(() => buildDebugAttentionEvents(events), [events])
   const latestTraceView = useMemo(
     () => summaryQuery.data?.latestEvent ? agentTraceView(summaryQuery.data.latestEvent) : undefined,
     [summaryQuery.data?.latestEvent],
@@ -129,10 +144,11 @@ export default function AIAgentRunPage() {
   }), [events, hasMore, modelCallSummaries, traceTotal])
   const debugReportText = useMemo(() => buildDebugReportText({
     runId,
+    run: runQuery.data,
     coverage: debugCoverageSummary,
     modelCalls: modelCallSummaries,
     events,
-  }), [debugCoverageSummary, events, modelCallSummaries, runId])
+  }), [debugCoverageSummary, events, modelCallSummaries, runId, runQuery.data])
   const runTerminalAt = runQuery.data?.completedAt ?? runQuery.data?.failedAt ?? runQuery.data?.cancelledAt
   const runDuration = formatAgentRunDuration(runQuery.data?.createdAt, runTerminalAt)
 
@@ -157,6 +173,8 @@ export default function AIAgentRunPage() {
     setInputError(null)
     setDebugReportCopied(false)
     setDebugReportCopyError(null)
+    setDebugBundleCopied(false)
+    setDebugBundleCopyError(null)
     setEventCopyFeedback(null)
     setEventCopyError(null)
     setExpandedEventIds(new Set())
@@ -305,6 +323,12 @@ export default function AIAgentRunPage() {
     setEventCategory('all')
   }
 
+  function showAttentionEvents() {
+    setEventSearch('')
+    setEventKind('all')
+    setEventCategory('attention')
+  }
+
   async function copyEventData(eventId: string, data: unknown) {
     setEventCopyFeedback(null)
     setEventCopyError(null)
@@ -331,6 +355,9 @@ export default function AIAgentRunPage() {
     setDebugBundleCopied(false)
     setDebugBundleCopyError(null)
     try {
+      if (!runQuery.data) {
+        throw new Error('运行基础信息尚未加载完成，已停止复制调试包。请稍后重试。')
+      }
       const loaded = traceHasUnloadedEvents ? await loadEvents('all') : undefined
       if (traceHasUnloadedEvents && !loaded) {
         throw new Error('运行事件未能加载完整，已停止复制调试包。请先重试加载全部事件。')
@@ -344,17 +371,35 @@ export default function AIAgentRunPage() {
         hasMore: bundleHasMore,
         modelCalls: bundleModelCalls,
       })
+      const bundlePromptDetails = debugBundlePromptDetails(bundleEvents)
+      const bundleMessageWrites = debugBundleMessageWrites(bundleEvents)
+      const bundleToolCalls = debugBundleToolCalls(bundleEvents)
+      const bundleModelCallContexts = debugBundleModelCallContexts(bundleModelCalls, bundleEvents)
+      const bundleAttentionEvents = buildDebugAttentionEvents(bundleEvents)
+      const bundlePendingActions = debugBundlePendingActions(runQuery.data)
       await navigator.clipboard.writeText(formatAgentTraceDebugData({
-        schema: 'movscript.agent-run-debug-bundle.v1',
+        schema: DEBUG_BUNDLE_SCHEMA,
+        schemaUrl: DEBUG_BUNDLE_SCHEMA_URL,
+        generatedAt: new Date().toISOString(),
+        capabilities: DEBUG_BUNDLE_CAPABILITIES,
         runId,
         run: debugBundleRunSnapshot(runQuery.data),
+        runSummary: debugBundleRunSummary(runQuery.data),
         trace: {
           loaded: bundleEvents.length,
           total: traceTotal,
           hasMore: bundleHasMore,
         },
+        fieldGuide: AGENT_DEBUG_FIELD_GUIDE,
         coverage: bundleCoverage,
+        readinessChecklist: buildDebugReadinessChecklist(bundleCoverage),
         modelCalls: bundleModelCalls,
+        modelCallContexts: bundleModelCallContexts,
+        promptDetails: bundlePromptDetails,
+        messageWrites: bundleMessageWrites,
+        toolCalls: bundleToolCalls,
+        attentionEvents: bundleAttentionEvents,
+        pendingActions: bundlePendingActions,
         events: bundleEvents,
       }))
       setDebugBundleCopied(true)
@@ -467,6 +512,7 @@ export default function AIAgentRunPage() {
                 type="button"
                 size="sm"
                 variant="destructive"
+                aria-label={`取消执行器 ${subagentName ?? runId}`}
                 onClick={() => { void cancelWorkerRun() }}
                 disabled={cancelingRun || runQuery.isFetching || loadingEvents}
               >
@@ -569,6 +615,7 @@ export default function AIAgentRunPage() {
                               size="xs"
                               variant="outline"
                               className="h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 text-left text-[9px]"
+                              aria-label={`回答${request.title}: ${choice.label}`}
                               disabled={!!inputActionId}
                               onClick={() => { void answerInput(request.id, { choiceIds: [choice.id] }) }}
                             >
@@ -590,6 +637,7 @@ export default function AIAgentRunPage() {
                             onChange={(event) => setInputDrafts((current) => ({ ...current, [request.id]: event.target.value }))}
                             disabled={!!inputActionId}
                             placeholder="输入答案"
+                            aria-label={`输入${request.title}的自定义答案`}
                             className="h-7 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-[10px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
                           />
                           <Button
@@ -761,7 +809,7 @@ export default function AIAgentRunPage() {
             </div>
           ) : null}
         </aside>
-        <section data-testid="agent-run-trace-panel" className="min-h-0 p-4 lg:overflow-y-auto">
+        <section data-testid="agent-run-trace-panel" aria-busy={loadingEvents} className="min-h-0 p-4 lg:overflow-y-auto">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div data-testid="agent-run-trace-summary" className="flex flex-wrap items-center gap-1 text-xs">
               <span className="font-medium text-foreground">运行轨迹</span>
@@ -892,6 +940,7 @@ export default function AIAgentRunPage() {
                   size="xs"
                   variant="outline"
                   className="mt-2 h-6 px-2 text-[10px]"
+                  aria-label="重新加载运行事件"
                   onClick={() => loadEvents(events.length > 0 ? 'more' : 'initial')}
                   disabled={loadingEvents}
                 >
@@ -908,13 +957,17 @@ export default function AIAgentRunPage() {
                 bundleCopied={debugBundleCopied}
                 bundleCopyError={debugBundleCopyError}
                 loadingAll={loadingEvents}
+                bundleCopyDisabledReason={runQuery.data ? null : '运行基础信息加载中，暂不能复制调试包。'}
                 onCopy={copyDebugReport}
                 onCopyBundle={copyDebugBundle}
                 onLoadAll={() => loadEvents('all')}
               />
             )}
+            {attentionEvents.length > 0 && (
+              <AttentionEventsPanel events={attentionEvents} onFocusEvent={focusTraceEvent} onShowAttentionEvents={showAttentionEvents} />
+            )}
             {modelCallSummaries.length > 0 && (
-              <ModelCallSummaryPanel summaries={modelCallSummaries} onFocusEvent={focusTraceEvent} />
+              <ModelCallSummaryPanel summaries={modelCallSummaries} events={events} onFocusEvent={focusTraceEvent} />
             )}
             {visibleTraceViews.map(({ event, view }) => {
               const isLinkedEvent = event.id === traceDeepLinkEventId
@@ -989,9 +1042,9 @@ export default function AIAgentRunPage() {
                       {event.completedAt && <span title={event.completedAt}>完成 {formatAgentRunTimestamp(event.completedAt)}</span>}
                       {formatAgentRunDuration(event.createdAt, event.completedAt) && <span>耗时 {formatAgentRunDuration(event.createdAt, event.completedAt)}</span>}
                     </div>
-                    {view.behavior && <TraceDetailLine label="行为" value={view.behavior} />}
-                    {view.impact && <TraceDetailLine label="影响" value={view.impact} />}
-                    {view.summary && <TraceDetailLine label="摘要" value={view.summary} />}
+                    {view.behavior && <TraceDetailLine label="行为" value={redactAgentTraceDebugText(view.behavior)} />}
+                    {view.impact && <TraceDetailLine label="影响" value={redactAgentTraceDebugText(view.impact)} />}
+                    {view.summary && <TraceDetailLine label="摘要" value={redactAgentTraceDebugText(view.summary)} />}
                     {view.contextGroups.length > 0 && (
                       <details className="rounded border border-border/70 bg-muted/20 px-2 py-1" open={view.category === 'http'}>
                         <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
@@ -1007,7 +1060,7 @@ export default function AIAgentRunPage() {
                                 {group.items.map((item) => (
                                   <div key={`${group.label}:${item.label}`} className="flex min-w-0 items-start justify-between gap-2 text-[10px]">
                                     <span className="shrink-0 text-muted-foreground">{item.label}</span>
-                                    <span className="min-w-0 break-all text-right text-foreground">{item.value}</span>
+                                    <span className="min-w-0 break-all text-right text-foreground">{redactAgentTraceDebugText(item.value)}</span>
                                   </div>
                                 ))}
                               </div>
@@ -1046,6 +1099,16 @@ export default function AIAgentRunPage() {
                         <MessageDetail detail={view.messageDetail} />
                       </details>
                     )}
+                    {view.toolDetail && (
+                      <details data-testid="agent-run-tool-detail" className="rounded border border-border/70 bg-muted/20 px-2 py-1" open>
+                        <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+                          <ChevronRight size={10} className="open:hidden" />
+                          <ChevronDown size={10} className="hidden open:block" />
+                          {view.toolDetail.title}
+                        </summary>
+                        <ToolDetail detail={view.toolDetail} />
+                      </details>
+                    )}
                   </div>
                   {event.data !== undefined && isEventDataExpanded && (
                     <div id={eventDataPanelId} className="mt-2 space-y-1">
@@ -1069,7 +1132,16 @@ export default function AIAgentRunPage() {
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {traceHasUnloadedEvents && (
-                    <Button data-testid="agent-run-empty-load-all" type="button" size="xs" variant="outline" className="h-6 px-2 text-[10px]" onClick={() => loadEvents('all')} disabled={loadingEvents}>
+                    <Button
+                      data-testid="agent-run-empty-load-all"
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      className="h-6 px-2 text-[10px]"
+                      aria-label="加载全部运行事件后重新搜索"
+                      onClick={() => loadEvents('all')}
+                      disabled={loadingEvents}
+                    >
                       {loadingEvents ? <Loader2 size={10} className="animate-spin" /> : <History size={10} />}
                       加载全部后再搜
                     </Button>
@@ -1091,7 +1163,7 @@ export default function AIAgentRunPage() {
               </div>
             )}
             {hasMore && (
-              <Button type="button" size="sm" variant="ghost" onClick={() => loadEvents('more')} disabled={loadingEvents}>
+              <Button type="button" size="sm" variant="ghost" aria-label="加载更多运行事件" onClick={() => loadEvents('more')} disabled={loadingEvents}>
                 {loadingEvents ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
                 加载更多
               </Button>
@@ -1109,8 +1181,10 @@ function traceEventIdFromLocationHash(): string | undefined {
 
 function traceEventSearchText(event: AgentTraceEvent): string {
   const view = agentTraceView(event)
+  const promptDetail = view.promptDetail
   const modelDetail = view.modelDetail
   const messageDetail = view.messageDetail
+  const toolDetail = view.toolDetail
   return [
     event.id,
     event.kind,
@@ -1128,14 +1202,44 @@ function traceEventSearchText(event: AgentTraceEvent): string {
     event.stepId,
     event.roundLabel,
     event.roundSource,
-    ...view.contextGroups.flatMap((group) => [group.label, ...group.items.flatMap((item) => [item.label, item.value])]),
+    ...view.contextGroups.flatMap((group) => [group.label, ...group.items.flatMap((item) => [item.label, redactAgentTraceDebugText(item.value)])]),
+    ...(promptDetail?.skills ?? []),
+    ...(promptDetail?.tools ?? []),
+    ...((promptDetail?.layers ?? []).flatMap((metric) => [metric.label, metric.value])),
+    ...((promptDetail?.contextLayers ?? []).flatMap((metric) => [metric.label, metric.value])),
+    ...((promptDetail?.partGroups ?? []).flatMap((group) => [group.contextLayer, String(group.count), group.chars, ...group.parts.map((part) => part.id)])),
+    ...((promptDetail?.parts ?? []).flatMap((part) => [part.id, part.layer, part.contextLayer, part.chars])),
+    modelDetail?.request?.model,
     modelDetail?.request?.toolChoice,
     modelDetail?.request?.toolChoiceLabel,
+    ...((modelDetail?.request?.headers ?? []).flatMap((header) => [header.name, formatModelHeaderValue(header)])),
+    ...((modelDetail?.messageGroups ?? []).flatMap((group) => [group.role, group.roleLabel, String(group.count), String(group.contentChars)])),
+    ...((modelDetail?.messages ?? []).flatMap((message) => [message.role, message.roleLabel, redactAgentTraceDebugText(message.content)])),
+    ...((modelDetail?.tools ?? []).flatMap((tool) => [tool.name, tool.description, ...tool.parameterKeys])),
+    modelDetail?.response?.status,
+    modelDetail?.response?.contentType,
+    ...((modelDetail?.response?.headers ?? []).flatMap((header) => [header.name, formatModelHeaderValue(header)])),
+    modelDetail?.response?.content ? redactAgentTraceDebugText(modelDetail.response.content) : undefined,
+    modelDetail?.response?.parsedId,
     modelDetail?.result?.finishReason,
     modelDetail?.result?.finishReasonLabel,
+    messageDetail?.messageId,
     messageDetail?.source,
     messageDetail?.sourceLabel,
-  ].filter(Boolean).join(' ').toLowerCase()
+    messageDetail?.content ? redactAgentTraceDebugText(messageDetail.content) : undefined,
+    toolDetail?.toolName,
+    toolDetail?.source,
+    toolDetail?.statusLabel,
+    toolDetail?.summary ? redactAgentTraceDebugText(toolDetail.summary) : undefined,
+    ...((toolDetail?.fields ?? []).flatMap((field) => [field.label, redactAgentTraceDebugText(field.value)])),
+  ].map(searchTextToken).filter((value): value is string => !!value).join(' ').toLowerCase()
+}
+
+function searchTextToken(value: unknown): string | undefined {
+  if (typeof value !== 'string' && typeof value !== 'number') return undefined
+  const text = String(value).trim()
+  if (!text) return undefined
+  return text.length > 2000 ? text.slice(0, 2000) : text
 }
 
 function formatAgentRunTimestamp(value: string | undefined): string {
@@ -1198,6 +1302,7 @@ function DebugCoveragePanel({
   bundleCopied,
   bundleCopyError,
   loadingAll,
+  bundleCopyDisabledReason,
   onCopy,
   onCopyBundle,
   onLoadAll,
@@ -1208,10 +1313,13 @@ function DebugCoveragePanel({
   bundleCopied: boolean
   bundleCopyError: string | null
   loadingAll: boolean
+  bundleCopyDisabledReason: string | null
   onCopy: () => void
   onCopyBundle: () => void
   onLoadAll: () => void
 }) {
+  const bundleCopyDisabled = loadingAll || bundleCopyDisabledReason !== null
+  const bundleCopyDisabledReasonId = 'agent-run-debug-bundle-copy-disabled-reason'
   return (
     <section data-testid="agent-run-debug-coverage" className="rounded-md border border-border bg-muted/10 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1256,21 +1364,42 @@ function DebugCoveragePanel({
             className="h-6 px-2 text-[10px]"
             aria-label="复制脱敏 AgentRun 调试包"
             onClick={onCopyBundle}
-            disabled={loadingAll}
+            disabled={bundleCopyDisabled}
+            title={bundleCopyDisabledReason ?? undefined}
+            aria-describedby={bundleCopyDisabledReason ? bundleCopyDisabledReasonId : undefined}
           >
             {loadingAll ? <Loader2 size={10} className="animate-spin" /> : <Copy size={10} />}
-            {loadingAll ? '加载中' : bundleCopied ? '已复制' : '复制调试包'}
+            {loadingAll ? '加载中' : bundleCopyDisabledReason ? '等待运行信息' : bundleCopied ? '已复制' : '复制调试包'}
           </Button>
         </div>
       </div>
-      <div className="mt-2 grid gap-1 sm:grid-cols-6">
+      <div className="mt-2 grid gap-1 sm:grid-cols-8">
         <DebugCoverageMetric label="事件" value={summary.loadedLabel} />
         <DebugCoverageMetric label="模型调用" value={summary.modelCallsLabel} />
         <DebugCoverageMetric label="HTTP 响应" value={summary.httpResponsesLabel} />
+        <DebugCoverageMetric label="请求负载" value={summary.requestPayloadsLabel} />
         <DebugCoverageMetric label="响应正文" value={summary.httpResponseBodiesLabel} />
         <DebugCoverageMetric label="上下文详情" value={summary.promptDetailsLabel} />
         <DebugCoverageMetric label="历史写入" value={summary.messageWritesLabel} />
+        <DebugCoverageMetric label="工具详情" value={summary.toolDetailsLabel} />
       </div>
+      <div data-testid="agent-run-debug-bundle-contract" className="mt-2 flex flex-wrap items-center gap-1 rounded border border-border/60 bg-background/80 px-2 py-1 text-[10px] text-muted-foreground">
+        <span className="font-medium text-foreground">调试包</span>
+        <Badge variant="outline" className="text-[9px]">{DEBUG_BUNDLE_SCHEMA}</Badge>
+        <span>{DEBUG_BUNDLE_CAPABILITIES.length} 项能力</span>
+        <span>脱敏复制</span>
+      </div>
+      <details data-testid="agent-run-debug-field-guide" className="mt-2 rounded border border-border/60 bg-background/80 px-2 py-1 text-[10px]">
+        <summary className="cursor-pointer font-medium text-foreground">调试口径</summary>
+        <div className="mt-1 grid gap-1 text-muted-foreground sm:grid-cols-2">
+          {AGENT_DEBUG_FIELD_GUIDE.map((item) => (
+            <div key={item.id} className="rounded bg-muted/20 px-2 py-1">
+              <span className="font-medium text-foreground">{item.label}</span>：{item.description}
+            </div>
+          ))}
+        </div>
+      </details>
+      <DebugReadinessChecklist items={buildDebugReadinessChecklist(summary)} />
       {summary.issues.length > 0 && (
         <div className="mt-2 grid gap-1 text-[10px] text-amber-700 dark:text-amber-300">
           {summary.issues.map((issue) => <div key={issue} className="rounded bg-amber-500/10 px-2 py-1">{issue}</div>)}
@@ -1291,12 +1420,39 @@ function DebugCoveragePanel({
           调试包复制失败：{bundleCopyError}
         </div>
       )}
-      {bundleCopied && !bundleCopyError && (
+      {bundleCopyDisabledReason && !bundleCopyError && (
+        <div id={bundleCopyDisabledReasonId} data-testid="agent-run-debug-bundle-copy-disabled-reason" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+          {bundleCopyDisabledReason}
+        </div>
+      )}
+      {bundleCopied && !bundleCopyError && !bundleCopyDisabledReason && (
         <div data-testid="agent-run-debug-bundle-copy-feedback" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
           脱敏调试包已复制。
         </div>
       )}
     </section>
+  )
+}
+
+function DebugReadinessChecklist({ items }: { items: AgentDebugReadinessItem[] }) {
+  return (
+    <div data-testid="agent-run-debug-readiness" className="mt-2 rounded border border-border/60 bg-background/80 px-2 py-1">
+      <div className="text-[9px] uppercase tracking-wide text-muted-foreground">诊断清单</div>
+      <div className="mt-1 grid gap-1 sm:grid-cols-2">
+        {items.map((item) => (
+          <div key={item.id} data-testid="agent-run-debug-readiness-item" className="flex min-w-0 items-start gap-2 rounded bg-muted/20 px-2 py-1 text-[10px]">
+            <Badge variant={item.status === 'ok' ? 'outline' : 'secondary'} className="mt-0.5 shrink-0 text-[9px]">
+              {item.status === 'ok' ? '已满足' : '需补全'}
+            </Badge>
+            <div className="min-w-0">
+              <div className="font-medium text-foreground">{item.label}</div>
+              <div className="mt-0.5 break-words text-muted-foreground">{item.detail}</div>
+              <div className="mt-0.5 break-words text-muted-foreground">下一步：{item.action}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -1309,26 +1465,91 @@ function DebugCoverageMetric({ label, value }: { label: string; value: string })
   )
 }
 
-function ModelCallSummaryPanel({ summaries, onFocusEvent }: { summaries: AgentModelCallSummary[]; onFocusEvent: (eventId: string) => void }) {
+function AttentionEventsPanel({ events, onFocusEvent, onShowAttentionEvents }: { events: AgentDebugAttentionEvent[]; onFocusEvent: (eventId: string) => void; onShowAttentionEvents: () => void }) {
+  return (
+    <section data-testid="agent-run-attention-events" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-xs font-medium text-foreground">异常/需关注事件</div>
+          <div className="mt-0.5 text-[10px] text-muted-foreground">失败、阻塞、审批和输入等待会集中显示在这里</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1">
+          <Badge variant="secondary" className="text-[10px]">{events.length} 个</Badge>
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            className="h-6 px-2 text-[10px]"
+            aria-label="只查看需关注运行事件"
+            onClick={onShowAttentionEvents}
+          >
+            只看需关注
+          </Button>
+        </div>
+      </div>
+      <div className="mt-2 grid gap-1">
+        {events.slice(0, 8).map((event) => (
+          <div key={event.eventId} data-testid="agent-run-attention-event" className="rounded border border-amber-500/30 bg-background/90 px-2 py-1 text-[10px]">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1">
+                  <Badge variant="secondary" className="text-[9px]">{event.statusLabel}</Badge>
+                  <span className="font-medium text-foreground">{event.title}</span>
+                  <span className="text-muted-foreground">{event.kindLabel}</span>
+                </div>
+                {event.summary && <div className="mt-0.5 break-words text-muted-foreground">{event.summary}</div>}
+              </div>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                className="h-5 px-1 text-[9px]"
+                aria-label={`定位需关注事件 ${event.title}`}
+                onClick={() => onFocusEvent(event.eventId)}
+              >
+                定位
+              </Button>
+            </div>
+            <div className="mt-1 grid gap-0.5 text-muted-foreground">
+              {event.behavior && <TraceDetailLine label="行为" value={event.behavior} />}
+              {event.impact && <TraceDetailLine label="影响" value={event.impact} />}
+              {event.error && <TraceDetailLine label="错误" value={event.error} />}
+            </div>
+          </div>
+        ))}
+      </div>
+      {events.length > 8 && (
+        <div className="mt-1 text-[10px] text-muted-foreground">还有 {events.length - 8} 个需关注事件，请用事件筛选查看。</div>
+      )}
+    </section>
+  )
+}
+
+function ModelCallSummaryPanel({ summaries, events, onFocusEvent }: { summaries: AgentModelCallSummary[]; events: AgentTraceEvent[]; onFocusEvent: (eventId: string) => void }) {
   return (
     <section data-testid="agent-run-model-call-summary" className="rounded-md border border-border bg-muted/10 px-3 py-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-xs font-medium text-foreground">大模型调用总览</div>
-          <div className="mt-0.5 text-[10px] text-muted-foreground">按已加载运行事件归并请求、响应和结果</div>
+          <div className="mt-0.5 text-[10px] text-muted-foreground">按已加载运行事件归并请求、响应、历史写入和工具调用</div>
         </div>
         <Badge variant="outline" className="text-[10px]">{summaries.length} 次调用</Badge>
       </div>
       <div className="mt-2 grid gap-1.5">
-        {summaries.map((summary) => (
-          <div key={summary.id} data-testid="agent-run-model-call-summary-item" className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-1">
-                <span className="font-medium text-foreground">{summary.label}</span>
-                <Badge variant={summary.status === 'complete' ? 'outline' : 'secondary'} className="text-[9px]">{summary.statusLabel}</Badge>
-                {summary.model && <span className="truncate text-muted-foreground">模型 {summary.model}</span>}
-              </div>
-              <div className="flex shrink-0 flex-wrap gap-1">
+        {summaries.map((summary) => {
+          const debugContext = buildModelCallDebugContext({ call: summary, events })
+          return (
+            <details key={summary.id} data-testid="agent-run-model-call-summary-item" className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 marker:hidden">
+                <ChevronRight size={10} className="open:hidden" />
+                <ChevronDown size={10} className="hidden open:block" />
+                <div className="flex min-w-0 flex-wrap items-center gap-1">
+                  <span className="font-medium text-foreground">{summary.label}</span>
+                  <Badge variant={summary.status === 'complete' ? 'outline' : 'secondary'} className="text-[9px]">{summary.statusLabel}</Badge>
+                  {summary.model && <span className="truncate text-muted-foreground">模型 {summary.model}</span>}
+                </div>
+              </summary>
+              <div className="mt-1 flex shrink-0 flex-wrap gap-1">
                 {summary.requestEventId && (
                   <Button
                     type="button"
@@ -1366,23 +1587,112 @@ function ModelCallSummaryPanel({ summaries, onFocusEvent }: { summaries: AgentMo
                   </Button>
                 )}
               </div>
-            </div>
-            <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-muted-foreground">
-              {summary.messageCount && <span>消息 {summary.messageCount}</span>}
-              {summary.toolCount && <span>工具 {summary.toolCount}</span>}
-              {summary.httpStatus && <span>HTTP {summary.httpStatus}</span>}
-              {summary.latency && <span>{summary.latency}</span>}
-              {summary.retryCount && <span>重试 {summary.retryCount} 次</span>}
-              {summary.error && <span className="text-destructive">错误 {summary.error}</span>}
-              {summary.responseChars && <span>回复 {summary.responseChars} 字符</span>}
-              {summary.inputTokens && <span>请求 {summary.inputTokens} token</span>}
-              {summary.outputTokens && <span>回复 {summary.outputTokens} token</span>}
-            </div>
-            {summary.issue && <div className="mt-1 rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{summary.issue}</div>}
-          </div>
-        ))}
+              <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-muted-foreground">
+                {summary.messageCount && <span>消息 {summary.messageCount}</span>}
+                {summary.toolCount && <span>工具定义 {summary.toolCount}</span>}
+                {debugContext.toolCalls.length > 0 && <span>工具调用 {debugContext.toolCalls.length}</span>}
+                {debugContext.messageWrites.length > 0 && <span>历史写入 {debugContext.messageWrites.length}</span>}
+                {summary.httpStatus && <span>HTTP {summary.httpStatus}</span>}
+                {summary.latency && <span>{summary.latency}</span>}
+                {summary.status !== 'result_only' && <span>{summary.hasRequestPayload ? '请求负载已存' : '请求负载缺失'}</span>}
+                {summary.responseEventId && <span>{summary.hasResponseBody ? '响应正文已存' : '响应正文缺失'}</span>}
+                {summary.retryCount && <span>重试 {summary.retryCount} 次</span>}
+                {summary.error && <span className="text-destructive">错误 {summary.error}</span>}
+                {summary.responseChars && <span>回复 {summary.responseChars} 字符</span>}
+                {summary.inputTokens && <span>请求 {summary.inputTokens} token</span>}
+                {summary.outputTokens && <span>回复 {summary.outputTokens} token</span>}
+              </div>
+              {summary.issue && <div className="mt-1 rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{summary.issue}</div>}
+              {debugContext.issue && <div className="mt-1 rounded bg-amber-500/10 px-2 py-1 text-amber-700 dark:text-amber-300">{debugContext.issue}</div>}
+              <ModelCallInlineDebug summary={summary} context={debugContext} onFocusEvent={onFocusEvent} />
+            </details>
+          )
+        })}
       </div>
     </section>
+  )
+}
+
+function ModelCallInlineDebug({
+  summary,
+  context,
+  onFocusEvent,
+}: {
+  summary: AgentModelCallSummary
+  context: ReturnType<typeof buildModelCallDebugContext>
+  onFocusEvent: (eventId: string) => void
+}) {
+  const modelDetails = context.modelEvents
+    .map((event) => ({ event, detail: agentTraceView(event).modelDetail }))
+    .filter((entry): entry is { event: AgentTraceEvent; detail: NonNullable<ReturnType<typeof agentTraceView>['modelDetail']> } => !!entry.detail)
+  return (
+    <div data-testid="agent-run-model-call-inline-debug" className="mt-2 space-y-1 border-t border-border/60 pt-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-[10px] font-medium text-foreground">本轮详情</div>
+        <div className="text-[9px] text-muted-foreground">关联方式：{context.correlationLabel}</div>
+      </div>
+      {modelDetails.length > 0 && (
+        <div className="grid gap-1">
+          {modelDetails.map(({ event, detail }) => (
+            <details key={event.id} data-testid="agent-run-model-call-inline-http-detail" className="rounded border border-border/60 bg-muted/10 px-2 py-1" open={event.id === summary.requestEventId || event.id === summary.responseEventId}>
+              <summary className="flex cursor-pointer list-none items-center gap-1 marker:hidden">
+                <ChevronRight size={10} className="open:hidden" />
+                <ChevronDown size={10} className="hidden open:block" />
+                <span className="font-medium text-foreground">{detail.title}</span>
+              </summary>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                className="mt-1 h-5 px-1 text-[9px]"
+                aria-label={`定位${summary.label}的${detail.title}事件`}
+                onClick={() => onFocusEvent(event.id)}
+              >
+                定位
+              </Button>
+              <ModelCallDetail detail={detail} />
+            </details>
+          ))}
+        </div>
+      )}
+      <ModelCallRelatedEvents title="历史写入" emptyText="没有找到同轮 assistant 历史写入。" events={context.messageWrites} onFocusEvent={onFocusEvent} />
+      <ModelCallRelatedEvents title="工具调用" emptyText="没有找到同轮工具调用。" events={context.toolCalls} onFocusEvent={onFocusEvent} />
+    </div>
+  )
+}
+
+function ModelCallRelatedEvents({ title, emptyText, events, onFocusEvent }: { title: string; emptyText: string; events: AgentTraceEvent[]; onFocusEvent: (eventId: string) => void }) {
+  return (
+    <div data-testid={`agent-run-model-call-related-${title}`} className="rounded border border-border/60 bg-muted/10 px-2 py-1">
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-medium text-foreground">{title}</div>
+        <Badge variant="outline" className="text-[9px]">{events.length}</Badge>
+      </div>
+      {events.length === 0 ? (
+        <div className="mt-1 text-muted-foreground">{emptyText}</div>
+      ) : (
+        <div className="mt-1 grid gap-1">
+          {events.map((event) => {
+            const view = agentTraceView(event)
+            return (
+              <div key={event.id} className="rounded bg-background/90 px-2 py-1">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-foreground">{view.title}</div>
+                    {view.summary && <div className="mt-0.5 break-words text-muted-foreground">{redactAgentTraceDebugText(view.summary)}</div>}
+                  </div>
+                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[9px]" onClick={() => onFocusEvent(event.id)}>
+                    定位
+                  </Button>
+                </div>
+                {view.messageDetail && <MessageDetail detail={view.messageDetail} />}
+                {view.toolDetail && <ToolDetail detail={view.toolDetail} />}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1408,6 +1718,25 @@ function PromptDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentT
         <div className="grid gap-1 sm:grid-cols-2">
           {detail.skills.length > 0 && <PromptNameList title="激活技能" values={detail.skills} />}
           {detail.tools.length > 0 && <PromptNameList title="可用工具" values={detail.tools} />}
+        </div>
+      )}
+      {detail.partGroups.length > 0 && (
+        <div data-testid="agent-run-prompt-part-groups" className="rounded border border-border/60 bg-background/90 px-2 py-1">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">片段来源分组</div>
+          <div className="mt-1 grid gap-1 sm:grid-cols-2">
+            {detail.partGroups.map((group) => (
+              <div key={group.contextLayer} className="rounded bg-muted/20 px-2 py-1">
+                <div className="flex items-center justify-between gap-2 text-[10px]">
+                  <span className="font-medium text-foreground">{group.contextLayer}</span>
+                  <span className="text-muted-foreground">{group.count} 段 / {group.chars} 字符</span>
+                </div>
+                <div className="mt-0.5 flex flex-wrap gap-1">
+                  {group.parts.slice(0, 6).map((part) => <Badge key={`${group.contextLayer}:${part.id}`} variant="outline" className="max-w-full truncate text-[9px]">{part.id}</Badge>)}
+                  {group.parts.length > 6 && <Badge variant="secondary" className="text-[9px]">+{group.parts.length - 6}</Badge>}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {detail.parts.length > 0 && (
@@ -1466,22 +1795,59 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
         </div>
       )}
       {detail.request && (
-        <div data-testid="agent-run-model-http-request" className="rounded border border-border/60 bg-background/90 px-2 py-1">
-          <div className="font-medium text-foreground">HTTP 请求</div>
+        <ModelDetailSection title="HTTP 请求" testId="agent-run-model-http-request" defaultOpen>
           <div className="mt-1 grid gap-0.5 text-[10px]">
             {detail.request.method && <ModelMetaRow label="方法" value={detail.request.method} />}
             {detail.request.url && <ModelMetaRow label="地址" value={redactAgentTraceDebugText(detail.request.url)} />}
             {detail.request.model && <ModelMetaRow label="模型" value={detail.request.model} />}
+            {detail.request.headers.length > 0 && <ModelMetaRow label="请求头" value={`${detail.request.headers.length} 个`} />}
             {detail.request.messageCount && <ModelMetaRow label="消息" value={`${detail.request.messageCount} 条`} />}
             {detail.request.toolCount && <ModelMetaRow label="工具定义" value={`${detail.request.toolCount} 个`} />}
             {detail.request.toolChoiceLabel && <ModelMetaRow label="工具选择" value={detail.request.toolChoiceLabel} />}
             {detail.request.stream && <ModelMetaRow label="流式返回" value={detail.request.stream} />}
           </div>
-        </div>
+          {detail.request.headers.length > 0 && (
+            <details data-testid="agent-run-model-request-headers" className="mt-1 rounded bg-muted/20 px-2 py-1">
+              <summary className="cursor-pointer text-[10px] font-medium text-foreground">请求头</summary>
+              <div className="mt-1 grid gap-0.5">
+                {detail.request.headers.map((header) => (
+                  <ModelMetaRow key={header.name} label={header.name} value={formatModelHeaderValue(header)} />
+                ))}
+              </div>
+            </details>
+          )}
+          {detail.request.payload !== undefined && (
+            <details data-testid="agent-run-model-request-payload" className="mt-1 rounded bg-muted/20 px-2 py-1">
+              <summary className="cursor-pointer text-[10px] font-medium text-foreground">完整请求负载</summary>
+              <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground">
+                {formatAgentTraceDebugData(detail.request.payload)}
+              </pre>
+            </details>
+          )}
+        </ModelDetailSection>
       )}
       {detail.messages.length > 0 && (
-        <div className="space-y-1">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">请求消息</div>
+        <ModelDetailSection title={`请求消息 (${detail.messages.length})`} testId="agent-run-model-request-messages">
+          {detail.messageGroups.length > 0 && (
+            <div data-testid="agent-run-model-request-message-groups" className="mb-1 grid gap-1 sm:grid-cols-2">
+              {detail.messageGroups.map((group) => (
+                <div key={group.role} className="rounded border border-border/60 bg-background/90 px-2 py-1">
+                  <div className="flex items-center justify-between gap-2 text-[10px]">
+                    <span className="font-medium text-foreground">{group.roleLabel}</span>
+                    <span className="text-muted-foreground">{group.count} 条 / {group.contentChars} 字符</span>
+                  </div>
+                  <div className="mt-0.5 flex flex-wrap gap-1">
+                    {group.messages.slice(0, 6).map((message) => (
+                      <Badge key={`${group.role}:${message.index}`} variant="outline" className="text-[9px]">
+                        #{message.index}
+                      </Badge>
+                    ))}
+                    {group.messages.length > 6 && <Badge variant="secondary" className="text-[9px]">+{group.messages.length - 6}</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           {detail.messages.map((message) => (
             <div key={`${message.index}:${message.role}`} className="rounded border border-border/60 bg-background/90 px-2 py-1">
               <div className="flex items-center justify-between gap-2 text-[10px]">
@@ -1489,15 +1855,14 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
                 <span className="text-muted-foreground">{message.contentChars} 字符</span>
               </div>
               <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 text-[10px] leading-relaxed text-foreground">
-                {message.content}
+                {redactAgentTraceDebugText(message.content)}
               </pre>
             </div>
           ))}
-        </div>
+        </ModelDetailSection>
       )}
       {detail.tools.length > 0 && (
-        <div className="space-y-1">
-          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">工具定义</div>
+        <ModelDetailSection title={`工具定义 (${detail.tools.length})`} testId="agent-run-model-request-tools">
           {detail.tools.map((tool) => (
             <div key={`${tool.index}:${tool.name}`} className="rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px]">
               <div className="font-medium text-foreground">{tool.index}. {tool.name}</div>
@@ -1505,19 +1870,29 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
               {tool.parameterKeys.length > 0 && <div className="mt-0.5 text-muted-foreground">参数：{tool.parameterKeys.join(', ')}</div>}
             </div>
           ))}
-        </div>
+        </ModelDetailSection>
       )}
       {detail.response && (
-        <div data-testid="agent-run-model-http-response" className="rounded border border-border/60 bg-background/90 px-2 py-1">
+        <ModelDetailSection title="HTTP 响应" testId="agent-run-model-http-response" defaultOpen>
           <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
-            <span className="font-medium text-foreground">HTTP 响应</span>
             {detail.response.status && <span>状态 {detail.response.status}</span>}
             {detail.response.contentType && <span>{detail.response.contentType}</span>}
+            {detail.response.headers.length > 0 && <span>响应头 {detail.response.headers.length}</span>}
             {detail.response.parsedId && <span>ID {detail.response.parsedId}</span>}
           </div>
+          {detail.response.headers.length > 0 && (
+            <details data-testid="agent-run-model-response-headers" className="mt-1 rounded bg-muted/20 px-2 py-1">
+              <summary className="cursor-pointer text-[10px] font-medium text-foreground">响应头</summary>
+              <div className="mt-1 grid gap-0.5">
+                {detail.response.headers.map((header) => (
+                  <ModelMetaRow key={header.name} label={header.name} value={formatModelHeaderValue(header)} />
+                ))}
+              </div>
+            </details>
+          )}
           {detail.response.content && (
             <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 text-[10px] leading-relaxed text-foreground">
-              {detail.response.content}
+              {redactAgentTraceDebugText(detail.response.content)}
             </pre>
           )}
           {detail.response.bodyText && detail.response.bodyText !== detail.response.content && (
@@ -1533,11 +1908,10 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
               这条事件没有 HTTP 响应正文；如果是流式调用，请查看模型增量事件或最终的历史写入事件。
             </div>
           )}
-        </div>
+        </ModelDetailSection>
       )}
       {detail.result && (
-        <div className="grid gap-0.5 rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px]">
-          <div className="font-medium text-foreground">模型结果</div>
+        <ModelDetailSection title="模型结果" testId="agent-run-model-result" defaultOpen>
           <div className="flex flex-wrap gap-2 text-muted-foreground">
             {detail.result.finishReasonLabel && <span>结束原因 {detail.result.finishReasonLabel}</span>}
             {detail.result.contentChars && <span>回复 {detail.result.contentChars} 字符</span>}
@@ -1545,10 +1919,41 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
             {detail.result.outputTokens && <span>回复 {detail.result.outputTokens} token</span>}
             {detail.result.toolCalls && <span>工具调用 {detail.result.toolCalls}</span>}
           </div>
-        </div>
+        </ModelDetailSection>
       )}
     </div>
   )
+}
+
+function ModelDetailSection({
+  title,
+  testId,
+  defaultOpen = false,
+  children,
+}: {
+  title: string
+  testId: string
+  defaultOpen?: boolean
+  children: ReactNode
+}) {
+  return (
+    <details data-testid={testId} className="rounded border border-border/60 bg-background/90 px-2 py-1" open={defaultOpen}>
+      <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] font-medium text-foreground marker:hidden">
+        <ChevronRight size={10} className="open:hidden" />
+        <ChevronDown size={10} className="hidden open:block" />
+        {title}
+      </summary>
+      <div className="mt-1 space-y-1 text-[10px]">
+        {children}
+      </div>
+    </details>
+  )
+}
+
+function formatModelHeaderValue(header: { name: string; value: string }) {
+  return /authorization|cookie|api[-_]?key|token|secret/i.test(header.name)
+    ? '[已脱敏]'
+    : redactAgentTraceDebugText(header.value)
 }
 
 function ModelMetaRow({ label, value }: { label: string; value: string }) {
@@ -1569,8 +1974,41 @@ function MessageDetail({ detail }: { detail: NonNullable<ReturnType<typeof agent
         <span>{detail.contentChars} 字符</span>
       </div>
       <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/20 p-2 text-[10px] leading-relaxed text-foreground">
-        {detail.content}
+        {redactAgentTraceDebugText(detail.content)}
       </pre>
+    </div>
+  )
+}
+
+function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTraceView>['toolDetail']> }) {
+  return (
+    <div className="mt-1 space-y-1">
+      <div className="grid gap-0.5 rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px]">
+        {detail.toolName && <ModelMetaRow label="工具" value={detail.toolName} />}
+        <ModelMetaRow label="状态" value={detail.statusLabel} />
+        {detail.source && <ModelMetaRow label="来源" value={detail.source} />}
+        {detail.sandboxed && <ModelMetaRow label="沙箱" value={detail.sandboxed} />}
+        {detail.duration && <ModelMetaRow label="耗时" value={detail.duration} />}
+      </div>
+      {detail.summary && (
+        <div className="rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px] leading-relaxed text-foreground">
+          {redactAgentTraceDebugText(detail.summary)}
+        </div>
+      )}
+      {detail.fields.length > 0 && (
+        <div className="rounded border border-border/60 bg-background/90 px-2 py-1">
+          <div className="text-[9px] uppercase tracking-wide text-muted-foreground">结果字段</div>
+          <div className="mt-1 grid gap-0.5">
+            {detail.fields.map((field) => (
+              <ModelMetaRow
+                key={field.label}
+                label={field.label}
+                value={redactAgentTraceDebugText(field.value)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1579,6 +2017,162 @@ function debugBundleRunSnapshot(run: AgentRun | undefined): Omit<AgentRun, 'trac
   if (!run) return undefined
   const { traceEvents: _traceEvents, ...snapshot } = run
   return snapshot
+}
+
+function debugBundleRunSummary(run: AgentRun | undefined) {
+  if (!run) return undefined
+  const terminalAt = run.completedAt ?? run.failedAt ?? run.cancelledAt
+  const pendingApprovals = run.pendingApprovals?.filter((approval) => approval.status === 'pending').length ?? 0
+  const pendingInputs = run.pendingInputRequests?.filter((request) => request.status === 'pending').length ?? 0
+  return {
+    status: run.status,
+    statusLabel: runStatusLabel(run.status),
+    role: run.role,
+    roleLabel: runRoleLabel(run.role),
+    createdAt: run.createdAt,
+    startedAt: run.startedAt,
+    terminalAt,
+    duration: formatAgentRunDuration(run.startedAt ?? run.createdAt, terminalAt),
+    progress: run.progress,
+    error: run.error,
+    warningCount: run.warnings?.length ?? 0,
+    pendingApprovals,
+    pendingInputs,
+  }
+}
+
+function debugBundlePromptDetails(events: AgentTraceEvent[]) {
+  return events.flatMap((event) => {
+    const detail = agentTraceView(event).promptDetail
+    if (!detail) return []
+    return [{
+      eventId: event.id,
+      title: detail.title,
+      totalChars: detail.totalChars,
+      messageCount: detail.messageCount,
+      systemMessageCount: detail.systemMessageCount,
+      blockedToolCount: detail.blockedToolCount,
+      skills: detail.skills,
+      tools: detail.tools,
+      layers: detail.layers,
+      contextLayers: detail.contextLayers,
+      partGroups: detail.partGroups.map((group) => ({
+        contextLayer: group.contextLayer,
+        count: group.count,
+        chars: group.chars,
+        partIds: group.parts.map((part) => part.id),
+      })),
+      parts: detail.parts,
+    }]
+  })
+}
+
+function debugBundleMessageWrites(events: AgentTraceEvent[]) {
+  return events.flatMap((event) => {
+    const detail = agentTraceView(event).messageDetail
+    if (!detail) return []
+    const content = redactAgentTraceDebugText(detail.content)
+    return [{
+      eventId: event.id,
+      messageId: detail.messageId,
+      source: detail.source,
+      sourceLabel: detail.sourceLabel,
+      contentChars: detail.contentChars,
+      contentPreview: content.length > 240 ? `${content.slice(0, 237)}...` : content,
+    }]
+  })
+}
+
+function debugBundleModelCallContexts(modelCalls: AgentModelCallSummary[], events: AgentTraceEvent[]) {
+  return buildModelCallDebugContexts({ modelCalls, events }).map((context) => ({
+    callId: context.call.id,
+    label: context.call.label,
+    status: context.call.status,
+    statusLabel: context.call.statusLabel,
+    correlationLabel: context.correlationLabel,
+    issue: context.issue,
+    requestEventId: context.call.requestEventId,
+    responseEventId: context.call.responseEventId,
+    resultEventId: context.call.resultEventId,
+    modelEventIds: context.modelEvents.map((event) => event.id),
+    toolCalls: context.toolCalls.map((event) => {
+      const detail = agentTraceView(event).toolDetail
+      return {
+        eventId: event.id,
+        toolName: detail?.toolName ?? event.toolName,
+        status: event.status,
+        statusLabel: detail?.statusLabel,
+        summary: detail?.summary ? redactAgentTraceDebugText(detail.summary) : event.summary ? redactAgentTraceDebugText(event.summary) : undefined,
+      }
+    }),
+    messageWrites: context.messageWrites.map((event) => {
+      const detail = agentTraceView(event).messageDetail
+      const content = detail?.content ? redactAgentTraceDebugText(detail.content) : undefined
+      return {
+        eventId: event.id,
+        messageId: detail?.messageId,
+        source: detail?.source,
+        sourceLabel: detail?.sourceLabel,
+        contentChars: detail?.contentChars,
+        contentPreview: content && content.length > 160 ? `${content.slice(0, 157)}...` : content,
+      }
+    }),
+  }))
+}
+
+function debugBundleToolCalls(events: AgentTraceEvent[]) {
+  return events.flatMap((event) => {
+    if (event.kind !== 'tool_call') return []
+    const data = event.data && typeof event.data === 'object' && !Array.isArray(event.data) ? event.data as Record<string, unknown> : {}
+    const durationMs = typeof data.durationMs === 'number' && Number.isFinite(data.durationMs)
+      ? data.durationMs
+      : event.completedAt ? Math.max(0, new Date(event.completedAt).getTime() - new Date(event.createdAt).getTime()) : undefined
+    const summary = event.summary ? redactAgentTraceDebugText(event.summary) : undefined
+    return [{
+      eventId: event.id,
+      toolName: event.toolName,
+      title: event.title,
+      status: event.status,
+      source: typeof data.source === 'string' ? data.source : undefined,
+      sandboxed: typeof data.sandboxed === 'boolean' ? data.sandboxed : undefined,
+      durationMs,
+      summary,
+      dataPreview: formatAgentTraceDebugData(data),
+    }]
+  })
+}
+
+function debugBundlePendingActions(run: AgentRun | undefined) {
+  if (!run) return []
+  const approvals = (run.pendingApprovals ?? [])
+    .filter((approval) => approval.status === 'pending')
+    .map((approval) => ({
+      type: 'approval',
+      id: approval.id,
+      toolName: approval.toolName,
+      risk: approval.risk,
+      permission: approval.permission,
+      reason: approval.reason,
+      createdAt: approval.createdAt,
+    }))
+  const inputs = (run.pendingInputRequests ?? [])
+    .filter((request) => request.status === 'pending')
+    .map((request) => ({
+      type: 'input',
+      id: request.id,
+      title: request.title,
+      summary: request.summary,
+      question: request.question,
+      inputType: request.inputType,
+      choices: request.choices.map((choice) => ({
+        id: choice.id,
+        label: choice.label,
+        description: choice.description,
+      })),
+      allowCustomAnswer: request.allowCustomAnswer,
+      createdAt: request.createdAt,
+    }))
+  return [...approvals, ...inputs]
 }
 
 function buildRunSummary(

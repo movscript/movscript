@@ -66,6 +66,50 @@ func TestUsageLogListFiltersByOrgProjectAndSince(t *testing.T) {
 	}
 }
 
+func TestUsageLogListPaginates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := testutil.OpenSQLite(t, "handler-usage-pagination.db", &persistencemodel.User{}, &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.UsageLog{})
+	user := persistencemodel.User{Username: "usage-pagination-user", Status: "active"}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	credential := persistencemodel.AICredential{AdapterType: "openai_compat", DisplayName: "Provider", IsEnabled: true}
+	if err := db.Create(&credential).Error; err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	model := persistencemodel.AIModelConfig{CredentialID: credential.ID, ModelDefID: "text", IsEnabled: true}
+	if err := db.Create(&model).Error; err != nil {
+		t.Fatalf("create model config: %v", err)
+	}
+
+	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	createScopedUsageLog(t, db, user.ID, model.ID, nil, nil, nil, 1, now)
+	createScopedUsageLog(t, db, user.ID, model.ID, nil, nil, nil, 2, now)
+	createScopedUsageLog(t, db, user.ID, model.ID, nil, nil, nil, 3, now)
+
+	h := NewUsageAdminHandler(db.Session(&gorm.Session{SkipHooks: true}))
+	router := gin.New()
+	router.GET("/admin/usage-logs", h.List)
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/usage-logs?page=2&page_size=1", nil)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected usage list to succeed, got %d: %s", res.Code, res.Body.String())
+	}
+
+	var page adminusage.Page
+	if err := json.Unmarshal(res.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode usage list response: %v", err)
+	}
+	if page.Total != 3 || page.Page != 2 || page.PageSize != 1 || len(page.Items) != 1 {
+		t.Fatalf("unexpected paginated usage page: %+v body=%s", page, res.Body.String())
+	}
+	if page.Items[0].Cost != 2 {
+		t.Fatalf("page 2 should return second newest usage log, got %+v", page.Items[0])
+	}
+}
+
 func createScopedUsageLog(t *testing.T, db *gorm.DB, userID uint, modelConfigID uint, orgID *uint, projectID *uint, gatewayKeyID *uint, cost float64, createdAt time.Time) {
 	t.Helper()
 	log := persistencemodel.UsageLog{

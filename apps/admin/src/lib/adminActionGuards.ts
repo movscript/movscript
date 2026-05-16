@@ -15,6 +15,10 @@ export type AdminJobActionConfirmKey =
   | 'admin.debug.jobs.confirmRetry'
   | 'admin.debug.jobs.confirmDelete'
 
+export type AdminCloudFileConfigToggleConfirmKey =
+  | 'admin.cloudFiles.confirmEnable'
+  | 'admin.cloudFiles.confirmDisable'
+
 export interface AdminFeatureUpdatePayload {
   is_enabled?: boolean
   allowed_model_ids?: number[]
@@ -55,4 +59,8 @@ export function jobActionConfirmKey(action: AdminJobAction): AdminJobActionConfi
     case 'delete':
       return 'admin.debug.jobs.confirmDelete'
   }
+}
+
+export function cloudFileConfigToggleConfirmKey(config: { is_enabled: boolean }): AdminCloudFileConfigToggleConfirmKey {
+  return config.is_enabled ? 'admin.cloudFiles.confirmDisable' : 'admin.cloudFiles.confirmEnable'
 }

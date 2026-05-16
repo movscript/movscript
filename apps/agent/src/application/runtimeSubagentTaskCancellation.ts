@@ -9,6 +9,7 @@ import {
   buildPendingSubagentTaskCancellationUpdate,
   subagentTaskTarget,
 } from '../state/subagentTaskCancellation.js'
+import { requireRuntimePlannerRun } from './runtimePlanBinding.js'
 import { requireRuntimeRun, requireRuntimeTask } from './runtimeStoreLookup.js'
 import type { AgentPlanSnapshot } from '../state/types.js'
 
@@ -151,22 +152,23 @@ export function buildRuntimeSubagentRunCancellationResult(input: {
 
 export function applyRuntimeSubagentCancellationFlow(input: {
   store: Pick<AgentStore, 'getRun' | 'getTask' | 'listTasks'>
-  plannerRun: AgentRun
+  plannerRunId: string
   request?: Record<string, JSONValue>
   updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
   cancelSubtree: (runId: string, input?: { reason?: unknown }) => { cancelledRunIds: string[] }
   getPlanSnapshot: (planId: string) => AgentPlanSnapshot
 }): JSONValue {
   const request = input.request ?? {}
+  const plannerRun = requireRuntimePlannerRun(input.store, input.plannerRunId)
   const target = resolveRuntimeSubagentCancellationTarget({
     store: input.store,
-    plannerRun: input.plannerRun,
+    plannerRun,
     request,
   })
   if (target.kind === 'pending_task') {
     const result = cancelPendingRuntimeSubagentTask({
       store: input.store,
-      plannerRun: input.plannerRun,
+      plannerRun,
       taskId: target.taskId,
       reason: request.reason,
       updateTask: input.updateTask,
@@ -180,7 +182,7 @@ export function applyRuntimeSubagentCancellationFlow(input: {
   const result = input.cancelSubtree(target.runId, { reason: request.reason })
   return buildRuntimeSubagentRunCancellationResult({
     store: input.store,
-    plannerRun: input.plannerRun,
+    plannerRun,
     runId: target.runId,
     cancelledRunIds: result.cancelledRunIds,
     getPlanSnapshot: input.getPlanSnapshot,

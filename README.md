@@ -198,6 +198,10 @@ pnpm install
 
 ### 2. Start Local Infrastructure
 
+For the local desktop experience, you can skip Docker. Frontend-managed local mode starts the bundled backend and uses SQLite plus local filesystem storage.
+
+Start infrastructure only when you want a separately managed backend, PostgreSQL, or MinIO:
+
 ```bash
 docker compose up -d db minio createbuckets
 ```
@@ -216,6 +220,20 @@ openssl rand -hex 32
 Paste the generated 64-character values into `ENCRYPTION_KEY` and `AUTH_TOKEN_SECRET` in `apps/backend/.env`.
 
 ### 4. Run the Backend and Frontend
+
+For the local desktop experience, prefer one command:
+
+```bash
+make dev-frontend-local
+```
+
+This builds the backend and admin UI, then lets Electron host the local backend at `http://localhost:8766`. On first launch, choose Local Launch, create the local admin user, then open the admin console to configure provider credentials and models:
+
+```text
+http://localhost:8766/admin
+```
+
+If you are developing against an external backend, use the two-terminal flow:
 
 ```bash
 make dev-backend
@@ -239,6 +257,7 @@ curl http://localhost:8765/health
 ```bash
 make dev-backend          # Go API server
 make dev-frontend         # Electron desktop app
+make dev-frontend-local   # Local desktop startup with hosted backend, SQLite, and admin UI
 make dev-agent            # Local agent
 make test                 # Backend tests + workspace typechecks
 make build                # Backend, packages, apps, and plugins

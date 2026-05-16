@@ -17,6 +17,7 @@ import {
   CirclePlay,
   CircleUserRound,
   ClipboardCheck,
+  ExternalLink,
   Component,
   Factory,
   FlaskConical,
@@ -59,6 +60,8 @@ import { Avatar, AvatarFallback } from '@movscript/ui'
 import { Button } from '@movscript/ui'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui'
 import { loadClientPlugins } from '@/lib/clientPlugins'
+import { openAdminConsole } from '@/lib/adminConsole'
+import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { runtimeNavItems } from '@runtime'
 import { ROUTES } from '@/routes/projectRoutes'
 
@@ -116,6 +119,33 @@ function NavItem({
   )
 }
 
+function ActionNavItem({
+  icon: Icon,
+  label,
+  collapsed = false,
+  onClick,
+}: {
+  icon: LucideIcon
+  label: string
+  collapsed?: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      title={collapsed ? label : undefined}
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center rounded-md text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground',
+        collapsed ? 'h-9 justify-center px-0' : 'gap-2.5 px-3 py-1.5'
+      )}
+    >
+      <Icon size={collapsed ? 16 : 15} className="shrink-0" />
+      {!collapsed && <span className="truncate">{label}</span>}
+    </button>
+  )
+}
+
 function Section({ title, defaultOpen = true, children, collapsed = false }: {
   title: string
   defaultOpen?: boolean
@@ -150,6 +180,7 @@ export function Sidebar() {
   const currentOrgID = useUserStore((s) => s.currentOrgID)
   const orgMemberships = useUserStore((s) => s.orgMemberships)
   const setCurrentOrg = useUserStore((s) => s.setCurrentOrg)
+  const apiBaseURL = useAppSettingsStore((s) => s.settings.apiBaseURL)
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
@@ -305,6 +336,14 @@ export function Sidebar() {
           {runtimeNavItems.filter((item) => (item.section ?? 'manage') === 'manage').map((item) => (
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} collapsed={collapsed} />
           ))}
+          {currentUser?.system_role === 'super_admin' && (
+            <ActionNavItem
+              icon={ExternalLink}
+              label={t('sidebar.items.adminConsole')}
+              collapsed={collapsed}
+              onClick={() => void openAdminConsole(apiBaseURL)}
+            />
+          )}
           {isOrgAdmin && (
             <NavItem to={ROUTES.orgSettings} icon={Settings} label={t('sidebar.items.orgSettings')} collapsed={collapsed} />
           )}

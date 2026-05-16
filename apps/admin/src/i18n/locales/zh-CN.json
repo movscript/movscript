@@ -2060,6 +2060,14 @@
       "previousPage": "上一页",
       "nextPage": "下一页"
     },
+    "pagination": {
+      "range": "第 {{start}}-{{end}} 条，共 {{total}} 条",
+      "pageStatus": "第 {{page}} / {{pageCount}} 页",
+      "firstPage": "首页",
+      "previousPage": "上一页",
+      "nextPage": "下一页",
+      "lastPage": "末页"
+    },
     "tabs": {
       "models": "模型管理",
       "features": "功能配置",
@@ -2071,7 +2079,8 @@
       "debug": "调试",
       "uiPreview": "UI 预览",
       "storage": "资源存储",
-      "cloudFiles": "输入中转"
+      "cloudFiles": "输入中转",
+      "settings": "系统设置"
     },
     "home": {
       "metrics": {
@@ -2096,6 +2105,7 @@
         "usageLogs": "按供应商、模型、用户和项目筛选 {{count}} 条 AI 调用成本。",
         "storage": "管理 {{count}} 个内部资源文件、存储后端状态和用户占用。",
         "cloudFiles": "公共对象中转和云文件存储配置。",
+        "settings": "注册策略、邮箱验证码和基础认证配置。",
         "debug": "系统健康、慢请求、任务队列和供应商调用调试。"
       }
     },
@@ -2368,6 +2378,8 @@
       "viewAuditLogs": "查看审计日志",
       "organizations": "所属组织",
       "projects": "关联项目",
+      "userId": "用户 ID",
+      "userIdPlaceholder": "精确 ID",
       "joinedAt": "加入时间",
       "noOrgs": "暂无组织归属",
       "noProjects": "暂无项目归属",
@@ -2412,6 +2424,8 @@
       "clear": "清空筛选",
       "search": "搜索",
       "searchPlaceholder": "组织名称、slug 或加入码",
+      "orgId": "组织 ID",
+      "orgIdPlaceholder": "精确 ID",
       "org": "组织",
       "kind": "类型",
       "plan": "套餐",
@@ -2690,6 +2704,8 @@
       "outputSchema": "输出格式（OutputSchema）",
       "customOverride": "自定义覆盖",
       "customOverrideHint": "（留空 = 使用默认）",
+      "maxTokensOverride": "最大 Token 覆盖",
+      "maxTokensOverrideHint": "留空或 0 = 使用默认值",
       "saved": "已保存 ✓",
       "saveOverride": "保存覆盖",
       "availableModels": "可用模型",
@@ -2819,7 +2835,9 @@
       "confirmDeleteResource": "确定删除资源「{{name}}」？关联引用会一并移除。"
     },
     "cloudFiles": {
-      "confirmDelete": "确认删除此云端存储配置？",
+      "confirmDelete": "确认删除云端存储配置“{{name}}”？",
+      "confirmEnable": "确认启用云端存储配置“{{name}}”？",
+      "confirmDisable": "确认禁用云端存储配置“{{name}}”？禁用后 Worker 不会再使用它上传输入素材。",
       "publicObjectRelay": "公网对象中转",
       "publicObjectRelayDescription": "S3、OSS、TOS 桶必须能被服务商公网访问，用于只接受 URL 的图生视频、视频参考输入。",
       "providerFilesAPI": "服务商 Files API",
@@ -2854,6 +2872,29 @@
         "region": "Region",
         "secret_key": "Secret Key"
       }
+    },
+    "settings": {
+      "title": "系统设置",
+      "description": "控制账号注册策略、邮箱验证码和 SMTP 发送配置。",
+      "registration": "注册策略",
+      "openRegistration": "开放用户自助注册",
+      "openRegistrationHint": "关闭后，新账号只能由后台管理员手动创建。",
+      "requireEmailVerification": "注册需要邮箱验证码",
+      "requireEmailVerificationHint": "开放注册时强制启用，避免无验证邮箱账号进入系统。",
+      "smtp": "邮箱验证码 SMTP",
+      "enableEmail": "启用邮箱验证码发送",
+      "enableEmailHint": "用于注册邮箱验证码，登录邮箱验证码也会复用此配置。",
+      "smtpHost": "SMTP Host",
+      "smtpPort": "端口",
+      "smtpUsername": "用户名",
+      "smtpPassword": "密码",
+      "smtpPasswordSet": "已保存，留空则不修改",
+      "fromEmail": "发件邮箱",
+      "fromName": "发件名称",
+      "useStartTLS": "STARTTLS",
+      "useTLS": "TLS 直连",
+      "registrationRequiresEmail": "启用邮箱发送时必须补全 SMTP Host、端口和发件邮箱；开放注册还必须启用邮箱验证码。",
+      "saved": "已保存"
     },
     "debug": {
       "copy": "复制",

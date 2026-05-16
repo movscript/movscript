@@ -1,35 +1,6 @@
 package semantic
 
-import (
-	domainresource "github.com/movscript/movscript/internal/domain/resource"
-	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-)
-
-func EntityRelationFromModel(relation persistencemodel.EntityRelation) EntityRelation {
-	return EntityRelation{
-		ID:           relation.ID,
-		ProjectID:    relation.ProjectID,
-		SourceType:   relation.SourceType,
-		SourceID:     relation.SourceID,
-		TargetType:   relation.TargetType,
-		TargetID:     relation.TargetID,
-		Category:     relation.Category,
-		Type:         relation.Type,
-		Label:        relation.Label,
-		ScopeType:    relation.ScopeType,
-		ScopeID:      relation.ScopeID,
-		Direction:    relation.Direction,
-		Order:        relation.Order,
-		Weight:       relation.Weight,
-		Status:       relation.Status,
-		Source:       relation.Source,
-		Evidence:     relation.Evidence,
-		MetadataJSON: relation.MetadataJSON,
-		CreatedByID:  relation.CreatedByID,
-		CreatedAt:    relation.CreatedAt,
-		UpdatedAt:    relation.UpdatedAt,
-	}
-}
+import persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 
 func SegmentFromModel(segment persistencemodel.Segment) Segment {
 	return Segment{
@@ -300,9 +271,7 @@ func AssetSlotFromModel(slot persistencemodel.AssetSlot) AssetSlot {
 		Status:                   slot.Status,
 		Priority:                 slot.Priority,
 		ResourceID:               slot.ResourceID,
-		Resource:                 rawResourceFromModelPointer(slot.Resource),
 		LockedAssetSlotID:        slot.LockedAssetSlotID,
-		LockedAssetSlot:          assetSlotFromModelPointer(slot.LockedAssetSlot),
 		MetadataJSON:             slot.MetadataJSON,
 		CreatedAt:                slot.CreatedAt,
 		UpdatedAt:                slot.UpdatedAt,
@@ -337,14 +306,6 @@ func (slot AssetSlot) ApplyToModel(target *persistencemodel.AssetSlot) {
 	target.UpdatedAt = slot.UpdatedAt
 }
 
-func assetSlotFromModelPointer(slot *persistencemodel.AssetSlot) *AssetSlot {
-	if slot == nil {
-		return nil
-	}
-	item := AssetSlotFromModel(*slot)
-	return &item
-}
-
 func AssetSlotCandidateFromModel(candidate persistencemodel.AssetSlotCandidate) AssetSlotCandidate {
 	return AssetSlotCandidate{
 		ID:                   candidate.ID,
@@ -356,7 +317,6 @@ func AssetSlotCandidateFromModel(candidate persistencemodel.AssetSlotCandidate) 
 		Score:                candidate.Score,
 		Status:               candidate.Status,
 		Note:                 candidate.Note,
-		CandidateAssetSlot:   assetSlotFromModelPointer(candidate.CandidateAssetSlot),
 		CreatedAt:            candidate.CreatedAt,
 		UpdatedAt:            candidate.UpdatedAt,
 	}
@@ -371,11 +331,7 @@ func MarkAssetSlotCandidate(slot *persistencemodel.AssetSlot) {
 func MarkAssetSlotLockedToCandidate(slot *persistencemodel.AssetSlot, candidate persistencemodel.AssetSlotCandidate) {
 	domainSlot := AssetSlotFromModel(*slot)
 	domainCandidate := AssetSlotCandidateFromModel(candidate)
-	var candidateResourceID *uint
-	if candidate.CandidateAssetSlot != nil {
-		candidateResourceID = candidate.CandidateAssetSlot.ResourceID
-	}
-	LockSlotToCandidate(&domainSlot, domainCandidate, candidateResourceID)
+	LockSlotToCandidate(&domainSlot, domainCandidate, nil)
 	domainSlot.ApplyToModel(slot)
 }
 
@@ -597,7 +553,6 @@ func WorkReviewFromModel(review persistencemodel.WorkReview) WorkReview {
 		ProjectID:    review.ProjectID,
 		WorkItemID:   review.WorkItemID,
 		ReviewerID:   review.ReviewerID,
-		Reviewer:     UserRefFromModelPointer(review.Reviewer),
 		Status:       review.Status,
 		Comment:      review.Comment,
 		MetadataJSON: review.MetadataJSON,
@@ -637,7 +592,6 @@ func WorkItemFromModel(item persistencemodel.WorkItem) WorkItem {
 		Status:         item.Status,
 		Priority:       item.Priority,
 		AssigneeID:     item.AssigneeID,
-		Assignee:       UserRefFromModelPointer(item.Assignee),
 		SourceJobID:    item.SourceJobID,
 		SourceCanvasID: item.SourceCanvasID,
 		ResultType:     item.ResultType,
@@ -983,7 +937,6 @@ func KeyframeFromModel(keyframe persistencemodel.Keyframe) Keyframe {
 		SceneMomentID: keyframe.SceneMomentID,
 		ContentUnitID: keyframe.ContentUnitID,
 		ResourceID:    keyframe.ResourceID,
-		Resource:      rawResourceFromModelPointer(keyframe.Resource),
 		CanvasID:      keyframe.CanvasID,
 		Title:         keyframe.Title,
 		Description:   keyframe.Description,
@@ -1018,14 +971,6 @@ func (keyframe Keyframe) ApplyToModel(target *persistencemodel.Keyframe) {
 	target.MetadataJSON = keyframe.MetadataJSON
 	target.CreatedAt = keyframe.CreatedAt
 	target.UpdatedAt = keyframe.UpdatedAt
-}
-
-func rawResourceFromModelPointer(resource *persistencemodel.RawResource) *domainresource.RawResource {
-	if resource == nil {
-		return nil
-	}
-	item := domainresource.RawResourceFromModel(*resource)
-	return &item
 }
 
 func PreviewTimelineFromModel(timeline persistencemodel.PreviewTimeline) PreviewTimeline {

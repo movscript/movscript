@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/movscript/movscript/internal/app/coregraph"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
@@ -47,6 +48,7 @@ func TestPatchProductionRejectsSourceChangeAfterDerivedItems(t *testing.T) {
 				if err := db.Create(&block).Error; err != nil {
 					t.Fatalf("create production text block: %v", err)
 				}
+				syncSemanticTestRelations(t, db, &block)
 			},
 		},
 		{
@@ -57,6 +59,7 @@ func TestPatchProductionRejectsSourceChangeAfterDerivedItems(t *testing.T) {
 				if err := db.Create(&segment).Error; err != nil {
 					t.Fatalf("create segment: %v", err)
 				}
+				syncSemanticTestRelations(t, db, &segment)
 			},
 		},
 		{
@@ -67,6 +70,7 @@ func TestPatchProductionRejectsSourceChangeAfterDerivedItems(t *testing.T) {
 				if err := db.Create(&unit).Error; err != nil {
 					t.Fatalf("create content unit: %v", err)
 				}
+				syncSemanticTestRelations(t, db, &unit)
 			},
 		},
 		{
@@ -77,6 +81,7 @@ func TestPatchProductionRejectsSourceChangeAfterDerivedItems(t *testing.T) {
 				if err := db.Create(&keyframe).Error; err != nil {
 					t.Fatalf("create keyframe: %v", err)
 				}
+				syncSemanticTestRelations(t, db, &keyframe)
 			},
 		},
 	}
@@ -126,6 +131,7 @@ func TestPatchProductionAllowsMetadataAfterDerivedItems(t *testing.T) {
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &segment)
 
 	patched, err := service.PatchProduction(context.Background(), 1, strconv.FormatUint(uint64(production.ID), 10), ProductionInput{
 		ScriptVersionID: &firstVersion.ID,
@@ -158,6 +164,7 @@ func TestDeleteProductionRejectsDownstreamItems(t *testing.T) {
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
+	syncSemanticTestRelations(t, db, &segment)
 
 	err := service.DeleteItemByKind(context.Background(), 1, "production", strconv.FormatUint(uint64(production.ID), 10))
 	var forbidden ErrForbidden
@@ -193,6 +200,13 @@ func TestDeleteProductionWithoutDownstreamItemsSucceeds(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("production count = %d, want 0", count)
+	}
+}
+
+func syncSemanticTestRelations(t *testing.T, db *gorm.DB, item any) {
+	t.Helper()
+	if err := coregraph.NewWriter(db).Write(context.Background(), item); err != nil {
+		t.Fatalf("sync relations for %T: %v", item, err)
 	}
 }
 

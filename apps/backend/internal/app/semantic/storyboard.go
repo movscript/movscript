@@ -5,6 +5,8 @@ import (
 	"errors"
 	"strconv"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -58,7 +60,20 @@ func (s *Service) CreateStoryboardScript(ctx context.Context, projectID uint, in
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
 	})
-	return s.repo.CreateStoryboardScript(ctx, item)
+	var created domainsemantic.StoryboardScript
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateStoryboardScript(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertStoryboardScriptRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchStoryboardScript(ctx context.Context, projectID uint, id string, input StoryboardScriptInput) (domainsemantic.StoryboardScript, error) {
@@ -82,21 +97,53 @@ func (s *Service) PatchStoryboardScript(ctx context.Context, projectID uint, id 
 		IsPrimary:       input.IsPrimary,
 		MetadataJSON:    input.MetadataJSON,
 	}
-	return s.repo.PatchStoryboardScript(ctx, item, patch)
+	var patched domainsemantic.StoryboardScript
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchStoryboardScript(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertStoryboardScriptRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertStoryboardScriptRelations(ctx context.Context, item domainsemantic.StoryboardScript) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeBasedOn,
+		Source:    domainrelation.NewEntityRef("storyboard_script", item.ID),
+	}); err != nil {
+		return err
+	}
+	if item.ScriptVersionID == nil {
+		return nil
+	}
+	return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("storyboard_script", item.ID),
+		Target:    domainrelation.NewEntityRef("script_version", *item.ScriptVersionID),
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeBasedOn,
+		Status:    semanticRelationStatus(item.Status),
+	})
 }
 
 func (s *Service) ensureStoryboardScriptSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.StoryboardScript, input StoryboardScriptInput) error {
 	if optionalUintPatchPreserves(item.ScriptVersionID, input.ScriptVersionID) {
 		return nil
 	}
-	versions, err := s.repo.ListStoryboardVersions(ctx, StoryboardVersionFilter{ProjectID: projectID, StoryboardScriptID: item.ID})
+	status, err := s.storyboardScriptSourceLockStatus(ctx, projectID, item)
 	if err != nil {
 		return err
 	}
-	if len(versions) > 0 {
-		return ErrInvalidInput{Err: errors.New("storyboard script source cannot be changed after storyboard versions are created")}
-	}
-	return nil
+	return status.ErrSourceChangeLocked("storyboard script source cannot be changed after storyboard versions are created")
 }
 
 func (s *Service) ListStoryboardVersions(ctx context.Context, filter StoryboardVersionFilter) ([]domainsemantic.StoryboardVersion, error) {
@@ -122,7 +169,62 @@ func (s *Service) CreateStoryboardVersion(ctx context.Context, projectID uint, i
 		SnapshotJSON:       input.SnapshotJSON,
 		MetadataJSON:       input.MetadataJSON,
 	})
-	return s.repo.CreateStoryboardVersion(ctx, item)
+	var created domainsemantic.StoryboardVersion
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateStoryboardVersion(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertStoryboardVersionRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
+}
+
+func (s *Service) upsertStoryboardVersionRelations(ctx context.Context, item domainsemantic.StoryboardVersion) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeHasVersion,
+		Target:    domainrelation.NewEntityRef("storyboard_version", item.ID),
+	}); err != nil {
+		return err
+	}
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeDerivedFrom,
+		Source:    domainrelation.NewEntityRef("storyboard_version", item.ID),
+	}); err != nil {
+		return err
+	}
+	if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("storyboard_script", item.StoryboardScriptID),
+		Target:    domainrelation.NewEntityRef("storyboard_version", item.ID),
+		Category:  domainrelation.CategoryStructure,
+		Type:      domainrelation.TypeHasVersion,
+		Order:     item.VersionNumber,
+		Status:    semanticRelationStatus(item.Status),
+	}); err != nil {
+		return err
+	}
+	if item.ParentVersionID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("storyboard_version", item.ID),
+			Target:    domainrelation.NewEntityRef("storyboard_version", *item.ParentVersionID),
+			Category:  domainrelation.CategoryStructure,
+			Type:      domainrelation.TypeDerivedFrom,
+			Order:     item.VersionNumber,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 func (s *Service) PatchStoryboardVersion(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardVersion, error) {

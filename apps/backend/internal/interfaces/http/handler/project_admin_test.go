@@ -201,6 +201,42 @@ func TestProjectAdminCreateWritesAudit(t *testing.T) {
 	}
 }
 
+func TestProjectAdminListFiltersByProjectID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestProjectAdminRouter(t)
+
+	owner := persistencemodel.User{Username: "admin-list-owner", Status: "active"}
+	if err := db.Create(&owner).Error; err != nil {
+		t.Fatalf("create owner: %v", err)
+	}
+	target := persistencemodel.Project{Name: "Target Project", OwnerID: owner.ID, Status: "planning"}
+	other := persistencemodel.Project{Name: "Other Project", OwnerID: owner.ID, Status: "planning"}
+	if err := db.Create(&target).Error; err != nil {
+		t.Fatalf("create target project: %v", err)
+	}
+	if err := db.Create(&other).Error; err != nil {
+		t.Fatalf("create other project: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/projects?project_id="+strconv.FormatUint(uint64(target.ID), 10), nil)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected project list to succeed, got %d: %s", res.Code, res.Body.String())
+	}
+	var body []persistencemodel.Project
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode project list: %v", err)
+	}
+	if len(body) != 1 || body[0].ID != target.ID {
+		t.Fatalf("expected only project %d, got %+v", target.ID, body)
+	}
+	if res.Header().Get("X-Total-Count") != "1" {
+		t.Fatalf("expected X-Total-Count 1, got %q", res.Header().Get("X-Total-Count"))
+	}
+}
+
 func TestProjectAdminUpdateWritesAuditAndValidatesStatus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router, db := newTestProjectAdminRouter(t)
@@ -675,6 +711,7 @@ func newTestProjectAdminRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	h := NewProjectHandler(db.Session(&gorm.Session{SkipHooks: true}))
 
 	router := gin.New()
+	router.GET("/admin/projects", h.AdminList)
 	router.POST("/admin/projects", h.AdminCreate)
 	router.GET("/admin/projects/:id/detail", h.AdminDetail)
 	router.PATCH("/admin/projects/:id", h.AdminUpdate)

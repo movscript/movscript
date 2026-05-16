@@ -2,7 +2,10 @@ package semantic
 
 import (
 	"context"
+	"strings"
 
+	relationapp "github.com/movscript/movscript/internal/app/relation"
+	domainrelation "github.com/movscript/movscript/internal/domain/relation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -81,7 +84,26 @@ type CanvasOutputInput struct {
 }
 
 func (s *Service) ListDeliveryVersions(ctx context.Context, filter DeliveryVersionFilter) ([]domainsemantic.DeliveryVersion, error) {
+	if filter.ProductionID > 0 {
+		return s.listDeliveryVersionsFromRelations(ctx, filter)
+	}
 	return s.repo.ListDeliveryVersions(ctx, filter)
+}
+
+func (s *Service) listDeliveryVersionsFromRelations(ctx context.Context, filter DeliveryVersionFilter) ([]domainsemantic.DeliveryVersion, error) {
+	ids, err := s.relatedSourceIDs(ctx, deliveryDerivedFromTargetFilter(filter.ProjectID, "production", filter.ProductionID), "delivery_version")
+	if err != nil {
+		return nil, err
+	}
+	versions := make([]domainsemantic.DeliveryVersion, 0, len(ids))
+	for _, id := range ids {
+		version, err := s.repo.LoadDeliveryVersion(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		versions = append(versions, version)
+	}
+	return versions, nil
 }
 
 func (s *Service) CreateDeliveryVersion(ctx context.Context, projectID uint, input DeliveryVersionInput) (domainsemantic.DeliveryVersion, error) {
@@ -101,7 +123,20 @@ func (s *Service) CreateDeliveryVersion(ctx context.Context, projectID uint, inp
 		DurationSec:       input.DurationSec,
 		MetadataJSON:      input.MetadataJSON,
 	})
-	return s.repo.CreateDeliveryVersion(ctx, item)
+	var created domainsemantic.DeliveryVersion
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateDeliveryVersion(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertDeliveryVersionRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchDeliveryVersion(ctx context.Context, projectID uint, id string, input DeliveryVersionInput) (domainsemantic.DeliveryVersion, error) {
@@ -124,11 +159,80 @@ func (s *Service) PatchDeliveryVersion(ctx context.Context, projectID uint, id s
 		DurationSec:       input.DurationSec,
 		MetadataJSON:      input.MetadataJSON,
 	}
-	return s.repo.PatchDeliveryVersion(ctx, item, patch)
+	var patched domainsemantic.DeliveryVersion
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchDeliveryVersion(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertDeliveryVersionRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertDeliveryVersionRelations(ctx context.Context, item domainsemantic.DeliveryVersion) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryDelivery,
+		Type:      domainrelation.TypeDerivedFrom,
+		Source:    domainrelation.NewEntityRef("delivery_version", item.ID),
+	}); err != nil {
+		return err
+	}
+	if item.ProductionID != nil {
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("delivery_version", item.ID),
+			Target:    domainrelation.NewEntityRef("production", *item.ProductionID),
+			Category:  domainrelation.CategoryDelivery,
+			Type:      domainrelation.TypeDerivedFrom,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	if item.PreviewTimelineID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("delivery_version", item.ID),
+			Target:    domainrelation.NewEntityRef("preview_timeline", *item.PreviewTimelineID),
+			Category:  domainrelation.CategoryDelivery,
+			Type:      domainrelation.TypeDerivedFrom,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 func (s *Service) ListDeliveryTimelineItems(ctx context.Context, filter DeliveryTimelineItemFilter) ([]domainsemantic.DeliveryTimelineItem, error) {
+	if filter.DeliveryVersionID > 0 {
+		return s.listDeliveryTimelineItemsFromRelations(ctx, filter)
+	}
 	return s.repo.ListDeliveryTimelineItems(ctx, filter)
+}
+
+func (s *Service) listDeliveryTimelineItemsFromRelations(ctx context.Context, filter DeliveryTimelineItemFilter) ([]domainsemantic.DeliveryTimelineItem, error) {
+	ids, err := s.relatedTargetIDs(ctx, deliveryContainsFilter(filter.ProjectID, "delivery_version", filter.DeliveryVersionID), "delivery_timeline_item")
+	if err != nil {
+		return nil, err
+	}
+	items := make([]domainsemantic.DeliveryTimelineItem, 0, len(ids))
+	for _, id := range ids {
+		item, err := s.repo.LoadDeliveryTimelineItem(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(filter.Status) != "" && item.Status != strings.TrimSpace(filter.Status) {
+			continue
+		}
+		items = append(items, item)
+	}
+	return items, nil
 }
 
 func (s *Service) CreateDeliveryTimelineItem(ctx context.Context, projectID uint, input DeliveryTimelineItemInput) (domainsemantic.DeliveryTimelineItem, error) {
@@ -149,7 +253,20 @@ func (s *Service) CreateDeliveryTimelineItem(ctx context.Context, projectID uint
 		Status:            input.Status,
 		MetadataJSON:      input.MetadataJSON,
 	})
-	return s.repo.CreateDeliveryTimelineItem(ctx, item)
+	var created domainsemantic.DeliveryTimelineItem
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateDeliveryTimelineItem(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertDeliveryTimelineItemRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchDeliveryTimelineItem(ctx context.Context, projectID uint, id string, input DeliveryTimelineItemInput) (domainsemantic.DeliveryTimelineItem, error) {
@@ -173,11 +290,103 @@ func (s *Service) PatchDeliveryTimelineItem(ctx context.Context, projectID uint,
 		Status:            input.Status,
 		MetadataJSON:      input.MetadataJSON,
 	}
-	return s.repo.PatchDeliveryTimelineItem(ctx, item, patch)
+	var patched domainsemantic.DeliveryTimelineItem
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchDeliveryTimelineItem(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertDeliveryTimelineItemRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertDeliveryTimelineItemRelations(ctx context.Context, item domainsemantic.DeliveryTimelineItem) error {
+	if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+		ProjectID: item.ProjectID,
+		Category:  domainrelation.CategoryDelivery,
+		Type:      domainrelation.TypeContains,
+		Target:    domainrelation.NewEntityRef("delivery_timeline_item", item.ID),
+	}); err != nil {
+		return err
+	}
+	for _, edgeType := range []string{domainrelation.TypeUses, domainrelation.TypeUsesResource} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryDelivery,
+			Type:      edgeType,
+			Source:    domainrelation.NewEntityRef("delivery_timeline_item", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("delivery_version", item.DeliveryVersionID),
+		Target:    domainrelation.NewEntityRef("delivery_timeline_item", item.ID),
+		Category:  domainrelation.CategoryDelivery,
+		Type:      domainrelation.TypeContains,
+		Order:     item.Order,
+		Status:    semanticRelationStatus(item.Status),
+	}); err != nil {
+		return err
+	}
+	for _, target := range []struct {
+		entityType string
+		id         *uint
+		edgeType   string
+	}{
+		{entityType: "content_unit", id: item.ContentUnitID, edgeType: domainrelation.TypeUses},
+		{entityType: "asset_slot", id: item.AssetSlotID, edgeType: domainrelation.TypeUses},
+		{entityType: "raw_resource", id: item.ResourceID, edgeType: domainrelation.TypeUsesResource},
+	} {
+		if target.id == nil {
+			continue
+		}
+		if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("delivery_timeline_item", item.ID),
+			Target:    domainrelation.NewEntityRef(target.entityType, *target.id),
+			Category:  domainrelation.CategoryDelivery,
+			Type:      target.edgeType,
+			Order:     item.Order,
+			Status:    semanticRelationStatus(item.Status),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) ListExportRecords(ctx context.Context, filter ExportRecordFilter) ([]domainsemantic.ExportRecord, error) {
+	if filter.DeliveryVersionID > 0 {
+		return s.listExportRecordsFromRelations(ctx, filter)
+	}
 	return s.repo.ListExportRecords(ctx, filter)
+}
+
+func (s *Service) listExportRecordsFromRelations(ctx context.Context, filter ExportRecordFilter) ([]domainsemantic.ExportRecord, error) {
+	ids, err := s.relatedSourceIDs(ctx, deliveryExportsTargetFilter(filter.ProjectID, filter.DeliveryVersionID), "export_record")
+	if err != nil {
+		return nil, err
+	}
+	records := make([]domainsemantic.ExportRecord, 0, len(ids))
+	for _, id := range ids {
+		record, err := s.repo.LoadExportRecord(ctx, filter.ProjectID, entityIDString(id))
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(filter.Status) != "" && record.Status != strings.TrimSpace(filter.Status) {
+			continue
+		}
+		records = append(records, record)
+	}
+	return records, nil
 }
 
 func (s *Service) CreateExportRecord(ctx context.Context, projectID uint, input ExportRecordInput) (domainsemantic.ExportRecord, error) {
@@ -194,7 +403,20 @@ func (s *Service) CreateExportRecord(ctx context.Context, projectID uint, input 
 		Error:             input.Error,
 		MetadataJSON:      input.MetadataJSON,
 	})
-	return s.repo.CreateExportRecord(ctx, item)
+	var created domainsemantic.ExportRecord
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateExportRecord(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertExportRecordRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchExportRecord(ctx context.Context, projectID uint, id string, input ExportRecordInput) (domainsemantic.ExportRecord, error) {
@@ -214,7 +436,54 @@ func (s *Service) PatchExportRecord(ctx context.Context, projectID uint, id stri
 		Error:             input.Error,
 		MetadataJSON:      input.MetadataJSON,
 	}
-	return s.repo.PatchExportRecord(ctx, item, patch)
+	var patched domainsemantic.ExportRecord
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchExportRecord(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertExportRecordRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertExportRecordRelations(ctx context.Context, item domainsemantic.ExportRecord) error {
+	for _, edgeType := range []string{domainrelation.TypeExports, domainrelation.TypeProduces} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryDelivery,
+			Type:      edgeType,
+			Source:    domainrelation.NewEntityRef("export_record", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("export_record", item.ID),
+		Target:    domainrelation.NewEntityRef("delivery_version", item.DeliveryVersionID),
+		Category:  domainrelation.CategoryDelivery,
+		Type:      domainrelation.TypeExports,
+		Status:    semanticRelationStatus(item.Status),
+	}); err != nil {
+		return err
+	}
+	if item.ResourceID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("export_record", item.ID),
+			Target:    domainrelation.NewEntityRef("raw_resource", *item.ResourceID),
+			Category:  domainrelation.CategoryDelivery,
+			Type:      domainrelation.TypeProduces,
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 func (s *Service) ListCanvasOutputs(ctx context.Context, filter CanvasOutputFilter) ([]domainsemantic.CanvasOutput, error) {
@@ -240,7 +509,20 @@ func (s *Service) CreateCanvasOutput(ctx context.Context, projectID uint, input 
 		Status:       input.Status,
 		MetadataJSON: input.MetadataJSON,
 	})
-	return s.repo.CreateCanvasOutput(ctx, item)
+	var created domainsemantic.CanvasOutput
+	err := s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		created, err = txSvc.repo.CreateCanvasOutput(ctx, item)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCanvasOutputRelations(ctx, created)
+	})
+	if err != nil {
+		return created, err
+	}
+	return created, nil
 }
 
 func (s *Service) PatchCanvasOutput(ctx context.Context, projectID uint, id string, input CanvasOutputInput) (domainsemantic.CanvasOutput, error) {
@@ -265,7 +547,56 @@ func (s *Service) PatchCanvasOutput(ctx context.Context, projectID uint, id stri
 		Status:       input.Status,
 		MetadataJSON: input.MetadataJSON,
 	}
-	return s.repo.PatchCanvasOutput(ctx, item, patch)
+	var patched domainsemantic.CanvasOutput
+	err = s.repo.WithTx(ctx, func(txRepo repository) error {
+		txSvc := s.withRepository(txRepo)
+		var err error
+		patched, err = txSvc.repo.PatchCanvasOutput(ctx, item, patch)
+		if err != nil {
+			return err
+		}
+		return txSvc.upsertCanvasOutputRelations(ctx, patched)
+	})
+	if err != nil {
+		return patched, err
+	}
+	return patched, nil
+}
+
+func (s *Service) upsertCanvasOutputRelations(ctx context.Context, item domainsemantic.CanvasOutput) error {
+	for _, edgeType := range []string{domainrelation.TypeAppliesTo, domainrelation.TypeProduces} {
+		if err := s.relations.ExpireEdges(ctx, relationapp.EdgeFilter{
+			ProjectID: item.ProjectID,
+			Category:  domainrelation.CategoryWorkflow,
+			Type:      edgeType,
+			Source:    domainrelation.NewEntityRef("canvas_output", item.ID),
+		}); err != nil {
+			return err
+		}
+	}
+	if err := s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+		ProjectID: item.ProjectID,
+		Source:    domainrelation.NewEntityRef("canvas_output", item.ID),
+		Target:    domainrelation.NewEntityRef(item.OwnerType, item.OwnerID),
+		Category:  domainrelation.CategoryWorkflow,
+		Type:      domainrelation.TypeAppliesTo,
+		Label:     strings.TrimSpace(item.OutputType),
+		Status:    semanticRelationStatus(item.Status),
+	}); err != nil {
+		return err
+	}
+	if item.ResourceID != nil {
+		return s.upsertRelationEdge(ctx, relationapp.EdgeInput{
+			ProjectID: item.ProjectID,
+			Source:    domainrelation.NewEntityRef("canvas_output", item.ID),
+			Target:    domainrelation.NewEntityRef("raw_resource", *item.ResourceID),
+			Category:  domainrelation.CategoryWorkflow,
+			Type:      domainrelation.TypeProduces,
+			Label:     strings.TrimSpace(item.OutputType),
+			Status:    semanticRelationStatus(item.Status),
+		})
+	}
+	return nil
 }
 
 func (s *Service) validateDeliveryTimelineItemOwners(ctx context.Context, projectID uint, input DeliveryTimelineItemInput) error {

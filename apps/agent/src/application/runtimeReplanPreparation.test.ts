@@ -3,6 +3,7 @@ import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
 import type { AgentPlan, AgentRun, AgentTask, UpdatePlanTaskInput } from '../state/types.js'
 import {
+  applyRuntimeReplanRunRequest,
   applyRuntimeReplanTaskChanges,
   finalizeRuntimeReplan,
   prepareRuntimeReplan,
@@ -162,6 +163,52 @@ test('finalizeRuntimeReplan can skip dispatch', () => {
 
   assert.deepEqual(calls, ['recompute:plan_1'])
   assert.equal(result.dispatch, undefined)
+})
+
+test('applyRuntimeReplanRunRequest applies creates, updates, resets, and finalizes once', () => {
+  const store = new InMemoryAgentStore()
+  store.createPlan(makePlan({ id: 'plan_1' }))
+  store.createRun(makeRun({ id: 'run_planner', role: 'planner', planId: 'plan_1' }))
+  store.createTask(makeTask({ id: 'task_existing', title: 'Existing' }))
+  store.createTask(makeTask({ id: 'task_blocked', status: 'blocked', blockedReason: 'Needs revision' }))
+  const calls: string[] = []
+
+  const result = applyRuntimeReplanRunRequest({
+    store,
+    runId: 'run_planner',
+    replanInput: {
+      dispatch: false,
+      addTasks: [{ id: 'task_created', title: 'Created' }],
+      updates: [{ id: 'task_existing', title: 'Updated' }],
+      resetBlocked: true,
+    },
+    now: '2026-01-01T00:00:01.000Z',
+    resetNow: '2026-01-01T00:00:02.000Z',
+    updateTask: (taskId, update) => {
+      calls.push(`update:${taskId}:${String(update.title ?? update.status ?? 'metadata')}`)
+      return applyTaskUpdate(store, taskId, update)
+    },
+    recomputePlan: (planId) => calls.push(`recompute:${planId}`),
+    dispatchPlan: () => {
+      throw new Error('dispatch should not be called')
+    },
+    onTaskCreated: (task) => calls.push(`created:${task.id}`),
+    onTaskReset: (task, previousTask) => calls.push(`reset:${previousTask.status}->${task.status}:${task.id}`),
+  })
+
+  assert.deepEqual(calls, [
+    'created:task_created',
+    'update:task_existing:Updated',
+    'reset:blocked->pending:task_blocked',
+    'recompute:plan_1',
+  ])
+  assert.deepEqual(result.createdTaskIds, ['task_created'])
+  assert.deepEqual(result.updatedTaskIds, ['task_existing'])
+  assert.deepEqual(result.resetTaskIds, ['task_blocked'])
+  assert.equal(result.dispatch, undefined)
+  assert.equal(store.getTask('task_created')?.title, 'Created')
+  assert.equal(store.getTask('task_existing')?.title, 'Updated')
+  assert.equal(store.getTask('task_blocked')?.status, 'pending')
 })
 
 function makePlan(overrides: Partial<AgentPlan> = {}): AgentPlan {

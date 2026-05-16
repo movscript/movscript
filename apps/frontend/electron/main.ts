@@ -1,10 +1,12 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { getBackendLaunchPolicy, getBackendStatus, LOCAL_BACKEND_URL, type BackendStatus, startBackend, stopBackend } from './backend'
 import { ensureAgentRuntimeRunning, getAgentRuntimeLaunchPolicy, setAgentRuntimeAPIBaseURL, stopAgentRuntime } from './agentRuntime'
 import { getMCPServerStatus, setMCPAPIBaseURL, startMCPServer, stopMCPServer, updateMCPContextSnapshot } from './mcp/server'
 import type { MCPContextSnapshot } from './mcp/types'
+import { clipVideo, getVideoClipStatus, type VideoClipInput } from './videoClip'
+import { resolveAdminConsoleURL } from './adminConsole'
 
 function resolvePreloadPath(): string {
   const jsPath = join(__dirname, '../preload/index.js')
@@ -167,6 +169,12 @@ ipcMain.handle('backend:get-status', () => {
   return getBackendStatus()
 })
 
+ipcMain.handle('app:open-admin-console', async (_e, input?: { baseURL?: string; path?: string }) => {
+  const url = resolveAdminConsoleURL(input)
+  await shell.openExternal(url)
+  return { url }
+})
+
 ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; launchMode?: 'cloud' | 'local' }) => {
   if (settings?.launchMode === 'local') {
     broadcastBackendStatus({ state: 'starting', baseURL: LOCAL_BACKEND_URL })
@@ -186,4 +194,12 @@ ipcMain.handle('app:set-settings', async (_e, settings?: { apiBaseURL?: string; 
 ipcMain.handle('agent:ensure-running', async (_e, input?: { baseURL?: string }) => {
   await ensureMCPServerReady()
   return ensureAgentRuntimeRunning(input)
+})
+
+ipcMain.handle('video:clip', async (_e, input: VideoClipInput) => {
+  return clipVideo({ ...input, sourcePath: undefined })
+})
+
+ipcMain.handle('video:clip-status', async () => {
+  return getVideoClipStatus()
 })

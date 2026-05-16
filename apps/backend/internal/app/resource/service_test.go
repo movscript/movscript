@@ -90,6 +90,7 @@ func TestDeleteResourceDeletesBindingsAndRelationsWithoutHooks(t *testing.T) {
 	}
 	if err := db.Model(&model.EntityRelation{}).
 		Where("source_type = ? AND source_id = ? AND target_type = ? AND target_id = ?", "asset_slot", slot.ID, "raw_resource", resource.ID).
+		Where("valid_to IS NULL").
 		Count(&count).Error; err != nil {
 		t.Fatalf("count relations: %v", err)
 	}
