@@ -1,4 +1,5 @@
 import type { AgentPlanSnapshot, AgentPlanStatus, AgentRun, AgentTask } from './localAgentClient'
+import { agentPlanStatusLabel, runStatusLabel } from './agentRunUi'
 
 const STOPPABLE_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['queued', 'in_progress', 'requires_action'])
 const TERMINAL_AGENT_RUN_STATUSES = new Set<AgentRun['status']>(['completed', 'completed_with_warnings', 'failed', 'cancelled'])
@@ -189,17 +190,30 @@ export function buildPlanStatusExplanation(snapshot: AgentPlanSnapshot): string 
   const activeRuns = snapshot.summary?.activeWorkerCount ?? activeWorkerRunCount(snapshot)
   const nameConflictCount = snapshot.summary?.nameConflictCount ?? nameConflicts.length
   const parts: string[] = []
-  if (nameConflictCount > 0) parts.push(`${nameConflictCount} subagent name conflict${nameConflictCount === 1 ? '' : 's'}`)
-  if (activeRuns > 0) parts.push(`${activeRuns} active worker${activeRuns === 1 ? '' : 's'}`)
-  if (counts.blocked > 0) parts.push(`${counts.blocked} blocked`)
-  if (counts.needs_review > 0) parts.push(`${counts.needs_review} needs review`)
-  if (counts.failed > 0) parts.push(`${counts.failed} failed`)
-  if (counts.cancelled > 0) parts.push(`${counts.cancelled} cancelled`)
-  if (counts.pending > 0) parts.push(`${counts.pending} pending`)
+  if (nameConflictCount > 0) parts.push(`${nameConflictCount} 个子代理重名`)
+  if (activeRuns > 0) parts.push(`${activeRuns} 个执行器运行中`)
+  if (counts.blocked > 0) parts.push(`${counts.blocked} 个被阻塞`)
+  if (counts.needs_review > 0) parts.push(`${counts.needs_review} 个待复核`)
+  if (counts.failed > 0) parts.push(`${counts.failed} 个失败`)
+  if (counts.cancelled > 0) parts.push(`${counts.cancelled} 个已取消`)
+  if (counts.pending > 0) parts.push(`${counts.pending} 个待开始`)
   if (parts.length > 0) return parts.join(' · ')
-  if (snapshot.tasks.length > 0 && counts.done === snapshot.tasks.length) return 'All tasks completed.'
-  if (snapshot.tasks.length === 0) return 'No plan tasks yet.'
-  return snapshot.plan.status.replace(/_/g, ' ')
+  if (snapshot.tasks.length > 0 && counts.done === snapshot.tasks.length) return '所有任务已完成。'
+  if (snapshot.tasks.length === 0) return '还没有计划任务。'
+  return agentPlanStatusLabel(snapshot.plan.status)
+}
+
+export function agentTaskStatusLabel(status: AgentTask['status'] | undefined): string {
+  switch (status) {
+    case 'pending': return '待开始'
+    case 'running': return '执行中'
+    case 'blocked': return '被阻塞'
+    case 'needs_review': return '待复核'
+    case 'done': return '已完成'
+    case 'failed': return '失败'
+    case 'cancelled': return '已取消'
+    default: return status ? `未知任务状态 (${status})` : '-'
+  }
 }
 
 export function buildPlanTaskViews(snapshot: AgentPlanSnapshot): AgentPlanTaskView[] {
@@ -274,15 +288,15 @@ function taskStatusExplanation(input: {
   pendingApprovalCount: number
   blocker?: string
 }): string {
-  if (input.pendingInputCount > 0) return `Waiting for ${input.pendingInputCount} user input${input.pendingInputCount === 1 ? '' : 's'}.`
-  if (input.pendingApprovalCount > 0) return `Waiting for ${input.pendingApprovalCount} approval${input.pendingApprovalCount === 1 ? '' : 's'}.`
-  if (input.task.status === 'blocked') return input.blocker ? `Blocked: ${input.blocker}` : 'Blocked until planner resolves the next step.'
-  if (input.task.status === 'needs_review') return 'Waiting for planner or user review.'
-  if (input.task.status === 'running') return input.ownerRun ? `Worker run ${input.ownerRun.status.replace(/_/g, ' ')}.` : 'Worker is running.'
-  if (input.task.status === 'failed') return input.blocker ? `Failed: ${input.blocker}` : 'Worker task failed.'
-  if (input.task.status === 'cancelled') return input.blocker ? `Cancelled: ${input.blocker}` : 'Worker task was cancelled.'
-  if (input.task.status === 'done') return 'Task completed.'
-  return 'Ready when dependencies and worker capacity allow.'
+  if (input.pendingInputCount > 0) return `等待 ${input.pendingInputCount} 个用户输入。`
+  if (input.pendingApprovalCount > 0) return `等待 ${input.pendingApprovalCount} 个审批。`
+  if (input.task.status === 'blocked') return input.blocker ? `被阻塞：${input.blocker}` : '等待规划器解决下一步。'
+  if (input.task.status === 'needs_review') return '等待规划器或用户复核。'
+  if (input.task.status === 'running') return input.ownerRun ? `执行器状态：${runStatusLabel(input.ownerRun.status)}。` : '执行器正在执行。'
+  if (input.task.status === 'failed') return input.blocker ? `失败：${input.blocker}` : '执行器任务失败。'
+  if (input.task.status === 'cancelled') return input.blocker ? `已取消：${input.blocker}` : '执行器任务已取消。'
+  if (input.task.status === 'done') return '任务已完成。'
+  return '依赖满足且执行器有容量后即可开始。'
 }
 
 function formatWorkerView(run: AgentRun): AgentPlanWorkerView {

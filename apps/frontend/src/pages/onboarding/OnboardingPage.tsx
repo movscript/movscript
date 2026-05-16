@@ -8,6 +8,7 @@ import { APP_SETTINGS_STORAGE_KEY, getDefaultAPIBaseURL, getLocalAPIBaseURL, nor
 import { translateApiError } from '@/lib/apiError'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { type AuthSession, useUserStore } from '@/store/userStore'
+import { ROUTES } from '@/routes/projectRoutes'
 
 type Mode = 'local' | 'cloud'
 
@@ -76,7 +77,7 @@ export default function OnboardingPage() {
         localDisplayName: displayName.trim(),
         onboardingCompleted: true,
       })
-      navigate('/projects', { replace: true })
+      navigate(ROUTES.projects, { replace: true })
     } catch (err: any) {
       setError(translateApiError(err.response?.data, 'onboarding.localFailed'))
     } finally {
@@ -94,7 +95,7 @@ export default function OnboardingPage() {
       launchMode: 'cloud',
       apiBaseURL: normalizedCloudURL,
     })
-    navigate('/', { replace: true })
+    navigate(ROUTES.root, { replace: true })
     window.location.reload()
   }
 

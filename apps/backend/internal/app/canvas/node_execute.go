@@ -223,7 +223,8 @@ func (h *Service) collectSingleNodeInputsModel(ctx context.Context, user *persis
 }
 
 func (h *Service) latestCanvasNodeOutputValue(ctx context.Context, user *persistencemodel.User, cv persistencemodel.Canvas, node *persistencemodel.CanvasNode, sourceHandle string) (canvasPortValue, bool) {
-	handle := strings.TrimSpace(sourceHandle)
+	requestedHandle := strings.TrimSpace(sourceHandle)
+	handle := requestedHandle
 	var nd nodeData
 	_ = json.Unmarshal([]byte(node.Data), &nd)
 	if handle == "" {
@@ -238,6 +239,9 @@ func (h *Service) latestCanvasNodeOutputValue(ctx context.Context, user *persist
 					if value, ok := outputs[key]; ok && !canvasruntime.PortValueEmpty(value) {
 						return value, true
 					}
+				}
+				if !canFallbackCanvasOutput(requestedHandle, outputs) {
+					return canvasPortValue{}, false
 				}
 				for _, value := range outputs {
 					if !canvasruntime.PortValueEmpty(value) {
@@ -258,6 +262,9 @@ func (h *Service) latestCanvasNodeOutputValue(ctx context.Context, user *persist
 				return value, true
 			}
 		}
+		if !canFallbackCanvasOutput(requestedHandle, outputs) {
+			return canvasPortValue{}, false
+		}
 		for _, value := range outputs {
 			if !canvasruntime.PortValueEmpty(value) {
 				return value, true
@@ -272,6 +279,9 @@ func (h *Service) latestCanvasNodeOutputValue(ctx context.Context, user *persist
 	if value, ok := outputs[""]; ok && !canvasruntime.PortValueEmpty(value) {
 		return value, true
 	}
+	if !canFallbackCanvasOutput(requestedHandle, outputs) {
+		return canvasPortValue{}, false
+	}
 	for _, value := range outputs {
 		if !canvasruntime.PortValueEmpty(value) {
 			return value, true
@@ -279,6 +289,23 @@ func (h *Service) latestCanvasNodeOutputValue(ctx context.Context, user *persist
 	}
 	_ = cv
 	return canvasPortValue{}, false
+}
+
+func canFallbackCanvasOutput(requestedHandle string, outputs map[string]canvasPortValue) bool {
+	if strings.TrimSpace(requestedHandle) == "" {
+		return true
+	}
+	count := 0
+	for key, value := range outputs {
+		if strings.TrimSpace(key) == "" || canvasruntime.PortValueEmpty(value) {
+			continue
+		}
+		count++
+		if count > 1 {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *Service) staticNodeOutputs(_ context.Context, node *persistencemodel.CanvasNode, nd nodeData) map[string]canvasPortValue {

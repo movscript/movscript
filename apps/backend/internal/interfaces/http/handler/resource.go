@@ -19,12 +19,13 @@ import (
 )
 
 type ResourceHandler struct {
-	store   storage.Storage
-	service *appresource.Service
+	store          storage.Storage
+	service        *appresource.Service
+	maxUploadBytes int64
 }
 
-func NewResourceHandler(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, cacheStore ...cache.Cache) *ResourceHandler {
-	return &ResourceHandler{store: store, service: appresource.NewService(db, store, verifier, cacheStore...)}
+func NewResourceHandler(db *gorm.DB, store storage.Storage, verifier ai.ImageVerificationClient, maxUploadBytes int64, cacheStore ...cache.Cache) *ResourceHandler {
+	return &ResourceHandler{store: store, service: appresource.NewService(db, store, verifier, cacheStore...), maxUploadBytes: maxUploadBytes}
 }
 
 // List returns the current user's resources.
@@ -66,15 +67,26 @@ func (h *ResourceHandler) Upload(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
+	if h.maxUploadBytes > 0 {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, h.maxUploadBytes)
+	}
 
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
+		if uploadTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "file too large"})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file required"})
 		return
 	}
 	defer file.Close()
 	data, err := io.ReadAll(file)
 	if err != nil {
+		if uploadTooLarge(err) {
+			c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "file too large"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read file"})
 		return
 	}
@@ -94,6 +106,10 @@ func (h *ResourceHandler) Upload(c *gin.Context) {
 	}
 	h.populateResourceURL(c, &r)
 	c.JSON(http.StatusCreated, r)
+}
+
+func uploadTooLarge(err error) bool {
+	return err != nil && strings.Contains(strings.ToLower(err.Error()), "request body too large")
 }
 
 func (h *ResourceHandler) ServeFile(c *gin.Context) {

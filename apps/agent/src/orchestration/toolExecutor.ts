@@ -256,9 +256,6 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_create_draft') {
-    if (args.kind === 'content_unit_media_proposal' || args.proposalKind === 'content_unit_media_proposal') {
-      throw new Error('content_unit_media_proposal is deprecated and cannot be created. Use content_unit_proposal for structure or visual_generation for keyframe, shot, image, or video generation.')
-    }
     if (args.proposal === true || args.proposalKind !== undefined) {
       return createProposalDraft(draftStore, run, args) as unknown as JSONValue
     }
@@ -545,7 +542,6 @@ function normalizeProposalDraftKind(value: JSONValue | undefined): AgentDraftKin
     || value === 'setting_proposal'
     || value === 'script'
     || value === 'asset_slot'
-    || value === 'storyboard_line'
     || value === 'content_unit'
     || value === 'prompt'
     || value === 'note'
@@ -904,7 +900,7 @@ async function previewDraftApply(
       message: 'Draft failed local validation. Update the draft and preview again.',
     } as unknown as JSONValue
   }
-  if (draft.kind === 'asset_proposal' || draft.kind === 'content_unit_proposal' || draft.kind === 'content_unit_media_proposal' || draft.kind === 'script_split_proposal') {
+  if (draft.kind === 'asset_proposal' || draft.kind === 'content_unit_proposal' || draft.kind === 'script_split_proposal') {
     return {
       ok: true,
       stage: 'local_validation',
@@ -950,7 +946,6 @@ function isDraftKind(value: JSONValue | undefined): value is AgentDraftKind {
     || value === 'script_split_proposal'
     || value === 'script'
     || value === 'asset_slot'
-    || value === 'storyboard_line'
     || value === 'content_unit'
     || value === 'prompt'
     || value === 'note'
@@ -961,7 +956,6 @@ function isDraftKind(value: JSONValue | undefined): value is AgentDraftKind {
     || value === 'project_proposal'
     || value === 'production_proposal'
     || value === 'content_unit_proposal'
-    || value === 'content_unit_media_proposal'
 }
 
 function isDraftStatus(value: JSONValue | undefined): value is AgentDraftStatus {

@@ -15,6 +15,7 @@ type Event struct {
 	Action     string
 	TargetType string
 	TargetID   string
+	OrgID      *uint
 	ProjectID  *uint
 	ActorID    *uint
 	Metadata   map[string]any
@@ -56,6 +57,7 @@ func Record(c *gin.Context, db *gorm.DB, event Event) {
 		Action:     event.Action,
 		TargetType: event.TargetType,
 		TargetID:   event.TargetID,
+		OrgID:      event.OrgID,
 		ProjectID:  event.ProjectID,
 		IPAddress:  c.ClientIP(),
 		UserAgent:  c.Request.UserAgent(),

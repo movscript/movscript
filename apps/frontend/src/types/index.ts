@@ -502,7 +502,6 @@ export type ResourceBindingOwnerType =
   | 'segment'
   | 'scene_moment'
   | 'storyboard_script'
-  | 'storyboard_line'
   | 'content_unit'
   | 'keyframe'
   | 'delivery_version'

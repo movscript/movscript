@@ -2,12 +2,11 @@ package auth
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -47,12 +46,5 @@ func TestGormRepositoryUpdateUserPersistsUpdateSpecZeroValues(t *testing.T) {
 
 func openAuthRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "auth_repository.db")), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.User{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testutil.OpenSQLite(t, "auth_repository.db", &model.User{})
 }

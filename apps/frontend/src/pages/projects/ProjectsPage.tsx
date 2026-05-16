@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
+import { ROUTES } from '@/routes/projectRoutes'
 
 type ProjectStatus = 'planning' | 'script_analysis' | 'asset_prep' | 'production' | 'editing' | 'done'
 
@@ -52,9 +53,6 @@ interface ProjectProgress {
   segments: number
   asset_slots: number
   members: number
-  storyboard_lines: {
-    total: number
-  }
   content_units: ContentUnitProgress
   keyframes: {
     accepted: number
@@ -261,7 +259,7 @@ export default function ProjectsPage() {
     onSuccess: (newProject: Project) => {
       qc.invalidateQueries({ queryKey: ['projects'] })
       setCurrent(newProject)
-      navigate('/project-home')
+      navigate(ROUTES.project.overview)
     },
   })
 
@@ -285,7 +283,7 @@ export default function ProjectsPage() {
 
   function handleOpen(p: Project) {
     setCurrent(p)
-    navigate('/project-home')
+    navigate(ROUTES.project.overview)
   }
 
   return (

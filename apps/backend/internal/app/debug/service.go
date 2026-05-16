@@ -7,7 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	neturl "net/url"
+	"strings"
 	"time"
 
 	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
@@ -35,6 +38,17 @@ func NewService(db *gorm.DB, encryptionKey ...[]byte) *Service {
 type JobPage struct {
 	Items []domainjob.Job
 	Total int64
+}
+
+type JobStatusCount struct {
+	Status string `json:"status"`
+	Count  int64  `json:"count"`
+}
+
+type JobStats struct {
+	Total        int64            `json:"total"`
+	ByStatus     []JobStatusCount `json:"by_status"`
+	RecentFailed []JobDetail      `json:"recent_failed"`
 }
 
 type RawCallInput struct {
@@ -107,6 +121,9 @@ func (s *Service) RawCall(ctx context.Context, input RawCallInput) RawCallResult
 }
 
 func doRawHTTP(ctx context.Context, method, url string, headers map[string]string, body string) RawCallResult {
+	if err := validateRawCallURL(ctx, url); err != nil {
+		return RawCallResult{URL: url, Method: method, Error: err.Error()}
+	}
 	var bodyReader io.Reader
 	if body != "" {
 		bodyReader = bytes.NewBufferString(body)
@@ -132,7 +149,11 @@ func doRawHTTP(ctx context.Context, method, url string, headers map[string]strin
 	}
 
 	start := time.Now()
-	resp, err := http.DefaultClient.Do(req)
+	client := *http.DefaultClient
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return validateRawCallURL(req.Context(), req.URL.String())
+	}
+	resp, err := client.Do(req)
 	latency := time.Since(start).Milliseconds()
 	if err != nil {
 		return RawCallResult{URL: url, Method: method, RequestHeaders: reqHeaders,
@@ -152,6 +173,56 @@ func doRawHTTP(ctx context.Context, method, url string, headers map[string]strin
 	}
 }
 
+func validateRawCallURL(ctx context.Context, rawURL string) error {
+	return validateDebugOutboundURL(ctx, rawURL, "raw call URL")
+}
+
+func validateDebugOutboundURL(ctx context.Context, rawURL string, label string) error {
+	parsed, err := neturl.Parse(rawURL)
+	if err != nil {
+		return err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("%s scheme must be http or https", label)
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		return fmt.Errorf("%s host is required", label)
+	}
+	normalizedHost := strings.ToLower(strings.TrimSuffix(host, "."))
+	if normalizedHost == "localhost" || strings.HasSuffix(normalizedHost, ".localhost") {
+		return fmt.Errorf("%s host is not allowed", label)
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if blockedDebugIP(ip) {
+			return fmt.Errorf("%s host is not allowed", label)
+		}
+		return nil
+	}
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return err
+	}
+	if len(addrs) == 0 {
+		return fmt.Errorf("%s host could not be resolved", label)
+	}
+	for _, addr := range addrs {
+		if blockedDebugIP(addr.IP) {
+			return fmt.Errorf("%s host is not allowed", label)
+		}
+	}
+	return nil
+}
+
+func blockedDebugIP(ip net.IP) bool {
+	return ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() ||
+		ip.IsUnspecified()
+}
+
 func maskHeader(v string) string {
 	if len(v) > 12 {
 		return v[:7] + "..." + v[len(v)-4:]
@@ -160,11 +231,28 @@ func maskHeader(v string) string {
 }
 
 func (s *Service) ProviderCall(ctx context.Context, input ProviderCallInput) ai.DebugCallResult {
+	baseURL := strings.TrimSpace(input.BaseURL)
+	if baseURL == "" {
+		if def := ai.GetAdapterDef(input.AdapterType); def != nil {
+			baseURL = def.DefaultBaseURL
+		}
+	}
+	if baseURL != "" {
+		if err := validateDebugOutboundURL(ctx, baseURL, "provider base_url"); err != nil {
+			return ai.DebugCallResult{ModelID: input.Model, Error: err.Error()}
+		}
+	}
+	endpointURL := strings.TrimSpace(input.EndpointURL)
+	if endpointURL != "" {
+		if err := validateDebugOutboundURL(ctx, endpointURL, "provider endpoint_url"); err != nil {
+			return ai.DebugCallResult{ModelID: input.Model, Error: err.Error()}
+		}
+	}
 	return ai.ProviderDebugCall(ctx, ai.ProviderDebugCallRequest{
 		AdapterType: input.AdapterType,
-		BaseURL:     input.BaseURL,
+		BaseURL:     baseURL,
 		APIKey:      input.APIKey,
-		EndpointURL: input.EndpointURL,
+		EndpointURL: endpointURL,
 		Capability:  input.Capability,
 		Model:       input.Model,
 		Prompt:      input.Prompt,
@@ -185,6 +273,20 @@ func (s *Service) ListJobDetails(ctx context.Context, status string, limit, offs
 	return jobDetails(page.Items), page.Total, nil
 }
 
+func (s *Service) JobStats(ctx context.Context, recentLimit int) (JobStats, error) {
+	if recentLimit <= 0 {
+		recentLimit = 10
+	}
+	if recentLimit > 50 {
+		recentLimit = 50
+	}
+	stats, err := s.repo.JobStats(ctx, recentLimit)
+	if err != nil {
+		return stats, err
+	}
+	return stats, nil
+}
+
 func (s *Service) GetJob(ctx context.Context, id string) (domainjob.Job, error) {
 	return s.repo.GetJob(ctx, id)
 }
@@ -198,6 +300,10 @@ func (s *Service) GetJobDetail(ctx context.Context, id string) (JobDetail, error
 }
 
 func jobDetails(jobs []domainjob.Job) []JobDetail {
+	return jobDetailsFromJobs(jobs)
+}
+
+func jobDetailsFromJobs(jobs []domainjob.Job) []JobDetail {
 	out := make([]JobDetail, 0, len(jobs))
 	for _, job := range jobs {
 		out = append(out, jobDetail(job))

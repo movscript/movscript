@@ -2,13 +2,12 @@ package resourcebinding
 
 import (
 	"context"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -175,21 +174,14 @@ func TestCreateAndDeleteBindingSyncsRelationsWithoutHooks(t *testing.T) {
 
 func newResourceBindingTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "resource_binding.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "resource_binding.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
+	},
 		&model.EntityRelation{},
 		&model.AssetSlot{},
 		&model.ResourceBinding{},
 		&model.RawResource{},
-	); err != nil {
-		t.Fatalf("migrate resource binding db: %v", err)
-	}
-	return db
+	)
 }
 
 func assertResourceBindingRelationExists(t *testing.T, db *gorm.DB, marker string, id uint) {

@@ -12,6 +12,8 @@ import {
 } from './bootstrap/agentServerContext.js'
 import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
 import type { JSONValue } from './types.js'
+import type { AgentTraceQuery } from './state/store.js'
+import type { AgentTraceEventKind } from './state/types.js'
 
 interface AgentRequestListenerOptions {
   onShutdownRequest?: () => void | Promise<void>
@@ -383,10 +385,12 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runTraceMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace$/)
       if (runTraceMatch && req.method === 'GET') {
-        writeJSON(res, 200, {
-          runId: runTraceMatch[1],
-          events: context.agentRuntime.getRunTraceEvents(runTraceMatch[1], normalizeTraceQuery(url)),
-        })
+        const traceQuery = normalizeTraceQuery(url)
+        if (!traceQuery.ok) {
+          writeJSON(res, 400, { error: traceQuery.error })
+          return
+        }
+        writeJSON(res, 200, context.agentRuntime.getRunTracePage(runTraceMatch[1], traceQuery.query))
         return
       }
 
@@ -766,16 +770,39 @@ function writeSSE(res: ServerResponse, eventName: string, value: unknown): void 
   res.write('\n')
 }
 
-function normalizeTraceQuery(url: URL): { cursor?: string; limit?: number; kind?: any } {
+const AGENT_TRACE_EVENT_KINDS = new Set<AgentTraceEventKind>([
+  'run',
+  'thread',
+  'message',
+  'context',
+  'memory',
+  'manifest',
+  'skill',
+  'tool_catalog',
+  'prompt',
+  'policy',
+  'reasoning',
+  'tool_call',
+  'model_call',
+  'approval',
+  'input',
+  'assistant',
+  'task',
+  'plan',
+  'error',
+])
+
+export function normalizeTraceQuery(url: URL): { ok: true; query: AgentTraceQuery } | { ok: false; error: string } {
   const cursor = url.searchParams.get('cursor')
   const limitRaw = url.searchParams.get('limit')
   const kind = url.searchParams.get('kind')
   const limit = limitRaw !== null ? Number(limitRaw) : undefined
-  return {
+  if (kind && !AGENT_TRACE_EVENT_KINDS.has(kind as AgentTraceEventKind)) return { ok: false, error: `invalid trace kind: ${kind}` }
+  return { ok: true, query: {
     ...(cursor ? { cursor } : {}),
     ...(Number.isFinite(limit) ? { limit } : {}),
-    ...(kind ? { kind } : {}),
-  }
+    ...(kind ? { kind: kind as AgentTraceEventKind } : {}),
+  } }
 }
 
 function setHeaders(res: ServerResponse): void {

@@ -40,7 +40,6 @@ function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
     'script_split_proposal',
     'script',
     'asset_slot',
-    'storyboard_line',
     'content_unit',
     'prompt',
     'note',
@@ -51,7 +50,6 @@ function normalizeDraftKind(value: unknown): AgentDraftKind | undefined {
     'project_proposal',
     'production_proposal',
     'content_unit_proposal',
-    'content_unit_media_proposal',
   ]
   return allowed.includes(normalized as AgentDraftKind) ? normalized as AgentDraftKind : undefined
 }

@@ -10,7 +10,7 @@ import { useAppSettingsStore } from './store/appSettingsStore'
 import { isBackendBootStatus, type BackendBootStatus } from './lib/backendBoot'
 import ProjectsPage from './pages/projects/ProjectsPage'
 import PreProductionPage from './pages/pre-production/PreProductionPage'
-import CollaborationPage from './pages/collaboration/CollaborationPage'
+import TasksPage from './pages/project/tasks/TasksPage'
 import AuthPage from './pages/AuthPage'
 import OnboardingPage from './pages/onboarding/OnboardingPage'
 import AppSettingsPage from './pages/app-settings/AppSettingsPage'
@@ -23,12 +23,10 @@ import StyleTransferPage from './pages/tools/StyleTransferPage'
 import MultiAnglePage from './pages/tools/MultiAnglePage'
 import VideoEditPage from './pages/tools/VideoEditPage'
 import BrainstormPage from './pages/tools/BrainstormPage'
-import SmartStoryboardPage from './pages/tools/SmartStoryboardPage'
-import CreativeReferencesPage from './pages/creative-references/CreativeReferencesPage'
 import ReferenceRelationsPage from './pages/reference-relations/ReferenceRelationsPage'
-import ProductionFramePage from './pages/production/ProductionFramePage'
-import ProductionOrchestratePage from './pages/production/ProductionOrchestratePage'
-import ContentsPage from './pages/contents/ContentsPage'
+import ProductionPage from './pages/project/production/ProductionPage'
+import ProductionOrchestrationPage from './pages/project/production/ProductionOrchestrationPage'
+import ContentUnitsPage from './pages/project/content-units/ContentUnitsPage'
 import UserProfilePage from './pages/user/UserProfilePage'
 import OrgSelectPage from './pages/org/OrgSelectPage'
 import OrgSettingsPage from './pages/org/OrgSettingsPage'
@@ -37,14 +35,14 @@ import ResourcesPage from './pages/resources/ResourcesPage'
 import JobsPage from './pages/jobs/JobsPage'
 import ClientPluginsPage from './pages/plugins/ClientPluginsPage'
 import PluginToolPage from './pages/plugins/PluginToolPage'
-import ProjectHomePage from './pages/project-home/ProjectHomePage'
-import ProjectOrchestrationPage from './pages/project-workspace/ProjectWorkspacePage'
+import ProjectOverviewPage from './pages/project/overview/ProjectOverviewPage'
+import ProjectStandardsPage from './pages/project/standards/ProjectStandardsPage'
 import WorkbenchPage from './pages/workbench/WorkbenchPage'
 import ScriptsPage from './pages/scripts/ScriptsPage'
 import SegmentsPage from './pages/segments/SegmentsPage'
 import SceneMomentsPage from './pages/scene-moments/SceneMomentsPage'
-import FinalVideosPage from './pages/final-videos/FinalVideosPage'
-import FinalVideosWorkspacePage from './pages/final-videos/FinalVideosWorkspacePage'
+import DeliveryPage from './pages/project/delivery/DeliveryPage'
+import DeliveryWorkbenchPage from './pages/project/delivery/DeliveryWorkbenchPage'
 import AIDraftsPage from './pages/agent/AIDraftsPage'
 import AIAgentRunPage from './pages/agent/AIAgentRunPage'
 import AIAgentDebugPage from './pages/agent/AIAgentDebugPage'
@@ -53,6 +51,7 @@ import i18n from './i18n'
 import { MCPContextBridge } from './mcp/MCPContextBridge'
 import { Loader2 } from 'lucide-react'
 import { runtimeRoutes } from '@runtime'
+import { LEGACY_ROUTES, ROUTES, mergeSearch, withSearch } from './routes/projectRoutes'
 
 // ── Error boundary ───────────────────────────────────────────────────────────
 
@@ -151,7 +150,7 @@ function ProjectGuard({ children }: { children: React.ReactNode }) {
   const current = useProjectStore((s) => s.current)
   const hydrated = useProjectStore((s) => s.hydrated)
   if (!hydrated) return <LoadingScreen />
-  if (!current) return <Navigate to="/projects" replace />
+  if (!current) return <Navigate to={ROUTES.projects} replace />
   return <>{children}</>
 }
 
@@ -162,7 +161,7 @@ function OrgAdminGuard({ children }: { children: React.ReactNode }) {
   if (!hydrated) return <LoadingScreen fullScreen />
   const membership = memberships.find((m) => m.org_id === currentOrgID)
   if (!membership || !['owner', 'admin'].includes(membership.role)) {
-    return <Navigate to="/projects" replace />
+    return <Navigate to={ROUTES.projects} replace />
   }
   return <>{children}</>
 }
@@ -173,7 +172,7 @@ function OrgGuard({ children }: { children: React.ReactNode }) {
   const memberships = useUserStore((s) => s.orgMemberships)
   if (!hydrated) return <LoadingScreen fullScreen />
   const currentMembership = memberships.find((m) => m.org_id === currentOrgID)
-  if (!currentMembership) return <Navigate to="/org/select" replace />
+  if (!currentMembership) return <Navigate to={ROUTES.orgSelect} replace />
   return <>{children}</>
 }
 
@@ -183,17 +182,52 @@ function Padded({ children }: { children: React.ReactNode }) {
 
 function LegacyDeliveryWorkbenchRedirect() {
   const { search } = useLocation()
-  return <Navigate to={`/delivery/workbench${search}`} replace />
+  return <Navigate to={withSearch(ROUTES.project.deliveryWorkbench, search)} replace />
 }
 
 function LegacyContentUnitOrchestrateRedirect() {
   const { search } = useLocation()
-  return <Navigate to={`/content-unit-orchestrate${search}`} replace />
+  return <Navigate to={withSearch(ROUTES.project.contentUnitWorkbench, search)} replace />
 }
 
 function LegacyPreProductionRedirect() {
   const { search } = useLocation()
-  return <Navigate to={`/pre-production${search}`} replace />
+  return <Navigate to={withSearch(ROUTES.project.preProduction, search)} replace />
+}
+
+function LegacyPreProductionSettingsRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={mergeSearch(ROUTES.project.preProduction, search, { tab: 'settings' })} replace />
+}
+
+function LegacyPreProductionAssetsRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={mergeSearch(ROUTES.project.preProduction, search, { tab: 'assets' })} replace />
+}
+
+function LegacyProjectOverviewRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={withSearch(ROUTES.project.overview, search)} replace />
+}
+
+function LegacyProjectStandardsRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={withSearch(ROUTES.project.standards, search)} replace />
+}
+
+function LegacyProductionOrchestrationRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={withSearch(ROUTES.project.productionOrchestration, search)} replace />
+}
+
+function LegacyProductionPreviewRedirect() {
+  const { search } = useLocation()
+  return <Navigate to={withSearch(ROUTES.project.productionPreview, search)} replace />
+}
+
+function LegacyRedirect({ to }: { to: string }) {
+  const { search } = useLocation()
+  return <Navigate to={withSearch(to, search)} replace />
 }
 
 function ShellLayout({ children, requireOrg = true }: { children: React.ReactNode; requireOrg?: boolean }) {
@@ -260,8 +294,8 @@ export default function App() {
           <Toaster />
           <BackendBootOverlay />
           <Routes>
-            <Route path="/invite/:token" element={<InvitePage />} />
-            <Route path="/app/settings" element={<AppSettingsPage />} />
+            <Route path={ROUTES.invite} element={<InvitePage />} />
+            <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="*" element={onboardingCompleted ? <AuthPage /> : <Navigate to="/onboarding" replace />} />
           </Routes>
@@ -278,70 +312,84 @@ export default function App() {
         <BackendBootOverlay />
         <Routes>
           {/* Canvas editor is full-screen, no sidebar/header */}
-          <Route path="/canvases/:id" element={<CanvasEditorPage />} />
+          <Route path={ROUTES.canvasEditor} element={<CanvasEditorPage />} />
           {/* Org select - full-screen, no sidebar */}
-          <Route path="/org/select" element={<OrgSelectPage />} />
+          <Route path={ROUTES.orgSelect} element={<OrgSelectPage />} />
           {/* Invite page - accessible when logged in */}
-          <Route path="/invite/:token" element={<InvitePage />} />
-          <Route path="/app/settings" element={<AppSettingsPage />} />
+          <Route path={ROUTES.invite} element={<InvitePage />} />
+          <Route path={ROUTES.appSettings} element={<AppSettingsPage />} />
           {/* All other pages use the shell layout */}
           <Route path="*" element={
             <ShellLayout>
               <Routes>
-                <Route path="/" element={<Navigate to="/projects" replace />} />
-                <Route path="/projects" element={<Padded><ProjectsPage /></Padded>} />
-                <Route path="/admin/*" element={<Navigate to="/projects" replace />} />
+                <Route path={ROUTES.root} element={<Navigate to={ROUTES.projects} replace />} />
+                <Route path={ROUTES.projects} element={<Padded><ProjectsPage /></Padded>} />
+                <Route path="/admin/*" element={<Navigate to={ROUTES.projects} replace />} />
 
               {/* 项目模块（Master-Detail 布局，无 Padded 包装） */}
-              <Route path="/pre-production" element={<ProjectGuard><PreProductionPage /></ProjectGuard>} />
-              <Route path="/creative-references" element={<ProjectGuard><LegacyPreProductionRedirect /></ProjectGuard>} />
-              <Route path="/reference-relations" element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
-              <Route path="/asset-slots" element={<ProjectGuard><LegacyPreProductionRedirect /></ProjectGuard>} />
+              <Route path={ROUTES.project.preProduction} element={<ProjectGuard><PreProductionPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.preProduction} element={<ProjectGuard><LegacyPreProductionRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.creativeReferences} element={<ProjectGuard><LegacyPreProductionSettingsRedirect /></ProjectGuard>} />
+              <Route path={ROUTES.project.referenceRelations} element={<ProjectGuard><ReferenceRelationsPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.assetSlots} element={<ProjectGuard><LegacyPreProductionAssetsRedirect /></ProjectGuard>} />
 
               {/* 工具模块 */}
-              <Route path="/canvases" element={<Padded><CanvasListPage /></Padded>} />
-              <Route path="/tools/ref-image-gen" element={<RefImageGenPage />} />
-              <Route path="/tools/ref-video-gen" element={<RefVideoGenPage />} />
-              <Route path="/tools/motion-imitation" element={<MotionImitationPage />} />
-              <Route path="/tools/style-transfer" element={<StyleTransferPage />} />
-              <Route path="/tools/multi-angle" element={<MultiAnglePage />} />
-              <Route path="/tools/video-edit" element={<VideoEditPage />} />
-              <Route path="/tools/brainstorm" element={<BrainstormPage />} />
-              <Route path="/tools/smart-storyboard" element={<SmartStoryboardPage />} />
-              <Route path="/tools/plugin/:pluginId" element={<PluginToolPage />} />
+              <Route path={ROUTES.canvases} element={<Padded><CanvasListPage /></Padded>} />
+              <Route path={ROUTES.tools.refImageGen} element={<RefImageGenPage />} />
+              <Route path={ROUTES.tools.refVideoGen} element={<RefVideoGenPage />} />
+              <Route path={ROUTES.tools.motionImitation} element={<MotionImitationPage />} />
+              <Route path={ROUTES.tools.styleTransfer} element={<StyleTransferPage />} />
+              <Route path={ROUTES.tools.multiAngle} element={<MultiAnglePage />} />
+              <Route path={ROUTES.tools.videoEdit} element={<VideoEditPage />} />
+              <Route path={ROUTES.tools.brainstorm} element={<BrainstormPage />} />
+              <Route path={ROUTES.tools.plugin} element={<PluginToolPage />} />
 
               {/* 工作模块 */}
-              <Route path="/scripts" element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
-              <Route path="/segments" element={<ProjectGuard><SegmentsPage /></ProjectGuard>} />
-              <Route path="/scene-moments" element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
-              <Route path="/contents" element={<ProjectGuard><ContentsPage /></ProjectGuard>} />
-              <Route path="/final-videos" element={<Navigate to="/delivery" replace />} />
+              <Route path={ROUTES.project.scripts} element={<ProjectGuard><ScriptsPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.scripts} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
+              <Route path={ROUTES.project.segments} element={<ProjectGuard><SegmentsPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.segments} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.segments} /></ProjectGuard>} />
+              <Route path={ROUTES.project.sceneMoments} element={<ProjectGuard><SceneMomentsPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.sceneMoments} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.sceneMoments} /></ProjectGuard>} />
+              <Route path={ROUTES.project.contentUnits} element={<ProjectGuard><ContentUnitsPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.contents} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.contentUnits} /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.finalVideos} element={<LegacyRedirect to={ROUTES.project.delivery} />} />
 
-              <Route path="/production" element={<ProjectGuard><ProductionFramePage /></ProjectGuard>} />
-              <Route path="/production-orchestrate" element={<ProjectGuard><ProductionOrchestratePage /></ProjectGuard>} />
-              <Route path="/collaboration" element={<ProjectGuard><CollaborationPage /></ProjectGuard>} />
-              <Route path="/delivery" element={<ProjectGuard><FinalVideosPage /></ProjectGuard>} />
-              <Route path="/delivery/workbench" element={<ProjectGuard><FinalVideosWorkspacePage /></ProjectGuard>} />
-              <Route path="/delivery-workbench" element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
-              <Route path="/project-home" element={<ProjectGuard><ProjectHomePage /></ProjectGuard>} />
-              <Route path="/project-workspace" element={<ProjectGuard><ProjectOrchestrationPage /></ProjectGuard>} />
-              <Route path="/creative-workbench" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
-              <Route path="/creation" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
-              <Route path="/workbench" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
-              <Route path="/script-split-workbench" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
-              <Route path="/workbench/script" element={<ProjectGuard><Navigate to="/project-home" replace /></ProjectGuard>} />
-              <Route path="/workbench/production-plan" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="preview" showCategoryTabs={false} /></ProjectGuard>} />
-              <Route path="/workbench/preview" element={<ProjectGuard><Navigate to="/workbench/production-plan" replace /></ProjectGuard>} />
-              <Route path="/workbench/creative" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
-              <Route path="/workbench/assets" element={<ProjectGuard><Navigate to="/pre-production" replace /></ProjectGuard>} />
-              <Route path="/content-unit-orchestrate" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
-              <Route path="/workbench/production" element={<ProjectGuard><LegacyContentUnitOrchestrateRedirect /></ProjectGuard>} />
-              <Route path="/workbench/delivery" element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
-              <Route path="/workbench/object" element={<ProjectGuard><Navigate to="/workbench/script" replace /></ProjectGuard>} />
-              <Route path="/workbench/reference-relations" element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="reference-relations" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path={ROUTES.project.production} element={<ProjectGuard><ProductionPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.production} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.production} /></ProjectGuard>} />
+              <Route path={ROUTES.project.productionOrchestration} element={<ProjectGuard><ProductionOrchestrationPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.productionOrchestration} element={<ProjectGuard><LegacyProductionOrchestrationRedirect /></ProjectGuard>} />
+              <Route path={ROUTES.project.tasks} element={<ProjectGuard><TasksPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.collaboration} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.tasks} /></ProjectGuard>} />
+              <Route path={ROUTES.project.delivery} element={<ProjectGuard><DeliveryPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.delivery} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.delivery} /></ProjectGuard>} />
+              <Route path={ROUTES.project.deliveryWorkbench} element={<ProjectGuard><DeliveryWorkbenchPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.deliveryWorkbench} element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.deliveryWorkbenchFlat} element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
+              <Route path={ROUTES.project.overview} element={<ProjectGuard><ProjectOverviewPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.projectHome} element={<ProjectGuard><LegacyProjectOverviewRedirect /></ProjectGuard>} />
+              <Route path={ROUTES.project.standards} element={<ProjectGuard><ProjectStandardsPage /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.projectWorkspace} element={<ProjectGuard><LegacyProjectStandardsRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.creativeWorkbench} element={<ProjectGuard><LegacyPreProductionSettingsRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.creation} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.overview} /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbench} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.overview} /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.scriptSplitWorkbench} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchScript} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
+              <Route path={ROUTES.project.productionPreview} element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="preview" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchProductionPlan} element={<ProjectGuard><LegacyProductionPreviewRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchPreview} element={<ProjectGuard><LegacyProductionPreviewRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchCreative} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.preProduction} /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchAssets} element={<ProjectGuard><LegacyPreProductionAssetsRedirect /></ProjectGuard>} />
+              <Route path={ROUTES.project.contentUnitWorkbench} element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.contentUnitOrchestrate} element={<ProjectGuard><LegacyContentUnitOrchestrateRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchProduction} element={<ProjectGuard><LegacyContentUnitOrchestrateRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchDelivery} element={<ProjectGuard><LegacyDeliveryWorkbenchRedirect /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchObject} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
+              <Route path={ROUTES.project.referenceRelationsWorkbench} element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="reference-relations" showCategoryTabs={false} /></ProjectGuard>} />
+              <Route path={LEGACY_ROUTES.workbenchReferenceRelations} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.referenceRelationsWorkbench} /></ProjectGuard>} />
 
               {/* 用户 */}
-              <Route path="/user" element={<Padded><UserProfilePage /></Padded>} />
+              <Route path={ROUTES.user} element={<Padded><UserProfilePage /></Padded>} />
               {runtimeRoutes.map((route) => {
                 let element = route.element
                 if (route.requireProject) element = <ProjectGuard>{element}</ProjectGuard>
@@ -351,18 +399,18 @@ export default function App() {
               })}
 
               {/* 组织 */}
-              <Route path="/org/settings" element={<OrgAdminGuard><Padded><OrgSettingsPage /></Padded></OrgAdminGuard>} />
+              <Route path={ROUTES.orgSettings} element={<OrgAdminGuard><Padded><OrgSettingsPage /></Padded></OrgAdminGuard>} />
 
               {/* 文件 */}
-              <Route path="/resources" element={<ResourcesPage />} />
-              <Route path="/jobs" element={<JobsPage />} />
-              <Route path="/plugins" element={<ClientPluginsPage />} />
-              <Route path="/agent/drafts" element={<Padded><AIDraftsPage /></Padded>} />
-              <Route path="/agent/settings" element={<AIAgentSettingsPage />} />
-              <Route path="/agent/debug" element={<AIAgentDebugPage />} />
-              <Route path="/agent/runs/:runId" element={<AIAgentRunPage />} />
+              <Route path={ROUTES.resources} element={<ResourcesPage />} />
+              <Route path={ROUTES.jobs} element={<JobsPage />} />
+              <Route path={ROUTES.plugins} element={<ClientPluginsPage />} />
+              <Route path={ROUTES.agentDrafts} element={<Padded><AIDraftsPage /></Padded>} />
+              <Route path={ROUTES.agentSettings} element={<AIAgentSettingsPage />} />
+              <Route path={ROUTES.agentDebug} element={<AIAgentDebugPage />} />
+              <Route path={ROUTES.agentRun} element={<AIAgentRunPage />} />
 
-              <Route path="/agents" element={<Navigate to="/agent/settings" replace />} />
+              <Route path="/agents" element={<Navigate to={ROUTES.agentSettings} replace />} />
               </Routes>
             </ShellLayout>
           } />

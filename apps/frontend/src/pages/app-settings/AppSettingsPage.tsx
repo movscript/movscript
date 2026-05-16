@@ -6,6 +6,7 @@ import { Button, Input, Label } from '@movscript/ui'
 import { getDefaultAPIBaseURL, normalizeAPIBaseURL } from '@/lib/config'
 import { useAppSettingsStore } from '@/store/appSettingsStore'
 import { useUserStore } from '@/store/userStore'
+import { ROUTES } from '@/routes/projectRoutes'
 
 type TestState =
   | { status: 'idle'; message: string }
@@ -80,7 +81,7 @@ export default function AppSettingsPage() {
         <div className="mx-auto flex h-14 max-w-3xl items-center justify-between px-5">
           <button
             type="button"
-            onClick={() => user ? navigate('/projects') : navigate('/')}
+            onClick={() => user ? navigate(ROUTES.projects) : navigate(ROUTES.root)}
             className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft size={16} />
@@ -199,7 +200,7 @@ export default function AppSettingsPage() {
 
           {!user && (
             <p className="text-center text-sm text-muted-foreground">
-              <Link to="/" className="text-foreground underline-offset-4 hover:underline">{t('appSettings.returnToLogin')}</Link>
+              <Link to={ROUTES.root} className="text-foreground underline-offset-4 hover:underline">{t('appSettings.returnToLogin')}</Link>
             </p>
           )}
         </section>

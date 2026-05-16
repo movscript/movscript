@@ -48,7 +48,6 @@ import {
   Telescope,
   ToyBrick,
   Truck,
-  Video,
   WandSparkles,
   Wrench,
 } from 'lucide-react'
@@ -61,6 +60,7 @@ import { Button } from '@movscript/ui'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@movscript/ui'
 import { loadClientPlugins } from '@/lib/clientPlugins'
 import { runtimeNavItems } from '@runtime'
+import { ROUTES } from '@/routes/projectRoutes'
 
 const SIDEBAR_COLLAPSED_KEY = 'movscript-sidebar-collapsed'
 const PLUGIN_NAV_ICONS: LucideIcon[] = [
@@ -214,7 +214,7 @@ export function Sidebar() {
         <Section title={t('sidebar.sections.project')} collapsed={collapsed}>
           {collapsed ? (
             <NavItem
-              to="/projects"
+              to={ROUTES.projects}
               icon={FolderOpen}
               label={current ? current.name : t('common.selectProject')}
               collapsed
@@ -226,7 +226,7 @@ export function Sidebar() {
                   <FolderOpen size={13} className="text-muted-foreground shrink-0" />
                   <span className="text-sm text-foreground truncate flex-1">{current.name}</span>
                   <NavLink
-                    to="/projects"
+                    to={ROUTES.projects}
                     className="text-xs text-muted-foreground hover:text-muted-foreground shrink-0 transition-colors"
                   >
                     {t('common.switch')}
@@ -234,7 +234,7 @@ export function Sidebar() {
                 </div>
               ) : (
                 <NavLink
-                  to="/projects"
+                  to={ROUTES.projects}
                   className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <FolderOpen size={13} className="shrink-0" />
@@ -246,11 +246,11 @@ export function Sidebar() {
 
           {current && (
             <>
-              <NavItem to="/project-home" icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
-              <NavItem to="/scripts" icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
-              <NavItem to="/production" icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
-              <NavItem to="/collaboration" icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
-              <NavItem to="/delivery" icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.overview} icon={Home} label={t('sidebar.items.projectHome')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.scripts} icon={ScrollText} label={t('sidebar.items.script')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.production} icon={Factory} label={t('sidebar.items.projectProduction')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.tasks} icon={ListChecks} label={t('sidebar.items.productionTasks')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.delivery} icon={Truck} label={t('sidebar.items.delivery')} collapsed={collapsed} />
             </>
           )}
         </Section>
@@ -259,12 +259,12 @@ export function Sidebar() {
           <>
             <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
             <Section title={t('sidebar.sections.workspace')} collapsed={collapsed}>
-              <NavItem to="/project-workspace" icon={Layers3} label={t('sidebar.items.projectWorkspace')} collapsed={collapsed} />
-              <NavItem to="/pre-production" icon={Telescope} label={t('sidebar.items.preProduction')} collapsed={collapsed} />
-              <NavItem to="/production-orchestrate" icon={Route} label={t('sidebar.items.productionOrchestrate')} collapsed={collapsed} />
-              <NavItem to="/content-unit-orchestrate" icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
-              <NavItem to="/workbench/production-plan" icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
-              <NavItem to="/delivery/workbench" icon={ClipboardCheck} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.standards} icon={Layers3} label={t('sidebar.items.projectWorkspace')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.preProduction} icon={Telescope} label={t('sidebar.items.preProduction')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.productionOrchestration} icon={Route} label={t('sidebar.items.productionOrchestration')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.contentUnitWorkbench} icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.productionPreview} icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
+              <NavItem to={ROUTES.project.deliveryWorkbench} icon={ClipboardCheck} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
             </Section>
           </>
         )}
@@ -273,15 +273,14 @@ export function Sidebar() {
 
         {/* Tools */}
         <Section title={t('sidebar.sections.tools')} collapsed={collapsed}>
-          <NavItem to="/canvases" icon={AppWindow} label={t('sidebar.items.canvas')} collapsed={collapsed} />
-          <NavItem to="/tools/ref-image-gen" icon={Images} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
-          <NavItem to="/tools/ref-video-gen" icon={CirclePlay} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
-          <NavItem to="/tools/motion-imitation" icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
-          <NavItem to="/tools/style-transfer" icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
-          <NavItem to="/tools/multi-angle" icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
-          <NavItem to="/tools/video-edit" icon={Scissors} label={t('sidebar.items.videoEdit')} collapsed={collapsed} />
-          <NavItem to="/tools/brainstorm" icon={BrainCircuit} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
-          <NavItem to="/tools/smart-storyboard" icon={Video} label={t('sidebar.items.smartStoryboard')} collapsed={collapsed} />
+          <NavItem to={ROUTES.canvases} icon={AppWindow} label={t('sidebar.items.canvas')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.refImageGen} icon={Images} label={t('sidebar.items.refImageGen')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.refVideoGen} icon={CirclePlay} label={t('sidebar.items.refVideoGen')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.motionImitation} icon={Move} label={t('sidebar.items.motionImitation')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.styleTransfer} icon={Palette} label={t('sidebar.items.styleTransfer')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.multiAngle} icon={Shapes} label={t('sidebar.items.multiAngle')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.videoEdit} icon={Scissors} label={t('sidebar.items.videoEdit')} collapsed={collapsed} />
+          <NavItem to={ROUTES.tools.brainstorm} icon={BrainCircuit} label={t('sidebar.items.brainstorm')} collapsed={collapsed} />
           {installedPlugins.map((plugin, index) => (
             <NavItem key={plugin.id} to={`/tools/plugin/${encodeURIComponent(plugin.id)}`} icon={PLUGIN_NAV_ICONS[index % PLUGIN_NAV_ICONS.length]} label={plugin.name} collapsed={collapsed} />
           ))}
@@ -291,23 +290,23 @@ export function Sidebar() {
 
         {/* Files */}
         <Section title={t('sidebar.sections.files')} collapsed={collapsed}>
-          <NavItem to="/resources" icon={FolderArchive} label={t('sidebar.items.resources')} collapsed={collapsed} />
-          <NavItem to="/jobs" icon={ListTodo} label={t('sidebar.items.jobs')} collapsed={collapsed} />
+          <NavItem to={ROUTES.resources} icon={FolderArchive} label={t('sidebar.items.resources')} collapsed={collapsed} />
+          <NavItem to={ROUTES.jobs} icon={ListTodo} label={t('sidebar.items.jobs')} collapsed={collapsed} />
         </Section>
 
         <div className={cn('border-t border-border my-2', collapsed && 'mx-2')} />
 
         {/* Manage */}
         <Section title={t('sidebar.sections.manage')} collapsed={collapsed}>
-          <NavItem to="/agent/drafts" icon={ClipboardCheck} label={t('sidebar.items.aiDrafts')} collapsed={collapsed} />
-          <NavItem to="/agent/settings" icon={Settings} label={t('sidebar.items.agentSettings')} collapsed={collapsed} />
-          <NavItem to="/agent/debug" icon={Terminal} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
-          <NavItem to="/plugins" icon={Blocks} label={t('sidebar.items.plugins')} collapsed={collapsed} />
+          <NavItem to={ROUTES.agentDrafts} icon={ClipboardCheck} label={t('sidebar.items.aiDrafts')} collapsed={collapsed} />
+          <NavItem to={ROUTES.agentSettings} icon={Settings} label={t('sidebar.items.agentSettings')} collapsed={collapsed} />
+          <NavItem to={ROUTES.agentDebug} icon={Terminal} label={t('sidebar.items.agentDebug')} collapsed={collapsed} />
+          <NavItem to={ROUTES.plugins} icon={Blocks} label={t('sidebar.items.plugins')} collapsed={collapsed} />
           {runtimeNavItems.filter((item) => (item.section ?? 'manage') === 'manage').map((item) => (
             <NavItem key={item.to} to={item.to} icon={item.icon} label={item.label} collapsed={collapsed} />
           ))}
           {isOrgAdmin && (
-            <NavItem to="/org/settings" icon={Settings} label={t('sidebar.items.orgSettings')} collapsed={collapsed} />
+            <NavItem to={ROUTES.orgSettings} icon={Settings} label={t('sidebar.items.orgSettings')} collapsed={collapsed} />
           )}
         </Section>
 
@@ -330,7 +329,7 @@ export function Sidebar() {
                 {orgMemberships.map((m) => (
                   <DropdownMenuItem
                     key={m.org_id}
-                    onClick={() => { setCurrentOrg(m.org_id); setCurrent(null); navigate('/projects') }}
+                    onClick={() => { setCurrentOrg(m.org_id); setCurrent(null); navigate(ROUTES.projects) }}
                     className={cn(m.org_id === currentOrgID && 'font-medium')}
                   >
                     {m.is_personal ? <CircleUserRound size={13} className="mr-2 shrink-0" /> : <Building2 size={13} className="mr-2 shrink-0" />}
@@ -338,7 +337,7 @@ export function Sidebar() {
                   </DropdownMenuItem>
                 ))}
                 {nonPersonalOrgs.length > 0 && <DropdownMenuSeparator />}
-                <DropdownMenuItem onClick={() => navigate('/org/select')}>
+                <DropdownMenuItem onClick={() => navigate(ROUTES.orgSelect)}>
                   <Settings size={13} className="mr-2 shrink-0" />
                   {t('org.switchOrg')}
                 </DropdownMenuItem>
@@ -352,7 +351,7 @@ export function Sidebar() {
               'flex items-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors rounded-md',
               collapsed ? 'justify-center px-0 py-2' : 'px-2 py-1.5'
             )}
-            onClick={() => navigate('/user')}
+            onClick={() => navigate(ROUTES.user)}
             title={collapsed ? currentUser.username : undefined}
           >
             <Avatar className="w-6 h-6 shrink-0">

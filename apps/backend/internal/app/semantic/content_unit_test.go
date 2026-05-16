@@ -3,12 +3,11 @@ package semantic
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -707,224 +706,11 @@ func TestDeleteContentUnitRejectsDownstreamKeyframes(t *testing.T) {
 	}
 }
 
-func TestCreateContentUnitFromStoryboardLineInheritsStableSourceAndRelations(t *testing.T) {
-	db := newContentUnitTestDB(t)
-	service := NewService(db)
-	script, version, block := seedContentUnitScriptSource(t, db, 1)
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	segment := model.Segment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Segment", Status: "confirmed"}
-	if err := db.Create(&segment).Error; err != nil {
-		t.Fatalf("create segment: %v", err)
-	}
-	moment := model.SceneMoment{ProjectID: 1, SegmentID: &segment.ID, ScriptBlockID: &block.ID, Title: "Moment", Status: "confirmed"}
-	if err := db.Create(&moment).Error; err != nil {
-		t.Fatalf("create scene moment: %v", err)
-	}
-	line := model.StoryboardLine{
-		ProjectID:          1,
-		StoryboardScriptID: storyboardScript.ID,
-		SegmentID:          &segment.ID,
-		SceneMomentID:      &moment.ID,
-		ScriptBlockID:      &block.ID,
-		Kind:               "shot",
-		Title:              "Phone clue",
-		Description:        "A precise shot.",
-		VisualIntent:       "Tight phone close-up.",
-		DurationSec:        3.5,
-		Status:             "confirmed",
-	}
-	if err := db.Create(&line).Error; err != nil {
-		t.Fatalf("create storyboard line: %v", err)
-	}
-
-	unit, err := service.CreateContentUnitFromStoryboardLine(context.Background(), 1, strconv.FormatUint(uint64(line.ID), 10), ContentUnitInput{})
-	if err != nil {
-		t.Fatalf("create content unit from storyboard line: %v", err)
-	}
-	if unit.StoryboardLineID == nil || *unit.StoryboardLineID != line.ID {
-		t.Fatalf("storyboard line id = %v, want %d", unit.StoryboardLineID, line.ID)
-	}
-	if unit.SegmentID == nil || *unit.SegmentID != segment.ID {
-		t.Fatalf("segment id = %v, want %d", unit.SegmentID, segment.ID)
-	}
-	if unit.SceneMomentID == nil || *unit.SceneMomentID != moment.ID {
-		t.Fatalf("scene moment id = %v, want %d", unit.SceneMomentID, moment.ID)
-	}
-	if unit.ScriptBlockID == nil || *unit.ScriptBlockID != block.ID {
-		t.Fatalf("script block id = %v, want %d", unit.ScriptBlockID, block.ID)
-	}
-	if unit.Kind != "shot" {
-		t.Fatalf("content unit kind = %q, want shot", unit.Kind)
-	}
-	if unit.Title != line.Title || unit.Description != line.Description || unit.Prompt != line.VisualIntent || unit.DurationSec != line.DurationSec {
-		t.Fatalf("content unit did not inherit storyboard line fields: %+v", unit)
-	}
-	assertSemanticRelationExists(t, db, "storyboard_line", line.ID, "content_unit", unit.ID, model.EntityRelationTypeCompilesTo)
-	assertSemanticRelationExists(t, db, "content_unit", unit.ID, "script_block", block.ID, model.EntityRelationTypeBasedOn)
-}
-
-func TestCreateContentUnitFromStoryboardLineRejectsMismatchedScriptBlock(t *testing.T) {
-	db := newContentUnitTestDB(t)
-	service := NewService(db)
-	script, version, block := seedContentUnitScriptSource(t, db, 1)
-	otherBlock := model.ScriptBlock{ProjectID: 1, ScriptID: script.ID, ScriptVersionID: version.ID, Kind: "action", Content: "另一段来源。", StartLine: 1, EndLine: 1, Status: "active"}
-	if err := db.Create(&otherBlock).Error; err != nil {
-		t.Fatalf("create other script block: %v", err)
-	}
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	line := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &block.ID, Title: "Line", Status: "confirmed"}
-	if err := db.Create(&line).Error; err != nil {
-		t.Fatalf("create storyboard line: %v", err)
-	}
-
-	_, err := service.CreateContentUnitFromStoryboardLine(context.Background(), 1, strconv.FormatUint(uint64(line.ID), 10), ContentUnitInput{
-		ScriptBlockID: &otherBlock.ID,
-	})
-	var invalid ErrInvalidInput
-	if !errors.As(err, &invalid) {
-		t.Fatalf("CreateContentUnitFromStoryboardLine() error = %v, want ErrInvalidInput", err)
-	}
-}
-
-func TestCreateContentUnitFromStoryboardLineMapsStoryboardKind(t *testing.T) {
-	db := newContentUnitTestDB(t)
-	service := NewService(db)
-	script, version, _ := seedContentUnitScriptSource(t, db, 1)
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	line := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, Kind: "caption", Title: "Caption line", Status: "confirmed"}
-	if err := db.Create(&line).Error; err != nil {
-		t.Fatalf("create storyboard line: %v", err)
-	}
-
-	unit, err := service.CreateContentUnitFromStoryboardLine(context.Background(), 1, strconv.FormatUint(uint64(line.ID), 10), ContentUnitInput{})
-	if err != nil {
-		t.Fatalf("create content unit from storyboard line: %v", err)
-	}
-	if unit.Kind != "caption_card" {
-		t.Fatalf("content unit kind = %q, want caption_card", unit.Kind)
-	}
-}
-
-func TestPatchContentUnitKeepsExistingStoryboardLineLink(t *testing.T) {
-	db := newContentUnitTestDB(t)
-	service := NewService(db)
-	script, version, block := seedContentUnitScriptSource(t, db, 1)
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	line := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &block.ID, Title: "Line", VisualIntent: "Original prompt.", Status: "confirmed"}
-	if err := db.Create(&line).Error; err != nil {
-		t.Fatalf("create storyboard line: %v", err)
-	}
-	unit := model.ContentUnit{ProjectID: 1, StoryboardLineID: &line.ID, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
-	if err := db.Create(&unit).Error; err != nil {
-		t.Fatalf("create content unit: %v", err)
-	}
-
-	patched, err := service.PatchContentUnit(context.Background(), 1, strconv.FormatUint(uint64(unit.ID), 10), ContentUnitInput{
-		Title:  "Updated unit",
-		Prompt: "Updated prompt.",
-	})
-	if err != nil {
-		t.Fatalf("PatchContentUnit() error = %v", err)
-	}
-	if patched.StoryboardLineID == nil || *patched.StoryboardLineID != line.ID {
-		t.Fatalf("storyboard line id = %v, want %d", patched.StoryboardLineID, line.ID)
-	}
-	if patched.Title != "Updated unit" || patched.Prompt != "Updated prompt." {
-		t.Fatalf("patch fields not applied: %+v", patched)
-	}
-}
-
-func TestPatchContentUnitRejectsChangingStoryboardLineLink(t *testing.T) {
-	db := newContentUnitTestDB(t)
-	service := NewService(db)
-	script, version, block := seedContentUnitScriptSource(t, db, 1)
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	firstLine := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &block.ID, Title: "First", Status: "confirmed"}
-	secondLine := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &block.ID, Title: "Second", Status: "confirmed"}
-	if err := db.Create(&firstLine).Error; err != nil {
-		t.Fatalf("create first storyboard line: %v", err)
-	}
-	if err := db.Create(&secondLine).Error; err != nil {
-		t.Fatalf("create second storyboard line: %v", err)
-	}
-	unit := model.ContentUnit{ProjectID: 1, StoryboardLineID: &firstLine.ID, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
-	if err := db.Create(&unit).Error; err != nil {
-		t.Fatalf("create content unit: %v", err)
-	}
-
-	_, err := service.PatchContentUnit(context.Background(), 1, strconv.FormatUint(uint64(unit.ID), 10), ContentUnitInput{
-		StoryboardLineID: &secondLine.ID,
-		Title:            "Wrong line",
-	})
-	var invalid ErrInvalidInput
-	if !errors.As(err, &invalid) {
-		t.Fatalf("PatchContentUnit() error = %v, want ErrInvalidInput", err)
-	}
-}
-
-func TestPatchContentUnitRejectsScriptBlockChangeWhenLinkedToStoryboardLine(t *testing.T) {
-	db := newContentUnitTestDB(t)
-	service := NewService(db)
-	script, version, block := seedContentUnitScriptSource(t, db, 1)
-	otherBlock := model.ScriptBlock{ProjectID: 1, ScriptID: script.ID, ScriptVersionID: version.ID, Kind: "action", Content: "另一段来源。", StartLine: 1, EndLine: 1, Status: "active"}
-	if err := db.Create(&otherBlock).Error; err != nil {
-		t.Fatalf("create other script block: %v", err)
-	}
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	line := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &block.ID, Title: "Line", Status: "confirmed"}
-	if err := db.Create(&line).Error; err != nil {
-		t.Fatalf("create storyboard line: %v", err)
-	}
-	unit := model.ContentUnit{ProjectID: 1, StoryboardLineID: &line.ID, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
-	if err := db.Create(&unit).Error; err != nil {
-		t.Fatalf("create content unit: %v", err)
-	}
-
-	_, err := service.PatchContentUnit(context.Background(), 1, strconv.FormatUint(uint64(unit.ID), 10), ContentUnitInput{
-		ScriptBlockID: &otherBlock.ID,
-		Title:         "Wrong source",
-	})
-	var invalid ErrInvalidInput
-	if !errors.As(err, &invalid) {
-		t.Fatalf("PatchContentUnit() error = %v, want ErrInvalidInput", err)
-	}
-
-	var persisted model.ContentUnit
-	if err := db.First(&persisted, unit.ID).Error; err != nil {
-		t.Fatalf("load content unit: %v", err)
-	}
-	if persisted.ScriptBlockID == nil || *persisted.ScriptBlockID != block.ID {
-		t.Fatalf("content unit script block changed to %v, want %d", persisted.ScriptBlockID, block.ID)
-	}
-}
-
 func newContentUnitTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "content-unit.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "content-unit.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
+	},
 		&model.EntityRelation{},
 		&model.Script{},
 		&model.ScriptVersion{},
@@ -933,17 +719,13 @@ func newContentUnitTestDB(t *testing.T) *gorm.DB {
 		&model.SceneMoment{},
 		&model.StoryboardScript{},
 		&model.StoryboardVersion{},
-		&model.StoryboardLine{},
 		&model.ContentUnit{},
 		&model.Keyframe{},
 		&model.AssetSlot{},
 		&model.PreviewTimelineItem{},
 		&model.WorkItem{},
 		&model.DeliveryTimelineItem{},
-	); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	)
 }
 
 func seedContentUnitScriptSource(t *testing.T, db *gorm.DB, projectID uint) (model.Script, model.ScriptVersion, model.ScriptBlock) {

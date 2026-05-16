@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -44,15 +44,7 @@ func TestPreviewProductionProposalRejectsLegacyActionPayload(t *testing.T) {
 
 func newSemanticProposalHandlerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
-	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "semantic_proposal_handler.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.Project{}, &model.Production{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	}, &model.Project{}, &model.Production{})
 }

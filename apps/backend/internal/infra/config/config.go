@@ -25,6 +25,7 @@ type Config struct {
 	DBPath             string
 	DBSlowThresholdMS  int
 	ServerPort         string
+	MaxUploadBytes     int64
 	EncryptionKey      string // 32-byte hex string for AES-256-GCM
 	MCPToken           string // optional Bearer token for MCP endpoint; empty = no auth
 	AuthTokenSecret    string
@@ -76,6 +77,7 @@ func Load() *Config {
 		DBPath:             getEnv("DB_PATH", filepath.Join(dataDir, "movscript.db")),
 		DBSlowThresholdMS:  getEnvInt("DB_SLOW_THRESHOLD_MS", 200),
 		ServerPort:         getEnv("SERVER_PORT", "8765"),
+		MaxUploadBytes:     getEnvInt64("MAX_UPLOAD_BYTES", 100*1024*1024),
 		EncryptionKey:      getEnv("ENCRYPTION_KEY", ""),
 		MCPToken:           getEnv("MCP_TOKEN", ""),
 		AuthTokenSecret:    authSecret,
@@ -115,6 +117,9 @@ func (c *Config) ValidateStartup() error {
 	}
 	if c.AuthTokenTTLHours <= 0 {
 		problems = append(problems, "AUTH_TOKEN_TTL_HOURS must be greater than 0")
+	}
+	if c.MaxUploadBytes < 0 {
+		problems = append(problems, "MAX_UPLOAD_BYTES must be greater than or equal to 0")
 	}
 	switch c.DBDriver {
 	case "postgres":
@@ -166,6 +171,7 @@ func (c *Config) SafeSummary() map[string]any {
 		"db_path":              c.DBPath,
 		"db_slow_threshold_ms": c.DBSlowThresholdMS,
 		"server_port":          c.ServerPort,
+		"max_upload_bytes":     c.MaxUploadBytes,
 		"auth_ttl_hours":       c.AuthTokenTTLHours,
 		"cors_allowed_origins": c.CORSAllowedOrigins,
 		"storage_backend":      c.StorageBackend,
@@ -205,6 +211,15 @@ func getEnv(key, fallback string) string {
 func getEnvInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func getEnvInt64(key string, fallback int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			return n
 		}
 	}

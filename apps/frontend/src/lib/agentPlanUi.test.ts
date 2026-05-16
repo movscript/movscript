@@ -142,7 +142,7 @@ test('buildPlanNameConflictViews exposes duplicate subagent names', () => {
     ],
     label: 'Einstein: Research, Draft',
   }])
-  assert.equal(buildPlanStatusExplanation(planSnapshot), '1 subagent name conflict · 1 active worker · 1 blocked')
+  assert.equal(buildPlanStatusExplanation(planSnapshot), '1 个子代理重名 · 1 个执行器运行中 · 1 个被阻塞')
 })
 
 test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts', () => {
@@ -255,7 +255,7 @@ test('buildPlanTaskViews merges subagent names, blockers, actions, and artifacts
   assert.equal(view?.previousStatus, 'failed')
   assert.equal(view?.timedOutRunId, 'run_timeout')
   assert.equal(view?.workerTimeoutMs, 900000)
-  assert.equal(view?.statusExplanation, 'Waiting for 1 user input.')
+  assert.equal(view?.statusExplanation, '等待 1 个用户输入。')
   assert.deepEqual(view?.artifactLabels, ['Storyboard notes · Einstein', 'rollback-policy · run_worker'])
   assert.deepEqual(view?.artifactDetails.map((artifact) => ({
     id: artifact.id,
@@ -315,12 +315,12 @@ test('buildPlanStatusExplanation summarizes plan health from task and run state'
     ],
   }))
 
-  assert.equal(explanation, '1 active worker · 1 blocked · 1 needs review · 1 failed · 1 pending')
+  assert.equal(explanation, '1 个执行器运行中 · 1 个被阻塞 · 1 个待复核 · 1 个失败 · 1 个待开始')
   assert.equal(buildPlanStatusExplanation(snapshot({
     tasks: [task({ id: 'task_done', title: 'Done', status: 'done' })],
     plan: { status: 'done' },
-  })), 'All tasks completed.')
-  assert.equal(buildPlanStatusExplanation(snapshot({ tasks: [] })), 'No plan tasks yet.')
+  })), '所有任务已完成。')
+  assert.equal(buildPlanStatusExplanation(snapshot({ tasks: [] })), '还没有计划任务。')
 })
 
 test('buildPlanStatusExplanation prefers backend summary when available', () => {
@@ -339,7 +339,7 @@ test('buildPlanStatusExplanation prefers backend summary when available', () => 
     },
   }))
 
-  assert.equal(explanation, '1 subagent name conflict · 2 active workers · 1 blocked · 2 pending')
+  assert.equal(explanation, '1 个子代理重名 · 2 个执行器运行中 · 1 个被阻塞 · 2 个待开始')
 })
 
 test('buildPlanOverviewStats prefers backend summary and falls back locally', () => {
@@ -397,9 +397,30 @@ test('buildPlanTaskViews explains task statuses for planner review and runnable 
   }))
 
   assert.deepEqual(views.map((view) => [view.task.id, view.statusExplanation]), [
-    ['task_review', 'Waiting for planner or user review.'],
-    ['task_ready', 'Ready when dependencies and worker capacity allow.'],
-    ['task_done', 'Task completed.'],
+    ['task_review', '等待规划器或用户复核。'],
+    ['task_ready', '依赖满足且执行器有容量后即可开始。'],
+    ['task_done', '任务已完成。'],
+  ])
+})
+
+test('buildPlanTaskViews localizes active worker task explanations', () => {
+  const views = buildPlanTaskViews(snapshot({
+    tasks: [
+      task({ id: 'task_running', title: 'Running', status: 'running', ownerRunId: 'run_worker' }),
+      task({ id: 'task_blocked', title: 'Blocked', status: 'blocked' }),
+      task({ id: 'task_failed', title: 'Failed', status: 'failed' }),
+      task({ id: 'task_cancelled', title: 'Cancelled', status: 'cancelled' }),
+    ],
+    runs: [
+      run({ id: 'run_worker', role: 'worker', status: 'in_progress', taskId: 'task_running', planId: 'plan_1' }),
+    ],
+  }))
+
+  assert.deepEqual(views.map((view) => [view.task.id, view.statusExplanation]), [
+    ['task_running', '执行器状态：运行中。'],
+    ['task_blocked', '等待规划器解决下一步。'],
+    ['task_failed', '执行器任务失败。'],
+    ['task_cancelled', '执行器任务已取消。'],
   ])
 })
 

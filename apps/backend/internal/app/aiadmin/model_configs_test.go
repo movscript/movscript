@@ -7,13 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/movscript/movscript/internal/app/dto"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -124,6 +125,61 @@ func TestPatchModelConfigRejectsInvalidInputLimitAndKeepsExisting(t *testing.T) 
 	}
 	if got.ID != cfg.ID || got.CustomMaxInputImages != 4 {
 		t.Fatalf("expected existing input limit to remain unchanged, got %#v", got)
+	}
+}
+
+func TestDeleteModelConfigReturnsDeletedConfigAndMissingIsNotFound(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+
+	cfg, err := service.CreateModelConfig(ctx, 1, dto.AIModelConfigInput{
+		ModelDefID:           "delete-me",
+		CustomCapabilities:   "text",
+		CustomPricingMode:    "per_token",
+		CreditsInputPer1M:    1,
+		CreditsOutputPer1M:   2,
+		CustomAcceptsImage:   false,
+		CustomMaxInputImages: 0,
+		CustomMaxInputVideos: 0,
+	})
+	if err != nil {
+		t.Fatalf("CreateModelConfig returned error: %v", err)
+	}
+
+	deleted, err := service.DeleteModelConfig(ctx, strconvID(cfg.ID))
+	if err != nil {
+		t.Fatalf("DeleteModelConfig returned error: %v", err)
+	}
+	if deleted.ID != cfg.ID || deleted.ModelDefID != "delete-me" {
+		t.Fatalf("unexpected deleted model config: %+v", deleted)
+	}
+	if _, err := service.GetModelConfig(ctx, strconvID(cfg.ID)); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetModelConfig after delete error = %v, want ErrNotFound", err)
+	}
+	if _, err := service.DeleteModelConfig(ctx, strconvID(cfg.ID)); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("DeleteModelConfig missing error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestDeleteCredentialReturnsDeletedCredentialAndMissingIsNotFound(t *testing.T) {
+	service := newTestService(t)
+	ctx := context.Background()
+
+	deleted, err := service.DeleteCredential(ctx, "1")
+	if err != nil {
+		t.Fatalf("DeleteCredential returned error: %v", err)
+	}
+	if deleted.ID != 1 || deleted.AdapterType != "volcen" {
+		t.Fatalf("unexpected deleted credential: %+v", deleted)
+	}
+	if _, err := service.GetCredential(ctx, 1); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("GetCredential after delete error = %v, want ErrNotFound", err)
+	}
+	if _, err := service.DeleteCredential(ctx, "1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("DeleteCredential missing error = %v, want ErrNotFound", err)
+	}
+	if _, err := service.DeleteCredential(ctx, "bad"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("DeleteCredential invalid id error = %v, want ErrNotFound", err)
 	}
 }
 
@@ -461,7 +517,7 @@ func agentContractParam(contract AgentContract, key string) *AgentContractParam 
 
 func loadAgentCompactContractFixture(t *testing.T) AgentContract {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "..", "docs", "agent-compact-contract-v1.fixture.json"))
+	raw, err := os.ReadFile(filepath.Join("testdata", "agent-compact-contract-v1.fixture.json"))
 	if err != nil {
 		t.Fatalf("read compact contract fixture: %v", err)
 	}
@@ -558,13 +614,7 @@ func TestPreviewModelConfigContractRejectsInvalidContract(t *testing.T) {
 
 func newTestService(t *testing.T) *Service {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "aiadmin.db")), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}); err != nil {
-		t.Fatalf("migrate sqlite: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "aiadmin.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{})
 	if err := db.Create(&persistencemodel.AICredential{
 		AdapterType: "volcen",
 		DisplayName: "Volcen",
@@ -577,4 +627,8 @@ func newTestService(t *testing.T) *Service {
 
 func ptrString(value string) *string {
 	return &value
+}
+
+func strconvID(id uint) string {
+	return strconv.FormatUint(uint64(id), 10)
 }

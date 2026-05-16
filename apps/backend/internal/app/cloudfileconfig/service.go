@@ -6,14 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	domaincloudfileconfig "github.com/movscript/movscript/internal/domain/cloudfileconfig"
+	"github.com/movscript/movscript/internal/infra/cloudup"
 	"github.com/movscript/movscript/internal/infra/crypto"
 	"gorm.io/gorm"
 )
 
 var (
 	ErrNotFound      = errors.New("cloud file config not found")
+	ErrInvalidName   = errors.New("invalid cloud file config name")
 	ErrInvalidConfig = errors.New("invalid cloud file config")
 	ErrEncryptConfig = errors.New("encrypt config")
 )
@@ -21,11 +25,12 @@ var (
 type Service struct {
 	repo          repository
 	encryptionKey []byte
+	testUpload    func(context.Context, domaincloudfileconfig.Config, []byte, string, string) (uint, cloudup.UploadResult, error)
 }
 
 func NewService(db *gorm.DB, encryptionKeyHex string) *Service {
 	key, _ := hex.DecodeString(encryptionKeyHex)
-	return &Service{repo: &gormRepository{db: db}, encryptionKey: key}
+	return &Service{repo: &gormRepository{db: db}, encryptionKey: key, testUpload: testCloudFileConfigUpload}
 }
 
 type CreateInput struct {
@@ -46,6 +51,14 @@ type UpdateInput struct {
 
 type Config = domaincloudfileconfig.Config
 
+type TestResult struct {
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	LatencyMS int64  `json:"latency_ms"`
+	URL       string `json:"url,omitempty"`
+	ConfigID  uint   `json:"config_id,omitempty"`
+}
+
 func (s *Service) List(ctx context.Context) ([]Config, error) {
 	cfgs, err := s.repo.ListConfigs(ctx)
 	if err != nil {
@@ -58,7 +71,14 @@ func (s *Service) List(ctx context.Context) ([]Config, error) {
 }
 
 func (s *Service) Create(ctx context.Context, input CreateInput) (Config, error) {
-	if !ValidConfigType(input.ConfigType) {
+	if strings.TrimSpace(input.Name) == "" {
+		return Config{}, ErrInvalidName
+	}
+	configType := strings.TrimSpace(input.ConfigType)
+	if !ValidConfigType(configType) {
+		return Config{}, ErrInvalidConfig
+	}
+	if !s.validConfig(configType, input.Config) {
 		return Config{}, ErrInvalidConfig
 	}
 	encJSON, err := s.encryptConfig(input.Config)
@@ -67,7 +87,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (Config, error)
 	}
 	cfg := domaincloudfileconfig.NewConfig(domaincloudfileconfig.NewConfigSpec{
 		Name:       input.Name,
-		ConfigType: input.ConfigType,
+		ConfigType: configType,
 		ConfigJSON: encJSON,
 		Priority:   input.Priority,
 		IsEnabled:  input.IsEnabled,
@@ -85,10 +105,16 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (Config, error)
 		return cfg, err
 	}
 	if input.Name != nil {
+		if strings.TrimSpace(*input.Name) == "" {
+			return cfg, ErrInvalidName
+		}
 		cfg.Name = *input.Name
 	}
 	if input.Config != nil {
 		merged := s.mergeConfigUpdate(cfg.ConfigJSON, input.Config)
+		if !s.validConfig(cfg.ConfigType, merged) {
+			return cfg, ErrInvalidConfig
+		}
 		encJSON, err := s.encryptConfig(merged)
 		if err != nil {
 			return cfg, fmt.Errorf("%w: %v", ErrEncryptConfig, err)
@@ -99,6 +125,9 @@ func (s *Service) Update(ctx context.Context, input UpdateInput) (Config, error)
 		cfg.Priority = *input.Priority
 	}
 	if input.IsEnabled != nil {
+		if *input.IsEnabled && !s.validConfig(cfg.ConfigType, s.decryptConfig(cfg.ConfigJSON)) {
+			return cfg, ErrInvalidConfig
+		}
 		cfg.IsEnabled = *input.IsEnabled
 	}
 	if err := s.repo.SaveConfig(ctx, &cfg); err != nil {
@@ -112,6 +141,50 @@ func (s *Service) Delete(ctx context.Context, id uint) error {
 	return s.repo.DeleteConfig(ctx, id)
 }
 
+func (s *Service) Test(ctx context.Context, id uint) (TestResult, error) {
+	cfg, err := s.repo.GetConfig(ctx, id)
+	if err != nil {
+		return TestResult{}, err
+	}
+	plainConfig := s.decryptConfig(cfg.ConfigJSON)
+	if !s.validConfig(cfg.ConfigType, plainConfig) {
+		return TestResult{}, ErrInvalidConfig
+	}
+	plainConfigJSON, err := json.Marshal(plainConfig)
+	if err != nil {
+		return TestResult{}, ErrInvalidConfig
+	}
+	cfg.ConfigJSON = string(plainConfigJSON)
+
+	start := time.Now()
+	timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
+	filename := fmt.Sprintf("admin-cloud-test-%d-%d.txt", cfg.ID, time.Now().UTC().UnixNano())
+	configID, result, err := s.testUpload(
+		timeoutCtx,
+		cfg,
+		[]byte("movscript cloud file config test\n"),
+		filename,
+		"text/plain; charset=utf-8",
+	)
+	latency := time.Since(start).Milliseconds()
+	if err != nil {
+		return TestResult{
+			Success:   false,
+			Message:   err.Error(),
+			LatencyMS: latency,
+		}, nil
+	}
+	return TestResult{
+		Success:   true,
+		Message:   "ok",
+		LatencyMS: latency,
+		URL:       result.URL,
+		ConfigID:  configID,
+	}, nil
+}
+
 func (s *Service) encryptConfig(cfg map[string]any) (string, error) {
 	raw, err := json.Marshal(cfg)
 	if err != nil {
@@ -121,6 +194,10 @@ func (s *Service) encryptConfig(cfg map[string]any) (string, error) {
 		return string(raw), nil
 	}
 	return crypto.Encrypt(string(raw), s.encryptionKey)
+}
+
+func (s *Service) validConfig(configType string, cfg map[string]any) bool {
+	return len(domaincloudfileconfig.MissingRequiredConfigFields(configType, cfg)) == 0
 }
 
 func (s *Service) mergeConfigUpdate(existingEncJSON string, incoming map[string]any) map[string]any {
@@ -164,4 +241,19 @@ func (s *Service) maskConfig(encJSON string) string {
 
 func ValidConfigType(t string) bool {
 	return domaincloudfileconfig.ValidConfigType(t)
+}
+
+func testCloudFileConfigUpload(ctx context.Context, cfg domaincloudfileconfig.Config, data []byte, filename, mimeType string) (uint, cloudup.UploadResult, error) {
+	service, err := cloudup.NewFromConfigs([]cloudup.CloudFileConfig{{
+		ID:         cfg.ID,
+		Name:       cfg.Name,
+		ConfigType: cfg.ConfigType,
+		ConfigJSON: cfg.ConfigJSON,
+		Priority:   cfg.Priority,
+		IsEnabled:  true,
+	}})
+	if err != nil {
+		return 0, cloudup.UploadResult{}, err
+	}
+	return service.UploadWithFallback(ctx, data, filename, mimeType)
 }

@@ -12,6 +12,7 @@ import { Label } from '@movscript/ui'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@movscript/ui'
 import { translateApiError } from '@/lib/apiError'
 import type { OrgMembership } from '@/types'
+import { ROUTES } from '@/routes/projectRoutes'
 
 function roleLabel(role: OrgMembership['role'], t: (k: string) => string) {
   const map: Record<string, string> = {
@@ -143,7 +144,7 @@ export default function OrgSelectPage() {
   function selectOrg(orgId: number) {
     setCurrentOrg(orgId)
     setCurrentProject(null)
-    navigate('/projects', { replace: true })
+    navigate(ROUTES.projects, { replace: true })
   }
 
   async function handleCreated(orgId: number) {

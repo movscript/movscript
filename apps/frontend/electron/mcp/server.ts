@@ -29,7 +29,6 @@ const PATCH_ROUTES: Record<string, string> = {
   segment: '/projects/:projectId/entities/segments/:id',
   scene_moment: '/projects/:projectId/entities/scene-moments/:id',
   storyboard_script: '/projects/:projectId/entities/storyboard-scripts/:id',
-  storyboard_line: '/projects/:projectId/entities/storyboard-lines/:id',
   content_unit: '/projects/:projectId/entities/content-units/:id',
   keyframe: '/projects/:projectId/entities/keyframes/:id',
   preview_timeline: '/projects/:projectId/entities/preview-timelines/:id',
@@ -46,7 +45,6 @@ const FIELD_ALLOWLIST: Record<string, Set<string>> = {
   segment: new Set(['title', 'kind', 'summary', 'content', 'production_id', 'text_block_id', 'status', 'metadata_json']),
   scene_moment: new Set(['title', 'description', 'time_text', 'location_text', 'condition_text', 'action_text', 'mood', 'status', 'metadata_json']),
   storyboard_script: new Set(['name', 'description', 'is_primary', 'status', 'metadata_json']),
-  storyboard_line: new Set(['title', 'kind', 'description', 'dialogue', 'visual_intent', 'duration_sec', 'status', 'metadata_json']),
   content_unit: new Set(['title', 'kind', 'description', 'prompt', 'duration_sec', 'status', 'metadata_json']),
   keyframe: new Set(['title', 'description', 'prompt', 'resource_id', 'status', 'metadata_json']),
   preview_timeline: new Set(['name', 'duration_sec', 'is_primary', 'status', 'metadata_json']),
@@ -538,7 +536,7 @@ export function listTools(): MCPTool[] {
           asset_slot_id: { type: 'number', description: 'Optional asset slot ID to return one slot.' },
           creative_reference_id: { type: 'number', description: 'Optional creative reference ID; matches direct reference links and reference-owned slots.' },
           creative_reference_state_id: { type: 'number', description: 'Optional creative reference state ID; matches direct state links and state-owned slots.' },
-          owner_type: { type: 'string', description: 'Optional owner type such as creative_reference, creative_reference_state, segment, scene_moment, content_unit, storyboard_line, or keyframe.' },
+          owner_type: { type: 'string', description: 'Optional owner type such as creative_reference, creative_reference_state, segment, scene_moment, content_unit, or keyframe.' },
           owner_id: { type: 'number', description: 'Optional owner entity ID. Applied with owner_type when provided.' },
           production_id: { type: 'number', description: 'Optional production filter.' },
           status: { type: 'string', description: 'Optional status filter such as missing, candidate, locked, or waived.' },
@@ -1568,7 +1566,7 @@ interface DraftSeedTargetIds {
 async function hydrateDraftSeedInclude(kind: AgentDraftKind, projectId: number, targetIds: DraftSeedTargetIds, include: string): Promise<unknown> {
   const entityId = targetIds.entityId
   const sceneMomentId = targetIds.sceneMomentId ?? (kind === 'content_unit_proposal' ? entityId : undefined)
-  const contentUnitId = targetIds.contentUnitId ?? (kind === 'content_unit_media_proposal' ? entityId : undefined)
+  const contentUnitId = targetIds.contentUnitId
   const productionId = targetIds.productionId
     ?? (kind === 'production_proposal' ? entityId : undefined)
     ?? await resolveDraftSeedProductionId(projectId, { sceneMomentId, contentUnitId })

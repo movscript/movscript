@@ -133,6 +133,7 @@ export interface AgentRun {
   taskId?: string
   progress?: number
   blockedReason?: string
+  input?: AgentRunInput
   agentManifest?: AgentManifest
   pendingApprovals?: AgentApprovalRequest[]
   pendingInputRequests?: AgentInputRequest[]
@@ -149,6 +150,28 @@ export interface AgentRun {
   assistantMessageId?: string
   steps: AgentRunStep[]
   traceEvents?: AgentTraceEvent[]
+}
+
+export interface AgentRunInput {
+  schema: 'movscript.agent.run-input.v1'
+  userMessage: string
+  clientInput?: JSONValue
+  sourceMessageId?: string
+  executionMode: 'chat' | 'tool' | 'worker' | 'resume'
+  parent?: {
+    runId?: string
+    planId?: string
+    taskId?: string
+  }
+  task?: {
+    id: string
+    title: string
+    description?: string
+    instructions: string
+    expectedArtifacts?: string[]
+  }
+  forcedToolCall?: ToolCall
+  createdAt: string
 }
 
 export interface AgentPlan {
@@ -628,6 +651,12 @@ export interface AgentRunDebugTrace {
     personaId?: string
     policyIds: string[]
     workflowIds: string[]
+    intentSignals?: Array<{
+      intent: string
+      source: string
+      confidence: string
+      evidence: string
+    }>
     workflowTriggers?: Array<{
       id: string
       matched: boolean
@@ -695,6 +724,8 @@ export interface CreateMessageInput {
 
 export interface CreateRunInput {
   threadId?: unknown
+  userMessage?: unknown
+  task?: unknown
   agentManifest?: unknown
   approvedToolNames?: unknown
   clientInput?: unknown

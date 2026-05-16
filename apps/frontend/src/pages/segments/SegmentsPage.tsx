@@ -115,7 +115,6 @@ type SegmentWorkspace = {
   segment: SegmentRecord
   scriptBlock: ScriptBlockRecord | null
   sceneMoments: SceneMomentRecord[]
-  storyboardLines: RelatedRecord[]
   contentUnits: RelatedRecord[]
   keyframes: RelatedRecord[]
   assetSlots: RelatedRecord[]
@@ -226,11 +225,6 @@ export default function SegmentsPage() {
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('sceneMoments')) as Promise<SceneMomentRecord[]>,
     enabled: !!projectId,
   })
-  const storyboardLinesQuery = useQuery({
-    queryKey: ['semantic-segment-workspace', projectId, 'storyboard-lines'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('storyboardLines')) as Promise<RelatedRecord[]>,
-    enabled: !!projectId,
-  })
   const contentUnitsQuery = useQuery({
     queryKey: ['semantic-segment-workspace', projectId, 'content-units'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('contentUnits')) as Promise<RelatedRecord[]>,
@@ -260,7 +254,6 @@ export default function SegmentsPage() {
   const segments = useMemo(() => (segmentsQuery.data ?? []).slice().sort(compareByOrder), [segmentsQuery.data])
   const scriptBlocks = scriptBlocksQuery.data ?? []
   const sceneMoments = useMemo(() => (sceneMomentsQuery.data ?? []).slice().sort(compareByOrder), [sceneMomentsQuery.data])
-  const storyboardLines = storyboardLinesQuery.data ?? []
   const contentUnits = contentUnitsQuery.data ?? []
   const keyframes = keyframesQuery.data ?? []
   const references = referencesQuery.data ?? []
@@ -279,11 +272,6 @@ export default function SegmentsPage() {
       Boolean(item.scene_moment_id && sceneMomentIds.has(item.scene_moment_id))
     )).sort(compareByOrder)
     const contentUnitIds = new Set(segmentContentUnits.map((item) => item.ID))
-    const segmentStoryboardLines = storyboardLines.filter((item) => (
-      item.segment_id === segment.ID ||
-      Boolean(item.scene_moment_id && sceneMomentIds.has(item.scene_moment_id)) ||
-      Boolean(segment.script_block_id && item.script_block_id === segment.script_block_id)
-    )).sort(compareByOrder)
     const segmentKeyframes = keyframes.filter((item) => (
       Boolean(item.scene_moment_id && sceneMomentIds.has(item.scene_moment_id)) ||
       Boolean(item.content_unit_id && contentUnitIds.has(item.content_unit_id))
@@ -307,7 +295,6 @@ export default function SegmentsPage() {
       segment,
       scriptBlock,
       sceneMoments: segmentSceneMoments,
-      storyboardLines: segmentStoryboardLines,
       contentUnits: segmentContentUnits,
       keyframes: segmentKeyframes,
       assetSlots: segmentAssetSlots,
@@ -315,7 +302,7 @@ export default function SegmentsPage() {
       readiness: calculateReadiness(segment, segmentSceneMoments, segmentContentUnits, segmentReferences, segmentAssetSlots),
       totalDuration,
     }
-  }), [assetSlots, contentUnits, keyframes, referencesById, sceneMoments, scriptBlocksById, segments, storyboardLines, usages])
+  }), [assetSlots, contentUnits, keyframes, referencesById, sceneMoments, scriptBlocksById, segments, usages])
 
   const visibleSegments = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -378,13 +365,12 @@ export default function SegmentsPage() {
     : 0
   const totalDuration = segmentWorkspaces.reduce((sum, item) => sum + item.totalDuration, 0)
   const isLoading = segmentsQuery.isLoading || sceneMomentsQuery.isLoading
-  const isFetching = segmentsQuery.isFetching || scriptBlocksQuery.isFetching || sceneMomentsQuery.isFetching || storyboardLinesQuery.isFetching || contentUnitsQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
+  const isFetching = segmentsQuery.isFetching || scriptBlocksQuery.isFetching || sceneMomentsQuery.isFetching || contentUnitsQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
 
   function refreshAll() {
     segmentsQuery.refetch()
     scriptBlocksQuery.refetch()
     sceneMomentsQuery.refetch()
-    storyboardLinesQuery.refetch()
     contentUnitsQuery.refetch()
     keyframesQuery.refetch()
     referencesQuery.refetch()
@@ -600,7 +586,6 @@ export default function SegmentsPage() {
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-5">
             <RelatedPanel title="拥有的情景" icon={Film} records={selectedSegment?.sceneMoments ?? []} empty="当前编排段暂无情景" />
             <RelatedPanel title="来源剧本块" icon={ScrollText} records={selectedSegment?.scriptBlock ? [selectedSegment.scriptBlock] : []} empty="当前编排段暂无剧本块来源" />
-            <RelatedPanel title="相关分镜行" icon={Clapperboard} records={selectedSegment?.storyboardLines ?? []} empty="当前编排段暂无分镜行" scriptBlocksById={scriptBlocksById} />
             <RelatedPanel title="涉及到的设定资料" icon={Sparkles} records={selectedSegment?.references ?? []} empty="当前编排段暂无设定资料引用" />
             <RelatedPanel title="所需要的素材需求" icon={PackageCheck} records={selectedSegment?.assetSlots ?? []} empty="当前编排段暂无素材需求" />
             <RelatedPanel title="需要产出的制作项" icon={Boxes} records={selectedSegment?.contentUnits ?? []} empty="当前编排段暂无制作项" />

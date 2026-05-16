@@ -85,10 +85,6 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 				items, err := s.repo.ListSceneMoments(ctx, SceneMomentFilter{ProjectID: projectID, SegmentID: itemID})
 				return len(items), err
 			}},
-			deleteBlocker{"storyboard_line", func() (int, error) {
-				items, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, SegmentID: itemID})
-				return len(items), err
-			}},
 			deleteBlocker{"content_unit", func() (int, error) {
 				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SegmentID: itemID})
 				return len(items), err
@@ -108,10 +104,6 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 		)
 	case "scene_moment":
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"storyboard_line", func() (int, error) {
-				items, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, SceneMomentID: itemID})
-				return len(items), err
-			}},
 			deleteBlocker{"content_unit", func() (int, error) {
 				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SceneMomentID: itemID})
 				return len(items), err
@@ -137,17 +129,6 @@ func (s *Service) ensureItemCanBeDeleted(ctx context.Context, projectID uint, ki
 		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
 			deleteBlocker{"storyboard_version", func() (int, error) {
 				items, err := s.repo.ListStoryboardVersions(ctx, StoryboardVersionFilter{ProjectID: projectID, StoryboardScriptID: itemID})
-				return len(items), err
-			}},
-			deleteBlocker{"storyboard_line", func() (int, error) {
-				items, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, StoryboardScriptID: itemID})
-				return len(items), err
-			}},
-		)
-	case "storyboard_line":
-		return s.ensureNoDeleteBlockers(ctx, projectID, kind,
-			deleteBlocker{"content_unit", func() (int, error) {
-				items, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, StoryboardLineID: itemID})
 				return len(items), err
 			}},
 		)
@@ -245,7 +226,7 @@ func (s *Service) validateProductionOwners(ctx context.Context, projectID uint, 
 	return nil
 }
 
-func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint, productionID *uint, segmentID *uint, sceneMomentID *uint, storyboardLineID *uint, scriptBlockID *uint) error {
+func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint, productionID *uint, segmentID *uint, sceneMomentID *uint, scriptBlockID *uint) error {
 	if productionID != nil {
 		if err := s.ensureProductionInProject(ctx, projectID, *productionID); err != nil {
 			return err
@@ -258,11 +239,6 @@ func (s *Service) validateContentUnitOwners(ctx context.Context, projectID uint,
 	}
 	if sceneMomentID != nil {
 		if err := s.ensureSceneMomentInProject(ctx, projectID, *sceneMomentID); err != nil {
-			return err
-		}
-	}
-	if storyboardLineID != nil {
-		if err := s.ensureOwnerInProject(ctx, projectID, "storyboard_line", *storyboardLineID); err != nil {
 			return err
 		}
 	}

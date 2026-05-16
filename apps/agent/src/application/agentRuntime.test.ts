@@ -510,6 +510,12 @@ test('preview debug explains selected workflow trigger reasons', async () => {
   assert.equal(selected?.selected, true)
   assert.equal(selected?.matched, true)
   assert.ok(selected?.reason.startsWith('selected:'))
+  assert.deepEqual(preview.debug?.layerTrace?.intentSignals?.find((signal) => signal.intent === 'project_proposal'), {
+    intent: 'project_proposal',
+    source: 'keyword_fallback',
+    confidence: 'low',
+    evidence: 'keyword:项目提案',
+  })
 })
 
 test('normalizeClientInput preserves top-level draft id', () => {
@@ -707,6 +713,17 @@ test('explicit write agent can create_project without a current project after ap
   const toolTrace = runtime.getRunTraceEvents(resumed.id, { kind: 'tool_call' }).find((event) => event.toolName === 'movscript_create_project' && event.status === 'completed')
   assert.equal(typeof toolTrace?.durationMs, 'number')
   assert.ok((toolTrace?.durationMs ?? -1) >= 0)
+  const tracePage = runtime.getRunTracePage(resumed.id, { limit: 2 })
+  assert.equal(tracePage.runId, resumed.id)
+  assert.equal(tracePage.events.length, 2)
+  assert.equal(tracePage.total > tracePage.events.length, true)
+  assert.equal(tracePage.hasMore, true)
+  assert.equal(tracePage.nextCursor, tracePage.events.at(-1)?.id)
+  const nextTracePage = runtime.getRunTracePage(resumed.id, { cursor: tracePage.nextCursor, limit: 2 })
+  assert.equal(nextTracePage.events.some((event) => tracePage.events.some((previous) => previous.id === event.id)), false)
+  const toolTracePage = runtime.getRunTracePage(resumed.id, { kind: 'tool_call', limit: 1 })
+  assert.equal(toolTracePage.total, runtime.getRunTraceEvents(resumed.id, { kind: 'tool_call', limit: Number.MAX_SAFE_INTEGER }).length)
+  assert.equal(toolTracePage.events.every((event) => event.kind === 'tool_call'), true)
   const toolStep = runtime.getRun(resumed.id)?.steps.find((step) => step.toolName === 'movscript_create_project' && step.status === 'completed')
   assert.equal(typeof toolStep?.durationMs, 'number')
   assert.ok((toolStep?.durationMs ?? -1) >= 0)
@@ -3513,6 +3530,7 @@ test('supervisor dispatch spawns worker runs and syncs task status from child co
   const planner = plan.runs[0]
   assert.equal(planner?.role, 'planner')
   const finishedPlanner = await waitForRun(runtime, planner!.id)
+  const userMessageCountBeforeDispatch = runtime.getThread(thread.id)?.messages.filter((message) => message.role === 'user').length
 
   const firstDispatch = runtime.dispatchPlan({
     planId: plan.plan.id,
@@ -3525,6 +3543,15 @@ test('supervisor dispatch spawns worker runs and syncs task status from child co
   assert.equal(firstDispatch.spawnedRuns[0]?.parentRunId, finishedPlanner.id)
   assert.equal(firstDispatch.spawnedRuns[0]?.taskId, 'task_a')
   assert.equal(firstDispatch.spawnedRuns[0]?.metadata?.subagentName, 'Agent 1')
+  assert.equal(firstDispatch.spawnedRuns[0]?.input?.executionMode, 'worker')
+  assert.equal(firstDispatch.spawnedRuns[0]?.input?.sourceMessageId, undefined)
+  assert.match(firstDispatch.spawnedRuns[0]?.input?.userMessage ?? '', /Task: Implement base state/)
+  assert.deepEqual(firstDispatch.spawnedRuns[0]?.input?.task, {
+    id: 'task_a',
+    title: 'Implement base state',
+    instructions: 'Execute this worker task and report durable artifacts, blockers, and completion status.',
+  })
+  assert.equal(runtime.getThread(thread.id)?.messages.filter((message) => message.role === 'user').length, userMessageCountBeforeDispatch)
   assert.equal(runtime.getPlanSnapshot(plan.plan.id).tasks.find((task) => task.id === 'task_a')?.metadata?.subagentName, 'Agent 1')
   const waitFirstByName = await runtime.waitSubagent(finishedPlanner, { subagentName: 'Agent 1' }) as any
   assert.equal((waitFirstByName.target.run ?? waitFirstByName.target.task).subagentName, 'Agent 1')
@@ -3559,6 +3586,36 @@ test('supervisor dispatch spawns worker runs and syncs task status from child co
   assert.equal(donePlan.plan.progress, 1)
   assert.equal(donePlan.tasks.every((task) => task.status === 'done'), true)
   assertRunTraceEventTypes(runtime, finishedPlanner.id, ['plan_completed'])
+})
+
+test('parallel worker dispatch keeps task prompts private to each run input', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '并行执行两个任务' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Parallel worker rollout',
+    tasks: [
+      { id: 'task_parallel_a', title: 'Collect references' },
+      { id: 'task_parallel_b', title: 'Draft outline' },
+    ],
+  })
+  const planner = await waitForRun(runtime, plan.runs[0]!.id)
+  const userMessageCountBeforeDispatch = runtime.getThread(thread.id)?.messages.filter((message) => message.role === 'user').length
+
+  const dispatch = runtime.dispatchPlan({
+    planId: plan.plan.id,
+    plannerRunId: planner.id,
+    maxWorkers: 2,
+  })
+
+  assert.equal(dispatch.spawnedRuns.length, 2)
+  assert.equal(runtime.getThread(thread.id)?.messages.filter((message) => message.role === 'user').length, userMessageCountBeforeDispatch)
+  const runByTaskId = new Map(dispatch.spawnedRuns.map((run) => [run.taskId, run]))
+  assert.match(runByTaskId.get('task_parallel_a')?.input?.userMessage ?? '', /Task: Collect references/)
+  assert.doesNotMatch(runByTaskId.get('task_parallel_a')?.input?.userMessage ?? '', /Draft outline/)
+  assert.match(runByTaskId.get('task_parallel_b')?.input?.userMessage ?? '', /Task: Draft outline/)
+  assert.doesNotMatch(runByTaskId.get('task_parallel_b')?.input?.userMessage ?? '', /Collect references/)
 })
 
 test('dispatchPlan requires a planner run from the same plan', async () => {

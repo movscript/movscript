@@ -3,18 +3,12 @@ package entityrelation
 import (
 	"testing"
 
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
 func TestSyncWorkItemRelationsRemovesOldProductionContainment(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&EntityRelation{}, &Production{}, &WorkItem{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "work_item_relations.db", &EntityRelation{}, &Production{}, &WorkItem{})
 
 	production := Production{ProjectID: 1, Name: "Prod", Status: "planning", SourceType: "direct", OwnerLabel: "导演组"}
 	if err := db.Create(&production).Error; err != nil {
@@ -51,13 +45,7 @@ func TestSyncWorkItemRelationsRemovesOldProductionContainment(t *testing.T) {
 }
 
 func TestCreativeReferenceStateUsesNamedRelationType(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&EntityRelation{}, &CreativeReference{}, &CreativeReferenceState{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "creative_reference_state_relations.db", &EntityRelation{}, &CreativeReference{}, &CreativeReferenceState{})
 
 	ref := CreativeReference{ProjectID: 1, Kind: "character", Name: "Hero", Importance: "supporting", Status: "draft"}
 	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&ref).Error; err != nil {

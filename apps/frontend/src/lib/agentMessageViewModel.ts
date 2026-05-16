@@ -95,8 +95,8 @@ export async function fetchAllRunTraceEvents(runId: string): Promise<AgentTraceE
   while (true) {
     const response = await localAgentClient.getRunTraceEvents(runId, { cursor, limit: 200 })
     events.push(...response.events)
-    if (response.events.length < 200) return events
-    cursor = response.events.at(-1)?.id
+    if (response.hasMore === false || (response.hasMore === undefined && response.events.length < 200)) return events
+    cursor = response.nextCursor ?? response.events.at(-1)?.id
     if (!cursor) return events
   }
 }

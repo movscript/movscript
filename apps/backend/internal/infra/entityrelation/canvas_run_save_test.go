@@ -1,26 +1,14 @@
 package entityrelation
 
 import (
-	"os"
 	"testing"
 
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
 func TestCanvasRunSaveSyncsEntityRelations(t *testing.T) {
-	file, err := os.CreateTemp("", "canvas-run-rel-*.db")
-	if err != nil {
-		t.Fatalf("create temp db: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Remove(file.Name()) })
-	db, err := gorm.Open(sqlite.Open(file.Name()), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&EntityRelation{}, &Canvas{}, &CanvasRun{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "canvas_run_save_relations.db", &EntityRelation{}, &Canvas{}, &CanvasRun{})
 
 	projectID := uint(1)
 	canvas := Canvas{OwnerID: 1, ProjectID: &projectID, Name: "Workflow", CanvasType: "workflow", Stage: "generation", RefType: "asset_slot", RefID: ptrUint(9)}

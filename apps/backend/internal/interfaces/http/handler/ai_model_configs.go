@@ -9,6 +9,9 @@ import (
 	"github.com/gin-gonic/gin"
 	aiadminapp "github.com/movscript/movscript/internal/app/aiadmin"
 	"github.com/movscript/movscript/internal/app/dto"
+	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
+	"github.com/movscript/movscript/internal/infra/ai"
+	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
 )
 
 func (h *AIHandler) ListModelConfigs(c *gin.Context) {
@@ -38,6 +41,12 @@ func (h *AIHandler) CreateModelConfig(c *gin.Context) {
 		writeModelConfigError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_model_config.admin_created",
+		TargetType: "ai_model_config",
+		TargetID:   audit.TargetID(cfg.ID),
+		Metadata:   modelConfigAuditMetadata(cfg),
+	})
 	c.JSON(http.StatusCreated, cfg)
 }
 
@@ -56,11 +65,27 @@ func (h *AIHandler) UpdateModelConfig(c *gin.Context) {
 		writeModelConfigError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_model_config.admin_updated",
+		TargetType: "ai_model_config",
+		TargetID:   audit.TargetID(cfg.ID),
+		Metadata:   modelConfigAuditMetadata(cfg),
+	})
 	c.JSON(http.StatusOK, cfg)
 }
 
 func (h *AIHandler) DeleteModelConfig(c *gin.Context) {
-	_ = h.service.DeleteModelConfig(c.Request.Context(), c.Param("modelId"))
+	cfg, err := h.service.DeleteModelConfig(c.Request.Context(), c.Param("modelId"))
+	if err != nil {
+		writeModelConfigError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_model_config.admin_deleted",
+		TargetType: "ai_model_config",
+		TargetID:   audit.TargetID(cfg.ID),
+		Metadata:   modelConfigAuditMetadata(cfg),
+	})
 	c.Status(http.StatusNoContent)
 }
 
@@ -115,6 +140,12 @@ func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 		writeModelConfigError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_model_config.admin_patched",
+		TargetType: "ai_model_config",
+		TargetID:   audit.TargetID(cfg.ID),
+		Metadata:   modelConfigAuditMetadata(cfg),
+	})
 	c.JSON(http.StatusOK, cfg)
 }
 
@@ -159,6 +190,17 @@ func (h *AIHandler) TestModelConfig(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "credential not found"})
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_model_config.admin_tested",
+		TargetType: "ai_model_config",
+		TargetID:   c.Param("modelId"),
+		Metadata: map[string]any{
+			"model_config_id": c.Param("modelId"),
+			"success":         result.Success,
+			"latency_ms":      result.LatencyMs,
+			"message_len":     len(result.Message),
+		},
+	})
 	c.JSON(http.StatusOK, result)
 }
 
@@ -173,6 +215,12 @@ func (h *AIHandler) DebugModelConfig(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_model_config.admin_debugged",
+		TargetType: "ai_model_config",
+		TargetID:   c.Param("modelId"),
+		Metadata:   modelConfigDebugAuditMetadata(c.Param("modelId"), result),
+	})
 	c.JSON(http.StatusOK, result)
 }
 
@@ -186,4 +234,34 @@ func writeModelConfigError(c *gin.Context, err error) {
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error(), "error": err.Error()})
+}
+
+func modelConfigAuditMetadata(cfg domainaiadmin.ModelConfig) map[string]any {
+	return map[string]any{
+		"model_config_id":     cfg.ID,
+		"credential_id":       cfg.CredentialID,
+		"model_def_id":        cfg.ModelDefID,
+		"model_id_override":   cfg.ModelIDOverride,
+		"is_enabled":          cfg.IsEnabled,
+		"priority":            cfg.Priority,
+		"custom_display_name": cfg.CustomDisplayName,
+		"short_name":          cfg.ShortName,
+		"custom_capabilities": cfg.CustomCapabilities,
+		"custom_pricing_mode": cfg.CustomPricingMode,
+	}
+}
+
+func modelConfigDebugAuditMetadata(id string, result ai.DebugCallResult) map[string]any {
+	return map[string]any{
+		"model_config_id":   id,
+		"success":           result.Success,
+		"model_id":          result.ModelID,
+		"endpoint":          redactAuditURL(result.Endpoint),
+		"method":            result.Method,
+		"response_status":   result.ResponseStatus,
+		"latency_ms":        result.LatencyMs,
+		"error_present":     result.Error != "",
+		"request_body_len":  len(result.RequestBody),
+		"response_body_len": len(result.ResponseBody),
+	}
 }

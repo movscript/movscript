@@ -2,19 +2,28 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User } from '@/types'
+import type { AICredential, AIModelConfig, AdapterDef, ModelPreset, FeatureConfig, PublicModel, ParamDef, ModelParamProfile, Project, User, GatewayAPIKey, GatewayAPIKeyCreateResponse, RawResource, ResourceBinding, PaginatedResponse } from '@/types'
 import type { AgentCompactParamContract, ParamRuleTypeSummary } from '@admin/lib/modelParamContract'
 import { useUserStore } from '@/store/userStore'
-import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, Route, FolderKanban, HardDrive, CloudUpload } from 'lucide-react'
+import { Plus, Trash2, ChevronDown, ChevronRight, Eye, EyeOff, ShieldAlert, ArrowLeft, Pencil, Check, X, RefreshCw, Sparkles, Copy, ArrowUpRight, Settings2, Route, FolderKanban, HardDrive, CloudUpload, ScrollText, BarChart3, UsersRound, Building2, KeyRound, Bug } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger } from '@movscript/ui'
+import { ActiveOrgSelect } from '@/components/admin/ActiveOrgSelect'
+import { ActiveUserSelect } from '@/components/admin/ActiveUserSelect'
 import { runtimeCapabilities, runtimeOverviewCards, runtimeSectionCards } from '@admin-runtime'
 import { useTranslation } from 'react-i18next'
-import { translateApiError } from '@/lib/apiError'
+import { translateAPIRequestError, translateApiError } from '@/lib/apiError'
 import { publicModelLabel } from '@/lib/modelDisplay'
+import {
+  credentialToggleConfirmKey,
+  featureToggleConfirmKey,
+  modelConfigDisplayName,
+  nextCredentialEnabledState,
+  type AdminFeatureUpdatePayload,
+} from '@/lib/adminActionGuards'
 import {
   PARAM_TEMPLATES,
   adapterParamsForCapabilities,
@@ -130,6 +139,323 @@ function refPriceHint(def: PriceDef, t: (key: string, values?: Record<string, un
   }
 }
 
+type GatewayKeyForm = {
+  name: string
+  projectId: string
+  allowedModelIds: number[]
+  allowedScopes: string[]
+}
+
+const DEFAULT_GATEWAY_SCOPES = ['model:chat']
+
+function emptyGatewayKeyForm(): GatewayKeyForm {
+  return { name: '', projectId: '', allowedModelIds: [], allowedScopes: DEFAULT_GATEWAY_SCOPES }
+}
+
+function parseGatewayJSON<T>(raw: string, fallback: T): T {
+  if (!raw?.trim()) return fallback
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
+function gatewayModelLabel(model: AIModelConfig, credentials: AICredential[]): string {
+  const credential = credentials.find((item) => item.ID === model.credential_id)
+  const name = model.short_name || model.custom_display_name || model.model_id_override || model.model_def_id || `#${model.ID}`
+  return credential ? `${name} · ${credential.display_name}` : name
+}
+
+function toGatewayPayload(form: GatewayKeyForm, includeProjectClear = false) {
+  return {
+    name: form.name.trim(),
+    project_id: form.projectId.trim() ? Number(form.projectId) : includeProjectClear ? null : undefined,
+    allowed_model_ids: form.allowedModelIds,
+    allowed_scopes: form.allowedScopes.length ? form.allowedScopes : DEFAULT_GATEWAY_SCOPES,
+  }
+}
+
+function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] }) {
+  const { t, i18n } = useTranslation()
+  const qc = useQueryClient()
+  const [showCreate, setShowCreate] = useState(false)
+  const [createForm, setCreateForm] = useState<GatewayKeyForm>(emptyGatewayKeyForm)
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editForm, setEditForm] = useState<GatewayKeyForm>(emptyGatewayKeyForm)
+  const [newKey, setNewKey] = useState<{ name: string; value: string } | null>(null)
+  const [copied, setCopied] = useState(false)
+  const [gatewayKeyError, setGatewayKeyError] = useState('')
+
+  const models = credentials.flatMap((credential) => credential.models ?? [])
+
+  const { data, isLoading, isFetching, refetch, error: gatewayKeysQueryError } = useQuery<{ items: GatewayAPIKey[] }>({
+    queryKey: ['model-gateway', 'api-keys'],
+    queryFn: () => api.get('/model-gateway/api-keys').then((r) => r.data),
+  })
+  const keys = data?.items ?? []
+
+  const createKey = useMutation({
+    mutationFn: (form: GatewayKeyForm) => api.post('/model-gateway/api-keys', toGatewayPayload(form)).then((r) => r.data as GatewayAPIKeyCreateResponse),
+    onSuccess: (result) => {
+      setGatewayKeyError('')
+      setNewKey({ name: result.name, value: result.key })
+      setCreateForm(emptyGatewayKeyForm())
+      setShowCreate(false)
+      qc.invalidateQueries({ queryKey: ['model-gateway', 'api-keys'] })
+    },
+    onError: (err: any) => setGatewayKeyError(translateAPIRequestError(err)),
+  })
+
+  const updateKey = useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: Record<string, unknown> }) =>
+      api.patch(`/model-gateway/api-keys/${id}`, patch).then((r) => r.data),
+    onSuccess: () => {
+      setGatewayKeyError('')
+      setEditingId(null)
+      qc.invalidateQueries({ queryKey: ['model-gateway', 'api-keys'] })
+    },
+    onError: (err: any) => setGatewayKeyError(translateAPIRequestError(err)),
+  })
+
+  const deleteKey = useMutation({
+    mutationFn: (id: number) => api.delete(`/model-gateway/api-keys/${id}`),
+    onSuccess: () => {
+      setGatewayKeyError('')
+      qc.invalidateQueries({ queryKey: ['model-gateway', 'api-keys'] })
+    },
+    onError: (err: any) => setGatewayKeyError(translateAPIRequestError(err)),
+  })
+
+  function startEdit(key: GatewayAPIKey) {
+    setEditingId(key.ID)
+    setEditForm({
+      name: key.name,
+      projectId: key.project_id ? String(key.project_id) : '',
+      allowedModelIds: parseGatewayJSON<number[]>(key.allowed_model_ids, []),
+      allowedScopes: parseGatewayJSON<string[]>(key.allowed_scopes, DEFAULT_GATEWAY_SCOPES),
+    })
+  }
+
+  async function copyNewKey() {
+    if (!newKey) return
+    await navigator.clipboard.writeText(newKey.value)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
+
+  function toggleModel(form: GatewayKeyForm, onChange: (next: GatewayKeyForm) => void, modelID: number) {
+    const next = form.allowedModelIds.includes(modelID)
+      ? form.allowedModelIds.filter((id) => id !== modelID)
+      : [...form.allowedModelIds, modelID]
+    onChange({ ...form, allowedModelIds: next })
+  }
+
+  function toggleScope(form: GatewayKeyForm, onChange: (next: GatewayKeyForm) => void, scope: string) {
+    const next = form.allowedScopes.includes(scope)
+      ? form.allowedScopes.filter((item) => item !== scope)
+      : [...form.allowedScopes, scope]
+    onChange({ ...form, allowedScopes: next.length ? next : DEFAULT_GATEWAY_SCOPES })
+  }
+
+  function submitGatewayKeyUpdate(key: GatewayAPIKey) {
+    updateKey.mutate({ id: key.ID, patch: toGatewayPayload(editForm, true) })
+  }
+
+  function toggleGatewayKey(key: GatewayAPIKey) {
+    const confirmKey = key.is_enabled ? 'admin.gatewayKeys.confirmDisable' : 'admin.gatewayKeys.confirmEnable'
+    if (!window.confirm(t(confirmKey, { name: key.name }))) return
+    updateKey.mutate({ id: key.ID, patch: { is_enabled: !key.is_enabled } })
+  }
+
+  function renderForm(form: GatewayKeyForm, onChange: (next: GatewayKeyForm) => void, submitLabel: string, onSubmit: () => void, saving: boolean) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.name')}</Label>
+            <Input value={form.name} onChange={(event) => onChange({ ...form, name: event.target.value })} placeholder={t('admin.gatewayKeys.namePlaceholder')} className="h-8 text-xs" />
+          </div>
+          <div>
+            <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.projectId')}</Label>
+            <Input value={form.projectId} onChange={(event) => onChange({ ...form, projectId: event.target.value.replace(/\D/g, '') })} placeholder={t('admin.gatewayKeys.allProjects')} className="h-8 text-xs" />
+          </div>
+        </div>
+        <div>
+          <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.scopes')}</Label>
+          <div className="flex flex-wrap gap-2">
+            {['model:chat', '*'].map((scope) => (
+              <label key={scope} className="flex h-8 items-center gap-2 rounded-md border border-border px-2 text-xs">
+                <input type="checkbox" checked={form.allowedScopes.includes(scope)} onChange={() => toggleScope(form, onChange, scope)} className="rounded" />
+                <span className="font-mono">{scope}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.gatewayKeys.models')}</Label>
+          <div className="max-h-44 overflow-auto rounded-md border border-border bg-background p-2">
+            {models.length === 0 ? (
+              <p className="px-2 py-3 text-xs text-muted-foreground">{t('admin.gatewayKeys.noModels')}</p>
+            ) : (
+              <div className="grid gap-1 md:grid-cols-2">
+                {models.map((model) => (
+                  <label key={model.ID} className="flex min-w-0 items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-muted/60">
+                    <input type="checkbox" checked={form.allowedModelIds.includes(model.ID)} onChange={() => toggleModel(form, onChange, model.ID)} className="rounded" />
+                    <span className="truncate">{gatewayModelLabel(model, credentials)}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.modelHint')}</p>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => { setShowCreate(false); setEditingId(null) }}>{t('common.cancel')}</Button>
+          <Button type="button" size="sm" onClick={onSubmit} disabled={saving || !form.name.trim()}>
+            {saving ? t('common.saving') : submitLabel}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <KeyRound size={16} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">{t('admin.gatewayKeys.title')}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t('admin.gatewayKeys.description')}</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw size={14} className={cn('mr-2', isFetching && 'animate-spin')} />
+            {t('admin.gatewayKeys.refresh')}
+          </Button>
+          <Button type="button" size="sm" onClick={() => setShowCreate((value) => !value)}>
+            <Plus size={14} className="mr-2" />
+            {t('admin.gatewayKeys.create')}
+          </Button>
+        </div>
+      </div>
+
+      {newKey && (
+        <div className="mt-4 rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-medium text-foreground">{t('admin.gatewayKeys.createdOnce', { name: newKey.name })}</p>
+              <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{newKey.value}</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={copyNewKey}>
+              <Copy size={14} className="mr-2" />
+              {copied ? t('admin.gatewayKeys.copied') : t('admin.gatewayKeys.copy')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="mt-4">
+          {renderForm(createForm, setCreateForm, t('admin.gatewayKeys.create'), () => createKey.mutate(createForm), createKey.isPending)}
+        </div>
+      )}
+
+      {gatewayKeyError && (
+        <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {gatewayKeyError}
+        </div>
+      )}
+
+      {gatewayKeysQueryError && (
+        <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {translateAPIRequestError(gatewayKeysQueryError)}
+        </div>
+      )}
+
+      <div className="mt-4 overflow-hidden rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead className="border-b border-border bg-card">
+            <tr>
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.name')}</th>
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.prefix')}</th>
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.scope')}</th>
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.lastUsed')}</th>
+              <th className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.actions')}</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {keys.map((key) => {
+              const modelIDs = parseGatewayJSON<number[]>(key.allowed_model_ids, [])
+              const scopes = parseGatewayJSON<string[]>(key.allowed_scopes, DEFAULT_GATEWAY_SCOPES)
+              return (
+                <tr key={key.ID} className="align-top hover:bg-card/70">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-foreground">{key.name}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">#{key.ID} · {key.is_enabled ? t('admin.gatewayKeys.enabled') : t('admin.gatewayKeys.disabled')}</div>
+                    {editingId === key.ID && (
+                      <div className="mt-3">
+                        {renderForm(editForm, setEditForm, t('common.save'), () => submitGatewayKeyUpdate(key), updateKey.isPending)}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{key.key_prefix}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                    <div>{t('admin.gatewayKeys.projectId')}: {key.project_id ? `#${key.project_id}` : t('admin.gatewayKeys.allProjects')}</div>
+                    <div>{t('admin.gatewayKeys.models')}: {modelIDs.length ? modelIDs.map((id) => `#${id}`).join(', ') : t('admin.gatewayKeys.allModels')}</div>
+                    <div>{t('admin.gatewayKeys.scopes')}: {scopes.join(', ')}</div>
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                    {key.last_used_at ? new Date(key.last_used_at).toLocaleString(i18n.language) : '-'}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => startEdit(key)}>{t('common.details')}</Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleGatewayKey(key)}
+                        disabled={updateKey.isPending}
+                      >
+                        {key.is_enabled ? t('admin.gatewayKeys.disable') : t('admin.gatewayKeys.enable')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => { if (window.confirm(t('admin.gatewayKeys.confirmDelete', { name: key.name }))) deleteKey.mutate(key.ID) }}
+                        disabled={deleteKey.isPending}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        {t('common.delete')}
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {!isLoading && !gatewayKeysQueryError && keys.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">{t('admin.gatewayKeys.empty')}</td>
+              </tr>
+            )}
+            {isLoading && (
+              <tr>
+                <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">{t('common.loading')}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ── Step 1: Pick adapter ──────────────────────────────────────────────────────
 
 function AdapterPicker({
@@ -217,7 +543,7 @@ function CredentialForm({
       setTestState({ loading: false, result: res })
       if (res.success) onSuccess(adapter.adapter_type)
     } catch (e: any) {
-      setTestState({ loading: false, result: { success: false, message: translateApiError(e?.response?.data), latency_ms: 0 } })
+      setTestState({ loading: false, result: { success: false, message: translateAPIRequestError(e), latency_ms: 0 } })
     }
   }
 
@@ -865,40 +1191,54 @@ export function ModelManagementPage() {
   // Inline credential name editing
   const [editingNameId, setEditingNameId] = useState<number | null>(null)
   const [editingNameValue, setEditingNameValue] = useState('')
+  const [modelAdminError, setModelAdminError] = useState('')
 
-  const { data: adapters = [] } = useQuery<AdapterDef[]>({
+  const { data: adapters = [], error: adaptersQueryError } = useQuery<AdapterDef[]>({
     queryKey: ['admin', 'adapters'],
     queryFn: () => api.get('/admin/adapters').then((r) => r.data),
   })
 
-  const { data: presets = [] } = useQuery<ModelPreset[]>({
+  const { data: presets = [], error: presetsQueryError } = useQuery<ModelPreset[]>({
     queryKey: ['admin', 'model-presets'],
     queryFn: () => api.get('/admin/model-presets').then((r) => r.data),
   })
 
-  const { data: credentials = [] } = useQuery<AICredential[]>({
+  const { data: credentials = [], error: credentialsQueryError } = useQuery<AICredential[]>({
     queryKey: ['admin', 'credentials'],
     queryFn: () => api.get('/admin/credentials').then((r) => r.data),
   })
 
   const deleteCredential = useMutation({
     mutationFn: (id: number) => api.delete(`/admin/credentials/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'credentials'] }),
+    onMutate: () => setModelAdminError(''),
+    onSuccess: () => {
+      setModelAdminError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+    },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
   const toggleCredential = useMutation({
     mutationFn: ({ id, is_enabled }: { id: number; is_enabled: boolean }) =>
       api.put(`/admin/credentials/${id}`, { is_enabled }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'credentials'] }),
+    onMutate: () => setModelAdminError(''),
+    onSuccess: () => {
+      setModelAdminError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+    },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
   const renameCredential = useMutation({
     mutationFn: ({ id, display_name }: { id: number; display_name: string }) =>
       api.put(`/admin/credentials/${id}`, { display_name }),
+    onMutate: () => setModelAdminError(''),
     onSuccess: () => {
+      setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
       setEditingNameId(null)
     },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
   const updateCredentialAuth = useMutation({
@@ -909,11 +1249,14 @@ export function ModelManagementPage() {
       })
       return api.put(`/admin/credentials/${id}`, { credentials })
     },
+    onMutate: () => setModelAdminError(''),
     onSuccess: () => {
+      setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
       setCredentialEditFor(null)
       setCredentialEditFields({})
     },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
   const addModel = useMutation({
@@ -939,10 +1282,13 @@ export function ModelManagementPage() {
         credits_per_second: data.credits_per_second,
         credits_per_call: data.credits_per_call,
       }),
+    onMutate: () => setModelAdminError(''),
     onSuccess: () => {
+      setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
       closeAddPanel()
     },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
   const updateModelConfig = useMutation({
@@ -959,16 +1305,24 @@ export function ModelManagementPage() {
         custom_max_input_videos: data.max_input_videos,
         custom_supported_params: data.supported_params,
       }),
+    onMutate: () => setModelAdminError(''),
     onSuccess: () => {
+      setModelAdminError('')
       qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
       setEditingConfig(null)
     },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
   const deleteModelConfig = useMutation({
     mutationFn: ({ credId, modelId }: { credId: number; modelId: number }) =>
       api.delete(`/admin/credentials/${credId}/models/${modelId}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'credentials'] }),
+    onMutate: () => setModelAdminError(''),
+    onSuccess: () => {
+      setModelAdminError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'credentials'] })
+    },
+    onError: (err: any) => setModelAdminError(translateAPIRequestError(err)),
   })
 
   function openAddPanel(credId: number) {
@@ -992,6 +1346,7 @@ export function ModelManagementPage() {
 
   const addEffectivePricingMode = canUseCustomPricingMode ? addPricingMode : inferPricingMode(addCapabilities)
   const editEffectivePricingMode = canUseCustomPricingMode ? editForm.pricing_mode : inferPricingMode(editForm.capabilities)
+  const modelQueryError = adaptersQueryError || presetsQueryError || credentialsQueryError
 
   function closeAddPanel() {
     setAddingFor(null)
@@ -1008,7 +1363,7 @@ export function ModelManagementPage() {
       const res = await api.get(`/admin/credentials/${credId}/remote-models`).then((r) => r.data)
       setRemoteModels(res.models ?? [])
     } catch (e: any) {
-      setRemoteError(translateApiError(e?.response?.data))
+      setRemoteError(translateAPIRequestError(e))
     } finally {
       setRemoteFetching(false)
     }
@@ -1020,7 +1375,7 @@ export function ModelManagementPage() {
       const result = await fn()
       setTestResults((r) => ({ ...r, [key]: result }))
     } catch (e: any) {
-      setTestResults((r) => ({ ...r, [key]: { success: false, message: translateApiError(e?.response?.data), latency_ms: 0 } }))
+      setTestResults((r) => ({ ...r, [key]: { success: false, message: translateAPIRequestError(e), latency_ms: 0 } }))
     } finally {
       setTestingId(null)
     }
@@ -1037,6 +1392,27 @@ export function ModelManagementPage() {
     })
     setCredentialEditFor(cred.ID)
     setCredentialEditFields(next)
+  }
+
+  function confirmToggleCredential(cred: AICredential) {
+    const nextEnabled = nextCredentialEnabledState(cred)
+    const key = credentialToggleConfirmKey(cred)
+    if (window.confirm(t(key, { name: cred.display_name }))) {
+      toggleCredential.mutate({ id: cred.ID, is_enabled: nextEnabled })
+    }
+  }
+
+  function confirmDeleteCredential(cred: AICredential) {
+    if (window.confirm(t('admin.models.confirmDeleteCredential', { name: cred.display_name }))) {
+      deleteCredential.mutate(cred.ID)
+    }
+  }
+
+  function confirmDeleteModelConfig(cred: AICredential, cfg: AIModelConfig) {
+    const name = modelConfigDisplayName(cfg)
+    if (window.confirm(t('admin.models.confirmDeleteModel', { name }))) {
+      deleteModelConfig.mutate({ credId: cred.ID, modelId: cfg.ID })
+    }
   }
 
   return (
@@ -1059,6 +1435,20 @@ export function ModelManagementPage() {
           ? t('admin.models.providersHint')
           : t('admin.models.gatewayHint')}
       </div>
+
+      {modelAdminError && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+          <span>{modelAdminError}</span>
+        </div>
+      )}
+
+      {modelQueryError && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+          <span>{translateAPIRequestError(modelQueryError)}</span>
+        </div>
+      )}
 
       {viewMode === 'providers' && addStep === 'idle' && (
         <div className="flex justify-end">
@@ -1195,7 +1585,7 @@ export function ModelManagementPage() {
                 )}
 
                 <button
-                  onClick={() => toggleCredential.mutate({ id: cred.ID, is_enabled: !cred.is_enabled })}
+                  onClick={() => confirmToggleCredential(cred)}
                   title={cred.is_enabled ? t('admin.models.disableCredentialTitle') : t('admin.models.enableCredentialTitle')}
                   className={cn('text-xs px-2 py-0.5 rounded-full border transition-colors',
                     cred.is_enabled
@@ -1204,7 +1594,7 @@ export function ModelManagementPage() {
                 >
                   {cred.is_enabled ? t('admin.models.enabledMark') : t('admin.models.disabledMark')}
                 </button>
-                <button onClick={() => deleteCredential.mutate(cred.ID)} className="text-muted-foreground hover:text-destructive">
+                <button onClick={() => confirmDeleteCredential(cred)} className="text-muted-foreground hover:text-destructive">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -1641,7 +2031,7 @@ export function ModelManagementPage() {
                             {t('admin.models.edit')}
                           </button>
                           <button
-                            onClick={() => deleteModelConfig.mutate({ credId: cred.ID, modelId: cfg.ID })}
+                            onClick={() => confirmDeleteModelConfig(cred, cfg)}
                             className="text-muted-foreground/50 hover:text-destructive"
                           >
                             <Trash2 size={12} />
@@ -1944,32 +2334,11 @@ export function ModelManagementPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-border bg-background p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-foreground">{t('admin.models.gatewayKeyTitle')}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{t('admin.models.gatewayKeyBody')}</p>
-              </div>
-              <button
-                type="button"
-                className="rounded-md border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() => window.open(adminHref('/debug'), '_blank')}
-              >
-                {t('admin.models.gatewayOpenDebug')}
-              </button>
-            </div>
-          </div>
+          <GatewayAPIKeysSection credentials={credentials} />
         </div>
       )}
     </div>
   )
-}
-
-export interface AdminUser {
-  ID: number
-  username: string
-  system_role: string
-  CreatedAt?: string
 }
 
 // ── Tab 3: 项目 Owner 管理 ────────────────────────────────────────────────────
@@ -1978,6 +2347,7 @@ interface AdminProjectMember {
   ID: number
   user_id: number
   role: string
+  CreatedAt?: string
   user?: User
 }
 
@@ -1985,50 +2355,296 @@ interface AdminProject extends Project {
   members?: AdminProjectMember[]
 }
 
+interface AdminProjectDetail {
+  project: AdminProject
+  member_count: number
+  script_count: number
+  content_unit_count: number
+  asset_slot_count: number
+  resource_count: number
+  usage: {
+    calls: number
+    cost: number
+    input_tokens: number
+    output_tokens: number
+    images: number
+    duration_sec: number
+  }
+  audit: {
+    records: number
+    last_action?: string
+    last_at?: string
+  }
+}
+
 export function ProjectOwnerManagementPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [ownerDialog, setOwnerDialog] = useState<AdminProject | null>(null)
+  const [editDialog, setEditDialog] = useState<AdminProject | null>(null)
+  const [createProjectName, setCreateProjectName] = useState('')
+  const [createProjectDescription, setCreateProjectDescription] = useState('')
+  const [createProjectOwnerId, setCreateProjectOwnerId] = useState('')
+  const [createProjectOrgId, setCreateProjectOrgId] = useState('')
+  const [createProjectStatus, setCreateProjectStatus] = useState('planning')
   const [selectedOwnerId, setSelectedOwnerId] = useState('')
+  const [editProjectName, setEditProjectName] = useState('')
+  const [editProjectStatus, setEditProjectStatus] = useState('planning')
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [ownerFilter, setOwnerFilter] = useState('')
+  const [orgFilter, setOrgFilter] = useState('')
+  const [page, setPage] = useState(1)
+  const [memberDialog, setMemberDialog] = useState<AdminProject | null>(null)
+  const [newMemberUserId, setNewMemberUserId] = useState('')
+  const [newMemberRole, setNewMemberRole] = useState('viewer')
+  const [projectError, setProjectError] = useState('')
 
-  const { data: projects = [] } = useQuery<AdminProject[]>({
-    queryKey: ['admin', 'projects'],
-    queryFn: () => api.get('/admin/projects').then((r) => r.data),
+  const { data, isFetching, refetch, error: projectsQueryError } = useQuery<{ projects: AdminProject[]; total: number }>({
+    queryKey: ['admin', 'projects', query, statusFilter, ownerFilter, orgFilter, page],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: String(page),
+        page_size: '25',
+      })
+      if (query.trim()) params.set('q', query.trim())
+      if (statusFilter) params.set('status', statusFilter)
+      if (ownerFilter) params.set('owner_id', ownerFilter)
+      if (orgFilter) params.set('org_id', orgFilter)
+      const res = await api.get<AdminProject[]>(`/admin/projects?${params.toString()}`)
+      return {
+        projects: res.data,
+        total: Number(res.headers['x-total-count'] ?? res.data.length),
+      }
+    },
   })
-  const { data: users = [] } = useQuery<AdminUser[]>({
-    queryKey: ['users', 'admin-owner-picker'],
-    queryFn: () => api.get('/users').then((r) => r.data),
+  const projects = data?.projects ?? []
+  const total = data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / 25))
+  const projectStatuses = ['planning', 'script_analysis', 'asset_prep', 'production', 'editing', 'done']
+  const projectMembersQuery = useQuery<AdminProjectMember[]>({
+    queryKey: ['admin', 'projects', memberDialog?.ID, 'members'],
+    queryFn: () => api.get(`/admin/projects/${memberDialog?.ID}/members`).then((r) => r.data),
+    enabled: !!memberDialog,
+  })
+  const projectDetailQuery = useQuery<AdminProjectDetail>({
+    queryKey: ['admin', 'projects', memberDialog?.ID, 'detail'],
+    queryFn: () => api.get(`/admin/projects/${memberDialog?.ID}/detail`).then((r) => r.data),
+    enabled: !!memberDialog,
   })
 
   const forceSetOwner = useMutation({
     mutationFn: ({ projectId, ownerId }: { projectId: number; ownerId: number }) =>
       api.put(`/admin/projects/${projectId}/owner`, { owner_id: ownerId }),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
+      setProjectError('')
       qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'detail'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'members'] })
       setOwnerDialog(null)
       setSelectedOwnerId('')
     },
+    onError: (err: any) => setProjectError(translateAPIRequestError(err)),
+  })
+  const deleteProject = useMutation({
+    mutationFn: (project: AdminProject) => api.delete(`/admin/projects/${project.ID}`),
+    onSuccess: () => {
+      setProjectError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
+    },
+    onError: (err: any) => setProjectError(translateAPIRequestError(err)),
+  })
+  const createProject = useMutation({
+    mutationFn: ({ name, description, ownerId, orgId, status }: { name: string; description: string; ownerId: number; orgId?: number; status: string }) =>
+      api.post('/admin/projects', { name, description, owner_id: ownerId, org_id: orgId, status }).then((r) => r.data),
+    onSuccess: () => {
+      setProjectError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      setCreateDialogOpen(false)
+      setCreateProjectName('')
+      setCreateProjectDescription('')
+      setCreateProjectOwnerId('')
+      setCreateProjectOrgId('')
+      setCreateProjectStatus('planning')
+    },
+    onError: (err: any) => setProjectError(translateAPIRequestError(err)),
+  })
+  const updateProject = useMutation({
+    mutationFn: ({ projectId, name, status }: { projectId: number; name: string; status: string }) =>
+      api.patch(`/admin/projects/${projectId}`, { name, status }).then((r) => r.data),
+    onSuccess: (_result, variables) => {
+      setProjectError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'detail'] })
+      setEditDialog(null)
+      setEditProjectName('')
+      setEditProjectStatus('planning')
+    },
+    onError: (err: any) => setProjectError(translateAPIRequestError(err)),
+  })
+  const addProjectMember = useMutation({
+    mutationFn: ({ projectId, userId, role }: { projectId: number; userId: number; role: string }) =>
+      api.post(`/admin/projects/${projectId}/members`, { user_id: userId, role }).then((r) => r.data),
+    onSuccess: (_result, variables) => {
+      setProjectError('')
+      setNewMemberUserId('')
+      setNewMemberRole('viewer')
+      qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'members'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'detail'] })
+    },
+    onError: (err: any) => setProjectError(translateAPIRequestError(err)),
+  })
+  const updateProjectMember = useMutation({
+    mutationFn: ({ projectId, memberId, role }: { projectId: number; memberId: number; role: string }) =>
+      api.patch(`/admin/projects/${projectId}/members/${memberId}`, { role }).then((r) => r.data),
+    onSuccess: (_result, variables) => {
+      setProjectError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'members'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'detail'] })
+    },
+    onError: (err: any) => setProjectError(translateAPIRequestError(err)),
+  })
+  const removeProjectMember = useMutation({
+    mutationFn: ({ projectId, memberId }: { projectId: number; memberId: number }) =>
+      api.delete(`/admin/projects/${projectId}/members/${memberId}`),
+    onSuccess: (_result, variables) => {
+      setProjectError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'projects'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'members'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'projects', variables.projectId, 'detail'] })
+    },
+    onError: (err: any) => setProjectError(translateAPIRequestError(err)),
   })
 
   const openOwnerDialog = (project: AdminProject) => {
     setOwnerDialog(project)
-    setSelectedOwnerId(project.owner_id ? String(project.owner_id) : users[0]?.ID ? String(users[0].ID) : '')
+    setSelectedOwnerId('')
   }
 
+  const openEditDialog = (project: AdminProject) => {
+    setEditDialog(project)
+    setEditProjectName(project.name || '')
+    setEditProjectStatus(project.status || 'planning')
+  }
+
+  const clearFilters = () => {
+    setQuery('')
+    setStatusFilter('')
+    setOwnerFilter('')
+    setOrgFilter('')
+    setPage(1)
+  }
+
+  const removeProject = (project: AdminProject) => {
+    if (window.confirm(t('admin.projects.confirmDelete', { name: project.name || `#${project.ID}` }))) {
+      deleteProject.mutate(project)
+    }
+  }
+
+  const submitProjectCreate = () => {
+    const ownerId = Number(createProjectOwnerId)
+    const orgId = createProjectOrgId ? Number(createProjectOrgId) : undefined
+    if (!createProjectName.trim() || !Number.isFinite(ownerId) || ownerId <= 0) return
+    if (orgId !== undefined && (!Number.isFinite(orgId) || orgId <= 0)) return
+    createProject.mutate({
+      name: createProjectName,
+      description: createProjectDescription,
+      ownerId,
+      orgId,
+      status: createProjectStatus,
+    })
+  }
+
+  const submitProjectUpdate = () => {
+    if (!editDialog || !editProjectName.trim()) return
+    updateProject.mutate({ projectId: editDialog.ID, name: editProjectName, status: editProjectStatus })
+  }
+
+  useEffect(() => {
+    setPage(1)
+  }, [query, statusFilter, ownerFilter, orgFilter])
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount)
+  }, [page, pageCount])
+
   return (
-    <div className="space-y-4 max-w-5xl">
-      <div>
-        <h2 className="text-base font-semibold text-foreground">{t('admin.projects.title')}</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">{t('admin.projects.description')}</p>
+    <div className="space-y-4 max-w-6xl">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">{t('admin.projects.title')}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('admin.projects.description', { total })}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
+            <Plus size={13} className="mr-1.5" />
+            {t('admin.projects.create')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw size={13} className={cn('mr-1.5', isFetching && 'animate-spin')} />
+            {t('admin.projects.refresh')}
+          </Button>
+        </div>
       </div>
 
-      <div className="border border-border rounded-lg overflow-hidden">
+      <div className="grid gap-3 rounded-lg border border-border bg-card p-3 md:grid-cols-[minmax(180px,1fr)_150px_130px_130px_auto]">
+        <Input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t('admin.projects.searchPlaceholder')}
+          className="h-9"
+        />
+        <select
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="">{t('admin.projects.allStatuses')}</option>
+          {projectStatuses.map((status) => (
+            <option key={status} value={status}>{t(`admin.projects.statuses.${status}`, { defaultValue: status })}</option>
+          ))}
+        </select>
+        <Input
+          value={ownerFilter}
+          onChange={(event) => setOwnerFilter(event.target.value.replace(/[^\d]/g, ''))}
+          placeholder={t('admin.projects.ownerId')}
+          className="h-9"
+        />
+        <Input
+          value={orgFilter}
+          onChange={(event) => setOrgFilter(event.target.value.replace(/[^\d]/g, ''))}
+          placeholder={t('admin.projects.orgId')}
+          className="h-9"
+        />
+        <Button variant="outline" size="sm" onClick={clearFilters}>
+          {t('admin.projects.clear')}
+        </Button>
+      </div>
+
+      {projectError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {projectError}
+        </div>
+      )}
+
+      {projectsQueryError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {translateAPIRequestError(projectsQueryError)}
+        </div>
+      )}
+
+      <div className="border border-border rounded-lg overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-card border-b border-border">
             <tr>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.id')}</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.name')}</th>
               <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.owner')}</th>
+              <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.status')}</th>
+              <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.orgId')}</th>
               <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.members')}</th>
               <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">{t('admin.projects.updatedAt')}</th>
               <th className="px-4 py-2.5"></th>
@@ -2044,27 +2660,366 @@ export function ProjectOwnerManagementPage() {
                   <td className={cn('px-4 py-3 text-xs', project.owner_id === 0 ? 'text-destructive font-medium' : 'text-muted-foreground')}>
                     {ownerName}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono tabular-nums text-sm">{project.members?.length ?? 0}</td>
+                  <td className="px-4 py-3 text-xs text-muted-foreground">{project.status ? t(`admin.projects.statuses.${project.status}`, { defaultValue: project.status }) : '-'}</td>
+                  <td className="px-4 py-3 text-right font-mono text-xs text-muted-foreground">{project.org_id ? `#${project.org_id}` : '-'}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setMemberDialog(project)}
+                      className="font-mono text-sm tabular-nums text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+                    >
+                      {(project.members?.length ?? 0).toLocaleString()}
+                    </button>
+                  </td>
                   <td className="px-4 py-3 text-right text-xs text-muted-foreground">
                     {project.UpdatedAt ? new Date(project.UpdatedAt).toLocaleString() : '-'}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditDialog(project)}
+                      className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      title={t('admin.projects.edit')}
+                      aria-label={t('admin.projects.edit')}
+                    >
+                      <Pencil size={13} />
+                    </button>
                     <button
                       onClick={() => openOwnerDialog(project)}
                       className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                     >
                       {t('admin.projects.changeOwner')}
                     </button>
+                    <button
+                      onClick={() => removeProject(project)}
+                      disabled={deleteProject.isPending}
+                      className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
+                      title={t('admin.projects.delete')}
+                      aria-label={t('admin.projects.delete')}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                    </div>
                   </td>
                 </tr>
               )
             })}
-            {projects.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground text-sm">{t('admin.projects.empty')}</td></tr>
+            {!projectsQueryError && projects.length === 0 && (
+              <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground text-sm">{t('admin.projects.empty')}</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {total > 25 && (
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">{t('admin.projects.pageStatus', { page, pageCount })}</span>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+              {t('admin.projects.previousPage')}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>
+              {t('admin.projects.nextPage')}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {memberDialog && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl shadow-2xl w-full max-w-5xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">{t('admin.projects.membersTitle', { name: memberDialog.name || `#${memberDialog.ID}` })}</h3>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">#{memberDialog.ID}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMemberDialog(null)}
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label={t('common.close')}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="border-b border-border px-5 py-4">
+              {projectDetailQuery.error && (
+                <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {translateAPIRequestError(projectDetailQuery.error)}
+                </div>
+              )}
+              {projectDetailQuery.isLoading && (
+                <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{t('common.loading')}</div>
+              )}
+              {projectDetailQuery.data && (
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <ProjectDetailMetric label={t('admin.projects.detailMembers')} value={formatAdminNumber(projectDetailQuery.data.member_count)} />
+                  <ProjectDetailMetric
+                    label={t('admin.projects.detailProduction')}
+                    value={formatAdminNumber(projectDetailQuery.data.content_unit_count)}
+                    detail={t('admin.projects.detailProductionBreakdown', {
+                      scripts: formatAdminNumber(projectDetailQuery.data.script_count),
+                      slots: formatAdminNumber(projectDetailQuery.data.asset_slot_count),
+                      resources: formatAdminNumber(projectDetailQuery.data.resource_count),
+                    })}
+                  />
+                  <ProjectDetailMetric
+                    label={t('admin.projects.detailUsageCost')}
+                    value={formatAdminCredits(projectDetailQuery.data.usage.cost)}
+                    detail={t('admin.projects.detailUsageCalls', { count: formatAdminNumber(projectDetailQuery.data.usage.calls) })}
+                  />
+	                  <ProjectDetailMetric
+	                    label={t('admin.projects.detailAuditRecords')}
+	                    value={formatAdminNumber(projectDetailQuery.data.audit.records)}
+	                    detail={projectDetailQuery.data.audit.last_action ? `${projectDetailQuery.data.audit.last_action} · ${projectDetailQuery.data.audit.last_at ? new Date(projectDetailQuery.data.audit.last_at).toLocaleString() : '-'}` : undefined}
+	                  />
+	                </div>
+	              )}
+	              <div className="mt-3 flex flex-wrap gap-2">
+	                <Button asChild type="button" variant="outline" size="sm">
+	                  <Link to={`/usage-logs?project_id=${memberDialog.ID}`}>
+	                    <BarChart3 size={14} className="mr-2" />
+	                    {t('admin.projects.viewUsageLogs')}
+	                  </Link>
+	                </Button>
+	                <Button asChild type="button" variant="outline" size="sm">
+	                  <Link to={`/audit-logs?project_id=${memberDialog.ID}`}>
+	                    <ScrollText size={14} className="mr-2" />
+	                    {t('admin.projects.viewAuditLogs')}
+	                  </Link>
+	                </Button>
+	              </div>
+	            </div>
+            <div className="grid gap-2 border-b border-border bg-card/60 px-5 py-3 md:grid-cols-[minmax(0,1fr)_150px_auto]">
+              <ActiveUserSelect
+                value={newMemberUserId}
+                onChange={setNewMemberUserId}
+                placeholder={t('admin.projects.selectMemberUser')}
+                emptyLabel={t('admin.projects.noOwnerCandidates')}
+              />
+              <select
+                value={newMemberRole}
+                onChange={(event) => setNewMemberRole(event.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              >
+                {['director', 'writer', 'generator', 'viewer'].map((role) => (
+                  <option key={role} value={role}>{t(`admin.projects.memberRoles.${role}`, { defaultValue: role })}</option>
+                ))}
+              </select>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => addProjectMember.mutate({ projectId: memberDialog.ID, userId: Number(newMemberUserId), role: newMemberRole })}
+                disabled={addProjectMember.isPending || !newMemberUserId}
+              >
+                {addProjectMember.isPending ? t('common.saving') : t('admin.projects.addMember')}
+              </Button>
+            </div>
+            <div className="max-h-[60vh] overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border bg-card">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.projects.member')}</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.projects.role')}</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.projects.joinedAt')}</th>
+                    <th className="px-4 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {projectMembersQuery.error && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-3 text-xs text-destructive">
+                        {translateAPIRequestError(projectMembersQuery.error)}
+                      </td>
+                    </tr>
+                  )}
+                  {projectMembersQuery.isLoading && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">{t('common.loading')}</td>
+                    </tr>
+                  )}
+                  {!projectMembersQuery.isLoading && !projectMembersQuery.error && (projectMembersQuery.data ?? []).length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">{t('admin.projects.noMembers')}</td>
+                    </tr>
+                  )}
+                  {(projectMembersQuery.data ?? []).map((member) => (
+                    <tr key={member.ID}>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-foreground">{member.user?.display_name || member.user?.username || `#${member.user_id}`}</div>
+                        <div className="font-mono text-xs text-muted-foreground">
+                          #{member.user_id}{member.user?.primary_email ? ` · ${member.user.primary_email}` : ''}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {member.role === 'owner' ? (
+                          <span className="text-xs text-muted-foreground">{t('admin.projects.memberRoles.owner')}</span>
+                        ) : (
+                          <select
+                            value={member.role}
+                            onChange={(event) => updateProjectMember.mutate({ projectId: memberDialog.ID, memberId: member.ID, role: event.target.value })}
+                            disabled={updateProjectMember.isPending}
+                            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                          >
+                            {['director', 'writer', 'generator', 'viewer'].map((role) => (
+                              <option key={role} value={role}>{t(`admin.projects.memberRoles.${role}`, { defaultValue: role })}</option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
+                        {member.CreatedAt ? new Date(member.CreatedAt).toLocaleString() : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {member.role !== 'owner' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(t('admin.projects.confirmRemoveMember'))) {
+                                removeProjectMember.mutate({ projectId: memberDialog.ID, memberId: member.ID })
+                              }
+                            }}
+                            disabled={removeProjectMember.isPending}
+                            className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
+                            title={t('admin.projects.removeMember')}
+                            aria-label={t('admin.projects.removeMember')}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createDialogOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">{t('admin.projects.createTitle')}</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">{t('admin.projects.createHint')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCreateDialogOpen(false)}
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label={t('common.close')}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="grid gap-3 p-5">
+              <div>
+                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.name')}</Label>
+                <Input value={createProjectName} onChange={(event) => setCreateProjectName(event.target.value)} className="h-9" autoFocus />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.projectDescription')}</Label>
+                <Input value={createProjectDescription} onChange={(event) => setCreateProjectDescription(event.target.value)} className="h-9" />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <ActiveUserSelect
+                    label={t('admin.projects.ownerId')}
+                    value={createProjectOwnerId}
+                    onChange={setCreateProjectOwnerId}
+                    placeholder={t('admin.projects.selectOwnerUser')}
+                    emptyLabel={t('admin.projects.noOwnerCandidates')}
+                  />
+                </div>
+                <div>
+                  <ActiveOrgSelect
+                    label={t('admin.projects.orgId')}
+                    value={createProjectOrgId}
+                    onChange={setCreateProjectOrgId}
+                    placeholder={t('admin.projects.selectOrg')}
+                    emptyLabel={t('admin.projects.noOrgCandidates')}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.status')}</Label>
+                <select
+                  value={createProjectStatus}
+                  onChange={(event) => setCreateProjectStatus(event.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {projectStatuses.map((status) => (
+                    <option key={status} value={status}>{t(`admin.projects.statuses.${status}`, { defaultValue: status })}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
+              <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button size="sm" onClick={submitProjectCreate} disabled={createProject.isPending || !createProjectName.trim() || !createProjectOwnerId}>
+                {createProject.isPending ? t('common.saving') : t('admin.projects.create')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editDialog && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-xl shadow-2xl w-full max-w-md">
+            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">{t('admin.projects.editTitle')}</h3>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">#{editDialog.ID}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditDialog(null)}
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                aria-label={t('common.close')}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3 p-5">
+              <div>
+                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.name')}</Label>
+                <Input
+                  value={editProjectName}
+                  onChange={(event) => setEditProjectName(event.target.value)}
+                  className="h-9"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.status')}</Label>
+                <select
+                  value={editProjectStatus}
+                  onChange={(event) => setEditProjectStatus(event.target.value)}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {projectStatuses.map((status) => (
+                    <option key={status} value={status}>{t(`admin.projects.statuses.${status}`, { defaultValue: status })}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-border px-5 py-4">
+              <Button variant="outline" size="sm" onClick={() => setEditDialog(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button size="sm" onClick={submitProjectUpdate} disabled={updateProject.isPending || !editProjectName.trim()}>
+                {updateProject.isPending ? t('common.saving') : t('admin.projects.save')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {ownerDialog && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
@@ -2074,19 +3029,14 @@ export function ProjectOwnerManagementPage() {
               <p className="text-xs text-muted-foreground mt-1">{t('admin.projects.changeOwnerHint')}</p>
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground block mb-1">{t('admin.projects.newOwner')}</Label>
-              <select
+              <ActiveUserSelect
+                label={t('admin.projects.newOwner')}
                 value={selectedOwnerId}
-                onChange={(e) => setSelectedOwnerId(e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onChange={setSelectedOwnerId}
+                placeholder={t('admin.projects.selectOwnerUser')}
+                emptyLabel={t('admin.projects.noOwnerCandidates')}
                 autoFocus
-              >
-                {users.map((user) => (
-                  <option key={user.ID} value={user.ID}>
-                    {user.username} #{user.ID}
-                  </option>
-                ))}
-              </select>
+              />
             </div>
             <div className="flex gap-2">
               <Button
@@ -2103,6 +3053,16 @@ export function ProjectOwnerManagementPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ProjectDetailMetric({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-4 py-3">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-foreground">{value}</div>
+      {detail && <div className="mt-0.5 text-xs text-muted-foreground">{detail}</div>}
     </div>
   )
 }
@@ -2476,8 +3436,9 @@ function FeatureRow({
 export function FeatureConfigPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const [featureError, setFeatureError] = useState('')
 
-  const { data: features = [] } = useQuery<FeatureConfig[]>({
+  const { data: features = [], error: featuresQueryError } = useQuery<FeatureConfig[]>({
     queryKey: ['admin', 'features'],
     queryFn: () => api.get('/admin/features').then((r) => r.data),
   })
@@ -2485,17 +3446,33 @@ export function FeatureConfigPage() {
   const update = useMutation({
     mutationFn: ({ key, data }: { key: string; data: { is_enabled?: boolean; allowed_model_ids?: number[]; default_model_id?: number | null; allowed_roles?: string[] } }) =>
       api.put(`/admin/features/${key}`, data).then((r) => r.data),
+    onMutate: () => setFeatureError(''),
     onSuccess: () => {
+      setFeatureError('')
       qc.invalidateQueries({ queryKey: ['admin', 'features'] })
       qc.invalidateQueries({ queryKey: ['models'] })
     },
+    onError: (err: any) => setFeatureError(translateAPIRequestError(err)),
   })
 
   const updatePrompt = useMutation({
     mutationFn: ({ key, data }: { key: string; data: { system_prompt_override?: string; max_tokens_override?: number } }) =>
       api.put(`/admin/features/${key}/prompt`, data).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'features'] }),
+    onMutate: () => setFeatureError(''),
+    onSuccess: () => {
+      setFeatureError('')
+      qc.invalidateQueries({ queryKey: ['admin', 'features'] })
+    },
+    onError: (err: any) => setFeatureError(translateAPIRequestError(err)),
   })
+
+  function updateFeature(feature: FeatureConfig, data: AdminFeatureUpdatePayload) {
+    const key = featureToggleConfirmKey(feature, data)
+    if (key) {
+      if (!window.confirm(t(key, { name: featureDisplayName(feature, t) }))) return
+    }
+    update.mutate({ key: feature.feature_key, data })
+  }
 
   return (
     <div className="space-y-4 max-w-2xl">
@@ -2506,8 +3483,22 @@ export function FeatureConfigPage() {
         </p>
       </div>
 
-      {features.length === 0 && (
+      {features.length === 0 && !featuresQueryError && (
         <p className="text-sm text-muted-foreground text-center py-8">{t('common.loadingShort')}</p>
+      )}
+
+      {featureError && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+          <span>{featureError}</span>
+        </div>
+      )}
+
+      {featuresQueryError && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+          <span>{translateAPIRequestError(featuresQueryError)}</span>
+        </div>
       )}
 
       <div className="space-y-3">
@@ -2519,14 +3510,14 @@ export function FeatureConfigPage() {
                 key={f.feature_key}
                 feature={f}
                 isPending={update.isPending || updatePrompt.isPending}
-                onUpdate={(data) => update.mutate({ key: f.feature_key, data })}
+                onUpdate={(data) => updateFeature(f, data)}
                 onUpdatePrompt={(data) => updatePrompt.mutate({ key: f.feature_key, data })}
                 onGoToModels={() => navigateToAdminSection('models')}
               />
             ))}
           </div>
         )}
-        {features.filter((f) => !f.is_internal).length === 0 && (
+        {!featuresQueryError && features.filter((f) => !f.is_internal).length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-8">{t('admin.features.empty')}</p>
         )}
       </div>
@@ -2535,14 +3526,31 @@ export function FeatureConfigPage() {
 }
 
 // ── Tab: 存储配置 ──────────────────────────────────────────────────────────────
+type ResourceAdminDetail = {
+  resource: RawResource
+  binding_count: number
+  bindings: ResourceBinding[]
+}
+
 export function StoragePage() {
   const { t } = useTranslation()
-  const { data: backends } = useQuery<{ default: string; backends: { name: string; available: boolean }[] }>({
+  const qc = useQueryClient()
+  const [resourcePage, setResourcePage] = useState(1)
+  const [detailResource, setDetailResource] = useState<RawResource | null>(null)
+  const [resourceFilters, setResourceFilters] = useState({
+    q: '',
+    type: '',
+    storageBackend: '',
+    userId: '',
+    orgId: '',
+  })
+  const [resourceError, setResourceError] = useState('')
+  const { data: backends, error: backendsQueryError } = useQuery<{ default: string; backends: { name: string; available: boolean }[] }>({
     queryKey: ['admin-storage-backends'],
     queryFn: () => api.get('/admin/resource-storage/backends').then(r => r.data),
   })
 
-  const { data: stats = [] } = useQuery<{
+  const { data: stats = [], error: statsQueryError } = useQuery<{
     user_id: number
     username: string
     storage_backend: string
@@ -2552,11 +3560,49 @@ export function StoragePage() {
     queryKey: ['admin-storage-stats'],
     queryFn: () => api.get('/admin/resource-storage/stats').then(r => r.data),
   })
+  const resourceParams = {
+    page: resourcePage,
+    page_size: 50,
+    q: resourceFilters.q.trim() || undefined,
+    type: resourceFilters.type || undefined,
+    storage_backend: resourceFilters.storageBackend || undefined,
+    user_id: resourceFilters.userId.trim() || undefined,
+    org_id: resourceFilters.orgId.trim() || undefined,
+  }
+  const { data: resources, isLoading: resourcesLoading, error: resourcesQueryError } = useQuery<PaginatedResponse<RawResource>>({
+    queryKey: ['admin-storage-resources', resourceParams],
+    queryFn: () => api.get('/admin/resource-storage/resources', { params: resourceParams }).then(r => r.data),
+  })
+  const resourceDetailQuery = useQuery<ResourceAdminDetail>({
+    queryKey: ['admin-storage-resources', detailResource?.ID, 'detail'],
+    queryFn: () => api.get(`/admin/resource-storage/resources/${detailResource?.ID}/detail`).then(r => r.data),
+    enabled: !!detailResource,
+  })
+  const deleteResource = useMutation({
+    mutationFn: (id: number) => api.delete(`/admin/resource-storage/resources/${id}`),
+    onSuccess: (_data, id) => {
+      setResourceError('')
+      if (detailResource?.ID === id) setDetailResource(null)
+      qc.invalidateQueries({ queryKey: ['admin-storage-resources'] })
+      qc.invalidateQueries({ queryKey: ['admin-storage-stats'] })
+    },
+    onError: (err: any) => setResourceError(translateAPIRequestError(err)),
+  })
 
   function formatBytes(b: number) {
     if (b < 1024) return `${b} B`
     if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
     return `${(b / 1024 / 1024).toFixed(1)} MB`
+  }
+  function updateResourceFilter(key: keyof typeof resourceFilters, value: string) {
+    setResourceFilters((current) => ({ ...current, [key]: value }))
+    setResourcePage(1)
+  }
+  function formatDate(value?: string) {
+    if (!value) return '-'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
   // Group by user
@@ -2565,6 +3611,7 @@ export function StoragePage() {
     if (!byUser[row.user_id]) byUser[row.user_id] = { username: row.username, backends: {} }
     byUser[row.user_id].backends[row.storage_backend] = { count: row.count, size: row.total_size }
   }
+  const storageQueryError = backendsQueryError || statsQueryError || resourcesQueryError
 
   return (
     <div className="space-y-6">
@@ -2582,6 +3629,12 @@ export function StoragePage() {
           </p>
         </div>
       </div>
+
+      {storageQueryError && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {translateAPIRequestError(storageQueryError)}
+        </div>
+      )}
 
       {/* Backend status */}
       <div>
@@ -2606,9 +3659,9 @@ export function StoragePage() {
       {/* Per-user stats */}
       <div>
         <h3 className="text-sm font-semibold mb-3">{t('admin.storage.userResourceUsage')}</h3>
-        {Object.keys(byUser).length === 0 ? (
+        {Object.keys(byUser).length === 0 && !statsQueryError ? (
           <p className="text-sm text-muted-foreground">{t('admin.storage.noResourceData')}</p>
-        ) : (
+        ) : Object.keys(byUser).length > 0 ? (
           <div className="border border-border rounded-lg overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-muted/30">
@@ -2633,8 +3686,242 @@ export function StoragePage() {
               </tbody>
             </table>
           </div>
-        )}
+        ) : null}
       </div>
+
+      <div>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">{t('admin.storage.resourceDetails')}</h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">{t('admin.storage.resourceDetailsDescription')}</p>
+          </div>
+        </div>
+        <div className="mb-3 rounded-lg border border-border bg-card p-3">
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+            <div>
+              <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.storage.search')}</Label>
+              <Input className="h-8 text-xs" value={resourceFilters.q} onChange={(event) => updateResourceFilter('q', event.target.value)} placeholder={t('admin.storage.searchPlaceholder')} />
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.storage.type')}</Label>
+              <select className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs" value={resourceFilters.type} onChange={(event) => updateResourceFilter('type', event.target.value)}>
+                <option value="">{t('common.all')}</option>
+                {['image', 'video', 'audio', 'text', 'file'].map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.storage.internalBackend')}</Label>
+              <select className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs" value={resourceFilters.storageBackend} onChange={(event) => updateResourceFilter('storageBackend', event.target.value)}>
+                <option value="">{t('common.all')}</option>
+                {(backends?.backends ?? []).map((backend) => <option key={backend.name} value={backend.name}>{backend.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.logs.userId')}</Label>
+              <Input className="h-8 text-xs" value={resourceFilters.userId} onChange={(event) => updateResourceFilter('userId', event.target.value.replace(/\D/g, ''))} placeholder="42" />
+            </div>
+            <div>
+              <Label className="mb-1 block text-xs text-muted-foreground">{t('admin.logs.orgId')}</Label>
+              <Input className="h-8 text-xs" value={resourceFilters.orgId} onChange={(event) => updateResourceFilter('orgId', event.target.value)} placeholder="1 / null" />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="self-end"
+              onClick={() => { setResourceFilters({ q: '', type: '', storageBackend: '', userId: '', orgId: '' }); setResourcePage(1) }}
+            >
+              {t('admin.storage.clear')}
+            </Button>
+          </div>
+        </div>
+        {resourceError && <p className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{resourceError}</p>}
+        <div className="overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30">
+              <tr>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.resource')}</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.logs.user')}</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.internalBackend')}</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground">{t('admin.storage.usedSpace')}</th>
+                <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.createdAt')}</th>
+                <th className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground">{t('admin.gatewayKeys.actions')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(resources?.items ?? []).map((resource) => (
+                <tr key={resource.ID} className="border-t border-border/50 hover:bg-muted/20">
+                  <td className="px-4 py-2.5">
+                    <div className="font-medium text-foreground">{resource.name}</div>
+                    <div className="font-mono text-xs text-muted-foreground">#{resource.ID} · {resource.type} · {resource.mime_type || '-'}</div>
+                    {resource.storage_key && <div className="max-w-md truncate font-mono text-xs text-muted-foreground/70">{resource.storage_key}</div>}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                    <div>{resource.owner?.username ?? `#${resource.owner_id}`}</div>
+                    <div className="font-mono">#{resource.owner_id}{resource.org_id ? ` · org #${resource.org_id}` : ''}</div>
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-muted-foreground">{resource.storage_backend || '-'}</td>
+                  <td className="px-4 py-2.5 text-right font-mono text-xs">{formatBytes(resource.size || 0)}</td>
+                  <td className="whitespace-nowrap px-4 py-2.5 text-xs text-muted-foreground">{formatDate(resource.CreatedAt)}</td>
+	                  <td className="px-4 py-2.5 text-right">
+	                    <Button
+	                      type="button"
+	                      variant="ghost"
+	                      size="sm"
+	                      onClick={() => setDetailResource(resource)}
+	                    >
+	                      <Eye size={13} className="mr-1" />
+	                      {t('admin.storage.details')}
+	                    </Button>
+	                    <Button
+	                      type="button"
+	                      variant="ghost"
+                      size="sm"
+                      onClick={() => { if (window.confirm(t('admin.storage.confirmDeleteResource', { name: resource.name }))) deleteResource.mutate(resource.ID) }}
+                      disabled={deleteResource.isPending}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 size={13} className="mr-1" />
+                      {t('common.delete')}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+              {!resourcesLoading && !resourcesQueryError && (resources?.items ?? []).length === 0 && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">{t('admin.storage.noResources')}</td></tr>
+              )}
+              {resourcesLoading && (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">{t('common.loading')}</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 flex items-center justify-end gap-3">
+          <span className="text-xs text-muted-foreground">{t('admin.logs.pageStatus', { page: resourcePage, pageCount: Math.max(1, Math.ceil((resources?.total ?? 0) / 50)) })}</span>
+          <Button type="button" variant="outline" size="sm" disabled={resourcePage <= 1} onClick={() => setResourcePage((value) => Math.max(1, value - 1))}>{t('admin.logs.previousPage')}</Button>
+          <Button type="button" variant="outline" size="sm" disabled={resourcePage >= Math.max(1, Math.ceil((resources?.total ?? 0) / 50))} onClick={() => setResourcePage((value) => value + 1)}>{t('admin.logs.nextPage')}</Button>
+	        </div>
+	      </div>
+	      {detailResource && (
+	        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+	          <div className="w-full max-w-5xl rounded-xl bg-background shadow-2xl">
+	            <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
+	              <div>
+	                <h3 className="text-sm font-semibold text-foreground">{t('admin.storage.detailsTitle', { name: detailResource.name })}</h3>
+	                <p className="mt-0.5 font-mono text-xs text-muted-foreground">#{detailResource.ID} · {detailResource.type} · {detailResource.mime_type || '-'}</p>
+	              </div>
+	              <div className="flex items-center gap-2">
+	                <Button asChild type="button" variant="outline" size="sm">
+	                  <Link to={`/audit-logs?target_type=resource&target_id=${detailResource.ID}${detailResource.org_id ? `&org_id=${detailResource.org_id}` : ''}`}>
+	                    <ScrollText size={14} className="mr-2" />
+	                    {t('admin.storage.viewAuditLogs')}
+	                  </Link>
+	                </Button>
+	                <button
+	                  type="button"
+	                  onClick={() => setDetailResource(null)}
+	                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+	                  aria-label={t('common.close')}
+	                >
+	                  <X size={16} />
+	                </button>
+	              </div>
+	            </div>
+	            <div className="max-h-[75vh] overflow-auto px-5 py-4">
+	              {resourceDetailQuery.error && (
+	                <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+	                  {translateAPIRequestError(resourceDetailQuery.error)}
+	                </div>
+	              )}
+	              {resourceDetailQuery.isLoading && (
+	                <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">{t('common.loading')}</div>
+	              )}
+	              {(() => {
+	                const detail = resourceDetailQuery.data
+	                const resource = detail?.resource ?? detailResource
+	                return (
+	                  <div className="space-y-4">
+	                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+	                      <ResourceDetailField label={t('admin.storage.owner')} value={`${resource.owner?.username ?? `#${resource.owner_id}`} (#${resource.owner_id})`} />
+	                      <ResourceDetailField label={t('admin.logs.orgId')} value={resource.org_id ? `#${resource.org_id}` : '-'} />
+	                      <ResourceDetailField label={t('admin.storage.internalBackend')} value={resource.storage_backend || '-'} />
+	                      <ResourceDetailField label={t('admin.storage.usedSpace')} value={formatBytes(resource.size || 0)} />
+	                      <ResourceDetailField label={t('admin.storage.createdAt')} value={formatDate(resource.CreatedAt)} />
+	                      <ResourceDetailField label={t('admin.storage.updatedAt')} value={formatDate(resource.UpdatedAt)} />
+	                      <ResourceDetailField label={t('admin.storage.shared')} value={resource.is_shared ? t('admin.storage.sharedYes') : t('admin.storage.sharedNo')} />
+	                      <ResourceDetailField label={t('admin.storage.verification')} value={resource.verification_status || '-'} />
+	                    </div>
+	                    {resource.storage_key && (
+	                      <div>
+	                        <p className="mb-1 text-xs font-medium text-muted-foreground">{t('admin.storage.storageKey')}</p>
+	                        <div className="break-all rounded-md border border-border bg-card px-3 py-2 font-mono text-xs text-muted-foreground">{resource.storage_key}</div>
+	                      </div>
+	                    )}
+	                    <div>
+	                      <div className="mb-2 flex items-center justify-between gap-3">
+	                        <div>
+	                          <h4 className="text-sm font-semibold text-foreground">{t('admin.storage.bindings')}</h4>
+	                          <p className="mt-0.5 text-xs text-muted-foreground">
+	                            {t('admin.storage.bindingCount', { count: detail?.binding_count ?? 0 })}
+	                            {detail && detail.binding_count > detail.bindings.length ? ` · ${t('admin.storage.showingBindings', { count: detail.bindings.length })}` : ''}
+	                          </p>
+	                        </div>
+	                      </div>
+	                      <div className="overflow-hidden rounded-lg border border-border">
+	                        <table className="w-full text-sm">
+	                          <thead className="bg-muted/30">
+	                            <tr>
+	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.project')}</th>
+	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingOwner')}</th>
+	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingRole')}</th>
+	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.bindingSource')}</th>
+	                              <th className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">{t('admin.storage.createdAt')}</th>
+	                            </tr>
+	                          </thead>
+	                          <tbody className="divide-y divide-border">
+	                            {(detail?.bindings ?? []).map((binding) => (
+	                              <tr key={binding.ID}>
+	                                <td className="px-4 py-3 font-mono text-xs">#{binding.project_id}</td>
+	                                <td className="px-4 py-3">
+	                                  <div className="font-mono text-xs text-foreground">{binding.owner_type} #{binding.owner_id}</div>
+	                                  <div className="text-xs text-muted-foreground">{binding.slot || '-'}</div>
+	                                </td>
+	                                <td className="px-4 py-3 text-xs text-muted-foreground">
+	                                  <div>{binding.role}{binding.is_primary ? ` · ${t('admin.storage.primary')}` : ''}</div>
+	                                  <div>{binding.status || '-'}</div>
+	                                </td>
+	                                <td className="px-4 py-3 text-xs text-muted-foreground">
+	                                  <div>{binding.source_type || '-'}</div>
+	                                  <div className="font-mono">{binding.source_id ? `#${binding.source_id}` : '-'}</div>
+	                                </td>
+	                                <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">{formatDate(binding.CreatedAt)}</td>
+	                              </tr>
+	                            ))}
+	                            {!resourceDetailQuery.isLoading && (detail?.bindings ?? []).length === 0 && (
+	                              <tr>
+	                                <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">{t('admin.storage.noBindings')}</td>
+	                              </tr>
+	                            )}
+	                          </tbody>
+	                        </table>
+	                      </div>
+	                    </div>
+	                  </div>
+	                )
+	              })()}
+	            </div>
+	          </div>
+	        </div>
+	      )}
+	    </div>
+	  )
+	}
+
+function ResourceDetailField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 truncate text-sm font-medium text-foreground">{value}</div>
     </div>
   )
 }
@@ -2647,27 +3934,29 @@ const CONFIG_TYPE_LABELS: Record<string, string> = {
   tos: 'Volcengine TOS',
 }
 
-const CONFIG_TYPE_FIELDS: Record<string, { key: string; label: string; placeholder: string; secret?: boolean }[]> = {
+type CloudConfigField = { key: string; label: string; placeholder: string; secret?: boolean; required?: boolean }
+
+const CONFIG_TYPE_FIELDS: Record<string, CloudConfigField[]> = {
   s3: [
-    { key: 'region', label: 'Region', placeholder: 'us-east-1' },
-    { key: 'bucket', label: 'Bucket', placeholder: 'my-bucket' },
-    { key: 'access_key', label: 'Access Key', placeholder: 'AKIA...', secret: true },
-    { key: 'secret_key', label: 'Secret Key', placeholder: '...', secret: true },
+    { key: 'region', label: 'Region', placeholder: 'us-east-1', required: true },
+    { key: 'bucket', label: 'Bucket', placeholder: 'my-bucket', required: true },
+    { key: 'access_key', label: 'Access Key', placeholder: 'AKIA...', secret: true, required: true },
+    { key: 'secret_key', label: 'Secret Key', placeholder: '...', secret: true, required: true },
     { key: 'public_base_url', label: 'Public Base URL', placeholder: 'https://my-bucket.s3.amazonaws.com' },
   ],
   oss: [
-    { key: 'endpoint', label: 'Endpoint', placeholder: 'oss-cn-hangzhou.aliyuncs.com' },
-    { key: 'bucket', label: 'Bucket', placeholder: 'my-bucket' },
-    { key: 'access_key_id', label: 'Access Key ID', placeholder: '...', secret: true },
-    { key: 'access_key_secret', label: 'Access Key Secret', placeholder: '...', secret: true },
+    { key: 'endpoint', label: 'Endpoint', placeholder: 'oss-cn-hangzhou.aliyuncs.com', required: true },
+    { key: 'bucket', label: 'Bucket', placeholder: 'my-bucket', required: true },
+    { key: 'access_key_id', label: 'Access Key ID', placeholder: '...', secret: true, required: true },
+    { key: 'access_key_secret', label: 'Access Key Secret', placeholder: '...', secret: true, required: true },
     { key: 'public_base_url', label: 'Public Base URL', placeholder: 'https://my-bucket.oss-cn-hangzhou.aliyuncs.com' },
   ],
   tos: [
-    { key: 'endpoint', label: 'Endpoint', placeholder: 'tos-cn-beijing.volces.com' },
-    { key: 'region', label: 'Region', placeholder: 'cn-beijing' },
-    { key: 'bucket', label: 'Bucket', placeholder: 'my-bucket' },
-    { key: 'access_key', label: 'Access Key', placeholder: '...', secret: true },
-    { key: 'secret_key', label: 'Secret Key', placeholder: '...', secret: true },
+    { key: 'endpoint', label: 'Endpoint', placeholder: 'tos-cn-beijing.volces.com', required: true },
+    { key: 'region', label: 'Region', placeholder: 'cn-beijing', required: true },
+    { key: 'bucket', label: 'Bucket', placeholder: 'my-bucket', required: true },
+    { key: 'access_key', label: 'Access Key', placeholder: '...', secret: true, required: true },
+    { key: 'secret_key', label: 'Secret Key', placeholder: '...', secret: true, required: true },
     { key: 'public_base_url', label: 'Public Base URL', placeholder: 'https://my-bucket.tos-cn-beijing.volces.com' },
   ],
 }
@@ -2681,6 +3970,32 @@ interface CloudFileConfig {
   masked_config: string
 }
 
+interface CloudFileConfigTestResult {
+  success: boolean
+  message: string
+  latency_ms: number
+  url?: string
+  config_id?: number
+}
+
+function parseMaskedCloudConfig(raw: string | undefined): Record<string, unknown> {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}
+  } catch {
+    return {}
+  }
+}
+
+function missingCloudConfigFields(fields: CloudConfigField[], values: Record<string, string>, editingId: number | null): CloudConfigField[] {
+  return fields.filter((field) => {
+    if (!field.required) return false
+    if (editingId && field.secret) return false
+    return !values[field.key]?.trim()
+  })
+}
+
 export function CloudFileConfigPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -2692,8 +4007,11 @@ export function CloudFileConfigPage() {
   const [formEnabled, setFormEnabled] = useState(true)
   const [formFields, setFormFields] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [cloudFileError, setCloudFileError] = useState('')
+  const [testingId, setTestingId] = useState<number | null>(null)
+  const [testResults, setTestResults] = useState<Record<number, CloudFileConfigTestResult>>({})
 
-  const { data: configs = [], refetch } = useQuery<CloudFileConfig[]>({
+  const { data: configs = [], refetch, error: cloudConfigsQueryError } = useQuery<CloudFileConfig[]>({
     queryKey: ['admin-cloud-file-configs'],
     queryFn: () => api.get('/admin/cloud-file-configs').then(r => r.data),
   })
@@ -2730,7 +4048,7 @@ export function CloudFileConfigPage() {
     setFormName(cfg.name)
     setFormPriority(cfg.priority)
     setFormEnabled(cfg.is_enabled)
-    const masked = cfg.masked_config ? JSON.parse(cfg.masked_config) : {}
+    const masked = parseMaskedCloudConfig(cfg.masked_config)
     const secretKeys = new Set((CONFIG_TYPE_FIELDS[cfg.config_type] ?? []).filter((f) => f.secret).map((f) => f.key))
     const next: Record<string, string> = {}
     Object.entries(masked).forEach(([key, value]) => {
@@ -2741,7 +4059,15 @@ export function CloudFileConfigPage() {
   }
 
   async function save() {
+    const missing = missingCloudConfigFields(fields, formFields, editingId)
+    if (!formName.trim() || missing.length > 0) {
+      setCloudFileError(t('admin.cloudFiles.missingRequired', {
+        fields: missing.map((field) => t(`admin.cloudFiles.fields.${field.key}`, { defaultValue: field.label })).join(', '),
+      }))
+      return
+    }
     setSaving(true)
+    setCloudFileError('')
     try {
       const payload = { name: formName, config_type: formType, config: formFields, priority: formPriority, is_enabled: formEnabled }
       if (editingId) {
@@ -2751,28 +4077,59 @@ export function CloudFileConfigPage() {
       }
       queryClient.invalidateQueries({ queryKey: ['admin-cloud-file-configs'] })
       setShowForm(false)
+    } catch (err: unknown) {
+      setCloudFileError(translateAPIRequestError(err))
     } finally {
       setSaving(false)
     }
   }
 
   async function toggleEnabled(cfg: CloudFileConfig) {
-    await api.put(`/admin/cloud-file-configs/${cfg.ID}`, { is_enabled: !cfg.is_enabled })
-    refetch()
+    setCloudFileError('')
+    try {
+      await api.put(`/admin/cloud-file-configs/${cfg.ID}`, { is_enabled: !cfg.is_enabled })
+      refetch()
+    } catch (err: unknown) {
+      setCloudFileError(translateAPIRequestError(err))
+    }
   }
 
   async function deleteCfg(id: number) {
     if (!confirm(t('admin.cloudFiles.confirmDelete'))) return
-    await api.delete(`/admin/cloud-file-configs/${id}`)
-    queryClient.invalidateQueries({ queryKey: ['admin-cloud-file-configs'] })
+    setCloudFileError('')
+    try {
+      await api.delete(`/admin/cloud-file-configs/${id}`)
+      queryClient.invalidateQueries({ queryKey: ['admin-cloud-file-configs'] })
+    } catch (err: unknown) {
+      setCloudFileError(translateAPIRequestError(err))
+    }
   }
 
   async function movePriority(cfg: CloudFileConfig, dir: -1 | 1) {
-    await api.put(`/admin/cloud-file-configs/${cfg.ID}`, { priority: cfg.priority + dir })
-    refetch()
+    setCloudFileError('')
+    try {
+      await api.put(`/admin/cloud-file-configs/${cfg.ID}`, { priority: cfg.priority + dir })
+      refetch()
+    } catch (err: unknown) {
+      setCloudFileError(translateAPIRequestError(err))
+    }
+  }
+
+  async function testConfig(cfg: CloudFileConfig) {
+    setCloudFileError('')
+    setTestingId(cfg.ID)
+    try {
+      const result = await api.post(`/admin/cloud-file-configs/${cfg.ID}/test`).then((r) => r.data as CloudFileConfigTestResult)
+      setTestResults((prev) => ({ ...prev, [cfg.ID]: result }))
+    } catch (err: unknown) {
+      setCloudFileError(translateAPIRequestError(err))
+    } finally {
+      setTestingId(null)
+    }
   }
 
   const fields = CONFIG_TYPE_FIELDS[formType] ?? []
+  const missingRequiredFields = missingCloudConfigFields(fields, formFields, editingId)
 
   return (
     <div className="space-y-6">
@@ -2805,13 +4162,20 @@ export function CloudFileConfigPage() {
         <Button size="sm" onClick={() => openCreate()}>{t('admin.cloudFiles.addConfig')}</Button>
       </div>
 
-      {configs.length === 0 && !showForm && (
+      {(cloudFileError || cloudConfigsQueryError) && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {cloudFileError || translateAPIRequestError(cloudConfigsQueryError)}
+        </div>
+      )}
+
+      {configs.length === 0 && !showForm && !cloudConfigsQueryError && (
         <p className="text-sm text-muted-foreground text-center py-8">{t('admin.cloudFiles.empty')}</p>
       )}
 
       <div className="space-y-2">
         {configs.map((cfg) => {
-          const masked = cfg.masked_config ? JSON.parse(cfg.masked_config) : {}
+          const masked = parseMaskedCloudConfig(cfg.masked_config)
+          const testResult = testResults[cfg.ID]
           return (
             <div key={cfg.ID} className={cn('border border-border rounded-lg bg-background overflow-hidden', !cfg.is_enabled && 'opacity-60')}>
               <div className="flex items-center gap-3 px-4 py-3">
@@ -2834,6 +4198,13 @@ export function CloudFileConfigPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => testConfig(cfg)}
+                    disabled={testingId === cfg.ID}
+                    className="text-xs border border-border rounded px-2 py-1 text-muted-foreground hover:text-foreground transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {testingId === cfg.ID ? t('admin.cloudFiles.testing') : t('admin.cloudFiles.test')}
+                  </button>
                   <button onClick={() => toggleEnabled(cfg)} className="text-xs border border-border rounded px-2 py-1 text-muted-foreground hover:text-foreground transition-colors">
                     {cfg.is_enabled ? t('admin.cloudFiles.disable') : t('admin.cloudFiles.enable')}
                   </button>
@@ -2841,6 +4212,25 @@ export function CloudFileConfigPage() {
                   <button onClick={() => deleteCfg(cfg.ID)} className="text-xs border border-destructive/30 rounded px-2 py-1 text-destructive/70 hover:text-destructive transition-colors">{t('common.delete')}</button>
                 </div>
               </div>
+              {testResult && (
+                <div className={cn(
+                  'border-t border-border px-4 py-2 text-xs',
+                  testResult.success ? 'bg-green-500/5 text-green-700 dark:text-green-400' : 'bg-destructive/5 text-destructive',
+                )}>
+                  <span className="font-medium">
+                    {testResult.success ? t('admin.cloudFiles.testSuccess') : t('admin.cloudFiles.testFailed')}
+                  </span>
+                  <span className="ml-2 text-muted-foreground">
+                    {t('admin.cloudFiles.testLatency', { latency: testResult.latency_ms })}
+                  </span>
+                  {testResult.success && testResult.url && (
+                    <a href={testResult.url} target="_blank" rel="noreferrer" className="ml-2 break-all underline underline-offset-2">
+                      {testResult.url}
+                    </a>
+                  )}
+                  {!testResult.success && <span className="ml-2 break-all">{testResult.message}</span>}
+                </div>
+              )}
             </div>
           )
         })}
@@ -2871,7 +4261,10 @@ export function CloudFileConfigPage() {
           <div className="grid grid-cols-2 gap-3">
             {fields.map(f => (
               <div key={f.key} className="space-y-1">
-                <Label className="text-xs">{t(`admin.cloudFiles.fields.${f.key}`, { defaultValue: f.label })}</Label>
+                <Label className="text-xs">
+                  {t(`admin.cloudFiles.fields.${f.key}`, { defaultValue: f.label })}
+                  {f.required && <span className="ml-0.5 text-destructive">*</span>}
+                </Label>
                 <Input
                   type={f.secret ? 'password' : 'text'}
                   value={formFields[f.key] ?? ''}
@@ -2895,7 +4288,7 @@ export function CloudFileConfigPage() {
           </div>
 
           <div className="flex gap-2">
-            <Button size="sm" onClick={save} disabled={saving || !formName}>
+            <Button size="sm" onClick={save} disabled={saving || !formName.trim() || missingRequiredFields.length > 0}>
               {saving ? t('common.saving') : t('common.save')}
             </Button>
             <Button size="sm" variant="outline" onClick={() => setShowForm(false)}>{t('common.cancel')}</Button>
@@ -2908,14 +4301,19 @@ export function CloudFileConfigPage() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-type AdminSectionKey = 'models' | 'features' | 'projects' | 'storage' | 'cloud-files'
+type AdminSectionKey = 'models' | 'features' | 'users' | 'orgs' | 'projects' | 'audit-logs' | 'usage-logs' | 'storage' | 'cloud-files' | 'debug'
 
 const adminSectionHref: Record<AdminSectionKey, string> = {
   models: '/models',
   features: '/features',
+  users: '/user-management',
+  orgs: '/orgs',
   projects: '/projects',
+  'audit-logs': '/audit-logs',
+  'usage-logs': '/usage-logs',
   storage: '/storage',
   'cloud-files': '/cloud-files',
+  debug: '/debug',
 }
 
 function navigateToAdminSection(section: AdminSectionKey) {
@@ -2930,39 +4328,97 @@ function adminHref(href: string) {
   return normalized
 }
 
+interface AdminOverviewSummary {
+  generated_at: string
+  users: { total: number; active: number; disabled: number }
+  orgs: { total: number; suspended: number }
+  projects: { total: number }
+  models: { credentials: number; enabled_credentials: number; configs: number; enabled_configs: number }
+  jobs: { total: number; pending: number; running: number; succeeded: number; failed: number; cancelled: number }
+  usage: { records: number; cost_7d: number; cost_30d: number }
+  resources: { total: number; bytes: number }
+  audits: { total: number }
+}
+
+function formatAdminNumber(value: number | undefined): string {
+  return typeof value === 'number' ? value.toLocaleString() : '0'
+}
+
+function formatAdminCredits(value: number | undefined): string {
+  return `${(value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+}
+
+function formatAdminBytes(value: number | undefined): string {
+  const bytes = value ?? 0
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
+}
+
 export default function AdminPage() {
   const { t } = useTranslation()
   const currentUser = useUserStore((s) => s.currentUser)
   const navigate = useNavigate()
 
-  const { data: credentials = [] } = useQuery<AICredential[]>({
-    queryKey: ['admin', 'credentials'],
-    queryFn: () => api.get('/admin/credentials').then((r) => r.data),
-  })
-  const { data: projects = [] } = useQuery<AdminProject[]>({
-    queryKey: ['admin', 'projects'],
-    queryFn: () => api.get('/admin/projects').then((r) => r.data),
+  const { data: overview } = useQuery<AdminOverviewSummary>({
+    queryKey: ['admin', 'overview'],
+    queryFn: () => api.get('/admin/overview').then((r) => r.data),
+    refetchInterval: 30000,
   })
 
-  const enabledModels = credentials.reduce((sum, cred) => sum + (cred.models ?? []).filter((model) => model.is_enabled).length, 0)
+  const queuedJobs = (overview?.jobs.pending ?? 0) + (overview?.jobs.running ?? 0)
 
   const overviewCards = [
     {
-      label: '启用模型',
-      value: enabledModels.toLocaleString(),
-      detail: `${credentials.length.toLocaleString()} 个供应商凭证`,
+      label: t('admin.home.metrics.enabledModels'),
+      value: formatAdminNumber(overview?.models.enabled_configs),
+      detail: t('admin.home.metrics.credentials', { count: formatAdminNumber(overview?.models.credentials) }),
       icon: Settings2,
       href: '/models',
+    },
+    {
+      label: t('admin.home.metrics.projects'),
+      value: formatAdminNumber(overview?.projects.total),
+      detail: t('admin.home.metrics.usersAndOrgs', { users: formatAdminNumber(overview?.users.total), orgs: formatAdminNumber(overview?.orgs.total) }),
+      icon: FolderKanban,
+      href: '/projects',
+    },
+    {
+      label: t('admin.home.metrics.queuedJobs'),
+      value: formatAdminNumber(queuedJobs),
+      detail: t('admin.home.metrics.failedJobs', { count: formatAdminNumber(overview?.jobs.failed) }),
+      icon: Sparkles,
+      href: '/debug',
+    },
+    {
+      label: t('admin.home.metrics.usage7d'),
+      value: formatAdminCredits(overview?.usage.cost_7d),
+      detail: t('admin.home.metrics.usage30d', { cost: formatAdminCredits(overview?.usage.cost_30d) }),
+      icon: BarChart3,
+      href: '/usage-logs',
+    },
+    {
+      label: t('admin.home.metrics.storage'),
+      value: formatAdminBytes(overview?.resources.bytes),
+      detail: t('admin.home.metrics.resourceFiles', { count: formatAdminNumber(overview?.resources.total) }),
+      icon: HardDrive,
+      href: '/storage',
     },
     ...runtimeOverviewCards,
   ]
 
   const sectionCards = [
-    { label: t('admin.tabs.models'), detail: '供应商凭证、模型启用、价格与参数配置。', icon: Settings2, href: '/models' },
-    { label: t('admin.tabs.features'), detail: '功能到模型的路由、默认模型和系统提示词。', icon: Route, href: '/features' },
-    { label: t('admin.tabs.projects'), detail: `当前 ${projects.length.toLocaleString()} 个项目，可强制调整 Owner。`, icon: FolderKanban, href: '/projects' },
-    { label: t('admin.tabs.storage'), detail: '内部资源存储后端状态和用户占用。', icon: HardDrive, href: '/storage' },
-    { label: t('admin.tabs.cloudFiles'), detail: '公共对象中转和云文件存储配置。', icon: CloudUpload, href: '/cloud-files' },
+    { label: t('admin.tabs.models'), detail: t('admin.home.sections.models'), icon: Settings2, href: '/models' },
+    { label: t('admin.tabs.features'), detail: t('admin.home.sections.features'), icon: Route, href: '/features' },
+    { label: t('admin.tabs.users'), detail: t('admin.home.sections.users'), icon: UsersRound, href: '/user-management' },
+    { label: t('admin.tabs.orgs'), detail: t('admin.home.sections.orgs'), icon: Building2, href: '/orgs' },
+    { label: t('admin.tabs.projects'), detail: t('admin.home.sections.projects', { count: formatAdminNumber(overview?.projects.total) }), icon: FolderKanban, href: '/projects' },
+    { label: t('admin.tabs.auditLogs'), detail: t('admin.home.sections.auditLogs', { count: formatAdminNumber(overview?.audits.total) }), icon: ScrollText, href: '/audit-logs' },
+    { label: t('admin.tabs.logs'), detail: t('admin.home.sections.usageLogs', { count: formatAdminNumber(overview?.usage.records) }), icon: BarChart3, href: '/usage-logs' },
+    { label: t('admin.tabs.storage'), detail: t('admin.home.sections.storage', { count: formatAdminNumber(overview?.resources.total) }), icon: HardDrive, href: '/storage' },
+    { label: t('admin.tabs.cloudFiles'), detail: t('admin.home.sections.cloudFiles'), icon: CloudUpload, href: '/cloud-files' },
+    { label: t('admin.tabs.debug'), detail: t('admin.home.sections.debug'), icon: Bug, href: '/debug' },
     ...runtimeSectionCards,
   ]
 

@@ -11,8 +11,9 @@ import {
 test('generation display helpers build progress titles and status text', () => {
   assert.equal(generationProgressTitle({ jobId: 12 }), '生成任务 #12')
   assert.equal(generationProgressTitle({}), '生成任务')
-  assert.equal(generationStatusText('running', 'provider_rendering'), 'running · provider rendering')
-  assert.equal(generationStatusText('succeeded', 'succeeded'), 'succeeded')
+  assert.equal(generationStatusText('running', 'provider_rendering'), '运行中 · 服务商渲染中')
+  assert.equal(generationStatusText('succeeded', 'succeeded'), '成功')
+  assert.equal(generationStatusText('provider_waiting', 'provider_waiting'), '未知状态 (provider_waiting)')
 })
 
 test('generationJobBadge maps terminal states to user-facing badges', () => {

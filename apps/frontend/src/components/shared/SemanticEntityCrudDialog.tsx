@@ -43,7 +43,7 @@ export function SemanticEntityCrudDialog({
   const advancedFields = useMemo(() => fields.filter((field) => isAdvancedField(config.kind, field.key)), [config.kind, fields])
   const [form, setForm] = useState<FormState>(() => buildInitialForm(fields, record, defaults))
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments' || config.kind === 'storyboardLines') && Boolean(projectId)
+  const enableScriptBlockLookups = (config.kind === 'contentUnits' || config.kind === 'segments' || config.kind === 'sceneMoments') && Boolean(projectId)
   const canDeleteRecord = !isDeleteProtectedKind(config.kind)
   const isImmutableRecord = mode === 'edit' && isImmutableKind(config.kind)
   const sourceLockEnabled = mode === 'edit' && Boolean(projectId && record?.ID && sourceLockSupportedKind(config.kind))
@@ -314,7 +314,6 @@ function sourceLockSupportedKind(kind: SemanticEntityConfig['kind']) {
     kind === 'segments' ||
     kind === 'sceneMoments' ||
     kind === 'storyboardScripts' ||
-    kind === 'storyboardLines' ||
     kind === 'contentUnits'
 }
 
@@ -339,16 +338,14 @@ function isAdvancedField(kind: SemanticEntityConfig['kind'], key: string) {
 const basicIdFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id'],
   sceneMoments: ['segment_id', 'script_block_id'],
-  contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'storyboard_line_id', 'script_block_id'],
-  storyboardLines: ['storyboard_script_id', 'storyboard_version_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
+  contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
   keyframes: ['scene_moment_id', 'content_unit_id'],
 }
 
 const advancedFieldsByKind: Partial<Record<SemanticEntityConfig['kind'], string[]>> = {
   productions: ['script_version_id', 'preview_timeline_id', 'progress'],
   sceneMoments: ['segment_id', 'script_block_id'],
-  contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'storyboard_line_id', 'script_block_id'],
-  storyboardLines: ['storyboard_script_id', 'storyboard_version_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
+  contentUnits: ['production_id', 'segment_id', 'scene_moment_id', 'script_block_id'],
   assetSlots: ['production_id', 'owner_type', 'owner_id', 'creative_reference_id', 'creative_reference_state_id', 'slot_key', 'locked_asset_slot_id'],
 }
 

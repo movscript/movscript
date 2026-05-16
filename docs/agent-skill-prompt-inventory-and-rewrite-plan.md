@@ -178,7 +178,7 @@
 缺候选方向 -> asset-candidate-generation
 需要真实生成 -> visual-generation
 缺 production 结构 -> production-proposal
-缺内容单元/情绪/钩子/媒体计划 -> content-unit-proposal / content-unit-media-proposal / storyboard-gap-review
+缺内容单元/情绪/钩子/媒体计划 -> content-unit-proposal / storyboard-gap-review
 ```
 
 ### `apps/agent/catalog/skills/movscript/policy/skill.policy.json`
@@ -429,32 +429,6 @@
 检查：
 
 - outputContract 应包含 content unit count、productionId、结构缺口。
-
-### `apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/content-unit-media-proposal/instruction.md`
-
-职责：
-
-- 内容单元媒体计划 proposal。
-
-只管：
-
-- keyframe 需求
-- 媒体类型
-- reference usage
-- prompt intent
-- 模型需求
-- open decisions
-
-不管：
-
-- 直接生成媒体。
-
-### `apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/content-unit-media-proposal/skill.workflow.json`
-
-检查：
-
-- trigger 应覆盖媒体计划、关键帧、content-unit media。
-- outputContract 应包含 target content units、planned media/keyframe count、open decisions。
 
 ### `apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/storyboard-gap-review/instruction.md`
 

@@ -29,6 +29,7 @@ import { makeContentFilterSearch, readNumberParam, readStringParam, updateConten
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { Badge, Button, Progress } from '@movscript/ui'
+import { ROUTES } from '@/routes/projectRoutes'
 
 type StatusFilter = 'all' | 'ready' | 'attention' | 'confirmed'
 
@@ -94,7 +95,6 @@ interface MomentWorkspace {
   segment?: SegmentRecord
   scriptBlock?: ScriptBlockRecord
   contentUnits: RelatedRecord[]
-  storyboardLines: RelatedRecord[]
   keyframes: RelatedRecord[]
   references: RelatedRecord[]
   assetSlots: RelatedRecord[]
@@ -164,11 +164,6 @@ export default function SceneMomentsPage() {
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('scriptBlocks')) as Promise<ScriptBlockRecord[]>,
     enabled: !!projectId,
   })
-  const storyboardLinesQuery = useQuery({
-    queryKey: ['semantic-scene-moment-page', projectId, 'storyboard-lines'],
-    queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('storyboardLines')) as Promise<RelatedRecord[]>,
-    enabled: !!projectId,
-  })
   const keyframesQuery = useQuery({
     queryKey: ['semantic-scene-moment-page', projectId, 'keyframes'],
     queryFn: () => listSemanticEntities(projectId!, semanticEntityConfig('keyframes')) as Promise<RelatedRecord[]>,
@@ -194,7 +189,6 @@ export default function SceneMomentsPage() {
   const moments = useMemo(() => (sceneMomentsQuery.data ?? []).slice().sort(compareByOrder), [sceneMomentsQuery.data])
   const contentUnits = contentUnitsQuery.data ?? []
   const scriptBlocks = scriptBlocksQuery.data ?? []
-  const storyboardLines = storyboardLinesQuery.data ?? []
   const keyframes = keyframesQuery.data ?? []
   const references = referencesQuery.data ?? []
   const usages = usagesQuery.data ?? []
@@ -207,10 +201,6 @@ export default function SceneMomentsPage() {
   const momentWorkspaces = useMemo(() => moments.map((moment) => {
     const momentContentUnits = contentUnits.filter((item) => item.scene_moment_id === moment.ID).sort(compareByOrder)
     const contentUnitIds = new Set(momentContentUnits.map((item) => item.ID))
-    const momentStoryboardLines = storyboardLines.filter((item) => (
-      item.scene_moment_id === moment.ID ||
-      (moment.script_block_id && item.script_block_id === moment.script_block_id)
-    )).sort(compareByOrder)
     const momentKeyframes = keyframes.filter((item) => item.scene_moment_id === moment.ID || Boolean(item.content_unit_id && contentUnitIds.has(item.content_unit_id))).sort(compareByOrder)
     const momentUsages = usages.filter((item) => (
       (item.owner_type === 'scene_moment' && item.owner_id === moment.ID) ||
@@ -232,14 +222,13 @@ export default function SceneMomentsPage() {
       segment: moment.segment_id ? segmentById.get(moment.segment_id) : undefined,
       scriptBlock: moment.script_block_id ? scriptBlocksById.get(moment.script_block_id) : undefined,
       contentUnits: momentContentUnits,
-      storyboardLines: momentStoryboardLines,
       keyframes: momentKeyframes,
       references: momentReferences,
       assetSlots: momentAssetSlots,
       readiness: calculateReadiness(moment, momentContentUnits, momentReferences, momentAssetSlots),
       totalDuration,
     }
-  }), [assetSlots, contentUnits, keyframes, moments, referencesById, scriptBlocksById, segmentById, storyboardLines, usages])
+  }), [assetSlots, contentUnits, keyframes, moments, referencesById, scriptBlocksById, segmentById, usages])
 
   const filteredMoments = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -291,7 +280,7 @@ export default function SceneMomentsPage() {
     : 0
   const totalDuration = momentWorkspaces.reduce((sum, item) => sum + item.totalDuration, 0)
   const isLoading = sceneMomentsQuery.isLoading || segmentsQuery.isLoading
-  const isFetching = segmentsQuery.isFetching || sceneMomentsQuery.isFetching || contentUnitsQuery.isFetching || scriptBlocksQuery.isFetching || storyboardLinesQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
+  const isFetching = segmentsQuery.isFetching || sceneMomentsQuery.isFetching || contentUnitsQuery.isFetching || scriptBlocksQuery.isFetching || keyframesQuery.isFetching || referencesQuery.isFetching || usagesQuery.isFetching || assetSlotsQuery.isFetching
 
   function setFilter(updates: Partial<Record<ContentFilterKey, string | number | null | undefined>>) {
     setSearchParams(updateContentFilterParams(searchParams, updates), { replace: true })
@@ -302,7 +291,6 @@ export default function SceneMomentsPage() {
     sceneMomentsQuery.refetch()
     contentUnitsQuery.refetch()
     scriptBlocksQuery.refetch()
-    storyboardLinesQuery.refetch()
     keyframesQuery.refetch()
     referencesQuery.refetch()
     usagesQuery.refetch()
@@ -342,13 +330,13 @@ export default function SceneMomentsPage() {
               刷新
             </Button>
             <Button variant="outline" className="gap-2" asChild>
-              <Link to="/reference-relations">
+              <Link to={ROUTES.project.referenceRelations}>
                 <GitBranch size={15} />
                 查看关系
               </Link>
             </Button>
             <Button className="gap-2" asChild>
-              <Link to={`/contents${selected ? makeContentFilterSearch({ scene_moment_id: selected.moment.ID }) : ''}`}>
+              <Link to={`${ROUTES.project.contentUnits}${selected ? makeContentFilterSearch({ scene_moment_id: selected.moment.ID }) : ''}`}>
                 <Boxes size={15} />
                 查看内容
               </Link>
@@ -505,13 +493,6 @@ export default function SceneMomentsPage() {
                 records={selected?.references ?? []}
                 empty="当前情景暂无设定资料引用"
                 onSelect={(record) => setFilter({ reference_id: record.ID })}
-              />
-            </Panel>
-            <Panel title="相关分镜行" icon={Clapperboard}>
-              <RelatedList
-                records={selected?.storyboardLines ?? []}
-                scriptBlocksById={scriptBlocksById}
-                empty="当前情景暂无分镜行"
               />
             </Panel>
             <Panel title="所需要的素材需求" icon={PackageCheck}>

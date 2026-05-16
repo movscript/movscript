@@ -188,15 +188,6 @@ func TestNewStoryboardFactoriesApplyDefaults(t *testing.T) {
 		t.Fatalf("unexpected storyboard version round-trip: %+v", roundTrip)
 	}
 
-	line := NewStoryboardLine(StoryboardLineSpec{ProjectID: 1})
-	if line.Kind != "beat" || line.Status != ProposalDraftStatusValue {
-		t.Fatalf("unexpected storyboard line defaults: %+v", line)
-	}
-	modelLine := line.ToModel()
-	modelLine.ID = 33
-	if roundTrip := StoryboardLineFromModel(modelLine); roundTrip.ID != 33 || roundTrip.Kind != "beat" {
-		t.Fatalf("unexpected storyboard line round-trip: %+v", roundTrip)
-	}
 }
 
 func TestNewCreativeFactoriesApplyDefaults(t *testing.T) {

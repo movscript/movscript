@@ -609,7 +609,7 @@ test('workflow skills use isolated skill directories', () => {
   assert.equal(existsSync(new URL('movscript/workflow/proposal/production/dual-orchestration/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/asset/asset-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
-  assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-media-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
+  assert.equal(existsSync(new URL('movscript/workflow/proposal/content-unit/content-unit-media-proposal/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/planning/script-split/skill.workflow.json', CATALOG_SKILLS_DIR)), false)
   assert.equal(existsSync(new URL('movscript/workflow/proposal/project/setting-prep/skill.workflow.json', CATALOG_SKILLS_DIR)), true)
   assert.equal(existsSync(new URL('movscript/workflow/writing/script-writing/skill.workflow.json', CATALOG_SKILLS_DIR)), false)

@@ -495,8 +495,6 @@ export function validateDraft(draft: AgentDraft): AgentDraftValidationResult {
     validateContentUnitProposalDraft(draft, issues)
   } else if (draft.kind === 'asset_proposal') {
     validateAssetProposalDraft(draft, issues)
-  } else if (draft.kind === 'content_unit_media_proposal') {
-    validateContentUnitMediaProposalDraft(draft, issues)
   } else if (draft.kind === 'production_proposal') {
     validateProductionProposalDraft(draft, issues)
   }
@@ -925,53 +923,6 @@ function validateContentUnitProposalDraft(draft: AgentDraft, issues: AgentDraftV
   })
 }
 
-function validateContentUnitMediaProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(draft.content)
-  } catch {
-    issues.push({ path: '/content', message: 'Content unit media proposal draft content must be valid JSON.', severity: 'error' })
-    return
-  }
-  if (!isRecord(parsed)) {
-    issues.push({ path: '/content', message: 'Content unit media proposal draft content must be a JSON object.', severity: 'error' })
-    return
-  }
-  if (parsed.schema !== DRAFT_CONTENT_SCHEMA_IDS.contentUnitMediaProposal) {
-    issues.push({ path: '/schema', message: `Content unit media proposal draft schema must be ${DRAFT_CONTENT_SCHEMA_IDS.contentUnitMediaProposal}.`, severity: 'error' })
-  }
-  if (parsed.scope !== 'content_unit_media_proposal') {
-    issues.push({ path: '/scope', message: 'Content unit media proposal draft scope must be content_unit_media_proposal.', severity: 'error' })
-  }
-  if (numberValue(parsed.contentUnitId ?? parsed.content_unit_id) === undefined) {
-    issues.push({ path: '/contentUnitId', message: 'Content unit media proposal draft requires contentUnitId.', severity: 'error' })
-  }
-  const proposal = isRecord(parsed.proposal) ? parsed.proposal : undefined
-  if (!proposal) {
-    issues.push({ path: '/proposal', message: 'Content unit media proposal draft requires proposal.', severity: 'error' })
-    return
-  }
-  const outputs = Array.isArray(proposal.outputs) ? proposal.outputs : []
-  if (outputs.length === 0) {
-    issues.push({ path: '/proposal/outputs', message: 'Content unit media proposal draft requires at least one output plan.', severity: 'error' })
-    return
-  }
-  outputs.forEach((output, index) => {
-    const base = `/proposal/outputs/${index}`
-    if (!isRecord(output)) {
-      issues.push({ path: base, message: 'Content unit media output plan must be an object.', severity: 'error' })
-      return
-    }
-    const outputKind = typeof output.output_kind === 'string' ? output.output_kind.trim() : ''
-    if (!['image', 'video'].includes(outputKind)) {
-      issues.push({ path: `${base}/output_kind`, message: 'Content unit media output kind must be image or video.', severity: 'error' })
-    }
-    if (typeof output.prompt !== 'string' || !output.prompt.trim()) {
-      issues.push({ path: `${base}/prompt`, message: 'Content unit media output plan requires prompt.', severity: 'error' })
-    }
-  })
-}
-
 function validateProductionProposalDraft(draft: AgentDraft, issues: AgentDraftValidationIssue[]): void {
   let parsed: unknown
   try {
@@ -1232,7 +1183,6 @@ function isProjectProposalAssetSlotOwnerType(value: string): boolean {
     'segment',
     'scene_moment',
     'content_unit',
-    'storyboard_line',
     'keyframe',
   ]).has(value.trim())
 }

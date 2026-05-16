@@ -114,6 +114,12 @@ export function buildDebugTrace(
     personaId?: string
     policyIds: string[]
     workflowIds: string[]
+    intentSignals?: Array<{
+      intent: string
+      source: string
+      confidence: string
+      evidence: string
+    }>
     workflowTriggers?: Array<{
       id: string
       matched: boolean

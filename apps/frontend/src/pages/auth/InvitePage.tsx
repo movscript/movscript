@@ -11,6 +11,7 @@ import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { translateApiError } from '@/lib/apiError'
 import type { AuthSession } from '@/store/userStore'
+import { ROUTES } from '@/routes/projectRoutes'
 
 export default function InvitePage() {
   const { t } = useTranslation()
@@ -45,7 +46,7 @@ export default function InvitePage() {
         setCurrentOrg(orgId)
         setCurrentProject(null)
       }
-      navigate('/projects', { replace: true })
+      navigate(ROUTES.projects, { replace: true })
     },
     onError: (e: any) => setError(translateApiError(e.response?.data, t('invite.acceptFailed'))),
   })

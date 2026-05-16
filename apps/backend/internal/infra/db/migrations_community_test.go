@@ -5,8 +5,7 @@ package db
 import (
 	"testing"
 
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+	"github.com/movscript/movscript/internal/testutil"
 )
 
 func TestCommunityRuntimeDoesNotContributeMigrationModels(t *testing.T) {
@@ -16,10 +15,7 @@ func TestCommunityRuntimeDoesNotContributeMigrationModels(t *testing.T) {
 }
 
 func TestJobRunnerIndexesCreated(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file:pricing-mode-migration?mode=memory&cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "job_runner_indexes.db")
 	if err := RunMigrations(db); err != nil {
 		t.Fatalf("run migrations: %v", err)
 	}
@@ -32,10 +28,7 @@ func TestJobRunnerIndexesCreated(t *testing.T) {
 }
 
 func TestRenameAIModelConfigPricingModeColumn(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "pricing_mode_column.db")
 	if err := db.Exec(`CREATE TABLE ai_model_configs (id integer primary key, custom_billing_mode text, custom_pricing_mode text)`).Error; err != nil {
 		t.Fatalf("create table: %v", err)
 	}

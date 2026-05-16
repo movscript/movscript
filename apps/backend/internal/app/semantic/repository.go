@@ -71,10 +71,6 @@ type repository interface {
 	ListStoryboardVersions(ctx context.Context, filter StoryboardVersionFilter) ([]domainsemantic.StoryboardVersion, error)
 	CreateStoryboardVersion(ctx context.Context, item domainsemantic.StoryboardVersion) (domainsemantic.StoryboardVersion, error)
 	LoadStoryboardVersion(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardVersion, error)
-	ListStoryboardLines(ctx context.Context, filter StoryboardLineFilter) ([]domainsemantic.StoryboardLine, error)
-	CreateStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine) (domainsemantic.StoryboardLine, error)
-	LoadStoryboardLine(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardLine, error)
-	PatchStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine, patch domainsemantic.StoryboardLinePatch) (domainsemantic.StoryboardLine, error)
 	NextStoryboardVersionNumber(ctx context.Context, projectID uint, storyboardScriptID uint) int
 	ListWorkItems(ctx context.Context, filter WorkItemFilter) ([]domainsemantic.WorkItem, error)
 	CreateWorkItem(ctx context.Context, item domainsemantic.WorkItem) (domainsemantic.WorkItem, error)
@@ -339,8 +335,6 @@ func newDeleteItemModel(kind string) (any, error) {
 		return &persistencemodel.StoryboardScript{}, nil
 	case "storyboard_version":
 		return &persistencemodel.StoryboardVersion{}, nil
-	case "storyboard_line":
-		return &persistencemodel.StoryboardLine{}, nil
 	case "production":
 		return &persistencemodel.Production{}, nil
 	case domainworkflow.EntityKindContentUnit:
@@ -1031,8 +1025,6 @@ func (r *gormRepository) EnsureOwnerInProject(ctx context.Context, projectID uin
 		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardScript{})
 	case "storyboard_version":
 		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardVersion{})
-	case "storyboard_line":
-		return r.ensureProjectScopedModelInProject(ctx, projectID, ownerID, &persistencemodel.StoryboardLine{})
 	case "asset_slot":
 		return r.EnsureAssetSlotInProject(ctx, projectID, ownerID)
 	case "asset_slot_candidate":
@@ -1221,9 +1213,6 @@ func (r *gormRepository) ListContentUnits(ctx context.Context, filter ContentUni
 	if filter.SceneMomentID > 0 {
 		q = q.Where("scene_moment_id = ?", filter.SceneMomentID)
 	}
-	if filter.StoryboardLineID > 0 {
-		q = q.Where("storyboard_line_id = ?", filter.StoryboardLineID)
-	}
 	if filter.ScriptBlockID > 0 {
 		q = q.Where("script_block_id = ?", filter.ScriptBlockID)
 	}
@@ -1281,9 +1270,6 @@ func contentUnitPatchColumns(patch domainsemantic.ContentUnitPatch) map[string]a
 	}
 	if patch.SceneMomentID != nil {
 		updates["scene_moment_id"] = patch.SceneMomentID
-	}
-	if patch.StoryboardLineID != nil {
-		updates["storyboard_line_id"] = patch.StoryboardLineID
 	}
 	if patch.ScriptBlockID != nil {
 		updates["script_block_id"] = patch.ScriptBlockID
@@ -1698,110 +1684,6 @@ func (r *gormRepository) LoadStoryboardVersion(ctx context.Context, projectID ui
 		return domainsemantic.StoryboardVersion{}, err
 	}
 	return domainsemantic.StoryboardVersionFromModel(item), nil
-}
-
-func (r *gormRepository) ListStoryboardLines(ctx context.Context, filter StoryboardLineFilter) ([]domainsemantic.StoryboardLine, error) {
-	items := make([]persistencemodel.StoryboardLine, 0)
-	q := r.db.WithContext(ctx).Where("project_id = ?", filter.ProjectID)
-	if filter.StoryboardScriptID > 0 {
-		q = q.Where("storyboard_script_id = ?", filter.StoryboardScriptID)
-	}
-	if filter.StoryboardVersionID > 0 {
-		q = q.Where("storyboard_version_id = ?", filter.StoryboardVersionID)
-	}
-	if filter.SegmentID > 0 {
-		q = q.Where("segment_id = ?", filter.SegmentID)
-	}
-	if filter.SceneMomentID > 0 {
-		q = q.Where("scene_moment_id = ?", filter.SceneMomentID)
-	}
-	if filter.ScriptBlockID > 0 {
-		q = q.Where("script_block_id = ?", filter.ScriptBlockID)
-	}
-	if len(filter.ScriptBlockIDs) > 0 {
-		q = q.Where("script_block_id IN ?", filter.ScriptBlockIDs)
-	}
-	if status := strings.TrimSpace(filter.Status); status != "" {
-		q = q.Where("status = ?", status)
-	}
-	if err := q.Order(`storyboard_script_id, storyboard_version_id, "order", id`).Find(&items).Error; err != nil {
-		return nil, err
-	}
-	return storyboardLinesFromModels(items), nil
-}
-
-func storyboardLinesFromModels(items []persistencemodel.StoryboardLine) []domainsemantic.StoryboardLine {
-	result := make([]domainsemantic.StoryboardLine, 0, len(items))
-	for _, item := range items {
-		result = append(result, domainsemantic.StoryboardLineFromModel(item))
-	}
-	return result
-}
-
-func (r *gormRepository) CreateStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine) (domainsemantic.StoryboardLine, error) {
-	modelItem := item.ToModel()
-	if err := r.createItem(ctx, &modelItem); err != nil {
-		return domainsemantic.StoryboardLineFromModel(modelItem), err
-	}
-	return domainsemantic.StoryboardLineFromModel(modelItem), nil
-}
-
-func (r *gormRepository) LoadStoryboardLine(ctx context.Context, projectID uint, id string) (domainsemantic.StoryboardLine, error) {
-	var item persistencemodel.StoryboardLine
-	if err := r.loadProjectItem(ctx, projectID, &item, id); err != nil {
-		return domainsemantic.StoryboardLine{}, err
-	}
-	return domainsemantic.StoryboardLineFromModel(item), nil
-}
-
-func (r *gormRepository) PatchStoryboardLine(ctx context.Context, item domainsemantic.StoryboardLine, patch domainsemantic.StoryboardLinePatch) (domainsemantic.StoryboardLine, error) {
-	modelItem := item.ToModel()
-	if err := r.patchItem(ctx, &modelItem, storyboardLinePatchColumns(patch)); err != nil {
-		return domainsemantic.StoryboardLineFromModel(modelItem), err
-	}
-	return domainsemantic.StoryboardLineFromModel(modelItem), nil
-}
-
-func storyboardLinePatchColumns(patch domainsemantic.StoryboardLinePatch) map[string]any {
-	updates := map[string]any{
-		"storyboard_script_id": patch.StoryboardScriptID,
-		"order":                patch.Order,
-		"duration_sec":         patch.DurationSec,
-	}
-	if patch.StoryboardVersionID != nil {
-		updates["storyboard_version_id"] = patch.StoryboardVersionID
-	}
-	if patch.SegmentID != nil {
-		updates["segment_id"] = patch.SegmentID
-	}
-	if patch.SceneMomentID != nil {
-		updates["scene_moment_id"] = patch.SceneMomentID
-	}
-	if patch.ScriptBlockID != nil {
-		updates["script_block_id"] = patch.ScriptBlockID
-	}
-	if strings.TrimSpace(patch.Kind) != "" {
-		updates["kind"] = patch.Kind
-	}
-	if strings.TrimSpace(patch.Title) != "" {
-		updates["title"] = patch.Title
-	}
-	if strings.TrimSpace(patch.Description) != "" {
-		updates["description"] = patch.Description
-	}
-	if strings.TrimSpace(patch.Dialogue) != "" {
-		updates["dialogue"] = patch.Dialogue
-	}
-	if strings.TrimSpace(patch.VisualIntent) != "" {
-		updates["visual_intent"] = patch.VisualIntent
-	}
-	if strings.TrimSpace(patch.Status) != "" {
-		updates["status"] = patch.Status
-	}
-	if strings.TrimSpace(patch.MetadataJSON) != "" {
-		updates["metadata_json"] = patch.MetadataJSON
-	}
-	return updates
 }
 
 func (r *gormRepository) NextStoryboardVersionNumber(ctx context.Context, projectID uint, storyboardScriptID uint) int {

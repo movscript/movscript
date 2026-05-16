@@ -1,17 +1,16 @@
 import type { SemanticEntityRecord } from '@/api/semanticEntities'
 import type { ResourceBindingOwnerType } from '@/types'
 
-export type GeneratedBindingTarget = Extract<ResourceBindingOwnerType, 'asset_slot' | 'content_unit' | 'storyboard_line'>
+export type GeneratedBindingTarget = Extract<ResourceBindingOwnerType, 'asset_slot' | 'content_unit'>
 
 export const GENERATED_BINDING_TARGETS: Array<{
   value: GeneratedBindingTarget
   label: string
   slot: string
-  entityKind: 'assetSlots' | 'contentUnits' | 'storyboardLines'
+  entityKind: 'assetSlots' | 'contentUnits'
 }> = [
   { value: 'asset_slot', label: '素材需求', slot: 'result', entityKind: 'assetSlots' },
   { value: 'content_unit', label: '制作项', slot: 'generated_media', entityKind: 'contentUnits' },
-  { value: 'storyboard_line', label: '分镜行', slot: 'generated_media', entityKind: 'storyboardLines' },
 ]
 
 export function generatedBindingTargetLabel(value: GeneratedBindingTarget) {

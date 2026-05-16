@@ -1,3 +1,5 @@
+//go:build architecture
+
 package http_test
 
 import (

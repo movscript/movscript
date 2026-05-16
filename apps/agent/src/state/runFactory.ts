@@ -1,7 +1,8 @@
 import type { AgentRuntimeContract } from '../contracts/runtimeContract.js'
 import { buildRuntimeContractMetadata } from '../contracts/runtimeContract.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
-import type { AgentRun, AgentRunPolicy, AgentRunRole, JSONValue, ToolCall } from './types.js'
+import { isJSONRecord } from '../jsonValue.js'
+import type { AgentRun, AgentRunInput, AgentRunPolicy, AgentRunRole, JSONValue, ToolCall } from './types.js'
 
 export interface BuildAgentRunInput {
   id: string
@@ -13,6 +14,7 @@ export interface BuildAgentRunInput {
   clientInput?: JSONValue
   initialUserMessageId?: string
   forcedToolCall?: ToolCall
+  runInput?: AgentRunInput
   runtimeContract?: AgentRuntimeContract
   role?: AgentRunRole
   parentRunId?: string
@@ -33,12 +35,30 @@ export function buildAgentRun(input: BuildAgentRunInput): AgentRun {
     ...(input.taskId ? { taskId: input.taskId } : {}),
     ...(typeof input.progress === 'number' ? { progress: input.progress } : {}),
     ...(input.blockedReason ? { blockedReason: input.blockedReason } : {}),
+    ...(input.runInput ? { input: input.runInput } : {}),
     agentManifest: input.agentManifest,
     policy: input.policy,
     createdAt: input.now,
     updatedAt: input.now,
     steps: [],
     ...withMetadata(buildAgentRunMetadata(input)),
+  }
+}
+
+export function buildRunCreationMetadata(input: {
+  existing?: Record<string, JSONValue>
+  inputMetadata?: unknown
+  hasExplicitAgentManifest: boolean
+  catalogSnapshot: { id: string; catalogVersion: string | null }
+}): Record<string, JSONValue> {
+  return {
+    ...(input.existing ?? {}),
+    ...(isJSONRecord(input.inputMetadata) ? input.inputMetadata : {}),
+    ...(!input.hasExplicitAgentManifest ? { manifestSource: 'default' } : {}),
+    catalogSnapshot: {
+      id: input.catalogSnapshot.id,
+      version: input.catalogSnapshot.catalogVersion,
+    },
   }
 }
 

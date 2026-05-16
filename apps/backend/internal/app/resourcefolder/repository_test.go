@@ -2,12 +2,11 @@ package resourcefolder
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	domainresourcefolder "github.com/movscript/movscript/internal/domain/resourcefolder"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -45,12 +44,5 @@ func TestGormRepositoryUpdateFolderPersistsUpdateSpecFalseValue(t *testing.T) {
 
 func openResourceFolderRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "resourcefolder_repository.db")), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.ResourceFolder{}, &model.Organization{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testutil.OpenSQLite(t, "resourcefolder_repository.db", &model.ResourceFolder{}, &model.Organization{})
 }

@@ -54,7 +54,6 @@ test('draft domain model separates project standards, settings, and asset slots'
 
 test('draft domain model defines content unit proposal contracts', () => {
   const contentUnit = getDraftDomainModel('content_unit_proposal')
-  const media = getDraftDomainModel('content_unit_media_proposal')
 
   assert.equal(contentUnit?.targetEntityType, 'scene_moment')
   assert.equal(contentUnit?.contentSchemaId, 'movscript.content_unit_proposal.v1')
@@ -65,31 +64,24 @@ test('draft domain model defines content unit proposal contracts', () => {
   assert.ok(contentUnit?.fieldGuide.forbids.includes('operation_fields'))
   assert.ok(contentUnit?.fieldGuide.forbids.includes('media_generation_jobs'))
   assert.equal(contentUnit?.applyBoundary.backendApply, 'draft_only')
-
-  assert.equal(media?.targetEntityType, 'content_unit')
-  assert.equal(media?.contentSchemaId, 'movscript.content_unit_media_proposal.v1')
-  assert.ok(media?.seed.include.includes('content_unit'))
-  assert.ok(media?.fieldGuide.owns.includes('media_plans'))
-  assert.ok(media?.fieldGuide.forbids.includes('generation_job_submission'))
-  assert.equal(media?.applyBoundary.backendApply, 'draft_only')
 })
 
 test('draft review path is resolved from the shared frontend draft model helpers', () => {
   assert.equal(
     buildDraftReviewPath(draft({ id: 'draft-project', kind: 'project_proposal' })),
-    '/project-workspace?draftId=draft-project',
+    '/project/standards?draftId=draft-project',
   )
   assert.equal(
     buildDraftReviewPath(draft({ id: 'draft-setting', kind: 'setting_proposal' })),
-    '/pre-production?view=review&draftId=draft-setting',
+    '/project/pre-production?view=review&draftId=draft-setting',
   )
   assert.equal(
     buildDraftReviewPath(draft({ id: 'draft-asset-proposal', kind: 'asset_proposal' })),
-    '/pre-production?view=review&draftId=draft-asset-proposal',
+    '/project/pre-production?view=review&draftId=draft-asset-proposal',
   )
   assert.equal(
     buildDraftReviewPath(draft({ id: 'draft-script', kind: 'script_split_proposal' })),
-    '/workbench/script?draftId=draft-script',
+    '/project/scripts?draftId=draft-script',
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -97,7 +89,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'production_proposal',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/production-orchestrate?productionId=301&draftId=draft-production',
+    '/project/production/orchestration?productionId=301&draftId=draft-production',
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -105,7 +97,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'asset_proposal',
       target: { entityType: 'asset_slot', entityId: 88 },
     })),
-    '/pre-production?view=review&draftId=draft-asset&asset_slot_id=88',
+    '/project/pre-production?view=review&draftId=draft-asset&asset_slot_id=88',
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -113,7 +105,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'content_unit_proposal',
       target: { entityType: 'scene_moment', entityId: 77 },
     })),
-    '/content-unit-orchestrate?draftId=draft-content-unit&scene_moment_id=77',
+    '/project/content-units/workbench?draftId=draft-content-unit&scene_moment_id=77',
   )
   assert.equal(
     buildDraftReviewPath(draft({
@@ -121,15 +113,7 @@ test('draft review path is resolved from the shared frontend draft model helpers
       kind: 'content_unit_proposal',
       target: { entityType: 'production', entityId: 301 },
     })),
-    '/content-unit-orchestrate?draftId=draft-content-unit-production&productionId=301',
-  )
-  assert.equal(
-    buildDraftReviewPath(draft({
-      id: 'draft-content-unit-media',
-      kind: 'content_unit_media_proposal',
-      target: { entityType: 'content_unit', entityId: 99 },
-    })),
-    '/contents?draftId=draft-content-unit-media&content_unit_id=99',
+    '/project/content-units/workbench?draftId=draft-content-unit-production&productionId=301',
   )
 })
 
@@ -141,7 +125,7 @@ test('draft artifact review path does not require loading the full draft first',
       draftKind: 'project_proposal',
       title: '项目提案',
     }),
-    '/project-workspace?draftId=draft-project',
+    '/project/standards?draftId=draft-project',
   )
   assert.equal(
     buildDraftArtifactReviewPath({
@@ -150,7 +134,7 @@ test('draft artifact review path does not require loading the full draft first',
       draftKind: 'production_proposal',
       target: { entityType: 'production', entityId: 301 },
     }),
-    '/production-orchestrate?productionId=301&draftId=draft-production',
+    '/project/production/orchestration?productionId=301&draftId=draft-production',
   )
   assert.equal(
     buildDraftArtifactReviewPath({

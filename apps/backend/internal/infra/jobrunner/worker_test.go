@@ -11,7 +11,7 @@ import (
 
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )
@@ -220,12 +220,5 @@ func openJobRunnerTestDBWithLogger(t *testing.T, gormLogger gormlogger.Interface
 	if gormLogger != nil {
 		config.Logger = gormLogger
 	}
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), config)
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.Job{}); err != nil {
-		t.Fatalf("migrate jobs: %v", err)
-	}
-	return db
+	return testutil.OpenSQLiteWithConfig(t, "jobrunner.db", config, &model.Job{})
 }

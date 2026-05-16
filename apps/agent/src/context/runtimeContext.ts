@@ -1,4 +1,5 @@
 import type { JSONValue } from '../types.js'
+import { isRecord } from '../jsonValue.js'
 
 export interface AgentContext {
   currentProjectId?: number
@@ -31,6 +32,20 @@ export function extractCurrentProductionId(result: JSONValue): number | undefine
   return typeof productionId === 'number' && Number.isFinite(productionId) ? productionId : undefined
 }
 
+export function extractFocusTimings(result: JSONValue): { totalMs?: number; focusMs?: number } | undefined {
+  const parsed = parseToolResult(result)
+  if (!isRecord(parsed) || !isRecord(parsed.timings)) return undefined
+  const timings = parsed.timings
+  const output: { totalMs?: number; focusMs?: number } = {}
+  if (typeof timings.totalMs === 'number' && Number.isFinite(timings.totalMs)) output.totalMs = timings.totalMs
+  if (typeof timings.focusMs === 'number' && Number.isFinite(timings.focusMs)) {
+    output.focusMs = timings.focusMs
+  } else if (output.totalMs !== undefined) {
+    output.focusMs = output.totalMs
+  }
+  return Object.keys(output).length > 0 ? output : undefined
+}
+
 export function parseToolResult(result: JSONValue): unknown {
   if (!isRecord(result)) return result
   if (result.data !== undefined) return result.data
@@ -43,8 +58,4 @@ export function parseToolResult(result: JSONValue): unknown {
   } catch {
     return first.text
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

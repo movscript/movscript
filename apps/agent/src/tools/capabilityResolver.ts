@@ -2,7 +2,6 @@ import type { JSONValue, MCPResource, MCPTool } from '../state/types.js'
 import {
   findToolGrant,
   type AgentManifest,
-  type AgentToolApprovalMode,
 } from '../catalog/agentManifest.js'
 import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from './toolRegistry.js'
 import { publicToolName } from './toolNames.js'
@@ -13,39 +12,10 @@ import type {
   AgentRunRole,
   ResolvedAgentSkill,
   ResolvedToolCatalog,
-  ToolUnavailableReason,
 } from '../state/types.js'
-
-const BASE_RETRIEVAL_TOOLS = new Set([
-  'movscript_request_user_input',
-  'movscript_get_focus',
-  'movscript_list_projects',
-  'movscript_read_project_scripts',
-  'movscript_query_creative_references',
-  'movscript_query_asset_slots',
-  'movscript_query_production_context',
-  'movscript_get_draft_model',
-  'movscript_list_drafts',
-  'movscript_read_draft',
-  'movscript_get_draft',
-  'movscript_search_memories',
-  'movscript_get_memory',
-  'movscript_inspect_agent_catalog',
-  'movscript_list_models',
-  'movscript_list_generation_jobs',
-  'movscript_get_generation_job',
-  'movscript_create_plan',
-  'movscript_get_plan',
-  'movscript_replan',
-  'movscript_spawn_subagent',
-  'movscript_list_subagents',
-  'movscript_wait_subagent',
-  'movscript_cancel_subagent',
-])
-
-const COMMAND_REQUIRED_TOOLS = new Set([
-  'movscript_create_generation_job',
-])
+import { defaultToolApproval, requiresToolApproval } from './toolApprovalPolicy.js'
+import { getToolAuthorizationUnavailableReason } from './toolAuthorization.js'
+import { isToolVisibleForActiveBehavior } from './toolVisibility.js'
 
 export interface CapabilityMCPClient {
   initialize(): Promise<unknown>
@@ -186,14 +156,13 @@ export function resolveToolCatalog(options: {
     const mcpTool = mcpByName.get(name)
     const registeredTool = registry.get(name)
     const grant = findManifestToolGrant(options.manifest, name)
-    const approval = grant?.approval ?? defaultApproval(registeredTool)
+    const approval = grant?.approval ?? defaultToolApproval(registeredTool)
     const unavailableReason = getUnavailableReason({
       name,
       mcpTool,
       registeredTool,
-      manifest: options.manifest,
+      grant,
       currentProjectId: options.currentProjectId,
-      mcpConnected: options.mcpConnected ?? true,
       activeSkills: options.activeSkills,
       userMessage: options.userMessage,
       runRole: options.runRole,
@@ -214,7 +183,7 @@ export function resolveToolCatalog(options: {
       approval,
       available: !unavailableReason,
       ...(unavailableReason ? { unavailableReason } : {}),
-      requiresApproval: requiresApproval(registeredTool, approval),
+      requiresApproval: requiresToolApproval(registeredTool, approval),
     }
     discovered.push(tool)
     byName[name] = tool
@@ -229,59 +198,29 @@ function getUnavailableReason(options: {
   name: string
   mcpTool?: MCPTool
   registeredTool?: RegisteredTool
-  manifest: AgentManifest
+  grant?: ReturnType<typeof findManifestToolGrant>
   currentProjectId?: number
-  mcpConnected: boolean
   activeSkills?: ResolvedAgentSkill[]
   userMessage?: string
   runRole?: AgentRunRole
-}): ToolUnavailableReason | undefined {
-  if (!options.registeredTool) return 'unregistered'
-  if (!options.mcpTool && options.registeredTool.source !== 'runtime') return 'mcp_unavailable'
-  const grant = findManifestToolGrant(options.manifest, options.name)
-  if (grant?.mode === 'deny') return 'denied'
-  if (!grant) return 'not_granted'
-  if (
-    options.runRole
-    && options.registeredTool.allowedRunRoles
-    && !options.registeredTool.allowedRunRoles.includes(options.runRole)
-  ) return 'wrong_run_role'
-  if (options.registeredTool.projectScoped && options.currentProjectId === undefined) return 'missing_project'
-  if (options.activeSkills && !isToolVisibleForActiveBehavior(options.name, options.activeSkills, options.userMessage ?? '')) return 'workflow_scope'
+}) {
+  const authorizationReason = getToolAuthorizationUnavailableReason({
+    registeredTool: options.registeredTool,
+    grant: options.grant,
+    hasMCPTool: Boolean(options.mcpTool),
+    currentProjectId: options.currentProjectId,
+    runRole: options.runRole,
+  })
+  if (authorizationReason) return authorizationReason
+  if (options.activeSkills && !isToolVisibleForActiveBehavior({
+    toolName: options.name,
+    activeSkills: options.activeSkills,
+    userMessage: options.userMessage ?? '',
+  })) return 'workflow_scope'
   return undefined
-}
-
-function isToolVisibleForActiveBehavior(name: string, activeSkills: ResolvedAgentSkill[], userMessage: string): boolean {
-  if (BASE_RETRIEVAL_TOOLS.has(name)) return true
-  if (COMMAND_REQUIRED_TOOLS.has(name) && /^\/(?:image|video)\b/i.test(userMessage.trim())) return true
-  if (activeSkills.length === 0) return false
-  const activeToolHints = new Set<string>()
-  for (const skill of activeSkills) {
-    if (skill.metadata?.kind !== 'workflow' && skill.category !== 'workflow') continue
-    if (skill.metadata?.toolScope === 'union') return true
-    for (const hint of skill.toolHints ?? []) activeToolHints.add(publicToolName(normalizeToolRef(hint)))
-  }
-  if (activeToolHints.size === 0) return false
-  return activeToolHints.has(name)
-}
-
-function normalizeToolRef(value: string): string {
-  return value.startsWith('tool://') ? value.slice('tool://'.length) : value
 }
 
 function findManifestToolGrant(manifest: AgentManifest, toolName: string) {
   return findToolGrant(manifest, toolName)
     ?? manifest.tools.find((grant) => publicToolName(grant.name) === toolName)
-}
-
-function defaultApproval(tool?: RegisteredTool): AgentToolApprovalMode {
-  if (!tool) return 'always'
-  return tool.requiresApprovalByDefault ? 'always' : 'never'
-}
-
-function requiresApproval(tool: RegisteredTool | undefined, grantApproval: AgentToolApprovalMode): boolean {
-  if (!tool) return true
-  if (grantApproval === 'never') return false
-  if (grantApproval === 'always') return true
-  return tool.risk === 'write' || tool.risk === 'generate' || tool.risk === 'destructive'
 }

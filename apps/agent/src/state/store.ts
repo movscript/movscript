@@ -27,7 +27,7 @@ export interface AgentStore {
   getTask(id: string): AgentTask | undefined
   appendTraceEvent(event: AgentTraceEvent): void
   listRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
-  countRunTraceEvents(runId: string): number
+  countRunTraceEvents(runId: string, query?: Pick<AgentTraceQuery, 'kind'>): number
 }
 
 export interface AgentRunQuery {
@@ -163,14 +163,15 @@ export class InMemoryAgentStore implements AgentStore {
     const events = (this.traceEventsByRun.get(runId) ?? [])
       .filter((event) => !query.kind || event.kind === query.kind)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    const startIndex = query.cursor
-      ? Math.max(events.findIndex((event) => event.id === query.cursor) + 1, 0)
-      : 0
+    const cursorIndex = query.cursor ? events.findIndex((event) => event.id === query.cursor) : -1
+    if (query.cursor && cursorIndex < 0) return []
+    const startIndex = cursorIndex >= 0 ? cursorIndex + 1 : 0
     return events.slice(startIndex, startIndex + limit).map((event) => clone(event))
   }
 
-  countRunTraceEvents(runId: string): number {
-    return this.traceEventsByRun.get(runId)?.length ?? 0
+  countRunTraceEvents(runId: string, query: Pick<AgentTraceQuery, 'kind'> = {}): number {
+    const events = this.traceEventsByRun.get(runId) ?? []
+    return query.kind ? events.filter((event) => event.kind === query.kind).length : events.length
   }
 }
 

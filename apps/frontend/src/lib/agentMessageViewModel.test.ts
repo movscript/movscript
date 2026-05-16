@@ -3,12 +3,13 @@ import test from 'node:test'
 
 import {
   assistantResultPayloadForRun,
+  fetchAllRunTraceEvents,
   generatedFallbackAttachmentFromText,
   hideGeneratedResultTechnicalSummary,
   hydrateHistoricalGeneratedAttachments,
   outputResourceIdsFromText,
 } from './agentMessageViewModel'
-import type { AgentRun } from './localAgentClient'
+import { localAgentClient, type AgentRun, type AgentTraceEvent } from './localAgentClient'
 import type { RawResource } from '@/types'
 
 function baseRun(patch: Partial<AgentRun> = {}): AgentRun {
@@ -132,6 +133,38 @@ test('hydrateHistoricalGeneratedAttachments restores text-only output resource c
   assert.deepEqual(attachments[1], generatedFallbackAttachmentFromText(43, 'Output resources: #42, #43'))
 })
 
+test('fetchAllRunTraceEvents follows server pagination metadata', async () => {
+  const original = localAgentClient.getRunTraceEvents
+  const requests: Array<{ cursor?: string; limit?: number }> = []
+  try {
+    localAgentClient.getRunTraceEvents = (async (_runId, query = {}) => {
+      requests.push(query)
+      if (!query.cursor) {
+        return {
+          runId: 'run_1',
+          events: [traceEvent('trace_1'), traceEvent('trace_2')],
+          total: 3,
+          hasMore: true,
+          nextCursor: 'trace_2',
+        }
+      }
+      return {
+        runId: 'run_1',
+        events: [traceEvent('trace_3')],
+        total: 3,
+        hasMore: false,
+      }
+    }) as typeof localAgentClient.getRunTraceEvents
+
+    const events = await fetchAllRunTraceEvents('run_1')
+
+    assert.deepEqual(events.map((event) => event.id), ['trace_1', 'trace_2', 'trace_3'])
+    assert.deepEqual(requests.map((request) => request.cursor), [undefined, 'trace_2'])
+  } finally {
+    localAgentClient.getRunTraceEvents = original
+  }
+})
+
 test('outputResourceIdsFromText and hideGeneratedResultTechnicalSummary keep message rendering stable', () => {
   assert.deepEqual(outputResourceIdsFromText('Output resources: #7, 8\n输出资源：#9'), [7, 8, 9])
   assert.equal(hideGeneratedResultTechnicalSummary([
@@ -141,3 +174,14 @@ test('outputResourceIdsFromText and hideGeneratedResultTechnicalSummary keep mes
     'Output resources: #7',
   ].join('\n')), '已完成。')
 })
+
+function traceEvent(id: string): AgentTraceEvent {
+  return {
+    id,
+    runId: 'run_1',
+    kind: 'tool_call',
+    title: id,
+    status: 'completed',
+    createdAt: '2026-05-09T08:00:00.000Z',
+  }
+}

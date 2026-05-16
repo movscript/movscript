@@ -3,13 +3,12 @@ package workflowmarket
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	domainmarket "github.com/movscript/movscript/internal/domain/workflowmarket"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -71,14 +70,7 @@ func TestInstallTemplateCreatesWorkflowCanvasWithoutHooks(t *testing.T) {
 
 func newWorkflowMarketTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "workflowmarket.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "workflowmarket.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.EntityRelation{}, &model.Canvas{}, &model.CanvasNode{}, &model.CanvasEdge{}); err != nil {
-		t.Fatalf("migrate workflow market db: %v", err)
-	}
-	return db
+	}, &model.EntityRelation{}, &model.Canvas{}, &model.CanvasNode{}, &model.CanvasEdge{})
 }

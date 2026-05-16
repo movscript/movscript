@@ -2,13 +2,12 @@ package canvas
 
 import (
 	"context"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/movscript/movscript/internal/domain/canvasruntime"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -140,13 +139,9 @@ func TestDeleteCanvasDeletesCanvasAndRunRelationsWithoutHooks(t *testing.T) {
 
 func newCanvasOutputTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "canvas_output.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "canvas_output.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
+	},
 		&persistencemodel.EntityRelation{},
 		&persistencemodel.AssetSlot{},
 		&persistencemodel.AssetSlotCandidate{},
@@ -157,10 +152,7 @@ func newCanvasOutputTestDB(t *testing.T) *gorm.DB {
 		&persistencemodel.CanvasEdge{},
 		&persistencemodel.CanvasRun{},
 		&persistencemodel.CanvasOutput{},
-	); err != nil {
-		t.Fatalf("migrate canvas output db: %v", err)
-	}
-	return db
+	)
 }
 
 func assertCanvasRelationMissing(t *testing.T, db *gorm.DB, sourceType string, sourceID uint, targetType string, targetID uint, relationType string) {

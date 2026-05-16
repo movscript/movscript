@@ -50,12 +50,6 @@ func (s *Service) SourceLockStatus(ctx context.Context, projectID uint, kind str
 			return SourceLockStatus{}, err
 		}
 		return s.storyboardScriptSourceLockStatus(ctx, projectID, item)
-	case "storyboard_line":
-		item, err := s.repo.LoadStoryboardLine(ctx, projectID, id)
-		if err != nil {
-			return SourceLockStatus{}, err
-		}
-		return s.storyboardLineSourceLockStatus(ctx, projectID, item)
 	case "content_unit":
 		item, err := s.repo.LoadContentUnit(ctx, projectID, id)
 		if err != nil {
@@ -99,11 +93,6 @@ func (s *Service) segmentSourceLockStatus(ctx context.Context, projectID uint, i
 		return SourceLockStatus{}, err
 	}
 	status.addReason("scene_moments", "已有情景，编排段来源不可再切换", "scene_moment", len(moments))
-	lines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, SegmentID: item.ID})
-	if err != nil {
-		return SourceLockStatus{}, err
-	}
-	status.addReason("storyboard_lines", "已有分镜行，编排段来源不可再切换", "storyboard_line", len(lines))
 	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SegmentID: item.ID})
 	if err != nil {
 		return SourceLockStatus{}, err
@@ -114,11 +103,6 @@ func (s *Service) segmentSourceLockStatus(ctx context.Context, projectID uint, i
 
 func (s *Service) sceneMomentSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.SceneMoment) (SourceLockStatus, error) {
 	status := newSourceLockStatus("scene_moment", item.ID)
-	lines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, SceneMomentID: item.ID})
-	if err != nil {
-		return SourceLockStatus{}, err
-	}
-	status.addReason("storyboard_lines", "已有分镜行，情景来源不可再切换", "storyboard_line", len(lines))
 	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SceneMomentID: item.ID})
 	if err != nil {
 		return SourceLockStatus{}, err
@@ -139,29 +123,11 @@ func (s *Service) storyboardScriptSourceLockStatus(ctx context.Context, projectI
 		return SourceLockStatus{}, err
 	}
 	status.addReason("storyboard_versions", "已有分镜版本，分镜脚本来源不可再切换", "storyboard_version", len(versions))
-	lines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, StoryboardScriptID: item.ID})
-	if err != nil {
-		return SourceLockStatus{}, err
-	}
-	status.addReason("storyboard_lines", "已有分镜行，分镜脚本来源不可再切换", "storyboard_line", len(lines))
-	return status, nil
-}
-
-func (s *Service) storyboardLineSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.StoryboardLine) (SourceLockStatus, error) {
-	status := newSourceLockStatus("storyboard_line", item.ID)
-	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, StoryboardLineID: item.ID})
-	if err != nil {
-		return SourceLockStatus{}, err
-	}
-	status.addReason("content_units", "已有制作项，分镜行来源不可再切换", "content_unit", len(units))
 	return status, nil
 }
 
 func (s *Service) contentUnitSourceLockStatus(ctx context.Context, projectID uint, item domainsemantic.ContentUnit) (SourceLockStatus, error) {
 	status := newSourceLockStatus("content_unit", item.ID)
-	if item.StoryboardLineID != nil {
-		status.addReason("storyboard_line", "已绑定分镜行，制作项不能切换到其他分镜行", "storyboard_line", 1)
-	}
 	keyframes, err := s.repo.ListKeyframes(ctx, KeyframeFilter{ProjectID: projectID, ContentUnitID: item.ID})
 	if err != nil {
 		return SourceLockStatus{}, err
@@ -210,10 +176,8 @@ func sourceLockFields(kind string) []string {
 		return []string{"segment_id", "script_block_id"}
 	case "storyboard_script":
 		return []string{"script_version_id"}
-	case "storyboard_line":
-		return []string{"storyboard_script_id", "storyboard_version_id", "segment_id", "scene_moment_id", "script_block_id"}
 	case "content_unit":
-		return []string{"production_id", "segment_id", "scene_moment_id", "storyboard_line_id", "script_block_id"}
+		return []string{"production_id", "segment_id", "scene_moment_id", "script_block_id"}
 	default:
 		return []string{}
 	}
@@ -232,8 +196,6 @@ func normalizeSourceLockKind(kind string) string {
 		return "scene_moment"
 	case "storyboard_script":
 		return "storyboard_script"
-	case "storyboard_line":
-		return "storyboard_line"
 	case "content_unit":
 		return "content_unit"
 	default:

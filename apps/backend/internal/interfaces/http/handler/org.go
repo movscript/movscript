@@ -115,6 +115,10 @@ func (h *OrgHandler) AddMember(c *gin.Context) {
 			c.JSON(http.StatusNotFound, apierr.NotFound("用户不存在"))
 			return
 		}
+		if err == orgapp.ErrUserInactive {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("用户未激活，不能加入组织"))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, apierr.Internal("添加成员失败"))
 		return
 	}
@@ -216,6 +220,8 @@ func (h *OrgHandler) GetInvitation(c *gin.Context) {
 			c.JSON(http.StatusGone, apierr.Conflict("邀请已被使用"))
 		case orgapp.ErrInviteExpired:
 			c.JSON(http.StatusGone, apierr.Conflict("邀请已过期"))
+		case orgapp.ErrSuspended:
+			c.JSON(http.StatusForbidden, apierr.Forbidden("组织已暂停"))
 		default:
 			c.JSON(http.StatusInternalServerError, apierr.Internal("查询邀请失败"))
 		}
@@ -249,6 +255,10 @@ func (h *OrgHandler) AcceptInvitation(c *gin.Context) {
 			c.JSON(http.StatusGone, apierr.Conflict("邀请已过期"))
 		case orgapp.ErrConflict:
 			c.JSON(http.StatusConflict, apierr.Conflict("用户名已存在"))
+		case orgapp.ErrSuspended:
+			c.JSON(http.StatusForbidden, apierr.Forbidden("组织已暂停"))
+		case orgapp.ErrUserInactive:
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("用户未激活，不能加入组织"))
 		default:
 			c.JSON(http.StatusInternalServerError, apierr.Internal("加入组织失败"))
 		}
@@ -275,6 +285,10 @@ func (h *OrgHandler) JoinByCode(c *gin.Context) {
 		switch err {
 		case orgapp.ErrInvalidCode:
 			c.JSON(http.StatusNotFound, apierr.NotFound("组织码不存在或已失效"))
+		case orgapp.ErrSuspended:
+			c.JSON(http.StatusForbidden, apierr.Forbidden("组织已暂停"))
+		case orgapp.ErrUserInactive:
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("用户未激活，不能加入组织"))
 		default:
 			c.JSON(http.StatusInternalServerError, apierr.Internal("加入组织失败"))
 		}
@@ -332,6 +346,14 @@ func (h *OrgHandler) AddGroupMember(c *gin.Context) {
 		}
 		if orgapp.IsDuplicateKey(err) {
 			c.JSON(http.StatusConflict, apierr.Conflict("该用户已在组内"))
+			return
+		}
+		if err == orgapp.ErrNotFound {
+			c.JSON(http.StatusNotFound, apierr.NotFound("用户不存在"))
+			return
+		}
+		if err == orgapp.ErrUserInactive {
+			c.JSON(http.StatusBadRequest, apierr.InvalidInput("用户未激活，不能加入用户组"))
 			return
 		}
 		c.JSON(http.StatusInternalServerError, apierr.Internal("添加失败"))

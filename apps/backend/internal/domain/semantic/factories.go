@@ -204,7 +204,6 @@ type ContentUnitSpec struct {
 	ProductionID     *uint
 	SegmentID        *uint
 	SceneMomentID    *uint
-	StoryboardLineID *uint
 	ScriptBlockID    *uint
 	Kind             string
 	Order            int
@@ -236,7 +235,6 @@ type ContentUnit struct {
 	ProductionID     *uint     `json:"production_id,omitempty"`
 	SegmentID        *uint     `json:"segment_id,omitempty"`
 	SceneMomentID    *uint     `json:"scene_moment_id,omitempty"`
-	StoryboardLineID *uint     `json:"storyboard_line_id,omitempty"`
 	ScriptBlockID    *uint     `json:"script_block_id,omitempty"`
 	Kind             string    `json:"kind"`
 	Order            int       `json:"order"`
@@ -268,7 +266,6 @@ type ContentUnitPatch struct {
 	ProductionID     *uint
 	SegmentID        *uint
 	SceneMomentID    *uint
-	StoryboardLineID *uint
 	ScriptBlockID    *uint
 	Kind             string
 	Order            int
@@ -300,7 +297,6 @@ func NewContentUnit(spec ContentUnitSpec) ContentUnit {
 		ProductionID:     spec.ProductionID,
 		SegmentID:        spec.SegmentID,
 		SceneMomentID:    spec.SceneMomentID,
-		StoryboardLineID: spec.StoryboardLineID,
 		ScriptBlockID:    spec.ScriptBlockID,
 		Kind:             FallbackString(spec.Kind, "shot"),
 		Order:            spec.Order,
@@ -901,82 +897,6 @@ func NewStoryboardVersion(spec StoryboardVersionSpec) StoryboardVersion {
 		Status:             SemanticDraftStatus(spec.Status),
 		SnapshotJSON:       spec.SnapshotJSON,
 		MetadataJSON:       spec.MetadataJSON,
-	}
-}
-
-type StoryboardLineSpec struct {
-	ProjectID           uint
-	StoryboardScriptID  uint
-	StoryboardVersionID *uint
-	SegmentID           *uint
-	SceneMomentID       *uint
-	ScriptBlockID       *uint
-	Order               int
-	Kind                string
-	Title               string
-	Description         string
-	Dialogue            string
-	VisualIntent        string
-	DurationSec         float64
-	Status              string
-	MetadataJSON        string
-}
-
-type StoryboardLine struct {
-	ID                  uint      `json:"ID"`
-	ProjectID           uint      `json:"project_id"`
-	StoryboardScriptID  uint      `json:"storyboard_script_id"`
-	StoryboardVersionID *uint     `json:"storyboard_version_id,omitempty"`
-	SegmentID           *uint     `json:"segment_id,omitempty"`
-	SceneMomentID       *uint     `json:"scene_moment_id,omitempty"`
-	ScriptBlockID       *uint     `json:"script_block_id,omitempty"`
-	Order               int       `json:"order"`
-	Kind                string    `json:"kind"`
-	Title               string    `json:"title"`
-	Description         string    `json:"description"`
-	Dialogue            string    `json:"dialogue"`
-	VisualIntent        string    `json:"visual_intent"`
-	DurationSec         float64   `json:"duration_sec"`
-	Status              string    `json:"status"`
-	MetadataJSON        string    `json:"metadata_json"`
-	CreatedAt           time.Time `json:"CreatedAt"`
-	UpdatedAt           time.Time `json:"UpdatedAt"`
-}
-
-type StoryboardLinePatch struct {
-	StoryboardScriptID  uint
-	StoryboardVersionID *uint
-	SegmentID           *uint
-	SceneMomentID       *uint
-	ScriptBlockID       *uint
-	Order               int
-	Kind                string
-	Title               string
-	Description         string
-	Dialogue            string
-	VisualIntent        string
-	DurationSec         float64
-	Status              string
-	MetadataJSON        string
-}
-
-func NewStoryboardLine(spec StoryboardLineSpec) StoryboardLine {
-	return StoryboardLine{
-		ProjectID:           spec.ProjectID,
-		StoryboardScriptID:  spec.StoryboardScriptID,
-		StoryboardVersionID: spec.StoryboardVersionID,
-		SegmentID:           spec.SegmentID,
-		SceneMomentID:       spec.SceneMomentID,
-		ScriptBlockID:       spec.ScriptBlockID,
-		Order:               spec.Order,
-		Kind:                FallbackString(spec.Kind, "beat"),
-		Title:               spec.Title,
-		Description:         spec.Description,
-		Dialogue:            spec.Dialogue,
-		VisualIntent:        spec.VisualIntent,
-		DurationSec:         spec.DurationSec,
-		Status:              SemanticDraftStatus(spec.Status),
-		MetadataJSON:        spec.MetadataJSON,
 	}
 }
 

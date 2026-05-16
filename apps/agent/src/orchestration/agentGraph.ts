@@ -57,6 +57,7 @@ export interface AgentGraphInput {
   memories: AgentMemory[]
   warnings: string[]
   command?: AgentCommandRuntime
+  userMessage?: string
   rootUserMessageId?: string
   config: ConfiguredRuntimeModelConfig
   modelRouter?: RuntimeModelRouter
@@ -227,7 +228,10 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
   const lastUser = input.rootUserMessageId
     ? input.threadMessages.find((message) => message.id === input.rootUserMessageId && message.role === 'user')
     : [...input.threadMessages].reverse().find((message) => message.role === 'user')
-  if (!lastUser) {
+  const frozenUserMessage = typeof input.userMessage === 'string' && input.userMessage.trim().length > 0
+    ? input.userMessage.trim()
+    : undefined
+  if (!lastUser && !frozenUserMessage) {
     return { status: 'failed', error: 'run requires at least one user message' }
   }
   if (currentRoundIndex > input.policy.maxIterations) {
@@ -238,21 +242,21 @@ async function runModelNode(state: AgentGraphState, input: AgentGraphInput): Pro
     }
   }
 
-  const rootIndex = input.threadMessages.findIndex((message) => message.id === lastUser.id)
-  const supplementalUserMessages = rootIndex >= 0
+  const rootIndex = lastUser ? input.threadMessages.findIndex((message) => message.id === lastUser.id) : -1
+  const supplementalUserMessages = rootIndex >= 0 && !frozenUserMessage
     ? input.threadMessages.slice(rootIndex + 1).filter((message) => message.role === 'user')
     : []
-  const effectiveUserMessage = supplementalUserMessages.length > 0
+  const effectiveUserMessage = frozenUserMessage ?? (supplementalUserMessages.length > 0
     ? [
-      lastUser.content,
+      lastUser!.content,
       '',
       '[后续用户补充]',
       ...supplementalUserMessages.map((message) => message.content),
     ].join('\n')
-    : lastUser.content
+    : lastUser!.content)
   const promptHistoryInput: AgentMessage[] = input.threadMessages.filter((message, index) => (
     message.role !== 'system'
-    && message.id !== lastUser.id
+    && (!lastUser || message.id !== lastUser.id)
     && (rootIndex < 0 || index <= rootIndex || message.role !== 'user')
   ))
   const maxHistoryMessages = numberField(input.run.metadata?.limits, 'maxHistoryMessages')

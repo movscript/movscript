@@ -12,7 +12,7 @@ function objectSchema(required: string[], properties: Record<string, unknown>): 
 const clientIdSchema = { type: 'string', minLength: 1 }
 const proposalModeSchema = { const: 'snapshot' }
 const assetSlotOwnerTypeSchema = {
-  enum: ['creative_reference', 'creative_reference_state', 'segment', 'scene_moment', 'content_unit', 'storyboard_line', 'keyframe'],
+  enum: ['creative_reference', 'creative_reference_state', 'segment', 'scene_moment', 'content_unit', 'keyframe'],
 }
 const projectProposalCreativeReferencesSchema = {
   type: 'array',
@@ -369,7 +369,8 @@ export const contentUnitProposalSchema = {
     '- This is a snapshot proposal: proposal.units is the complete proposed content-unit snapshot for the selected scene moment.',
     '- Do not include operation fields; proposal.units must be the complete target snapshot, and review computes differences separately.',
     '- Propose 3-6 focused content units for the selected scene moment or explicit production/segment anchor.',
-    '- For storyboard units, include concrete camera parameters, actor performance details, lighting, blocking, sound, transition, and duration when useful.',
+    '- Use kind to define the content unit role. For kind="shot", use the nested shot object only for camera/framing parameters; do not model Shot as a separate proposal entity.',
+    '- For visual content units, include concrete camera parameters, actor performance details, lighting, blocking, sound, transition, and duration when useful.',
     '- Avoid duplicates and vague adjectives without visible production detail.',
   ].join('\n'),
   examples: [{
@@ -389,36 +390,6 @@ export const contentUnitProposalSchema = {
       },
     },
   }],
-} satisfies DraftSchemaDefinition
-
-export const contentUnitMediaProposalSchema = {
-  id: 'movscript.content_unit_media_proposal.v1',
-  kind: 'content_unit_media_proposal',
-  category: 'content_unit_media',
-  scope: 'content_unit',
-  title: 'Content Unit Media Proposal',
-  version: '1.0.0',
-  status: 'deprecated',
-  supersededBy: 'movscript.workflow.visual-generation',
-  jsonSchema: objectSchema(['media_plans'], {
-    media_plans: {
-      type: 'array',
-      items: objectSchema(['kind', 'prompt'], {
-        kind: { enum: ['image', 'video'] },
-        prompt: { type: 'string' },
-        references: { type: 'array' },
-        acceptance_criteria: { type: 'array', items: { type: 'string' } },
-      }),
-    },
-  }),
-  promptSummary: [
-    '# movscript.content_unit_media_proposal.v1',
-    'Status: deprecated. Keep this schema only for legacy draft review.',
-    'Use content_unit_proposal for content-unit structure, and visual_generation for keyframe, shot, image, or video generation.',
-    'Content shape: { media_plans: Array<{ kind: "image"|"video", prompt, references?, acceptance_criteria? }> }',
-    'Rules: do not create new drafts with this schema; do not create generation jobs from legacy draft review.',
-  ].join('\n'),
-  examples: [{ name: 'basic', content: { media_plans: [{ kind: 'image', prompt: 'Clean product keyframe.', acceptance_criteria: ['Product is readable.'] }] } }],
 } satisfies DraftSchemaDefinition
 
 export const assetProposalSchema = {
@@ -548,7 +519,6 @@ export const DRAFT_SCHEMA_REGISTRY = {
   [projectProposalSchema.id]: projectProposalSchema,
   [productionProposalSchema.id]: productionProposalSchema,
   [contentUnitProposalSchema.id]: contentUnitProposalSchema,
-  [contentUnitMediaProposalSchema.id]: contentUnitMediaProposalSchema,
   [assetProposalSchema.id]: assetProposalSchema,
   [scriptSplitProposalSchema.id]: scriptSplitProposalSchema,
 } as const satisfies Record<string, DraftSchemaDefinition>
@@ -559,7 +529,6 @@ export const DRAFT_CONTENT_SCHEMA_IDS = {
   productionProposal: productionProposalSchema.id,
   contentUnitProposal: contentUnitProposalSchema.id,
   assetProposal: assetProposalSchema.id,
-  contentUnitMediaProposal: contentUnitMediaProposalSchema.id,
   scriptSplit: scriptSplitProposalSchema.id,
 } as const
 
@@ -572,7 +541,6 @@ export const DRAFT_SCOPES = {
   productionProposal: productionProposalSchema.kind,
   contentUnitProposal: contentUnitProposalSchema.kind,
   assetProposal: assetProposalSchema.kind,
-  contentUnitMediaProposal: contentUnitMediaProposalSchema.kind,
   scriptSplit: scriptSplitProposalSchema.kind,
 } as const
 
@@ -581,7 +549,6 @@ export const DRAFT_KIND_VALUES = [
   'script_split_proposal',
   'script',
   'asset_slot',
-  'storyboard_line',
   'content_unit',
   'prompt',
   'note',
@@ -592,7 +559,6 @@ export const DRAFT_KIND_VALUES = [
   'project_proposal',
   'production_proposal',
   'content_unit_proposal',
-  'content_unit_media_proposal',
 ] as const satisfies readonly DraftKind[]
 
 export type DraftKindValue = typeof DRAFT_KIND_VALUES[number]

@@ -73,7 +73,7 @@ test('electron renderer smoke reaches project workspace with seeded review flow'
     await mockProjectWorkspaceEntities(page)
     await mockProjectWorkspaceDrafts(page)
 
-    await page.goto(`${baseURL}/project-workspace`)
+    await page.goto(`${baseURL}/project/standards`)
 
     await expect(page.getByRole('heading', { name: '提案审阅' })).toBeVisible()
     await expect(page.getByText('Electron 项目提案草稿')).toBeVisible()

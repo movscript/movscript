@@ -566,7 +566,6 @@ export type AgentDraftKind =
   | 'script_split_proposal'
   | 'script'
   | 'asset_slot'
-  | 'storyboard_line'
   | 'content_unit'
   | 'prompt'
   | 'note'
@@ -577,7 +576,6 @@ export type AgentDraftKind =
   | 'project_proposal'
   | 'production_proposal'
   | 'content_unit_proposal'
-  | 'content_unit_media_proposal'
 export type AgentDraftStatus = 'draft' | 'accepted' | 'rejected' | 'applied' | 'superseded'
 
 export interface AgentMemory {
@@ -706,6 +704,9 @@ export type AgentRunStreamEvent =
 export interface AgentRunTraceResponse {
   runId: string
   events: AgentTraceEvent[]
+  total?: number
+  hasMore?: boolean
+  nextCursor?: string
 }
 
 export interface AgentRunTraceSummary {

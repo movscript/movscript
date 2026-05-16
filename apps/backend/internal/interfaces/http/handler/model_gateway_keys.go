@@ -6,6 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
+	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
+	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
 )
 
 func (h *ModelGatewayHandler) ListAPIKeys(c *gin.Context) {
@@ -46,6 +48,12 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 		writeGatewayAPIKeyError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "model_gateway.api_key.admin_created",
+		TargetType: "model_gateway_api_key",
+		TargetID:   audit.TargetID(result.Key.ID),
+		Metadata:   gatewayAPIKeyAuditMetadata(result.Key),
+	})
 	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{APIKey: result.Key, Key: result.RawKey})
 }
 
@@ -65,6 +73,8 @@ func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
 		OwnerUserID:     user.ID,
 		OrgID:           currentOrgID(c),
 		Name:            req.Name,
+		ProjectID:       req.ProjectID,
+		ProjectIDSet:    req.ProjectIDSet,
 		AllowedModelIDs: req.AllowedModelIDs,
 		AllowedScopes:   req.AllowedScopes,
 		IsEnabled:       req.IsEnabled,
@@ -74,6 +84,12 @@ func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
 		writeGatewayAPIKeyError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "model_gateway.api_key.admin_updated",
+		TargetType: "model_gateway_api_key",
+		TargetID:   audit.TargetID(key.ID),
+		Metadata:   gatewayAPIKeyAuditMetadata(key),
+	})
 	c.JSON(http.StatusOK, key)
 }
 
@@ -83,10 +99,17 @@ func (h *ModelGatewayHandler) DeleteAPIKey(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
 		return
 	}
-	if err := h.service.DeleteAPIKey(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c)); err != nil {
+	key, err := h.service.DeleteAPIKey(c.Request.Context(), parseID(c.Param("id")), user.ID, currentOrgID(c))
+	if err != nil {
 		writeGatewayAPIKeyError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "model_gateway.api_key.admin_deleted",
+		TargetType: "model_gateway_api_key",
+		TargetID:   audit.TargetID(key.ID),
+		Metadata:   gatewayAPIKeyAuditMetadata(key),
+	})
 	c.Status(http.StatusNoContent)
 }
 
@@ -104,4 +127,18 @@ func writeGatewayAPIKeyError(c *gin.Context, err error) {
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+}
+
+func gatewayAPIKeyAuditMetadata(key domainmodelgateway.APIKey) map[string]any {
+	return map[string]any{
+		"api_key_id":        key.ID,
+		"name":              key.Name,
+		"key_prefix":        key.KeyPrefix,
+		"owner_user_id":     key.OwnerUserID,
+		"org_id":            key.OrgID,
+		"project_id":        key.ProjectID,
+		"allowed_model_ids": key.AllowedModelIDs,
+		"allowed_scopes":    key.AllowedScopes,
+		"is_enabled":        key.IsEnabled,
+	}
 }

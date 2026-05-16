@@ -2,13 +2,19 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useProjectStore } from '@/store/projectStore'
 import { useUserStore } from '@/store/userStore'
+import { LEGACY_ROUTES, ROUTES } from '@/routes/projectRoutes'
+
+const productionOrchestrationPaths: readonly string[] = [
+  ROUTES.project.productionOrchestration,
+  LEGACY_ROUTES.productionOrchestration,
+]
 
 export function MCPContextBridge() {
   const location = useLocation()
   const navigate = useNavigate()
   const project = useProjectStore((s) => s.current)
   const productionId = useMemo(() => {
-    if (location.pathname !== '/production-orchestrate') return null
+    if (!productionOrchestrationPaths.includes(location.pathname)) return null
     const params = new URLSearchParams(location.search)
     const value = Number(params.get('productionId') ?? '')
     return Number.isFinite(value) && value > 0 ? value : null

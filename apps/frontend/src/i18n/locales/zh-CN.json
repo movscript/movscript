@@ -259,7 +259,6 @@
     "scripts": "剧本",
     "segments": "编排段",
     "assetSlots": "素材需求",
-    "storyboardLines": "分镜行",
     "contentUnits": "制作项",
     "keyframes": "画面锚点",
     "assets": "素材",
@@ -1157,7 +1156,6 @@
           "script": "剧本草稿",
           "creative_reference": "设定资料建议",
           "asset_slot": "素材需求",
-          "storyboard_line": "分镜建议",
           "content_unit": "镜头建议",
           "prompt": "提示词",
           "note": "审阅备注",
@@ -1168,7 +1166,6 @@
           "project_proposal": "项目提案",
           "production_proposal": "制作提案",
           "content_unit_proposal": "内容单元提案",
-          "content_unit_media_proposal": "内容单元媒体提案",
           "script_split_proposal": "剧本划分提案"
         }
       },
@@ -2025,79 +2022,6 @@
       "emptyHint": "输入你的想法，开始激发灵感",
       "requestFailed": "请求失败，请检查模型配置后重试"
     },
-    "smartStoryboard": {
-      "title": "智能分镜",
-      "subtitle": "把人物、场景和分镜示意图组织成镜头语言，用情绪和表达生成画面锚点方案。",
-      "generate": "生成画面锚点",
-      "buckets": {
-        "characters": "人物",
-        "scenes": "场景",
-        "storyboard": "分镜图"
-      },
-      "empty": {
-        "characters": "从左侧选择人物或角色参考图",
-        "scenes": "从左侧选择场景或环境参考图",
-        "storyboard": "加入手绘分镜、构图示意或参考帧"
-      },
-      "emotion": {
-        "title": "情绪表达",
-        "intensity": "情绪强度",
-        "expression": "表演与表达",
-        "placeholder": "例如：人物压住愤怒，眼神躲闪，动作慢半拍；场景保持冷色和低对比。",
-        "presets": {
-          "calm": "平静",
-          "tense": "紧张",
-          "joy": "喜悦",
-          "fear": "恐惧",
-          "lonely": "孤独",
-          "hopeful": "希望"
-        }
-      },
-      "camera": {
-        "title": "镜头语言",
-        "shotSize": "景别",
-        "move": "运动",
-        "lens": "镜头",
-        "rhythm": "节奏",
-        "shotSizes": {
-          "closeUp": "特写",
-          "medium": "中景",
-          "wide": "远景",
-          "overShoulder": "过肩"
-        },
-        "moves": {
-          "static": "固定",
-          "pushIn": "推近",
-          "tracking": "跟拍",
-          "handheld": "手持"
-        },
-        "lenses": {
-          "wide": "广角",
-          "standard": "标准",
-          "telephoto": "长焦"
-        },
-        "rhythms": {
-          "slow": "慢",
-          "balanced": "均衡",
-          "fast": "快"
-        }
-      },
-      "beats": {
-        "title": "镜头拆解",
-        "fields": {
-          "title": "镜头标题",
-          "emotion": "情绪",
-          "shot": "镜头",
-          "note": "备注"
-        }
-      },
-      "preview": {
-        "title": "画面锚点预览"
-      },
-      "prompt": {
-        "title": "生成提示摘要"
-      }
-    },
     "defs": {
       "refImageGen": {
         "name": "参考生图",
@@ -2790,7 +2714,6 @@
       "multiAngle": "多角度",
       "videoEdit": "剪辑工具",
       "brainstorm": "AI生文",
-      "smartStoryboard": "智能分镜",
       "resources": "资源库",
       "jobs": "生成记录",
       "plugins": "插件",
@@ -2809,7 +2732,7 @@
       "preProduction": "前期准备",
       "creativeWorkbench": "头脑风暴",
       "projectProduction": "制作",
-      "productionOrchestrate": "制作编排",
+      "productionOrchestration": "制作编排",
       "contentAreaProduction": "制作编排",
       "script": "剧本",
       "segments": "编排段",

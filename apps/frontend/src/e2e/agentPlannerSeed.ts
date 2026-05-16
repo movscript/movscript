@@ -416,6 +416,47 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
       summary: runId === WORKER_RUN_ID ? 'Einstein开始素材风险审计。' : 'Planner started plan orchestration.',
       createdAt: '2026-05-12T09:00:01.000Z',
     },
+    ...(runId === WORKER_RUN_ID ? [{
+      id: `trace_${runId}_prompt`,
+      runId,
+      kind: 'prompt' as const,
+      title: 'Prompt composed',
+      status: 'completed' as const,
+      summary: 'Prompt composed for asset review worker.',
+      data: {
+        charCount: 1024,
+        messageCount: 3,
+        systemMessageCount: 1,
+        skillIds: ['movscript.workflow.asset-review', 'movscript.policy.drafts'],
+        availableToolNames: ['movscript_review_assets', 'movscript_get_focus'],
+        blockedToolCount: 1,
+        promptStats: {
+          totalChars: 1024,
+          byLayer: {
+            level0_core: 420,
+            level1_context: 360,
+            level2_behavior: 220,
+            runtime_warnings: 24,
+          },
+          byContextLayer: {
+            runtime_contract: 420,
+            focus: 260,
+            behavior: 220,
+            thread_continuity: 100,
+            warning: 24,
+          },
+          parts: [
+            { id: 'runtime.contract', layer: 'level0_core', contextLayer: 'runtime_contract', chars: 420 },
+            { id: 'focus.project', layer: 'level1_context', contextLayer: 'focus', chars: 260 },
+            { id: 'skill.workflow.asset-review', layer: 'level2_behavior', contextLayer: 'behavior', chars: 220 },
+            { id: 'thread.latest', layer: 'level1_context', contextLayer: 'thread_continuity', chars: 100 },
+            { id: 'runtime.warning.blocked_tools', layer: 'runtime_warnings', contextLayer: 'warning', chars: 24 },
+          ],
+        },
+      },
+      createdAt: '2026-05-12T09:00:02.000Z',
+      completedAt: '2026-05-12T09:00:02.020Z',
+    }] : []),
     ...modelEvents,
     {
       id: `trace_${runId}_tool`,
@@ -426,11 +467,33 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
       toolName: runId === WORKER_RUN_ID ? 'movscript_review_assets' : 'movscript_spawn_subagent',
       summary: runId === WORKER_RUN_ID ? 'Found missing hero visual coverage.' : 'Spawned worker Einstein.',
       data: runId === WORKER_RUN_ID
-        ? { findings: ['missing_hero_visual'], artifactId: 'artifact_einstein_risk' }
+        ? {
+            findings: ['missing_hero_visual'],
+            artifactId: 'artifact_einstein_risk',
+            authorization: 'Bearer e2e-secret-token',
+            apiKey: 'provider-e2e-api-key',
+            signedUrl: 'https://cdn.example.test/private/result.png?token=e2e-signed-token&width=1024',
+          }
         : { subagentName: 'Einstein', taskId: 'task_einstein_audit' },
       createdAt: '2026-05-12T09:00:08.000Z',
       completedAt: '2026-05-12T09:00:12.000Z',
     },
+    ...(runId === WORKER_RUN_ID ? [{
+      id: `trace_${runId}_assistant`,
+      runId,
+      kind: 'assistant' as const,
+      title: 'Assistant message created',
+      status: 'completed' as const,
+      summary: '发现缺少主视觉覆盖，已生成素材风险摘要。',
+      data: {
+        messageId: 'msg_einstein_risk_summary',
+        chars: 22,
+        content: '发现缺少主视觉覆盖，已生成素材风险摘要。',
+        source: 'model',
+      },
+      createdAt: '2026-05-12T09:00:13.000Z',
+      completedAt: '2026-05-12T09:00:13.030Z',
+    }] : []),
   ]
 }
 

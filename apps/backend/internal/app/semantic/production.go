@@ -111,34 +111,19 @@ func (s *Service) ListContentUnits(ctx context.Context, filter ContentUnitFilter
 }
 
 func (s *Service) CreateContentUnit(ctx context.Context, projectID uint, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
-	if err := s.applyStoryboardLineDefaults(ctx, projectID, &input); err != nil {
-		return domainsemantic.ContentUnit{}, err
-	}
 	resolvedScriptBlockID, err := s.resolveContentUnitScriptBlock(ctx, projectID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID)
 	if err != nil {
 		return domainsemantic.ContentUnit{}, err
 	}
 	input.ScriptBlockID = resolvedScriptBlockID
-	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.StoryboardLineID, input.ScriptBlockID); err != nil {
+	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID); err != nil {
 		return domainsemantic.ContentUnit{}, err
 	}
-	if err := s.validateContentUnitScriptSource(ctx, projectID, input.SegmentID, input.SceneMomentID, input.StoryboardLineID, input.ScriptBlockID); err != nil {
+	if err := s.validateContentUnitScriptSource(ctx, projectID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID); err != nil {
 		return domainsemantic.ContentUnit{}, err
 	}
 	item := contentUnitFromInput(projectID, input)
 	return s.repo.CreateContentUnit(ctx, item)
-}
-
-func (s *Service) CreateContentUnitFromStoryboardLine(ctx context.Context, projectID uint, storyboardLineID string, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
-	line, err := s.repo.LoadStoryboardLine(ctx, projectID, storyboardLineID)
-	if err != nil {
-		return domainsemantic.ContentUnit{}, err
-	}
-	if input.StoryboardLineID != nil && *input.StoryboardLineID != line.ID {
-		return domainsemantic.ContentUnit{}, ErrInvalidInput{Err: errors.New("storyboard_line_id must match route storyboard line")}
-	}
-	input.StoryboardLineID = &line.ID
-	return s.CreateContentUnit(ctx, projectID, input)
 }
 
 func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id string, input ContentUnitInput) (domainsemantic.ContentUnit, error) {
@@ -146,21 +131,15 @@ func (s *Service) PatchContentUnit(ctx context.Context, projectID uint, id strin
 	if err != nil {
 		return item, err
 	}
-	if err := lockContentUnitStoryboardLine(&input, item.StoryboardLineID); err != nil {
-		return item, err
-	}
-	if err := s.applyStoryboardLineDefaults(ctx, projectID, &input); err != nil {
-		return item, err
-	}
 	resolvedScriptBlockID, err := s.resolveContentUnitScriptBlock(ctx, projectID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID)
 	if err != nil {
 		return item, err
 	}
 	input.ScriptBlockID = resolvedScriptBlockID
-	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.StoryboardLineID, input.ScriptBlockID); err != nil {
+	if err := s.validateContentUnitOwners(ctx, projectID, input.ProductionID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID); err != nil {
 		return item, err
 	}
-	if err := s.validateContentUnitScriptSource(ctx, projectID, input.SegmentID, input.SceneMomentID, input.StoryboardLineID, input.ScriptBlockID); err != nil {
+	if err := s.validateContentUnitScriptSource(ctx, projectID, input.SegmentID, input.SceneMomentID, input.ScriptBlockID); err != nil {
 		return item, err
 	}
 	patch := contentUnitPatch(input)
@@ -195,57 +174,7 @@ func contentUnitSourcePreserved(item domainsemantic.ContentUnit, patch domainsem
 	return optionalUintPatchPreserves(item.ProductionID, patch.ProductionID) &&
 		optionalUintPatchPreserves(item.SegmentID, patch.SegmentID) &&
 		optionalUintPatchPreserves(item.SceneMomentID, patch.SceneMomentID) &&
-		optionalUintPatchPreserves(item.StoryboardLineID, patch.StoryboardLineID) &&
 		optionalUintPatchPreserves(item.ScriptBlockID, patch.ScriptBlockID)
-}
-
-func lockContentUnitStoryboardLine(input *ContentUnitInput, existing *uint) error {
-	if input == nil || existing == nil {
-		return nil
-	}
-	if input.StoryboardLineID != nil && *input.StoryboardLineID != *existing {
-		return ErrInvalidInput{Err: errors.New("storyboard_line_id cannot be changed after content unit is linked")}
-	}
-	input.StoryboardLineID = existing
-	return nil
-}
-
-func (s *Service) applyStoryboardLineDefaults(ctx context.Context, projectID uint, input *ContentUnitInput) error {
-	if input == nil || input.StoryboardLineID == nil {
-		return nil
-	}
-	line, err := s.repo.LoadStoryboardLine(ctx, projectID, strconv.FormatUint(uint64(*input.StoryboardLineID), 10))
-	if err != nil {
-		return err
-	}
-	if err := ensureOptionalIDMatches(input.SegmentID, line.SegmentID, "segment_id must match storyboard_line_id"); err != nil {
-		return err
-	}
-	if err := ensureOptionalIDMatches(input.SceneMomentID, line.SceneMomentID, "scene_moment_id must match storyboard_line_id"); err != nil {
-		return err
-	}
-	if err := ensureOptionalIDMatches(input.ScriptBlockID, line.ScriptBlockID, "script_block_id must match storyboard_line_id"); err != nil {
-		return err
-	}
-	input.SegmentID = coalesceUintPtr(input.SegmentID, line.SegmentID)
-	input.SceneMomentID = coalesceUintPtr(input.SceneMomentID, line.SceneMomentID)
-	input.ScriptBlockID = coalesceUintPtr(input.ScriptBlockID, line.ScriptBlockID)
-	if strings.TrimSpace(input.Kind) == "" {
-		input.Kind = storyboardLineContentUnitKind(line.Kind)
-	}
-	if strings.TrimSpace(input.Title) == "" {
-		input.Title = line.Title
-	}
-	if strings.TrimSpace(input.Description) == "" {
-		input.Description = line.Description
-	}
-	if strings.TrimSpace(input.Prompt) == "" {
-		input.Prompt = line.VisualIntent
-	}
-	if input.DurationSec == 0 {
-		input.DurationSec = line.DurationSec
-	}
-	return nil
 }
 
 func ensureOptionalIDMatches(inputID *uint, ownerID *uint, message string) error {
@@ -256,28 +185,6 @@ func ensureOptionalIDMatches(inputID *uint, ownerID *uint, message string) error
 		return ErrInvalidInput{Err: errors.New(message)}
 	}
 	return nil
-}
-
-func coalesceUintPtr(primary *uint, fallback *uint) *uint {
-	if primary != nil {
-		return primary
-	}
-	return fallback
-}
-
-func storyboardLineContentUnitKind(kind string) string {
-	switch strings.TrimSpace(kind) {
-	case "caption":
-		return "caption_card"
-	case "narration":
-		return "narration"
-	case "transition":
-		return "transition"
-	case "shot", "beat":
-		return "shot"
-	default:
-		return "shot"
-	}
 }
 
 func (s *Service) resolveContentUnitScriptBlock(ctx context.Context, projectID uint, segmentID *uint, sceneMomentID *uint, scriptBlockID *uint) (*uint, error) {
@@ -312,22 +219,7 @@ func (s *Service) resolveContentUnitScriptBlock(ctx context.Context, projectID u
 	return nil, nil
 }
 
-func (s *Service) validateContentUnitScriptSource(ctx context.Context, projectID uint, segmentID *uint, sceneMomentID *uint, storyboardLineID *uint, scriptBlockID *uint) error {
-	if storyboardLineID != nil {
-		line, err := s.repo.LoadStoryboardLine(ctx, projectID, strconv.FormatUint(uint64(*storyboardLineID), 10))
-		if err != nil {
-			return err
-		}
-		if err := ensureOptionalIDMatches(segmentID, line.SegmentID, "segment_id must match storyboard_line_id"); err != nil {
-			return err
-		}
-		if err := ensureOptionalIDMatches(sceneMomentID, line.SceneMomentID, "scene_moment_id must match storyboard_line_id"); err != nil {
-			return err
-		}
-		if err := ensureOptionalIDMatches(scriptBlockID, line.ScriptBlockID, "script_block_id must match storyboard_line_id"); err != nil {
-			return err
-		}
-	}
+func (s *Service) validateContentUnitScriptSource(ctx context.Context, projectID uint, segmentID *uint, sceneMomentID *uint, scriptBlockID *uint) error {
 	var segmentScriptBlockID *uint
 	if segmentID != nil {
 		segment, err := s.repo.LoadSegment(ctx, projectID, strconv.FormatUint(uint64(*segmentID), 10))
@@ -487,7 +379,6 @@ func contentUnitFromInput(projectID uint, input ContentUnitInput) domainsemantic
 		ProductionID:     input.ProductionID,
 		SegmentID:        input.SegmentID,
 		SceneMomentID:    input.SceneMomentID,
-		StoryboardLineID: input.StoryboardLineID,
 		ScriptBlockID:    input.ScriptBlockID,
 		Kind:             input.Kind,
 		Order:            input.Order,
@@ -519,7 +410,6 @@ func contentUnitPatch(input ContentUnitInput) domainsemantic.ContentUnitPatch {
 		ProductionID:     input.ProductionID,
 		SegmentID:        input.SegmentID,
 		SceneMomentID:    input.SceneMomentID,
-		StoryboardLineID: input.StoryboardLineID,
 		ScriptBlockID:    input.ScriptBlockID,
 		Kind:             input.Kind,
 		Order:            input.Order,

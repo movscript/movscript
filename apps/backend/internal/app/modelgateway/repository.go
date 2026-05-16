@@ -54,7 +54,7 @@ func (r *gormRepository) CreateAPIKey(ctx context.Context, key *domainmodelgatew
 
 func (r *gormRepository) UpdateAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error {
 	row := key.ToModel()
-	if err := r.db.WithContext(ctx).Model(&row).Select("name", "allowed_model_ids", "allowed_scopes", "is_enabled").Updates(row).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&row).Select("name", "project_id", "allowed_model_ids", "allowed_scopes", "is_enabled").Updates(row).Error; err != nil {
 		return err
 	}
 	*key = domainmodelgateway.APIKeyFromModel(row)
@@ -72,7 +72,14 @@ func (r *gormRepository) ReloadAPIKey(ctx context.Context, key *domainmodelgatew
 
 func (r *gormRepository) DeleteAPIKey(ctx context.Context, key *domainmodelgateway.APIKey) error {
 	row := key.ToModel()
-	return r.db.WithContext(ctx).Delete(&row).Error
+	result := r.db.WithContext(ctx).Delete(&row)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrAPIKeyNotFound
+	}
+	return nil
 }
 
 func (r *gormRepository) FindAPIKeyByHash(ctx context.Context, hash string) (domainmodelgateway.APIKey, error) {

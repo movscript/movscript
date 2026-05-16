@@ -1,6 +1,7 @@
 import { getActiveSchemaForKind, getDraftSchemaEntry, type JSONSchema7 } from '@movscript/draft-schemas'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 import type { AgentDraft, AgentDraftKind } from '@/lib/localAgentClient'
+import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 export type DraftSeedMode = 'empty' | 'snapshot' | 'editable_snapshot'
 
@@ -39,12 +40,10 @@ const productionRelatedKinds: AgentDraftKind[] = [
   'scene_moment',
   'content_unit',
   'asset_slot',
-  'storyboard_line',
 ]
 
 const contentUnitRelatedKinds: AgentDraftKind[] = [
   'content_unit_proposal',
-  'content_unit_media_proposal',
   'content_unit',
 ]
 
@@ -71,8 +70,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       writableEntityTypes: ['creative_reference'],
     },
     routes: {
-      fallback: '/pre-production',
-      reviewTemplate: '/pre-production?view=review&draftId=:draftId',
+      fallback: ROUTES.project.preProduction,
+      reviewTemplate: `${ROUTES.project.preProduction}?view=review&draftId=:draftId`,
     },
   },
   asset_proposal: {
@@ -97,8 +96,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       writableEntityTypes: ['asset_slot'],
     },
     routes: {
-      fallback: '/pre-production',
-      reviewTemplate: '/pre-production?view=review&draftId=:draftId',
+      fallback: ROUTES.project.preProduction,
+      reviewTemplate: `${ROUTES.project.preProduction}?view=review&draftId=:draftId`,
     },
   },
   project_proposal: {
@@ -123,8 +122,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       writableEntityTypes: ['project'],
     },
     routes: {
-      fallback: '/project-workspace',
-      reviewTemplate: '/project-workspace?draftId=:draftId',
+      fallback: ROUTES.project.standards,
+      reviewTemplate: `${ROUTES.project.standards}?draftId=:draftId`,
     },
   },
   production_proposal: {
@@ -160,8 +159,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       writableEntityTypes: ['segment', 'scene_moment', 'content_unit', 'keyframe', 'creative_reference_usage', 'asset_slot_usage'],
     },
     routes: {
-      fallback: '/production-orchestrate',
-      reviewTemplate: '/production-orchestrate?productionId=:targetEntityId&draftId=:draftId',
+      fallback: ROUTES.project.productionOrchestration,
+      reviewTemplate: `${ROUTES.project.productionOrchestration}?productionId=:targetEntityId&draftId=:draftId`,
     },
   },
   content_unit_proposal: {
@@ -186,34 +185,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       writableEntityTypes: ['content_unit'],
     },
     routes: {
-      fallback: '/content-unit-orchestrate',
-      reviewTemplate: '/content-unit-orchestrate?scene_moment_id=:targetEntityId&draftId=:draftId',
-    },
-  },
-  content_unit_media_proposal: {
-    kind: 'content_unit_media_proposal',
-    title: 'Legacy content unit media proposal',
-    targetEntityType: 'content_unit',
-    contentSchemaId: 'movscript.content_unit_media_proposal.v1',
-    seed: {
-      defaultMode: 'snapshot',
-      allowedModes: ['empty', 'snapshot'],
-      include: ['content_unit', 'scene_moments', 'asset_slots', 'reference_resources'],
-      maxDepth: 2,
-      conflictKeys: ['content_unit.updatedAt', 'scene_moments[].updatedAt', 'asset_slots[].updatedAt', 'reference_resources[].UpdatedAt'],
-    },
-    fieldGuide: {
-      owns: ['media_plans', 'acceptance_criteria'],
-      references: ['content_unit', 'scene_moments', 'asset_slots', 'reference_resources'],
-      forbids: ['new_draft_creation', 'generation_job_submission', 'resource_binding_apply', 'final_media_generation_jobs'],
-    },
-    applyBoundary: {
-      backendApply: 'draft_only',
-      writableEntityTypes: ['keyframe', 'preview_timeline'],
-    },
-    routes: {
-      fallback: '/contents',
-      reviewTemplate: '/contents?content_unit_id=:targetEntityId&draftId=:draftId',
+      fallback: ROUTES.project.contentUnitWorkbench,
+      reviewTemplate: `${ROUTES.project.contentUnitWorkbench}?scene_moment_id=:targetEntityId&draftId=:draftId`,
     },
   },
   script_split_proposal: {
@@ -238,8 +211,8 @@ export const DRAFT_DOMAIN_MODELS: Partial<Record<AgentDraftKind, DraftDomainMode
       writableEntityTypes: ['script', 'production'],
     },
     routes: {
-      fallback: '/workbench/script',
-      reviewTemplate: '/workbench/script?draftId=:draftId',
+      fallback: ROUTES.project.scripts,
+      reviewTemplate: `${ROUTES.project.scripts}?draftId=:draftId`,
     },
   },
 }
@@ -265,47 +238,41 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
   const targetEntityId = numberValue(target?.entityId)
 
   if (draft.kind === 'script_split_proposal') {
-    return `/workbench/script?draftId=${encodeURIComponent(draft.id)}`
+    return withRouteParams(ROUTES.project.scripts, { draftId: draft.id })
   }
 
   if (draft.kind === 'setting_proposal') {
-    return `/pre-production?view=review&draftId=${encodeURIComponent(draft.id)}`
+    return withRouteParams(ROUTES.project.preProduction, { view: 'review', draftId: draft.id })
   }
 
   if (draft.kind === 'asset_proposal') {
     const assetSlotId = sourceEntityId ?? targetEntityId
-    const params = new URLSearchParams({ view: 'review', draftId: draft.id })
-    if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
-    return `/pre-production?${params.toString()}`
+    return withRouteParams(ROUTES.project.preProduction, { view: 'review', draftId: draft.id, asset_slot_id: assetSlotId })
   }
 
   if (sourceEntityType === 'asset_slot' || targetEntityType === 'asset_slot') {
     const assetSlotId = sourceEntityId ?? targetEntityId
-    const params = new URLSearchParams({ draftId: draft.id })
-    if (assetSlotId !== undefined) params.set('asset_slot_id', String(assetSlotId))
-    return `/pre-production?${params.toString()}`
+    return withRouteParams(ROUTES.project.preProduction, { draftId: draft.id, asset_slot_id: assetSlotId })
   }
 
   if (draft.kind === 'project_proposal' || sourceEntityType === 'project' || targetEntityType === 'project') {
-    return `/project-workspace?draftId=${encodeURIComponent(draft.id)}`
+    return withRouteParams(ROUTES.project.standards, { draftId: draft.id })
   }
 
-  if (draft.kind === 'content_unit_media_proposal' || targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
+  if (targetEntityType === 'content_unit' || sourceEntityType === 'content_unit') {
     const contentUnitId = sourceEntityId ?? targetEntityId
-    const params = new URLSearchParams({ draftId: draft.id })
-    if (contentUnitId !== undefined) params.set('content_unit_id', String(contentUnitId))
-    return `/contents?${params.toString()}`
+    return withRouteParams(ROUTES.project.contentUnits, { draftId: draft.id, content_unit_id: contentUnitId })
   }
 
   if (draft.kind === 'content_unit_proposal') {
     const sceneMomentId = sourceEntityId ?? targetEntityId
-    const params = new URLSearchParams({ draftId: draft.id })
+    const params: Record<string, string | number | undefined> = { draftId: draft.id }
     if ((sourceEntityType === 'scene_moment' || targetEntityType === 'scene_moment') && sceneMomentId !== undefined) {
-      params.set('scene_moment_id', String(sceneMomentId))
+      params.scene_moment_id = sceneMomentId
     } else if ((sourceEntityType === 'production' || targetEntityType === 'production') && sceneMomentId !== undefined) {
-      params.set('productionId', String(sceneMomentId))
+      params.productionId = sceneMomentId
     }
-    return `/content-unit-orchestrate?${params.toString()}`
+    return withRouteParams(ROUTES.project.contentUnitWorkbench, params)
   }
 
   const productionId = sourceEntityId ?? targetEntityId
@@ -319,7 +286,7 @@ export function buildDraftReviewPath(draft: AgentDraft): string | null {
       || contentUnitRelatedKinds.includes(draft.kind)
     )
   ) {
-    return `/production-orchestrate?productionId=${productionId}&draftId=${encodeURIComponent(draft.id)}`
+    return withRouteParams(ROUTES.project.productionOrchestration, { productionId, draftId: draft.id })
   }
 
   return null

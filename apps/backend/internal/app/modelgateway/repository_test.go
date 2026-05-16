@@ -6,7 +6,7 @@ import (
 
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -27,8 +27,11 @@ func TestGormRepositoryUpdateAPIKeyPersistsDomainFields(t *testing.T) {
 
 	name := " Updated "
 	enabled := false
+	projectID := uint(9)
 	key.ApplyUpdate(domainmodelgateway.APIKeyUpdateSpec{
 		Name:            &name,
+		ProjectID:       &projectID,
+		ProjectIDSet:    true,
 		AllowedModelIDs: []uint{2, 3},
 		AllowedScopes:   []string{"*"},
 		IsEnabled:       &enabled,
@@ -53,16 +56,12 @@ func TestGormRepositoryUpdateAPIKeyPersistsDomainFields(t *testing.T) {
 	if row.IsEnabled {
 		t.Fatal("IsEnabled = true, want false")
 	}
+	if row.ProjectID == nil || *row.ProjectID != projectID {
+		t.Fatalf("ProjectID = %#v, want %d", row.ProjectID, projectID)
+	}
 }
 
 func openModelGatewayRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.GatewayAPIKey{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testutil.OpenSQLite(t, "modelgateway_repository.db", &model.GatewayAPIKey{})
 }

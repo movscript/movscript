@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	orgapp "github.com/movscript/movscript/internal/app/org"
 	projectapp "github.com/movscript/movscript/internal/app/project"
+	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	"gorm.io/gorm"
 )
@@ -22,6 +24,10 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := CurrentUserFromContext(c)
 		if !ok {
+			c.Next()
+			return
+		}
+		if user.SystemRole == domainauth.SystemRoleSuperAdmin && isAdminAPIPath(c.Request.URL.Path) {
 			c.Next()
 			return
 		}
@@ -42,6 +48,10 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("你没有权限访问该工作区"))
 			return
 		}
+		if errors.Is(err, orgapp.ErrSuspended) {
+			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("工作区已暂停"))
+			return
+		}
 		if err != nil || !found {
 			c.Next()
 			return
@@ -49,6 +59,10 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 		c.Set(ContextOrgMemberKey, member)
 		c.Next()
 	}
+}
+
+func isAdminAPIPath(path string) bool {
+	return path == "/api/v1/admin" || strings.HasPrefix(path, "/api/v1/admin/")
 }
 
 // RequireProjectInCurrentOrg aborts when :id does not belong to the current workspace.
@@ -105,6 +119,10 @@ func InjectOrgMember(db *gorm.DB) gin.HandlerFunc {
 
 		member, err := orgService.GetMemberForUser(c.Request.Context(), uint(orgID), user.ID)
 		if err != nil {
+			if errors.Is(err, orgapp.ErrSuspended) {
+				c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("工作区已暂停"))
+				return
+			}
 			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("你不是该组织的成员"))
 			return
 		}

@@ -5,6 +5,7 @@ import { Check, ListChecks, Loader2, ShieldCheck, Workflow, X } from 'lucide-rea
 import { Badge, Button } from '@movscript/ui'
 import i18n from '@/i18n'
 import { cn } from '@/lib/utils'
+import { approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, runStatusLabel } from '@/lib/agentRunUi'
 import type { AgentRun, AgentThread } from '@/lib/localAgentClient'
 import type { ChatRunActivityEvent } from '@/store/agentStore'
 
@@ -33,41 +34,8 @@ export interface LocalAgentInputRequestCardProps {
   className?: string
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function approvalPreviewSideEffect(approval: ApprovalLike): string | null {
-  const preview = isRecord(approval.preview) ? approval.preview : null
-  const review = isRecord(preview?.review) ? preview.review : null
-  return typeof review?.sideEffect === 'string' && review.sideEffect.trim() ? review.sideEffect.trim() : null
-}
-
-export function localAgentApprovalImpactText(approval: ApprovalLike, t: ReturnType<typeof useTranslation>['t']): string {
-  const sideEffect = approvalPreviewSideEffect(approval)
-  if (sideEffect) return t('agents.chat.workflow.approvalImpact.previewApply', { sideEffect })
-
-  const byTool: Record<string, string> = {
-    movscript_create_generation_job: 'generationCreate',
-    movscript_cancel_generation_job: 'generationCancel',
-    movscript_create_project: 'projectCreate',
-    movscript_create_script: 'scriptCreate',
-    movscript_delete_memory: 'memoryDelete',
-    movscript_reload_agent_catalog: 'catalogReload',
-    movscript_spawn_subagent: 'subagentSpawn',
-    movscript_cancel_subagent: 'subagentCancel',
-  }
-  const toolKey = byTool[approval.toolName]
-  if (toolKey) return t(`agents.chat.workflow.approvalImpact.${toolKey}`)
-
-  const permission = approval.permission ?? ''
-  if (permission.includes('generation')) return t('agents.chat.workflow.approvalImpact.generationGeneric')
-  if (permission.includes('project.write')) return t('agents.chat.workflow.approvalImpact.projectWrite')
-  if (permission.includes('draft.write')) return t('agents.chat.workflow.approvalImpact.draftWrite')
-  if (permission.includes('memory.write')) return t('agents.chat.workflow.approvalImpact.memoryWrite')
-  if (approval.risk === 'destructive') return t('agents.chat.workflow.approvalImpact.destructive')
-  if (approval.risk === 'write') return t('agents.chat.workflow.approvalImpact.write')
-  return t('agents.chat.workflow.approvalImpact.default')
+export function localAgentApprovalImpactText(approval: ApprovalLike): string {
+  return approvalImpactLabel(approval)
 }
 
 export function formatLocalAgentAssistantContent(run: AgentRun, thread: Pick<AgentThread, 'messages'>) {
@@ -183,7 +151,7 @@ export function LocalAgentWorkflowPanel({
     ? pendingInputs.length > 0 ? t('agents.chat.workflow.waitingForInput') : t('agents.chat.workflow.waitingForApproval')
     : run.status === 'cancelled'
       ? t('agents.chat.workflow.cancelled')
-    : run.status.replace(/_/g, ' ')
+    : runStatusLabel(run.status)
   const showBulkApprovalActions = pendingApprovals.length > 1
 
   return (
@@ -259,7 +227,12 @@ export function LocalAgentWorkflowPanel({
                     <span className="truncate font-medium text-foreground">{approval.toolName}</span>
                     {approval.risk && (
                       <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">
-                        {approval.risk}
+                        {approvalRiskLabel(approval.risk)}
+                      </Badge>
+                    )}
+                    {approval.permission && (
+                      <Badge variant="outline" className="h-4 shrink-0 px-1 text-[9px]">
+                        {approvalPermissionLabel(approval.permission)}
                       </Badge>
                     )}
                   </div>
@@ -279,7 +252,7 @@ export function LocalAgentWorkflowPanel({
                 <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">{approval.reason}</p>
                 <div className="mt-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-1 text-[10px] leading-relaxed text-amber-900 dark:text-amber-200">
                   <span className="font-medium">{t('agents.chat.workflow.approvalImpact.label')}: </span>
-                  {localAgentApprovalImpactText(approval, t)}
+                  {localAgentApprovalImpactText(approval)}
                 </div>
                 {approvalDetails ? approvalDetails(approval) : null}
               </div>

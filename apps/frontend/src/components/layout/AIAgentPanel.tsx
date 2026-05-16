@@ -27,6 +27,7 @@ import {
   outputResourceIdsFromText,
 } from '@/lib/agentMessageViewModel'
 import { compactRunActivity, compactRunTraceEvents, liveTraceEventKey, mergeRunActivityEvents } from '@/lib/agentRunActivity'
+import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, inputTypeLabel, runApprovalModeLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceEventStatusLabel, traceKindLabel } from '@/lib/agentRunUi'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { toastMCPError, toastMCPStatus } from '@/lib/mcpStatus'
 import { RESOURCE_UPLOAD_ACCEPT } from '@/lib/mediaTypes'
@@ -66,7 +67,7 @@ import {
   type AgentThread as LocalAgentThread,
   type AgentThreadSummary,
 } from '@/lib/localAgentClient'
-import { actionableRunForPlan, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, plannerRunIdForPlanAction, shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
+import { actionableRunForPlan, agentTaskStatusLabel, buildPlanArtifactSummary, buildPlanNameConflictViews, buildPlanOverviewStats, buildPlanStatusExplanation, buildPlanTaskViews, plannerRunIdForPlanAction, shouldPollPlanSnapshot } from '@/lib/agentPlanUi'
 import { buildDraftArtifactReviewPath, buildDraftReviewPath } from '@/lib/draftDomainModel'
 import {
   AgentBody,
@@ -123,6 +124,7 @@ import {
 import { useAgentSessionStore, type AgentPageTaskState } from '@/store/agentSessionStore'
 import { useUserStore } from '@/store/userStore'
 import type { Project, PublicModel, RawResource } from '@/types'
+import { ROUTES, agentRunPath } from '@/routes/projectRoutes'
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
 
@@ -867,7 +869,7 @@ function LocalAgentWorkflow({
       approvalDetails={(approval) => (
         <>
           {approval.permission && (
-            <p className="mt-0.5 truncate text-[9px] text-muted-foreground/70">{t('agents.chat.panel.runtime.permission')}: {approval.permission}</p>
+            <p className="mt-0.5 truncate text-[9px] text-muted-foreground/70">{t('agents.chat.panel.runtime.permission')}: {approvalPermissionLabel(approval.permission)}</p>
           )}
           {approval.args && (
             <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/50 p-1.5 text-[9px] text-muted-foreground">
@@ -940,7 +942,7 @@ function AgentDebugPreviewDialog({
           <div className="grid gap-2 md:grid-cols-4">
             <DebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(draft.model.name ?? draft.model.id ?? t('common.emptyTitle'))} />
             <DebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={draft.agent.name ?? t('agents.chat.panel.debugPreview.agent')} />
-            <DebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={draft.settings.permissionMode} />
+            <DebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={agentPermissionModeLabel(draft.settings.permissionMode)} />
             <DebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(draft.httpRequests.length)} />
           </div>
 
@@ -1003,7 +1005,7 @@ function AgentDebugPreviewDialog({
           {preview?.policy && (
             <DebugSection title={t('agents.chat.panel.runtime.policy')}>
               <div className="grid gap-2 text-[11px] md:grid-cols-4">
-                <DebugSummaryItem label={t('agents.chat.panel.runtime.approvalMode')} value={preview.policy.approvalMode} />
+                <DebugSummaryItem label={t('agents.chat.panel.runtime.approvalMode')} value={runApprovalModeLabel(preview.policy.approvalMode)} />
                 <DebugSummaryItem label={t('agents.chat.panel.runtime.maxToolCalls')} value={String(preview.policy.maxToolCalls)} />
                 <DebugSummaryItem label={t('agents.chat.panel.runtime.maxIterations')} value={String(preview.policy.maxIterations)} />
                 <DebugSummaryItem label={t('agents.chat.panel.runtime.fileBytes')} value={preview.policy.allowFileBytes ? t('agents.chat.panel.capabilities.approval.always') : t('agents.chat.panel.capabilities.approval.never')} />
@@ -1021,7 +1023,7 @@ function AgentDebugPreviewDialog({
                   <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.manifestGrants')}</div>
                   <div className="space-y-0.5 text-[10px] text-muted-foreground">
                     {(preview.agentManifest?.tools ?? []).slice(0, 8).map((grant) => (
-                      <div key={grant.name}>{grant.name} · {grant.mode} · {grant.approval ?? t('agents.chat.panel.debugPreview.default')}</div>
+                      <div key={grant.name}>{grant.name} · {toolGrantModeLabel(grant.mode)} · {grant.approval ? toolApprovalLabel(grant.approval) : t('agents.chat.panel.debugPreview.default')}</div>
                     ))}
                     {(preview.agentManifest?.tools ?? []).length === 0 && <div>{t('agents.chat.panel.runtime.none')}</div>}
                   </div>
@@ -1042,7 +1044,7 @@ function AgentDebugPreviewDialog({
                   <div className="mb-1 text-[10px] font-medium text-foreground">{t('agents.chat.panel.runtime.availableTools')}</div>
                   <div className="space-y-1 text-[10px] text-muted-foreground">
                     {preview.tools.available.slice(0, 8).map((tool) => (
-                      <div key={tool.name}>{tool.name} · {tool.risk ?? t('agents.chat.panel.runtime.unknown')} · {tool.approval}</div>
+                      <div key={tool.name}>{tool.name} · {tool.risk ? approvalRiskLabel(tool.risk) : t('agents.chat.panel.runtime.unknown')} · {toolApprovalLabel(tool.approval)}</div>
                     ))}
                     {preview.tools.available.length === 0 && <div>{t('agents.chat.panel.runtime.none')}</div>}
                   </div>
@@ -1113,12 +1115,12 @@ function AgentDebugPreviewDialog({
                         <div key={approval.id} className="rounded border border-amber-500/20 bg-background/60 p-2">
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-medium text-foreground">{approval.toolName}</span>
-                            <Badge variant="warning" className="text-[9px]">{approval.risk ?? approval.status}</Badge>
+                            <Badge variant="warning" className="text-[9px]">{approval.risk ? approvalRiskLabel(approval.risk) : approvalStatusLabel(approval.status)}</Badge>
                           </div>
                           <p className="mt-0.5 text-muted-foreground">{approval.reason}</p>
                           <div className="mt-1 rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-1 text-[10px] leading-relaxed text-amber-900 dark:text-amber-200">
                             <span className="font-medium">{t('agents.chat.workflow.approvalImpact.label')}: </span>
-                            {localAgentApprovalImpactText(approval, t)}
+                            {localAgentApprovalImpactText(approval)}
                           </div>
                           {approval.args && (
                             <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-muted p-1.5 text-[10px]">
@@ -1347,9 +1349,9 @@ function AgentRuntimeContextPanel({
   const rows = [
     route ? { label: t('agents.chat.panel.pageContext.route'), value: route } : null,
     context.selection?.label ? { label: t('agents.chat.panel.pageContext.selection'), value: context.selection.label } : null,
-    context.projectsError ? { label: 'Projects', value: context.projectsError } : null,
-    ...(context.statusDigest ?? []).slice(0, 3).map((value, index) => ({ label: `Status ${index + 1}`, value })),
-    ...(context.rawContextHints ?? []).slice(0, 3).map((value, index) => ({ label: `Hint ${index + 1}`, value })),
+    context.projectsError ? { label: '项目加载错误', value: context.projectsError } : null,
+    ...(context.statusDigest ?? []).slice(0, 3).map((value, index) => ({ label: `状态 ${index + 1}`, value })),
+    ...(context.rawContextHints ?? []).slice(0, 3).map((value, index) => ({ label: `提示 ${index + 1}`, value })),
   ].filter(Boolean) as Array<{ label: string; value: string }>
 
   return (
@@ -1360,9 +1362,9 @@ function AgentRuntimeContextPanel({
         <DebugSummaryItem label={t('agents.chat.panel.context.attachments')} value={String(context.attachments.length)} />
       </div>
       <div className="grid gap-2 text-[11px] md:grid-cols-3">
-        <DebugSummaryItem label={t('agents.chat.panel.status.thread')} value={context.productionId !== undefined ? `production #${context.productionId}` : t('agents.chat.panel.pageContext.none')} />
-        <DebugSummaryItem label="Projects" value={String(context.projects?.length ?? 0)} />
-        <DebugSummaryItem label="Memories" value={String(context.memories.length)} />
+        <DebugSummaryItem label="制作" value={context.productionId !== undefined ? `#${context.productionId}` : t('agents.chat.panel.pageContext.none')} />
+        <DebugSummaryItem label="项目数" value={String(context.projects?.length ?? 0)} />
+        <DebugSummaryItem label="记忆数" value={String(context.memories.length)} />
       </div>
       {rows.length > 0 && (
         <div className="space-y-1">
@@ -1505,8 +1507,47 @@ function clientInputFromRun(run: AgentRun | null | undefined): AgentClientInput 
 }
 
 function workflowStepTitle(step: AgentRun['steps'][number]) {
-  if (step.type === 'tool_call') return step.toolName ?? 'Tool call'
-  return 'Assistant message'
+  if (step.type === 'tool_call') return step.toolName ?? '工具调用'
+  return '历史消息'
+}
+
+function agentStepStatusLabel(status: string): string {
+  if (status === 'completed') return '已完成'
+  if (status === 'failed') return '失败'
+  if (status === 'in_progress') return '进行中'
+  if (status === 'cancelled') return '已取消'
+  if (status === 'pending') return '待处理'
+  if (status === 'blocked') return '已阻塞'
+  return `未知状态 (${status})`
+}
+
+function agentStepTypeLabel(type: string): string {
+  if (type === 'tool_call') return '工具调用'
+  if (type === 'message') return '消息'
+  return `未知步骤 (${type})`
+}
+
+function genericRunStatusLabel(status: string): string {
+  if (status === 'queued' || status === 'in_progress' || status === 'requires_action' || status === 'completed' || status === 'completed_with_warnings' || status === 'failed' || status === 'cancelled') {
+    return runStatusLabel(status)
+  }
+  return `未知状态 (${status})`
+}
+
+function activityTraceView(event: ChatRunActivityEvent, runId: string) {
+  return agentTraceView({
+    id: event.id,
+    runId,
+    kind: event.kind as AgentTraceEvent['kind'],
+    title: event.title,
+    status: event.status as AgentTraceEvent['status'],
+    ...(event.summary ? { summary: event.summary } : {}),
+    ...(event.toolName ? { toolName: event.toolName } : {}),
+    ...(event.stepId ? { stepId: event.stepId } : {}),
+    ...(event.data !== undefined ? { data: event.data } : {}),
+    createdAt: event.createdAt,
+    ...(event.completedAt ? { completedAt: event.completedAt } : {}),
+  })
 }
 
 function workflowStatusClass(status: string) {
@@ -1776,13 +1817,13 @@ function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextDiagnost
         <div className="min-w-0">
           <div className="flex items-center gap-1.5 font-medium text-foreground">
             <MessageSquareText size={13} />
-            <span>Runtime context</span>
+            <span>运行上下文</span>
             <Badge variant="outline" className="text-[9px] leading-4 px-1.5 py-0">
               /context
             </Badge>
           </div>
           <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
-            Local diagnostic snapshot. The model gateway was not called.
+            本地诊断快照；不会发起模型网关调用。
           </p>
         </div>
         <Button
@@ -1790,8 +1831,8 @@ function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextDiagnost
           size="icon-xs"
           variant="ghost"
           onClick={copyJSON}
-          aria-label="Copy context diagnostic JSON"
-          title="Copy context diagnostic JSON"
+          aria-label="复制上下文诊断 JSON"
+          title="复制上下文诊断 JSON"
           className="shrink-0"
         >
           {copied ? <Check size={11} /> : <Copy size={11} />}
@@ -1799,17 +1840,17 @@ function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextDiagnost
       </div>
 
       <div className="grid grid-cols-2 gap-1.5 md:grid-cols-4">
-        <DebugSummaryItem label="messages" value={String(diagnostic.messages.length)} />
-        <DebugSummaryItem label="model tools" value={String(modelTools.length)} />
-        <DebugSummaryItem label="available" value={String(availableTools.length)} />
-        <DebugSummaryItem label="chars" value={String(totalChars)} />
+        <DebugSummaryItem label="消息" value={String(diagnostic.messages.length)} />
+        <DebugSummaryItem label="模型工具" value={String(modelTools.length)} />
+        <DebugSummaryItem label="可用工具" value={String(availableTools.length)} />
+        <DebugSummaryItem label="字符" value={String(totalChars)} />
       </div>
 
       {focusPart && (
         <details className="rounded-md border border-border bg-background/70" open>
           <summary className="flex cursor-pointer list-none items-center gap-1.5 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
             <Route size={10} />
-            Focus
+            页面焦点
           </summary>
           <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words border-t border-border px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
             {focusPart.content}
@@ -1819,12 +1860,12 @@ function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextDiagnost
 
       <details className="rounded-md border border-border bg-background/70" open>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
-          <span className="inline-flex items-center gap-1.5"><Wrench size={10} /> Tools attached to model call</span>
+          <span className="inline-flex items-center gap-1.5"><Wrench size={10} /> 随模型请求发送的工具</span>
           <span className="text-[9px] text-muted-foreground">{modelTools.length}</span>
         </summary>
         <div className="max-h-72 space-y-1.5 overflow-y-auto border-t border-border p-1.5">
           {modelTools.length === 0 ? (
-            <p className="px-1 text-[10px] text-muted-foreground">No callable tools were attached.</p>
+            <p className="px-1 text-[10px] text-muted-foreground">没有随请求发送可调用工具。</p>
           ) : modelTools.map((tool) => {
             const details = availableTools.find((candidate) => candidate.name === tool.name)
             return <ContextDiagnosticToolRow key={tool.name} tool={details ?? tool} parameters={tool.parameters} />
@@ -1835,7 +1876,7 @@ function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextDiagnost
       {blockedTools.length > 0 && (
         <details className="rounded-md border border-border bg-background/70">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
-            <span className="inline-flex items-center gap-1.5"><CircleStop size={10} /> Blocked tools</span>
+            <span className="inline-flex items-center gap-1.5"><CircleStop size={10} /> 被阻止的工具</span>
             <span className="text-[9px] text-muted-foreground">{blockedTools.length}</span>
           </summary>
           <div className="max-h-56 space-y-1.5 overflow-y-auto border-t border-border p-1.5">
@@ -1846,7 +1887,7 @@ function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextDiagnost
 
       <details className="rounded-md border border-border bg-background/70">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
-          <span className="inline-flex items-center gap-1.5"><FileJson size={10} /> Prompt parts</span>
+          <span className="inline-flex items-center gap-1.5"><FileJson size={10} /> 上下文片段</span>
           <span className="text-[9px] text-muted-foreground">{diagnostic.debugParts.length}</span>
         </summary>
         <div className="space-y-1.5 border-t border-border p-1.5">
@@ -1869,7 +1910,7 @@ function ContextDiagnosticCard({ diagnostic }: { diagnostic: ChatContextDiagnost
 
       <details className="rounded-md border border-border bg-background/70">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-medium text-foreground marker:hidden">
-          <span className="inline-flex items-center gap-1.5"><Braces size={10} /> Model gateway messages</span>
+          <span className="inline-flex items-center gap-1.5"><Braces size={10} /> 模型请求消息</span>
           <span className="text-[9px] text-muted-foreground">{diagnostic.messages.length}</span>
         </summary>
         <div className="space-y-1.5 border-t border-border p-1.5">
@@ -1902,14 +1943,14 @@ function ContextDiagnosticToolRow({ tool, parameters }: { tool: ChatContextDiagn
     <div className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
       <div className="flex min-w-0 items-center gap-1">
         <span className="truncate font-medium text-foreground">{tool.name}</span>
-        {'risk' in tool && tool.risk && <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{tool.risk}</Badge>}
-        {'approval' in tool && tool.approval && <Badge variant="secondary" className="text-[8px] leading-3 px-1 py-0">{tool.approval}</Badge>}
+        {'risk' in tool && tool.risk && <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{approvalRiskLabel(tool.risk)}</Badge>}
+        {'approval' in tool && tool.approval && <Badge variant="secondary" className="text-[8px] leading-3 px-1 py-0">{toolApprovalLabel(tool.approval)}</Badge>}
         {'unavailableReason' in tool && tool.unavailableReason && <Badge variant="warning" className="text-[8px] leading-3 px-1 py-0">{tool.unavailableReason}</Badge>}
       </div>
       {tool.description && <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{tool.description}</p>}
       {schema !== undefined && (
         <details className="mt-1 rounded border border-border/60 bg-muted/20">
-          <summary className="cursor-pointer list-none px-1.5 py-1 text-[9px] text-muted-foreground marker:hidden">schema</summary>
+          <summary className="cursor-pointer list-none px-1.5 py-1 text-[9px] text-muted-foreground marker:hidden">参数结构</summary>
           <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-words border-t border-border/60 px-1.5 py-1 text-[9px] text-muted-foreground">
             {safeJSONStringify(schema)}
           </pre>
@@ -1967,8 +2008,8 @@ const PLAN_WORKER_TIMEOUT_OPTIONS = [
 function activitySummary(activity: ChatRunActivity) {
   const toolCount = activity.steps.length
   const completedCount = activity.steps.filter((step) => step.status === 'completed').length
-  if (toolCount > 0) return `${completedCount}/${toolCount} tools`
-  return activity.events.length > 0 ? `${activity.events.length} events` : 'no tool calls'
+  if (toolCount > 0) return `${completedCount}/${toolCount} 个步骤`
+  return activity.events.length > 0 ? `${activity.events.length} 个事件` : '暂无工具调用'
 }
 
 function activityFromEvents(events: ChatRunActivityEvent[]): ChatRunActivity | undefined {
@@ -2006,7 +2047,7 @@ function formatToolCallStreamDetail(event: ChatRunActivityEvent) {
   if (!toolCall) return null
   const name = typeof toolCall.name === 'string' && toolCall.name.trim() ? toolCall.name : undefined
   const id = typeof toolCall.id === 'string' && toolCall.id.trim() ? toolCall.id : undefined
-  const parseStatus = typeof toolCall.parseStatus === 'string' ? toolCall.parseStatus.replace(/_/g, ' ') : 'partial'
+  const parseStatus = toolCallParseStatusLabel(typeof toolCall.parseStatus === 'string' ? toolCall.parseStatus : undefined)
   const args = typeof toolCall.argumentsBuffer === 'string' ? toolCall.argumentsBuffer : ''
   const parsedArgs = toolCall.argumentsJSON
   return {
@@ -2028,15 +2069,23 @@ function formatGenerationTraceDetail(event: ChatRunActivityEvent) {
   const outputResourceId = typeof generation.outputResourceId === 'number' ? generation.outputResourceId : undefined
   const message = typeof generation.message === 'string' ? generation.message : undefined
   return {
-    label: jobId !== undefined ? `Generation Job #${jobId}` : 'Generation job',
+    label: jobId !== undefined ? `生成任务 #${jobId}` : '生成任务',
     summary: [
-      stage ? stage.replace(/_/g, ' ') : undefined,
-      status.replace(/_/g, ' '),
+      generationStatusText(status, stage),
       progress !== undefined ? `${progress}%` : undefined,
-      outputResourceId !== undefined ? `resource #${outputResourceId}` : undefined,
+      outputResourceId !== undefined ? `资源 #${outputResourceId}` : undefined,
     ].filter(Boolean).join(' · '),
     message,
     generation,
+  }
+}
+
+function toolCallParseStatusLabel(status: string | undefined): string {
+  switch (status) {
+    case 'valid_json': return '参数已解析'
+    case 'partial':
+    case undefined: return '参数接收中'
+    default: return `未知解析状态 (${status})`
   }
 }
 
@@ -2079,12 +2128,12 @@ function RunActivityPanel({
   const items = [
     ...displayData.steps.map((step) => ({
       id: step.id,
-      kind: step.type === 'tool_call' ? 'tool' : 'runtime',
-      title: step.toolName ?? step.title ?? (step.type === 'tool_call' ? 'Tool call' : 'Assistant message'),
+      kind: agentStepTypeLabel(step.type),
+      title: step.toolName ?? step.title ?? (step.type === 'tool_call' ? '工具调用' : '历史消息'),
       status: step.status,
       time: formatActivityTime(step.createdAt, locale),
       duration: durationLabel(step.createdAt, step.completedAt),
-      summary: step.error || (step.sandboxed ? 'sandboxed' : ''),
+      summary: step.error || (step.sandboxed ? '沙盒执行' : ''),
       args: step.args,
       result: step.result,
       error: step.error,
@@ -2092,19 +2141,20 @@ function RunActivityPanel({
     ...displayData.events.map((event) => {
       const streamToolCall = formatToolCallStreamDetail(event)
       const generationTrace = formatGenerationTraceDetail(event)
+      const eventView = activityTraceView(event, displayData.runId)
       const httpRequest = event.data && typeof event.data === 'object' && 'httpRequest' in event.data
         ? (event.data as Record<string, unknown>).httpRequest
         : undefined
       return {
         id: event.id,
-        kind: httpRequest ? 'http' : event.kind,
-        title: generationTrace ? generationTrace.label : streamToolCall ? streamToolCall.label : event.toolName ? `${event.title}: ${event.toolName}` : event.title,
+        kind: httpRequest ? 'HTTP' : eventView?.categoryLabel ?? traceKindLabel(event.kind as AgentTraceEvent['kind']),
+        title: generationTrace ? generationTrace.label : streamToolCall ? streamToolCall.label : event.toolName ? `${eventView?.title ?? event.title}: ${event.toolName}` : eventView?.title ?? event.title,
         status: event.status,
         time: formatActivityTime(event.createdAt, locale),
         duration: durationLabel(event.createdAt, event.completedAt),
         summary: generationTrace
           ? generationTrace.message ?? generationTrace.summary
-          : streamToolCall ? `preparing args: ${streamToolCall.parseStatus} (${streamToolCall.args.length} chars)` : event.summary,
+          : streamToolCall ? `准备参数：${streamToolCall.parseStatus}（${streamToolCall.args.length} 字符）` : eventView?.behavior ?? eventView?.summary ?? event.summary,
         args: undefined,
         result: generationTrace ? generationTrace.generation : streamToolCall ? (streamToolCall.parsedArgs ?? streamToolCall.args) : event.data,
         error: event.status === 'failed' || event.status === 'blocked' ? event.summary : undefined,
@@ -2138,7 +2188,7 @@ function RunActivityPanel({
               onClick={(event) => {
                 event.preventDefault()
                 event.stopPropagation()
-                navigate(`/agent/runs/${encodeURIComponent(runId)}`)
+                navigate(agentRunPath(runId))
               }}
             >
               <Route size={9} />
@@ -2146,7 +2196,7 @@ function RunActivityPanel({
             </Button>
           )}
           <Badge variant={runStatusVariant(displayData.status)} className="text-[9px] leading-4 px-1.5 py-0">
-            {displayData.status.replace(/_/g, ' ')}
+            {genericRunStatusLabel(displayData.status)}
           </Badge>
           <span className="text-[9px] text-muted-foreground">{activitySummary(displayData)}</span>
         </span>
@@ -2154,7 +2204,7 @@ function RunActivityPanel({
       <div className="space-y-1.5 border-t border-border/70 px-2.5 py-2">
         {items.length === 0 ? (
           <div className="rounded border border-border/70 bg-muted/20 px-2 py-1.5 text-[10px] text-muted-foreground">
-            No tool calls were recorded for this run.
+            这次运行没有记录工具调用。
           </div>
         ) : items.map((item) => (
           <div key={item.id} className="rounded border border-border/70 bg-background px-2 py-1.5">
@@ -2164,7 +2214,7 @@ function RunActivityPanel({
                 <div className="flex min-w-0 items-center justify-between gap-2">
                   <span className="truncate text-[10px] font-medium text-foreground">{item.title}</span>
                   <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[9px]', workflowStatusClass(item.status))}>
-                    {item.status.replace(/_/g, ' ')}
+                    {agentStepStatusLabel(item.status)}
                   </span>
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-1.5 text-[9px] text-muted-foreground">
@@ -2177,8 +2227,8 @@ function RunActivityPanel({
                     {item.summary}
                   </p>
                 )}
-                {item.args !== undefined && <ActivityJSONBlock label="Args" value={item.args} />}
-                {item.result !== undefined && <ActivityJSONBlock label={item.error ? 'Error data' : 'Result'} value={item.result} />}
+                {item.args !== undefined && <ActivityJSONBlock label="参数" value={item.args} />}
+                {item.result !== undefined && <ActivityJSONBlock label={item.error ? '错误数据' : '结果'} value={item.result} />}
               </div>
             </div>
           </div>
@@ -2250,7 +2300,7 @@ function RunActivityTitleBubble({
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
             <Badge variant={runStatusVariant(displayData.status)} className="text-[9px] leading-4 px-1.5 py-0">
-              {displayData.status.replace(/_/g, ' ')}
+              {genericRunStatusLabel(displayData.status)}
             </Badge>
             <span className="text-[9px] text-muted-foreground">{activitySummary(displayData)}</span>
           </span>
@@ -2263,7 +2313,7 @@ function RunActivityTitleBubble({
             className="mr-1 h-6 shrink-0 px-1.5 text-[9px]"
             title="打开完整运行详情"
             aria-label="打开完整运行详情"
-            onClick={() => navigate(`/agent/runs/${encodeURIComponent(runId)}`)}
+            onClick={() => navigate(agentRunPath(runId))}
           >
             <Route size={10} />
             详情
@@ -2298,7 +2348,8 @@ function PlanOverviewPanel({
   onDispatchSettingsChange?: (settings: PlanDispatchSettings) => void
 }) {
   const navigate = useNavigate()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = i18n.resolvedLanguage?.startsWith('zh') ? 'zh-CN' : 'en-US'
   const [artifactTypeFilter, setArtifactTypeFilter] = useState<'all' | string>('all')
   const [traceSummaries, setTraceSummaries] = useState<Record<string, AgentRunTraceSummary>>({})
   const [loadingTraceSummaryRunId, setLoadingTraceSummaryRunId] = useState<string | null>(null)
@@ -2337,7 +2388,7 @@ function PlanOverviewPanel({
   }
   const openRun = (runId: string | undefined) => {
     if (!runId) return
-    navigate(`/agent/runs/${encodeURIComponent(runId)}`)
+    navigate(agentRunPath(runId))
   }
   const loadTraceSummary = async (runId: string) => {
     if (traceSummaries[runId] || loadingTraceSummaryRunId === runId) return
@@ -2373,7 +2424,7 @@ function PlanOverviewPanel({
         ...current,
         [runId]: mode === 'more' ? [...(current[runId] ?? []), ...response.events] : response.events,
       }))
-      setTraceEventHasMoreByRunId((current) => ({ ...current, [runId]: response.events.length >= 8 }))
+      setTraceEventHasMoreByRunId((current) => ({ ...current, [runId]: typeof response.hasMore === 'boolean' ? response.hasMore : response.events.length >= 8 }))
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       setTraceEventErrors((current) => ({ ...current, [runId]: message }))
@@ -2390,41 +2441,41 @@ function PlanOverviewPanel({
             <span className="truncate">{snapshot.plan.title}</span>
           </div>
           <div data-testid="agent-plan-overview-stats" className="mt-0.5 text-[9px] text-muted-foreground">
-            {overviewStats.completedTaskCount}/{overviewStats.taskCount} tasks · {overviewStats.activeWorkerCount} active worker{overviewStats.activeWorkerCount === 1 ? '' : 's'}
-            {overviewStats.artifactCount > 0 && <> · {overviewStats.artifactCount} artifact{overviewStats.artifactCount === 1 ? '' : 's'}</>}
-            {overviewStats.nameConflictCount > 0 && <> · {overviewStats.nameConflictCount} name conflict{overviewStats.nameConflictCount === 1 ? '' : 's'}</>}
+            {overviewStats.completedTaskCount}/{overviewStats.taskCount} 个任务 · {overviewStats.activeWorkerCount} 个执行器运行中
+            {overviewStats.artifactCount > 0 && <> · {overviewStats.artifactCount} 个产物</>}
+            {overviewStats.nameConflictCount > 0 && <> · {overviewStats.nameConflictCount} 个重名冲突</>}
           </div>
           <p data-testid="agent-plan-status-explanation" className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">{planStatusExplanation}</p>
         </div>
         <Badge variant={runStatusVariant(snapshot.plan.status)} className="shrink-0 text-[9px] leading-4 px-1.5 py-0">
-          {snapshot.plan.status.replace(/_/g, ' ')}
+          {agentPlanStatusLabel(snapshot.plan.status)}
         </Badge>
       </div>
       {nameConflicts.length > 0 && (
         <div data-testid="agent-plan-name-conflicts" className="mt-2 space-y-1 rounded border border-destructive/30 bg-destructive/5 px-2 py-1.5 text-[9px] leading-relaxed text-destructive">
           {nameConflicts.map((conflict) => (
             <div key={conflict.subagentName} className="min-w-0">
-              <div className="truncate font-medium">Name conflict · {conflict.subagentName}</div>
+              <div className="truncate font-medium">子代理重名 · {conflict.subagentName}</div>
               <div className="mt-1 space-y-0.5">
                 {conflict.entries.map((entry) => (
                   <div key={entry.taskId} className="flex min-w-0 items-center justify-between gap-2 rounded bg-background/70 px-1.5 py-0.5 text-muted-foreground">
                     <div className="min-w-0">
                       <div className="truncate text-foreground">{entry.taskTitle}</div>
                       <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
-                        <span className="truncate">task {entry.taskId}</span>
-                        {entry.taskStatus && <span>{entry.taskStatus.replace(/_/g, ' ')}</span>}
+                        <span className="truncate">任务 {entry.taskId}</span>
+                        {entry.taskStatus && <span>{agentTaskStatusLabel(entry.taskStatus)}</span>}
                         {entry.ownerRunId && <span className="truncate">run {entry.ownerRunId}</span>}
-                        {entry.ownerRunStatus && <span>{entry.ownerRunStatus.replace(/_/g, ' ')}</span>}
+                        {entry.ownerRunStatus && <span>{runStatusLabel(entry.ownerRunStatus)}</span>}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(entry.taskId)}>
-                        Task
+                        任务
                       </Button>
                       {entry.ownerRunId && (
                         <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(entry.ownerRunId)}>
                           <Route size={8} />
-                          Run
+                          运行
                         </Button>
                       )}
                     </div>
@@ -2440,19 +2491,19 @@ function PlanOverviewPanel({
           {onDispatch && (
             <Button type="button" size="xs" variant="outline" className="h-6 px-1.5 text-[9px]" disabled={busy || !canDispatch} onClick={onDispatch}>
               {busy ? <Loader2 size={10} className="animate-spin" /> : <PlayIcon size={10} />}
-              Dispatch
+              分派
             </Button>
           )}
           {onReplan && (
             <Button type="button" size="xs" variant="outline" className="h-6 px-1.5 text-[9px]" disabled={busy || !canReplan} onClick={onReplan}>
               {busy ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
-              Replan
+              重新规划
             </Button>
           )}
           {onCancelTree && (
             <Button type="button" size="xs" variant="ghost" className="h-6 px-1.5 text-[9px] text-destructive hover:text-destructive" disabled={busy || !canCancel} onClick={onCancelTree}>
               {busy ? <Loader2 size={10} className="animate-spin" /> : <CircleStop size={10} />}
-              Cancel tree
+              取消树
             </Button>
           )}
         </div>
@@ -2465,7 +2516,7 @@ function PlanOverviewPanel({
             </SelectTrigger>
             <SelectContent>
               {PLAN_MAX_WORKER_OPTIONS.map((value) => (
-                <SelectItem key={value} value={String(value)}>{value} worker{value === 1 ? '' : 's'}</SelectItem>
+                <SelectItem key={value} value={String(value)}>{value} 个 worker</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -2501,7 +2552,7 @@ function PlanOverviewPanel({
         <details data-testid="agent-plan-artifact-summary" className="mt-2 rounded border border-border/70 bg-muted/10">
           <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-2 py-1.5 text-[9px] font-medium text-foreground">
             <FileText size={10} />
-            <span>{artifactSummary.totalCount} plan artifact{artifactSummary.totalCount === 1 ? '' : 's'}</span>
+            <span>{artifactSummary.totalCount} 个计划产物</span>
             {artifactSummary.byType.slice(0, 3).map((item) => (
               <Badge key={item.type} variant="outline" className="text-[8px] leading-3 px-1 py-0">
                 {item.type} {item.count}
@@ -2511,14 +2562,14 @@ function PlanOverviewPanel({
           <div className="space-y-1 border-t border-border/60 px-2 py-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] text-muted-foreground">
-                Showing {Math.min(visiblePlanArtifacts.length, 6)}/{visiblePlanArtifacts.length}
+                显示 {Math.min(visiblePlanArtifacts.length, 6)}/{visiblePlanArtifacts.length}
               </span>
               <Select value={activeArtifactTypeFilter} onValueChange={(next) => setArtifactTypeFilter(next)}>
                 <SelectTrigger size="sm" className="h-6 w-32 max-w-full text-[9px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">all types</SelectItem>
+                  <SelectItem value="all">全部类型</SelectItem>
                   {artifactSummary.byType.map((item) => (
                     <SelectItem key={item.type} value={item.type}>{item.type} ({item.count})</SelectItem>
                   ))}
@@ -2532,32 +2583,32 @@ function PlanOverviewPanel({
                   <div className="flex shrink-0 items-center gap-1">
                     {artifact.taskId && (
                       <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(artifact.taskId)}>
-                        Jump
+                        定位
                       </Button>
                     )}
                     {artifact.sourceRunId && (
                       <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceRunId)}>
                         <Route size={8} />
-                        Run
+                        运行
                       </Button>
                     )}
                     {artifact.sourceTaskOwnerRunId && artifact.sourceTaskOwnerRunId !== artifact.sourceRunId && (
                       <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
-                        Source
+                        来源
                       </Button>
                     )}
                     <span>{artifact.type}</span>
                   </div>
                 </div>
                 <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
-                  {artifact.uri && <span className="truncate">uri {artifact.uri}</span>}
-                  {artifact.taskTitle && <span className="truncate">task {artifact.taskTitle}</span>}
-                  {artifact.sourceRunId && <span className="truncate">run {artifact.sourceRunId}</span>}
-                  {artifact.sourceTaskId && <span className="truncate">source task {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</span>}
-                  {artifact.sourceTaskStatus && <span>{artifact.sourceTaskStatus.replace(/_/g, ' ')}</span>}
-                  {artifact.subagentName && <span className="truncate">agent {artifact.subagentName}</span>}
-                  {artifact.toolName && <span className="truncate">tool {artifact.toolName}</span>}
-                  {artifact.policy && <span className="truncate">policy {artifact.policy}</span>}
+                  {artifact.uri && <span className="truncate">URI {artifact.uri}</span>}
+                  {artifact.taskTitle && <span className="truncate">任务 {artifact.taskTitle}</span>}
+                  {artifact.sourceRunId && <span className="truncate">运行 {artifact.sourceRunId}</span>}
+                  {artifact.sourceTaskId && <span className="truncate">来源任务 {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</span>}
+                  {artifact.sourceTaskStatus && <span>{agentTaskStatusLabel(artifact.sourceTaskStatus)}</span>}
+                  {artifact.subagentName && <span className="truncate">子代理 {artifact.subagentName}</span>}
+                  {artifact.toolName && <span className="truncate">工具 {artifact.toolName}</span>}
+                  {artifact.policy && <span className="truncate">策略 {artifact.policy}</span>}
                 </div>
               </div>
             ))}
@@ -2575,7 +2626,7 @@ function PlanOverviewPanel({
                   <div className="flex min-w-0 items-center justify-between gap-2">
                     <span className="truncate text-[10px] font-medium text-foreground">{task.title}</span>
                     <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[9px]', workflowStatusClass(task.status === 'done' ? 'completed' : task.status === 'failed' ? 'failed' : task.status === 'cancelled' ? 'failed' : 'in_progress'))}>
-                      {task.status.replace(/_/g, ' ')}
+                      {agentPlanStatusLabel(task.status)}
                     </span>
                   </div>
                   <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] text-muted-foreground">
@@ -2583,15 +2634,15 @@ function PlanOverviewPanel({
                     {view.ownerLabel ? (
                       <span className={cn('truncate', view.subagentName ? 'font-medium text-foreground' : '')}>{view.ownerLabel}</span>
                     ) : null}
-                    {view.waitingInputCount > 0 && <span>{view.waitingInputCount} input</span>}
-                    {view.waitingApprovalCount > 0 && <span>{view.waitingApprovalCount} approval</span>}
-                    {view.retryAttempt && <span>attempt {view.retryAttempt}{view.maxTaskAttempts ? `/${view.maxTaskAttempts}` : ''}</span>}
-                    {!view.retryAttempt && view.maxTaskAttempts && <span>max {view.maxTaskAttempts} attempts</span>}
-                    {view.previousStatus && <span>from {view.previousStatus.replace(/_/g, ' ')}</span>}
-                    {view.workerTimeoutMs && <span>timeout {formatDurationLabel(view.workerTimeoutMs)}</span>}
-                    {view.timedOutRunId && <span className="truncate">timed out {view.timedOutRunId}</span>}
-                    {view.previousOwnerRunId && <span className="truncate">prev {view.previousOwnerRunId}</span>}
-                    {view.artifactCount > 0 && <span>{view.artifactCount} artifact{view.artifactCount === 1 ? '' : 's'}</span>}
+                    {view.waitingInputCount > 0 && <span>{view.waitingInputCount} 个输入</span>}
+                    {view.waitingApprovalCount > 0 && <span>{view.waitingApprovalCount} 个审批</span>}
+                    {view.retryAttempt && <span>第 {view.retryAttempt}{view.maxTaskAttempts ? `/${view.maxTaskAttempts}` : ''} 次尝试</span>}
+                    {!view.retryAttempt && view.maxTaskAttempts && <span>最多 {view.maxTaskAttempts} 次尝试</span>}
+                    {view.previousStatus && <span>来自 {agentPlanStatusLabel(view.previousStatus)}</span>}
+                    {view.workerTimeoutMs && <span>超时 {formatDurationLabel(view.workerTimeoutMs)}</span>}
+                    {view.timedOutRunId && <span className="truncate">超时运行 {view.timedOutRunId}</span>}
+                    {view.previousOwnerRunId && <span className="truncate">上次运行 {view.previousOwnerRunId}</span>}
+                    {view.artifactCount > 0 && <span>{view.artifactCount} 个产物</span>}
                   </div>
                   <p className="mt-0.5 text-[9px] leading-relaxed text-muted-foreground">{view.statusExplanation}</p>
                   {view.blocker && (
@@ -2601,25 +2652,28 @@ function PlanOverviewPanel({
                     <details className="mt-1 rounded border border-border/60 bg-muted/10">
                       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-1 px-1.5 py-1 text-[9px] font-medium text-foreground">
                         <Bot size={10} />
-                        <span className="truncate">Worker {view.subagentName ?? view.worker.subagentName ?? view.worker.id}</span>
+                        <span className="truncate">执行器 {view.subagentName ?? view.worker.subagentName ?? view.worker.id}</span>
                         <Badge variant={runStatusVariant(view.worker.status)} className="text-[8px] leading-3 px-1 py-0">
-                          {view.worker.status.replace(/_/g, ' ')}
+                          {runStatusLabel(view.worker.status)}
                         </Badge>
                       </summary>
                       <div className="space-y-1 border-t border-border/60 px-1.5 py-1 text-[9px] leading-relaxed text-muted-foreground">
                         <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
-                          <span className="truncate">run {view.worker.id}</span>
-                          {view.worker.parentRunId && <span className="truncate">parent {view.worker.parentRunId}</span>}
-                          {view.worker.taskId && <span className="truncate">task {view.worker.taskId}</span>}
+                          <span className="truncate">运行 {view.worker.id}</span>
+                          {view.worker.parentRunId && <span className="truncate">上级 {view.worker.parentRunId}</span>}
+                          {view.worker.taskId && <span className="truncate">任务 {view.worker.taskId}</span>}
                           {typeof view.worker.progress === 'number' && <span>{Math.round(Math.max(0, Math.min(1, view.worker.progress)) * 100)}%</span>}
-                          <span>{view.worker.stepCount} step{view.worker.stepCount === 1 ? '' : 's'}</span>
+                          <span>{view.worker.stepCount} 个步骤</span>
                         </div>
                         <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
-                          {view.worker.startedAt && <span className="truncate">started {view.worker.startedAt}</span>}
-                          {view.worker.completedAt && <span className="truncate">completed {view.worker.completedAt}</span>}
-                          {view.worker.failedAt && <span className="truncate">failed {view.worker.failedAt}</span>}
-                          {view.worker.cancelledAt && <span className="truncate">cancelled {view.worker.cancelledAt}</span>}
-                          <span className="truncate">updated {view.worker.updatedAt}</span>
+                          {view.worker.startedAt && <span className="truncate" title={view.worker.startedAt}>开始 {formatAgentDate(view.worker.startedAt, locale)}</span>}
+                          {view.worker.completedAt && <span className="truncate" title={view.worker.completedAt}>完成 {formatAgentDate(view.worker.completedAt, locale)}</span>}
+                          {view.worker.failedAt && <span className="truncate" title={view.worker.failedAt}>失败 {formatAgentDate(view.worker.failedAt, locale)}</span>}
+                          {view.worker.cancelledAt && <span className="truncate" title={view.worker.cancelledAt}>取消 {formatAgentDate(view.worker.cancelledAt, locale)}</span>}
+                          <span className="truncate" title={view.worker.updatedAt}>更新 {formatAgentDate(view.worker.updatedAt, locale)}</span>
+                          {durationLabel(view.worker.startedAt, view.worker.completedAt ?? view.worker.failedAt ?? view.worker.cancelledAt) && (
+                            <span>耗时 {durationLabel(view.worker.startedAt, view.worker.completedAt ?? view.worker.failedAt ?? view.worker.cancelledAt)}</span>
+                          )}
                         </div>
                         {view.worker.error && (
                           <p className="text-destructive">{view.worker.error}</p>
@@ -2635,14 +2689,15 @@ function PlanOverviewPanel({
                               <div key={step.id} className="rounded bg-background/80 px-1.5 py-1">
                                 <div className="flex min-w-0 items-center justify-between gap-2">
                                   <span className="truncate font-medium text-foreground">{step.title}</span>
-                                  <span className="shrink-0">{step.status.replace(/_/g, ' ')}</span>
+                                  <span className="shrink-0">{agentStepStatusLabel(step.status)}</span>
                                 </div>
                                 <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
-                                  <span>{step.type}</span>
-                                  {step.toolName && <span className="truncate">tool {step.toolName}</span>}
-                                  {step.sandboxed && <span>sandboxed</span>}
-                                  <span className="truncate">created {step.createdAt}</span>
-                                  {step.completedAt && <span className="truncate">completed {step.completedAt}</span>}
+                                  <span>{agentStepTypeLabel(step.type)}</span>
+                                  {step.toolName && <span className="truncate">工具 {step.toolName}</span>}
+                                  {step.sandboxed && <span>沙盒</span>}
+                                  <span className="truncate" title={step.createdAt}>创建 {formatAgentDate(step.createdAt, locale)}</span>
+                                  {step.completedAt && <span className="truncate" title={step.completedAt}>完成 {formatAgentDate(step.completedAt, locale)}</span>}
+                                  {durationLabel(step.createdAt, step.completedAt) && <span>耗时 {durationLabel(step.createdAt, step.completedAt)}</span>}
                                 </div>
                                 {step.error && <p className="mt-0.5 text-destructive">{step.error}</p>}
                               </div>
@@ -2655,10 +2710,10 @@ function PlanOverviewPanel({
                             size="xs"
                             variant="ghost"
                             className="h-5 px-1.5 text-[9px]"
-                            onClick={() => navigate(`/agent/runs/${encodeURIComponent(view.worker!.id)}`)}
+                            onClick={() => navigate(agentRunPath(view.worker!.id))}
                           >
                             <Route size={9} />
-                            Open run
+                            详情
                           </Button>
                           <Button
                             type="button"
@@ -2669,7 +2724,7 @@ function PlanOverviewPanel({
                             onClick={() => loadTraceSummary(view.worker!.id)}
                           >
                             {loadingTraceSummaryRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <ListChecks size={9} />}
-                            Trace summary
+                            轨迹统计
                           </Button>
                           <Button
                             type="button"
@@ -2680,24 +2735,27 @@ function PlanOverviewPanel({
                             onClick={() => loadTraceEvents(view.worker!.id)}
                           >
                             {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <History size={9} />}
-                            Trace events
+                            运行事件
                           </Button>
                         </div>
                         {traceSummaries[view.worker.id] && (
                           <div className="rounded bg-background/80 px-1.5 py-1">
                             <div className="flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
-                              <span>{traceSummaries[view.worker.id].total} trace events</span>
+                              <span>{traceSummaries[view.worker.id].total} 个事件</span>
                               {Object.entries(traceSummaries[view.worker.id].byKind).slice(0, 6).map(([kind, count]) => (
                                 <Badge key={kind} variant="outline" className="text-[8px] leading-3 px-1 py-0">
-                                  {kind} {count}
+                                  {traceKindLabel(kind as AgentTraceEvent['kind'])} {count}
                                 </Badge>
                               ))}
                             </div>
-                            {traceSummaries[view.worker.id].latestEvent && (
-                              <div className="mt-0.5 text-muted-foreground">
-                                latest {traceSummaries[view.worker.id].latestEvent?.title}
-                              </div>
-                            )}
+                            {traceSummaries[view.worker.id].latestEvent && (() => {
+                              const latestView = agentTraceView(traceSummaries[view.worker.id].latestEvent!)
+                              return (
+                                <div className="mt-0.5 text-muted-foreground">
+                                  最新 {latestView.title}
+                                </div>
+                              )
+                            })()}
                           </div>
                         )}
                         {traceSummaryErrors[view.worker.id] && (
@@ -2714,7 +2772,7 @@ function PlanOverviewPanel({
                               return (
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="text-[9px] text-muted-foreground">
-                                    Showing {visibleEvents.length}/{events.length}
+                                    显示 {visibleEvents.length}/{events.length}
                                   </span>
                                   <Select
                                     value={activeKind}
@@ -2729,9 +2787,9 @@ function PlanOverviewPanel({
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      <SelectItem value="all">all events</SelectItem>
+                                      <SelectItem value="all">全部事件</SelectItem>
                                       {kinds.map((kind) => (
-                                        <SelectItem key={kind} value={kind}>{kind}</SelectItem>
+                                        <SelectItem key={kind} value={kind}>{traceKindLabel(kind)}</SelectItem>
                                       ))}
                                     </SelectContent>
                                   </Select>
@@ -2743,22 +2801,29 @@ function PlanOverviewPanel({
                               const kinds = Array.from(new Set(events.map((event) => event.kind)))
                               const requestedKind = traceEventKindFilters[view.worker!.id] ?? 'all'
                               const activeKind = requestedKind === 'all' || kinds.includes(requestedKind) ? requestedKind : 'all'
-                              return (activeKind === 'all' ? events : events.filter((event) => event.kind === activeKind)).map((event) => (
-                              <div key={event.id} className="rounded bg-background/80 px-1.5 py-1">
-                                <div className="flex min-w-0 items-center justify-between gap-2">
-                                  <span className="truncate font-medium text-foreground">{event.title}</span>
-                                  <span className="shrink-0">{event.status.replace(/_/g, ' ')}</span>
-                                </div>
-                                <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
-                                  <span>{event.kind}</span>
-                                  {event.toolName && <span className="truncate">tool {event.toolName}</span>}
-                                  {event.stepId && <span className="truncate">step {event.stepId}</span>}
-                                  <span className="truncate">created {event.createdAt}</span>
-                                  {event.completedAt && <span className="truncate">completed {event.completedAt}</span>}
-                                </div>
-                                {event.summary && <p className="mt-0.5 text-muted-foreground">{event.summary}</p>}
-                              </div>
-                              ))
+                              return (activeKind === 'all' ? events : events.filter((event) => event.kind === activeKind)).map((event) => {
+                                const eventView = agentTraceView(event)
+                                return (
+                                  <div key={event.id} className="rounded bg-background/80 px-1.5 py-1">
+                                    <div className="flex min-w-0 items-center justify-between gap-2">
+                                      <span className="truncate font-medium text-foreground">{eventView.title}</span>
+                                      <span className="shrink-0">{traceEventStatusLabel(event.status)}</span>
+                                    </div>
+                                    <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
+                                      <span>{eventView.categoryLabel}</span>
+                                      <span>{traceKindLabel(event.kind)}</span>
+                                      {event.toolName && <span className="truncate">工具 {event.toolName}</span>}
+                                      {event.stepId && <span className="truncate">步骤 {event.stepId}</span>}
+                                      <span className="truncate" title={event.createdAt}>创建 {formatAgentDate(event.createdAt, locale)}</span>
+                                      {event.completedAt && <span className="truncate" title={event.completedAt}>完成 {formatAgentDate(event.completedAt, locale)}</span>}
+                                      {durationLabel(event.createdAt, event.completedAt) && <span>耗时 {durationLabel(event.createdAt, event.completedAt)}</span>}
+                                    </div>
+                                    {eventView.behavior && <p className="mt-0.5 text-muted-foreground">行为：{eventView.behavior}</p>}
+                                    {eventView.impact && <p className="mt-0.5 text-muted-foreground">影响：{eventView.impact}</p>}
+                                    {eventView.summary && <p className="mt-0.5 text-muted-foreground">摘要：{eventView.summary}</p>}
+                                  </div>
+                                )
+                              })
                             })()}
                             {traceEventHasMoreByRunId[view.worker.id] && (
                               <Button
@@ -2770,7 +2835,7 @@ function PlanOverviewPanel({
                                 onClick={() => loadTraceEvents(view.worker!.id, 'more')}
                               >
                                 {loadingTraceEventsRunId === view.worker.id ? <Loader2 size={9} className="animate-spin" /> : <History size={9} />}
-                                Load more
+                                加载更多
                               </Button>
                             )}
                           </div>
@@ -2785,14 +2850,14 @@ function PlanOverviewPanel({
                     <details className="mt-1 rounded border border-amber-500/25 bg-amber-500/5">
                       <summary className="flex cursor-pointer list-none items-center gap-1 px-1.5 py-1 text-[9px] font-medium text-amber-800 dark:text-amber-300">
                         <ClipboardCheck size={10} />
-                        <span>{view.pendingInputs.length + view.pendingApprovals.length} action needed</span>
+                        <span>{view.pendingInputs.length + view.pendingApprovals.length} 个待处理</span>
                       </summary>
                       <div className="space-y-1 border-t border-amber-500/20 px-1.5 py-1">
                         {view.pendingInputs.map((input) => (
                           <div key={input.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed">
                             <div className="flex min-w-0 items-center justify-between gap-2">
                               <span className="truncate font-medium text-foreground">{input.title}</span>
-                              <span className="shrink-0 text-muted-foreground">{input.inputType}</span>
+                              <span className="shrink-0 text-muted-foreground">{inputTypeLabel(input.inputType)}</span>
                             </div>
                             <p className="mt-0.5 text-muted-foreground">{input.question}</p>
                             {input.choiceLabels.length > 0 && (
@@ -2808,12 +2873,12 @@ function PlanOverviewPanel({
                           <div key={approval.id} className="rounded bg-background/80 px-1.5 py-1 text-[9px] leading-relaxed">
                             <div className="flex min-w-0 items-center justify-between gap-2">
                               <span className="truncate font-medium text-foreground">{approval.toolName}</span>
-                              {approval.risk && <span className="shrink-0 text-muted-foreground">{approval.risk}</span>}
+                              {approval.risk && <span className="shrink-0 text-muted-foreground">风险 {approvalRiskLabel(approval.risk)}</span>}
                             </div>
                             <p className="mt-0.5 text-muted-foreground">{approval.reason}</p>
-                            {approval.permission && <div className="mt-0.5 text-muted-foreground">{approval.permission}</div>}
+                            {approval.permission && <div className="mt-0.5 text-muted-foreground">权限 {approvalPermissionLabel(approval.permission)}</div>}
                             <div className="mt-0.5 text-amber-800 dark:text-amber-300">
-                              {t('agents.chat.workflow.approvalImpact.label')}: {localAgentApprovalImpactText(approval, t)}
+                              {t('agents.chat.workflow.approvalImpact.label')}: {localAgentApprovalImpactText(approval)}
                             </div>
                           </div>
                         ))}
@@ -2824,17 +2889,17 @@ function PlanOverviewPanel({
                     <div className="mt-1 flex flex-wrap items-center gap-1">
                       {onAcceptReview && (
                         <Button type="button" size="xs" variant="outline" className="h-5 px-1.5 text-[9px]" disabled={busy} onClick={() => onAcceptReview(task.id)}>
-                          Accept
+                          通过
                         </Button>
                       )}
                       {onReworkReview && (
                         <Button type="button" size="xs" variant="ghost" className="h-5 px-1.5 text-[9px]" disabled={busy} onClick={() => onReworkReview(task.id)}>
-                          Rework
+                          返工
                         </Button>
                       )}
                       {onRejectReview && (
                         <Button type="button" size="xs" variant="ghost" className="h-5 px-1.5 text-[9px] text-destructive hover:text-destructive" disabled={busy} onClick={() => onRejectReview(task.id)}>
-                          Reject
+                          拒绝
                         </Button>
                       )}
                     </div>
@@ -2856,32 +2921,32 @@ function PlanOverviewPanel({
                               <div className="flex shrink-0 items-center gap-1">
                                 {artifact.sourceTaskId && (
                                   <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => scrollToTask(artifact.sourceTaskId)}>
-                                    Task
+                                    任务
                                   </Button>
                                 )}
                                 {artifact.sourceRunId && (
                                   <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceRunId)}>
                                     <Route size={8} />
-                                    Run
+                                    运行
                                   </Button>
                                 )}
                                 {artifact.sourceTaskOwnerRunId && artifact.sourceTaskOwnerRunId !== artifact.sourceRunId && (
                                   <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[8px]" onClick={() => openRun(artifact.sourceTaskOwnerRunId)}>
-                                    Source
+                                    来源运行
                                   </Button>
                                 )}
                                 <span>{artifact.type}</span>
                               </div>
                             </div>
                             <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-1.5 gap-y-0.5">
-                              {artifact.uri && <span className="truncate">uri {artifact.uri}</span>}
-                              {artifact.sourceRunId && <span className="truncate">run {artifact.sourceRunId}</span>}
-                              {artifact.sourceTaskId && <span className="truncate">source task {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</span>}
-                              {artifact.sourceTaskStatus && <span>{artifact.sourceTaskStatus.replace(/_/g, ' ')}</span>}
-                              {artifact.toolName && <span className="truncate">tool {artifact.toolName}</span>}
-                              {artifact.policy && <span className="truncate">policy {artifact.policy}</span>}
+                              {artifact.uri && <span className="truncate">URI {artifact.uri}</span>}
+                              {artifact.sourceRunId && <span className="truncate">运行 {artifact.sourceRunId}</span>}
+                              {artifact.sourceTaskId && <span className="truncate">来源任务 {artifact.sourceTaskTitle ?? artifact.sourceTaskId}</span>}
+                              {artifact.sourceTaskStatus && <span>{agentTaskStatusLabel(artifact.sourceTaskStatus)}</span>}
+                              {artifact.toolName && <span className="truncate">工具 {artifact.toolName}</span>}
+                              {artifact.policy && <span className="truncate">策略 {artifact.policy}</span>}
                             </div>
-                            {artifact.metadata && <ActivityJSONBlock label="Metadata" value={artifact.metadata} />}
+                            {artifact.metadata && <ActivityJSONBlock label="元数据" value={artifact.metadata} />}
                           </div>
                         ))}
                       </div>
@@ -3197,7 +3262,7 @@ function AgentDraftResultCards({ artifacts }: { artifacts?: AgentTaskArtifactRef
                 variant="outline"
                 className="h-6 shrink-0 px-1.5 text-[10px]"
                 disabled={!openPath && draftsQuery.isLoading && !draft}
-                onClick={() => navigate(openPath ?? '/agent/drafts')}
+                onClick={() => navigate(openPath ?? ROUTES.agentDrafts)}
               >
                 <Route size={10} />
                 {openPath ? t('agents.chat.panel.drafts.openPage') : t('agents.chat.panel.drafts.history')}
@@ -3584,7 +3649,7 @@ function ConversationContextPanel({
                 <div key={tool.name} className="rounded border border-border/70 bg-background px-2 py-1.5 text-[10px]">
                   <div className="flex min-w-0 items-center gap-1">
                     <span className="truncate font-medium text-foreground">{tool.name}</span>
-                    <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{tool.risk}</Badge>
+                    {tool.risk && <Badge variant="outline" className="text-[8px] leading-3 px-1 py-0">{approvalRiskLabel(tool.risk)}</Badge>}
                   </div>
                   <p className="mt-0.5 line-clamp-2 text-[9px] leading-relaxed text-muted-foreground">{tool.description}</p>
                 </div>
@@ -3615,7 +3680,7 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
       <div className="grid gap-2 text-[11px] md:grid-cols-4">
         <DebugSummaryItem label={t('agents.chat.panel.debugPreview.model')} value={String(draft.model.name ?? draft.model.id ?? t('common.emptyTitle'))} />
         <DebugSummaryItem label={t('agents.chat.panel.debugPreview.agent')} value={draft.agent.name ?? t('agents.chat.panel.debugPreview.default')} />
-        <DebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={draft.settings.permissionMode} />
+        <DebugSummaryItem label={t('agents.chat.panel.debugPreview.approvalMode')} value={agentPermissionModeLabel(draft.settings.permissionMode)} />
         <DebugSummaryItem label={t('agents.chat.panel.debugPreview.requests')} value={String(draft.httpRequests.length)} />
       </div>
 
@@ -3745,12 +3810,12 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
                 <div key={approval.id} className="rounded border border-amber-500/20 bg-amber-500/10 p-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-[10px] font-medium text-foreground">{approval.toolName}</span>
-                    <Badge variant="warning" className="text-[9px]">{approval.risk ?? approval.status}</Badge>
+                    <Badge variant="warning" className="text-[9px]">{approval.risk ? approvalRiskLabel(approval.risk) : approvalStatusLabel(approval.status)}</Badge>
                   </div>
                   <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{approval.reason}</p>
                   <div className="mt-1 rounded border border-amber-500/20 bg-background/60 px-1.5 py-1 text-[9px] leading-relaxed text-amber-900 dark:text-amber-200">
                     <span className="font-medium">{t('agents.chat.workflow.approvalImpact.label')}: </span>
-                    {localAgentApprovalImpactText(approval, t)}
+                    {localAgentApprovalImpactText(approval)}
                   </div>
                   {approval.args && (
                     <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 p-1.5 text-[9px] text-muted-foreground">
@@ -3776,7 +3841,7 @@ function PromptLayerPanel({ draft }: { draft: AgentSendDraft | null }) {
   )
 }
 
-const DRAFT_KINDS: AgentDraftKind[] = ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'storyboard_line', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal', 'content_unit_media_proposal']
+const DRAFT_KINDS: AgentDraftKind[] = ['setting_proposal', 'script_split_proposal', 'script', 'asset_slot', 'content_unit', 'prompt', 'note', 'pipeline', 'segment', 'scene_moment', 'asset_proposal', 'project_proposal', 'production_proposal', 'content_unit_proposal']
 const DRAFT_STATUSES: AgentDraftStatus[] = ['draft', 'accepted', 'rejected', 'applied', 'superseded']
 const DRAFT_REFRESH_INTERVAL_MS = 1500
 
@@ -3872,7 +3937,7 @@ function DraftPanel({
             type="button"
             variant="ghost"
             size="xs"
-            onClick={() => navigate('/agent/drafts')}
+            onClick={() => navigate(ROUTES.agentDrafts)}
             className="h-5 px-1 text-[10px] text-muted-foreground"
           >
             <History size={10} />
@@ -6349,7 +6414,7 @@ function BuiltinChat({ userId, onCollapse }: { userId: string; onCollapse: () =>
 
 export function AIAgentPanel() {
   const { t } = useTranslation()
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(() => typeof window !== 'undefined' ? window.innerWidth >= 960 : true)
   const [panelWidth, setPanelWidth] = useState(() => {
     const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440
     return viewportWidth < 1280 ? 360 : 420

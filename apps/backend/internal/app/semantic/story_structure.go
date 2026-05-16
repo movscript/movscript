@@ -85,13 +85,6 @@ func (s *Service) ensureSegmentSourceCanChange(ctx context.Context, projectID ui
 	if len(moments) > 0 {
 		return ErrInvalidInput{Err: errors.New("segment source cannot be changed after scene moments are created")}
 	}
-	lines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, SegmentID: item.ID})
-	if err != nil {
-		return err
-	}
-	if len(lines) > 0 {
-		return ErrInvalidInput{Err: errors.New("segment source cannot be changed after storyboard lines are created")}
-	}
 	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SegmentID: item.ID})
 	if err != nil {
 		return err
@@ -235,13 +228,6 @@ func (s *Service) PatchSceneMoment(ctx context.Context, projectID uint, id strin
 func (s *Service) ensureSceneMomentSourceCanChange(ctx context.Context, projectID uint, item domainsemantic.SceneMoment, input PatchSceneMomentInput) error {
 	if sceneMomentSourcePreserved(item, input) {
 		return nil
-	}
-	lines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, SceneMomentID: item.ID})
-	if err != nil {
-		return err
-	}
-	if len(lines) > 0 {
-		return ErrInvalidInput{Err: errors.New("scene moment source cannot be changed after storyboard lines are created")}
 	}
 	units, err := s.repo.ListContentUnits(ctx, ContentUnitFilter{ProjectID: projectID, SceneMomentID: item.ID})
 	if err != nil {

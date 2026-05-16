@@ -2,12 +2,11 @@ package script
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	domainscript "github.com/movscript/movscript/internal/domain/script"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -58,14 +57,7 @@ func TestGormRepositoryPatchScriptPersistsSpecZeroValues(t *testing.T) {
 
 func newScriptRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "script_repository.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "script_repository.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.EntityRelation{}, &model.Script{}, &model.ScriptVersion{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	}, &model.EntityRelation{}, &model.Script{}, &model.ScriptVersion{})
 }

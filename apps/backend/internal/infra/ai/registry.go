@@ -142,12 +142,14 @@ func (r *Registry) GetAny() (Provider, string, error) {
 		AdapterType string
 	}
 	var rows []row
-	r.db.Model(&persistencemodel.AIModelConfig{}).
+	if err := r.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_credentials.is_enabled = true").
+		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
 		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
-		Scan(&rows)
+		Scan(&rows).Error; err != nil {
+		return nil, "", err
+	}
 
 	type candidate struct {
 		cfg      persistencemodel.AIModelConfig

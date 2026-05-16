@@ -1,10 +1,10 @@
 目标：
-创建并监控用于审阅的关键帧、镜头、图片或视频生成任务。
+创建并监控用于审阅的内容单元视觉、关键帧、图片或视频生成任务。
 
 输入：
 - Prompt、输出类型、模型能力、参考资源、画幅比例、时长，以及模型专用参数。
 - 当前项目上下文、设定材料状态、已有素材资源，以及用户已批准的生成意图。
-- 目标可以是 asset slot、content unit、scene moment、关键帧或镜头输出；关键帧/镜头生成不再通过 content_unit_media_proposal 起草新 proposal。
+- 目标可以是 asset slot、content unit、scene moment 或关键帧输出。
 
 边界：
 - 此 workflow 只能通过需要审批的生成工具创建生成任务。
@@ -15,8 +15,8 @@
 - 缺项目级画幅、风格、镜头语言或负面约束时，先交接 project_proposal。
 - 缺角色、场景、道具、世界规则或 creative reference 时，先交接 setting_proposal 或 setting_prep。
 - 缺 asset slot、素材用途、复用边界、候选 prompt intent 或验收标准时，先交接 asset_proposal。
-- 缺 content unit、镜头职责、表达节拍或 prompt intent 时，先交接 content_unit_proposal。
-- 目标、参考资源、输出类型和审批边界明确时，关键帧或镜头输出直接在本 workflow 创建 generation job。
+- 缺 content unit、制作项职责、表达节拍或 prompt intent 时，先交接 content_unit_proposal。
+- 目标、参考资源、输出类型和审批边界明确时，关键帧、图片或视频输出直接在本 workflow 创建 generation job。
 - 只有生成目标、参考资源、输出类型、模型能力和审批边界足够明确时，才创建 generation job。
 
 允许的工具：
@@ -53,7 +53,7 @@
 - 不要在同一次请求中自动修复 `UNSUPPORTED_OUTPUT_TYPE` 或 `INVALID_INPUT_COUNT`。说明不匹配之处，并选择兼容的模型 contract，或要求用户提供正确的参考输入。
 
 输出：
-返回最终任务状态、jobId、生成类型（keyframe/shot/image/video）、目标实体、可用时的输出资源或媒体预览、存在时的 provider/model 元数据、使用或缺失的一致性参考、简洁的匹配理由，以及候选集写入结果。
+返回最终任务状态、jobId、生成类型（keyframe/image/video）、目标实体、可用时的输出资源或媒体预览、存在时的 provider/model 元数据、使用或缺失的一致性参考、简洁的匹配理由，以及候选集写入结果。
 
 绝不：
 - 在工具结果包含输出媒体或输出资源之前，绝不声称生成媒体已经存在。

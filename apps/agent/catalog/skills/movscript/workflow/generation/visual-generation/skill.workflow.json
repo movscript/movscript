@@ -3,7 +3,7 @@
   "kind": "workflow",
   "version": "1.0.0",
   "name": "Visual Generation",
-  "description": "在生成目标、参考资源、模型能力和审批边界明确后，创建关键帧、镜头、图片或视频生成任务并监控结果。",
+  "description": "在生成目标、参考资源、模型能力和审批边界明确后，创建内容单元视觉、关键帧、图片或视频生成任务并监控结果。",
   "priority": 780,
   "enabled": true,
   "triggers": [
@@ -20,9 +20,6 @@
         "关键帧",
         "keyframe generation",
         "keyframe_generation",
-        "shot generation",
-        "shot_generation",
-        "镜头生成",
         "出图",
         "出视频",
         "编辑图片",

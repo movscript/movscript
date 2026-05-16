@@ -10,6 +10,7 @@ type MemoryCache struct {
 	mu       sync.RWMutex
 	items    map[string]memoryItem
 	versions map[string]int64
+	now      func() time.Time
 }
 
 type memoryItem struct {
@@ -18,9 +19,17 @@ type memoryItem struct {
 }
 
 func NewMemory() Cache {
+	return newMemoryWithClock(time.Now)
+}
+
+func newMemoryWithClock(now func() time.Time) Cache {
+	if now == nil {
+		now = time.Now
+	}
 	return &MemoryCache{
 		items:    map[string]memoryItem{},
 		versions: map[string]int64{},
+		now:      now,
 	}
 }
 
@@ -31,7 +40,7 @@ func (c *MemoryCache) GetJSON(_ context.Context, key string, dst any) (bool, err
 	if !ok {
 		return false, nil
 	}
-	if !item.expiresAt.IsZero() && time.Now().After(item.expiresAt) {
+	if !item.expiresAt.IsZero() && c.now().After(item.expiresAt) {
 		c.mu.Lock()
 		delete(c.items, key)
 		c.mu.Unlock()
@@ -50,7 +59,7 @@ func (c *MemoryCache) SetJSON(_ context.Context, key string, value any, ttl time
 	}
 	var expiresAt time.Time
 	if ttl > 0 {
-		expiresAt = time.Now().Add(ttl)
+		expiresAt = c.now().Add(ttl)
 	}
 	c.mu.Lock()
 	c.items[key] = memoryItem{value: data, expiresAt: expiresAt}

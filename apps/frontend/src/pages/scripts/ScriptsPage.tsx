@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { ScriptForm } from '@/components/forms/ScriptForm'
 import { useTranslation } from 'react-i18next'
+import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
 type ScriptDetailTab = 'edit' | 'versions' | 'production'
 
@@ -49,23 +50,10 @@ type ScriptBlockUsageRecord = SemanticEntityRecord & {
   status?: string
 }
 
-type StoryboardScriptRecord = SemanticEntityRecord & {
-  script_version_id?: number
-  name?: string
-  is_primary?: boolean
-}
-
-type StoryboardVersionRecord = SemanticEntityRecord & {
-  storyboard_script_id?: number
-  version_number?: number
-  title?: string
-}
-
 type ScriptBlockUsage = {
   segments: ScriptBlockUsageRecord[]
   sceneMoments: ScriptBlockUsageRecord[]
   contentUnits: ScriptBlockUsageRecord[]
-  storyboardLines: ScriptBlockUsageRecord[]
 }
 
 type ScriptTextSelection = {
@@ -90,8 +78,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const [showCreate, setShowCreate] = useState(false)
   const [draft, setDraft] = useState<Partial<Script>>({})
   const scriptBlockConfig = useMemo(() => semanticEntityConfig('scriptBlocks'), [])
-  const storyboardScriptConfig = useMemo(() => semanticEntityConfig('storyboardScripts'), [])
-  const storyboardVersionConfig = useMemo(() => semanticEntityConfig('storyboardVersions'), [])
 
   const { data: rawScripts, isLoading } = useQuery<Script[]>({
     queryKey: ['scripts', projectId],
@@ -106,16 +92,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
   const { data: scriptBlocks = [] } = useQuery<ScriptBlockRecord[]>({
     queryKey: ['semantic-script-blocks', projectId],
     queryFn: () => listSemanticEntities(projectId, scriptBlockConfig) as Promise<ScriptBlockRecord[]>,
-    enabled: !!projectId,
-  })
-  const { data: storyboardScripts = [] } = useQuery<StoryboardScriptRecord[]>({
-    queryKey: ['semantic-script-page-storyboard-scripts', projectId],
-    queryFn: () => listSemanticEntities(projectId, storyboardScriptConfig) as Promise<StoryboardScriptRecord[]>,
-    enabled: !!projectId,
-  })
-  const { data: storyboardVersions = [] } = useQuery<StoryboardVersionRecord[]>({
-    queryKey: ['semantic-script-page-storyboard-versions', projectId],
-    queryFn: () => listSemanticEntities(projectId, storyboardVersionConfig) as Promise<StoryboardVersionRecord[]>,
     enabled: !!projectId,
   })
   const { data: segments = [] } = useQuery<ScriptBlockUsageRecord[]>({
@@ -275,7 +251,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       qc.invalidateQueries({ queryKey: ['semantic-segment-workspace', projectId, 'segments'] })
       qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
       toast.success('编排段已创建')
-      navigate(`/segments?segment_id=${record.ID}`)
+      navigate(withRouteParams(ROUTES.project.segments, { segment_id: record.ID }))
     },
     onError: () => toast.error('创建编排段失败'),
   })
@@ -293,7 +269,7 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       qc.invalidateQueries({ queryKey: ['semantic-scene-moment-page', projectId, 'sceneMoments'] })
       qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
       toast.success('情景已创建')
-      navigate(`/scene-moments?scene_moment_id=${record.ID}`)
+      navigate(withRouteParams(ROUTES.project.sceneMoments, { scene_moment_id: record.ID }))
     },
     onError: () => toast.error('创建情景失败'),
   })
@@ -313,38 +289,9 @@ function ScriptsSection({ projectId }: { projectId: number }) {
       qc.invalidateQueries({ queryKey: ['semantic-content-positioning', projectId, 'content-units'] })
       qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
       toast.success('制作项已创建')
-      navigate(`/contents?content_unit_id=${record.ID}`)
+      navigate(withRouteParams(ROUTES.project.contentUnits, { content_unit_id: record.ID }))
     },
     onError: () => toast.error('创建制作项失败'),
-  })
-
-  const createStoryboardLineFromScriptBlock = useMutation({
-    mutationFn: async (block: ScriptBlockRecord) => {
-      const scriptVersionId = Number(block.script_version_id)
-      if (!Number.isFinite(scriptVersionId) || scriptVersionId <= 0) throw new Error('剧本块缺少剧本版本')
-      const scriptForBlock = scripts.find((item) => item.ID === Number(block.script_id)) ?? selected
-      const storyboardScript = await ensureStoryboardScriptForVersion(projectId, storyboardScripts, scriptVersionId, scriptForBlock?.title ?? '分镜脚本')
-      const storyboardVersion = await ensureStoryboardVersionForScript(projectId, storyboardVersions, storyboardScript, block)
-      return createSemanticEntity(projectId, semanticEntityConfig('storyboardLines'), {
-        storyboard_script_id: storyboardScript.ID,
-        storyboard_version_id: storyboardVersion.ID,
-        script_block_id: block.ID,
-        kind: storyboardLineKindFromScriptBlock(block),
-        title: titleFromScriptBlock(block),
-        description: String(block.content ?? '').trim(),
-        dialogue: String(block.kind ?? '') === 'dialogue' ? String(block.content ?? '').trim() : '',
-        visual_intent: String(block.kind ?? '') === 'dialogue' ? '' : String(block.content ?? '').trim(),
-        status: 'candidate',
-      })
-    },
-    onSuccess: (record) => {
-      qc.invalidateQueries({ queryKey: ['semantic-script-page-storyboard-scripts', projectId] })
-      qc.invalidateQueries({ queryKey: ['semantic-script-page-storyboard-versions', projectId] })
-      qc.invalidateQueries({ queryKey: ['semantic-script-block-usages', projectId] })
-      toast.success('分镜行已创建')
-      navigate(`/tools/smart-storyboard?storyboard_line_id=${record.ID}`)
-    },
-    onError: () => toast.error('创建分镜行失败'),
   })
 
   return (
@@ -566,7 +513,6 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                                 segments={segments}
                                 isCreating={createScriptBlock.isPending}
                                 isCreatingContentUnit={createContentUnitFromScriptBlock.isPending}
-                                isCreatingStoryboardLine={createStoryboardLineFromScriptBlock.isPending}
                                 isCreatingSceneMoment={createSceneMomentFromScriptBlock.isPending}
                                 isCreatingSegment={createSegmentFromScriptBlock.isPending}
                                 selection={scriptTextSelection?.versionId === version.ID ? scriptTextSelection : null}
@@ -574,14 +520,12 @@ function ScriptsSection({ projectId }: { projectId: number }) {
                                 projectId={projectId}
                                 onCreate={() => createScriptBlock.mutate()}
                                 onCreateContentUnit={(block, target) => createContentUnitFromScriptBlock.mutate({ block, ...target })}
-                                onCreateStoryboardLine={(block) => createStoryboardLineFromScriptBlock.mutate(block)}
                                 onCreateSceneMoment={(block, segmentId) => createSceneMomentFromScriptBlock.mutate({ block, segmentId })}
                                 onCreateSegment={(block) => createSegmentFromScriptBlock.mutate(block)}
                                 onOpenUsage={(kind, id) => {
-                                  if (kind === 'segment') navigate(`/segments?segment_id=${id}`)
-                                  else if (kind === 'scene_moment') navigate(`/scene-moments?scene_moment_id=${id}`)
-                                  else if (kind === 'content_unit') navigate(`/contents?content_unit_id=${id}`)
-                                  else navigate('/tools/smart-storyboard')
+                                  if (kind === 'segment') navigate(withRouteParams(ROUTES.project.segments, { segment_id: id }))
+                                  else if (kind === 'scene_moment') navigate(withRouteParams(ROUTES.project.sceneMoments, { scene_moment_id: id }))
+                                  else navigate(withRouteParams(ROUTES.project.contentUnits, { content_unit_id: id }))
                                 }}
                                 onSelectionChange={setScriptTextSelection}
                               />
@@ -665,13 +609,11 @@ function ScriptVersionBlockPanel({
   selection,
   isCreating,
   isCreatingContentUnit,
-  isCreatingStoryboardLine,
   isCreatingSceneMoment,
   isCreatingSegment,
   onSelectionChange,
   onCreate,
   onCreateContentUnit,
-  onCreateStoryboardLine,
   onCreateSceneMoment,
   onCreateSegment,
   onOpenUsage,
@@ -685,16 +627,14 @@ function ScriptVersionBlockPanel({
   selection: ScriptTextSelection
   isCreating: boolean
   isCreatingContentUnit: boolean
-  isCreatingStoryboardLine: boolean
   isCreatingSceneMoment: boolean
   isCreatingSegment: boolean
   onSelectionChange: (selection: ScriptTextSelection) => void
   onCreate: () => void
   onCreateContentUnit: (block: ScriptBlockRecord, target: { segmentId?: number | null; sceneMomentId?: number | null }) => void
-  onCreateStoryboardLine: (block: ScriptBlockRecord) => void
   onCreateSceneMoment: (block: ScriptBlockRecord, segmentId?: number | null) => void
   onCreateSegment: (block: ScriptBlockRecord) => void
-  onOpenUsage: (kind: 'segment' | 'scene_moment' | 'content_unit' | 'storyboard_line', id: number) => void
+  onOpenUsage: (kind: 'segment' | 'scene_moment' | 'content_unit', id: number) => void
 }) {
   const [scrollTop, setScrollTop] = useState(0)
   const [targetContentByBlockId, setTargetContentByBlockId] = useState<Record<number, string>>({})
@@ -896,15 +836,6 @@ function ScriptVersionBlockPanel({
                     size="sm"
                     variant="ghost"
                     className="h-7 px-2 text-xs"
-                    disabled={isCreatingStoryboardLine}
-                    onClick={() => onCreateStoryboardLine(block)}
-                  >
-                    生成分镜行
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 px-2 text-xs"
                     disabled={isCreatingContentUnit}
                     onClick={() => onCreateContentUnit(block, contentTarget)}
                   >
@@ -951,15 +882,14 @@ function ScriptBlockUsageStrip({
   onOpen,
 }: {
   usages: ScriptBlockUsage
-  onOpen: (kind: 'segment' | 'scene_moment' | 'content_unit' | 'storyboard_line', id: number) => void
+  onOpen: (kind: 'segment' | 'scene_moment' | 'content_unit', id: number) => void
 }) {
   const items = [
     ...usages.segments.slice(0, 2).map((record) => ({ kind: 'segment' as const, label: '编排段', record })),
     ...usages.sceneMoments.slice(0, 2).map((record) => ({ kind: 'scene_moment' as const, label: '情景', record })),
     ...usages.contentUnits.slice(0, 2).map((record) => ({ kind: 'content_unit' as const, label: '制作项', record })),
-    ...usages.storyboardLines.slice(0, 2).map((record) => ({ kind: 'storyboard_line' as const, label: '分镜行', record })),
   ]
-  const total = usages.segments.length + usages.sceneMoments.length + usages.contentUnits.length + usages.storyboardLines.length
+  const total = usages.segments.length + usages.sceneMoments.length + usages.contentUnits.length
   if (total === 0) {
     return <p className="mt-2 text-[11px] text-muted-foreground">尚未被下游引用</p>
   }
@@ -1119,42 +1049,6 @@ function contentPromptFromScriptBlock(block: ScriptBlockRecord) {
   return content
 }
 
-function storyboardLineKindFromScriptBlock(block: ScriptBlockRecord) {
-  const kind = String(block.kind ?? '')
-  if (kind === 'dialogue') return 'narration'
-  if (kind === 'transition') return 'transition'
-  if (kind === 'scene_heading') return 'beat'
-  return 'shot'
-}
-
-async function ensureStoryboardScriptForVersion(projectId: number, scripts: StoryboardScriptRecord[], scriptVersionId: number, scriptTitle: string) {
-  const existing = scripts.find((item) => Number(item.script_version_id) === scriptVersionId && Boolean(item.is_primary))
-    ?? scripts.find((item) => Number(item.script_version_id) === scriptVersionId)
-  if (existing) return existing
-  return createSemanticEntity(projectId, semanticEntityConfig('storyboardScripts'), {
-    script_version_id: scriptVersionId,
-    name: `${scriptTitle} 分镜脚本`,
-    description: `来源剧本版本 #${scriptVersionId}`,
-    status: 'draft',
-    is_primary: true,
-  }) as Promise<StoryboardScriptRecord>
-}
-
-async function ensureStoryboardVersionForScript(projectId: number, versions: StoryboardVersionRecord[], storyboardScript: StoryboardScriptRecord, block: ScriptBlockRecord) {
-  const existing = versions
-    .filter((item) => Number(item.storyboard_script_id) === storyboardScript.ID)
-    .slice()
-    .sort((a, b) => (Number(b.version_number) || b.ID) - (Number(a.version_number) || a.ID) || b.ID - a.ID)[0]
-	  if (existing) return existing
-	  return createSemanticEntity(projectId, semanticEntityConfig('storyboardVersions'), {
-	    storyboard_script_id: storyboardScript.ID,
-	    title: `${titleOfRecord(storyboardScript)} v1`,
-    source: 'manual',
-    status: 'active',
-    snapshot_json: JSON.stringify({ source: 'script_block', script_block_id: block.ID, script_version_id: block.script_version_id }),
-  }) as Promise<StoryboardVersionRecord>
-}
-
 function defaultSegmentValueForScriptBlock(block: ScriptBlockRecord, usages: ScriptBlockUsage) {
   const sameBlockSegment = usages.segments.find((segment) => Number(segment.script_block_id) === block.ID)
   return sameBlockSegment ? String(sameBlockSegment.ID) : ''
@@ -1200,12 +1094,11 @@ function scriptBlockUsageFromResponse(response?: ScriptBlockUsages): ScriptBlock
     segments: (response.segments ?? []) as ScriptBlockUsageRecord[],
     sceneMoments: (response.scene_moments ?? []) as ScriptBlockUsageRecord[],
     contentUnits: (response.content_units ?? []) as ScriptBlockUsageRecord[],
-    storyboardLines: (response.storyboard_lines ?? []) as ScriptBlockUsageRecord[],
   }
 }
 
 function emptyScriptBlockUsage(): ScriptBlockUsage {
-  return { segments: [], sceneMoments: [], contentUnits: [], storyboardLines: [] }
+  return { segments: [], sceneMoments: [], contentUnits: [] }
 }
 
 function titleOfRecord(record: ScriptBlockUsageRecord) {

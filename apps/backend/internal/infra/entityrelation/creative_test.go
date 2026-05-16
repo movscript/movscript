@@ -3,18 +3,12 @@ package entityrelation
 import (
 	"testing"
 
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
 func TestSyncCoreEntityRelationsExplicitlyManagesCreativeReferenceRelations(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&EntityRelation{}, &CreativeReference{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "creative_reference_relations.db", &EntityRelation{}, &CreativeReference{})
 
 	ref := CreativeReference{ProjectID: 1, Kind: "character", Name: "Hero", Importance: "supporting", Status: "draft"}
 	if err := db.Session(&gorm.Session{SkipHooks: true}).Create(&ref).Error; err != nil {
@@ -66,13 +60,7 @@ func TestSyncCoreEntityRelationsExplicitlyManagesCreativeReferenceRelations(t *t
 }
 
 func TestDeleteCoreEntityRelationsRemovesCreativeRelationshipMetadata(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&EntityRelation{}, &CreativeReference{}, &CreativeRelationship{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "creative_relationship_relations.db", &EntityRelation{}, &CreativeReference{}, &CreativeRelationship{})
 
 	source := CreativeReference{ProjectID: 1, Kind: "character", Name: "Source", Importance: "supporting", Status: "draft"}
 	target := CreativeReference{ProjectID: 1, Kind: "character", Name: "Target", Importance: "supporting", Status: "draft"}

@@ -11,12 +11,13 @@ import (
 )
 
 type AIHandler struct {
+	db      *gorm.DB
 	service *aiadminapp.Service
 }
 
 func NewAIHandler(db *gorm.DB, encryptionKeyHex string, registry *ai.Registry) *AIHandler {
 	key, _ := hex.DecodeString(encryptionKeyHex)
-	return &AIHandler{service: aiadminapp.NewService(db, key, registry)}
+	return &AIHandler{db: db, service: aiadminapp.NewService(db, key, registry)}
 }
 
 // ── Adapter & Model Presets ───────────────────────────────────────────────────

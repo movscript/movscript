@@ -91,9 +91,10 @@ import {
   getWorkbenchSurface,
   workbenchSurfaces,
   type WorkbenchCategory,
-} from '@/pages/project-workspace/structure'
+} from '@/pages/project/projectSurfaces'
 import { PreProductionAssetWorkspace } from '@/pages/pre-production/PreProductionPage'
 import { MediaViewer } from '@/components/shared/MediaViewer'
+import { ROUTES, mergeSearch, withRouteParams } from '@/routes/projectRoutes'
 
 export type WorkbenchMode = 'free'
 type WorkStatus = 'blocked' | 'review' | 'ready' | 'running'
@@ -612,7 +613,7 @@ interface ContentGenerationMomentRow {
 }
 
 type ContentSnapshotDiffState = 'added' | 'changed' | 'unchanged' | 'planned'
-type ContentSnapshotDiffKind = 'content_unit' | 'keyframe' | 'media_plan'
+type ContentSnapshotDiffKind = 'content_unit' | 'keyframe'
 
 interface ContentSnapshotFieldDiff {
   label: string
@@ -1327,14 +1328,12 @@ function buildGenerationContextStandards(context?: GenerationContext): Workbench
   const missingAssets = context.asset_slots.filter((slot) => normalizeAssetSlotStatus(String(slot.status ?? '')) === 'missing').length
   const hasTargetPrompt = Boolean(firstText(target.prompt, target.description))
   const hasScriptSource = Boolean(context.script_block)
-  const hasStoryboardSource = Boolean(context.storyboard_line)
   const hasStoryContext = Boolean(context.scene_moment || context.segment)
   const hasContinuity = context.creative_references.length > 0
   const assetsReady = context.asset_slots.length > 0 && missingAssets === 0 && lockedAssets > 0
   const hasKeyframe = context.keyframes.length > 0
   return [
     { label: '目标提示可读', detail: hasTargetPrompt ? firstText(target.prompt, target.description) : '制作项缺少 prompt 或 description，Agent 难以判断画面目标', done: hasTargetPrompt, tone: hasTargetPrompt ? 'success' : 'warning' },
-    { label: '分镜来源明确', detail: hasStoryboardSource ? storyboardLineContextLabel(context.storyboard_line) : '未绑定分镜行，生成时缺少分镜意图和制作项计划来源', done: hasStoryboardSource, tone: hasStoryboardSource ? 'success' : 'warning' },
     { label: '剧本来源稳定', detail: hasScriptSource ? scriptBlockContextLabel(context.script_block) : '未绑定不可变剧本块，生成缺少可追溯的剧本行文', done: hasScriptSource, tone: hasScriptSource ? 'success' : 'warning' },
     { label: '情景上下文存在', detail: hasStoryContext ? [context.segment ? `编排段：${titleOfRecord(context.segment)}` : null, context.scene_moment ? `情景：${titleOfRecord(context.scene_moment)}` : null].filter(Boolean).join(' / ') : '未绑定情景或编排段，生成会缺少时空、动作和情绪约束', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
     { label: '连续性资料可用', detail: hasContinuity ? `${context.creative_references.length} 个设定引用会进入生成上下文` : '未找到人物、地点、风格或道具设定引用', done: hasContinuity, tone: hasContinuity ? 'success' : 'warning' },
@@ -1352,7 +1351,6 @@ function buildGenerationContextRows(context?: GenerationContext): WorkbenchLinkR
   const assetSummary = summarizeGenerationAssets(context.asset_slots)
   return [
     { label: '后端目标', value: firstText(target.prompt, target.description, titleOfRecord(target)), icon: Target },
-    { label: '分镜来源', value: context.storyboard_line ? storyboardLineContextLabel(context.storyboard_line) : '未绑定分镜行', icon: Clapperboard },
     { label: '剧本来源', value: context.script_block ? firstText(context.script_block.content, scriptBlockContextLabel(context.script_block)) : '未绑定剧本块', icon: ScrollText },
     { label: '情景', value: context.scene_moment ? firstText(context.scene_moment.description, context.scene_moment.action_text, titleOfRecord(context.scene_moment)) : '未绑定情景', icon: Route },
     { label: '设定引用', value: referenceNames.length > 0 ? referenceNames.slice(0, 4).join('、') : '未找到设定引用', icon: Users },
@@ -1360,15 +1358,6 @@ function buildGenerationContextRows(context?: GenerationContext): WorkbenchLinkR
     { label: '画面锚点', value: context.keyframes.length > 0 ? context.keyframes.slice(0, 3).map(titleOfRecord).join('、') : '未找到画面锚点', icon: Image },
     { label: '写回范围', value: context.constraints.write_targets.join('、') || '未声明写回范围', icon: ShieldCheck },
   ]
-}
-
-function storyboardLineContextLabel(line?: SemanticEntityRecord) {
-  if (!line) return '未绑定分镜行'
-  const source = [
-    firstText(line.visual_intent, line.description, line.dialogue),
-    titleOfRecord(line),
-  ].filter(Boolean).join(' · ')
-  return source || `分镜行 #${line.ID}`
 }
 
 function scriptBlockContextLabel(block?: SemanticEntityRecord) {
@@ -1502,42 +1491,6 @@ function buildContentDraftReviewModel(
     }
   }
 
-  if (draft.kind === 'content_unit_media_proposal') {
-    const contentUnitId = draftEntityId(draft.target) || draftEntityId(draft.source) || numberOf(parsed.contentUnitId ?? parsed.content_unit_id)
-    const row = contentUnitId > 0 ? context.rowByUnitId.get(contentUnitId) ?? null : null
-    const unit = row?.units.find((item) => item.ID === contentUnitId) ?? null
-    const plans = draftRecordsArray(parsed.media_plans ?? parsed.mediaPlans)
-
-    if (!row) warnings.push('草案没有指向当前内容单元，媒体计划只能做目标级对比。')
-
-    plans.forEach((plan, index) => {
-      diffs.push({
-        key: `media-${index}-${unitKey(plan, index)}`,
-        state: 'planned',
-        kind: 'media_plan',
-        title: firstText(draftFieldString(plan, ['kind']), `媒体计划 ${index + 1}`),
-        target: unit ? titleOfRecord(unit) : '内容单元',
-        detail: compactContentParts([
-          draftFieldString(plan, ['prompt']),
-          draftRecordList(plan.references, '无参考'),
-          draftRecordList(plan.acceptance_criteria, '无验收条件'),
-        ]),
-        impact: '描述生成计划，不直接改写内容单元结构。',
-        after: draftFieldString(plan, ['prompt']),
-        fields: draftMediaPlanFields(plan),
-      })
-    })
-
-    return {
-      draft,
-      summary: `${diffs.length} 条媒体计划，围绕当前内容单元描述生成约束。`,
-      targetLabel: unit ? titleOfRecord(unit) : draft.title,
-      diffs,
-      warnings,
-      stats: [{ label: '计划', value: diffs.length }],
-    }
-  }
-
   return {
     draft,
     summary: '当前草案类型暂不支持内容编排审阅。',
@@ -1574,17 +1527,6 @@ function draftEntityId(value?: Record<string, unknown>) {
 
 function draftRecordsArray(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter(isRecord) : []
-}
-
-function draftStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.map((item) => String(item ?? '').trim()).filter(Boolean)
-    : []
-}
-
-function draftRecordList(value: unknown, emptyLabel: string) {
-  const items = draftStringArray(value)
-  return items.length > 0 ? items.join('、') : emptyLabel
 }
 
 function draftFieldString(value: Record<string, unknown>, keys: string[]) {
@@ -1664,15 +1606,6 @@ function compareContentUnitFields(current: WorkbenchRecord | undefined, proposed
   ])
 }
 
-function draftMediaPlanFields(plan: Record<string, unknown>): ContentSnapshotFieldDiff[] {
-  return compactFieldChanges([
-    { label: '类型', after: draftFieldString(plan, ['kind']) },
-    { label: '提示词', after: draftFieldString(plan, ['prompt']) },
-    { label: '参考', after: draftRecordList(plan.references, '无参考') },
-    { label: '验收', after: draftRecordList(plan.acceptance_criteria, '无验收条件') },
-  ])
-}
-
 function contentUnitChangeDetail(current: WorkbenchRecord | undefined, proposed: Record<string, unknown>, fields: ContentSnapshotFieldDiff[]) {
   if (!current) return compactContentParts([draftFieldString(proposed, ['description']), draftFieldString(proposed, ['prompt'])])
   if (fields.length === 0) return '与当前内容单元一致，可视为复用。'
@@ -1714,7 +1647,6 @@ function contentSnapshotStateLabel(state: ContentSnapshotDiffState) {
 
 function contentSnapshotKindLabel(kind: ContentSnapshotDiffKind) {
   if (kind === 'content_unit') return '内容单元快照'
-  if (kind === 'media_plan') return '媒体计划快照'
   return '关键帧快照'
 }
 
@@ -1769,10 +1701,10 @@ function ContentGenerationReviewPanel({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">{draft.title}</p>
-                      <p className="mt-1 truncate text-[11px] text-muted-foreground">{draft.kind === 'content_unit_media_proposal' ? '媒体计划快照' : '内容单元快照'} · {draft.status}</p>
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground">内容单元快照 · {draft.status}</p>
                     </div>
                     <Badge variant={active ? 'secondary' : 'outline'} className="shrink-0 text-[10px]">
-                      {draft.kind === 'content_unit_media_proposal' ? '媒体' : '结构'}
+                      结构
                     </Badge>
                   </div>
                 </button>
@@ -1789,7 +1721,7 @@ function ContentGenerationReviewPanel({
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-sm font-semibold text-foreground">{selectedDraft.title}</h3>
-                      <Badge variant="secondary" className="text-[10px]">{selectedDraft.kind === 'content_unit_media_proposal' ? '媒体计划快照' : '内容单元快照'}</Badge>
+                      <Badge variant="secondary" className="text-[10px]">内容单元快照</Badge>
                     </div>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {reviewModel.targetLabel} · {reviewModel.summary}
@@ -2553,7 +2485,7 @@ function SettingPreparationWorkbench() {
         labels: ['setting-prep-workbench', 'workbench', 'structured-output'],
         hints: {
           projectId,
-          route: { pathname: '/workbench/creative' },
+          route: { pathname: ROUTES.project.preProduction },
           selection: {
             entityType: 'creative_reference',
             entityId: selected.record.ID,
@@ -2645,7 +2577,7 @@ function SettingPreparationWorkbench() {
                     <RefreshCw size={14} />
                     清空筛选
                   </Button>
-                  <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => navigate('/creative-references')}>
+                  <Button variant="outline" size="sm" className="h-9 gap-2" onClick={() => navigate(mergeSearch(ROUTES.project.preProduction, '', { tab: 'settings' }))}>
                     <ArrowRight size={14} />
                     设定资料页
                   </Button>
@@ -3238,11 +3170,8 @@ function ContentGenerationWorkbench() {
     queryKey: ['workbench', 'production', 'content-drafts', projectId],
     queryFn: async () => {
       if (!projectId) return []
-      const [contentUnitProposals, mediaProposals] = await Promise.all([
-        localAgentClient.listDrafts({ projectId, kind: 'content_unit_proposal', limit: 20 }),
-        localAgentClient.listDrafts({ projectId, kind: 'content_unit_media_proposal', limit: 20 }),
-      ])
-      return dedupeDrafts([...contentUnitProposals.drafts, ...mediaProposals.drafts]).filter((draft) => draft.status !== 'rejected')
+      const contentUnitProposals = await localAgentClient.listDrafts({ projectId, kind: 'content_unit_proposal', limit: 20 })
+      return dedupeDrafts(contentUnitProposals.drafts).filter((draft) => draft.status !== 'rejected')
     },
     enabled: !!projectId,
     retry: false,
@@ -3318,7 +3247,7 @@ function ContentGenerationWorkbench() {
         hints: {
           projectId,
           productionId: selectedProduction?.ID,
-          route: { pathname: '/content-unit-orchestrate' },
+          route: { pathname: ROUTES.project.contentUnitWorkbench },
           selection: {
             entityType: 'scene_moment',
             entityId: selected.moment.ID,
@@ -3970,7 +3899,7 @@ function ContentGenerationWorkbench() {
                 defaults={keyframeDefaults}
                 queryKey={productionWorkbenchQueryKey}
                 title="新建关键帧"
-                description="保存后会出现在连续关键帧总览和当前内容单元的镜头关键帧轨道中。随后可以上传图片或从资源库选择素材。"
+                description="保存后会出现在连续关键帧总览和当前内容单元的画面锚点轨道中。随后可以上传图片或从资源库选择素材。"
                 onSaved={(record) => {
                   setCreatingKeyframe(false)
                   setSelectedUnitId(Number(record.content_unit_id) || selectedUnit.ID)
@@ -4739,7 +4668,7 @@ function ProductionPreviewWorkspace() {
                           <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、制作项和预演画面里。')}</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/production-orchestrate?productionId=${selectedProduction.ID}`)}>
+                          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.productionOrchestration, { productionId: selectedProduction.ID }))}>
                             <Clapperboard size={14} />
                             查看编排
                           </Button>
@@ -4841,19 +4770,19 @@ function ProductionPreviewWorkspace() {
 
                   <WorkbenchPanel title="下一步动作" icon={Settings2}>
                     <div className="space-y-2">
-                      <Button className="w-full justify-start gap-2" onClick={() => navigate(`/production-orchestrate?productionId=${selectedProduction.ID}`)}>
+                      <Button className="w-full justify-start gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.productionOrchestration, { productionId: selectedProduction.ID }))}>
                         <Clapperboard size={15} />
                         查看制作编排
                       </Button>
-                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(`/asset-slots?production_id=${selectedProduction.ID}`)}>
+                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.preProduction, { tab: 'assets', production_id: selectedProduction.ID }))}>
                         <PackageCheck size={15} />
                         查看素材需求
                       </Button>
-                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(`/contents?production_id=${selectedProduction.ID}`)}>
+                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.contentUnits, { production_id: selectedProduction.ID }))}>
                         <Film size={15} />
                         查看制作项
                       </Button>
-                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(`/delivery/workbench?productionId=${selectedProduction.ID}`)}>
+                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: selectedProduction.ID }))}>
                         <CheckCircle2 size={15} />
                         查看成片工作台
                       </Button>
@@ -5318,7 +5247,7 @@ function ScriptSplitWorkbench() {
   async function getLatestWritableScriptSplitDraft(preferredDraftId?: string): Promise<AgentDraft | null> {
     const sourceIdentity = getScriptSplitSourceIdentity(sourceTitle, sourceFileName, sourceText)
     const pageKey = buildPageKey({
-      route: { pathname: '/workbench/script' },
+      route: { pathname: ROUTES.project.scripts },
       projectId,
       selection: sourceIdentity,
       labels: ['script-split-workbench'],
@@ -5349,7 +5278,7 @@ function ScriptSplitWorkbench() {
     if (!projectId) throw new Error('请先选择项目')
     const sourceIdentity = getScriptSplitSourceIdentity(baseTitle, sourceFileName, normalized)
     const pageKey = buildPageKey({
-      route: { pathname: '/workbench/script' },
+      route: { pathname: ROUTES.project.scripts },
       projectId,
       selection: sourceIdentity,
       labels: ['script-split-workbench'],
@@ -5389,7 +5318,7 @@ function ScriptSplitWorkbench() {
         entityId: sourceIdentity.entityId,
         pageKey,
         pageType: 'workbench',
-        pageRoute: '/workbench/script',
+        pageRoute: ROUTES.project.scripts,
         pageEntityType: 'script_source',
         pageEntityId: sourceIdentity.entityId,
       },
@@ -6417,7 +6346,7 @@ function ScriptSplitWorkbench() {
                 </div>
                 <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或制作预演，继续检查制作项、预演画面、素材缺口和预演记录。</p>
               </div>
-              <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate('/workbench/production-plan')}>
+              <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate(ROUTES.project.productionPreview)}>
                 <Play size={13} />
                 开始预演
               </Button>

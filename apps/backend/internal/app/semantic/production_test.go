@@ -3,12 +3,11 @@ package semantic
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -199,13 +198,9 @@ func TestDeleteProductionWithoutDownstreamItemsSucceeds(t *testing.T) {
 
 func newProductionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "production.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "production.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
+	},
 		&model.EntityRelation{},
 		&model.Script{},
 		&model.ScriptVersion{},
@@ -218,10 +213,7 @@ func newProductionTestDB(t *testing.T) *gorm.DB {
 		&model.AssetSlot{},
 		&model.WorkItem{},
 		&model.DeliveryVersion{},
-	); err != nil {
-		t.Fatalf("migrate production db: %v", err)
-	}
-	return db
+	)
 }
 
 func seedProductionScriptVersions(t *testing.T, db *gorm.DB, projectID uint) (model.Script, model.ScriptVersion, model.ScriptVersion) {

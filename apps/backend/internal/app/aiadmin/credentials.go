@@ -150,8 +150,19 @@ func (s *Service) UpdateCredential(ctx context.Context, input UpdateCredentialIn
 	return cred, nil
 }
 
-func (s *Service) DeleteCredential(ctx context.Context, id string) error {
-	return s.repo.DeleteCredential(ctx, id)
+func (s *Service) DeleteCredential(ctx context.Context, id string) (domainaiadmin.Credential, error) {
+	credentialID, err := parseUintID(id)
+	if err != nil {
+		return domainaiadmin.Credential{}, err
+	}
+	cred, err := s.repo.GetCredential(ctx, credentialID)
+	if err != nil {
+		return cred, err
+	}
+	if err := s.repo.DeleteCredential(ctx, credentialID); err != nil {
+		return cred, err
+	}
+	return cred, nil
 }
 
 func (s *Service) GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error) {

@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -51,13 +51,9 @@ func TestBuildGenerationContextReturnsDebugPayloadForMissingTarget(t *testing.T)
 
 func newSemanticGenerationContextHandlerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file:generation_context_handler?mode=memory&cache=shared"), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "generation_context_handler.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
+	},
 		&model.Production{},
 		&model.Segment{},
 		&model.SceneMoment{},
@@ -68,8 +64,5 @@ func newSemanticGenerationContextHandlerTestDB(t *testing.T) *gorm.DB {
 		&model.CreativeReferenceUsage{},
 		&model.AssetSlot{},
 		&model.RawResource{},
-	); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	)
 }

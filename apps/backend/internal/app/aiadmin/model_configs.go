@@ -123,8 +123,19 @@ func (s *Service) UpdateModelConfig(ctx context.Context, id string, input dto.AI
 	return cfg, nil
 }
 
-func (s *Service) DeleteModelConfig(ctx context.Context, id string) error {
-	return s.repo.DeleteModelConfig(ctx, id)
+func (s *Service) DeleteModelConfig(ctx context.Context, id string) (domainaiadmin.ModelConfig, error) {
+	modelConfigID, err := parseUintID(id)
+	if err != nil {
+		return domainaiadmin.ModelConfig{}, err
+	}
+	cfg, err := s.repo.GetModelConfig(ctx, id)
+	if err != nil {
+		return cfg, err
+	}
+	if err := s.repo.DeleteModelConfig(ctx, modelConfigID); err != nil {
+		return cfg, err
+	}
+	return cfg, nil
 }
 
 func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigInput) (domainaiadmin.ModelConfig, error) {

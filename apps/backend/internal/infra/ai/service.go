@@ -417,11 +417,13 @@ func (s *AIService) GetForFeature(featureKey string) (modelConfigID uint, modelI
 	base := s.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL")
+		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL")
 	if len(ids) > 0 {
 		base = base.Where("ai_model_configs.id IN ?", ids)
 	}
-	base.Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").Scan(&rows)
+	if err := base.Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").Scan(&rows).Error; err != nil {
+		return 0, "", err
+	}
 
 	var candidates []featureModelCandidate
 	for _, row := range rows {
@@ -563,12 +565,14 @@ func parseIDArray(s string) []uint {
 // When multiple configs share the highest priority, one is chosen in round-robin order.
 func (s *AIService) GetAnyTextModel() (modelConfigID uint, modelID string, err error) {
 	var rows []modelConfigWithProvider
-	s.db.Model(&persistencemodel.AIModelConfig{}).
+	if err := s.db.Model(&persistencemodel.AIModelConfig{}).
 		Select("ai_model_configs.*, ai_credentials.display_name AS provider_name, ai_credentials.adapter_type AS adapter_type").
 		Joins("JOIN ai_credentials ON ai_credentials.id = ai_model_configs.credential_id").
-		Where("ai_model_configs.is_enabled = true AND ai_credentials.is_enabled = true").
+		Where("ai_model_configs.is_enabled = true AND ai_model_configs.deleted_at IS NULL AND ai_credentials.is_enabled = true AND ai_credentials.deleted_at IS NULL").
 		Order("ai_model_configs.priority DESC, ai_model_configs.id ASC").
-		Scan(&rows)
+		Scan(&rows).Error; err != nil {
+		return 0, "", err
+	}
 
 	type candidate struct {
 		cfg      persistencemodel.AIModelConfig

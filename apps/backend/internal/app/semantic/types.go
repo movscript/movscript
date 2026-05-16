@@ -209,20 +209,18 @@ type ProductionInput struct {
 }
 
 type ContentUnitFilter struct {
-	ProjectID        uint
-	ProductionID     uint
-	SegmentID        uint
-	SceneMomentID    uint
-	StoryboardLineID uint
-	ScriptBlockID    uint
-	ScriptBlockIDs   []uint
+	ProjectID      uint
+	ProductionID   uint
+	SegmentID      uint
+	SceneMomentID  uint
+	ScriptBlockID  uint
+	ScriptBlockIDs []uint
 }
 
 type ContentUnitInput struct {
 	ProductionID     *uint   `json:"production_id"`
 	SegmentID        *uint   `json:"segment_id"`
 	SceneMomentID    *uint   `json:"scene_moment_id"`
-	StoryboardLineID *uint   `json:"storyboard_line_id"`
 	ScriptBlockID    *uint   `json:"script_block_id"`
 	Kind             string  `json:"kind"`
 	Order            int     `json:"order"`

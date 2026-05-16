@@ -22,6 +22,7 @@ import { useProjectStore } from '@/store/projectStore'
 import { toast } from '@/store/toastStore'
 import type { Canvas, RawResource } from '@/types'
 import { Badge, Button } from '@movscript/ui'
+import { ROUTES } from '@/routes/projectRoutes'
 
 type SlotStatus = 'missing' | 'candidate' | 'locked' | 'waived'
 type AssetKind = 'all' | 'image' | 'video' | 'audio' | 'text' | 'brand_pack' | 'reference' | 'other'
@@ -381,7 +382,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
           entityType: 'asset_slot',
           entityId: row.slot.ID,
           pageType: 'asset_proposal',
-          pageRoute: '/asset-slots',
+          pageRoute: ROUTES.project.preProduction,
         },
         target: {
           projectId,
@@ -433,7 +434,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
           hints: {
             projectId,
             draftId: draftShell.id,
-            route: { pathname: '/asset-slots' },
+            route: { pathname: ROUTES.project.preProduction },
             selection: {
               entityType: 'asset_slot',
               entityId: row.slot.ID,
@@ -604,7 +605,7 @@ function PreProductionWorkspaceShell({ projectId, projectName, compact = false }
         labels: ['pre-production', 'setting_proposal', 'asset_proposal', 'draft-review'],
         hints: {
           projectId,
-          route: { pathname: '/pre-production' },
+          route: { pathname: ROUTES.project.preProduction },
           selection: { entityType: 'project', entityId: projectId, label: projectLabel },
         },
       }),
@@ -1579,7 +1580,6 @@ const ownerTypeLabels: Record<string, string> = {
   scene: '分场',
   storyboard: '分镜',
   storyboard_script: '分镜脚本',
-  storyboard_line: '分镜行',
   segment: '编排段',
   scene_moment: '场景时刻',
   content_unit: '制作项',
@@ -1747,7 +1747,7 @@ function runMediaCandidateGeneration(
       labels: ['pre-production', 'asset-candidate-generation', kind === 'video' ? 'video-generation' : 'image-generation'],
       hints: {
         projectId: options.projectId,
-        route: { pathname: '/pre-production' },
+        route: { pathname: ROUTES.project.preProduction },
         selection: {
           entityType: 'asset_slot',
           entityId: row.slot.ID,

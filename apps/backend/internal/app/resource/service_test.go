@@ -2,13 +2,12 @@ package resource
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
 	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -101,14 +100,7 @@ func TestDeleteResourceDeletesBindingsAndRelationsWithoutHooks(t *testing.T) {
 
 func newResourceTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "resource.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "resource.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.EntityRelation{}, &model.RawResource{}, &model.AssetSlot{}, &model.ResourceBinding{}); err != nil {
-		t.Fatalf("migrate resource db: %v", err)
-	}
-	return db
+	}, &model.EntityRelation{}, &model.RawResource{}, &model.AssetSlot{}, &model.ResourceBinding{})
 }

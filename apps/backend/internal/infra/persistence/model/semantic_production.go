@@ -86,7 +86,7 @@ type AssetSlotCandidate struct {
 type CandidateDecision struct {
 	gorm.Model
 	ProjectID         uint   `gorm:"not null;index" json:"project_id"`
-	CandidateType     string `gorm:"not null;index:idx_candidate_decision_candidate" json:"candidate_type"` // segment|scene_moment|storyboard_line|content_unit|keyframe|asset_slot_candidate|preview_timeline
+	CandidateType     string `gorm:"not null;index:idx_candidate_decision_candidate" json:"candidate_type"` // segment|scene_moment|content_unit|keyframe|asset_slot_candidate|preview_timeline
 	CandidateID       *uint  `gorm:"index:idx_candidate_decision_candidate" json:"candidate_id,omitempty"`
 	CandidateClientID string `gorm:"index" json:"candidate_client_id"`
 	TargetType        string `gorm:"index:idx_candidate_decision_target" json:"target_type"` // optional fact/result object

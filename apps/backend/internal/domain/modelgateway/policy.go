@@ -24,6 +24,8 @@ type NewAPIKeySpec struct {
 
 type APIKeyUpdateSpec struct {
 	Name            *string
+	ProjectID       *uint
+	ProjectIDSet    bool
 	AllowedModelIDs []uint
 	AllowedScopes   []string
 	IsEnabled       *bool
@@ -68,6 +70,9 @@ func NewAPIKey(spec NewAPIKeySpec) APIKey {
 func (key *APIKey) ApplyUpdate(spec APIKeyUpdateSpec) {
 	if spec.Name != nil {
 		key.Name = strings.TrimSpace(*spec.Name)
+	}
+	if spec.ProjectIDSet {
+		key.ProjectID = spec.ProjectID
 	}
 	if spec.AllowedModelIDs != nil {
 		key.AllowedModelIDs = mustJSONString(spec.AllowedModelIDs)

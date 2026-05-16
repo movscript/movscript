@@ -4,6 +4,7 @@ export interface Project {
   description: string
   owner_id: number
   owner?: User
+  org_id?: number
   status?: string
   total_episodes?: number
   CreatedAt: string
@@ -123,6 +124,15 @@ export interface User {
   ID: number
   username: string
   system_role: 'super_admin' | 'user'
+  primary_email?: string
+  primary_phone?: string
+  display_name?: string
+  avatar_url?: string
+  locale?: string
+  status?: 'active' | 'disabled' | 'suspended' | string
+  email_verified_at?: number
+  CreatedAt?: string
+  UpdatedAt?: string
 }
 
 export interface Organization {
@@ -131,6 +141,9 @@ export interface Organization {
   slug: string
   join_code?: string
   is_personal: boolean
+  plan?: 'personal' | 'team' | string
+  status?: 'active' | 'suspended' | string
+  member_count?: number
   created_by: number
   CreatedAt: string
   UpdatedAt: string
@@ -186,6 +199,71 @@ export interface Progress {
   scripts: number
   asset_slots: number
   members: number
+}
+
+export interface AuditLog {
+  ID: number
+  request_id: string
+  actor_id?: number
+  action: string
+  target_type: string
+  target_id: string
+  org_id?: number
+  project_id?: number
+  ip_address?: string
+  user_agent?: string
+  metadata?: string
+  CreatedAt: string
+  UpdatedAt: string
+  DeletedAt?: string
+}
+
+export interface UsageLogModelConfig {
+  ID: number
+  credential_id: number
+  model_def_id: string
+  model_id_override?: string
+  custom_display_name?: string
+  short_name?: string
+}
+
+export interface UsageLog {
+  ID: number
+  user_id: number
+  user?: User
+  org_id?: number
+  ai_model_config_id: number
+  ai_model_config?: UsageLogModelConfig
+  usage_reservation_id?: number
+  gateway_api_key_id?: number
+  project_id?: number
+  operation_type: string
+  input_tokens: number
+  output_tokens: number
+  duration_sec: number
+  image_count: number
+  cost: number
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface GatewayAPIKey {
+  ID: number
+  name: string
+  key_prefix: string
+  owner_user_id: number
+  org_id?: number
+  project_id?: number
+  allowed_model_ids: string
+  allowed_scopes: string
+  is_enabled: boolean
+  last_used_at?: string
+  CreatedAt: string
+  UpdatedAt: string
+}
+
+export interface GatewayAPIKeyCreateResponse extends GatewayAPIKey {
+  key: string
 }
 
 // AICredential stores authentication credentials for one adapter type.
@@ -480,6 +558,7 @@ export interface ResourceFolderPermission {
 export interface RawResource {
   ID: number
   owner_id: number
+  org_id?: number
   folder_id?: number
   type: 'image' | 'video' | 'audio' | 'text' | 'file'
   name: string
@@ -491,6 +570,9 @@ export interface RawResource {
   is_shared?: boolean
   direct_url?: string // presigned URL for cloud-stored resources
   owner?: { ID: number; username: string }
+  verification_status?: string
+  CreatedAt?: string
+  UpdatedAt?: string
 }
 
 export type ResourceBindingOwnerType =
@@ -500,7 +582,6 @@ export type ResourceBindingOwnerType =
   | 'segment'
   | 'scene_moment'
   | 'storyboard_script'
-  | 'storyboard_line'
   | 'content_unit'
   | 'keyframe'
   | 'delivery_version'

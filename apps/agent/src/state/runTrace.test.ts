@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { DEFAULT_AGENT_MANIFEST } from '../catalog/agentManifest.js'
-import { appendTraceEvent, buildRunStep } from './runTrace.js'
+import {
+  appendRunStep,
+  appendTraceEvent,
+  buildRunStep,
+  buildRunTracePage,
+  completeRunStep,
+  normalizeTracePageLimit,
+} from './runTrace.js'
 
 test('buildRunStep creates in-progress step with round metadata', () => {
   const step = buildRunStep({
@@ -24,24 +31,64 @@ test('buildRunStep creates in-progress step with round metadata', () => {
   assert.equal(step.toolName, 'movscript_read_project_scripts')
 })
 
-test('appendTraceEvent builds sanitized trace data and updates run timestamp without mutating run trace list', () => {
-  const run = {
-    id: 'run_1',
-    threadId: 'thread_1',
-    status: 'in_progress' as const,
-    agentManifest: DEFAULT_AGENT_MANIFEST,
-    policy: {
-      approvalMode: 'interactive' as const,
-      maxToolCalls: 20,
-      maxIterations: 20,
-      allowNetwork: false,
-      allowFileBytes: false,
-    },
+test('appendRunStep appends the step and updates run timestamp', () => {
+  const run = buildRun()
+  const step = appendRunStep({
+    id: 'step_1',
+    run,
+    runId: run.id,
+    type: 'message',
+    createdAt: '2026-05-06T00:00:01.000Z',
+  })
+
+  assert.equal(run.steps.length, 1)
+  assert.equal(run.steps[0], step)
+  assert.equal(run.updatedAt, '2026-05-06T00:00:01.000Z')
+})
+
+test('completeRunStep records terminal status, output, and timing', () => {
+  const step = buildRunStep({
+    id: 'step_1',
+    runId: 'run_1',
+    type: 'tool_call',
     createdAt: '2026-05-06T00:00:00.000Z',
-    updatedAt: '2026-05-06T00:00:00.000Z',
-    steps: [],
-    traceEvents: [],
-  }
+  })
+
+  completeRunStep(step, {
+    completedAt: '2026-05-06T00:00:02.000Z',
+    result: { ok: true },
+    durationMs: 2000,
+  })
+
+  assert.equal(step.status, 'completed')
+  assert.deepEqual(step.result, { ok: true })
+  assert.equal(step.completedAt, '2026-05-06T00:00:02.000Z')
+  assert.equal(step.durationMs, 2000)
+})
+
+test('completeRunStep marks errors as failed and keeps error data', () => {
+  const step = buildRunStep({
+    id: 'step_1',
+    runId: 'run_1',
+    type: 'tool_call',
+    createdAt: '2026-05-06T00:00:00.000Z',
+  })
+
+  completeRunStep(step, {
+    completedAt: '2026-05-06T00:00:02.000Z',
+    error: 'tool failed',
+    errorData: { code: 'bad_request' },
+    sandboxed: true,
+  })
+
+  assert.equal(step.status, 'failed')
+  assert.equal(step.error, 'tool failed')
+  assert.deepEqual(step.errorData, { code: 'bad_request' })
+  assert.equal(step.sandboxed, true)
+})
+
+test('appendTraceEvent builds sanitized trace data and updates run timestamp without mutating run trace list', () => {
+  const run = buildRun()
 
   const event = appendTraceEvent({
     id: 'trace_1',
@@ -66,3 +113,109 @@ test('appendTraceEvent builds sanitized trace data and updates run timestamp wit
     unsupported: 'Symbol(x)',
   })
 })
+
+test('appendTraceEvent bounds recursive trace data without throwing', () => {
+  const run = buildRun()
+  const circular: Record<string, unknown> = { name: 'root' }
+  circular.self = circular
+  let deep: Record<string, unknown> = { leaf: true }
+  for (let index = 0; index < 24; index += 1) deep = { child: deep }
+  const manyItems = Array.from({ length: 205 }, (_, index) => index)
+  const longText = 'x'.repeat(200_010)
+
+  const event = appendTraceEvent({
+    id: 'trace_1',
+    run,
+    now: '2026-05-06T00:00:01.000Z',
+    kind: 'error',
+    title: 'Large trace data',
+    status: 'failed',
+    data: {
+      circular,
+      deep,
+      manyItems,
+      longText,
+      nonFinite: Number.NaN,
+      big: 123n,
+    },
+  })
+  const data = event.data as Record<string, any>
+
+  assert.equal(data.circular.self, '[Circular]')
+  assert.match(JSON.stringify(data.deep), /max depth exceeded/)
+  assert.equal(data.manyItems.length, 201)
+  assert.match(data.manyItems.at(-1), /5 more items/)
+  assert.match(data.longText, /truncated 10 chars/)
+  assert.equal(data.nonFinite, 'NaN')
+  assert.equal(data.big, '123')
+})
+
+test('normalizeTracePageLimit clamps invalid and oversized page sizes', () => {
+  assert.equal(normalizeTracePageLimit(undefined), 200)
+  assert.equal(normalizeTracePageLimit(Number.NaN), 200)
+  assert.equal(normalizeTracePageLimit(0), 1)
+  assert.equal(normalizeTracePageLimit(2.8), 2)
+  assert.equal(normalizeTracePageLimit(Number.MAX_SAFE_INTEGER), Number.MAX_SAFE_INTEGER - 1)
+})
+
+test('buildRunTracePage slices one extra event into hasMore and nextCursor', () => {
+  const first = traceEvent('trace_1')
+  const second = traceEvent('trace_2')
+  const third = traceEvent('trace_3')
+
+  assert.deepEqual(buildRunTracePage({
+    runId: 'run_1',
+    eventsPlusOne: [first, second, third],
+    limit: 2,
+    total: 3,
+  }), {
+    runId: 'run_1',
+    events: [first, second],
+    total: 3,
+    hasMore: true,
+    nextCursor: 'trace_2',
+  })
+
+  assert.deepEqual(buildRunTracePage({
+    runId: 'run_1',
+    eventsPlusOne: [first],
+    limit: 2,
+    total: 1,
+  }), {
+    runId: 'run_1',
+    events: [first],
+    total: 1,
+    hasMore: false,
+  })
+})
+
+function buildRun() {
+  return {
+    id: 'run_1',
+    threadId: 'thread_1',
+    status: 'in_progress' as const,
+    agentManifest: DEFAULT_AGENT_MANIFEST,
+    policy: {
+      approvalMode: 'interactive' as const,
+      maxToolCalls: 20,
+      maxIterations: 20,
+      allowNetwork: false,
+      allowFileBytes: false,
+    },
+    createdAt: '2026-05-06T00:00:00.000Z',
+    updatedAt: '2026-05-06T00:00:00.000Z',
+    steps: [],
+    traceEvents: [],
+  }
+}
+
+function traceEvent(id: string) {
+  return {
+    id,
+    runId: 'run_1',
+    kind: 'run' as const,
+    title: id,
+    status: 'info' as const,
+    createdAt: '2026-05-06T00:00:01.000Z',
+  }
+}

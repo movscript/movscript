@@ -35,7 +35,6 @@ func backfillCoreEntityRelations(db *gorm.DB) error {
 		{"asset_slots", func() error { return backfillEntityRelationsByRows[persistencemodel.AssetSlot](db) }},
 		{"storyboard_scripts", func() error { return backfillEntityRelationsByRows[persistencemodel.StoryboardScript](db) }},
 		{"storyboard_versions", func() error { return backfillEntityRelationsByRows[persistencemodel.StoryboardVersion](db) }},
-		{"storyboard_lines", func() error { return backfillEntityRelationsByRows[persistencemodel.StoryboardLine](db) }},
 		{"keyframes", func() error { return backfillEntityRelationsByRows[persistencemodel.Keyframe](db) }},
 		{"preview_timelines", func() error { return backfillEntityRelationsByRows[persistencemodel.PreviewTimeline](db) }},
 		{"preview_timeline_items", func() error { return backfillEntityRelationsByRows[persistencemodel.PreviewTimelineItem](db) }},

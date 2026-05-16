@@ -1,5 +1,7 @@
 import type { JSONValue } from '../types.js'
 import { parseToolResult } from '../context/runtimeContext.js'
+import { parseAgentCommand } from '../context/commandRouter.js'
+import { renderLocalFinalAssistantContent } from '../context/localDiagnosticCommands.js'
 import {
   buildBackendGatewayChatRequest,
   callBackendGatewayChatWithTrace,
@@ -11,8 +13,47 @@ import {
   type RuntimeModelTraceCallback,
 } from '../model/modelConfig.js'
 import type { AgentMemory } from '../memory/types.js'
-import type { AgentRun, ResolvedToolCatalog, ToolCall, ToolCallOutcome } from '../state/types.js'
+import type { AgentMessageRole, AgentRun, ResolvedToolCatalog, ToolCall, ToolCallOutcome } from '../state/types.js'
 import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
+
+export function isMessageRole(value: unknown): value is AgentMessageRole {
+  return value === 'system' || value === 'user' || value === 'assistant'
+}
+
+export function combineAssistantTurnContents(contents: string[], fallback: string): string {
+  const turns: string[] = []
+  for (const content of contents) {
+    const trimmed = content.trim()
+    if (!trimmed) continue
+    if (turns.at(-1) === trimmed) continue
+    turns.push(trimmed)
+  }
+  const fallbackContent = fallback.trim()
+  if (fallbackContent && turns.at(-1) !== fallbackContent) turns.push(fallbackContent)
+  return turns.join('\n\n')
+}
+
+export function buildFinalAssistantContent(input: {
+  userMessage: string
+  modelContent: string
+  toolResults: ToolCallOutcome[]
+  warnings: string[]
+  memories: AgentMemory[]
+  run: AgentRun
+  memoryStorePath?: string
+}): string {
+  const command = parseAgentCommand(input.userMessage)
+  return renderLocalFinalAssistantContent({
+    command,
+    run: input.run,
+    context: isRecord(input.run.metadata?.context) ? input.run.metadata.context : undefined,
+    warnings: input.warnings,
+    memories: input.memories,
+    toolResults: input.toolResults,
+    memoryStorePath: input.memoryStorePath,
+    modelContent: input.modelContent,
+  })
+}
 
 export function buildAssistantContent(
   userMessage: string,

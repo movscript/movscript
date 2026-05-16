@@ -1,0 +1,139 @@
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import {
+  appendThreadMessage,
+  applyThreadUpdate,
+  buildAgentMessage,
+  buildAgentThread,
+  buildThreadMessage,
+  recordThreadClientInput,
+  validInitialThreadMessageInputs,
+} from './threadLifecycle.js'
+import type { AgentThread } from '../state/types.js'
+
+test('buildAgentThread normalizes visible thread fields', () => {
+  const thread = buildAgentThread({
+    id: 'thread_1',
+    now: '2026-01-01T00:00:00.000Z',
+    threadInput: {
+      title: '  My thread  ',
+      projectId: 7,
+      metadata: { source: 'test' },
+      archived: true,
+    },
+  })
+
+  assert.equal(thread.title, 'My thread')
+  assert.equal(thread.projectId, 7)
+  assert.deepEqual(thread.metadata, { source: 'test' })
+  assert.equal(thread.archived, true)
+  assert.equal(thread.status, 'idle')
+})
+
+test('validInitialThreadMessageInputs keeps only explicit visible messages', () => {
+  assert.deepEqual(validInitialThreadMessageInputs({
+    messages: [
+      { role: 'user', content: 'hello' },
+      { role: 'tool', content: 'hidden' },
+      { role: 'assistant', content: 123 },
+      { role: 'assistant', content: 'world' },
+    ],
+  }), [
+    { role: 'user', content: 'hello' },
+    { role: 'assistant', content: 'world' },
+  ])
+})
+
+test('applyThreadUpdate mutates title archived metadata and updatedAt', () => {
+  const thread = makeThread()
+  applyThreadUpdate({
+    thread,
+    update: { title: '', archived: true, metadata: { b: 2 } },
+    now: '2026-01-01T00:00:01.000Z',
+  })
+
+  assert.equal(thread.title, undefined)
+  assert.equal(thread.archived, true)
+  assert.deepEqual(thread.metadata, { a: 1, b: 2 })
+  assert.equal(thread.updatedAt, '2026-01-01T00:00:01.000Z')
+})
+
+test('buildAgentMessage renders client input messages and rejects empty content', () => {
+  const built = buildAgentMessage({
+    id: 'msg_1',
+    threadId: 'thread_1',
+    now: '2026-01-01T00:00:01.000Z',
+    messageInput: {
+      role: 'user',
+      content: 'ignored',
+      clientInput: { message: 'from client input' },
+    },
+  })
+
+  assert.equal(built.message.id, 'msg_1')
+  assert.match(built.message.content, /from client input/)
+  assert.ok(built.clientInput)
+  assert.throws(() => buildAgentMessage({
+    id: 'msg_2',
+    threadId: 'thread_1',
+    now: '2026-01-01T00:00:01.000Z',
+    messageInput: { role: 'assistant', content: '   ' },
+  }), /message content is required/)
+})
+
+test('buildThreadMessage creates runtime messages without changing content', () => {
+  assert.deepEqual(buildThreadMessage({
+    id: 'msg_1',
+    threadId: 'thread_1',
+    role: 'assistant',
+    content: '  kept as-is  ',
+    runId: 'run_1',
+    now: '2026-01-01T00:00:01.000Z',
+  }), {
+    id: 'msg_1',
+    threadId: 'thread_1',
+    role: 'assistant',
+    content: '  kept as-is  ',
+    runId: 'run_1',
+    createdAt: '2026-01-01T00:00:01.000Z',
+  })
+})
+
+test('appendThreadMessage appends message and records last client input when provided', () => {
+  const thread = makeThread()
+  appendThreadMessage({
+    thread,
+    message: {
+      id: 'msg_1',
+      threadId: thread.id,
+      role: 'user',
+      content: 'hello',
+      createdAt: '2026-01-01T00:00:01.000Z',
+    },
+    clientInput: { visibleMessage: 'hello', attachments: [] },
+  })
+
+  assert.equal(thread.messages.length, 1)
+  assert.equal(thread.updatedAt, '2026-01-01T00:00:01.000Z')
+  assert.deepEqual(thread.metadata, { a: 1, lastClientInput: { visibleMessage: 'hello', attachments: [] } })
+})
+
+test('recordThreadClientInput merges last client input into existing metadata', () => {
+  const thread = makeThread()
+  recordThreadClientInput(thread, { visibleMessage: 'latest', attachments: [] })
+
+  assert.deepEqual(thread.metadata, { a: 1, lastClientInput: { visibleMessage: 'latest', attachments: [] } })
+  assert.equal(thread.updatedAt, '2026-01-01T00:00:00.000Z')
+})
+
+function makeThread(): AgentThread {
+  return {
+    id: 'thread_1',
+    title: 'Existing',
+    metadata: { a: 1 },
+    archived: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    messages: [],
+  }
+}

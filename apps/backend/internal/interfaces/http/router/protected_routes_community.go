@@ -11,10 +11,13 @@ import (
 func registerGatewayProtectedRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.GET("/entitlement", h.entitlement.GetCurrent)
 	protected.GET("/model-gateway/models", h.modelGateway.ListModels)
-	protected.GET("/model-gateway/api-keys", h.modelGateway.ListAPIKeys)
-	protected.POST("/model-gateway/api-keys", h.modelGateway.CreateAPIKey)
-	protected.PATCH("/model-gateway/api-keys/:id", h.modelGateway.UpdateAPIKey)
-	protected.DELETE("/model-gateway/api-keys/:id", h.modelGateway.DeleteAPIKey)
+	gatewayAdmin := protected.Group("/model-gateway", middleware.RequireSystemRole("super_admin"))
+	{
+		gatewayAdmin.GET("/api-keys", h.modelGateway.ListAPIKeys)
+		gatewayAdmin.POST("/api-keys", h.modelGateway.CreateAPIKey)
+		gatewayAdmin.PATCH("/api-keys/:id", h.modelGateway.UpdateAPIKey)
+		gatewayAdmin.DELETE("/api-keys/:id", h.modelGateway.DeleteAPIKey)
+	}
 
 	protected.GET("/users", h.users.List)
 }

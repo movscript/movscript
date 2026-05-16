@@ -259,7 +259,6 @@
     "scripts": "Scripts",
     "segments": "Orchestration Segments",
     "assetSlots": "Asset Slots",
-    "storyboardLines": "Storyboard Lines",
     "contentUnits": "Content Units",
     "keyframes": "Visual Anchors",
     "assets": "Assets",
@@ -1157,7 +1156,6 @@
           "script": "Script draft",
           "creative_reference": "Creative reference suggestion",
           "asset_slot": "Asset need",
-          "storyboard_line": "Storyboard suggestion",
           "content_unit": "Shot suggestion",
           "prompt": "Prompt",
           "note": "Review note",
@@ -1168,7 +1166,6 @@
           "project_proposal": "Project proposal",
           "production_proposal": "Production proposal",
           "content_unit_proposal": "Content unit proposal",
-          "content_unit_media_proposal": "Content unit media proposal",
           "script_split_proposal": "Script split proposal"
         }
       },
@@ -2141,79 +2138,6 @@
       "emptyHint": "Enter an idea to start brainstorming",
       "requestFailed": "Request failed. Check the model configuration and try again."
     },
-    "smartStoryboard": {
-      "title": "Smart Storyboard",
-      "subtitle": "Organize characters, scenes, and storyboard sketches into cinematic language, then shape visual anchor plans through emotion and performance.",
-      "generate": "Generate Visual Anchors",
-      "buckets": {
-        "characters": "Characters",
-        "scenes": "Scenes",
-        "storyboard": "Storyboard"
-      },
-      "empty": {
-        "characters": "Select character reference images from the left",
-        "scenes": "Select scene or environment references from the left",
-        "storyboard": "Add sketches, composition notes, or reference frames"
-      },
-      "emotion": {
-        "title": "Emotion",
-        "intensity": "Intensity",
-        "expression": "Performance",
-        "placeholder": "Example: the character suppresses anger, avoids eye contact, and moves half a beat late; keep the scene cool and low contrast.",
-        "presets": {
-          "calm": "Calm",
-          "tense": "Tense",
-          "joy": "Joy",
-          "fear": "Fear",
-          "lonely": "Lonely",
-          "hopeful": "Hopeful"
-        }
-      },
-      "camera": {
-        "title": "Camera Language",
-        "shotSize": "Shot Size",
-        "move": "Move",
-        "lens": "Lens",
-        "rhythm": "Rhythm",
-        "shotSizes": {
-          "closeUp": "Close-up",
-          "medium": "Medium",
-          "wide": "Wide",
-          "overShoulder": "Over-shoulder"
-        },
-        "moves": {
-          "static": "Static",
-          "pushIn": "Push in",
-          "tracking": "Tracking",
-          "handheld": "Handheld"
-        },
-        "lenses": {
-          "wide": "Wide",
-          "standard": "Standard",
-          "telephoto": "Telephoto"
-        },
-        "rhythms": {
-          "slow": "Slow",
-          "balanced": "Balanced",
-          "fast": "Fast"
-        }
-      },
-      "beats": {
-        "title": "Shot Breakdown",
-        "fields": {
-          "title": "Shot title",
-          "emotion": "Emotion",
-          "shot": "Shot",
-          "note": "Note"
-        }
-      },
-      "preview": {
-        "title": "Visual Anchor Preview"
-      },
-      "prompt": {
-        "title": "Prompt Summary"
-      }
-    },
     "defs": {
       "refImageGen": {
         "name": "Reference Image",
@@ -2906,7 +2830,6 @@
       "multiAngle": "Multi-angle",
       "videoEdit": "Video Edit",
       "brainstorm": "Brainstorm",
-      "smartStoryboard": "Smart Storyboard",
       "resources": "Resources",
       "jobs": "Generation Jobs",
       "plugins": "Plugins",
@@ -2925,7 +2848,7 @@
       "preProduction": "Pre-production",
       "creativeWorkbench": "Creative Workbench",
       "projectProduction": "Production Overview",
-      "productionOrchestrate": "Orchestration",
+      "productionOrchestration": "Orchestration",
       "contentAreaProduction": "Production Orchestration",
       "script": "Script",
       "segments": "Orchestration Segments",

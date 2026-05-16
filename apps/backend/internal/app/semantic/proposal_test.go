@@ -3,11 +3,10 @@ package semantic
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -371,14 +370,9 @@ func TestApplyProductionProposalRequiresProposal(t *testing.T) {
 
 func newProposalTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	dbName := strings.NewReplacer("/", "_", " ", "_").Replace(t.Name())
-	db, err := gorm.Open(sqlite.Open("file:"+dbName+"?mode=memory&cache=shared"), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "proposal.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
+	},
 		&model.EntityRelation{},
 		&model.Project{},
 		&model.Script{},
@@ -394,10 +388,7 @@ func newProposalTestDB(t *testing.T) *gorm.DB {
 		&model.CreativeReferenceUsage{},
 		&model.CreativeRelationship{},
 		&model.AssetSlot{},
-	); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	)
 }
 
 func createProposalTestProduction(t *testing.T, db *gorm.DB, projectID uint) model.Production {

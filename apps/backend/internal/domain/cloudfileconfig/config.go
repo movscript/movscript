@@ -40,6 +40,39 @@ func ValidConfigType(t string) bool {
 	return false
 }
 
+func RequiredConfigFields(configType string) []string {
+	switch strings.TrimSpace(configType) {
+	case TypeS3:
+		return []string{"region", "bucket", "access_key", "secret_key"}
+	case TypeOSS:
+		return []string{"endpoint", "bucket", "access_key_id", "access_key_secret"}
+	case TypeTOS:
+		return []string{"endpoint", "region", "bucket", "access_key", "secret_key"}
+	default:
+		return nil
+	}
+}
+
+func MissingRequiredConfigFields(configType string, cfg map[string]any) []string {
+	required := RequiredConfigFields(configType)
+	if len(required) == 0 {
+		return nil
+	}
+	missing := make([]string, 0)
+	for _, key := range required {
+		value, ok := cfg[key]
+		if !ok {
+			missing = append(missing, key)
+			continue
+		}
+		text, ok := value.(string)
+		if !ok || strings.TrimSpace(text) == "" || IsMaskedSecret(strings.TrimSpace(text)) {
+			missing = append(missing, key)
+		}
+	}
+	return missing
+}
+
 func NewConfig(spec NewConfigSpec) Config {
 	return Config{
 		Name:       strings.TrimSpace(spec.Name),

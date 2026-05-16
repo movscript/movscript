@@ -60,6 +60,13 @@ export class InMemoryAgentMemoryStore implements AgentMemoryStore {
   }
 }
 
+export function memoryStorePath(store: AgentMemoryStore): string | undefined {
+  const candidate = store as { filePath?: unknown }
+  return typeof candidate.filePath === 'string' && candidate.filePath.trim()
+    ? candidate.filePath
+    : undefined
+}
+
 export function matchesQuery(memory: AgentMemory, query: MemoryQuery): boolean {
   if (memory.projectId !== query.projectId) return false
   if (query.kind && memory.kind !== query.kind) return false

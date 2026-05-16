@@ -36,6 +36,7 @@ type Subject struct {
 type Manager struct {
 	secret []byte
 	ttl    time.Duration
+	now    func() time.Time
 }
 
 func NewManager(secret string, ttl time.Duration) (*Manager, error) {
@@ -46,11 +47,11 @@ func NewManager(secret string, ttl time.Duration) (*Manager, error) {
 	if ttl <= 0 {
 		return nil, fmt.Errorf("auth token ttl must be positive")
 	}
-	return &Manager{secret: []byte(secret), ttl: ttl}, nil
+	return &Manager{secret: []byte(secret), ttl: ttl, now: time.Now}, nil
 }
 
 func (m *Manager) Issue(subject Subject) (string, time.Time, error) {
-	now := time.Now().UTC()
+	now := m.now().UTC()
 	expiresAt := now.Add(m.ttl)
 	claims := Claims{
 		UserID:     subject.UserID,
@@ -96,7 +97,7 @@ func (m *Manager) Verify(raw string) (Claims, error) {
 	if claims.UserID == 0 || claims.ExpiresAt == 0 {
 		return Claims{}, ErrInvalidToken
 	}
-	if time.Now().UTC().Unix() >= claims.ExpiresAt {
+	if m.now().UTC().Unix() >= claims.ExpiresAt {
 		return Claims{}, ErrExpiredToken
 	}
 	return claims, nil

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -328,139 +328,6 @@ func TestBuildGenerationContextFallsBackToSegmentScriptBlock(t *testing.T) {
 	}
 }
 
-func TestBuildGenerationContextIncludesStoryboardLineSource(t *testing.T) {
-	db := newGenerationContextTestDB(t)
-	projectID := uint(1)
-	script, version, block := seedGenerationContextScriptBlock(t, db, projectID)
-	storyboardScript := model.StoryboardScript{ProjectID: projectID, ScriptVersionID: &version.ID, Name: script.Title, Status: "draft"}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	segment := model.Segment{
-		ProjectID:     projectID,
-		ScriptBlockID: &block.ID,
-		Kind:          "setup",
-		Title:         "Opening",
-		Status:        "confirmed",
-	}
-	if err := db.Create(&segment).Error; err != nil {
-		t.Fatalf("create segment: %v", err)
-	}
-	sceneMoment := model.SceneMoment{
-		ProjectID:     projectID,
-		SegmentID:     &segment.ID,
-		ScriptBlockID: &block.ID,
-		Title:         "Rainy street",
-		Status:        "confirmed",
-	}
-	if err := db.Create(&sceneMoment).Error; err != nil {
-		t.Fatalf("create scene moment: %v", err)
-	}
-	line := model.StoryboardLine{
-		ProjectID:          projectID,
-		StoryboardScriptID: storyboardScript.ID,
-		SegmentID:          &segment.ID,
-		SceneMomentID:      &sceneMoment.ID,
-		ScriptBlockID:      &block.ID,
-		Kind:               "shot",
-		Title:              "Phone clue",
-		VisualIntent:       "Tight phone close-up.",
-		Status:             "confirmed",
-	}
-	if err := db.Create(&line).Error; err != nil {
-		t.Fatalf("create storyboard line: %v", err)
-	}
-	ref := model.CreativeReference{
-		ProjectID:   projectID,
-		Kind:        "prop",
-		Name:        "关键手机",
-		Importance:  "supporting",
-		Status:      "confirmed",
-		ProfileJSON: "{}",
-		TagsJSON:    "[]",
-	}
-	if err := db.Create(&ref).Error; err != nil {
-		t.Fatalf("create creative reference: %v", err)
-	}
-	usage := model.CreativeReferenceUsage{
-		ProjectID:           projectID,
-		OwnerType:           "storyboard_line",
-		OwnerID:             line.ID,
-		CreativeReferenceID: ref.ID,
-		Role:                "featured_prop",
-		Source:              "manual",
-		Status:              "confirmed",
-	}
-	if err := db.Create(&usage).Error; err != nil {
-		t.Fatalf("create storyboard line usage: %v", err)
-	}
-	resource := model.RawResource{
-		OwnerID:        1,
-		Type:           "image",
-		Name:           "phone.png",
-		FilePath:       "/tmp/phone.png",
-		MimeType:       "image/png",
-		StorageBackend: "local",
-	}
-	if err := db.Create(&resource).Error; err != nil {
-		t.Fatalf("create resource: %v", err)
-	}
-	slot := model.AssetSlot{
-		ProjectID:           projectID,
-		OwnerType:           "storyboard_line",
-		OwnerID:             &line.ID,
-		Kind:                "image",
-		Name:                "手机道具参考",
-		Status:              "locked",
-		Priority:            "high",
-		ResourceID:          &resource.ID,
-		CreativeReferenceID: &ref.ID,
-	}
-	if err := db.Create(&slot).Error; err != nil {
-		t.Fatalf("create storyboard line asset slot: %v", err)
-	}
-	contentUnit := model.ContentUnit{
-		ProjectID:        projectID,
-		StoryboardLineID: &line.ID,
-		Kind:             "shot",
-		Title:            "手机特写",
-		Status:           "confirmed",
-	}
-	if err := db.Create(&contentUnit).Error; err != nil {
-		t.Fatalf("create content unit: %v", err)
-	}
-
-	got, err := NewService(db).BuildGenerationContext(context.Background(), projectID, GenerationContextRequest{
-		TargetType: "content_unit",
-		TargetID:   contentUnit.ID,
-		Intent:     "video",
-	})
-	if err != nil {
-		t.Fatalf("build generation context: %v", err)
-	}
-	if got.StoryboardLine == nil || got.StoryboardLine.ID != line.ID {
-		t.Fatalf("storyboard line = %+v, want %d", got.StoryboardLine, line.ID)
-	}
-	if got.Segment == nil || got.Segment.ID != segment.ID {
-		t.Fatalf("segment from storyboard line = %+v, want %d", got.Segment, segment.ID)
-	}
-	if got.SceneMoment == nil || got.SceneMoment.ID != sceneMoment.ID {
-		t.Fatalf("scene moment from storyboard line = %+v, want %d", got.SceneMoment, sceneMoment.ID)
-	}
-	if got.ScriptBlock == nil || got.ScriptBlock.ID != block.ID {
-		t.Fatalf("script block from storyboard line = %+v, want %d", got.ScriptBlock, block.ID)
-	}
-	if !containsString(got.Constraints.ReadOnlyEntities, "storyboard_line") {
-		t.Fatalf("storyboard line must be read-only source context: %+v", got.Constraints)
-	}
-	if len(got.CreativeReferences) != 1 || got.CreativeReferences[0].Usage.ID != usage.ID || got.CreativeReferences[0].Reference == nil || got.CreativeReferences[0].Reference.ID != ref.ID {
-		t.Fatalf("storyboard line creative references = %+v, want usage %d reference %d", got.CreativeReferences, usage.ID, ref.ID)
-	}
-	if len(got.AssetSlots) != 1 || got.AssetSlots[0].ID != slot.ID || got.AssetSlots[0].Resource == nil || got.AssetSlots[0].Resource.ID != resource.ID {
-		t.Fatalf("storyboard line asset slots = %+v, want slot %d with resource %d", got.AssetSlots, slot.ID, resource.ID)
-	}
-}
-
 func TestBuildGenerationContextReturnsDebuggableNotFoundError(t *testing.T) {
 	db := newGenerationContextTestDB(t)
 	_, err := NewService(db).BuildGenerationContext(context.Background(), 2, GenerationContextRequest{
@@ -488,13 +355,9 @@ func TestBuildGenerationContextReturnsDebuggableNotFoundError(t *testing.T) {
 
 func newGenerationContextTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file:generation_context?mode=memory&cache=shared"), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "generation_context.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
+	},
 		&model.Production{},
 		&model.Script{},
 		&model.ScriptVersion{},
@@ -503,7 +366,6 @@ func newGenerationContextTestDB(t *testing.T) *gorm.DB {
 		&model.SceneMoment{},
 		&model.StoryboardScript{},
 		&model.StoryboardVersion{},
-		&model.StoryboardLine{},
 		&model.ContentUnit{},
 		&model.Keyframe{},
 		&model.CreativeReference{},
@@ -511,10 +373,7 @@ func newGenerationContextTestDB(t *testing.T) *gorm.DB {
 		&model.CreativeReferenceUsage{},
 		&model.AssetSlot{},
 		&model.RawResource{},
-	); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	)
 }
 
 func seedGenerationContextScriptBlock(t *testing.T, db *gorm.DB, projectID uint) (model.Script, model.ScriptVersion, model.ScriptBlock) {

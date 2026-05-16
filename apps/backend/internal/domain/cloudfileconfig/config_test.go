@@ -14,6 +14,32 @@ func TestValidConfigType(t *testing.T) {
 	}
 }
 
+func TestMissingRequiredConfigFields(t *testing.T) {
+	missing := MissingRequiredConfigFields(TypeTOS, map[string]any{
+		"endpoint":   "tos-cn-beijing.volces.com",
+		"region":     "cn-beijing",
+		"bucket":     "assets",
+		"access_key": "****",
+	})
+	if len(missing) != 2 || missing[0] != "access_key" || missing[1] != "secret_key" {
+		t.Fatalf("missing = %#v, want access_key and secret_key", missing)
+	}
+
+	missing = MissingRequiredConfigFields(TypeOSS, map[string]any{
+		"endpoint":          "oss-cn-hangzhou.aliyuncs.com",
+		"bucket":            "assets",
+		"access_key_id":     "ak",
+		"access_key_secret": "secret",
+	})
+	if len(missing) != 0 {
+		t.Fatalf("missing = %#v, want empty", missing)
+	}
+
+	if got := RequiredConfigFields("ftp"); got != nil {
+		t.Fatalf("required fields for unknown type = %#v, want nil", got)
+	}
+}
+
 func TestNewConfigTrimsNameAndType(t *testing.T) {
 	cfg := NewConfig(NewConfigSpec{Name: " S3 ", ConfigType: " s3 ", ConfigJSON: "{}"})
 	if cfg.Name != "S3" || cfg.ConfigType != TypeS3 || cfg.ConfigJSON != "{}" {

@@ -291,13 +291,25 @@ func (s *Service) Retry(ctx context.Context, id uint, userID uint, orgID *uint) 
 	if err != nil {
 		return job, err
 	}
+	return s.retryJob(ctx, job, "manual retry requested")
+}
+
+func (s *Service) RetryAdmin(ctx context.Context, id uint) (domainjob.Job, error) {
+	job, err := s.repo.GetAny(ctx, id)
+	if err != nil {
+		return job, err
+	}
+	return s.retryJob(ctx, job, "admin retry requested")
+}
+
+func (s *Service) retryJob(ctx context.Context, job domainjob.Job, message string) (domainjob.Job, error) {
 	if job.Status == domainjob.StatusSucceeded {
 		return job, ErrSucceededJobCannotRetry
 	}
 	if job.Status == domainjob.StatusRunning {
 		return job, ErrRunningJobCannotRetry
 	}
-	return s.repo.Retry(ctx, &job, "manual retry requested")
+	return s.repo.Retry(ctx, &job, message)
 }
 
 func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
@@ -305,6 +317,18 @@ func (s *Service) ValidateCancellation(ctx context.Context, id uint, userID uint
 	if err != nil {
 		return job, err
 	}
+	return validateCancellation(job)
+}
+
+func (s *Service) ValidateAdminCancellation(ctx context.Context, id uint) (domainjob.Job, error) {
+	job, err := s.repo.GetAny(ctx, id)
+	if err != nil {
+		return job, err
+	}
+	return validateCancellation(job)
+}
+
+func validateCancellation(job domainjob.Job) (domainjob.Job, error) {
 	if !isVideoJob(job.JobType) {
 		return job, ErrOnlyVideoJobsCanCancel
 	}
@@ -328,6 +352,25 @@ func (s *Service) Cancel(ctx context.Context, id uint, userID uint, orgID *uint)
 	if err != nil {
 		return job, err
 	}
+	return s.cancelValidatedJob(ctx, job, func(providerStatus string, message string) (domainjob.Job, error) {
+		return s.MarkCancelled(ctx, id, userID, orgID, providerStatus, message)
+	}, "cancelled by user")
+}
+
+func (s *Service) CancelAdmin(ctx context.Context, id uint) (domainjob.Job, error) {
+	if s.ai == nil {
+		return domainjob.Job{}, errors.New("ai service is required")
+	}
+	job, err := s.ValidateAdminCancellation(ctx, id)
+	if err != nil {
+		return job, err
+	}
+	return s.cancelValidatedJob(ctx, job, func(providerStatus string, message string) (domainjob.Job, error) {
+		return s.MarkCancelledAdmin(ctx, id, providerStatus, message)
+	}, "cancelled by admin")
+}
+
+func (s *Service) cancelValidatedJob(ctx context.Context, job domainjob.Job, markCancelled func(providerStatus string, message string) (domainjob.Job, error), fallbackMessage string) (domainjob.Job, error) {
 	if job.Status == domainjob.StatusCancelled {
 		return job, nil
 	}
@@ -346,18 +389,22 @@ func (s *Service) Cancel(ctx context.Context, id uint, userID uint, orgID *uint)
 		message = FirstNonEmpty(resp.Message, message)
 	}
 
-	job, err = s.MarkCancelled(ctx, id, userID, orgID, providerStatus, message)
+	job, err := markCancelled(providerStatus, message)
 	if err != nil {
 		return job, err
 	}
 	if job.UsageReservationID != nil {
-		_ = s.ai.ReleaseReservation(ctx, *job.UsageReservationID, "cancelled by user")
+		_ = s.ai.ReleaseReservation(ctx, *job.UsageReservationID, fallbackMessage)
 	}
 	return job, nil
 }
 
 func (s *Service) MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (domainjob.Job, error) {
 	return s.repo.MarkCancelled(ctx, id, userID, orgID, providerStatus, message)
+}
+
+func (s *Service) MarkCancelledAdmin(ctx context.Context, id uint, providerStatus string, message string) (domainjob.Job, error) {
+	return s.repo.MarkCancelledAny(ctx, id, providerStatus, message)
 }
 
 func (s *Service) Delete(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, bool, error) {
@@ -373,6 +420,17 @@ func (s *Service) DeleteAndRelease(ctx context.Context, id uint, userID uint, or
 		_ = s.ai.ReleaseReservation(ctx, *job.UsageReservationID, "cancelled by user")
 	}
 	return nil
+}
+
+func (s *Service) DeleteAndReleaseAdmin(ctx context.Context, id uint) (domainjob.Job, error) {
+	job, releaseReservation, err := s.repo.DeleteAny(ctx, id)
+	if err != nil {
+		return job, err
+	}
+	if releaseReservation && job.UsageReservationID != nil && s.ai != nil {
+		_ = s.ai.ReleaseReservation(ctx, *job.UsageReservationID, "cancelled by admin")
+	}
+	return job, nil
 }
 
 func wrapErr(base error, err error) error {

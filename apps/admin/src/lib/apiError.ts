@@ -126,6 +126,11 @@ export function translateApiError(input: unknown, fallbackKey = 'common.requestF
   return raw
 }
 
+export function translateAPIRequestError(error: unknown, fallbackKey = 'common.requestFailed'): string {
+  const responseData = (error as { response?: { data?: unknown } } | undefined)?.response?.data
+  return translateApiError(responseData ?? error, fallbackKey)
+}
+
 function stringErrorValue(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim()
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined

@@ -12,9 +12,29 @@ export function generationProgressTitle(state: Pick<GenerationProgressState, 'jo
 }
 
 export function generationStatusText(status: string, stage?: string) {
-  return stage && stage !== status
-    ? `${status.replace(/_/g, ' ')} · ${stage.replace(/_/g, ' ')}`
-    : status.replace(/_/g, ' ')
+  const statusLabel = generationLifecycleLabel(status)
+  const stageLabel = stage ? generationLifecycleLabel(stage) : undefined
+  return stageLabel && stage !== status
+    ? `${statusLabel} · ${stageLabel}`
+    : statusLabel
+}
+
+function generationLifecycleLabel(value: string): string {
+  switch (value) {
+    case 'queued': return '排队中'
+    case 'claimed': return '已领取'
+    case 'running': return '运行中'
+    case 'rendering': return '渲染中'
+    case 'provider_rendering': return '服务商渲染中'
+    case 'processing': return '处理中'
+    case 'uploading': return '上传中'
+    case 'completed': return '已完成'
+    case 'succeeded': return '成功'
+    case 'failed': return '失败'
+    case 'cancelled': return '已取消'
+    case 'timeout': return '超时'
+    default: return `未知状态 (${value})`
+  }
 }
 
 export function generationJobBadge(job: Pick<GenerationProgressState, 'status' | 'stage' | 'terminal'>): GenerationJobBadge {

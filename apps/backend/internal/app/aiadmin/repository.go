@@ -13,12 +13,12 @@ type repository interface {
 	ListCredentials(ctx context.Context) ([]domainaiadmin.Credential, error)
 	CreateCredential(ctx context.Context, cred *domainaiadmin.Credential) error
 	SaveCredential(ctx context.Context, cred *domainaiadmin.Credential) error
-	DeleteCredential(ctx context.Context, id string) error
+	DeleteCredential(ctx context.Context, id uint) error
 	GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error)
 	ListModelConfigs(ctx context.Context, credentialID string) ([]domainaiadmin.ModelConfig, error)
 	CreateModelConfig(ctx context.Context, cfg *domainaiadmin.ModelConfig) error
 	SaveModelConfig(ctx context.Context, cfg *domainaiadmin.ModelConfig) error
-	DeleteModelConfig(ctx context.Context, id string) error
+	DeleteModelConfig(ctx context.Context, id uint) error
 	GetModelConfig(ctx context.Context, id string) (domainaiadmin.ModelConfig, error)
 }
 
@@ -60,8 +60,15 @@ func (r *gormRepository) SaveCredential(ctx context.Context, cred *domainaiadmin
 	return nil
 }
 
-func (r *gormRepository) DeleteCredential(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&persistencemodel.AICredential{}, id).Error
+func (r *gormRepository) DeleteCredential(ctx context.Context, id uint) error {
+	result := r.db.WithContext(ctx).Delete(&persistencemodel.AICredential{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *gormRepository) GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error) {
@@ -105,8 +112,15 @@ func (r *gormRepository) SaveModelConfig(ctx context.Context, cfg *domainaiadmin
 	return nil
 }
 
-func (r *gormRepository) DeleteModelConfig(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).Delete(&persistencemodel.AIModelConfig{}, id).Error
+func (r *gormRepository) DeleteModelConfig(ctx context.Context, id uint) error {
+	result := r.db.WithContext(ctx).Delete(&persistencemodel.AIModelConfig{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *gormRepository) GetModelConfig(ctx context.Context, id string) (domainaiadmin.ModelConfig, error) {

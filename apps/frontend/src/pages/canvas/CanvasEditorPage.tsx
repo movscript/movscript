@@ -50,6 +50,7 @@ import { Textarea } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Badge } from '@movscript/ui'
 import { cn } from '@/lib/utils'
+import { ROUTES } from '@/routes/projectRoutes'
 import {
   ArrowLeft,
   ChevronLeft,
@@ -2727,7 +2728,7 @@ export function CanvasWorkspace({ canvasId, embedded = false, onClose, pushTarge
               {t(`canvas.editor.canvasType.${canvasType}`)}
             </Badge>
           ) : (
-            <Button variant="ghost" size="icon" onClick={() => navigate('/canvases')} className="h-8 w-8 shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => navigate(ROUTES.canvases)} className="h-8 w-8 shrink-0">
               <ArrowLeft size={16} />
             </Button>
           )}

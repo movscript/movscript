@@ -10,11 +10,12 @@ import (
 )
 
 type ModelGatewayHandler struct {
+	db      *gorm.DB
 	service *modelgatewayapp.Service
 }
 
 func NewModelGatewayHandler(db *gorm.DB, svc *ai.AIService) *ModelGatewayHandler {
-	return &ModelGatewayHandler{service: modelgatewayapp.NewService(db, svc)}
+	return &ModelGatewayHandler{db: db, service: modelgatewayapp.NewService(db, svc)}
 }
 
 type chatCompletionRequest struct {
@@ -137,10 +138,29 @@ type createGatewayAPIKeyRequest struct {
 
 type updateGatewayAPIKeyRequest struct {
 	Name            *string                           `json:"name"`
+	ProjectID       *uint                             `json:"project_id"`
+	ProjectIDSet    bool                              `json:"-"`
 	AllowedModelIDs []uint                            `json:"allowed_model_ids"`
 	AllowedScopes   []string                          `json:"allowed_scopes"`
 	IsEnabled       *bool                             `json:"is_enabled"`
 	Runtime         gatewayAPIKeyUpdateRuntimeRequest `json:"runtime,omitempty"`
+}
+
+func (r *updateGatewayAPIKeyRequest) UnmarshalJSON(data []byte) error {
+	type alias updateGatewayAPIKeyRequest
+	var value alias
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*r = updateGatewayAPIKeyRequest(value)
+	if _, ok := raw["project_id"]; ok {
+		r.ProjectIDSet = true
+	}
+	return nil
 }
 
 type gatewayAPIKeyCreateResponse struct {

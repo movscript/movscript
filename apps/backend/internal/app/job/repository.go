@@ -6,6 +6,7 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
+	domainresourcefolder "github.com/movscript/movscript/internal/domain/resourcefolder"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
@@ -13,6 +14,7 @@ import (
 type repository interface {
 	List(ctx context.Context, filter ListFilter) (ListResult, error)
 	Get(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error)
+	GetAny(ctx context.Context, id uint) (domainjob.Job, error)
 	GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error)
 	LoadInputResources(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error)
 	LoadInputResourcesDetailed(ctx context.Context, ids []uint, userID uint, orgID *uint) (InputResourcesResult, error)
@@ -21,7 +23,9 @@ type repository interface {
 	Create(ctx context.Context, job domainjob.Job) (domainjob.Job, error)
 	Retry(ctx context.Context, job *domainjob.Job, message string) (domainjob.Job, error)
 	MarkCancelled(ctx context.Context, id uint, userID uint, orgID *uint, providerStatus string, message string) (domainjob.Job, error)
+	MarkCancelledAny(ctx context.Context, id uint, providerStatus string, message string) (domainjob.Job, error)
 	Delete(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, bool, error)
+	DeleteAny(ctx context.Context, id uint) (domainjob.Job, bool, error)
 	EnsureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error
 }
 
@@ -67,6 +71,10 @@ func (r *gormRepository) Get(ctx context.Context, id uint, userID uint, orgID *u
 	return r.getOwned(ctx, id, userID, orgID)
 }
 
+func (r *gormRepository) GetAny(ctx context.Context, id uint) (domainjob.Job, error) {
+	return r.getAny(ctx, id)
+}
+
 func (r *gormRepository) GetOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
 	return r.getOwned(ctx, id, userID, orgID)
 }
@@ -91,12 +99,41 @@ func (r *gormRepository) loadInputResources(ctx context.Context, ids []uint, use
 		return InputResourcesResult{}, ErrResourceOutsideOrg
 	}
 	for _, resource := range resources {
-		if !r.inOrgScope(ctx, resource.OrgID, orgID, resource.OwnerID, userID) {
+		if !r.canUseInputResource(ctx, resource, userID, orgID) {
 			return InputResourcesResult{}, ErrResourceOutsideOrg
 		}
 	}
 	result := domainjob.CountInputResources(domainjob.InputResourcesFromRawResources(domainjob.RawResourcesFromModels(resources)))
 	return InputResourcesResult{Resources: result.Resources, ImageCount: result.ImageCount, VideoCount: result.VideoCount}, nil
+}
+
+func (r *gormRepository) canUseInputResource(ctx context.Context, resource persistencemodel.RawResource, userID uint, orgID *uint) bool {
+	if !r.inOrgScope(ctx, resource.OrgID, orgID, resource.OwnerID, userID) {
+		return false
+	}
+	if resource.OwnerID == userID || resource.IsShared {
+		return true
+	}
+	if resource.FolderID == nil {
+		return false
+	}
+
+	var folder persistencemodel.ResourceFolder
+	if err := r.db.WithContext(ctx).First(&folder, *resource.FolderID).Error; err != nil {
+		return false
+	}
+	if !r.inOrgScope(ctx, folder.OrgID, orgID, folder.OwnerID, userID) {
+		return false
+	}
+	if folder.IsShared {
+		return true
+	}
+
+	var permission persistencemodel.ResourceFolderPermission
+	err := r.db.WithContext(ctx).
+		Where("folder_id = ? AND user_id = ? AND permission IN ?", folder.ID, userID, []string{domainresourcefolder.PermissionRead, domainresourcefolder.PermissionWrite}).
+		First(&permission).Error
+	return err == nil
 }
 
 func (r *gormRepository) ResponseLookups(ctx context.Context, resourceIDs []uint, modelConfigIDs []uint) (ResponseLookups, error) {
@@ -192,6 +229,18 @@ func (r *gormRepository) MarkCancelled(ctx context.Context, id uint, userID uint
 	if err != nil {
 		return job, err
 	}
+	return r.markCancelled(ctx, job, providerStatus, message)
+}
+
+func (r *gormRepository) MarkCancelledAny(ctx context.Context, id uint, providerStatus string, message string) (domainjob.Job, error) {
+	job, err := r.getAny(ctx, id)
+	if err != nil {
+		return job, err
+	}
+	return r.markCancelled(ctx, job, providerStatus, message)
+}
+
+func (r *gormRepository) markCancelled(ctx context.Context, job domainjob.Job, providerStatus string, message string) (domainjob.Job, error) {
 	now := time.Now()
 	job.MarkCancelled(now, providerStatus, message)
 	row := job.ToModel()
@@ -215,12 +264,24 @@ func (r *gormRepository) Delete(ctx context.Context, id uint, userID uint, orgID
 	if err != nil {
 		return job, false, err
 	}
+	return r.deleteJob(ctx, job, "cancelled by user")
+}
+
+func (r *gormRepository) DeleteAny(ctx context.Context, id uint) (domainjob.Job, bool, error) {
+	job, err := r.getAny(ctx, id)
+	if err != nil {
+		return job, false, err
+	}
+	return r.deleteJob(ctx, job, "cancelled by admin")
+}
+
+func (r *gormRepository) deleteJob(ctx context.Context, job domainjob.Job, cancelMessage string) (domainjob.Job, bool, error) {
 	row := job.ToModel()
 	releaseReservation := false
 	switch job.DeleteAction() {
 	case domainjob.DeleteActionCancel:
 		now := time.Now()
-		job.MarkCancelledForDelete(now, "cancelled by user")
+		job.MarkCancelledForDelete(now, cancelMessage)
 		row = job.ToModel()
 		if err := r.db.WithContext(ctx).Model(&row).Updates(map[string]any{
 			"status":            job.Status,
@@ -262,18 +323,26 @@ func (r *gormRepository) EnsureProjectInOrg(ctx context.Context, projectID *uint
 }
 
 func (r *gormRepository) getOwned(ctx context.Context, id uint, userID uint, orgID *uint) (domainjob.Job, error) {
+	job, err := r.getAny(ctx, id)
+	if err != nil {
+		return job, err
+	}
+	if job.UserID != userID {
+		return job, ErrForbidden
+	}
+	if !r.inOrgScope(ctx, job.OrgID, orgID, job.UserID, userID) {
+		return job, ErrForbidden
+	}
+	return job, nil
+}
+
+func (r *gormRepository) getAny(ctx context.Context, id uint) (domainjob.Job, error) {
 	var job persistencemodel.Job
 	if err := r.db.WithContext(ctx).Preload("OutputResource").First(&job, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return domainjob.Job{}, ErrNotFound
 		}
 		return domainjob.Job{}, err
-	}
-	if job.UserID != userID {
-		return domainjob.JobFromModel(job), ErrForbidden
-	}
-	if !r.inOrgScope(ctx, job.OrgID, orgID, job.UserID, userID) {
-		return domainjob.JobFromModel(job), ErrForbidden
 	}
 	return domainjob.JobFromModel(job), nil
 }

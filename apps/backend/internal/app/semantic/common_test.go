@@ -6,18 +6,11 @@ import (
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+	"github.com/movscript/movscript/internal/testutil"
 )
 
 func TestRepositoryItemPersistenceSyncsEntityRelationsExplicitly(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.EntityRelation{}, &model.CreativeReference{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "repository_item_persistence.db", &model.EntityRelation{}, &model.CreativeReference{})
 
 	repo := newRepository(db)
 	ctx := context.Background()
@@ -69,13 +62,7 @@ func TestRepositoryItemPersistenceSyncsEntityRelationsExplicitly(t *testing.T) {
 }
 
 func TestServiceDeleteItemByKindKeepsPersistenceModelsInRepository(t *testing.T) {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.EntityRelation{}, &model.CreativeReference{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "delete_item_repository.db", &model.EntityRelation{}, &model.CreativeReference{})
 
 	item := model.CreativeReference{
 		ProjectID:  1,

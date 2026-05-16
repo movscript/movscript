@@ -41,6 +41,7 @@ func New(deps Dependencies) *gin.Engine {
 	v1 := r.Group("/api/v1")
 	{
 		registerPublicAPIRoutes(v1, h)
+		registerRegistryRoutes(v1, h)
 
 		protected := v1.Group("", middleware.RequireAuth(), middleware.ResolveOrgMember(db))
 		{
@@ -49,7 +50,6 @@ func New(deps Dependencies) *gin.Engine {
 			registerResourceRoutes(protected, h)
 			registerJobRoutes(protected, h)
 			registerPluginRoutes(protected, h)
-			registerRegistryRoutes(v1, h)
 			registerWorkflowRoutes(protected, h)
 			registerCanvasRoutes(protected, h)
 			registerProjectRoutes(protected, db, h)

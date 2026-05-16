@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect, useRef, type MouseEvent } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { translateApiError } from '@/lib/apiError'
+import { translateAPIRequestError, translateApiError } from '@/lib/apiError'
 import type { AICredential, DebugCallResult, DebugHTTPExchange, JobDetail, JobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
-import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap, CheckCircle2, XCircle, PlayCircle } from 'lucide-react'
+import { Bug, RefreshCw, ChevronDown, ChevronRight, Send, Copy, Check, Zap, CheckCircle2, XCircle, PlayCircle, Trash2, Activity, AlertTriangle, Clock3, Server, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import { Input } from '@movscript/ui'
@@ -113,11 +113,470 @@ function CopyButton({ text, className }: { text: string; className?: string }) {
   )
 }
 
+function formatCompactNumber(value: number | undefined): string {
+  return typeof value === 'number' ? value.toLocaleString() : '0'
+}
+
+function formatDurationSeconds(value: number | undefined): string {
+  if (!value || value < 0) return '-'
+  if (value < 60) return `${Math.round(value)}s`
+  if (value < 3600) return `${Math.round(value / 60)}m`
+  return `${(value / 3600).toFixed(1)}h`
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
 const STATUS_COLOR: Record<string, string> = {
   pending:   'bg-muted text-muted-foreground',
   running:   'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
   succeeded: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
   failed:    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  cancelled: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+}
+
+type HTTPMetricsSnapshot = {
+  started_at: string
+  generated_at: string
+  requests: number
+  errors: number
+  routes: HTTPRouteSnapshot[]
+  slow_requests: SlowHTTPRequest[]
+  summary?: {
+    route_count?: number
+    slow_threshold_ms?: number
+    uptime_seconds?: number
+  }
+}
+
+type HTTPRouteSnapshot = {
+  method: string
+  route: string
+  requests: number
+  errors: number
+  status_counts: Record<string, number>
+  latency_ms: { min: number; max: number; avg: number }
+}
+
+type SlowHTTPRequest = {
+  method: string
+  route: string
+  path: string
+  status: number
+  latency_ms: number
+  at: string
+}
+
+type JobStats = {
+  total: number
+  by_status: { status: string; count: number }[]
+  recent_failed: JobDetail[]
+}
+
+type SystemHealthSnapshot = {
+  status: 'ok' | 'warning' | 'critical'
+  metrics: {
+    requests: number
+    errors: number
+    error_rate: number
+    failed_jobs: number
+    slow_requests: number
+    uptime_seconds: number
+  }
+  thresholds: {
+    error_rate_warn: number
+    error_rate_critical: number
+    failed_jobs_warn: number
+    failed_jobs_critical: number
+    slow_requests_warn: number
+    slow_requests_critical: number
+  }
+  issues: Array<{ key: string; severity: 'warning' | 'critical'; value: number; threshold: number }>
+}
+
+type SystemHealthThresholds = SystemHealthSnapshot['thresholds']
+
+type HealthThresholdDraft = {
+  errorRateWarn: string
+  errorRateCritical: string
+  failedJobsWarn: string
+  failedJobsCritical: string
+  slowRequestsWarn: string
+  slowRequestsCritical: string
+}
+
+const DEFAULT_HEALTH_THRESHOLD_DRAFT: HealthThresholdDraft = {
+  errorRateWarn: '5',
+  errorRateCritical: '20',
+  failedJobsWarn: '1',
+  failedJobsCritical: '10',
+  slowRequestsWarn: '5',
+  slowRequestsCritical: '20',
+}
+
+function thresholdsToDraft(thresholds?: SystemHealthThresholds): HealthThresholdDraft {
+  if (!thresholds) return DEFAULT_HEALTH_THRESHOLD_DRAFT
+  return {
+    errorRateWarn: String(thresholds.error_rate_warn),
+    errorRateCritical: String(thresholds.error_rate_critical),
+    failedJobsWarn: String(thresholds.failed_jobs_warn),
+    failedJobsCritical: String(thresholds.failed_jobs_critical),
+    slowRequestsWarn: String(thresholds.slow_requests_warn),
+    slowRequestsCritical: String(thresholds.slow_requests_critical),
+  }
+}
+
+function draftToThresholds(draft: HealthThresholdDraft): SystemHealthThresholds {
+  return {
+    error_rate_warn: Number(draft.errorRateWarn || 0),
+    error_rate_critical: Number(draft.errorRateCritical || 0),
+    failed_jobs_warn: Number(draft.failedJobsWarn || 0),
+    failed_jobs_critical: Number(draft.failedJobsCritical || 0),
+    slow_requests_warn: Number(draft.slowRequestsWarn || 0),
+    slow_requests_critical: Number(draft.slowRequestsCritical || 0),
+  }
+}
+
+function SystemOverviewSection() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const [healthThresholds, setHealthThresholds] = useState<HealthThresholdDraft>(DEFAULT_HEALTH_THRESHOLD_DRAFT)
+  const metricsQuery = useQuery<HTTPMetricsSnapshot>({
+    queryKey: ['admin', 'debug', 'metrics'],
+    queryFn: () => api.get('/admin/debug/metrics').then((r) => r.data),
+    refetchInterval: 15000,
+  })
+  const jobStatsQuery = useQuery<JobStats>({
+    queryKey: ['admin', 'debug', 'job-stats'],
+    queryFn: () => api.get('/admin/debug/job-stats').then((r) => r.data),
+    refetchInterval: 15000,
+  })
+  const healthSettingsQuery = useQuery<SystemHealthThresholds>({
+    queryKey: ['admin', 'debug', 'health-settings'],
+    queryFn: () => api.get('/admin/debug/health-settings').then((r) => r.data),
+  })
+  const healthQuery = useQuery<SystemHealthSnapshot>({
+    queryKey: ['admin', 'debug', 'health'],
+    queryFn: () => api.get('/admin/debug/health').then((r) => r.data),
+    refetchInterval: 15000,
+  })
+  const healthSettingsMutation = useMutation({
+    mutationFn: (payload: SystemHealthThresholds) => api.put('/admin/debug/health-settings', payload).then((r) => r.data as SystemHealthThresholds),
+    onSuccess: (thresholds) => {
+      setHealthThresholds(thresholdsToDraft(thresholds))
+      qc.invalidateQueries({ queryKey: ['admin', 'debug', 'health-settings'] })
+      qc.invalidateQueries({ queryKey: ['admin', 'debug', 'health'] })
+    },
+  })
+
+  useEffect(() => {
+    if (healthSettingsQuery.data && !healthSettingsMutation.isPending) {
+      setHealthThresholds(thresholdsToDraft(healthSettingsQuery.data))
+    }
+  }, [healthSettingsQuery.data, healthSettingsMutation.isPending])
+
+  const metrics = metricsQuery.data
+  const jobStats = jobStatsQuery.data
+  const health = healthQuery.data
+  const routeRows = (metrics?.routes ?? []).slice(0, 8)
+  const slowRequests = (metrics?.slow_requests ?? []).slice(0, 6)
+  const statusCounts = new Map((jobStats?.by_status ?? []).map((item) => [item.status, item.count]))
+  const requests = metrics?.requests ?? 0
+  const errors = metrics?.errors ?? 0
+  const errorRate = requests > 0 ? (errors / requests) * 100 : 0
+  const failedJobs = statusCounts.get('failed') ?? 0
+  const isRefreshing = metricsQuery.isFetching || jobStatsQuery.isFetching || healthQuery.isFetching || healthSettingsQuery.isFetching
+
+  function refresh() {
+    metricsQuery.refetch()
+    jobStatsQuery.refetch()
+    healthQuery.refetch()
+    healthSettingsQuery.refetch()
+  }
+
+  function updateHealthThreshold<K extends keyof HealthThresholdDraft>(key: K, value: string) {
+    setHealthThresholds((current) => ({ ...current, [key]: value }))
+  }
+
+  function saveHealthThresholds() {
+    healthSettingsMutation.mutate(draftToThresholds(healthThresholds))
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">{t('admin.debug.system.title')}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{t('admin.debug.system.description')}</p>
+        </div>
+        <button onClick={refresh} disabled={isRefreshing} className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50">
+          <RefreshCw size={13} className={cn(isRefreshing && 'animate-spin')} />
+          {t('admin.debug.system.refresh')}
+        </button>
+      </div>
+
+      <div className={cn(
+        'rounded-lg border bg-card p-4',
+        health?.status === 'critical' ? 'border-destructive/40' : health?.status === 'warning' ? 'border-amber-500/40' : 'border-border',
+      )}>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className={cn(
+                'rounded-full px-2 py-0.5 text-xs font-medium',
+                health?.status === 'critical'
+                  ? 'bg-destructive/10 text-destructive'
+                  : health?.status === 'warning'
+                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    : 'bg-green-500/10 text-green-600 dark:text-green-400',
+              )}>
+                {t(`admin.debug.system.healthStatus.${health?.status ?? 'ok'}`)}
+              </span>
+              <p className="text-sm font-medium text-foreground">{t('admin.debug.system.healthTitle')}</p>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span>{t('admin.debug.system.healthMetric.errorRate', { value: (health?.metrics.error_rate ?? errorRate).toFixed(1) })}</span>
+              <span>{t('admin.debug.system.healthMetric.failedJobs', { value: health?.metrics.failed_jobs ?? failedJobs })}</span>
+              <span>{t('admin.debug.system.healthMetric.slowRequests', { value: health?.metrics.slow_requests ?? slowRequests.length })}</span>
+            </div>
+            {(health?.issues ?? []).length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {health?.issues.map((issue) => (
+                  <span key={`${issue.key}:${issue.severity}`} className="rounded border border-border bg-muted px-2 py-1 text-xs text-foreground">
+                    {t(`admin.debug.system.healthIssues.${issue.key}`)} · {t(`admin.debug.system.healthSeverity.${issue.severity}`)} · {issue.value.toFixed(issue.key === 'error_rate' ? 1 : 0)} / {issue.threshold}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 space-y-2 xl:w-[520px]">
+            <div className="grid min-w-0 gap-2 sm:grid-cols-3">
+              <HealthThresholdInput
+                label={t('admin.debug.system.thresholds.errorRateWarn')}
+                value={healthThresholds.errorRateWarn}
+                onChange={(value) => updateHealthThreshold('errorRateWarn', value)}
+                suffix="%"
+              />
+              <HealthThresholdInput
+                label={t('admin.debug.system.thresholds.failedJobsWarn')}
+                value={healthThresholds.failedJobsWarn}
+                onChange={(value) => updateHealthThreshold('failedJobsWarn', value)}
+              />
+              <HealthThresholdInput
+                label={t('admin.debug.system.thresholds.slowRequestsWarn')}
+                value={healthThresholds.slowRequestsWarn}
+                onChange={(value) => updateHealthThreshold('slowRequestsWarn', value)}
+              />
+            </div>
+            <div className="grid min-w-0 gap-2 sm:grid-cols-3">
+              <HealthThresholdInput
+                label={t('admin.debug.system.thresholds.errorRateCritical')}
+                value={healthThresholds.errorRateCritical}
+                onChange={(value) => updateHealthThreshold('errorRateCritical', value)}
+                suffix="%"
+              />
+              <HealthThresholdInput
+                label={t('admin.debug.system.thresholds.failedJobsCritical')}
+                value={healthThresholds.failedJobsCritical}
+                onChange={(value) => updateHealthThreshold('failedJobsCritical', value)}
+              />
+              <HealthThresholdInput
+                label={t('admin.debug.system.thresholds.slowRequestsCritical')}
+                value={healthThresholds.slowRequestsCritical}
+                onChange={(value) => updateHealthThreshold('slowRequestsCritical', value)}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button type="button" size="sm" onClick={saveHealthThresholds} disabled={healthSettingsMutation.isPending || healthSettingsQuery.isLoading}>
+                {healthSettingsMutation.isPending ? t('admin.debug.system.savingThresholds') : t('admin.debug.system.saveThresholds')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          icon={Activity}
+          label={t('admin.debug.system.requests')}
+          value={formatCompactNumber(requests)}
+          detail={t('admin.debug.system.errorRate', { rate: errorRate.toFixed(1) })}
+        />
+        <MetricCard
+          icon={AlertTriangle}
+          label={t('admin.debug.system.errors')}
+          value={formatCompactNumber(errors)}
+          detail={t('admin.debug.system.slowRequests', { count: slowRequests.length })}
+          tone={errors > 0 ? 'danger' : 'default'}
+        />
+        <MetricCard
+          icon={Clock3}
+          label={t('admin.debug.system.uptime')}
+          value={formatDurationSeconds(metrics?.summary?.uptime_seconds)}
+          detail={t('admin.debug.system.slowThreshold', { ms: Math.round(metrics?.summary?.slow_threshold_ms ?? 0) })}
+        />
+        <MetricCard
+          icon={Server}
+          label={t('admin.debug.system.jobs')}
+          value={formatCompactNumber(jobStats?.total)}
+          detail={t('admin.debug.system.failedJobs', { count: failedJobs })}
+          tone={failedJobs > 0 ? 'warning' : 'default'}
+        />
+      </div>
+
+      {(metricsQuery.error || jobStatsQuery.error || healthQuery.error || healthSettingsQuery.error || healthSettingsMutation.error) && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          {translateAPIRequestError(metricsQuery.error || jobStatsQuery.error || healthQuery.error || healthSettingsQuery.error || healthSettingsMutation.error)}
+        </div>
+      )}
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
+        <div className="rounded-lg border border-border bg-card">
+          <div className="border-b border-border px-4 py-3">
+            <p className="text-sm font-medium text-foreground">{t('admin.debug.system.slowestRoutes')}</p>
+          </div>
+          {routeRows.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">{t('admin.debug.system.emptyMetrics')}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-muted-foreground">
+                  <tr className="border-b border-border">
+                    <th className="px-4 py-2 text-left font-medium">{t('admin.debug.system.route')}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t('admin.debug.system.requests')}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t('admin.debug.system.errors')}</th>
+                    <th className="px-4 py-2 text-right font-medium">{t('admin.debug.system.maxLatency')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {routeRows.map((route) => (
+                    <tr key={`${route.method}:${route.route}`} className="border-b border-border last:border-b-0">
+                      <td className="px-4 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{route.method}</span>
+                          <span className="truncate font-mono text-xs text-foreground">{route.route}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 text-right font-mono text-xs">{formatCompactNumber(route.requests)}</td>
+                      <td className="px-4 py-2 text-right font-mono text-xs">{formatCompactNumber(route.errors)}</td>
+                      <td className="px-4 py-2 text-right font-mono text-xs">{Math.round(route.latency_ms.max)}ms</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-sm font-medium text-foreground">{t('admin.debug.system.jobBreakdown')}</p>
+            </div>
+            <div className="space-y-2 p-4">
+              {['pending', 'running', 'succeeded', 'failed', 'cancelled'].map((status) => {
+                const count = statusCounts.get(status) ?? 0
+                const percent = jobStats?.total ? Math.round((count / jobStats.total) * 100) : 0
+                return (
+                  <div key={status} className="space-y-1">
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <span className={cn('rounded-full px-2 py-0.5 font-medium', STATUS_COLOR[status])}>
+                        {t(`pages.jobs.status.${status}`, { defaultValue: status })}
+                      </span>
+                      <span className="font-mono text-muted-foreground">{formatCompactNumber(count)}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <p className="text-sm font-medium text-foreground">{t('admin.debug.system.slowSamples')}</p>
+            </div>
+            <div className="divide-y divide-border">
+              {slowRequests.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t('admin.debug.system.emptyMetrics')}</p>
+              ) : slowRequests.map((sample) => (
+                <div key={`${sample.at}:${sample.method}:${sample.path}`} className="px-4 py-3 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="min-w-0 truncate font-mono text-foreground">{sample.method} {sample.route || sample.path}</span>
+                    <span className="shrink-0 font-mono text-muted-foreground">{Math.round(sample.latency_ms)}ms</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-3 text-muted-foreground">
+                    <span>{sample.status}</span>
+                    <span>{formatDateTime(sample.at)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card">
+        <div className="border-b border-border px-4 py-3">
+          <p className="text-sm font-medium text-foreground">{t('admin.debug.system.recentFailures')}</p>
+        </div>
+        <div className="divide-y divide-border">
+          {(jobStats?.recent_failed ?? []).length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t('admin.debug.jobs.empty')}</p>
+          ) : jobStats?.recent_failed.map((job) => (
+            <div key={job.ID} className="grid gap-2 px-4 py-3 text-xs md:grid-cols-[80px_110px_1fr_auto] md:items-center">
+              <span className="font-mono text-muted-foreground">#{job.ID}</span>
+              <span className={cn('w-fit rounded-full px-2 py-0.5 font-medium', STATUS_COLOR[job.status] ?? 'bg-muted text-muted-foreground')}>
+                {t(`pages.jobs.status.${job.status}`, { defaultValue: job.status })}
+              </span>
+              <span className="min-w-0 truncate text-foreground">{job.error_msg || job.prompt || t('admin.debug.noPrompt')}</span>
+              <span className="font-mono text-muted-foreground">{formatDateTime(job.UpdatedAt || job.CreatedAt)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function HealthThresholdInput({ label, value, onChange, suffix }: { label: string; value: string; onChange: (value: string) => void; suffix?: string }) {
+  return (
+    <label className="space-y-1">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-1">
+        <Input
+          type="number"
+          min={0}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-8 text-xs"
+        />
+        {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
+      </div>
+    </label>
+  )
+}
+
+function MetricCard({ icon: Icon, label, value, detail, tone = 'default' }: { icon: LucideIcon; label: string; value: string; detail: string; tone?: 'default' | 'warning' | 'danger' }) {
+  return (
+    <div className={cn(
+      'rounded-lg border bg-card p-4',
+      tone === 'danger' ? 'border-destructive/30' : tone === 'warning' ? 'border-amber-500/30' : 'border-border',
+    )}>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <Icon size={15} className={cn(tone === 'danger' ? 'text-destructive' : tone === 'warning' ? 'text-amber-500' : 'text-muted-foreground')} />
+      </div>
+      <p className="mt-2 text-2xl font-semibold tracking-normal text-foreground">{value}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{detail}</p>
+    </div>
+  )
 }
 
 const STATE_LABEL_KEYS: Record<string, string> = {
@@ -440,13 +899,20 @@ function RawCallSection() {
 // ── Section 2: Job Monitor ────────────────────────────────────────────────────
 
 const JOB_MONITOR_PAGE_SIZE = 25
+type JobAction = 'cancel' | 'retry' | 'delete'
+
+function isVideoJobType(jobType: string): boolean {
+  return jobType === 'video' || jobType === 'video_i2v' || jobType === 'video_v2v'
+}
 
 function JobMonitorSection() {
   const { t } = useTranslation()
+  const qc = useQueryClient()
   const [statusFilter, setStatusFilter] = useState('')
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [page, setPage] = useState(1)
+  const [jobActionError, setJobActionError] = useState('')
 
   const { data, refetch, isFetching } = useQuery<{ jobs: JobDetail[]; total: number }>({
     queryKey: ['admin', 'debug', 'jobs', statusFilter, page],
@@ -465,6 +931,37 @@ function JobMonitorSection() {
   const jobs = data?.jobs ?? []
   const total = data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / JOB_MONITOR_PAGE_SIZE))
+
+  const jobAction = useMutation({
+    mutationFn: async ({ job, action }: { job: JobDetail; action: JobAction }) => {
+      if (action === 'delete') {
+        await api.delete(`/admin/debug/jobs/${job.ID}`)
+        return null
+      }
+      return api.post(`/admin/debug/jobs/${job.ID}/${action}`, {}).then((r) => r.data)
+    },
+    onMutate: () => setJobActionError(''),
+    onSuccess: (_result, variables) => {
+      setJobActionError('')
+      if (variables.action === 'delete') {
+        setExpandedId((current) => current === variables.job.ID ? null : current)
+      }
+      qc.invalidateQueries({ queryKey: ['admin', 'debug', 'jobs'] })
+    },
+    onError: (err: unknown) => setJobActionError(translateAPIRequestError(err)),
+  })
+
+  const pendingActionKey = jobAction.isPending && jobAction.variables
+    ? `${jobAction.variables.action}:${jobAction.variables.job.ID}`
+    : ''
+
+  function runJobAction(event: MouseEvent<HTMLButtonElement>, job: JobDetail, action: JobAction) {
+    event.stopPropagation()
+    if (action === 'delete' && !window.confirm(t('admin.debug.jobs.confirmDelete', { id: job.ID }))) {
+      return
+    }
+    jobAction.mutate({ job, action })
+  }
 
   useEffect(() => {
     setPage(1)
@@ -493,7 +990,7 @@ function JobMonitorSection() {
       </div>
 
       <div className="flex gap-1.5">
-        {['', 'pending', 'running', 'succeeded', 'failed'].map((s) => (
+        {['', 'pending', 'running', 'succeeded', 'failed', 'cancelled'].map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
@@ -522,11 +1019,21 @@ function JobMonitorSection() {
         <p className="text-sm text-muted-foreground text-center py-8">{t('admin.debug.jobs.empty')}</p>
       )}
 
+      {jobActionError && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>{jobActionError}</span>
+        </div>
+      )}
+
       <div className="space-y-2">
         {jobs.map((job) => {
           const isExpanded = expandedId === job.ID
           const hasDebug = !!job.debug_detail || !!job.debug_info
           const stateTrace = parseStateTrace(job.state_trace)
+          const canRetry = job.status === 'failed' || job.status === 'cancelled'
+          const canCancel = (job.status === 'pending' || job.status === 'running') && isVideoJobType(job.job_type)
+          const canDelete = job.status !== 'running'
           return (
             <div key={job.ID} className="border border-border rounded-lg bg-background overflow-hidden">
               <div
@@ -553,6 +1060,44 @@ function JobMonitorSection() {
                 <div className="text-right shrink-0">
                   <p className="text-xs text-muted-foreground">{new Date(job.CreatedAt).toLocaleString()}</p>
                   {job.provider_task_id && <p className="text-xs font-mono text-muted-foreground/60 truncate max-w-32">{job.provider_task_id}</p>}
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  {canRetry && (
+                    <button
+                      type="button"
+                      onClick={(event) => runJobAction(event, job, 'retry')}
+                      disabled={jobAction.isPending}
+                      className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      title={t('admin.debug.jobs.retry')}
+                      aria-label={t('admin.debug.jobs.retry')}
+                    >
+                      <RefreshCw size={13} className={cn(pendingActionKey === `retry:${job.ID}` && 'animate-spin')} />
+                    </button>
+                  )}
+                  {canCancel && (
+                    <button
+                      type="button"
+                      onClick={(event) => runJobAction(event, job, 'cancel')}
+                      disabled={jobAction.isPending}
+                      className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
+                      title={t('admin.debug.jobs.cancel')}
+                      aria-label={t('admin.debug.jobs.cancel')}
+                    >
+                      <XCircle size={13} />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={(event) => runJobAction(event, job, 'delete')}
+                      disabled={jobAction.isPending}
+                      className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive disabled:opacity-50"
+                      title={t('admin.debug.jobs.delete')}
+                      aria-label={t('admin.debug.jobs.delete')}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </div>
                 {isExpanded ? <ChevronDown size={14} className="text-muted-foreground shrink-0" /> : <ChevronRight size={14} className="text-muted-foreground shrink-0" />}
               </div>
@@ -1225,13 +1770,18 @@ export function DebugPage() {
         <h2 className="text-base font-semibold text-foreground">{t('admin.tabs.debug')}</h2>
       </div>
 
-      <Tabs defaultValue="provider-sandbox">
+      <Tabs defaultValue="system">
         <TabsList>
+          <TabsTrigger value="system">{t('admin.debug.tabs.system')}</TabsTrigger>
           <TabsTrigger value="provider-sandbox">{t('admin.debug.tabs.providerSandbox')}</TabsTrigger>
           <TabsTrigger value="raw-call">{t('admin.debug.tabs.rawCall')}</TabsTrigger>
           <TabsTrigger value="jobs">{t('admin.debug.tabs.jobs')}</TabsTrigger>
           <TabsTrigger value="connectivity">{t('admin.debug.tabs.connectivity')}</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="system" className="mt-4">
+          <SystemOverviewSection />
+        </TabsContent>
 
         <TabsContent value="provider-sandbox" className="mt-4">
           <ProviderSandboxSection />

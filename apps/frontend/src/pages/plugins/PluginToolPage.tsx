@@ -14,6 +14,7 @@ import { ModelSelector } from '@/components/shared/ModelSelector'
 import type { RawResource } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
+import { ROUTES } from '@/routes/projectRoutes'
 
 // ── Webview iframe (bundleUrl plugins) ────────────────────────────────────────
 
@@ -361,7 +362,7 @@ export default function PluginToolPage() {
       <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
         <AlertCircle size={24} className="text-muted-foreground" />
         <p className="text-sm font-medium text-foreground">{t('plugins.notFound')}</p>
-        <Button size="sm" variant="outline" onClick={() => navigate('/plugins')}>
+        <Button size="sm" variant="outline" onClick={() => navigate(ROUTES.plugins)}>
           <ArrowLeft size={13} className="mr-1.5" />
           {t('common.back')}
         </Button>
@@ -375,7 +376,7 @@ export default function PluginToolPage() {
   return (
     <div className="h-full flex flex-col bg-background">
       <div className="h-11 border-b border-border px-4 flex items-center gap-3 shrink-0">
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => navigate('/plugins')}>
+        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => navigate(ROUTES.plugins)}>
           <ArrowLeft size={14} />
         </Button>
         <span className="text-muted-foreground text-sm">{t('sidebar.sections.tools')}</span>

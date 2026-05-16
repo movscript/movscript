@@ -61,7 +61,6 @@ type (
 	AssetSlot              = persistencemodel.AssetSlot
 	StoryboardScript       = persistencemodel.StoryboardScript
 	StoryboardVersion      = persistencemodel.StoryboardVersion
-	StoryboardLine         = persistencemodel.StoryboardLine
 	Keyframe               = persistencemodel.Keyframe
 	PreviewTimeline        = persistencemodel.PreviewTimeline
 	PreviewTimelineItem    = persistencemodel.PreviewTimelineItem

@@ -10,6 +10,7 @@ type handlers struct {
 	scripts          *handler.ScriptHandler
 	artifactRefs     *handler.ArtifactRefHandler
 	users            *handler.UserHandler
+	userAdmin        *handler.UserAdminHandler
 	auth             *handler.AuthHandler
 	ai               *handler.AIHandler
 	resources        *handler.ResourceHandler
@@ -30,9 +31,12 @@ type handlers struct {
 	workflowSchemas  *handler.WorkflowSchemaHandler
 	workflowMarket   *handler.WorkflowMarketHandler
 	audit            *handler.AuditHandler
+	usageAdmin       *handler.UsageAdminHandler
 	cloudFileConfig  *handler.CloudFileConfigHandler
 	entitlement      *handler.EntitlementHandler
 	org              *handler.OrgHandler
+	orgAdmin         *handler.OrgAdminHandler
+	adminOverview    *handler.AdminOverviewHandler
 	ws               *wsiface.Handler
 }
 
@@ -51,9 +55,10 @@ func newHandlers(deps Dependencies) handlers {
 		scripts:          handler.NewScriptHandler(db, cacheStore),
 		artifactRefs:     handler.NewArtifactRefHandler(db),
 		users:            handler.NewUserHandler(db),
+		userAdmin:        handler.NewUserAdminHandler(db),
 		auth:             handler.NewAuthHandlerWithConfig(db, tokens, cfg),
 		ai:               handler.NewAIHandler(db, cfg.EncryptionKey, registry),
-		resources:        handler.NewResourceHandler(db, store, imageVerifier, cacheStore),
+		resources:        handler.NewResourceHandler(db, store, imageVerifier, cfg.MaxUploadBytes, cacheStore),
 		resourceBindings: handler.NewResourceBindingHandler(db),
 		semanticEntities: handler.NewSemanticEntityHandler(db, cacheStore),
 		preview:          handler.NewPreviewHandler(db),
@@ -71,9 +76,12 @@ func newHandlers(deps Dependencies) handlers {
 		workflowSchemas:  handler.NewWorkflowSchemaHandler(db),
 		workflowMarket:   handler.NewWorkflowMarketHandler(db),
 		audit:            handler.NewAuditHandler(db),
+		usageAdmin:       handler.NewUsageAdminHandler(db),
 		cloudFileConfig:  handler.NewCloudFileConfigHandler(db, cfg.EncryptionKey),
 		entitlement:      handler.NewEntitlementHandler(deps.Entitlements),
 		org:              handler.NewOrgHandler(db),
+		orgAdmin:         handler.NewOrgAdminHandler(db),
+		adminOverview:    handler.NewAdminOverviewHandler(db),
 		ws:               wsiface.NewHandler(),
 	}
 }

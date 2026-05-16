@@ -21,7 +21,7 @@
 - production segments、scene moments、production-local gaps -> production_proposal。
 - 内容单元结构、情绪、钩子、节拍 -> content_unit_proposal。
 - 关键帧、镜头、图片或视频输出 -> visual_generation。
-- 内容单元里的镜头职责、表达节拍或生成约束需要先结构化 -> content_unit_proposal。
+- 内容单元里的制作项职责、表达节拍或生成约束需要先结构化 -> content_unit_proposal。
 - 真实生成图片/视频 -> visual_generation。
 
 上游优先级：

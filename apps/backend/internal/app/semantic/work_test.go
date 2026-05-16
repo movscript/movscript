@@ -2,13 +2,12 @@ package semantic
 
 import (
 	"context"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -188,13 +187,9 @@ func TestCompleteWorkItemAppliesAssetCandidateRelationsWithoutHooks(t *testing.T
 
 func newSemanticWorkTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "semantic_work.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "semantic_work.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(
+	},
 		&model.EntityRelation{},
 		&model.User{},
 		&model.WorkItem{},
@@ -202,10 +197,7 @@ func newSemanticWorkTestDB(t *testing.T) *gorm.DB {
 		&model.AssetSlotCandidate{},
 		&model.CandidateDecision{},
 		&model.ReviewEvent{},
-	); err != nil {
-		t.Fatalf("migrate semantic work db: %v", err)
-	}
-	return db
+	)
 }
 
 func assertSemanticRelationExists(t *testing.T, db *gorm.DB, sourceType string, sourceID uint, targetType string, targetID uint, relationType string) {

@@ -94,12 +94,6 @@ func SyncCoreEntityRelations(db *gorm.DB, item any) error {
 			return err
 		}
 		return syncStoryboardVersionRelations(db, &current)
-	case *StoryboardLine:
-		var current StoryboardLine
-		if err := db.First(&current, v.ID).Error; err != nil {
-			return err
-		}
-		return syncStoryboardLineRelations(db, &current)
 	case *Keyframe:
 		var current Keyframe
 		if err := db.First(&current, v.ID).Error; err != nil {
@@ -228,8 +222,6 @@ func DeleteCoreEntityRelations(db *gorm.DB, item any) error {
 		return deleteEntityRelations(db, "storyboard_script", v.ID)
 	case *StoryboardVersion:
 		return deleteEntityRelations(db, "storyboard_version", v.ID)
-	case *StoryboardLine:
-		return deleteEntityRelations(db, "storyboard_line", v.ID)
 	case *Keyframe:
 		return deleteEntityRelations(db, "keyframe", v.ID)
 	case *PreviewTimeline:

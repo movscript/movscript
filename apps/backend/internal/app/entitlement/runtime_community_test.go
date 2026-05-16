@@ -9,7 +9,7 @@ import (
 	domainentitlement "github.com/movscript/movscript/internal/domain/entitlement"
 	"github.com/movscript/movscript/internal/infra/config"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -90,14 +90,7 @@ func TestCommunityCanUseRejectsUnknownCapability(t *testing.T) {
 
 func openEntitlementTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.Organization{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testutil.OpenSQLite(t, "entitlement.db", &model.Organization{})
 }
 
 func createEntitlementTestOrg(t *testing.T, db *gorm.DB, org model.Organization) uint {

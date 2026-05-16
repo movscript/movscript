@@ -770,24 +770,12 @@ func normalizeParamDefKey(p ParamDef) ParamDef {
 }
 
 func normalizeParamKey(key string) string {
-	switch key {
-	case "ratio":
-		return "aspect_ratio"
-	case "duration_seconds":
-		return "duration"
-	case "size":
-		return "image_size"
-	case "guidance_scale":
-		return "prompt_strength"
-	case "max_images":
-		return "image_count"
-	case "camera_fixed":
-		return "fixed_camera"
-	case "generate_audio":
-		return "audio"
-	default:
-		return key
+	for _, alias := range generationParamAliases {
+		if key == alias.Legacy {
+			return alias.Canonical
+		}
 	}
+	return key
 }
 
 func stringSet(values []string) map[string]bool {

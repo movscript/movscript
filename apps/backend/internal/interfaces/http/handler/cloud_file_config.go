@@ -7,15 +7,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 	cloudfileconfig "github.com/movscript/movscript/internal/app/cloudfileconfig"
+	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
 	"gorm.io/gorm"
 )
 
 type CloudFileConfigHandler struct {
+	db      *gorm.DB
 	service *cloudfileconfig.Service
 }
 
 func NewCloudFileConfigHandler(db *gorm.DB, encryptionKeyHex string) *CloudFileConfigHandler {
-	return &CloudFileConfigHandler{service: cloudfileconfig.NewService(db, encryptionKeyHex)}
+	return &CloudFileConfigHandler{db: db, service: cloudfileconfig.NewService(db, encryptionKeyHex)}
 }
 
 func (h *CloudFileConfigHandler) List(c *gin.Context) {
@@ -50,6 +53,17 @@ func (h *CloudFileConfigHandler) Create(c *gin.Context) {
 		respondCloudFileConfigError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "cloud_file_config.admin_created",
+		TargetType: "cloud_file_config",
+		TargetID:   audit.TargetID(cfg.ID),
+		Metadata: map[string]any{
+			"name":        cfg.Name,
+			"config_type": cfg.ConfigType,
+			"priority":    cfg.Priority,
+			"is_enabled":  cfg.IsEnabled,
+		},
+	})
 	c.JSON(http.StatusCreated, cfg)
 }
 
@@ -76,26 +90,66 @@ func (h *CloudFileConfigHandler) Update(c *gin.Context) {
 		respondCloudFileConfigError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "cloud_file_config.admin_updated",
+		TargetType: "cloud_file_config",
+		TargetID:   audit.TargetID(cfg.ID),
+		Metadata: map[string]any{
+			"name":        cfg.Name,
+			"config_type": cfg.ConfigType,
+			"priority":    cfg.Priority,
+			"is_enabled":  cfg.IsEnabled,
+		},
+	})
 	c.JSON(http.StatusOK, cfg)
 }
 
 func (h *CloudFileConfigHandler) Delete(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	if err := h.service.Delete(c.Request.Context(), uint(id)); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		respondCloudFileConfigError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "cloud_file_config.admin_deleted",
+		TargetType: "cloud_file_config",
+		TargetID:   audit.TargetID(uint(id)),
+	})
 	c.Status(http.StatusNoContent)
 }
 
+func (h *CloudFileConfigHandler) Test(c *gin.Context) {
+	id, _ := strconv.Atoi(c.Param("id"))
+	result, err := h.service.Test(c.Request.Context(), uint(id))
+	if err != nil {
+		respondCloudFileConfigError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "cloud_file_config.admin_tested",
+		TargetType: "cloud_file_config",
+		TargetID:   audit.TargetID(uint(id)),
+		Metadata: map[string]any{
+			"success":    result.Success,
+			"latency_ms": result.LatencyMS,
+			"config_id":  result.ConfigID,
+		},
+	})
+	c.JSON(http.StatusOK, result)
+}
+
 func respondCloudFileConfigError(c *gin.Context, err error) {
+	if errors.Is(err, cloudfileconfig.ErrInvalidName) {
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("名称不能为空"))
+		return
+	}
 	if errors.Is(err, cloudfileconfig.ErrInvalidConfig) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid config_type: must be s3, oss, or tos"})
+		c.JSON(http.StatusBadRequest, apierr.InvalidInput("config_type 必须是 s3、oss 或 tos"))
 		return
 	}
 	if errors.Is(err, cloudfileconfig.ErrNotFound) {
-		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+		c.JSON(http.StatusNotFound, apierr.NotFound("云端文件配置不存在"))
 		return
 	}
-	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	c.JSON(http.StatusInternalServerError, apierr.Internal("保存云端文件配置失败"))
 }

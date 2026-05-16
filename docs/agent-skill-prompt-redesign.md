@@ -206,7 +206,6 @@ workflow instruction 只写单个任务的操作顺序。
 回到：
 
 - `movscript/workflow/proposal/content-unit/content-unit-proposal/instruction.md`
-- `movscript/workflow/proposal/content-unit/content-unit-media-proposal/instruction.md`
 - `movscript/workflow/proposal/content-unit/storyboard-gap-review/instruction.md`
 
 适用缺口：

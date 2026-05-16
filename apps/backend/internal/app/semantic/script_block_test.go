@@ -3,12 +3,11 @@ package semantic
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -210,7 +209,6 @@ func TestListScriptBlockUsagesReturnsDirectDownstreamBindings(t *testing.T) {
 	otherSegment := model.Segment{ProjectID: 1, ScriptBlockID: &otherBlock.ID, Title: "Other", Status: "draft"}
 	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Moment", Status: "draft"}
 	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &block.ID, Title: "Unit", Status: "draft"}
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: "Storyboard", Status: "draft"}
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
@@ -222,13 +220,6 @@ func TestListScriptBlockUsagesReturnsDirectDownstreamBindings(t *testing.T) {
 	}
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
-	}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	storyboardLine := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &block.ID, Title: "Storyboard line", Status: "draft"}
-	if err := db.Create(&storyboardLine).Error; err != nil {
-		t.Fatalf("create storyboard line: %v", err)
 	}
 
 	usages, err := service.ListScriptBlockUsages(context.Background(), 1, strconv.FormatUint(uint64(block.ID), 10))
@@ -243,9 +234,6 @@ func TestListScriptBlockUsagesReturnsDirectDownstreamBindings(t *testing.T) {
 	}
 	if len(usages.ContentUnits) != 1 || usages.ContentUnits[0].ID != unit.ID {
 		t.Fatalf("content units = %+v, want unit %d", usages.ContentUnits, unit.ID)
-	}
-	if len(usages.StoryboardLines) != 1 || usages.StoryboardLines[0].ID != storyboardLine.ID {
-		t.Fatalf("storyboard lines = %+v, want line %d", usages.StoryboardLines, storyboardLine.ID)
 	}
 }
 
@@ -276,7 +264,6 @@ func TestListScriptBlockUsageMapGroupsByVersionBlocks(t *testing.T) {
 	segment := model.Segment{ProjectID: 1, ScriptBlockID: &firstBlock.ID, Title: "Beat", Status: "draft"}
 	moment := model.SceneMoment{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Moment", Status: "draft"}
 	unit := model.ContentUnit{ProjectID: 1, ScriptBlockID: &secondBlock.ID, Title: "Unit", Status: "draft"}
-	storyboardScript := model.StoryboardScript{ProjectID: 1, ScriptVersionID: &version.ID, Name: "Storyboard", Status: "draft"}
 	if err := db.Create(&segment).Error; err != nil {
 		t.Fatalf("create segment: %v", err)
 	}
@@ -286,40 +273,26 @@ func TestListScriptBlockUsageMapGroupsByVersionBlocks(t *testing.T) {
 	if err := db.Create(&unit).Error; err != nil {
 		t.Fatalf("create content unit: %v", err)
 	}
-	if err := db.Create(&storyboardScript).Error; err != nil {
-		t.Fatalf("create storyboard script: %v", err)
-	}
-	storyboardLine := model.StoryboardLine{ProjectID: 1, StoryboardScriptID: storyboardScript.ID, ScriptBlockID: &firstBlock.ID, Title: "Storyboard line", Status: "draft"}
-	if err := db.Create(&storyboardLine).Error; err != nil {
-		t.Fatalf("create storyboard line: %v", err)
-	}
 
 	usages, err := service.ListScriptBlockUsageMap(context.Background(), 1, version.ID)
 	if err != nil {
 		t.Fatalf("list usage map: %v", err)
 	}
 	first := usages[firstBlock.ID]
-	if len(first.Segments) != 1 || first.Segments[0].ID != segment.ID || len(first.SceneMoments) != 0 || len(first.ContentUnits) != 0 || len(first.StoryboardLines) != 1 || first.StoryboardLines[0].ID != storyboardLine.ID {
+	if len(first.Segments) != 1 || first.Segments[0].ID != segment.ID || len(first.SceneMoments) != 0 || len(first.ContentUnits) != 0 {
 		t.Fatalf("first block usages = %+v", first)
 	}
 	second := usages[secondBlock.ID]
-	if len(second.Segments) != 0 || len(second.SceneMoments) != 1 || second.SceneMoments[0].ID != moment.ID || len(second.ContentUnits) != 1 || second.ContentUnits[0].ID != unit.ID || len(second.StoryboardLines) != 0 {
+	if len(second.Segments) != 0 || len(second.SceneMoments) != 1 || second.SceneMoments[0].ID != moment.ID || len(second.ContentUnits) != 1 || second.ContentUnits[0].ID != unit.ID {
 		t.Fatalf("second block usages = %+v", second)
 	}
 }
 
 func newScriptBlockTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "script-block.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "script-block.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.EntityRelation{}, &model.Script{}, &model.ScriptVersion{}, &model.ScriptBlock{}, &model.Segment{}, &model.SceneMoment{}, &model.ContentUnit{}, &model.StoryboardScript{}, &model.StoryboardVersion{}, &model.StoryboardLine{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	}, &model.EntityRelation{}, &model.Script{}, &model.ScriptVersion{}, &model.ScriptBlock{}, &model.Segment{}, &model.SceneMoment{}, &model.ContentUnit{}, &model.StoryboardScript{}, &model.StoryboardVersion{})
 }
 
 func seedScriptBlockTestScript(t *testing.T, db *gorm.DB, projectID uint) (model.Script, model.ScriptVersion) {

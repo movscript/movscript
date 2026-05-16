@@ -690,7 +690,6 @@ Output:
 把 knowledge tools 加到以下 workflow 的 `toolRefs`：
 
 - `movscript.workflow.content-unit-proposal`
-- `movscript.workflow.content-unit-media-proposal`
 - `movscript.workflow.storyboard-gap-review`
 - 可选后续扩展：`movscript.workflow.storyboard-proposal`
 
@@ -731,7 +730,6 @@ export interface CapabilityPack {
   ],
   "skills": [
     "movscript.workflow.content-unit-proposal",
-    "movscript.workflow.content-unit-media-proposal",
     "movscript.workflow.storyboard-gap-review",
     "movscript.expertise.storyboard.general-director"
   ],
@@ -1095,9 +1093,6 @@ apps/agent/catalog/packs/movscript.pack.json
 
 ```text
 apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/content-unit-proposal/
-  skill.workflow.json
-  instruction.md
-apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/content-unit-media-proposal/
   skill.workflow.json
   instruction.md
 apps/agent/catalog/skills/movscript/workflow/proposal/content-unit/storyboard-gap-review/

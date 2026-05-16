@@ -6,7 +6,7 @@ import (
 
 	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -41,12 +41,5 @@ func TestPolicyServiceCanCallChatRejectsWrongProject(t *testing.T) {
 
 func openModelGatewayPolicyTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.GatewayAPIKey{}, &model.UsageLog{}, &model.Project{}, &model.Organization{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testutil.OpenSQLite(t, "modelgateway_policy.db", &model.GatewayAPIKey{}, &model.UsageLog{}, &model.Project{}, &model.Organization{})
 }

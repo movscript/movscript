@@ -3,7 +3,6 @@ package ai
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -71,7 +70,7 @@ func TestModelPresetsExposeModelSpecificSupportedParams(t *testing.T) {
 
 func TestModelPresetSupportedParamsAreValidCanonicalContracts(t *testing.T) {
 	aliasKeys := map[string]bool{}
-	for alias := range loadModelParamAliasManifest(t) {
+	for alias := range generationParamAliasMap() {
 		aliasKeys[alias] = true
 	}
 	for _, preset := range ModelPresets() {
@@ -873,8 +872,8 @@ func TestValidateAndNormalizeGenerationParamsReturnsCanonicalKeys(t *testing.T) 
 	}
 }
 
-func TestValidateAndNormalizeGenerationParamsAliasesMatchManifest(t *testing.T) {
-	aliases := loadModelParamAliasManifest(t)
+func TestValidateAndNormalizeGenerationParamsCanonicalizesAliases(t *testing.T) {
+	aliases := generationParamAliasMap()
 	for from, to := range aliases {
 		paramType, value := aliasTestParamValue(to)
 		params := CanonicalizeGenerationParams(map[string]any{from: value})
@@ -924,29 +923,13 @@ func aliasTestParamValue(key string) (string, any) {
 }
 
 func TestNormalizeParamDefsForUICanonicalizesAliases(t *testing.T) {
-	aliases := loadModelParamAliasManifest(t)
+	aliases := generationParamAliasMap()
 	for from, to := range aliases {
 		params := NormalizeParamDefsForUI([]ParamDef{{Key: from, Type: "select", Options: []string{"value"}}})
 		if len(params) != 1 || params[0].Key != to {
 			t.Fatalf("expected alias %q to normalize to %q, got %#v", from, to, params)
 		}
 	}
-}
-
-func loadModelParamAliasManifest(t *testing.T) map[string]string {
-	t.Helper()
-	data, err := os.ReadFile("../../../../../docs/model-param-aliases.json")
-	if err != nil {
-		t.Fatalf("read model param alias manifest: %v", err)
-	}
-	var aliases map[string]string
-	if err := json.Unmarshal(data, &aliases); err != nil {
-		t.Fatalf("parse model param alias manifest: %v", err)
-	}
-	if len(aliases) == 0 {
-		t.Fatal("expected model param alias manifest to be non-empty")
-	}
-	return aliases
 }
 
 func TestValidateAndNormalizeGenerationParamsIgnoresJobMetadata(t *testing.T) {

@@ -4,14 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"path/filepath"
 	"testing"
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
+	domainresourcefolder "github.com/movscript/movscript/internal/domain/resourcefolder"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -191,14 +191,62 @@ func TestServiceEnqueueGenerationPreservesConflictSuggestedFix(t *testing.T) {
 	}
 }
 
+func TestGormRepositoryLoadInputResourcesRequiresVisibilityGrant(t *testing.T) {
+	db := openJobRepositoryTestDB(t)
+	repo := &gormRepository{db: db}
+	resource := model.RawResource{
+		OwnerID: 2,
+		Type:    "image",
+		Name:    "private.png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+
+	_, err := repo.LoadInputResources(context.Background(), []uint{resource.ID}, 1, nil)
+	if !errors.Is(err, ErrResourceOutsideOrg) {
+		t.Fatalf("LoadInputResources(private) error = %v, want ErrResourceOutsideOrg", err)
+	}
+
+	if err := db.Model(&resource).Update("is_shared", true).Error; err != nil {
+		t.Fatalf("share resource: %v", err)
+	}
+	if _, err := repo.LoadInputResources(context.Background(), []uint{resource.ID}, 1, nil); err != nil {
+		t.Fatalf("LoadInputResources(shared resource) error = %v", err)
+	}
+}
+
+func TestGormRepositoryLoadInputResourcesAllowsFolderPermission(t *testing.T) {
+	db := openJobRepositoryTestDB(t)
+	repo := &gormRepository{db: db}
+	folder := model.ResourceFolder{OwnerID: 2, Name: "Shared Work"}
+	if err := db.Create(&folder).Error; err != nil {
+		t.Fatalf("create folder: %v", err)
+	}
+	resource := model.RawResource{
+		OwnerID:  2,
+		FolderID: &folder.ID,
+		Type:     "image",
+		Name:     "folder-private.png",
+	}
+	if err := db.Create(&resource).Error; err != nil {
+		t.Fatalf("create resource: %v", err)
+	}
+	permission := model.ResourceFolderPermission{
+		FolderID:   folder.ID,
+		UserID:     1,
+		Permission: domainresourcefolder.PermissionRead,
+	}
+	if err := db.Create(&permission).Error; err != nil {
+		t.Fatalf("create folder permission: %v", err)
+	}
+
+	if _, err := repo.LoadInputResources(context.Background(), []uint{resource.ID}, 1, nil); err != nil {
+		t.Fatalf("LoadInputResources(folder permission) error = %v", err)
+	}
+}
+
 func openJobRepositoryTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "job_repository.db")), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.Job{}, &model.RawResource{}, &model.AICredential{}, &model.AIModelConfig{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	return testutil.OpenSQLite(t, "job_repository.db", &model.Job{}, &model.RawResource{}, &model.ResourceFolder{}, &model.ResourceFolderPermission{}, &model.AICredential{}, &model.AIModelConfig{})
 }

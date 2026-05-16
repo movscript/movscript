@@ -301,7 +301,7 @@ test('draft model MCP tool exposes frontend-owned field and seed contract', asyn
     'production_local_requirements',
   ])
   assert.equal(result.applyBoundary.backendApply, 'production_proposal')
-  assert.equal(result.reviewRoute, '/production-orchestrate?productionId=301&draftId=:draftId')
+  assert.equal(result.reviewRoute, '/project/production/orchestration?productionId=301&draftId=:draftId')
   assert.equal(result.modelRef, 'frontend:DraftDomainModel:production_proposal:v1')
 })
 

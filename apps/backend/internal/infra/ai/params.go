@@ -1,5 +1,31 @@
 package ai
 
+type generationParamAlias struct {
+	Canonical       string
+	Legacy          string
+	DefaultLabel    string
+	ReplaceLabels   []string
+	NormalizeLegacy bool
+}
+
+var generationParamAliases = []generationParamAlias{
+	{Canonical: "aspect_ratio", Legacy: "ratio", DefaultLabel: "画面比例", ReplaceLabels: []string{"ratio"}, NormalizeLegacy: true},
+	{Canonical: "duration", Legacy: "duration_seconds", DefaultLabel: "时长(秒)", ReplaceLabels: []string{"duration_seconds"}, NormalizeLegacy: true},
+	{Canonical: "image_size", Legacy: "size", DefaultLabel: "画面尺寸", ReplaceLabels: []string{"尺寸"}, NormalizeLegacy: false},
+	{Canonical: "prompt_strength", Legacy: "guidance_scale", DefaultLabel: "提示词强度", ReplaceLabels: []string{"文本权重"}, NormalizeLegacy: false},
+	{Canonical: "image_count", Legacy: "max_images", DefaultLabel: "生成张数", ReplaceLabels: []string{"最多张数"}, NormalizeLegacy: false},
+	{Canonical: "fixed_camera", Legacy: "camera_fixed", DefaultLabel: "固定镜头", ReplaceLabels: []string{"固定镜头"}, NormalizeLegacy: false},
+	{Canonical: "audio", Legacy: "generate_audio", DefaultLabel: "生成音频", ReplaceLabels: []string{"生成音频"}, NormalizeLegacy: false},
+}
+
+func generationParamAliasMap() map[string]string {
+	aliases := make(map[string]string, len(generationParamAliases))
+	for _, alias := range generationParamAliases {
+		aliases[alias.Legacy] = alias.Canonical
+	}
+	return aliases
+}
+
 // NormalizeGenerationParams accepts the abstract parameter keys exposed to admins
 // and users, while preserving backward compatibility with older provider-native
 // keys stored in existing model configs/jobs.
@@ -11,13 +37,13 @@ func NormalizeGenerationParams(params map[string]any) map[string]any {
 	for k, v := range params {
 		out[k] = v
 	}
-	copyIfMissing(out, "aspect_ratio", "ratio")
-	copyIfMissing(out, "duration", "duration_seconds")
-	copyIfMissing(out, "size", "image_size")
-	copyIfMissing(out, "guidance_scale", "prompt_strength")
-	copyIfMissing(out, "max_images", "image_count")
-	copyIfMissing(out, "camera_fixed", "fixed_camera")
-	copyIfMissing(out, "generate_audio", "audio")
+	for _, alias := range generationParamAliases {
+		if alias.NormalizeLegacy {
+			copyIfMissing(out, alias.Canonical, alias.Legacy)
+			continue
+		}
+		copyIfMissing(out, alias.Legacy, alias.Canonical)
+	}
 	return out
 }
 
@@ -32,13 +58,9 @@ func CanonicalizeGenerationParams(params map[string]any) map[string]any {
 		}
 		out[k] = v
 	}
-	moveParamAlias(out, "aspect_ratio", "ratio")
-	moveParamAlias(out, "duration", "duration_seconds")
-	moveParamAlias(out, "image_size", "size")
-	moveParamAlias(out, "prompt_strength", "guidance_scale")
-	moveParamAlias(out, "image_count", "max_images")
-	moveParamAlias(out, "fixed_camera", "camera_fixed")
-	moveParamAlias(out, "audio", "generate_audio")
+	for _, alias := range generationParamAliases {
+		moveParamAlias(out, alias.Canonical, alias.Legacy)
+	}
 	return out
 }
 
@@ -54,43 +76,7 @@ func isGenerationMetadataParam(key string) bool {
 func NormalizeParamDefsForUI(params []ParamDef) []ParamDef {
 	out := make([]ParamDef, 0, len(params))
 	for _, p := range params {
-		switch p.Key {
-		case "ratio":
-			p.Key = "aspect_ratio"
-			if p.Label == "" || p.Label == "ratio" {
-				p.Label = "画面比例"
-			}
-		case "duration_seconds":
-			p.Key = "duration"
-			if p.Label == "" || p.Label == "duration_seconds" {
-				p.Label = "时长(秒)"
-			}
-		case "size":
-			p.Key = "image_size"
-			if p.Label == "" || p.Label == "尺寸" {
-				p.Label = "画面尺寸"
-			}
-		case "guidance_scale":
-			p.Key = "prompt_strength"
-			if p.Label == "" || p.Label == "文本权重" {
-				p.Label = "提示词强度"
-			}
-		case "max_images":
-			p.Key = "image_count"
-			if p.Label == "" || p.Label == "最多张数" {
-				p.Label = "生成张数"
-			}
-		case "camera_fixed":
-			p.Key = "fixed_camera"
-			if p.Label == "" || p.Label == "固定镜头" {
-				p.Label = "固定镜头"
-			}
-		case "generate_audio":
-			p.Key = "audio"
-			if p.Label == "" || p.Label == "生成音频" {
-				p.Label = "生成音频"
-			}
-		}
+		p = normalizeParamDefAlias(p)
 		for i, key := range p.ConflictsWith {
 			p.ConflictsWith[i] = normalizeParamKey(key)
 		}
@@ -106,6 +92,32 @@ func NormalizeParamDefsForUI(params []ParamDef) []ParamDef {
 		out = append(out, p)
 	}
 	return out
+}
+
+func normalizeParamDefAlias(p ParamDef) ParamDef {
+	for _, alias := range generationParamAliases {
+		if p.Key != alias.Legacy {
+			continue
+		}
+		p.Key = alias.Canonical
+		if shouldReplaceParamLabel(p.Label, alias.ReplaceLabels) {
+			p.Label = alias.DefaultLabel
+		}
+		return p
+	}
+	return p
+}
+
+func shouldReplaceParamLabel(label string, replaceLabels []string) bool {
+	if label == "" {
+		return true
+	}
+	for _, replaceLabel := range replaceLabels {
+		if label == replaceLabel {
+			return true
+		}
+	}
+	return false
 }
 
 func copyIfMissing(params map[string]any, target, source string) {

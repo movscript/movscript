@@ -1,26 +1,14 @@
 package entityrelation
 
 import (
-	"os"
 	"testing"
 
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
 func TestWorkItemSaveSyncsEntityRelations(t *testing.T) {
-	file, err := os.CreateTemp("", "work-item-rel-*.db")
-	if err != nil {
-		t.Fatalf("create temp db: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Remove(file.Name()) })
-	db, err := gorm.Open(sqlite.Open(file.Name()), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&EntityRelation{}, &Production{}, &WorkItem{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
+	db := testutil.OpenSQLite(t, "work_item_save_relations.db", &EntityRelation{}, &Production{}, &WorkItem{})
 
 	production := Production{ProjectID: 1, Name: "Prod", Status: "planning", SourceType: "direct", OwnerLabel: "导演组"}
 	if err := db.Create(&production).Error; err != nil {

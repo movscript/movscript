@@ -3,12 +3,11 @@ package semantic
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"strconv"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -157,16 +156,9 @@ func TestCreateScriptVersionRejectsParentFromDifferentScript(t *testing.T) {
 
 func newScriptVersionTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "script-version.db")), &gorm.Config{
+	return testutil.OpenSQLiteWithConfig(t, "script-version.db", &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
-	})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.EntityRelation{}, &model.Script{}, &model.ScriptVersion{}); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-	return db
+	}, &model.EntityRelation{}, &model.Script{}, &model.ScriptVersion{})
 }
 
 func seedScriptVersionTestScript(t *testing.T, db *gorm.DB, projectID uint) (model.Script, model.ScriptVersion) {

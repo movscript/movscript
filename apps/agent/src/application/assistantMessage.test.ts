@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { buildAssistantContent, buildAssistantMessages, extractRequestedToolCallsFromAssistantContent } from './assistantMessage.js'
+import {
+  buildAssistantContent,
+  buildAssistantMessages,
+  buildFinalAssistantContent,
+  combineAssistantTurnContents,
+  extractRequestedToolCallsFromAssistantContent,
+  isMessageRole,
+} from './assistantMessage.js'
 import type { JSONValue } from '../types.js'
 import type { AgentRun } from '../state/types.js'
 
@@ -98,6 +105,32 @@ test('assistant message extracts model-emitted single tool_call wrapper', () => 
   assert.equal(toolCalls.length, 1)
   assert.equal(toolCalls[0].name, 'movscript_get_draft')
   assert.equal(toolCalls[0].args?.draftId, 'draft_1')
+})
+
+test('isMessageRole accepts only thread-visible message roles', () => {
+  assert.equal(isMessageRole('system'), true)
+  assert.equal(isMessageRole('user'), true)
+  assert.equal(isMessageRole('assistant'), true)
+  assert.equal(isMessageRole('tool'), false)
+})
+
+test('combineAssistantTurnContents trims empty turns and avoids adjacent duplicates', () => {
+  assert.equal(combineAssistantTurnContents([' first ', 'first', '', 'second'], 'second'), 'first\n\nsecond')
+  assert.equal(combineAssistantTurnContents([], ' fallback '), 'fallback')
+})
+
+test('buildFinalAssistantContent delegates normal turns through final source summary rendering', () => {
+  const content = buildFinalAssistantContent({
+    userMessage: '总结一下',
+    modelContent: '这是最终回答。',
+    toolResults: [],
+    warnings: [],
+    memories: [],
+    run: makeRun(),
+  })
+
+  assert.match(content, /这是最终回答。/)
+  assert.match(content, /用户输入：本轮消息/)
 })
 
 function toolText(value: unknown): JSONValue {

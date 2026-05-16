@@ -13,6 +13,7 @@ import (
 type repository interface {
 	GetCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error)
 	ListJobs(ctx context.Context, status string, limit, offset int) (JobPage, error)
+	JobStats(ctx context.Context, recentLimit int) (JobStats, error)
 	GetJob(ctx context.Context, id string) (domainjob.Job, error)
 }
 
@@ -47,6 +48,31 @@ func (r *gormRepository) ListJobs(ctx context.Context, status string, limit, off
 		return JobPage{}, err
 	}
 	return JobPage{Items: domainjob.JobsFromModels(items), Total: total}, nil
+}
+
+func (r *gormRepository) JobStats(ctx context.Context, recentLimit int) (JobStats, error) {
+	var rows []JobStatusCount
+	if err := r.db.WithContext(ctx).Model(&persistencemodel.Job{}).
+		Select("status, count(*) as count").
+		Group("status").
+		Order("status").
+		Scan(&rows).Error; err != nil {
+		return JobStats{}, err
+	}
+	var total int64
+	for _, row := range rows {
+		total += row.Count
+	}
+	recent := make([]persistencemodel.Job, 0)
+	if err := r.db.WithContext(ctx).Model(&persistencemodel.Job{}).
+		Preload("OutputResource").
+		Where("status = ?", domainjob.StatusFailed).
+		Order("id DESC").
+		Limit(recentLimit).
+		Find(&recent).Error; err != nil {
+		return JobStats{}, err
+	}
+	return JobStats{Total: total, ByStatus: rows, RecentFailed: jobDetailsFromJobs(domainjob.JobsFromModels(recent))}, nil
 }
 
 func (r *gormRepository) GetJob(ctx context.Context, id string) (domainjob.Job, error) {

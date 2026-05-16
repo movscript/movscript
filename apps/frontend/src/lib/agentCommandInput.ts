@@ -1,4 +1,5 @@
 import type { AgentClientInput } from './localAgentClient'
+import { ROUTES } from '@/routes/projectRoutes'
 
 type AgentSelectionHint = {
   entityType?: string
@@ -90,9 +91,10 @@ export function normalizePageRoute(route?: { pathname?: string; search?: string;
 
 function inferRouteFromLabels(labels: string[] | undefined) {
   const list = labels ?? []
-  if (list.some((label) => /production-orchestrate/i.test(label))) return { pathname: '/production-orchestrate' }
-  if (list.some((label) => /creative-workbench/i.test(label))) return { pathname: '/pre-production' }
-  if (list.some((label) => /script-split|workbench/i.test(label))) return { pathname: '/workbench/production-plan' }
+  if (list.some((label) => /production-orchestrate|production-orchestration/i.test(label))) return { pathname: ROUTES.project.productionOrchestration }
+  if (list.some((label) => /creative-workbench|pre-production/i.test(label))) return { pathname: ROUTES.project.preProduction }
+  if (list.some((label) => /script-split/i.test(label))) return { pathname: ROUTES.project.scripts }
+  if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.productionPreview }
   return undefined
 }
 
@@ -107,18 +109,18 @@ export function buildPageKey(input: {
 }
 
 function inferPageType(labels: string[] | undefined, pathname?: string): string {
-  if (labels?.some((label) => /production-orchestrate/i.test(label))) return 'production_orchestrate'
-  if (labels?.some((label) => /creative-workbench/i.test(label))) return 'creative_workbench'
+  if (labels?.some((label) => /production-orchestrate|production-orchestration/i.test(label))) return 'production_orchestrate'
+  if (labels?.some((label) => /creative-workbench|pre-production/i.test(label))) return 'pre_production'
   if (labels?.some((label) => /script-split|workbench/i.test(label))) return 'workbench'
-  if (pathname?.includes('/production-orchestrate')) return 'production_orchestrate'
-  if (pathname?.includes('/creative-workbench')) return 'creative_workbench'
+  if (pathname?.includes(ROUTES.project.productionOrchestration) || pathname?.includes('/production-orchestrate')) return 'production_orchestrate'
+  if (pathname?.includes(ROUTES.project.preProduction) || pathname?.includes('/pre-production') || pathname?.includes('/creative-workbench')) return 'pre_production'
   if (pathname?.includes('/workbench')) return 'workbench'
   return 'page'
 }
 
 function inferEntityType(pathname?: string, productionId?: number, projectId?: number) {
-  if (pathname?.includes('/production-orchestrate') && productionId !== undefined) return 'production'
-  if (pathname?.includes('/creative-workbench')) return 'creative_workbench'
+  if ((pathname?.includes(ROUTES.project.productionOrchestration) || pathname?.includes('/production-orchestrate')) && productionId !== undefined) return 'production'
+  if (pathname?.includes(ROUTES.project.preProduction) || pathname?.includes('/pre-production') || pathname?.includes('/creative-workbench')) return 'project'
   if (projectId !== undefined) return 'project'
   return undefined
 }

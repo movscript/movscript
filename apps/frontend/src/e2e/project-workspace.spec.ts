@@ -68,7 +68,7 @@ test('project workspace reviews settings before asset slots', async ({ page }, t
   await mockProjectWorkspaceEntities(page)
   await mockProjectWorkspaceDrafts(page)
 
-  await page.goto('/project-workspace')
+  await page.goto('/project/standards')
 
   await expect(page.getByRole('heading', { name: '提案审阅' })).toBeVisible()
   await expect(page.getByText('E2E 项目提案草稿')).toBeVisible()

@@ -110,10 +110,9 @@ func (s *Service) PatchScriptBlock(ctx context.Context, projectID uint, id strin
 }
 
 type ScriptBlockUsages struct {
-	Segments        []domainsemantic.Segment        `json:"segments"`
-	SceneMoments    []domainsemantic.SceneMoment    `json:"scene_moments"`
-	ContentUnits    []domainsemantic.ContentUnit    `json:"content_units"`
-	StoryboardLines []domainsemantic.StoryboardLine `json:"storyboard_lines"`
+	Segments     []domainsemantic.Segment     `json:"segments"`
+	SceneMoments []domainsemantic.SceneMoment `json:"scene_moments"`
+	ContentUnits []domainsemantic.ContentUnit `json:"content_units"`
 }
 
 type ScriptBlockUsageMap map[uint]ScriptBlockUsages
@@ -135,15 +134,10 @@ func (s *Service) ListScriptBlockUsages(ctx context.Context, projectID uint, id 
 	if err != nil {
 		return ScriptBlockUsages{}, err
 	}
-	storyboardLines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, ScriptBlockID: block.ID})
-	if err != nil {
-		return ScriptBlockUsages{}, err
-	}
 	return ScriptBlockUsages{
-		Segments:        segments,
-		SceneMoments:    sceneMoments,
-		ContentUnits:    contentUnits,
-		StoryboardLines: storyboardLines,
+		Segments:     segments,
+		SceneMoments: sceneMoments,
+		ContentUnits: contentUnits,
 	}, nil
 }
 
@@ -179,10 +173,6 @@ func (s *Service) ListScriptBlockUsageMap(ctx context.Context, projectID uint, s
 	if err != nil {
 		return ScriptBlockUsageMap{}, err
 	}
-	storyboardLines, err := s.repo.ListStoryboardLines(ctx, StoryboardLineFilter{ProjectID: projectID, ScriptBlockIDs: blockIDs})
-	if err != nil {
-		return ScriptBlockUsageMap{}, err
-	}
 	for _, segment := range segments {
 		if segment.ScriptBlockID != nil {
 			usage := result[*segment.ScriptBlockID]
@@ -202,13 +192,6 @@ func (s *Service) ListScriptBlockUsageMap(ctx context.Context, projectID uint, s
 			usage := result[*unit.ScriptBlockID]
 			usage.ContentUnits = append(usage.ContentUnits, unit)
 			result[*unit.ScriptBlockID] = usage
-		}
-	}
-	for _, line := range storyboardLines {
-		if line.ScriptBlockID != nil {
-			usage := result[*line.ScriptBlockID]
-			usage.StoryboardLines = append(usage.StoryboardLines, line)
-			result[*line.ScriptBlockID] = usage
 		}
 	}
 	return result, nil

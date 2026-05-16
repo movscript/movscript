@@ -151,8 +151,13 @@ func (r *gormRepository) ListMembers(ctx context.Context, orgID uint) ([]domaino
 
 func (r *gormRepository) CreateMember(ctx context.Context, member domainorg.OrganizationMember) (domainorg.OrganizationMember, error) {
 	row := member.ToModel()
-	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
-		return member, err
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureActiveUserExists(tx, member.UserID); err != nil {
+			return err
+		}
+		return tx.Create(&row).Error
+	}); err != nil {
+		return domainorg.OrganizationMember{}, err
 	}
 	if err := r.db.WithContext(ctx).Preload("User").First(&row, row.ID).Error; err != nil {
 		return domainorg.OrganizationMember{}, err
@@ -235,6 +240,9 @@ func (r *gormRepository) CreateUser(ctx context.Context, user domainauth.Registe
 func (r *gormRepository) AcceptInvitation(ctx context.Context, inv domainorg.Invitation, userID uint) error {
 	row := inv.ToModel()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureActiveUserExists(tx, userID); err != nil {
+			return err
+		}
 		var existing persistencemodel.OrganizationMember
 		if tx.Where("org_id = ? AND user_id = ?", inv.OrgID, userID).First(&existing).Error == nil {
 			return nil
@@ -256,8 +264,16 @@ func (r *gormRepository) JoinByCode(ctx context.Context, code string, userID uin
 		}
 		return 0, err
 	}
+	if org.Status == domainorg.StatusSuspended {
+		return 0, ErrSuspended
+	}
 	member := domainorg.Member(org.ID, userID, domainorg.RoleMember).ToModel()
-	if err := r.db.WithContext(ctx).Create(&member).Error; err != nil {
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureActiveUserExists(tx, userID); err != nil {
+			return err
+		}
+		return tx.Create(&member).Error
+	}); err != nil {
 		if IsDuplicateKey(err) {
 			return org.ID, nil
 		}
@@ -284,8 +300,13 @@ func (r *gormRepository) CreateGroup(ctx context.Context, group domainorg.UserGr
 
 func (r *gormRepository) CreateGroupMember(ctx context.Context, member domainorg.UserGroupMember) (domainorg.UserGroupMember, error) {
 	row := member.ToModel()
-	if err := r.db.WithContext(ctx).Create(&row).Error; err != nil {
-		return member, err
+	if err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := ensureActiveUserExists(tx, member.UserID); err != nil {
+			return err
+		}
+		return tx.Create(&row).Error
+	}); err != nil {
+		return domainorg.UserGroupMember{}, err
 	}
 	return domainorg.UserGroupMemberFromModel(row), nil
 }
@@ -311,4 +332,18 @@ func (r *gormRepository) GetUsage(ctx context.Context, orgID uint) (UsageResult,
 
 func (r *gormRepository) CreatePersonalOrg(ctx context.Context, user domainorg.User) error {
 	return CreatePersonalOrg(r.db.WithContext(ctx), user)
+}
+
+func ensureActiveUserExists(tx *gorm.DB, userID uint) error {
+	var user persistencemodel.User
+	if err := tx.Select("id, status").First(&user, userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		}
+		return err
+	}
+	if user.Status != "" && user.Status != domainauth.UserStatusActive {
+		return ErrUserInactive
+	}
+	return nil
 }

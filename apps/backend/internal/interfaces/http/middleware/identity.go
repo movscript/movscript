@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	authapp "github.com/movscript/movscript/internal/app/auth"
+	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/interfaces/http/apierr"
 	"gorm.io/gorm"
@@ -54,8 +55,13 @@ func Identity(db *gorm.DB, tokens *auth.Manager) gin.HandlerFunc {
 // RequireAuth aborts with 401 if the request has no authenticated principal.
 func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if _, ok := c.Get(ContextUserKey); !ok {
+		user, ok := CurrentUserProfileFromContext(c)
+		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, apierr.AuthRequired())
+			return
+		}
+		if user.Status != "" && user.Status != domainauth.UserStatusActive {
+			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Response{Code: apierr.CodeForbidden, Message: "账号已被禁用或暂停", Action: apierr.ActionLogout})
 			return
 		}
 		c.Next()

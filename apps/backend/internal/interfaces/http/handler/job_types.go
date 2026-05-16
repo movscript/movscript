@@ -7,9 +7,10 @@ import (
 )
 
 type JobHandler struct {
+	db      *gorm.DB
 	service *jobapp.Service
 }
 
 func NewJobHandler(db *gorm.DB, aiService *ai.AIService) *JobHandler {
-	return &JobHandler{service: jobapp.NewService(db, aiService)}
+	return &JobHandler{db: db, service: jobapp.NewService(db, aiService)}
 }

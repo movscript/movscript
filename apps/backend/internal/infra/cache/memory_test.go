@@ -33,12 +33,13 @@ func TestMemoryCacheJSONRoundTrip(t *testing.T) {
 }
 
 func TestMemoryCacheExpires(t *testing.T) {
-	c := NewMemory()
+	now := time.Date(2026, 5, 16, 12, 0, 0, 0, time.UTC)
+	c := newMemoryWithClock(func() time.Time { return now })
 	ctx := context.Background()
-	if err := c.SetJSON(ctx, "key", map[string]string{"value": "x"}, time.Nanosecond); err != nil {
+	if err := c.SetJSON(ctx, "key", map[string]string{"value": "x"}, time.Second); err != nil {
 		t.Fatalf("SetJSON returned error: %v", err)
 	}
-	time.Sleep(time.Millisecond)
+	now = now.Add(time.Second + time.Nanosecond)
 
 	var got map[string]string
 	ok, err := c.GetJSON(ctx, "key", &got)

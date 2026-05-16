@@ -179,21 +179,8 @@ func (s *Service) LocalBootstrap(ctx context.Context, input LocalBootstrapInput)
 	if len(password) < 8 {
 		return domainauth.UserProfile{}, ErrInvalidInput
 	}
-	if existing, err := s.repo.FindSuperAdmin(ctx); err == nil {
-		hashBytes, err := bcrypt.GenerateFromPassword([]byte(password), 12)
-		if err != nil {
-			return domainauth.UserProfile{}, err
-		}
-		passwordHash := string(hashBytes)
-		updates := domainauth.UserUpdateSpec{PasswordHash: &passwordHash}
-		displayName := strings.TrimSpace(input.DisplayName)
-		if displayName != "" && strings.TrimSpace(existing.DisplayName) == "" {
-			updates.DisplayName = &displayName
-		}
-		if err := s.repo.UpdateUser(ctx, existing.ID, updates); err != nil {
-			return domainauth.UserProfile{}, err
-		}
-		return s.repo.FindUserByID(ctx, existing.ID)
+	if _, err := s.repo.FindSuperAdmin(ctx); err == nil {
+		return domainauth.UserProfile{}, ErrConflict
 	} else if !errors.Is(err, ErrNotFound) {
 		return domainauth.UserProfile{}, err
 	}
@@ -286,11 +273,14 @@ func (s *Service) StartChallenge(ctx context.Context, input ChallengeStartInput)
 	if err := s.repo.CreateChallenge(ctx, &challenge); err != nil {
 		return ChallengeStartResult{}, err
 	}
-	return ChallengeStartResult{
+	result := ChallengeStartResult{
 		ChallengeID: fmt.Sprint(challenge.ID),
 		ExpiresIn:   domainauth.ChallengeExpiresInSec,
-		DevCode:     code,
-	}, nil
+	}
+	if s.localAppMode {
+		result.DevCode = code
+	}
+	return result, nil
 }
 
 func (s *Service) VerifyChallenge(ctx context.Context, input ChallengeVerifyInput) (domainauth.AuthChallenge, error) {

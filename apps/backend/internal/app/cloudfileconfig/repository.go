@@ -63,5 +63,12 @@ func (r *gormRepository) SaveConfig(ctx context.Context, cfg *domaincloudfilecon
 }
 
 func (r *gormRepository) DeleteConfig(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&persistencemodel.CloudFileConfig{}, id).Error
+	result := r.db.WithContext(ctx).Delete(&persistencemodel.CloudFileConfig{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

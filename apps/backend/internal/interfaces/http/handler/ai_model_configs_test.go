@@ -4,22 +4,125 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
+
+func TestCreateModelConfigAuditAndDeleteNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestAIModelConfigRouterWithDB(t, true)
+
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/credentials/1/models", strings.NewReader(`{
+		"model_def_id":"audit-model",
+		"custom_capabilities":"text",
+		"custom_pricing_mode":"per_token"
+	}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createRes := httptest.NewRecorder()
+
+	router.ServeHTTP(createRes, createReq)
+
+	if createRes.Code != http.StatusCreated {
+		t.Fatalf("expected valid config to be created, got %d: %s", createRes.Code, createRes.Body.String())
+	}
+	if countAuditAction(t, db, "ai_model_config.admin_created") != 1 {
+		t.Fatalf("expected create audit log")
+	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/admin/credentials/1/models/1", nil)
+	deleteRes := httptest.NewRecorder()
+
+	router.ServeHTTP(deleteRes, deleteReq)
+
+	if deleteRes.Code != http.StatusNoContent {
+		t.Fatalf("expected valid config to be deleted, got %d: %s", deleteRes.Code, deleteRes.Body.String())
+	}
+	if countAuditAction(t, db, "ai_model_config.admin_deleted") != 1 {
+		t.Fatalf("expected delete audit log")
+	}
+
+	missingReq := httptest.NewRequest(http.MethodDelete, "/admin/credentials/1/models/1", nil)
+	missingRes := httptest.NewRecorder()
+
+	router.ServeHTTP(missingRes, missingReq)
+
+	if missingRes.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing model config delete, got %d: %s", missingRes.Code, missingRes.Body.String())
+	}
+}
+
+func TestModelConfigExternalAdminActionsWriteAuditWithoutPayloads(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestAIModelConfigRouterWithDB(t, true)
+
+	imageConfig := persistencemodel.AIModelConfig{
+		CredentialID:       1,
+		ModelDefID:         "custom-image",
+		ModelIDOverride:    "image-model",
+		CustomDisplayName:  "Image Model",
+		CustomCapabilities: "image",
+		CustomPricingMode:  "per_image",
+		CreditsPerImage:    1,
+		CustomSupportedParams: `[
+			{"key":"size","label":"Size","type":"select","options":["1280x720"],"default":"1280x720"}
+		]`,
+		IsEnabled: true,
+	}
+	if err := db.Create(&imageConfig).Error; err != nil {
+		t.Fatalf("create image model config: %v", err)
+	}
+
+	testReq := httptest.NewRequest(http.MethodPost, "/admin/credentials/1/models/1/test", nil)
+	testRes := httptest.NewRecorder()
+
+	router.ServeHTTP(testRes, testReq)
+
+	if testRes.Code != http.StatusOK {
+		t.Fatalf("expected model config test response, got %d: %s", testRes.Code, testRes.Body.String())
+	}
+	if countAuditAction(t, db, "ai_model_config.admin_tested") != 1 {
+		t.Fatalf("expected model config test audit log")
+	}
+	assertAuditMetadataDoesNotContain(t, db, "ai_model_config.admin_tested", "Hi")
+
+	debugConfig := persistencemodel.AIModelConfig{
+		CredentialID:       1,
+		ModelDefID:         "custom-text",
+		ModelIDOverride:    "debug-model",
+		CustomDisplayName:  "Debug Model",
+		CustomCapabilities: "text",
+		CustomPricingMode:  "per_token",
+		IsEnabled:          true,
+	}
+	if err := db.Create(&debugConfig).Error; err != nil {
+		t.Fatalf("create debug model config: %v", err)
+	}
+
+	debugReq := httptest.NewRequest(http.MethodPost, "/admin/credentials/1/models/2/debug", nil)
+	debugRes := httptest.NewRecorder()
+
+	router.ServeHTTP(debugRes, debugReq)
+
+	if debugRes.Code != http.StatusOK {
+		t.Fatalf("expected model config debug response, got %d: %s", debugRes.Code, debugRes.Body.String())
+	}
+	if countAuditAction(t, db, "ai_model_config.admin_debugged") != 1 {
+		t.Fatalf("expected model config debug audit log")
+	}
+	assertAuditMetadataDoesNotContain(t, db, "ai_model_config.admin_debugged", "Hi")
+}
 
 func TestCreateModelConfigReturnsBadRequestForInvalidParamContract(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := newTestAIModelConfigRouter(t, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+	req := httptest.NewRequest(http.MethodPost, "/admin/credentials/1/models", strings.NewReader(`{
 		"model_def_id":"bad-video",
 		"custom_capabilities":"video",
 		"custom_supported_params":"[{\"key\":\"duration\",\"type\":\"select\"}]"
@@ -51,7 +154,7 @@ func TestCreateModelConfigReturnsBadRequestForInvalidInputLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := newTestAIModelConfigRouter(t, true)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+	req := httptest.NewRequest(http.MethodPost, "/admin/credentials/1/models", strings.NewReader(`{
 		"model_def_id":"bad-image",
 		"custom_capabilities":"image",
 		"custom_max_input_images":-2,
@@ -81,7 +184,7 @@ func TestPatchModelConfigReturnsBadRequestForInvalidInputLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := newTestAIModelConfigRouter(t, true)
 
-	createReq := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/credentials/1/models", strings.NewReader(`{
 		"model_def_id":"image-model",
 		"custom_capabilities":"image",
 		"custom_accepts_image":true,
@@ -124,7 +227,7 @@ func TestCreateModelConfigReturnsNotFoundForMissingCredential(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := newTestAIModelConfigRouter(t, false)
 
-	req := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/999/models", strings.NewReader(`{
+	req := httptest.NewRequest(http.MethodPost, "/admin/credentials/999/models", strings.NewReader(`{
 		"model_def_id":"video-model",
 		"custom_capabilities":"video",
 		"custom_supported_params":""
@@ -243,7 +346,7 @@ func TestSavedModelConfigInputRequirementsMatchRuntimeModels(t *testing.T) {
 		t.Fatalf("expected preview input_requirements object, got %#v", agentContract)
 	}
 
-	createReq := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/credentials/1/models", strings.NewReader(`{
 		"model_def_id":"runtime-i2v",
 		"custom_capabilities":"video_i2v,video_v2v",
 		"custom_accepts_image":true,
@@ -323,7 +426,7 @@ func TestSavedModelConfigPreservesUnlimitedInputRequirements(t *testing.T) {
 		t.Fatalf("expected preview unlimited image/video requirements, got %#v", previewInputs)
 	}
 
-	createReq := httptest.NewRequest(http.MethodPost, "/admin/ai/credentials/1/models", strings.NewReader(`{
+	createReq := httptest.NewRequest(http.MethodPost, "/admin/credentials/1/models", strings.NewReader(`{
 		"model_def_id":"runtime-unlimited-i2v",
 		"custom_capabilities":"video_i2v,video_v2v",
 		"custom_accepts_image":true,
@@ -460,13 +563,13 @@ func inputRequirementHas(raw any, min int, max int) bool {
 
 func newTestAIModelConfigRouter(t *testing.T, seedCredential bool) *gin.Engine {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "handler-aiadmin.db")), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}); err != nil {
-		t.Fatalf("migrate sqlite: %v", err)
-	}
+	router, _ := newTestAIModelConfigRouterWithDB(t, seedCredential)
+	return router
+}
+
+func newTestAIModelConfigRouterWithDB(t *testing.T, seedCredential bool) (*gin.Engine, *gorm.DB) {
+	t.Helper()
+	db := testutil.OpenSQLite(t, "handler-aiadmin.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AuditLog{})
 	if seedCredential {
 		if err := db.Create(&persistencemodel.AICredential{
 			AdapterType: "volcen",
@@ -482,9 +585,12 @@ func newTestAIModelConfigRouter(t *testing.T, seedCredential bool) *gin.Engine {
 	models := NewModelsHandler(ai.NewAIService(db, registry))
 	router := gin.New()
 	router.GET("/admin/model-presets", h.ListModelPresets)
-	router.POST("/admin/ai/credentials/:id/models", h.CreateModelConfig)
+	router.POST("/admin/credentials/:id/models", h.CreateModelConfig)
+	router.DELETE("/admin/credentials/:id/models/:modelId", h.DeleteModelConfig)
+	router.POST("/admin/credentials/:id/models/:modelId/test", h.TestModelConfig)
+	router.POST("/admin/credentials/:id/models/:modelId/debug", h.DebugModelConfig)
 	router.PATCH("/admin/model-configs/:id", h.PatchModelConfig)
 	router.POST("/admin/model-configs/preview-contract", h.PreviewModelConfigContract)
 	router.GET("/models", models.ListByCapability)
-	return router
+	return router, db
 }

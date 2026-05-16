@@ -6,15 +6,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 	featureapp "github.com/movscript/movscript/internal/app/feature"
+	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
 	"gorm.io/gorm"
 )
 
 type FeatureHandler struct {
+	db      *gorm.DB
 	service *featureapp.Service
 }
 
 func NewFeatureHandler(db *gorm.DB) *FeatureHandler {
-	return &FeatureHandler{service: featureapp.NewService(db)}
+	return &FeatureHandler{db: db, service: featureapp.NewService(db)}
 }
 
 // List returns all feature configs enriched with FeatureDef metadata.
@@ -50,7 +52,23 @@ func (h *FeatureHandler) Update(c *gin.Context) {
 		DefaultModelID:  req.DefaultModelID,
 		AllowedRoles:    req.AllowedRoles,
 	})
-	respondFeature(c, resp, err)
+	if err != nil {
+		respondFeature(c, resp, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "feature.admin_updated",
+		TargetType: "feature",
+		TargetID:   resp.FeatureKey,
+		Metadata: map[string]any{
+			"feature_key":       resp.FeatureKey,
+			"is_enabled":        resp.IsEnabled,
+			"allowed_model_ids": resp.AllowedModelIDs,
+			"default_model_id":  resp.DefaultModelID,
+			"allowed_roles":     resp.AllowedRoles,
+		},
+	})
+	c.JSON(http.StatusOK, resp)
 }
 
 // UpdatePrompt sets the system prompt override and/or max tokens override for a feature.
@@ -67,7 +85,26 @@ func (h *FeatureHandler) UpdatePrompt(c *gin.Context) {
 		SystemPromptOverride: req.SystemPromptOverride,
 		MaxTokensOverride:    req.MaxTokensOverride,
 	})
-	respondFeature(c, resp, err)
+	if err != nil {
+		respondFeature(c, resp, err)
+		return
+	}
+	promptLength := 0
+	if resp.SystemPromptOverride != "" {
+		promptLength = len(resp.SystemPromptOverride)
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "feature.prompt.admin_updated",
+		TargetType: "feature",
+		TargetID:   resp.FeatureKey,
+		Metadata: map[string]any{
+			"feature_key":                 resp.FeatureKey,
+			"system_prompt_override_set":  resp.SystemPromptOverride != "",
+			"system_prompt_override_size": promptLength,
+			"max_tokens_override":         resp.MaxTokensOverride,
+		},
+	})
+	c.JSON(http.StatusOK, resp)
 }
 
 // GetPublic returns the feature def + config for a single feature key.

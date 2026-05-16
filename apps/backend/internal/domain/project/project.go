@@ -12,7 +12,23 @@ const (
 	RoleDirector   = "director"
 	RoleSuperAdmin = "super_admin"
 	RoleViewer     = "viewer"
+
+	StatusPlanning       = "planning"
+	StatusScriptAnalysis = "script_analysis"
+	StatusAssetPrep      = "asset_prep"
+	StatusProduction     = "production"
+	StatusEditing        = "editing"
+	StatusDone           = "done"
 )
+
+func ValidStatus(status string) bool {
+	switch status {
+	case StatusPlanning, StatusScriptAnalysis, StatusAssetPrep, StatusProduction, StatusEditing, StatusDone:
+		return true
+	default:
+		return false
+	}
+}
 
 type Project struct {
 	ID            uint      `json:"ID"`

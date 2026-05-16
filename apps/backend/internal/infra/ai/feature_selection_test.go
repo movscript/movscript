@@ -2,13 +2,12 @@ package ai
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"gorm.io/driver/sqlite"
+	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
 
@@ -350,14 +349,7 @@ func expectedVideoInputMin(capabilities []string) int {
 
 func openAITestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "ai.db")), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	if err := db.AutoMigrate(&model.AICredential{}, &model.AIModelConfig{}); err != nil {
-		t.Fatalf("migrate sqlite: %v", err)
-	}
-	return db
+	return testutil.OpenSQLite(t, "ai.db", &model.AICredential{}, &model.AIModelConfig{})
 }
 
 func createProviderVariant(t *testing.T, db *gorm.DB, id uint, providerName, modelID string, priority int) {

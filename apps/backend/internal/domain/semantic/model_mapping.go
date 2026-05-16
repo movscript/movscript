@@ -170,7 +170,6 @@ func ContentUnitFromModel(unit persistencemodel.ContentUnit) ContentUnit {
 		ProductionID:     unit.ProductionID,
 		SegmentID:        unit.SegmentID,
 		SceneMomentID:    unit.SceneMomentID,
-		StoryboardLineID: unit.StoryboardLineID,
 		ScriptBlockID:    unit.ScriptBlockID,
 		Kind:             unit.Kind,
 		Order:            unit.Order,
@@ -211,7 +210,6 @@ func (unit ContentUnit) ApplyToModel(target *persistencemodel.ContentUnit) {
 	target.ProductionID = unit.ProductionID
 	target.SegmentID = unit.SegmentID
 	target.SceneMomentID = unit.SceneMomentID
-	target.StoryboardLineID = unit.StoryboardLineID
 	target.ScriptBlockID = unit.ScriptBlockID
 	target.Kind = unit.Kind
 	target.Order = unit.Order
@@ -1218,56 +1216,6 @@ func (version StoryboardVersion) ApplyToModel(target *persistencemodel.Storyboar
 	target.MetadataJSON = version.MetadataJSON
 	target.CreatedAt = version.CreatedAt
 	target.UpdatedAt = version.UpdatedAt
-}
-
-func StoryboardLineFromModel(line persistencemodel.StoryboardLine) StoryboardLine {
-	return StoryboardLine{
-		ID:                  line.ID,
-		ProjectID:           line.ProjectID,
-		StoryboardScriptID:  line.StoryboardScriptID,
-		StoryboardVersionID: line.StoryboardVersionID,
-		SegmentID:           line.SegmentID,
-		SceneMomentID:       line.SceneMomentID,
-		ScriptBlockID:       line.ScriptBlockID,
-		Order:               line.Order,
-		Kind:                line.Kind,
-		Title:               line.Title,
-		Description:         line.Description,
-		Dialogue:            line.Dialogue,
-		VisualIntent:        line.VisualIntent,
-		DurationSec:         line.DurationSec,
-		Status:              line.Status,
-		MetadataJSON:        line.MetadataJSON,
-		CreatedAt:           line.CreatedAt,
-		UpdatedAt:           line.UpdatedAt,
-	}
-}
-
-func (line StoryboardLine) ToModel() persistencemodel.StoryboardLine {
-	var target persistencemodel.StoryboardLine
-	line.ApplyToModel(&target)
-	return target
-}
-
-func (line StoryboardLine) ApplyToModel(target *persistencemodel.StoryboardLine) {
-	target.Model.ID = line.ID
-	target.ProjectID = line.ProjectID
-	target.StoryboardScriptID = line.StoryboardScriptID
-	target.StoryboardVersionID = line.StoryboardVersionID
-	target.SegmentID = line.SegmentID
-	target.SceneMomentID = line.SceneMomentID
-	target.ScriptBlockID = line.ScriptBlockID
-	target.Order = line.Order
-	target.Kind = line.Kind
-	target.Title = line.Title
-	target.Description = line.Description
-	target.Dialogue = line.Dialogue
-	target.VisualIntent = line.VisualIntent
-	target.DurationSec = line.DurationSec
-	target.Status = line.Status
-	target.MetadataJSON = line.MetadataJSON
-	target.CreatedAt = line.CreatedAt
-	target.UpdatedAt = line.UpdatedAt
 }
 
 func ScriptVersionFromModel(version persistencemodel.ScriptVersion) ScriptVersion {

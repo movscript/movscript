@@ -20,7 +20,6 @@ test('generated binding targets define production owners and binding slots', () 
   })), [
     { value: 'asset_slot', label: '素材需求', slot: 'result', entityKind: 'assetSlots' },
     { value: 'content_unit', label: '制作项', slot: 'generated_media', entityKind: 'contentUnits' },
-    { value: 'storyboard_line', label: '分镜行', slot: 'generated_media', entityKind: 'storyboardLines' },
   ])
   assert.equal(generatedBindingTargetLabel('content_unit'), '制作项')
 })

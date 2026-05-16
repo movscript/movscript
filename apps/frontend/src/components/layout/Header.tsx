@@ -6,38 +6,53 @@ import { useTheme } from '@/hooks/useTheme'
 import { Button } from '@movscript/ui'
 import { SUPPORTED_LANGUAGES, type SupportedLanguage } from '@/i18n'
 import { runtimeTitleKeys } from '@runtime'
+import { LEGACY_ROUTES, ROUTES } from '@/routes/projectRoutes'
 
 const titleKeys: Record<string, string> = {
-  '/projects': 'header.titles.projects',
-  '/project-home': 'header.titles.projectHome',
-  '/project-workspace': 'header.titles.projectWorkspace',
-  '/creation': 'header.titles.creation',
-  '/workbench/production-plan': 'header.titles.workbenchPreview',
-  '/workbench/preview': 'header.titles.workbenchPreview',
-  '/workbench/creative': 'header.titles.workbenchCreative',
-  '/workbench/assets': 'header.titles.assetProposalWorkbench',
-  '/pre-production': 'header.titles.preProduction',
-  '/content-unit-orchestrate': 'header.titles.workbenchProduction',
-  '/workbench/production': 'header.titles.workbenchProduction',
-  '/workbench/delivery': 'header.titles.workbenchDelivery',
-  '/delivery/workbench': 'header.titles.deliveryWorkbench',
-  '/workbench/reference-relations': 'header.titles.workbenchReferenceRelations',
-  '/scripts': 'header.titles.scripts',
-  '/segments': 'header.titles.segments',
-  '/scene-moments': 'header.titles.sceneMoments',
-  '/contents': 'header.titles.contentUnits',
-  '/final-videos': 'header.titles.finalVideos',
-  '/asset-slots': 'header.titles.assetSlots',
-  '/creative-references': 'header.titles.creativeReferences',
-  '/reference-relations': 'header.titles.referenceRelations',
+  [ROUTES.projects]: 'header.titles.projects',
+  [ROUTES.project.overview]: 'header.titles.projectHome',
+  [ROUTES.project.standards]: 'header.titles.projectWorkspace',
+  [ROUTES.project.productionPreview]: 'header.titles.workbenchPreview',
+  [ROUTES.project.preProduction]: 'header.titles.preProduction',
+  [ROUTES.project.contentUnitWorkbench]: 'header.titles.workbenchProduction',
+  [ROUTES.project.deliveryWorkbench]: 'header.titles.deliveryWorkbench',
+  [ROUTES.project.referenceRelationsWorkbench]: 'header.titles.workbenchReferenceRelations',
+  [ROUTES.project.scripts]: 'header.titles.scripts',
+  [ROUTES.project.segments]: 'header.titles.segments',
+  [ROUTES.project.sceneMoments]: 'header.titles.sceneMoments',
+  [ROUTES.project.contentUnits]: 'header.titles.contentUnits',
+  [ROUTES.project.referenceRelations]: 'header.titles.referenceRelations',
+  [ROUTES.project.production]: 'header.titles.production',
+  [ROUTES.canvases]: 'header.titles.canvases',
+  [ROUTES.resources]: 'header.titles.resources',
+  [ROUTES.jobs]: 'header.titles.jobs',
+  [ROUTES.plugins]: 'header.titles.plugins',
+  [ROUTES.project.tasks]: 'header.titles.collaboration',
+  [ROUTES.project.delivery]: 'header.titles.delivery',
+  [ROUTES.user]: 'header.titles.user',
+  [LEGACY_ROUTES.projectHome]: 'header.titles.projectHome',
+  [LEGACY_ROUTES.projectWorkspace]: 'header.titles.projectWorkspace',
+  [LEGACY_ROUTES.creation]: 'header.titles.creation',
+  [LEGACY_ROUTES.workbenchProductionPlan]: 'header.titles.workbenchPreview',
+  [LEGACY_ROUTES.workbenchPreview]: 'header.titles.workbenchPreview',
+  [LEGACY_ROUTES.workbenchCreative]: 'header.titles.workbenchCreative',
+  [LEGACY_ROUTES.workbenchAssets]: 'header.titles.assetProposalWorkbench',
+  [LEGACY_ROUTES.preProduction]: 'header.titles.preProduction',
+  [LEGACY_ROUTES.contentUnitOrchestrate]: 'header.titles.workbenchProduction',
+  [LEGACY_ROUTES.workbenchProduction]: 'header.titles.workbenchProduction',
+  [LEGACY_ROUTES.workbenchDelivery]: 'header.titles.workbenchDelivery',
+  [LEGACY_ROUTES.deliveryWorkbench]: 'header.titles.deliveryWorkbench',
+  [LEGACY_ROUTES.workbenchReferenceRelations]: 'header.titles.workbenchReferenceRelations',
+  [LEGACY_ROUTES.scripts]: 'header.titles.scripts',
+  [LEGACY_ROUTES.segments]: 'header.titles.segments',
+  [LEGACY_ROUTES.sceneMoments]: 'header.titles.sceneMoments',
+  [LEGACY_ROUTES.contents]: 'header.titles.contentUnits',
+  [LEGACY_ROUTES.finalVideos]: 'header.titles.finalVideos',
+  [LEGACY_ROUTES.assetSlots]: 'header.titles.assetSlots',
+  [LEGACY_ROUTES.creativeReferences]: 'header.titles.creativeReferences',
   '/production': 'header.titles.production',
-  '/canvases': 'header.titles.canvases',
-  '/resources': 'header.titles.resources',
-  '/jobs': 'header.titles.jobs',
-  '/plugins': 'header.titles.plugins',
-  '/collaboration': 'header.titles.collaboration',
-  '/delivery': 'header.titles.delivery',
-  '/user': 'header.titles.user',
+  [LEGACY_ROUTES.collaboration]: 'header.titles.collaboration',
+  [LEGACY_ROUTES.delivery]: 'header.titles.delivery',
 }
 
 export function Header() {
@@ -50,7 +65,7 @@ export function Header() {
   return (
     <header className="h-14 border-b border-border flex items-center px-6 bg-background gap-2 shrink-0">
       <h1 className="text-sm font-semibold text-foreground flex-1">{title}</h1>
-      {current && pathname !== '/projects' && (
+      {current && pathname !== ROUTES.projects && (
         <span className="text-sm text-muted-foreground mr-2">- {current.name}</span>
       )}
       <label className="sr-only" htmlFor="language-select">{t('header.language')}</label>

@@ -7,6 +7,7 @@ import {
 } from '../catalog/agentManifest.js'
 import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from './toolRegistry.js'
 import type { ResolvedToolCatalog } from '../state/types.js'
+import { isSandboxAutoAllowedTool, requiresToolApproval } from './toolApprovalPolicy.js'
 
 export interface ToolPolicyResult {
   toolCalls: ToolCall[]
@@ -64,7 +65,7 @@ export function applyToolPolicy(
       continue
     }
 
-    if (!isSandboxAutoAllowed(tool, options.sandboxMode) && requiresApproval(tool, grant.approval) && !approvedToolNames.has(call.name)) {
+    if (!isSandboxAutoAllowedTool(tool, options.sandboxMode) && requiresToolApproval(tool, grant.approval) && !approvedToolNames.has(call.name)) {
       block(call, 'approval_required', `${call.name} 需要用户确认后才能执行`)
       continue
     }
@@ -94,10 +95,6 @@ export function applyToolPolicy(
   }
 }
 
-function isSandboxAutoAllowed(tool: RegisteredTool, sandboxMode?: boolean): boolean {
-  return sandboxMode === true && (tool.risk === 'write' || tool.risk === 'generate' || tool.risk === 'destructive')
-}
-
 function mapCatalogReason(reason: ResolvedToolCatalog['blocked'][number]['unavailableReason']): BlockedToolCall['reason'] {
   if (reason === 'missing_project') return 'missing_project'
   if (reason === 'not_granted' || reason === 'denied' || reason === 'missing_permission') return 'not_granted'
@@ -123,11 +120,4 @@ function withProjectId(call: ToolCall, projectId: number): ToolCall {
       projectId,
     },
   }
-}
-
-function requiresApproval(tool: RegisteredTool, grantApproval: 'never' | 'always' | 'on_write' | undefined): boolean {
-  if (grantApproval === 'never') return false
-  if (grantApproval === 'always') return true
-  if (grantApproval === 'on_write') return tool.risk === 'write' || tool.risk === 'generate' || tool.risk === 'destructive'
-  return tool.requiresApprovalByDefault
 }

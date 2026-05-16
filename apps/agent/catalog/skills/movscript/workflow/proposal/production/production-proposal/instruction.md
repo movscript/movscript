@@ -27,7 +27,7 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 - 缺项目级制作标准时，先交接 project_proposal。
 - 缺必须引用的人物、地点、道具、世界规则或 creative reference 时，先交接 setting_proposal。
 - 缺必须引用的素材需求、asset slot、归属或复用边界时，先交接 asset_proposal。
-- 缺具体内容单元、镜头节拍、旁白、字幕、转场、音乐节拍、情绪推进或钩子时，交接 content_unit_proposal。
+- 缺具体内容单元、制作项节拍、旁白、字幕、转场、音乐节拍、情绪推进或钩子时，交接 content_unit_proposal。
 - 缺关键帧、镜头、图片、视频输出或生成约束时，交接 visual_generation；若缺生成前的内容单元结构，先交接 content_unit_proposal。
 - 不要写 action patch 草稿；production proposal 只接受 snapshot 形态，删除靠省略节点完成。
 

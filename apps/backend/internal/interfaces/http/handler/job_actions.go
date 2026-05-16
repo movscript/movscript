@@ -8,6 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	jobapp "github.com/movscript/movscript/internal/app/job"
+	domainjob "github.com/movscript/movscript/internal/domain/job"
+	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
 )
 
 // Retry requeues a failed generation job for manual retry.
@@ -61,6 +63,60 @@ func (h *JobHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
+// AdminRetry requeues any failed/non-running generation job for operator recovery.
+func (h *JobHandler) AdminRetry(c *gin.Context) {
+	job, err := h.service.RetryAdmin(c.Request.Context(), parseID(c.Param("id")))
+	if err != nil {
+		h.writeJobActionError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "job.admin_retried",
+		TargetType: "job",
+		TargetID:   audit.TargetID(job.ID),
+		ProjectID:  job.ProjectID,
+		Metadata:   jobActionAuditMetadata(job),
+	})
+	c.JSON(http.StatusOK, job)
+}
+
+// AdminCancel cancels any cancellable video job regardless of its owner/org scope.
+func (h *JobHandler) AdminCancel(c *gin.Context) {
+	id := parseID(c.Param("id"))
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 90*time.Second)
+	defer cancel()
+	job, err := h.service.CancelAdmin(ctx, id)
+	if err != nil {
+		h.writeJobActionError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "job.admin_cancelled",
+		TargetType: "job",
+		TargetID:   audit.TargetID(job.ID),
+		ProjectID:  job.ProjectID,
+		Metadata:   jobActionAuditMetadata(job),
+	})
+	c.JSON(http.StatusOK, job)
+}
+
+// AdminDelete removes finished jobs or cancels pending jobs regardless of owner/org scope.
+func (h *JobHandler) AdminDelete(c *gin.Context) {
+	job, err := h.service.DeleteAndReleaseAdmin(c.Request.Context(), parseID(c.Param("id")))
+	if err != nil {
+		h.writeJobActionError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "job.admin_deleted",
+		TargetType: "job",
+		TargetID:   audit.TargetID(job.ID),
+		ProjectID:  job.ProjectID,
+		Metadata:   jobActionAuditMetadata(job),
+	})
+	c.Status(http.StatusNoContent)
+}
+
 func (h *JobHandler) writeJobActionError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, jobapp.ErrNotFound):
@@ -85,5 +141,19 @@ func (h *JobHandler) writeJobActionError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	default:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+}
+
+func jobActionAuditMetadata(job domainjob.Job) map[string]any {
+	return map[string]any{
+		"job_id":          job.ID,
+		"user_id":         job.UserID,
+		"org_id":          job.OrgID,
+		"project_id":      job.ProjectID,
+		"model_config_id": job.ModelConfigID,
+		"job_type":        job.JobType,
+		"feature_key":     job.FeatureKey,
+		"status":          job.Status,
+		"attempt_count":   job.AttemptCount,
 	}
 }

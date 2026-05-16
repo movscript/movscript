@@ -201,23 +201,6 @@ func RegisteredMigrations() []Migration {
 			},
 		},
 		{
-			Version: "000018",
-			Name:    "link_storyboard_lines_to_script_blocks",
-			Up: func(db *gorm.DB) error {
-				return db.AutoMigrate(&persistencemodel.StoryboardLine{})
-			},
-		},
-		{
-			Version: "000019",
-			Name:    "link_content_units_to_storyboard_lines",
-			Up: func(db *gorm.DB) error {
-				if err := db.AutoMigrate(&persistencemodel.ContentUnit{}); err != nil {
-					return err
-				}
-				return backfillEntityRelationsByRows[persistencemodel.ContentUnit](db)
-			},
-		},
-		{
 			Version: "000020",
 			Name:    "enforce_unique_script_version_numbers",
 			Up: func(db *gorm.DB) error {
@@ -235,6 +218,13 @@ func RegisteredMigrations() []Migration {
 					return err
 				}
 				return createStoryboardVersionNumberUniqueIndex(db)
+			},
+		},
+		{
+			Version: "000022",
+			Name:    "backfill_current_schema_tables",
+			Up: func(db *gorm.DB) error {
+				return db.AutoMigrate(currentSchemaBackfillModels()...)
 			},
 		},
 	}
@@ -729,11 +719,81 @@ func allModels() []any {
 		&persistencemodel.PluginSecret{},
 		&persistencemodel.HubPackage{},
 		&persistencemodel.GatewayAPIKey{},
+		&persistencemodel.AdminSetting{},
 		&persistencemodel.CloudFileConfig{},
 		&persistencemodel.AuditLog{},
 		&persistencemodel.StoryboardScript{},
 		&persistencemodel.StoryboardVersion{},
-		&persistencemodel.StoryboardLine{},
+		&persistencemodel.Organization{},
+		&persistencemodel.OrganizationMember{},
+		&persistencemodel.UserGroup{},
+		&persistencemodel.UserGroupMember{},
+		&persistencemodel.OrgInvitation{},
+	}
+	return append(entities, runtimeMigrationModels()...)
+}
+
+func currentSchemaBackfillModels() []any {
+	entities := []any{
+		&persistencemodel.User{},
+		&persistencemodel.AuthSession{},
+		&persistencemodel.AuthChallenge{},
+		&persistencemodel.Project{},
+		&persistencemodel.ProjectMember{},
+		&persistencemodel.Script{},
+		&persistencemodel.ScriptVersion{},
+		&persistencemodel.ScriptBlock{},
+		&persistencemodel.Production{},
+		&persistencemodel.ProductionTextBlock{},
+		&persistencemodel.Segment{},
+		&persistencemodel.SceneMoment{},
+		&persistencemodel.ContentUnit{},
+		&persistencemodel.Keyframe{},
+		&persistencemodel.PreviewTimeline{},
+		&persistencemodel.PreviewTimelineItem{},
+		&persistencemodel.CreativeReference{},
+		&persistencemodel.CreativeReferenceState{},
+		&persistencemodel.CreativeReferenceUsage{},
+		&persistencemodel.CreativeRelationship{},
+		&persistencemodel.EntityRelation{},
+		&persistencemodel.AssetSlot{},
+		&persistencemodel.AssetSlotCandidate{},
+		&persistencemodel.CandidateDecision{},
+		&persistencemodel.ReviewEvent{},
+		&persistencemodel.WorkItem{},
+		&persistencemodel.WorkReview{},
+		&persistencemodel.WorkDependency{},
+		&persistencemodel.DeliveryVersion{},
+		&persistencemodel.DeliveryTimelineItem{},
+		&persistencemodel.ExportRecord{},
+		&persistencemodel.ScriptAnalysis{},
+		&persistencemodel.AICredential{},
+		&persistencemodel.AIModelConfig{},
+		&persistencemodel.UsageReservation{},
+		&persistencemodel.UsageLog{},
+		&persistencemodel.ResourceFolder{},
+		&persistencemodel.ResourceFolderPermission{},
+		&persistencemodel.RawResource{},
+		&persistencemodel.ResourceBinding{},
+		&persistencemodel.Canvas{},
+		&persistencemodel.CanvasNode{},
+		&persistencemodel.CanvasEdge{},
+		&persistencemodel.CanvasRun{},
+		&persistencemodel.CanvasTask{},
+		&persistencemodel.CanvasEntityWriteAudit{},
+		&persistencemodel.CanvasOutput{},
+		&persistencemodel.FeatureConfig{},
+		&persistencemodel.Job{},
+		&persistencemodel.Plugin{},
+		&persistencemodel.PluginTool{},
+		&persistencemodel.PluginSecret{},
+		&persistencemodel.HubPackage{},
+		&persistencemodel.GatewayAPIKey{},
+		&persistencemodel.AdminSetting{},
+		&persistencemodel.CloudFileConfig{},
+		&persistencemodel.AuditLog{},
+		&persistencemodel.StoryboardScript{},
+		&persistencemodel.StoryboardVersion{},
 		&persistencemodel.Organization{},
 		&persistencemodel.OrganizationMember{},
 		&persistencemodel.UserGroup{},

@@ -61,6 +61,8 @@ type UpdateAPIKeyInput struct {
 	OwnerUserID     uint
 	OrgID           *uint
 	Name            *string
+	ProjectID       *uint
+	ProjectIDSet    bool
 	AllowedModelIDs []uint
 	AllowedScopes   []string
 	IsEnabled       *bool
@@ -145,8 +147,15 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (do
 	if err != nil {
 		return key, err
 	}
+	if input.ProjectIDSet {
+		if err := s.policy.EnsureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
+			return key, err
+		}
+	}
 	key.ApplyUpdate(domainmodelgateway.APIKeyUpdateSpec{
 		Name:            input.Name,
+		ProjectID:       input.ProjectID,
+		ProjectIDSet:    input.ProjectIDSet,
 		AllowedModelIDs: input.AllowedModelIDs,
 		AllowedScopes:   input.AllowedScopes,
 		IsEnabled:       input.IsEnabled,
@@ -161,12 +170,15 @@ func (s *Service) UpdateAPIKey(ctx context.Context, input UpdateAPIKeyInput) (do
 	return key, nil
 }
 
-func (s *Service) DeleteAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) error {
+func (s *Service) DeleteAPIKey(ctx context.Context, id uint, ownerUserID uint, orgID *uint) (domainmodelgateway.APIKey, error) {
 	key, err := s.policy.FindOwnedAPIKey(ctx, id, ownerUserID, orgID)
 	if err != nil {
-		return err
+		return domainmodelgateway.APIKey{}, err
 	}
-	return s.repo.DeleteAPIKey(ctx, &key)
+	if err := s.repo.DeleteAPIKey(ctx, &key); err != nil {
+		return key, err
+	}
+	return key, nil
 }
 
 func (s *Service) PrincipalForAPIKey(ctx context.Context, rawKey string) (Principal, bool, error) {

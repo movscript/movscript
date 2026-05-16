@@ -2,23 +2,29 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { Bug, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Moon, Route as RouteIcon, Settings2, ShieldCheck, Sun, type LucideIcon } from 'lucide-react'
+import { BarChart3, Bug, Building2, ChevronsLeft, ChevronsRight, CloudUpload, Database, FileText, FolderKanban, HardDrive, LogOut, Moon, Route as RouteIcon, ScrollText, Settings2, ShieldCheck, Sun, UsersRound, type LucideIcon } from 'lucide-react'
 import { queryClient } from '@/lib/queryClient'
 import { useUserStore } from '@/store/userStore'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@movscript/ui'
 import AdminPage, { CloudFileConfigPage, FeatureConfigPage, ModelManagementPage, ProjectOwnerManagementPage, StoragePage } from '@admin/pages/admin/AdminPage'
+import { AuditLogsPage } from '@admin/pages/admin/AuditLogsPage'
 import { DebugPage } from '@admin/pages/admin/DebugPage'
+import { UsageLogsPage } from '@admin/pages/admin/UsageLogsPage'
+import { UserManagementPage } from '@admin/pages/admin/UserManagementPage'
+import { OrgManagementPage } from '@admin/pages/admin/OrgManagementPage'
 import { runtimeNavItems, runtimeRoutes } from '@admin-runtime'
 import { Toaster } from '@/components/ui/Toaster'
 import { initTheme, useTheme } from '@/hooks/useTheme'
+import { useTranslation } from 'react-i18next'
 import '@/i18n'
 import './styles.css'
 
 initTheme()
 
 function LoginPage() {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const setSession = useUserStore((s) => s.setSession)
@@ -43,14 +49,14 @@ function LoginPage() {
       const response = await api.post('/auth/login', { username, password })
       const session = response.data
       if (session?.user?.system_role !== 'super_admin' && session?.user?.systemRole !== 'super_admin') {
-        setError('当前账号不是超级管理员。')
+        setError(t('admin.login.superAdminRequired'))
         setSession(null)
         return
       }
       setSession(session)
       navigate(redirectTo, { replace: true })
     } catch (err: any) {
-      setError(err.response?.data?.message || err.response?.data?.error || '登录失败。')
+      setError(err.response?.data?.message || err.response?.data?.error || t('admin.login.failed'))
     } finally {
       setLoading(false)
     }
@@ -68,11 +74,11 @@ function LoginPage() {
               <ShieldCheck size={20} />
             </div>
             <h1 className="text-xl font-semibold">Movscript Admin</h1>
-            <p className="mt-1 text-sm text-muted-foreground">独立管理后台，只允许超级管理员访问。</p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('admin.login.description')}</p>
           </div>
           <div className="space-y-3">
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">用户名</span>
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">{t('admin.login.username')}</span>
               <input
                 autoFocus
                 value={username}
@@ -81,7 +87,7 @@ function LoginPage() {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-muted-foreground">密码</span>
+              <span className="mb-1 block text-xs font-medium text-muted-foreground">{t('admin.login.password')}</span>
               <input
                 type="password"
                 value={password}
@@ -95,7 +101,7 @@ function LoginPage() {
               disabled={loading || !username.trim() || !password}
               className="h-9 w-full rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? '登录中' : '登录'}
+              {loading ? t('admin.login.loading') : t('admin.login.submit')}
             </button>
           </div>
         </form>
@@ -104,17 +110,19 @@ function LoginPage() {
   )
 }
 
-const baseNavItems: { to: string; label: string; icon: LucideIcon; end?: boolean }[] = [
-  { to: '/', label: '总览', icon: Database, end: true },
-  { to: '/models', label: '模型管理', icon: Settings2 },
-  { to: '/features', label: '功能配置', icon: RouteIcon },
-  { to: '/projects', label: '项目管理', icon: FolderKanban },
-  { to: '/storage', label: '资源存储', icon: HardDrive },
-  { to: '/cloud-files', label: '输入中转', icon: CloudUpload },
-  { to: '/debug', label: '调试', icon: Bug },
+const baseNavItems: { to: string; labelKey: string; icon: LucideIcon; end?: boolean }[] = [
+  { to: '/', labelKey: 'admin.nav.overview', icon: Database, end: true },
+  { to: '/models', labelKey: 'admin.tabs.models', icon: Settings2 },
+  { to: '/features', labelKey: 'admin.tabs.features', icon: RouteIcon },
+  { to: '/user-management', labelKey: 'admin.tabs.users', icon: UsersRound },
+  { to: '/orgs', labelKey: 'admin.tabs.orgs', icon: Building2 },
+  { to: '/projects', labelKey: 'admin.tabs.projects', icon: FolderKanban },
+  { to: '/audit-logs', labelKey: 'admin.tabs.auditLogs', icon: ScrollText },
+  { to: '/usage-logs', labelKey: 'admin.tabs.logs', icon: BarChart3 },
+  { to: '/storage', labelKey: 'admin.tabs.storage', icon: HardDrive },
+  { to: '/cloud-files', labelKey: 'admin.tabs.cloudFiles', icon: CloudUpload },
+  { to: '/debug', labelKey: 'admin.tabs.debug', icon: Bug },
 ]
-
-const navItems = [...baseNavItems, ...runtimeNavItems]
 
 const adminBasename = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
   ? '/admin'
@@ -139,7 +147,9 @@ function resolveLoginRedirect(state: unknown): string {
 }
 
 function ThemeToggleButton() {
+  const { t } = useTranslation()
   const { theme, toggleTheme } = useTheme()
+  const label = theme === 'dark' ? t('admin.shell.lightMode') : t('admin.shell.darkMode')
 
   return (
     <Button
@@ -148,8 +158,8 @@ function ThemeToggleButton() {
       size="icon"
       onClick={toggleTheme}
       className="h-8 w-8 text-muted-foreground hover:text-foreground"
-      title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
-      aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+      title={label}
+      aria-label={label}
     >
       {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
     </Button>
@@ -157,6 +167,7 @@ function ThemeToggleButton() {
 }
 
 function AdminShell({ children }: { children: React.ReactNode }) {
+  const { t } = useTranslation()
   const setCurrentUser = useUserStore((s) => s.setCurrentUser)
   const user = useUserStore((s) => s.currentUser)
   const location = useLocation()
@@ -170,6 +181,13 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   }, [collapsed])
 
   if (!user || getSystemRole(user) !== 'super_admin') return <Navigate to="/login" replace state={{ from: location.pathname }} />
+
+  const navItems = [
+    ...baseNavItems.map((item) => ({ ...item, label: t(item.labelKey) })),
+    ...runtimeNavItems,
+  ]
+  const sidebarToggleLabel = collapsed ? t('admin.shell.expandSidebar') : t('admin.shell.collapseSidebar')
+  const logoutLabel = t('admin.shell.logout')
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -193,8 +211,8 @@ function AdminShell({ children }: { children: React.ReactNode }) {
               size="icon"
               onClick={() => setCollapsed((value) => !value)}
               className="h-8 w-8 text-muted-foreground hover:text-foreground"
-              title={collapsed ? '展开侧栏' : '收起侧栏'}
-              aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
+              title={sidebarToggleLabel}
+              aria-label={sidebarToggleLabel}
             >
               {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
             </Button>
@@ -232,11 +250,11 @@ function AdminShell({ children }: { children: React.ReactNode }) {
               'flex w-full items-center rounded-md text-sm text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
               collapsed ? 'h-10 justify-center px-0' : 'gap-2 px-3 py-2',
             )}
-            title={collapsed ? '退出登录' : undefined}
-            aria-label="退出登录"
+            title={collapsed ? logoutLabel : undefined}
+            aria-label={logoutLabel}
           >
             <LogOut size={15} className="shrink-0" />
-            {!collapsed && '退出登录'}
+            {!collapsed && logoutLabel}
           </button>
         </div>
       </aside>
@@ -256,7 +274,11 @@ function App() {
         <Route path="/" element={<AdminShell><AdminPage /></AdminShell>} />
         <Route path="/models" element={<AdminShell><ModelManagementPage /></AdminShell>} />
         <Route path="/features" element={<AdminShell><FeatureConfigPage /></AdminShell>} />
+        <Route path="/user-management" element={<AdminShell><UserManagementPage /></AdminShell>} />
+        <Route path="/orgs" element={<AdminShell><OrgManagementPage /></AdminShell>} />
         <Route path="/projects" element={<AdminShell><ProjectOwnerManagementPage /></AdminShell>} />
+        <Route path="/audit-logs" element={<AdminShell><AuditLogsPage /></AdminShell>} />
+        <Route path="/usage-logs" element={<AdminShell><UsageLogsPage /></AdminShell>} />
         <Route path="/storage" element={<AdminShell><StoragePage /></AdminShell>} />
         <Route path="/cloud-files" element={<AdminShell><CloudFileConfigPage /></AdminShell>} />
         {runtimeRoutes.map((route) => (

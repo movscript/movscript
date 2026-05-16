@@ -56,12 +56,6 @@ func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	protected.DELETE("/projects/:id/entities/storyboard-versions/:storyboardVersionId", func(c *gin.Context) {
 		h.semanticEntities.DeleteSemanticItemByKind(c, "storyboard_version", c.Param("storyboardVersionId"))
 	})
-	protected.GET("/projects/:id/entities/storyboard-lines", h.semanticEntities.ListStoryboardLines)
-	protected.POST("/projects/:id/entities/storyboard-lines", h.semanticEntities.CreateStoryboardLine)
-	protected.PATCH("/projects/:id/entities/storyboard-lines/:storyboardLineId", h.semanticEntities.PatchStoryboardLine)
-	protected.DELETE("/projects/:id/entities/storyboard-lines/:storyboardLineId", func(c *gin.Context) {
-		h.semanticEntities.DeleteSemanticItemByKind(c, "storyboard_line", c.Param("storyboardLineId"))
-	})
 	protected.GET("/projects/:id/entities/productions", h.semanticEntities.ListProductions)
 	protected.POST("/projects/:id/entities/productions", h.semanticEntities.CreateProduction)
 	protected.PATCH("/projects/:id/entities/productions/:productionId", h.semanticEntities.PatchProduction)
@@ -70,7 +64,6 @@ func registerSemanticEntityRoutes(protected *gin.RouterGroup, h handlers) {
 	})
 	protected.GET("/projects/:id/entities/content-units", h.semanticEntities.ListContentUnits)
 	protected.POST("/projects/:id/entities/content-units", h.semanticEntities.CreateContentUnit)
-	protected.POST("/projects/:id/entities/storyboard-lines/:storyboardLineId/content-units", h.semanticEntities.CreateContentUnitFromStoryboardLine)
 	protected.POST("/projects/:id/entities/content-units/:contentUnitId/generation-context", h.semanticEntities.BuildGenerationContext)
 	protected.PATCH("/projects/:id/entities/content-units/:contentUnitId", h.semanticEntities.PatchContentUnit)
 	protected.DELETE("/projects/:id/entities/content-units/:contentUnitId", func(c *gin.Context) {

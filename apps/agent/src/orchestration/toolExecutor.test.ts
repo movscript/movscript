@@ -119,37 +119,6 @@ test('executeTool serves runtime knowledge search and bounded get', async () => 
   assert.equal(((body.result as any)?.content as string).length <= 32, true)
 })
 
-test('executeTool rejects new content unit media proposal drafts', async () => {
-  const draftStore = new InMemoryAgentDraftStore()
-  await assert.rejects(
-    executeTool({
-      name: 'movscript_create_draft',
-      args: {
-        kind: 'content_unit_media_proposal',
-        proposal: true,
-        content: JSON.stringify({
-          schema: 'movscript.content_unit_media_proposal.v1',
-          scope: 'content_unit_media_proposal',
-          contentUnitId: 1,
-          proposal: { outputs: [{ kind: 'image', prompt: 'frame' }] },
-        }),
-      },
-    }, {
-      ...testOptions({
-        async initialize(): Promise<JSONValue> {
-          return {}
-        },
-        async callTool(): Promise<JSONValue> {
-          throw new Error('MCP should not be called for runtime draft creation')
-        },
-      }),
-      draftStore,
-    }),
-    /content_unit_media_proposal is deprecated and cannot be created/,
-  )
-  assert.deepEqual(draftStore.listDrafts(), [])
-})
-
 test('executeTool creates content unit proposal drafts after media proposal deprecation', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const result = await executeTool({

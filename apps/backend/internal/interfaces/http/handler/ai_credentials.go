@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	aiadminapp "github.com/movscript/movscript/internal/app/aiadmin"
 	"github.com/movscript/movscript/internal/infra/ai"
+	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
 )
 
 func (h *AIHandler) ListCredentials(c *gin.Context) {
@@ -58,6 +59,12 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 		return
 	}
 
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_credential.admin_created",
+		TargetType: "ai_credential",
+		TargetID:   audit.TargetID(cred.ID),
+		Metadata:   credentialAuditMetadata(cred.ID, cred.AdapterType, cred.DisplayName, cred.BaseURL, cred.IsEnabled, cred.FilesAPIEnabled),
+	})
 	c.JSON(http.StatusCreated, cred)
 }
 
@@ -91,11 +98,27 @@ func (h *AIHandler) UpdateCredential(c *gin.Context) {
 		writeCredentialError(c, err)
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_credential.admin_updated",
+		TargetType: "ai_credential",
+		TargetID:   audit.TargetID(cred.ID),
+		Metadata:   credentialAuditMetadata(cred.ID, cred.AdapterType, cred.DisplayName, cred.BaseURL, cred.IsEnabled, cred.FilesAPIEnabled),
+	})
 	c.JSON(http.StatusOK, cred)
 }
 
 func (h *AIHandler) DeleteCredential(c *gin.Context) {
-	_ = h.service.DeleteCredential(c.Request.Context(), c.Param("id"))
+	cred, err := h.service.DeleteCredential(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		writeCredentialError(c, err)
+		return
+	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_credential.admin_deleted",
+		TargetType: "ai_credential",
+		TargetID:   audit.TargetID(cred.ID),
+		Metadata:   credentialAuditMetadata(cred.ID, cred.AdapterType, cred.DisplayName, cred.BaseURL, cred.IsEnabled, cred.FilesAPIEnabled),
+	})
 	c.Status(http.StatusNoContent)
 }
 
@@ -106,6 +129,18 @@ func (h *AIHandler) ListRemoteModels(c *gin.Context) {
 	defer cancel()
 	ids, err := h.service.ListRemoteModels(ctx, c.Param("id"))
 	if err != nil {
+		if !errors.Is(err, aiadminapp.ErrNotFound) {
+			audit.Record(c, h.db, audit.Event{
+				Action:     "ai_credential.remote_models.admin_listed",
+				TargetType: "ai_credential",
+				TargetID:   c.Param("id"),
+				Metadata: map[string]any{
+					"credential_id": c.Param("id"),
+					"success":       false,
+					"model_count":   0,
+				},
+			})
+		}
 		switch {
 		case errors.Is(err, aiadminapp.ErrNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
@@ -116,6 +151,16 @@ func (h *AIHandler) ListRemoteModels(c *gin.Context) {
 		}
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_credential.remote_models.admin_listed",
+		TargetType: "ai_credential",
+		TargetID:   c.Param("id"),
+		Metadata: map[string]any{
+			"credential_id": c.Param("id"),
+			"success":       true,
+			"model_count":   len(ids),
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{"models": ids})
 }
 
@@ -128,6 +173,17 @@ func (h *AIHandler) TestCredential(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
+	audit.Record(c, h.db, audit.Event{
+		Action:     "ai_credential.admin_tested",
+		TargetType: "ai_credential",
+		TargetID:   c.Param("id"),
+		Metadata: map[string]any{
+			"credential_id": c.Param("id"),
+			"success":       result.Success,
+			"latency_ms":    result.LatencyMs,
+			"message_len":   len(result.Message),
+		},
+	})
 	c.JSON(http.StatusOK, result)
 }
 
@@ -145,4 +201,15 @@ func writeCredentialError(c *gin.Context, err error) {
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+}
+
+func credentialAuditMetadata(id uint, adapterType string, displayName string, baseURL string, isEnabled bool, filesAPIEnabled bool) map[string]any {
+	return map[string]any{
+		"credential_id":     id,
+		"adapter_type":      adapterType,
+		"display_name":      displayName,
+		"base_url":          redactAuditURL(baseURL),
+		"is_enabled":        isEnabled,
+		"files_api_enabled": filesAPIEnabled,
+	}
 }
