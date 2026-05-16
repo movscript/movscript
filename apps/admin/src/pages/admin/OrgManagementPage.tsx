@@ -7,6 +7,7 @@ import { Button, Input, Label } from '@movscript/ui'
 import { ActiveUserSelect } from '@/components/admin/ActiveUserSelect'
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
+import { auditLogsHref, usageLogsHref } from '@/lib/adminLogQueryParams'
 import { cn } from '@/lib/utils'
 import type { OrgInvitation, Organization, OrganizationMember, PaginatedResponse } from '@/types'
 
@@ -545,13 +546,13 @@ export function OrgManagementPage() {
 	              )}
 	              <div className="mb-4 flex flex-wrap gap-2">
 	                <Button asChild type="button" variant="outline" size="sm">
-	                  <Link to={`/usage-logs?org_id=${memberDialog.ID}`}>
+	                  <Link to={usageLogsHref({ orgId: memberDialog.ID })}>
 	                    <BarChart3 size={14} className="mr-2" />
 	                    {t('admin.orgs.viewUsageLogs')}
 	                  </Link>
 	                </Button>
 	                <Button asChild type="button" variant="outline" size="sm">
-	                  <Link to={`/audit-logs?org_id=${memberDialog.ID}`}>
+	                  <Link to={auditLogsHref({ orgId: memberDialog.ID })}>
 	                    <ScrollText size={14} className="mr-2" />
 	                    {t('admin.orgs.viewAuditLogs')}
 	                  </Link>

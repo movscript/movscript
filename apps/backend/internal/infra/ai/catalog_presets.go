@@ -45,25 +45,28 @@ var modelPresetSources = []ModelDef{
 	{ID: "openai:gpt-image-1", ModelID: "gpt-image-1",
 		DisplayName: "GPT Image 1 (文生图)", Capabilities: []string{CapabilityImage},
 		PricingMode: PricingPerImage, AdapterType: AdapterOpenAICompat,
-		RefUSDPerImage: 0.040,
-		SupportedParams: []ParamDef{
-			{Key: "size", Label: "尺寸", Type: "select",
-				Options: []string{"1024x1024", "1536x1024", "1024x1536"}, Default: "1024x1024"},
-			{Key: "quality", Label: "质量", Type: "select",
-				Options: []string{"auto", "high", "medium", "low"}, Default: "auto"},
-		}},
+		RefUSDPerImage:  0.040,
+		SupportedParams: openAIGPTImageParams()},
 
 	{ID: "openai:gpt-image-1-edit", ModelID: "gpt-image-1",
 		DisplayName: "GPT Image 1 (图像编辑)", Capabilities: []string{CapabilityImageEdit},
 		PricingMode: PricingPerImage, AdapterType: AdapterOpenAICompat,
 		AcceptsImageInput: true, MaxInputImages: 1, ImageEditField: "image[]",
-		RefUSDPerImage: 0.040,
-		SupportedParams: []ParamDef{
-			{Key: "size", Label: "尺寸", Type: "select",
-				Options: []string{"1024x1024", "1536x1024", "1024x1536"}, Default: "1024x1024"},
-			{Key: "quality", Label: "质量", Type: "select",
-				Options: []string{"auto", "high", "medium", "low"}, Default: "auto"},
-		}},
+		RefUSDPerImage:  0.040,
+		SupportedParams: openAIGPTImageParams()},
+
+	{ID: "openai:gpt-image-2", ModelID: "gpt-image-2",
+		DisplayName: "GPT Image 2 (文生图)", Capabilities: []string{CapabilityImage},
+		PricingMode: PricingPerImage, AdapterType: AdapterOpenAICompat,
+		RefUSDPerImage:  0.040,
+		SupportedParams: openAIGPTImageParams()},
+
+	{ID: "openai:gpt-image-2-edit", ModelID: "gpt-image-2",
+		DisplayName: "GPT Image 2 (图像编辑)", Capabilities: []string{CapabilityImageEdit},
+		PricingMode: PricingPerImage, AdapterType: AdapterOpenAICompat,
+		AcceptsImageInput: true, MaxInputImages: 1, ImageEditField: "image[]",
+		RefUSDPerImage:  0.040,
+		SupportedParams: openAIGPTImageParams()},
 
 	// ─── Anthropic ─────────────────────────────────────────────────────────────
 

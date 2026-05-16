@@ -101,6 +101,21 @@ export function cancelPendingRuntimeSubagentTask(input: {
   }
 }
 
+export function buildRuntimePendingSubagentTaskCancellationResult(input: {
+  result: ReturnType<typeof cancelPendingRuntimeSubagentTask>
+  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+}): ReturnType<typeof cancelPendingRuntimeSubagentTask> & {
+  snapshot: Record<string, JSONValue>
+} {
+  return {
+    ...input.result,
+    snapshot: buildSubagentSnapshotView({
+      snapshot: input.getPlanSnapshot(input.result.planId),
+      plannerRunId: input.result.plannerRunId,
+    }),
+  }
+}
+
 export function buildRuntimeSubagentRunCancellationResult(input: {
   store: Pick<AgentStore, 'getRun' | 'getTask'>
   plannerRun: AgentRun
@@ -132,6 +147,44 @@ export function buildRuntimeSubagentRunCancellationResult(input: {
     cancelledRunIds: input.cancelledRunIds,
     snapshot: buildSubagentSnapshotView({ snapshot: input.getPlanSnapshot(planId), plannerRunId: input.plannerRun.id }),
   }
+}
+
+export function applyRuntimeSubagentCancellationFlow(input: {
+  store: Pick<AgentStore, 'getRun' | 'getTask' | 'listTasks'>
+  plannerRun: AgentRun
+  request?: Record<string, JSONValue>
+  updateTask: (taskId: string, update: UpdatePlanTaskInput) => AgentTask
+  cancelSubtree: (runId: string, input?: { reason?: unknown }) => { cancelledRunIds: string[] }
+  getPlanSnapshot: (planId: string) => AgentPlanSnapshot
+}): JSONValue {
+  const request = input.request ?? {}
+  const target = resolveRuntimeSubagentCancellationTarget({
+    store: input.store,
+    plannerRun: input.plannerRun,
+    request,
+  })
+  if (target.kind === 'pending_task') {
+    const result = cancelPendingRuntimeSubagentTask({
+      store: input.store,
+      plannerRun: input.plannerRun,
+      taskId: target.taskId,
+      reason: request.reason,
+      updateTask: input.updateTask,
+    })
+    return buildRuntimePendingSubagentTaskCancellationResult({
+      result,
+      getPlanSnapshot: input.getPlanSnapshot,
+    }) as unknown as JSONValue
+  }
+
+  const result = input.cancelSubtree(target.runId, { reason: request.reason })
+  return buildRuntimeSubagentRunCancellationResult({
+    store: input.store,
+    plannerRun: input.plannerRun,
+    runId: target.runId,
+    cancelledRunIds: result.cancelledRunIds,
+    getPlanSnapshot: input.getPlanSnapshot,
+  }) as unknown as JSONValue
 }
 
 function normalizeNonEmptyString(value: unknown): string | undefined {

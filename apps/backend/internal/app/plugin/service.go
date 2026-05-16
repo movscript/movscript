@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	domainplugin "github.com/movscript/movscript/internal/domain/plugin"
-	"github.com/movscript/movscript/internal/infra/pluginkit"
+	"github.com/movscript/movscript/internal/infra/plugin"
 	"gorm.io/gorm"
 )
 
@@ -27,26 +27,26 @@ type ImportResult struct {
 type CardContribution struct {
 	PluginID  uint   `json:"plugin_id"`
 	PluginKey string `json:"plugin_key"`
-	pluginkit.CardContribution
+	plugin.CardContribution
 }
 
 type CanvasNodeContribution struct {
 	PluginID  uint   `json:"plugin_id"`
 	PluginKey string `json:"plugin_key"`
-	pluginkit.CanvasNodeContribution
+	plugin.CanvasNodeContribution
 }
 
 type WorkflowContribution struct {
 	PluginID  uint   `json:"plugin_id"`
 	PluginKey string `json:"plugin_key"`
-	pluginkit.WorkflowContribution
+	plugin.WorkflowContribution
 }
 
 func (s *Service) List(ctx context.Context) ([]domainplugin.Plugin, error) {
 	return s.repo.ListPlugins(ctx)
 }
 
-func (s *Service) Import(ctx context.Context, req pluginkit.ImportRequest) (ImportResult, error) {
+func (s *Service) Import(ctx context.Context, req plugin.ImportRequest) (ImportResult, error) {
 	plugin, created, err := s.repo.ImportPlugin(ctx, req)
 	if err != nil {
 		return ImportResult{}, err
@@ -135,7 +135,7 @@ func (s *Service) WorkflowCatalog(ctx context.Context) ([]WorkflowContribution, 
 	return out, nil
 }
 
-func parseStoredManifest(p domainplugin.Plugin) (*pluginkit.Manifest, bool) {
-	m, _, err := pluginkit.ParseManifest([]byte(p.Manifest))
+func parseStoredManifest(p domainplugin.Plugin) (*plugin.Manifest, bool) {
+	m, _, err := plugin.ParseManifest([]byte(p.Manifest))
 	return m, err == nil
 }

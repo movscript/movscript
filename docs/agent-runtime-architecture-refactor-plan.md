@@ -152,7 +152,7 @@ apps/agent/src/
     runExecutionInput.ts         Run creation, preview, tool-run, and execution input selection
     runAuth.ts                   Backend auth token/base URL normalization, metadata, and per-run auth registry
     runLifecycleControl.ts       Run cancellation, controller registry, subtree traversal, and lifecycle timing helpers
-    runtimeRunInteraction.ts     Runtime approval/input persistence and visible interaction messages
+    runtimeRunInteraction.ts     Runtime approval/input interaction flow and visible messages
     runtimeMessageFactory.ts     Runtime user-visible message creation
     runtimePlanContext.ts        Runtime plan debug-context store attachment
     runtimeReplanTaskCreation.ts Runtime replan add-task creation validation
@@ -160,26 +160,37 @@ apps/agent/src/
     runtimeCapabilities.ts       Runtime manifest/tool/MCP capability response boundary
     runtimeIdentity.ts           Runtime-local ID and timestamp construction
     runtimeManifest.ts           Runtime manifest selection and normalization
+    runtimeMemoryOperations.ts   Runtime memory list/get/create/delete facade boundary
     runtimeCatalogSnapshot.ts    Runtime catalog snapshot construction, version normalization, and per-run snapshot registry
     runtimeCatalogRead.ts        Runtime tools/skills/default-manifest/catalog-inspection read boundary
     runtimeCatalogReload.ts      Runtime catalog reload decision and response projection
     runtimeDeferredTasks.ts      Runtime deferred task tracking and flush coordination
+    runtimeDraftOperations.ts    Runtime draft CRUD/validation/preview/simulate/apply boundary
     runtimeEventSubscribers.ts   Run/plan stream listener registry and lifecycle cleanup
+    runtimeAgentPlanTools.ts     Runtime agent plan tool binding and response projection boundary
     runtimePlanBinding.ts        Runtime store boundary for planner-run and plan attachment
-    runtimePlanCreation.ts       Runtime plan and initial task persistence
+    runtimePlanCreation.ts       Runtime plan creation, task generation, root run, and creation flow
+    runtimePlanDispatch.ts       Runtime dispatch full flow and result boundary
     runtimePlanProjection.ts     Runtime plan status projection persistence
     runtimePlanRead.ts           Runtime plan and task-tree read boundary
     runtimePlanSnapshot.ts       Runtime plan snapshot store projection
+    runtimePlanTreeCancellation.ts Runtime plan tree cancellation root validation
+    runtimeReplanPreparation.ts  Runtime replan validation, task changes, and finalization boundary
+    runtimeRunCancellation.ts    Runtime run subtree cancellation planning and application boundary
+    runtimeRunCreation.ts        Runtime chat/tool run construction and creation application boundary
+    runtimeRunPreview.ts         Runtime preview context, skills, tools, policy, and prompt boundary
     runtimeStoreLookup.ts        Runtime entity lookup and stable not-found errors
-    runtimeSubagentTaskCancellation.ts Runtime pending subagent task cancellation flow
+    runtimeSubagentTaskCancellation.ts Runtime subagent cancellation flow and response boundary
     runtimeSubagentRead.ts       Runtime subagent list/wait read and snapshot boundary
+    runtimeSubagentSpawn.ts      Runtime spawn_subagent full flow and response projection
     runtimeTaskAssignment.ts     Runtime task ownership assignment persistence
     runtimeTaskDispatch.ts       Runtime dispatch blocker and worker ownership persistence
-    runtimePlanTaskMaintenance.ts Runtime retry/replan task reset persistence
-    runtimeTaskRunSync.ts        Runtime run-to-task projection persistence
-    runtimeTaskUpdate.ts         Runtime task update validation and persistence
-    runtimeWorkerTimeout.ts      Runtime timed-out worker task metadata persistence
+    runtimePlanTaskMaintenance.ts Runtime retry/replan task reset persistence and callback boundary
+    runtimeTaskRunSync.ts        Runtime run-to-task projection persistence and callback boundary
+    runtimeTaskUpdate.ts         Runtime task update validation, persistence, and callback boundary
+    runtimeWorkerTimeout.ts      Runtime worker timeout detection application and task metadata persistence
     runtimeRunProjection.ts      Runtime product-safe run lookup projection
+    runtimeThreadTitle.ts        Runtime thread title generation state, model call, and fallback boundary
     runtimeThreadProjection.ts   Runtime thread run-status projection persistence
     assistantMessage.ts          User-visible assistant message composition helpers
 
@@ -458,6 +469,7 @@ Drafts are local review artifacts until an apply flow succeeds. Runtime code may
 
 Current implementation note:
 
+- `application/runtimeDraftOperations.ts` now owns runtime-facing draft CRUD, patch validation projection, apply preview, validation, backend apply simulation, UI apply orchestration, asset-planning apply skip projection, backend apply error projection, canonical post-apply rebasing, rejection, and backend failure metadata persistence, while `AgentRuntime` retains draft store/backend client dependency injection and thin facade methods.
 - `drafts/draftRuntimeContent.ts` now owns runtime-facing draft content rules: asset-proposal backend-apply skip detection, project-proposal canonical snapshot rebasing, and allowlisted JSON-safe draft source normalization.
 - `drafts/draftRuntimeInput.ts` now owns runtime draft API input normalization for create, update, patch, backend apply auth, and draft id requirements.
 
@@ -597,7 +609,7 @@ Current implementation note:
 - `application/runExecutionInput.ts` now owns run creation, tool-run, preview, and execution-time user-message selection rules.
 - `application/runAuth.ts` now owns backend auth token/base URL normalization, raw-input merge/remember rules, serializable setup metadata, and the in-memory per-run auth registry.
 - `application/runLifecycleControl.ts` now owns cancellation error construction/detection, execution cancellation assertions, run controller registry, cancel reason normalization, run subtree id collection, and non-negative lifecycle duration calculation.
-- `application/runtimeRunInteraction.ts` now owns store-facing approval approve/reject and user-input answer persistence, including queued/completed run state, thread run-status projection, assistant rejection messages, and intentional user-visible answer messages, while `AgentRuntime` keeps trace event emission, step creation, stream snapshots, auth memory, and execution restart ordering.
+- `application/runtimeRunInteraction.ts` now owns approval/input interaction flow and persistence: approve/reject/answer state transitions, thread run-status projection, assistant rejection messages, intentional user-visible answer messages, approval/input trace payload construction, rejection message-step completion, stream snapshot callback ordering, auth-memory callback ordering, and execution-restart callback ordering, while `AgentRuntime` retains the concrete trace sink, step creation, stream sink, auth registry, and execution scheduler.
 - `application/runtimeMessageFactory.ts` now owns runtime user-visible message id/time creation on top of `threadLifecycle.buildThreadMessage`, removing the message creation wrapper from `AgentRuntime`.
 - `application/runtimePlanContext.ts` now owns store-facing plan debug-context attachment for runs, while `state/planContextView.ts` keeps the pure projection shape.
 - `application/runtimeReplanTaskCreation.ts` now owns store-facing replan add-task creation validation, including existing task lookup and subagent-name uniqueness across persisted task/run state.
@@ -605,26 +617,36 @@ Current implementation note:
 - `application/runtimeCapabilities.ts` now owns public runtime capability resolution across request manifest selection, MCP discovery, tool registry, plugin catalog metadata, plugin warnings, update state, resource inclusion, project scope, and run-role filtering.
 - `application/runtimeIdentity.ts` now owns runtime-local ID and timestamp construction instead of leaving those helpers in the runtime facade.
 - `application/runtimeManifest.ts` now owns runtime manifest selection and normalization for capabilities, run creation, tool runs, and previews.
+- `application/runtimeMemoryOperations.ts` now owns runtime-facing memory list, summary, get, create, and delete facade calls, preserving project scoping through `MemoryManager` while `AgentRuntime` keeps dependency injection only.
 - `application/runtimeCatalogSnapshot.ts` now owns runtime catalog snapshot construction and the current/per-run snapshot registry, including catalog version normalization, manifest/registry capture, plugin catalog info, warning defaults, and in-flight run snapshot stability across catalog reloads.
 - `application/runtimeCatalogRead.ts` now owns runtime catalog read entrypoints for registered tools, layered skills, the default manifest, and per-run catalog inspection over captured snapshots.
 - `application/runtimeCatalogReload.ts` now owns dynamic catalog reload decision flow, unchanged/rollback/reloaded response projection, and plugin-catalog metadata construction, while `AgentRuntime` applies the committed catalog state and snapshot replacement.
 - `application/runtimeDeferredTasks.ts` now owns deferred task tracking and flush coordination used by post-run memory/rollback records.
 - `application/runtimeEventSubscribers.ts` now owns run/plan stream listener registration, replay attachment, listener failure cleanup, unsubscribe, and terminal close mechanics while `AgentRuntime` retains event construction and replay content.
+- `application/runtimeAgentPlanTools.ts` now owns agent-facing plan tool boundaries for create/get/replan: planner-run validation, existing plan detection, thread-plan attachment, created-plan finalization, plan inspection authorization, replan planner-plan resolution, and stable tool response projection, while `AgentRuntime` retains createPlan/replanRun execution plus task/run event side effects.
 - `application/runtimePlanBinding.ts` now owns the store-facing planner-run lookup, thread-plan lookup, planner-to-plan attachment persistence, and runtime plan id resolution, while `state/planRunBinding.ts` keeps the pure boundary rules.
-- `application/runtimePlanCreation.ts` now owns store-facing plan construction, initial task validation, and atomic create-before-events persistence, while `AgentRuntime` retains planner generation, root planner run creation, and task protocol event emission.
+- `application/runtimePlanCreation.ts` now owns plan creation preparation, task generation resolution, and creation flow: thread id validation, thread lookup, one-plan-per-thread validation, task input normalization, goal extraction, planner task generation request construction, generated task/source/warning projection, store-facing plan construction, initial task validation, atomic create-before-events persistence, created-task callback ordering, root planner run input creation/application, plan rootRunId/status persistence, and inline planner task assignment callbacks, while `AgentRuntime` retains planner generation dependency injection, runtime run creation dependency bridging, snapshot return, and task protocol/stream event callbacks.
+- `application/runtimePlanDispatch.ts` now owns the dispatch flow and result finalization: plan id/control normalization, planner-run validation, timed-out worker application callback ordering, retryable task reset callback ordering, requested task validation, supervisor decision construction, dispatch subagent-name map construction, blocked-task marker persistence, worker run input construction, worker ownership persistence, dispatch application callbacks, final recompute callback ordering, and stable `DispatchPlanResult` projection, while `AgentRuntime` retains actual run cancellation/creation, run-to-task sync, recompute, and event bridge callbacks.
 - `application/runtimePlanProjection.ts` now owns store-facing task-to-plan status/progress projection persistence, while `AgentRuntime` retains plan completion trace emission.
 - `application/runtimePlanRead.ts` now owns store-facing plan list/detail and task-tree reads with stable plan-boundary validation.
 - `application/runtimePlanSnapshot.ts` now owns store-facing plan snapshot construction and product-safe run projection, while `state/planSnapshot.ts` keeps the pure snapshot/summary rules.
+- `application/runtimePlanTreeCancellation.ts` now owns `cancelPlanTree` root planner and plan attachment validation before side effects, while `AgentRuntime` retains subtree cancellation and run-cancellation side effects.
+- `application/runtimeReplanPreparation.ts` now owns replan preparation, task create/update application, and finalization: source run and plan lookup, replan planner-run selection, planner-plan authorization, create/update task input splitting, new task validation, update validation, owner-run checks, graph checks, subagent-name uniqueness checks, create/update persistence calls, stable created/updated id projection, post-reset plan recompute callback ordering, optional dispatch input construction, and final result projection, while `AgentRuntime` retains reset policy application plus recompute/dispatch/event bridge callbacks.
+- `application/runtimeRunCancellation.ts` now owns run subtree cancellation planning and application order: root run validation, cancel reason normalization, leaf-first subtree ordering, finished/cancelled run filtering, cancel-run callback ordering, and cancelled id projection, while `AgentRuntime` retains controller aborts, run status persistence, trace/message emission, thread projection, and stream side effects.
+- `application/runtimeRunCreation.ts` now owns normal chat run and forced tool run construction plus the creation application order: manifest resolution, policy normalization, hierarchy normalization, source user/message selection, frozen run-input snapshot creation, forced tool-call metadata, runtime contract metadata, approved-tool metadata, catalog snapshot metadata, catalog/auth remembering callbacks, run persistence callback, run-to-thread projection, thread timestamp update, and start-run callback, while `AgentRuntime` retains thread lookup, user-message append, and dependency bridge callbacks.
+- `application/runtimeRunPreview.ts` now owns the preview-only runtime boundary: preview thread/message resolution, client input normalization, focus/context read, memory indexing, layered skill activation, planner tool capability resolution, policy construction, prompt preview construction, speculative tool-plan prediction, and preview response projection, while `AgentRuntime` only injects store/MCP/memory/draft/catalog/contract dependencies and id/time factories.
 - `application/runtimeStoreLookup.ts` now owns common thread/run/plan/task lookup helpers and stable not-found errors, removing basic entity lookup wrappers from `AgentRuntime`.
-- `application/runtimeSubagentTaskCancellation.ts` now owns pending subagent task cancellation validation, cancellation update application through the runtime task update boundary, and task target result construction.
+- `application/runtimeSubagentTaskCancellation.ts` now owns the `cancel_subagent` flow and response projection for pending-task and worker-run targets: target resolution, pending task cancellation validation, task-update callback invocation, subtree-cancellation callback invocation, pending/run result projection, and snapshot callback invocation, while `AgentRuntime` retains runtime task update bridging, subtree cancellation execution, trace emission, snapshot lookup, and stream side-effect ordering.
 - `application/runtimeSubagentRead.ts` now owns store-facing `list_subagents` and `wait_subagent` read flows, including planner-run plan resolution, subagent-name target resolution, bounded wait polling, and subagent snapshot response construction.
+- `application/runtimeSubagentSpawn.ts` now owns the `spawn_subagent` flow and response projection: planner-plan validation, new worker task construction, requested task id normalization, fallback/explicit subagent-name assignment, duplicate-name validation, atomic target validation, new-task persistence callbacks, existing-task subagent-name update calls, blocked/failed/cancelled target reset calls, created-task id projection, dispatch input construction, dispatch callback invocation, snapshot callback invocation, and spawn tool result/snapshot view construction, while `AgentRuntime` retains task event bridge callbacks, runtime task update bridging, worker dispatch execution, and snapshot lookup.
 - `application/runtimeTaskAssignment.ts` now owns store-facing planner-inline task assignment and previous-task snapshot capture, while `AgentRuntime` retains protocol event and stream emission.
 - `application/runtimeTaskDispatch.ts` now owns store-facing dispatch blocker persistence and worker ownership assignment snapshots, while `AgentRuntime` retains worker run creation plus protocol event and stream emission.
-- `application/runtimePlanTaskMaintenance.ts` now owns store-facing retryable task reset and replan task reset persistence, returning previous task snapshots so `AgentRuntime` can retain protocol event and stream emission.
-- `application/runtimeTaskRunSync.ts` now owns store-facing run-to-task projection persistence and previous-task snapshot capture, while `AgentRuntime` retains plan recomputation plus protocol event and stream emission.
-- `application/runtimeTaskUpdate.ts` now owns store-facing task update validation, owner-run boundary checks, subagent-name uniqueness checks, persistence, and previous-task snapshot capture, while `AgentRuntime` retains plan recomputation plus protocol event and stream emission.
-- `application/runtimeWorkerTimeout.ts` now owns store-facing timed-out worker task metadata persistence, while `AgentRuntime` retains run cancellation, run-to-task sync, and plan task event emission.
+- `application/runtimePlanTaskMaintenance.ts` now owns store-facing retryable task reset and replan task reset persistence plus reset callback application, returning previous task snapshots and invoking event/recompute bridge callbacks so `AgentRuntime` no longer needs private reset wrapper methods.
+- `application/runtimeTaskRunSync.ts` now owns store-facing run-to-task projection persistence, previous-task snapshot capture, and sync callback ordering for plan recomputation plus task events, while `AgentRuntime` retains the actual recompute/event bridge callbacks.
+- `application/runtimeTaskUpdate.ts` now owns store-facing task update validation, owner-run boundary checks, subagent-name uniqueness checks, persistence, previous-task snapshot capture, and post-update callback ordering for plan recomputation plus task update events, while `AgentRuntime` retains the actual recompute/event bridge callbacks.
+- `application/runtimeWorkerTimeout.ts` now owns worker timeout application over plan workers: timeout eligibility scanning, cancellation/sync callback ordering, timed-out task metadata persistence, and task event callbacks, while `AgentRuntime` retains the actual run cancellation semantics and plan task event emission bridge.
 - `application/runtimeRunProjection.ts` now owns product-safe run list/detail/child lookup projection, including stripping persisted trace payloads from public run views.
+- `application/runtimeThreadTitle.ts` now owns runtime thread title generation: should-generate gating, pending/completed/fallback title state transitions, model config resolution, auth normalization, model-call prompt construction, and fallback projection, while `AgentRuntime` retains thread storage injection and `thread_title` stream emission.
 - `application/runtimeThreadLifecycle.ts` now owns public thread create/update and user-visible message append persistence, while `threadLifecycle.ts` keeps pure thread/message normalization and mutation helpers.
 - `application/runtimeThreadRead.ts` now owns store-facing thread list/detail and summary reads.
 - `application/runtimeThreadProjection.ts` now owns store-facing thread run-status projection persistence, while `state/runProjection.ts` keeps the pure projection rules.
@@ -641,7 +663,7 @@ Current implementation note:
 - `state/planRunBinding.ts` now owns planner-run validation, thread-plan selection, replan planner-run selection, plan access boundaries, and root-run repair rules while `application/runtimePlanBinding.ts` owns the store-facing persistence boundary.
 - `catalog/catalogInspectView.ts` now owns full read-only catalog inspection view assembly for summary, pack, skill, tool, profile, and knowledge views.
 - `state/planContextView.ts` now owns plan debug-context and subagent snapshot view projection for model/tool consumption.
-- `state/subagentNameValidation.ts` now owns subagent name lookup, wait/cancel input resolution, collection, and duplicate validation across task/run state; `AgentRuntime` calls these helpers directly instead of maintaining private pass-through wrappers.
+- `state/subagentNameValidation.ts` now owns subagent name lookup, wait/cancel input resolution, dispatch fallback-name assignment, collection, and duplicate validation across task/run state; runtime read/cancellation/dispatch helpers call these helpers instead of keeping pass-through wrappers in `AgentRuntime`.
 - `state/subagentWaitTarget.ts` now owns `wait_subagent` target resolution, plan boundary validation, and wait target view construction.
 - `state/subagentTaskCancellation.ts` now owns pending subagent task cancellation rules and task target rendering.
 - `state/planWorkerMaintenance.ts` now owns pure worker timeout, retry eligibility, and replan-reset selection rules while `AgentRuntime` retains side-effect ordering.

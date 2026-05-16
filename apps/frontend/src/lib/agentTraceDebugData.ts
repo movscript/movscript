@@ -15,9 +15,20 @@ export function redactAgentTraceDebugData(data: unknown): unknown {
   return redactValue(data, new WeakSet<object>(), undefined)
 }
 
+export function redactAgentTraceDebugText(value: string): string {
+  const urlRedacted = redactUrlSecrets(value)
+  if (urlRedacted !== value) return urlRedacted
+  try {
+    const parsed = JSON.parse(value) as unknown
+    return formatAgentTraceDebugData(parsed)
+  } catch {
+    return value
+  }
+}
+
 function redactValue(value: unknown, seen: WeakSet<object>, key: string | undefined): unknown {
   if (key && SENSITIVE_KEY_PATTERN.test(key)) return REDACTED_VALUE
-  if (typeof value === 'string') return redactUrlSecrets(value)
+  if (typeof value === 'string') return redactString(value)
   if (!value || typeof value !== 'object') return value
   if (seen.has(value)) return '[循环引用]'
   seen.add(value)
@@ -31,6 +42,20 @@ function redactValue(value: unknown, seen: WeakSet<object>, key: string | undefi
   return redacted
 }
 
+function redactString(value: string): string {
+  const urlRedacted = redactUrlSecrets(value)
+  if (urlRedacted !== value) return urlRedacted
+  const trimmed = value.trim()
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return value
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!parsed || typeof parsed !== 'object') return value
+    return JSON.stringify(redactValue(parsed, new WeakSet<object>(), undefined), null, 2)
+  } catch {
+    return value
+  }
+}
+
 function redactUrlSecrets(value: string): string {
   if (!looksLikeUrlWithQuery(value)) return value
   try {
@@ -41,7 +66,7 @@ function redactUrlSecrets(value: string): string {
       url.searchParams.set(param, REDACTED_VALUE)
       changed = true
     }
-    return changed ? url.toString() : value
+    return changed ? url.toString().split(encodeURIComponent(REDACTED_VALUE)).join(REDACTED_VALUE) : value
   } catch {
     return value
   }

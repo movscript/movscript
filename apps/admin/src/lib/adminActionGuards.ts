@@ -8,6 +8,13 @@ export type AdminFeatureToggleConfirmKey =
   | 'admin.features.confirmEnable'
   | 'admin.features.confirmDisable'
 
+export type AdminJobAction = 'cancel' | 'retry' | 'delete'
+
+export type AdminJobActionConfirmKey =
+  | 'admin.debug.jobs.confirmCancel'
+  | 'admin.debug.jobs.confirmRetry'
+  | 'admin.debug.jobs.confirmDelete'
+
 export interface AdminFeatureUpdatePayload {
   is_enabled?: boolean
   allowed_model_ids?: number[]
@@ -37,4 +44,15 @@ export function featureToggleConfirmKey(
     return null
   }
   return update.is_enabled ? 'admin.features.confirmEnable' : 'admin.features.confirmDisable'
+}
+
+export function jobActionConfirmKey(action: AdminJobAction): AdminJobActionConfirmKey {
+  switch (action) {
+    case 'cancel':
+      return 'admin.debug.jobs.confirmCancel'
+    case 'retry':
+      return 'admin.debug.jobs.confirmRetry'
+    case 'delete':
+      return 'admin.debug.jobs.confirmDelete'
+  }
 }

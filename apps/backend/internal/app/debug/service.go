@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
+	domainai "github.com/movscript/movscript/internal/domain/ai"
 	domainjob "github.com/movscript/movscript/internal/domain/job"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/crypto"
@@ -38,6 +38,17 @@ func NewService(db *gorm.DB, encryptionKey ...[]byte) *Service {
 type JobPage struct {
 	Items []domainjob.Job
 	Total int64
+}
+
+type JobFilters struct {
+	JobID         *uint
+	Status        string
+	JobType       string
+	FeatureKey    string
+	UserID        *uint
+	OrgID         *uint
+	ProjectID     *uint
+	ModelConfigID *uint
 }
 
 type JobStatusCount struct {
@@ -87,7 +98,7 @@ type JobDetail struct {
 	DebugDetail *ai.DebugCallResult `json:"debug_detail,omitempty"`
 }
 
-func (s *Service) getCredential(ctx context.Context, id uint) (domainaiadmin.Credential, error) {
+func (s *Service) getCredential(ctx context.Context, id uint) (domainai.Credential, error) {
 	return s.repo.GetCredential(ctx, id)
 }
 
@@ -261,12 +272,12 @@ func (s *Service) ProviderCall(ctx context.Context, input ProviderCallInput) ai.
 	})
 }
 
-func (s *Service) ListJobs(ctx context.Context, status string, limit, offset int) (JobPage, error) {
-	return s.repo.ListJobs(ctx, status, limit, offset)
+func (s *Service) ListJobs(ctx context.Context, filters JobFilters, limit, offset int) (JobPage, error) {
+	return s.repo.ListJobs(ctx, filters, limit, offset)
 }
 
-func (s *Service) ListJobDetails(ctx context.Context, status string, limit, offset int) ([]JobDetail, int64, error) {
-	page, err := s.ListJobs(ctx, status, limit, offset)
+func (s *Service) ListJobDetails(ctx context.Context, filters JobFilters, limit, offset int) ([]JobDetail, int64, error) {
+	page, err := s.ListJobs(ctx, filters, limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}

@@ -6,19 +6,19 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	orgadmin "github.com/movscript/movscript/internal/app/orgadmin"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	adminorg "github.com/movscript/movscript/internal/app/admin/org"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"gorm.io/gorm"
 )
 
 type OrgAdminHandler struct {
 	db      *gorm.DB
-	service *orgadmin.Service
+	service *adminorg.Service
 }
 
 func NewOrgAdminHandler(db *gorm.DB) *OrgAdminHandler {
-	return &OrgAdminHandler{db: db, service: orgadmin.NewService(db)}
+	return &OrgAdminHandler{db: db, service: adminorg.NewService(db)}
 }
 
 func (h *OrgAdminHandler) List(c *gin.Context) {
@@ -26,7 +26,7 @@ func (h *OrgAdminHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.service.List(c.Request.Context(), orgadmin.ListFilter{
+	result, err := h.service.List(c.Request.Context(), adminorg.ListFilter{
 		Query:      c.Query("q"),
 		Plan:       c.Query("plan"),
 		Status:     c.Query("status"),
@@ -35,31 +35,31 @@ func (h *OrgAdminHandler) List(c *gin.Context) {
 		PageSize:   parsePositiveInt(c.Query("page_size"), 50),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询组织失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询组织失败"))
 		return
 	}
 	c.JSON(http.StatusOK, result)
 }
 
 func (h *OrgAdminHandler) Create(c *gin.Context) {
-	var req orgadmin.CreateInput
+	var req adminorg.CreateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	created, err := h.service.Create(c.Request.Context(), req)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrInvalidOrgName):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("组织名称不能为空"))
-		case errors.Is(err, orgadmin.ErrUserNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("Owner 用户不存在"))
-		case errors.Is(err, orgadmin.ErrUserInactive):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("Owner 用户必须是 active 状态"))
-		case errors.Is(err, orgadmin.ErrOrgAlreadyExists):
-			c.JSON(http.StatusConflict, apierr.Conflict("组织 slug 已存在"))
+		case errors.Is(err, adminorg.ErrInvalidOrgName):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("组织名称不能为空"))
+		case errors.Is(err, adminorg.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("Owner 用户不存在"))
+		case errors.Is(err, adminorg.ErrUserInactive):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("Owner 用户必须是 active 状态"))
+		case errors.Is(err, adminorg.ErrOrgAlreadyExists):
+			c.JSON(http.StatusConflict, api.Conflict("组织 slug 已存在"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("创建组织失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("创建组织失败"))
 		}
 		return
 	}
@@ -83,10 +83,10 @@ func (h *OrgAdminHandler) Detail(c *gin.Context) {
 	detail, err := h.service.Detail(c.Request.Context(), orgID)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrOrgNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
+		case errors.Is(err, adminorg.ErrOrgNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("组织不存在"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("查询组织详情失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("查询组织详情失败"))
 		}
 		return
 	}
@@ -98,10 +98,10 @@ func (h *OrgAdminHandler) ListMembers(c *gin.Context) {
 	members, err := h.service.ListMembers(c.Request.Context(), orgID)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrOrgNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
+		case errors.Is(err, adminorg.ErrOrgNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("组织不存在"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("查询组织成员失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("查询组织成员失败"))
 		}
 		return
 	}
@@ -113,10 +113,10 @@ func (h *OrgAdminHandler) ListInvitations(c *gin.Context) {
 	invitations, err := h.service.ListInvitations(c.Request.Context(), orgID)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrOrgNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
+		case errors.Is(err, adminorg.ErrOrgNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("组织不存在"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("查询组织邀请失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("查询组织邀请失败"))
 		}
 		return
 	}
@@ -125,26 +125,26 @@ func (h *OrgAdminHandler) ListInvitations(c *gin.Context) {
 
 func (h *OrgAdminHandler) AddMember(c *gin.Context) {
 	orgID := parseID(c.Param("id"))
-	var req orgadmin.AddMemberInput
+	var req adminorg.AddMemberInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	member, err := h.service.AddMember(c.Request.Context(), orgID, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrOrgNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
-		case errors.Is(err, orgadmin.ErrUserNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("用户不存在"))
-		case errors.Is(err, orgadmin.ErrUserInactive):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("组织成员用户必须是 active 状态"))
-		case errors.Is(err, orgadmin.ErrMemberAlreadyExists):
-			c.JSON(http.StatusConflict, apierr.Conflict("用户已是组织成员"))
-		case errors.Is(err, orgadmin.ErrInvalidMemberRole):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("role 必须是 owner、admin、member 或 viewer"))
+		case errors.Is(err, adminorg.ErrOrgNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("组织不存在"))
+		case errors.Is(err, adminorg.ErrUserNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("用户不存在"))
+		case errors.Is(err, adminorg.ErrUserInactive):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("组织成员用户必须是 active 状态"))
+		case errors.Is(err, adminorg.ErrMemberAlreadyExists):
+			c.JSON(http.StatusConflict, api.Conflict("用户已是组织成员"))
+		case errors.Is(err, adminorg.ErrInvalidMemberRole):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("role 必须是 owner、admin、member 或 viewer"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("添加组织成员失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("添加组织成员失败"))
 		}
 		return
 	}
@@ -164,9 +164,9 @@ func (h *OrgAdminHandler) AddMember(c *gin.Context) {
 
 func (h *OrgAdminHandler) CreateInvitation(c *gin.Context) {
 	orgID := parseID(c.Param("id"))
-	var req orgadmin.CreateInvitationInput
+	var req adminorg.CreateInvitationInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	var creatorID uint
@@ -176,14 +176,14 @@ func (h *OrgAdminHandler) CreateInvitation(c *gin.Context) {
 	invitation, err := h.service.CreateInvitation(c.Request.Context(), orgID, creatorID, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrOrgNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
-		case errors.Is(err, orgadmin.ErrOrgInactive):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("组织已暂停，不能创建邀请"))
-		case errors.Is(err, orgadmin.ErrInvalidMemberRole):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("role 必须是 owner、admin、member 或 viewer"))
+		case errors.Is(err, adminorg.ErrOrgNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("组织不存在"))
+		case errors.Is(err, adminorg.ErrOrgInactive):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("组织已暂停，不能创建邀请"))
+		case errors.Is(err, adminorg.ErrInvalidMemberRole):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("role 必须是 owner、admin、member 或 viewer"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("创建组织邀请失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("创建组织邀请失败"))
 		}
 		return
 	}
@@ -209,20 +209,20 @@ func (h *OrgAdminHandler) UpdateMember(c *gin.Context) {
 		Role string `json:"role" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	member, err := h.service.UpdateMemberRole(c.Request.Context(), orgID, userID, req.Role)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrMemberNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("成员不存在"))
-		case errors.Is(err, orgadmin.ErrInvalidMemberRole):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("role 必须是 owner、admin、member 或 viewer"))
-		case errors.Is(err, orgadmin.ErrLastOwner):
-			c.JSON(http.StatusConflict, apierr.Conflict("不能移除最后一个组织 Owner"))
+		case errors.Is(err, adminorg.ErrMemberNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("成员不存在"))
+		case errors.Is(err, adminorg.ErrInvalidMemberRole):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("role 必须是 owner、admin、member 或 viewer"))
+		case errors.Is(err, adminorg.ErrLastOwner):
+			c.JSON(http.StatusConflict, api.Conflict("不能移除最后一个组织 Owner"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("更新组织成员失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("更新组织成员失败"))
 		}
 		return
 	}
@@ -245,12 +245,12 @@ func (h *OrgAdminHandler) RemoveMember(c *gin.Context) {
 	userID := parseID(c.Param("userId"))
 	if err := h.service.RemoveMember(c.Request.Context(), orgID, userID); err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrMemberNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("成员不存在"))
-		case errors.Is(err, orgadmin.ErrLastOwner):
-			c.JSON(http.StatusConflict, apierr.Conflict("不能移除最后一个组织 Owner"))
+		case errors.Is(err, adminorg.ErrMemberNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("成员不存在"))
+		case errors.Is(err, adminorg.ErrLastOwner):
+			c.JSON(http.StatusConflict, api.Conflict("不能移除最后一个组织 Owner"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("移除组织成员失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("移除组织成员失败"))
 		}
 		return
 	}
@@ -272,12 +272,12 @@ func (h *OrgAdminHandler) RevokeInvitation(c *gin.Context) {
 	invitationID := parseID(c.Param("invitationId"))
 	if err := h.service.RevokeInvitation(c.Request.Context(), orgID, invitationID); err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrOrgNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
-		case errors.Is(err, orgadmin.ErrInvitationNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("邀请不存在"))
+		case errors.Is(err, adminorg.ErrOrgNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("组织不存在"))
+		case errors.Is(err, adminorg.ErrInvitationNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("邀请不存在"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("撤销组织邀请失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("撤销组织邀请失败"))
 		}
 		return
 	}
@@ -299,12 +299,12 @@ func (h *OrgAdminHandler) RotateJoinCode(c *gin.Context) {
 	updated, err := h.service.RotateJoinCode(c.Request.Context(), orgID)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrOrgNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
-		case errors.Is(err, orgadmin.ErrPersonalOrgJoinCode):
-			c.JSON(http.StatusConflict, apierr.Conflict("个人组织不能轮换加入码"))
+		case errors.Is(err, adminorg.ErrOrgNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("组织不存在"))
+		case errors.Is(err, adminorg.ErrPersonalOrgJoinCode):
+			c.JSON(http.StatusConflict, api.Conflict("个人组织不能轮换加入码"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("轮换组织加入码失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("轮换组织加入码失败"))
 		}
 		return
 	}
@@ -322,24 +322,24 @@ func (h *OrgAdminHandler) RotateJoinCode(c *gin.Context) {
 
 func (h *OrgAdminHandler) Update(c *gin.Context) {
 	orgID := parseID(c.Param("id"))
-	var req orgadmin.UpdateInput
+	var req adminorg.UpdateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	updated, err := h.service.Update(c.Request.Context(), orgID, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, orgadmin.ErrOrgNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("组织不存在"))
-		case errors.Is(err, orgadmin.ErrInvalidPlan):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("plan 必须是 personal 或 team"))
-		case errors.Is(err, orgadmin.ErrInvalidStatus):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("status 必须是 active 或 suspended"))
-		case errors.Is(err, orgadmin.ErrNoFieldsToUpdate):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("没有可更新字段"))
+		case errors.Is(err, adminorg.ErrOrgNotFound):
+			c.JSON(http.StatusNotFound, api.NotFound("组织不存在"))
+		case errors.Is(err, adminorg.ErrInvalidPlan):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("plan 必须是 personal 或 team"))
+		case errors.Is(err, adminorg.ErrInvalidStatus):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("status 必须是 active 或 suspended"))
+		case errors.Is(err, adminorg.ErrNoFieldsToUpdate):
+			c.JSON(http.StatusBadRequest, api.InvalidInput("没有可更新字段"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("更新组织失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("更新组织失败"))
 		}
 		return
 	}
@@ -370,7 +370,7 @@ func parseOptionalBool(c *gin.Context, key string) (*bool, bool) {
 		value := false
 		return &value, true
 	default:
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(key+" must be true or false"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(key+" must be true or false"))
 		return nil, false
 	}
 }

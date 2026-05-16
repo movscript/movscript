@@ -1,5 +1,5 @@
 import type { AgentRun, AgentTask, JSONValue } from './types.js'
-import { subagentNameFromRun, subagentNameFromTask } from './subagentIdentity.js'
+import { nextSubagentName, subagentNameFromRun, subagentNameFromTask } from './subagentIdentity.js'
 
 export function collectSubagentNames(tasks: AgentTask[], runs: AgentRun[]): Set<string> {
   const names = new Set<string>()
@@ -12,6 +12,22 @@ export function collectSubagentNames(tasks: AgentTask[], runs: AgentRun[]): Set<
     if (name) names.add(name)
   }
   return names
+}
+
+export function buildDispatchSubagentNameMap(input: {
+  runnableTasks: AgentTask[]
+  tasks: AgentTask[]
+  runs: AgentRun[]
+}): Map<string, string> {
+  const usedNames = collectSubagentNames(input.tasks, input.runs)
+  const namesByTaskId = new Map<string, string>()
+  for (const task of input.runnableTasks) {
+    const existingName = subagentNameFromTask(task)
+    const subagentName = existingName ?? nextSubagentName(usedNames)
+    usedNames.add(subagentName)
+    namesByTaskId.set(task.id, subagentName)
+  }
+  return namesByTaskId
 }
 
 export function requireTaskBySubagentName(planId: string, tasks: AgentTask[], subagentName: string): AgentTask {

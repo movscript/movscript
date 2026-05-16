@@ -8,7 +8,7 @@ import (
 	"github.com/movscript/movscript/internal/app/dto"
 	scriptapp "github.com/movscript/movscript/internal/app/script"
 	"github.com/movscript/movscript/internal/infra/cache"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -36,7 +36,7 @@ func (h *ScriptHandler) List(c *gin.Context) {
 func (h *ScriptHandler) Create(c *gin.Context) {
 	var req dto.ScriptInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	var authorID uint
@@ -63,7 +63,7 @@ func (h *ScriptHandler) Create(c *gin.Context) {
 func (h *ScriptHandler) Get(c *gin.Context) {
 	item, err := h.service.Get(c.Request.Context(), parseID(c.Param("scriptId")))
 	if err != nil {
-		c.JSON(http.StatusNotFound, apierr.NotFound("剧本不存在"))
+		c.JSON(http.StatusNotFound, api.NotFound("剧本不存在"))
 		return
 	}
 	c.JSON(http.StatusOK, item)
@@ -72,7 +72,7 @@ func (h *ScriptHandler) Get(c *gin.Context) {
 func (h *ScriptHandler) Update(c *gin.Context) {
 	var req dto.ScriptInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.service.Update(c.Request.Context(), scriptapp.UpdateInput{
@@ -82,7 +82,7 @@ func (h *ScriptHandler) Update(c *gin.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, scriptapp.ErrNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("剧本不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("剧本不存在"))
 			return
 		}
 		if errors.Is(err, scriptapp.ErrVersionSync) {
@@ -107,7 +107,7 @@ func (h *ScriptHandler) Delete(c *gin.Context) {
 func (h *ScriptHandler) Patch(c *gin.Context) {
 	var body map[string]interface{}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.service.Patch(c.Request.Context(), scriptapp.PatchInput{
@@ -117,7 +117,7 @@ func (h *ScriptHandler) Patch(c *gin.Context) {
 	})
 	if err != nil {
 		if errors.Is(err, scriptapp.ErrNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("剧本不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("剧本不存在"))
 			return
 		}
 		if errors.Is(err, scriptapp.ErrVersionSync) {

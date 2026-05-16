@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	adminoverview "github.com/movscript/movscript/internal/app/adminoverview"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	adminoverview "github.com/movscript/movscript/internal/app/admin/overview"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -20,7 +20,7 @@ func NewAdminOverviewHandler(db *gorm.DB) *AdminOverviewHandler {
 func (h *AdminOverviewHandler) Summary(c *gin.Context) {
 	summary, err := h.service.Summary(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询后台概览失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询后台概览失败"))
 		return
 	}
 	c.JSON(http.StatusOK, summary)

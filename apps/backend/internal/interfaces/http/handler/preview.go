@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	previewapp "github.com/movscript/movscript/internal/app/preview"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -26,13 +26,13 @@ type previewGenerateRequest struct {
 func (h *PreviewHandler) Generate(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	if projectID == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("invalid project id"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("invalid project id"))
 		return
 	}
 
 	var req previewGenerateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 
@@ -44,11 +44,11 @@ func (h *PreviewHandler) Generate(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, previewapp.ErrInvalidScope):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("scope must be segment, scene_moment, or content_unit"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("scope must be segment, scene_moment, or content_unit"))
 		case errors.Is(err, previewapp.ErrNotFound):
-			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+			c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+			c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		}
 		return
 	}

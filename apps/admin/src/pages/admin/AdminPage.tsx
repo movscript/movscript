@@ -24,6 +24,9 @@ import {
   nextCredentialEnabledState,
   type AdminFeatureUpdatePayload,
 } from '@/lib/adminActionGuards'
+import { emptyJobMonitorFilters, jobUrlSearchParams } from '@/lib/adminJobQueryParams'
+import { auditLogsHref, relativePastDateInput, usageLogsHref } from '@/lib/adminLogQueryParams'
+import { gatewayKeyAuditHref, gatewayKeyUsageHref } from '@/lib/adminGatewayKeyLinks'
 import {
   PARAM_TEMPLATES,
   adapterParamsForCapabilities,
@@ -414,6 +417,12 @@ function GatewayAPIKeysSection({ credentials }: { credentials: AICredential[] })
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1">
+                      <Button type="button" variant="ghost" size="sm" asChild>
+                        <Link to={gatewayKeyUsageHref(key)}>{t('admin.gatewayKeys.viewUsageLogs')}</Link>
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" asChild>
+                        <Link to={gatewayKeyAuditHref(key)}>{t('admin.gatewayKeys.viewAuditLogs')}</Link>
+                      </Button>
                       <Button type="button" variant="ghost" size="sm" onClick={() => startEdit(key)}>{t('common.details')}</Button>
                       <Button
                         type="button"
@@ -2778,13 +2787,13 @@ export function ProjectOwnerManagementPage() {
 	              )}
 	              <div className="mt-3 flex flex-wrap gap-2">
 	                <Button asChild type="button" variant="outline" size="sm">
-	                  <Link to={`/usage-logs?project_id=${memberDialog.ID}`}>
+	                  <Link to={usageLogsHref({ projectId: memberDialog.ID })}>
 	                    <BarChart3 size={14} className="mr-2" />
 	                    {t('admin.projects.viewUsageLogs')}
 	                  </Link>
 	                </Button>
 	                <Button asChild type="button" variant="outline" size="sm">
-	                  <Link to={`/audit-logs?project_id=${memberDialog.ID}`}>
+	                  <Link to={auditLogsHref({ projectId: memberDialog.ID })}>
 	                    <ScrollText size={14} className="mr-2" />
 	                    {t('admin.projects.viewAuditLogs')}
 	                  </Link>
@@ -3812,7 +3821,7 @@ export function StoragePage() {
 	              </div>
 	              <div className="flex items-center gap-2">
 	                <Button asChild type="button" variant="outline" size="sm">
-	                  <Link to={`/audit-logs?target_type=resource&target_id=${detailResource.ID}${detailResource.org_id ? `&org_id=${detailResource.org_id}` : ''}`}>
+	                  <Link to={auditLogsHref({ targetType: 'resource', targetId: detailResource.ID, orgId: detailResource.org_id })}>
 	                    <ScrollText size={14} className="mr-2" />
 	                    {t('admin.storage.viewAuditLogs')}
 	                  </Link>
@@ -4368,6 +4377,8 @@ export default function AdminPage() {
   })
 
   const queuedJobs = (overview?.jobs.pending ?? 0) + (overview?.jobs.running ?? 0)
+  const jobMonitorHref = `/debug?${jobUrlSearchParams(emptyJobMonitorFilters, 1).toString()}`
+  const usage7dHref = usageLogsHref({ since: relativePastDateInput(7) })
 
   const overviewCards = [
     {
@@ -4389,14 +4400,14 @@ export default function AdminPage() {
       value: formatAdminNumber(queuedJobs),
       detail: t('admin.home.metrics.failedJobs', { count: formatAdminNumber(overview?.jobs.failed) }),
       icon: Sparkles,
-      href: '/debug',
+      href: jobMonitorHref,
     },
     {
       label: t('admin.home.metrics.usage7d'),
       value: formatAdminCredits(overview?.usage.cost_7d),
       detail: t('admin.home.metrics.usage30d', { cost: formatAdminCredits(overview?.usage.cost_30d) }),
       icon: BarChart3,
-      href: '/usage-logs',
+      href: usage7dHref,
     },
     {
       label: t('admin.home.metrics.storage'),
@@ -4418,7 +4429,7 @@ export default function AdminPage() {
     { label: t('admin.tabs.logs'), detail: t('admin.home.sections.usageLogs', { count: formatAdminNumber(overview?.usage.records) }), icon: BarChart3, href: '/usage-logs' },
     { label: t('admin.tabs.storage'), detail: t('admin.home.sections.storage', { count: formatAdminNumber(overview?.resources.total) }), icon: HardDrive, href: '/storage' },
     { label: t('admin.tabs.cloudFiles'), detail: t('admin.home.sections.cloudFiles'), icon: CloudUpload, href: '/cloud-files' },
-    { label: t('admin.tabs.debug'), detail: t('admin.home.sections.debug'), icon: Bug, href: '/debug' },
+    { label: t('admin.tabs.debug'), detail: t('admin.home.sections.debug'), icon: Bug, href: '/debug?tab=system' },
     ...runtimeSectionCards,
   ]
 

@@ -1,6 +1,6 @@
 package workflow
 
-import domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+import domainresourcebinding "github.com/movscript/movscript/internal/domain/resource/binding"
 
 const EntitySemanticSchemaVersion = 1
 

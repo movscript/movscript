@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Button, Input, Label } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { translateAPIRequestError } from '@/lib/apiError'
+import { auditLogsHref, usageLogsHref } from '@/lib/adminLogQueryParams'
 import { cn } from '@/lib/utils'
 import { useUserStore } from '@/store/userStore'
 import type { PaginatedResponse, User } from '@/types'
@@ -492,13 +493,13 @@ export function UserManagementPage() {
 	                  </div>
 	                  <div className="flex flex-wrap gap-2">
 	                    <Button asChild type="button" variant="outline" size="sm">
-	                      <Link to={`/usage-logs?user_id=${detailUser.ID}`}>
+	                      <Link to={usageLogsHref({ userId: detailUser.ID })}>
 	                        <BarChart3 size={14} className="mr-2" />
 	                        {t('admin.users.viewUsageLogs')}
 	                      </Link>
 	                    </Button>
 	                    <Button asChild type="button" variant="outline" size="sm">
-	                      <Link to={`/audit-logs?actor_id=${detailUser.ID}`}>
+	                      <Link to={auditLogsHref({ actorId: detailUser.ID })}>
 	                        <ScrollText size={14} className="mr-2" />
 	                        {t('admin.users.viewAuditLogs')}
 	                      </Link>

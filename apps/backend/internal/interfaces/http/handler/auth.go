@@ -13,7 +13,7 @@ import (
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/auth"
 	"github.com/movscript/movscript/internal/infra/config"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
 )

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/app/entityrelation"
-	"github.com/movscript/movscript/internal/app/workflowio"
+	"github.com/movscript/movscript/internal/app/workflow"
 	domainproject "github.com/movscript/movscript/internal/domain/project"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	domainworkflow "github.com/movscript/movscript/internal/domain/workflow"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
@@ -112,7 +112,7 @@ type repository interface {
 	CreateAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error)
 	LoadAssetSlotCandidate(ctx context.Context, projectID uint, id string) (domainsemantic.AssetSlotCandidate, error)
 	PatchAssetSlotCandidate(ctx context.Context, item domainsemantic.AssetSlotCandidate, patch domainsemantic.AssetSlotCandidatePatch) (domainsemantic.AssetSlotCandidate, error)
-	AttachAssetSlotCandidate(ctx context.Context, input workflowio.AttachAssetSlotCandidateInput) (workflowio.AttachAssetSlotCandidateResult, error)
+	AttachAssetSlotCandidate(ctx context.Context, input workflow.AttachAssetSlotCandidateInput) (workflow.AttachAssetSlotCandidateResult, error)
 	ReloadAssetSlotCandidate(ctx context.Context, candidate domainsemantic.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error)
 	ListCandidateDecisions(ctx context.Context, filter CandidateDecisionFilter) ([]domainsemantic.CandidateDecision, error)
 	CreateCandidateDecision(ctx context.Context, item domainsemantic.CandidateDecision) (domainsemantic.CandidateDecision, error)
@@ -380,7 +380,7 @@ func (r *gormRepository) createItem(ctx context.Context, item any) error {
 		if err := tx.Create(item).Error; err != nil {
 			return err
 		}
-		return entityrelation.SyncCoreEntityRelations(tx, item)
+		return relation.SyncCoreEntityRelations(tx, item)
 	})
 }
 
@@ -399,7 +399,7 @@ func (r *gormRepository) patchItem(ctx context.Context, item any, updates map[st
 		if err := tx.Save(item).Error; err != nil {
 			return err
 		}
-		return entityrelation.SyncCoreEntityRelations(tx, item)
+		return relation.SyncCoreEntityRelations(tx, item)
 	})
 }
 
@@ -409,7 +409,7 @@ func (r *gormRepository) deleteItem(ctx context.Context, item any) error {
 		if err := tx.Delete(item).Error; err != nil {
 			return err
 		}
-		return entityrelation.DeleteCoreEntityRelations(tx, item)
+		return relation.DeleteCoreEntityRelations(tx, item)
 	})
 }
 
@@ -1942,7 +1942,7 @@ func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, i
 		if err := tx.Save(&nextModel).Error; err != nil {
 			return err
 		}
-		if err := entityrelation.SyncCoreEntityRelations(tx, &nextModel); err != nil {
+		if err := relation.SyncCoreEntityRelations(tx, &nextModel); err != nil {
 			return err
 		}
 		if next.ResultType != domainsemantic.WorkItemResultNone {
@@ -1955,7 +1955,7 @@ func (r *gormRepository) CompleteWorkItem(ctx context.Context, projectID uint, i
 			if err := tx.Save(&nextModel).Error; err != nil {
 				return err
 			}
-			if err := entityrelation.SyncCoreEntityRelations(tx, &nextModel); err != nil {
+			if err := relation.SyncCoreEntityRelations(tx, &nextModel); err != nil {
 				return err
 			}
 		}
@@ -2465,8 +2465,8 @@ func assetSlotCandidatePatchColumns(patch domainsemantic.AssetSlotCandidatePatch
 	return updates
 }
 
-func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input workflowio.AttachAssetSlotCandidateInput) (workflowio.AttachAssetSlotCandidateResult, error) {
-	return workflowio.NewEntityIOService(r.db).AttachAssetSlotCandidate(ctx, input)
+func (r *gormRepository) AttachAssetSlotCandidate(ctx context.Context, input workflow.AttachAssetSlotCandidateInput) (workflow.AttachAssetSlotCandidateResult, error) {
+	return workflow.NewEntityIOService(r.db).AttachAssetSlotCandidate(ctx, input)
 }
 
 func (r *gormRepository) ReloadAssetSlotCandidate(ctx context.Context, candidate domainsemantic.AssetSlotCandidate) (domainsemantic.AssetSlotCandidate, error) {

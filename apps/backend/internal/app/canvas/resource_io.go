@@ -17,21 +17,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func (h *Service) completeResourceSinkTask(ctx context.Context, task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, user *persistencemodel.User, value canvasPortValue) map[string]canvasPortValue {
-	_ = h.updateTaskRow(ctx, task, canvasruntime.StartCanvasTask(task, &nd))
+	_ = h.updateTaskRow(ctx, task, canvasdomain.StartCanvasTask(task, &nd))
 	value.Normalize()
 	if value.ResourceID != nil && *value.ResourceID > 0 {
 		outputs := map[string]canvasPortValue{
-			canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
+			canvasdomain.DefaultSourceHandleForNode(node.Type, nd): value,
 			"": value,
 		}
 		h.updateTaskOutputValues(task, outputs)
-		_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, value.ResourceID))
+		_ = h.updateTaskRow(ctx, task, canvasdomain.CompleteCanvasTask(task, &nd, value.ResourceID))
 		if task.CanvasRunID == nil {
 			h.updateNodeData(node, nd)
 		}
@@ -50,13 +50,13 @@ func (h *Service) completeResourceSinkTask(ctx context.Context, task *persistenc
 		h.failTask(task, node, nd, err.Error())
 		return nil
 	}
-	outputValue := canvasruntime.PortValueFromResource(&r.ID, "resource")
+	outputValue := canvasdomain.PortValueFromResource(&r.ID, "resource")
 	outputs := map[string]canvasPortValue{
-		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): outputValue,
+		canvasdomain.DefaultSourceHandleForNode(node.Type, nd): outputValue,
 		"": outputValue,
 	}
 	h.updateTaskOutputValues(task, outputs)
-	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
+	_ = h.updateTaskRow(ctx, task, canvasdomain.CompleteCanvasTask(task, &nd, &r.ID))
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -74,10 +74,10 @@ func canvasPortValueResourcePayload(value canvasPortValue) ([]byte, string, stri
 		}
 		return data, "application/json", "json", nil
 	case "number", "boolean", "text":
-		text := canvasruntime.PortValueText(value)
+		text := canvasdomain.PortValueText(value)
 		return []byte(text), "text/plain; charset=utf-8", "txt", nil
 	default:
-		text := canvasruntime.PortValueText(value)
+		text := canvasdomain.PortValueText(value)
 		if strings.TrimSpace(text) == "" {
 			return nil, "", "", fmt.Errorf("resource sink can only persist resource or inline text/json/number/boolean values")
 		}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
+	resourcebinding "github.com/movscript/movscript/internal/app/resource/binding"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"

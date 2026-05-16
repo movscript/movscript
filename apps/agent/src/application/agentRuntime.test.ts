@@ -1610,6 +1610,7 @@ test('content unit storyboard proposal searches knowledge and creates a proposal
 
 test('records backend model gateway HTTP request and response in run trace', async () => {
   const modelConfigDir = mkdtempSync(join(tmpdir(), 'movscript-agent-model-trace-'))
+  const statePath = join(modelConfigDir, 'state.json')
   const originalModelConfigPath = process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH
   const originalFetch = globalThis.fetch
   try {
@@ -1632,15 +1633,19 @@ test('records backend model gateway HTTP request and response in run trace', asy
 
     const client = new FakeMCPClient()
     client.projectId = 42
-    const runtime = createTestRuntime({ mcpClient: client })
+    const store = new FileAgentStore(statePath)
+    const runtime = createTestRuntime({ mcpClient: client, store })
     const thread = runtime.createThread({ messages: [{ role: 'user', content: 'hello' }] })
     const run = await createAndWaitForRun(runtime, thread.id, { backendAuthToken: 'secret-token' })
+    store.flush()
 
     const traceEvents = runtime.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
     const requestEvent = traceEvents.find((event) => event.kind === 'model_call' && event.title === 'Model HTTP request sent')
     const responseEvent = traceEvents.find((event) => event.kind === 'model_call' && event.title === 'Model HTTP response received')
+    const assistantEvent = traceEvents.find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
     const requestData = requestEvent?.data as any
     const responseData = responseEvent?.data as any
+    const assistantData = assistantEvent?.data as any
 
     assert.equal(run.warnings?.join('\n') ?? '', '')
     assert.equal(requestData.request.url, 'http://localhost:8765/api/v1/model-gateway/chat/completions')
@@ -1653,6 +1658,10 @@ test('records backend model gateway HTTP request and response in run trace', asy
     assert.equal(responseData.response.parsedBody.id, 'chatcmpl_trace_test')
     assert.equal(responseData.response.content, 'trace reply')
     assert.equal(typeof responseData.latencyMs, 'number')
+    assert.equal(typeof assistantData.messageId, 'string')
+    assert.match(assistantData.content, /trace reply/)
+    assert.match(assistantData.content, /来源/)
+    assert.equal(assistantData.source, 'model')
     assertRunTraceEventTypes(runtime, run.id, [
       'context.run_built',
       'profile.resolved',
@@ -1678,6 +1687,23 @@ test('records backend model gateway HTTP request and response in run trace', asy
     assert.equal(run.metadata?.contextLedger && (run.metadata.contextLedger as any).schema, 'movscript.context-ledger.v1')
     assert.ok(Array.isArray(run.metadata?.activeSkillIds))
     assert.ok(Array.isArray(run.metadata?.visibleToolNames))
+
+    const rebuilt = createTestRuntime({ mcpClient: new FakeMCPClient(), store: new FileAgentStore(statePath) })
+    const restoredTraceEvents = rebuilt.getRunTraceEvents(run.id, { limit: Number.MAX_SAFE_INTEGER })
+    const restoredResponseData = restoredTraceEvents
+      .find((event) => event.kind === 'model_call' && event.title === 'Model HTTP response received')
+      ?.data as any
+    const restoredAssistantData = restoredTraceEvents
+      .find((event) => event.kind === 'assistant' && event.title === 'Assistant message created')
+      ?.data as any
+    assert.match(restoredResponseData.response.bodyText, /trace reply/)
+    assert.equal(restoredResponseData.response.parsedBody.id, 'chatcmpl_trace_test')
+    assert.equal(restoredResponseData.response.content, 'trace reply')
+    assert.equal(typeof restoredAssistantData.messageId, 'string')
+    assert.match(restoredAssistantData.content, /trace reply/)
+    assert.match(restoredAssistantData.content, /来源/)
+    assert.equal(restoredAssistantData.source, 'model')
+    assert.deepEqual(rebuilt.getRun(run.id)?.traceEvents ?? [], [])
   } finally {
     globalThis.fetch = originalFetch
     process.env.MOVSCRIPT_AGENT_MODEL_CONFIG_PATH = originalModelConfigPath
@@ -4039,6 +4065,35 @@ test('spawn_subagent accepts taskId to subagentName mappings', async () => {
   const snapshot = runtime.getPlanSnapshot(plan.plan.id)
   assert.equal(snapshot.tasks.find((task) => task.id === 'task_mapped_a')?.metadata?.subagentName, 'Einstein')
   assert.equal(snapshot.tasks.find((task) => task.id === 'task_mapped_b')?.metadata?.subagentName, 'Hawking')
+})
+
+test('spawn_subagent preserves explicit names when resetting blocked tasks', async () => {
+  const client = new FakeMCPClient()
+  const runtime = createTestRuntime({ mcpClient: client, defaultAgentManifest: DEFAULT_AGENT_MANIFEST })
+  const thread = runtime.createThread({ messages: [{ role: 'user', content: '规划并执行' }] })
+  const plan = await runtime.createPlan({
+    threadId: thread.id,
+    title: 'Blocked subagent name reset',
+    tasks: [
+      { id: 'task_blocked_named', title: 'Blocked named', metadata: { executionMode: 'worker' } },
+    ],
+  })
+  const planner = await waitForRun(runtime, plan.runs[0]!.id)
+  runtime.updateTask('task_blocked_named', {
+    status: 'blocked',
+    blockedReason: 'Waiting for explicit retry',
+  })
+
+  const spawned = runtime.spawnSubagent(planner, {
+    taskId: 'task_blocked_named',
+    subagentName: 'Curie',
+  }) as any
+
+  assert.equal(spawned.spawnedRuns[0]?.subagentName, 'Curie')
+  const snapshot = runtime.getPlanSnapshot(plan.plan.id)
+  const task = snapshot.tasks.find((item) => item.id === 'task_blocked_named')
+  assert.equal(task?.metadata?.subagentName, 'Curie')
+  assert.equal(task?.metadata?.resetByPlannerRunId, planner.id)
 })
 
 test('task metadata updates cannot create duplicate subagent names', async () => {

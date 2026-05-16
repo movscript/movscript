@@ -46,6 +46,24 @@ export function resetRetryableRuntimePlanTasks(input: {
   return { retriedTaskIds, changes }
 }
 
+export function applyRuntimeRetryablePlanTaskReset(input: {
+  store: Pick<AgentStore, 'listTasks' | 'listRuns' | 'updateTask'>
+  planId: string
+  maxTaskAttempts: number
+  now: string
+  onTaskReset?: (task: AgentTask, previousTask: AgentTask) => void
+  onTasksReset?: (retriedTaskIds: string[]) => void
+}): RuntimeRetryablePlanTasksResult {
+  const result = resetRetryableRuntimePlanTasks(input)
+  for (const { task, previousTask } of result.changes) {
+    input.onTaskReset?.(task, previousTask)
+  }
+  if (result.retriedTaskIds.length > 0) {
+    input.onTasksReset?.(result.retriedTaskIds)
+  }
+  return result
+}
+
 export interface RuntimeReplanTaskResetResult {
   resetTaskIds: string[]
   changes: RuntimePlanTaskChange[]
@@ -77,4 +95,22 @@ export function resetRuntimePlanTasksForReplan(input: {
   }
 
   return { resetTaskIds, changes }
+}
+
+export function applyRuntimeReplanTaskReset(input: {
+  store: Pick<AgentStore, 'listTasks' | 'updateTask'>
+  planId: string
+  resetTaskIds?: unknown
+  resetBlocked?: unknown
+  resetNeedsReview?: unknown
+  resetFailed?: unknown
+  resetCancelled?: unknown
+  now: string
+  onTaskReset?: (task: AgentTask, previousTask: AgentTask) => void
+}): RuntimeReplanTaskResetResult {
+  const result = resetRuntimePlanTasksForReplan(input)
+  for (const { task, previousTask } of result.changes) {
+    input.onTaskReset?.(task, previousTask)
+  }
+  return result
 }

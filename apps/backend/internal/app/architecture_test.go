@@ -87,7 +87,7 @@ func TestAppDoesNotImportDomainModel(t *testing.T) {
 }
 
 func TestMigratedAppRepositoriesDoNotImportDomainModel(t *testing.T) {
-	migratedRoots := []string{"aiadmin", "artifactref", "audit", "auth", "cloudfileconfig", "debug", "entitlement", "feature", "hub", "job", "modelgateway", "org", "plugin", "preview", "project", "resource", "resourceadmin", "resourcebinding", "resourcefolder", "script", "semantic", "user", "workflowio", "workflowmarket"}
+	migratedRoots := []string{"admin/ai", "admin/org", "admin/overview", "admin/resource", "admin/settings", "admin/usage", "admin/user", "artifact", "audit", "auth", "cloud", "debug", "entitlement", "feature", "hub", "job", "modelcatalog", "gateway", "org", "plugin", "preview", "project", "resource", "resourcebinding", "resourcefolder", "script", "semantic", "user", "workflow", "workflowmarket"}
 	for _, root := range migratedRoots {
 		t.Run(root, func(t *testing.T) {
 			walkAppFiles(t, func(path string, _ *ast.File, modelNames map[string]struct{}) {
@@ -125,7 +125,7 @@ func TestAppRepositoryInterfacesDoNotExposePersistenceModels(t *testing.T) {
 }
 
 func TestAppRepositoryInterfacesAvoidUntypedAny(t *testing.T) {
-	dynamicEntityIORoot := "workflowio/"
+	dynamicEntityIORoot := "workflow/"
 	walkAppFiles(t, func(path string, file *ast.File, _ map[string]struct{}) {
 		if strings.HasPrefix(path, dynamicEntityIORoot) {
 			return

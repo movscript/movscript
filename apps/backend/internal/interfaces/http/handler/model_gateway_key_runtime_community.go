@@ -2,7 +2,7 @@
 
 package handler
 
-import modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
+import modelgatewayapp "github.com/movscript/movscript/internal/app/gateway"
 
 type gatewayAPIKeyCreateRuntimeRequest struct{}
 

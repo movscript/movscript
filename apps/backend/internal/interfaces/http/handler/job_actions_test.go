@@ -16,9 +16,13 @@ import (
 func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router, db := newTestJobActionRouter(t)
+	orgID := uint(2)
+	projectID := uint(12)
 
 	failedJob := seedJob(t, db, persistencemodel.Job{
 		UserID:        7,
+		OrgID:         &orgID,
+		ProjectID:     &projectID,
 		ModelConfigID: 11,
 		JobType:       domainjob.CapabilityImage,
 		Status:        domainjob.StatusFailed,
@@ -29,6 +33,8 @@ func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 	})
 	deleteJob := seedJob(t, db, persistencemodel.Job{
 		UserID:        8,
+		OrgID:         &orgID,
+		ProjectID:     &projectID,
 		ModelConfigID: 12,
 		JobType:       domainjob.CapabilityImage,
 		Status:        domainjob.StatusSucceeded,
@@ -47,6 +53,7 @@ func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 	if countAuditAction(t, db, "job.admin_retried") != 1 {
 		t.Fatalf("expected retry audit log")
 	}
+	assertJobActionAuditScope(t, db, "job.admin_retried", orgID, projectID)
 	var retried persistencemodel.Job
 	if err := db.First(&retried, failedJob.ID).Error; err != nil {
 		t.Fatalf("load retried job: %v", err)
@@ -66,12 +73,27 @@ func TestAdminJobActionsWriteAuditLogs(t *testing.T) {
 	if countAuditAction(t, db, "job.admin_deleted") != 1 {
 		t.Fatalf("expected delete audit log")
 	}
+	assertJobActionAuditScope(t, db, "job.admin_deleted", orgID, projectID)
 	var deletedCount int64
 	if err := db.Unscoped().Model(&persistencemodel.Job{}).Where("id = ? AND deleted_at IS NOT NULL", deleteJob.ID).Count(&deletedCount).Error; err != nil {
 		t.Fatalf("count deleted job: %v", err)
 	}
 	if deletedCount != 1 {
 		t.Fatalf("deleted job count = %d, want 1", deletedCount)
+	}
+}
+
+func assertJobActionAuditScope(t *testing.T, db *gorm.DB, action string, orgID uint, projectID uint) {
+	t.Helper()
+	var row persistencemodel.AuditLog
+	if err := db.Where("action = ?", action).First(&row).Error; err != nil {
+		t.Fatalf("load audit log for %s: %v", action, err)
+	}
+	if row.OrgID == nil || *row.OrgID != orgID {
+		t.Fatalf("%s audit org_id = %#v, want %d", action, row.OrgID, orgID)
+	}
+	if row.ProjectID == nil || *row.ProjectID != projectID {
+		t.Fatalf("%s audit project_id = %#v, want %d", action, row.ProjectID, projectID)
 	}
 }
 

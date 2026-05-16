@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
+	modelgatewayapp "github.com/movscript/movscript/internal/app/gateway"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
 

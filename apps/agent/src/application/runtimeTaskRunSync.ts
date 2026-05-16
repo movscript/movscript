@@ -27,3 +27,17 @@ export function syncRuntimeTaskFromRun(input: {
   input.store.updateTask(task)
   return { run, task, previousTask, planId: run.planId }
 }
+
+export function applyRuntimeTaskRunSync(input: {
+  store: Pick<AgentStore, 'getRun' | 'getTask' | 'updateTask'>
+  runId: string
+  now: string
+  onPlanSynced?: (planId: string) => void
+  onTaskSynced?: (task: AgentTask, previousTask: AgentTask, planId: string) => void
+}): RuntimeTaskRunSyncResult | undefined {
+  const result = syncRuntimeTaskFromRun(input)
+  if (!result) return undefined
+  input.onPlanSynced?.(result.planId)
+  input.onTaskSynced?.(result.task, result.previousTask, result.planId)
+  return result
+}

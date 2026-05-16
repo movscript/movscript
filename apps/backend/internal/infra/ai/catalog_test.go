@@ -137,6 +137,21 @@ func TestVisualModelPresetsDeclareModelSpecificSupportedParams(t *testing.T) {
 	}
 }
 
+func TestImageModelPresetsOmitKnownUnsupportedParams(t *testing.T) {
+	for _, preset := range ModelPresets() {
+		switch preset.ID {
+		case "openai:gpt-image-1", "openai:gpt-image-1-edit", "openai:gpt-image-2", "openai:gpt-image-2-edit":
+			if hasParam(preset.SupportedParams, "style") {
+				t.Fatalf("preset %s must not expose unsupported style param: %#v", preset.ID, preset.SupportedParams)
+			}
+		case "volcengine:seedream-5-0", "volcengine:seedream-5-0-lite", "volcengine-ark:seedream-5-0":
+			if hasParam(preset.SupportedParams, "prompt_strength") || hasParam(preset.SupportedParams, "guidance_scale") {
+				t.Fatalf("preset %s must not expose unsupported prompt strength/guidance scale params: %#v", preset.ID, preset.SupportedParams)
+			}
+		}
+	}
+}
+
 func TestVideoModelPresetsExposeDurationContractMatchingRuntimeLimits(t *testing.T) {
 	for _, preset := range modelPresetSources {
 		if !hasString(preset.Capabilities, CapabilityVideo) &&

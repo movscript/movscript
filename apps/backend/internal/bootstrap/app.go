@@ -16,8 +16,8 @@ import (
 	"github.com/movscript/movscript/internal/infra/cache"
 	"github.com/movscript/movscript/internal/infra/config"
 	"github.com/movscript/movscript/internal/infra/db"
-	"github.com/movscript/movscript/internal/infra/jobrunner"
 	"github.com/movscript/movscript/internal/infra/observability"
+	"github.com/movscript/movscript/internal/infra/runner"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"github.com/movscript/movscript/internal/interfaces/http/router"
 	"gorm.io/gorm"
@@ -33,7 +33,7 @@ type App struct {
 	ImageVerifier ai.ImageVerificationClient
 	Cache         cache.Cache
 	Entitlements  entitlement.EntitlementService
-	Worker        *jobrunner.Worker
+	Worker        *runner.Worker
 	Router        *gin.Engine
 }
 
@@ -91,7 +91,7 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("initialize cache: %w", err)
 	}
 	entitlements := entitlementapp.NewService(database, cfg)
-	worker := jobrunner.NewWorker(database, aiService, store, encKey)
+	worker := runner.NewWorker(database, aiService, store, encKey)
 
 	engine := router.New(router.Dependencies{
 		DB:            database,

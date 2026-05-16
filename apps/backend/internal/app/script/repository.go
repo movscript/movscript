@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/movscript/movscript/internal/app/entityrelation"
 	domainscript "github.com/movscript/movscript/internal/domain/script"
 	"github.com/movscript/movscript/internal/infra/cache"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
@@ -214,7 +214,7 @@ func (r *gormRepository) CreateScriptVersionWithRelations(ctx context.Context, v
 		return err
 	}
 	*version = domainscript.ScriptVersionFromModel(row)
-	return entityrelation.SyncCoreEntityRelations(db, &row)
+	return relation.SyncCoreEntityRelations(db, &row)
 }
 
 func normalizeNotFound(err error) error {

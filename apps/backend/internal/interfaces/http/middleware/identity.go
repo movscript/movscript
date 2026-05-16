@@ -8,7 +8,7 @@ import (
 	authapp "github.com/movscript/movscript/internal/app/auth"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/auth"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -41,7 +41,7 @@ func Identity(db *gorm.DB, tokens *auth.Manager) gin.HandlerFunc {
 			if errors.Is(err, auth.ErrExpiredToken) {
 				msg = "登录已过期，请重新登录"
 			}
-			c.AbortWithStatusJSON(status, apierr.Response{Code: apierr.CodeAuthRequired, Message: msg, Action: apierr.ActionLogout})
+			c.AbortWithStatusJSON(status, api.Response{Code: api.CodeAuthRequired, Message: msg, Action: api.ActionLogout})
 			return
 		}
 
@@ -57,11 +57,11 @@ func RequireAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := CurrentUserProfileFromContext(c)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, apierr.AuthRequired())
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.AuthRequired())
 			return
 		}
 		if user.Status != "" && user.Status != domainauth.UserStatusActive {
-			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Response{Code: apierr.CodeForbidden, Message: "账号已被禁用或暂停", Action: apierr.ActionLogout})
+			c.AbortWithStatusJSON(http.StatusForbidden, api.Response{Code: api.CodeForbidden, Message: "账号已被禁用或暂停", Action: api.ActionLogout})
 			return
 		}
 		c.Next()
@@ -73,7 +73,7 @@ func RequireSystemRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := CurrentUserFromContext(c)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, apierr.AuthRequired())
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.AuthRequired())
 			return
 		}
 		for _, r := range roles {
@@ -82,6 +82,6 @@ func RequireSystemRole(roles ...string) gin.HandlerFunc {
 				return
 			}
 		}
-		c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("权限不足"))
+		c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("权限不足"))
 	}
 }

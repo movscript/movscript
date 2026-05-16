@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
-	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
@@ -28,7 +28,7 @@ func (h *Service) persistWorkflowOutputsToResources(ctx context.Context, user *p
 	for _, key := range keys {
 		value := outputs[key]
 		value.Normalize()
-		if canvasruntime.PortValueEmpty(value) {
+		if canvasdomain.PortValueEmpty(value) {
 			continue
 		}
 		if value.ResourceID == nil || *value.ResourceID == 0 {
@@ -63,7 +63,7 @@ func canvasPortValuePersistenceFingerprint(value canvasPortValue) string {
 }
 
 func canvasWorkflowOutputResourceName(cv persistencemodel.Canvas, runID uint, key string, value canvasPortValue, ext string) string {
-	base := canvasruntime.FirstNonEmptyString(cv.Name, "workflow")
+	base := canvasdomain.FirstNonEmptyString(cv.Name, "workflow")
 	key = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(key, "_"), "._-")
 	base = strings.Trim(regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(base, "_"), "._-")
 	if base == "" {
@@ -125,7 +125,7 @@ func (h *Service) attachWorkflowOutputTargets(ctx context.Context, cv persistenc
 		CanvasID:   cv.ID,
 		PortID:     key,
 		OutputType: "candidate",
-		Statuses:   canvasruntime.AttachableCanvasOutputStatuses(),
+		Statuses:   canvasdomain.AttachableCanvasOutputStatuses(),
 	})
 	if err != nil {
 		return
@@ -136,7 +136,7 @@ func (h *Service) attachWorkflowOutputTargets(ctx context.Context, cv persistenc
 			CanvasID:     cv.ID,
 			CanvasNodeID: "final-output",
 			OutputType:   "candidate",
-			Statuses:     canvasruntime.AttachableCanvasOutputStatuses(),
+			Statuses:     canvasdomain.AttachableCanvasOutputStatuses(),
 		})
 	}
 	if len(targets) == 0 && key == "final_output" {
@@ -145,7 +145,7 @@ func (h *Service) attachWorkflowOutputTargets(ctx context.Context, cv persistenc
 			CanvasID:     cv.ID,
 			CanvasNodeID: "final-output",
 			OutputType:   "candidate",
-			Statuses:     canvasruntime.AttachableCanvasOutputStatuses(),
+			Statuses:     canvasdomain.AttachableCanvasOutputStatuses(),
 		})
 	}
 	if len(targets) == 0 {

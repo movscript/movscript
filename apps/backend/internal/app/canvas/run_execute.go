@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
@@ -46,8 +46,8 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *persi
 		}
 		taskMap[runTasks[i].NodeID] = &runTasks[i]
 	}
-	inputValues := canvasruntime.DecodeRunInputValues(run.InputValues)
-	workflowOutputs := canvasruntime.DecodePortOutputs(run.OutputValues)
+	inputValues := canvasdomain.DecodeRunInputValues(run.InputValues)
+	workflowOutputs := canvasdomain.DecodePortOutputs(run.OutputValues)
 	if workflowOutputs == nil {
 		workflowOutputs = map[string]canvasPortValue{}
 	}
@@ -55,7 +55,7 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *persi
 	produced := map[string]map[string]canvasPortValue{}
 	setProduced := func(nodeID string, handle string, value canvasPortValue) {
 		value.Normalize()
-		if canvasruntime.PortValueEmpty(value) {
+		if canvasdomain.PortValueEmpty(value) {
 			return
 		}
 		if produced[nodeID] == nil {
@@ -74,12 +74,12 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *persi
 			return canvasPortValue{}, false
 		}
 		if edge.SourceHandle != "" {
-			if value, ok := byHandle[edge.SourceHandle]; ok && !canvasruntime.PortValueEmpty(value) {
+			if value, ok := byHandle[edge.SourceHandle]; ok && !canvasdomain.PortValueEmpty(value) {
 				return value, true
 			}
 		}
 		value, ok := byHandle[""]
-		return value, ok && !canvasruntime.PortValueEmpty(value)
+		return value, ok && !canvasdomain.PortValueEmpty(value)
 	}
 	portInputsForNode := func(nodeID string) canvasPortInputMap {
 		inputs := canvasPortInputMap{}
@@ -114,7 +114,7 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *persi
 		if node.Type == "output" {
 			var nd nodeData
 			_ = json.Unmarshal([]byte(node.Data), &nd)
-			domainNode := canvasruntime.CanvasNodeFromModel(*node)
+			domainNode := canvasdomain.CanvasNodeFromModel(*node)
 			RegisterWorkflowOutput(workflowOutputs, &domainNode, nd, outputs)
 		}
 		for handle, value := range outputs {
@@ -123,12 +123,12 @@ func (h *Service) executeWorkflowRunWithContext(ctx context.Context, user *persi
 	}
 	if len(workflowOutputs) > 0 {
 		if err := h.persistWorkflowOutputsToResources(ctx, user, cv, runID, workflowOutputs); err != nil {
-			canvasruntime.FailCanvasRun(&run, err.Error(), time.Now())
+			canvasdomain.FailCanvasRun(&run, err.Error(), time.Now())
 			_ = h.saveCanvasRunWithRelations(&run)
 			return
 		}
 	}
-	if raw := canvasruntime.MarshalPortOutputs(workflowOutputs); raw != "" {
+	if raw := canvasdomain.MarshalPortOutputs(workflowOutputs); raw != "" {
 		run.OutputValues = raw
 		_ = h.saveCanvasRunWithRelations(&run)
 	}

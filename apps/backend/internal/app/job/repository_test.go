@@ -8,7 +8,7 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	domainresourcefolder "github.com/movscript/movscript/internal/domain/resourcefolder"
+	domainresourcefolder "github.com/movscript/movscript/internal/domain/resource/folder"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"

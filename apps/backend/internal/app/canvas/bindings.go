@@ -3,7 +3,7 @@ package canvas
 import (
 	"context"
 
-	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resource/binding"
 )
 
 func (h *Service) createBinding(ctx context.Context, binding domainresourcebinding.Binding) error {

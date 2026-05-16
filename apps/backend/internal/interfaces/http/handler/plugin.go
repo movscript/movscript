@@ -6,8 +6,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	pluginapp "github.com/movscript/movscript/internal/app/plugin"
-	"github.com/movscript/movscript/internal/infra/pluginkit"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	"github.com/movscript/movscript/internal/infra/plugin"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"gorm.io/gorm"
 )
 
@@ -30,7 +30,7 @@ func (h *PluginHandler) List(c *gin.Context) {
 }
 
 func (h *PluginHandler) Import(c *gin.Context) {
-	var req pluginkit.ImportRequest
+	var req plugin.ImportRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

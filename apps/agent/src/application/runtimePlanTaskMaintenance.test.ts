@@ -3,6 +3,8 @@ import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
 import type { AgentRun, AgentTask } from '../state/types.js'
 import {
+  applyRuntimeReplanTaskReset,
+  applyRuntimeRetryablePlanTaskReset,
   resetRetryableRuntimePlanTasks,
   resetRuntimePlanTasksForReplan,
 } from './runtimePlanTaskMaintenance.js'
@@ -46,6 +48,27 @@ test('resetRetryableRuntimePlanTasks leaves exhausted tasks unchanged', () => {
   assert.equal(store.getTask('task_failed')?.status, 'failed')
 })
 
+test('applyRuntimeRetryablePlanTaskReset emits reset callbacks and aggregate callback', () => {
+  const store = new InMemoryAgentStore()
+  store.createTask(makeTask({ id: 'task_failed', status: 'failed', ownerRunId: 'run_old' }))
+  store.createRun(makeRun({ id: 'run_old', taskId: 'task_failed' }))
+  const taskEvents: string[] = []
+  const aggregateEvents: string[][] = []
+
+  const result = applyRuntimeRetryablePlanTaskReset({
+    store,
+    planId: 'plan_1',
+    maxTaskAttempts: 3,
+    now: '2026-01-01T00:00:01.000Z',
+    onTaskReset: (task, previousTask) => taskEvents.push(`${previousTask.status}->${task.status}:${task.id}`),
+    onTasksReset: (retriedTaskIds) => aggregateEvents.push(retriedTaskIds),
+  })
+
+  assert.deepEqual(result.retriedTaskIds, ['task_failed'])
+  assert.deepEqual(taskEvents, ['failed->pending:task_failed'])
+  assert.deepEqual(aggregateEvents, [['task_failed']])
+})
+
 test('resetRuntimePlanTasksForReplan persists selected task resets and returns snapshots', () => {
   const store = new InMemoryAgentStore()
   store.createTask(makeTask({ id: 'task_blocked', status: 'blocked', ownerRunId: 'run_blocked', blockedReason: 'waiting' }))
@@ -68,6 +91,23 @@ test('resetRuntimePlanTasksForReplan persists selected task resets and returns s
   assert.equal(result.changes[1]?.task.metadata?.previousStatus, 'running')
   assert.equal(store.getTask('task_running')?.ownerRunId, undefined)
   assert.equal(store.getTask('task_done')?.status, 'done')
+})
+
+test('applyRuntimeReplanTaskReset emits per-task reset callbacks', () => {
+  const store = new InMemoryAgentStore()
+  store.createTask(makeTask({ id: 'task_blocked', status: 'blocked', ownerRunId: 'run_blocked' }))
+  const taskEvents: string[] = []
+
+  const result = applyRuntimeReplanTaskReset({
+    store,
+    planId: 'plan_1',
+    resetBlocked: true,
+    now: '2026-01-01T00:00:01.000Z',
+    onTaskReset: (task, previousTask) => taskEvents.push(`${previousTask.status}->${task.status}:${task.id}`),
+  })
+
+  assert.deepEqual(result.resetTaskIds, ['task_blocked'])
+  assert.deepEqual(taskEvents, ['blocked->pending:task_blocked'])
 })
 
 test('resetRuntimePlanTasksForReplan is inert without a reset policy', () => {

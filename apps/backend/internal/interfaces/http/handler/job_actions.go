@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	jobapp "github.com/movscript/movscript/internal/app/job"
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 )
 
 // Retry requeues a failed generation job for manual retry.
@@ -74,6 +74,7 @@ func (h *JobHandler) AdminRetry(c *gin.Context) {
 		Action:     "job.admin_retried",
 		TargetType: "job",
 		TargetID:   audit.TargetID(job.ID),
+		OrgID:      job.OrgID,
 		ProjectID:  job.ProjectID,
 		Metadata:   jobActionAuditMetadata(job),
 	})
@@ -94,6 +95,7 @@ func (h *JobHandler) AdminCancel(c *gin.Context) {
 		Action:     "job.admin_cancelled",
 		TargetType: "job",
 		TargetID:   audit.TargetID(job.ID),
+		OrgID:      job.OrgID,
 		ProjectID:  job.ProjectID,
 		Metadata:   jobActionAuditMetadata(job),
 	})
@@ -111,6 +113,7 @@ func (h *JobHandler) AdminDelete(c *gin.Context) {
 		Action:     "job.admin_deleted",
 		TargetType: "job",
 		TargetID:   audit.TargetID(job.ID),
+		OrgID:      job.OrgID,
 		ProjectID:  job.ProjectID,
 		Metadata:   jobActionAuditMetadata(job),
 	})

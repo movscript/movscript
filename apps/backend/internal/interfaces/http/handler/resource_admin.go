@@ -5,21 +5,21 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	resourceadmin "github.com/movscript/movscript/internal/app/resourceadmin"
+	adminresource "github.com/movscript/movscript/internal/app/admin/resource"
 	"github.com/movscript/movscript/internal/infra/storage"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"gorm.io/gorm"
 )
 
 type ResourceAdminHandler struct {
-	service *resourceadmin.Service
+	service *adminresource.Service
 	store   storage.Storage
 	db      *gorm.DB
 }
 
 func NewResourceAdminHandler(db *gorm.DB, store storage.Storage) *ResourceAdminHandler {
-	return &ResourceAdminHandler{service: resourceadmin.NewService(db), store: store, db: db}
+	return &ResourceAdminHandler{service: adminresource.NewService(db), store: store, db: db}
 }
 
 // StorageBackends returns the configured storage backend.
@@ -43,7 +43,7 @@ func (h *ResourceAdminHandler) StorageStats(c *gin.Context) {
 }
 
 func (h *ResourceAdminHandler) ListResources(c *gin.Context) {
-	result, err := h.service.ListResources(c.Request.Context(), resourceadmin.ResourceListFilter{
+	result, err := h.service.ListResources(c.Request.Context(), adminresource.ResourceListFilter{
 		Query:          c.Query("q"),
 		Type:           c.Query("type"),
 		StorageBackend: c.Query("storage_backend"),
@@ -53,7 +53,7 @@ func (h *ResourceAdminHandler) ListResources(c *gin.Context) {
 		PageSize:       parsePositiveInt(c.Query("page_size"), 50),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询资源失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询资源失败"))
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -63,10 +63,10 @@ func (h *ResourceAdminHandler) ResourceDetail(c *gin.Context) {
 	detail, err := h.service.ResourceDetail(c.Request.Context(), parseID(c.Param("id")))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("资源不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("资源不存在"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询资源详情失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询资源详情失败"))
 		return
 	}
 	c.JSON(http.StatusOK, detail)
@@ -76,10 +76,10 @@ func (h *ResourceAdminHandler) DeleteResource(c *gin.Context) {
 	deleted, err := h.service.DeleteResource(c.Request.Context(), parseID(c.Param("id")), h.store)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("资源不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("资源不存在"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("删除资源失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("删除资源失败"))
 		return
 	}
 	audit.Record(c, h.db, audit.Event{

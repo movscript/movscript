@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	appresourcefolder "github.com/movscript/movscript/internal/app/resourcefolder"
+	appresourcefolder "github.com/movscript/movscript/internal/app/resource/folder"
 	"github.com/movscript/movscript/internal/infra/cache"
 	"gorm.io/gorm"
 )

@@ -626,6 +626,7 @@ export type JobStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancel
 export interface Job {
   ID: number
   user_id: number
+  org_id?: number
   model_config_id: number
   model_config?: AIModelConfig
   provider_name?: string
@@ -635,6 +636,8 @@ export interface Job {
   feature_key?: string  // tool feature key e.g. ref_image_gen, ref_video_gen, canvas
   title?: string
   status: JobStatus
+  attempt_count?: number
+  max_attempts?: number
   prompt: string
   extra_params?: string // JSON: size, quality, style, etc.
   aspect_ratio?: string // e.g. "16:9", "9:16"

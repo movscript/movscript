@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 )
 
 func (h *SemanticEntityHandler) ListCreativeReferences(c *gin.Context) {
@@ -14,7 +14,7 @@ func (h *SemanticEntityHandler) ListCreativeReferences(c *gin.Context) {
 		Kind:      c.Query("kind"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -23,7 +23,7 @@ func (h *SemanticEntityHandler) ListCreativeReferences(c *gin.Context) {
 func (h *SemanticEntityHandler) CreateCreativeReference(c *gin.Context) {
 	var req semanticapp.CreativeReferenceInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateCreativeReference(c.Request.Context(), parseID(c.Param("id")), req)
@@ -37,7 +37,7 @@ func (h *SemanticEntityHandler) CreateCreativeReference(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchCreativeReference(c *gin.Context) {
 	var req semanticapp.CreativeReferenceInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchCreativeReference(c.Request.Context(), parseID(c.Param("id")), c.Param("referenceId"), req)
@@ -54,7 +54,7 @@ func (h *SemanticEntityHandler) ListCreativeReferenceStates(c *gin.Context) {
 		CreativeReferenceID: parseID(c.Query("creative_reference_id")),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -64,7 +64,7 @@ func (h *SemanticEntityHandler) CreateCreativeReferenceState(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.CreativeReferenceStateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateCreativeReferenceState(c.Request.Context(), projectID, req)
@@ -78,7 +78,7 @@ func (h *SemanticEntityHandler) CreateCreativeReferenceState(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchCreativeReferenceState(c *gin.Context) {
 	var req semanticapp.CreativeReferenceStateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchCreativeReferenceState(c.Request.Context(), parseID(c.Param("id")), c.Param("stateId"), req)
@@ -98,7 +98,7 @@ func (h *SemanticEntityHandler) ListCreativeReferenceUsages(c *gin.Context) {
 		Status:              c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -108,7 +108,7 @@ func (h *SemanticEntityHandler) CreateCreativeReferenceUsage(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.CreativeReferenceUsageInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateCreativeReferenceUsage(c.Request.Context(), projectID, req)
@@ -122,7 +122,7 @@ func (h *SemanticEntityHandler) CreateCreativeReferenceUsage(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchCreativeReferenceUsage(c *gin.Context) {
 	var req semanticapp.CreativeReferenceUsageInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchCreativeReferenceUsage(c.Request.Context(), parseID(c.Param("id")), c.Param("usageId"), req)
@@ -141,7 +141,7 @@ func (h *SemanticEntityHandler) ListCreativeRelationships(c *gin.Context) {
 		Status:              c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -151,7 +151,7 @@ func (h *SemanticEntityHandler) CreateCreativeRelationship(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.CreativeRelationshipInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateCreativeRelationship(c.Request.Context(), projectID, req)
@@ -165,7 +165,7 @@ func (h *SemanticEntityHandler) CreateCreativeRelationship(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchCreativeRelationship(c *gin.Context) {
 	var req semanticapp.CreativeRelationshipInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchCreativeRelationship(c.Request.Context(), parseID(c.Param("id")), c.Param("relationshipId"), req)

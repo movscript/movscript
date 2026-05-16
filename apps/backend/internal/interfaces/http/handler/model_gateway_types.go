@@ -3,8 +3,8 @@ package handler
 import (
 	"encoding/json"
 
-	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
-	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
+	modelgatewayapp "github.com/movscript/movscript/internal/app/gateway"
+	domaingateway "github.com/movscript/movscript/internal/domain/gateway"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"gorm.io/gorm"
 )
@@ -42,7 +42,7 @@ type gatewayMessage struct {
 
 type gatewayPrincipal struct {
 	UserID uint
-	Key    *domainmodelgateway.APIKey
+	Key    *domaingateway.APIKey
 }
 
 type openAIErrorResponse struct {
@@ -164,6 +164,6 @@ func (r *updateGatewayAPIKeyRequest) UnmarshalJSON(data []byte) error {
 }
 
 type gatewayAPIKeyCreateResponse struct {
-	domainmodelgateway.APIKey
+	domaingateway.APIKey
 	Key string `json:"key"`
 }

@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
@@ -33,7 +33,7 @@ func TestPreviewProductionProposalRejectsLegacyActionPayload(t *testing.T) {
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d; body = %s", res.Code, http.StatusBadRequest, res.Body.String())
 	}
-	var body apierr.Response
+	var body api.Response
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}

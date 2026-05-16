@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 )
 
 func (h *SemanticEntityHandler) ListAssetSlots(c *gin.Context) {
@@ -18,7 +18,7 @@ func (h *SemanticEntityHandler) ListAssetSlots(c *gin.Context) {
 		IncludeInternal: c.Query("include_internal"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	populateAssetSlotResourceURLs(c, items)
@@ -28,7 +28,7 @@ func (h *SemanticEntityHandler) ListAssetSlots(c *gin.Context) {
 func (h *SemanticEntityHandler) CreateAssetSlot(c *gin.Context) {
 	var req semanticapp.AssetSlotInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateAssetSlot(c.Request.Context(), parseID(c.Param("id")), req)
@@ -42,7 +42,7 @@ func (h *SemanticEntityHandler) CreateAssetSlot(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchAssetSlot(c *gin.Context) {
 	var req semanticapp.PatchAssetSlotInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchAssetSlot(c.Request.Context(), parseID(c.Param("id")), c.Param("slotId"), req)
@@ -60,7 +60,7 @@ func (h *SemanticEntityHandler) ListAssetSlotCandidates(c *gin.Context) {
 		Status:      c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	populateAssetSlotCandidateResourceURLs(c, items)
@@ -71,7 +71,7 @@ func (h *SemanticEntityHandler) CreateAssetSlotCandidate(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.AssetSlotCandidateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	userID := uint(0)
@@ -91,7 +91,7 @@ func (h *SemanticEntityHandler) CreateAssetSlotCandidate(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchAssetSlotCandidate(c *gin.Context) {
 	var req semanticapp.AssetSlotCandidateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchAssetSlotCandidate(c.Request.Context(), parseID(c.Param("id")), c.Param("candidateId"), req)
@@ -112,7 +112,7 @@ func (h *SemanticEntityHandler) ListCandidateDecisions(c *gin.Context) {
 		Status:            c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -122,7 +122,7 @@ func (h *SemanticEntityHandler) CreateCandidateDecision(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.CandidateDecisionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateCandidateDecision(c.Request.Context(), projectID, req)
@@ -136,7 +136,7 @@ func (h *SemanticEntityHandler) CreateCandidateDecision(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchCandidateDecision(c *gin.Context) {
 	var req semanticapp.CandidateDecisionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchCandidateDecision(c.Request.Context(), parseID(c.Param("id")), c.Param("decisionId"), req)
@@ -156,7 +156,7 @@ func (h *SemanticEntityHandler) ListReviewEvents(c *gin.Context) {
 		EventType:       c.Query("event_type"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -166,7 +166,7 @@ func (h *SemanticEntityHandler) CreateReviewEvent(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.ReviewEventInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateReviewEvent(c.Request.Context(), projectID, req)
@@ -180,7 +180,7 @@ func (h *SemanticEntityHandler) CreateReviewEvent(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchReviewEvent(c *gin.Context) {
 	var req semanticapp.ReviewEventInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchReviewEvent(c.Request.Context(), parseID(c.Param("id")), c.Param("eventId"), req)

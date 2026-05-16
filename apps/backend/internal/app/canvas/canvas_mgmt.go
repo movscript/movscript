@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"strings"
 
-	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	workflowmarket "github.com/movscript/movscript/internal/app/workflow/market"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 )
 
 var (
-	ErrInvalidCanvasType  = canvasruntime.ErrInvalidCanvasType
-	ErrRefIDRequired      = canvasruntime.ErrRefIDRequired
-	ErrUnsupportedRefType = canvasruntime.ErrUnsupportedRefType
+	ErrInvalidCanvasType  = canvasdomain.ErrInvalidCanvasType
+	ErrRefIDRequired      = canvasdomain.ErrRefIDRequired
+	ErrUnsupportedRefType = canvasdomain.ErrUnsupportedRefType
 	ErrCanvasForbidden    = errors.New("canvas forbidden")
 	ErrProjectNotFound    = errors.New("project not found")
 	ErrProjectOutsideOrg  = errors.New("project is outside current org")
@@ -30,7 +30,7 @@ type CanvasListFilter struct {
 	CanvasType string
 }
 
-type CanvasCreateInput = canvasruntime.CanvasCreateInput
+type CanvasCreateInput = canvasdomain.CanvasCreateInput
 
 type CanvasPatchInput struct {
 	Name        *string
@@ -41,12 +41,12 @@ type CanvasPatchInput struct {
 type CanvasSaveInput struct {
 	Name       string
 	CanvasType string
-	Nodes      []canvasruntime.CanvasNode
-	Edges      []canvasruntime.CanvasEdge
+	Nodes      []canvasdomain.CanvasNode
+	Edges      []canvasdomain.CanvasEdge
 }
 
 type CanvasRunListPage struct {
-	Items []canvasruntime.CanvasRun
+	Items []canvasdomain.CanvasRun
 	Total int64
 }
 
@@ -62,32 +62,32 @@ type EntityWriteAuditFilter struct {
 }
 
 type EntityWriteAuditPage struct {
-	Items    []canvasruntime.EntityWriteAudit
+	Items    []canvasdomain.EntityWriteAudit
 	Total    int64
 	Page     int
 	PageSize int
 }
 
-func (h *Service) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasruntime.Canvas, error) {
+func (h *Service) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasdomain.Canvas, error) {
 	return h.canvasRepo().ListCanvases(ctx, filter)
 }
 
-func (h *Service) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasruntime.Canvas, bool, error) {
+func (h *Service) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasdomain.Canvas, bool, error) {
 	return h.canvasRepo().FindOwnedEntityCanvas(ctx, ownerID, orgID, projectID, canvasType, refType, refID)
 }
 
-func (h *Service) GetCanvas(ctx context.Context, id string) (canvasruntime.Canvas, error) {
+func (h *Service) GetCanvas(ctx context.Context, id string) (canvasdomain.Canvas, error) {
 	return h.canvasRepo().GetCanvas(ctx, id)
 }
 
-func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (canvasruntime.Canvas, error) {
-	if err := canvasruntime.NormalizeCreateInput(&input); err != nil {
-		return canvasruntime.Canvas{}, err
+func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (canvasdomain.Canvas, error) {
+	if err := canvasdomain.NormalizeCreateInput(&input); err != nil {
+		return canvasdomain.Canvas{}, err
 	}
 	if err := h.ensureProjectInOrg(ctx, input.ProjectID, input.OrgID); err != nil {
-		return canvasruntime.Canvas{}, err
+		return canvasdomain.Canvas{}, err
 	}
-	cv, err := h.canvasRepo().CreateCanvas(ctx, canvasruntime.NewCanvas(input))
+	cv, err := h.canvasRepo().CreateCanvas(ctx, canvasdomain.NewCanvas(input))
 	if err != nil {
 		return cv, err
 	}
@@ -98,10 +98,10 @@ func (h *Service) CreateCanvas(ctx context.Context, input CanvasCreateInput) (ca
 	return cv, nil
 }
 
-func (h *Service) FindExistingSingleCanvas(ctx context.Context, input CanvasCreateInput) (canvasruntime.Canvas, bool, error) {
+func (h *Service) FindExistingSingleCanvas(ctx context.Context, input CanvasCreateInput) (canvasdomain.Canvas, bool, error) {
 	input.RefType = strings.TrimSpace(input.RefType)
-	if input.RefID == nil || !canvasruntime.SingleCanvasRefType(input.RefType) {
-		return canvasruntime.Canvas{}, false, nil
+	if input.RefID == nil || !canvasdomain.SingleCanvasRefType(input.RefType) {
+		return canvasdomain.Canvas{}, false, nil
 	}
 	canvasType := input.CanvasType
 	if canvasType == "" {
@@ -110,14 +110,14 @@ func (h *Service) FindExistingSingleCanvas(ctx context.Context, input CanvasCrea
 	return h.FindOwnedEntityCanvas(ctx, input.OwnerID, input.OrgID, input.ProjectID, canvasType, input.RefType, *input.RefID)
 }
 
-func (h *Service) GetVisibleCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
+func (h *Service) GetVisibleCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasdomain.Canvas, error) {
 	return h.getVisibleCanvas(ctx, id, ownerID, orgID)
 }
 
-func (h *Service) getVisibleCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
+func (h *Service) getVisibleCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasdomain.Canvas, error) {
 	cv, err := h.GetCanvas(ctx, id)
 	if err != nil {
-		return canvasruntime.Canvas{}, err
+		return canvasdomain.Canvas{}, err
 	}
 	if !h.inOrgScope(ctx, cv.OrgID, orgID, cv.OwnerID, ownerID) {
 		return cv, ErrCanvasForbidden
@@ -128,7 +128,7 @@ func (h *Service) getVisibleCanvas(ctx context.Context, id string, ownerID uint,
 	return cv, nil
 }
 
-func (h *Service) PatchCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasPatchInput) (canvasruntime.Canvas, error) {
+func (h *Service) PatchCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasPatchInput) (canvasdomain.Canvas, error) {
 	cv, err := h.getOwnedCanvas(ctx, id, ownerID, orgID)
 	if err != nil {
 		return cv, err
@@ -165,7 +165,7 @@ func (h *Service) DeleteCanvas(ctx context.Context, id string, ownerID uint, org
 	return h.canvasRepo().DeleteCanvas(ctx, cv)
 }
 
-func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasSaveInput) (canvasruntime.Canvas, error) {
+func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID *uint, input CanvasSaveInput) (canvasdomain.Canvas, error) {
 	cv, err := h.getOwnedCanvas(ctx, id, ownerID, orgID)
 	if err != nil {
 		return cv, err
@@ -183,19 +183,19 @@ func (h *Service) SaveCanvas(ctx context.Context, id string, ownerID uint, orgID
 	return cv, nil
 }
 
-func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
+func (h *Service) getOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasdomain.Canvas, error) {
 	return h.canvasRepo().GetOwnedCanvas(ctx, id, ownerID, orgID)
 }
 
-func (h *Service) GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
+func (h *Service) GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasdomain.Canvas, error) {
 	return h.getOwnedCanvas(ctx, id, ownerID, orgID)
 }
 
-func (h *Service) getNode(ctx context.Context, canvasID uint, nodeID string) (canvasruntime.CanvasNode, error) {
+func (h *Service) getNode(ctx context.Context, canvasID uint, nodeID string) (canvasdomain.CanvasNode, error) {
 	return h.canvasRepo().GetNode(ctx, canvasID, nodeID)
 }
 
-func (h *Service) GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasruntime.CanvasNode, error) {
+func (h *Service) GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasdomain.CanvasNode, error) {
 	return h.getNode(ctx, canvasID, nodeID)
 }
 
@@ -203,17 +203,17 @@ func (h *Service) ListRuns(ctx context.Context, canvasID uint, status string, pa
 	return h.canvasRepo().ListRuns(ctx, canvasID, status, pageMode, page, pageSize)
 }
 
-func (h *Service) GetRun(ctx context.Context, canvasID uint, runID string) (canvasruntime.CanvasRun, error) {
+func (h *Service) GetRun(ctx context.Context, canvasID uint, runID string) (canvasdomain.CanvasRun, error) {
 	return h.canvasRepo().GetRun(ctx, canvasID, runID)
 }
 
-func (h *Service) ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]canvasruntime.CanvasTask, error) {
+func (h *Service) ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]canvasdomain.CanvasTask, error) {
 	return h.canvasRepo().ListRunTasks(ctx, canvasID, runID)
 }
 
-func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) (canvasruntime.CanvasTask, string, error) {
+func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) (canvasdomain.CanvasTask, string, error) {
 	if _, err := h.getOwnedCanvas(ctx, canvasID, ownerID, orgID); err != nil {
-		return canvasruntime.CanvasTask{}, "", err
+		return canvasdomain.CanvasTask{}, "", err
 	}
 	node, task, err := h.canvasRepo().LatestNodeTask(ctx, canvasID, nodeID)
 	if err != nil {
@@ -223,7 +223,7 @@ func (h *Service) LatestNodeTask(ctx context.Context, canvasID string, ownerID u
 	return task, node.Type, nil
 }
 
-func (h *Service) ListNodeTasks(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) ([]canvasruntime.CanvasTask, string, error) {
+func (h *Service) ListNodeTasks(ctx context.Context, canvasID string, ownerID uint, orgID *uint, nodeID string) ([]canvasdomain.CanvasTask, string, error) {
 	if _, err := h.getOwnedCanvas(ctx, canvasID, ownerID, orgID); err != nil {
 		return nil, "", err
 	}

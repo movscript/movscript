@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	aiadminapp "github.com/movscript/movscript/internal/app/aiadmin"
+	adminai "github.com/movscript/movscript/internal/app/admin/ai"
 	"github.com/movscript/movscript/internal/infra/ai"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 )
 
 func (h *AIHandler) ListCredentials(c *gin.Context) {
@@ -46,7 +46,7 @@ func (h *AIHandler) CreateCredential(c *gin.Context) {
 		}
 	}
 
-	cred, err := h.service.CreateCredential(c.Request.Context(), aiadminapp.CreateCredentialInput{
+	cred, err := h.service.CreateCredential(c.Request.Context(), adminai.CreateCredentialInput{
 		AdapterType:     req.AdapterType,
 		DisplayName:     req.DisplayName,
 		Credentials:     req.Credentials,
@@ -83,7 +83,7 @@ func (h *AIHandler) UpdateCredential(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	cred, err := h.service.UpdateCredential(c.Request.Context(), aiadminapp.UpdateCredentialInput{
+	cred, err := h.service.UpdateCredential(c.Request.Context(), adminai.UpdateCredentialInput{
 		ID:              c.Param("id"),
 		DisplayName:     req.DisplayName,
 		BaseURL:         req.BaseURL,
@@ -129,7 +129,7 @@ func (h *AIHandler) ListRemoteModels(c *gin.Context) {
 	defer cancel()
 	ids, err := h.service.ListRemoteModels(ctx, c.Param("id"))
 	if err != nil {
-		if !errors.Is(err, aiadminapp.ErrNotFound) {
+		if !errors.Is(err, adminai.ErrNotFound) {
 			audit.Record(c, h.db, audit.Event{
 				Action:     "ai_credential.remote_models.admin_listed",
 				TargetType: "ai_credential",
@@ -142,7 +142,7 @@ func (h *AIHandler) ListRemoteModels(c *gin.Context) {
 			})
 		}
 		switch {
-		case errors.Is(err, aiadminapp.ErrNotFound):
+		case errors.Is(err, adminai.ErrNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		case err.Error() == "this provider does not support model listing":
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -188,15 +188,15 @@ func (h *AIHandler) TestCredential(c *gin.Context) {
 }
 
 func writeCredentialError(c *gin.Context, err error) {
-	if errors.Is(err, aiadminapp.ErrNotFound) {
+	if errors.Is(err, adminai.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 		return
 	}
-	if errors.Is(err, aiadminapp.ErrEncryptFilesAPIKey) {
+	if errors.Is(err, adminai.ErrEncryptFilesAPIKey) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt files api key"})
 		return
 	}
-	if errors.Is(err, aiadminapp.ErrEncryptCredentials) {
+	if errors.Is(err, adminai.ErrEncryptCredentials) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to encrypt credentials"})
 		return
 	}

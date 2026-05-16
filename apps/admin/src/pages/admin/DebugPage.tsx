@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type MouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { translateAPIRequestError, translateApiError } from '@/lib/apiError'
 import type { AICredential, DebugCallResult, DebugHTTPExchange, JobDetail, JobStateTraceEntry, RawCallResult, AdapterDef, ParamDef } from '@/types'
@@ -10,6 +11,20 @@ import { Input } from '@movscript/ui'
 import { Label } from '@movscript/ui'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@movscript/ui'
 import { useTranslation } from 'react-i18next'
+import {
+  DEBUG_TABS,
+  debugTabFromSearchParams,
+  emptyJobMonitorFilters,
+  hasJobFilterSearchParams,
+  jobFiltersFromSearchParams,
+  jobMonitorPageFromSearchParams,
+  jobSearchParams,
+  jobUrlSearchParams,
+  type DebugTab,
+  type JobMonitorFilters,
+} from '@/lib/adminJobQueryParams'
+import { jobActionConfirmKey, type AdminJobAction } from '@/lib/adminActionGuards'
+import { auditLogsHref, usageLogsHref } from '@/lib/adminLogQueryParams'
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -129,6 +144,14 @@ function formatDateTime(value?: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString(undefined, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function adminHref(href: string) {
+  const normalized = href.startsWith('/') ? href : `/${href}`
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+    return `/admin${normalized}`
+  }
+  return normalized
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -482,7 +505,11 @@ function SystemOverviewSection() {
                 const count = statusCounts.get(status) ?? 0
                 const percent = jobStats?.total ? Math.round((count / jobStats.total) * 100) : 0
                 return (
-                  <div key={status} className="space-y-1">
+                  <a
+                    key={status}
+                    href={jobStatusHref(status)}
+                    className="block space-y-1 rounded-md px-2 py-1 transition-colors hover:bg-muted/60"
+                  >
                     <div className="flex items-center justify-between gap-3 text-xs">
                       <span className={cn('rounded-full px-2 py-0.5 font-medium', STATUS_COLOR[status])}>
                         {t(`pages.jobs.status.${status}`, { defaultValue: status })}
@@ -492,7 +519,7 @@ function SystemOverviewSection() {
                     <div className="h-1.5 rounded-full bg-muted">
                       <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${percent}%` }} />
                     </div>
-                  </div>
+                  </a>
                 )
               })}
             </div>
@@ -530,13 +557,24 @@ function SystemOverviewSection() {
           {(jobStats?.recent_failed ?? []).length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">{t('admin.debug.jobs.empty')}</p>
           ) : jobStats?.recent_failed.map((job) => (
-            <div key={job.ID} className="grid gap-2 px-4 py-3 text-xs md:grid-cols-[80px_110px_1fr_auto] md:items-center">
+            <div key={job.ID} className="grid gap-2 px-4 py-3 text-xs md:grid-cols-[80px_110px_minmax(0,1fr)_auto_auto] md:items-center">
               <span className="font-mono text-muted-foreground">#{job.ID}</span>
               <span className={cn('w-fit rounded-full px-2 py-0.5 font-medium', STATUS_COLOR[job.status] ?? 'bg-muted text-muted-foreground')}>
                 {t(`pages.jobs.status.${job.status}`, { defaultValue: job.status })}
               </span>
               <span className="min-w-0 truncate text-foreground">{job.error_msg || job.prompt || t('admin.debug.noPrompt')}</span>
               <span className="font-mono text-muted-foreground">{formatDateTime(job.UpdatedAt || job.CreatedAt)}</span>
+              <div className="flex flex-wrap justify-start gap-1 md:justify-end">
+                <a href={jobMonitorHref(job)} className="rounded-md border border-border px-2 py-1 text-muted-foreground transition-colors hover:text-foreground">
+                  {t('admin.debug.jobs.openInMonitor')}
+                </a>
+                <a href={jobAuditHref(job)} className="rounded-md border border-border px-2 py-1 text-muted-foreground transition-colors hover:text-foreground">
+                  {t('admin.debug.jobs.viewAuditLogs')}
+                </a>
+                <a href={jobUsageHref(job)} className="rounded-md border border-border px-2 py-1 text-muted-foreground transition-colors hover:text-foreground">
+                  {t('admin.debug.jobs.viewUsageLogs')}
+                </a>
+              </div>
             </div>
           ))}
         </div>
@@ -899,7 +937,26 @@ function RawCallSection() {
 // ── Section 2: Job Monitor ────────────────────────────────────────────────────
 
 const JOB_MONITOR_PAGE_SIZE = 25
-type JobAction = 'cancel' | 'retry' | 'delete'
+
+function jobUsageHref(job: JobDetail): string {
+  return adminHref(usageLogsHref({
+    userId: job.user_id,
+    orgId: job.org_id,
+    projectId: job.project_id,
+  }))
+}
+
+function jobMonitorHref(job: JobDetail): string {
+  return adminHref(`/debug?tab=jobs&job_id=${job.ID}`)
+}
+
+function jobAuditHref(job: JobDetail): string {
+  return adminHref(auditLogsHref({ targetType: 'job', targetId: job.ID }))
+}
+
+function jobStatusHref(status: string): string {
+  return adminHref(`/debug?${jobUrlSearchParams({ ...emptyJobMonitorFilters, status }, 1).toString()}`)
+}
 
 function isVideoJobType(jobType: string): boolean {
   return jobType === 'video' || jobType === 'video_i2v' || jobType === 'video_v2v'
@@ -908,20 +965,28 @@ function isVideoJobType(jobType: string): boolean {
 function JobMonitorSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [statusFilter, setStatusFilter] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [filters, setFilters] = useState<JobMonitorFilters>(() => jobFiltersFromSearchParams(searchParams))
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(false)
-  const [page, setPage] = useState(1)
+  const [page, setPage] = useState(() => jobMonitorPageFromSearchParams(searchParams))
   const [jobActionError, setJobActionError] = useState('')
 
+  useEffect(() => {
+    setFilters(jobFiltersFromSearchParams(searchParams))
+    setPage(jobMonitorPageFromSearchParams(searchParams))
+  }, [searchParams])
+
   const { data, refetch, isFetching } = useQuery<{ jobs: JobDetail[]; total: number }>({
-    queryKey: ['admin', 'debug', 'jobs', statusFilter, page],
+    queryKey: ['admin', 'debug', 'jobs', filters, page],
     queryFn: async () => {
       const params = new URLSearchParams({
         limit: String(JOB_MONITOR_PAGE_SIZE),
         offset: String((page - 1) * JOB_MONITOR_PAGE_SIZE),
       })
-      if (statusFilter) params.set('status', statusFilter)
+      const filterParams = jobSearchParams(filters, 1)
+      filterParams.delete('page')
+      filterParams.forEach((value, key) => params.set(key, value))
       const res = await api.get<JobDetail[]>(`/admin/debug/jobs?${params.toString()}`)
       const total = Number(res.headers['x-total-count'] ?? res.data.length)
       return { jobs: res.data, total }
@@ -933,7 +998,7 @@ function JobMonitorSection() {
   const pageCount = Math.max(1, Math.ceil(total / JOB_MONITOR_PAGE_SIZE))
 
   const jobAction = useMutation({
-    mutationFn: async ({ job, action }: { job: JobDetail; action: JobAction }) => {
+    mutationFn: async ({ job, action }: { job: JobDetail; action: AdminJobAction }) => {
       if (action === 'delete') {
         await api.delete(`/admin/debug/jobs/${job.ID}`)
         return null
@@ -955,21 +1020,39 @@ function JobMonitorSection() {
     ? `${jobAction.variables.action}:${jobAction.variables.job.ID}`
     : ''
 
-  function runJobAction(event: MouseEvent<HTMLButtonElement>, job: JobDetail, action: JobAction) {
+  function runJobAction(event: MouseEvent<HTMLButtonElement>, job: JobDetail, action: AdminJobAction) {
     event.stopPropagation()
-    if (action === 'delete' && !window.confirm(t('admin.debug.jobs.confirmDelete', { id: job.ID }))) {
+    if (!window.confirm(t(jobActionConfirmKey(action), { id: job.ID }))) {
       return
     }
     jobAction.mutate({ job, action })
   }
 
   useEffect(() => {
-    setPage(1)
-  }, [statusFilter])
-
-  useEffect(() => {
-    if (page > pageCount) setPage(pageCount)
+    if (page > pageCount) updatePage(pageCount)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageCount])
+
+  function updateFilter<K extends keyof JobMonitorFilters>(key: K, value: JobMonitorFilters[K]) {
+    const next = { ...filters, [key]: value }
+    setFilters(next)
+    setPage(1)
+    setSearchParams(jobUrlSearchParams(next, 1), { replace: true })
+  }
+
+  function clearFilters() {
+    setFilters(emptyJobMonitorFilters)
+    setPage(1)
+    setSearchParams(jobUrlSearchParams(emptyJobMonitorFilters, 1), { replace: true })
+  }
+
+  function updatePage(nextPage: number) {
+    const normalized = Math.max(1, Math.min(pageCount, nextPage))
+    setPage(normalized)
+    setSearchParams(jobUrlSearchParams(filters, normalized), { replace: true })
+  }
+
+  const hasFilters = Object.values(filters).some((value) => value.trim() !== '')
 
   return (
     <div className="space-y-4">
@@ -993,22 +1076,39 @@ function JobMonitorSection() {
         {['', 'pending', 'running', 'succeeded', 'failed', 'cancelled'].map((s) => (
           <button
             key={s}
-            onClick={() => setStatusFilter(s)}
-            className={cn('text-xs px-2.5 py-1 rounded-full border transition-colors', statusFilter === s ? 'border-ring bg-accent text-accent-foreground' : 'border-border text-muted-foreground hover:text-foreground')}
+            onClick={() => updateFilter('status', s)}
+            className={cn('text-xs px-2.5 py-1 rounded-full border transition-colors', filters.status === s ? 'border-ring bg-accent text-accent-foreground' : 'border-border text-muted-foreground hover:text-foreground')}
           >
             {s === '' ? t('common.all') : t(`pages.jobs.status.${s}`, { defaultValue: s })}
           </button>
         ))}
       </div>
 
+      <div className="rounded-lg border border-border bg-card p-3">
+        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
+          <JobFilterField label={t('admin.debug.jobs.filters.jobId')} value={filters.jobId} onChange={(value) => updateFilter('jobId', value.replace(/\D/g, ''))} placeholder="1024" />
+          <JobFilterField label={t('admin.debug.jobs.filters.userId')} value={filters.userId} onChange={(value) => updateFilter('userId', value.replace(/\D/g, ''))} placeholder="42" />
+          <JobFilterField label={t('admin.debug.jobs.filters.orgId')} value={filters.orgId} onChange={(value) => updateFilter('orgId', value.replace(/\D/g, ''))} placeholder="1" />
+          <JobFilterField label={t('admin.debug.jobs.filters.projectId')} value={filters.projectId} onChange={(value) => updateFilter('projectId', value.replace(/\D/g, ''))} placeholder="128" />
+          <JobFilterField label={t('admin.debug.jobs.filters.modelConfigId')} value={filters.modelConfigId} onChange={(value) => updateFilter('modelConfigId', value.replace(/\D/g, ''))} placeholder="4" />
+          <JobFilterField label={t('admin.debug.jobs.filters.jobType')} value={filters.jobType} onChange={(value) => updateFilter('jobType', value)} placeholder="video_i2v" />
+          <JobFilterField label={t('admin.debug.jobs.filters.featureKey')} value={filters.featureKey} onChange={(value) => updateFilter('featureKey', value)} placeholder="ref_video_gen" />
+        </div>
+        <div className="mt-3 flex justify-end">
+          <Button type="button" variant="ghost" size="sm" onClick={clearFilters} disabled={!hasFilters}>
+            {t('admin.debug.jobs.clearFilters')}
+          </Button>
+        </div>
+      </div>
+
       {total > JOB_MONITOR_PAGE_SIZE && (
         <div className="flex items-center justify-between">
           <span className="text-xs text-muted-foreground">{t('admin.debug.jobs.pageStatus', { page, pageCount })}</span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+            <Button variant="outline" size="sm" onClick={() => updatePage(page - 1)} disabled={page === 1}>
               {t('admin.logs.previousPage')}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.min(pageCount, p + 1))} disabled={page === pageCount}>
+            <Button variant="outline" size="sm" onClick={() => updatePage(page + 1)} disabled={page === pageCount}>
               {t('admin.logs.nextPage')}
             </Button>
           </div>
@@ -1107,8 +1207,12 @@ function JobMonitorSection() {
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                     {[
                       [t('admin.debug.jobs.fields.jobId'), String(job.ID)],
+                      [t('admin.debug.jobs.fields.userId'), `#${job.user_id}`],
+                      [t('admin.debug.jobs.fields.orgId'), job.org_id ? `#${job.org_id}` : '—'],
+                      [t('admin.debug.jobs.fields.projectId'), job.project_id ? `#${job.project_id}` : '—'],
                       [t('admin.debug.jobs.fields.modelConfigId'), String(job.model_config_id)],
                       [t('admin.debug.jobs.fields.jobType'), job.job_type],
+                      [t('admin.debug.jobs.fields.featureKey'), job.feature_key || '—'],
                       [t('admin.debug.jobs.fields.status'), t(`pages.jobs.status.${job.status}`, { defaultValue: job.status })],
                       [t('admin.debug.jobs.fields.executionState'), job.execution_state ? (STATE_LABEL_KEYS[job.execution_state] ? t(STATE_LABEL_KEYS[job.execution_state]) : job.execution_state) : '—'],
                       [t('admin.debug.jobs.fields.providerTaskId'), job.provider_task_id || '—'],
@@ -1121,6 +1225,15 @@ function JobMonitorSection() {
                         <span className="font-mono truncate">{v}</span>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <a className="rounded-md border border-border px-2 py-1 text-muted-foreground transition-colors hover:text-foreground" href={jobAuditHref(job)}>
+                      {t('admin.debug.jobs.viewAuditLogs')}
+                    </a>
+                    <a className="rounded-md border border-border px-2 py-1 text-muted-foreground transition-colors hover:text-foreground" href={jobUsageHref(job)}>
+                      {t('admin.debug.jobs.viewUsageLogs')}
+                    </a>
                   </div>
 
                   <div>
@@ -1214,6 +1327,15 @@ function JobMonitorSection() {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function JobFilterField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <Label className="mb-1 block text-xs text-muted-foreground">{label}</Label>
+      <Input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="h-8 text-xs" />
     </div>
   )
 }
@@ -1763,6 +1885,29 @@ function ProviderSandboxSection() {
 
 export function DebugPage() {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<DebugTab>(() => debugTabFromSearchParams(searchParams))
+
+  useEffect(() => {
+    setActiveTab(debugTabFromSearchParams(searchParams))
+  }, [searchParams])
+
+  function updateTab(value: string) {
+    const next = DEBUG_TABS.includes(value as DebugTab) ? (value as DebugTab) : 'system'
+    setActiveTab(next)
+    const params = new URLSearchParams(searchParams)
+    if (next === 'system') {
+      if (hasJobFilterSearchParams(params)) {
+        params.set('tab', 'system')
+      } else {
+        params.delete('tab')
+      }
+    } else {
+      params.set('tab', next)
+    }
+    setSearchParams(params, { replace: true })
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2">
@@ -1770,7 +1915,7 @@ export function DebugPage() {
         <h2 className="text-base font-semibold text-foreground">{t('admin.tabs.debug')}</h2>
       </div>
 
-      <Tabs defaultValue="system">
+      <Tabs value={activeTab} onValueChange={updateTab}>
         <TabsList>
           <TabsTrigger value="system">{t('admin.debug.tabs.system')}</TabsTrigger>
           <TabsTrigger value="provider-sandbox">{t('admin.debug.tabs.providerSandbox')}</TabsTrigger>

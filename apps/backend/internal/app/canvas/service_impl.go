@@ -5,18 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
-type nodeData = canvasruntime.NodeData
-type canvasPortValue = canvasruntime.PortValue
-type canvasPortInputMap = canvasruntime.PortInputMap
+type nodeData = canvasdomain.NodeData
+type canvasPortValue = canvasdomain.PortValue
+type canvasPortInputMap = canvasdomain.PortInputMap
 
 func (h *Service) executeTask(user *persistencemodel.User, node *persistencemodel.CanvasNode, task *persistencemodel.CanvasTask, nd nodeData, portInputs canvasPortInputMap) {
-	_ = h.updateTaskRow(context.Background(), task, canvasruntime.StartCanvasTask(task, &nd))
+	_ = h.updateTaskRow(context.Background(), task, canvasdomain.StartCanvasTask(task, &nd))
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
 	}
@@ -139,10 +139,10 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 		return
 	}
 
-	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
-	value := canvasruntime.PortValueFromResource(&r.ID, resType)
+	_ = h.updateTaskRow(ctx, task, canvasdomain.CompleteCanvasTask(task, &nd, &r.ID))
+	value := canvasdomain.PortValueFromResource(&r.ID, resType)
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
-		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
+		canvasdomain.DefaultSourceHandleForNode(node.Type, nd): value,
 		"": value,
 	})
 	if task.CanvasRunID == nil {
@@ -153,9 +153,9 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 
 func (h *Service) completeInlineTextTask(task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, text string) {
 	value := canvasPortValue{Type: "text", Text: text}
-	_ = h.updateTaskRow(context.Background(), task, canvasruntime.CompleteCanvasTask(task, &nd, nil))
+	_ = h.updateTaskRow(context.Background(), task, canvasdomain.CompleteCanvasTask(task, &nd, nil))
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
-		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
+		canvasdomain.DefaultSourceHandleForNode(node.Type, nd): value,
 		"": value,
 	})
 	if task.CanvasRunID == nil {

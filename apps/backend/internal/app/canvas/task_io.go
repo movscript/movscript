@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
@@ -12,31 +12,31 @@ func normalizeCanvasTaskForResponse(dbTask *persistencemodel.CanvasTask, nodeTyp
 	if dbTask == nil {
 		return
 	}
-	outputs := canvasruntime.DecodePortOutputs(dbTask.OutputValues)
+	outputs := canvasdomain.DecodePortOutputs(dbTask.OutputValues)
 	if len(outputs) > 0 || dbTask.ResourceID == nil {
 		return
 	}
-	valueType := canvasruntime.DefaultPortValueTypeForNode(canvasruntime.FirstNonEmptyString(dbTask.NodeType, nodeType), nodeData{})
-	value := canvasruntime.PortValueFromResource(dbTask.ResourceID, valueType)
-	handle := canvasruntime.DefaultSourceHandle(canvasruntime.FirstNonEmptyString(dbTask.NodeType, nodeType))
+	valueType := canvasdomain.DefaultPortValueTypeForNode(canvasdomain.FirstNonEmptyString(dbTask.NodeType, nodeType), nodeData{})
+	value := canvasdomain.PortValueFromResource(dbTask.ResourceID, valueType)
+	handle := canvasdomain.DefaultSourceHandle(canvasdomain.FirstNonEmptyString(dbTask.NodeType, nodeType))
 	outputs = map[string]canvasPortValue{
 		handle:   value,
 		"result": value,
 		"value":  value,
 	}
-	dbTask.OutputValues = canvasruntime.MarshalPortOutputs(outputs)
+	dbTask.OutputValues = canvasdomain.MarshalPortOutputs(outputs)
 }
 
-func NormalizeCanvasTaskForResponse(task canvasruntime.CanvasTask, nodeType string) canvasruntime.CanvasTask {
+func NormalizeCanvasTaskForResponse(task canvasdomain.CanvasTask, nodeType string) canvasdomain.CanvasTask {
 	row := task.ToModel()
 	normalizeCanvasTaskForResponse(&row, nodeType)
-	return canvasruntime.CanvasTaskFromModel(row)
+	return canvasdomain.CanvasTaskFromModel(row)
 }
 
-func (h *Service) LazyBackfillCanvasTaskOutputs(task canvasruntime.CanvasTask, nodeType string) canvasruntime.CanvasTask {
+func (h *Service) LazyBackfillCanvasTaskOutputs(task canvasdomain.CanvasTask, nodeType string) canvasdomain.CanvasTask {
 	row := task.ToModel()
 	h.lazyBackfillCanvasTaskOutputs(&row, nodeType)
-	return canvasruntime.CanvasTaskFromModel(row)
+	return canvasdomain.CanvasTaskFromModel(row)
 }
 
 func (h *Service) lazyBackfillCanvasTaskOutputs(task *persistencemodel.CanvasTask, nodeType string) {
@@ -45,7 +45,7 @@ func (h *Service) lazyBackfillCanvasTaskOutputs(task *persistencemodel.CanvasTas
 	}
 	normalizeCanvasTaskForResponse(task, nodeType)
 	if strings.TrimSpace(task.OutputValues) != "" {
-		_ = h.updateTaskRow(context.Background(), task, canvasruntime.CanvasTaskPatch{OutputValues: task.OutputValues})
+		_ = h.updateTaskRow(context.Background(), task, canvasdomain.CanvasTaskPatch{OutputValues: task.OutputValues})
 	}
 }
 
@@ -53,8 +53,8 @@ func (h *Service) updateTaskInputValues(task *persistencemodel.CanvasTask, input
 	if task == nil {
 		return
 	}
-	if raw := canvasruntime.MarshalPortInputs(inputs); raw != "" {
-		_ = h.updateTaskRow(context.Background(), task, canvasruntime.CanvasTaskPatch{InputValues: raw})
+	if raw := canvasdomain.MarshalPortInputs(inputs); raw != "" {
+		_ = h.updateTaskRow(context.Background(), task, canvasdomain.CanvasTaskPatch{InputValues: raw})
 		task.InputValues = raw
 	}
 }
@@ -63,14 +63,14 @@ func (h *Service) updateTaskOutputValues(task *persistencemodel.CanvasTask, outp
 	if task == nil {
 		return
 	}
-	if raw := canvasruntime.MarshalPortOutputs(outputs); raw != "" {
-		_ = h.updateTaskRow(context.Background(), task, canvasruntime.CanvasTaskPatch{OutputValues: raw})
+	if raw := canvasdomain.MarshalPortOutputs(outputs); raw != "" {
+		_ = h.updateTaskRow(context.Background(), task, canvasdomain.CanvasTaskPatch{OutputValues: raw})
 		task.OutputValues = raw
 	}
 }
 
 func (h *Service) createTaskRow(ctx context.Context, task *persistencemodel.CanvasTask) error {
-	created, err := h.canvasRepo().CreateTask(ctx, canvasruntime.CanvasTaskFromModel(*task))
+	created, err := h.canvasRepo().CreateTask(ctx, canvasdomain.CanvasTaskFromModel(*task))
 	if err != nil {
 		return err
 	}
@@ -78,16 +78,16 @@ func (h *Service) createTaskRow(ctx context.Context, task *persistencemodel.Canv
 	return nil
 }
 
-func (h *Service) updateTaskRow(ctx context.Context, task *persistencemodel.CanvasTask, patch canvasruntime.CanvasTaskPatch) error {
+func (h *Service) updateTaskRow(ctx context.Context, task *persistencemodel.CanvasTask, patch canvasdomain.CanvasTaskPatch) error {
 	if task == nil {
 		return nil
 	}
-	return h.canvasRepo().UpdateTask(ctx, canvasruntime.CanvasTaskFromModel(*task), patch)
+	return h.canvasRepo().UpdateTask(ctx, canvasdomain.CanvasTaskFromModel(*task), patch)
 }
 
 func (h *Service) saveTaskRow(ctx context.Context, task *persistencemodel.CanvasTask) error {
 	if task == nil {
 		return nil
 	}
-	return h.canvasRepo().SaveTask(ctx, canvasruntime.CanvasTaskFromModel(*task))
+	return h.canvasRepo().SaveTask(ctx, canvasdomain.CanvasTaskFromModel(*task))
 }

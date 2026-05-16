@@ -130,6 +130,7 @@ export interface AgentDebugCoverageSummary {
   promptDetailsLabel: string
   messageWritesLabel: string
   httpResponsesLabel: string
+  httpResponseBodiesLabel: string
   issues: string[]
 }
 
@@ -391,11 +392,14 @@ export function buildDebugCoverageSummary(input: {
   const promptDetails = input.events.filter((event) => !!agentTraceView(event).promptDetail).length
   const messageWrites = input.events.filter((event) => !!agentTraceView(event).messageDetail).length
   const httpResponses = input.modelCalls.filter((call) => call.responseEventId).length
+  const httpResponseBodies = input.events.filter((event) => !!agentTraceView(event).modelDetail?.response?.bodyText).length
+  const httpResponsesWithoutBody = Math.max(0, httpResponses - httpResponseBodies)
   const incompleteModelCalls = input.modelCalls.filter((call) => call.status !== 'complete')
   const hasUnloadedTrace = input.hasMore || (typeof input.total === 'number' && input.events.length < input.total)
   const issues = [
     hasUnloadedTrace ? '还有未加载运行事件，当前统计只覆盖已加载事件。' : undefined,
     incompleteModelCalls.length > 0 ? `${incompleteModelCalls.length} 次模型调用缺少请求或响应事件；请先加载全部事件，如果仍缺失，多半是旧运行或异常中断时没有采集到完整 HTTP 详情。` : undefined,
+    httpResponsesWithoutBody > 0 ? `${httpResponsesWithoutBody} 次模型 HTTP 响应没有原始响应正文；可以看到状态和解析结果，但无法展开完整回复 body。` : undefined,
     input.events.length > 0 && promptDetails === 0 ? '当前已加载事件里没有模型上下文详情；可能是旧运行未记录上下文组成，或这批分页还没有加载到上下文组装事件（Prompt composed）。' : undefined,
   ].filter((issue): issue is string => !!issue)
   return {
@@ -405,6 +409,7 @@ export function buildDebugCoverageSummary(input: {
     promptDetailsLabel: `${promptDetails}`,
     messageWritesLabel: `${messageWrites}`,
     httpResponsesLabel: `${httpResponses}`,
+    httpResponseBodiesLabel: `${httpResponseBodies}`,
     issues,
   }
 }
@@ -416,6 +421,7 @@ export function buildDebugReportText(input: AgentDebugReportInput): string {
     `事件: ${input.coverage.loadedLabel}`,
     `模型调用: ${input.coverage.modelCallsLabel}`,
     `HTTP 响应: ${input.coverage.httpResponsesLabel}`,
+    `响应正文: ${input.coverage.httpResponseBodiesLabel}`,
     `上下文详情: ${input.coverage.promptDetailsLabel}`,
     `历史写入: ${input.coverage.messageWritesLabel}`,
   ]

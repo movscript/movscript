@@ -6,19 +6,19 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	cloudfileconfig "github.com/movscript/movscript/internal/app/cloudfileconfig"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	cloud "github.com/movscript/movscript/internal/app/cloud"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"gorm.io/gorm"
 )
 
 type CloudFileConfigHandler struct {
 	db      *gorm.DB
-	service *cloudfileconfig.Service
+	service *cloud.Service
 }
 
 func NewCloudFileConfigHandler(db *gorm.DB, encryptionKeyHex string) *CloudFileConfigHandler {
-	return &CloudFileConfigHandler{db: db, service: cloudfileconfig.NewService(db, encryptionKeyHex)}
+	return &CloudFileConfigHandler{db: db, service: cloud.NewService(db, encryptionKeyHex)}
 }
 
 func (h *CloudFileConfigHandler) List(c *gin.Context) {
@@ -42,7 +42,7 @@ func (h *CloudFileConfigHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	cfg, err := h.service.Create(c.Request.Context(), cloudfileconfig.CreateInput{
+	cfg, err := h.service.Create(c.Request.Context(), cloud.CreateInput{
 		Name:       req.Name,
 		ConfigType: req.ConfigType,
 		Config:     req.Config,
@@ -79,7 +79,7 @@ func (h *CloudFileConfigHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	cfg, err := h.service.Update(c.Request.Context(), cloudfileconfig.UpdateInput{
+	cfg, err := h.service.Update(c.Request.Context(), cloud.UpdateInput{
 		ID:        uint(id),
 		Name:      req.Name,
 		Config:    req.Config,
@@ -139,17 +139,17 @@ func (h *CloudFileConfigHandler) Test(c *gin.Context) {
 }
 
 func respondCloudFileConfigError(c *gin.Context, err error) {
-	if errors.Is(err, cloudfileconfig.ErrInvalidName) {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("名称不能为空"))
+	if errors.Is(err, cloud.ErrInvalidName) {
+		c.JSON(http.StatusBadRequest, api.InvalidInput("名称不能为空"))
 		return
 	}
-	if errors.Is(err, cloudfileconfig.ErrInvalidConfig) {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("config_type 必须是 s3、oss 或 tos"))
+	if errors.Is(err, cloud.ErrInvalidConfig) {
+		c.JSON(http.StatusBadRequest, api.InvalidInput("config_type 必须是 s3、oss 或 tos"))
 		return
 	}
-	if errors.Is(err, cloudfileconfig.ErrNotFound) {
-		c.JSON(http.StatusNotFound, apierr.NotFound("云端文件配置不存在"))
+	if errors.Is(err, cloud.ErrNotFound) {
+		c.JSON(http.StatusNotFound, api.NotFound("云端文件配置不存在"))
 		return
 	}
-	c.JSON(http.StatusInternalServerError, apierr.Internal("保存云端文件配置失败"))
+	c.JSON(http.StatusInternalServerError, api.Internal("保存云端文件配置失败"))
 }

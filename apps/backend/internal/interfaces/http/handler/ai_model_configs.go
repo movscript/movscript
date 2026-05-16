@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	aiadminapp "github.com/movscript/movscript/internal/app/aiadmin"
+	adminai "github.com/movscript/movscript/internal/app/admin/ai"
 	"github.com/movscript/movscript/internal/app/dto"
-	domainaiadmin "github.com/movscript/movscript/internal/domain/aiadmin"
+	domainai "github.com/movscript/movscript/internal/domain/ai"
 	"github.com/movscript/movscript/internal/infra/ai"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 )
 
 func (h *AIHandler) ListModelConfigs(c *gin.Context) {
@@ -116,7 +116,7 @@ func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	cfg, err := h.service.PatchModelConfig(c.Request.Context(), aiadminapp.PatchModelConfigInput{
+	cfg, err := h.service.PatchModelConfig(c.Request.Context(), adminai.PatchModelConfigInput{
 		ID:                    c.Param("id"),
 		ModelIDOverride:       req.ModelIDOverride,
 		IsEnabled:             req.IsEnabled,
@@ -162,7 +162,7 @@ func (h *AIHandler) PreviewModelConfigContract(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	result, err := h.service.PreviewModelConfigContract(aiadminapp.PreviewModelConfigContractInput{
+	result, err := h.service.PreviewModelConfigContract(adminai.PreviewModelConfigContractInput{
 		AdapterType:           req.AdapterType,
 		CustomCapabilities:    req.CustomCapabilities,
 		CustomAcceptsImage:    req.CustomAcceptsImage,
@@ -183,7 +183,7 @@ func (h *AIHandler) TestModelConfig(c *gin.Context) {
 	defer cancel()
 	result, err := h.service.TestModelConfig(ctx, c.Param("modelId"))
 	if err != nil {
-		if errors.Is(err, aiadminapp.ErrNotFound) {
+		if errors.Is(err, adminai.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
 		}
@@ -225,18 +225,18 @@ func (h *AIHandler) DebugModelConfig(c *gin.Context) {
 }
 
 func writeModelConfigError(c *gin.Context, err error) {
-	if errors.Is(err, aiadminapp.ErrNotFound) {
+	if errors.Is(err, adminai.ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"code": "NOT_FOUND", "message": err.Error(), "error": err.Error()})
 		return
 	}
-	if errors.Is(err, aiadminapp.ErrInvalidModelConfig) {
+	if errors.Is(err, adminai.ErrInvalidModelConfig) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": "INVALID_MODEL_CONFIG", "message": err.Error(), "error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusInternalServerError, gin.H{"code": "INTERNAL_ERROR", "message": err.Error(), "error": err.Error()})
 }
 
-func modelConfigAuditMetadata(cfg domainaiadmin.ModelConfig) map[string]any {
+func modelConfigAuditMetadata(cfg domainai.ModelConfig) map[string]any {
 	return map[string]any{
 		"model_config_id":     cfg.ID,
 		"credential_id":       cfg.CredentialID,

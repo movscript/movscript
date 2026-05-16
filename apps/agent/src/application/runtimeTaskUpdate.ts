@@ -47,3 +47,22 @@ export function updateRuntimeTask(input: {
   input.store.updateTask(task)
   return { task, previousTask }
 }
+
+export function applyRuntimeTaskUpdate(input: {
+  store: Pick<AgentStore, 'getTask' | 'getRun' | 'listTasks' | 'listRuns' | 'updateTask'>
+  taskId: string
+  update: UpdatePlanTaskInput
+  now: string
+  onPlanRecomputed: (planId: string) => void
+  onTaskUpdated: (task: AgentTask, previousTask: AgentTask) => void
+}): RuntimeTaskUpdateResult {
+  const result = updateRuntimeTask({
+    store: input.store,
+    taskId: input.taskId,
+    update: input.update,
+    now: input.now,
+  })
+  input.onPlanRecomputed(result.task.planId)
+  input.onTaskUpdated(result.task, result.previousTask)
+  return result
+}

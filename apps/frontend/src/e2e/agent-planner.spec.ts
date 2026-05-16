@@ -48,6 +48,7 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(page.getByTestId('agent-run-child-runs')).toContainText('Einstein')
   await expect(page.getByTestId('agent-run-child-runs')).toContainText('Hawking')
   await expect(page.getByTestId('agent-run-child-runs')).toContainText('Turing')
+  await expect(page.getByRole('button', { name: '刷新 AgentRun 调试页面' })).toBeVisible()
   await page.getByTestId('agent-run-child-run').filter({ hasText: 'Einstein' }).click()
   await expect(page).toHaveURL(new RegExp(`/agent/runs/${WORKER_RUN_ID}$`))
 
@@ -55,28 +56,39 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
 
   await expect(page.getByTestId('agent-run-page')).toBeVisible()
   await expect(page.getByTestId('agent-run-header')).toContainText('Agent 运行')
+  await expect(page.getByRole('button', { name: '打开上级运行' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '打开计划根运行' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '返回上一页' })).toBeVisible()
   await expect(page.getByTestId('agent-run-sidebar')).toContainText('Einstein')
   await expect(page.getByTestId('agent-run-plan-context')).toContainText('Planner 调度 E2E')
   await expect(page.getByTestId('agent-run-plan-context')).toContainText('素材风险审计')
   await expect(page.getByTestId('agent-run-task-artifacts')).toContainText('素材风险摘要')
   await expect(page.getByTestId('agent-run-trace-summary')).toContainText('6 个事件')
 
-  await page.getByTestId('agent-run-load-trace-events').click()
+  await expect(page.getByRole('button', { name: '加载当前运行的事件' })).toBeVisible()
+  await page.getByRole('button', { name: '加载当前运行的事件' }).click()
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(6)
   await expect(page.getByTestId('agent-run-trace-loaded-count')).toContainText('已加载 6 / 6')
   await expect(page.getByTestId('agent-run-trace-event').first()).toContainText('执行器启动')
   await expect(page.getByTestId('agent-run-trace-event').filter({ hasText: '组装模型上下文' })).toContainText('耗时 20ms')
   await expect(page.getByTestId('agent-run-trace-event').filter({ hasText: '收到模型 HTTP 响应' })).toContainText('耗时 321ms')
+  await expect(page.getByLabel('搜索运行事件')).toBeVisible()
+  await expect(page.getByLabel('按事件类型筛选')).toBeVisible()
+  await expect(page.getByLabel('按事件分类筛选')).toBeVisible()
   await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('调试覆盖')
   await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('事件')
   await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('6 / 6')
+  await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('响应正文')
   await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('上下文详情')
   await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('历史写入')
   await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('信息完整')
   await expect(page.getByTestId('agent-run-debug-report-copy')).toContainText('复制摘要')
+  await expect(page.getByRole('button', { name: '复制 AgentRun 调试摘要' })).toBeVisible()
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: String(baseURL) })
   await page.getByTestId('agent-run-debug-report-copy').click()
   await expect(page.getByTestId('agent-run-debug-report-copy')).toContainText('已复制')
+  await expect(page.getByTestId('agent-run-debug-report-copy-feedback')).toContainText('调试摘要已复制')
+  await expect(page.getByTestId('agent-run-debug-report-copy-feedback')).toHaveAttribute('role', 'status')
   const debugReportText = await page.evaluate(() => navigator.clipboard.readText())
   expect(debugReportText).toContain('AgentRun 调试摘要')
   expect(debugReportText).toContain(`运行: ${WORKER_RUN_ID}`)
@@ -85,6 +97,27 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   expect(debugReportText).toContain('最近事件:')
   expect(debugReportText).toContain('2026/05/12 17:00:04 (2026-05-12T09:00:04.000Z)')
   expect(debugReportText).toContain('模型调用 已完成，耗时 321ms')
+  await expect(page.getByRole('button', { name: '复制脱敏 AgentRun 调试包' })).toBeVisible()
+  await page.getByTestId('agent-run-debug-bundle-copy').click()
+  await expect(page.getByTestId('agent-run-debug-bundle-copy')).toContainText('已复制')
+  await expect(page.getByTestId('agent-run-debug-bundle-copy-feedback')).toContainText('脱敏调试包已复制')
+  await expect(page.getByTestId('agent-run-debug-bundle-copy-feedback')).toHaveAttribute('role', 'status')
+  const debugBundleText = await page.evaluate(() => navigator.clipboard.readText())
+  expect(debugBundleText).toContain('"schema": "movscript.agent-run-debug-bundle.v1"')
+  expect(debugBundleText).toContain(`"runId": "${WORKER_RUN_ID}"`)
+  expect(debugBundleText).toContain('"coverage"')
+  expect(debugBundleText).toContain('"events"')
+  expect(debugBundleText).not.toContain('"traceEvents"')
+  expect(debugBundleText).toContain('[已脱敏]')
+  expect(debugBundleText).not.toContain('e2e-response-secret')
+  expect(debugBundleText).not.toContain('e2e-model-url-secret')
+  const httpCategoryFilter = page.getByTestId('agent-run-trace-category-filter').filter({ hasText: 'HTTP' })
+  await expect(httpCategoryFilter).toHaveAttribute('aria-pressed', 'false')
+  await httpCategoryFilter.click()
+  await expect(httpCategoryFilter).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByTestId('agent-run-trace-visible-count')).toContainText('当前显示 2 个')
+  await page.getByRole('button', { name: '清除运行事件筛选' }).click()
+  await expect(httpCategoryFilter).toHaveAttribute('aria-pressed', 'false')
   const promptDetail = page.getByTestId('agent-run-prompt-detail')
   await expect(promptDetail).toContainText('模型上下文详情')
   await expect(promptDetail).toContainText('上下文层级')
@@ -97,24 +130,42 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(page.getByTestId('agent-run-model-call-summary-item')).toHaveCount(1)
   await expect(page.getByTestId('agent-run-model-call-summary-item')).toContainText('请求和响应完整')
   await expect(page.getByTestId('agent-run-model-call-summary-item')).toContainText('HTTP 200')
+  await expect(page.getByTestId('agent-run-model-call-summary-item').getByRole('button', { name: /定位模型调用 1的模型请求事件/ })).toBeVisible()
+  await expect(page.getByTestId('agent-run-model-call-summary-item').getByRole('button', { name: /定位模型调用 1的模型响应事件/ })).toBeVisible()
   const httpModelDetail = page.getByTestId('agent-run-model-detail').filter({ hasText: '大模型 HTTP 详情' })
   await expect(httpModelDetail).toBeVisible()
-  await expect(page.getByTestId('agent-run-model-detail').filter({ hasText: '大模型 HTTP 请求' })).toContainText('HTTP 请求')
+  const requestModelDetail = page.getByTestId('agent-run-model-detail').filter({ hasText: '大模型 HTTP 请求' })
+  await expect(requestModelDetail).toContainText('HTTP 请求')
+  await expect(requestModelDetail).toContainText('[已脱敏]')
+  await expect(requestModelDetail).not.toContainText('e2e-model-url-secret')
   await expect(httpModelDetail.getByTestId('agent-run-model-http-response')).toContainText('HTTP 响应')
   await expect(httpModelDetail).toContainText('请求消息')
   await expect(httpModelDetail).toContainText('movscript_review_assets')
   await expect(httpModelDetail).toContainText('发现缺少主视觉覆盖。')
   await expect(httpModelDetail).toContainText('原始响应正文')
+  await expect(httpModelDetail).toContainText('[已脱敏]')
+  await expect(httpModelDetail).not.toContainText('e2e-response-secret')
   const messageDetail = page.getByTestId('agent-run-message-detail')
   await expect(messageDetail).toContainText('历史消息详情')
   await expect(messageDetail).toContainText('msg_einstein_risk_summary')
   await expect(messageDetail).toContainText('发现缺少主视觉覆盖，已生成素材风险摘要。')
   await page.getByTestId('agent-run-trace-search').fill('正常结束')
   await expect(page.getByTestId('agent-run-trace-event').filter({ hasText: '收到模型 HTTP 响应' })).toBeVisible()
+  await expect(page.getByTestId('agent-run-trace-visible-count')).toContainText('当前显示 1 个')
+  await expect(page.getByTestId('agent-run-clear-trace-filters-inline')).toBeVisible()
+  await page.getByRole('button', { name: '清除运行事件筛选' }).click()
+  await expect(page.getByTestId('agent-run-trace-search')).toHaveValue('')
+  await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(6)
   await page.getByTestId('agent-run-trace-search').fill('review tool')
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(1)
   await expect(page.getByTestId('agent-run-trace-event')).toContainText('素材风险审计工具调用')
-  await page.getByTestId('agent-run-trace-event-details-toggle').click()
+  await expect(page.getByTestId('agent-run-trace-visible-count')).toContainText('当前显示 1 个')
+  const rawDataToggle = page.getByRole('button', { name: '查看素材风险审计工具调用的原始数据' })
+  await expect(rawDataToggle).toContainText('原始数据')
+  await expect(rawDataToggle).toHaveAttribute('aria-expanded', 'false')
+  await rawDataToggle.click()
+  await expect(page.getByRole('button', { name: '隐藏素材风险审计工具调用的原始数据' })).toContainText('隐藏原始数据')
+  await expect(page.getByRole('button', { name: '隐藏素材风险审计工具调用的原始数据' })).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByTestId('agent-run-trace-redaction-note')).toContainText('原始数据展示和复制时会自动脱敏')
   await expect(page.getByTestId('agent-run-trace-event-details')).toContainText('missing_hero_visual')
   await expect(page.getByTestId('agent-run-trace-event-details')).toContainText('artifact_einstein_risk')
@@ -122,25 +173,27 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(page.getByTestId('agent-run-trace-event-details')).not.toContainText('e2e-secret-token')
   await expect(page.getByTestId('agent-run-trace-event-details')).not.toContainText('provider-e2e-api-key')
   await expect(page.getByTestId('agent-run-trace-event-details')).not.toContainText('e2e-signed-token')
-  await page.getByTestId('agent-run-trace-event-data-copy').click()
+  await page.getByRole('button', { name: '复制素材风险审计工具调用的原始数据' }).click()
   await expect(page.getByTestId('agent-run-trace-copy-feedback')).toContainText('数据已复制')
+  await expect(page.getByTestId('agent-run-trace-copy-feedback')).toHaveAttribute('role', 'status')
   const copiedTraceData = await page.evaluate(() => navigator.clipboard.readText())
   expect(copiedTraceData).toContain('[已脱敏]')
   expect(copiedTraceData).toContain('missing_hero_visual')
   expect(copiedTraceData).not.toContain('e2e-secret-token')
   expect(copiedTraceData).not.toContain('provider-e2e-api-key')
   expect(copiedTraceData).not.toContain('e2e-signed-token')
-  await page.getByTestId('agent-run-trace-event').getByRole('button', { name: '链接' }).click()
+  await page.getByRole('button', { name: '复制素材风险审计工具调用的事件链接' }).click()
   await expect(page.getByTestId('agent-run-trace-copy-feedback')).toContainText('链接已复制')
   await page.getByTestId('agent-run-trace-search').fill('no matching trace event')
   await expect(page.getByTestId('agent-run-trace-empty-state')).toContainText('没有符合当前筛选条件的事件')
+  await expect(page.getByTestId('agent-run-trace-visible-count')).toContainText('当前显示 0 个')
   await page.getByTestId('agent-run-model-call-summary-item').getByRole('button', { name: '响应' }).click()
   await expect(page.getByTestId('agent-run-trace-search')).toHaveValue('')
   await expect(page.getByTestId('agent-run-trace-linked-event')).toContainText('已定位')
   await expect(page.getByTestId('agent-run-trace-event').filter({ hasText: '收到模型 HTTP 响应' })).toBeVisible()
   await page.getByTestId('agent-run-trace-search').fill('no matching trace event')
   await expect(page.getByTestId('agent-run-trace-empty-state')).toContainText('没有符合当前筛选条件的事件')
-  await page.getByTestId('agent-run-clear-trace-filters').click()
+  await page.getByRole('button', { name: '清除运行事件筛选并返回事件列表' }).click()
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(6)
   await page.getByTestId('agent-run-trace-search').fill('no matching trace event')
   await page.evaluate((eventId) => {
@@ -155,6 +208,7 @@ test('planner run exposes plan overview and run detail drilldown', async ({ page
   await expect(page.locator(`#agent-trace-event-${linkedTraceEventId}`).getByTestId('agent-run-trace-event-details')).toContainText('missing_hero_visual')
   await page.goto(`/agent/runs/${WORKER_RUN_ID}#event-${encodeURIComponent('trace_missing_event')}`)
   await expect(page.getByTestId('agent-run-trace-deep-link-missing')).toContainText('这个运行里没有找到事件 trace_missing_event')
+  await expect(page.getByTestId('agent-run-trace-deep-link-missing')).toHaveAttribute('role', 'alert')
 
   page.once('dialog', async (dialog) => {
     expect(dialog.message()).toContain('Einstein')
@@ -186,7 +240,7 @@ test('planner run detail remains usable on mobile width', async ({ page }, testI
   await expect(page.getByTestId('agent-run-header')).toBeVisible()
   await expect(page.getByTestId('agent-run-sidebar')).toContainText('Einstein')
   await expect(page.getByTestId('agent-run-trace-panel')).toBeVisible()
-  await page.getByTestId('agent-run-load-trace-events').click()
+  await page.getByRole('button', { name: '加载当前运行的事件' }).click()
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(6)
   await expect(page.getByTestId('agent-run-model-detail').filter({ hasText: '大模型 HTTP 详情' })).toBeVisible()
 
@@ -217,6 +271,7 @@ test('planner worker cancel failure is visible on run detail', async ({ page }, 
   })
   await page.getByTestId('agent-run-cancel-worker').click()
   await expect(page.getByTestId('agent-run-cancel-error')).toContainText('cancel rejected by runtime')
+  await expect(page.getByTestId('agent-run-cancel-error')).toHaveAttribute('role', 'alert')
   await expect(page.getByTestId('agent-run-cancel-worker')).toBeVisible()
 })
 
@@ -242,13 +297,47 @@ test('planner run detail can load all paginated trace events', async ({ page }, 
   await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('需补全')
   await expect(page.getByTestId('agent-run-debug-coverage')).toContainText('还有未加载运行事件')
   await expect(page.getByTestId('agent-run-load-all-trace-events')).toBeVisible()
+  await expect(page.getByRole('button', { name: '加载当前运行的全部事件' })).toBeVisible()
   await expect(page.getByTestId('agent-run-debug-load-all')).toBeVisible()
+  await expect(page.getByRole('button', { name: '加载全部运行事件用于调试覆盖统计' })).toBeVisible()
 
-  await page.getByTestId('agent-run-debug-load-all').click()
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: String(baseURL) })
+  await page.getByRole('button', { name: '复制脱敏 AgentRun 调试包' }).click()
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(34)
   await expect(page.getByTestId('agent-run-trace-loaded-count')).toContainText('已加载 34 / 34')
   await expect(page.getByTestId('agent-run-load-all-trace-events')).toHaveCount(0)
   await expect(page.getByTestId('agent-run-debug-load-all')).toHaveCount(0)
+  await expect(page.getByTestId('agent-run-debug-bundle-copy-feedback')).toContainText('脱敏调试包已复制')
+  const debugBundleText = await page.evaluate(() => navigator.clipboard.readText())
+  expect(debugBundleText).toContain('"loaded": 34')
+  expect(debugBundleText).toContain('"hasMore": false')
+})
+
+test('planner run detail stops debug bundle copy when full trace load fails', async ({ page }, testInfo) => {
+  const baseURL = testInfo.project.use.baseURL
+  if (!baseURL) throw new Error('planner E2E requires a baseURL')
+
+  await page.addInitScript(({ key, seed }) => {
+    window.localStorage.setItem(key, JSON.stringify(seed))
+    window.localStorage.setItem('movscript.language', 'zh-CN')
+  }, {
+    key: E2E_BOOTSTRAP_STORAGE_KEY,
+    seed: buildPlannerAgentBootstrap(String(baseURL)),
+  })
+
+  await mockGenerationAppShell(page)
+  await mockPlannerAgentRuntime(page, { longWorkerTrace: true, failTraceAfterCursorOnce: true })
+
+  await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
+  await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(25)
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: String(baseURL) })
+  await page.evaluate(() => navigator.clipboard.writeText('previous clipboard value'))
+  await page.getByRole('button', { name: '复制脱敏 AgentRun 调试包' }).click()
+  await expect(page.getByTestId('agent-run-debug-bundle-copy-error')).toContainText('运行事件未能加载完整')
+  await expect(page.getByTestId('agent-run-debug-bundle-copy-error')).toHaveAttribute('role', 'alert')
+  await expect(page.getByTestId('agent-run-debug-bundle-copy-feedback')).toHaveCount(0)
+  await expect(page.getByTestId('agent-run-trace-load-error')).toContainText('trace unavailable')
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('previous clipboard value')
 })
 
 test('planner run detail surfaces failed model call summary', async ({ page }, testInfo) => {
@@ -290,6 +379,7 @@ test('planner run detail can retry after trace load failure', async ({ page }, t
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-trace-load-error')).toContainText('trace unavailable')
+  await expect(page.getByTestId('agent-run-trace-load-error')).toHaveAttribute('role', 'alert')
   await page.getByTestId('agent-run-trace-retry').click()
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(6)
   await expect(page.getByTestId('agent-run-trace-load-error')).toHaveCount(0)
@@ -323,9 +413,11 @@ test('planner run detail shows debug report copy failure', async ({ page }, test
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(6)
   await page.getByTestId('agent-run-debug-report-copy').click()
   await expect(page.getByTestId('agent-run-debug-report-copy-error')).toContainText('clipboard denied by test')
+  await expect(page.getByTestId('agent-run-debug-report-copy-error')).toHaveAttribute('role', 'alert')
   await expect(page.getByTestId('agent-run-debug-report-copy')).toContainText('复制摘要')
   await page.getByTestId('agent-run-trace-event').filter({ hasText: '组装模型上下文' }).getByTestId('agent-run-trace-event-data-copy').click()
   await expect(page.getByTestId('agent-run-trace-copy-error')).toContainText('clipboard denied by test')
+  await expect(page.getByTestId('agent-run-trace-copy-error')).toHaveAttribute('role', 'alert')
 })
 
 test('planner run detail can retry after trace summary failure', async ({ page }, testInfo) => {
@@ -345,10 +437,55 @@ test('planner run detail can retry after trace summary failure', async ({ page }
 
   await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
   await expect(page.getByTestId('agent-run-trace-summary-error')).toContainText('统计加载失败')
+  await expect(page.getByTestId('agent-run-trace-summary-error')).toHaveAttribute('role', 'alert')
   await expect(page.getByTestId('agent-run-trace-event')).toHaveCount(6)
-  await page.getByTestId('agent-run-trace-summary-retry').click()
+  await page.getByRole('button', { name: '重新加载运行事件统计' }).click()
   await expect(page.getByTestId('agent-run-trace-summary')).toContainText('6 个事件')
   await expect(page.getByTestId('agent-run-trace-summary-error')).toHaveCount(0)
+})
+
+test('planner run detail exposes plan context load failures as alerts', async ({ page }, testInfo) => {
+  const baseURL = testInfo.project.use.baseURL
+  if (!baseURL) throw new Error('planner E2E requires a baseURL')
+
+  await page.addInitScript(({ key, seed }) => {
+    window.localStorage.setItem(key, JSON.stringify(seed))
+    window.localStorage.setItem('movscript.language', 'zh-CN')
+  }, {
+    key: E2E_BOOTSTRAP_STORAGE_KEY,
+    seed: buildPlannerAgentBootstrap(String(baseURL)),
+  })
+
+  await mockGenerationAppShell(page)
+  await mockPlannerAgentRuntime(page, { failPlanSnapshot: true })
+
+  await page.goto(`/agent/runs/${WORKER_RUN_ID}`)
+  await expect(page.getByTestId('agent-run-plan-context-error')).toContainText('plan snapshot unavailable')
+  await expect(page.getByTestId('agent-run-plan-context-error')).toHaveAttribute('role', 'alert')
+  await expect(page.getByTestId('agent-run-plan-context-retry')).toBeVisible()
+  await expect(page.getByRole('button', { name: '重新加载计划上下文' })).toBeVisible()
+})
+
+test('planner run detail exposes missing run load failures as alerts', async ({ page }, testInfo) => {
+  const baseURL = testInfo.project.use.baseURL
+  if (!baseURL) throw new Error('planner E2E requires a baseURL')
+
+  await page.addInitScript(({ key, seed }) => {
+    window.localStorage.setItem(key, JSON.stringify(seed))
+    window.localStorage.setItem('movscript.language', 'zh-CN')
+  }, {
+    key: E2E_BOOTSTRAP_STORAGE_KEY,
+    seed: buildPlannerAgentBootstrap(String(baseURL)),
+  })
+
+  await mockGenerationAppShell(page)
+  await mockPlannerAgentRuntime(page)
+
+  await page.goto('/agent/runs/run_missing_e2e')
+  await expect(page.getByTestId('agent-run-detail-error')).toContainText('run not found')
+  await expect(page.getByTestId('agent-run-detail-error')).toHaveAttribute('role', 'alert')
+  await expect(page.getByTestId('agent-run-detail-retry')).toBeVisible()
+  await expect(page.getByRole('button', { name: '重新加载 AgentRun 运行详情' })).toBeVisible()
 })
 
 test('planner worker approval can be resolved from run detail', async ({ page }, testInfo) => {
@@ -372,7 +509,8 @@ test('planner worker approval can be resolved from run detail', async ({ page },
   await expect(page.getByTestId('agent-run-pending-approval')).toContainText('写入')
   await expect(page.getByTestId('agent-run-pending-approval')).toContainText('项目素材写入')
   await expect(page.getByTestId('agent-run-pending-approval')).toContainText('影响：批准后会写入项目数据。')
-  await page.getByTestId('agent-run-approval-action').filter({ hasText: '同意' }).click()
+  await expect(page.getByRole('button', { name: '同意执行movscript_publish_assets' })).toBeVisible()
+  await page.getByRole('button', { name: '同意执行movscript_publish_assets' }).click()
   await expect(page.getByTestId('agent-run-header')).toContainText('运行中')
   await expect(page.getByTestId('agent-run-pending-approval')).toHaveCount(0)
 })
@@ -393,8 +531,10 @@ test('planner worker approval failure is visible on run detail', async ({ page }
   await mockPlannerAgentRuntime(page, { failApproval: true })
 
   await page.goto(`/agent/runs/${APPROVAL_WORKER_RUN_ID}`)
-  await page.getByTestId('agent-run-approval-action').filter({ hasText: '拒绝' }).click()
+  await expect(page.getByRole('button', { name: '拒绝执行movscript_publish_assets' })).toBeVisible()
+  await page.getByRole('button', { name: '拒绝执行movscript_publish_assets' }).click()
   await expect(page.getByTestId('agent-run-approval-error')).toContainText('approval rejected by runtime')
+  await expect(page.getByTestId('agent-run-approval-error')).toHaveAttribute('role', 'alert')
   await expect(page.getByTestId('agent-run-pending-approval')).toContainText('movscript_publish_assets')
 })
 
@@ -438,18 +578,21 @@ test('planner worker input failure is visible on run detail', async ({ page }, t
 
   await page.goto(`/agent/runs/${INPUT_WORKER_RUN_ID}`)
   await page.getByTestId('agent-run-input-text').fill('只看正式素材')
-  await page.getByTestId('agent-run-input-submit').click()
+  await expect(page.getByRole('button', { name: '提交确认素材范围的自定义答案' })).toBeVisible()
+  await page.getByRole('button', { name: '提交确认素材范围的自定义答案' }).click()
   await expect(page.getByTestId('agent-run-input-error')).toContainText('input rejected by runtime')
+  await expect(page.getByTestId('agent-run-input-error')).toHaveAttribute('role', 'alert')
   await expect(page.getByTestId('agent-run-pending-input')).toContainText('确认素材范围')
 })
 
-async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boolean; failApproval?: boolean; failInput?: boolean; longWorkerTrace?: boolean; failedModelTrace?: boolean; failTraceOnce?: boolean; failTraceSummaryOnce?: boolean } = {}) {
+async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boolean; failApproval?: boolean; failInput?: boolean; longWorkerTrace?: boolean; failedModelTrace?: boolean; failTraceOnce?: boolean; failTraceAfterCursorOnce?: boolean; failTraceSummaryOnce?: boolean; failPlanSnapshot?: boolean; failPlanSnapshotOnce?: boolean } = {}) {
   let snapshot = plannerPlanSnapshotFixture()
   let workerRun = workerRunFixture()
   let approvalWorkerRun = approvalWorkerRunFixture()
   let inputWorkerRun = inputWorkerRunFixture()
   let traceFailureInjected = false
   let traceSummaryFailureInjected = false
+  let planSnapshotFailureInjected = false
   const runs = new Map([
     [PLANNER_RUN_ID, plannerRunFixture()],
     [WORKER_RUN_ID, workerRun],
@@ -464,6 +607,15 @@ async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boole
       return
     }
     if (url.pathname === `/plans/${PLANNER_PLAN_ID}`) {
+      if (options.failPlanSnapshot) {
+        await fulfillJSON(route, { error: 'plan snapshot unavailable' }, 500)
+        return
+      }
+      if (options.failPlanSnapshotOnce && !planSnapshotFailureInjected) {
+        planSnapshotFailureInjected = true
+        await fulfillJSON(route, { error: 'plan snapshot unavailable' }, 500)
+        return
+      }
       await fulfillJSON(route, snapshot)
       return
     }
@@ -617,6 +769,11 @@ async function mockPlannerAgentRuntime(page: Page, options: { failCancel?: boole
     if (traceMatch) {
       const runId = decodeURIComponent(traceMatch[1])
       if (options.failTraceOnce && !traceFailureInjected) {
+        traceFailureInjected = true
+        await fulfillJSON(route, { error: 'trace unavailable' }, 500)
+        return
+      }
+      if (options.failTraceAfterCursorOnce && url.searchParams.has('cursor') && !traceFailureInjected) {
         traceFailureInjected = true
         await fulfillJSON(route, { error: 'trace unavailable' }, 500)
         return

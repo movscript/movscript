@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	"github.com/movscript/movscript/internal/infra/auth"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -67,10 +67,10 @@ func TestRequireAuthRejectsNonActiveUser(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusForbidden)
 	}
-	if got := w.Body.String(); got == "" || !strings.Contains(got, apierr.CodeForbidden) {
+	if got := w.Body.String(); got == "" || !strings.Contains(got, api.CodeForbidden) {
 		t.Fatalf("body = %q, want forbidden code", got)
 	}
-	if got := w.Body.String(); !strings.Contains(got, apierr.ActionLogout) {
+	if got := w.Body.String(); !strings.Contains(got, api.ActionLogout) {
 		t.Fatalf("body = %q, want logout action", got)
 	}
 }
@@ -90,7 +90,7 @@ func TestRequireSystemRoleRejectsUnauthenticatedAdmin(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusUnauthorized)
 	}
-	if got := w.Body.String(); got == "" || !strings.Contains(got, apierr.CodeAuthRequired) {
+	if got := w.Body.String(); got == "" || !strings.Contains(got, api.CodeAuthRequired) {
 		t.Fatalf("body = %q, want auth required code", got)
 	}
 }

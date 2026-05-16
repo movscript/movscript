@@ -6,17 +6,17 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func TestExecuteCanvasNodePropagatesInlineText(t *testing.T) {
 	h := &CanvasHandler{}
 	userID := uint(1)
-	cv := canvasruntime.Canvas{}
+	cv := canvasdomain.Canvas{}
 
 	inputData, _ := json.Marshal(nodeData{InputValue: "hello canvas", ParamType: "text"})
-	inputNode := canvasruntime.CanvasNode{NodeID: "input-1", Type: "input", Data: string(inputData)}
+	inputNode := canvasdomain.CanvasNode{NodeID: "input-1", Type: "input", Data: string(inputData)}
 	inputOutputs := h.executeCanvasNode(context.Background(), userID, cv, inputNode, nil, nil)
 	inputValue := inputOutputs["value"]
 	if inputValue.Type != "text" || inputValue.Text != "hello canvas" {
@@ -27,7 +27,7 @@ func TestExecuteCanvasNodePropagatesInlineText(t *testing.T) {
 	}
 
 	outputData, _ := json.Marshal(nodeData{})
-	outputNode := canvasruntime.CanvasNode{NodeID: "output-1", Type: "output", Data: string(outputData)}
+	outputNode := canvasdomain.CanvasNode{NodeID: "output-1", Type: "output", Data: string(outputData)}
 	outputInputs := canvasPortInputMap{
 		"input": []canvasPortValue{inputValue},
 		"":      []canvasPortValue{inputValue},
@@ -53,7 +53,7 @@ func TestValidateCanvasRequiredInputsRejectsUnconnectedFullRunInput(t *testing.T
 		},
 	}
 
-	err := validateCanvasRequiredInputs(canvasruntime.CanvasFromModel(cv), nil)
+	err := validateCanvasRequiredInputs(canvasdomain.CanvasFromModel(cv), nil)
 	if err == nil || !strings.Contains(err.Error(), `node "text-1" required input "prompt" is missing`) {
 		t.Fatalf("expected missing required input error, got %v", err)
 	}
@@ -75,7 +75,7 @@ func TestValidateCanvasRequiredInputsAcceptsConnectedFullRunInput(t *testing.T) 
 		},
 	}
 
-	if err := validateCanvasRequiredInputs(canvasruntime.CanvasFromModel(cv), nil); err != nil {
+	if err := validateCanvasRequiredInputs(canvasdomain.CanvasFromModel(cv), nil); err != nil {
 		t.Fatalf("expected connected required input to pass, got %v", err)
 	}
 }
@@ -92,7 +92,7 @@ func TestCollectSingleNodeInputsRejectsUnconnectedRequiredInput(t *testing.T) {
 		},
 	}
 
-	_, err := h.collectSingleNodeInputs(context.Background(), 0, canvasruntime.CanvasFromModel(cv), "text-1", nil)
+	_, err := h.collectSingleNodeInputs(context.Background(), 0, canvasdomain.CanvasFromModel(cv), "text-1", nil)
 	if err == nil || !strings.Contains(err.Error(), `required input "prompt" is missing`) {
 		t.Fatalf("expected missing required input error, got %v", err)
 	}
@@ -115,7 +115,7 @@ func TestCollectSingleNodeInputsIgnoresOverridesForConnectedPorts(t *testing.T) 
 		},
 	}
 
-	inputs, err := h.collectSingleNodeInputs(context.Background(), 0, canvasruntime.CanvasFromModel(cv), "text-1", map[string]canvasPortValue{
+	inputs, err := h.collectSingleNodeInputs(context.Background(), 0, canvasdomain.CanvasFromModel(cv), "text-1", map[string]canvasPortValue{
 		"prompt": {Type: "text", Text: "from override"},
 	})
 	if err != nil {
@@ -133,7 +133,7 @@ func TestNormalizeCanvasTaskForResponseBackfillsLegacyResourceOutput(t *testing.
 		ResourceID: &rid,
 	}
 
-	updatedTask := normalizeCanvasTaskForResponse(canvasruntime.CanvasTaskFromModel(task), "")
+	updatedTask := normalizeCanvasTaskForResponse(canvasdomain.CanvasTaskFromModel(task), "")
 	updatedTask.ApplyToModel(&task)
 
 	outputs := decodeCanvasPortOutputs(task.OutputValues)
@@ -186,7 +186,7 @@ func TestBuildCanvasExecutionPlanCreatesTasksOnlyForRunnableNodes(t *testing.T) 
 		},
 	}
 
-	plan, err := buildCanvasExecutionPlan(canvasruntime.CanvasFromModel(cv))
+	plan, err := buildCanvasExecutionPlan(canvasdomain.CanvasFromModel(cv))
 	if err != nil {
 		t.Fatalf("expected execution plan, got %v", err)
 	}
@@ -202,7 +202,7 @@ func TestBuildCanvasExecutionPlanCreatesTasksOnlyForRunnableNodes(t *testing.T) 
 
 func TestRegisterWorkflowOutputUsesNodeIDAndParamName(t *testing.T) {
 	outputData := nodeData{ParamName: "final_text", ParamType: "text"}
-	node := canvasruntime.CanvasNodeFromModel(model.CanvasNode{NodeID: "output-1", Type: "output", Label: "Final"})
+	node := canvasdomain.CanvasNodeFromModel(model.CanvasNode{NodeID: "output-1", Type: "output", Label: "Final"})
 	value := canvasPortValue{Type: "text", Text: "done"}
 	outputs := map[string]canvasPortValue{}
 
@@ -224,7 +224,7 @@ func TestCanvasReferenceInputValuesMapPortsToReferencedInputNodes(t *testing.T) 
 		},
 	}
 
-	values := (&CanvasHandler{}).canvasReferenceInputValues(canvasruntime.CanvasFromModel(ref), nodeData{}, canvasPortInputMap{
+	values := (&CanvasHandler{}).canvasReferenceInputValues(canvasdomain.CanvasFromModel(ref), nodeData{}, canvasPortInputMap{
 		"seed": []canvasPortValue{{Type: "text", Text: "hello from parent"}},
 	})
 
@@ -241,7 +241,7 @@ func TestCanvasReferenceInputValuesMapsDefaultInputWhenReferenceHasSingleInput(t
 		},
 	}
 
-	values := (&CanvasHandler{}).canvasReferenceInputValues(canvasruntime.CanvasFromModel(ref), nodeData{}, canvasPortInputMap{
+	values := (&CanvasHandler{}).canvasReferenceInputValues(canvasdomain.CanvasFromModel(ref), nodeData{}, canvasPortInputMap{
 		"input": []canvasPortValue{{Type: "text", Text: "legacy edge value"}},
 		"":      []canvasPortValue{{Type: "text", Text: "legacy edge value"}},
 	})
@@ -252,7 +252,7 @@ func TestCanvasReferenceInputValuesMapsDefaultInputWhenReferenceHasSingleInput(t
 }
 
 func TestCanvasRunTaskFailureSummaryIncludesFailedNodeDetails(t *testing.T) {
-	summary := canvasRunTaskFailureSummary(canvasruntime.CanvasTasksFromModels([]model.CanvasTask{
+	summary := canvasRunTaskFailureSummary(canvasdomain.CanvasTasksFromModels([]model.CanvasTask{
 		{NodeLabel: "Generate image", NodeID: "image-1", Status: "failed", Error: "no model selected for this node"},
 		{NodeLabel: "Final output", NodeID: "output-1", Status: "done"},
 	}))
@@ -263,7 +263,7 @@ func TestCanvasRunTaskFailureSummaryIncludesFailedNodeDetails(t *testing.T) {
 }
 
 func TestCanvasRunTaskFailureSummaryFallsBackToNodeIDAndLimitsFailures(t *testing.T) {
-	summary := canvasRunTaskFailureSummary(canvasruntime.CanvasTasksFromModels([]model.CanvasTask{
+	summary := canvasRunTaskFailureSummary(canvasdomain.CanvasTasksFromModels([]model.CanvasTask{
 		{NodeID: "node-1", Status: "failed", Error: "first"},
 		{NodeID: "node-2", Status: "failed", Error: "second"},
 		{NodeID: "node-3", Status: "failed", Error: "third"},

@@ -4,6 +4,10 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	domainjob "github.com/movscript/movscript/internal/domain/job"
+	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/testutil"
 )
 
 func TestDoRawHTTPBlocksUnsafeURLs(t *testing.T) {
@@ -66,4 +70,45 @@ func TestProviderCallBlocksUnsafeEndpointURL(t *testing.T) {
 	if !strings.Contains(result.Error, "provider endpoint_url") {
 		t.Fatalf("expected provider endpoint_url validation error, got %q", result.Error)
 	}
+}
+
+func TestListJobDetailsFiltersOperationalScope(t *testing.T) {
+	db := testutil.OpenSQLite(t, "debug-jobs.db", &persistencemodel.Job{}, &persistencemodel.RawResource{})
+	projectID := uint(10)
+	otherProjectID := uint(11)
+	orgID := uint(2)
+	otherOrgID := uint(3)
+	jobs := []persistencemodel.Job{
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed},
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "image", FeatureKey: "ref_image_gen", Status: domainjob.StatusSucceeded},
+		{UserID: 8, OrgID: &otherOrgID, ProjectID: &otherProjectID, ModelConfigID: 5, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: domainjob.StatusFailed},
+	}
+	if err := db.Create(&jobs).Error; err != nil {
+		t.Fatalf("seed jobs: %v", err)
+	}
+	service := NewService(db)
+
+	items, total, err := service.ListJobDetails(context.Background(), JobFilters{
+		JobID:         &jobs[0].ID,
+		Status:        domainjob.StatusFailed,
+		JobType:       "video_i2v",
+		FeatureKey:    "ref_video_gen",
+		UserID:        uintPtr(7),
+		OrgID:         &orgID,
+		ProjectID:     &projectID,
+		ModelConfigID: uintPtr(4),
+	}, 20, 0)
+	if err != nil {
+		t.Fatalf("ListJobDetails returned error: %v", err)
+	}
+	if total != 1 || len(items) != 1 {
+		t.Fatalf("expected one filtered job, total=%d len=%d items=%+v", total, len(items), items)
+	}
+	if items[0].UserID != 7 || items[0].JobType != "video_i2v" || items[0].Status != domainjob.StatusFailed {
+		t.Fatalf("unexpected filtered job: %+v", items[0].Job)
+	}
+}
+
+func uintPtr(value uint) *uint {
+	return &value
 }

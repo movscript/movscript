@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
-	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	resourcebinding "github.com/movscript/movscript/internal/app/resource/binding"
+	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"

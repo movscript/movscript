@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	modelgatewayapp "github.com/movscript/movscript/internal/app/modelgateway"
-	domainmodelgateway "github.com/movscript/movscript/internal/domain/modelgateway"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	modelgatewayapp "github.com/movscript/movscript/internal/app/gateway"
+	domaingateway "github.com/movscript/movscript/internal/domain/gateway"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 )
 
 func (h *ModelGatewayHandler) ListAPIKeys(c *gin.Context) {
@@ -52,6 +52,8 @@ func (h *ModelGatewayHandler) CreateAPIKey(c *gin.Context) {
 		Action:     "model_gateway.api_key.admin_created",
 		TargetType: "model_gateway_api_key",
 		TargetID:   audit.TargetID(result.Key.ID),
+		OrgID:      result.Key.OrgID,
+		ProjectID:  result.Key.ProjectID,
 		Metadata:   gatewayAPIKeyAuditMetadata(result.Key),
 	})
 	c.JSON(http.StatusCreated, gatewayAPIKeyCreateResponse{APIKey: result.Key, Key: result.RawKey})
@@ -88,6 +90,8 @@ func (h *ModelGatewayHandler) UpdateAPIKey(c *gin.Context) {
 		Action:     "model_gateway.api_key.admin_updated",
 		TargetType: "model_gateway_api_key",
 		TargetID:   audit.TargetID(key.ID),
+		OrgID:      key.OrgID,
+		ProjectID:  key.ProjectID,
 		Metadata:   gatewayAPIKeyAuditMetadata(key),
 	})
 	c.JSON(http.StatusOK, key)
@@ -108,6 +112,8 @@ func (h *ModelGatewayHandler) DeleteAPIKey(c *gin.Context) {
 		Action:     "model_gateway.api_key.admin_deleted",
 		TargetType: "model_gateway_api_key",
 		TargetID:   audit.TargetID(key.ID),
+		OrgID:      key.OrgID,
+		ProjectID:  key.ProjectID,
 		Metadata:   gatewayAPIKeyAuditMetadata(key),
 	})
 	c.Status(http.StatusNoContent)
@@ -129,7 +135,7 @@ func writeGatewayAPIKeyError(c *gin.Context, err error) {
 	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 }
 
-func gatewayAPIKeyAuditMetadata(key domainmodelgateway.APIKey) map[string]any {
+func gatewayAPIKeyAuditMetadata(key domaingateway.APIKey) map[string]any {
 	return map[string]any{
 		"api_key_id":        key.ID,
 		"name":              key.Name,

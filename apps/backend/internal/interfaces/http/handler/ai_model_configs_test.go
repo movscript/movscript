@@ -569,7 +569,7 @@ func newTestAIModelConfigRouter(t *testing.T, seedCredential bool) *gin.Engine {
 
 func newTestAIModelConfigRouterWithDB(t *testing.T, seedCredential bool) (*gin.Engine, *gorm.DB) {
 	t.Helper()
-	db := testutil.OpenSQLite(t, "handler-aiadmin.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AuditLog{})
+	db := testutil.OpenSQLite(t, "handler-admin-ai.db", &persistencemodel.AICredential{}, &persistencemodel.AIModelConfig{}, &persistencemodel.AuditLog{})
 	if seedCredential {
 		if err := db.Create(&persistencemodel.AICredential{
 			AdapterType: "volcen",

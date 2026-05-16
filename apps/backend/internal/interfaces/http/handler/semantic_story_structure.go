@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 )
 
 func (h *SemanticEntityHandler) ListSegments(c *gin.Context) {
@@ -17,7 +17,7 @@ func (h *SemanticEntityHandler) ListSegments(c *gin.Context) {
 		Status:        c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -27,7 +27,7 @@ func (h *SemanticEntityHandler) CreateSegment(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.CreateSegmentInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateSegment(c.Request.Context(), projectID, req)
@@ -41,7 +41,7 @@ func (h *SemanticEntityHandler) CreateSegment(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchSegment(c *gin.Context) {
 	var req semanticapp.PatchSegmentInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchSegment(c.Request.Context(), parseID(c.Param("id")), c.Param("segmentId"), req)
@@ -59,7 +59,7 @@ func (h *SemanticEntityHandler) ListProductionTextBlocks(c *gin.Context) {
 		Status:       c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -69,7 +69,7 @@ func (h *SemanticEntityHandler) CreateProductionTextBlock(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.CreateProductionTextBlockInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateProductionTextBlock(c.Request.Context(), projectID, req)
@@ -83,7 +83,7 @@ func (h *SemanticEntityHandler) CreateProductionTextBlock(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchProductionTextBlock(c *gin.Context) {
 	var req semanticapp.PatchProductionTextBlockInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchProductionTextBlock(c.Request.Context(), parseID(c.Param("id")), c.Param("textBlockId"), req)
@@ -101,7 +101,7 @@ func (h *SemanticEntityHandler) ListSceneMoments(c *gin.Context) {
 		ScriptBlockID: parseID(c.Query("script_block_id")),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -111,7 +111,7 @@ func (h *SemanticEntityHandler) CreateSceneMoment(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.CreateSceneMomentInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateSceneMoment(c.Request.Context(), projectID, req)
@@ -125,7 +125,7 @@ func (h *SemanticEntityHandler) CreateSceneMoment(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchSceneMoment(c *gin.Context) {
 	var req semanticapp.PatchSceneMomentInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchSceneMoment(c.Request.Context(), parseID(c.Param("id")), c.Param("sceneMomentId"), req)

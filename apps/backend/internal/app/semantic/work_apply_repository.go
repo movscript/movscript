@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/movscript/movscript/internal/app/entityrelation"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
@@ -166,7 +166,7 @@ func saveCoreEntityWithRelations(tx *gorm.DB, item any) error {
 }
 
 func syncCoreEntityRelations(tx *gorm.DB, item any) error {
-	return entityrelation.SyncCoreEntityRelations(tx, item)
+	return relation.SyncCoreEntityRelations(tx, item)
 }
 
 func workItemApplyMetadata(workItemID uint) string {

@@ -9,7 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	auditapp "github.com/movscript/movscript/internal/app/audit"
 	domainaudit "github.com/movscript/movscript/internal/domain/audit"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -28,7 +28,7 @@ func (h *AuditHandler) List(c *gin.Context) {
 	}
 	result, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询审计日志失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询审计日志失败"))
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -41,7 +41,7 @@ func (h *AuditHandler) Export(c *gin.Context) {
 	}
 	rows, err := h.service.Export(c.Request.Context(), filter, parsePositiveInt(c.Query("limit"), 1000))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("导出审计日志失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("导出审计日志失败"))
 		return
 	}
 	c.Header("Content-Type", "text/csv; charset=utf-8")
@@ -56,7 +56,7 @@ func (h *AuditHandler) Summary(c *gin.Context) {
 	}
 	result, err := h.service.Summary(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询审计日志汇总失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询审计日志汇总失败"))
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -89,7 +89,7 @@ func (h *AuditHandler) parseFilter(c *gin.Context) (auditapp.ListFilter, bool) {
 	if v := c.Query("since"); v != "" {
 		t, err := time.Parse(time.RFC3339, v)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("since must be RFC3339"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("since must be RFC3339"))
 			return auditapp.ListFilter{}, false
 		}
 		since = &t
@@ -98,7 +98,7 @@ func (h *AuditHandler) parseFilter(c *gin.Context) (auditapp.ListFilter, bool) {
 	if v := c.Query("until"); v != "" {
 		t, err := time.Parse(time.RFC3339, v)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("until must be RFC3339"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("until must be RFC3339"))
 			return auditapp.ListFilter{}, false
 		}
 		until = &t

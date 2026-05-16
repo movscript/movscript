@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
@@ -31,7 +31,7 @@ func TestAttachAssetSlotCandidateOutputSyncsRelationsWithoutHooks(t *testing.T) 
 		OwnerType:    "asset_slot",
 		OwnerID:      sourceSlot.ID,
 		OutputType:   "candidate",
-		Status:       canvasruntime.CanvasOutputStatusPending,
+		Status:       canvasdomain.CanvasOutputStatusPending,
 		CanvasNodeID: "final-output",
 		MetadataJSON: "{}",
 	}
@@ -49,7 +49,7 @@ func TestAttachAssetSlotCandidateOutputSyncsRelationsWithoutHooks(t *testing.T) 
 	if err := db.First(&updatedTarget, target.ID).Error; err != nil {
 		t.Fatalf("reload canvas output: %v", err)
 	}
-	if updatedTarget.Status != canvasruntime.CanvasOutputStatusAttached || updatedTarget.ResourceID == nil || *updatedTarget.ResourceID != resourceID {
+	if updatedTarget.Status != canvasdomain.CanvasOutputStatusAttached || updatedTarget.ResourceID == nil || *updatedTarget.ResourceID != resourceID {
 		t.Fatalf("canvas output was not attached: %+v", updatedTarget)
 	}
 	var candidate persistencemodel.AssetSlotCandidate
@@ -80,18 +80,18 @@ func TestCanvasRunHelpersSyncRelationsWithoutHooks(t *testing.T) {
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil, nil, nil, nil)
 	run := persistencemodel.CanvasRun{
 		CanvasID: cv.ID,
-		Status:   canvasruntime.CanvasRunStatusRunning,
+		Status:   canvasdomain.CanvasRunStatusRunning,
 	}
 	if err := service.createCanvasRunWithRelations(&run); err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	assertCanvasRelationStatus(t, db, "canvas_run", run.ID, "canvas", cv.ID, persistencemodel.EntityRelationTypeDerivedFrom, canvasruntime.CanvasRunStatusRunning)
+	assertCanvasRelationStatus(t, db, "canvas_run", run.ID, "canvas", cv.ID, persistencemodel.EntityRelationTypeDerivedFrom, canvasdomain.CanvasRunStatusRunning)
 
-	run.Status = canvasruntime.CanvasRunStatusDone
+	run.Status = canvasdomain.CanvasRunStatusDone
 	if err := service.saveCanvasRunWithRelations(&run); err != nil {
 		t.Fatalf("save run: %v", err)
 	}
-	assertCanvasRelationStatus(t, db, "canvas_run", run.ID, "canvas", cv.ID, persistencemodel.EntityRelationTypeDerivedFrom, canvasruntime.CanvasRunStatusDone)
+	assertCanvasRelationStatus(t, db, "canvas_run", run.ID, "canvas", cv.ID, persistencemodel.EntityRelationTypeDerivedFrom, canvasdomain.CanvasRunStatusDone)
 }
 
 func TestDeleteCanvasDeletesCanvasAndRunRelationsWithoutHooks(t *testing.T) {
@@ -122,7 +122,7 @@ func TestDeleteCanvasDeletesCanvasAndRunRelationsWithoutHooks(t *testing.T) {
 	service := NewService(db.Session(&gorm.Session{SkipHooks: true}), nil, nil, nil, nil, nil)
 	run := persistencemodel.CanvasRun{
 		CanvasID: cv.ID,
-		Status:   canvasruntime.CanvasRunStatusRunning,
+		Status:   canvasdomain.CanvasRunStatusRunning,
 	}
 	if err := service.createCanvasRunWithRelations(&run); err != nil {
 		t.Fatalf("create run: %v", err)

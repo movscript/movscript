@@ -6,9 +6,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
-	domainbinding "github.com/movscript/movscript/internal/domain/resourcebinding"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	resourcebinding "github.com/movscript/movscript/internal/app/resource/binding"
+	domainbinding "github.com/movscript/movscript/internal/domain/resource/binding"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -40,7 +40,7 @@ type resourceBindingInput struct {
 func (h *ResourceBindingHandler) ListByProject(c *gin.Context) {
 	bindings, err := h.service.List(c.Request.Context(), resourceBindingFilterFromRequest(c, parseID(c.Param("id"))))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	populateBindingResourceURLs(c, bindings)
@@ -65,13 +65,13 @@ func (h *ResourceBindingHandler) ListByEntity(c *gin.Context) {
 func (h *ResourceBindingHandler) CreateByProject(c *gin.Context) {
 	user := currentUser(c)
 	if user == nil {
-		c.JSON(http.StatusUnauthorized, apierr.AuthRequired())
+		c.JSON(http.StatusUnauthorized, api.AuthRequired())
 		return
 	}
 
 	var input resourceBindingInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	createdByID := user.ID
@@ -116,7 +116,7 @@ func (h *ResourceBindingHandler) Patch(c *gin.Context) {
 		MetadataJSON *string `json:"metadata_json"`
 	}
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	id := parseID(c.Param("id"))
@@ -180,20 +180,20 @@ func populateBindingResourceURLs(c *gin.Context, bindings []domainbinding.Bindin
 func (h *ResourceBindingHandler) writeResourceBindingError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, resourcebinding.ErrResourceNotFound):
-		c.JSON(http.StatusNotFound, apierr.NotFound("资源不存在"))
+		c.JSON(http.StatusNotFound, api.NotFound("资源不存在"))
 	case errors.Is(err, resourcebinding.ErrResourceForbidden):
-		c.JSON(http.StatusForbidden, apierr.Forbidden("无权绑定该资源"))
+		c.JSON(http.StatusForbidden, api.Forbidden("无权绑定该资源"))
 	case errors.Is(err, resourcebinding.ErrOwnerNotFound):
-		c.JSON(http.StatusNotFound, apierr.NotFound("资源归属实体不存在"))
+		c.JSON(http.StatusNotFound, api.NotFound("资源归属实体不存在"))
 	case errors.Is(err, resourcebinding.ErrBindingNotFound):
-		c.JSON(http.StatusNotFound, apierr.NotFound("资源绑定不存在"))
+		c.JSON(http.StatusNotFound, api.NotFound("资源绑定不存在"))
 	case errors.Is(err, resourcebinding.ErrOwnerWrongProject):
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("资源归属实体不属于当前项目"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("资源归属实体不属于当前项目"))
 	case errors.Is(err, resourcebinding.ErrOwnerInvalidType):
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("资源归属类型不合法"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("资源归属类型不合法"))
 	case errors.Is(err, resourcebinding.ErrInvalidInput):
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("资源绑定参数不合法"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("资源绑定参数不合法"))
 	default:
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 	}
 }

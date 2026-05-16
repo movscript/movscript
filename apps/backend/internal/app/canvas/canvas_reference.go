@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
@@ -18,7 +18,7 @@ func (h *Service) completeCanvasReferenceTask(ctx context.Context, task *persist
 		return nil
 	}
 
-	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, primaryOutput))
+	_ = h.updateTaskRow(ctx, task, canvasdomain.CompleteCanvasTask(task, &nd, primaryOutput))
 	h.updateTaskOutputValues(task, outputs)
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
@@ -70,16 +70,16 @@ func (h *Service) resolveCanvasReferenceOutputs(ref persistencemodel.Canvas, nd 
 }
 
 func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *persistencemodel.User, ref persistencemodel.Canvas, nd nodeData, inputs canvasPortInputMap) (persistencemodel.CanvasRun, error) {
-	plan, err := canvasruntime.BuildExecutionPlan(ref)
+	plan, err := canvasdomain.BuildExecutionPlan(ref)
 	if err != nil {
 		return persistencemodel.CanvasRun{}, fmt.Errorf("cycle detected in referenced workflow")
 	}
 	inputValues := h.canvasReferenceInputValuesModel(ref, nd, inputs)
-	if err := canvasruntime.ValidateRequiredInputs(ref, inputValues); err != nil {
+	if err := canvasdomain.ValidateRequiredInputs(ref, inputValues); err != nil {
 		return persistencemodel.CanvasRun{}, err
 	}
 	now := time.Now()
-	run := canvasruntime.NewCanvasRun(ref, inputValues, now).ToModel()
+	run := canvasdomain.NewCanvasRun(ref, inputValues, now).ToModel()
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return persistencemodel.CanvasRun{}, err
 	}
@@ -89,7 +89,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *persis
 		if node == nil {
 			continue
 		}
-		task := canvasruntime.NewTask(*node, &run.ID, "").ToModel()
+		task := canvasdomain.NewTask(*node, &run.ID, "").ToModel()
 		if err := h.createTaskRow(ctx, &task); err != nil {
 			return run, err
 		}
@@ -101,7 +101,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *persis
 		return run, err
 	}
 	run = domainRun.ToModel()
-	if run.Status != canvasruntime.CanvasRunStatusDone {
+	if run.Status != canvasdomain.CanvasRunStatusDone {
 		if strings.TrimSpace(run.Error) != "" {
 			return run, fmt.Errorf("referenced workflow failed: %s", run.Error)
 		}
@@ -110,7 +110,7 @@ func (h *Service) executeReferencedWorkflowRun(ctx context.Context, user *persis
 	return run, nil
 }
 
-func (h *Service) CanvasReferenceInputValues(ref canvasruntime.Canvas, nd nodeData, inputs canvasPortInputMap) map[string]canvasPortValue {
+func (h *Service) CanvasReferenceInputValues(ref canvasdomain.Canvas, nd nodeData, inputs canvasPortInputMap) map[string]canvasPortValue {
 	return h.canvasReferenceInputValuesModel(ref.ToModel(), nd, inputs)
 }
 
@@ -161,11 +161,11 @@ func (h *Service) canvasReferenceInputValuesModel(ref persistencemodel.Canvas, n
 		if handle == "" {
 			continue
 		}
-		if value, ok := values[handle]; ok && !canvasruntime.PortValueEmpty(value) {
+		if value, ok := values[handle]; ok && !canvasdomain.PortValueEmpty(value) {
 			continue
 		}
 		if nodeID := paramNameToNodeID[handle]; nodeID != "" {
-			if value, ok := values[nodeID]; ok && !canvasruntime.PortValueEmpty(value) {
+			if value, ok := values[nodeID]; ok && !canvasdomain.PortValueEmpty(value) {
 				continue
 			}
 		}
@@ -185,7 +185,7 @@ func (h *Service) canvasReferenceInputValuesModel(ref persistencemodel.Canvas, n
 func firstNonEmptyCanvasPortValue(values []canvasPortValue) (canvasPortValue, bool) {
 	for _, value := range values {
 		value.Normalize()
-		if !canvasruntime.PortValueEmpty(value) {
+		if !canvasdomain.PortValueEmpty(value) {
 			return value, true
 		}
 	}
@@ -235,7 +235,7 @@ func (h *Service) outputsForReferencedWorkflowRun(ref persistencemodel.Canvas, n
 			var outputData nodeData
 			_ = json.Unmarshal([]byte(outputNode.Data), &outputData)
 			value := canvasReferenceTaskOutputValue(refTask, outputNode, outputData)
-			if canvasruntime.PortValueEmpty(value) {
+			if canvasdomain.PortValueEmpty(value) {
 				continue
 			}
 			registerCanvasReferenceOutput(outputs, outputNode.NodeID, value)
@@ -246,7 +246,7 @@ func (h *Service) outputsForReferencedWorkflowRun(ref persistencemodel.Canvas, n
 		}
 	} else if len(refTasks) > 0 {
 		value := canvasReferenceTaskOutputValue(refTasks[0], persistencemodel.CanvasNode{}, nodeData{})
-		if !canvasruntime.PortValueEmpty(value) {
+		if !canvasdomain.PortValueEmpty(value) {
 			registerCanvasReferenceOutput(outputs, "result", value)
 			primaryOutput = value.ResourceID
 		}
@@ -260,12 +260,12 @@ func (h *Service) outputsForReferencedWorkflowRun(ref persistencemodel.Canvas, n
 		if handle == "" {
 			continue
 		}
-		if value, ok := outputs[handle]; ok && !canvasruntime.PortValueEmpty(value) {
+		if value, ok := outputs[handle]; ok && !canvasdomain.PortValueEmpty(value) {
 			outputs[""] = value
 			return outputs, primaryOutput, nil
 		}
 	}
-	if value, ok := outputs[""]; ok && !canvasruntime.PortValueEmpty(value) {
+	if value, ok := outputs[""]; ok && !canvasdomain.PortValueEmpty(value) {
 		return outputs, primaryOutput, nil
 	}
 	for _, value := range outputs {
@@ -275,15 +275,15 @@ func (h *Service) outputsForReferencedWorkflowRun(ref persistencemodel.Canvas, n
 	return outputs, primaryOutput, nil
 }
 
-func (h *Service) canvasReferenceOutputsFromRun(run canvasruntime.CanvasRun, nd nodeData) (map[string]canvasPortValue, *uint) {
-	runOutputs := canvasruntime.DecodePortOutputs(run.OutputValues)
+func (h *Service) canvasReferenceOutputsFromRun(run canvasdomain.CanvasRun, nd nodeData) (map[string]canvasPortValue, *uint) {
+	runOutputs := canvasdomain.DecodePortOutputs(run.OutputValues)
 	if len(runOutputs) == 0 {
 		return nil, nil
 	}
 	outputs := map[string]canvasPortValue{}
 	var primaryOutput *uint
 	for key, value := range runOutputs {
-		if canvasruntime.PortValueEmpty(value) {
+		if canvasdomain.PortValueEmpty(value) {
 			continue
 		}
 		registerCanvasReferenceOutput(outputs, key, value)
@@ -296,16 +296,16 @@ func (h *Service) canvasReferenceOutputsFromRun(run canvasruntime.CanvasRun, nd 
 		if handle == "" {
 			continue
 		}
-		if value, ok := outputs[handle]; ok && !canvasruntime.PortValueEmpty(value) {
+		if value, ok := outputs[handle]; ok && !canvasdomain.PortValueEmpty(value) {
 			outputs[""] = value
 			return outputs, primaryOutput
 		}
 	}
-	if value, ok := outputs[""]; ok && !canvasruntime.PortValueEmpty(value) {
+	if value, ok := outputs[""]; ok && !canvasdomain.PortValueEmpty(value) {
 		return outputs, primaryOutput
 	}
 	for _, value := range outputs {
-		if !canvasruntime.PortValueEmpty(value) {
+		if !canvasdomain.PortValueEmpty(value) {
 			outputs[""] = value
 			break
 		}
@@ -314,26 +314,26 @@ func (h *Service) canvasReferenceOutputsFromRun(run canvasruntime.CanvasRun, nd 
 }
 
 func canvasReferenceTaskOutputValue(task persistencemodel.CanvasTask, node persistencemodel.CanvasNode, nd nodeData) canvasPortValue {
-	outputs := canvasruntime.DecodePortOutputs(task.OutputValues)
-	for _, key := range []string{"", "value", "result", canvasruntime.DefaultSourceHandleForNode(node.Type, nd)} {
-		if value, ok := outputs[key]; ok && !canvasruntime.PortValueEmpty(value) {
+	outputs := canvasdomain.DecodePortOutputs(task.OutputValues)
+	for _, key := range []string{"", "value", "result", canvasdomain.DefaultSourceHandleForNode(node.Type, nd)} {
+		if value, ok := outputs[key]; ok && !canvasdomain.PortValueEmpty(value) {
 			return value
 		}
 	}
 	for _, value := range outputs {
-		if !canvasruntime.PortValueEmpty(value) {
+		if !canvasdomain.PortValueEmpty(value) {
 			return value
 		}
 	}
 	if task.ResourceID != nil {
-		return canvasruntime.PortValueFromResource(task.ResourceID, canvasruntime.DefaultPortValueTypeForNode(node.Type, nd))
+		return canvasdomain.PortValueFromResource(task.ResourceID, canvasdomain.DefaultPortValueTypeForNode(node.Type, nd))
 	}
 	return canvasPortValue{}
 }
 
 func registerCanvasReferenceOutput(outputs map[string]canvasPortValue, handle string, value canvasPortValue) {
 	handle = strings.TrimSpace(handle)
-	if handle == "" || canvasruntime.PortValueEmpty(value) {
+	if handle == "" || canvasdomain.PortValueEmpty(value) {
 		return
 	}
 	outputs[handle] = value

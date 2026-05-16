@@ -172,8 +172,15 @@ func (r *gormRepository) UpdateMemberRole(ctx context.Context, orgID uint, userI
 }
 
 func (r *gormRepository) DeleteMember(ctx context.Context, orgID uint, userID uint) error {
-	return r.db.WithContext(ctx).Where("org_id = ? AND user_id = ?", orgID, userID).
-		Delete(&persistencemodel.OrganizationMember{}).Error
+	result := r.db.WithContext(ctx).Where("org_id = ? AND user_id = ?", orgID, userID).
+		Delete(&persistencemodel.OrganizationMember{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (r *gormRepository) ListInvitations(ctx context.Context, orgID uint) ([]domainorg.Invitation, error) {

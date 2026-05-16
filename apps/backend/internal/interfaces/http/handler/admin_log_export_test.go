@@ -68,17 +68,22 @@ func TestUsageLogExportUsesFiltersAndSanitizesCSVCells(t *testing.T) {
 	if err := db.Create(&model).Error; err != nil {
 		t.Fatalf("create model config: %v", err)
 	}
-	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, OperationType: "text", InputTokens: 10, OutputTokens: 2, Cost: 0.5}).Error; err != nil {
+	gatewayKeyID := uint(21)
+	otherGatewayKeyID := uint(22)
+	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, GatewayAPIKeyID: &gatewayKeyID, OperationType: "text", InputTokens: 10, OutputTokens: 2, Cost: 0.5}).Error; err != nil {
 		t.Fatalf("create usage log: %v", err)
 	}
-	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, OperationType: "image", ImageCount: 1, Cost: 2}).Error; err != nil {
+	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, GatewayAPIKeyID: &otherGatewayKeyID, OperationType: "text", InputTokens: 1, OutputTokens: 1, Cost: 1.5}).Error; err != nil {
 		t.Fatalf("create second usage log: %v", err)
+	}
+	if err := db.Create(&persistencemodel.UsageLog{UserID: user.ID, AIModelConfigID: model.ID, GatewayAPIKeyID: &gatewayKeyID, OperationType: "image", ImageCount: 1, Cost: 2}).Error; err != nil {
+		t.Fatalf("create third usage log: %v", err)
 	}
 	h := NewUsageAdminHandler(db.Session(&gorm.Session{SkipHooks: true}))
 	router := gin.New()
 	router.GET("/admin/usage-logs/export", h.Export)
 
-	req := httptest.NewRequest(http.MethodGet, "/admin/usage-logs/export?operation_type=text", nil)
+	req := httptest.NewRequest(http.MethodGet, "/admin/usage-logs/export?operation_type=text&gateway_api_key_id=21", nil)
 	res := httptest.NewRecorder()
 
 	router.ServeHTTP(res, req)
@@ -95,5 +100,8 @@ func TestUsageLogExportUsesFiltersAndSanitizesCSVCells(t *testing.T) {
 	}
 	if strings.Contains(body, ",image,") {
 		t.Fatalf("expected operation filter to be applied, got %s", body)
+	}
+	if strings.Contains(body, ",22") {
+		t.Fatalf("expected gateway key filter to be applied, got %s", body)
 	}
 }

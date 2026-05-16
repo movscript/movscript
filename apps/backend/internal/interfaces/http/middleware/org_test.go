@@ -11,7 +11,7 @@ import (
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
 	domainorg "github.com/movscript/movscript/internal/domain/org"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
@@ -36,7 +36,7 @@ func TestResolveOrgMemberRejectsSuspendedWorkspace(t *testing.T) {
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want %d: %s", w.Code, http.StatusForbidden, w.Body.String())
 	}
-	if got := w.Body.String(); !strings.Contains(got, apierr.CodeForbidden) || !strings.Contains(got, "工作区已暂停") {
+	if got := w.Body.String(); !strings.Contains(got, api.CodeForbidden) || !strings.Contains(got, "工作区已暂停") {
 		t.Fatalf("body = %q, want suspended forbidden response", got)
 	}
 }

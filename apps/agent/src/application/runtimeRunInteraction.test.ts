@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
-import type { AgentApprovalRequest, AgentInputRequest, AgentRun, AgentThread } from '../state/types.js'
+import type { AgentApprovalRequest, AgentInputRequest, AgentRun, AgentRunStep, AgentThread } from '../state/types.js'
 import {
   answerRuntimeRunInputRequest,
+  applyRuntimeRunApprovalFlow,
+  applyRuntimeRunInputAnswerFlow,
+  applyRuntimeRunRejectionFlow,
   approveRuntimeRunInteraction,
   rejectRuntimeRunInteraction,
+  type RuntimeRunInteractionTraceInput,
 } from './runtimeRunInteraction.js'
 
 const now = '2026-01-01T00:00:01.000Z'
@@ -107,6 +111,101 @@ test('rejectRuntimeRunInteraction completes the run with a warning and assistant
   assert.match(thread?.messages[0]?.content ?? '', /已取消需要确认的工具调用/)
   assert.equal(thread?.status, 'completed')
   assert.equal(thread?.activeRunId, undefined)
+})
+
+test('applyRuntimeRunApprovalFlow records trace, emits snapshot, remembers auth, and restarts execution', () => {
+  const store = new InMemoryAgentStore()
+  store.createThread(makeThread({ status: 'requires_action', activeRunId: 'run_1' }))
+  store.createRun(makeRun({
+    status: 'requires_action',
+    pendingApprovals: [approval('approval_1', 'tool_a')],
+  }))
+  const traces: RuntimeRunInteractionTraceInput[] = []
+  const events: string[] = []
+
+  const run = applyRuntimeRunApprovalFlow({
+    store,
+    runId: 'run_1',
+    approvalInput: { approvalIds: ['approval_1'], backendAuthToken: 'token' },
+    now,
+    recordTrace: (_run, trace) => traces.push(trace),
+    emitRunSnapshot: (targetRun) => events.push(`snapshot:${targetRun.status}`),
+    rememberRunAuth: (targetRunId, value) => events.push(`auth:${targetRunId}:${typeof value === 'object'}`),
+    startRunExecution: (targetRunId) => events.push(`start:${targetRunId}`),
+  })
+
+  assert.equal(run.status, 'queued')
+  assert.equal(traces[0]?.kind, 'approval')
+  assert.equal(traces[0]?.status, 'completed')
+  assert.deepEqual(events, ['snapshot:queued', 'auth:run_1:true', 'start:run_1'])
+})
+
+test('applyRuntimeRunInputAnswerFlow records input trace, emits snapshot, remembers auth, and restarts execution', () => {
+  const store = new InMemoryAgentStore()
+  store.createThread(makeThread({ status: 'requires_action', activeRunId: 'run_1' }))
+  store.createRun(makeRun({
+    status: 'requires_action',
+    pendingInputRequests: [inputRequest('input_1')],
+  }))
+  const traces: RuntimeRunInteractionTraceInput[] = []
+  const events: string[] = []
+
+  const run = applyRuntimeRunInputAnswerFlow({
+    store,
+    runId: 'run_1',
+    answerInput: { requestId: 'input_1', text: '继续' },
+    messageId: 'msg_answer',
+    now,
+    recordTrace: (_run, trace) => traces.push(trace),
+    emitRunSnapshot: (targetRun) => events.push(`snapshot:${targetRun.status}`),
+    rememberRunAuth: (targetRunId, value) => events.push(`auth:${targetRunId}:${typeof value === 'object'}`),
+    startRunExecution: (targetRunId) => events.push(`start:${targetRunId}`),
+  })
+
+  assert.equal(run.status, 'queued')
+  assert.equal(traces[0]?.kind, 'input')
+  assert.deepEqual((traces[0]?.data as Record<string, unknown>).choiceIds, [])
+  assert.deepEqual(events, ['snapshot:queued', 'auth:run_1:true', 'start:run_1'])
+})
+
+test('applyRuntimeRunRejectionFlow records trace, completes rejection message step, and emits done snapshot', () => {
+  const store = new InMemoryAgentStore()
+  store.createThread(makeThread({ status: 'requires_action', activeRunId: 'run_1' }))
+  store.createRun(makeRun({
+    status: 'requires_action',
+    pendingApprovals: [approval('approval_1', 'tool_a')],
+  }))
+  const traces: RuntimeRunInteractionTraceInput[] = []
+  const events: string[] = []
+  let completedStep: AgentRunStep | undefined
+
+  const run = applyRuntimeRunRejectionFlow({
+    store,
+    runId: 'run_1',
+    messageId: 'msg_rejected',
+    now,
+    recordTrace: (_run, trace) => traces.push(trace),
+    createStep: (targetRun, type) => {
+      const step: AgentRunStep = {
+        id: 'step_1',
+        runId: targetRun.id,
+        type,
+        status: 'in_progress',
+        createdAt: now,
+      }
+      targetRun.steps.push(step)
+      completedStep = step
+      return step
+    },
+    emitRunSnapshot: (targetRun, options) => events.push(`snapshot:${targetRun.status}:${options.done === true}`),
+  })
+
+  assert.equal(run.status, 'completed_with_warnings')
+  assert.equal(traces[0]?.kind, 'approval')
+  assert.equal(traces[0]?.status, 'blocked')
+  assert.equal(completedStep?.status, 'completed')
+  assert.deepEqual(completedStep?.result, { messageId: 'msg_rejected', rejectedToolNames: ['tool_a'] })
+  assert.deepEqual(events, ['snapshot:completed_with_warnings:true'])
 })
 
 function makeThread(overrides: Partial<AgentThread> = {}): AgentThread {

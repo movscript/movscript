@@ -10,7 +10,7 @@ import (
 	orgapp "github.com/movscript/movscript/internal/app/org"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	domainauth "github.com/movscript/movscript/internal/domain/auth"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -36,7 +36,7 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 		if raw := strings.TrimSpace(c.GetHeader("X-Org-ID")); raw != "" {
 			parsed, err := strconv.ParseUint(raw, 10, 64)
 			if err != nil || parsed == 0 {
-				c.AbortWithStatusJSON(http.StatusBadRequest, apierr.InvalidInput("无效的组织 ID"))
+				c.AbortWithStatusJSON(http.StatusBadRequest, api.InvalidInput("无效的组织 ID"))
 				return
 			}
 			orgID := uint(parsed)
@@ -45,11 +45,11 @@ func ResolveOrgMember(db *gorm.DB) gin.HandlerFunc {
 
 		member, found, err := orgService.ResolveCurrentMember(c.Request.Context(), user.ID, preferredOrgID)
 		if err == orgapp.ErrForbidden {
-			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("你没有权限访问该工作区"))
+			c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("你没有权限访问该工作区"))
 			return
 		}
 		if errors.Is(err, orgapp.ErrSuspended) {
-			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("工作区已暂停"))
+			c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("工作区已暂停"))
 			return
 		}
 		if err != nil || !found {
@@ -72,27 +72,27 @@ func RequireProjectInCurrentOrg(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		member, ok := CurrentOrgMemberFromContext(c)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("无工作区信息"))
+			c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("无工作区信息"))
 			return
 		}
 
 		projectID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 		if err != nil || projectID == 0 {
-			c.AbortWithStatusJSON(http.StatusBadRequest, apierr.InvalidInput("无效的项目 ID"))
+			c.AbortWithStatusJSON(http.StatusBadRequest, api.InvalidInput("无效的项目 ID"))
 			return
 		}
 
 		belongs, err := projectService.BelongsToOrg(c.Request.Context(), uint(projectID), member.OrgID)
 		if err == projectapp.ErrProjectNotFound {
-			c.AbortWithStatusJSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.AbortWithStatusJSON(http.StatusNotFound, api.NotFound("项目不存在"))
 			return
 		}
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, apierr.Internal("项目校验失败"))
+			c.AbortWithStatusJSON(http.StatusInternalServerError, api.Internal("项目校验失败"))
 			return
 		}
 		if !belongs {
-			c.AbortWithStatusJSON(http.StatusForbidden, apierr.ForbiddenProject("项目不属于当前工作区"))
+			c.AbortWithStatusJSON(http.StatusForbidden, api.ForbiddenProject("项目不属于当前工作区"))
 			return
 		}
 		c.Next()
@@ -106,24 +106,24 @@ func InjectOrgMember(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := CurrentUserFromContext(c)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, apierr.AuthRequired())
+			c.AbortWithStatusJSON(http.StatusUnauthorized, api.AuthRequired())
 			return
 		}
 
 		orgIDStr := c.Param("orgId")
 		orgID, err := strconv.ParseUint(orgIDStr, 10, 64)
 		if err != nil || orgID == 0 {
-			c.AbortWithStatusJSON(http.StatusBadRequest, apierr.InvalidInput("无效的组织 ID"))
+			c.AbortWithStatusJSON(http.StatusBadRequest, api.InvalidInput("无效的组织 ID"))
 			return
 		}
 
 		member, err := orgService.GetMemberForUser(c.Request.Context(), uint(orgID), user.ID)
 		if err != nil {
 			if errors.Is(err, orgapp.ErrSuspended) {
-				c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("工作区已暂停"))
+				c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("工作区已暂停"))
 				return
 			}
-			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("你不是该组织的成员"))
+			c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("你不是该组织的成员"))
 			return
 		}
 
@@ -138,7 +138,7 @@ func RequireOrgRole(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		member, ok := CurrentOrgMemberFromContext(c)
 		if !ok {
-			c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("无组织成员信息"))
+			c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("无组织成员信息"))
 			return
 		}
 		for _, r := range roles {
@@ -147,6 +147,6 @@ func RequireOrgRole(roles ...string) gin.HandlerFunc {
 				return
 			}
 		}
-		c.AbortWithStatusJSON(http.StatusForbidden, apierr.Forbidden("权限不足"))
+		c.AbortWithStatusJSON(http.StatusForbidden, api.Forbidden("权限不足"))
 	}
 }

@@ -7,55 +7,55 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/app/entityrelation"
-	resourcebinding "github.com/movscript/movscript/internal/app/resourcebinding"
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	resourcebinding "github.com/movscript/movscript/internal/app/resource/binding"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	domainplugin "github.com/movscript/movscript/internal/domain/plugin"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
-	domainresourcebinding "github.com/movscript/movscript/internal/domain/resourcebinding"
+	domainresourcebinding "github.com/movscript/movscript/internal/domain/resource/binding"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
 type repository interface {
-	ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasruntime.Canvas, error)
-	FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasruntime.Canvas, bool, error)
-	GetCanvas(ctx context.Context, id string) (canvasruntime.Canvas, error)
-	CreateCanvas(ctx context.Context, cv canvasruntime.Canvas) (canvasruntime.Canvas, error)
-	ReloadCanvas(ctx context.Context, cv canvasruntime.Canvas) (canvasruntime.Canvas, error)
-	SaveCanvasMetadata(ctx context.Context, cv canvasruntime.Canvas) error
-	DeleteCanvas(ctx context.Context, cv canvasruntime.Canvas) error
-	ReplaceCanvasGraph(ctx context.Context, cv canvasruntime.Canvas, nodes []canvasruntime.CanvasNode, edges []canvasruntime.CanvasEdge) error
-	GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error)
-	GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasruntime.CanvasNode, error)
+	ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasdomain.Canvas, error)
+	FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasdomain.Canvas, bool, error)
+	GetCanvas(ctx context.Context, id string) (canvasdomain.Canvas, error)
+	CreateCanvas(ctx context.Context, cv canvasdomain.Canvas) (canvasdomain.Canvas, error)
+	ReloadCanvas(ctx context.Context, cv canvasdomain.Canvas) (canvasdomain.Canvas, error)
+	SaveCanvasMetadata(ctx context.Context, cv canvasdomain.Canvas) error
+	DeleteCanvas(ctx context.Context, cv canvasdomain.Canvas) error
+	ReplaceCanvasGraph(ctx context.Context, cv canvasdomain.Canvas, nodes []canvasdomain.CanvasNode, edges []canvasdomain.CanvasEdge) error
+	GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasdomain.Canvas, error)
+	GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasdomain.CanvasNode, error)
 	ListRuns(ctx context.Context, canvasID uint, status string, pageMode bool, page int, pageSize int) (CanvasRunListPage, error)
-	GetRun(ctx context.Context, canvasID uint, runID string) (canvasruntime.CanvasRun, error)
-	ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]canvasruntime.CanvasTask, error)
-	LatestNodeTask(ctx context.Context, canvasID string, nodeID string) (canvasruntime.CanvasNode, canvasruntime.CanvasTask, error)
-	ListNodeTasks(ctx context.Context, canvasID string, nodeID string) (canvasruntime.CanvasNode, []canvasruntime.CanvasTask, error)
+	GetRun(ctx context.Context, canvasID uint, runID string) (canvasdomain.CanvasRun, error)
+	ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]canvasdomain.CanvasTask, error)
+	LatestNodeTask(ctx context.Context, canvasID string, nodeID string) (canvasdomain.CanvasNode, canvasdomain.CanvasTask, error)
+	ListNodeTasks(ctx context.Context, canvasID string, nodeID string) (canvasdomain.CanvasNode, []canvasdomain.CanvasTask, error)
 	IsInOrgScope(ctx context.Context, entityOrgID *uint, currentOrgID *uint, ownerID uint, userID uint) bool
 	EnsureProjectInOrg(ctx context.Context, projectID *uint, orgID *uint) error
 	ListEntityWriteAudits(ctx context.Context, filter EntityWriteAuditFilter) (EntityWriteAuditPage, error)
-	CreateTask(ctx context.Context, task canvasruntime.CanvasTask) (canvasruntime.CanvasTask, error)
-	UpdateTask(ctx context.Context, task canvasruntime.CanvasTask, patch canvasruntime.CanvasTaskPatch) error
-	SaveTask(ctx context.Context, task canvasruntime.CanvasTask) error
-	FindTask(ctx context.Context, taskID uint) (canvasruntime.CanvasTask, error)
-	SaveNode(ctx context.Context, node canvasruntime.CanvasNode) error
-	CreateCanvasRun(ctx context.Context, run canvasruntime.CanvasRun) (canvasruntime.CanvasRun, error)
-	SaveCanvasRun(ctx context.Context, run canvasruntime.CanvasRun) error
-	FindCanvasRun(ctx context.Context, runID uint) (canvasruntime.CanvasRun, error)
-	ListCanvasRunTasks(ctx context.Context, runID uint) ([]canvasruntime.CanvasTask, error)
+	CreateTask(ctx context.Context, task canvasdomain.CanvasTask) (canvasdomain.CanvasTask, error)
+	UpdateTask(ctx context.Context, task canvasdomain.CanvasTask, patch canvasdomain.CanvasTaskPatch) error
+	SaveTask(ctx context.Context, task canvasdomain.CanvasTask) error
+	FindTask(ctx context.Context, taskID uint) (canvasdomain.CanvasTask, error)
+	SaveNode(ctx context.Context, node canvasdomain.CanvasNode) error
+	CreateCanvasRun(ctx context.Context, run canvasdomain.CanvasRun) (canvasdomain.CanvasRun, error)
+	SaveCanvasRun(ctx context.Context, run canvasdomain.CanvasRun) error
+	FindCanvasRun(ctx context.Context, runID uint) (canvasdomain.CanvasRun, error)
+	ListCanvasRunTasks(ctx context.Context, runID uint) ([]canvasdomain.CanvasTask, error)
 	CanvasUsageScope(ctx context.Context, canvasID uint) (*uint, *uint, error)
 	CanvasOrgID(ctx context.Context, canvasID uint) (*uint, error)
-	LatestDoneTaskForNode(ctx context.Context, canvasNodeID uint) (canvasruntime.CanvasTask, bool, error)
-	LatestCompletedRun(ctx context.Context, canvasID uint) (canvasruntime.CanvasRun, error)
-	FindRunInCanvas(ctx context.Context, canvasID uint, runID uint) (canvasruntime.CanvasRun, bool, error)
-	ListOutputNodes(ctx context.Context, canvasID uint) ([]canvasruntime.CanvasNode, error)
-	ListTasksForRunAndNodes(ctx context.Context, runID uint, nodeIDs []uint) ([]canvasruntime.CanvasTask, error)
-	GetCanvasForRunExecution(ctx context.Context, canvasID uint, runID uint) (canvasruntime.CanvasRun, canvasruntime.CanvasGraph, error)
+	LatestDoneTaskForNode(ctx context.Context, canvasNodeID uint) (canvasdomain.CanvasTask, bool, error)
+	LatestCompletedRun(ctx context.Context, canvasID uint) (canvasdomain.CanvasRun, error)
+	FindRunInCanvas(ctx context.Context, canvasID uint, runID uint) (canvasdomain.CanvasRun, bool, error)
+	ListOutputNodes(ctx context.Context, canvasID uint) ([]canvasdomain.CanvasNode, error)
+	ListTasksForRunAndNodes(ctx context.Context, runID uint, nodeIDs []uint) ([]canvasdomain.CanvasTask, error)
+	GetCanvasForRunExecution(ctx context.Context, canvasID uint, runID uint) (canvasdomain.CanvasRun, canvasdomain.CanvasGraph, error)
 	FailRunNotFound(ctx context.Context, runID uint, finishedAt *time.Time) error
-	ListRunTasksOrdered(ctx context.Context, runID uint) ([]canvasruntime.CanvasTask, error)
+	ListRunTasksOrdered(ctx context.Context, runID uint) ([]canvasdomain.CanvasTask, error)
 	FindResources(ctx context.Context, ids []uint) ([]domainresource.RawResource, error)
 	CreateResource(ctx context.Context, resource domainresource.RawResource) (domainresource.RawResource, error)
 	DeleteResource(ctx context.Context, resource domainresource.RawResource) error
@@ -74,7 +74,7 @@ func newRepository(db *gorm.DB) repository {
 	return &gormRepository{db: db}
 }
 
-func (r *gormRepository) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasruntime.Canvas, error) {
+func (r *gormRepository) ListCanvases(ctx context.Context, filter CanvasListFilter) ([]canvasdomain.Canvas, error) {
 	canvases := make([]persistencemodel.Canvas, 0)
 	q := r.db.WithContext(ctx).Where("owner_id = ?", filter.OwnerID)
 	q = r.applyOrgScope(ctx, q, filter.OrgID, filter.OwnerID)
@@ -96,10 +96,10 @@ func (r *gormRepository) ListCanvases(ctx context.Context, filter CanvasListFilt
 	if err := q.Find(&canvases).Error; err != nil {
 		return nil, err
 	}
-	return canvasruntime.CanvasesFromModels(canvases), nil
+	return canvasdomain.CanvasesFromModels(canvases), nil
 }
 
-func (r *gormRepository) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasruntime.Canvas, bool, error) {
+func (r *gormRepository) FindOwnedEntityCanvas(ctx context.Context, ownerID uint, orgID *uint, projectID *uint, canvasType string, refType string, refID uint) (canvasdomain.Canvas, bool, error) {
 	var existing persistencemodel.Canvas
 	q := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").
 		Where("owner_id = ? AND canvas_type = ? AND ref_type = ? AND ref_id = ?", ownerID, canvasType, refType, refID)
@@ -111,22 +111,22 @@ func (r *gormRepository) FindOwnedEntityCanvas(ctx context.Context, ownerID uint
 	}
 	if err := q.Order("id asc").First(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return canvasruntime.Canvas{}, false, nil
+			return canvasdomain.Canvas{}, false, nil
 		}
-		return canvasruntime.Canvas{}, false, err
+		return canvasdomain.Canvas{}, false, err
 	}
-	return canvasruntime.CanvasFromModel(existing), true, nil
+	return canvasdomain.CanvasFromModel(existing), true, nil
 }
 
-func (r *gormRepository) GetCanvas(ctx context.Context, id string) (canvasruntime.Canvas, error) {
+func (r *gormRepository) GetCanvas(ctx context.Context, id string) (canvasdomain.Canvas, error) {
 	var cv persistencemodel.Canvas
 	if err := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").First(&cv, id).Error; err != nil {
-		return canvasruntime.Canvas{}, err
+		return canvasdomain.Canvas{}, err
 	}
-	return canvasruntime.CanvasFromModel(cv), nil
+	return canvasdomain.CanvasFromModel(cv), nil
 }
 
-func (r *gormRepository) CreateCanvas(ctx context.Context, cv canvasruntime.Canvas) (canvasruntime.Canvas, error) {
+func (r *gormRepository) CreateCanvas(ctx context.Context, cv canvasdomain.Canvas) (canvasdomain.Canvas, error) {
 	modelCV := cv.ToModel()
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&modelCV).Error; err != nil {
@@ -139,7 +139,7 @@ func (r *gormRepository) CreateCanvas(ctx context.Context, cv canvasruntime.Canv
 			return nil
 		}
 
-		domainNodes, domainEdge := canvasruntime.WorkflowBootstrapGraph(modelCV.ID)
+		domainNodes, domainEdge := canvasdomain.WorkflowBootstrapGraph(modelCV.ID)
 		nodes := make([]persistencemodel.CanvasNode, 0, len(domainNodes))
 		for _, node := range domainNodes {
 			nodes = append(nodes, node.ToModel())
@@ -151,25 +151,25 @@ func (r *gormRepository) CreateCanvas(ctx context.Context, cv canvasruntime.Canv
 		return tx.Create(&edge).Error
 	})
 	if err != nil {
-		return canvasruntime.CanvasFromModel(modelCV), err
+		return canvasdomain.CanvasFromModel(modelCV), err
 	}
-	return canvasruntime.CanvasFromModel(modelCV), nil
+	return canvasdomain.CanvasFromModel(modelCV), nil
 }
 
-func (r *gormRepository) ReloadCanvas(ctx context.Context, cv canvasruntime.Canvas) (canvasruntime.Canvas, error) {
+func (r *gormRepository) ReloadCanvas(ctx context.Context, cv canvasdomain.Canvas) (canvasdomain.Canvas, error) {
 	modelCV := cv.ToModel()
 	if err := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").First(&modelCV, modelCV.ID).Error; err != nil {
-		return canvasruntime.CanvasFromModel(modelCV), err
+		return canvasdomain.CanvasFromModel(modelCV), err
 	}
-	return canvasruntime.CanvasFromModel(modelCV), nil
+	return canvasdomain.CanvasFromModel(modelCV), nil
 }
 
-func (r *gormRepository) SaveCanvasMetadata(ctx context.Context, cv canvasruntime.Canvas) error {
+func (r *gormRepository) SaveCanvasMetadata(ctx context.Context, cv canvasdomain.Canvas) error {
 	modelCV := cv.ToModel()
 	return saveCanvasWithRelations(r.db.WithContext(ctx), &modelCV)
 }
 
-func (r *gormRepository) DeleteCanvas(ctx context.Context, cv canvasruntime.Canvas) error {
+func (r *gormRepository) DeleteCanvas(ctx context.Context, cv canvasdomain.Canvas) error {
 	modelCV := cv.ToModel()
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		tx = tx.Session(&gorm.Session{SkipHooks: true})
@@ -184,7 +184,7 @@ func (r *gormRepository) DeleteCanvas(ctx context.Context, cv canvasruntime.Canv
 			return err
 		}
 		for i := range runs {
-			if err := entityrelation.DeleteCoreEntityRelations(tx, &runs[i]); err != nil {
+			if err := relation.DeleteCoreEntityRelations(tx, &runs[i]); err != nil {
 				return err
 			}
 		}
@@ -197,11 +197,11 @@ func (r *gormRepository) DeleteCanvas(ctx context.Context, cv canvasruntime.Canv
 		if err := tx.Delete(&modelCV).Error; err != nil {
 			return err
 		}
-		return entityrelation.DeleteCoreEntityRelations(tx, &modelCV)
+		return relation.DeleteCoreEntityRelations(tx, &modelCV)
 	})
 }
 
-func (r *gormRepository) ReplaceCanvasGraph(ctx context.Context, cv canvasruntime.Canvas, nodes []canvasruntime.CanvasNode, edges []canvasruntime.CanvasEdge) error {
+func (r *gormRepository) ReplaceCanvasGraph(ctx context.Context, cv canvasdomain.Canvas, nodes []canvasdomain.CanvasNode, edges []canvasdomain.CanvasEdge) error {
 	modelCV := cv.ToModel()
 	modelNodes := canvasNodeRows(nodes)
 	modelEdges := canvasEdgeRows(edges)
@@ -235,7 +235,7 @@ func (r *gormRepository) ReplaceCanvasGraph(ctx context.Context, cv canvasruntim
 	})
 }
 
-func canvasNodeRows(nodes []canvasruntime.CanvasNode) []persistencemodel.CanvasNode {
+func canvasNodeRows(nodes []canvasdomain.CanvasNode) []persistencemodel.CanvasNode {
 	rows := make([]persistencemodel.CanvasNode, 0, len(nodes))
 	for _, node := range nodes {
 		rows = append(rows, node.ToModel())
@@ -243,7 +243,7 @@ func canvasNodeRows(nodes []canvasruntime.CanvasNode) []persistencemodel.CanvasN
 	return rows
 }
 
-func canvasEdgeRows(edges []canvasruntime.CanvasEdge) []persistencemodel.CanvasEdge {
+func canvasEdgeRows(edges []canvasdomain.CanvasEdge) []persistencemodel.CanvasEdge {
 	rows := make([]persistencemodel.CanvasEdge, 0, len(edges))
 	for _, edge := range edges {
 		rows = append(rows, edge.ToModel())
@@ -251,7 +251,7 @@ func canvasEdgeRows(edges []canvasruntime.CanvasEdge) []persistencemodel.CanvasE
 	return rows
 }
 
-func canvasTaskRows(tasks []canvasruntime.CanvasTask) []persistencemodel.CanvasTask {
+func canvasTaskRows(tasks []canvasdomain.CanvasTask) []persistencemodel.CanvasTask {
 	rows := make([]persistencemodel.CanvasTask, 0, len(tasks))
 	for _, task := range tasks {
 		rows = append(rows, task.ToModel())
@@ -259,24 +259,24 @@ func canvasTaskRows(tasks []canvasruntime.CanvasTask) []persistencemodel.CanvasT
 	return rows
 }
 
-func (r *gormRepository) GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasruntime.Canvas, error) {
+func (r *gormRepository) GetOwnedCanvas(ctx context.Context, id string, ownerID uint, orgID *uint) (canvasdomain.Canvas, error) {
 	var cv persistencemodel.Canvas
 	if err := r.db.WithContext(ctx).First(&cv, id).Error; err != nil {
-		return canvasruntime.CanvasFromModel(cv), err
+		return canvasdomain.CanvasFromModel(cv), err
 	}
 	if cv.OwnerID != ownerID {
-		return canvasruntime.CanvasFromModel(cv), ErrCanvasForbidden
+		return canvasdomain.CanvasFromModel(cv), ErrCanvasForbidden
 	}
 	if !r.IsInOrgScope(ctx, cv.OrgID, orgID, cv.OwnerID, ownerID) {
-		return canvasruntime.CanvasFromModel(cv), ErrCanvasForbidden
+		return canvasdomain.CanvasFromModel(cv), ErrCanvasForbidden
 	}
-	return canvasruntime.CanvasFromModel(cv), nil
+	return canvasdomain.CanvasFromModel(cv), nil
 }
 
-func (r *gormRepository) GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasruntime.CanvasNode, error) {
+func (r *gormRepository) GetNode(ctx context.Context, canvasID uint, nodeID string) (canvasdomain.CanvasNode, error) {
 	var node persistencemodel.CanvasNode
 	err := r.db.WithContext(ctx).Where("canvas_id = ? AND node_id = ?", canvasID, nodeID).First(&node).Error
-	return canvasruntime.CanvasNodeFromModel(node), err
+	return canvasdomain.CanvasNodeFromModel(node), err
 }
 
 func (r *gormRepository) ListRuns(ctx context.Context, canvasID uint, status string, pageMode bool, page int, pageSize int) (CanvasRunListPage, error) {
@@ -297,18 +297,18 @@ func (r *gormRepository) ListRuns(ctx context.Context, canvasID uint, status str
 	} else if err := q.Limit(20).Find(&items).Error; err != nil {
 		return CanvasRunListPage{}, err
 	}
-	return CanvasRunListPage{Items: canvasruntime.CanvasRunsFromModels(items), Total: total}, nil
+	return CanvasRunListPage{Items: canvasdomain.CanvasRunsFromModels(items), Total: total}, nil
 }
 
-func (r *gormRepository) GetRun(ctx context.Context, canvasID uint, runID string) (canvasruntime.CanvasRun, error) {
+func (r *gormRepository) GetRun(ctx context.Context, canvasID uint, runID string) (canvasdomain.CanvasRun, error) {
 	var run persistencemodel.CanvasRun
 	if err := r.db.WithContext(ctx).Where("canvas_id = ? AND id = ?", canvasID, runID).Preload("Tasks.Resource").First(&run).Error; err != nil {
-		return canvasruntime.CanvasRun{}, err
+		return canvasdomain.CanvasRun{}, err
 	}
-	return canvasruntime.CanvasRunFromModel(run), nil
+	return canvasdomain.CanvasRunFromModel(run), nil
 }
 
-func (r *gormRepository) ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]canvasruntime.CanvasTask, error) {
+func (r *gormRepository) ListRunTasks(ctx context.Context, canvasID uint, runID string) ([]canvasdomain.CanvasTask, error) {
 	var run persistencemodel.CanvasRun
 	if err := r.db.WithContext(ctx).Where("canvas_id = ? AND id = ?", canvasID, runID).First(&run).Error; err != nil {
 		return nil, err
@@ -317,31 +317,31 @@ func (r *gormRepository) ListRunTasks(ctx context.Context, canvasID uint, runID 
 	if err := r.db.WithContext(ctx).Where("canvas_run_id = ?", run.ID).Preload("Resource").Order("id asc").Find(&tasks).Error; err != nil {
 		return nil, err
 	}
-	return canvasruntime.CanvasTasksFromModels(tasks), nil
+	return canvasdomain.CanvasTasksFromModels(tasks), nil
 }
 
-func (r *gormRepository) LatestNodeTask(ctx context.Context, canvasID string, nodeID string) (canvasruntime.CanvasNode, canvasruntime.CanvasTask, error) {
+func (r *gormRepository) LatestNodeTask(ctx context.Context, canvasID string, nodeID string) (canvasdomain.CanvasNode, canvasdomain.CanvasTask, error) {
 	var node persistencemodel.CanvasNode
 	if err := r.db.WithContext(ctx).Where("canvas_id = ? AND node_id = ?", canvasID, nodeID).First(&node).Error; err != nil {
-		return canvasruntime.CanvasNodeFromModel(node), canvasruntime.CanvasTask{}, err
+		return canvasdomain.CanvasNodeFromModel(node), canvasdomain.CanvasTask{}, err
 	}
 	var task persistencemodel.CanvasTask
 	if err := r.db.WithContext(ctx).Where("canvas_node_id = ?", node.ID).Preload("Resource").Order("id desc").First(&task).Error; err != nil {
-		return canvasruntime.CanvasNodeFromModel(node), canvasruntime.CanvasTaskFromModel(task), err
+		return canvasdomain.CanvasNodeFromModel(node), canvasdomain.CanvasTaskFromModel(task), err
 	}
-	return canvasruntime.CanvasNodeFromModel(node), canvasruntime.CanvasTaskFromModel(task), nil
+	return canvasdomain.CanvasNodeFromModel(node), canvasdomain.CanvasTaskFromModel(task), nil
 }
 
-func (r *gormRepository) ListNodeTasks(ctx context.Context, canvasID string, nodeID string) (canvasruntime.CanvasNode, []canvasruntime.CanvasTask, error) {
+func (r *gormRepository) ListNodeTasks(ctx context.Context, canvasID string, nodeID string) (canvasdomain.CanvasNode, []canvasdomain.CanvasTask, error) {
 	var node persistencemodel.CanvasNode
 	if err := r.db.WithContext(ctx).Where("canvas_id = ? AND node_id = ?", canvasID, nodeID).First(&node).Error; err != nil {
-		return canvasruntime.CanvasNodeFromModel(node), nil, err
+		return canvasdomain.CanvasNodeFromModel(node), nil, err
 	}
 	tasks := make([]persistencemodel.CanvasTask, 0)
 	if err := r.db.WithContext(ctx).Where("canvas_node_id = ?", node.ID).Preload("Resource").Order("id desc").Find(&tasks).Error; err != nil {
-		return canvasruntime.CanvasNodeFromModel(node), nil, err
+		return canvasdomain.CanvasNodeFromModel(node), nil, err
 	}
-	return canvasruntime.CanvasNodeFromModel(node), canvasruntime.CanvasTasksFromModels(tasks), nil
+	return canvasdomain.CanvasNodeFromModel(node), canvasdomain.CanvasTasksFromModels(tasks), nil
 }
 
 func (r *gormRepository) IsInOrgScope(ctx context.Context, entityOrgID *uint, currentOrgID *uint, ownerID uint, userID uint) bool {
@@ -396,7 +396,7 @@ func (r *gormRepository) ListEntityWriteAudits(ctx context.Context, filter Entit
 	if err := q.Order("canvas_entity_write_audits.id desc").Limit(filter.PageSize).Offset((filter.Page - 1) * filter.PageSize).Find(&items).Error; err != nil {
 		return EntityWriteAuditPage{}, err
 	}
-	return EntityWriteAuditPage{Items: canvasruntime.EntityWriteAuditsFromModels(items), Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
+	return EntityWriteAuditPage{Items: canvasdomain.EntityWriteAuditsFromModels(items), Total: total, Page: filter.Page, PageSize: filter.PageSize}, nil
 }
 
 func (r *gormRepository) applyOrgScope(ctx context.Context, q *gorm.DB, orgID *uint, ownerID uint) *gorm.DB {
@@ -420,15 +420,15 @@ func (r *gormRepository) includeLegacyPersonal(ctx context.Context, orgID *uint)
 	return org.IsPersonal
 }
 
-func (r *gormRepository) CreateTask(ctx context.Context, task canvasruntime.CanvasTask) (canvasruntime.CanvasTask, error) {
+func (r *gormRepository) CreateTask(ctx context.Context, task canvasdomain.CanvasTask) (canvasdomain.CanvasTask, error) {
 	modelTask := task.ToModel()
 	if err := r.db.WithContext(ctx).Create(&modelTask).Error; err != nil {
-		return canvasruntime.CanvasTaskFromModel(modelTask), err
+		return canvasdomain.CanvasTaskFromModel(modelTask), err
 	}
-	return canvasruntime.CanvasTaskFromModel(modelTask), nil
+	return canvasdomain.CanvasTaskFromModel(modelTask), nil
 }
 
-func (r *gormRepository) UpdateTask(ctx context.Context, task canvasruntime.CanvasTask, patch canvasruntime.CanvasTaskPatch) error {
+func (r *gormRepository) UpdateTask(ctx context.Context, task canvasdomain.CanvasTask, patch canvasdomain.CanvasTaskPatch) error {
 	updates := canvasTaskPatchColumns(patch)
 	if len(updates) == 0 {
 		return nil
@@ -437,7 +437,7 @@ func (r *gormRepository) UpdateTask(ctx context.Context, task canvasruntime.Canv
 	return r.db.WithContext(ctx).Model(&modelTask).Updates(updates).Error
 }
 
-func canvasTaskPatchColumns(patch canvasruntime.CanvasTaskPatch) map[string]any {
+func canvasTaskPatchColumns(patch canvasdomain.CanvasTaskPatch) map[string]any {
 	updates := make(map[string]any)
 	if strings.TrimSpace(patch.Status) != "" {
 		updates["status"] = patch.Status
@@ -454,59 +454,59 @@ func canvasTaskPatchColumns(patch canvasruntime.CanvasTaskPatch) map[string]any 
 	return updates
 }
 
-func (r *gormRepository) SaveTask(ctx context.Context, task canvasruntime.CanvasTask) error {
+func (r *gormRepository) SaveTask(ctx context.Context, task canvasdomain.CanvasTask) error {
 	modelTask := task.ToModel()
 	return r.db.WithContext(ctx).Save(&modelTask).Error
 }
 
-func (r *gormRepository) FindTask(ctx context.Context, taskID uint) (canvasruntime.CanvasTask, error) {
+func (r *gormRepository) FindTask(ctx context.Context, taskID uint) (canvasdomain.CanvasTask, error) {
 	var task persistencemodel.CanvasTask
 	if err := r.db.WithContext(ctx).First(&task, taskID).Error; err != nil {
-		return canvasruntime.CanvasTaskFromModel(task), err
+		return canvasdomain.CanvasTaskFromModel(task), err
 	}
-	return canvasruntime.CanvasTaskFromModel(task), nil
+	return canvasdomain.CanvasTaskFromModel(task), nil
 }
 
-func (r *gormRepository) SaveNode(ctx context.Context, node canvasruntime.CanvasNode) error {
+func (r *gormRepository) SaveNode(ctx context.Context, node canvasdomain.CanvasNode) error {
 	modelNode := node.ToModel()
 	return r.db.WithContext(ctx).Save(&modelNode).Error
 }
 
-func (r *gormRepository) CreateCanvasRun(ctx context.Context, run canvasruntime.CanvasRun) (canvasruntime.CanvasRun, error) {
+func (r *gormRepository) CreateCanvasRun(ctx context.Context, run canvasdomain.CanvasRun) (canvasdomain.CanvasRun, error) {
 	modelRun := run.ToModel()
 	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
 	if err := db.Create(&modelRun).Error; err != nil {
-		return canvasruntime.CanvasRunFromModel(modelRun), err
+		return canvasdomain.CanvasRunFromModel(modelRun), err
 	}
-	if err := entityrelation.SyncCoreEntityRelations(db, &modelRun); err != nil {
-		return canvasruntime.CanvasRunFromModel(modelRun), err
+	if err := relation.SyncCoreEntityRelations(db, &modelRun); err != nil {
+		return canvasdomain.CanvasRunFromModel(modelRun), err
 	}
-	return canvasruntime.CanvasRunFromModel(modelRun), nil
+	return canvasdomain.CanvasRunFromModel(modelRun), nil
 }
 
-func (r *gormRepository) SaveCanvasRun(ctx context.Context, run canvasruntime.CanvasRun) error {
+func (r *gormRepository) SaveCanvasRun(ctx context.Context, run canvasdomain.CanvasRun) error {
 	modelRun := run.ToModel()
 	db := r.db.WithContext(ctx).Session(&gorm.Session{SkipHooks: true})
 	if err := db.Save(&modelRun).Error; err != nil {
 		return err
 	}
-	return entityrelation.SyncCoreEntityRelations(db, &modelRun)
+	return relation.SyncCoreEntityRelations(db, &modelRun)
 }
 
-func (r *gormRepository) FindCanvasRun(ctx context.Context, runID uint) (canvasruntime.CanvasRun, error) {
+func (r *gormRepository) FindCanvasRun(ctx context.Context, runID uint) (canvasdomain.CanvasRun, error) {
 	var run persistencemodel.CanvasRun
 	if err := r.db.WithContext(ctx).First(&run, runID).Error; err != nil {
-		return canvasruntime.CanvasRunFromModel(run), err
+		return canvasdomain.CanvasRunFromModel(run), err
 	}
-	return canvasruntime.CanvasRunFromModel(run), nil
+	return canvasdomain.CanvasRunFromModel(run), nil
 }
 
-func (r *gormRepository) ListCanvasRunTasks(ctx context.Context, runID uint) ([]canvasruntime.CanvasTask, error) {
+func (r *gormRepository) ListCanvasRunTasks(ctx context.Context, runID uint) ([]canvasdomain.CanvasTask, error) {
 	tasks := make([]persistencemodel.CanvasTask, 0)
 	if err := r.db.WithContext(ctx).Where("canvas_run_id = ?", runID).Find(&tasks).Error; err != nil {
 		return nil, err
 	}
-	return canvasruntime.CanvasTasksFromModels(tasks), nil
+	return canvasdomain.CanvasTasksFromModels(tasks), nil
 }
 
 func (r *gormRepository) CanvasUsageScope(ctx context.Context, canvasID uint) (*uint, *uint, error) {
@@ -525,46 +525,46 @@ func (r *gormRepository) CanvasOrgID(ctx context.Context, canvasID uint) (*uint,
 	return cv.OrgID, nil
 }
 
-func (r *gormRepository) LatestDoneTaskForNode(ctx context.Context, canvasNodeID uint) (canvasruntime.CanvasTask, bool, error) {
+func (r *gormRepository) LatestDoneTaskForNode(ctx context.Context, canvasNodeID uint) (canvasdomain.CanvasTask, bool, error) {
 	var task persistencemodel.CanvasTask
-	err := r.db.WithContext(ctx).Where("canvas_node_id = ? AND status = ?", canvasNodeID, canvasruntime.CanvasTaskStatusDone).Order("id desc").First(&task).Error
+	err := r.db.WithContext(ctx).Where("canvas_node_id = ? AND status = ?", canvasNodeID, canvasdomain.CanvasTaskStatusDone).Order("id desc").First(&task).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return canvasruntime.CanvasTaskFromModel(task), false, nil
+			return canvasdomain.CanvasTaskFromModel(task), false, nil
 		}
-		return canvasruntime.CanvasTaskFromModel(task), false, err
+		return canvasdomain.CanvasTaskFromModel(task), false, err
 	}
-	return canvasruntime.CanvasTaskFromModel(task), true, nil
+	return canvasdomain.CanvasTaskFromModel(task), true, nil
 }
 
-func (r *gormRepository) LatestCompletedRun(ctx context.Context, canvasID uint) (canvasruntime.CanvasRun, error) {
+func (r *gormRepository) LatestCompletedRun(ctx context.Context, canvasID uint) (canvasdomain.CanvasRun, error) {
 	var run persistencemodel.CanvasRun
-	err := r.db.WithContext(ctx).Where("canvas_id = ? AND status = ?", canvasID, canvasruntime.CanvasRunStatusDone).Order("id desc").First(&run).Error
-	return canvasruntime.CanvasRunFromModel(run), err
+	err := r.db.WithContext(ctx).Where("canvas_id = ? AND status = ?", canvasID, canvasdomain.CanvasRunStatusDone).Order("id desc").First(&run).Error
+	return canvasdomain.CanvasRunFromModel(run), err
 }
 
-func (r *gormRepository) FindRunInCanvas(ctx context.Context, canvasID uint, runID uint) (canvasruntime.CanvasRun, bool, error) {
+func (r *gormRepository) FindRunInCanvas(ctx context.Context, canvasID uint, runID uint) (canvasdomain.CanvasRun, bool, error) {
 	var run persistencemodel.CanvasRun
 	err := r.db.WithContext(ctx).Where("canvas_id = ? AND id = ?", canvasID, runID).First(&run).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return canvasruntime.CanvasRunFromModel(run), false, nil
+			return canvasdomain.CanvasRunFromModel(run), false, nil
 		}
-		return canvasruntime.CanvasRunFromModel(run), false, err
+		return canvasdomain.CanvasRunFromModel(run), false, err
 	}
-	return canvasruntime.CanvasRunFromModel(run), true, nil
+	return canvasdomain.CanvasRunFromModel(run), true, nil
 }
 
-func (r *gormRepository) ListOutputNodes(ctx context.Context, canvasID uint) ([]canvasruntime.CanvasNode, error) {
+func (r *gormRepository) ListOutputNodes(ctx context.Context, canvasID uint) ([]canvasdomain.CanvasNode, error) {
 	nodes := make([]persistencemodel.CanvasNode, 0)
 	err := r.db.WithContext(ctx).Where("canvas_id = ? AND type = ?", canvasID, "output").Order("id asc").Find(&nodes).Error
 	if err != nil {
 		return nil, err
 	}
-	return canvasruntime.CanvasNodesFromModels(nodes), nil
+	return canvasdomain.CanvasNodesFromModels(nodes), nil
 }
 
-func (r *gormRepository) ListTasksForRunAndNodes(ctx context.Context, runID uint, nodeIDs []uint) ([]canvasruntime.CanvasTask, error) {
+func (r *gormRepository) ListTasksForRunAndNodes(ctx context.Context, runID uint, nodeIDs []uint) ([]canvasdomain.CanvasTask, error) {
 	tasks := make([]persistencemodel.CanvasTask, 0)
 	q := r.db.WithContext(ctx).Where("canvas_run_id = ?", runID)
 	if len(nodeIDs) > 0 {
@@ -573,39 +573,39 @@ func (r *gormRepository) ListTasksForRunAndNodes(ctx context.Context, runID uint
 	if err := q.Order("id asc").Find(&tasks).Error; err != nil {
 		return nil, err
 	}
-	return canvasruntime.CanvasTasksFromModels(tasks), nil
+	return canvasdomain.CanvasTasksFromModels(tasks), nil
 }
 
-func (r *gormRepository) GetCanvasForRunExecution(ctx context.Context, canvasID uint, runID uint) (canvasruntime.CanvasRun, canvasruntime.CanvasGraph, error) {
+func (r *gormRepository) GetCanvasForRunExecution(ctx context.Context, canvasID uint, runID uint) (canvasdomain.CanvasRun, canvasdomain.CanvasGraph, error) {
 	var run persistencemodel.CanvasRun
 	if err := r.db.WithContext(ctx).First(&run, runID).Error; err != nil {
-		return canvasruntime.CanvasRunFromModel(run), canvasruntime.CanvasGraph{}, err
+		return canvasdomain.CanvasRunFromModel(run), canvasdomain.CanvasGraph{}, err
 	}
-	graph, err := canvasruntime.CanvasGraphFromRunSnapshot(canvasID, run.GraphSnapshot)
+	graph, err := canvasdomain.CanvasGraphFromRunSnapshot(canvasID, run.GraphSnapshot)
 	if err == nil {
-		return canvasruntime.CanvasRunFromModel(run), graph, nil
+		return canvasdomain.CanvasRunFromModel(run), graph, nil
 	}
 	var cv persistencemodel.Canvas
 	if err := r.db.WithContext(ctx).Preload("Nodes").Preload("Edges").First(&cv, canvasID).Error; err != nil {
-		return canvasruntime.CanvasRunFromModel(run), canvasruntime.CanvasGraphFromModel(cv), err
+		return canvasdomain.CanvasRunFromModel(run), canvasdomain.CanvasGraphFromModel(cv), err
 	}
-	return canvasruntime.CanvasRunFromModel(run), canvasruntime.CanvasGraphFromModel(cv), nil
+	return canvasdomain.CanvasRunFromModel(run), canvasdomain.CanvasGraphFromModel(cv), nil
 }
 
 func (r *gormRepository) FailRunNotFound(ctx context.Context, runID uint, finishedAt *time.Time) error {
 	return r.db.WithContext(ctx).Model(&persistencemodel.CanvasRun{}).Where("id = ?", runID).Updates(map[string]any{
-		"status":      canvasruntime.CanvasRunStatusFailed,
+		"status":      canvasdomain.CanvasRunStatusFailed,
 		"error":       "run not found",
 		"finished_at": finishedAt,
 	}).Error
 }
 
-func (r *gormRepository) ListRunTasksOrdered(ctx context.Context, runID uint) ([]canvasruntime.CanvasTask, error) {
+func (r *gormRepository) ListRunTasksOrdered(ctx context.Context, runID uint) ([]canvasdomain.CanvasTask, error) {
 	tasks := make([]persistencemodel.CanvasTask, 0)
 	if err := r.db.WithContext(ctx).Where("canvas_run_id = ?", runID).Order("id asc").Find(&tasks).Error; err != nil {
 		return nil, err
 	}
-	return canvasruntime.CanvasTasksFromModels(tasks), nil
+	return canvasdomain.CanvasTasksFromModels(tasks), nil
 }
 
 func (r *gormRepository) FindResources(ctx context.Context, ids []uint) ([]domainresource.RawResource, error) {
@@ -788,20 +788,20 @@ func (r *gormRepository) attachGeneratedAssetSlotCandidate(ctx context.Context, 
 				CreativeReferenceStateID: sourceSlot.CreativeReferenceStateID,
 				OwnerType:                "asset_slot",
 				OwnerID:                  &sourceSlot.ID,
-				Kind:                     canvasruntime.FirstNonEmptyString(sourceSlot.Kind, "image"),
+				Kind:                     canvasdomain.FirstNonEmptyString(sourceSlot.Kind, "image"),
 				Name:                     name + " · 生成候选",
-				Description:              canvasruntime.FirstNonEmptyString(sourceSlot.Description, sourceSlot.PromptHint),
+				Description:              canvasdomain.FirstNonEmptyString(sourceSlot.Description, sourceSlot.PromptHint),
 				SlotKey:                  sourceSlot.SlotKey,
 				PromptHint:               sourceSlot.PromptHint,
 				Status:                   domainsemantic.AssetSlotStatusCandidate,
-				Priority:                 canvasruntime.FirstNonEmptyString(sourceSlot.Priority, "normal"),
+				Priority:                 canvasdomain.FirstNonEmptyString(sourceSlot.Priority, "normal"),
 				ResourceID:               &input.ResourceID,
 				MetadataJSON:             input.BindingMeta,
 			}).ToModel()
 			if err := db.Create(&candidateSlot).Error; err != nil {
 				return nil
 			}
-			if err := entityrelation.SyncCoreEntityRelations(db, &candidateSlot); err != nil {
+			if err := relation.SyncCoreEntityRelations(db, &candidateSlot); err != nil {
 				return nil
 			}
 		}
@@ -855,12 +855,12 @@ func (r *gormRepository) attachGeneratedAssetSlotCandidate(ctx context.Context, 
 			SourceType:           domainresourcebinding.SourceTypeCanvas,
 			SourceID:             &sourceID,
 			Status:               domainsemantic.AssetSlotCandidateStatusCandidate,
-			Note:                 canvasruntime.FirstNonEmptyString(input.CandidateNote, "由素材生成画布写回"),
+			Note:                 canvasdomain.FirstNonEmptyString(input.CandidateNote, "由素材生成画布写回"),
 		}).ToModel()
 		if err := db.Create(&existing).Error; err != nil {
 			return nil
 		}
-		if err := entityrelation.SyncCoreEntityRelations(db, &existing); err != nil {
+		if err := relation.SyncCoreEntityRelations(db, &existing); err != nil {
 			return nil
 		}
 	} else {
@@ -870,17 +870,17 @@ func (r *gormRepository) attachGeneratedAssetSlotCandidate(ctx context.Context, 
 		if err := db.Save(&existing).Error; err != nil {
 			return nil
 		}
-		if err := entityrelation.SyncCoreEntityRelations(db, &existing); err != nil {
+		if err := relation.SyncCoreEntityRelations(db, &existing); err != nil {
 			return nil
 		}
 	}
 	if input.OutputTarget != nil {
 		target := *input.OutputTarget
-		canvasruntime.AttachCanvasOutput(&target, input.CanvasRunID, input.ResourceID, input.OutputValueRaw)
+		canvasdomain.AttachCanvasOutput(&target, input.CanvasRunID, input.ResourceID, input.OutputValueRaw)
 		if err := db.Save(&target).Error; err != nil {
 			return nil
 		}
-		_ = entityrelation.SyncCoreEntityRelations(db, &target)
+		_ = relation.SyncCoreEntityRelations(db, &target)
 	}
 	return nil
 }
@@ -966,7 +966,7 @@ func saveCanvasWithRelations(db *gorm.DB, cv *persistencemodel.Canvas) error {
 	if err := db.Save(cv).Error; err != nil {
 		return err
 	}
-	return entityrelation.SyncCoreEntityRelations(db, cv)
+	return relation.SyncCoreEntityRelations(db, cv)
 }
 
 func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *persistencemodel.Canvas) error {
@@ -974,7 +974,7 @@ func createAssetSlotCanvasTargetNode(tx *gorm.DB, cv *persistencemodel.Canvas) e
 	if err := tx.First(&slot, *cv.RefID).Error; err != nil {
 		return err
 	}
-	node := canvasruntime.NewAssetSlotTargetNode(canvasruntime.AssetSlotTargetNodeInput{
+	node := canvasdomain.NewAssetSlotTargetNode(canvasdomain.AssetSlotTargetNodeInput{
 		CanvasID:      cv.ID,
 		AssetSlotID:   slot.ID,
 		AssetKind:     slot.Kind,

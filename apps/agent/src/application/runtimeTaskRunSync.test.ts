@@ -2,7 +2,10 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
 import type { AgentRun, AgentTask } from '../state/types.js'
-import { syncRuntimeTaskFromRun } from './runtimeTaskRunSync.js'
+import {
+  applyRuntimeTaskRunSync,
+  syncRuntimeTaskFromRun,
+} from './runtimeTaskRunSync.js'
 
 test('syncRuntimeTaskFromRun projects terminal worker run state onto its task', () => {
   const store = new InMemoryAgentStore()
@@ -49,6 +52,30 @@ test('syncRuntimeTaskFromRun ignores runs without plan task ownership', () => {
     runId: 'run_chat',
     now: '2026-01-01T00:00:03.000Z',
   }), undefined)
+})
+
+test('applyRuntimeTaskRunSync invokes plan and task callbacks after projection', () => {
+  const store = new InMemoryAgentStore()
+  store.createRun(makeRun({
+    id: 'run_worker',
+    status: 'failed',
+    failedAt: '2026-01-01T00:00:02.000Z',
+    taskId: 'task_1',
+    error: 'Tool failed.',
+  }))
+  store.createTask(makeTask({ id: 'task_1', status: 'running', progress: 0.4 }))
+  const events: string[] = []
+
+  const result = applyRuntimeTaskRunSync({
+    store,
+    runId: 'run_worker',
+    now: '2026-01-01T00:00:03.000Z',
+    onPlanSynced: (planId) => events.push(`plan:${planId}`),
+    onTaskSynced: (task, previousTask, planId) => events.push(`${planId}:${previousTask.status}->${task.status}:${task.id}`),
+  })
+
+  assert.equal(result?.task.status, 'failed')
+  assert.deepEqual(events, ['plan:plan_1', 'plan_1:running->failed:task_1'])
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {

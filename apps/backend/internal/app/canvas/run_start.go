@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )
 
-func (h *Service) StartNode(ctx context.Context, userID uint, cv canvasruntime.Canvas, node canvasruntime.CanvasNode, inputValues map[string]canvasPortValue) (canvasruntime.CanvasTask, error) {
+func (h *Service) StartNode(ctx context.Context, userID uint, cv canvasdomain.Canvas, node canvasdomain.CanvasNode, inputValues map[string]canvasPortValue) (canvasdomain.CanvasTask, error) {
 	task, err := h.startNodeModel(ctx, &persistencemodel.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), node.ToModel(), inputValues)
-	return canvasruntime.CanvasTaskFromModel(task), err
+	return canvasdomain.CanvasTaskFromModel(task), err
 }
 
 func (h *Service) startNodeModel(ctx context.Context, user *persistencemodel.User, cv persistencemodel.Canvas, node persistencemodel.CanvasNode, inputValues map[string]canvasPortValue) (persistencemodel.CanvasTask, error) {
@@ -19,7 +19,7 @@ func (h *Service) startNodeModel(ctx context.Context, user *persistencemodel.Use
 	if err != nil {
 		return persistencemodel.CanvasTask{}, err
 	}
-	task := canvasruntime.NewCanvasTask(node, nil, canvasruntime.MarshalPortInputs(inputs)).ToModel()
+	task := canvasdomain.NewCanvasTask(node, nil, canvasdomain.MarshalPortInputs(inputs)).ToModel()
 	if err := h.createTaskRow(ctx, &task); err != nil {
 		return persistencemodel.CanvasTask{}, err
 	}
@@ -27,21 +27,21 @@ func (h *Service) startNodeModel(ctx context.Context, user *persistencemodel.Use
 	return task, nil
 }
 
-func (h *Service) StartCanvasRun(userID uint, cv canvasruntime.Canvas, inputValues map[string]canvasPortValue) (canvasruntime.CanvasRun, []canvasruntime.CanvasTask, error) {
+func (h *Service) StartCanvasRun(userID uint, cv canvasdomain.Canvas, inputValues map[string]canvasPortValue) (canvasdomain.CanvasRun, []canvasdomain.CanvasTask, error) {
 	run, tasks, err := h.startCanvasRunModel(&persistencemodel.User{Model: gorm.Model{ID: userID}}, cv.ToModel(), inputValues)
-	return canvasruntime.CanvasRunFromModel(run), canvasruntime.CanvasTasksFromModels(tasks), err
+	return canvasdomain.CanvasRunFromModel(run), canvasdomain.CanvasTasksFromModels(tasks), err
 }
 
 func (h *Service) startCanvasRunModel(user *persistencemodel.User, cv persistencemodel.Canvas, inputValues map[string]canvasPortValue) (persistencemodel.CanvasRun, []persistencemodel.CanvasTask, error) {
-	plan, err := canvasruntime.BuildExecutionPlan(cv)
+	plan, err := canvasdomain.BuildExecutionPlan(cv)
 	if err != nil {
 		return persistencemodel.CanvasRun{}, nil, err
 	}
-	if err := canvasruntime.ValidateRequiredInputs(cv, inputValues); err != nil {
+	if err := canvasdomain.ValidateRequiredInputs(cv, inputValues); err != nil {
 		return persistencemodel.CanvasRun{}, nil, err
 	}
 	now := time.Now()
-	run := canvasruntime.NewCanvasRun(cv, inputValues, now).ToModel()
+	run := canvasdomain.NewCanvasRun(cv, inputValues, now).ToModel()
 	if err := h.createCanvasRunWithRelations(&run); err != nil {
 		return persistencemodel.CanvasRun{}, nil, err
 	}
@@ -52,7 +52,7 @@ func (h *Service) startCanvasRunModel(user *persistencemodel.User, cv persistenc
 		if node == nil {
 			continue
 		}
-		task := canvasruntime.NewTask(*node, &run.ID, "").ToModel()
+		task := canvasdomain.NewTask(*node, &run.ID, "").ToModel()
 		if err := h.createTaskRow(context.Background(), &task); err != nil {
 			return run, tasks, err
 		}
@@ -60,7 +60,7 @@ func (h *Service) startCanvasRunModel(user *persistencemodel.User, cv persistenc
 	}
 
 	if len(tasks) == 0 {
-		canvasruntime.CompleteCanvasRun(&run, time.Now())
+		canvasdomain.CompleteCanvasRun(&run, time.Now())
 		if err := h.saveCanvasRunWithRelations(&run); err != nil {
 			return run, tasks, err
 		}

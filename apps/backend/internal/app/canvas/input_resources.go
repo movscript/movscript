@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	domainresource "github.com/movscript/movscript/internal/domain/resource"
 	"github.com/movscript/movscript/internal/infra/ai"
 )
@@ -48,7 +48,7 @@ func (h *Service) readCanvasTextValues(ctx context.Context, values []canvasPortV
 	texts := make([]string, 0, len(values))
 	var resourcePtrs []*uint
 	for _, value := range values {
-		if text := strings.TrimSpace(canvasruntime.PortValueText(value)); text != "" {
+		if text := strings.TrimSpace(canvasdomain.PortValueText(value)); text != "" {
 			texts = append(texts, text)
 			continue
 		}

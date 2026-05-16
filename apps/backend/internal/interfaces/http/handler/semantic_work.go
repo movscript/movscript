@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 )
 
 func (h *SemanticEntityHandler) ListWorkItems(c *gin.Context) {
@@ -20,7 +20,7 @@ func (h *SemanticEntityHandler) ListWorkItems(c *gin.Context) {
 		Status:       c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -34,7 +34,7 @@ func (h *SemanticEntityHandler) CreateWorkItem(c *gin.Context) {
 	}
 	var req semanticapp.WorkItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateWorkItem(c.Request.Context(), projectID, semanticapp.WorkAuth{Role: role}, req)
@@ -53,7 +53,7 @@ func (h *SemanticEntityHandler) PatchWorkItem(c *gin.Context) {
 	}
 	var req semanticapp.WorkItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchWorkItem(c.Request.Context(), projectID, c.Param("workItemId"), semanticapp.WorkAuth{Role: role, UserID: userID}, req)
@@ -88,7 +88,7 @@ func (h *SemanticEntityHandler) ListWorkReviews(c *gin.Context) {
 		Status:     c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -102,7 +102,7 @@ func (h *SemanticEntityHandler) CreateWorkReview(c *gin.Context) {
 	}
 	var req semanticapp.WorkReviewInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateWorkReview(c.Request.Context(), projectID, semanticapp.WorkAuth{Role: role, UserID: userID}, req)
@@ -121,7 +121,7 @@ func (h *SemanticEntityHandler) PatchWorkReview(c *gin.Context) {
 	}
 	var req semanticapp.WorkReviewInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchWorkReview(c.Request.Context(), projectID, c.Param("reviewId"), semanticapp.WorkAuth{Role: role}, req)
@@ -155,7 +155,7 @@ func (h *SemanticEntityHandler) ListWorkDependencies(c *gin.Context) {
 		WorkItemID: parseID(c.Query("work_item_id")),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -169,7 +169,7 @@ func (h *SemanticEntityHandler) CreateWorkDependency(c *gin.Context) {
 	}
 	var req semanticapp.WorkDependencyInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateWorkDependency(c.Request.Context(), projectID, semanticapp.WorkAuth{Role: role}, req)
@@ -188,7 +188,7 @@ func (h *SemanticEntityHandler) PatchWorkDependency(c *gin.Context) {
 	}
 	var req semanticapp.WorkDependencyInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchWorkDependency(c.Request.Context(), projectID, c.Param("dependencyId"), semanticapp.WorkAuth{Role: role}, req)

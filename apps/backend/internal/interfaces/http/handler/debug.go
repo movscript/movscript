@@ -10,12 +10,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	adminsettings "github.com/movscript/movscript/internal/app/adminsettings"
+	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
 	debugapp "github.com/movscript/movscript/internal/app/debug"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/observability"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"gorm.io/gorm"
 )
 
@@ -77,7 +77,10 @@ func (h *DebugHandler) RawCall(c *gin.Context) {
 // ListJobs returns Jobs with full debug info for the job monitor.
 // GET /admin/debug/jobs?status=&limit=&offset=
 func (h *DebugHandler) ListJobs(c *gin.Context) {
-	status := c.Query("status") // optional filter
+	filters, ok := debugJobFiltersFromQuery(c)
+	if !ok {
+		return
+	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 	if limit <= 0 || limit > 200 {
@@ -87,7 +90,7 @@ func (h *DebugHandler) ListJobs(c *gin.Context) {
 		offset = 0
 	}
 
-	items, total, err := h.service.ListJobDetails(c.Request.Context(), status, limit, offset)
+	items, total, err := h.service.ListJobDetails(c.Request.Context(), filters, limit, offset)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -95,6 +98,51 @@ func (h *DebugHandler) ListJobs(c *gin.Context) {
 
 	c.Header("X-Total-Count", strconv.FormatInt(total, 10))
 	c.JSON(http.StatusOK, items)
+}
+
+func debugJobFiltersFromQuery(c *gin.Context) (debugapp.JobFilters, bool) {
+	jobID, ok := optionalDebugJobUintQuery(c, "job_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	userID, ok := optionalDebugJobUintQuery(c, "user_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	orgID, ok := optionalDebugJobUintQuery(c, "org_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	projectID, ok := optionalDebugJobUintQuery(c, "project_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	modelConfigID, ok := optionalDebugJobUintQuery(c, "model_config_id")
+	if !ok {
+		return debugapp.JobFilters{}, false
+	}
+	return debugapp.JobFilters{
+		JobID:         jobID,
+		Status:        c.Query("status"),
+		JobType:       c.Query("job_type"),
+		FeatureKey:    c.Query("feature_key"),
+		UserID:        userID,
+		OrgID:         orgID,
+		ProjectID:     projectID,
+		ModelConfigID: modelConfigID,
+	}, true
+}
+
+func optionalDebugJobUintQuery(c *gin.Context, key string) (*uint, bool) {
+	value, present, err := optionalUintQuery(c, key)
+	if err != nil || value == 0 {
+		if !present && err == nil {
+			return nil, true
+		}
+		c.JSON(http.StatusBadRequest, api.InvalidInput(key+" must be a positive integer"))
+		return nil, false
+	}
+	return &value, true
 }
 
 func (h *DebugHandler) JobStats(c *gin.Context) {
@@ -115,7 +163,7 @@ func (h *DebugHandler) SystemHealth(c *gin.Context) {
 	}
 	thresholds, err := h.settings.SystemHealthThresholds(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("读取系统健康阈值失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("读取系统健康阈值失败"))
 		return
 	}
 	c.JSON(http.StatusOK, buildSystemHealth(observability.DefaultHTTPMetrics().Snapshot(), stats, thresholds))
@@ -124,7 +172,7 @@ func (h *DebugHandler) SystemHealth(c *gin.Context) {
 func (h *DebugHandler) GetHealthSettings(c *gin.Context) {
 	thresholds, err := h.settings.SystemHealthThresholds(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("读取系统健康阈值失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("读取系统健康阈值失败"))
 		return
 	}
 	c.JSON(http.StatusOK, thresholds)
@@ -133,16 +181,16 @@ func (h *DebugHandler) GetHealthSettings(c *gin.Context) {
 func (h *DebugHandler) UpdateHealthSettings(c *gin.Context) {
 	var req adminsettings.SystemHealthThresholds
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	thresholds, err := h.settings.UpdateSystemHealthThresholds(c.Request.Context(), req)
 	if err != nil {
 		if errors.Is(err, adminsettings.ErrInvalidSystemHealthThresholds) {
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("健康阈值必须非负，且 critical 不小于 warning"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("健康阈值必须非负，且 critical 不小于 warning"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("保存系统健康阈值失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("保存系统健康阈值失败"))
 		return
 	}
 	audit.Record(c, h.db, audit.Event{

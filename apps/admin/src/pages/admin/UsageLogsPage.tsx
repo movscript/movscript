@@ -100,6 +100,7 @@ export function UsageLogsPage() {
     user_id: filters.userId.trim() || undefined,
     org_id: filters.orgId.trim() || undefined,
     project_id: filters.projectId.trim() || undefined,
+    gateway_api_key_id: filters.gatewayApiKeyId.trim() || undefined,
     since: toRFC3339(filters.since),
     until: toRFC3339(filters.until, true),
   }), [filters])
@@ -238,9 +239,10 @@ export function UsageLogsPage() {
           <FilterField label={t('admin.logs.orgId')} value={filters.orgId} onChange={(value) => updateFilter('orgId', value)} placeholder="1" />
           <FilterField label={t('admin.logs.projectId')} value={filters.projectId} onChange={(value) => updateFilter('projectId', value)} placeholder="128" />
         </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_160px_auto]">
           <DateFilter label={t('admin.logs.since')} value={filters.since} onChange={(value) => updateFilter('since', value)} />
           <DateFilter label={t('admin.logs.until')} value={filters.until} onChange={(value) => updateFilter('until', value)} />
+          <FilterField label={t('admin.logs.gatewayKeyId')} value={filters.gatewayApiKeyId} onChange={(value) => updateFilter('gatewayApiKeyId', value.replace(/\D/g, ''))} placeholder="21" />
           <Button
             type="button"
             variant="ghost"
@@ -331,6 +333,7 @@ export function UsageLogsPage() {
                 <td className="px-4 py-3 text-xs text-muted-foreground">
                   <div>{t('admin.logs.orgId')}: {log.org_id ? `#${log.org_id}` : '-'}</div>
                   <div>{t('admin.logs.projectId')}: {log.project_id ? `#${log.project_id}` : '-'}</div>
+                  <div>{t('admin.logs.gatewayKeyId')}: {log.gateway_api_key_id ? `#${log.gateway_api_key_id}` : '-'}</div>
                 </td>
               </tr>
             ))}

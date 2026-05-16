@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { formatAgentTraceDebugData, redactAgentTraceDebugData } from './agentTraceDebugData'
+import { formatAgentTraceDebugData, redactAgentTraceDebugData, redactAgentTraceDebugText } from './agentTraceDebugData'
 
 test('redactAgentTraceDebugData removes secret-like headers and credentials', () => {
   const redacted = redactAgentTraceDebugData({
@@ -39,11 +39,53 @@ test('formatAgentTraceDebugData redacts signed URL query secrets', () => {
     },
   })
 
-  assert.match(formatted, /token=%5B%E5%B7%B2%E8%84%B1%E6%95%8F%5D/)
-  assert.match(formatted, /signature=%5B%E5%B7%B2%E8%84%B1%E6%95%8F%5D/)
+  assert.match(formatted, /token=\[已脱敏\]/)
+  assert.match(formatted, /signature=\[已脱敏\]/)
   assert.match(formatted, /width=1024/)
   assert.doesNotMatch(formatted, /secret-token/)
   assert.doesNotMatch(formatted, /private-signature/)
+})
+
+test('formatAgentTraceDebugData redacts secret-like keys inside nested JSON strings', () => {
+  const formatted = formatAgentTraceDebugData({
+    event: {
+      data: {
+        response: {
+          bodyText: '{"id":"chatcmpl_1","api_key":"provider-secret","choices":[{"message":{"content":"保留模型回复"}}]}',
+        },
+      },
+    },
+  })
+
+  assert.match(formatted, /\[已脱敏\]/)
+  assert.match(formatted, /保留模型回复/)
+  assert.doesNotMatch(formatted, /provider-secret/)
+})
+
+test('formatAgentTraceDebugData redacts duplicated run trace event response bodies', () => {
+  const formatted = formatAgentTraceDebugData({
+    run: {
+      traceEvents: [{
+        data: {
+          response: {
+            bodyText: '{"api_key":"duplicated-secret","choices":[{"message":{"content":"debug reply"}}]}',
+          },
+        },
+      }],
+    },
+    events: [{
+      data: {
+        response: {
+          bodyText: '{"api_key":"event-secret","choices":[{"message":{"content":"event reply"}}]}',
+        },
+      },
+    }],
+  })
+
+  assert.match(formatted, /debug reply/)
+  assert.match(formatted, /event reply/)
+  assert.doesNotMatch(formatted, /duplicated-secret/)
+  assert.doesNotMatch(formatted, /event-secret/)
 })
 
 test('formatAgentTraceDebugData handles circular debug payloads', () => {
@@ -51,4 +93,16 @@ test('formatAgentTraceDebugData handles circular debug payloads', () => {
   payload.self = payload
 
   assert.match(formatAgentTraceDebugData(payload), /循环引用/)
+})
+
+test('redactAgentTraceDebugText redacts model detail URL and raw JSON body strings', () => {
+  const url = redactAgentTraceDebugText('https://model-gateway.example.test/chat?api_key=provider-secret&request_id=req_1')
+  assert.match(url, /api_key=\[已脱敏\]/)
+  assert.match(url, /request_id=req_1/)
+  assert.doesNotMatch(url, /provider-secret/)
+
+  const rawBody = redactAgentTraceDebugText('{"id":"chatcmpl_1","api_key":"provider-secret","choices":[{"message":{"content":"保留模型回复"}}]}')
+  assert.match(rawBody, /"\[已脱敏\]"/)
+  assert.match(rawBody, /保留模型回复/)
+  assert.doesNotMatch(rawBody, /provider-secret/)
 })

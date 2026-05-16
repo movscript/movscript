@@ -3,12 +3,12 @@ package canvas
 import (
 	"context"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func (h *Service) createCanvasRunWithRelations(run *persistencemodel.CanvasRun) error {
-	created, err := h.canvasRepo().CreateCanvasRun(context.Background(), canvasruntime.CanvasRunFromModel(*run))
+	created, err := h.canvasRepo().CreateCanvasRun(context.Background(), canvasdomain.CanvasRunFromModel(*run))
 	if err != nil {
 		return err
 	}
@@ -17,5 +17,5 @@ func (h *Service) createCanvasRunWithRelations(run *persistencemodel.CanvasRun) 
 }
 
 func (h *Service) saveCanvasRunWithRelations(run *persistencemodel.CanvasRun) error {
-	return h.canvasRepo().SaveCanvasRun(context.Background(), canvasruntime.CanvasRunFromModel(*run))
+	return h.canvasRepo().SaveCanvasRun(context.Background(), canvasdomain.CanvasRunFromModel(*run))
 }

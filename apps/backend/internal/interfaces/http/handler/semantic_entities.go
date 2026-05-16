@@ -7,7 +7,7 @@ import (
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
 	"github.com/movscript/movscript/internal/infra/cache"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
@@ -32,7 +32,7 @@ func (h *SemanticEntityHandler) ListEntityRelations(c *gin.Context) {
 		Status:     c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)

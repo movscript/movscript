@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   credentialToggleConfirmKey,
   featureToggleConfirmKey,
+  jobActionConfirmKey,
   modelConfigDisplayName,
   nextCredentialEnabledState,
 } from './adminActionGuards'
@@ -27,4 +28,10 @@ test('feature toggle guard only asks for confirmation when enabled state changes
 
   assert.equal(featureToggleConfirmKey({ is_enabled: false }, { is_enabled: true }), 'admin.features.confirmEnable')
   assert.equal(featureToggleConfirmKey({ is_enabled: true }, { is_enabled: false }), 'admin.features.confirmDisable')
+})
+
+test('job action guard maps operational actions to confirmation keys', () => {
+  assert.equal(jobActionConfirmKey('retry'), 'admin.debug.jobs.confirmRetry')
+  assert.equal(jobActionConfirmKey('cancel'), 'admin.debug.jobs.confirmCancel')
+  assert.equal(jobActionConfirmKey('delete'), 'admin.debug.jobs.confirmDelete')
 })

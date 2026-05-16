@@ -6,13 +6,13 @@ import (
 
 	domainplugin "github.com/movscript/movscript/internal/domain/plugin"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/infra/pluginkit"
+	"github.com/movscript/movscript/internal/infra/plugin"
 	"gorm.io/gorm"
 )
 
 type repository interface {
 	ListPlugins(ctx context.Context) ([]domainplugin.Plugin, error)
-	ImportPlugin(ctx context.Context, req pluginkit.ImportRequest) (domainplugin.Plugin, bool, error)
+	ImportPlugin(ctx context.Context, req plugin.ImportRequest) (domainplugin.Plugin, bool, error)
 	GetPlugin(ctx context.Context, id uint) (domainplugin.Plugin, error)
 	SetEnabled(ctx context.Context, plugin domainplugin.Plugin, enabled bool) (domainplugin.Plugin, error)
 	DeletePlugin(ctx context.Context, id uint) error
@@ -33,8 +33,8 @@ func (r *gormRepository) ListPlugins(ctx context.Context) ([]domainplugin.Plugin
 	return domainplugin.PluginsFromModels(plugins), nil
 }
 
-func (r *gormRepository) ImportPlugin(ctx context.Context, req pluginkit.ImportRequest) (domainplugin.Plugin, bool, error) {
-	result, err := pluginkit.Import(r.db.WithContext(ctx), req)
+func (r *gormRepository) ImportPlugin(ctx context.Context, req plugin.ImportRequest) (domainplugin.Plugin, bool, error) {
+	result, err := plugin.Import(r.db.WithContext(ctx), req)
 	if err != nil {
 		return domainplugin.Plugin{}, false, err
 	}

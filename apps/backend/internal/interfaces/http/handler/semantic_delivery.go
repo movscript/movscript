@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 )
 
 func (h *SemanticEntityHandler) ListDeliveryVersions(c *gin.Context) {
@@ -14,7 +14,7 @@ func (h *SemanticEntityHandler) ListDeliveryVersions(c *gin.Context) {
 		ProductionID: parseID(c.Query("production_id")),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -23,7 +23,7 @@ func (h *SemanticEntityHandler) ListDeliveryVersions(c *gin.Context) {
 func (h *SemanticEntityHandler) CreateDeliveryVersion(c *gin.Context) {
 	var req semanticapp.DeliveryVersionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateDeliveryVersion(c.Request.Context(), parseID(c.Param("id")), req)
@@ -37,7 +37,7 @@ func (h *SemanticEntityHandler) CreateDeliveryVersion(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchDeliveryVersion(c *gin.Context) {
 	var req semanticapp.DeliveryVersionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchDeliveryVersion(c.Request.Context(), parseID(c.Param("id")), c.Param("deliveryVersionId"), req)
@@ -55,7 +55,7 @@ func (h *SemanticEntityHandler) ListDeliveryTimelineItems(c *gin.Context) {
 		Status:            c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -65,7 +65,7 @@ func (h *SemanticEntityHandler) CreateDeliveryTimelineItem(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.DeliveryTimelineItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateDeliveryTimelineItem(c.Request.Context(), projectID, req)
@@ -79,7 +79,7 @@ func (h *SemanticEntityHandler) CreateDeliveryTimelineItem(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchDeliveryTimelineItem(c *gin.Context) {
 	var req semanticapp.DeliveryTimelineItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchDeliveryTimelineItem(c.Request.Context(), parseID(c.Param("id")), c.Param("itemId"), req)
@@ -97,7 +97,7 @@ func (h *SemanticEntityHandler) ListExportRecords(c *gin.Context) {
 		Status:            c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -107,7 +107,7 @@ func (h *SemanticEntityHandler) CreateExportRecord(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.ExportRecordInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateExportRecord(c.Request.Context(), projectID, req)
@@ -121,7 +121,7 @@ func (h *SemanticEntityHandler) CreateExportRecord(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchExportRecord(c *gin.Context) {
 	var req semanticapp.ExportRecordInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchExportRecord(c.Request.Context(), parseID(c.Param("id")), c.Param("exportId"), req)
@@ -140,7 +140,7 @@ func (h *SemanticEntityHandler) ListCanvasOutputs(c *gin.Context) {
 		Status:    c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -150,7 +150,7 @@ func (h *SemanticEntityHandler) CreateCanvasOutput(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.CanvasOutputInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateCanvasOutput(c.Request.Context(), projectID, req)
@@ -164,7 +164,7 @@ func (h *SemanticEntityHandler) CreateCanvasOutput(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchCanvasOutput(c *gin.Context) {
 	var req semanticapp.CanvasOutputInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchCanvasOutput(c.Request.Context(), parseID(c.Param("id")), c.Param("outputId"), req)

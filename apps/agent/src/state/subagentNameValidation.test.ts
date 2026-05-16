@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   assertSubagentNamesUniqueForTaskMap,
   assertUniqueSubagentNameForTask,
+  buildDispatchSubagentNameMap,
   collectSubagentNames,
   requireTaskBySubagentName,
   resolveSubagentNameInput,
@@ -15,6 +16,29 @@ test('collectSubagentNames merges task and run subagent names', () => {
   ], [
     makeRun('run_1', 'Reviewer'),
   ]), new Set(['Writer', 'Reviewer']))
+})
+
+test('buildDispatchSubagentNameMap preserves existing names and assigns fallback names in order', () => {
+  const runnableTasks = [
+    makeTask('task_existing', 'Curie'),
+    makeTask('task_auto_a'),
+    makeTask('task_auto_b'),
+  ]
+
+  assert.deepEqual(Object.fromEntries(buildDispatchSubagentNameMap({
+    runnableTasks,
+    tasks: [
+      ...runnableTasks,
+      makeTask('task_used', 'Agent 1'),
+    ],
+    runs: [
+      makeRun('run_used', 'Agent 2'),
+    ],
+  })), {
+    task_existing: 'Curie',
+    task_auto_a: 'Agent 3',
+    task_auto_b: 'Agent 4',
+  })
 })
 
 test('requireTaskBySubagentName resolves exact task matches', () => {

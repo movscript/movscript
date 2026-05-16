@@ -6,12 +6,17 @@ import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, Select
 import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerationArtifacts'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/lib/agentPlanUi'
 import { agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugCoverageSummary, buildDebugReportText, buildModelCallSummaries, buildTraceEventLink, canCancelWorkerRun, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugCoverageSummary, type AgentModelCallSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
-import { formatAgentTraceDebugData } from '@/lib/agentTraceDebugData'
+import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
 import { localAgentClient, type AgentRun, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
 import { agentRunPath } from '@/routes/projectRoutes'
 
 const TRACE_PAGE_SIZE = 25
 const TRACE_BULK_PAGE_SIZE = 100
+
+interface LoadedTraceEventsResult {
+  events: AgentTraceEvent[]
+  hasMore: boolean
+}
 
 export default function AIAgentRunPage() {
   const navigate = useNavigate()
@@ -34,6 +39,8 @@ export default function AIAgentRunPage() {
   const [traceDeepLinkEventId, setTraceDeepLinkEventId] = useState(() => traceEventIdFromLocationHash())
   const [debugReportCopied, setDebugReportCopied] = useState(false)
   const [debugReportCopyError, setDebugReportCopyError] = useState<string | null>(null)
+  const [debugBundleCopied, setDebugBundleCopied] = useState(false)
+  const [debugBundleCopyError, setDebugBundleCopyError] = useState<string | null>(null)
   const [eventCopyFeedback, setEventCopyFeedback] = useState<{ eventId: string; action: 'data' | 'link' } | null>(null)
   const [eventCopyError, setEventCopyError] = useState<{ eventId: string; message: string } | null>(null)
   const currentRunIdRef = useRef(runId)
@@ -178,6 +185,11 @@ export default function AIAgentRunPage() {
   }, [debugReportText])
 
   useEffect(() => {
+    setDebugBundleCopied(false)
+    setDebugBundleCopyError(null)
+  }, [debugCoverageSummary, events, modelCallSummaries, runQuery.data])
+
+  useEffect(() => {
     if (!traceDeepLinkEventId) return
     const element = document.getElementById(`agent-trace-event-${traceDeepLinkEventId}`)
     element?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -202,8 +214,8 @@ export default function AIAgentRunPage() {
     if (hasMore) void loadEvents('more')
   }, [events.length, hasMore, loadingEvents, runId, traceDeepLinkEventId])
 
-  async function loadEvents(mode: 'initial' | 'more' | 'all' = 'initial') {
-    if (!runId || loadingEvents) return
+  async function loadEvents(mode: 'initial' | 'more' | 'all' = 'initial'): Promise<LoadedTraceEventsResult | undefined> {
+    if (!runId || loadingEvents) return undefined
     const requestedRunId = runId
     setLoadingEvents(true)
     setTraceLoadError(null)
@@ -218,7 +230,7 @@ export default function AIAgentRunPage() {
           if (response.events.length === 0) {
             setEvents(nextEvents)
             setHasMore(false)
-            return
+            return { events: nextEvents, hasMore: false }
           }
           nextEvents = mergeTraceEvents(nextEvents, response.events)
           cursor = response.events.at(-1)?.id
@@ -228,12 +240,13 @@ export default function AIAgentRunPage() {
           const reachedKnownTotal = typeof responseTotal === 'number' && nextEvents.length >= responseTotal
           if (reachedKnownTotal || response.hasMore === false || response.events.length < TRACE_BULK_PAGE_SIZE) {
             setHasMore(false)
-            return
+            return { events: nextEvents, hasMore: false }
           }
         }
         setEvents(nextEvents)
-        setHasMore(typeof traceTotal === 'number' ? nextEvents.length < traceTotal : true)
-        return
+        const nextHasMore = typeof traceTotal === 'number' ? nextEvents.length < traceTotal : true
+        setHasMore(nextHasMore)
+        return { events: nextEvents, hasMore: nextHasMore }
       }
       const cursor = mode === 'more' ? events.at(-1)?.id : undefined
       const response = await localAgentClient.getRunTraceEvents(requestedRunId, { limit: TRACE_PAGE_SIZE, ...(cursor ? { cursor } : {}) })
@@ -241,11 +254,13 @@ export default function AIAgentRunPage() {
       const nextEvents = mode === 'more' ? mergeTraceEvents(events, response.events) : response.events
       setEvents(nextEvents)
       const responseTotal = typeof response.total === 'number' ? response.total : traceTotal
-      setHasMore(typeof response.hasMore === 'boolean'
+      const nextHasMore = typeof response.hasMore === 'boolean'
         ? response.hasMore
         : typeof responseTotal === 'number'
           ? nextEvents.length < responseTotal
-          : response.events.length >= TRACE_PAGE_SIZE)
+          : response.events.length >= TRACE_PAGE_SIZE
+      setHasMore(nextHasMore)
+      return { events: nextEvents, hasMore: nextHasMore }
     } catch (error) {
       if (currentRunIdRef.current === requestedRunId) setTraceLoadError(error instanceof Error ? error.message : String(error))
     } finally {
@@ -309,6 +324,42 @@ export default function AIAgentRunPage() {
       setDebugReportCopied(true)
     } catch (error) {
       setDebugReportCopyError(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  async function copyDebugBundle() {
+    setDebugBundleCopied(false)
+    setDebugBundleCopyError(null)
+    try {
+      const loaded = traceHasUnloadedEvents ? await loadEvents('all') : undefined
+      if (traceHasUnloadedEvents && !loaded) {
+        throw new Error('运行事件未能加载完整，已停止复制调试包。请先重试加载全部事件。')
+      }
+      const bundleEvents = loaded?.events ?? events
+      const bundleHasMore = loaded?.hasMore ?? hasMore
+      const bundleModelCalls = buildModelCallSummaries(bundleEvents)
+      const bundleCoverage = buildDebugCoverageSummary({
+        events: bundleEvents,
+        total: traceTotal,
+        hasMore: bundleHasMore,
+        modelCalls: bundleModelCalls,
+      })
+      await navigator.clipboard.writeText(formatAgentTraceDebugData({
+        schema: 'movscript.agent-run-debug-bundle.v1',
+        runId,
+        run: debugBundleRunSnapshot(runQuery.data),
+        trace: {
+          loaded: bundleEvents.length,
+          total: traceTotal,
+          hasMore: bundleHasMore,
+        },
+        coverage: bundleCoverage,
+        modelCalls: bundleModelCalls,
+        events: bundleEvents,
+      }))
+      setDebugBundleCopied(true)
+    } catch (error) {
+      setDebugBundleCopyError(error instanceof Error ? error.message : String(error))
     }
   }
 
@@ -392,20 +443,20 @@ export default function AIAgentRunPage() {
             </div>
             <p className="mt-1 break-all text-xs text-muted-foreground">{runId}</p>
             {cancelError && (
-              <p data-testid="agent-run-cancel-error" className="mt-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+              <p data-testid="agent-run-cancel-error" role="alert" className="mt-2 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
                 {cancelError}
               </p>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
             {runQuery.data?.parentRunId && (
-              <Button type="button" size="sm" variant="outline" onClick={() => navigate(agentRunPath(runQuery.data!.parentRunId!))}>
+              <Button type="button" size="sm" variant="outline" aria-label="打开上级运行" onClick={() => navigate(agentRunPath(runQuery.data!.parentRunId!))}>
                 <Route size={13} />
                 上级
               </Button>
             )}
             {planQuery.data?.plan.rootRunId && planQuery.data.plan.rootRunId !== runId && (
-              <Button type="button" size="sm" variant="outline" onClick={() => navigate(agentRunPath(planQuery.data!.plan.rootRunId!))}>
+              <Button type="button" size="sm" variant="outline" aria-label="打开计划根运行" onClick={() => navigate(agentRunPath(planQuery.data!.plan.rootRunId!))}>
                 <Route size={13} />
                 根运行
               </Button>
@@ -423,11 +474,11 @@ export default function AIAgentRunPage() {
                 取消执行器
               </Button>
             )}
-            <Button type="button" size="sm" variant="outline" onClick={() => navigate(-1)}>
+            <Button type="button" size="sm" variant="outline" aria-label="返回上一页" onClick={() => navigate(-1)}>
               <ArrowLeft size={13} />
               返回
             </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => { void refreshRunPage() }} disabled={runQuery.isFetching || summaryQuery.isFetching || planQuery.isFetching || loadingEvents}>
+            <Button type="button" size="sm" variant="outline" aria-label="刷新 AgentRun 调试页面" onClick={() => { void refreshRunPage() }} disabled={runQuery.isFetching || summaryQuery.isFetching || planQuery.isFetching || loadingEvents}>
               <RefreshCw size={13} className={runQuery.isFetching || summaryQuery.isFetching || planQuery.isFetching || loadingEvents ? 'animate-spin' : ''} />
               刷新
             </Button>
@@ -439,7 +490,22 @@ export default function AIAgentRunPage() {
           {runQuery.isLoading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 size={12} className="animate-spin" /> 正在加载运行</div>
           ) : runQuery.error ? (
-            <p className="text-xs text-destructive">{runQuery.error instanceof Error ? runQuery.error.message : String(runQuery.error)}</p>
+            <div data-testid="agent-run-detail-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs text-destructive">
+              <p>{runQuery.error instanceof Error ? runQuery.error.message : String(runQuery.error)}</p>
+              <Button
+                data-testid="agent-run-detail-retry"
+                type="button"
+                size="xs"
+                variant="outline"
+                className="mt-2 h-6 px-2 text-[10px]"
+                aria-label="重新加载 AgentRun 运行详情"
+                onClick={() => { void runQuery.refetch() }}
+                disabled={runQuery.isFetching}
+              >
+                {runQuery.isFetching ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                重试
+              </Button>
+            </div>
           ) : runQuery.data ? (
             <div className="space-y-3 text-xs">
               <Info label="角色" value={runRoleLabel(runQuery.data.role)} />
@@ -482,7 +548,7 @@ export default function AIAgentRunPage() {
                 <div data-testid="agent-run-pending-input" className="space-y-1 rounded border border-amber-500/30 bg-amber-500/10 p-2">
                   <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">待输入</div>
                   {inputError && (
-                    <p data-testid="agent-run-input-error" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
+                    <p data-testid="agent-run-input-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
                       {inputError}
                     </p>
                   )}
@@ -532,6 +598,7 @@ export default function AIAgentRunPage() {
                             size="xs"
                             variant="secondary"
                             className="h-7 px-2 text-[10px]"
+                            aria-label={`提交${request.title}的自定义答案`}
                             disabled={!!inputActionId || !(inputDrafts[request.id] ?? '').trim()}
                             onClick={() => { void answerInput(request.id, { text: (inputDrafts[request.id] ?? '').trim() }) }}
                           >
@@ -548,7 +615,7 @@ export default function AIAgentRunPage() {
                 <div data-testid="agent-run-pending-approval" className="space-y-1 rounded border border-amber-500/30 bg-amber-500/10 p-2">
                   <div className="text-[10px] uppercase tracking-wide text-amber-700 dark:text-amber-300">待审批</div>
                   {approvalError && (
-                    <p data-testid="agent-run-approval-error" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
+                    <p data-testid="agent-run-approval-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
                       {approvalError}
                     </p>
                   )}
@@ -570,6 +637,7 @@ export default function AIAgentRunPage() {
                           size="xs"
                           variant="outline"
                           className="h-6 px-2 text-[10px]"
+                          aria-label={`同意执行${approval.toolName}`}
                           disabled={!!approvalActionId}
                           onClick={() => { void resolveApproval(approval.id, 'approve') }}
                         >
@@ -582,6 +650,7 @@ export default function AIAgentRunPage() {
                           size="xs"
                           variant="ghost"
                           className="h-6 px-2 text-[10px]"
+                          aria-label={`拒绝执行${approval.toolName}`}
                           disabled={!!approvalActionId}
                           onClick={() => { void resolveApproval(approval.id, 'reject') }}
                         >
@@ -597,7 +666,22 @@ export default function AIAgentRunPage() {
                 <div className="flex items-center gap-2 rounded border border-border px-2 py-1 text-muted-foreground"><Loader2 size={12} className="animate-spin" /> 正在加载计划上下文</div>
               )}
               {planQuery.error && (
-                <p className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">{planQuery.error instanceof Error ? planQuery.error.message : String(planQuery.error)}</p>
+                <div data-testid="agent-run-plan-context-error" role="alert" className="rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-destructive">
+                  <p>{planQuery.error instanceof Error ? planQuery.error.message : String(planQuery.error)}</p>
+                  <Button
+                    data-testid="agent-run-plan-context-retry"
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    className="mt-2 h-6 px-2 text-[10px]"
+                    aria-label="重新加载计划上下文"
+                    onClick={() => { void planQuery.refetch() }}
+                    disabled={planQuery.isFetching}
+                  >
+                    {planQuery.isFetching ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                    重试
+                  </Button>
+                </div>
               )}
               {planQuery.data && (
                 <div data-testid="agent-run-plan-context" className="space-y-2 rounded border border-border/70 bg-muted/10 p-2">
@@ -683,7 +767,7 @@ export default function AIAgentRunPage() {
               <span className="font-medium text-foreground">运行轨迹</span>
               {summaryQuery.data && <span className="text-muted-foreground">{summaryQuery.data.total} 个事件</span>}
               {summaryQuery.error && (
-                <span data-testid="agent-run-trace-summary-error" className="text-destructive">
+                <span data-testid="agent-run-trace-summary-error" role="alert" className="text-destructive">
                   统计加载失败
                 </span>
               )}
@@ -692,11 +776,18 @@ export default function AIAgentRunPage() {
                   已加载 {events.length}{typeof traceTotal === 'number' ? ` / ${traceTotal}` : ''}
                 </span>
               )}
+              {events.length > 0 && traceFiltersActive && (
+                <span data-testid="agent-run-trace-visible-count" className="text-muted-foreground">
+                  当前显示 {visibleEvents.length} 个
+                </span>
+              )}
               {categoryCounts.map(([category, count]) => (
                 <button
                   key={category}
                   type="button"
                   data-testid="agent-run-trace-category-filter"
+                  aria-pressed={eventCategory === category}
+                  aria-label={`按${traceCategoryLabel(category)}筛选运行事件`}
                   className="rounded focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   onClick={() => setEventCategory((current) => current === category ? 'all' : category)}
                 >
@@ -713,34 +804,71 @@ export default function AIAgentRunPage() {
                 value={eventSearch}
                 onChange={(event) => setEventSearch(event.target.value)}
                 placeholder="搜索事件"
+                aria-label="搜索运行事件"
                 className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-44 sm:flex-none"
               />
               <Select value={eventKind} onValueChange={(next) => setEventKind(next as 'all' | AgentTraceEventKind)}>
-                <SelectTrigger size="sm" className="h-8 min-w-32 flex-1 text-xs sm:w-36 sm:flex-none"><SelectValue /></SelectTrigger>
+                <SelectTrigger size="sm" aria-label="按事件类型筛选" className="h-8 min-w-32 flex-1 text-xs sm:w-36 sm:flex-none"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部事件</SelectItem>
                   {eventKinds.map((kind) => <SelectItem key={kind} value={kind}>{traceKindLabel(kind as AgentTraceEventKind)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={eventCategory} onValueChange={(next) => setEventCategory(next as 'all' | AgentTraceCategory)}>
-                <SelectTrigger size="sm" className="h-8 min-w-32 flex-1 text-xs sm:w-32 sm:flex-none"><SelectValue /></SelectTrigger>
+                <SelectTrigger size="sm" aria-label="按事件分类筛选" className="h-8 min-w-32 flex-1 text-xs sm:w-32 sm:flex-none"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部分类</SelectItem>
                   {eventCategories.map((category) => <SelectItem key={category} value={category}>{traceCategoryLabel(category)}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Button data-testid="agent-run-load-trace-events" type="button" size="sm" variant="outline" onClick={() => loadEvents('initial')} disabled={loadingEvents}>
+              {traceFiltersActive && (
+                <Button
+                  data-testid="agent-run-clear-trace-filters-inline"
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  aria-label="清除运行事件筛选"
+                  onClick={clearTraceFilters}
+                >
+                  清除筛选
+                </Button>
+              )}
+              <Button
+                data-testid="agent-run-load-trace-events"
+                type="button"
+                size="sm"
+                variant="outline"
+                aria-label="加载当前运行的事件"
+                onClick={() => loadEvents('initial')}
+                disabled={loadingEvents}
+              >
                 {loadingEvents ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
                 加载事件
               </Button>
               {summaryQuery.error && (
-                <Button data-testid="agent-run-trace-summary-retry" type="button" size="sm" variant="outline" onClick={() => { void summaryQuery.refetch() }} disabled={summaryQuery.isFetching}>
+                <Button
+                  data-testid="agent-run-trace-summary-retry"
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label="重新加载运行事件统计"
+                  onClick={() => { void summaryQuery.refetch() }}
+                  disabled={summaryQuery.isFetching}
+                >
                   {summaryQuery.isFetching ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
                   重试统计
                 </Button>
               )}
               {traceHasUnloadedEvents && (
-                <Button data-testid="agent-run-load-all-trace-events" type="button" size="sm" variant="outline" onClick={() => loadEvents('all')} disabled={loadingEvents}>
+                <Button
+                  data-testid="agent-run-load-all-trace-events"
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label="加载当前运行的全部事件"
+                  onClick={() => loadEvents('all')}
+                  disabled={loadingEvents}
+                >
                   {loadingEvents ? <Loader2 size={13} className="animate-spin" /> : <History size={13} />}
                   加载全部
                 </Button>
@@ -750,12 +878,12 @@ export default function AIAgentRunPage() {
           <div className="space-y-2">
             <AgentRunGenerationArtifacts run={runQuery.data} />
             {traceDeepLinkMissing && (
-              <p data-testid="agent-run-trace-deep-link-missing" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+              <p data-testid="agent-run-trace-deep-link-missing" role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
                 这个运行里没有找到事件 {traceDeepLinkEventId}。如果刚切换运行，请先刷新或加载全部事件；如果仍然没有，说明这个事件不属于当前运行。
               </p>
             )}
             {traceLoadError && (
-              <div data-testid="agent-run-trace-load-error" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <div data-testid="agent-run-trace-load-error" role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 <div className="font-medium">运行事件加载失败</div>
                 <p className="mt-1 break-words">{traceLoadError}</p>
                 <Button
@@ -777,8 +905,11 @@ export default function AIAgentRunPage() {
                 summary={debugCoverageSummary}
                 copied={debugReportCopied}
                 copyError={debugReportCopyError}
+                bundleCopied={debugBundleCopied}
+                bundleCopyError={debugBundleCopyError}
                 loadingAll={loadingEvents}
                 onCopy={copyDebugReport}
+                onCopyBundle={copyDebugBundle}
                 onLoadAll={() => loadEvents('all')}
               />
             )}
@@ -787,6 +918,8 @@ export default function AIAgentRunPage() {
             )}
             {visibleTraceViews.map(({ event, view }) => {
               const isLinkedEvent = event.id === traceDeepLinkEventId
+              const isEventDataExpanded = expandedEventIds.has(event.id)
+              const eventDataPanelId = `agent-trace-event-data-${event.id}`
               return (
                 <div data-testid="agent-run-trace-event" id={`agent-trace-event-${event.id}`} key={event.id} className={`scroll-mt-4 rounded-md border px-3 py-2 text-xs ${isLinkedEvent ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-background'}`}>
                   <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -794,7 +927,7 @@ export default function AIAgentRunPage() {
                     <div className="flex max-w-full flex-wrap items-center justify-end gap-1">
                       {isLinkedEvent && <Badge data-testid="agent-run-trace-linked-event" variant="secondary" className="text-[10px]">已定位</Badge>}
                       {eventCopyFeedback?.eventId === event.id && (
-                        <Badge data-testid="agent-run-trace-copy-feedback" variant="secondary" className="text-[10px]">
+                        <Badge data-testid="agent-run-trace-copy-feedback" role="status" variant="secondary" className="text-[10px]">
                           {eventCopyFeedback.action === 'data' ? '数据已复制' : '链接已复制'}
                         </Badge>
                       )}
@@ -805,9 +938,12 @@ export default function AIAgentRunPage() {
                           size="xs"
                           variant="ghost"
                           className="h-5 px-1 text-[9px]"
+                          aria-label={`${isEventDataExpanded ? '隐藏' : '查看'}${view.title}的原始数据`}
+                          aria-expanded={isEventDataExpanded}
+                          aria-controls={eventDataPanelId}
                           onClick={() => toggleEventDetails(event.id)}
                         >
-                          原始数据
+                          {isEventDataExpanded ? '隐藏原始数据' : '原始数据'}
                         </Button>
                       )}
                       {event.data !== undefined && (
@@ -817,13 +953,21 @@ export default function AIAgentRunPage() {
                           size="xs"
                           variant="ghost"
                           className="h-5 px-1 text-[9px]"
+                          aria-label={`复制${view.title}的原始数据`}
                           onClick={() => copyEventData(event.id, event.data)}
                         >
                           <Copy size={9} />
                           复制数据
                         </Button>
                       )}
-                      <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[9px]" onClick={() => copyEventLink(event.id)}>
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="ghost"
+                        className="h-5 px-1 text-[9px]"
+                        aria-label={`复制${view.title}的事件链接`}
+                        onClick={() => copyEventLink(event.id)}
+                      >
                         <Copy size={9} />
                         链接
                       </Button>
@@ -832,7 +976,7 @@ export default function AIAgentRunPage() {
                     </div>
                   </div>
                   {eventCopyError?.eventId === event.id && (
-                    <p data-testid="agent-run-trace-copy-error" className="mt-1 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
+                    <p data-testid="agent-run-trace-copy-error" role="alert" className="mt-1 rounded border border-destructive/30 bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
                       复制失败：{eventCopyError.message}
                     </p>
                   )}
@@ -903,8 +1047,8 @@ export default function AIAgentRunPage() {
                       </details>
                     )}
                   </div>
-                  {event.data !== undefined && expandedEventIds.has(event.id) && (
-                    <div className="mt-2 space-y-1">
+                  {event.data !== undefined && isEventDataExpanded && (
+                    <div id={eventDataPanelId} className="mt-2 space-y-1">
                       <div data-testid="agent-run-trace-redaction-note" className="rounded border border-border/60 bg-muted/10 px-2 py-1 text-[10px] leading-relaxed text-muted-foreground">
                         原始数据展示和复制时会自动脱敏 authorization、cookie、API key、token、secret 等字段。
                       </div>
@@ -937,6 +1081,7 @@ export default function AIAgentRunPage() {
                       size="xs"
                       variant="ghost"
                       className="h-6 px-2 text-[10px]"
+                      aria-label="清除运行事件筛选并返回事件列表"
                       onClick={clearTraceFilters}
                     >
                       清除筛选
@@ -1050,15 +1195,21 @@ function DebugCoveragePanel({
   summary,
   copied,
   copyError,
+  bundleCopied,
+  bundleCopyError,
   loadingAll,
   onCopy,
+  onCopyBundle,
   onLoadAll,
 }: {
   summary: AgentDebugCoverageSummary
   copied: boolean
   copyError: string | null
+  bundleCopied: boolean
+  bundleCopyError: string | null
   loadingAll: boolean
   onCopy: () => void
+  onCopyBundle: () => void
   onLoadAll: () => void
 }) {
   return (
@@ -1071,21 +1222,52 @@ function DebugCoveragePanel({
         <div className="flex items-center gap-1">
           {summary.issues.length > 0 ? <Badge variant="secondary" className="text-[10px]">需补全</Badge> : <Badge variant="outline" className="text-[10px]">信息完整</Badge>}
           {summary.hasUnloadedTrace && (
-            <Button data-testid="agent-run-debug-load-all" type="button" size="xs" variant="outline" className="h-6 px-2 text-[10px]" onClick={onLoadAll} disabled={loadingAll}>
+            <Button
+              data-testid="agent-run-debug-load-all"
+              type="button"
+              size="xs"
+              variant="outline"
+              className="h-6 px-2 text-[10px]"
+              aria-label="加载全部运行事件用于调试覆盖统计"
+              onClick={onLoadAll}
+              disabled={loadingAll}
+            >
               {loadingAll ? <Loader2 size={10} className="animate-spin" /> : <History size={10} />}
               加载全部事件
             </Button>
           )}
-          <Button data-testid="agent-run-debug-report-copy" type="button" size="xs" variant="ghost" className="h-6 px-2 text-[10px]" onClick={onCopy}>
+          <Button
+            data-testid="agent-run-debug-report-copy"
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="h-6 px-2 text-[10px]"
+            aria-label="复制 AgentRun 调试摘要"
+            onClick={onCopy}
+          >
             <Copy size={10} />
             {copied ? '已复制' : '复制摘要'}
           </Button>
+          <Button
+            data-testid="agent-run-debug-bundle-copy"
+            type="button"
+            size="xs"
+            variant="ghost"
+            className="h-6 px-2 text-[10px]"
+            aria-label="复制脱敏 AgentRun 调试包"
+            onClick={onCopyBundle}
+            disabled={loadingAll}
+          >
+            {loadingAll ? <Loader2 size={10} className="animate-spin" /> : <Copy size={10} />}
+            {loadingAll ? '加载中' : bundleCopied ? '已复制' : '复制调试包'}
+          </Button>
         </div>
       </div>
-      <div className="mt-2 grid gap-1 sm:grid-cols-5">
+      <div className="mt-2 grid gap-1 sm:grid-cols-6">
         <DebugCoverageMetric label="事件" value={summary.loadedLabel} />
         <DebugCoverageMetric label="模型调用" value={summary.modelCallsLabel} />
         <DebugCoverageMetric label="HTTP 响应" value={summary.httpResponsesLabel} />
+        <DebugCoverageMetric label="响应正文" value={summary.httpResponseBodiesLabel} />
         <DebugCoverageMetric label="上下文详情" value={summary.promptDetailsLabel} />
         <DebugCoverageMetric label="历史写入" value={summary.messageWritesLabel} />
       </div>
@@ -1095,8 +1277,23 @@ function DebugCoveragePanel({
         </div>
       )}
       {copyError && (
-        <div data-testid="agent-run-debug-report-copy-error" className="mt-2 rounded bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
+        <div data-testid="agent-run-debug-report-copy-error" role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
           调试摘要复制失败：{copyError}
+        </div>
+      )}
+      {copied && !copyError && (
+        <div data-testid="agent-run-debug-report-copy-feedback" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+          调试摘要已复制
+        </div>
+      )}
+      {bundleCopyError && (
+        <div data-testid="agent-run-debug-bundle-copy-error" role="alert" className="mt-2 rounded bg-destructive/10 px-2 py-1 text-[10px] text-destructive">
+          调试包复制失败：{bundleCopyError}
+        </div>
+      )}
+      {bundleCopied && !bundleCopyError && (
+        <div data-testid="agent-run-debug-bundle-copy-feedback" role="status" className="mt-2 rounded bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+          脱敏调试包已复制。
         </div>
       )}
     </section>
@@ -1133,17 +1330,38 @@ function ModelCallSummaryPanel({ summaries, onFocusEvent }: { summaries: AgentMo
               </div>
               <div className="flex shrink-0 flex-wrap gap-1">
                 {summary.requestEventId && (
-                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[9px]" onClick={() => onFocusEvent(summary.requestEventId!)}>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    className="h-5 px-1 text-[9px]"
+                    aria-label={`定位${summary.label}的模型请求事件`}
+                    onClick={() => onFocusEvent(summary.requestEventId!)}
+                  >
                     请求
                   </Button>
                 )}
                 {summary.responseEventId && (
-                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[9px]" onClick={() => onFocusEvent(summary.responseEventId!)}>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    className="h-5 px-1 text-[9px]"
+                    aria-label={`定位${summary.label}的模型响应事件`}
+                    onClick={() => onFocusEvent(summary.responseEventId!)}
+                  >
                     响应
                   </Button>
                 )}
                 {summary.resultEventId && (
-                  <Button type="button" size="xs" variant="ghost" className="h-5 px-1 text-[9px]" onClick={() => onFocusEvent(summary.resultEventId!)}>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="ghost"
+                    className="h-5 px-1 text-[9px]"
+                    aria-label={`定位${summary.label}的模型结果事件`}
+                    onClick={() => onFocusEvent(summary.resultEventId!)}
+                  >
                     结果
                   </Button>
                 )}
@@ -1252,7 +1470,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
           <div className="font-medium text-foreground">HTTP 请求</div>
           <div className="mt-1 grid gap-0.5 text-[10px]">
             {detail.request.method && <ModelMetaRow label="方法" value={detail.request.method} />}
-            {detail.request.url && <ModelMetaRow label="地址" value={detail.request.url} />}
+            {detail.request.url && <ModelMetaRow label="地址" value={redactAgentTraceDebugText(detail.request.url)} />}
             {detail.request.model && <ModelMetaRow label="模型" value={detail.request.model} />}
             {detail.request.messageCount && <ModelMetaRow label="消息" value={`${detail.request.messageCount} 条`} />}
             {detail.request.toolCount && <ModelMetaRow label="工具定义" value={`${detail.request.toolCount} 个`} />}
@@ -1306,7 +1524,7 @@ function ModelCallDetail({ detail }: { detail: NonNullable<ReturnType<typeof age
             <details className="mt-1 rounded bg-muted/20 px-2 py-1">
               <summary className="cursor-pointer text-[10px] font-medium text-foreground">原始响应正文</summary>
               <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[10px] leading-relaxed text-foreground">
-                {detail.response.bodyText}
+                {redactAgentTraceDebugText(detail.response.bodyText)}
               </pre>
             </details>
           )}
@@ -1355,6 +1573,12 @@ function MessageDetail({ detail }: { detail: NonNullable<ReturnType<typeof agent
       </pre>
     </div>
   )
+}
+
+function debugBundleRunSnapshot(run: AgentRun | undefined): Omit<AgentRun, 'traceEvents'> | undefined {
+  if (!run) return undefined
+  const { traceEvents: _traceEvents, ...snapshot } = run
+  return snapshot
 }
 
 function buildRunSummary(

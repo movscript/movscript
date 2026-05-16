@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	featureapp "github.com/movscript/movscript/internal/app/feature"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"gorm.io/gorm"
 )
 

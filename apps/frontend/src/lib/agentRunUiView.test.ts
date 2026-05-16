@@ -458,10 +458,12 @@ test('buildDebugCoverageSummary reports trace completeness and missing details',
   assert.equal(summary.hasUnloadedTrace, true)
   assert.equal(summary.modelCallsLabel, '2')
   assert.equal(summary.httpResponsesLabel, '1')
+  assert.equal(summary.httpResponseBodiesLabel, '0')
   assert.equal(summary.promptDetailsLabel, '1')
   assert.equal(summary.messageWritesLabel, '0')
   assert.equal(summary.issues.some((issue) => issue.includes('未加载运行事件')), true)
   assert.equal(summary.issues.some((issue) => issue.includes('缺少请求或响应')), true)
+  assert.equal(summary.issues.some((issue) => issue.includes('没有原始响应正文')), true)
   assert.equal(summary.issues.some((issue) => issue.includes('旧运行')), true)
 })
 
@@ -494,7 +496,7 @@ test('buildDebugReportText creates a shareable run summary', () => {
       id: 'response_1',
       kind: 'model_call',
       title: 'Model HTTP response received',
-      data: { phase: 'response', latencyMs: 80, response: { status: 200, content: 'reply' } },
+      data: { phase: 'response', latencyMs: 80, response: { status: 200, content: 'reply', bodyText: '{"choices":[{"message":{"content":"reply"}}]}' } },
       completedAt: '2026-05-15T00:00:00.080Z',
     }),
   ]
@@ -505,6 +507,7 @@ test('buildDebugReportText creates a shareable run summary', () => {
   assert.match(report, /AgentRun 调试摘要/)
   assert.match(report, /运行: run_debug/)
   assert.match(report, /事件: 2 \/ 2/)
+  assert.match(report, /响应正文: 1/)
   assert.match(report, /模型调用:/)
   assert.match(report, /模型调用 1: 请求和响应完整/)
   assert.match(report, /最近事件:/)

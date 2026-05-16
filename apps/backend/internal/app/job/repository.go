@@ -6,7 +6,7 @@ import (
 	"time"
 
 	domainjob "github.com/movscript/movscript/internal/domain/job"
-	domainresourcefolder "github.com/movscript/movscript/internal/domain/resourcefolder"
+	domainresourcefolder "github.com/movscript/movscript/internal/domain/resource/folder"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 	"gorm.io/gorm"
 )

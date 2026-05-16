@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/movscript/movscript/internal/infra/persistence/model"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"github.com/movscript/movscript/internal/testutil"
 	"gorm.io/gorm"
 )
@@ -30,12 +30,12 @@ func TestBuildGenerationContextReturnsDebugPayloadForMissingTarget(t *testing.T)
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d; body = %s", res.Code, http.StatusNotFound, res.Body.String())
 	}
-	var body apierr.Response
+	var body api.Response
 	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	if body.Code != apierr.CodeNotFound {
-		t.Fatalf("code = %q, want %q", body.Code, apierr.CodeNotFound)
+	if body.Code != api.CodeNotFound {
+		t.Fatalf("code = %q, want %q", body.Code, api.CodeNotFound)
 	}
 	debug, ok := body.Debug.(map[string]any)
 	if !ok {

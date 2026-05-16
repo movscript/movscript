@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/movscript/movscript/internal/app/workflowio"
+	"github.com/movscript/movscript/internal/app/workflow"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
 )
 
@@ -183,7 +183,7 @@ func (s *Service) CreateAssetSlotCandidate(ctx context.Context, projectID uint, 
 		return domainsemantic.AssetSlotCandidate{}, err
 	}
 	if input.ResourceID != nil && *input.ResourceID > 0 {
-		result, err := s.repo.AttachAssetSlotCandidate(ctx, workflowio.AttachAssetSlotCandidateInput{
+		result, err := s.repo.AttachAssetSlotCandidate(ctx, workflow.AttachAssetSlotCandidateInput{
 			ProjectID:   projectID,
 			AssetSlotID: input.AssetSlotID,
 			ResourceID:  *input.ResourceID,

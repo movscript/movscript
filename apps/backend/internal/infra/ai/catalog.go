@@ -279,6 +279,15 @@ func geminiImageParams() []ParamDef {
 	}
 }
 
+func openAIGPTImageParams() []ParamDef {
+	return []ParamDef{
+		{Key: "image_size", Label: "尺寸", Type: "select",
+			Options: []string{"1024x1024", "1536x1024", "1024x1536"}, Default: "1024x1024"},
+		{Key: "quality", Label: "质量", Type: "select",
+			Options: []string{"auto", "high", "medium", "low"}, Default: "auto"},
+	}
+}
+
 func geminiVideoParams() []ParamDef {
 	return []ParamDef{
 		{Key: "duration", Label: "时长(秒)", Type: "select",

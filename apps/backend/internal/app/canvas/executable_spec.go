@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	"github.com/movscript/movscript/internal/infra/ai"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
@@ -117,7 +117,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 			Quality:             stringParam(params, "quality", ""),
 			Size:                stringParam(params, "size", stringParam(params, "image_size", "")),
 			Style:               stringParam(params, "style", ""),
-			AspectRatio:         canvasruntime.FirstNonEmptyString(spec.AspectRatio, stringParam(params, "aspect_ratio", "")),
+			AspectRatio:         canvasdomain.FirstNonEmptyString(spec.AspectRatio, stringParam(params, "aspect_ratio", "")),
 			Seed:                seed,
 			GuidanceScale:       floatParam(params, "guidance_scale", 0),
 			Watermark:           watermark,
@@ -171,7 +171,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 			Seed:                  int64PtrParam(params, "seed"),
 			Width:                 intParam(params, "width", 0),
 			Height:                intParam(params, "height", 0),
-			AspectRatio:           canvasruntime.FirstNonEmptyString(spec.AspectRatio, stringParam(params, "aspect_ratio", "")),
+			AspectRatio:           canvasdomain.FirstNonEmptyString(spec.AspectRatio, stringParam(params, "aspect_ratio", "")),
 			Ratio:                 stringParam(params, "ratio", ""),
 			Quality:               stringParam(params, "quality", ""),
 			Size:                  stringParam(params, "size", stringParam(params, "image_size", "")),
@@ -211,10 +211,10 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 		return
 	}
 
-	_ = h.updateTaskRow(ctx, task, canvasruntime.CompleteCanvasTask(task, &nd, &r.ID))
-	value := canvasruntime.PortValueFromResource(&r.ID, resType)
+	_ = h.updateTaskRow(ctx, task, canvasdomain.CompleteCanvasTask(task, &nd, &r.ID))
+	value := canvasdomain.PortValueFromResource(&r.ID, resType)
 	h.updateTaskOutputValues(task, map[string]canvasPortValue{
-		canvasruntime.DefaultSourceHandleForNode(node.Type, nd): value,
+		canvasdomain.DefaultSourceHandleForNode(node.Type, nd): value,
 		"": value,
 	})
 	if task.CanvasRunID == nil {
@@ -224,7 +224,7 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 }
 
 func MarshalParamsForPreflight(params map[string]any) string {
-	return canvasruntime.MarshalParamsForPreflight(params)
+	return canvasdomain.MarshalParamsForPreflight(params)
 }
 
 type pluginHTTPRuntimeSpec struct {
@@ -326,8 +326,8 @@ func PluginHTTPOutputs(raw []byte) map[string]canvasPortValue {
 	outputs := map[string]canvasPortValue{}
 	if rawOutputs, ok := payload["outputs"].(map[string]any); ok {
 		for handle, rawValue := range rawOutputs {
-			value := canvasruntime.PortValueFromAny(rawValue)
-			if !canvasruntime.PortValueEmpty(value) {
+			value := canvasdomain.PortValueFromAny(rawValue)
+			if !canvasdomain.PortValueEmpty(value) {
 				outputs[handle] = value
 			}
 		}
@@ -335,8 +335,8 @@ func PluginHTTPOutputs(raw []byte) map[string]canvasPortValue {
 	if len(outputs) == 0 {
 		for _, key := range []string{"result", "value", "data", "content"} {
 			if rawValue, ok := payload[key]; ok {
-				value := canvasruntime.PortValueFromAny(rawValue)
-				if !canvasruntime.PortValueEmpty(value) {
+				value := canvasdomain.PortValueFromAny(rawValue)
+				if !canvasdomain.PortValueEmpty(value) {
 					outputs["result"] = value
 					break
 				}

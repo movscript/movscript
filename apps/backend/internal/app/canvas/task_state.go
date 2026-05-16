@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
 )
 
 func (h *Service) failTask(task *persistencemodel.CanvasTask, node *persistencemodel.CanvasNode, nd nodeData, errMsg string) {
-	canvasruntime.FailCanvasTask(task, &nd, errMsg)
+	canvasdomain.FailCanvasTask(task, &nd, errMsg)
 	_ = h.saveTaskRow(context.Background(), task)
 	if task.CanvasRunID == nil {
 		h.updateNodeData(node, nd)
@@ -38,7 +38,7 @@ func (h *Service) saveNodeRow(ctx context.Context, node *persistencemodel.Canvas
 	if node == nil {
 		return nil
 	}
-	return h.canvasRepo().SaveNode(ctx, canvasruntime.CanvasNodeFromModel(*node))
+	return h.canvasRepo().SaveNode(ctx, canvasdomain.CanvasNodeFromModel(*node))
 }
 
 func (h *Service) updateRunStatus(runID *uint) {
@@ -56,7 +56,7 @@ func (h *Service) updateRunStatus(runID *uint) {
 	if len(tasks) == 0 {
 		return
 	}
-	if !canvasruntime.ApplyRunTaskStatus(&run, tasks, time.Now()) {
+	if !canvasdomain.ApplyRunTaskStatus(&run, tasks, time.Now()) {
 		return
 	}
 	modelRun := run.ToModel()
@@ -64,5 +64,5 @@ func (h *Service) updateRunStatus(runID *uint) {
 }
 
 func CanvasRunTaskFailureSummary(tasks []persistencemodel.CanvasTask) string {
-	return canvasruntime.CanvasRunTaskFailureSummary(tasks)
+	return canvasdomain.CanvasRunTaskFailureSummary(tasks)
 }

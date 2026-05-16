@@ -270,7 +270,7 @@ func createJobRunnerIndexes(db *gorm.DB) error {
 		}
 		for _, stmt := range statements {
 			if err := db.Exec(stmt).Error; err != nil {
-				return fmt.Errorf("create jobrunner index: %w", err)
+				return fmt.Errorf("create runner index: %w", err)
 			}
 		}
 		return nil
@@ -286,7 +286,7 @@ func createJobRunnerIndexes(db *gorm.DB) error {
 	for _, idx := range indexes {
 		stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON jobs (%s)", idx.name, idx.columns)
 		if err := db.Exec(stmt).Error; err != nil {
-			return fmt.Errorf("create jobrunner index %s: %w", idx.name, err)
+			return fmt.Errorf("create runner index %s: %w", idx.name, err)
 		}
 	}
 	return nil

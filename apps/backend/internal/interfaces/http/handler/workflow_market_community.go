@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	workflowmarket "github.com/movscript/movscript/internal/app/workflowmarket"
+	workflowmarket "github.com/movscript/movscript/internal/app/workflow/market"
 	"gorm.io/gorm"
 )
 

@@ -7,27 +7,27 @@ import (
 
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 )
 
 func (h *SemanticEntityHandler) ApplyProductionProposal(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var raw map[string]any
 	if err := c.ShouldBindJSON(&raw); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if err := validateProductionProposalSnapshotPayload(raw); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	var req semanticapp.ApplyProductionProposalRequest
 	if err := bindMap(raw, &req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if req.Proposal == nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("proposal is required"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("proposal is required"))
 		return
 	}
 
@@ -43,20 +43,20 @@ func (h *SemanticEntityHandler) PreviewProductionProposalApply(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var raw map[string]any
 	if err := c.ShouldBindJSON(&raw); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if err := validateProductionProposalSnapshotPayload(raw); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	var req semanticapp.ApplyProductionProposalRequest
 	if err := bindMap(raw, &req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if req.Proposal == nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("proposal is required"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("proposal is required"))
 		return
 	}
 
@@ -111,11 +111,11 @@ func (h *SemanticEntityHandler) ApplyProjectProposal(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.ApplyProjectProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if req.Proposal == nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("proposal is required"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("proposal is required"))
 		return
 	}
 
@@ -131,11 +131,11 @@ func (h *SemanticEntityHandler) PreviewProjectProposalApply(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.ApplyProjectProposalRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if req.Proposal == nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("proposal is required"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("proposal is required"))
 		return
 	}
 

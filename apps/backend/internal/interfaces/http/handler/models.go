@@ -4,17 +4,17 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	modelsapp "github.com/movscript/movscript/internal/app/models"
+	catalogapp "github.com/movscript/movscript/internal/app/catalog"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/cache"
 )
 
 type ModelsHandler struct {
-	service *modelsapp.Service
+	service *catalogapp.Service
 }
 
 func NewModelsHandler(svc *ai.AIService, cacheStore ...cache.Cache) *ModelsHandler {
-	return &ModelsHandler{service: modelsapp.NewService(svc, cacheStore...)}
+	return &ModelsHandler{service: catalogapp.NewService(svc, cacheStore...)}
 }
 
 // ListByCapability returns enabled models for the given capability or feature.

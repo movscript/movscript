@@ -8,17 +8,17 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	usageadmin "github.com/movscript/movscript/internal/app/usageadmin"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	adminusage "github.com/movscript/movscript/internal/app/admin/usage"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 	"gorm.io/gorm"
 )
 
 type UsageAdminHandler struct {
-	service *usageadmin.Service
+	service *adminusage.Service
 }
 
 func NewUsageAdminHandler(db *gorm.DB) *UsageAdminHandler {
-	return &UsageAdminHandler{service: usageadmin.NewService(db)}
+	return &UsageAdminHandler{service: adminusage.NewService(db)}
 }
 
 func (h *UsageAdminHandler) List(c *gin.Context) {
@@ -28,7 +28,7 @@ func (h *UsageAdminHandler) List(c *gin.Context) {
 	}
 	result, err := h.service.List(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询用量日志失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询用量日志失败"))
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -41,7 +41,7 @@ func (h *UsageAdminHandler) Export(c *gin.Context) {
 	}
 	rows, err := h.service.Export(c.Request.Context(), filter, parsePositiveInt(c.Query("limit"), 1000))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("导出用量日志失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("导出用量日志失败"))
 		return
 	}
 	c.Header("Content-Type", "text/csv; charset=utf-8")
@@ -56,28 +56,29 @@ func (h *UsageAdminHandler) Summary(c *gin.Context) {
 	}
 	result, err := h.service.Summary(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询用量汇总失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询用量汇总失败"))
 		return
 	}
 	c.JSON(http.StatusOK, result)
 }
 
-func (h *UsageAdminHandler) parseFilter(c *gin.Context) (usageadmin.ListFilter, bool) {
+func (h *UsageAdminHandler) parseFilter(c *gin.Context) (adminusage.ListFilter, bool) {
 	since, ok := parseOptionalRFC3339(c, "since")
 	if !ok {
-		return usageadmin.ListFilter{}, false
+		return adminusage.ListFilter{}, false
 	}
 	until, ok := parseOptionalRFC3339(c, "until")
 	if !ok {
-		return usageadmin.ListFilter{}, false
+		return adminusage.ListFilter{}, false
 	}
 
-	return usageadmin.ListFilter{
+	return adminusage.ListFilter{
 		UserID:        c.Query("user_id"),
 		OrgID:         c.Query("org_id"),
 		ProjectID:     c.Query("project_id"),
 		ModelConfigID: c.Query("model_config_id"),
 		ProviderID:    c.Query("provider_id"),
+		GatewayKeyID:  c.Query("gateway_api_key_id"),
 		OperationType: c.Query("operation_type"),
 		Since:         since,
 		Until:         until,
@@ -93,13 +94,13 @@ func parseOptionalRFC3339(c *gin.Context, key string) (*time.Time, bool) {
 	}
 	value, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(key+" must be RFC3339"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(key+" must be RFC3339"))
 		return nil, false
 	}
 	return &value, true
 }
 
-func writeUsageCSV(w http.ResponseWriter, rows []usageadmin.Log) {
+func writeUsageCSV(w http.ResponseWriter, rows []adminusage.Log) {
 	cw := csv.NewWriter(w)
 	_ = cw.Write([]string{"id", "created_at", "user_id", "username", "org_id", "project_id", "model_config_id", "model", "operation_type", "input_tokens", "output_tokens", "duration_sec", "image_count", "cost", "usage_reservation_id", "gateway_api_key_id"})
 	for _, row := range rows {

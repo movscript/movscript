@@ -4,20 +4,20 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	artifactref "github.com/movscript/movscript/internal/app/artifactref"
+	artifact "github.com/movscript/movscript/internal/app/artifact"
 	"gorm.io/gorm"
 )
 
 type ArtifactRefHandler struct {
-	service *artifactref.Service
+	service *artifact.Service
 }
 
 func NewArtifactRefHandler(db *gorm.DB) *ArtifactRefHandler {
-	return &ArtifactRefHandler{service: artifactref.NewService(db)}
+	return &ArtifactRefHandler{service: artifact.NewService(db)}
 }
 
 func (h *ArtifactRefHandler) ListByProject(c *gin.Context) {
-	refs, err := h.service.ListByProject(c.Request.Context(), artifactref.ListFilter{
+	refs, err := h.service.ListByProject(c.Request.Context(), artifact.ListFilter{
 		ProjectID: parseID(c.Param("id")),
 		Kind:      c.Query("kind"),
 		ResourceURL: func(id uint) string {

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	adminsettings "github.com/movscript/movscript/internal/app/adminsettings"
+	adminsettings "github.com/movscript/movscript/internal/app/admin/settings"
 	debugapp "github.com/movscript/movscript/internal/app/debug"
 	"github.com/movscript/movscript/internal/infra/observability"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
@@ -177,14 +177,59 @@ func TestDebugHealthSettingsPersistAndAudit(t *testing.T) {
 	}
 }
 
+func TestDebugListJobsFiltersScopeAndRejectsInvalidIDs(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router, db := newTestDebugRouter(t)
+	projectID := uint(12)
+	otherProjectID := uint(13)
+	orgID := uint(2)
+	if err := db.Create(&[]persistencemodel.Job{
+		{UserID: 7, OrgID: &orgID, ProjectID: &projectID, ModelConfigID: 4, JobType: "video_i2v", FeatureKey: "ref_video_gen", Status: "failed"},
+		{UserID: 8, OrgID: &orgID, ProjectID: &otherProjectID, ModelConfigID: 5, JobType: "image", FeatureKey: "ref_image_gen", Status: "failed"},
+	}).Error; err != nil {
+		t.Fatalf("seed jobs: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/admin/debug/jobs?job_id=1&status=failed&project_id=12&user_id=7&job_type=video_i2v&feature_key=ref_video_gen", nil)
+	res := httptest.NewRecorder()
+	router.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected filtered jobs response, got %d: %s", res.Code, res.Body.String())
+	}
+	if res.Header().Get("X-Total-Count") != "1" {
+		t.Fatalf("expected total 1, got %q", res.Header().Get("X-Total-Count"))
+	}
+	var jobs []debugapp.JobDetail
+	if err := json.Unmarshal(res.Body.Bytes(), &jobs); err != nil {
+		t.Fatalf("decode jobs: %v", err)
+	}
+	if len(jobs) != 1 || jobs[0].UserID != 7 || jobs[0].ProjectID == nil || *jobs[0].ProjectID != projectID {
+		t.Fatalf("unexpected filtered jobs: %+v", jobs)
+	}
+
+	invalid := httptest.NewRecorder()
+	router.ServeHTTP(invalid, httptest.NewRequest(http.MethodGet, "/admin/debug/jobs?project_id=bad", nil))
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid project id rejected, got %d: %s", invalid.Code, invalid.Body.String())
+	}
+
+	invalidJobID := httptest.NewRecorder()
+	router.ServeHTTP(invalidJobID, httptest.NewRequest(http.MethodGet, "/admin/debug/jobs?job_id=0", nil))
+	if invalidJobID.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid job id rejected, got %d: %s", invalidJobID.Code, invalidJobID.Body.String())
+	}
+}
+
 func newTestDebugRouter(t *testing.T) (*gin.Engine, *gorm.DB) {
 	t.Helper()
-	db := testutil.OpenSQLite(t, "handler-debug.db", &persistencemodel.AuditLog{}, &persistencemodel.AICredential{}, &persistencemodel.AdminSetting{})
+	db := testutil.OpenSQLite(t, "handler-debug.db", &persistencemodel.AuditLog{}, &persistencemodel.AICredential{}, &persistencemodel.AdminSetting{}, &persistencemodel.Job{}, &persistencemodel.RawResource{})
 	h := NewDebugHandler(db.Session(&gorm.Session{SkipHooks: true}), []byte("test-encryption-key-32-bytes----"))
 
 	router := gin.New()
 	router.POST("/admin/debug/raw-call", h.RawCall)
 	router.POST("/admin/debug/provider-call", h.ProviderCall)
+	router.GET("/admin/debug/jobs", h.ListJobs)
 	router.GET("/admin/debug/health-settings", h.GetHealthSettings)
 	router.PUT("/admin/debug/health-settings", h.UpdateHealthSettings)
 	return router, db

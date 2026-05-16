@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,12 +19,22 @@ import (
 func TestModelGatewayAPIKeyAdminWritesAuditAndDoesNotAuditRawKey(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router, db := newTestModelGatewayAPIKeyRouter(t)
+	org := persistencemodel.Organization{Name: "Gateway Org", Slug: "gateway-org", Plan: "team", Status: "active", CreatedBy: 7}
+	if err := db.Create(&org).Error; err != nil {
+		t.Fatalf("seed org: %v", err)
+	}
+	project := persistencemodel.Project{Name: "Gateway Project", OwnerID: 7, OrgID: &org.ID, Status: "planning"}
+	if err := db.Create(&project).Error; err != nil {
+		t.Fatalf("seed project: %v", err)
+	}
 
-	createReq := authenticatedGatewayRequest(http.MethodPost, "/model-gateway/api-keys", `{
+	createReq := authenticatedGatewayRequest(http.MethodPost, "/model-gateway/api-keys", fmt.Sprintf(`{
 		"name":"agent service",
+		"project_id":%d,
 		"allowed_model_ids":[1,2],
 		"allowed_scopes":["model:chat"]
-	}`)
+	}`, project.ID))
+	createReq.Header.Set("X-Org-ID", fmt.Sprint(org.ID))
 	createRes := httptest.NewRecorder()
 
 	router.ServeHTTP(createRes, createReq)
@@ -42,6 +53,7 @@ func TestModelGatewayAPIKeyAdminWritesAuditAndDoesNotAuditRawKey(t *testing.T) {
 	if countAuditAction(t, db, "model_gateway.api_key.admin_created") != 1 {
 		t.Fatalf("expected create audit log")
 	}
+	assertGatewayAPIKeyAuditScope(t, db, "model_gateway.api_key.admin_created", org.ID, project.ID)
 	assertAuditMetadataDoesNotContain(t, db, "model_gateway.api_key.admin_created", rawKey)
 	assertAuditMetadataDoesNotContain(t, db, "model_gateway.api_key.admin_created", "key_hash")
 
@@ -50,6 +62,7 @@ func TestModelGatewayAPIKeyAdminWritesAuditAndDoesNotAuditRawKey(t *testing.T) {
 		"is_enabled":false,
 		"allowed_scopes":["*"]
 	}`)
+	updateReq.Header.Set("X-Org-ID", fmt.Sprint(org.ID))
 	updateRes := httptest.NewRecorder()
 
 	router.ServeHTTP(updateRes, updateReq)
@@ -60,8 +73,10 @@ func TestModelGatewayAPIKeyAdminWritesAuditAndDoesNotAuditRawKey(t *testing.T) {
 	if countAuditAction(t, db, "model_gateway.api_key.admin_updated") != 1 {
 		t.Fatalf("expected update audit log")
 	}
+	assertGatewayAPIKeyAuditScope(t, db, "model_gateway.api_key.admin_updated", org.ID, project.ID)
 
 	deleteReq := authenticatedGatewayRequest(http.MethodDelete, "/model-gateway/api-keys/1", "")
+	deleteReq.Header.Set("X-Org-ID", fmt.Sprint(org.ID))
 	deleteRes := httptest.NewRecorder()
 
 	router.ServeHTTP(deleteRes, deleteReq)
@@ -72,8 +87,10 @@ func TestModelGatewayAPIKeyAdminWritesAuditAndDoesNotAuditRawKey(t *testing.T) {
 	if countAuditAction(t, db, "model_gateway.api_key.admin_deleted") != 1 {
 		t.Fatalf("expected delete audit log")
 	}
+	assertGatewayAPIKeyAuditScope(t, db, "model_gateway.api_key.admin_deleted", org.ID, project.ID)
 
 	missingReq := authenticatedGatewayRequest(http.MethodDelete, "/model-gateway/api-keys/1", "")
+	missingReq.Header.Set("X-Org-ID", fmt.Sprint(org.ID))
 	missingRes := httptest.NewRecorder()
 
 	router.ServeHTTP(missingRes, missingReq)
@@ -142,5 +159,19 @@ func assertAuditMetadataDoesNotContain(t *testing.T, db *gorm.DB, action string,
 	}
 	if strings.Contains(row.Metadata, forbidden) {
 		t.Fatalf("audit metadata for %s contains forbidden value %q: %s", action, forbidden, row.Metadata)
+	}
+}
+
+func assertGatewayAPIKeyAuditScope(t *testing.T, db *gorm.DB, action string, orgID uint, projectID uint) {
+	t.Helper()
+	var row persistencemodel.AuditLog
+	if err := db.Where("action = ?", action).First(&row).Error; err != nil {
+		t.Fatalf("load audit log %s: %v", action, err)
+	}
+	if row.OrgID == nil || *row.OrgID != orgID {
+		t.Fatalf("%s audit org_id = %#v, want %d", action, row.OrgID, orgID)
+	}
+	if row.ProjectID == nil || *row.ProjectID != projectID {
+		t.Fatalf("%s audit project_id = %#v, want %d", action, row.ProjectID, projectID)
 	}
 }

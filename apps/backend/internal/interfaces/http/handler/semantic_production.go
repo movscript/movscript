@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	semanticapp "github.com/movscript/movscript/internal/app/semantic"
 	domainsemantic "github.com/movscript/movscript/internal/domain/semantic"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
 )
 
 func (h *SemanticEntityHandler) ListProductions(c *gin.Context) {
@@ -16,7 +16,7 @@ func (h *SemanticEntityHandler) ListProductions(c *gin.Context) {
 		SourceType: c.Query("source_type"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -26,7 +26,7 @@ func (h *SemanticEntityHandler) CreateProduction(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.ProductionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateProduction(c.Request.Context(), projectID, req)
@@ -40,7 +40,7 @@ func (h *SemanticEntityHandler) CreateProduction(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchProduction(c *gin.Context) {
 	var req semanticapp.ProductionInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchProduction(c.Request.Context(), parseID(c.Param("id")), c.Param("productionId"), req)
@@ -60,7 +60,7 @@ func (h *SemanticEntityHandler) ListContentUnits(c *gin.Context) {
 		ScriptBlockID: parseID(c.Query("script_block_id")),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -70,7 +70,7 @@ func (h *SemanticEntityHandler) CreateContentUnit(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.ContentUnitInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateContentUnit(c.Request.Context(), projectID, req)
@@ -84,7 +84,7 @@ func (h *SemanticEntityHandler) CreateContentUnit(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchContentUnit(c *gin.Context) {
 	var req semanticapp.ContentUnitInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchContentUnit(c.Request.Context(), parseID(c.Param("id")), c.Param("contentUnitId"), req)
@@ -103,7 +103,7 @@ func (h *SemanticEntityHandler) ListKeyframes(c *gin.Context) {
 		ContentUnitID: parseID(c.Query("content_unit_id")),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	populateDomainKeyframeResourceURLs(c, items)
@@ -122,7 +122,7 @@ func (h *SemanticEntityHandler) CreateKeyframe(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.KeyframeInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreateKeyframe(c.Request.Context(), projectID, req)
@@ -136,7 +136,7 @@ func (h *SemanticEntityHandler) CreateKeyframe(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchKeyframe(c *gin.Context) {
 	var req semanticapp.KeyframeInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchKeyframe(c.Request.Context(), parseID(c.Param("id")), c.Param("keyframeId"), req)
@@ -153,7 +153,7 @@ func (h *SemanticEntityHandler) ListPreviewTimelines(c *gin.Context) {
 		ProductionID: parseID(c.Query("production_id")),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -163,7 +163,7 @@ func (h *SemanticEntityHandler) CreatePreviewTimeline(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.PreviewTimelineInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreatePreviewTimeline(c.Request.Context(), projectID, req)
@@ -177,7 +177,7 @@ func (h *SemanticEntityHandler) CreatePreviewTimeline(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchPreviewTimeline(c *gin.Context) {
 	var req semanticapp.PreviewTimelineInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchPreviewTimeline(c.Request.Context(), parseID(c.Param("id")), c.Param("timelineId"), req)
@@ -200,7 +200,7 @@ func (h *SemanticEntityHandler) ListPreviewTimelineItems(c *gin.Context) {
 		PreviewTimelineID: timelineID,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -213,7 +213,7 @@ func (h *SemanticEntityHandler) ListPreviewTimelineItemsFlat(c *gin.Context) {
 		Status:            c.Query("status"),
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal(err.Error()))
+		c.JSON(http.StatusInternalServerError, api.Internal(err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, items)
@@ -223,7 +223,7 @@ func (h *SemanticEntityHandler) CreatePreviewTimelineItemFlat(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req semanticapp.PreviewTimelineItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreatePreviewTimelineItem(c.Request.Context(), projectID, 0, req)
@@ -237,7 +237,7 @@ func (h *SemanticEntityHandler) CreatePreviewTimelineItemFlat(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchPreviewTimelineItemFlat(c *gin.Context) {
 	var req semanticapp.PreviewTimelineItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchPreviewTimelineItem(c.Request.Context(), parseID(c.Param("id")), c.Param("itemId"), 0, req)
@@ -253,7 +253,7 @@ func (h *SemanticEntityHandler) CreatePreviewTimelineItem(c *gin.Context) {
 	timelineID := parseID(c.Param("timelineId"))
 	var req semanticapp.PreviewTimelineItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.CreatePreviewTimelineItem(c.Request.Context(), projectID, timelineID, req)
@@ -267,7 +267,7 @@ func (h *SemanticEntityHandler) CreatePreviewTimelineItem(c *gin.Context) {
 func (h *SemanticEntityHandler) PatchPreviewTimelineItem(c *gin.Context) {
 	var req semanticapp.PreviewTimelineItemInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	item, err := h.semantic.PatchPreviewTimelineItem(c.Request.Context(), parseID(c.Param("id")), c.Param("itemId"), parseID(c.Param("timelineId")), req)

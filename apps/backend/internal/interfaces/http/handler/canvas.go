@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	canvasservice "github.com/movscript/movscript/internal/app/canvas"
-	"github.com/movscript/movscript/internal/domain/canvasruntime"
+	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
 	"github.com/movscript/movscript/internal/infra/ai"
 	"github.com/movscript/movscript/internal/infra/storage"
 	"gorm.io/gorm"
@@ -182,10 +182,10 @@ func (h *CanvasHandler) Save(c *gin.Context) {
 		return
 	}
 	var req struct {
-		Name       string                     `json:"name"`
-		CanvasType string                     `json:"canvas_type"`
-		Nodes      []canvasruntime.CanvasNode `json:"nodes"`
-		Edges      []canvasruntime.CanvasEdge `json:"edges"`
+		Name       string                    `json:"name"`
+		CanvasType string                    `json:"canvas_type"`
+		Nodes      []canvasdomain.CanvasNode `json:"nodes"`
+		Edges      []canvasdomain.CanvasEdge `json:"edges"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -9,8 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	projectapp "github.com/movscript/movscript/internal/app/project"
 	"github.com/movscript/movscript/internal/infra/cache"
-	"github.com/movscript/movscript/internal/interfaces/http/apierr"
-	audit "github.com/movscript/movscript/internal/interfaces/http/auditlog"
+	"github.com/movscript/movscript/internal/interfaces/http/api"
+	audit "github.com/movscript/movscript/internal/interfaces/http/audit"
 	"github.com/movscript/movscript/internal/interfaces/http/middleware"
 	"gorm.io/gorm"
 )
@@ -42,7 +42,7 @@ func currentOrgID(c *gin.Context) *uint {
 func (h *ProjectHandler) List(c *gin.Context) {
 	projects, err := h.projects.List(c.Request.Context(), currentOrgID(c))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询项目失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询项目失败"))
 		return
 	}
 	c.JSON(http.StatusOK, projects)
@@ -63,7 +63,7 @@ func (h *ProjectHandler) AdminList(c *gin.Context) {
 	}
 	page, err := h.projects.AdminList(c.Request.Context(), filter)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询项目失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询项目失败"))
 		return
 	}
 	c.Header("X-Total-Count", strconv.FormatInt(page.Total, 10))
@@ -74,10 +74,10 @@ func (h *ProjectHandler) AdminDetail(c *gin.Context) {
 	detail, err := h.projects.AdminDetail(c.Request.Context(), parseID(c.Param("id")))
 	if err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询项目详情失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询项目详情失败"))
 		return
 	}
 	c.JSON(http.StatusOK, detail)
@@ -89,11 +89,11 @@ func (h *ProjectHandler) AdminForceSetOwner(c *gin.Context) {
 		OwnerID uint `json:"owner_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if projectID == 0 || req.OwnerID == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("项目 ID 和 owner_id 必须有效"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("项目 ID 和 owner_id 必须有效"))
 		return
 	}
 
@@ -105,13 +105,13 @@ func (h *ProjectHandler) AdminForceSetOwner(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, projectapp.ErrProjectNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 		case errors.Is(err, projectapp.ErrOwnerNotFound):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("owner 用户不存在"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("owner 用户不存在"))
 		case errors.Is(err, projectapp.ErrOwnerInactive):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("owner 用户必须是 active 状态"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("owner 用户必须是 active 状态"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("修改项目 owner 失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("修改项目 owner 失败"))
 		}
 		return
 	}
@@ -133,7 +133,7 @@ func (h *ProjectHandler) AdminForceSetOwner(c *gin.Context) {
 func (h *ProjectHandler) AdminDelete(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	if projectID == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("项目 ID 必须有效"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("项目 ID 必须有效"))
 		return
 	}
 	var orgID *uint
@@ -142,10 +142,10 @@ func (h *ProjectHandler) AdminDelete(c *gin.Context) {
 	}
 	if err := h.projects.Delete(c.Request.Context(), projectID, nil); err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("删除项目失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("删除项目失败"))
 		return
 	}
 	audit.Record(c, h.db, audit.Event{
@@ -161,26 +161,26 @@ func (h *ProjectHandler) AdminDelete(c *gin.Context) {
 func (h *ProjectHandler) AdminCreate(c *gin.Context) {
 	var req projectapp.AdminCreateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	created, err := h.projects.AdminCreate(c.Request.Context(), req)
 	if err != nil {
 		switch {
 		case errors.Is(err, projectapp.ErrInvalidProjectName):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("项目名称不能为空"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("项目名称不能为空"))
 		case errors.Is(err, projectapp.ErrInvalidProjectStatus):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("status 必须是 planning、script_analysis、asset_prep、production、editing 或 done"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("status 必须是 planning、script_analysis、asset_prep、production、editing 或 done"))
 		case errors.Is(err, projectapp.ErrOwnerNotFound):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("owner 用户不存在"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("owner 用户不存在"))
 		case errors.Is(err, projectapp.ErrOwnerInactive):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("owner 用户必须是 active 状态"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("owner 用户必须是 active 状态"))
 		case errors.Is(err, projectapp.ErrProjectOrgNotFound):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("组织不存在"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("组织不存在"))
 		case errors.Is(err, projectapp.ErrProjectOrgInactive):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("组织已暂停，不能创建项目"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("组织已暂停，不能创建项目"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("创建项目失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("创建项目失败"))
 		}
 		return
 	}
@@ -204,7 +204,7 @@ func (h *ProjectHandler) AdminUpdate(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req projectapp.AdminUpdateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	var previousName string
@@ -217,15 +217,15 @@ func (h *ProjectHandler) AdminUpdate(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, projectapp.ErrProjectNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 		case errors.Is(err, projectapp.ErrInvalidProjectName):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("项目名称不能为空"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("项目名称不能为空"))
 		case errors.Is(err, projectapp.ErrInvalidProjectStatus):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("status 必须是 planning、script_analysis、asset_prep、production、editing 或 done"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("status 必须是 planning、script_analysis、asset_prep、production、editing 或 done"))
 		case errors.Is(err, projectapp.ErrNoProjectFieldsToUpdate):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("没有可更新字段"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("没有可更新字段"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("更新项目失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("更新项目失败"))
 		}
 		return
 	}
@@ -248,7 +248,7 @@ func (h *ProjectHandler) AdminUpdate(c *gin.Context) {
 func (h *ProjectHandler) Create(c *gin.Context) {
 	var req projectapp.CreateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	var ownerID uint
@@ -257,7 +257,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	}
 	project, err := h.projects.Create(c.Request.Context(), req, ownerID, currentOrgID(c))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("创建项目失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("创建项目失败"))
 		return
 	}
 	c.JSON(http.StatusCreated, project)
@@ -266,7 +266,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 func (h *ProjectHandler) Get(c *gin.Context) {
 	project, err := h.projects.Get(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c))
 	if err != nil {
-		c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+		c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 		return
 	}
 	c.JSON(http.StatusOK, project)
@@ -275,7 +275,7 @@ func (h *ProjectHandler) Get(c *gin.Context) {
 func (h *ProjectHandler) Update(c *gin.Context) {
 	var req projectapp.UpdateInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if strings.TrimSpace(req.Name) == "" {
@@ -301,10 +301,10 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 	project, err := h.projects.Update(c.Request.Context(), parseID(c.Param("id")), req, currentOrgID(c))
 	if err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("更新项目失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("更新项目失败"))
 		return
 	}
 	c.JSON(http.StatusOK, project)
@@ -313,10 +313,10 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 func (h *ProjectHandler) Delete(c *gin.Context) {
 	if err := h.projects.Delete(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c)); err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("删除项目失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("删除项目失败"))
 		return
 	}
 	c.Status(http.StatusNoContent)
@@ -325,33 +325,33 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 func (h *ProjectHandler) AddMember(c *gin.Context) {
 	var req projectapp.MemberInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	orgID := currentOrgID(c)
 	member, err := h.projects.AddMember(c.Request.Context(), parseID(c.Param("id")), req, orgID)
 	if err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 			return
 		}
 		if errors.Is(err, projectapp.ErrMemberUserNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("用户不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("用户不存在"))
 			return
 		}
 		if errors.Is(err, projectapp.ErrMemberUserInactive) {
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("项目成员用户必须是 active 状态"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("项目成员用户必须是 active 状态"))
 			return
 		}
 		if errors.Is(err, projectapp.ErrInvalidProjectMemberRole) {
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("role 必须是 director、writer、generator 或 viewer"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("role 必须是 director、writer、generator 或 viewer"))
 			return
 		}
 		if errors.Is(err, projectapp.ErrProjectOwnerMemberLocked) {
-			c.JSON(http.StatusConflict, apierr.Conflict("不能通过成员接口修改项目 Owner，请使用修改 Owner"))
+			c.JSON(http.StatusConflict, api.Conflict("不能通过成员接口修改项目 Owner，请使用修改 Owner"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("添加项目成员失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("添加项目成员失败"))
 		return
 	}
 	audit.Record(c, h.db, audit.Event{
@@ -375,14 +375,14 @@ func (h *ProjectHandler) RemoveMember(c *gin.Context) {
 	orgID := currentOrgID(c)
 	if err := h.projects.RemoveMember(c.Request.Context(), projectID, memberID, orgID); err != nil {
 		if errors.Is(err, projectapp.ErrProjectMemberNotFound) || errors.Is(err, projectapp.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目成员不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目成员不存在"))
 			return
 		}
 		if errors.Is(err, projectapp.ErrProjectOwnerMemberLocked) {
-			c.JSON(http.StatusConflict, apierr.Conflict("不能直接移除项目 Owner，请先修改项目 Owner"))
+			c.JSON(http.StatusConflict, api.Conflict("不能直接移除项目 Owner，请先修改项目 Owner"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("移除项目成员失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("移除项目成员失败"))
 		return
 	}
 	audit.Record(c, h.db, audit.Event{
@@ -403,28 +403,28 @@ func (h *ProjectHandler) AdminAddMember(c *gin.Context) {
 	projectID := parseID(c.Param("id"))
 	var req projectapp.MemberInput
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	if req.UserID == 0 {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput("user_id 必须有效"))
+		c.JSON(http.StatusBadRequest, api.InvalidInput("user_id 必须有效"))
 		return
 	}
 	member, err := h.projects.AddMember(c.Request.Context(), projectID, req, nil)
 	if err != nil {
 		switch {
 		case errors.Is(err, projectapp.ErrProjectNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 		case errors.Is(err, projectapp.ErrMemberUserNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("用户不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("用户不存在"))
 		case errors.Is(err, projectapp.ErrMemberUserInactive):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("项目成员用户必须是 active 状态"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("项目成员用户必须是 active 状态"))
 		case errors.Is(err, projectapp.ErrInvalidProjectMemberRole):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("role 必须是 director、writer、generator 或 viewer"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("role 必须是 director、writer、generator 或 viewer"))
 		case errors.Is(err, projectapp.ErrProjectOwnerMemberLocked):
-			c.JSON(http.StatusConflict, apierr.Conflict("不能通过成员接口修改项目 Owner，请使用修改 Owner"))
+			c.JSON(http.StatusConflict, api.Conflict("不能通过成员接口修改项目 Owner，请使用修改 Owner"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("添加项目成员失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("添加项目成员失败"))
 		}
 		return
 	}
@@ -450,20 +450,20 @@ func (h *ProjectHandler) AdminUpdateMember(c *gin.Context) {
 		Role string `json:"role" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, apierr.InvalidInput(err.Error()))
+		c.JSON(http.StatusBadRequest, api.InvalidInput(err.Error()))
 		return
 	}
 	member, err := h.projects.UpdateMemberRole(c.Request.Context(), projectID, memberID, req.Role, nil)
 	if err != nil {
 		switch {
 		case errors.Is(err, projectapp.ErrProjectNotFound), errors.Is(err, projectapp.ErrProjectMemberNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目成员不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目成员不存在"))
 		case errors.Is(err, projectapp.ErrInvalidProjectMemberRole):
-			c.JSON(http.StatusBadRequest, apierr.InvalidInput("role 必须是 director、writer、generator 或 viewer"))
+			c.JSON(http.StatusBadRequest, api.InvalidInput("role 必须是 director、writer、generator 或 viewer"))
 		case errors.Is(err, projectapp.ErrProjectOwnerMemberLocked):
-			c.JSON(http.StatusConflict, apierr.Conflict("不能直接修改项目 Owner 成员角色，请使用修改 Owner"))
+			c.JSON(http.StatusConflict, api.Conflict("不能直接修改项目 Owner 成员角色，请使用修改 Owner"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("更新项目成员失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("更新项目成员失败"))
 		}
 		return
 	}
@@ -488,11 +488,11 @@ func (h *ProjectHandler) AdminRemoveMember(c *gin.Context) {
 	if err := h.projects.RemoveMember(c.Request.Context(), projectID, memberID, nil); err != nil {
 		switch {
 		case errors.Is(err, projectapp.ErrProjectNotFound), errors.Is(err, projectapp.ErrProjectMemberNotFound):
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目成员不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目成员不存在"))
 		case errors.Is(err, projectapp.ErrProjectOwnerMemberLocked):
-			c.JSON(http.StatusConflict, apierr.Conflict("不能直接移除项目 Owner，请先修改项目 Owner"))
+			c.JSON(http.StatusConflict, api.Conflict("不能直接移除项目 Owner，请先修改项目 Owner"))
 		default:
-			c.JSON(http.StatusInternalServerError, apierr.Internal("移除项目成员失败"))
+			c.JSON(http.StatusInternalServerError, api.Internal("移除项目成员失败"))
 		}
 		return
 	}
@@ -524,7 +524,7 @@ func (h *ProjectHandler) adminProjectOrgID(c *gin.Context, projectID uint) *uint
 func (h *ProjectHandler) ListMembers(c *gin.Context) {
 	members, err := h.projects.ListMembers(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询项目成员失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询项目成员失败"))
 		return
 	}
 	c.JSON(http.StatusOK, members)
@@ -534,10 +534,10 @@ func (h *ProjectHandler) AdminListMembers(c *gin.Context) {
 	members, err := h.projects.ListMembers(c.Request.Context(), parseID(c.Param("id")), nil)
 	if err != nil {
 		if errors.Is(err, projectapp.ErrProjectNotFound) {
-			c.JSON(http.StatusNotFound, apierr.NotFound("项目不存在"))
+			c.JSON(http.StatusNotFound, api.NotFound("项目不存在"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询项目成员失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询项目成员失败"))
 		return
 	}
 	c.JSON(http.StatusOK, members)
@@ -546,7 +546,7 @@ func (h *ProjectHandler) AdminListMembers(c *gin.Context) {
 func (h *ProjectHandler) Progress(c *gin.Context) {
 	progress, err := h.projects.Progress(c.Request.Context(), parseID(c.Param("id")), currentOrgID(c))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, apierr.Internal("查询项目进度失败"))
+		c.JSON(http.StatusInternalServerError, api.Internal("查询项目进度失败"))
 		return
 	}
 

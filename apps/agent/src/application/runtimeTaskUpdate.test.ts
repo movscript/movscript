@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { InMemoryAgentStore } from '../state/store.js'
 import type { AgentRun, AgentTask } from '../state/types.js'
-import { updateRuntimeTask } from './runtimeTaskUpdate.js'
+import { applyRuntimeTaskUpdate, updateRuntimeTask } from './runtimeTaskUpdate.js'
 
 test('updateRuntimeTask validates, persists, and returns the previous task snapshot', () => {
   const store = new InMemoryAgentStore()
@@ -47,6 +47,27 @@ test('updateRuntimeTask enforces unique subagent task names', () => {
     update: { metadata: { subagentName: 'Writer' } },
     now: '2026-01-01T00:00:01.000Z',
   }), /subagent name already exists in plan plan_1: Writer/)
+})
+
+test('applyRuntimeTaskUpdate recomputes the plan before emitting task update callbacks', () => {
+  const store = new InMemoryAgentStore()
+  store.createTask(makeTask({ id: 'task_1', status: 'pending', progress: 0 }))
+  const calls: string[] = []
+
+  const result = applyRuntimeTaskUpdate({
+    store,
+    taskId: 'task_1',
+    update: { status: 'blocked', blockedReason: 'needs input' },
+    now: '2026-01-01T00:00:01.000Z',
+    onPlanRecomputed: (planId) => calls.push(`recompute:${planId}`),
+    onTaskUpdated: (task, previousTask) => calls.push(`event:${previousTask.status}:${task.status}:${task.blockedReason}`),
+  })
+
+  assert.equal(result.task.status, 'blocked')
+  assert.deepEqual(calls, [
+    'recompute:plan_1',
+    'event:pending:blocked:needs input',
+  ])
 })
 
 function makeRun(overrides: Partial<AgentRun> = {}): AgentRun {

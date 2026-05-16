@@ -2,8 +2,8 @@ package db
 
 import (
 	"fmt"
-	"github.com/movscript/movscript/internal/infra/entityrelation"
 	persistencemodel "github.com/movscript/movscript/internal/infra/persistence/model"
+	"github.com/movscript/movscript/internal/infra/relation"
 	"gorm.io/gorm"
 )
 
@@ -65,7 +65,7 @@ func backfillEntityRelationsByRows[T any](db *gorm.DB) error {
 		return err
 	}
 	for i := range rows {
-		if err := entityrelation.SyncCoreEntityRelations(db, &rows[i]); err != nil {
+		if err := relation.SyncCoreEntityRelations(db, &rows[i]); err != nil {
 			return err
 		}
 	}
