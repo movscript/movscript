@@ -240,7 +240,7 @@ export default function ProductionPage() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <ListChecks size={16} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">当前制作预演</h2>
+                      <h2 className="text-sm font-semibold text-foreground">当前预演挂载</h2>
                     </div>
                     <p className="mt-2 truncate text-sm font-medium text-foreground">{selected?.name ?? '暂无制作'}</p>
                     <p className="mt-1 truncate text-xs text-muted-foreground">{selected?.source ?? '直接创建或从制作编排生成制作后开始统计'}</p>
@@ -972,7 +972,7 @@ function deliveryWorkbenchHref(production: ProductionRecord) {
 }
 
 function productionPlaybackHref(production: ProductionRecord) {
-  return withRouteParams(ROUTES.project.productionPreview, { productionId: production.dbId })
+  return withRouteParams(ROUTES.project.contentUnitWorkbench, { productionId: production.dbId, focus: 'preview' })
 }
 
 function formatShortDate(value: string) {

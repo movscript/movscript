@@ -94,7 +94,7 @@ function inferRouteFromLabels(labels: string[] | undefined) {
   if (list.some((label) => /production-orchestrate|production-orchestration/i.test(label))) return { pathname: ROUTES.project.productionOrchestration }
   if (list.some((label) => /creative-workbench|pre-production/i.test(label))) return { pathname: ROUTES.project.preProduction }
   if (list.some((label) => /script-split/i.test(label))) return { pathname: ROUTES.project.scripts }
-  if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.productionPreview }
+  if (list.some((label) => /workbench/i.test(label))) return { pathname: ROUTES.project.contentUnitWorkbench }
   return undefined
 }
 

@@ -2,11 +2,13 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { assertDesktopArch, assertDesktopPlatform, desktopArchs, desktopPlatforms, isDesktopReleaseTarget } from './desktop-targets.mjs'
+import { ffmpegStaticBinaryUrl } from './ffmpeg-static-source.mjs'
 import { resolveDesktopFFmpegPath, verifyDesktopFFmpeg, verifyDesktopFFmpegMetadata } from './verify-desktop-package.mjs'
 
+export { desktopArchs, desktopPlatforms } from './desktop-targets.mjs'
+
 const repoRoot = resolve(import.meta.dirname, '../..')
-const desktopPlatforms = ['darwin', 'linux', 'win32']
-const desktopArchs = ['x64', 'arm64']
 
 if (isDirectRun()) {
   runFFmpegAuditCli(repoRoot, process.argv.slice(2))
@@ -48,10 +50,17 @@ export function auditDesktopFFmpeg(root = repoRoot, options = {}) {
     verifyMetadata = verifyDesktopFFmpegMetadata,
   } = options
 
-  const entries = platforms.flatMap((platform) => archs.map((arch) => {
+  const includeOnlyDefaultReleaseTargets = platforms.length > 1 && archs.length > 1
+  const entries = platforms.flatMap((platform) => archs
+    .filter((arch) => !includeOnlyDefaultReleaseTargets || isDesktopReleaseTarget(platform, arch))
+    .map((arch) => {
     const binaryPath = resolveFFmpeg(root, platform, arch)
     const errors = []
     let runnableChecked = false
+    const stagingCommand = buildFFmpegStagingCommand(platform, arch, {
+      currentPlatform,
+      currentArch,
+    })
 
     if (!existsSync(binaryPath)) {
       errors.push(`missing binary: ${binaryPath}`)
@@ -72,8 +81,9 @@ export function auditDesktopFFmpeg(root = repoRoot, options = {}) {
       runnableChecked,
       ok: errors.length === 0,
       errors,
+      stagingCommand,
     }
-  }))
+    }))
 
   return {
     ok: entries.every((entry) => entry.ok),
@@ -86,9 +96,7 @@ export function parsePlatforms(args = [], currentPlatform = process.platform) {
   const platformArg = args.find((arg) => arg.startsWith('--platform='))
   if (!platformArg) return [currentPlatform]
   const platform = platformArg.slice('--platform='.length)
-  if (!desktopPlatforms.includes(platform)) {
-    throw new Error(`Unsupported ffmpeg audit platform: ${platform}`)
-  }
+  assertDesktopPlatform(platform, 'ffmpeg audit')
   return [platform]
 }
 
@@ -102,9 +110,7 @@ export function parseDesktopArch(args = [], currentArch = process.arch) {
   const archArg = args.find((arg) => arg.startsWith('--arch='))
   if (!archArg) return currentArch
   const arch = archArg.slice('--arch='.length)
-  if (!['x64', 'arm64'].includes(arch)) {
-    throw new Error(`Unsupported ffmpeg audit arch: ${arch}`)
-  }
+  assertDesktopArch(arch, 'ffmpeg audit')
   return arch
 }
 
@@ -117,12 +123,21 @@ export function printFFmpegAudit(result, log = console.log, logError = console.e
     for (const error of entry.errors) {
       write(`  - ${error}`)
     }
+    if (!entry.ok && entry.stagingCommand) {
+      write(`  stage with: ${entry.stagingCommand}`)
+    }
   }
   if (result.ok) {
     log('ffmpeg desktop audit passed.')
   } else {
     logError('ffmpeg desktop audit failed.')
   }
+}
+
+export function buildFFmpegStagingCommand(platform, arch, options = {}) {
+  void options
+  ffmpegStaticBinaryUrl(platform, arch)
+  return `pnpm run release:download-ffmpeg-static -- --platform=${platform} --arch=${arch}`
 }
 
 function isDirectRun() {

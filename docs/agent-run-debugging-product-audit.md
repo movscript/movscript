@@ -30,7 +30,7 @@
 | 调试覆盖和诊断清单 | `buildDebugCoverageSummary` 与 `buildDebugReadinessChecklist` 输出覆盖指标、缺口、诊断项和下一步动作；页面、报告、调试包均包含 | 已满足 |
 | 调试口径可理解 | 页面 `agent-run-debug-field-guide`、复制摘要和调试包 `fieldGuide` 解释模型请求、模型响应、历史写入和缺失项判断口径 | 已满足 |
 | 脱敏复制摘要 | `buildDebugReportText` 输出运行元信息、覆盖、诊断清单、模型调用、轮次关联、上下文、工具、历史、异常事件；测试覆盖敏感信息不泄露 | 已满足 |
-| 机器可读调试包 | `copyDebugBundle` 输出 `schema`、`schemaUrl`、`generatedAt`、`capabilities`、`run`、`runSummary`、`fieldGuide`、`coverage`、`readinessChecklist`、`modelCalls`、`modelCallContexts`、`promptDetails`、`messageWrites`、`toolCalls`、`attentionEvents`、`pendingActions`、`events`；运行基础信息未加载时禁用复制按钮并显示原因，按钮通过 `aria-describedby` 关联禁用原因；页面展示调试包版本和能力数；`docs/agent-run-debug-bundle-v1.schema.json` 将 `schemaUrl`、`generatedAt`、`run`、`runSummary` 等固定输出字段列为必填，并要求 run 快照至少包含 `id/threadId/status/createdAt`；fixture 固化复制契约；`scripts/verify-agent-run-debugging.mjs` 会按 schema 机器校验 fixture，严格校验 `generatedAt`、run 时间、runSummary 时间和 attention event 时间的 date-time，并要求页面 `DEBUG_BUNDLE_CAPABILITIES`、fixture capabilities 与 schema enum 精确一致 | 已满足 |
+| 机器可读调试包 | `copyDebugBundle` 输出 `schema`、`schemaUrl`、`generatedAt`、`capabilities`、`run`、`runSummary`、`fieldGuide`、`coverage`、`readinessChecklist`、`modelCalls`、`modelCallContexts`、`promptDetails`、`messageWrites`、`toolCalls`、`attentionEvents`、`pendingActions`、`events`；运行基础信息未加载时禁用复制按钮并显示原因，按钮通过 `aria-describedby` 关联禁用原因；页面展示调试包版本和能力数；旧 run 缺少角色字段时 `runSummary.role` 固定落为 `unknown`；`docs/agent-run-debug-bundle-v1.schema.json` 将 `schemaUrl`、`generatedAt`、`run`、`runSummary` 等固定输出字段列为必填，并要求 run 快照至少包含 `id/threadId/status/createdAt`，且 `run.status` 与 `runSummary.status` 必须落在 AgentRun 状态枚举内；`modelCalls.status` 与 `modelCallContexts.status` 必须落在同一组模型调用状态枚举内；`pendingActions` 每项至少包含 `type/id/createdAt`，类型限定为 `approval/input`；fixture 固化复制契约；`scripts/verify-agent-run-debugging.mjs` 会按 schema 机器校验 fixture，检查 fixture 的 `runId/run/runSummary/trace/modelCalls/modelCallContexts/eventIds` 互相一致，要求同轮 `modelCallContexts.toolCalls/messageWrites` 必须能回溯到顶层 `toolCalls/messageWrites`，并要求 `runSummary.pendingApprovals/pendingInputs` 与 `pendingActions` 类型计数一致；同时严格校验 `generatedAt`、run 时间、runSummary 时间、pending action 时间和 attention event 时间的 date-time，并要求页面 `DEBUG_BUNDLE_CAPABILITIES`、fixture capabilities 与 schema enum 精确一致 | 已满足 |
 | 调试包消费契约已发布 | `docs/agent-run-debug-bundle-v1.zh-CN.md` 说明版本识别、核心字段、读取顺序、脱敏边界、旧运行限制和兼容策略；`docs/README.zh-CN.md` 已链接 | 已满足 |
 | 旧运行限制可解释 | 页面诊断清单给出缺失数据下一步；`docs/agent-run-debug-bundle-v1.zh-CN.md` 说明旧 run 缺失 request payload、response body、context、history write、tool detail 时不能事后补齐 | 已满足 |
 | 浏览器验收标准明确 | `docs/agent-run-debugging-acceptance.zh-CN.md` 定义 Playwright 命令、外部 base URL 复跑方式、CI job、通过标准、截图附件清单、调试包验收和失败处理；PR 模板和发布清单要求 AgentRun 调试改动跑门禁并检查 CI artifact；`docs/README.zh-CN.md` 与 `docs/README.md` 已链接 | 已满足 |
@@ -50,7 +50,7 @@
 | “没有存储历史消息的 HTTP 回复” | `messageWrites`、`traceMessageDetail`、同轮 `modelCallContexts.messageWrites` | `buildDebugCoverageSummary warns when model replies have no assistant history write`；调试包 fixture 包含 `messageWrites` | 已覆盖 |
 | “大模型请求详情还没来得及做详情展开” | `traceModelDetail`、`ModelCallInlineDebug`、`ModelCallDetail` | `agentTraceView exposes HTTP response and final model result separately`；`agent-run-model-call-inline-http-detail`；E2E 断言已写入 | 代码/测试覆盖，真实浏览器待验收 |
 | “复制出来方便调试” | `buildDebugReportText`、`copyDebugBundle`、schema/fixture/contract doc | `test:agent-run-debugging`；调试包 v1 schema、fixture、契约文档；fixture 按 schema 机器校验通过 | 已覆盖 |
-| “直到成熟产品” | 成熟度审计、验收清单、文档入口、PR 检查项、发布检查项、Makefile 默认测试入口、静态质量门、CI 浏览器 E2E、可复用外部服务的浏览器 E2E、默认 Playwright Chromium、旧 artifact 清理、自动截图附件校验及其行为测试、浏览器失败后仍执行 artifact 校验的 E2E runner | `docs/agent-run-debugging-product-audit.md`、`docs/agent-run-debugging-acceptance.zh-CN.md`、`docs/README.zh-CN.md`、`docs/README.md`、`docs/release-checklist.zh-CN.md`、`docs/release-checklist.md`、`.github/pull_request_template.md`、`.github/workflows/ci.yml`、`Makefile`、`apps/frontend/playwright.config.ts`、`scripts/run-agent-run-debugging-e2e.mjs`、`scripts/clean-agent-run-debugging-artifacts.mjs`、`scripts/verify-agent-run-debugging-artifacts.mjs`、`scripts/verify-agent-run-debugging-artifacts.test.mjs`、`pnpm run test:agent-run-debugging` | 未完成：缺真实浏览器执行证据 |
+| “直到成熟产品” | 成熟度审计、验收清单、文档入口、PR 检查项、发布检查项、Makefile 默认测试入口、静态质量门、CI 浏览器 E2E、可复用外部服务的浏览器 E2E、默认 Playwright Chromium、旧 artifact 清理、自动截图附件校验及其行为测试、浏览器失败后仍执行 artifact 校验的 E2E runner、机器可读 E2E 验收摘要、调试包静态 verifier 自测 | `docs/agent-run-debugging-product-audit.md`、`docs/agent-run-debugging-acceptance.zh-CN.md`、`docs/README.zh-CN.md`、`docs/README.md`、`docs/release-checklist.zh-CN.md`、`docs/release-checklist.md`、`.github/pull_request_template.md`、`.github/workflows/ci.yml`、`Makefile`、`apps/frontend/playwright.config.ts`、`scripts/run-agent-run-debugging-e2e.mjs`、`scripts/clean-agent-run-debugging-artifacts.mjs`、`scripts/verify-agent-run-debugging.mjs`、`scripts/verify-agent-run-debugging.test.mjs`、`scripts/verify-agent-run-debugging-artifacts.mjs`、`scripts/verify-agent-run-debugging-artifacts.test.mjs`、`pnpm run test:agent-run-debugging` | 未完成：缺真实浏览器执行证据 |
 
 ## 已运行验证
 
@@ -76,7 +76,7 @@ pnpm --dir movscript/apps/frontend exec tsc --noEmit --pretty false
 pnpm run test:agent-run-debugging
 ```
 
-结果：verifier passed，artifact cleanup/verifier/E2E runner tests 9 passed，frontend focused tests 55 passed，frontend typecheck passed。
+结果：verifier passed，static verifier tests 4 passed，artifact cleanup/verifier/E2E runner tests 10 passed，frontend focused tests 55 passed，frontend typecheck passed。
 
 Makefile 入口复核：
 
@@ -124,7 +124,7 @@ pnpm --filter movscript-frontend exec playwright test src/e2e/agent-planner.spec
 
 E2E runner 诊断兜底：
 
-`scripts/run-agent-run-debugging-e2e.mjs` 已成为 `test:agent-run-debugging:e2e` 的唯一入口。它会先清理旧 artifact，再运行 Playwright，随后无论浏览器是否失败都会继续运行 `scripts/verify-agent-run-debugging-artifacts.mjs`，最后同时报告浏览器退出码、启动失败原因或终止信号，以及截图 artifact 校验退出码。`scripts/verify-agent-run-debugging-artifacts.test.mjs` 已覆盖浏览器命令失败时仍输出缺失截图清单、浏览器命令无法启动时输出 spawn 错误、浏览器被 signal 终止时输出 signal 名称的行为。
+`scripts/run-agent-run-debugging-e2e.mjs` 已成为 `test:agent-run-debugging:e2e` 的唯一入口。它会先清理旧 artifact，再运行 Playwright，随后无论浏览器是否失败都会继续运行 `scripts/verify-agent-run-debugging-artifacts.mjs`，最后同时报告浏览器退出码、启动失败原因或终止信号，以及截图 artifact 校验退出码，并写入 `apps/frontend/test-results/agent-run-debugging-acceptance-summary.json` 作为机器可读验收摘要。`scripts/verify-agent-run-debugging.test.mjs` 已覆盖静态 verifier 的 fixture 覆盖入口、同轮工具调用回溯、同轮历史写入回溯和 pending 计数一致性失败场景；`scripts/verify-agent-run-debugging-artifacts.test.mjs` 已覆盖浏览器命令失败时仍输出缺失截图清单、浏览器命令无法启动时输出 spawn 错误、浏览器被 signal 终止时输出 signal 名称、失败时写出 E2E 验收摘要，以及截图校验通过时写出 `passed: true` 摘要的行为。
 
 补丁空白检查：
 

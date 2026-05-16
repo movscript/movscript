@@ -1,8 +1,11 @@
 import { spawnSync } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const artifactRoot = 'apps/frontend/test-results'
+const summaryPath = path.resolve(root, process.env.AGENT_RUN_DEBUG_E2E_SUMMARY_PATH ?? path.join(artifactRoot, 'agent-run-debugging-acceptance-summary.json'))
 const playwrightCommand = parseCommandOverride() ?? [
   'pnpm',
   '--filter',
@@ -25,8 +28,9 @@ const browserResult = runStep('Browser AgentRun debugging acceptance', playwrigh
 const artifactResult = runStep('Verify AgentRun debugging screenshot artifacts', [
   process.execPath,
   'scripts/verify-agent-run-debugging-artifacts.mjs',
-  'apps/frontend/test-results',
+  artifactRoot,
 ], { allowFailure: true })
+writeAcceptanceSummary(browserResult, artifactResult)
 
 if (browserResult.status !== 0 || artifactResult.status !== 0) {
   console.error('AgentRun debugging E2E acceptance failed:')
@@ -62,6 +66,30 @@ function formatStepFailure(result) {
   if (result.error) return `failed to start: ${result.error.message}`
   if (result.signal) return `terminated by signal ${result.signal}`
   return `exited with ${result.status}`
+}
+
+function writeAcceptanceSummary(browserResult, artifactResult) {
+  const summary = {
+    schema: 'movscript.agent-run-debugging-acceptance-summary.v1',
+    schemaUrl: 'https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json',
+    generatedAt: new Date().toISOString(),
+    artifactRoot,
+    browser: formatResultForSummary(browserResult),
+    screenshotArtifacts: formatResultForSummary(artifactResult),
+    passed: browserResult.status === 0 && artifactResult.status === 0,
+  }
+  mkdirSync(path.dirname(summaryPath), { recursive: true })
+  writeFileSync(summaryPath, `${JSON.stringify(summary, null, 2)}\n`)
+  console.log(`Acceptance summary written to ${path.relative(root, summaryPath)}`)
+}
+
+function formatResultForSummary(result) {
+  return {
+    status: result.status,
+    signal: result.signal ?? null,
+    error: result.error ? result.error.message : null,
+    failure: result.status === 0 ? null : formatStepFailure(result),
+  }
 }
 
 function parseCommandOverride() {

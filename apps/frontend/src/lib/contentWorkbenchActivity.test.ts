@@ -21,7 +21,7 @@ test('content workbench activity feed waits for a production focus', () => {
   assert.equal(feed.items[0].actionLabel, '选择')
 })
 
-test('content workbench activity feed surfaces blockers before generation jobs', () => {
+test('content workbench activity feed keeps gate blockers out of activity history', () => {
   const feed = buildContentWorkbenchActivityFeed({
     hasSelectedUnit: true,
     selectedUnitTitle: '纸条特写',
@@ -34,27 +34,17 @@ test('content workbench activity feed surfaces blockers before generation jobs',
     jobs: [{ id: 7, type: 'video_i2v', status: 'running' }],
   })
 
-  assert.equal(feed.title, '生产活动有阻塞')
-  assert.equal(feed.detail, '纸条特写 · 4 项需要处理')
-  assert.deepEqual(feed.items.slice(0, 4).map((item) => item.key), [
+  assert.equal(feed.title, '生产活动需处理')
+  assert.equal(feed.detail, '纸条特写 · 1 条活动需要处理')
+  assert.deepEqual(feed.items.map((item) => item.key), [
     'review-drafts',
-    'missing-assets',
-    'keyframes',
-    'generation-context',
+    'job-7',
   ])
-  assert.equal(feed.items[4].tone, 'running')
-  assert.deepEqual(feed.items.slice(0, 4).map((item) => item.actionKey), [
+  assert.deepEqual(feed.items.map((item) => item.actionKey), [
     'review_ai_drafts',
-    'upload_missing_assets',
-    'add_first_keyframe',
-    'resolve_generation_context',
+    undefined,
   ])
-  assert.deepEqual(feed.items.slice(0, 4).map((item) => item.actionLabel), [
-    '审阅',
-    '上传',
-    '补帧',
-    '编辑',
-  ])
+  assert.equal(feed.items.some((item) => item.key === 'missing-assets' || item.key === 'keyframes' || item.key === 'generation-context'), false)
 })
 
 test('content workbench activity feed records completed generation output', () => {
@@ -73,4 +63,22 @@ test('content workbench activity feed records completed generation output', () =
   assert.equal(feed.title, '生产活动可追溯')
   assert.equal(feed.items.some((item) => item.title === '雨夜视频 已完成' && item.detail === '输出资源 #88'), true)
   assert.equal(feed.items.every((item) => item.tone === 'done'), true)
+})
+
+test('content workbench activity feed shows empty activity without repeating gate blockers', () => {
+  const feed = buildContentWorkbenchActivityFeed({
+    hasSelectedUnit: true,
+    selectedUnitTitle: '纸条特写',
+    missingAssetTitles: ['旧伞特写参考'],
+    keyframeTitles: [],
+    generationContextReady: false,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    jobs: [],
+  })
+
+  assert.equal(feed.title, '生产活动待启动')
+  assert.deepEqual(feed.items.map((item) => item.key), ['job-empty'])
+  assert.equal(feed.items[0].detail, '生成前缺口请查看生成门禁和制作项健康度。')
 })

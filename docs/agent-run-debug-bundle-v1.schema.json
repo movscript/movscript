@@ -115,7 +115,7 @@
     "pendingActions": {
       "type": "array",
       "items": {
-        "type": "object"
+        "$ref": "#/$defs/pendingAction"
       }
     },
     "events": {
@@ -160,7 +160,16 @@
           "minLength": 1
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "queued",
+            "in_progress",
+            "requires_action",
+            "completed",
+            "completed_with_warnings",
+            "failed",
+            "cancelled"
+          ]
         },
         "role": {
           "type": "string"
@@ -203,13 +212,27 @@
       ],
       "properties": {
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "queued",
+            "in_progress",
+            "requires_action",
+            "completed",
+            "completed_with_warnings",
+            "failed",
+            "cancelled"
+          ]
         },
         "statusLabel": {
           "type": "string"
         },
         "role": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "planner",
+            "worker",
+            "unknown"
+          ]
         },
         "roleLabel": {
           "type": "string"
@@ -417,7 +440,14 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "complete",
+            "request_only",
+            "response_only",
+            "result_only",
+            "failed"
+          ]
         },
         "statusLabel": {
           "type": "string"
@@ -589,6 +619,32 @@
         },
         "error": {
           "type": "string"
+        }
+      }
+    },
+    "pendingAction": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "type",
+        "id",
+        "createdAt"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "approval",
+            "input"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
         }
       }
     }

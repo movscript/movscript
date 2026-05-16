@@ -53,6 +53,7 @@ declare global {
         path?: string
         version?: string
         error?: string
+        code?: 'FFMPEG_NOT_FOUND' | 'FFMPEG_UNAVAILABLE'
         expectedBundledPath?: string
         platform?: string
         arch?: string

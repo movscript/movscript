@@ -33,6 +33,7 @@ export interface VideoClipStatus {
   path?: string
   version?: string
   error?: string
+  code?: 'FFMPEG_NOT_FOUND' | 'FFMPEG_UNAVAILABLE'
   expectedBundledPath?: string
   platform?: NodeJS.Platform
   arch?: string
@@ -85,6 +86,7 @@ export async function getVideoClipStatus(options: VideoClipStatusOptions = {}): 
   if (!ffmpeg) {
     return {
       available: false,
+      code: 'FFMPEG_NOT_FOUND',
       error: `ffmpeg is not available on this device. Expected bundled binary at ${expectedBundledPath}.`,
       expectedBundledPath,
       platform,
@@ -101,6 +103,7 @@ export async function getVideoClipStatus(options: VideoClipStatusOptions = {}): 
     return {
       available: false,
       path: ffmpeg,
+      code: missingCommand ? 'FFMPEG_NOT_FOUND' : 'FFMPEG_UNAVAILABLE',
       error: missingCommand
         ? `ffmpeg is not available on this device. Expected bundled binary at ${expectedBundledPath}.`
         : message,

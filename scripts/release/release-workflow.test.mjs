@@ -12,10 +12,24 @@ test('release workflow packages every explicit desktop target', () => {
     'package:desktop:linux:x64',
     'package:desktop:linux:arm64',
     'package:desktop:win',
-    'package:desktop:win:arm64',
   ]) {
     assert.match(releaseWorkflow, new RegExp(`command: ${command}`))
   }
+})
+
+test('release workflow downloads ffmpeg-static before checks and desktop packaging', () => {
+  assert.match(releaseWorkflow, /pnpm run release:download-ffmpeg-static:matrix/)
+  for (const pair of [
+    ['ffmpeg-platform: darwin', 'ffmpeg-arch: x64'],
+    ['ffmpeg-platform: darwin', 'ffmpeg-arch: arm64'],
+    ['ffmpeg-platform: linux', 'ffmpeg-arch: x64'],
+    ['ffmpeg-platform: linux', 'ffmpeg-arch: arm64'],
+    ['ffmpeg-platform: win32', 'ffmpeg-arch: x64'],
+  ]) {
+    assert.match(releaseWorkflow, new RegExp(pair[0]))
+    assert.match(releaseWorkflow, new RegExp(pair[1]))
+  }
+  assert.match(releaseWorkflow, /release:download-ffmpeg-static -- --platform=\$\{\{\s*matrix\.ffmpeg-platform\s*\}\} --arch=\$\{\{\s*matrix\.ffmpeg-arch\s*\}\}/)
 })
 
 test('release workflow uploads architecture-specific desktop artifact names', () => {
@@ -25,10 +39,14 @@ test('release workflow uploads architecture-specific desktop artifact names', ()
     'movscript-desktop-linux-x64',
     'movscript-desktop-linux-arm64',
     'movscript-desktop-windows-x64',
-    'movscript-desktop-windows-arm64',
   ]) {
     assert.match(releaseWorkflow, new RegExp(`artifact: ${artifact}`))
   }
+})
+
+test('release workflow does not package Windows ARM64 without a vetted ffmpeg-static source', () => {
+  assert.doesNotMatch(releaseWorkflow, /command: package:desktop:win:arm64/)
+  assert.doesNotMatch(releaseWorkflow, /artifact: movscript-desktop-windows-arm64/)
 })
 
 test('release workflow collects package artifacts without plugin duplicates', () => {

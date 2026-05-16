@@ -12,7 +12,6 @@ const titleKeys: Record<string, string> = {
   [ROUTES.projects]: 'header.titles.projects',
   [ROUTES.project.overview]: 'header.titles.projectHome',
   [ROUTES.project.standards]: 'header.titles.projectWorkspace',
-  [ROUTES.project.productionPreview]: 'header.titles.workbenchPreview',
   [ROUTES.project.preProduction]: 'header.titles.preProduction',
   [ROUTES.project.contentUnitWorkbench]: 'header.titles.workbenchProduction',
   [ROUTES.project.deliveryWorkbench]: 'header.titles.deliveryWorkbench',

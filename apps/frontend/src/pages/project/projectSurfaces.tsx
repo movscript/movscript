@@ -24,7 +24,6 @@ export type StageKey =
 
 export type WorkbenchCategory =
   | 'script'
-  | 'preview'
   | 'creative'
   | 'assets'
   | 'production'
@@ -112,7 +111,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     icon: Clapperboard,
     purpose: '把编排段这个情绪入口、情节、设定资料、素材需求缺口和镜头组织到具体制作下，形成可预演的结构。',
     owns: '制作结构、入口顺序、情节节点、设定资料引用、素材需求缺口、镜头骨架',
-    output: '可进入制作预演验证的编排方案',
+    output: '可进入内容编排工作台验证的编排方案',
   },
   {
     key: 'production',
@@ -137,16 +136,6 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
 ]
 
 export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
-  {
-    value: 'preview',
-    title: '制作预演',
-    shortTitle: '预演',
-    href: ROUTES.project.productionPreview,
-    icon: Clapperboard,
-    purpose: '对照制作编排读取真实制作数据，先看编排段这个情绪入口，再展开情节、镜头、预演画面和缺口。',
-    decision: '先确认入口是否有情节承接，再检查镜头、预演画面、缺口和预演记录。',
-    output: '真实制作预演状态、缺口清单和下一步动作。',
-  },
   {
     value: 'creative',
     title: '前期准备',

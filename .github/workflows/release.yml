@@ -55,6 +55,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Download ffmpeg-static release binaries
+        run: pnpm run release:download-ffmpeg-static:matrix
+
       - name: Run release checks
         run: pnpm run release:check
 
@@ -69,26 +72,32 @@ jobs:
             os: macos-latest
             command: package:desktop:mac:arm64
             artifact: movscript-desktop-macos-arm64
+            ffmpeg-platform: darwin
+            ffmpeg-arch: arm64
           - name: macos-x64
             os: macos-latest
             command: package:desktop:mac:x64
             artifact: movscript-desktop-macos-x64
+            ffmpeg-platform: darwin
+            ffmpeg-arch: x64
           - name: linux-x64
             os: ubuntu-latest
             command: package:desktop:linux:x64
             artifact: movscript-desktop-linux-x64
+            ffmpeg-platform: linux
+            ffmpeg-arch: x64
           - name: linux-arm64
             os: ubuntu-latest
             command: package:desktop:linux:arm64
             artifact: movscript-desktop-linux-arm64
+            ffmpeg-platform: linux
+            ffmpeg-arch: arm64
           - name: windows-x64
             os: windows-latest
             command: package:desktop:win
             artifact: movscript-desktop-windows-x64
-          - name: windows-arm64
-            os: windows-latest
-            command: package:desktop:win:arm64
-            artifact: movscript-desktop-windows-arm64
+            ffmpeg-platform: win32
+            ffmpeg-arch: x64
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout
@@ -116,6 +125,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Download ffmpeg-static release binary
+        run: pnpm run release:download-ffmpeg-static -- --platform=${{ matrix.ffmpeg-platform }} --arch=${{ matrix.ffmpeg-arch }}
 
       - name: Build desktop package
         run: pnpm run ${{ matrix.command }}

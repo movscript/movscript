@@ -17,6 +17,9 @@ export interface ContentWorkbenchDeliveryBriefInput {
   generationContextLoading: boolean
   generationContextError: boolean
   pendingReviewDraftCount: number
+  completedJobCount?: number
+  previewItemCount?: number
+  deliveryVersionCount?: number
 }
 
 export interface ContentWorkbenchDeliveryBrief {
@@ -50,35 +53,53 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
   const assetSlotCount = positiveInteger(input.assetSlotCount)
   const keyframeCount = positiveInteger(input.keyframeCount)
   const pendingReviewDraftCount = positiveInteger(input.pendingReviewDraftCount)
+  const completedJobCount = positiveInteger(input.completedJobCount)
+  const previewItemCount = positiveInteger(input.previewItemCount)
+  const deliveryVersionCount = positiveInteger(input.deliveryVersionCount)
   const contextDone = input.generationContextReady && !input.generationContextLoading && !input.generationContextError
-  const contextValue = input.generationContextError
-    ? '失败'
-    : input.generationContextLoading
-      ? '检查中'
-      : contextDone
-        ? '可用'
-        : '待补'
-  const metrics: ContentWorkbenchDeliveryBriefMetric[] = [
-    { label: '提示', value: input.hasPrompt ? '可用' : '待补', done: input.hasPrompt },
-    { label: '素材', value: missingSlotCount > 0 ? `${missingSlotCount} 缺口` : assetSlotCount > 0 ? `${assetSlotCount} 项` : '无缺口', done: missingSlotCount === 0 },
-    { label: '锚点', value: keyframeCount > 0 ? `${keyframeCount} 帧` : '待补', done: keyframeCount > 0 },
-    { label: '上下文', value: contextValue, done: contextDone },
-    { label: '审稿', value: pendingReviewDraftCount > 0 ? `${pendingReviewDraftCount} 待审` : '已处理', done: pendingReviewDraftCount === 0 },
-  ]
-  const blockers = [
+  const preGenerationBlockers = [
     input.hasPrompt ? '' : '补齐制作项描述或 prompt',
     missingSlotCount > 0 ? `补齐 ${missingSlotCount} 个素材需求` : '',
     keyframeCount > 0 ? '' : '添加至少一张画面锚点',
     input.generationContextError ? '修复生成上下文检查失败' : input.generationContextLoading ? '等待生成上下文检查完成' : contextDone ? '' : '补齐生成上下文门禁',
     pendingReviewDraftCount > 0 ? `处理 ${pendingReviewDraftCount} 个 AI 草案` : '',
   ].filter(Boolean)
+  const metrics: ContentWorkbenchDeliveryBriefMetric[] = [
+    { label: '门禁', value: preGenerationBlockers.length > 0 ? `${preGenerationBlockers.length} 阻塞` : '已通过', done: preGenerationBlockers.length === 0 },
+    { label: '生成', value: completedJobCount > 0 ? `${completedJobCount} 完成` : '待执行', done: completedJobCount > 0 },
+    { label: '预览', value: previewItemCount > 0 ? `${previewItemCount} 项` : '待挂载', done: previewItemCount > 0 },
+    { label: '交付', value: deliveryVersionCount > 0 ? `${deliveryVersionCount} 版` : '待整理', done: deliveryVersionCount > 0 },
+  ]
+  const deliveryBlockers = preGenerationBlockers.length > 0
+    ? [`生成门禁仍有 ${preGenerationBlockers.length} 项阻塞`]
+    : [
+      completedJobCount > 0 ? '' : '执行生成任务',
+      completedJobCount > 0 && previewItemCount === 0 ? '挂载生产预览' : '',
+      previewItemCount > 0 && deliveryVersionCount === 0 ? '整理交付版本' : '',
+    ].filter(Boolean)
+  const blockers = deliveryBlockers
   const progress = Math.round((metrics.filter((metric) => metric.done).length / metrics.length) * 100)
 
-  if (blockers.length === 0) {
+  if (blockers.length === 0 && deliveryVersionCount > 0) {
     return {
       tone: 'ready',
-      title: '交付包可进入生成',
-      detail: `${firstText(input.unitTitle, '当前制作项')} 的核心输入已经齐备，可以打开生成画布。`,
+      title: '交付包已闭环',
+      detail: `${firstText(input.unitTitle, '当前制作项')} 已有生成、预览和交付版本记录。`,
+      progress,
+      blockers,
+      metrics,
+    }
+  }
+
+  if (preGenerationBlockers.length === 0) {
+    return {
+      tone: 'ready',
+      title: completedJobCount === 0 ? '交付包可进入生成' : previewItemCount === 0 ? '交付包待预览' : '交付包待交付',
+      detail: completedJobCount === 0
+        ? `${firstText(input.unitTitle, '当前制作项')} 的核心输入已经齐备，可以打开生成画布。`
+        : previewItemCount === 0
+          ? '已有生成记录，下一步应挂到生产预览检查连续性。'
+          : '预览记录已经存在，下一步应整理交付版本。',
       progress,
       blockers,
       metrics,
@@ -89,7 +110,7 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
   return {
     tone,
     title: tone === 'warning' ? '交付包检查中' : '交付包仍有阻塞',
-    detail: `${firstText(input.unitTitle, '当前制作项')} 还有 ${blockers.length} 项需要处理。`,
+    detail: `${firstText(input.unitTitle, '当前制作项')} 还有 ${preGenerationBlockers.length} 项生成前门禁需要处理。`,
     progress,
     blockers,
     metrics,

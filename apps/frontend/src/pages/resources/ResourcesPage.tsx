@@ -423,6 +423,7 @@ function VideoClipDialog({
     available: boolean
     version?: string
     error?: string
+    code?: 'FFMPEG_NOT_FOUND' | 'FFMPEG_UNAVAILABLE'
     expectedBundledPath?: string
     platform?: string
     arch?: string
@@ -547,7 +548,12 @@ function VideoClipDialog({
           loading: false,
           available: status.available,
           version: status.version,
-          error: status.available ? undefined : status.error || t('pages.resources.clipFFmpegMissing'),
+          error: status.available
+            ? undefined
+            : status.code === 'FFMPEG_NOT_FOUND'
+              ? t('pages.resources.clipFFmpegMissing')
+              : status.error || t('pages.resources.clipFFmpegMissing'),
+          code: status.code,
           expectedBundledPath: status.expectedBundledPath,
           platform: status.platform,
           arch: status.arch,

@@ -15,6 +15,7 @@ pnpm run test:agent-run-debugging
 - 调试页关键 UI hook。
 - 调试报告和调试包字段。
 - schema 和 fixture 的机器校验、capabilities 和文档入口。
+- 静态 verifier 自测，包括 fixture 覆盖入口、同轮工具/历史回溯和 pending 计数一致性失败场景。
 - 截图 artifact 校验器的通过/失败行为，包括 PNG 签名、关键 chunk、CRC、最小尺寸和最小文件大小。
 - 前端聚焦测试和类型检查。
 
@@ -41,6 +42,7 @@ MOVSCRIPT_E2E_BROWSER_CHANNEL=chrome pnpm run test:agent-run-debugging:e2e
 
 该命令会先清理旧的 `test-results` 和 `playwright-report`，通过后会把关键状态截图作为 Playwright 附件保存到测试结果目录，截图名称与下方清单一致。
 它由 `scripts/run-agent-run-debugging-e2e.mjs` 执行：即使浏览器验收失败也会继续执行截图附件校验，最终同时报告浏览器退出码、启动失败原因或终止信号，以及截图 artifact 校验退出码。
+runner 还会在 `apps/frontend/test-results/agent-run-debugging-acceptance-summary.json` 写入机器可读验收摘要，字段包含 `schema`、`generatedAt`、`artifactRoot`、`browser`、`screenshotArtifacts` 和 `passed`，便于 CI artifact 下载后快速判断浏览器步骤与截图校验步骤的状态。
 根级 E2E 命令会在 Playwright 通过后自动运行截图附件校验：
 
 ```bash

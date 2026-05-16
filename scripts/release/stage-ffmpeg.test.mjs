@@ -6,10 +6,12 @@ import test from 'node:test'
 
 import {
   assertRedistributableSourcePath,
+  inspectFFmpegSourceFromEnv,
   parseDesktopArch,
   parseDesktopPlatform,
   readFFmpegVersion,
   resolveDesktopFFmpegPath,
+  resolveFFmpegSourceCandidate,
   runStageFFmpegCli,
   sha256File,
   stageFFmpegBinary,
@@ -113,6 +115,95 @@ test('runStageFFmpegCli reports staging errors without throwing', () => {
 
   assert.equal(exitCode, 1)
   assert.deepEqual(errors, ['staged binary failed validation'])
+})
+
+test('runStageFFmpegCli can inspect extracted binary directories without release metadata', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-stage-ffmpeg-inspect-'))
+  const sourceDir = join(dir, 'ffmpeg-build')
+  const sourceBin = join(sourceDir, 'bin', 'ffmpeg')
+  await mkdir(join(sourceDir, 'bin'), { recursive: true })
+  await writeFile(sourceBin, 'fake ffmpeg', 'utf8')
+  try {
+    const logs = []
+    let exitCode = 0
+    runStageFFmpegCli('/repo', {
+      MOVSCRIPT_FFMPEG_BIN: sourceDir,
+    }, ['--inspect', '--platform=darwin', '--arch=arm64'], {
+      currentPlatform: 'darwin',
+      currentArch: 'arm64',
+      exit: (code) => { exitCode = code },
+      log: (message) => logs.push(message),
+      logError: (message) => logs.push(message),
+      spawn: () => ({ status: 0, stdout: 'ffmpeg version inspect-test', stderr: '' }),
+    })
+    assert.equal(exitCode, 0)
+    assert.match(logs.join('\n'), new RegExp(`Resolved ffmpeg source for darwin arm64: ${sourceBin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`))
+    assert.match(logs.join('\n'), /ffmpeg -version: ffmpeg version inspect-test/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('runStageFFmpegCli inspect exits when a current-target binary is not runnable', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-stage-ffmpeg-inspect-bad-'))
+  const sourceBin = join(dir, 'ffmpeg')
+  await writeFile(sourceBin, 'fake ffmpeg', 'utf8')
+  try {
+    const errors = []
+    let exitCode = 0
+    runStageFFmpegCli('/repo', {
+      MOVSCRIPT_FFMPEG_BIN: sourceBin,
+    }, ['--inspect', '--platform=linux', '--arch=x64'], {
+      currentPlatform: 'linux',
+      currentArch: 'x64',
+      exit: (code) => { exitCode = code },
+      log: () => undefined,
+      logError: (message) => errors.push(message),
+      spawn: () => ({ status: 1, stdout: '', stderr: 'bad binary' }),
+    })
+    assert.equal(exitCode, 1)
+    assert.match(errors.join('\n'), /bad binary/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('runStageFFmpegCli inspect skips version checks for non-current targets', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-stage-ffmpeg-inspect-cross-'))
+  const sourceBin = join(dir, 'ffmpeg.exe')
+  await writeFile(sourceBin, 'fake ffmpeg', 'utf8')
+  try {
+    const logs = []
+    let exitCode = 0
+    runStageFFmpegCli('/repo', {
+      MOVSCRIPT_FFMPEG_BIN: sourceBin,
+    }, ['--inspect', '--platform=win32', '--arch=x64'], {
+      currentPlatform: 'darwin',
+      currentArch: 'arm64',
+      exit: (code) => { exitCode = code },
+      log: (message) => logs.push(message),
+      spawn: () => {
+        throw new Error('cross-target inspect should not execute binary')
+      },
+    })
+    assert.equal(exitCode, 0)
+    assert.match(logs.join('\n'), /ffmpeg -version: skipped for non-current target win32 x64/)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('inspectFFmpegSourceFromEnv reports missing inspect source before metadata checks', () => {
+  const errors = []
+  let exitCode = 0
+  inspectFFmpegSourceFromEnv('/repo', {}, {
+    platform: 'linux',
+    arch: 'x64',
+    exit: (code) => { exitCode = code },
+    logError: (message) => errors.push(message),
+  })
+  assert.equal(exitCode, 1)
+  assert.match(errors.join('\n'), /MOVSCRIPT_FFMPEG_BIN/)
 })
 
 test('runStageFFmpegCli reports unsupported platforms without stack traces', () => {
@@ -297,6 +388,80 @@ test('stageFFmpegBinary copies and revalidates the target binary', async () => {
       [source, ['-version']],
       [target, ['-version']],
     ])
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('stageFFmpegBinary can stage from an extracted binary directory', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-stage-ffmpeg-dir-'))
+  const sourceDir = join(dir, 'ffmpeg-static-build')
+  const sourceBinDir = join(sourceDir, 'bin')
+  const source = join(sourceBinDir, 'ffmpeg')
+  const target = join(dir, 'vendor/darwin/ffmpeg')
+  await mkdir(sourceBinDir, { recursive: true })
+  await writeFile(source, 'fake ffmpeg', 'utf8')
+  try {
+    const calls = []
+    stageFFmpegBinary(sourceDir, target, dir, (command, args) => {
+      calls.push([command, args])
+      return { status: 0, stdout: 'ffmpeg version directory-test', stderr: '' }
+    }, { sourceUrl: 'https://downloads.movscript.dev/ffmpeg', license: 'LGPL-2.1-or-later', arch: process.arch })
+    assert.equal(await readFile(target, 'utf8'), 'fake ffmpeg')
+    const metadata = JSON.parse(await readFile(join(dir, 'vendor/darwin/METADATA.json'), 'utf8'))
+    assert.equal(metadata.source_basename, 'ffmpeg')
+    assert.deepEqual(calls, [
+      [source, ['-version']],
+      [target, ['-version']],
+    ])
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('resolveFFmpegSourceCandidate explains source archives instead of compiling them', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-stage-ffmpeg-source-'))
+  const sourceDir = join(dir, 'ffmpeg-8.1')
+  await mkdir(join(sourceDir, 'libavcodec'), { recursive: true })
+  await writeFile(join(sourceDir, 'configure'), '#!/bin/sh\n', 'utf8')
+  try {
+    assert.throws(
+      () => resolveFFmpegSourceCandidate(sourceDir, 'ffmpeg'),
+      /source code, not a prebuilt binary/,
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('resolveFFmpegSourceCandidate reports binary-free directories clearly', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-stage-ffmpeg-empty-'))
+  try {
+    assert.throws(
+      () => resolveFFmpegSourceCandidate(dir, 'ffmpeg.exe'),
+      /No ffmpeg\.exe binary found/,
+    )
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('resolveFFmpegSourceCandidate prefers root and bin binaries over examples', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'movscript-stage-ffmpeg-pick-'))
+  const sourceDir = join(dir, 'ffmpeg-static-build')
+  const sampleDir = join(sourceDir, 'examples')
+  const binDir = join(sourceDir, 'nested', 'bin')
+  const rootBinary = join(sourceDir, 'ffmpeg')
+  const sampleBinary = join(sampleDir, 'ffmpeg')
+  const binBinary = join(binDir, 'ffmpeg')
+  try {
+    await mkdir(sampleDir, { recursive: true })
+    await mkdir(binDir, { recursive: true })
+    await writeFile(sampleBinary, 'sample ffmpeg', 'utf8')
+    await writeFile(binBinary, 'bin ffmpeg', 'utf8')
+    assert.equal(resolveFFmpegSourceCandidate(sourceDir, 'ffmpeg'), binBinary)
+    await writeFile(rootBinary, 'root ffmpeg', 'utf8')
+    assert.equal(resolveFFmpegSourceCandidate(sourceDir, 'ffmpeg'), rootBinary)
   } finally {
     await rm(dir, { recursive: true, force: true })
   }

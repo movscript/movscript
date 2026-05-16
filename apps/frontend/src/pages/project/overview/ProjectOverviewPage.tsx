@@ -459,7 +459,7 @@ export default function ProjectOverviewPage() {
         progress: planProgress,
         state: data.productions.length === 0 ? (scriptTotal > 0 ? 'blocked' : 'empty') : planProgress >= 70 ? 'ready' : 'active',
         href: ROUTES.project.production,
-        workbenchHref: ROUTES.project.productionPreview,
+        workbenchHref: mergeSearch(ROUTES.project.contentUnitWorkbench, '', { focus: 'preview' }),
         icon: Route,
       },
       {
@@ -579,9 +579,9 @@ export default function ProjectOverviewPage() {
     return [
       {
         key: 'preview',
-        title: '检查制作预演',
-        area: '制作预演',
-        href: ROUTES.project.productionPreview,
+        title: '检查预演挂载',
+        area: '内容编排',
+        href: mergeSearch(ROUTES.project.contentUnitWorkbench, '', { focus: 'preview' }),
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
       },
@@ -635,7 +635,7 @@ export default function ProjectOverviewPage() {
               </Link>
             </Button>
             <Button asChild className="gap-2">
-              <Link to={nextLane?.workbenchHref ?? ROUTES.project.productionPreview}>
+              <Link to={nextLane?.workbenchHref ?? ROUTES.project.contentUnitWorkbench}>
                 进入下一步 <ArrowRight size={15} />
               </Link>
             </Button>
@@ -684,7 +684,7 @@ export default function ProjectOverviewPage() {
               <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">{nextLane?.description ?? '项目对象准备完成后会显示下一步入口。'}</p>
               <Progress value={nextLane?.progress ?? 0} className="mt-4 h-1.5" />
               <Button asChild size="sm" className="mt-4 w-full justify-center gap-2">
-                <Link to={nextLane?.workbenchHref ?? ROUTES.project.productionPreview}>
+                <Link to={nextLane?.workbenchHref ?? ROUTES.project.contentUnitWorkbench}>
                   处理下一步 <ArrowRight size={14} />
                 </Link>
               </Button>

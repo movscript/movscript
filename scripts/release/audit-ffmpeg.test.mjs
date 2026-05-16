@@ -4,7 +4,29 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
 
-import { auditDesktopFFmpeg, parseDesktopArch, parseDesktopArchs, parsePlatforms, printFFmpegAudit, runFFmpegAuditCli } from './audit-ffmpeg.mjs'
+import {
+  auditDesktopFFmpeg,
+  buildFFmpegStagingCommand,
+  desktopArchs,
+  desktopPlatforms,
+  parseDesktopArch,
+  parseDesktopArchs,
+  parsePlatforms,
+  printFFmpegAudit,
+  runFFmpegAuditCli,
+} from './audit-ffmpeg.mjs'
+import { assertDesktopArch, assertDesktopPlatform, desktopFFmpegBinaryName } from './desktop-targets.mjs'
+
+test('shared desktop release target helpers define supported package targets', () => {
+  assert.deepEqual(desktopPlatforms, ['darwin', 'linux', 'win32'])
+  assert.deepEqual(desktopArchs, ['x64', 'arm64'])
+  assert.equal(desktopFFmpegBinaryName('win32'), 'ffmpeg.exe')
+  assert.equal(desktopFFmpegBinaryName('darwin'), 'ffmpeg')
+  assert.doesNotThrow(() => assertDesktopPlatform('linux', 'test target'))
+  assert.doesNotThrow(() => assertDesktopArch('arm64', 'test target'))
+  assert.throws(() => assertDesktopPlatform('freebsd', 'test target'), /Unsupported test target platform/)
+  assert.throws(() => assertDesktopArch('ia32', 'test target'), /Unsupported test target arch/)
+})
 
 test('auditDesktopFFmpeg reports all platform binaries and checks current platform runtime', async () => {
   const root = await mkdtemp(join(tmpdir(), 'movscript-audit-ffmpeg-'))
@@ -57,6 +79,7 @@ test('auditDesktopFFmpeg fails when binaries are missing or metadata is invalid'
     assert.match(result.entries.find((entry) => entry.platform === 'darwin').errors.join('\n'), /metadata mismatch/)
     assert.match(result.entries.find((entry) => entry.platform === 'linux').errors.join('\n'), /missing binary/)
     assert.match(result.entries.find((entry) => entry.platform === 'win32').errors.join('\n'), /missing binary/)
+    assert.match(result.entries.find((entry) => entry.platform === 'linux').stagingCommand, /--platform=linux --arch=x64/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
@@ -107,9 +130,28 @@ test('auditDesktopFFmpeg can check a platform and architecture matrix', async ()
   }
 })
 
+test('auditDesktopFFmpeg matrix skips Windows ARM64 until a default ffmpeg source exists', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'movscript-audit-ffmpeg-matrix-default-'))
+  try {
+    const result = auditDesktopFFmpeg(root, {
+      platforms: desktopPlatforms,
+      archs: desktopArchs,
+      currentPlatform: 'linux',
+      currentArch: 'x64',
+      verifyMetadata: () => '',
+      verifyRunnable: () => '',
+    })
+    assert.equal(result.entries.length, 5)
+    assert.equal(result.entries.some((entry) => entry.platform === 'win32' && entry.arch === 'arm64'), false)
+    assert.equal(result.entries.some((entry) => entry.platform === 'win32' && entry.arch === 'x64'), true)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('parsePlatforms supports current, all, and explicit platform modes', () => {
   assert.deepEqual(parsePlatforms([], 'darwin'), ['darwin'])
-  assert.deepEqual(parsePlatforms(['--all'], 'darwin'), ['darwin', 'linux', 'win32'])
+  assert.deepEqual(parsePlatforms(['--all'], 'darwin'), desktopPlatforms)
   assert.deepEqual(parsePlatforms(['--platform=linux'], 'darwin'), ['linux'])
   assert.throws(() => parsePlatforms(['--platform=freebsd'], 'darwin'), /Unsupported/)
 })
@@ -124,8 +166,44 @@ test('parseDesktopArch supports current and explicit audit targets', () => {
 test('parseDesktopArchs supports current, explicit, and matrix audit targets', () => {
   assert.deepEqual(parseDesktopArchs([], 'arm64'), ['arm64'])
   assert.deepEqual(parseDesktopArchs(['--arch=x64'], 'arm64'), ['x64'])
-  assert.deepEqual(parseDesktopArchs(['--all-archs'], 'arm64'), ['x64', 'arm64'])
-  assert.deepEqual(parseDesktopArchs(['--matrix'], 'arm64'), ['x64', 'arm64'])
+  assert.deepEqual(parseDesktopArchs(['--all-archs'], 'arm64'), desktopArchs)
+  assert.deepEqual(parseDesktopArchs(['--matrix'], 'arm64'), desktopArchs)
+})
+
+test('buildFFmpegStagingCommand includes version guidance for cross target binaries', () => {
+  assert.equal(
+    buildFFmpegStagingCommand('darwin', 'arm64', { currentPlatform: 'darwin', currentArch: 'arm64' }),
+    'pnpm run release:download-ffmpeg-static -- --platform=darwin --arch=arm64',
+  )
+  assert.equal(
+    buildFFmpegStagingCommand('win32', 'x64', { currentPlatform: 'darwin', currentArch: 'arm64' }),
+    'pnpm run release:download-ffmpeg-static -- --platform=win32 --arch=x64',
+  )
+})
+
+test('buildFFmpegStagingCommand reports unsupported ffmpeg-static targets', () => {
+  assert.throws(
+    () => buildFFmpegStagingCommand('win32', 'arm64', { currentPlatform: 'darwin', currentArch: 'arm64' }),
+    /does not provide/,
+  )
+})
+
+test('auditDesktopFFmpeg prints staging commands for missing matrix entries', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'movscript-audit-ffmpeg-remediation-'))
+  try {
+    const result = auditDesktopFFmpeg(root, {
+      platforms: ['linux'],
+      archs: ['arm64'],
+      currentPlatform: 'darwin',
+      currentArch: 'arm64',
+      verifyMetadata: () => '',
+      verifyRunnable: () => '',
+    })
+    assert.equal(result.ok, false)
+    assert.match(result.entries[0].stagingCommand, /--platform=linux --arch=arm64/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test('runFFmpegAuditCli reports unsupported platforms without stack traces', () => {
@@ -199,6 +277,7 @@ test('printFFmpegAudit emits a compact pass/fail report', () => {
         runnableChecked: false,
         ok: false,
         errors: ['missing binary'],
+        stagingCommand: 'MOVSCRIPT_FFMPEG_BIN=/path/to/ffmpeg pnpm run release:stage-ffmpeg -- --platform=linux --arch=x64',
       },
     ],
   }, (message) => logs.push(message), (message) => errors.push(message))
@@ -207,6 +286,7 @@ test('printFFmpegAudit emits a compact pass/fail report', () => {
   assert.match(logs.join('\n'), /runnable: checked/)
   assert.match(errors.join('\n'), /FAIL linux/)
   assert.match(errors.join('\n'), /missing binary/)
+  assert.match(errors.join('\n'), /stage with:/)
   assert.match(errors.join('\n'), /audit failed/)
 })
 

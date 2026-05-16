@@ -28,66 +28,44 @@ import {
   EMPTY_AGENT_RUNTIME_CONTRACT_RESOLVER,
   type AgentRuntimeContractResolver,
 } from '../contracts/runtimeContract.js'
-import {
-  isActiveRunStatus,
-} from '../state/runProjection.js'
 import { defaultRunPolicy } from '../state/runPolicy.js'
-import { buildRunRound, type AgentRunRoundInfo } from '../state/runRound.js'
-import {
-  subagentNameFromRun,
-} from '../state/subagentIdentity.js'
 import { RuntimeRunControllerRegistry } from './runLifecycleControl.js'
 import { numberField } from './runtimeScalarInput.js'
 import { RuntimeRunAuthRegistry } from './runAuth.js'
 import {
-  applyRuntimeAgentPlanCreationToolFlow,
-  applyRuntimeAgentReplanToolFlow,
-  getRuntimeAgentPlan,
-} from './runtimeAgentPlanTools.js'
+  createRuntimeAgentPlanToolsBridge,
+  type RuntimeAgentPlanToolsBridge,
+} from './runtimeAgentPlanToolsBridge.js'
 import {
-  requireRuntimePlan,
   requireRuntimeRun,
   requireRuntimeTask,
   requireRuntimeThread,
 } from './runtimeStoreLookup.js'
-import {
-  applyRuntimeSubagentCancellationFlow,
-} from './runtimeSubagentTaskCancellation.js'
 import { updateRuntimeThreadRunStatus } from './runtimeThreadProjection.js'
 import {
-  applyRuntimePlanCreationRequest,
-} from './runtimePlanCreation.js'
+  createRuntimePlanCreationBridge,
+  type RuntimePlanCreationBridge,
+} from './runtimePlanCreationBridge.js'
 import {
   createRuntimePlanStatusBridge,
   type RuntimePlanStatusBridge,
 } from './runtimePlanStatusBridge.js'
 import {
-  getRuntimePlan,
-  getRuntimeTaskTree,
-  listRuntimePlans,
-} from './runtimePlanRead.js'
-import { getRuntimePlanSnapshot } from './runtimePlanSnapshot.js'
+  createRuntimeEntityReadBridge,
+  type RuntimeEntityReadBridge,
+} from './runtimeEntityReadBridge.js'
 import {
-  getRuntimeChildRuns,
-  getRuntimeRun,
-  listRuntimeRuns,
-  listRuntimeRunsByParent,
-} from './runtimeRunProjection.js'
-import {
-  addRuntimeThreadMessage,
-  createRuntimeThread,
-  updateRuntimeThread,
-} from './runtimeThreadLifecycle.js'
-import {
-  getRuntimeThread,
-  listRuntimeThreads,
-  listRuntimeThreadSummaries,
-} from './runtimeThreadRead.js'
+  createRuntimeThreadOperationsBridge,
+  type RuntimeThreadOperationsBridge,
+} from './runtimeThreadOperationsBridge.js'
 import {
   createRuntimeTaskRunSyncBridge,
   type RuntimeTaskRunSyncBridge,
 } from './runtimeTaskRunSyncBridge.js'
-import { applyRuntimeTaskUpdateRequest } from './runtimeTaskUpdate.js'
+import {
+  createRuntimeTaskUpdateBridge,
+  type RuntimeTaskUpdateBridge,
+} from './runtimeTaskUpdateBridge.js'
 import { resolveRuntimeAgentManifest } from './runtimeManifest.js'
 import { RuntimeCatalogSnapshotRegistry } from './runtimeCatalogSnapshot.js'
 import {
@@ -96,37 +74,29 @@ import {
 } from './runtimeCatalogSnapshotBridge.js'
 import { resolveRuntimeCatalogInitialization } from './runtimeCatalogInitialization.js'
 import {
-  getRuntimeDefaultAgentManifest,
-  inspectRuntimeAgentCatalog,
-  listRuntimeRegisteredTools,
-  listRuntimeSkillCatalog,
-} from './runtimeCatalogRead.js'
-import { applyRuntimeAgentCatalogReload } from './runtimeCatalogReload.js'
-import { resolveRuntimeCapabilities } from './runtimeCapabilities.js'
+  createRuntimeCatalogOperationsBridge,
+  type RuntimeCatalogOperationsBridge,
+} from './runtimeCatalogOperationsBridge.js'
 import {
-  applyRuntimeRunApprovalRequest,
-  applyRuntimeRunInputAnswerRequest,
-  applyRuntimeRunRejectionRequest,
-} from './runtimeRunInteraction.js'
+  createRuntimeSubagentToolsBridge,
+  type RuntimeSubagentToolsBridge,
+} from './runtimeSubagentToolsBridge.js'
 import {
-  listRuntimeSubagents,
-  waitRuntimeSubagent,
-} from './runtimeSubagentRead.js'
+  createRuntimePlanDispatchBridge,
+  type RuntimePlanDispatchBridge,
+} from './runtimePlanDispatchBridge.js'
 import {
-  applyRuntimeSubagentSpawnFlow,
-  prepareRuntimeSubagentSpawn,
-} from './runtimeSubagentSpawn.js'
+  createRuntimeReplanBridge,
+  type RuntimeReplanBridge,
+} from './runtimeReplanBridge.js'
 import {
-  applyRuntimePlanDispatchRequest,
-} from './runtimePlanDispatch.js'
-import { applyRuntimePlanTreeCancellationRequest } from './runtimePlanTreeCancellation.js'
+  createRuntimeTreeCancellationBridge,
+  type RuntimeTreeCancellationBridge,
+} from './runtimeTreeCancellationBridge.js'
 import {
-  applyRuntimeReplanRunRequest,
-} from './runtimeReplanPreparation.js'
-import {
-  applyRuntimeRunCancellationRequest,
-  applyRuntimeSubtreeCancellationRequest,
-} from './runtimeRunCancellation.js'
+  createRuntimeRunControlBridge,
+  type RuntimeRunControlBridge,
+} from './runtimeRunControlBridge.js'
 import {
   createRuntimeRunCancellationBridge,
   type RuntimeRunCancellationBridge,
@@ -136,11 +106,9 @@ import {
   type RuntimeRunCancellationGuard,
 } from './runtimeRunCancellationGuard.js'
 import {
-  applyRuntimeCreateRunRequest,
-  applyRuntimeCreateToolRunRequest,
-} from './runtimeRunCreation.js'
-import { prepareRuntimeRunThread } from './runtimeRunThread.js'
-import { prepareRuntimeToolRunThread } from './runtimeToolRunThread.js'
+  createRuntimeRunCreationBridge,
+  type RuntimeRunCreationBridge,
+} from './runtimeRunCreationBridge.js'
 import {
   createRuntimeRunStepBridge,
   type RuntimeRunStepBridge,
@@ -153,36 +121,35 @@ import {
   createRuntimeRunExecutionBridge,
   type RuntimeRunExecutionBridge,
 } from './runtimeRunExecutionBridge.js'
-import { buildRuntimeRunPreview } from './runtimeRunPreview.js'
+import {
+  createRuntimeRunPreviewBridge,
+  type RuntimeRunPreviewBridge,
+} from './runtimeRunPreviewBridge.js'
 import { RuntimeDeferredTaskRegistry } from './runtimeDeferredTasks.js'
 import {
   createRuntimePostRunRecordsBridge,
   type RuntimePostRunRecordsBridge,
 } from './runtimePostRunRecordsBridge.js'
-import { createRuntimeTaskEventBridge } from './runtimeTaskEventBridge.js'
+import {
+  createRuntimeTaskEventBridge,
+  type RuntimeTaskEventBridge,
+} from './runtimeTaskEventBridge.js'
 import {
   createRuntimeStreamBridge,
   type RuntimeStreamBridge,
 } from './runtimeStreamBridge.js'
 import {
-  applyRuntimeDraftFromUI,
-  createRuntimeLocalDraft,
-  getRuntimeDraft,
-  listRuntimeDrafts,
-  patchRuntimeDraft,
-  previewRuntimeDraftApply,
-  rejectRuntimeDraft,
-  simulateRuntimeDraftApply,
-  updateRuntimeDraft,
-  validateRuntimeDraft,
-} from './runtimeDraftOperations.js'
+  createRuntimeStreamSubscriptionBridge,
+  type RuntimeStreamSubscriptionBridge,
+} from './runtimeStreamSubscriptionBridge.js'
 import {
-  createRuntimeMemory,
-  deleteRuntimeMemory,
-  getRuntimeMemory,
-  listRuntimeMemories,
-  listRuntimeMemorySummaries,
-} from './runtimeMemoryOperations.js'
+  createRuntimeDraftOperationsBridge,
+  type RuntimeDraftOperationsBridge,
+} from './runtimeDraftOperationsBridge.js'
+import {
+  createRuntimeMemoryOperationsBridge,
+  type RuntimeMemoryOperationsBridge,
+} from './runtimeMemoryOperationsBridge.js'
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
 import { buildRunTracePage, normalizeTracePageLimit } from '../state/runTrace.js'
@@ -227,7 +194,6 @@ import type {
   UpdatePlanTaskInput,
   UpdateThreadInput,
 } from '../state/types.js'
-import { callModel } from '../model/modelClient.js'
 
 export type {
   AgentMessage,
@@ -331,6 +297,8 @@ export class AgentRuntime {
   private pluginWarnings: string[]
   private readonly catalogSnapshotBridge: RuntimeCatalogSnapshotBridge
   private readonly catalogSnapshots: RuntimeCatalogSnapshotRegistry
+  private readonly catalogOperations: RuntimeCatalogOperationsBridge
+  private readonly entityReads: RuntimeEntityReadBridge
   private readonly catalogStateStore: AgentCatalogStateStore
   private readonly pluginCatalogLoader?: NonNullable<AgentRuntimeOptions['pluginCatalogLoader']>
   private readonly updateState?: AgentCapabilitiesResponse['updates']
@@ -340,6 +308,9 @@ export class AgentRuntime {
   private readonly planStreamSubscribers = new RuntimeEventSubscriberRegistry<AgentPlanStreamEvent>()
   private readonly postRunRecordTasks = new RuntimeDeferredTaskRegistry()
   private readonly streams: RuntimeStreamBridge
+  private readonly streamSubscriptions: RuntimeStreamSubscriptionBridge
+  private readonly threads: RuntimeThreadOperationsBridge
+  private readonly drafts: RuntimeDraftOperationsBridge
   private readonly runSteps: RuntimeRunStepBridge
   private readonly planStatus: RuntimePlanStatusBridge
   private readonly postRunRecords: RuntimePostRunRecordsBridge
@@ -348,14 +319,34 @@ export class AgentRuntime {
   private readonly runExecution: RuntimeRunExecutionBridge
   private readonly runExecutionScheduler: RuntimeRunExecutionSchedulerBridge
   private readonly runCancellationGuard: RuntimeRunCancellationGuard
+  private readonly runControl: RuntimeRunControlBridge
+  private readonly runCreation: RuntimeRunCreationBridge
+  private readonly runPreview: RuntimeRunPreviewBridge
+  private readonly taskEvents: RuntimeTaskEventBridge
+  private readonly taskUpdate: RuntimeTaskUpdateBridge
+  private readonly planCreation: RuntimePlanCreationBridge
+  private readonly planDispatch: RuntimePlanDispatchBridge
+  private readonly replan: RuntimeReplanBridge
+  private readonly agentPlanTools: RuntimeAgentPlanToolsBridge
+  private readonly treeCancellation: RuntimeTreeCancellationBridge
+  private readonly subagentTools: RuntimeSubagentToolsBridge
+  private readonly memories: RuntimeMemoryOperationsBridge
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
     this.store = options.store ?? new InMemoryAgentStore()
     this.draftStore = options.draftStore ?? new InMemoryAgentDraftStore()
     this.backendApplyClient = options.backendApplyClient ?? new MCPBackendApplyClient(this.mcpClient)
+    this.drafts = createRuntimeDraftOperationsBridge({
+      draftStore: this.draftStore,
+      backendApplyClient: this.backendApplyClient,
+    })
     this.memoryStore = options.memoryStore ?? new InMemoryAgentMemoryStore()
     this.memoryManager = new MemoryManager(this.memoryStore)
+    this.memories = createRuntimeMemoryOperationsBridge({
+      memoryStore: this.memoryStore,
+      memoryManager: this.memoryManager,
+    })
     this.knowledgeManager = new KnowledgeManager(loadAgentKnowledgeStore())
     const catalogInitialization = resolveRuntimeCatalogInitialization({
       defaultAgentManifest: options.defaultAgentManifest,
@@ -385,6 +376,28 @@ export class AgentRuntime {
     this.catalogStateStore = options.catalogStateStore ?? new InMemoryAgentCatalogStateStore()
     this.pluginCatalogLoader = options.pluginCatalogLoader
     this.updateState = options.updateState
+    this.catalogOperations = createRuntimeCatalogOperationsBridge({
+      mcpClient: this.mcpClient,
+      catalogSnapshots: this.catalogSnapshots,
+      catalogSnapshotBridge: this.catalogSnapshotBridge,
+      load: this.pluginCatalogLoader,
+      updateState: this.updateState,
+      getState: () => ({
+        defaultAgentManifest: this.defaultAgentManifest,
+        toolRegistry: this.toolRegistry,
+        layeredRegistry: this.layeredRegistry,
+        pluginCatalogInfo: this.pluginCatalogInfo,
+        pluginWarnings: this.pluginWarnings,
+      }),
+      commitReload: (catalog) => {
+        this.defaultAgentManifest = catalog.defaultAgentManifest
+        this.toolRegistry = catalog.toolRegistry
+        this.layeredRegistry = catalog.layeredRegistry
+        this.pluginCatalogInfo = catalog.pluginCatalogInfo
+        this.pluginWarnings = catalog.pluginWarnings
+      },
+    })
+    this.entityReads = createRuntimeEntityReadBridge({ store: this.store })
     this.streams = createRuntimeStreamBridge({
       store: this.store,
       runSubscribers: this.runStreamSubscribers,
@@ -393,6 +406,11 @@ export class AgentRuntime {
       createTraceId: () => makeId('trace'),
       now: () => isoNow(),
     })
+    this.streamSubscriptions = createRuntimeStreamSubscriptionBridge({
+      store: this.store,
+      streams: this.streams,
+    })
+    this.threads = createRuntimeThreadOperationsBridge({ store: this.store })
     this.runSteps = createRuntimeRunStepBridge({
       store: this.store,
       createStepId: () => makeId('step'),
@@ -451,6 +469,85 @@ export class AgentRuntime {
       deleteCatalogSnapshot: (runId) => this.catalogSnapshots.deleteRun(runId),
       syncTaskFromRun: (runId) => this.taskRunSync.syncTaskFromRun(runId),
     })
+    this.runControl = createRuntimeRunControlBridge({
+      store: this.store,
+      controllers: this.runControllers,
+      runAuth: this.runAuth,
+      streams: this.streams,
+      runSteps: this.runSteps,
+      runExecutionScheduler: this.runExecutionScheduler,
+    })
+    this.runCreation = createRuntimeRunCreationBridge({
+      store: this.store,
+      catalogSnapshots: this.catalogSnapshots,
+      contractResolver: this.contractResolver,
+      runAuth: this.runAuth,
+      runExecutionScheduler: this.runExecutionScheduler,
+      createThread: (threadInput) => this.createThread(threadInput),
+    })
+    this.runPreview = createRuntimeRunPreviewBridge({
+      store: this.store,
+      mcpClient: this.mcpClient,
+      memoryManager: this.memoryManager,
+      draftStore: this.draftStore,
+      catalogSnapshots: this.catalogSnapshots,
+      contractResolver: this.contractResolver,
+      updateState: this.updateState,
+    })
+    this.taskEvents = createRuntimeTaskEventBridge({
+      store: this.store,
+      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
+      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
+    })
+    this.taskUpdate = createRuntimeTaskUpdateBridge({
+      store: this.store,
+      now: () => isoNow(),
+      recomputePlanStatus: (planId) => this.planStatus.recomputePlanStatus(planId),
+      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
+      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
+    })
+    this.planCreation = createRuntimePlanCreationBridge({
+      store: this.store,
+      generatePlanTasks,
+      runCreation: this.runCreation,
+      taskEvents: this.taskEvents,
+      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
+    })
+    this.planDispatch = createRuntimePlanDispatchBridge({
+      store: this.store,
+      taskUpdate: this.taskUpdate,
+      runCreation: this.runCreation,
+      runControl: this.runControl,
+      taskRunSync: this.taskRunSync,
+      planStatus: this.planStatus,
+      streams: this.streams,
+      taskEvents: this.taskEvents,
+    })
+    this.replan = createRuntimeReplanBridge({
+      store: this.store,
+      taskUpdate: this.taskUpdate,
+      planStatus: this.planStatus,
+      planDispatch: this.planDispatch,
+      taskEvents: this.taskEvents,
+    })
+    this.agentPlanTools = createRuntimeAgentPlanToolsBridge({
+      store: this.store,
+      createPlan: (planInput) => this.createPlan(planInput),
+      replanRun: (runId, replanInput) => this.replanRun(runId, replanInput),
+      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
+    })
+    this.treeCancellation = createRuntimeTreeCancellationBridge({
+      store: this.store,
+      cancelRun: (runId, cancelInput) => this.cancelRun(runId, cancelInput),
+    })
+    this.subagentTools = createRuntimeSubagentToolsBridge({
+      store: this.store,
+      updateTask: (taskId, update) => this.updateTask(taskId, update),
+      dispatchPlan: (dispatchInput) => this.dispatchPlan(dispatchInput),
+      cancelSubtree: (runId, cancelInput) => this.treeCancellation.cancelSubtree(runId, cancelInput),
+      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
+      taskEvents: this.taskEvents,
+    })
     if (catalogInitialization.shouldReloadCatalog) this.reloadAgentCatalog()
   }
 
@@ -460,370 +557,147 @@ export class AgentRuntime {
     includeResources?: boolean
     runRole?: AgentRunRole
   } = {}): Promise<AgentCapabilitiesResponse> {
-    return resolveRuntimeCapabilities({
-      mcpClient: this.mcpClient,
-      defaultAgentManifest: this.defaultAgentManifest,
-      toolRegistry: this.toolRegistry,
-      pluginCatalogInfo: this.pluginCatalogInfo,
-      pluginWarnings: this.pluginWarnings,
-      updateState: this.updateState,
-      request: input,
-    })
+    return await this.catalogOperations.getCapabilities(input)
   }
 
   listRegisteredTools(): ReturnType<ToolRegistry['list']> {
-    return listRuntimeRegisteredTools(this.toolRegistry)
+    return this.catalogOperations.listRegisteredTools()
   }
 
-  listSkillCatalog(): ReturnType<typeof listRuntimeSkillCatalog> {
-    return listRuntimeSkillCatalog(this.layeredRegistry)
+  listSkillCatalog(): ReturnType<RuntimeCatalogOperationsBridge['listSkillCatalog']> {
+    return this.catalogOperations.listSkillCatalog()
   }
 
   getDefaultAgentManifest(): AgentManifest {
-    return getRuntimeDefaultAgentManifest(this.defaultAgentManifest)
+    return this.catalogOperations.getDefaultAgentManifest()
   }
 
   reloadAgentCatalog(): JSONValue {
-    return applyRuntimeAgentCatalogReload({
-      load: this.pluginCatalogLoader,
-      current: {
-        catalogVersion: this.pluginCatalogInfo?.metadata?.catalogVersion as string | null | undefined ?? null,
-        skillCount: this.layeredRegistry.skills.size,
-        toolCount: this.layeredRegistry.tools.size,
-      },
-      commit: (reload) => {
-        const catalog = reload.catalog
-        this.defaultAgentManifest = catalog.manifest
-        this.toolRegistry = catalog.registry
-        this.layeredRegistry = catalog.layeredRegistry
-        this.pluginWarnings = catalog.warnings
-        this.pluginCatalogInfo = reload.pluginCatalogInfo
-        this.catalogSnapshots.replaceCurrent(this.catalogSnapshotBridge.createSnapshot())
-      },
-    })
+    return this.catalogOperations.reloadAgentCatalog()
   }
 
   inspectAgentCatalog(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return inspectRuntimeAgentCatalog({
-      catalogSnapshots: this.catalogSnapshots,
-      run,
-      request: input,
-    })
+    return this.catalogOperations.inspectAgentCatalog(run, input)
   }
 
   async createAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {
-    return applyRuntimeAgentPlanCreationToolFlow({
-      store: this.store,
-      plannerRunId: run.id,
-      request: input,
-      now: isoNow,
-      createPlan: (planInput) => this.createPlan(planInput),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
-    })
+    return await this.agentPlanTools.createAgentPlan(run, input)
   }
 
   getAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return getRuntimeAgentPlan({
-      store: this.store,
-      plannerRunId: run.id,
-      request: input,
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
-    })
+    return this.agentPlanTools.getAgentPlan(run, input)
   }
 
   replanAgentPlan(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return applyRuntimeAgentReplanToolFlow({
-      store: this.store,
-      plannerRunId: run.id,
-      request: input,
-      now: isoNow,
-      replanRun: (runId, replanInput) => this.replanRun(runId, replanInput),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
-    })
+    return this.agentPlanTools.replanAgentPlan(run, input)
   }
 
   spawnSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    const spawn = prepareRuntimeSubagentSpawn({
-      store: this.store,
-      plannerRunId: run.id,
-      request: input,
-      now: isoNow(),
-    })
-    const taskEvents = createRuntimeTaskEventBridge({
-      store: this.store,
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
-    })
-    return applyRuntimeSubagentSpawnFlow({
-      store: this.store,
-      spawn,
-      request: input,
-      updateTask: (taskId, update) => this.updateTask(taskId, update),
-      dispatchPlan: (dispatchInput) => this.dispatchPlan(dispatchInput),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
-      onTaskCreated: taskEvents.recordTaskProtocolAndPlanEvent,
-    })
+    return this.subagentTools.spawnSubagent(run, input)
   }
 
   listSubagents(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return listRuntimeSubagents({
-      store: this.store,
-      plannerRunId: run.id,
-      request: input,
-      now: isoNow(),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
-    }) as unknown as JSONValue
+    return this.subagentTools.listSubagents(run, input)
   }
 
   async waitSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): Promise<JSONValue> {
-    return await waitRuntimeSubagent({
-      store: this.store,
-      plannerRunId: run.id,
-      request: input,
-      now: isoNow(),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
-    }) as unknown as JSONValue
+    return await this.subagentTools.waitSubagent(run, input)
   }
 
   cancelSubagent(run: AgentRun, input: Record<string, JSONValue> = {}): JSONValue {
-    return applyRuntimeSubagentCancellationFlow({
-      store: this.store,
-      plannerRunId: run.id,
-      request: input,
-      updateTask: (targetTaskId, update) => this.updateTask(targetTaskId, update),
-      cancelSubtree: (runId, cancelInput) => this.cancelSubtree(runId, cancelInput),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
-    })
+    return this.subagentTools.cancelSubagent(run, input)
   }
 
   createThread(input: CreateThreadInput = {}): AgentThread {
-    return createRuntimeThread({
-      store: this.store,
-      threadId: makeId('thread'),
-      messageId: () => makeId('msg'),
-      now: () => isoNow(),
-      threadInput: input,
-    }).thread
+    return this.threads.createThread(input)
   }
 
   listThreads(): AgentThread[] {
-    return listRuntimeThreads({ store: this.store })
+    return this.threads.listThreads()
   }
 
   listThreadSummaries(): AgentThreadSummary[] {
-    return listRuntimeThreadSummaries({ store: this.store })
+    return this.threads.listThreadSummaries()
   }
 
   getThread(id: string): AgentThread | undefined {
-    return getRuntimeThread({ store: this.store, threadId: id })
+    return this.threads.getThread(id)
   }
 
   updateThread(id: string, input: UpdateThreadInput): AgentThread {
-    return updateRuntimeThread({ store: this.store, threadId: id, update: input, now: isoNow() })
+    return this.threads.updateThread(id, input)
   }
 
   addMessage(threadId: string, input: CreateMessageInput): AgentMessage {
-    return addRuntimeThreadMessage({
-      store: this.store,
-      threadId,
-      messageId: makeId('msg'),
-      now: isoNow(),
-      messageInput: input,
-    })
+    return this.threads.addMessage(threadId, input)
   }
 
   createRun(input: CreateRunInput): AgentRun {
-    const { thread, clientInput } = prepareRuntimeRunThread({
-      store: this.store,
-      runInput: input,
-    })
-    const now = isoNow()
-    const catalogSnapshot = this.catalogSnapshots.current
-    return applyRuntimeCreateRunRequest({
-      runInput: input,
-      thread,
-      ...(clientInput ? { clientInput } : {}),
-      catalogSnapshot,
-      contractResolver: this.contractResolver,
-      runId: makeId('run'),
-      now,
-      rememberCatalogRun: (runId, snapshot) => this.catalogSnapshots.rememberRun(runId, snapshot),
-      rememberRunAuth: (runId, runInput) => this.runAuth.remember(runId, runInput),
-      createRun: (targetRun) => this.store.createRun(targetRun),
-      updateThread: (targetThread) => this.store.updateThread(targetThread),
-      startRunExecution: (runId) => this.runExecutionScheduler.startRunExecution(runId),
-    })
+    return this.runCreation.createRun(input)
   }
 
   createToolRun(input: CreateToolRunInput): AgentRun {
-    const {
-      thread,
-      userMessage,
-      clientInput,
-      toolCall,
-    } = prepareRuntimeToolRunThread({
-      store: this.store,
-      toolRunInput: input,
-      createThread: (threadInput) => this.createThread(threadInput),
-    })
-    const now = isoNow()
-    const catalogSnapshot = this.catalogSnapshots.current
-    return applyRuntimeCreateToolRunRequest({
-      runInput: input,
-      thread,
-      userMessage,
-      toolCall,
-      ...(clientInput ? { clientInput } : {}),
-      catalogSnapshot,
-      contractResolver: this.contractResolver,
-      runId: makeId('run'),
-      now,
-      rememberCatalogRun: (runId, snapshot) => this.catalogSnapshots.rememberRun(runId, snapshot),
-      rememberRunAuth: (runId, runInput) => this.runAuth.remember(runId, runInput),
-      createRun: (targetRun) => this.store.createRun(targetRun),
-      updateThread: (targetThread) => this.store.updateThread(targetThread),
-      startRunExecution: (runId) => this.runExecutionScheduler.startRunExecution(runId),
-    })
+    return this.runCreation.createToolRun(input)
   }
 
   async previewRun(input: PreviewRunInput): Promise<AgentRunPreview> {
-    return buildRuntimeRunPreview({
-      store: this.store,
-      mcpClient: this.mcpClient,
-      memoryManager: this.memoryManager,
-      draftStore: this.draftStore,
-      catalogSnapshot: this.catalogSnapshots.current,
-      contractResolver: this.contractResolver,
-      updateState: this.updateState,
-      previewInput: input,
-      makePreviewId: () => makeId('preview'),
-      makeApprovalId: () => makeId('approval'),
-      now: isoNow,
-    })
+    return await this.runPreview.previewRun(input)
   }
 
   listRuns(): AgentRun[] {
-    return listRuntimeRuns({ store: this.store })
+    return this.entityReads.listRuns()
   }
 
   listRunsByParent(parentRunId: string): AgentRun[] {
-    return listRuntimeRunsByParent({ store: this.store, parentRunId })
+    return this.entityReads.listRunsByParent(parentRunId)
   }
 
   getRun(id: string): AgentRun | undefined {
-    return getRuntimeRun({ store: this.store, runId: id })
+    return this.entityReads.getRun(id)
   }
 
   getChildRuns(parentRunId: string): AgentRun[] {
-    return getRuntimeChildRuns({ store: this.store, parentRunId })
+    return this.entityReads.getChildRuns(parentRunId)
   }
 
   async createPlan(input: CreatePlanInput): Promise<AgentPlanSnapshot> {
-    const taskEvents = createRuntimeTaskEventBridge({
-      store: this.store,
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
-    })
-    return applyRuntimePlanCreationRequest({
-      store: this.store,
-      planInput: input,
-      planId: makeId('plan'),
-      now: isoNow(),
-      generatePlanTasks,
-      createRun: (runInput) => this.createRun(runInput),
-      getPlanSnapshot: (planId) => this.getPlanSnapshot(planId),
-      onTaskCreated: taskEvents.recordTaskProtocolEvents,
-      onInlineTaskAssigned: taskEvents.recordTaskProtocolAndPlanEvent,
-    })
+    return await this.planCreation.createPlan(input)
   }
 
   listPlans(): AgentPlan[] {
-    return listRuntimePlans({ store: this.store })
+    return this.entityReads.listPlans()
   }
 
   getPlan(id: string): AgentPlan | undefined {
-    return getRuntimePlan({ store: this.store, planId: id })
+    return this.entityReads.getPlan(id)
   }
 
   getPlanSnapshot(planId: string): AgentPlanSnapshot {
-    return getRuntimePlanSnapshot({ store: this.store, planId })
+    return this.entityReads.getPlanSnapshot(planId)
   }
 
   getTaskTree(planId: string): AgentTask[] {
-    return getRuntimeTaskTree({ store: this.store, planId })
+    return this.entityReads.getTaskTree(planId)
   }
 
   updateTask(taskId: string, input: UpdatePlanTaskInput): AgentTask {
-    const { task } = applyRuntimeTaskUpdateRequest({
-      store: this.store,
-      taskId,
-      update: input,
-      now: isoNow(),
-      recomputePlanStatus: (planId) => this.planStatus.recomputePlanStatus(planId),
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
-    })
-    return task
+    return this.taskUpdate.updateTask(taskId, input)
   }
 
   cancelSubtree(runId: string, input: CancelRunInput = {}): { cancelledRunIds: string[] } {
-    return applyRuntimeSubtreeCancellationRequest({
-      store: this.store,
-      runId,
-      reason: input.reason,
-      cancelRun: (targetRunId, reason) => this.cancelRun(targetRunId, { reason }),
-    })
+    return this.treeCancellation.cancelSubtree(runId, input)
   }
 
   cancelPlanTree(runId: string, input: CancelRunInput = {}): { cancelledRunIds: string[] } {
-    return applyRuntimePlanTreeCancellationRequest({
-      store: this.store,
-      runId,
-      cancelSubtree: (rootRunId) => this.cancelSubtree(rootRunId, input),
-    })
+    return this.treeCancellation.cancelPlanTree(runId, input)
   }
 
   dispatchPlan(input: DispatchPlanInput): DispatchPlanResult {
-    const taskEvents = createRuntimeTaskEventBridge({
-      store: this.store,
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
-    })
-    return applyRuntimePlanDispatchRequest({
-      store: this.store,
-      dispatchInput: input,
-      now: isoNow(),
-      nowMs: Date.now(),
-      updateTask: (taskId, update) => this.updateTask(taskId, update),
-      createRun: (runInput) => this.createRun(runInput),
-      cancelRun: (runId, reason) => this.cancelRun(runId, { reason }),
-      syncTaskFromRun: (runId) => this.taskRunSync.syncTaskFromRun(runId),
-      recomputePlan: (targetPlanId) => this.planStatus.recomputePlanStatus(targetPlanId),
-      onTaskTimedOut: (task) => this.streams.emitPlanTaskEvent(task.planId, task),
-      onTaskRetryReset: taskEvents.recordTaskProtocolAndPlanEvent,
-      onTaskBlocked: (task) => this.streams.emitPlanTaskEvent(task.planId, task),
-      onTaskDispatched: taskEvents.recordTaskProtocolAndPlanEvent,
-    })
+    return this.planDispatch.dispatchPlan(input)
   }
 
   replanRun(runId: string, input: ReplanRunInput = {}): ReplanRunResult {
-    const taskEvents = createRuntimeTaskEventBridge({
-      store: this.store,
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitPlanTaskEvent: (planId, task) => this.streams.emitPlanTaskEvent(planId, task),
-    })
-    return applyRuntimeReplanRunRequest({
-      store: this.store,
-      runId,
-      replanInput: input,
-      now: isoNow(),
-      resetNow: isoNow(),
-      updateTask: (taskId, update) => this.updateTask(taskId, update),
-      recomputePlan: (targetPlanId) => this.planStatus.recomputePlanStatus(targetPlanId),
-      dispatchPlan: (dispatchInput) => this.dispatchPlan(dispatchInput),
-      onTaskCreated: taskEvents.recordTaskProtocolAndPlanEvent,
-      onTaskReset: taskEvents.recordTaskProtocolAndPlanEvent,
-    })
+    return this.replan.replanRun(runId, input)
   }
 
   getRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
@@ -869,80 +743,39 @@ export class AgentRuntime {
   }
 
   subscribeRunStream(runId: string, listener: (event: AgentRunStreamEvent) => void): () => void {
-    const run = requireRuntimeRun(this.store, runId)
-    return this.streams.subscribeRunStream(run, listener)
+    return this.streamSubscriptions.subscribeRunStream(runId, listener)
   }
 
   subscribePlanStream(planId: string, listener: (event: AgentPlanStreamEvent) => void): () => void {
-    requireRuntimePlan(this.store, planId)
-    return this.streams.subscribePlanStream(planId, listener)
+    return this.streamSubscriptions.subscribePlanStream(planId, listener)
   }
 
   approveRun(runId: string, input: ApproveRunInput = {}): AgentRun {
-    return applyRuntimeRunApprovalRequest({
-      store: this.store,
-      runId,
-      approvalInput: input,
-      now: isoNow,
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitRunSnapshot: (targetRun) => this.streams.emitRunSnapshot(targetRun),
-      rememberRunAuth: (targetRunId, value) => this.runAuth.remember(targetRunId, value),
-      startRunExecution: (targetRunId) => this.runExecutionScheduler.startRunExecution(targetRunId),
-    })
+    return this.runControl.approveRun(runId, input)
   }
 
   rejectRun(runId: string, input: RejectRunInput = {}): AgentRun {
-    return applyRuntimeRunRejectionRequest({
-      store: this.store,
-      runId,
-      rejectionInput: input,
-      messageId: makeId('msg'),
-      now: isoNow,
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      createStep: (targetRun, type, round, toolName) => this.runSteps.createStep(targetRun, type, round, toolName),
-      emitRunSnapshot: (targetRun, options) => this.streams.emitRunSnapshot(targetRun, options),
-    })
+    return this.runControl.rejectRun(runId, input)
   }
 
   cancelRun(runId: string, input: CancelRunInput = {}): AgentRun {
-    const controller = this.runControllers.get(runId)
-    return applyRuntimeRunCancellationRequest({
-      store: this.store,
-      runId,
-      cancelInput: input,
-      messageId: makeId('msg'),
-      now: isoNow,
-      abortRun: (_targetRunId, error) => controller?.abort(error),
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      createStep: (targetRun, type, round, toolName) => this.runSteps.createStep(targetRun, type, round, toolName),
-      emitRunSnapshot: (targetRun, options) => this.streams.emitRunSnapshot(targetRun, options),
-    })
+    return this.runControl.cancelRun(runId, input)
   }
 
   answerRunInputRequest(runId: string, input: AnswerRunInputRequestInput = {}): AgentRun {
-    return applyRuntimeRunInputAnswerRequest({
-      store: this.store,
-      runId,
-      answerInput: input,
-      messageId: makeId('msg'),
-      now: isoNow,
-      recordTrace: (targetRun, trace) => this.streams.recordTraceEvent(targetRun, trace),
-      emitRunSnapshot: (targetRun) => this.streams.emitRunSnapshot(targetRun),
-      rememberRunAuth: (targetRunId, value) => this.runAuth.remember(targetRunId, value),
-      startRunExecution: (targetRunId) => this.runExecutionScheduler.startRunExecution(targetRunId),
-    })
+    return this.runControl.answerRunInputRequest(runId, input)
   }
 
   listMemories(query: MemoryQuery): AgentMemory[] {
-    return listRuntimeMemories({ memoryStore: this.memoryStore, query })
+    return this.memories.listMemories(query)
   }
 
   listMemorySummaries(query: Parameters<MemoryManager['listMemorySummaries']>[0]): ReturnType<MemoryManager['listMemorySummaries']> {
-    return listRuntimeMemorySummaries({ memoryManager: this.memoryManager, query })
+    return this.memories.listMemorySummaries(query)
   }
 
   getMemory(projectId: number, id: string): AgentMemory | undefined {
-    return getRuntimeMemory({ memoryManager: this.memoryManager, projectId, id })
+    return this.memories.getMemory(projectId, id)
   }
 
   listDrafts(query: {
@@ -960,7 +793,7 @@ export class AgentRuntime {
     pageEntityId?: unknown
     limit?: unknown
   } = {}): AgentDraft[] {
-    return listRuntimeDrafts({ draftStore: this.draftStore, query })
+    return this.drafts.listDrafts(query)
   }
 
   createLocalDraft(input: {
@@ -972,11 +805,11 @@ export class AgentRuntime {
     target?: unknown
     metadata?: unknown
   }): AgentDraft {
-    return createRuntimeLocalDraft({ draftStore: this.draftStore, draftInput: input })
+    return this.drafts.createLocalDraft(input)
   }
 
   getDraft(id: string): AgentDraft | undefined {
-    return getRuntimeDraft({ draftStore: this.draftStore, draftId: id })
+    return this.drafts.getDraft(id)
   }
 
   updateDraft(input: {
@@ -987,7 +820,7 @@ export class AgentRuntime {
     target?: unknown
     metadata?: unknown
   }): AgentDraft {
-    return updateRuntimeDraft({ draftStore: this.draftStore, draftInput: input })
+    return this.drafts.updateDraft(input)
   }
 
   patchDraft(input: {
@@ -996,11 +829,11 @@ export class AgentRuntime {
     expectedUpdatedAt?: unknown
     metadata?: unknown
   }): JSONValue {
-    return patchRuntimeDraft({ draftStore: this.draftStore, patchInput: input })
+    return this.drafts.patchDraft(input)
   }
 
   validateDraft(input: { draftId?: unknown }): JSONValue {
-    return validateRuntimeDraft({ draftStore: this.draftStore, draftId: input.draftId })
+    return this.drafts.validateDraft(input)
   }
 
   previewApplyDraft(input: {
@@ -1012,7 +845,7 @@ export class AgentRuntime {
     currentValue?: unknown
     proposedValue?: unknown
   }): JSONValue {
-    return previewRuntimeDraftApply({ draftStore: this.draftStore, applyInput: input })
+    return this.drafts.previewApplyDraft(input)
   }
 
   async simulateApplyDraft(input: {
@@ -1026,32 +859,23 @@ export class AgentRuntime {
     backendAuthToken?: unknown
     backendAPIBaseURL?: unknown
   }): Promise<JSONValue> {
-    return simulateRuntimeDraftApply({
-      draftStore: this.draftStore,
-      backendApplyClient: this.backendApplyClient,
-      applyInput: input,
-    })
+    return await this.drafts.simulateApplyDraft(input)
   }
 
   async applyDraftFromUI(input: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }): Promise<JSONValue> {
-    return applyRuntimeDraftFromUI({
-      draftStore: this.draftStore,
-      backendApplyClient: this.backendApplyClient,
-      applyInput: input,
-      now: isoNow,
-    })
+    return await this.drafts.applyDraftFromUI(input)
   }
 
   rejectDraft(input: { draftId?: unknown; reason?: unknown }): AgentDraft {
-    return rejectRuntimeDraft({ draftStore: this.draftStore, draftId: input.draftId, reason: input.reason })
+    return this.drafts.rejectDraft(input)
   }
 
   createMemory(input: Parameters<AgentMemoryStore['createMemory']>[0]): AgentMemory {
-    return createRuntimeMemory({ memoryManager: this.memoryManager, memoryInput: input })
+    return this.memories.createMemory(input)
   }
 
   deleteMemory(projectId: number, id: string): boolean {
-    return deleteRuntimeMemory({ memoryManager: this.memoryManager, projectId, id })
+    return this.memories.deleteMemory(projectId, id)
   }
 
   async flushPostRunRecords(): Promise<void> {

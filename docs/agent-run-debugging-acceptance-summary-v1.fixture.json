@@ -1,0 +1,19 @@
+{
+  "schema": "movscript.agent-run-debugging-acceptance-summary.v1",
+  "schemaUrl": "https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json",
+  "generatedAt": "2026-05-16T08:00:06.000Z",
+  "artifactRoot": "apps/frontend/test-results",
+  "browser": {
+    "status": 0,
+    "signal": null,
+    "error": null,
+    "failure": null
+  },
+  "screenshotArtifacts": {
+    "status": 0,
+    "signal": null,
+    "error": null,
+    "failure": null
+  },
+  "passed": true
+}

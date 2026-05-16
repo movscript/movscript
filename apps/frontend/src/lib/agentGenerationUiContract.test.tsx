@@ -342,6 +342,8 @@ test('agent run page keeps plan context and trace drilldown hooks', () => {
   assertIncludes(source, 'dataPreview: formatAgentTraceDebugData(data)')
   assertIncludes(source, 'partIds: group.parts.map((part) => part.id)')
   assertIncludes(source, "function debugBundleRunSnapshot(run: AgentRun | undefined): Omit<AgentRun, 'traceEvents'> | undefined")
+  assertIncludes(source, "const role = run.role ?? 'unknown'")
+  assertIncludes(source, "roleLabel: run.role ? runRoleLabel(run.role) : '未知'")
   assertIncludes(source, 'data-testid="agent-run-debug-report-copy-feedback"')
   assertIncludes(source, 'data-testid="agent-run-debug-report-copy-feedback" role="status"')
   assertIncludes(source, 'data-testid="agent-run-debug-report-copy-error"')

@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json",
+  "title": "AgentRun debugging acceptance summary v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "schemaUrl",
+    "generatedAt",
+    "artifactRoot",
+    "browser",
+    "screenshotArtifacts",
+    "passed"
+  ],
+  "properties": {
+    "schema": {
+      "const": "movscript.agent-run-debugging-acceptance-summary.v1"
+    },
+    "schemaUrl": {
+      "const": "https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json"
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "artifactRoot": {
+      "const": "apps/frontend/test-results"
+    },
+    "browser": {
+      "$ref": "#/$defs/stepResult"
+    },
+    "screenshotArtifacts": {
+      "$ref": "#/$defs/stepResult"
+    },
+    "passed": {
+      "type": "boolean"
+    }
+  },
+  "$defs": {
+    "stepResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "signal",
+        "error",
+        "failure"
+      ],
+      "properties": {
+        "status": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "signal": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "failure": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

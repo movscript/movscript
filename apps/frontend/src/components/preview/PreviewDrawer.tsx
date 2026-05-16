@@ -92,7 +92,7 @@ export function PreviewDrawer({ open, onClose, projectId, scope, entityId, entit
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="shrink-0 text-[10px]">{scopeLabel[scope]}</Badge>
-              <span className="truncate text-sm font-semibold text-foreground">{entityTitle || data?.entity.title || '制作预演'}</span>
+              <span className="truncate text-sm font-semibold text-foreground">{entityTitle || data?.entity.title || '内容预览'}</span>
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
               {data?.context.scene_moment_title || data?.context.segment_title || data?.entity.description || '编排段结构驱动预演，画面流承接真实剧情。'}

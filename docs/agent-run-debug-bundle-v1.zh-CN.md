@@ -32,6 +32,11 @@
 
 ## 读取顺序
 
+`runSummary.role` 固定为 `planner`、`worker` 或 `unknown`。旧 run 缺少角色字段时会写入 `unknown`，保证调试包仍满足 schema。
+`run.status` 和 `runSummary.status` 固定为 `queued`、`in_progress`、`requires_action`、`completed`、`completed_with_warnings`、`failed` 或 `cancelled`，消费方应把其他值视为不符合 v1 契约。
+`modelCalls[*].status` 和 `modelCallContexts[*].status` 固定为 `complete`、`request_only`、`response_only`、`result_only` 或 `failed`，两处含义一致。
+`pendingActions[*]` 至少包含 `type`、`id`、`createdAt`。其中 `type` 固定为 `approval` 或 `input`，`createdAt` 按 date-time 校验。
+
 1. 先看 `coverage.issues` 和 `readinessChecklist`，判断这份包是否完整。
 2. 再看 `modelCallContexts`，按轮次确认模型请求、模型响应、工具调用和历史写入是否能对上。
 3. 需要核对模型输入时看 `promptDetails` 和相关 model request event。

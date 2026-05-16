@@ -22,14 +22,16 @@ export function applyRuntimeTaskEventBridgeRequest(input: {
   return run
 }
 
+export interface RuntimeTaskEventBridge {
+  recordTaskProtocolEvents: (task: AgentTask, previous?: AgentTask) => AgentRun | undefined
+  recordTaskProtocolAndPlanEvent: (task: AgentTask, previous?: AgentTask) => AgentRun | undefined
+}
+
 export function createRuntimeTaskEventBridge(input: {
   store: Pick<AgentStore, 'getRun' | 'getPlan'>
   recordTrace: (run: AgentRun, trace: RuntimeTaskProtocolTraceInput) => void
   emitPlanTaskEvent: (planId: string, task: AgentTask) => void
-}): {
-  recordTaskProtocolEvents: (task: AgentTask, previous?: AgentTask) => AgentRun | undefined
-  recordTaskProtocolAndPlanEvent: (task: AgentTask, previous?: AgentTask) => AgentRun | undefined
-} {
+}): RuntimeTaskEventBridge {
   return {
     recordTaskProtocolEvents: (task, previous) => applyRuntimeTaskEventBridgeRequest({
       store: input.store,

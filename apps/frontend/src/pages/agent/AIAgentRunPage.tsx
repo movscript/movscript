@@ -2024,11 +2024,12 @@ function debugBundleRunSummary(run: AgentRun | undefined) {
   const terminalAt = run.completedAt ?? run.failedAt ?? run.cancelledAt
   const pendingApprovals = run.pendingApprovals?.filter((approval) => approval.status === 'pending').length ?? 0
   const pendingInputs = run.pendingInputRequests?.filter((request) => request.status === 'pending').length ?? 0
+  const role = run.role ?? 'unknown'
   return {
     status: run.status,
     statusLabel: runStatusLabel(run.status),
-    role: run.role,
-    roleLabel: runRoleLabel(run.role),
+    role,
+    roleLabel: run.role ? runRoleLabel(run.role) : '未知',
     createdAt: run.createdAt,
     startedAt: run.startedAt,
     terminalAt,

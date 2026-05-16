@@ -4,6 +4,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { basename, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { assertDesktopArch, assertDesktopPlatform, desktopArchs, desktopFFmpegBinaryName } from './desktop-targets.mjs'
+
 const repoRoot = resolve(import.meta.dirname, '../..')
 const FFMPEG_VERSION_TIMEOUT_MS = 5000
 
@@ -88,7 +90,7 @@ export function verifyDesktopPackage(root = repoRoot, options = {}) {
 }
 
 export function resolveDesktopFFmpegPath(root, platform = process.platform, arch = process.arch) {
-  const binary = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+  const binary = desktopFFmpegBinaryName(platform)
   return resolve(root, 'apps/frontend/vendor/ffmpeg', platform, arch, binary)
 }
 
@@ -130,7 +132,7 @@ export function verifyBundledDesktopFFmpeg(releaseDir, platform = process.platfo
   if (resourceDirs.length === 0) {
     return `No unpacked Electron resources directory found for ${platform}: ${releaseDir}`
   }
-  const binary = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+  const binary = desktopFFmpegBinaryName(platform)
   const expected = resourceDirs.map((resourcesPath) => resolve(resourcesPath, 'ffmpeg', platform, options.arch || process.arch, binary))
   for (const bundledPath of expected) {
     if (!existsSync(bundledPath)) continue
@@ -196,7 +198,7 @@ export function verifyDesktopFFmpegMetadata(path, expected = {}) {
   if (metadata.binary !== basename(path)) {
     return `Desktop package ffmpeg metadata binary mismatch: ${metadataPath}\nExpected ${basename(path)}, got ${metadata.binary}`
   }
-  if (!['x64', 'arm64'].includes(metadata.arch)) {
+  if (!desktopArchs.includes(metadata.arch)) {
     return `Desktop package ffmpeg metadata arch is invalid: ${metadataPath}`
   }
   if (expected.arch && metadata.arch !== expected.arch) {
@@ -252,9 +254,7 @@ export function parseDesktopPlatform(args = [], currentPlatform = process.platfo
   const platformArg = args.find((arg) => arg.startsWith('--platform='))
   if (!platformArg) return currentPlatform
   const platform = platformArg.slice('--platform='.length)
-  if (!['darwin', 'linux', 'win32'].includes(platform)) {
-    throw new Error(`Unsupported desktop package platform: ${platform}`)
-  }
+  assertDesktopPlatform(platform, 'desktop package')
   return platform
 }
 
@@ -262,9 +262,7 @@ export function parseDesktopArch(args = [], currentArch = process.arch) {
   const archArg = args.find((arg) => arg.startsWith('--arch='))
   if (!archArg) return currentArch
   const arch = archArg.slice('--arch='.length)
-  if (!['x64', 'arm64'].includes(arch)) {
-    throw new Error(`Unsupported desktop package arch: ${arch}`)
-  }
+  assertDesktopArch(arch, 'desktop package')
   return arch
 }
 

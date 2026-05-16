@@ -28,7 +28,9 @@ extraResources:
   - from: vendor/ffmpeg
     to: ffmpeg
     filter:
-      - "**/*"
+      - "**/ffmpeg"
+      - "**/ffmpeg.exe"
+      - "**/METADATA.json"
 
 mac:
   target:

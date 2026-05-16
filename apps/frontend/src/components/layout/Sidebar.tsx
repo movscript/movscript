@@ -294,7 +294,6 @@ export function Sidebar() {
               <NavItem to={ROUTES.project.preProduction} icon={Telescope} label={t('sidebar.items.preProduction')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.productionOrchestration} icon={Route} label={t('sidebar.items.productionOrchestration')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.contentUnitWorkbench} icon={WandSparkles} label={t('sidebar.items.workbenchContentGeneration')} collapsed={collapsed} />
-              <NavItem to={ROUTES.project.productionPreview} icon={Route} label={t('sidebar.items.workbenchProductionPreview')} collapsed={collapsed} />
               <NavItem to={ROUTES.project.deliveryWorkbench} icon={ClipboardCheck} label={t('sidebar.items.workbenchDelivery')} collapsed={collapsed} />
             </Section>
           </>

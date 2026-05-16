@@ -144,9 +144,26 @@ test('getVideoClipStatus includes actionable bundled path when ffmpeg is missing
   assert.equal(status.available, false)
   assert.equal(status.platform, 'linux')
   assert.equal(status.arch, 'arm64')
+  assert.equal(status.code, 'FFMPEG_NOT_FOUND')
   assert.equal(status.expectedBundledPath, '/opt/MovScript/resources/ffmpeg/linux/arm64/ffmpeg')
   assert.match(status.error ?? '', /Expected bundled binary/)
   assert.match(status.error ?? '', /linux\/arm64\/ffmpeg/)
+})
+
+test('getVideoClipStatus reports non-missing ffmpeg failures separately', async () => {
+  const status = await getVideoClipStatus({
+    resourcesPath: '/opt/MovScript/resources',
+    platform: 'darwin',
+    arch: 'arm64',
+    resolvePath: () => '/opt/MovScript/resources/ffmpeg/darwin/arm64/ffmpeg',
+    readVersion: async () => {
+      throw new Error('bad executable')
+    },
+  })
+  assert.equal(status.available, false)
+  assert.equal(status.code, 'FFMPEG_UNAVAILABLE')
+  assert.equal(status.error, 'bad executable')
+  assert.equal(status.expectedBundledPath, '/opt/MovScript/resources/ffmpeg/darwin/arm64/ffmpeg')
 })
 
 test('readFFmpegVersion returns the first version output line', async () => {

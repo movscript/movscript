@@ -36,16 +36,11 @@ test('content workbench delivery brief lists production blockers', () => {
 
   assert.equal(brief.tone, 'blocked')
   assert.equal(brief.title, '交付包仍有阻塞')
-  assert.equal(brief.progress, 20)
-  assert.deepEqual(brief.blockers, [
-    '补齐 1 个素材需求',
-    '添加至少一张画面锚点',
-    '补齐生成上下文门禁',
-    '处理 2 个 AI 草案',
-  ])
+  assert.equal(brief.progress, 0)
+  assert.deepEqual(brief.blockers, ['生成门禁仍有 4 项阻塞'])
 })
 
-test('content workbench delivery brief allows generation when all inputs are ready', () => {
+test('content workbench delivery brief allows generation when core inputs are ready', () => {
   const brief = buildContentWorkbenchDeliveryBrief({
     hasSelectedUnit: true,
     unitTitle: '纸条特写',
@@ -60,7 +55,52 @@ test('content workbench delivery brief allows generation when all inputs are rea
   })
 
   assert.equal(brief.tone, 'ready')
+  assert.equal(brief.title, '交付包可进入生成')
+  assert.equal(brief.progress, 25)
+  assert.deepEqual(brief.blockers, ['执行生成任务'])
+  assert.deepEqual(brief.metrics.map((metric) => metric.value), ['已通过', '待执行', '待挂载', '待整理'])
+})
+
+test('content workbench delivery brief moves completed generation into preview', () => {
+  const brief = buildContentWorkbenchDeliveryBrief({
+    hasSelectedUnit: true,
+    unitTitle: '纸条特写',
+    hasPrompt: true,
+    assetSlotCount: 2,
+    missingSlotCount: 0,
+    keyframeCount: 3,
+    generationContextReady: true,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    completedJobCount: 1,
+  })
+
+  assert.equal(brief.tone, 'ready')
+  assert.equal(brief.title, '交付包待预览')
+  assert.equal(brief.progress, 50)
+  assert.deepEqual(brief.blockers, ['挂载生产预览'])
+})
+
+test('content workbench delivery brief reports closed delivery loop', () => {
+  const brief = buildContentWorkbenchDeliveryBrief({
+    hasSelectedUnit: true,
+    unitTitle: '纸条特写',
+    hasPrompt: true,
+    assetSlotCount: 2,
+    missingSlotCount: 0,
+    keyframeCount: 3,
+    generationContextReady: true,
+    generationContextLoading: false,
+    generationContextError: false,
+    pendingReviewDraftCount: 0,
+    completedJobCount: 1,
+    previewItemCount: 1,
+    deliveryVersionCount: 1,
+  })
+
+  assert.equal(brief.tone, 'ready')
+  assert.equal(brief.title, '交付包已闭环')
   assert.equal(brief.progress, 100)
   assert.deepEqual(brief.blockers, [])
-  assert.deepEqual(brief.metrics.map((metric) => metric.value), ['可用', '2 项', '3 帧', '可用', '已处理'])
 })

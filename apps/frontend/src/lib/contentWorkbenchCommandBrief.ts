@@ -1,4 +1,4 @@
-import type { ContentWorkbenchNextActionKey, ContentWorkbenchNextActionView } from './contentWorkbenchNextActions'
+import type { ContentWorkbenchNextActionView } from './contentWorkbenchNextActions'
 import type { ContentWorkbenchReadinessSummary } from './contentWorkbenchReadiness'
 import type { ContentWorkbenchReviewQueueSummary } from './contentWorkbenchReviewQueue'
 
@@ -19,7 +19,6 @@ export interface ContentWorkbenchCommandBriefRow {
   value: string
   detail: string
   tone: 'default' | 'warning'
-  actionKey?: ContentWorkbenchNextActionKey
 }
 
 export function buildContentWorkbenchCommandBrief(input: ContentWorkbenchCommandBriefInput): ContentWorkbenchCommandBriefRow[] {
@@ -45,7 +44,6 @@ export function buildContentWorkbenchCommandBrief(input: ContentWorkbenchCommand
       value: primaryAction?.title ?? '等待数据',
       detail: primaryAction?.detail ?? '加载工作台状态后给出建议。',
       tone: primaryAction?.tone === 'warning' ? 'warning' : 'default',
-      actionKey: primaryAction?.key,
     },
     {
       key: 'review',
@@ -53,7 +51,6 @@ export function buildContentWorkbenchCommandBrief(input: ContentWorkbenchCommand
       value: input.reviewQueue.title,
       detail: input.reviewQueue.detail,
       tone: input.reviewQueue.tone === 'warning' ? 'warning' : 'default',
-      actionKey: input.reviewQueue.pending > 0 ? 'review_ai_drafts' : undefined,
     },
   ]
 }

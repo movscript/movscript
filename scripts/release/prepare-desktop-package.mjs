@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assertDesktopArch, assertDesktopPlatform, desktopFFmpegBinaryName } from './desktop-targets.mjs'
 import { resolveDesktopFFmpegPath, verifyDesktopFFmpeg } from './verify-desktop-package.mjs'
 
 const repoRoot = resolve(import.meta.dirname, '../..')
@@ -59,7 +60,7 @@ export function prepareDesktopPackage(root = repoRoot, options = {}) {
   const ffmpegError = verifyFFmpeg(ffmpegPath, root, undefined, undefined, { arch })
   if (ffmpegError) {
     const crossTarget = platform !== currentPlatform || arch !== currentArch
-    const ffmpegBinary = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+    const ffmpegBinary = desktopFFmpegBinaryName(platform)
     console.error('[prepare-desktop] Missing desktop ffmpeg prerequisite.')
     console.error(ffmpegError)
     console.error('[prepare-desktop] Stage a redistributable binary with:')
@@ -130,9 +131,7 @@ export function parseDesktopPlatform(args = [], currentPlatform = process.platfo
   const platformArg = args.find((arg) => arg.startsWith('--platform='))
   if (!platformArg) return currentPlatform
   const platform = platformArg.slice('--platform='.length)
-  if (!['darwin', 'linux', 'win32'].includes(platform)) {
-    throw new Error(`Unsupported desktop package platform: ${platform}`)
-  }
+  assertDesktopPlatform(platform, 'desktop package')
   return platform
 }
 
@@ -140,9 +139,7 @@ export function parseDesktopArch(args = [], currentArch = process.arch) {
   const archArg = args.find((arg) => arg.startsWith('--arch='))
   if (!archArg) return currentArch
   const arch = archArg.slice('--arch='.length)
-  if (!['x64', 'arm64'].includes(arch)) {
-    throw new Error(`Unsupported desktop package arch: ${arch}`)
-  }
+  assertDesktopArch(arch, 'desktop package')
   return arch
 }
 

@@ -43,8 +43,8 @@ test('content workbench command brief summarizes active production focus', () =>
   assert.equal(rows[0].tone, 'default')
   assert.equal(rows[1].value, '生成准备完成')
   assert.equal(rows[2].value, '打开生成画布')
-  assert.equal(rows[2].actionKey, 'open_generation_canvas')
-  assert.equal(rows[3].actionKey, undefined)
+  assert.equal('actionKey' in rows[2], false)
+  assert.equal('actionKey' in rows[3], false)
 })
 
 test('content workbench command brief surfaces missing selection and review blockers', () => {
@@ -86,7 +86,7 @@ test('content workbench command brief surfaces missing selection and review bloc
   assert.equal(rows[0].tone, 'warning')
   assert.equal(rows[1].value, '目标提示可读：制作项缺少 prompt')
   assert.equal(rows[2].tone, 'warning')
-  assert.equal(rows[2].actionKey, 'select_unit')
   assert.equal(rows[3].value, 'AI 草案待审')
-  assert.equal(rows[3].actionKey, 'review_ai_drafts')
+  assert.equal('actionKey' in rows[2], false)
+  assert.equal('actionKey' in rows[3], false)
 })

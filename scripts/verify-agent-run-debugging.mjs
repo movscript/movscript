@@ -70,6 +70,22 @@ function verifyDebugBundleSchema() {
     'fieldGuide',
     'redactedDebugData',
   ]
+  const expectedRunStatuses = [
+    'queued',
+    'in_progress',
+    'requires_action',
+    'completed',
+    'completed_with_warnings',
+    'failed',
+    'cancelled',
+  ]
+  const expectedModelCallStatuses = [
+    'complete',
+    'request_only',
+    'response_only',
+    'result_only',
+    'failed',
+  ]
   assertEqual(schema?.$id, 'https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json', 'debug bundle schema id must be stable')
   assertEqual(schema?.title, 'AgentRun debug bundle v1', 'debug bundle schema title must be stable')
   assertArrayIncludes(schema?.required, [
@@ -98,16 +114,25 @@ function verifyDebugBundleSchema() {
   assertSameStringSet(schema?.$defs?.capability?.enum, expectedCapabilities, 'debug bundle schema capabilities')
   assertSameStringSet(extractStringArrayConstant(source.page, 'DEBUG_BUNDLE_CAPABILITIES'), expectedCapabilities, 'run page debug bundle capabilities')
   assertArrayIncludes(schema?.$defs?.runSnapshot?.required, ['id', 'threadId', 'status', 'createdAt'], 'debug bundle run snapshot required fields')
+  assertSameStringSet(schema?.$defs?.runSnapshot?.properties?.status?.enum, expectedRunStatuses, 'debug bundle run snapshot status enum')
   assertEqual(schema?.$defs?.runSnapshot?.properties?.createdAt?.format, 'date-time', 'debug bundle run snapshot createdAt must be a date-time')
+  assertSameStringSet(schema?.$defs?.runSummary?.properties?.status?.enum, expectedRunStatuses, 'debug bundle run summary status enum')
+  assertArrayIncludes(schema?.$defs?.runSummary?.properties?.role?.enum, ['planner', 'worker', 'unknown'], 'debug bundle run summary role enum')
   assertEqual(schema?.$defs?.runSummary?.properties?.createdAt?.format, 'date-time', 'debug bundle run summary createdAt must be a date-time')
   assertEqual(schema?.$defs?.runSummary?.properties?.startedAt?.format, 'date-time', 'debug bundle run summary startedAt must be a date-time')
   assertEqual(schema?.$defs?.runSummary?.properties?.terminalAt?.format, 'date-time', 'debug bundle run summary terminalAt must be a date-time')
+  assertSameStringSet(schema?.$defs?.modelCall?.properties?.status?.enum, expectedModelCallStatuses, 'debug bundle model call status enum')
+  assertSameStringSet(schema?.$defs?.modelCallContext?.properties?.status?.enum, expectedModelCallStatuses, 'debug bundle model call context status enum')
   assertEqual(schema?.$defs?.attentionEvent?.properties?.createdAt?.format, 'date-time', 'debug bundle attention event createdAt must be a date-time')
+  assertArrayIncludes(schema?.$defs?.pendingAction?.required, ['type', 'id', 'createdAt'], 'debug bundle pending action required fields')
+  assertArrayIncludes(schema?.$defs?.pendingAction?.properties?.type?.enum, ['approval', 'input'], 'debug bundle pending action type enum')
+  assertEqual(schema?.$defs?.pendingAction?.properties?.createdAt?.format, 'date-time', 'debug bundle pending action createdAt must be a date-time')
   assertArrayIncludes(schema?.$defs?.readinessItem?.required, ['id', 'label', 'status', 'detail', 'action'], 'readiness item required fields')
 }
 
 function verifyFixture() {
   validateJSONSchemaFixture(schema, fixture, 'fixture')
+  verifyFixtureConsistency()
   assertEqual(fixture?.schema, 'movscript.agent-run-debug-bundle.v1', 'fixture schema id must match v1')
   assertEqual(fixture?.schemaUrl, 'https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json', 'fixture schemaUrl must point to v1 schema')
   assertSameStringSet(fixture?.capabilities, schema?.$defs?.capability?.enum ?? [], 'fixture capabilities')
@@ -120,6 +145,84 @@ function verifyFixture() {
   assertIncludes(JSON.stringify(fixture), '[REDACTED]', 'fixture should demonstrate redacted sensitive values')
 }
 
+function verifyFixtureConsistency() {
+  if (!isRecord(fixture)) return
+  const run = isRecord(fixture.run) ? fixture.run : undefined
+  const runSummary = isRecord(fixture.runSummary) ? fixture.runSummary : undefined
+  const trace = isRecord(fixture.trace) ? fixture.trace : undefined
+  const events = Array.isArray(fixture.events) ? fixture.events.filter(isRecord) : []
+  const eventIds = new Set(events.map((event) => event.id).filter(nonEmptyString))
+
+  if (run?.id !== fixture.runId) errors.push('fixture.run.id must match fixture.runId')
+  if (runSummary?.status !== run?.status) errors.push('fixture.runSummary.status must match fixture.run.status')
+  if (run?.role !== undefined && runSummary?.role !== run.role) errors.push('fixture.runSummary.role must match fixture.run.role when run.role is present')
+  if (trace?.loaded !== events.length) errors.push(`fixture.trace.loaded must equal fixture.events.length (${events.length})`)
+  if (trace?.hasMore === false && trace?.total !== trace?.loaded) errors.push('fixture.trace.total must equal fixture.trace.loaded when hasMore is false')
+
+  const modelCalls = Array.isArray(fixture.modelCalls) ? fixture.modelCalls.filter(isRecord) : []
+  const modelCallContexts = Array.isArray(fixture.modelCallContexts) ? fixture.modelCallContexts.filter(isRecord) : []
+  const promptDetails = Array.isArray(fixture.promptDetails) ? fixture.promptDetails.filter(isRecord) : []
+  const messageWrites = Array.isArray(fixture.messageWrites) ? fixture.messageWrites.filter(isRecord) : []
+  const toolCalls = Array.isArray(fixture.toolCalls) ? fixture.toolCalls.filter(isRecord) : []
+  const pendingActions = Array.isArray(fixture.pendingActions) ? fixture.pendingActions.filter(isRecord) : []
+  const topLevelMessageWriteEventIds = new Set(messageWrites.map((item) => item.eventId).filter(nonEmptyString))
+  const topLevelToolCallEventIds = new Set(toolCalls.map((item) => item.eventId).filter(nonEmptyString))
+  const modelCallsById = new Map(modelCalls.map((call) => [call.id, call]))
+  const pendingApprovalCount = pendingActions.filter((item) => item.type === 'approval').length
+  const pendingInputCount = pendingActions.filter((item) => item.type === 'input').length
+
+  if (runSummary?.pendingApprovals !== pendingApprovalCount) {
+    errors.push(`fixture.runSummary.pendingApprovals must equal pendingActions approval count (${pendingApprovalCount})`)
+  }
+  if (runSummary?.pendingInputs !== pendingInputCount) {
+    errors.push(`fixture.runSummary.pendingInputs must equal pendingActions input count (${pendingInputCount})`)
+  }
+
+  for (const call of modelCalls) {
+    for (const eventId of call.eventIds ?? []) assertFixtureEventId(eventId, `fixture.modelCalls[${call.id}].eventIds`)
+    for (const key of ['requestEventId', 'responseEventId', 'resultEventId']) {
+      if (call[key] !== undefined) assertFixtureEventId(call[key], `fixture.modelCalls[${call.id}].${key}`)
+    }
+  }
+  for (const context of modelCallContexts) {
+    const call = modelCallsById.get(context.callId)
+    if (!call) {
+      errors.push(`fixture.modelCallContexts[${context.callId}].callId must reference a modelCalls item`)
+      continue
+    }
+    if (context.status !== call.status) errors.push(`fixture.modelCallContexts[${context.callId}].status must match its modelCalls status`)
+    for (const eventId of context.modelEventIds ?? []) assertFixtureEventId(eventId, `fixture.modelCallContexts[${context.callId}].modelEventIds`)
+    for (const key of ['requestEventId', 'responseEventId', 'resultEventId']) {
+      if (context[key] !== undefined && call[key] !== undefined && context[key] !== call[key]) {
+        errors.push(`fixture.modelCallContexts[${context.callId}].${key} must match modelCalls.${key}`)
+      }
+    }
+  }
+  for (const item of [...promptDetails, ...messageWrites, ...toolCalls]) {
+    assertFixtureEventId(item.eventId, `fixture item ${item.eventId}`)
+  }
+  for (const context of modelCallContexts) {
+    const contextToolCalls = Array.isArray(context.toolCalls) ? context.toolCalls.filter(isRecord) : []
+    const contextMessageWrites = Array.isArray(context.messageWrites) ? context.messageWrites.filter(isRecord) : []
+    for (const item of contextToolCalls) {
+      assertFixtureEventId(item.eventId, `fixture.modelCallContexts[${context.callId}].toolCalls item ${item.eventId}`)
+      if (nonEmptyString(item.eventId) && !topLevelToolCallEventIds.has(item.eventId)) {
+        errors.push(`fixture.modelCallContexts[${context.callId}].toolCalls item ${item.eventId} must also exist in fixture.toolCalls`)
+      }
+    }
+    for (const item of contextMessageWrites) {
+      assertFixtureEventId(item.eventId, `fixture.modelCallContexts[${context.callId}].messageWrites item ${item.eventId}`)
+      if (nonEmptyString(item.eventId) && !topLevelMessageWriteEventIds.has(item.eventId)) {
+        errors.push(`fixture.modelCallContexts[${context.callId}].messageWrites item ${item.eventId} must also exist in fixture.messageWrites`)
+      }
+    }
+  }
+
+  function assertFixtureEventId(eventId, label) {
+    if (!nonEmptyString(eventId) || !eventIds.has(eventId)) errors.push(`${label} must reference an event in fixture.events`)
+  }
+}
+
 function verifyPageContract() {
   assertIncludes(source.page, 'data-testid="agent-run-debug-coverage"', 'run page exposes debug coverage panel')
   assertIncludes(source.page, 'data-testid="agent-run-debug-bundle-contract"', 'run page exposes debug bundle contract chip')
@@ -130,6 +233,8 @@ function verifyPageContract() {
   assertIncludes(source.page, 'data-testid="agent-run-model-response-headers"', 'run page exposes model response headers')
   assertIncludes(source.page, 'schema: DEBUG_BUNDLE_SCHEMA', 'debug bundle copies stable schema id')
   assertIncludes(source.page, 'schemaUrl: DEBUG_BUNDLE_SCHEMA_URL', 'debug bundle copies schema url')
+  assertIncludes(source.page, "const role = run.role ?? 'unknown'", 'debug bundle run summary has a role fallback')
+  assertIncludes(source.page, "roleLabel: run.role ? runRoleLabel(run.role) : '未知'", 'debug bundle run summary labels unknown roles')
   assertIncludes(source.page, "throw new Error('运行基础信息尚未加载完成，已停止复制调试包。请稍后重试。')", 'debug bundle requires run data before copying')
   assertIncludes(source.page, 'bundleCopyDisabledReason={runQuery.data ? null', 'debug bundle copy button is disabled until run data is loaded')
   assertIncludes(source.page, 'data-testid="agent-run-debug-bundle-copy-disabled-reason"', 'debug bundle copy disabled reason is visible')
@@ -173,9 +278,13 @@ function verifyE2EContract() {
   assertIncludes(source.e2eRunner, 'Verify AgentRun debugging screenshot artifacts', 'E2E runner always verifies screenshot artifacts')
   assertIncludes(source.e2eRunner, 'allowFailure: true', 'E2E runner records browser and artifact failures before exiting')
   assertIncludes(source.e2eRunner, 'AGENT_RUN_DEBUG_E2E_COMMAND_JSON', 'E2E runner supports command override for runner tests')
+  assertIncludes(source.e2eRunner, 'agent-run-debugging-acceptance-summary.json', 'E2E runner writes a machine-readable acceptance summary')
+  assertIncludes(source.e2eRunner, 'movscript.agent-run-debugging-acceptance-summary.v1', 'E2E runner summary has a stable schema id')
+  assertIncludes(source.e2eRunner, 'AGENT_RUN_DEBUG_E2E_SUMMARY_PATH', 'E2E runner supports summary path override for tests')
   assertIncludes(source.e2eRunner, 'failed to start:', 'E2E runner reports command startup failures')
   assertIncludes(source.e2eRunner, 'terminated by signal', 'E2E runner reports signal terminations')
   assertIncludes(source.acceptance, 'schema 和 fixture 的机器校验', 'acceptance doc includes debug bundle schema fixture validation')
+  assertIncludes(source.acceptance, '静态 verifier 自测', 'acceptance doc includes static verifier self-tests')
   assertIncludes(source.artifactCleaner, 'apps/frontend/test-results', 'artifact cleaner removes Playwright test results')
   assertIncludes(source.artifactCleaner, 'apps/frontend/playwright-report', 'artifact cleaner removes Playwright HTML report')
 }
@@ -201,6 +310,7 @@ function verifyDocs() {
   assertIncludes(source.acceptance, 'agent-run-http-request-detail', 'acceptance doc includes request screenshot')
   assertIncludes(source.acceptance, 'PNG 签名、关键 chunk、CRC、最小尺寸和最小文件大小', 'acceptance doc defines screenshot artifact validation strength')
   assertIncludes(source.acceptance, '即使浏览器验收失败也会继续执行截图附件校验', 'acceptance doc documents E2E runner failure diagnostics')
+  assertIncludes(source.acceptance, 'agent-run-debugging-acceptance-summary.json', 'acceptance doc documents machine-readable E2E summary')
   assertIncludes(source.audit, '浏览器验收标准明确', 'audit records acceptance criteria')
   assertIncludes(source.audit, 'Prompt-to-artifact 检查表', 'audit records prompt-to-artifact checklist')
   assertIncludes(source.audit, 'contextManager 记录了什么信息', 'audit maps contextManager question')
@@ -209,6 +319,10 @@ function verifyDocs() {
   assertIncludes(source.audit, '没有存储历史消息的 HTTP 回复', 'audit maps history write question')
   assertIncludes(source.audit, '大模型请求详情还没来得及做详情展开', 'audit maps model request detail question')
   assertIncludes(source.audit, '按 schema 机器校验 fixture', 'audit records debug bundle fixture schema validation')
+  assertIncludes(source.audit, 'static verifier tests 4 passed', 'audit records static verifier self-test results')
+  assertIncludes(source.audit, 'artifact cleanup/verifier/E2E runner tests 10 passed', 'audit records artifact verifier and runner test results')
+  assertIncludes(source.audit, 'agent-run-debugging-acceptance-summary.json', 'audit records E2E acceptance summary artifact')
+  assertIncludes(source.audit, 'passed: true', 'audit records passing E2E summary coverage')
   assertIncludes(source.audit, 'listen EPERM', 'audit records current browser blocker')
   assertIncludes(source.audit, 'pnpm run test:agent-run-debugging:e2e', 'audit records browser acceptance command')
   assertIncludes(source.audit, '## 完成判定', 'audit includes explicit completion decision')
@@ -234,7 +348,9 @@ function verifyPackageScript() {
     return
   }
   assertIncludes(script, 'node scripts/verify-agent-run-debugging.mjs', 'test:agent-run-debugging script runs static verifier')
-  assertIncludes(script, 'node --test scripts/verify-agent-run-debugging-artifacts.test.mjs', 'test:agent-run-debugging script runs artifact verifier tests')
+  assertIncludes(script, 'node --test', 'test:agent-run-debugging script runs Node test files')
+  assertIncludes(script, 'scripts/verify-agent-run-debugging.test.mjs', 'test:agent-run-debugging script runs static verifier tests')
+  assertIncludes(script, 'scripts/verify-agent-run-debugging-artifacts.test.mjs', 'test:agent-run-debugging script runs artifact verifier tests')
   assertIncludes(script, 'src/lib/agentRunUiView.test.ts', 'test:agent-run-debugging script runs AgentRun UI view tests')
   assertIncludes(script, 'src/lib/agentGenerationUiContract.test.tsx', 'test:agent-run-debugging script runs generation UI contract tests')
   assertIncludes(script, 'src/lib/agentTraceDebugData.test.ts', 'test:agent-run-debugging script runs redaction tests')
@@ -273,7 +389,9 @@ function verifyMakefile() {
 }
 
 function readText(file) {
-  return readFileSync(path.join(root, file), 'utf8')
+  const override = file === files.fixture ? process.env.AGENT_RUN_DEBUG_FIXTURE_PATH : undefined
+  const target = override ?? file
+  return readFileSync(path.isAbsolute(target) ? target : path.join(root, target), 'utf8')
 }
 
 function readJSON(file) {
@@ -484,6 +602,15 @@ function verifyLocalSchemaValidator() {
     if (isValidJsonSchemaDateTime(invalid)) {
       errors.push(`local schema validator must reject invalid date-time value ${invalid}`)
     }
+  }
+  if (!schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'approval', id: 'approval_1', createdAt: '2026-05-16T08:00:06.000Z' }, 'pendingActionFixture', schema)) {
+    errors.push('local schema validator must accept a valid pending approval action')
+  }
+  if (schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'approval', id: 'approval_1' }, 'pendingActionFixture', schema)) {
+    errors.push('local schema validator must reject pending actions without createdAt')
+  }
+  if (schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'unknown', id: 'approval_1', createdAt: '2026-05-16T08:00:06.000Z' }, 'pendingActionFixture', schema)) {
+    errors.push('local schema validator must reject unknown pending action types')
   }
 }
 

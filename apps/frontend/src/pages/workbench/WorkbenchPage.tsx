@@ -33,7 +33,6 @@ import {
   ShieldCheck,
   Scissors,
   Sparkles,
-  SquareStack,
   Target,
   Upload,
   Users,
@@ -83,11 +82,12 @@ import { buildContentWorkbenchCanvasPayload, findContentWorkbenchCanvas } from '
 import { buildContentWorkbenchCommandBrief, type ContentWorkbenchCommandBriefKey } from '@/lib/contentWorkbenchCommandBrief'
 import { buildContentWorkbenchDeliveryBrief, type ContentWorkbenchDeliveryBrief } from '@/lib/contentWorkbenchDeliveryBrief'
 import { pickContentWorkbenchRelevantJobs } from '@/lib/contentWorkbenchJobScope'
-import { buildContentWorkbenchNextActions, type ContentWorkbenchNextActionKey } from '@/lib/contentWorkbenchNextActions'
+import { buildContentWorkbenchNextActions, type ContentWorkbenchNextActionKey, type ContentWorkbenchNextActionView } from '@/lib/contentWorkbenchNextActions'
 import { buildContentWorkbenchPipeline, type ContentWorkbenchPipelineStep, type ContentWorkbenchPipelineStepKey } from '@/lib/contentWorkbenchPipeline'
 import { buildContentWorkbenchReadinessSummary } from '@/lib/contentWorkbenchReadiness'
 import { buildContentWorkbenchReviewQueueSummary, type ContentWorkbenchReviewQueueSummary } from '@/lib/contentWorkbenchReviewQueue'
 import { buildContentWorkbenchRouteSearch, pickContentWorkbenchRowIdForDeepLink } from '@/lib/contentWorkbenchRoute'
+import { buildContentWorkbenchUnitHealth, type ContentWorkbenchUnitHealth } from '@/lib/contentWorkbenchUnitHealth'
 import { buildContentWorkbenchUnitTrack } from '@/lib/contentWorkbenchUnitTrack'
 import { pickContentWorkbenchUploadTarget } from '@/lib/contentWorkbenchUploadTarget'
 import { cn } from '@/lib/utils'
@@ -118,7 +118,6 @@ import {
   type WorkbenchCategory,
 } from '@/pages/project/projectSurfaces'
 import { PreProductionAssetWorkspace } from '@/pages/pre-production/PreProductionPage'
-import { MediaViewer } from '@/components/shared/MediaViewer'
 import { ROUTES, mergeSearch, withRouteParams } from '@/routes/projectRoutes'
 
 export type WorkbenchMode = 'free'
@@ -187,34 +186,6 @@ const scenarios: Record<WorkbenchCategory, CategoryScenario> = {
       { label: '状态', value: '可进入预演决策', tone: 'success' },
     ],
     actions: ['确认为情景', '拆成两个情景', '忽略候选', '生成设定资料候选'],
-  },
-  preview: {
-    queue: [
-      { id: 'p2', title: '林夏雨中半身', subtitle: '编排段 02 · 画面锚点待选', status: 'running', priority: 'high', progress: 72 },
-      { id: 'p3', title: '纸条特写', subtitle: '编排段 03 · 暂无可看的候选', status: 'review', priority: 'high', progress: 38 },
-      { id: 'p5', title: '巷口背影', subtitle: '编排段 05 · 已有候选版本', status: 'ready', priority: 'low', progress: 84 },
-    ],
-    evidenceTitle: '候选依据',
-    evidence: [
-      '01 雨夜全景 · 广角固定 · 4s',
-      '02 林夏半身 · 中近景缓推 · 5s',
-      '03 纸条特写 · 特写慢推 · 3s',
-      '04 顾言停步 · 中景静止 · 4s',
-    ],
-    decisionTitle: '候选状态',
-    decisions: [
-      { label: '总数', value: '已有 4 个候选' },
-      { label: '未生成', value: '编排段 03 还没有候选', tone: 'warning' },
-      { label: '画面锚点', value: '编排段 02 候选 4 张' },
-      { label: '下一步', value: '先处理已有候选，再补生成缺失候选' },
-    ],
-    outputTitle: '处理后输出',
-    outputs: [
-      { label: '采用', value: '记录被采用的预演候选' },
-      { label: '忽略', value: '记录不再继续看的候选' },
-      { label: '补生成', value: '为无候选段落生成新候选' },
-    ],
-    actions: ['审阅候选', '采用候选', '忽略候选', '生成新候选'],
   },
   creative: {
     queue: [
@@ -565,6 +536,7 @@ interface ProductionWorkbenchData {
   contentUnits: WorkbenchRecord[]
   assetSlots: WorkbenchRecord[]
   keyframes: WorkbenchRecord[]
+  previewTimelines: WorkbenchRecord[]
   previewTimelineItems: WorkbenchRecord[]
   deliveryVersions: WorkbenchRecord[]
   jobs: Job[]
@@ -671,7 +643,7 @@ interface ContentDraftReviewModel {
 }
 
 async function loadProductionWorkbenchData(projectId: number): Promise<ProductionWorkbenchData> {
-  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, contentUnits, assetSlots, keyframes, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
+  const [productions, segments, sceneMoments, creativeReferences, creativeReferenceUsages, contentUnits, assetSlots, keyframes, previewTimelines, previewTimelineItems, deliveryVersions, jobs] = await Promise.all([
     listSemanticEntities(projectId, semanticEntityConfig('productions')),
     listSemanticEntities(projectId, semanticEntityConfig('segments')),
     listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
@@ -680,6 +652,7 @@ async function loadProductionWorkbenchData(projectId: number): Promise<Productio
     listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
     listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
     listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
+    listSemanticEntities(projectId, semanticEntityConfig('previewTimelines')),
     listSemanticEntities(projectId, semanticEntityConfig('previewTimelineItems')),
     listSemanticEntities(projectId, semanticEntityConfig('deliveryVersions')),
     loadWorkbenchJobs(projectId, ['video', 'video_i2v', 'video_v2v']),
@@ -693,6 +666,7 @@ async function loadProductionWorkbenchData(projectId: number): Promise<Productio
     contentUnits: contentUnits as WorkbenchRecord[],
     assetSlots: assetSlots as WorkbenchRecord[],
     keyframes: keyframes as WorkbenchRecord[],
+    previewTimelines: previewTimelines as WorkbenchRecord[],
     previewTimelineItems: previewTimelineItems as WorkbenchRecord[],
     deliveryVersions: deliveryVersions as WorkbenchRecord[],
     jobs,
@@ -749,64 +723,7 @@ async function loadSettingPrepData(projectId: number): Promise<SettingPrepData> 
   }
 }
 
-interface ProductionPreviewData {
-  productions: WorkbenchRecord[]
-  segments: WorkbenchRecord[]
-  sceneMoments: WorkbenchRecord[]
-  creativeReferences: WorkbenchRecord[]
-  creativeReferenceUsages: WorkbenchRecord[]
-  contentUnits: WorkbenchRecord[]
-  assetSlots: WorkbenchRecord[]
-  keyframes: WorkbenchRecord[]
-  previewTimelines: WorkbenchRecord[]
-  previewTimelineItems: WorkbenchRecord[]
-  deliveryVersions: WorkbenchRecord[]
-  jobs: Job[]
-}
-
-async function loadProductionPreviewData(projectId: number): Promise<ProductionPreviewData> {
-  const [
-    productions,
-    segments,
-    sceneMoments,
-    creativeReferences,
-    creativeReferenceUsages,
-    contentUnits,
-    assetSlots,
-    keyframes,
-    previewTimelines,
-    previewTimelineItems,
-    deliveryVersions,
-    jobs,
-  ] = await Promise.all([
-    listSemanticEntities(projectId, semanticEntityConfig('productions')),
-    listSemanticEntities(projectId, semanticEntityConfig('segments')),
-    listSemanticEntities(projectId, semanticEntityConfig('sceneMoments')),
-    listSemanticEntities(projectId, semanticEntityConfig('creativeReferences')),
-    listSemanticEntities(projectId, semanticEntityConfig('creativeReferenceUsages')),
-    listSemanticEntities(projectId, semanticEntityConfig('contentUnits')),
-    listSemanticEntities(projectId, semanticEntityConfig('assetSlots')),
-    listSemanticEntities(projectId, semanticEntityConfig('keyframes')),
-    listSemanticEntities(projectId, semanticEntityConfig('previewTimelines')),
-    listSemanticEntities(projectId, semanticEntityConfig('previewTimelineItems')),
-    listSemanticEntities(projectId, semanticEntityConfig('deliveryVersions')),
-    loadWorkbenchJobs(projectId, ['video', 'video_i2v', 'video_v2v']),
-  ])
-  return {
-    productions: productions as WorkbenchRecord[],
-    segments: segments as WorkbenchRecord[],
-    sceneMoments: sceneMoments as WorkbenchRecord[],
-    creativeReferences: creativeReferences as WorkbenchRecord[],
-    creativeReferenceUsages: creativeReferenceUsages as WorkbenchRecord[],
-    contentUnits: contentUnits as WorkbenchRecord[],
-    assetSlots: assetSlots as WorkbenchRecord[],
-    keyframes: keyframes as WorkbenchRecord[],
-    previewTimelines: previewTimelines as WorkbenchRecord[],
-    previewTimelineItems: previewTimelineItems as WorkbenchRecord[],
-    deliveryVersions: deliveryVersions as WorkbenchRecord[],
-    jobs,
-  }
-}
+interface ProductionPreviewData extends ProductionWorkbenchData {}
 
 async function loadWorkbenchJobs(projectId: number, types: string[]) {
   const batches = await Promise.all(types.map((type) => (
@@ -1431,16 +1348,6 @@ function apiErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-function buildProductionCandidateRows(jobs: Job[]) {
-  return jobs.slice(0, 6).map((job) => ({
-    name: `任务 #${job.ID} · ${job.job_type}`,
-    source: firstText(job.model_display, job.model_identifier, `模型 #${job.model_config_id}`),
-    fit: job.output_resource_id ? `输出资源 #${job.output_resource_id}` : job.status === 'succeeded' ? '已完成' : job.status,
-    issue: firstText(job.error_msg, trimText(job.prompt, 36), job.feature_key, '无提示词'),
-    status: jobToWorkStatus(job),
-  }))
-}
-
 function buildContentDraftReviewModel(
   draft: AgentDraft,
   context: {
@@ -1942,12 +1849,6 @@ function dedupeRecords<T extends { ID: number }>(records: T[]): T[] {
   })
 }
 
-function trimText(value: unknown, max = 42) {
-  const text = String(value ?? '').trim()
-  if (text.length <= max) return text
-  return `${text.slice(0, max)}...`
-}
-
 function titleOfRecord(record?: WorkbenchRecord | null) {
   if (!record) return '未选择'
   return firstText(record.title, record.name, record.label, record.slot_key, `${record.kind || '记录'} #${record.ID}`)
@@ -2183,13 +2084,6 @@ function nullableNumber(value: unknown) {
   return Number.isFinite(num) && num > 0 ? num : null
 }
 
-function jobToWorkStatus(job: Job): WorkStatus {
-  if (job.status === 'pending' || job.status === 'running') return 'running'
-  if (job.status === 'succeeded') return 'ready'
-  if (job.status === 'failed' || job.status === 'cancelled') return 'blocked'
-  return 'review'
-}
-
 function ScriptLinePreview({
   lines,
   highlightStartLine,
@@ -2330,15 +2224,15 @@ function WorkbenchPanel({
   bodyClassName?: string
 }) {
   return (
-    <section className={cn('rounded-lg border border-border bg-card', className)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+    <section className={cn('rounded-md border border-border bg-card', className)}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Icon size={16} className="shrink-0 text-muted-foreground" />
+          <Icon size={15} className="shrink-0 text-muted-foreground" />
           <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      <div className={cn('p-4', bodyClassName)}>{children}</div>
+      <div className={cn('p-3', bodyClassName)}>{children}</div>
     </section>
   )
 }
@@ -2486,16 +2380,16 @@ function ProductionPipeline({
 
 function ContextStack({ rows, className }: { rows: WorkbenchLinkRow[]; className?: string }) {
   return (
-    <div className={cn('grid gap-3 md:grid-cols-2', className)}>
+    <div className={cn('overflow-hidden rounded-md border border-border bg-background', className)}>
       {rows.map((row) => {
         const Icon = row.icon
         return (
-          <div key={row.label} className="rounded-md border border-border bg-background p-3">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Icon size={14} />
-              <span>{row.label}</span>
+          <div key={row.label} className="grid grid-cols-[104px_minmax(0,1fr)] gap-2 border-b border-border/70 px-2.5 py-2 last:border-b-0">
+            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <Icon size={14} className="shrink-0" />
+              <span className="truncate">{row.label}</span>
             </div>
-            <p className="mt-2 text-sm leading-6 text-foreground">{row.value}</p>
+            <p className="min-w-0 truncate text-sm text-foreground">{row.value}</p>
           </div>
         )
       })}
@@ -2505,17 +2399,17 @@ function ContextStack({ rows, className }: { rows: WorkbenchLinkRow[]; className
 
 function GateChecklist({ rows }: { rows: WorkbenchGate[] }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       {rows.map((row) => (
-        <div key={row.label} className="rounded-md border border-border bg-background px-3 py-3">
-          <div className="flex items-center justify-between gap-3">
+        <div key={row.label} className="rounded-md border border-border bg-background px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               {row.done ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" /> : <CircleDot size={15} className="shrink-0 text-amber-600" />}
               <span className="truncate text-sm font-medium text-foreground">{row.label}</span>
             </div>
             <Badge variant={row.done ? 'success' : row.tone === 'warning' ? 'warning' : 'outline'}>{row.done ? '通过' : '待处理'}</Badge>
           </div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">{row.detail}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{row.detail}</p>
         </div>
       ))}
     </div>
@@ -2527,7 +2421,7 @@ function ReadinessSummaryCard({ rows }: { rows: WorkbenchGate[] }) {
   return (
     <div
       className={cn(
-        'mb-3 rounded-md border px-3 py-3',
+        'mb-2.5 rounded-md border px-2.5 py-2',
         summary.tone === 'ready'
           ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
           : summary.tone === 'warning'
@@ -2536,7 +2430,7 @@ function ReadinessSummaryCard({ rows }: { rows: WorkbenchGate[] }) {
       )}
       data-testid="content-workbench-readiness-summary"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             {summary.tone === 'ready' ? <CheckCircle2 size={15} className="text-emerald-600" /> : <ShieldCheck size={15} className="text-muted-foreground" />}
@@ -2550,34 +2444,62 @@ function ReadinessSummaryCard({ rows }: { rows: WorkbenchGate[] }) {
         </div>
       </div>
       {summary.primaryBlocker ? (
-        <div className="mt-3 rounded bg-background/70 px-2 py-1.5 text-xs leading-5 text-muted-foreground">
+        <div className="mt-2 rounded bg-background/70 px-2 py-1.5 text-xs leading-5 text-muted-foreground">
           {summary.primaryBlocker}
         </div>
       ) : null}
-      {summary.total > 0 ? <Progress value={summary.percent} className="mt-3 h-1.5" /> : null}
+      {summary.total > 0 ? <Progress value={summary.percent} className="mt-2 h-1.5" /> : null}
+    </div>
+  )
+}
+
+function UnitHealthCard({ health }: { health: ContentWorkbenchUnitHealth }) {
+  const badgeVariant = health.tone === 'done' || health.tone === 'ready'
+    ? 'success'
+    : health.tone === 'blocked' || health.tone === 'warning'
+      ? 'warning'
+      : 'outline'
+  return (
+    <div
+      className={cn(
+        'rounded-md border px-2.5 py-2',
+        health.tone === 'done' || health.tone === 'ready'
+          ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+          : health.tone === 'blocked' || health.tone === 'warning'
+            ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+            : 'border-border bg-background',
+      )}
+      data-testid="content-workbench-unit-health"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            {health.tone === 'done' || health.tone === 'ready'
+              ? <CheckCircle2 size={15} className="text-emerald-600" />
+              : <ShieldCheck size={15} className="text-muted-foreground" />}
+            {health.title}
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{health.detail}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <Badge variant={badgeVariant}>{health.score}%</Badge>
+          <p className="mt-1 text-[10px] text-muted-foreground">健康度</p>
+        </div>
+      </div>
+      {health.score > 0 ? <Progress value={health.score} className="mt-2 h-1.5" /> : null}
     </div>
   )
 }
 
 function DeliveryBriefCard({
   brief,
-  primaryActionLabel,
-  primaryActionIcon: PrimaryActionIcon,
-  primaryActionLoading,
-  primaryActionDisabled,
-  onPrimaryAction,
 }: {
   brief: ContentWorkbenchDeliveryBrief
-  primaryActionLabel?: string
-  primaryActionIcon?: LucideIcon
-  primaryActionLoading?: boolean
-  primaryActionDisabled?: boolean
-  onPrimaryAction?: () => void
 }) {
   return (
     <div
       className={cn(
-        'rounded-md border px-3 py-3',
+        'rounded-md border px-2.5 py-2',
         brief.tone === 'ready'
           ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
           : brief.tone === 'warning'
@@ -2586,7 +2508,7 @@ function DeliveryBriefCard({
       )}
       data-testid="content-workbench-delivery-brief"
     >
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <PackageCheck size={15} className="text-muted-foreground" />
@@ -2598,24 +2520,18 @@ function DeliveryBriefCard({
           <Badge variant={brief.tone === 'ready' ? 'success' : brief.tone === 'blocked' ? 'warning' : 'outline'}>
             {brief.progress}%
           </Badge>
-          {primaryActionLabel && onPrimaryAction ? (
-            <Button size="sm" className="h-8 gap-2" onClick={onPrimaryAction} loading={primaryActionLoading} disabled={primaryActionDisabled}>
-              {PrimaryActionIcon ? <PrimaryActionIcon size={13} /> : null}
-              {primaryActionLabel}
-            </Button>
-          ) : null}
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
         {brief.metrics.map((metric) => (
-          <div key={metric.label} className="rounded-md border border-border bg-card px-2 py-2">
+          <div key={metric.label} className="rounded-md border border-border bg-card px-2 py-1.5">
             <p className="text-[10px] text-muted-foreground">{metric.label}</p>
             <p className={cn('mt-0.5 truncate text-sm font-semibold', metric.done ? 'text-foreground' : 'text-amber-700 dark:text-amber-300')}>{metric.value}</p>
           </div>
         ))}
       </div>
       {brief.blockers.length > 0 ? (
-        <div className="mt-3 space-y-1 rounded-md border border-border bg-card px-2 py-2">
+        <div className="mt-2 space-y-1 rounded-md border border-border bg-card px-2 py-1.5">
           {brief.blockers.slice(0, 4).map((blocker) => (
             <div key={blocker} className="flex items-center gap-2 text-xs leading-5 text-muted-foreground">
               <AlertTriangle size={12} className="shrink-0 text-amber-600" />
@@ -2624,7 +2540,86 @@ function DeliveryBriefCard({
           ))}
         </div>
       ) : null}
-      {brief.progress > 0 ? <Progress value={brief.progress} className="mt-3 h-1.5" /> : null}
+      {brief.progress > 0 ? <Progress value={brief.progress} className="mt-2 h-1.5" /> : null}
+    </div>
+  )
+}
+
+function PreviewMountCard({
+  productionTitle,
+  segments,
+  timelineUnits,
+  gaps,
+  previewTimelineCount,
+  previewItemCount,
+  onOpenAssets,
+  onOpenDelivery,
+}: {
+  productionTitle: string
+  segments: PreviewPlanSegment[]
+  timelineUnits: PreviewTimelineContentUnit[]
+  gaps: PreviewAssetGap[]
+  previewTimelineCount: number
+  previewItemCount: number
+  onOpenAssets?: () => void
+  onOpenDelivery?: () => void
+}) {
+  const blockedUnits = timelineUnits.filter((unit) => unit.status === 'blocked').length
+  const readyUnits = timelineUnits.filter((unit) => unit.status === 'ready').length
+  return (
+    <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-preview-mount">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <Film size={15} className="text-muted-foreground" />
+            预演挂载
+          </div>
+          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+            {productionTitle} · {segments.length} 个入口、{timelineUnits.length} 个制作项、{previewItemCount} 条预演记录
+          </p>
+        </div>
+        <Badge variant={gaps.length > 0 || blockedUnits > 0 ? 'warning' : previewItemCount > 0 ? 'success' : 'outline'}>
+          {gaps.length > 0 ? `${gaps.length} 缺口` : previewItemCount > 0 ? '已挂载' : '待挂载'}
+        </Badge>
+      </div>
+      <div className="mt-2 grid grid-cols-4 gap-1.5">
+        <PreviewMountMetric label="入口" value={segments.length} />
+        <PreviewMountMetric label="可看" value={readyUnits} />
+        <PreviewMountMetric label="阻塞" value={blockedUnits + gaps.length} tone={blockedUnits + gaps.length > 0 ? 'warning' : 'default'} />
+        <PreviewMountMetric label="时间线" value={previewTimelineCount} />
+      </div>
+      {gaps.length > 0 ? (
+        <div className="mt-2 overflow-hidden rounded-md border border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20">
+          {gaps.slice(0, 2).map((gap) => (
+            <div key={`${gap.owner}:${gap.name}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-b border-amber-200/70 px-2 py-1.5 last:border-b-0 dark:border-amber-900/60">
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-amber-900 dark:text-amber-100">{gap.name}</p>
+                <p className="truncate text-[11px] text-amber-800 dark:text-amber-200">{gap.owner}</p>
+              </div>
+              <Badge variant={gap.priority === '高' ? 'danger' : gap.priority === '中' ? 'warning' : 'outline'}>{gap.priority}</Badge>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <Button size="sm" variant="outline" className="h-8 justify-center gap-1.5" onClick={onOpenAssets}>
+          <PackageCheck size={13} />
+          素材缺口
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 justify-center gap-1.5" onClick={onOpenDelivery}>
+          <CheckCircle2 size={13} />
+          交付检查
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function PreviewMountMetric({ label, value, tone = 'default' }: { label: string; value: number; tone?: 'default' | 'warning' }) {
+  return (
+    <div className="rounded-md border border-border bg-card px-2 py-1.5 text-center">
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className={cn('mt-0.5 text-sm font-semibold tabular-nums', tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>{value}</p>
     </div>
   )
 }
@@ -2639,8 +2634,8 @@ function ActivityFeedCard({
   actionHandlers: Partial<Record<ContentWorkbenchNextActionKey, () => void>>
 }) {
   return (
-    <div className="rounded-md border border-border bg-background p-3" data-testid="content-workbench-activity-feed">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-activity-feed">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Clock3 size={15} className="text-muted-foreground" />
@@ -2652,12 +2647,12 @@ function ActivityFeedCard({
           {feed.items.length} 条
         </Badge>
       </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-2 space-y-1.5">
         {feed.items.map((item) => {
           const actionHandler = item.actionKey ? actionHandlers[item.actionKey] : undefined
           const ActionIcon = item.actionKey ? actionIcons[item.actionKey] : undefined
           return (
-            <div key={item.key} className="flex items-start gap-3 rounded-md border border-border bg-card px-3 py-2">
+            <div key={item.key} className="flex items-start gap-2 rounded-md border border-border bg-card px-2 py-1.5">
               <span
                 className={cn(
                   'mt-1.5 h-2 w-2 shrink-0 rounded-full',
@@ -2690,6 +2685,95 @@ function ActivityFeedCard({
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function NextActionsPanel({
+  actions,
+  actionIcons,
+  actionHandlers,
+  generationCanvasPending,
+}: {
+  actions: ContentWorkbenchNextActionView[]
+  actionIcons: Record<ContentWorkbenchNextActionKey, LucideIcon>
+  actionHandlers: Partial<Record<ContentWorkbenchNextActionKey, () => void>>
+  generationCanvasPending: boolean
+}) {
+  const primaryAction = actions[0]
+  const secondaryActions = actions.slice(1)
+  if (!primaryAction) {
+    return <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">暂无动作建议。</p>
+  }
+
+  const PrimaryIcon = actionIcons[primaryAction.key]
+  const primaryHandler = actionHandlers[primaryAction.key]
+  const primaryDisabled = primaryAction.key === 'open_generation_canvas' && generationCanvasPending
+  const primaryClickable = typeof primaryHandler === 'function' && !primaryDisabled
+  return (
+    <div className="space-y-2" data-testid="content-workbench-next-actions">
+      <button
+        type="button"
+        data-action-key={primaryAction.key}
+        onClick={primaryHandler}
+        disabled={!primaryClickable || primaryDisabled}
+        className={cn(
+          'w-full rounded-md border px-2.5 py-2 text-left transition-colors',
+          primaryAction.tone === 'success'
+            ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+            : primaryAction.tone === 'warning'
+              ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+              : 'border-border bg-background',
+          primaryClickable ? 'hover:border-primary/50 hover:bg-primary/5' : 'cursor-default',
+        )}
+      >
+        <div className="flex items-start gap-2">
+          <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
+            <PrimaryIcon size={15} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-sm font-medium text-foreground">{primaryAction.title}</p>
+              <Badge variant={primaryAction.tone === 'success' ? 'success' : primaryAction.tone === 'warning' ? 'warning' : 'outline'}>
+                {primaryAction.tone === 'success' ? '可执行' : primaryAction.tone === 'warning' ? '优先' : '建议'}
+              </Badge>
+            </div>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{primaryAction.detail}</p>
+          </div>
+        </div>
+      </button>
+      {secondaryActions.length > 0 ? (
+        <div className="overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-secondary-actions">
+          {secondaryActions.map((action) => {
+            const Icon = actionIcons[action.key]
+            const handler = actionHandlers[action.key]
+            const disabled = action.key === 'open_generation_canvas' && generationCanvasPending
+            const clickable = typeof handler === 'function' && !disabled
+            return (
+              <button
+                key={`${action.key}:${action.title}`}
+                type="button"
+                data-action-key={action.key}
+                onClick={handler}
+                disabled={!clickable || disabled}
+                className={cn(
+                  'grid w-full grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 border-b border-border/70 px-2.5 py-2 text-left last:border-b-0',
+                  clickable ? 'hover:bg-primary/5' : 'cursor-default',
+                )}
+              >
+                <Icon size={14} className="text-muted-foreground" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{action.title}</p>
+                  <p className="truncate text-xs text-muted-foreground">{action.detail}</p>
+                </div>
+                <Badge variant={action.tone === 'warning' ? 'warning' : action.tone === 'success' ? 'success' : 'outline'}>
+                  {action.tone === 'warning' ? '优先' : action.tone === 'success' ? '可执行' : '建议'}
+                </Badge>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -2796,52 +2880,6 @@ function UnitProductionTrack({
           ))}
         </div>
       </div>
-    </div>
-  )
-}
-
-function CandidateComparison({
-  rows,
-  primaryLabel,
-  emptyText = '暂无候选',
-  rowClassName,
-}: {
-  rows: Array<{ name: string; source: string; fit: string; issue: string; status: WorkStatus; resource?: RawResource }>
-  primaryLabel: string
-  emptyText?: string
-  rowClassName?: string
-}) {
-  if (rows.length === 0) {
-    return <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">{emptyText}</p>
-  }
-  return (
-    <div className="space-y-2">
-      {rows.map((row) => (
-        <div key={`${row.name}:${row.source}`} className={cn('grid gap-3 rounded-md border border-border bg-background px-3 py-3 md:grid-cols-[3rem_1fr_1fr_1fr_auto]', rowClassName)}>
-          <div className="h-12 w-12 overflow-hidden rounded-md border border-border bg-muted">
-            {row.resource ? (
-              <MediaViewer resource={row.resource} className="h-full w-full" lightbox={false} />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                <SquareStack size={14} />
-              </div>
-            )}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{row.source}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{primaryLabel}</p>
-            <p className="mt-1 truncate text-sm text-foreground">{row.fit}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">待处理</p>
-            <p className="mt-1 truncate text-sm text-foreground">{row.issue}</p>
-          </div>
-          <Badge variant={statusVariant(row.status)} className="self-start">{statusLabel(row.status)}</Badge>
-        </div>
-      ))}
     </div>
   )
 }
@@ -3700,7 +3738,6 @@ function ContentGenerationWorkbench() {
       if (keyframeUploadInputRef.current) keyframeUploadInputRef.current.value = ''
     },
   })
-  const candidateRows = buildProductionCandidateRows(data?.jobs ?? [])
   const baseStandards = generationContextQuery.data
     ? buildGenerationContextStandards(generationContextQuery.data)
     : buildMomentStandards(selected, data?.jobs ?? [])
@@ -3727,6 +3764,8 @@ function ContentGenerationWorkbench() {
     contentUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
     resourceIds: selectedUnitResourceIds,
   })
+  const selectedUnitRunningJobCount = selectedUnitJobs.filter((job) => job.status === 'pending' || job.status === 'running').length
+  const selectedUnitCompletedJobCount = selectedUnitJobs.filter((job) => job.status === 'succeeded').length
   const selectedUnitStatus = selectedUnit ? contentUnitWorkStatus(selectedUnit, selectedUnitMissingSlots) : 'blocked'
   const selectedKeyframeSequence = selected ? buildMomentKeyframeSequence(selected) : []
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
@@ -3901,6 +3940,22 @@ function ContentGenerationWorkbench() {
     (selected?.moment.ID && numberOf(item.scene_moment_id) === selected.moment.ID) ||
     (selectedUnit?.ID && numberOf(item.content_unit_id) === selectedUnit.ID)
   )).length ?? 0
+  const selectedPreviewPlanSegments = useMemo(
+    () => (selectedProduction && data ? buildPreviewPlanSegments(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
+  const selectedPreviewTimelineUnits = useMemo(
+    () => (selectedProduction && data ? buildPreviewTimelineContentUnits(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
+  const selectedPreviewMissingAssets = useMemo(
+    () => (selectedProduction && data ? buildPreviewAssetGaps(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
+  const selectedPreviewTimelines = useMemo(
+    () => (selectedProduction && data ? previewTimelinesForProduction(selectedProduction, data) : []),
+    [data, selectedProduction],
+  )
   const selectedDeliveryVersionCount = data?.deliveryVersions.filter((item) => (
     selectedProductionIdSet.has(numberOf(item.production_id)) ||
     (selectedUnit?.ID && numberOf(item.content_unit_id) === selectedUnit.ID)
@@ -3922,8 +3977,8 @@ function ContentGenerationWorkbench() {
     missingSlotCount: selected?.missingSlots.length ?? 0,
     generationContextReady: Boolean(selectedUnit && generationContextQuery.data && missingGenerationContext.length === 0),
     pendingReviewDraftCount: reviewQueueSummary.pending,
-    runningJobCount,
-    completedJobCount,
+    runningJobCount: selectedUnit ? selectedUnitRunningJobCount : runningJobCount,
+    completedJobCount: selectedUnit ? selectedUnitCompletedJobCount : completedJobCount,
     previewItemCount: selectedPreviewItemCount,
     deliveryVersionCount: selectedDeliveryVersionCount,
   })
@@ -4080,7 +4135,7 @@ function ContentGenerationWorkbench() {
     keyframeCount: selectedUnitKeyframes.length,
     pendingReviewDraftCount: reviewQueueSummary.pending,
     missingGenerationContext,
-    completedJobCount,
+    completedJobCount: selectedUnitCompletedJobCount,
     previewItemCount: selectedPreviewItemCount,
     deliveryVersionCount: selectedDeliveryVersionCount,
   })
@@ -4109,7 +4164,7 @@ function ContentGenerationWorkbench() {
     resolve_generation_context: () => openEditSelectedUnit(),
     review_ai_drafts: openReviewQueue,
     open_generation_canvas: selectedUnit ? openSelectedUnitCanvas : undefined,
-    open_preview_workspace: () => navigate(withRouteParams(ROUTES.project.productionPreview, { productionId: selectedProduction?.ID })),
+    open_preview_workspace: () => navigate(withRouteParams(ROUTES.project.contentUnitWorkbench, { productionId: selectedProduction?.ID, focus: 'preview' })),
     open_delivery_workspace: () => navigate(withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: selectedProduction?.ID })),
   }
   const deliveryBrief = buildContentWorkbenchDeliveryBrief({
@@ -4123,10 +4178,25 @@ function ContentGenerationWorkbench() {
     generationContextLoading: !generationContextQuery.data && (generationContextQuery.isLoading || generationContextQuery.isFetching),
     generationContextError: generationContextQuery.isError,
     pendingReviewDraftCount: reviewQueueSummary.pending,
+    completedJobCount: selectedUnitCompletedJobCount,
+    previewItemCount: selectedPreviewItemCount,
+    deliveryVersionCount: selectedDeliveryVersionCount,
   })
-  const deliveryPrimaryAction = nextActions[0]
-  const deliveryPrimaryActionHandler = deliveryPrimaryAction ? nextActionHandlers[deliveryPrimaryAction.key] : undefined
-  const deliveryPrimaryActionDisabled = deliveryPrimaryAction?.key === 'open_generation_canvas' && openUnitCanvas.isPending
+  const currentUnitHealth = buildContentWorkbenchUnitHealth({
+    hasSelectedUnit: Boolean(selectedUnit),
+    hasPrompt: Boolean(selectedUnit && firstText(selectedUnit.prompt, selectedUnit.description)),
+    assetSlotCount: selectedUnitAssetSlots.length,
+    missingSlotCount: selectedUnitMissingSlots.length,
+    keyframeCount: selectedUnitKeyframes.length,
+    generationContextReady: Boolean(selectedUnit && generationContextQuery.data && missingGenerationContext.length === 0),
+    generationContextLoading: !generationContextQuery.data && (generationContextQuery.isLoading || generationContextQuery.isFetching),
+    generationContextError: generationContextQuery.isError,
+    pendingReviewDraftCount: reviewQueueSummary.pending,
+    runningJobCount: selectedUnitRunningJobCount,
+    completedJobCount: selectedUnitCompletedJobCount,
+    previewItemCount: selectedPreviewItemCount,
+    deliveryVersionCount: selectedDeliveryVersionCount,
+  })
   const activityFeed = buildContentWorkbenchActivityFeed({
     hasSelectedUnit: Boolean(selectedUnit),
     selectedUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
@@ -4230,15 +4300,11 @@ function ContentGenerationWorkbench() {
                   <div className="grid gap-2 md:grid-cols-2" data-testid="content-workbench-command-brief">
                     {commandBriefRows.map((item) => {
                       const Icon = commandBriefIcons[item.key]
-                      const onClick = item.actionKey ? nextActionHandlers[item.actionKey] : undefined
-                      const disabled = item.actionKey === 'open_generation_canvas' && openUnitCanvas.isPending
-                      const clickable = typeof onClick === 'function' && !disabled
                       const className = cn(
-                        'rounded-md border px-3 py-3 text-left transition-colors',
+                        'rounded-md border px-3 py-3 text-left',
                         item.tone === 'warning'
                           ? 'border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20'
                           : 'border-border bg-background',
-                        clickable ? 'hover:border-primary/50 hover:bg-primary/5' : '',
                       )
                       const content = (
                         <div className="flex items-start gap-3">
@@ -4252,20 +4318,6 @@ function ContentGenerationWorkbench() {
                           </div>
                         </div>
                       )
-                      if (clickable) {
-                        return (
-                          <button
-                            key={item.key}
-                            type="button"
-                            data-action-key={item.actionKey}
-                            onClick={onClick}
-                            disabled={disabled}
-                            className={className}
-                          >
-                            {content}
-                          </button>
-                        )
-                      }
                       return (
                         <div
                           key={item.key}
@@ -4716,15 +4768,15 @@ function ContentGenerationWorkbench() {
                 </WorkbenchPanel>
               </div>
 
-              <div className="min-w-0 space-y-5 xl:col-span-2 2xl:col-span-1">
+              <div className="min-w-0 space-y-4 xl:col-span-2 2xl:col-span-1">
                 <WorkbenchPanel title="上下文 Inspector" icon={Layers}>
                   {selected ? (
                     <>
-                      <div className="mb-4 rounded-md border border-border bg-background p-3">
-                        <div className="flex items-start justify-between gap-3">
+                      <div className="mb-3 rounded-md border border-border bg-background p-2.5">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-xs text-muted-foreground">当前情节</p>
-                            <h2 className="mt-1 line-clamp-2 text-lg font-semibold leading-6 text-foreground">{selected.title}</h2>
+                            <h2 className="mt-1 line-clamp-2 text-base font-semibold leading-6 text-foreground">{selected.title}</h2>
                             <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected.scope}</p>
                           </div>
                           <div className="flex shrink-0 flex-col items-end gap-1">
@@ -4754,6 +4806,56 @@ function ContentGenerationWorkbench() {
                 >
                   <ReadinessSummaryCard rows={standards} />
                   <GateChecklist rows={standards} />
+                  <details className="mt-2 rounded-md border border-border bg-background" data-testid="content-workbench-generation-context-detail">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <ClipboardCheck size={15} className="text-muted-foreground" />
+                        <span className="truncate">生成上下文详情</span>
+                      </span>
+                      {!selectedUnit ? (
+                        <Badge variant="warning">待生成制作项</Badge>
+                      ) : generationContextQuery.isFetching ? (
+                        <Badge variant="secondary">检查中</Badge>
+                      ) : generationContextQuery.isError ? (
+                        <Badge variant="warning">检查失败</Badge>
+                      ) : (
+                        <Badge variant={missingGenerationContext.length > 0 ? 'warning' : 'success'}>
+                          {missingGenerationContext.length > 0 ? `${missingGenerationContext.length} 个缺失` : '上下文可用'}
+                        </Badge>
+                      )}
+                    </summary>
+                    <div className="border-t border-border p-2.5">
+                      {!selected ? (
+                        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">选择情节后检查生成上下文。</p>
+                      ) : !selectedUnit ? (
+                        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">当前情节还没有制作项，暂时不能读取制作项级生成上下文。</p>
+                      ) : generationContextQuery.isLoading ? (
+                        <p className="rounded-md border border-border bg-card px-3 py-5 text-center text-sm text-muted-foreground">正在读取后端生成上下文...</p>
+                      ) : generationContextQuery.isError ? (
+                        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+                          {apiErrorMessage(generationContextQuery.error, '后端上下文检查失败，请确认后端已更新并重新加载页面。')}
+                        </p>
+                      ) : generationContextQuery.data ? (
+                        <div className="space-y-3">
+                          <ContextStack rows={generationContextRows} className="production-context-stack" />
+                          {missingGenerationContext.length > 0 ? (
+                            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                              <p className="text-sm font-medium text-amber-900">生成前建议补齐</p>
+                              <div className="mt-1.5 space-y-1">
+                                {missingGenerationContext.map((item) => (
+                                  <p key={item.label} className="text-xs leading-5 text-amber-800">{item.label}：{item.detail}</p>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                              当前制作项的后端生成上下文已具备，可以进入生成计划阶段。
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  </details>
                 </WorkbenchPanel>
 
                 <WorkbenchPanel
@@ -4770,18 +4872,15 @@ function ContentGenerationWorkbench() {
                   ) : <Badge variant="warning">未选择</Badge>}
                 >
                   {selectedUnit ? (
-                    <div className="space-y-3" data-testid="content-workbench-current-unit-panel">
-                      <div className="rounded-md border border-border bg-background p-3">
+                    <div className="space-y-2.5" data-testid="content-workbench-current-unit-panel">
+                      <div className="rounded-md border border-border bg-background p-2.5">
                         <p className="text-xs text-muted-foreground">生成目标</p>
                         <h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-foreground">{titleOfRecord(selectedUnit)}</h3>
-                        <p className="mt-2 line-clamp-4 text-xs leading-5 text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
+                        <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
                       </div>
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <QueueMiniMetric label="时长" value={formatDuration(selectedUnit.duration_sec)} />
-                        <QueueMiniMetric label="素材" value={selectedUnitAssetSlots.length} tone={selectedUnitMissingSlots.length > 0 ? 'warning' : 'default'} />
-                        <QueueMiniMetric label="关键帧" value={selectedUnitKeyframes.length} tone={selectedUnitKeyframes.length > 0 ? 'default' : 'warning'} />
-                      </div>
+                      <UnitHealthCard health={currentUnitHealth} />
                       <div className="flex flex-wrap gap-2">
+                        <Badge variant="outline">时长 {formatDuration(selectedUnit.duration_sec)}</Badge>
                         <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
                         {selectedUnit.shot_size ? <Badge variant="outline">景别 {selectedUnit.shot_size}</Badge> : null}
                         {selectedUnit.camera_angle ? <Badge variant="outline">机位 {selectedUnit.camera_angle}</Badge> : null}
@@ -4793,148 +4892,35 @@ function ContentGenerationWorkbench() {
                   )}
                 </WorkbenchPanel>
 
-                <WorkbenchPanel title="生成交付包" icon={PackageCheck}>
-                  <DeliveryBriefCard
-                    brief={deliveryBrief}
-                    primaryActionLabel={deliveryPrimaryAction?.title}
-                    primaryActionIcon={deliveryPrimaryAction ? nextActionIcons[deliveryPrimaryAction.key] : undefined}
-                    primaryActionLoading={deliveryPrimaryAction?.key === 'open_generation_canvas' && openUnitCanvas.isPending}
-                    primaryActionDisabled={deliveryPrimaryActionDisabled}
-                    onPrimaryAction={deliveryPrimaryActionHandler}
-                  />
-                </WorkbenchPanel>
-
-                <WorkbenchPanel title="生产活动流" icon={Clock3}>
-                  <ActivityFeedCard feed={activityFeed} actionIcons={nextActionIcons} actionHandlers={nextActionHandlers} />
-                </WorkbenchPanel>
-
                 <WorkbenchPanel
                   title="下一步动作"
                   icon={Settings2}
                   action={<Badge variant={nextActions.some((action) => action.tone === 'warning') ? 'warning' : 'success'}>{nextActions.length}</Badge>}
                 >
-                  <div className="space-y-2" data-testid="content-workbench-next-actions">
-                    {nextActions.map((action, index) => {
-                      const Icon = nextActionIcons[action.key]
-                      const onClick = nextActionHandlers[action.key]
-                      const disabled = action.key === 'open_generation_canvas' && openUnitCanvas.isPending
-                      const clickable = typeof onClick === 'function' && !disabled
-                      return (
-                        <button
-                          key={`${action.title}-${index}`}
-                          type="button"
-                          data-action-key={action.key}
-                          onClick={onClick}
-                          disabled={!clickable || disabled}
-                          className={cn(
-                            'w-full rounded-md border px-3 py-3 text-left transition-colors',
-                            action.tone === 'success'
-                              ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
-                              : action.tone === 'warning'
-                                ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
-                                : 'border-border bg-background',
-                            clickable ? 'hover:border-primary/50 hover:bg-primary/5' : 'cursor-default',
-                          )}
-                        >
-                          <div className="flex items-start gap-3">
-                            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background text-muted-foreground">
-                              <Icon size={15} />
-                            </span>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="truncate text-sm font-medium text-foreground">{action.title}</p>
-                                <Badge variant={action.tone === 'success' ? 'success' : action.tone === 'warning' ? 'warning' : 'outline'}>
-                                  {action.tone === 'success' ? '可执行' : action.tone === 'warning' ? '优先' : '建议'}
-                                </Badge>
-                              </div>
-                              <p className="mt-1 text-xs leading-5 text-muted-foreground">{action.detail}</p>
-                            </div>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <NextActionsPanel
+                    actions={nextActions}
+                    actionIcons={nextActionIcons}
+                    actionHandlers={nextActionHandlers}
+                    generationCanvasPending={openUnitCanvas.isPending}
+                  />
                 </WorkbenchPanel>
 
-                <WorkbenchPanel title="素材与生成上下文" icon={ClipboardCheck}>
-                  <div className="space-y-4">
-                    <div className="rounded-md border border-border bg-background p-3">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <Upload size={15} className="text-muted-foreground" />
-                          素材候选上传
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 gap-2"
-                          onClick={triggerCandidateUpload}
-                          disabled={!uploadTargetSlot || uploading || uploadCandidate.isPending}
-                        >
-                          <Upload size={13} />
-                          {uploading || uploadCandidate.isPending ? '上传中' : '上传素材候选'}
-                        </Button>
-                      </div>
-                      {uploadTargetSlot ? (
-                        <p className="text-xs text-muted-foreground">会挂到素材需求：{titleOfRecord(uploadTargetSlot)}</p>
-                      ) : (
-                        <p className="text-xs text-amber-700 dark:text-amber-300">当前情节暂无素材需求，先添加素材需求后即可上传素材候选。</p>
-                      )}
-                      {candidateRows.length > 0 ? (
-                        <div className="mt-3">
-                          <CandidateComparison rows={candidateRows} primaryLabel="优势" emptyText="当前项目还没有视频生成任务" rowClassName="production-candidate-row" />
-                        </div>
-                      ) : null}
-                    </div>
-
-                    <div className="rounded-md border border-border bg-background p-3">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <ClipboardCheck size={15} className="text-muted-foreground" />
-                          生成上下文检查
-                        </div>
-                        {!selectedUnit ? (
-                          <Badge variant="warning">待生成制作项</Badge>
-                        ) : generationContextQuery.isFetching ? (
-                          <Badge variant="secondary">检查中</Badge>
-                        ) : generationContextQuery.isError ? (
-                          <Badge variant="warning">检查失败</Badge>
-                        ) : (
-                          <Badge variant={missingGenerationContext.length > 0 ? 'warning' : 'success'}>
-                            {missingGenerationContext.length > 0 ? `${missingGenerationContext.length} 个缺失` : '上下文可用'}
-                          </Badge>
-                        )}
-                      </div>
-                      {!selected ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择情节后检查生成上下文。</p>
-                      ) : !selectedUnit ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">当前情节还没有制作项，暂时不能读取制作项级生成上下文。</p>
-                      ) : generationContextQuery.isLoading ? (
-                        <p className="rounded-md border border-border bg-card px-3 py-6 text-center text-sm text-muted-foreground">正在读取后端生成上下文...</p>
-                      ) : generationContextQuery.isError ? (
-                        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-4 text-sm text-amber-800">
-                          {apiErrorMessage(generationContextQuery.error, '后端上下文检查失败，请确认后端已更新并重新加载页面。')}
-                        </p>
-                      ) : generationContextQuery.data ? (
-                        <div className="space-y-4">
-                          <ContextStack rows={generationContextRows} className="production-context-stack" />
-                          {missingGenerationContext.length > 0 ? (
-                            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3">
-                              <p className="text-sm font-medium text-amber-900">生成前建议补齐</p>
-                              <div className="mt-2 space-y-1">
-                                {missingGenerationContext.map((item) => (
-                                  <p key={item.label} className="text-xs leading-5 text-amber-800">{item.label}：{item.detail}</p>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
-                              当前制作项的后端生成上下文已具备，可以进入生成计划阶段。
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
-                    </div>
+                <WorkbenchPanel title="执行与交付" icon={PackageCheck}>
+                  <div className="space-y-2.5">
+                    {selectedProduction ? (
+                      <PreviewMountCard
+                        productionTitle={titleOfRecord(selectedProduction)}
+                        segments={selectedPreviewPlanSegments}
+                        timelineUnits={selectedPreviewTimelineUnits}
+                        gaps={selectedPreviewMissingAssets}
+                        previewTimelineCount={selectedPreviewTimelines.length}
+                        previewItemCount={selectedPreviewItemCount}
+                        onOpenAssets={() => navigate(withRouteParams(ROUTES.project.preProduction, { tab: 'assets', production_id: selectedProduction.ID }))}
+                        onOpenDelivery={() => navigate(withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: selectedProduction.ID }))}
+                      />
+                    ) : null}
+                    <DeliveryBriefCard brief={deliveryBrief} />
+                    <ActivityFeedCard feed={activityFeed} actionIcons={nextActionIcons} actionHandlers={nextActionHandlers} />
                   </div>
                 </WorkbenchPanel>
               </div>
@@ -5131,47 +5117,8 @@ interface PreviewTimelineContentUnit {
   keyframes: number
 }
 
-interface PreviewGateRow {
-  label: string
-  detail: string
-  done: boolean
-}
-
-interface PreviewWorkTask {
-  id: string
-  title: string
-  scope: string
-  status: WorkStatus
-  priority: Priority
-  progress: number
-  method: string
-  output: string
-  blocker?: string
-}
-
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function stringValue(value: unknown): string {
-  return typeof value === 'string' ? value : ''
-}
-
-function stringArrayValue(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.map((item) => stringValue(item).trim()).filter(Boolean)
-  }
-  if (typeof value === 'string') {
-    return value.split(/\r?\n|[；;]/).map((item) => item.replace(/^[-*]\s*/, '').trim()).filter(Boolean)
-  }
-  return []
-}
-
-function numberValue(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
-  return undefined
 }
 
 interface PreviewAssetGap {
@@ -5183,46 +5130,8 @@ interface PreviewAssetGap {
   detail: string
 }
 
-interface PreviewRunSignal {
-  label: string
-  value: string
-  detail: string
-  status: PreviewPlanStatus
-}
-
-function previewProductionLabel(record?: WorkbenchRecord | null) {
-  if (!record) return '未选择制作'
-  return firstText(record.name, record.title, `制作 #${record.ID}`)
-}
-
-function previewProductionStatus(record: WorkbenchRecord, data: ProductionPreviewData) {
-  const previewTimelines = previewTimelinesForProduction(record, data)
-  const deliveryVersions = recordsForProduction(data.deliveryVersions, record.ID)
-  if (deliveryVersions.some((item) => item.status === 'exported' || item.status === 'approved')) return 'ready' as const
-  if (previewTimelines.some((item) => item.status === 'confirmed')) return 'ready' as const
-  if (previewTimelines.length > 0) return 'attention' as const
-  return 'draft' as const
-}
-
-function productionSourceLabel(record: WorkbenchRecord) {
-  if (record.source_type === 'script') return record.source_id ? `剧本 #${record.source_id}` : '剧本创建'
-  if (record.source_type === 'brief') return '简介创建'
-  if (record.source_type === 'preview') return '预演创建'
-  if (record.source_type === 'import') return '导入创建'
-  return '直接创建'
-}
-
-function recordsForProduction(records: WorkbenchRecord[], productionId: number) {
-  return records.filter((item) => Number(item.production_id) === productionId)
-}
-
 function previewTimelinesForProduction(record: WorkbenchRecord, data: ProductionPreviewData) {
   return data.previewTimelines.filter((item) => Number(item.production_id) === record.ID)
-}
-
-function previewTimelineItemsForProduction(record: WorkbenchRecord, data: ProductionPreviewData) {
-  const timelineIds = new Set(previewTimelinesForProduction(record, data).map((item) => item.ID))
-  return data.previewTimelineItems.filter((item) => timelineIds.has(Number(item.preview_timeline_id)))
 }
 
 function relatedSegmentIdsForPreviewProduction(record: WorkbenchRecord, data: ProductionPreviewData) {
@@ -5547,633 +5456,12 @@ function cameraPlanSummary(row: WorkbenchRecord) {
     .join(' · ')
 }
 
-function buildPreviewWorkTasks(record: WorkbenchRecord, data: ProductionPreviewData, segments: PreviewPlanSegment[], timelineUnits: PreviewTimelineContentUnit[], gaps: PreviewAssetGap[]): PreviewWorkTask[] {
-  const firstGap = gaps[0]
-  const firstBlockedUnit = timelineUnits.find((unit) => unit.status === 'blocked') ?? timelineUnits.find((unit) => unit.status === 'attention')
-  const firstReadySegment = segments.find((segment) => segment.status === 'ready') ?? segments[0]
-  const previewTimelines = previewTimelinesForProduction(record, data)
-  const timelineItems = previewTimelineItemsForProduction(record, data)
-
-  return [
-    {
-      id: 'task-gap',
-      title: firstGap ? `补齐 ${firstGap.name}` : '检查制作缺口',
-      scope: firstGap?.owner ?? `制作 #${record.ID}`,
-      status: firstGap ? 'running' : 'ready',
-      priority: firstGap && firstGap.priority === '高' ? 'high' : 'medium',
-      progress: firstGap ? 42 : 88,
-      method: firstGap ? '定位素材需求或画面锚点缺口' : '复核当前制作是否可推进',
-      output: firstGap ? '补齐缺口后进入下一轮预演' : '确认制作预演状态',
-      blocker: firstGap?.detail,
-    },
-    {
-      id: 'task-content-unit',
-      title: firstBlockedUnit ? `审阅 ${firstBlockedUnit.title}` : '审阅情节制作项流',
-      scope: firstBlockedUnit?.source ?? `制作 #${record.ID}`,
-      status: firstBlockedUnit ? 'review' : 'ready',
-      priority: firstBlockedUnit?.status === 'blocked' ? 'high' : 'medium',
-      progress: firstBlockedUnit ? 58 : 76,
-      method: firstBlockedUnit ? '查看制作项、关键画面和素材需求状态' : '查看全部情节下的制作项与预演画面',
-      output: firstBlockedUnit ? '决定补生成或标记为已处理' : '确认情节展开可读',
-      blocker: firstBlockedUnit?.assets?.includes('缺口') ? '当前制作项仍有素材需求缺口' : undefined,
-    },
-    {
-      id: 'task-segment',
-      title: firstReadySegment ? `复核 ${firstReadySegment.title}` : '复核情绪入口',
-      scope: firstReadySegment?.subtitle ?? `制作 #${record.ID}`,
-      status: firstReadySegment ? 'ready' : 'review',
-      priority: firstReadySegment?.gaps ? 'medium' : 'low',
-      progress: firstReadySegment?.readiness ?? 64,
-      method: '检查情绪入口、情节、制作项和预演画面的真实覆盖',
-      output: '确认可以进入下一步制作',
-    },
-    {
-      id: 'task-history',
-      title: previewTimelines.length > 0 ? '复核预演记录' : '建立预演记录',
-      scope: `${previewTimelines.length} 条预演 · ${timelineItems.length} 条记录`,
-      status: previewTimelines.length > 0 ? 'running' : 'review',
-      priority: previewTimelines.length > 0 ? 'medium' : 'low',
-      progress: previewTimelines.length > 0 ? 72 : 18,
-      method: previewTimelines.length > 0 ? '确认预演时间线状态' : '先挂载第一条预演时间线',
-      output: '形成可追踪的预演记录',
-      blocker: timelineItems.length === 0 ? '还没有可展示的预演项' : undefined,
-    },
-  ]
-}
-
-function buildPreviewGateRows(segments: PreviewPlanSegment[], timelineUnits: PreviewTimelineContentUnit[], gaps: PreviewAssetGap[]) {
-  return [
-    { label: '情绪入口已接入', detail: `${segments.length} 个编排段已读取真实制作数据`, done: segments.length > 0 },
-    { label: '情节已展开', detail: `${segments.reduce((sum, segment) => sum + segment.plots, 0)} 个情节已挂到入口下面`, done: segments.some((segment) => segment.plots > 0) },
-    { label: '制作项 / 预演画面可看', detail: `${timelineUnits.length} 个制作项、${timelineUnits.reduce((sum, unit) => sum + unit.keyframes, 0)} 个画面锚点已进入预演`, done: timelineUnits.length > 0 },
-    { label: '缺口已识别', detail: gaps.length > 0 ? `${gaps.length} 个缺口待处理` : '当前没有明显缺口', done: gaps.length === 0 },
-  ]
-}
-
-function ProductionPreviewWorkspace() {
-  const project = useProjectStore((s) => s.current)
-  const projectId = project?.ID
-  const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [showAllTasks, setShowAllTasks] = useState(false)
-  const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null)
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
-
-  const { data, isLoading, isFetching, refetch } = useQuery<ProductionPreviewData>({
-    queryKey: ['workbench', 'preview', projectId],
-    queryFn: () => loadProductionPreviewData(projectId!),
-    enabled: !!projectId,
-  })
-
-  const hasProductionParam = searchParams.has('productionId')
-  useEffect(() => {
-    if (!projectId || !data?.productions.length || hasProductionParam) return
-    const next = new URLSearchParams(searchParams)
-    next.set('productionId', String(data.productions[0].ID))
-    setSearchParams(next, { replace: true })
-  }, [data?.productions, hasProductionParam, projectId, searchParams, setSearchParams])
-
-  const selectedProductionId = Number(searchParams.get('productionId')) || data?.productions[0]?.ID || 0
-  const selectedProduction = useMemo(
-    () => {
-      if (!data?.productions.length) return null
-      return data.productions.find((production) => production.ID === selectedProductionId) ?? data.productions[0] ?? null
-    },
-    [data?.productions, selectedProductionId],
-  )
-
-  const previewPlanSegments = useMemo(
-    () => (selectedProduction && data ? buildPreviewPlanSegments(selectedProduction, data) : []),
-    [data, selectedProduction],
-  )
-  const previewTimelineUnits = useMemo(
-    () => (selectedProduction && data ? buildPreviewTimelineContentUnits(selectedProduction, data) : []),
-    [data, selectedProduction],
-  )
-  const previewMissingAssets = useMemo(
-    () => (selectedProduction && data ? buildPreviewAssetGaps(selectedProduction, data) : []),
-    [data, selectedProduction],
-  )
-  const previewGates = useMemo(
-    () => buildPreviewGateRows(previewPlanSegments, previewTimelineUnits, previewMissingAssets),
-    [previewMissingAssets, previewPlanSegments, previewTimelineUnits],
-  )
-  const previewWorkTasks = useMemo(
-    () => (selectedProduction && data ? buildPreviewWorkTasks(selectedProduction, data, previewPlanSegments, previewTimelineUnits, previewMissingAssets) : []),
-    [data, previewMissingAssets, previewPlanSegments, previewTimelineUnits, selectedProduction],
-  )
-  const previewTimelines = useMemo(
-    () => (selectedProduction && data ? previewTimelinesForProduction(selectedProduction, data) : []),
-    [data, selectedProduction],
-  )
-  const previewTimelineItems = useMemo(
-    () => (selectedProduction && data ? previewTimelineItemsForProduction(selectedProduction, data) : []),
-    [data, selectedProduction],
-  )
-
-  useEffect(() => {
-    if (!previewPlanSegments.length) {
-      setSelectedSegmentId(null)
-      return
-    }
-    setSelectedSegmentId((current) => (current && previewPlanSegments.some((segment) => segment.id === current) ? current : previewPlanSegments[0].id))
-  }, [previewPlanSegments])
-
-  useEffect(() => {
-    if (!previewWorkTasks.length) {
-      setSelectedTaskId(null)
-      return
-    }
-    setSelectedTaskId((current) => (current && previewWorkTasks.some((task) => task.id === current) ? current : previewWorkTasks[0].id))
-  }, [previewWorkTasks])
-
-  const selectedSegment = previewPlanSegments.find((segment) => segment.id === selectedSegmentId) ?? previewPlanSegments[0] ?? null
-  const selectedTask = previewWorkTasks.find((task) => task.id === selectedTaskId) ?? previewWorkTasks[0] ?? null
-  const selectedProductionStatus = selectedProduction && data ? previewProductionStatus(selectedProduction, data) : 'draft'
-  const readyUnits = previewTimelineUnits.filter((unit) => unit.status === 'ready').length
-  const pendingUnits = previewTimelineUnits.filter((unit) => unit.status === 'attention').length
-  const blockedUnits = previewTimelineUnits.filter((unit) => unit.status === 'blocked').length
-  const totalPlots = previewPlanSegments.reduce((sum, segment) => sum + segment.plots, 0)
-  const totalKeyframes = previewTimelineUnits.reduce((sum, unit) => sum + unit.keyframes, 0)
-
-  const previewSignals: PreviewRunSignal[] = [
-    {
-      label: '情绪入口',
-      value: `${previewPlanSegments.length} 段`,
-      detail: selectedProduction ? `${previewProductionLabel(selectedProduction)} 已接入真实数据` : '请选择制作后查看',
-      status: previewPlanSegments.length > 0 ? 'ready' : 'draft',
-    },
-    {
-      label: '情节',
-      value: `${totalPlots} 个`,
-      detail: totalPlots > 0 ? '情节下面承载制作项和预演画面' : '当前还没有情节',
-      status: totalPlots > 0 ? 'ready' : 'draft',
-    },
-    {
-      label: '制作项 / 预演画面',
-      value: `${readyUnits}/${previewTimelineUnits.length || 0}`,
-      detail: `${totalKeyframes} 个画面锚点已接入，${pendingUnits + blockedUnits} 个制作项待处理`,
-      status: previewTimelineUnits.length > 0 ? 'ready' : 'draft',
-    },
-    {
-      label: '预演记录',
-      value: `${previewTimelines.length} 条`,
-      detail: previewTimelineItems.length > 0 ? `${previewTimelineItems.length} 条挂载记录` : '尚未挂载记录',
-      status: previewTimelines.length > 0 ? 'ready' : 'draft',
-    },
-  ]
-
-  const metrics: WorkbenchMetric[] = [
-    {
-      label: '情绪入口',
-      value: String(previewPlanSegments.length),
-      detail: selectedProduction ? `来自 ${selectedProduction.source_type || '当前制作'}` : '未选择制作',
-      icon: Clapperboard,
-      status: previewPlanSegments.length > 0 ? 'ready' : 'blocked',
-    },
-    {
-      label: '情节',
-      value: String(totalPlots),
-      detail: `下挂 ${previewTimelineUnits.length} 个制作项，${totalKeyframes} 个画面锚点`,
-      icon: GitBranch,
-      status: totalPlots > 0 ? 'review' : 'blocked',
-    },
-    {
-      label: '制作项',
-      value: String(previewTimelineUnits.length),
-      detail: `${readyUnits} 个可看 · ${pendingUnits} 个待处理`,
-      icon: Film,
-      status: previewTimelineUnits.length > 0 ? 'review' : 'blocked',
-    },
-    {
-      label: '缺口',
-      value: String(previewMissingAssets.length),
-      detail: previewMissingAssets.length > 0 ? '素材或画面锚点仍需补齐' : '当前没有明显缺口',
-      icon: AlertTriangle,
-      status: previewMissingAssets.length > 0 ? 'blocked' : 'ready',
-    },
-  ]
-
-  if (!projectId) {
-    return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-        <SpecializedWorkbenchHeader
-          category="preview"
-          kicker="真实数据"
-          title="制作预演"
-          description="制作预演会读取当前项目里的真实制作数据。"
-        />
-        <main className="min-h-0 flex-1 overflow-auto p-5">
-          <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目信息，无法读取制作数据。" />
-        </main>
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <SpecializedWorkbenchHeader
-        category="preview"
-        kicker="真实数据"
-        title="制作预演"
-        description="制作预演只查看真实制作数据：编排段、情节、制作项、预演画面和素材缺口。"
-      />
-      <main className="min-h-0 flex-1 overflow-auto p-5">
-        <div className="space-y-5">
-          {isLoading ? (
-            <Card className="rounded-lg border-border bg-card p-6">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 size={14} className="animate-spin" />
-                读取真实制作数据…
-              </div>
-            </Card>
-          ) : !data?.productions.length ? (
-            <EmptyWorkbenchState
-              title="暂无制作"
-              text="先到制作页创建制作，或从制作编排生成制作结构后再来查看预演。"
-            />
-          ) : selectedProduction ? (
-            <>
-              <MetricStrip metrics={metrics} />
-
-              <div className="grid gap-5 2xl:grid-cols-[minmax(0,1fr)_380px]">
-                <div className="min-w-0 space-y-5">
-                  <WorkbenchPanel
-                    title="本集候选全览"
-                    icon={Clapperboard}
-                    action={(
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={String(selectedProduction.ID)}
-                          onValueChange={(value) => {
-                            const next = new URLSearchParams(searchParams)
-                            next.set('productionId', value)
-                            setSearchParams(next, { replace: true })
-                          }}
-                        >
-                          <SelectTrigger className="h-8 w-[220px] text-xs">
-                            <SelectValue placeholder="选择制作" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {data.productions.map((production) => (
-                              <SelectItem key={production.ID} value={String(production.ID)}>
-                                {previewProductionLabel(production)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button variant="outline" size="sm" className="gap-2" onClick={() => refetch()} disabled={isFetching}>
-                          <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
-                          刷新数据
-                        </Button>
-                      </div>
-                    )}
-                  >
-                    <div className="mb-4 rounded-md border border-border bg-background px-3 py-3">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-xs text-muted-foreground">当前制作</p>
-                          <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <p className="truncate text-sm font-medium text-foreground">{previewProductionLabel(selectedProduction)}</p>
-                            <Badge variant={previewStatusVariant(selectedProductionStatus)}>{previewStatusLabel(selectedProductionStatus)}</Badge>
-                          </div>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">{firstText(productionSourceLabel(selectedProduction), selectedProduction.description, '段只作为入口，真正内容在情节、制作项和预演画面里。')}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.productionOrchestration, { productionId: selectedProduction.ID }))}>
-                            <Clapperboard size={14} />
-                            查看编排
-                          </Button>
-                          <Button variant="outline" size="sm" className="gap-2" onClick={() => navigate(`/production?productionId=${selectedProduction.ID}`)}>
-                            <Film size={14} />
-                            查看制作
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="mt-4 grid gap-2 md:grid-cols-3">
-                        <WorkbenchMiniStat label="情节" value={totalPlots} detail="入口下面的真正内容层" />
-                        <WorkbenchMiniStat label="制作项" value={previewTimelineUnits.length} detail="预演画面和素材需求的承载层" />
-                        <WorkbenchMiniStat label="缺口" value={previewMissingAssets.length} detail="需要补齐的素材或画面锚点" />
-                      </div>
-                    </div>
-                    {selectedSegment ? (
-                      <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-3">
-                        <div className="min-w-0">
-                          <p className="text-xs text-muted-foreground">当前入口</p>
-                          <p className="truncate text-sm font-medium text-foreground">{selectedSegment.title}</p>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">{selectedSegment.subtitle}</p>
-                        </div>
-                        <Badge variant={previewStatusVariant(selectedSegment.status)}>{previewStatusLabel(selectedSegment.status)}</Badge>
-                      </div>
-                    ) : null}
-                    <div className="grid gap-3 lg:grid-cols-4">
-                      {previewPlanSegments.map((segment, index) => (
-                        <button
-                          key={segment.id}
-                          type="button"
-                          onClick={() => setSelectedSegmentId(segment.id)}
-                          className="text-left"
-                        >
-                          <PreviewOverviewNode segment={segment} index={index} selected={segment.id === selectedSegment?.id} />
-                        </button>
-                      ))}
-                    </div>
-                    <div className="mt-4 grid gap-3 xl:grid-cols-4">
-                      {previewSignals.map((signal) => (
-                        <PreviewRunSignalCard key={signal.label} signal={signal} />
-                      ))}
-                    </div>
-                  </WorkbenchPanel>
-
-                  <WorkbenchPanel
-                    title="情节与制作项"
-                    icon={GitBranch}
-                    action={<Badge variant="outline">{totalPlots} 个情节</Badge>}
-                  >
-                    <p className="mb-3 text-sm font-semibold text-foreground">先看情绪入口，再往下展开情节、制作项和预演画面。</p>
-                    {selectedSegment ? (
-                      selectedSegment.plotRows.length === 0 ? (
-                        <EmptyWorkbenchState title="暂无情节" text="当前入口下还没有可展开的情节。" />
-                      ) : (
-                        <div className="space-y-3">
-                          {selectedSegment.plotRows.map((plot, index) => (
-                            <PreviewPlotCard key={plot.id} plot={plot} index={index} />
-                          ))}
-                        </div>
-                      )
-                    ) : (
-                      <EmptyWorkbenchState title="暂无入口" text="先选择一个制作入口，再看它下面的情节和制作项。" />
-                    )}
-                  </WorkbenchPanel>
-                </div>
-
-                <div className="min-w-0 space-y-5">
-                  <WorkbenchPanel
-                    title="缺口清单"
-                    icon={ShieldCheck}
-                    action={<Badge variant={previewMissingAssets.length > 0 ? 'warning' : 'success'}>{previewMissingAssets.length} 个缺口</Badge>}
-                  >
-                    <div className="space-y-3">
-                      {previewMissingAssets.length === 0 ? (
-                        <EmptyWorkbenchState title="暂无缺口" text="当前制作没有明显的素材或画面锚点缺口。" />
-                      ) : (
-                        previewMissingAssets.map((asset) => (
-                          <div key={`${asset.owner}-${asset.name}`} className="rounded-md border border-border bg-background px-3 py-3">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-foreground">{asset.name}</p>
-                                <p className="mt-1 text-xs text-muted-foreground">{asset.owner}</p>
-                              </div>
-                              <Badge variant={asset.priority === '高' ? 'danger' : asset.priority === '中' ? 'warning' : 'outline'}>{asset.priority}</Badge>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              <Badge variant={asset.impact === '影响判断' ? 'warning' : 'outline'}>{asset.impact === '影响判断' ? '优先处理' : '可稍后处理'}</Badge>
-                              <Badge variant="secondary">{asset.placeholder}</Badge>
-                            </div>
-                            <p className="mt-2 text-xs leading-5 text-muted-foreground">{asset.detail}</p>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                    <div className="mt-4">
-                      <GateChecklist rows={previewGates} />
-                    </div>
-                  </WorkbenchPanel>
-
-                  <WorkbenchPanel title="下一步动作" icon={Settings2}>
-                    <div className="space-y-2">
-                      <Button className="w-full justify-start gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.productionOrchestration, { productionId: selectedProduction.ID }))}>
-                        <Clapperboard size={15} />
-                        查看制作编排
-                      </Button>
-                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.preProduction, { tab: 'assets', production_id: selectedProduction.ID }))}>
-                        <PackageCheck size={15} />
-                        查看素材需求
-                      </Button>
-                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.contentUnits, { production_id: selectedProduction.ID }))}>
-                        <Film size={15} />
-                        查看制作项
-                      </Button>
-                      <Button variant="outline" className="w-full justify-start gap-2" onClick={() => navigate(withRouteParams(ROUTES.project.deliveryWorkbench, { productionId: selectedProduction.ID }))}>
-                        <CheckCircle2 size={15} />
-                        查看成片工作台
-                      </Button>
-                    </div>
-                  </WorkbenchPanel>
-
-                  <WorkbenchPanel title="当前处理" icon={ListChecks} action={<Badge variant="secondary">{previewWorkTasks.length}</Badge>}>
-                    {selectedTask ? (
-                      <div className="mb-3 rounded-md border border-primary/20 bg-primary/5 px-3 py-3">
-                        <p className="text-xs text-muted-foreground">本轮目标</p>
-                        <p className="mt-1 text-sm font-medium leading-6 text-foreground">{selectedTask.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">{selectedTask.blocker ?? '当前只看实际制作数据和缺口，不接入 agent。'}</p>
-                      </div>
-                    ) : null}
-                    <div className="space-y-2">
-                      {previewWorkTasks.length === 0 ? (
-                        <EmptyWorkbenchState title="暂无处理任务" text="先选择一个制作后，系统会根据真实数据给出待处理项。" />
-                      ) : (
-                        (showAllTasks ? previewWorkTasks : previewWorkTasks.filter((task) => ['running', 'review'].includes(task.status)).slice(0, 2)).map((task) => (
-                          <PreviewWorkTaskCard
-                            key={task.id}
-                            task={task}
-                            selected={task.id === selectedTask?.id}
-                            compact
-                            onSelect={() => setSelectedTaskId(task.id)}
-                          />
-                        ))
-                      )}
-                    </div>
-                    {previewWorkTasks.length > 2 && (
-                      <Button variant="outline" size="sm" className="mt-3 w-full justify-center gap-2" onClick={() => setShowAllTasks((value) => !value)}>
-                        <ListChecks size={14} />
-                        {showAllTasks ? '收起清单' : '展开完整清单'}
-                      </Button>
-                    )}
-                  </WorkbenchPanel>
-                </div>
-              </div>
-            </>
-          ) : (
-            <EmptyWorkbenchState title="暂无可用制作" text="请选择一个制作后，再查看它的真实预演数据。" />
-          )}
-        </div>
-      </main>
-    </div>
-  )
-}
-
-function PreviewWorkTaskCard({ task, selected, compact = false, onSelect }: { task: PreviewWorkTask; selected: boolean; compact?: boolean; onSelect?: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={cn(
-        'w-full rounded-md border px-3 py-3 text-left transition-colors',
-        selected ? 'border-primary/60 bg-primary/5' : 'border-border bg-background hover:bg-muted/30',
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">{task.title}</p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{task.scope}</p>
-        </div>
-        <Badge variant={statusVariant(task.status)}>{statusLabel(task.status)}</Badge>
-      </div>
-      {!compact && (
-        <div className="mt-3 grid gap-2 text-xs md:grid-cols-2">
-          <div className="min-w-0 rounded border border-border bg-background/70 px-2 py-2">
-            <p className="text-muted-foreground">方式</p>
-            <p className="mt-1 truncate text-foreground">{task.method}</p>
-          </div>
-          <div className="min-w-0 rounded border border-border bg-background/70 px-2 py-2">
-            <p className="text-muted-foreground">产出</p>
-            <p className="mt-1 truncate text-foreground">{task.output}</p>
-          </div>
-        </div>
-      )}
-      {task.blocker ? <p className="mt-2 line-clamp-2 text-xs leading-5 text-amber-600">{task.blocker}</p> : null}
-      <div className="mt-3 flex items-center gap-2">
-        <Badge variant={task.priority === 'high' ? 'danger' : task.priority === 'medium' ? 'warning' : 'outline'}>{priorityLabel(task.priority)}</Badge>
-        <Progress value={task.progress} className="h-1.5" />
-      </div>
-    </button>
-  )
-}
-
-function PreviewOverviewNode({ segment, index, selected }: { segment: PreviewPlanSegment; index: number; selected: boolean }) {
-  return (
-    <div
-      className={cn(
-        'min-w-0 rounded-md border px-3 py-3',
-        selected ? 'border-primary/60 bg-primary/5' : 'border-border bg-background',
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] tabular-nums text-muted-foreground">情绪入口 {index + 1}</p>
-          <p className="mt-1 truncate text-sm font-medium text-foreground">{segment.title}</p>
-          <p className="mt-1 truncate text-xs text-muted-foreground">{segment.subtitle}</p>
-        </div>
-        <Badge variant={previewStatusVariant(segment.status)}>{previewStatusLabel(segment.status)}</Badge>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-        <span>{segment.duration}</span>
-        <span>{segment.plots} 情节</span>
-        <span>{segment.contentUnits} 制作项</span>
-        <span>{segment.keyframes} 画面锚点</span>
-        {segment.gaps > 0 ? <span className="text-amber-600">缺口 {segment.gaps}</span> : null}
-      </div>
-      <Progress value={segment.readiness} className="mt-3 h-1.5" />
-    </div>
-  )
-}
-
-function PreviewPlotCard({ plot, index }: { plot: PreviewPlotRow; index: number }) {
-  return (
-    <div className="rounded-md border border-border bg-background px-3 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] tabular-nums text-muted-foreground">情节 {index + 1}</p>
-          <p className="mt-1 truncate text-sm font-medium text-foreground">{plot.title}</p>
-          <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{plot.subtitle}</p>
-        </div>
-        <Badge variant={previewStatusVariant(plot.status)}>{previewStatusLabel(plot.status)}</Badge>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-        <span>{plot.duration}</span>
-        <span>{plot.contentUnits} 制作项</span>
-        <span>{plot.keyframes} 预演画面</span>
-        {plot.gaps > 0 ? <span className="text-amber-600">缺口 {plot.gaps}</span> : null}
-      </div>
-      <Progress value={plot.readiness} className="mt-3 h-1.5" />
-      {plot.contentUnitRows.length > 0 ? (
-        <div className="mt-3 space-y-2">
-          {plot.contentUnitRows.map((unit, unitIndex) => (
-            <PreviewTimelineRow key={unit.id} unit={unit} index={unitIndex} />
-          ))}
-        </div>
-      ) : (
-        <p className="mt-3 rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-          当前情节还没有制作项或预演画面。
-        </p>
-      )}
-    </div>
-  )
-}
-
-function PreviewRunSignalCard({ signal }: { signal: PreviewRunSignal }) {
-  return (
-    <div className="rounded-md border border-border bg-background px-3 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">{signal.label}</p>
-        <Badge variant={previewStatusVariant(signal.status)}>{previewStatusLabel(signal.status)}</Badge>
-      </div>
-      <p className="mt-2 text-sm font-semibold text-foreground">{signal.value}</p>
-      <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{signal.detail}</p>
-    </div>
-  )
-}
-
-function PreviewTimelineRow({ unit, index }: { unit: PreviewTimelineContentUnit; index: number }) {
-  return (
-    <div className="grid gap-3 rounded-md border border-border bg-background px-3 py-3 md:grid-cols-[44px_minmax(0,1.25fr)_110px_120px_auto]">
-      <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-xs font-semibold tabular-nums text-muted-foreground">
-        {index + 1}
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-foreground">{unit.title}</p>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{unit.source}</p>
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] text-muted-foreground">时长</p>
-        <p className="mt-1 text-sm text-foreground">{unit.duration}</p>
-      </div>
-      <div className="min-w-0">
-        <p className="text-[11px] text-muted-foreground">镜头参数</p>
-        <p className="mt-1 truncate text-sm text-foreground">{unit.cameraPlan}</p>
-      </div>
-      <div className="flex min-w-0 items-center justify-between gap-3 md:justify-end">
-        <p className="truncate text-xs text-muted-foreground md:max-w-40">{unit.assets}</p>
-        <Badge variant={unit.keyframes > 0 ? 'secondary' : 'outline'}>{unit.keyframes} 帧</Badge>
-        <Badge variant={previewStatusVariant(unit.status)}>{previewStatusLabel(unit.status)}</Badge>
-      </div>
-    </div>
-  )
-}
-
-function previewStatusLabel(status: PreviewPlanStatus) {
-  if (status === 'ready') return '已有候选'
-  if (status === 'blocked') return '无候选'
-  if (status === 'attention') return '待处理'
-  return '未生成'
-}
-
-function previewStatusVariant(status: PreviewPlanStatus) {
-  if (status === 'ready') return 'success' as const
-  if (status === 'blocked') return 'outline' as const
-  if (status === 'attention') return 'warning' as const
-  return 'outline' as const
-}
-
 function EmptyWorkbenchState({ title, text }: { title: string; text: string }) {
   return (
     <Card className="rounded-lg border-dashed border-border bg-card p-8 text-center">
       <p className="text-sm font-semibold text-foreground">{title}</p>
       <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground">{text}</p>
     </Card>
-  )
-}
-
-function WorkbenchMiniStat({ label, value, detail }: { label: string; value: string | number; detail: string }) {
-  return (
-    <div className="rounded-md border border-border bg-background px-3 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">{label}</p>
-        <Badge variant="outline">{value}</Badge>
-      </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>
-    </div>
   )
 }
 
@@ -6246,8 +5534,6 @@ function useWorkbenchCanvasLauncher(kind?: CanvasWorkbenchKind) {
 }
 
 function ScenarioWorkspace({ category, generationKind }: { category: WorkbenchCategory; generationKind?: CanvasWorkbenchKind }) {
-  if (category === 'preview') return <ProductionPreviewWorkspace />
-
   const surface = getWorkbenchSurface(category)
   const scenario = scenarios[category]
   const [selectedId, setSelectedId] = useState(scenario.queue[0]?.id ?? '')
@@ -7516,11 +6802,11 @@ function ScriptSplitWorkbench() {
                   <Play size={14} />
                   <span>下一步</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或制作预演，继续检查制作项、预演画面、素材缺口和预演记录。</p>
+                <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或内容编排工作台，继续检查制作项、预演挂载、素材缺口和生成记录。</p>
               </div>
-              <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate(ROUTES.project.productionPreview)}>
+              <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate(mergeSearch(ROUTES.project.contentUnitWorkbench, '', { focus: 'preview' }))}>
                 <Play size={13} />
-                开始预演
+                进入内容编排
               </Button>
             </section>
           </aside>
@@ -7539,22 +6825,22 @@ function CategoryContent({ category }: { category: WorkbenchCategory }) {
   return <ScenarioWorkspace category={category} />
 }
 
-export function WorkbenchContent({ initialCategory = 'preview', showCategoryTabs = true }: WorkbenchContentProps) {
+export function WorkbenchContent({ initialCategory = 'production', showCategoryTabs = true }: WorkbenchContentProps) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const normalizedInitialCategory = initialCategory === 'preview' ? 'production' : initialCategory
   const [category, setCategory] = useState<WorkbenchCategory>(() => {
     const tab = searchParams.get('tab')
-    return showCategoryTabs && workbenchSurfaces.some((item) => item.value === tab) ? (tab as WorkbenchCategory) : initialCategory
+    return showCategoryTabs && workbenchSurfaces.some((item) => item.value === tab) ? (tab as WorkbenchCategory) : normalizedInitialCategory
   })
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    setCategory(showCategoryTabs && workbenchSurfaces.some((item) => item.value === tab) ? (tab as WorkbenchCategory) : initialCategory)
-  }, [searchParams, initialCategory, showCategoryTabs])
+    setCategory(showCategoryTabs && workbenchSurfaces.some((item) => item.value === tab) ? (tab as WorkbenchCategory) : normalizedInitialCategory)
+  }, [searchParams, normalizedInitialCategory, showCategoryTabs])
 
-  const activeCategory = showCategoryTabs ? category : initialCategory
+  const activeCategory = showCategoryTabs ? category : normalizedInitialCategory
   const summary = useMemo(() => {
-    if (activeCategory === 'preview') return '真实制作数据 · 先看编排、缺口和预演记录'
     const scenario = scenarios[activeCategory]
     const blocked = scenario.queue.filter((item) => item.status === 'blocked').length
     const review = scenario.queue.filter((item) => item.status === 'review').length

@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -116,26 +116,83 @@ test('AgentRun debugging artifact cleaner removes stale result directories', asy
 })
 
 test('AgentRun debugging E2E runner verifies screenshots even after browser failure', async () => {
-  await assert.rejects(
-    execFileAsync(process.execPath, [e2eRunnerPath], {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-e2e-summary-'))
+  const summaryPath = path.join(root, 'summary.json')
+  try {
+    await assert.rejects(
+      execFileAsync(process.execPath, [e2eRunnerPath], {
+        env: {
+          ...process.env,
+          AGENT_RUN_DEBUG_E2E_SUMMARY_PATH: summaryPath,
+          AGENT_RUN_DEBUG_E2E_COMMAND_JSON: JSON.stringify([
+            process.execPath,
+            '-e',
+            "require('node:fs').mkdirSync('apps/frontend/test-results', { recursive: true }); process.exit(7)",
+          ]),
+        },
+      }),
+      (error) => {
+        const stderr = String(error.stderr)
+        assert.match(stderr, /AgentRun debugging artifact verification failed/)
+        assert.match(stderr, /missing screenshot artifact: agent-run-debug-overview\.png/)
+        assert.match(stderr, /browser acceptance exited with 7/)
+        assert.match(stderr, /screenshot artifact verification exited with 1/)
+        return true
+      },
+    )
+    const summary = JSON.parse(await readFile(summaryPath, 'utf8'))
+    assert.equal(summary.schema, 'movscript.agent-run-debugging-acceptance-summary.v1')
+    assert.equal(summary.schemaUrl, 'https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json')
+    assert.equal(summary.passed, false)
+    assert.equal(summary.browser.status, 7)
+    assert.equal(summary.browser.failure, 'exited with 7')
+    assert.equal(summary.screenshotArtifacts.status, 1)
+    assert.equal(summary.screenshotArtifacts.failure, 'exited with 1')
+    assert.equal(summary.artifactRoot, 'apps/frontend/test-results')
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('AgentRun debugging E2E runner writes passing summary when screenshots are verified', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-e2e-success-'))
+  const summaryPath = path.join(root, 'summary.json')
+  const screenshotPath = path.join(root, 'screenshot.png')
+  const writerPath = path.join(root, 'write-screenshots.mjs')
+  try {
+    await writeFile(screenshotPath, createPng(640, 480))
+    await writeFile(writerPath, `
+import { copyFileSync, mkdirSync } from 'node:fs'
+import path from 'node:path'
+
+const screenshotNames = ${JSON.stringify(screenshotNames)}
+const source = ${JSON.stringify(screenshotPath)}
+const target = path.resolve('apps/frontend/test-results/agent-run-acceptance')
+mkdirSync(target, { recursive: true })
+for (const name of screenshotNames) copyFileSync(source, path.join(target, name))
+`)
+
+    const { stdout } = await execFileAsync(process.execPath, [e2eRunnerPath], {
       env: {
         ...process.env,
-        AGENT_RUN_DEBUG_E2E_COMMAND_JSON: JSON.stringify([
-          process.execPath,
-          '-e',
-          "require('node:fs').mkdirSync('apps/frontend/test-results', { recursive: true }); process.exit(7)",
-        ]),
+        AGENT_RUN_DEBUG_E2E_SUMMARY_PATH: summaryPath,
+        AGENT_RUN_DEBUG_E2E_COMMAND_JSON: JSON.stringify([process.execPath, writerPath]),
       },
-    }),
-    (error) => {
-      const stderr = String(error.stderr)
-      assert.match(stderr, /AgentRun debugging artifact verification failed/)
-      assert.match(stderr, /missing screenshot artifact: agent-run-debug-overview\.png/)
-      assert.match(stderr, /browser acceptance exited with 7/)
-      assert.match(stderr, /screenshot artifact verification exited with 1/)
-      return true
-    },
-  )
+    })
+    assert.match(stdout, /AgentRun debugging E2E acceptance passed/)
+    const summary = JSON.parse(await readFile(summaryPath, 'utf8'))
+    assert.equal(summary.schema, 'movscript.agent-run-debugging-acceptance-summary.v1')
+    assert.equal(summary.schemaUrl, 'https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json')
+    assert.equal(summary.passed, true)
+    assert.equal(summary.browser.status, 0)
+    assert.equal(summary.browser.failure, null)
+    assert.equal(summary.screenshotArtifacts.status, 0)
+    assert.equal(summary.screenshotArtifacts.failure, null)
+    assert.equal(summary.artifactRoot, 'apps/frontend/test-results')
+  } finally {
+    await execFileAsync(process.execPath, [cleanScriptPath]).catch(() => undefined)
+    await rm(root, { recursive: true, force: true })
+  }
 })
 
 test('AgentRun debugging E2E runner reports browser command startup failures', async () => {

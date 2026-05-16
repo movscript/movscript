@@ -42,7 +42,7 @@ export function buildContentWorkbenchActivityFeed(input: ContentWorkbenchActivit
   if (!input.hasSelectedUnit) {
     return {
       title: '等待生产焦点',
-      detail: '选择制作项后，活动流会追踪审稿、素材、画面锚点、上下文和生成任务。',
+      detail: '选择制作项后，活动流会追踪 AI 审稿和生成任务记录。',
       items: [{
         key: 'select-unit',
         title: '选择制作项',
@@ -56,8 +56,6 @@ export function buildContentWorkbenchActivityFeed(input: ContentWorkbenchActivit
 
   const items: ContentWorkbenchActivityItem[] = []
   const pendingReviewDraftCount = positiveInteger(input.pendingReviewDraftCount)
-  const missingAssetTitles = input.missingAssetTitles.map(firstText).filter(Boolean)
-  const keyframeTitles = input.keyframeTitles.map(firstText).filter(Boolean)
 
   if (pendingReviewDraftCount > 0) {
     items.push({
@@ -68,59 +66,16 @@ export function buildContentWorkbenchActivityFeed(input: ContentWorkbenchActivit
       actionKey: 'review_ai_drafts',
       actionLabel: '审阅',
     })
-  } else {
-    items.push({
-      key: 'review-drafts',
-      title: 'AI 审稿已清空',
-      detail: '没有待处理草案。',
-      tone: 'done',
-    })
   }
-
-  if (missingAssetTitles.length > 0) {
-    items.push({
-      key: 'missing-assets',
-      title: '素材需求阻塞',
-      detail: missingAssetTitles.slice(0, 2).join('、'),
-      tone: 'blocked',
-      actionKey: 'upload_missing_assets',
-      actionLabel: '上传',
-    })
-  } else {
-    items.push({
-      key: 'missing-assets',
-      title: '素材缺口已处理',
-      detail: '当前制作项没有未处理素材缺口。',
-      tone: 'done',
-    })
-  }
-
-  items.push({
-    key: 'keyframes',
-    title: keyframeTitles.length > 0 ? '画面锚点已建立' : '画面锚点待补',
-    detail: keyframeTitles.length > 0 ? keyframeTitles.slice(0, 2).join('、') : '建议先补首帧和尾帧。',
-    tone: keyframeTitles.length > 0 ? 'done' : 'blocked',
-    actionKey: keyframeTitles.length > 0 ? undefined : 'add_first_keyframe',
-    actionLabel: keyframeTitles.length > 0 ? undefined : '补帧',
-  })
-
-  items.push({
-    key: 'generation-context',
-    title: input.generationContextError ? '生成上下文检查失败' : input.generationContextLoading ? '生成上下文检查中' : input.generationContextReady ? '生成上下文可用' : '生成上下文待补',
-    detail: input.generationContextError ? '需要重新检查后端上下文。' : input.generationContextLoading ? '正在汇总剧本、设定、素材和提示。' : input.generationContextReady ? '上下文门禁已通过。' : '仍有上下文门禁未通过。',
-    tone: input.generationContextError ? 'blocked' : input.generationContextLoading ? 'running' : input.generationContextReady ? 'done' : 'blocked',
-    actionKey: input.generationContextError || (!input.generationContextLoading && !input.generationContextReady) ? 'resolve_generation_context' : undefined,
-    actionLabel: input.generationContextError || (!input.generationContextLoading && !input.generationContextReady) ? '编辑' : undefined,
-  })
 
   items.push(...summarizeJobs(input.jobs))
 
-  const visibleItems = items.slice(0, 7)
+  const visibleItems = items.slice(0, 5)
   const blockedCount = visibleItems.filter((item) => item.tone === 'blocked').length
   const runningCount = visibleItems.filter((item) => item.tone === 'running').length
   return {
-    title: blockedCount > 0 ? '生产活动有阻塞' : runningCount > 0 ? '生产活动执行中' : '生产活动可追溯',
-    detail: `${firstText(input.selectedUnitTitle, '当前制作项')} · ${blockedCount > 0 ? `${blockedCount} 项需要处理` : `${visibleItems.length} 条活动已记录`}`,
+    title: blockedCount > 0 ? '生产活动需处理' : runningCount > 0 ? '生产活动执行中' : visibleItems.some((item) => item.tone === 'done') ? '生产活动可追溯' : '生产活动待启动',
+    detail: `${firstText(input.selectedUnitTitle, '当前制作项')} · ${blockedCount > 0 ? `${blockedCount} 条活动需要处理` : `${visibleItems.length} 条活动记录`}`,
     items: visibleItems,
   }
 }
@@ -130,8 +85,8 @@ function summarizeJobs(jobs: ContentWorkbenchActivityJobLike[]): ContentWorkbenc
   if (normalizedJobs.length === 0) {
     return [{
       key: 'job-empty',
-      title: '生成任务待启动',
-      detail: '门禁通过后可打开生成画布执行任务。',
+      title: '暂无生成活动',
+      detail: '生成前缺口请查看生成门禁和制作项健康度。',
       tone: 'pending',
     }]
   }

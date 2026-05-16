@@ -19,6 +19,7 @@
     "id": "run_debug_fixture",
     "threadId": "thread_debug_fixture",
     "status": "completed",
+    "role": "worker",
     "createdAt": "2026-05-16T08:00:00.000Z"
   },
   "runSummary": {
@@ -35,8 +36,8 @@
     "pendingInputs": 0
   },
   "trace": {
-    "loaded": 4,
-    "total": 4,
+    "loaded": 5,
+    "total": 5,
     "hasMore": false
   },
   "fieldGuide": [
@@ -252,6 +253,15 @@
           }
         }
       }
+    },
+    {
+      "id": "evt_tool_call",
+      "kind": "tool_call",
+      "status": "completed",
+      "title": "Tool call completed",
+      "createdAt": "2026-05-16T08:00:03.000Z",
+      "toolName": "read_context",
+      "summary": "读取上下文片段"
     },
     {
       "id": "evt_model_response",
