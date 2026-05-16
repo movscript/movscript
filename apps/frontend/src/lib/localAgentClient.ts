@@ -659,6 +659,19 @@ export interface AgentDraftPatchResult {
 export interface RunMessageResult {
   run: AgentRun
   thread: AgentThread
+  threadResolution: AgentThreadResolution
+}
+
+export interface AgentThreadResolution {
+  requestedThreadId?: string
+  threadId: string
+  reusedExistingThread: boolean
+  createdNewThread: boolean
+  missingRequestedThread: boolean
+}
+
+export function isLocalAgentNotFoundError(error: unknown): boolean {
+  return error instanceof Error && /^local agent returned 404:/.test(error.message)
 }
 
 export type AgentRunStreamEvent =
@@ -1135,7 +1148,8 @@ export class LocalAgentClient {
   }
 
   async runMessage(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
-    const thread = input.threadId ? await this.getThreadOrCreate(input.threadId, options.signal) : await this.createThread({ title: input.title, projectId: input.projectId }, options.signal)
+    const resolvedThread = await this.resolveMessageThread(input, options.signal)
+    const thread = resolvedThread.thread
     await this.addMessage(thread.id, input.message, input.clientInput, options.signal)
     const run = await this.createRun(thread.id, {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
@@ -1150,11 +1164,12 @@ export class LocalAgentClient {
       signal: options.signal,
     })
     const finalThread = await this.getThread(thread.id)
-    return { run: finalRun, thread: finalThread }
+    return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution }
   }
 
   async runMessageStream(input: { threadId?: string; message: string; title?: string; projectId?: number; clientInput?: AgentClientInput }, options: RunMessageOptions = {}): Promise<RunMessageResult> {
-    const thread = input.threadId ? await this.getThreadOrCreate(input.threadId, options.signal) : await this.createThread({ title: input.title, projectId: input.projectId }, options.signal)
+    const resolvedThread = await this.resolveMessageThread(input, options.signal)
+    const thread = resolvedThread.thread
     await this.addMessage(thread.id, input.message, input.clientInput, options.signal)
     const run = await this.createRun(thread.id, {
       ...(options.agentManifest ? { agentManifest: options.agentManifest } : {}),
@@ -1164,15 +1179,52 @@ export class LocalAgentClient {
     options.onRunUpdate?.(run)
     const finalRun = await this.streamRun(run.id, options)
     const finalThread = await this.getThread(thread.id)
-    return { run: finalRun, thread: finalThread }
+    return { run: finalRun, thread: finalThread, threadResolution: resolvedThread.resolution }
   }
 
-  private async getThreadOrCreate(threadId: string, signal?: AbortSignal): Promise<AgentThread> {
+  private async resolveMessageThread(input: { threadId?: string; title?: string; projectId?: number }, signal?: AbortSignal): Promise<{
+    thread: AgentThread
+    resolution: AgentThreadResolution
+  }> {
+    if (!input.threadId) {
+      const thread = await this.createThread({ title: input.title, projectId: input.projectId }, signal)
+      return {
+        thread,
+        resolution: {
+          threadId: thread.id,
+          reusedExistingThread: false,
+          createdNewThread: true,
+          missingRequestedThread: false,
+        },
+      }
+    }
+
     try {
-      return await this.getThread(threadId, signal)
-    } catch {
+      const thread = await this.getThread(input.threadId, signal)
+      return {
+        thread,
+        resolution: {
+          requestedThreadId: input.threadId,
+          threadId: thread.id,
+          reusedExistingThread: true,
+          createdNewThread: false,
+          missingRequestedThread: false,
+        },
+      }
+    } catch (error) {
       if (signal?.aborted) throw signal.reason ?? createLocalAgentAbortError()
-      return await this.createThread({}, signal)
+      if (!isLocalAgentNotFoundError(error)) throw error
+      const thread = await this.createThread({ title: input.title, projectId: input.projectId }, signal)
+      return {
+        thread,
+        resolution: {
+          requestedThreadId: input.threadId,
+          threadId: thread.id,
+          reusedExistingThread: false,
+          createdNewThread: true,
+          missingRequestedThread: true,
+        },
+      }
     }
   }
 

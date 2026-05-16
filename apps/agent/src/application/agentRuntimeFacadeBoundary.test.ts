@@ -76,6 +76,7 @@ test('AgentRuntime stays on bridge boundaries for extracted facade areas', () =>
     'runtimeTaskEvent',
     'runtimeTaskRunSync',
     'runtimeTaskUpdate',
+    'runtimeTraceRead',
     'runtimeThreadLifecycle',
     'runtimeThreadRead',
   ]
@@ -101,7 +102,7 @@ test('AgentRuntime composes the facade through explicit bridge modules', () => {
   }
 })
 
-test('AgentRuntime public facade methods delegate through bridge fields outside trace reads', () => {
+test('AgentRuntime public facade methods delegate through bridge fields', () => {
   const facadeDelegates = [
     ['getCapabilities', 'this.catalogOperations.getCapabilities(input)'],
     ['listRegisteredTools', 'this.catalogOperations.listRegisteredTools()'],
@@ -139,6 +140,9 @@ test('AgentRuntime public facade methods delegate through bridge fields outside 
     ['cancelPlanTree', 'this.treeCancellation.cancelPlanTree(runId, input)'],
     ['dispatchPlan', 'this.planDispatch.dispatchPlan(input)'],
     ['replanRun', 'this.replan.replanRun(runId, input)'],
+    ['getRunTraceEvents', 'this.traceReads.getRunTraceEvents(runId, query)'],
+    ['getRunTracePage', 'this.traceReads.getRunTracePage(runId, query)'],
+    ['getRunTraceSummary', 'this.traceReads.getRunTraceSummary(runId)'],
     ['subscribeRunStream', 'this.streamSubscriptions.subscribeRunStream(runId, listener)'],
     ['subscribePlanStream', 'this.streamSubscriptions.subscribePlanStream(planId, listener)'],
     ['approveRun', 'this.runControl.approveRun(runId, input)'],
@@ -172,17 +176,9 @@ test('AgentRuntime public facade methods delegate through bridge fields outside 
   }
 })
 
-test('AgentRuntime keeps direct trace store access limited to retained trace-read methods', () => {
-  assert.equal(countOccurrences(source, 'this.store.listRunTraceEvents('), 3)
-  assert.equal(countOccurrences(source, 'this.store.countRunTraceEvents('), 1)
-  assert.equal(countOccurrences(source, 'normalizeTracePageLimit('), 1)
-  assert.equal(countOccurrences(source, 'buildRunTracePage('), 1)
-
-  for (const methodName of ['getRunTraceEvents', 'getRunTracePage', 'getRunTraceSummary']) {
-    assert.equal(
-      source.includes(`${methodName}(runId: string`),
-      true,
-      `AgentRuntime should retain explicit ${methodName} trace-read method`,
-    )
-  }
+test('AgentRuntime delegates trace reads without direct trace store access', () => {
+  assert.equal(countOccurrences(source, 'this.store.listRunTraceEvents('), 0)
+  assert.equal(countOccurrences(source, 'this.store.countRunTraceEvents('), 0)
+  assert.equal(countOccurrences(source, 'normalizeTracePageLimit('), 0)
+  assert.equal(countOccurrences(source, 'buildRunTracePage('), 0)
 })

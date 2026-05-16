@@ -45,6 +45,7 @@ import {
 import { extractAgentTaskArtifacts, type AgentTaskArtifactRef } from '@/lib/agentArtifacts'
 import {
   canStartLocalAgentFromClient,
+  isLocalAgentNotFoundError,
   localAgentClient,
   type AgentMessage,
   type AgentCapabilitiesResponse,
@@ -66,6 +67,7 @@ import {
   type AgentRunPreview,
   type AgentRunStreamEvent,
   type AgentRunTraceSummary,
+  type AgentThreadResolution,
   type AgentTraceEvent,
   type AgentThread as LocalAgentThread,
   type AgentThreadSummary,
@@ -125,7 +127,7 @@ import {
   type AgentSettings,
   type AgentPermissionMode,
 } from '@/store/agentStore'
-import { useAgentSessionStore, type AgentPageTaskState } from '@/store/agentSessionStore'
+import { conversationIdForLocalThread, useAgentSessionStore, type AgentPageTaskState } from '@/store/agentSessionStore'
 import { useUserStore } from '@/store/userStore'
 import type { Project, PublicModel, RawResource } from '@/types'
 import { ROUTES, agentRunPath } from '@/routes/projectRoutes'
@@ -844,6 +846,56 @@ function buildDebugHttpRequests(options: {
     ...request,
     ...(request.body !== undefined ? { body: compactDebugValue(request.body) } : {}),
   }))
+}
+
+function threadResolutionActivityEvent(resolution: AgentThreadResolution | undefined): ChatRunActivityEvent | null {
+  if (!resolution) return null
+  const createdAt = new Date().toISOString()
+  if (resolution.missingRequestedThread && resolution.requestedThreadId) {
+    return {
+      id: `local-thread-resolution-${resolution.threadId}`,
+      kind: 'runtime',
+      title: '本地线程不存在，已创建新线程',
+      summary: `${resolution.requestedThreadId} -> ${resolution.threadId}`,
+      status: 'info',
+      data: {
+        requestedThreadId: resolution.requestedThreadId,
+        threadId: resolution.threadId,
+        missingRequestedThread: true,
+      },
+      createdAt,
+    }
+  }
+  if (resolution.reusedExistingThread && resolution.requestedThreadId) {
+    return {
+      id: `local-thread-resolution-${resolution.threadId}`,
+      kind: 'runtime',
+      title: '已延续本地线程',
+      summary: resolution.threadId,
+      status: 'completed',
+      data: {
+        requestedThreadId: resolution.requestedThreadId,
+        threadId: resolution.threadId,
+        reusedExistingThread: true,
+      },
+      createdAt,
+    }
+  }
+  if (resolution.createdNewThread) {
+    return {
+      id: `local-thread-resolution-${resolution.threadId}`,
+      kind: 'runtime',
+      title: '已创建本地线程',
+      summary: resolution.threadId,
+      status: 'completed',
+      data: {
+        threadId: resolution.threadId,
+        createdNewThread: true,
+      },
+      createdAt,
+    }
+  }
+  return null
 }
 
 function LocalAgentWorkflow({
@@ -5295,8 +5347,8 @@ function ChatView({
             ...(options.runPolicy ? { policy: options.runPolicy } : {}),
           })
         } catch (e) {
-          if (!threadId) throw e
-          warnings.push('Saved local thread was not previewable; retried preview as a new thread.')
+          if (!threadId || !isLocalAgentNotFoundError(e)) throw e
+          warnings.push('Saved local thread was not found; retried preview as a new thread.')
           localRuntime.preview = await localAgentClient.previewRun({
             clientInput,
             ...(requestedManifest ? { agentManifest: requestedManifest } : {}),
@@ -5585,7 +5637,12 @@ function ChatView({
       setConversationRun(conv.id, run, { loading: false, building: false, approving: false, stopping: false, stopRequested: false })
       setPendingHttpEvents([])
       setPendingAssistantState(null)
-      await appendAssistantRunResult(run, thread, liveTraceEventsRef.current)
+      const resolutionEvent = threadResolutionActivityEvent(runResult.threadResolution)
+      const liveEvents = resolutionEvent
+        ? upsertActivityEvent(liveTraceEventsRef.current, resolutionEvent)
+        : liveTraceEventsRef.current
+      liveTraceEventsRef.current = liveEvents
+      await appendAssistantRunResult(run, thread, liveEvents)
       liveTraceEventsRef.current = []
       setLiveTraceEvents([])
       if (runTouchesAgentCatalog(run)) refreshAgentCatalogContext()
@@ -6364,6 +6421,17 @@ function BuiltinChat({ userId, onCollapse }: { userId: string; onCollapse: () =>
   }
 
   async function handleRestoreLocalThread(threadId: string) {
+    const sessionState = useAgentSessionStore.getState()
+    const existingConvId = conversationIdForLocalThread({
+      threadId,
+      localThreadIdsByConversation: sessionState.localThreadIdsByConversation,
+      conversationRuntimes: sessionState.conversationRuntimes,
+    })
+    if (existingConvId && conversations.some((conversation) => conversation.id === existingConvId)) {
+      setActiveConversation(userId, existingConvId)
+      return
+    }
+
     const thread = await localAgentClient.getThread(threadId)
     const convId = createConversation(userId)
     const restoredLabel = t('agents.chat.panel.runtime.restoredLocalRuntime')

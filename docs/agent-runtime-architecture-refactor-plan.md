@@ -212,6 +212,7 @@ apps/agent/src/
     runtimeRunPreview.ts         Runtime preview context, skills, tools, policy, and prompt boundary
     runtimeRunStepCreation.ts   Runtime run step creation persistence and snapshot boundary
     runtimeRunStepCompletion.ts Runtime run step completion persistence and snapshot boundary
+    runtimeTraceReadBridge.ts   Runtime run trace event/page/summary read facade wiring
     runtimeStoreLookup.ts        Runtime entity lookup and stable not-found errors
     runtimeSubagentTaskCancellation.ts Runtime subagent cancellation flow and response boundary
     runtimeSubagentRead.ts       Runtime subagent list/wait read and snapshot boundary
@@ -748,6 +749,7 @@ Current implementation note:
 - `application/runtimeThreadProjection.ts` now owns store-facing thread run-status projection persistence, while `state/runProjection.ts` keeps the pure projection rules.
 - `application/agentRuntimeFacadeBoundary.test.ts` now guards the facade boundary with an allowlist for direct runtime application imports, rejects direct imports from extracted low-level runtime modules, and requires the explicit bridge modules that compose the facade.
 - `application/runtimeBridgeCoverage.test.ts` now enforces that every `runtime*Bridge.ts` module has a focused `runtime*Bridge.test.ts` companion.
+- `application/runtimeTraceReadBridge.ts` now owns run trace read facade wiring for event listing, paged trace reads, summaries, run existence validation, and page projection. `AgentRuntime` trace-read methods are now bridge delegates.
 - `application/assistantMessage.ts` now owns user-visible assistant message role checks, multi-turn assistant content de-duplication, final assistant content rendering, and configured assistant message composition.
 - `application/threadLifecycle.ts` now owns thread creation field normalization, initial visible message filtering, thread updates, user-visible message construction, runtime message construction, thread message append/update metadata mutation, and last client input metadata recording.
 - `state/planFactory.ts` now owns create-plan thread id normalization, goal selection, `AgentPlan` construction, and root planner run creation input construction while task validation stays in `planTaskCreation.ts`.
@@ -868,6 +870,15 @@ Deliverables:
 - Reduce silent thread replacement.
 - Display run execution records as children of conversation, not alternate conversations.
 
+Current implementation note:
+
+- `frontend/lib/localAgentClient.ts` now reports `threadResolution` for `runMessage` and `runMessageStream`, distinguishing reused runtime threads, newly created threads, and missing persisted thread ids that had to be replaced. Replacement is limited to explicit not-found responses, so backend/runtime failures no longer masquerade as thread recovery.
+- `frontend/components/layout/AIAgentPanel.tsx` now records that thread resolution into the persisted run activity for each assistant result, so users can tell whether the message continued an existing runtime thread or created a new one.
+- `frontend/store/agentSessionStore.ts` now exposes conversation lookup for runtime thread ids, and the agent panel uses it when restoring local runtime history so an already-mapped thread selects its existing conversation instead of creating a duplicate alternate conversation.
+- `frontend/lib/localAgentClient.test.ts` covers reused saved-thread, missing-saved-thread replacement, non-404 failure propagation, and the streaming `runMessageStream` thread-resolution path.
+- `frontend/store/agentSessionStore.test.ts` covers direct and runtime-derived thread-to-conversation mapping.
+- `frontend/lib/agentSessionUiContract.test.ts` prevents regressions to silent thread replacement, duplicate conversation restoration, and assistant-result activity records that omit thread-resolution context.
+
 Acceptance:
 
 - User can understand whether a message continued an existing runtime thread or created a new one.
@@ -910,8 +921,8 @@ Add focused tests in these layers:
   - every `runtime*Bridge.ts` exports a standard `Runtime*Bridge` interface and `createRuntime*Bridge` factory
   - bridge modules do not import `AgentRuntime`, preserving one-way dependency direction
   - `AgentRuntime` composes extracted facade areas through bridge modules instead of importing low-level runtime flows directly
-  - public facade methods outside the intentionally retained trace-read methods delegate through bridge fields
-  - direct trace store access in `AgentRuntime` stays limited to the intentionally retained trace-read methods
+  - public facade methods, including trace-read methods, delegate through bridge fields
+  - `AgentRuntime` has no direct trace store access
 
 ## Quality Bar
 

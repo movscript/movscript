@@ -37,7 +37,6 @@ import {
   type RuntimeAgentPlanToolsBridge,
 } from './runtimeAgentPlanToolsBridge.js'
 import {
-  requireRuntimeRun,
   requireRuntimeTask,
   requireRuntimeThread,
 } from './runtimeStoreLookup.js'
@@ -150,9 +149,12 @@ import {
   createRuntimeMemoryOperationsBridge,
   type RuntimeMemoryOperationsBridge,
 } from './runtimeMemoryOperationsBridge.js'
+import {
+  createRuntimeTraceReadBridge,
+  type RuntimeTraceReadBridge,
+} from './runtimeTraceReadBridge.js'
 import { RuntimeEventSubscriberRegistry } from './runtimeEventSubscribers.js'
 import { isoNow, makeId } from './runtimeIdentity.js'
-import { buildRunTracePage, normalizeTracePageLimit } from '../state/runTrace.js'
 import type {
   AgentApprovalRequest,
   AgentPlan,
@@ -166,7 +168,6 @@ import type {
   AgentRunPreview,
   AgentRun,
   AgentTraceEvent,
-  AgentTraceEventKind,
   AgentRunStreamEvent,
   AgentRunStep,
   AgentRuntimeOptions,
@@ -331,6 +332,7 @@ export class AgentRuntime {
   private readonly treeCancellation: RuntimeTreeCancellationBridge
   private readonly subagentTools: RuntimeSubagentToolsBridge
   private readonly memories: RuntimeMemoryOperationsBridge
+  private readonly traceReads: RuntimeTraceReadBridge
 
   constructor(options: AgentRuntimeOptions) {
     this.mcpClient = options.mcpClient
@@ -398,6 +400,7 @@ export class AgentRuntime {
       },
     })
     this.entityReads = createRuntimeEntityReadBridge({ store: this.store })
+    this.traceReads = createRuntimeTraceReadBridge({ store: this.store })
     this.streams = createRuntimeStreamBridge({
       store: this.store,
       runSubscribers: this.runStreamSubscribers,
@@ -701,45 +704,15 @@ export class AgentRuntime {
   }
 
   getRunTraceEvents(runId: string, query: AgentTraceQuery = {}): AgentTraceEvent[] {
-    requireRuntimeRun(this.store, runId)
-    return this.store.listRunTraceEvents(runId, query)
+    return this.traceReads.getRunTraceEvents(runId, query)
   }
 
-  getRunTracePage(runId: string, query: AgentTraceQuery = {}): {
-    runId: string
-    events: AgentTraceEvent[]
-    total: number
-    hasMore: boolean
-    nextCursor?: string
-  } {
-    requireRuntimeRun(this.store, runId)
-    const limit = normalizeTracePageLimit(query.limit)
-    const eventsPlusOne = this.store.listRunTraceEvents(runId, { ...query, limit: limit + 1 })
-    return buildRunTracePage({
-      runId,
-      eventsPlusOne,
-      limit,
-      total: this.store.countRunTraceEvents(runId, { kind: query.kind }),
-    })
+  getRunTracePage(runId: string, query: AgentTraceQuery = {}): ReturnType<RuntimeTraceReadBridge['getRunTracePage']> {
+    return this.traceReads.getRunTracePage(runId, query)
   }
 
-  getRunTraceSummary(runId: string): {
-    runId: string
-    total: number
-    byKind: Partial<Record<AgentTraceEventKind, number>>
-    latestEvent?: AgentTraceEvent
-  } {
-    requireRuntimeRun(this.store, runId)
-    const events = this.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER })
-    const byKind: Partial<Record<AgentTraceEventKind, number>> = {}
-    for (const event of events) byKind[event.kind] = (byKind[event.kind] ?? 0) + 1
-    const latestEvent = events.at(-1)
-    return {
-      runId,
-      total: events.length,
-      byKind,
-      ...(latestEvent ? { latestEvent } : {}),
-    }
+  getRunTraceSummary(runId: string): ReturnType<RuntimeTraceReadBridge['getRunTraceSummary']> {
+    return this.traceReads.getRunTraceSummary(runId)
   }
 
   subscribeRunStream(runId: string, listener: (event: AgentRunStreamEvent) => void): () => void {

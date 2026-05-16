@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { InMemoryAgentStore } from '../state/store.js'
+import { defaultRunPolicy } from '../state/runPolicy.js'
 import type { AgentRun, AgentTraceEvent } from '../state/types.js'
 import { createRuntimeTraceReadBridge } from './runtimeTraceReadBridge.js'
 
@@ -13,7 +14,7 @@ function testRun(id = 'run_1'): AgentRun {
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     steps: [],
-    policy: {},
+    policy: defaultRunPolicy(),
   }
 }
 
@@ -31,10 +32,10 @@ function trace(id: string, kind: AgentTraceEvent['kind']): AgentTraceEvent {
 test('createRuntimeTraceReadBridge reads trace events, pages, and summaries', () => {
   const store = new InMemoryAgentStore()
   const run = testRun()
-  store.saveRun(run)
-  store.appendTraceEvent(run.id, trace('trace_1', 'context'))
-  store.appendTraceEvent(run.id, trace('trace_2', 'tool_call'))
-  store.appendTraceEvent(run.id, trace('trace_3', 'tool_call'))
+  store.createRun(run)
+  store.appendTraceEvent(trace('trace_1', 'context'))
+  store.appendTraceEvent(trace('trace_2', 'tool_call'))
+  store.appendTraceEvent(trace('trace_3', 'tool_call'))
 
   const bridge = createRuntimeTraceReadBridge({ store })
 

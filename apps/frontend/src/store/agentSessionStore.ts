@@ -138,6 +138,20 @@ function defaultConversationRuntime(conversationId: string): AgentConversationRu
   }
 }
 
+export function conversationIdForLocalThread(input: {
+  threadId: string
+  localThreadIdsByConversation: Record<string, string>
+  conversationRuntimes: Record<string, Pick<AgentConversationRuntimeState, 'threadId' | 'updatedAt'>>
+}): string | undefined {
+  const directEntry = Object.entries(input.localThreadIdsByConversation)
+    .find(([, mappedThreadId]) => mappedThreadId === input.threadId)
+  if (directEntry) return directEntry[0]
+
+  return Object.entries(input.conversationRuntimes)
+    .filter(([, runtime]) => runtime.threadId === input.threadId)
+    .sort(([, left], [, right]) => right.updatedAt - left.updatedAt)[0]?.[0]
+}
+
 export const useAgentSessionStore = create<AgentSessionStore>()(
   persist(
     (set, get) => ({
