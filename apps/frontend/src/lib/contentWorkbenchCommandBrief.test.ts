@@ -57,13 +57,13 @@ test('content workbench command brief surfaces missing selection and review bloc
       percent: 0,
       tone: 'blocked',
       title: '生成仍被阻塞',
-      detail: '2 项门禁未通过，优先处理：目标提示可读。',
+      detail: '2 项检查未通过，优先处理：目标提示可读。',
       primaryBlocker: '目标提示可读：制作项缺少 prompt',
     },
     nextActions: [{
       key: 'select_unit',
       title: '选择制作项',
-      detail: '从左侧制作项列表中选择一个目标，查看提示词、素材和关键帧状态。',
+      detail: '从制作项轨道中选择一个目标，查看提示词、素材和关键帧状态。',
       tone: 'warning',
     }],
     reviewQueue: {

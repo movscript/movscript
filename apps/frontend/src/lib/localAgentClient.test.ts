@@ -133,6 +133,46 @@ test('runMessageStream reports thread resolution on the streaming path', async (
   })
 })
 
+test('trace reads preserve pagination and kind filters', async () => {
+  const requests: string[] = []
+  await withFetch(async (input) => {
+    const url = new URL(String(input))
+    requests.push(`${url.pathname}${url.search}`)
+    if (url.pathname === '/runs/run_trace/trace') {
+      return jsonResponse({
+        runId: 'run_trace',
+        events: [traceEvent('trace_1')],
+        hasMore: false,
+        total: 1,
+      })
+    }
+    if (url.pathname === '/runs/run_trace/trace/summary') {
+      return jsonResponse({
+        runId: 'run_trace',
+        total: 1,
+        byKind: { tool_call: 1 },
+        latestEvent: traceEvent('trace_1'),
+      })
+    }
+    return new Response('not found', { status: 404 })
+  }, async () => {
+    const client = new LocalAgentClient('http://local.test')
+    const page = await client.getRunTraceEvents('run_trace', {
+      cursor: 'trace_0',
+      limit: 25,
+      kind: 'tool_call',
+    })
+    const summary = await client.getRunTraceSummary('run_trace')
+
+    assert.equal(page.events[0].id, 'trace_1')
+    assert.equal(summary.total, 1)
+    assert.deepEqual(requests, [
+      '/runs/run_trace/trace?cursor=trace_0&limit=25&kind=tool_call',
+      '/runs/run_trace/trace/summary',
+    ])
+  })
+})
+
 function threadFixture(id: string): AgentThread {
   return {
     id,
@@ -160,6 +200,17 @@ function runFixture(id: string, threadId: string, status: AgentRun['status']): A
     steps: [],
     createdAt: '2026-05-16T00:00:00.000Z',
     updatedAt: '2026-05-16T00:00:01.000Z',
+  }
+}
+
+function traceEvent(id: string) {
+  return {
+    id,
+    runId: 'run_trace',
+    kind: 'tool_call',
+    title: 'Tool call',
+    status: 'completed',
+    createdAt: '2026-05-16T00:00:00.000Z',
   }
 }
 

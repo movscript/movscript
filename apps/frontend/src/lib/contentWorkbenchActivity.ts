@@ -86,7 +86,7 @@ function summarizeJobs(jobs: ContentWorkbenchActivityJobLike[]): ContentWorkbenc
     return [{
       key: 'job-empty',
       title: '暂无生成活动',
-      detail: '生成前缺口请查看生成门禁和制作项健康度。',
+      detail: '生成前缺口请查看生成检查和制作项健康度。',
       tone: 'pending',
     }]
   }

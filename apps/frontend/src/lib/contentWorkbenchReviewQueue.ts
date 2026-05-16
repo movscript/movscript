@@ -104,7 +104,7 @@ export function buildContentWorkbenchReviewQueueSummary(input: {
     changedCount,
     tone: 'success',
     title: '草案队列已处理',
-    detail: applied > 0 ? `${applied} 个 AI 草案已处理，可继续推进生成门禁。` : 'AI 草案队列没有待审项。',
+    detail: applied > 0 ? `${applied} 个 AI 草案已处理，可继续推进生成检查。` : 'AI 草案队列没有待审项。',
     actionLabel: '查看审稿记录',
   }
 }

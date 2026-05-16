@@ -1,12 +1,17 @@
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import net from 'node:net'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const artifactRoot = 'apps/frontend/test-results'
 const summaryPath = path.resolve(root, process.env.AGENT_RUN_DEBUG_E2E_SUMMARY_PATH ?? path.join(artifactRoot, 'agent-run-debugging-acceptance-summary.json'))
-const playwrightCommand = parseCommandOverride() ?? [
+const defaultPort = Number(process.env.MOVSCRIPT_E2E_PORT ?? 4179)
+const usesExternalBaseURL = Boolean(process.env.MOVSCRIPT_E2E_BASE_URL?.trim())
+const localServerRemediation = 'rerun in an environment that permits localhost listeners or set MOVSCRIPT_E2E_BASE_URL to an already running frontend'
+const commandOverride = parseCommandOverride()
+const playwrightCommand = commandOverride ?? [
   'pnpm',
   '--filter',
   'movscript-frontend',
@@ -24,7 +29,13 @@ const cleanResult = runStep('Clean AgentRun debugging artifacts', [
 
 if (cleanResult.status !== 0) process.exit(cleanResult.status)
 
-const browserResult = runStep('Browser AgentRun debugging acceptance', playwrightCommand, { allowFailure: true })
+const shouldPreflight = !usesExternalBaseURL && (!commandOverride || process.env.AGENT_RUN_DEBUG_E2E_FORCE_PREFLIGHT === '1')
+const preflightResult = !shouldPreflight
+  ? { status: 0, signal: null, error: null }
+  : await checkLocalWebServerPort(defaultPort)
+const browserResult = preflightResult.status === 0
+  ? runStep('Browser AgentRun debugging acceptance', playwrightCommand, { allowFailure: true })
+  : preflightResult
 const artifactResult = runStep('Verify AgentRun debugging screenshot artifacts', [
   process.execPath,
   'scripts/verify-agent-run-debugging-artifacts.mjs',
@@ -64,6 +75,7 @@ function runStep(label, command, options = {}) {
 
 function formatStepFailure(result) {
   if (result.error) return `failed to start: ${result.error.message}`
+  if (result.failure) return result.failure
   if (result.signal) return `terminated by signal ${result.signal}`
   return `exited with ${result.status}`
 }
@@ -90,6 +102,26 @@ function formatResultForSummary(result) {
     error: result.error ? result.error.message : null,
     failure: result.status === 0 ? null : formatStepFailure(result),
   }
+}
+
+function checkLocalWebServerPort(port) {
+  return new Promise((resolve) => {
+    const server = net.createServer()
+    server.once('error', (error) => {
+      const failure = error?.code === 'EPERM'
+        ? `local web server listen blocked by environment on 127.0.0.1:${port} (EPERM); ${localServerRemediation}`
+        : `local web server preflight failed on 127.0.0.1:${port}: ${error?.message ?? String(error)}; ${localServerRemediation}`
+      resolve({ status: 1, signal: null, error: null, failure })
+    })
+    try {
+      server.listen(port, '127.0.0.1', () => {
+        server.close(() => resolve({ status: 0, signal: null, error: null }))
+      })
+    } catch (error) {
+      const failure = `local web server preflight failed on 127.0.0.1:${port}: ${error?.message ?? String(error)}; ${localServerRemediation}`
+      resolve({ status: 1, signal: null, error: null, failure })
+    }
+  })
 }
 
 function parseCommandOverride() {

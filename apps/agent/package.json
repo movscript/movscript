@@ -7,7 +7,8 @@
     "movscript-agent": "./dist/cli.js"
   },
   "scripts": {
-    "build": "pnpm --filter @movscript/draft-schemas build && tsc -p tsconfig.build.json && node scripts/build-server-bundle.mjs",
+    "build": "node ../../scripts/with-build-lock.mjs movscript-agent-build -- pnpm run build:unlocked",
+    "build:unlocked": "pnpm --filter @movscript/draft-schemas build && tsc -p tsconfig.build.json && node scripts/build-server-bundle.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node ../../scripts/run-node-tests.mjs \"src/**/*.test.ts\"",
     "test:generation-repair": "node --import tsx --test \"src/orchestration/toolExecutor.test.ts\"",

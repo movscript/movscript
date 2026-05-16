@@ -25,6 +25,20 @@ test('content workbench recommends AI and manual planning when a moment has no u
 })
 
 test('content workbench blocks generation on prompt, assets, keyframes, then context', () => {
+  assert.deepEqual(buildContentWorkbenchNextActions({
+    hasSelectedMoment: true,
+    unitCount: 1,
+    hasSelectedUnit: false,
+    hasUnitPrompt: false,
+    missingSlotCount: 0,
+    keyframeCount: 0,
+  }), [{
+    key: 'select_unit',
+    title: '选择制作项',
+    detail: '从制作项轨道中选择一个目标，查看提示词、素材和关键帧状态。',
+    tone: 'warning',
+  }])
+
   assert.equal(buildContentWorkbenchNextActions({
     hasSelectedMoment: true,
     unitCount: 1,

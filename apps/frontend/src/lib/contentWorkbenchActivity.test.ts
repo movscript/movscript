@@ -80,5 +80,5 @@ test('content workbench activity feed shows empty activity without repeating gat
 
   assert.equal(feed.title, '生产活动待启动')
   assert.deepEqual(feed.items.map((item) => item.key), ['job-empty'])
-  assert.equal(feed.items[0].detail, '生成前缺口请查看生成门禁和制作项健康度。')
+  assert.equal(feed.items[0].detail, '生成前缺口请查看生成检查和制作项健康度。')
 })

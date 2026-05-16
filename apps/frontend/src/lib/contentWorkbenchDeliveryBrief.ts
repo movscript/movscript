@@ -61,17 +61,17 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
     input.hasPrompt ? '' : '补齐制作项描述或 prompt',
     missingSlotCount > 0 ? `补齐 ${missingSlotCount} 个素材需求` : '',
     keyframeCount > 0 ? '' : '添加至少一张画面锚点',
-    input.generationContextError ? '修复生成上下文检查失败' : input.generationContextLoading ? '等待生成上下文检查完成' : contextDone ? '' : '补齐生成上下文门禁',
+    input.generationContextError ? '修复生成上下文检查失败' : input.generationContextLoading ? '等待生成上下文检查完成' : contextDone ? '' : '补齐生成上下文检查',
     pendingReviewDraftCount > 0 ? `处理 ${pendingReviewDraftCount} 个 AI 草案` : '',
   ].filter(Boolean)
   const metrics: ContentWorkbenchDeliveryBriefMetric[] = [
-    { label: '门禁', value: preGenerationBlockers.length > 0 ? `${preGenerationBlockers.length} 阻塞` : '已通过', done: preGenerationBlockers.length === 0 },
+    { label: '检查', value: preGenerationBlockers.length > 0 ? `${preGenerationBlockers.length} 阻塞` : '已通过', done: preGenerationBlockers.length === 0 },
     { label: '生成', value: completedJobCount > 0 ? `${completedJobCount} 完成` : '待执行', done: completedJobCount > 0 },
     { label: '预览', value: previewItemCount > 0 ? `${previewItemCount} 项` : '待挂载', done: previewItemCount > 0 },
     { label: '交付', value: deliveryVersionCount > 0 ? `${deliveryVersionCount} 版` : '待整理', done: deliveryVersionCount > 0 },
   ]
   const deliveryBlockers = preGenerationBlockers.length > 0
-    ? [`生成门禁仍有 ${preGenerationBlockers.length} 项阻塞`]
+    ? [`生成检查仍有 ${preGenerationBlockers.length} 项阻塞`]
     : [
       completedJobCount > 0 ? '' : '执行生成任务',
       completedJobCount > 0 && previewItemCount === 0 ? '挂载生产预览' : '',
@@ -110,7 +110,7 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
   return {
     tone,
     title: tone === 'warning' ? '交付包检查中' : '交付包仍有阻塞',
-    detail: `${firstText(input.unitTitle, '当前制作项')} 还有 ${preGenerationBlockers.length} 项生成前门禁需要处理。`,
+    detail: `${firstText(input.unitTitle, '当前制作项')} 还有 ${preGenerationBlockers.length} 项生成前检查需要处理。`,
     progress,
     blockers,
     metrics,

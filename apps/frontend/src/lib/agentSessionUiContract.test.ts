@@ -22,3 +22,17 @@ test('agent session UI keeps explicit local runtime thread recovery contracts', 
   assert.match(panelSource, /threadResolutionActivityEvent\(runResult\.threadResolution\)/)
   assert.match(panelSource, /appendAssistantRunResult\(run, thread, liveEvents\)/)
 })
+
+test('agent session UI keeps worker trace drilldown contracts', () => {
+  const panelSource = readFileSync(resolve('src/components/layout/AIAgentPanel.tsx'), 'utf8')
+
+  assert.match(panelSource, /const \[traceSummaries, setTraceSummaries\]/)
+  assert.match(panelSource, /const \[traceEventsByRunId, setTraceEventsByRunId\]/)
+  assert.match(panelSource, /localAgentClient\.getRunTraceSummary\(runId\)/)
+  assert.match(panelSource, /localAgentClient\.getRunTraceEvents\(runId, \{ limit: 8/)
+  assert.match(panelSource, /traceEventHasMoreByRunId/)
+  assert.match(panelSource, /traceEventKindFilters/)
+  assert.match(panelSource, /轨迹统计/)
+  assert.match(panelSource, /运行事件/)
+  assert.match(panelSource, /加载更多/)
+})

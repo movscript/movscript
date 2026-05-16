@@ -6,6 +6,8 @@ apps/frontend/dist-electron/
 apps/frontend/out/
 apps/frontend/release/
 apps/frontend/movscript-agent/
+apps/frontend/test-results/
+apps/frontend/playwright-report/
 
 # Go
 apps/backend/uploads/

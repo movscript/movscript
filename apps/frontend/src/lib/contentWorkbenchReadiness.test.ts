@@ -9,7 +9,7 @@ test('content workbench readiness explains missing gate context', () => {
     blocked: 0,
     percent: 0,
     tone: 'blocked',
-    title: '尚未建立生成门禁',
+    title: '尚未建立生成检查',
     detail: '选择制作项后，系统会检查提示、剧本来源、设定引用、素材和画面锚点。',
   })
 })

@@ -42,7 +42,7 @@
     "test:backend": "pnpm run test:backend:unit && pnpm run test:backend:architecture",
     "test:backend:unit": "cd apps/backend && go test ./...",
     "test:backend:architecture": "cd apps/backend && go test -tags architecture ./internal/app ./internal/domain ./internal/interfaces/http ./internal/infra/persistence/model",
-    "test:release-scripts": "node --test scripts/release/stage-ffmpeg.test.mjs scripts/release/download-ffmpeg-static.test.mjs scripts/release/verify-desktop-package.test.mjs scripts/release/prepare-desktop-package.test.mjs scripts/release/audit-ffmpeg.test.mjs scripts/release/package-scripts.test.mjs scripts/release/copy-admin-assets.test.mjs scripts/release/collect-artifacts.test.mjs scripts/release/release-workflow.test.mjs",
+    "test:release-scripts": "node --test scripts/with-build-lock.test.mjs scripts/release/stage-ffmpeg.test.mjs scripts/release/download-ffmpeg-static.test.mjs scripts/release/verify-desktop-package.test.mjs scripts/release/prepare-desktop-package.test.mjs scripts/release/audit-ffmpeg.test.mjs scripts/release/package-scripts.test.mjs scripts/release/copy-admin-assets.test.mjs scripts/release/collect-artifacts.test.mjs scripts/release/release-workflow.test.mjs",
     "tidy": "cd apps/backend && go mod tidy",
     "release": "pnpm run release:check && pnpm run package:desktop && pnpm run release:prepare-plugins && pnpm run release:collect",
     "release:check": "pnpm run release:audit-ffmpeg:matrix && pnpm run test:backend && pnpm run test:release-scripts && pnpm run test:agent-run-debugging && pnpm run typecheck && pnpm --filter movscript-agent test && pnpm --filter movscript-frontend test && pnpm --filter movscript-admin test",

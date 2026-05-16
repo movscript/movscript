@@ -878,10 +878,34 @@ Current implementation note:
 - `frontend/lib/localAgentClient.test.ts` covers reused saved-thread, missing-saved-thread replacement, non-404 failure propagation, and the streaming `runMessageStream` thread-resolution path.
 - `frontend/store/agentSessionStore.test.ts` covers direct and runtime-derived thread-to-conversation mapping.
 - `frontend/lib/agentSessionUiContract.test.ts` prevents regressions to silent thread replacement, duplicate conversation restoration, and assistant-result activity records that omit thread-resolution context.
+- Frontend trace read contracts now cover `localAgentClient` trace pagination/filter query construction and the agent panel worker trace drilldown hooks for summary, event loading, kind filtering, and "load more" behavior.
+- Agent deployment builds now serialize the shared draft-schema build through `scripts/with-build-lock.mjs`, avoiding concurrent `agent build` and `frontend build` races that can temporarily remove generated schema declarations.
+- `scripts/with-build-lock.test.mjs` is included in `test:release-scripts`, covering successful execution, exit-code propagation, and same-lock serialization.
+- The AgentRun debugging E2E runner now preflights the local Playwright web-server port and reports local listen failures explicitly in the acceptance summary instead of surfacing only a generic browser exit.
 
 Acceptance:
 
 - User can understand whether a message continued an existing runtime thread or created a new one.
+- Worker runs surfaced inside the conversation can still drill into trace summaries and paged trace events without navigating away.
+- Agent and frontend builds can be run at the same time without racing on the shared draft-schema package output.
+
+Verification status:
+
+- Passed: `pnpm --filter movscript-agent test`, `pnpm --filter movscript-agent typecheck`, and `pnpm --filter movscript-agent build`.
+- Passed: `pnpm --filter movscript-frontend test`, `pnpm --filter movscript-frontend typecheck`, and `pnpm --filter movscript-frontend build`.
+- Passed: `pnpm run test`, `pnpm run typecheck`, `pnpm run test:backend`, `pnpm run test:agent-run-debugging`, and `pnpm run test:release-scripts`.
+- Passed: concurrent `pnpm --filter movscript-agent build` and `pnpm --filter movscript-frontend build`, confirming the shared draft-schema build lock prevents declaration-output races.
+- Blocked in the current sandbox: `pnpm run test:agent-run-debugging:e2e` cannot start the Playwright dev server because listening on `127.0.0.1:4179` fails with `EPERM`. The preflighted acceptance summary now records `local web server listen blocked by environment on 127.0.0.1:4179 (EPERM)` and recommends rerunning in an environment that permits localhost listeners or setting `MOVSCRIPT_E2E_BASE_URL` to an already running frontend. A file-based `MOVSCRIPT_E2E_BASE_URL=file://.../out/renderer/index.html` probe also could not launch Chromium because the sandbox denied Chromium's Mach port registration. The browser assertions did not run, so final visual trace acceptance still needs an environment that permits both localhost serving or an external frontend URL and Playwright browser launch.
+
+Completion audit:
+
+- Explicit thread recovery: implemented in `frontend/lib/localAgentClient.ts`; covered by `frontend/lib/localAgentClient.test.ts` and `frontend/lib/agentSessionUiContract.test.ts`.
+- Stable conversation-to-runtime-thread restoration: implemented in `frontend/store/agentSessionStore.ts` and `frontend/components/layout/AIAgentPanel.tsx`; covered by `frontend/store/agentSessionStore.test.ts` and `frontend/lib/agentSessionUiContract.test.ts`.
+- Trace read facade boundary: implemented by `application/runtimeTraceReadBridge.ts`; covered by `runtimeTraceReadBridge.test.ts`, `agentRuntimeFacadeBoundary.test.ts`, and `runtimeBridgeCoverage.test.ts`.
+- Worker trace drilldown in conversations: guarded by `frontend/lib/agentSessionUiContract.test.ts`; run detail trace hooks, debug bundle, redaction, retry, and pagination behavior are covered by `test:agent-run-debugging`.
+- Build stability: `apps/agent/package.json` builds through `scripts/with-build-lock.mjs`; `scripts/with-build-lock.test.mjs` is included in `test:release-scripts`; concurrent agent/frontend build has been verified.
+- Repository-level regression evidence: root `test`, root `typecheck`, backend tests, agent tests, frontend tests, release-script tests, and targeted trace/debugging checks have passed.
+- Remaining blocker: real browser visual acceptance is not proven in this sandbox. Completion requires `pnpm run test:agent-run-debugging:e2e` to pass in an environment that can either run the local Playwright web server or provide `MOVSCRIPT_E2E_BASE_URL`, and can launch Chromium.
 
 ## Testing Strategy
 

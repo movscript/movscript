@@ -38,7 +38,7 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
     return [{
       key: 'select_scene_moment',
       title: '选择一个情节',
-      detail: '先从生产队列里选中情节，工作台才会显示制作项、画面锚点和生成门禁。',
+      detail: '先从生产队列里选中情节，工作台才会显示制作项、画面锚点和生成检查。',
       tone: 'warning',
     }]
   }
@@ -64,7 +64,7 @@ export function buildContentWorkbenchNextActions(input: ContentWorkbenchNextActi
     return [{
       key: 'select_unit',
       title: '选择制作项',
-      detail: '从左侧制作项列表中选择一个目标，查看提示词、素材和关键帧状态。',
+      detail: '从制作项轨道中选择一个目标，查看提示词、素材和关键帧状态。',
       tone: 'warning',
     }]
   }

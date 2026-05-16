@@ -212,6 +212,37 @@ test('AgentRun debugging E2E runner reports browser command startup failures', a
   )
 })
 
+test('AgentRun debugging E2E runner reports local web server preflight failures', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-e2e-preflight-'))
+  const summaryPath = path.join(root, 'summary.json')
+  try {
+    await assert.rejects(
+      execFileAsync(process.execPath, [e2eRunnerPath], {
+        env: {
+          ...process.env,
+          MOVSCRIPT_E2E_PORT: '-1',
+          AGENT_RUN_DEBUG_E2E_FORCE_PREFLIGHT: '1',
+          AGENT_RUN_DEBUG_E2E_SUMMARY_PATH: summaryPath,
+          AGENT_RUN_DEBUG_E2E_COMMAND_JSON: JSON.stringify([process.execPath, '-e', 'process.exit(0)']),
+        },
+      }),
+      (error) => {
+        const stderr = String(error.stderr)
+        assert.match(stderr, /browser acceptance local web server preflight failed/)
+        assert.match(stderr, /screenshot artifact verification exited with 1/)
+        return true
+      },
+    )
+    const summary = JSON.parse(await readFile(summaryPath, 'utf8'))
+    assert.equal(summary.passed, false)
+    assert.match(summary.browser.failure, /local web server preflight failed/)
+    assert.match(summary.browser.failure, /MOVSCRIPT_E2E_BASE_URL|already running frontend/)
+    assert.equal(summary.screenshotArtifacts.status, 1)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
 test('AgentRun debugging E2E runner reports browser signal terminations', async () => {
   await assert.rejects(
     execFileAsync(process.execPath, [e2eRunnerPath], {
