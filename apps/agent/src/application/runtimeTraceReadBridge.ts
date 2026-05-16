@@ -1,21 +1,16 @@
 import type { AgentStore, AgentTraceQuery } from '../state/store.js'
-import { buildRunTracePage, normalizeTracePageLimit, type AgentRunTracePage } from '../state/runTrace.js'
-import type { AgentTraceEvent, AgentTraceEventKind } from '../state/types.js'
+import { buildRunTracePage, normalizeTracePageLimit, type AgentRunTracePage, type AgentRunTraceSummary } from '../state/runTrace.js'
+import type { AgentTraceEvent } from '../state/types.js'
 import { requireRuntimeRun } from './runtimeStoreLookup.js'
 
 export interface RuntimeTraceReadBridge {
   getRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
   getRunTracePage(runId: string, query?: AgentTraceQuery): AgentRunTracePage
-  getRunTraceSummary(runId: string): {
-    runId: string
-    total: number
-    byKind: Partial<Record<AgentTraceEventKind, number>>
-    latestEvent?: AgentTraceEvent
-  }
+  getRunTraceSummary(runId: string): AgentRunTraceSummary
 }
 
 export function createRuntimeTraceReadBridge(input: {
-  store: Pick<AgentStore, 'getRun' | 'listRunTraceEvents' | 'countRunTraceEvents'>
+  store: Pick<AgentStore, 'getRun' | 'listRunTraceEvents' | 'countRunTraceEvents' | 'summarizeRunTraceEvents'>
 }): RuntimeTraceReadBridge {
   const requireRun = (runId: string) => requireRuntimeRun(input.store, runId)
 
@@ -37,16 +32,7 @@ export function createRuntimeTraceReadBridge(input: {
     },
     getRunTraceSummary: (runId) => {
       requireRun(runId)
-      const events = input.store.listRunTraceEvents(runId, { limit: Number.MAX_SAFE_INTEGER })
-      const byKind: Partial<Record<AgentTraceEventKind, number>> = {}
-      for (const event of events) byKind[event.kind] = (byKind[event.kind] ?? 0) + 1
-      const latestEvent = events.at(-1)
-      return {
-        runId,
-        total: events.length,
-        byKind,
-        ...(latestEvent ? { latestEvent } : {}),
-      }
+      return input.store.summarizeRunTraceEvents(runId)
     },
   }
 }

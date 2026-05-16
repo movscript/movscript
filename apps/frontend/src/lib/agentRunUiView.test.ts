@@ -323,9 +323,9 @@ test('agentTraceView keeps behavior and impact separated', () => {
     kind: 'tool_call',
     title: 'Tool completed: movscript_get_focus',
     toolName: 'movscript_get_focus',
+    durationMs: 42,
     data: {
       source: 'runtime',
-      durationMs: 42,
       sandboxed: false,
     },
   }))
@@ -755,8 +755,8 @@ test('buildDebugReportText creates a shareable run summary', () => {
       id: 'response_1',
       kind: 'model_call',
       title: 'Model HTTP response received',
+      durationMs: 80,
       data: { phase: 'response', latencyMs: 80, response: { status: 200, content: 'reply', bodyText: '{"choices":[{"message":{"content":"reply"}}]}' } },
-      completedAt: '2026-05-15T00:00:00.080Z',
     }),
     traceEvent({
       id: 'assistant_1',

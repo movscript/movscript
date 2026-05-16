@@ -18,6 +18,12 @@ test('listRunTraceEvents paginates stably and returns an empty page for stale cu
   assert.deepEqual(store.listRunTraceEvents(run.id, { kind: 'tool_call' }).map((event) => event.id), ['trace_2', 'trace_3'])
   assert.equal(store.countRunTraceEvents(run.id), 3)
   assert.equal(store.countRunTraceEvents(run.id, { kind: 'tool_call' }), 2)
+
+  const summary = store.summarizeRunTraceEvents(run.id)
+  assert.equal(summary.total, 3)
+  assert.equal(summary.byKind.context, 1)
+  assert.equal(summary.byKind.tool_call, 2)
+  assert.equal(summary.latestEvent?.id, 'trace_3')
 })
 
 function buildRun(): AgentRun {

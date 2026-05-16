@@ -13,7 +13,7 @@ import {
 import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
 import type { JSONValue } from './types.js'
 import type { AgentTraceQuery } from './state/store.js'
-import type { AgentTraceEventKind } from './state/types.js'
+import { AGENT_TRACE_EVENT_KINDS, type AgentTraceEventKind } from './state/types.js'
 
 interface AgentRequestListenerOptions {
   onShutdownRequest?: () => void | Promise<void>
@@ -770,34 +770,14 @@ function writeSSE(res: ServerResponse, eventName: string, value: unknown): void 
   res.write('\n')
 }
 
-const AGENT_TRACE_EVENT_KINDS = new Set<AgentTraceEventKind>([
-  'run',
-  'thread',
-  'message',
-  'context',
-  'memory',
-  'manifest',
-  'skill',
-  'tool_catalog',
-  'prompt',
-  'policy',
-  'reasoning',
-  'tool_call',
-  'model_call',
-  'approval',
-  'input',
-  'assistant',
-  'task',
-  'plan',
-  'error',
-])
+const AGENT_TRACE_EVENT_KIND_SET = new Set<AgentTraceEventKind>(AGENT_TRACE_EVENT_KINDS)
 
 export function normalizeTraceQuery(url: URL): { ok: true; query: AgentTraceQuery } | { ok: false; error: string } {
   const cursor = url.searchParams.get('cursor')
   const limitRaw = url.searchParams.get('limit')
   const kind = url.searchParams.get('kind')
   const limit = limitRaw !== null ? Number(limitRaw) : undefined
-  if (kind && !AGENT_TRACE_EVENT_KINDS.has(kind as AgentTraceEventKind)) return { ok: false, error: `invalid trace kind: ${kind}` }
+  if (kind && !AGENT_TRACE_EVENT_KIND_SET.has(kind as AgentTraceEventKind)) return { ok: false, error: `invalid trace kind: ${kind}` }
   return { ok: true, query: {
     ...(cursor ? { cursor } : {}),
     ...(Number.isFinite(limit) ? { limit } : {}),

@@ -734,7 +734,7 @@ export function buildDebugReportText(input: AgentDebugReportInput): string {
     lines.push('', '最近事件:')
     for (const event of latestEvents) {
       const view = agentTraceView(event)
-      const duration = formatReportDuration(event.createdAt, event.completedAt)
+      const duration = formatTraceEventDuration(event, recordValue(event.data))
       lines.push(`- ${formatReportTimestamp(event.createdAt)} ${traceKindLabel(event.kind)} ${traceEventStatusLabel(event.status)}${duration ? `，耗时 ${duration}` : ''}: ${view.title}${view.summary ? ` - ${view.summary}` : ''}`)
     }
   }
@@ -1259,7 +1259,7 @@ function traceContextGroups(event: AgentTraceEvent, data: Record<string, unknown
     groups.push(group('工具执行', [
       item('工具', event.toolName),
       item('来源', stringValue(data.source)),
-      item('耗时', formatMs(numberValue(data.durationMs))),
+      item('耗时', formatTraceEventDuration(event, data)),
       item('沙箱', booleanLabel(data.sandboxed)),
     ]))
   }
@@ -1360,9 +1360,7 @@ function traceMessageDetail(event: AgentTraceEvent, data: Record<string, unknown
 
 function traceToolDetail(event: AgentTraceEvent, data: Record<string, unknown> | undefined): AgentTraceToolDetail | undefined {
   if (event.kind !== 'tool_call') return undefined
-  const duration = numberValue(data?.durationMs) !== undefined
-    ? formatMs(numberValue(data?.durationMs))
-    : formatReportDuration(event.createdAt, event.completedAt)
+  const duration = formatTraceEventDuration(event, data)
   const fields = data
     ? Object.entries(data)
       .filter(([key]) => !['source', 'durationMs', 'sandboxed'].includes(key))
@@ -1486,6 +1484,11 @@ function formatReportDuration(start: string | undefined, end: string | undefined
   const minutes = Math.floor(ms / 60_000)
   const seconds = Math.round((ms % 60_000) / 1000)
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`
+}
+
+function formatTraceEventDuration(event: AgentTraceEvent, data: Record<string, unknown> | undefined): string | undefined {
+  const durationMs = numberValue(data?.durationMs) ?? numberValue(event.durationMs)
+  return durationMs !== undefined ? formatMs(durationMs) : formatReportDuration(event.createdAt, event.completedAt)
 }
 
 function businessPermissionLabel(permission: string): string | undefined {

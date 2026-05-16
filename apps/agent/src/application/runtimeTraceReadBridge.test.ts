@@ -61,3 +61,30 @@ test('createRuntimeTraceReadBridge validates run existence before reading traces
   assert.throws(() => bridge.getRunTracePage('missing'), /run not found: missing/)
   assert.throws(() => bridge.getRunTraceSummary('missing'), /run not found: missing/)
 })
+
+test('createRuntimeTraceReadBridge delegates summaries to the store aggregate', () => {
+  const run = testRun()
+  const calls: string[] = []
+  const bridge = createRuntimeTraceReadBridge({
+    store: {
+      getRun: (runId) => runId === run.id ? run : undefined,
+      listRunTraceEvents: () => {
+        throw new Error('summary should not list full trace events')
+      },
+      countRunTraceEvents: () => {
+        throw new Error('summary should not count through page reads')
+      },
+      summarizeRunTraceEvents: (runId) => {
+        calls.push(runId)
+        return { runId, total: 2, byKind: { context: 1, tool_call: 1 }, latestEvent: trace('trace_2', 'tool_call') }
+      },
+    },
+  })
+
+  const summary = bridge.getRunTraceSummary(run.id)
+
+  assert.deepEqual(calls, [run.id])
+  assert.equal(summary.total, 2)
+  assert.equal(summary.byKind.tool_call, 1)
+  assert.equal(summary.latestEvent?.id, 'trace_2')
+})

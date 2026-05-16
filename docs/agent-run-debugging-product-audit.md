@@ -76,7 +76,7 @@ pnpm --dir movscript/apps/frontend exec tsc --noEmit --pretty false
 pnpm run test:agent-run-debugging
 ```
 
-结果：verifier passed，static verifier tests 4 passed，artifact cleanup/verifier/E2E runner tests 10 passed，frontend focused tests 55 passed，frontend typecheck passed。
+结果：verifier passed，static verifier tests 6 passed，artifact cleanup/verifier/E2E runner tests 11 passed，frontend focused tests 55 passed，frontend typecheck passed。
 
 Makefile 入口复核：
 
@@ -124,7 +124,7 @@ pnpm --filter movscript-frontend exec playwright test src/e2e/agent-planner.spec
 
 E2E runner 诊断兜底：
 
-`scripts/run-agent-run-debugging-e2e.mjs` 已成为 `test:agent-run-debugging:e2e` 的唯一入口。它会先清理旧 artifact，再运行 Playwright，随后无论浏览器是否失败都会继续运行 `scripts/verify-agent-run-debugging-artifacts.mjs`，最后同时报告浏览器退出码、启动失败原因或终止信号，以及截图 artifact 校验退出码，并写入 `apps/frontend/test-results/agent-run-debugging-acceptance-summary.json` 作为机器可读验收摘要。`scripts/verify-agent-run-debugging.test.mjs` 已覆盖静态 verifier 的 fixture 覆盖入口、同轮工具调用回溯、同轮历史写入回溯和 pending 计数一致性失败场景；`scripts/verify-agent-run-debugging-artifacts.test.mjs` 已覆盖浏览器命令失败时仍输出缺失截图清单、浏览器命令无法启动时输出 spawn 错误、浏览器被 signal 终止时输出 signal 名称、失败时写出 E2E 验收摘要，以及截图校验通过时写出 `passed: true` 摘要的行为。
+`scripts/run-agent-run-debugging-e2e.mjs` 已成为 `test:agent-run-debugging:e2e` 的唯一入口。它会先清理旧 artifact，再运行 Playwright，随后无论浏览器是否失败都会继续运行 `scripts/verify-agent-run-debugging-artifacts.mjs`，最后同时报告浏览器退出码、启动失败原因或终止信号，以及截图 artifact 校验退出码，并写入 `apps/frontend/test-results/agent-run-debugging-acceptance-summary.json` 作为机器可读验收摘要。`scripts/verify-agent-run-debugging.test.mjs` 已覆盖静态 verifier 的 fixture 覆盖入口、同轮工具调用回溯、同轮历史写入回溯、pending 计数一致性失败场景、前端多出 trace kind 的失败场景，以及后端新增 trace kind 但前端未跟进的失败场景；`scripts/verify-agent-run-debugging-artifacts.test.mjs` 已覆盖浏览器命令失败时仍输出缺失截图清单、浏览器命令无法启动时输出 spawn 错误、浏览器被 signal 终止时输出 signal 名称、local web server preflight 失败诊断、失败时写出 E2E 验收摘要，以及截图校验通过时写出 `passed: true` 摘要的行为。
 
 补丁空白检查：
 

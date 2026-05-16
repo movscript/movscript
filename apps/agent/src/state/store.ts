@@ -1,4 +1,5 @@
 import type { AgentPlan, AgentRun, AgentTask, AgentThread, AgentThreadSummary, AgentTraceEvent } from './types.js'
+import type { AgentRunTraceSummary } from './runTrace.js'
 
 export interface AgentTraceQuery {
   cursor?: string
@@ -28,6 +29,7 @@ export interface AgentStore {
   appendTraceEvent(event: AgentTraceEvent): void
   listRunTraceEvents(runId: string, query?: AgentTraceQuery): AgentTraceEvent[]
   countRunTraceEvents(runId: string, query?: Pick<AgentTraceQuery, 'kind'>): number
+  summarizeRunTraceEvents(runId: string): AgentRunTraceSummary
 }
 
 export interface AgentRunQuery {
@@ -172,6 +174,22 @@ export class InMemoryAgentStore implements AgentStore {
   countRunTraceEvents(runId: string, query: Pick<AgentTraceQuery, 'kind'> = {}): number {
     const events = this.traceEventsByRun.get(runId) ?? []
     return query.kind ? events.filter((event) => event.kind === query.kind).length : events.length
+  }
+
+  summarizeRunTraceEvents(runId: string): AgentRunTraceSummary {
+    const events = this.traceEventsByRun.get(runId) ?? []
+    const byKind: AgentRunTraceSummary['byKind'] = {}
+    let latestEvent: AgentTraceEvent | undefined
+    for (const event of events) {
+      byKind[event.kind] = (byKind[event.kind] ?? 0) + 1
+      if (!latestEvent || event.createdAt.localeCompare(latestEvent.createdAt) > 0) latestEvent = event
+    }
+    return {
+      runId,
+      total: events.length,
+      byKind,
+      ...(latestEvent ? { latestEvent: clone(latestEvent) } : {}),
+    }
   }
 }
 

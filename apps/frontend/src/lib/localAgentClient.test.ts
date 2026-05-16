@@ -165,6 +165,8 @@ test('trace reads preserve pagination and kind filters', async () => {
     const summary = await client.getRunTraceSummary('run_trace')
 
     assert.equal(page.events[0].id, 'trace_1')
+    assert.equal(page.events[0].durationMs, 42)
+    assert.equal(summary.latestEvent?.durationMs, 42)
     assert.equal(summary.total, 1)
     assert.deepEqual(requests, [
       '/runs/run_trace/trace?cursor=trace_0&limit=25&kind=tool_call',
@@ -210,6 +212,7 @@ function traceEvent(id: string) {
     kind: 'tool_call',
     title: 'Tool call',
     status: 'completed',
+    durationMs: 42,
     createdAt: '2026-05-16T00:00:00.000Z',
   }
 }

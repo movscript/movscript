@@ -81,26 +81,29 @@ export interface AgentRunStep {
   completedAt?: string
 }
 
-export type AgentTraceEventKind =
-  | 'run'
-  | 'thread'
-  | 'message'
-  | 'context'
-  | 'memory'
-  | 'manifest'
-  | 'skill'
-  | 'tool_catalog'
-  | 'prompt'
-  | 'policy'
-  | 'reasoning'
-  | 'tool_call'
-  | 'model_call'
-  | 'approval'
-  | 'input'
-  | 'assistant'
-  | 'task'
-  | 'plan'
-  | 'error'
+export const AGENT_TRACE_EVENT_KINDS = [
+  'run',
+  'thread',
+  'message',
+  'context',
+  'memory',
+  'manifest',
+  'skill',
+  'tool_catalog',
+  'prompt',
+  'policy',
+  'reasoning',
+  'tool_call',
+  'model_call',
+  'approval',
+  'input',
+  'assistant',
+  'task',
+  'plan',
+  'error',
+] as const
+
+export type AgentTraceEventKind = typeof AGENT_TRACE_EVENT_KINDS[number]
 
 export interface AgentTraceEvent {
   id: string

@@ -125,6 +125,13 @@ export interface AgentRunTracePage {
   nextCursor?: string
 }
 
+export interface AgentRunTraceSummary {
+  runId: string
+  total: number
+  byKind: Partial<Record<AgentTraceEventKind, number>>
+  latestEvent?: AgentTraceEvent
+}
+
 export function buildRunTracePage(input: BuildRunTracePageInput): AgentRunTracePage {
   const events = input.eventsPlusOne.slice(0, input.limit)
   const hasMore = input.eventsPlusOne.length > input.limit

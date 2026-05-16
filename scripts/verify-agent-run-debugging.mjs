@@ -8,6 +8,8 @@ const errors = []
 const files = {
   page: 'apps/frontend/src/pages/agent/AIAgentRunPage.tsx',
   ui: 'apps/frontend/src/lib/agentRunUi.ts',
+  localAgentClient: 'apps/frontend/src/lib/localAgentClient.ts',
+  agentStateTypes: 'apps/agent/src/state/types.ts',
   e2e: 'apps/frontend/src/e2e/agent-planner.spec.ts',
   playwrightConfig: 'apps/frontend/playwright.config.ts',
   artifactVerifier: 'scripts/verify-agent-run-debugging-artifacts.mjs',
@@ -38,6 +40,7 @@ const packageJson = readJSON(files.packageJson)
 
 verifyDebugBundleSchema()
 verifyFixture()
+verifyTraceContract()
 verifyPageContract()
 verifyReportAndUiHelpers()
 verifyE2EContract()
@@ -242,6 +245,15 @@ function verifyPageContract() {
   assertIncludes(source.page, 'fieldGuide: AGENT_DEBUG_FIELD_GUIDE', 'debug bundle copies field guide')
 }
 
+function verifyTraceContract() {
+  const backendKinds = extractStringArrayConstant(source.agentStateTypes, 'AGENT_TRACE_EVENT_KINDS')
+  const frontendKinds = extractStringArrayConstant(source.localAgentClient, 'AGENT_TRACE_EVENT_KINDS')
+  assertSameStringSet(frontendKinds, backendKinds, 'frontend AGENT_TRACE_EVENT_KINDS must match backend AGENT_TRACE_EVENT_KINDS')
+  assertIncludes(source.localAgentClient, 'export type AgentTraceEventKind = typeof AGENT_TRACE_EVENT_KINDS[number]', 'frontend AgentTraceEventKind must derive from AGENT_TRACE_EVENT_KINDS')
+  assertIncludes(source.localAgentClient, 'durationMs?: number', 'frontend trace client preserves top-level durationMs')
+  assertIncludes(source.ui, 'numberValue(event.durationMs)', 'trace UI consumes top-level event durationMs')
+}
+
 function verifyReportAndUiHelpers() {
   assertIncludes(source.ui, 'export const AGENT_DEBUG_FIELD_GUIDE', 'field guide must be a shared UI/report constant')
   assertIncludes(source.ui, 'buildDebugReadinessChecklist', 'readiness checklist builder must exist')
@@ -319,8 +331,8 @@ function verifyDocs() {
   assertIncludes(source.audit, '没有存储历史消息的 HTTP 回复', 'audit maps history write question')
   assertIncludes(source.audit, '大模型请求详情还没来得及做详情展开', 'audit maps model request detail question')
   assertIncludes(source.audit, '按 schema 机器校验 fixture', 'audit records debug bundle fixture schema validation')
-  assertIncludes(source.audit, 'static verifier tests 4 passed', 'audit records static verifier self-test results')
-  assertIncludes(source.audit, 'artifact cleanup/verifier/E2E runner tests 10 passed', 'audit records artifact verifier and runner test results')
+  assertIncludes(source.audit, 'static verifier tests 6 passed', 'audit records static verifier self-test results')
+  assertIncludes(source.audit, 'artifact cleanup/verifier/E2E runner tests 11 passed', 'audit records artifact verifier and runner test results')
   assertIncludes(source.audit, 'agent-run-debugging-acceptance-summary.json', 'audit records E2E acceptance summary artifact')
   assertIncludes(source.audit, 'passed: true', 'audit records passing E2E summary coverage')
   assertIncludes(source.audit, 'listen EPERM', 'audit records current browser blocker')
@@ -389,9 +401,16 @@ function verifyMakefile() {
 }
 
 function readText(file) {
-  const override = file === files.fixture ? process.env.AGENT_RUN_DEBUG_FIXTURE_PATH : undefined
+  const override = sourceOverrideForFile(file)
   const target = override ?? file
   return readFileSync(path.isAbsolute(target) ? target : path.join(root, target), 'utf8')
+}
+
+function sourceOverrideForFile(file) {
+  if (file === files.fixture) return process.env.AGENT_RUN_DEBUG_FIXTURE_PATH
+  if (file === files.localAgentClient) return process.env.AGENT_RUN_DEBUG_LOCAL_AGENT_CLIENT_PATH
+  if (file === files.agentStateTypes) return process.env.AGENT_RUN_DEBUG_AGENT_STATE_TYPES_PATH
+  return undefined
 }
 
 function readJSON(file) {
