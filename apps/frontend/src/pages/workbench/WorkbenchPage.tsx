@@ -6828,18 +6828,17 @@ function CategoryContent({ category }: { category: WorkbenchCategory }) {
 export function WorkbenchContent({ initialCategory = 'production', showCategoryTabs = true }: WorkbenchContentProps) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const normalizedInitialCategory = initialCategory === 'preview' ? 'production' : initialCategory
   const [category, setCategory] = useState<WorkbenchCategory>(() => {
     const tab = searchParams.get('tab')
-    return showCategoryTabs && workbenchSurfaces.some((item) => item.value === tab) ? (tab as WorkbenchCategory) : normalizedInitialCategory
+    return showCategoryTabs && workbenchSurfaces.some((item) => item.value === tab) ? (tab as WorkbenchCategory) : initialCategory
   })
 
   useEffect(() => {
     const tab = searchParams.get('tab')
-    setCategory(showCategoryTabs && workbenchSurfaces.some((item) => item.value === tab) ? (tab as WorkbenchCategory) : normalizedInitialCategory)
-  }, [searchParams, normalizedInitialCategory, showCategoryTabs])
+    setCategory(showCategoryTabs && workbenchSurfaces.some((item) => item.value === tab) ? (tab as WorkbenchCategory) : initialCategory)
+  }, [searchParams, initialCategory, showCategoryTabs])
 
-  const activeCategory = showCategoryTabs ? category : normalizedInitialCategory
+  const activeCategory = showCategoryTabs ? category : initialCategory
   const summary = useMemo(() => {
     const scenario = scenarios[activeCategory]
     const blocked = scenario.queue.filter((item) => item.status === 'blocked').length
