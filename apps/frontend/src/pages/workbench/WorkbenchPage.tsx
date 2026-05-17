@@ -79,7 +79,6 @@ import {
   normalizeContentWorkbenchProposalText,
 } from '@/lib/contentWorkbenchDraftProposal'
 import { buildContentWorkbenchCanvasPayload, findContentWorkbenchCanvas } from '@/lib/contentWorkbenchCanvas'
-import { buildContentWorkbenchCommandBrief, type ContentWorkbenchCommandBriefKey } from '@/lib/contentWorkbenchCommandBrief'
 import { buildContentWorkbenchDeliveryBrief, type ContentWorkbenchDeliveryBrief } from '@/lib/contentWorkbenchDeliveryBrief'
 import { pickContentWorkbenchRelevantJobs } from '@/lib/contentWorkbenchJobScope'
 import { buildContentWorkbenchNextActions, type ContentWorkbenchNextActionKey, type ContentWorkbenchNextActionView } from '@/lib/contentWorkbenchNextActions'
@@ -2487,17 +2486,16 @@ function ReadinessSummaryCard({ rows }: { rows: WorkbenchGate[] }) {
       data-testid="content-workbench-readiness-summary"
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            {summary.tone === 'ready' ? <CheckCircle2 size={15} className="text-emerald-600" /> : <ShieldCheck size={15} className="text-muted-foreground" />}
-            {summary.title}
+        <div className="flex min-w-0 items-start gap-2">
+          {summary.tone === 'ready' ? <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" /> : <ShieldCheck size={15} className="mt-0.5 shrink-0 text-muted-foreground" />}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">{summary.title}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
         </div>
-        <div className="shrink-0 text-right">
-          <p className="text-lg font-semibold tabular-nums text-foreground">{summary.percent}%</p>
-          <p className="text-[10px] text-muted-foreground">{summary.passed}/{summary.total} 通过</p>
-        </div>
+        <Badge variant={summary.tone === 'ready' ? 'success' : summary.tone === 'warning' ? 'warning' : 'danger'} className="shrink-0">
+          {summary.passed}/{summary.total}
+        </Badge>
       </div>
       {summary.primaryBlocker ? (
         <div className="mt-2 rounded bg-background/70 px-2 py-1.5 text-xs leading-5 text-muted-foreground">
@@ -3977,7 +3975,6 @@ function ContentGenerationWorkbench() {
   const totalUnitCount = filteredRows.reduce((sum, row) => sum + row.units.length, 0)
   const totalKeyframeCount = filteredRows.reduce((sum, row) => sum + row.keyframes.length, 0)
   const totalMissingSlotCount = filteredRows.reduce((sum, row) => sum + row.missingSlots.length, 0)
-  const readyMomentCount = filteredRows.filter((row) => row.units.length > 0 && row.missingSlots.length === 0 && row.units.some((unit) => firstText(unit.prompt, unit.description))).length
   const runningJobCount = data?.jobs.filter((job) => job.status === 'pending' || job.status === 'running').length ?? 0
   const completedJobCount = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
   const selectedProductionIdSet = new Set(selected?.productionIds ?? [])
@@ -4261,16 +4258,13 @@ function ContentGenerationWorkbench() {
       error: job.error_msg,
     })),
   })
-  const commandBriefRows = buildContentWorkbenchCommandBrief({
-    selectedMomentTitle: selected?.title,
-    selectedUnitTitle: selectedUnit ? titleOfRecord(selectedUnit) : undefined,
-    selectedUnitDetail: selectedUnit ? firstText(selectedUnit.prompt, selectedUnit.description, '暂无生成提示') : undefined,
-    readiness: readinessSummary,
-  })
-  const commandBriefIcons: Record<ContentWorkbenchCommandBriefKey, LucideIcon> = {
-    focus: Target,
-    blocker: ShieldCheck,
-  }
+  const hasActiveExecutionItem = activityFeed.items.some((item) => item.tone === 'blocked' || item.tone === 'running')
+  const executionSectionOpen = deliveryBrief.tone !== 'ready' || hasActiveExecutionItem || selectedPreviewMissingAssets.length > 0
+  const executionStatusLabel = deliveryBrief.tone === 'ready'
+    ? '已就绪'
+    : deliveryBrief.tone === 'blocked'
+      ? '阻塞'
+      : '检查中'
   const showReviewPanel = reviewMode || reviewDraftsQuery.isLoading || (reviewDrafts.length > 0 && !reviewPanelCollapsed)
 
   return (
@@ -4302,31 +4296,22 @@ function ContentGenerationWorkbench() {
                     <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{selected ? selected.title : '暂无情节'}</h2>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected ? selected.scope : '选择制作和情节后，拆解制作项、补视觉锚点并检查生成上下文。'}</p>
                   </div>
-                  <div className="flex flex-wrap overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-command-metrics">
-                    {[
-                      { label: '可生成', value: readyMomentCount, tone: readyMomentCount > 0 ? 'default' : 'warning' },
-                      { label: '待审草案', value: reviewQueueSummary.pending, tone: reviewQueueSummary.pending > 0 ? 'warning' : 'default', onClick: openReviewQueue },
-                      { label: '运行任务', value: runningJobCount, tone: runningJobCount > 0 ? 'warning' : 'default' },
-                    ].map((metric) => {
-                      const content = (
-                        <>
-                          <span className="text-[10px] text-muted-foreground">{metric.label}</span>
-                          <span className={cn('text-sm font-semibold tabular-nums', metric.tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>
-                            {metric.value}
-                          </span>
-                        </>
-                      )
-                      const className = 'flex min-w-[92px] flex-1 items-center justify-between gap-2 border-b border-border/70 px-2 py-1.5 text-left last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0'
-                      return metric.onClick ? (
-                        <button key={metric.label} type="button" data-action-key="review_ai_drafts" className={cn(className, 'transition-colors hover:bg-primary/5')} onClick={metric.onClick}>
-                          {content}
-                        </button>
-                      ) : (
-                        <div key={metric.label} className={className}>
-                          {content}
-                        </div>
-                      )
-                    })}
+                  <div className="shrink-0" data-testid="content-workbench-review-action">
+                    <button
+                      type="button"
+                      data-action-key="review_ai_drafts"
+                      className={cn(
+                        'inline-flex h-8 items-center gap-2 rounded-md border px-2.5 text-xs font-medium transition-colors hover:bg-primary/5',
+                        reviewQueueSummary.pending > 0
+                          ? 'border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100'
+                          : 'border-border bg-background text-muted-foreground',
+                      )}
+                      onClick={openReviewQueue}
+                    >
+                      <ClipboardCheck size={14} />
+                      <span>待审草案</span>
+                      <Badge variant={reviewQueueSummary.pending > 0 ? 'warning' : 'outline'}>{reviewQueueSummary.pending}</Badge>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -4340,25 +4325,6 @@ function ContentGenerationWorkbench() {
                     icons={productionPipelineIcons}
                   />
 
-                  <div className="flex flex-wrap items-stretch overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-command-brief">
-                    {commandBriefRows.map((item) => {
-                      const Icon = commandBriefIcons[item.key]
-                      const className = cn(
-                        'min-w-[160px] flex-1 border-b border-border/70 px-2.5 py-1.5 text-left last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0',
-                        item.tone === 'warning' ? 'bg-amber-50/60 dark:bg-amber-950/20' : 'bg-background',
-                      )
-                      return (
-                        <div key={item.key} className={className}>
-                          <div className="flex items-center gap-1.5">
-                            <Icon size={14} className="shrink-0 text-muted-foreground" />
-                            <p className="truncate text-[11px] font-medium text-muted-foreground">{item.label}</p>
-                          </div>
-                          <p className="mt-0.5 truncate text-sm font-semibold text-foreground">{item.value}</p>
-                          <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.detail}</p>
-                        </div>
-                      )
-                    })}
-                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -4439,7 +4405,6 @@ function ContentGenerationWorkbench() {
                 <WorkbenchPanel
                   title="制作项轨道"
                   icon={Play}
-                  action={unitCandidates.length > 0 ? <Badge variant="secondary">{unitCandidates.length} 条待确认</Badge> : undefined}
                 >
                   <div className="space-y-3">
                     <UnitProductionTrack row={selected} selectedUnitId={selectedUnit?.ID} onSelectUnit={selectContentUnit} />
@@ -4519,9 +4484,6 @@ function ContentGenerationWorkbench() {
                           </Badge>
                         </div>
                       </div>
-                      {selectedUnit ? (
-                        <p className="mb-2 text-xs text-muted-foreground">当前制作项：{titleOfRecord(selectedUnit)}</p>
-                      ) : null}
                       {!selectedUnit ? (
                         <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">选择或创建制作项后查看画面锚点。</p>
                       ) : selectedUnitKeyframes.length === 0 ? (
@@ -4623,29 +4585,19 @@ function ContentGenerationWorkbench() {
                 >
                   {selectedUnit ? (
                     <div className="mb-2.5 space-y-2" data-testid="content-workbench-current-unit-panel">
-                      <details className="rounded-md border border-border bg-background" data-testid="content-workbench-generation-target">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 marker:text-muted-foreground">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <Target size={15} className="shrink-0 text-muted-foreground" />
-                            <span className="min-w-0">
-                              <span className="block text-[11px] font-medium text-muted-foreground">生成目标</span>
-                              <span className="block truncate text-sm font-semibold text-foreground">{titleOfRecord(selectedUnit)}</span>
-                            </span>
-                          </span>
-                          <span className="flex shrink-0 items-center gap-1.5">
-                            <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
-                            <Badge variant="outline">{formatDuration(selectedUnit.duration_sec)}</Badge>
-                          </span>
-                        </summary>
-                        <div className="border-t border-border px-2.5 py-2">
-                          <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {selectedUnit.shot_size ? <Badge variant="outline">景别 {selectedUnit.shot_size}</Badge> : null}
-                            {selectedUnit.camera_angle ? <Badge variant="outline">机位 {selectedUnit.camera_angle}</Badge> : null}
-                            {selectedUnit.camera_motion ? <Badge variant="outline">运动 {selectedUnit.camera_motion}</Badge> : null}
+                      <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-1.5" data-testid="content-workbench-generation-target">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <Target size={15} className="shrink-0 text-muted-foreground" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">{titleOfRecord(selectedUnit)}</p>
+                            <p className="truncate text-[11px] text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
                           </div>
                         </div>
-                      </details>
+                        <span className="flex shrink-0 items-center gap-1.5">
+                          <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
+                          <Badge variant="outline">{formatDuration(selectedUnit.duration_sec)}</Badge>
+                        </span>
+                      </div>
                       <UnitHealthCard health={currentUnitHealth} />
                     </div>
                   ) : (
@@ -4656,62 +4608,73 @@ function ContentGenerationWorkbench() {
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
                       <span className="flex min-w-0 items-center gap-2">
                         <ShieldCheck size={15} className="text-muted-foreground" />
-                        <span className="truncate">门禁明细</span>
+                        <span className="truncate">检查明细</span>
                       </span>
-                      <Badge variant={standards.every((item) => item.done) ? 'success' : 'warning'}>{standards.filter((item) => item.done).length}/{standards.length}</Badge>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <Badge variant={standards.every((item) => item.done) ? 'success' : 'warning'}>{standards.filter((item) => item.done).length}/{standards.length}</Badge>
+                        {!selectedUnit ? (
+                          <Badge variant="warning">待制作项</Badge>
+                        ) : generationContextQuery.isFetching ? (
+                          <Badge variant="secondary">检查中</Badge>
+                        ) : generationContextQuery.isError ? (
+                          <Badge variant="warning">失败</Badge>
+                        ) : (
+                          <Badge variant={missingGenerationContext.length > 0 ? 'warning' : 'success'}>
+                            {missingGenerationContext.length > 0 ? `${missingGenerationContext.length} 缺失` : '上下文'}
+                          </Badge>
+                        )}
+                      </span>
                     </summary>
-                    <div className="border-t border-border p-2.5">
+                    <div className="space-y-2.5 border-t border-border p-2.5">
                       <GateChecklist rows={standards} />
-                    </div>
-                  </details>
-                  <details className="mt-2 rounded-md border border-border bg-background" data-testid="content-workbench-generation-context-detail">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
-                      <span className="flex min-w-0 items-center gap-2">
-                        <ClipboardCheck size={15} className="text-muted-foreground" />
-                        <span className="truncate">生成上下文详情</span>
-                      </span>
-                      {!selectedUnit ? (
-                        <Badge variant="warning">待生成制作项</Badge>
-                      ) : generationContextQuery.isFetching ? (
-                        <Badge variant="secondary">检查中</Badge>
-                      ) : generationContextQuery.isError ? (
-                        <Badge variant="warning">检查失败</Badge>
-                      ) : (
-                        <Badge variant={missingGenerationContext.length > 0 ? 'warning' : 'success'}>
-                          {missingGenerationContext.length > 0 ? `${missingGenerationContext.length} 个缺失` : '上下文可用'}
-                        </Badge>
-                      )}
-                    </summary>
-                    <div className="border-t border-border p-2.5">
-                      {!selected ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">选择情节后检查生成上下文。</p>
-                      ) : !selectedUnit ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">当前情节还没有制作项，暂时不能读取制作项级生成上下文。</p>
-                      ) : generationContextQuery.isLoading ? (
-                        <p className="rounded-md border border-border bg-card px-3 py-5 text-center text-sm text-muted-foreground">正在读取后端生成上下文...</p>
-                      ) : generationContextQuery.isError ? (
-                        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
-                          {apiErrorMessage(generationContextQuery.error, '后端上下文检查失败，请确认后端已更新并重新加载页面。')}
-                        </p>
-                      ) : generationContextQuery.data ? (
-                        <div className="space-y-3">
-                          <ContextStack rows={generationContextRows} className="production-context-stack" />
-                          {missingGenerationContext.length > 0 ? (
-                            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                              <p className="text-sm font-medium text-amber-900">生成前建议补齐</p>
-                              <div className="mt-1.5 space-y-1">
-                                {missingGenerationContext.map((item) => (
-                                  <p key={item.label} className="text-xs leading-5 text-amber-800">{item.label}：{item.detail}</p>
-                                ))}
-                              </div>
-                            </div>
+                      <div className="border-t border-border pt-2.5" data-testid="content-workbench-generation-context-detail">
+                        <div className="mb-2 flex items-center justify-between gap-2 text-sm font-medium text-foreground">
+                          <span className="flex min-w-0 items-center gap-2">
+                            <ClipboardCheck size={15} className="text-muted-foreground" />
+                            <span className="truncate">生成上下文</span>
+                          </span>
+                          {!selectedUnit ? (
+                            <Badge variant="warning">待生成制作项</Badge>
+                          ) : generationContextQuery.isFetching ? (
+                            <Badge variant="secondary">检查中</Badge>
+                          ) : generationContextQuery.isError ? (
+                            <Badge variant="warning">检查失败</Badge>
                           ) : (
-                            <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                              当前制作项的后端生成上下文已具备，可以进入生成计划阶段。
-                            </div>
+                            <Badge variant={missingGenerationContext.length > 0 ? 'warning' : 'success'}>
+                              {missingGenerationContext.length > 0 ? `${missingGenerationContext.length} 个缺失` : '上下文可用'}
+                            </Badge>
                           )}
                         </div>
-                      ) : null}
+                        {!selected ? (
+                          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">选择情节后检查生成上下文。</p>
+                        ) : !selectedUnit ? (
+                          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">当前情节还没有制作项，暂时不能读取制作项级生成上下文。</p>
+                        ) : generationContextQuery.isLoading ? (
+                          <p className="rounded-md border border-border bg-card px-3 py-5 text-center text-sm text-muted-foreground">正在读取后端生成上下文...</p>
+                        ) : generationContextQuery.isError ? (
+                          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+                            {apiErrorMessage(generationContextQuery.error, '后端上下文检查失败，请确认后端已更新并重新加载页面。')}
+                          </p>
+                        ) : generationContextQuery.data ? (
+                          <div className="space-y-3">
+                            <ContextStack rows={generationContextRows} className="production-context-stack" />
+                            {missingGenerationContext.length > 0 ? (
+                              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                                <p className="text-sm font-medium text-amber-900">生成前建议补齐</p>
+                                <div className="mt-1.5 space-y-1">
+                                  {missingGenerationContext.map((item) => (
+                                    <p key={item.label} className="text-xs leading-5 text-amber-800">{item.label}：{item.detail}</p>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                                当前制作项的后端生成上下文已具备，可以进入生成计划阶段。
+                              </div>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </details>
 
@@ -4731,14 +4694,14 @@ function ContentGenerationWorkbench() {
                     />
                   </div>
 
-                  <details open className="mt-2 rounded-md border border-border bg-background" data-testid="content-workbench-execution-section">
+                  <details open={executionSectionOpen} className="mt-2 rounded-md border border-border bg-background" data-testid="content-workbench-execution-section">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
                       <span className="flex min-w-0 items-center gap-2">
                         <PackageCheck size={15} className="text-muted-foreground" />
                         <span className="truncate">生成结果</span>
                       </span>
                       <Badge variant={deliveryBrief.tone === 'ready' ? 'success' : deliveryBrief.tone === 'blocked' ? 'warning' : 'outline'}>
-                        {deliveryBrief.progress}%
+                        {executionStatusLabel}
                       </Badge>
                     </summary>
                     <div className="space-y-2.5 border-t border-border p-2.5">

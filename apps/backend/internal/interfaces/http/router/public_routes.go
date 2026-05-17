@@ -7,6 +7,8 @@ func registerOpenAIGatewayRoutes(r *gin.Engine, h handlers) {
 	{
 		openAIV1.GET("/models", h.modelGateway.ListModels)
 		openAIV1.POST("/chat/completions", h.modelGateway.ChatCompletions)
+		openAIV1.POST("/responses", h.modelGateway.Responses)
+		openAIV1.POST("/messages", h.modelGateway.AnthropicMessages)
 	}
 }
 

@@ -18,9 +18,11 @@
     "cli": "node dist/cli.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.96.0",
     "@langchain/core": "^1.1.44",
     "@langchain/langgraph": "^1.2.9",
     "@movscript/draft-schemas": "workspace:*",
+    "openai": "^6.38.0",
     "zod": "^4.4.2"
   },
   "devDependencies": {

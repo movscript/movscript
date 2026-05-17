@@ -7,6 +7,8 @@ export interface RuntimeModelConfig {
   provider: 'backend-model-config'
   modelConfigId: number
   model: string
+  apiKind?: RuntimeModelAPIKind
+  baseURL?: string
   useForChat: boolean
   useForPlanner: boolean
   updatedAt: string
@@ -17,6 +19,8 @@ export interface RuntimeModelConfigPublic {
   provider: 'backend-model-config'
   modelConfigId?: number
   model: string
+  apiKind: RuntimeModelAPIKind
+  baseURL?: string
   useForChat: boolean
   useForPlanner: boolean
   updatedAt?: string
@@ -26,6 +30,8 @@ export interface RuntimeModelConfigPublic {
 export interface RuntimeModelConfigInput {
   modelConfigId?: unknown
   model?: unknown
+  apiKind?: unknown
+  baseURL?: unknown
   useForChat?: unknown
   useForPlanner?: unknown
 }
@@ -37,18 +43,28 @@ export interface RuntimeModelAuthContext {
   backendAPIBaseURL?: string
 }
 
+export const RUNTIME_MODEL_API_KINDS = [
+  'backend_chat_completions',
+  'openai_chat_completions',
+  'openai_responses',
+  'anthropic_messages',
+] as const
+
+export type RuntimeModelAPIKind = typeof RUNTIME_MODEL_API_KINDS[number]
+
 export interface RuntimeModelRequestSnapshot {
   url: string
   method: 'POST'
   headers: Record<string, string>
-  body: {
+  body: Record<string, unknown> & {
     model: string
     messages: RuntimeModelChatMessage[]
     stream?: boolean
     temperature?: number
     response_format?: { type: 'json_object' }
-    tools?: RuntimeModelChatTool[]
-    tool_choice?: RuntimeModelToolChoice
+    tools?: unknown
+    tool_choice?: unknown
+    sdk_body?: unknown
   }
 }
 
@@ -148,6 +164,7 @@ export type RuntimeModelTraceCallback = (event: {
 
 const DEFAULT_BACKEND_API_BASE_URL = 'http://localhost:8765/api/v1'
 const DEFAULT_BACKEND_MODEL = 'movscript-default-chat'
+const DEFAULT_RUNTIME_MODEL_API_KIND: RuntimeModelAPIKind = 'backend_chat_completions'
 
 export class RuntimeModelConfigStore {
   readonly filePath: string
@@ -171,6 +188,7 @@ export class RuntimeModelConfigStore {
         configured: false,
         provider: 'backend-model-config',
         model: DEFAULT_BACKEND_MODEL,
+        apiKind: DEFAULT_RUNTIME_MODEL_API_KIND,
         useForChat: true,
         useForPlanner: true,
         source: 'none',
@@ -181,6 +199,8 @@ export class RuntimeModelConfigStore {
       provider: 'backend-model-config',
       modelConfigId: fileConfig.modelConfigId,
       model: fileConfig.model,
+      apiKind: fileConfig.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND,
+      baseURL: fileConfig.baseURL,
       useForChat: fileConfig.useForChat,
       useForPlanner: fileConfig.useForPlanner,
       updatedAt: fileConfig.updatedAt,
@@ -193,10 +213,14 @@ export class RuntimeModelConfigStore {
     const modelConfigId = normalizePositiveInteger(input.modelConfigId) ?? existing?.modelConfigId
     if (!modelConfigId) throw new Error('backend model config id is required')
     const model = normalizeNonEmptyString(input.model) ?? existing?.model ?? backendModelID(modelConfigId)
+    const apiKind = normalizeRuntimeModelAPIKind(input.apiKind) ?? existing?.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND
+    const baseURL = normalizeNonEmptyString(input.baseURL) ?? existing?.baseURL
     const config: RuntimeModelConfig = {
       provider: 'backend-model-config',
       modelConfigId,
       model,
+      apiKind,
+      ...(baseURL ? { baseURL } : {}),
       useForChat: typeof input.useForChat === 'boolean' ? input.useForChat : existing?.useForChat ?? true,
       useForPlanner: typeof input.useForPlanner === 'boolean' ? input.useForPlanner : existing?.useForPlanner ?? true,
       updatedAt: new Date().toISOString(),
@@ -238,6 +262,8 @@ export class RuntimeModelConfigStore {
       provider: 'backend-model-config',
       modelConfigId,
       model: normalizeNonEmptyString(parsed.model) ?? backendModelID(modelConfigId),
+      apiKind: normalizeRuntimeModelAPIKind(parsed.apiKind) ?? DEFAULT_RUNTIME_MODEL_API_KIND,
+      ...(normalizeNonEmptyString(parsed.baseURL) ? { baseURL: normalizeNonEmptyString(parsed.baseURL) } : {}),
       useForChat: parsed.useForChat !== false,
       useForPlanner: parsed.useForPlanner !== false,
       updatedAt: normalizeNonEmptyString(parsed.updatedAt) ?? new Date(0).toISOString(),
@@ -309,6 +335,14 @@ function ensureJSONModeMessages(messages: RuntimeModelChatMessage[]): RuntimeMod
 
 function containsJSONKeyword(content: string): boolean {
   return /\bjson\b/i.test(content)
+}
+
+function normalizeRuntimeModelAPIKind(value: unknown): RuntimeModelAPIKind | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim()
+  return RUNTIME_MODEL_API_KINDS.includes(normalized as RuntimeModelAPIKind)
+    ? normalized as RuntimeModelAPIKind
+    : undefined
 }
 
 export async function callBackendGatewayChat(request: RuntimeModelRequestSnapshot): Promise<string> {

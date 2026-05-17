@@ -65,6 +65,7 @@ test('runtime model config ignores corrupt or non-object config files', () => {
       configured: false,
       provider: 'backend-model-config',
       model: 'movscript-default-chat',
+      apiKind: 'backend_chat_completions',
       useForChat: true,
       useForPlanner: true,
       source: 'none',

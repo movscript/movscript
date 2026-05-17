@@ -140,6 +140,134 @@ func (h *ModelGatewayHandler) ChatCompletions(c *gin.Context) {
 	})
 }
 
+// Responses implements the OpenAI Responses API surface backed by the same
+// MovScript model gateway policy, usage, and provider routing as chat completions.
+func (h *ModelGatewayHandler) Responses(c *gin.Context) {
+	principal, ok := h.gatewayPrincipal(c)
+	if !ok {
+		writeOpenAIError(c, http.StatusUnauthorized, "authentication required", "authentication_error", "", "authentication_required")
+		return
+	}
+
+	var req responsesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeOpenAIError(c, http.StatusBadRequest, err.Error(), "invalid_request_error", "", "invalid_request")
+		return
+	}
+	if req.Stream {
+		writeOpenAIError(c, http.StatusBadRequest, "responses streaming is not implemented by the MovScript gateway yet", "invalid_request_error", "stream", "unsupported_parameter")
+		return
+	}
+
+	messages, ok := normalizeResponsesMessages(c, req)
+	if !ok {
+		return
+	}
+	temp := float32(-1)
+	if req.Temperature != nil {
+		temp = *req.Temperature
+	}
+	textReq := ai.TextRequest{
+		PromptName:  "model_gateway_responses",
+		Messages:    messages,
+		MaxTokens:   req.MaxOutputTokens,
+		Temperature: temp,
+		JSONMode:    req.Text != nil && req.Text.Format != nil && req.Text.Format.Type == "json_object",
+		Tools:       normalizeResponsesTools(req.Tools),
+		ToolChoice:  normalizeResponsesToolChoice(req.ToolChoice),
+	}
+	input := modelgatewayapp.ChatInput{
+		Principal: modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
+		Model:     req.Model,
+		Text:      textReq,
+		ProjectID: req.ProjectID,
+	}
+	result, err := h.service.CallChat(c.Request.Context(), input)
+	if err != nil {
+		writeGatewayChatError(c, err, "")
+		return
+	}
+	resp := result.Response
+	output := responseOutputFromTextResponse(resp)
+	c.JSON(http.StatusOK, responsesResponse{
+		ID:         "resp_" + randomHex(12),
+		Object:     "response",
+		CreatedAt:  time.Now().Unix(),
+		Status:     "completed",
+		Model:      result.ResponseModel,
+		Output:     output,
+		OutputText: resp.Content,
+		Usage: responsesUsage{
+			InputTokens:  resp.Usage.InputTokens,
+			OutputTokens: resp.Usage.OutputTokens,
+			TotalTokens:  resp.Usage.InputTokens + resp.Usage.OutputTokens,
+		},
+	})
+}
+
+// AnthropicMessages implements Claude's Messages API surface backed by
+// MovScript gateway auth and model routing. It accepts Anthropic-shaped messages
+// and returns Anthropic-shaped content blocks.
+func (h *ModelGatewayHandler) AnthropicMessages(c *gin.Context) {
+	principal, ok := h.gatewayPrincipal(c)
+	if !ok {
+		writeOpenAIError(c, http.StatusUnauthorized, "authentication required", "authentication_error", "", "authentication_required")
+		return
+	}
+
+	var req anthropicMessagesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		writeOpenAIError(c, http.StatusBadRequest, err.Error(), "invalid_request_error", "", "invalid_request")
+		return
+	}
+	if req.Stream {
+		writeOpenAIError(c, http.StatusBadRequest, "anthropic messages streaming is not implemented by the MovScript gateway yet", "invalid_request_error", "stream", "unsupported_parameter")
+		return
+	}
+
+	messages, ok := normalizeAnthropicGatewayMessages(c, req)
+	if !ok {
+		return
+	}
+	temp := float32(-1)
+	if req.Temperature != nil {
+		temp = *req.Temperature
+	}
+	textReq := ai.TextRequest{
+		PromptName:  "model_gateway_anthropic_messages",
+		Messages:    messages,
+		MaxTokens:   req.MaxTokens,
+		Temperature: temp,
+		Tools:       normalizeAnthropicTools(req.Tools),
+		ToolChoice:  normalizeAnthropicToolChoice(req.ToolChoice),
+	}
+	input := modelgatewayapp.ChatInput{
+		Principal: modelgatewayapp.Principal{UserID: principal.UserID, Key: principal.Key},
+		Model:     req.Model,
+		Text:      textReq,
+		ProjectID: req.ProjectID,
+	}
+	result, err := h.service.CallChat(c.Request.Context(), input)
+	if err != nil {
+		writeGatewayChatError(c, err, "")
+		return
+	}
+	resp := result.Response
+	c.JSON(http.StatusOK, anthropicMessagesResponse{
+		ID:           "msg_" + randomHex(12),
+		Type:         "message",
+		Role:         "assistant",
+		Model:        result.ResponseModel,
+		Content:      anthropicContentFromTextResponse(resp),
+		StopReason:   anthropicStopReason(resp),
+		StopSequence: nil,
+		Usage: anthropicMessagesUsage{
+			InputTokens:  resp.Usage.InputTokens,
+			OutputTokens: resp.Usage.OutputTokens,
+		},
+	})
+}
+
 func (h *ModelGatewayHandler) streamChatCompletions(c *gin.Context, input modelgatewayapp.ChatInput) {
 	result, err := h.service.CallChatStream(c.Request.Context(), input)
 	if err != nil {

@@ -727,14 +727,16 @@ func resolveProjectProposalAssetSlotFields(fields map[string]any, owner *Project
 		next[key] = value
 	}
 	if owner != nil {
+		ownerType := normalizeProjectProposalOwnerType(owner.Type)
 		if strings.TrimSpace(owner.Type) != "" {
-			next["owner_type"] = normalizeProjectProposalOwnerType(owner.Type)
+			next["owner_type"] = ownerType
 		}
 		if owner.ID != nil && *owner.ID > 0 {
 			next["owner_id"] = *owner.ID
-			if normalizeProjectProposalOwnerType(owner.Type) == "creative_reference" {
+			if ownerType == "creative_reference" {
 				next["creative_reference_id"] = *owner.ID
 			}
+			return next, nil
 		}
 	}
 	clientID := ""

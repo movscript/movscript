@@ -416,6 +416,40 @@ func TestApplyProjectProposalRejectsUnresolvedAssetOwnerClientID(t *testing.T) {
 	}
 }
 
+func TestApplyProjectProposalIgnoresAssetOwnerClientIDWhenIDProvided(t *testing.T) {
+	db := newProposalTestDB(t)
+	service := NewService(db)
+	reference := model.CreativeReference{
+		ProjectID: 1,
+		Name:      "Nico",
+		Kind:      "person",
+		Status:    "confirmed",
+	}
+	if err := db.Create(&reference).Error; err != nil {
+		t.Fatalf("create reference: %v", err)
+	}
+
+	if _, err := service.ApplyProjectProposal(context.Background(), 1, ApplyProjectProposalRequest{
+		Proposal: &ProjectProposalTree{
+			AssetSlots: []ProjectProposalAssetSlotPatch{{
+				Name:  "Portrait",
+				Kind:  "image",
+				Owner: &ProjectProposalOwnerRef{Type: "creative_reference", ID: &reference.ID, ClientID: "old_draft_client_id"},
+			}},
+		},
+	}); err != nil {
+		t.Fatalf("apply project proposal: %v", err)
+	}
+
+	var slot model.AssetSlot
+	if err := db.Where("project_id = ? AND name = ?", 1, "Portrait").First(&slot).Error; err != nil {
+		t.Fatalf("load slot: %v", err)
+	}
+	if slot.OwnerType != "creative_reference" || slot.OwnerID == nil || *slot.OwnerID != reference.ID {
+		t.Fatalf("asset slot owner = %s/%v, want creative_reference/%d", slot.OwnerType, slot.OwnerID, reference.ID)
+	}
+}
+
 func TestApplyProjectProposalMergesCreativeReferenceCandidate(t *testing.T) {
 	db := newProposalTestDB(t)
 	service := NewService(db)

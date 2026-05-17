@@ -6,11 +6,23 @@ import type {
 import { localAgentClient } from '@/lib/localAgentClient'
 import { useAgentSessionStore } from '@/store/agentSessionStore'
 
-export async function syncRuntimeModelConfig(modelConfigId: number | null | undefined, modelName?: string): Promise<void> {
+export type RuntimeModelAPIKind =
+  | 'backend_chat_completions'
+  | 'openai_chat_completions'
+  | 'openai_responses'
+  | 'anthropic_messages'
+
+export async function syncRuntimeModelConfig(
+  modelConfigId: number | null | undefined,
+  modelName?: string,
+  options: { apiKind?: RuntimeModelAPIKind; baseURL?: string } = {},
+): Promise<void> {
   if (typeof modelConfigId !== 'number' || !Number.isInteger(modelConfigId) || modelConfigId <= 0) return
   await localAgentClient.saveModelConfig({
     modelConfigId,
     model: modelName?.trim() || `model_config:${modelConfigId}`,
+    ...(options.apiKind ? { apiKind: options.apiKind } : {}),
+    ...(options.baseURL?.trim() ? { baseURL: options.baseURL.trim() } : {}),
     useForChat: true,
     useForPlanner: true,
   })
@@ -22,6 +34,8 @@ export async function runRuntimeMessage(input: {
   clientInput?: AgentClientInput
   modelConfigId?: number | null
   modelName?: string
+  modelAPIKind?: RuntimeModelAPIKind
+  modelBaseURL?: string
   threadId?: string
   timeoutMs?: number
   pollMs?: number
@@ -32,7 +46,10 @@ export async function runRuntimeMessage(input: {
   sessionTaskType?: string
 }): Promise<RunMessageResult> {
   await localAgentClient.ensureRunning()
-  await syncRuntimeModelConfig(input.modelConfigId, input.modelName)
+  await syncRuntimeModelConfig(input.modelConfigId, input.modelName, {
+    ...(input.modelAPIKind ? { apiKind: input.modelAPIKind } : {}),
+    ...(input.modelBaseURL ? { baseURL: input.modelBaseURL } : {}),
+  })
   if (input.sessionId) {
     useAgentSessionStore.getState().startStandaloneSession({
       sessionId: input.sessionId,

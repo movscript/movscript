@@ -26,6 +26,7 @@
   ],
   "toolRefs": [
     "tool://movscript_get_focus",
+    "tool://movscript_read_project_scripts",
     "tool://movscript_get_draft_model",
     "tool://movscript_create_draft",
     "tool://movscript_update_draft",

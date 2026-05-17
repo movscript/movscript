@@ -40,6 +40,92 @@ type gatewayMessage struct {
 	ToolCalls  []ai.ToolCall   `json:"tool_calls,omitempty"`
 }
 
+type responsesRequest struct {
+	Model           string          `json:"model"`
+	Input           json.RawMessage `json:"input" binding:"required"`
+	Instructions    string          `json:"instructions,omitempty"`
+	Temperature     *float32        `json:"temperature,omitempty"`
+	MaxOutputTokens int             `json:"max_output_tokens,omitempty"`
+	Stream          bool            `json:"stream,omitempty"`
+	Text            *struct {
+		Format *struct {
+			Type string `json:"type"`
+		} `json:"format,omitempty"`
+	} `json:"text,omitempty"`
+	Tools      json.RawMessage `json:"tools,omitempty"`
+	ToolChoice json.RawMessage `json:"tool_choice,omitempty"`
+	ProjectID  *uint           `json:"project_id,omitempty"`
+}
+
+type responsesResponse struct {
+	ID         string                `json:"id"`
+	Object     string                `json:"object"`
+	CreatedAt  int64                 `json:"created_at"`
+	Status     string                `json:"status"`
+	Model      string                `json:"model"`
+	Output     []responsesOutputItem `json:"output"`
+	OutputText string                `json:"output_text,omitempty"`
+	Usage      responsesUsage        `json:"usage"`
+}
+
+type responsesOutputItem struct {
+	ID        string                   `json:"id,omitempty"`
+	Type      string                   `json:"type"`
+	Status    string                   `json:"status,omitempty"`
+	Role      string                   `json:"role,omitempty"`
+	Content   []responsesOutputContent `json:"content,omitempty"`
+	CallID    string                   `json:"call_id,omitempty"`
+	Name      string                   `json:"name,omitempty"`
+	Arguments string                   `json:"arguments,omitempty"`
+}
+
+type responsesOutputContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+type responsesUsage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+	TotalTokens  int `json:"total_tokens"`
+}
+
+type anthropicMessagesRequest struct {
+	Model       string           `json:"model"`
+	Messages    []gatewayMessage `json:"messages" binding:"required,min=1"`
+	System      json.RawMessage  `json:"system,omitempty"`
+	MaxTokens   int              `json:"max_tokens,omitempty"`
+	Temperature *float32         `json:"temperature,omitempty"`
+	Stream      bool             `json:"stream,omitempty"`
+	Tools       json.RawMessage  `json:"tools,omitempty"`
+	ToolChoice  json.RawMessage  `json:"tool_choice,omitempty"`
+	ProjectID   *uint            `json:"project_id,omitempty"`
+}
+
+type anthropicMessagesResponse struct {
+	ID           string                  `json:"id"`
+	Type         string                  `json:"type"`
+	Role         string                  `json:"role"`
+	Model        string                  `json:"model"`
+	Content      []anthropicContentBlock `json:"content"`
+	StopReason   string                  `json:"stop_reason,omitempty"`
+	StopSequence *string                 `json:"stop_sequence"`
+	Usage        anthropicMessagesUsage  `json:"usage"`
+}
+
+type anthropicContentBlock struct {
+	Type  string          `json:"type"`
+	Text  string          `json:"text,omitempty"`
+	ID    string          `json:"id,omitempty"`
+	Name  string          `json:"name,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
+}
+
+type anthropicMessagesUsage struct {
+	InputTokens  int `json:"input_tokens"`
+	OutputTokens int `json:"output_tokens"`
+}
+
 type gatewayPrincipal struct {
 	UserID uint
 	Key    *domaingateway.APIKey

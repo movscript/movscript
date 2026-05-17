@@ -52,15 +52,15 @@ test('content workbench can reject an AI draft and clear the review queue', asyn
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
 })
 
-test('content workbench command metrics opens the AI review queue action', async ({ page }, testInfo) => {
+test('content workbench review action opens the AI review queue', async ({ page }, testInfo) => {
   await openContentWorkbenchPage(page, testInfo)
 
   await page.getByRole('button', { name: /收起审阅/ }).click()
   await expect(page.getByTestId('content-workbench-review-queue')).toHaveCount(0)
 
-  const metrics = page.getByTestId('content-workbench-command-metrics')
-  await expect(metrics).toContainText('待审草案')
-  await metrics.locator('[data-action-key="review_ai_drafts"]').click()
+  const reviewAction = page.getByTestId('content-workbench-review-action')
+  await expect(reviewAction).toContainText('待审草案')
+  await reviewAction.locator('[data-action-key="review_ai_drafts"]').click()
 
   await expect(page.getByTestId('content-workbench-review-queue')).toBeVisible()
   await expect(page.getByText('旧伞纸条滑落 AI 制作项草案', { exact: true })).toBeVisible()

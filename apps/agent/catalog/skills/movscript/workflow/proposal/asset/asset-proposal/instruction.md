@@ -10,6 +10,7 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 输入：
 - 当前 focus 中的 project、production、selected asset slot 或 asset need。
 - 用户给出的素材目标、输出类型、prompt 方向、参考资源、风格限制、模型能力需求、角色/场景定位和验收标准。
+- 若 focus 未提供充足角色-场景关系时，在决策前先读取剧本正文进行交叉确认。
 
 边界：
 - 此 workflow 只写 `asset_proposal` draft；素材需求和素材候选方案都不要拆到其他素材 draft kind。
@@ -32,22 +33,24 @@ Draft schema：{{schema:movscript.asset_proposal.v1.id}}
 
 允许的工具：
 - Focus：{{tool:movscript_get_focus}}
+- 项目剧本：{{tool:movscript_read_project_scripts}}（请使用 `includeContent: true`）
 - 设定/素材查询：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}} {{tool:movscript_query_production_context}}
 - Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
 流程：
 1. 读取 focus，确认用户是在整理素材需求清单，还是在为已选素材需求规划候选。
-2. 若是素材需求清单：查询 creative references 和现有 asset slots，查找或创建 asset_proposal draft，维护 `proposal.asset_slots` 作为完整目标 snapshot；`proposal.creative_references` 和 `proposal.candidate_plans` 保持空数组。
-3. 若是候选方案：确认 asset slot 或 asset need。若没有 assetSlotId 且不能通过查询唯一定位，先询问用户；若素材需求尚不存在，先在同一个 asset_proposal draft 的 `proposal.asset_slots` 创建锚点，不要创建别的 kind。
-4. 在规划候选前，先读取相关 setting_proposal / asset_proposal draft。若 setting draft 已经应用，必须重新基于后端 snapshot 获取真实 creative reference id；不要沿用旧 client_id。素材锚点再用查询工具检查 asset slots、asset slot ownership、production context、已知 reference resources 或已有候选资源。
-5. 如果 creative reference 查询返回 `total_count > 0` 但 `count` 或 `returned` 为 0，说明当前筛选没有可用设定明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有设定但没有可编辑明细”。
-6. 将候选拆成 prompt、参考资源、输出类型、模型能力需求、风险和 acceptance criteria。
-7. 对角色和场景写清一致性要求：延续已存在的人物外貌、服装识别点、年代/地域/空间设定、光线气质和可复用范围；缺少参考时标记为待补齐。
-8. 处理剧情描述与视觉定位冲突时，以全局角色定位为准。主角、核心反派、重要常驻角色即使剧情里被说“丑”“狼狈”“不起眼”，也不要生成真实低质或不可用的丑化形象；应转译为朴素、疲惫、被环境压低、妆发状态差、衣着不合身等可表演且仍可长期复用的视觉特征，除非用户明确要求丑化。
-9. 用 JSON Pointer operations patch draft content，但 patch 后的内容必须仍是直接 snapshot 条目。
-10. 先 validate；如果支持 preview apply，运行 preview apply 并修复具体错误路径。
-11. 如果用户要求立即生成，交接到 visual_generation workflow，不在此 workflow 中调用生成工具。
+2. 读取 focus 后，先拉取项目剧本正文（`movscript_read_project_scripts` + `includeContent: true`），并优先从剧本中提取角色关系、场景边界、道具与拍摄语义。
+3. 若是素材需求清单：查询 creative references 和现有 asset slots，查找或创建 asset_proposal draft，维护 `proposal.asset_slots` 作为完整目标 snapshot；`proposal.creative_references` 和 `proposal.candidate_plans` 保持空数组。
+4. 若是候选方案：确认 asset slot 或 asset need。若没有 assetSlotId 且不能通过查询唯一定位，先询问用户；若素材需求尚不存在，先在同一个 asset_proposal draft 的 `proposal.asset_slots` 创建锚点，不要创建别的 kind。
+5. 在规划候选前，先读取相关 setting_proposal / asset_proposal draft。若 setting draft 已经应用，必须重新基于后端 snapshot 获取真实 creative reference id；不要沿用旧 client_id。素材锚点再用查询工具检查 asset slots、asset slot ownership、production context、已知 reference resources 或已有候选资源。
+6. 如果 creative reference 查询返回 `total_count > 0` 但 `count` 或 `returned` 为 0，说明当前筛选没有可用设定明细；应回到 draft seed/snapshot 或放宽筛选，不要据此判定“有设定但没有可编辑明细”。
+7. 将候选拆成 prompt、参考资源、输出类型、模型能力需求、风险和 acceptance criteria。
+8. 对角色和场景写清一致性要求：延续已存在的人物外貌、服装识别点、年代/地域/空间设定、光线气质和可复用范围；缺少参考时标记为待补齐。
+9. 处理剧情描述与视觉定位冲突时，以全局角色定位为准。主角、核心反派、重要常驻角色即使剧情里被说“丑”“狼狈”“不起眼”，也不要生成真实低质或不可用的丑化形象；应转译为朴素、疲惫、被环境压低、妆发状态差、衣着不合身等可表演且仍可长期复用的视觉特征，除非用户明确要求丑化。
+10. 用 JSON Pointer operations patch draft content，但 patch 后的内容必须仍是直接 snapshot 条目。
+11. 先 validate；如果支持 preview apply，运行 preview apply 并修复具体错误路径。
+12. 如果用户要求立即生成，交接到 visual_generation workflow，不在此 workflow 中调用生成工具。
 
 校验：
 - `proposal.asset_slots` 用于素材需求变更；`proposal.candidate_plans` 用于候选制作方案。不要把两者混成一个字段。
