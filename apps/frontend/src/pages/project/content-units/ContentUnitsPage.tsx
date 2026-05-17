@@ -819,7 +819,7 @@ function ContentUnitDetail({
             <StatusBadge status={item.unit.status ?? 'draft'} />
             <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setPreviewOpen(true)}>
               <Clapperboard size={13} />
-              预演
+              预览
             </Button>
             <Button size="sm" loading={openingCanvas} disabled={openingCanvas} onClick={onOpenCanvas}>
               <Wand2 size={13} />
