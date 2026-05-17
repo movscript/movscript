@@ -311,7 +311,7 @@ export default function SceneMomentsPage() {
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>内容区</span>
+              <span>生产对象</span>
               <ChevronRight size={13} />
               <span>情景</span>
             </div>

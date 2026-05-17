@@ -3,6 +3,7 @@ package canvas
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	canvasdomain "github.com/movscript/movscript/internal/domain/canvas"
@@ -49,9 +50,15 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 		return
 	}
 
+	modelDbID, err := h.resolveCanvasNodeModelConfigID(nd, node.Type)
+	if err != nil {
+		h.failTask(task, node, nd, err.Error())
+		return
+	}
+
 	switch node.Type {
 	case "text":
-		if nd.ModelDbID == 0 {
+		if modelDbID == 0 {
 			h.failTask(task, node, nd, "no model selected for this node")
 			return
 		}
@@ -60,11 +67,11 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 			Messages:   []ai.Message{{Role: "user", Content: nd.Prompt}},
 			MaxTokens:  ai.DefaultTextMaxTokens,
 		}
-		if _, err := h.svc.PreflightText(nd.ModelDbID, &textReq); err != nil {
+		if _, err := h.svc.PreflightText(modelDbID, &textReq); err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
 		}
-		resp, err := h.svc.CallTextWithUsage(ctx, user.ID, nd.ModelDbID, textReq, h.usageContextForNode(ctx, node, task))
+		resp, err := h.svc.CallTextWithUsage(ctx, user.ID, modelDbID, textReq, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -73,11 +80,11 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 		return
 
 	case "image", "ref_image_gen", "multi_angle", "style_transfer":
-		if nd.ModelDbID == 0 {
+		if modelDbID == 0 {
 			h.failTask(task, node, nd, "no model selected for this node")
 			return
 		}
-		resp, err := h.svc.CallImageWithUsage(ctx, user.ID, nd.ModelDbID, ai.ImageRequest{
+		resp, err := h.svc.CallImageWithUsage(ctx, user.ID, modelDbID, ai.ImageRequest{
 			Prompt:             nd.Prompt,
 			N:                  1,
 			InputImageDataList: imageData,
@@ -93,11 +100,11 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 		resultURL, mimeType, resType = resp.URLs[0], "image/png", "image"
 
 	case "video", "ref_video_gen", "motion_imitation":
-		if nd.ModelDbID == 0 {
+		if modelDbID == 0 {
 			h.failTask(task, node, nd, "no model selected for this node")
 			return
 		}
-		videoDef, err := h.svc.GetVideoModelDef(nd.ModelDbID)
+		videoDef, err := h.svc.GetVideoModelDef(modelDbID)
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -113,7 +120,7 @@ func (h *Service) executeTask(user *persistencemodel.User, node *persistencemode
 		if len(videoData) > 0 {
 			videoReq.InputVideoData = &videoData[0]
 		}
-		resp, err := h.svc.CallVideoWithUsage(ctx, user.ID, nd.ModelDbID, videoReq, h.usageContextForNode(ctx, node, task))
+		resp, err := h.svc.CallVideoWithUsage(ctx, user.ID, modelDbID, videoReq, h.usageContextForNode(ctx, node, task))
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())
 			return
@@ -176,6 +183,39 @@ func (h *Service) usageContextForNode(ctx context.Context, node *persistencemode
 		}
 	}
 	return usage
+}
+
+func (h *Service) resolveCanvasNodeModelConfigID(nd nodeData, nodeType string) (uint, error) {
+	modelID := strings.TrimSpace(nd.ModelID)
+	if modelID == "" {
+		return nd.ModelDbID, nil
+	}
+	capability := capabilityForCanvasNodeType(nodeType)
+	if capability == "" {
+		return nd.ModelDbID, nil
+	}
+	route, err := h.svc.ResolveModelRoute(ai.ModelRouteRequest{
+		ModelID:       modelID,
+		ModelConfigID: nd.ModelDbID,
+		Capability:    capability,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return route.ModelConfigID, nil
+}
+
+func capabilityForCanvasNodeType(nodeType string) string {
+	switch nodeType {
+	case "text":
+		return ai.CapabilityText
+	case "image", "ref_image_gen", "multi_angle", "style_transfer":
+		return ai.CapabilityImage
+	case "video", "ref_video_gen", "motion_imitation":
+		return ai.CapabilityVideo
+	default:
+		return ""
+	}
 }
 
 func (h *Service) orgIDForNode(ctx context.Context, node *persistencemodel.CanvasNode) *uint {

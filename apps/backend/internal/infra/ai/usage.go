@@ -201,10 +201,11 @@ func (s *AIService) settleUsage(ctx context.Context, userID, modelConfigID uint,
 			return err
 		}
 		return tx.Model(&reservation).Updates(map[string]any{
-			"status":       ReservationStatusSettled,
-			"actual_cost":  estimate.Cost,
-			"usage_log_id": entry.ID,
-			"updated_at":   time.Now(),
+			"ai_model_config_id": modelConfigID,
+			"status":             ReservationStatusSettled,
+			"actual_cost":        estimate.Cost,
+			"usage_log_id":       entry.ID,
+			"updated_at":         time.Now(),
 		}).Error
 	})
 }

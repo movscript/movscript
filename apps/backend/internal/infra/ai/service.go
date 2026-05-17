@@ -12,6 +12,7 @@ import (
 type PublicModel struct {
 	ID                uint           `json:"id"`            // AIModelConfig primary key
 	CredentialID      uint           `json:"credential_id"` // parent AICredential ID (for admin edit)
+	ModelID           string         `json:"model_id"`      // public logical model ID used by callers
 	DisplayName       string         `json:"display_name"`
 	ShortName         string         `json:"short_name,omitempty"`
 	ProviderName      string         `json:"provider_name,omitempty"` // credential display_name; admin/provider-variant views only
@@ -22,6 +23,9 @@ type PublicModel struct {
 	ProviderVariants  int            `json:"provider_variant_count,omitempty"`
 	ModelDefID        string         `json:"model_def_id"`
 	ModelIDOverride   string         `json:"model_id_override,omitempty"` // actual model ID sent to API if overridden
+	Priority          int            `json:"priority"`
+	CapacityWeight    int            `json:"capacity_weight"`
+	MaxConcurrency    int            `json:"max_concurrency"`
 	SupportedParams   []ParamDef     `json:"supported_params,omitempty"`
 	InputRequirements ModelInputs    `json:"input_requirements"`
 	ParamsSchema      map[string]any `json:"params_schema,omitempty"`
@@ -267,12 +271,16 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 		item := PublicModel{
 			ID:                row.ID,
 			CredentialID:      row.CredentialID,
+			ModelID:           logicalModelID(row.AIModelConfig, def),
 			DisplayName:       def.DisplayName,
 			ShortName:         row.ShortName,
 			Capabilities:      def.Capabilities,
 			AcceptsImageInput: def.AcceptsImageInput,
 			LogicalModelID:    logicalModelID(row.AIModelConfig, def),
 			ModelDefID:        def.ID,
+			Priority:          row.Priority,
+			CapacityWeight:    runtimeCandidateCapacityWeight(runtimeModelCandidate{cfg: row.AIModelConfig}),
+			MaxConcurrency:    row.MaxConcurrency,
 			SupportedParams:   def.SupportedParams,
 			InputRequirements: modelInputsForDef(def),
 			ParamsSchema:      ParamsSchema(def.SupportedParams),
@@ -298,6 +306,12 @@ func (s *AIService) getModelsByCapability(capability string, providerVariants bo
 			result[idx].Capabilities = mergeCapabilities(result[idx].Capabilities, def.Capabilities)
 			result[idx].AcceptsImageInput = result[idx].AcceptsImageInput || def.AcceptsImageInput
 			result[idx].InputRequirements = mergeModelInputs(result[idx].InputRequirements, modelInputsForDef(def))
+			result[idx].CapacityWeight += runtimeCandidateCapacityWeight(runtimeModelCandidate{cfg: row.AIModelConfig})
+			if row.MaxConcurrency == 0 || result[idx].MaxConcurrency == 0 {
+				result[idx].MaxConcurrency = 0
+			} else {
+				result[idx].MaxConcurrency += row.MaxConcurrency
+			}
 			continue
 		}
 		groupIndex[key] = len(result)
@@ -506,6 +520,40 @@ func logicalModelID(cfg persistencemodel.AIModelConfig, def *ModelDef) string {
 		}
 	}
 	return strings.TrimSpace(cfg.ModelDefID)
+}
+
+func modelIDMatches(cfg persistencemodel.AIModelConfig, def *ModelDef, requested string) bool {
+	requested = strings.TrimSpace(requested)
+	if requested == "" {
+		return false
+	}
+	for _, alias := range modelIDAliases(cfg, def) {
+		if alias == requested {
+			return true
+		}
+	}
+	return false
+}
+
+func modelIDAliases(cfg persistencemodel.AIModelConfig, def *ModelDef) []string {
+	aliases := []string{
+		logicalModelID(cfg, def),
+		strings.TrimSpace(cfg.ModelIDOverride),
+		strings.TrimSpace(cfg.ModelDefID),
+	}
+	if def != nil {
+		aliases = append(aliases, strings.TrimSpace(def.ID), strings.TrimSpace(def.ModelID))
+	}
+	out := make([]string, 0, len(aliases))
+	seen := map[string]bool{}
+	for _, alias := range aliases {
+		if alias == "" || seen[alias] {
+			continue
+		}
+		seen[alias] = true
+		out = append(out, alias)
+	}
+	return out
 }
 
 func mergeCapabilities(left []string, right []string) []string {

@@ -2,7 +2,7 @@ import type { ExecutableSpec, MovRuntime, ToolResult } from '@movscript/plugin-s
 
 interface PluginArgs {
   prompt: string
-  model_config_id?: number | string
+  model_id?: string
   reference_resource_ids?: string
   aspect_ratio?: string
   duration?: number | string
@@ -37,12 +37,11 @@ function buildRequest(args: PluginArgs) {
 
 export function compile(args: PluginArgs): ExecutableSpec {
   const { prompt, refIds, jobType, aspectRatio, duration, extraParams } = buildRequest(args)
-  const modelConfigId = Number(args.model_config_id)
   return {
     executor: 'ai_model',
     capability: jobType,
     featureKey: 'plugin.video_generator',
-    modelDbId: Number.isFinite(modelConfigId) ? modelConfigId : undefined,
+    modelId: String(args.model_id ?? '').trim() || undefined,
     prompt,
     inputResourceIds: refIds,
     aspectRatio,
@@ -54,20 +53,21 @@ export function compile(args: PluginArgs): ExecutableSpec {
 export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult> {
   const { prompt, refIds, jobType, aspectRatio, duration, timeoutMs, extraParams } = buildRequest(args)
 
-  let modelConfigId = Number(args.model_config_id)
-  if (!modelConfigId || !Number.isFinite(modelConfigId)) {
+  let modelId = String(args.model_id ?? '').trim()
+  if (!modelId) {
     const models = await mov.models(jobType)
     if (models.length === 0) {
       const fallback = await mov.models('video')
       if (fallback.length === 0) throw new Error('没有可用的视频模型配置，请在管理后台添加')
-      modelConfigId = fallback[0].id
+      modelId = fallback[0].model_id || fallback[0].logical_model_id || ''
     } else {
-      modelConfigId = models[0].id
+      modelId = models[0].model_id || models[0].logical_model_id || ''
     }
   }
+  if (!modelId) throw new Error('没有可用的视频模型 ID，请在管理后台检查模型配置')
 
   const job = await mov.generateMedia({
-    model_config_id: modelConfigId,
+    model_id: modelId,
     job_type: jobType,
     feature_key: 'plugin.video_generator',
     prompt,

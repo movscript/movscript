@@ -74,7 +74,7 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
     ? [`生成检查仍有 ${preGenerationBlockers.length} 项阻塞`]
     : [
       completedJobCount > 0 ? '' : '执行生成任务',
-      completedJobCount > 0 && previewItemCount === 0 ? '挂载生产预览' : '',
+      completedJobCount > 0 && previewItemCount === 0 ? '挂载预览检查' : '',
       previewItemCount > 0 && deliveryVersionCount === 0 ? '整理交付版本' : '',
     ].filter(Boolean)
   const blockers = deliveryBlockers
@@ -98,7 +98,7 @@ export function buildContentWorkbenchDeliveryBrief(input: ContentWorkbenchDelive
       detail: completedJobCount === 0
         ? `${firstText(input.unitTitle, '当前制作项')} 的核心输入已经齐备，可以打开生成画布。`
         : previewItemCount === 0
-          ? '已有生成记录，下一步应挂到生产预览检查连续性。'
+          ? '已有生成记录，下一步应挂到预览检查连续性。'
           : '预览记录已经存在，下一步应整理交付版本。',
       progress,
       blockers,

@@ -152,6 +152,17 @@ function stateVariant(state: LaneState) {
   return 'outline' as const
 }
 
+function nextLaneActionLabel(lane?: WorkLane) {
+  if (!lane) return '进入内容编排'
+  if (lane.key === 'content') return '进入内容编排'
+  if (lane.key === 'production') return '进入创作编排'
+  if (lane.key === 'delivery') return '进入交付工作台'
+  if (lane.key === 'assets') return '处理素材需求'
+  if (lane.key === 'constraints') return '处理设定约束'
+  if (lane.key === 'script') return '进入剧本与情景'
+  return `处理${lane.title}`
+}
+
 function priorityVariant(priority: FocusItem['priority']) {
   if (priority === 'high') return 'danger' as const
   if (priority === 'medium') return 'warning' as const
@@ -313,7 +324,7 @@ function LaneCard({ lane }: { lane: WorkLane }) {
           <Link to={lane.href}>查看对象</Link>
         </Button>
         <Button asChild size="sm">
-          <Link to={lane.workbenchHref}>进入处理</Link>
+          <Link to={lane.workbenchHref}>{nextLaneActionLabel(lane)}</Link>
         </Button>
       </div>
     </Card>
@@ -459,7 +470,7 @@ export default function ProjectOverviewPage() {
         progress: planProgress,
         state: data.productions.length === 0 ? (scriptTotal > 0 ? 'blocked' : 'empty') : planProgress >= 70 ? 'ready' : 'active',
         href: ROUTES.project.production,
-        workbenchHref: ROUTES.project.contentUnitWorkbench,
+        workbenchHref: ROUTES.project.productionOrchestration,
         icon: Route,
       },
       {
@@ -490,11 +501,11 @@ export default function ProjectOverviewPage() {
       },
       {
         key: 'content',
-        title: '内容制作',
+        title: '制作执行',
         description: '制作项收拢镜头关键帧、画面、语音和字幕，生产工作台只处理采用和返工决策。',
         primaryLabel: '制作项/画面锚点',
         primaryValue: contentTotal,
-        secondary: `${counts.confirmedContents} 个内容可生产，${counts.acceptedKeyframes} 个画面锚点已采纳`,
+        secondary: `${counts.confirmedContents} 个制作项可推进，${counts.acceptedKeyframes} 个画面锚点已采纳`,
         progress: contentProgress,
         state: contentTotal === 0 ? (planProgress > 0 ? 'active' : 'empty') : contentProgress >= 70 ? 'ready' : 'active',
         href: ROUTES.project.contentUnits,
@@ -504,7 +515,7 @@ export default function ProjectOverviewPage() {
       {
         key: 'delivery',
         title: '成片交付',
-        description: '交付版本、导出记录和检查状态从内容制作中分离出来，作为最终放行门禁。',
+        description: '交付版本、导出记录和检查状态从制作执行中分离出来，作为最终放行门禁。',
         primaryLabel: '交付版本',
         primaryValue: data.deliveryVersions.length,
         secondary: `${counts.approvedDeliveries} 个版本已放行，${counts.lockedContents} 个内容已锁定`,
@@ -567,11 +578,11 @@ export default function ProjectOverviewPage() {
     if (data.productions.length > 0 && data.contentUnits.length === 0) {
       items.push({
         key: 'content',
-        title: '生成或确认制作项',
-        area: '制作项',
-        href: ROUTES.project.contentUnits,
+        title: '拆解或确认制作项',
+        area: '内容编排',
+        href: ROUTES.project.contentUnitWorkbench,
         priority: 'medium',
-        detail: '制作创建后，需要把预览结构拆成可执行的生产颗粒',
+        detail: '制作创建后，需要先在内容编排工作台拆出可执行颗粒',
       })
     }
 
@@ -634,11 +645,6 @@ export default function ProjectOverviewPage() {
                 制作
               </Link>
             </Button>
-            <Button asChild className="gap-2">
-              <Link to={nextLane?.workbenchHref ?? ROUTES.project.contentUnitWorkbench}>
-                进入下一步 <ArrowRight size={15} />
-              </Link>
-            </Button>
           </div>
         </header>
 
@@ -657,7 +663,7 @@ export default function ProjectOverviewPage() {
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatBlock label="制作" value={data.productions.length} detail={`${counts.activeProductions} 个进行中`} icon={Boxes} />
-              <StatBlock label="制作项" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可生产`} icon={Wand2} />
+              <StatBlock label="制作项" value={data.contentUnits.length} detail={`${counts.confirmedContents} 个可推进`} icon={Wand2} />
               <StatBlock label="素材需求" value={data.assetSlots.length} detail={`${counts.missingAssets} 个缺口`} icon={PackageCheck} />
               <StatBlock label="成片版本" value={data.deliveryVersions.length} detail={`${counts.approvedDeliveries} 个已放行`} icon={Video} />
             </div>
@@ -685,7 +691,7 @@ export default function ProjectOverviewPage() {
               <Progress value={nextLane?.progress ?? 0} className="mt-4 h-1.5" />
               <Button asChild size="sm" className="mt-4 w-full justify-center gap-2">
                 <Link to={nextLane?.workbenchHref ?? ROUTES.project.contentUnitWorkbench}>
-                  处理下一步 <ArrowRight size={14} />
+                  {nextLaneActionLabel(nextLane)} <ArrowRight size={14} />
                 </Link>
               </Button>
             </div>
@@ -707,7 +713,7 @@ export default function ProjectOverviewPage() {
           <div className="mb-3 flex items-end justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-foreground">项目对象地图</h2>
-              <p className="mt-1 text-sm text-muted-foreground">当前项目按制作主轴组织，内容区管理对象，工作台处理决策。</p>
+              <p className="mt-1 text-sm text-muted-foreground">当前项目按制作主轴组织，对象页管理事实源，工作台处理决策。</p>
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
@@ -735,7 +741,7 @@ export default function ProjectOverviewPage() {
           </Card>
 
           <Card className="rounded-lg border-border bg-card p-5 shadow-sm">
-            <h2 className="text-base font-semibold text-foreground">内容区入口</h2>
+            <h2 className="text-base font-semibold text-foreground">对象入口</h2>
             <p className="mt-1 text-sm text-muted-foreground">对象管理页面负责事实源和状态归档。</p>
             <div className="mt-4 grid gap-2">
               {contentSurfaceLinks.map((item) => <SurfaceLink key={item.href} {...item} />)}

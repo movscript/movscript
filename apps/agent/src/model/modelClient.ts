@@ -387,7 +387,7 @@ function runtimeModelAPIKind(config: ConfiguredRuntimeModelConfig): RuntimeModel
 }
 
 function modelIdentifier(config: ConfiguredRuntimeModelConfig): string {
-  return config.model?.trim() || `model_config:${config.modelConfigId}`
+  return config.model?.trim() || (config.modelConfigId ? `model_config:${config.modelConfigId}` : 'movscript-default-chat')
 }
 
 function buildOpenAIChatCompletionsSDKRequest(input: ModelCallInput): RuntimeModelRequestSnapshot {

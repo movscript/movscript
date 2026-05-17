@@ -15,7 +15,7 @@ import {
 import { api } from '@/lib/api'
 import { AGENT_PANEL_DRAFT_EVENT, consumeAgentPanelDraft, notifyAgentPanelRunSettled, type AgentPanelDraftPayload } from '@/lib/agentPanelBridge'
 import { attachmentFromResource, attachmentKey, attachmentKind, dedupeAttachments, placeholderAttachment } from '@/lib/agentAttachments'
-import { publicModelLabel } from '@/lib/modelDisplay'
+import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import { buildCommandFirstClientInput, buildPageContext, isDiagnosticAgentCommand, normalizeAgentCommandMessage } from '@/lib/agentCommandInput'
 import { generationProgressFromEvents, type GenerationProgressState } from '@/lib/agentGenerationMedia'
 import { generationJobBadge, generationProgressTitle, generationStatusText, generationTimingLabel, type GenerationJobBadgeTone } from '@/lib/agentGenerationDisplay'
@@ -600,6 +600,7 @@ interface AgentSendDraft {
   model: {
     id: number | null
     name?: string
+    runtimeModelId?: string
     provider?: string
   }
   agent: {
@@ -763,7 +764,7 @@ function buildDebugHttpRequests(options: {
 }): DebugHttpRequest[] {
   const baseURL = localAgentClient.baseURL
   const requests: DebugHttpRequest[] = []
-  if (options.modelId) {
+  if (options.modelName) {
     requests.push({
       id: 'local-save-model-config',
       label: options.labels.syncModelConfig,
@@ -771,8 +772,7 @@ function buildDebugHttpRequests(options: {
       url: `${baseURL}/model-config`,
       headers: { 'Content-Type': 'application/json' },
       body: {
-        modelConfigId: options.modelId,
-        model: options.modelName ?? `model_config:${options.modelId}`,
+        model: options.modelName,
         useForChat: true,
         useForPlanner: true,
       },
@@ -5337,7 +5337,7 @@ function ChatView({
           await refetchLocalAgentHealth()
         }
         await assertMCPReady()
-        await syncRuntimeModelConfig(modelId, activeModel ? publicModelLabel(activeModel) : undefined)
+        await syncRuntimeModelConfig(activeModel ? publicModelId(activeModel) : undefined)
         try {
           localRuntime.preview = await localAgentClient.previewRun({
             ...(threadId ? { threadId } : {}),
@@ -5371,6 +5371,7 @@ function ChatView({
       model: {
         id: modelId,
         ...(activeModel ? { name: publicModelLabel(activeModel) } : {}),
+        ...(activeModel ? { runtimeModelId: publicModelId(activeModel) } : {}),
       },
       agent: {
         id: null,
@@ -5396,7 +5397,7 @@ function ChatView({
         ? []
         : buildDebugHttpRequests({
           modelId,
-          ...(activeModel ? { modelName: publicModelLabel(activeModel) } : {}),
+          ...(activeModel ? { modelName: publicModelId(activeModel) } : {}),
           messages,
           localRuntime,
           labels: {
@@ -5525,7 +5526,7 @@ function ChatView({
       completeActivityEvent('local-runtime-mcp-ready')
       setPendingAssistantState({ status: 'thinking' })
       updateActivityEvents((current) => setActivityEventStatus(current, 'http-request-local-save-model-config', 'started'))
-      await syncRuntimeModelConfig(draft.model.id, draft.model.name)
+      await syncRuntimeModelConfig(draft.model.runtimeModelId ?? draft.model.name)
       completeActivityEvent('http-request-local-save-model-config')
       if (sendController.signal.aborted) throw sendController.signal.reason ?? createLocalAgentStopAbortError()
       updateActivityEvents((current) => setActivityEventStatus(current, 'http-request-local-create-thread', 'started'))

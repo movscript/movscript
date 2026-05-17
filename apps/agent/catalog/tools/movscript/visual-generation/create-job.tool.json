@@ -1,6 +1,6 @@
 {
   "name": "movscript_create_generation_job",
-  "description": "通过 MovScript 创建 AI 图片或视频生成任务，并返回用于审阅的生成输出资源。选择 model_config_id、input_resource_ids 或 extra_params 前，先调用 movscript_list_models，并遵守所选模型 contract：capabilities、input_requirements、supported_param_keys、supported_params 和 params_schema。只提交该模型支持的参数和参考数量。不支持或本地可疑的参数会在 audit_version 1 的 param_validation 中报告，包括 dropped keys、alias rewrites 和非阻塞 preflight_errors；参考数量不匹配会在 input_preflight_errors 中报告。preflight_errors 和 input_preflight_errors 是解释性审计数据，本身不是后端拒绝。后端 validation errors 具有权威性；suggested_fix 可驱动一次生成参数 retry，但 UNSUPPORTED_OUTPUT_TYPE 和 INVALID_INPUT_COUNT 属于说明/模型或输入选择场景，不得在同一请求中自动修复。",
+  "description": "通过 MovScript 创建 AI 图片或视频生成任务，并返回用于审阅的生成输出资源。选择 model_id、input_resource_ids 或 extra_params 前，先调用 movscript_list_models，并遵守所选模型 contract：capabilities、input_requirements、supported_param_keys、supported_params 和 params_schema。只提交该模型支持的参数和参考数量。不支持或本地可疑的参数会在 audit_version 1 的 param_validation 中报告，包括 dropped keys、alias rewrites 和非阻塞 preflight_errors；参考数量不匹配会在 input_preflight_errors 中报告。preflight_errors 和 input_preflight_errors 是解释性审计数据，本身不是后端拒绝。后端 validation errors 具有权威性；suggested_fix 可驱动一次生成参数 retry，但 UNSUPPORTED_OUTPUT_TYPE 和 INVALID_INPUT_COUNT 属于说明/模型或输入选择场景，不得在同一请求中自动修复。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": true,
@@ -32,11 +32,8 @@
         ],
         "description": "精确的生成任务类型。当所选模型 contract 要求图片或视频输入时，优先使用此字段。"
       },
-      "model_config_id": {
-        "type": [
-          "number",
-          "string"
-        ]
+      "model_id": {
+        "type": "string"
       },
       "wait": {
         "type": "boolean"

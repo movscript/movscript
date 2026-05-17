@@ -129,6 +129,28 @@ func TestGetProviderModelsByCapabilityKeepsProviderVariants(t *testing.T) {
 	}
 }
 
+func TestResolveGenerationModelRouteUsesPublicModelIDAndRoundRobinsProviders(t *testing.T) {
+	db := openAITestDB(t)
+	createProviderVariant(t, db, 1, "OpenAI A", "gpt-image-1", 10)
+	createProviderVariant(t, db, 2, "OpenAI B", "gpt-image-1", 10)
+
+	svc := NewAIService(db, NewRegistry(db, nil))
+	var got []uint
+	for range 4 {
+		route, err := svc.ResolveGenerationModelRoute("gpt-image-1", CapabilityImage)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if route.ModelID != "gpt-image-1" || route.ProviderModelID != "gpt-image-1" {
+			t.Fatalf("unexpected route: %#v", route)
+		}
+		got = append(got, route.ModelConfigID)
+	}
+	if !slices.Equal(got, []uint{1, 2, 1, 2}) {
+		t.Fatalf("route sequence = %#v, want provider configs 1/2 alternating", got)
+	}
+}
+
 func TestGetModelsByCapabilityDoesNotMergeDifferentModelContracts(t *testing.T) {
 	db := openAITestDB(t)
 	createProviderVariantWithParams(t, db, 1, "OpenAI A", "gpt-image-1", 10, `[{"key":"image_size","label":"Image Size","type":"select","options":["1024x1024"],"default":"1024x1024"}]`)

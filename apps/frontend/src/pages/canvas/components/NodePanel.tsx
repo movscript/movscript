@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Node, Edge } from '@xyflow/react'
 import { api } from '@/lib/api'
-import { publicModelLabel } from '@/lib/modelDisplay'
+import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import { loadClientPlugins, type ClientPluginInputProperty, type ClientPluginManifest } from '@/lib/clientPlugins'
 import type { Canvas, CanvasNodeData, CanvasParamType, CanvasPortDef, EntityWorkflowSchema, NodeType, RawResource, PublicModel } from '@/types'
 import { Wand2, Check, X, Loader2 } from 'lucide-react'
@@ -1084,18 +1084,25 @@ function AIConfigSection({
   onUpdate: (patch: Partial<CanvasNodeData>) => void
 }) {
   const { t } = useTranslation()
+  const legacySelectedModel = models.find((model) => model.id === data.modelDbId)
+  const selectedModelValue = data.modelId
+    || (legacySelectedModel ? publicModelId(legacySelectedModel) : '')
+    || (models[0] ? publicModelId(models[0]) : '')
   return (
     <div className="space-y-3">
       <div>
         <p className="text-xs text-muted-foreground mb-1">{t('agents.model')}</p>
         <select
           className="w-full border border-border bg-background rounded-md px-2 py-1.5 text-xs text-foreground"
-          value={data.modelDbId ?? models[0]?.id ?? ''}
-          onChange={(e) => onUpdate({ modelDbId: Number(e.target.value) })}
+          value={selectedModelValue}
+          onChange={(e) => {
+            const model = models.find((m) => publicModelId(m) === e.target.value)
+            onUpdate({ modelId: e.target.value, modelDbId: model?.id ?? 0 })
+          }}
         >
           {models.length === 0 && <option value="">{t('shared.modelSelector.noModels')}</option>}
           {models.map((m) => (
-            <option key={m.id} value={m.id}>{publicModelLabel(m)}</option>
+            <option key={m.id} value={publicModelId(m)}>{publicModelLabel(m)}</option>
           ))}
         </select>
       </div>

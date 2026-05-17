@@ -446,7 +446,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       num('order', '顺序'),
       num('duration_sec', '时长秒'),
       area('description', '要做什么'),
-      area('prompt', '生成提示'),
+      area('prompt', '创作提示'),
       selectOptions('shot_size', '景别', [
         { value: '', label: '未指定' },
         { value: 'extreme_wide', label: '大远景' },
@@ -537,7 +537,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('title', '标题', true),
       num('order', '顺序'),
       area('description', '描述'),
-      area('prompt', '生成提示'),
+      area('prompt', '创作提示'),
       select('status', '状态', ['generated', 'candidate', 'attached', 'accepted', 'rejected']),
       area('metadata_json', '元数据 JSON'),
     ]),
@@ -633,7 +633,7 @@ function semanticCoreEntityConfigs(): SemanticEntityConfig[] {
       text('name', '需要什么素材', true),
       text('slot_key', '素材需求键'),
       area('description', '用途说明'),
-      area('prompt_hint', '生成提示'),
+      area('prompt_hint', '创作提示'),
       selectOptions('priority', '优先级', [
         { value: 'low', label: '低' },
         { value: 'normal', label: '普通' },

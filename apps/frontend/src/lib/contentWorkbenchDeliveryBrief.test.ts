@@ -79,7 +79,7 @@ test('content workbench delivery brief moves completed generation into preview',
   assert.equal(brief.tone, 'ready')
   assert.equal(brief.title, '交付包待预览')
   assert.equal(brief.progress, 50)
-  assert.deepEqual(brief.blockers, ['挂载生产预览'])
+  assert.deepEqual(brief.blockers, ['挂载预览检查'])
 })
 
 test('content workbench delivery brief reports closed delivery loop', () => {

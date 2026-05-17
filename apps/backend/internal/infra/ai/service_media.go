@@ -13,41 +13,56 @@ func (s *AIService) CallImage(ctx context.Context, userID, modelConfigID uint, r
 }
 
 func (s *AIService) CallImageWithUsage(ctx context.Context, userID, modelConfigID uint, req ImageRequest, usage UsageContext) (ImageResponse, error) {
-	cfg, provider, def, err := s.loadConfig(modelConfigID, "image")
+	candidates, capability, err := s.runtimeImageModelAttemptCandidates(modelConfigID)
 	if err != nil {
-		var err2 error
-		cfg, provider, def, err2 = s.loadConfig(modelConfigID, "image_edit")
-		if err2 != nil {
-			return ImageResponse{}, err
-		}
-		req.EditOnly = true
+		return ImageResponse{}, err
 	}
-	req.Model = resolveModelID(cfg, def)
-	if def.ImageEditField != "" {
-		req.ImageFieldName = def.ImageEditField
-	}
-	n := req.N
-	if n <= 0 {
-		n = 1
-	}
-	if usage.ReservationID == nil {
-		estimate := estimateUsageCost(cfg, def, "image", 0, 0, 0, n)
-		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
+	var lastErr error
+	for _, attempt := range attempts {
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
 		if err != nil {
+			lastErr = err
+			continue
+		}
+		attemptReq := req
+		if capability == CapabilityImageEdit {
+			attemptReq.EditOnly = true
+		}
+		attemptReq.Model = resolveModelID(cfg, def)
+		if def.ImageEditField != "" {
+			attemptReq.ImageFieldName = def.ImageEditField
+		}
+		n := attemptReq.N
+		if n <= 0 {
+			n = 1
+		}
+		if usage.ReservationID == nil {
+			estimate := estimateUsageCost(cfg, def, "image", 0, 0, 0, n)
+			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
+			if err != nil {
+				return ImageResponse{}, err
+			}
+			usage.ReservationID = &reservation.ID
+		}
+		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		resp, err := provider.ImageGenerate(ctx, attemptReq)
+		finishAttempt(err)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		estimate := estimateUsageCost(cfg, def, "image", 0, 0, 0, n)
+		if err := s.settleUsage(ctx, userID, attempt.cfg.ID, estimate, usage); err != nil {
 			return ImageResponse{}, err
 		}
-		usage.ReservationID = &reservation.ID
+		return resp, nil
 	}
-	resp, err := provider.ImageGenerate(ctx, req)
-	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
-		return ImageResponse{}, err
+	if lastErr != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
+		return ImageResponse{}, lastErr
 	}
-	estimate := estimateUsageCost(cfg, def, "image", 0, 0, 0, n)
-	if err := s.settleUsage(ctx, userID, modelConfigID, estimate, usage); err != nil {
-		return ImageResponse{}, err
-	}
-	return resp, nil
+	return ImageResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
 }
 
 // CallVideo calls a video generation model by AIModelConfig DB ID.
@@ -67,28 +82,45 @@ func (s *AIService) GetVideoModelDef(modelConfigID uint) (*ModelDef, error) {
 }
 
 func (s *AIService) CallVideoWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
-	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
+	candidates, capability, err := s.runtimeVideoModelAttemptCandidates(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err
 	}
-	prepareVideoRequest(&req, cfg, def)
-	if usage.ReservationID == nil {
-		estimate := estimateUsageCost(cfg, def, "video", 0, 0, positiveDuration(req.Duration, def), 1)
-		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
+	var lastErr error
+	for _, attempt := range attempts {
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
 		if err != nil {
+			lastErr = err
+			continue
+		}
+		attemptReq := req
+		prepareVideoRequest(&attemptReq, cfg, def)
+		if usage.ReservationID == nil {
+			estimate := estimateUsageCost(cfg, def, "video", 0, 0, positiveDuration(attemptReq.Duration, def), 1)
+			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
+			if err != nil {
+				return VideoResponse{}, err
+			}
+			usage.ReservationID = &reservation.ID
+		}
+		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		resp, err := provider.VideoGenerate(ctx, attemptReq)
+		finishAttempt(err)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if err := s.settleVideoUsage(ctx, userID, attempt.cfg.ID, cfg, def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
 			return VideoResponse{}, err
 		}
-		usage.ReservationID = &reservation.ID
+		return resp, nil
 	}
-	resp, err := provider.VideoGenerate(ctx, req)
-	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
-		return VideoResponse{}, err
+	if lastErr != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
+		return VideoResponse{}, lastErr
 	}
-	if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, req.Duration, resp.DurationSec, usage); err != nil {
-		return VideoResponse{}, err
-	}
-	return resp, nil
+	return VideoResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
 }
 
 // SupportsVideoTasks reports whether this model config can submit and poll
@@ -119,34 +151,85 @@ func (s *AIService) CallVideoStart(ctx context.Context, userID, modelConfigID ui
 }
 
 func (s *AIService) CallVideoStartWithUsage(ctx context.Context, userID, modelConfigID uint, req VideoRequest, usage UsageContext) (VideoResponse, error) {
-	cfg, provider, def, err := s.loadVideoConfig(modelConfigID)
+	candidates, capability, err := s.runtimeVideoModelAttemptCandidates(modelConfigID)
 	if err != nil {
 		return VideoResponse{}, err
 	}
-	taskProvider, ok := provider.(VideoTaskProvider)
-	if !ok {
-		return VideoResponse{}, fmt.Errorf("model config id=%d does not support async video task polling", modelConfigID)
-	}
-	prepareVideoRequest(&req, cfg, def)
-	if usage.ReservationID == nil {
-		estimate := estimateUsageCost(cfg, def, "video", 0, 0, positiveDuration(req.Duration, def), 1)
-		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, capability), candidates)
+	var lastErr error
+	for _, attempt := range attempts {
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, capability)
 		if err != nil {
-			return VideoResponse{}, err
+			lastErr = err
+			continue
 		}
-		usage.ReservationID = &reservation.ID
+		taskProvider, ok := provider.(VideoTaskProvider)
+		if !ok {
+			lastErr = fmt.Errorf("model config id=%d does not support async video task polling", attempt.cfg.ID)
+			continue
+		}
+		attemptReq := req
+		prepareVideoRequest(&attemptReq, cfg, def)
+		if usage.ReservationID == nil {
+			estimate := estimateUsageCost(cfg, def, "video", 0, 0, positiveDuration(attemptReq.Duration, def), 1)
+			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
+			if err != nil {
+				return VideoResponse{}, err
+			}
+			usage.ReservationID = &reservation.ID
+		}
+		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		resp, err := taskProvider.VideoStart(ctx, attemptReq)
+		finishAttempt(err)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		if resp.URL != "" || len(resp.ContentBytes) > 0 {
+			if err := s.settleVideoUsage(ctx, userID, attempt.cfg.ID, cfg, def, attemptReq.Duration, resp.DurationSec, usage); err != nil {
+				return VideoResponse{}, err
+			}
+		}
+		return resp, nil
 	}
-	resp, err := taskProvider.VideoStart(ctx, req)
+	if lastErr != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
+		return VideoResponse{}, lastErr
+	}
+	return VideoResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, capability)
+}
+
+func (s *AIService) runtimeImageModelAttemptCandidates(modelConfigID uint) ([]runtimeModelCandidate, string, error) {
+	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityImage)
+	if err == nil && len(candidates) > 0 {
+		return candidates, CapabilityImage, nil
+	}
+	editCandidates, editErr := s.runtimeModelCandidates(modelConfigID, CapabilityImageEdit)
+	if editErr == nil && len(editCandidates) > 0 {
+		return editCandidates, CapabilityImageEdit, nil
+	}
 	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
-		return VideoResponse{}, err
+		return nil, "", err
 	}
-	if resp.URL != "" || len(resp.ContentBytes) > 0 {
-		if err := s.settleVideoUsage(ctx, userID, modelConfigID, cfg, def, req.Duration, resp.DurationSec, usage); err != nil {
-			return VideoResponse{}, err
+	return nil, "", editErr
+}
+
+func (s *AIService) runtimeVideoModelAttemptCandidates(modelConfigID uint) ([]runtimeModelCandidate, string, error) {
+	videoCaps := []string{CapabilityVideo, CapabilityVideoI2V, CapabilityVideoV2V}
+	var lastErr error
+	for _, capability := range videoCaps {
+		candidates, err := s.runtimeModelCandidates(modelConfigID, capability)
+		if err == nil && len(candidates) > 0 {
+			return candidates, capability, nil
+		}
+		if err != nil {
+			lastErr = err
 		}
 	}
-	return resp, nil
+	if lastErr != nil {
+		return nil, "", lastErr
+	}
+	return nil, "", fmt.Errorf("no available provider variant for model config id=%d and video capability", modelConfigID)
 }
 
 // CallVideoPoll queries an existing async provider video task without creating a

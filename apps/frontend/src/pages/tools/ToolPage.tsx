@@ -3,7 +3,7 @@ import { Upload, Wand2, Download, Loader2, AlertCircle, X, Plus } from 'lucide-r
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { API_BASE_URL as API_BASE } from '@/lib/config'
-import { publicModelLabel } from '@/lib/modelDisplay'
+import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import type { RawResource, PublicModel } from '@/types'
 import type { ToolCanvasState } from '@/hooks/useToolCanvas'
 import { AuthedImage, AuthedVideo } from '@/components/shared/AuthedImage'
@@ -59,6 +59,8 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
   const outputSrc = state.outputResource
     ? state.outputResource.direct_url ?? `${API_BASE}${state.outputResource.url}`
     : undefined
+  const selectedModelValue = state.modelId
+    || (models[0] ? publicModelId(models[0]) : '')
 
   return (
     <div className="flex flex-col h-full">
@@ -150,10 +152,12 @@ export function ToolPage({ def, state, update, run, models }: ToolPageProps) {
             <div className="flex items-center gap-3 px-3 py-2.5 bg-muted/20">
               <select
                 className="border border-border rounded px-2 py-1.5 text-xs bg-background text-foreground"
-                value={state.modelDbId || models[0]?.id || ''}
-                onChange={(e) => update({ modelDbId: Number(e.target.value) })}
+                value={selectedModelValue}
+                onChange={(e) => {
+                  update({ modelId: e.target.value })
+                }}
               >
-                {models.map((m) => <option key={m.id} value={m.id}>{publicModelLabel(m)}</option>)}
+                {models.map((m) => <option key={m.id} value={publicModelId(m)}>{publicModelLabel(m)}</option>)}
                 {models.length === 0 && <option value="">{t('shared.modelSelector.noModels')}</option>}
               </select>
               <div className="flex-1" />

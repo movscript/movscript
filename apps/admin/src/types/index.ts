@@ -290,6 +290,8 @@ export interface AIModelConfig {
   model_id_override: string      // optional override for the API-level model ID (e.g. Volcengine ep-xxx)
   is_enabled: boolean
   priority: number
+  capacity_weight: number
+  max_concurrency: number
   credits_input_per_1m: number
   credits_output_per_1m: number
   credits_per_image: number
@@ -418,6 +420,9 @@ export interface PublicModel {
   is_default?: boolean         // true when admin-pinned as default for a feature
   model_def_id?: string
   model_id_override?: string   // actual model ID sent to API if overridden
+  priority?: number
+  capacity_weight?: number
+  max_concurrency?: number
   supported_params?: ParamDef[]
   input_requirements?: ModelInputRequirements
   params_schema?: Record<string, unknown>

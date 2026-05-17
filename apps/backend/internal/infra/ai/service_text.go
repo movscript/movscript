@@ -67,30 +67,47 @@ func (s *AIService) CallText(ctx context.Context, userID, modelConfigID uint, re
 }
 
 func (s *AIService) CallTextWithUsage(ctx context.Context, userID, modelConfigID uint, req TextRequest, usage UsageContext) (TextResponse, error) {
-	cfg, provider, def, err := s.loadConfig(modelConfigID, "text")
+	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityText)
 	if err != nil {
 		return TextResponse{}, err
 	}
-	req.Model = resolveModelID(cfg, def)
-	attachTextPromptDebug(ctx, req)
-	if usage.ReservationID == nil {
-		estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(req), maxPositive(req.MaxTokens, 1024), 0, 1)
-		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityText), candidates)
+	var lastErr error
+	for _, attempt := range attempts {
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityText)
 		if err != nil {
+			lastErr = err
+			continue
+		}
+		attemptReq := req
+		attemptReq.Model = resolveModelID(cfg, def)
+		attachTextPromptDebug(ctx, attemptReq)
+		if usage.ReservationID == nil {
+			estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(attemptReq), maxPositive(attemptReq.MaxTokens, 1024), 0, 1)
+			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
+			if err != nil {
+				return TextResponse{}, err
+			}
+			usage.ReservationID = &reservation.ID
+		}
+		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		resp, err := provider.TextGenerate(ctx, attemptReq)
+		finishAttempt(err)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		estimate := estimateUsageCost(cfg, def, "text", resp.Usage.InputTokens, resp.Usage.OutputTokens, 0, 1)
+		if err := s.settleUsage(ctx, userID, attempt.cfg.ID, estimate, usage); err != nil {
 			return TextResponse{}, err
 		}
-		usage.ReservationID = &reservation.ID
+		return resp, nil
 	}
-	resp, err := provider.TextGenerate(ctx, req)
-	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
-		return TextResponse{}, err
+	if lastErr != nil {
+		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
+		return TextResponse{}, lastErr
 	}
-	estimate := estimateUsageCost(cfg, def, "text", resp.Usage.InputTokens, resp.Usage.OutputTokens, 0, 1)
-	if err := s.settleUsage(ctx, userID, modelConfigID, estimate, usage); err != nil {
-		return TextResponse{}, err
-	}
-	return resp, nil
+	return TextResponse{}, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityText)
 }
 
 // CallTextStream calls a text model through a provider streaming API.
@@ -102,42 +119,78 @@ func (s *AIService) CallTextStream(ctx context.Context, userID, modelConfigID ui
 }
 
 func (s *AIService) CallTextStreamWithUsage(ctx context.Context, userID, modelConfigID uint, req TextRequest, usage UsageContext) (<-chan TextStreamEvent, error) {
-	cfg, provider, def, err := s.loadConfig(modelConfigID, "text")
+	candidates, err := s.runtimeModelCandidates(modelConfigID, CapabilityText)
 	if err != nil {
 		return nil, err
 	}
-	streamer, ok := provider.(TextStreamProvider)
-	if !ok {
-		return nil, fmt.Errorf("streaming is not supported by provider for model config %d", modelConfigID)
-	}
-	req.Model = resolveModelID(cfg, def)
-	attachTextPromptDebug(ctx, req)
-	if usage.ReservationID == nil {
-		estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(req), maxPositive(req.MaxTokens, 1024), 0, 1)
-		reservation, err := s.ReserveUsage(ctx, userID, modelConfigID, estimate, usage)
+	attempts := runtimeModelAttemptOrder(runtimeModelRoundRobinKey(candidates[0].logicalID, CapabilityText), candidates)
+	var (
+		upstream      <-chan TextStreamEvent
+		attemptConfig persistencemodel.AIModelConfig
+		attemptDef    *ModelDef
+		attemptFinish func(error)
+		attemptReq    TextRequest
+		lastErr       error
+	)
+	for _, attempt := range attempts {
+		cfg, provider, def, err := s.loadConfig(attempt.cfg.ID, CapabilityText)
 		if err != nil {
-			return nil, err
+			lastErr = err
+			continue
 		}
-		usage.ReservationID = &reservation.ID
+		streamer, ok := provider.(TextStreamProvider)
+		if !ok {
+			lastErr = fmt.Errorf("streaming is not supported by provider for model config %d", attempt.cfg.ID)
+			continue
+		}
+		attemptReq = req
+		attemptReq.Model = resolveModelID(cfg, def)
+		attachTextPromptDebug(ctx, attemptReq)
+		if usage.ReservationID == nil {
+			estimate := estimateUsageCost(cfg, def, "text", estimateTextInputTokens(attemptReq), maxPositive(attemptReq.MaxTokens, 1024), 0, 1)
+			reservation, err := s.ReserveUsage(ctx, userID, attempt.cfg.ID, estimate, usage)
+			if err != nil {
+				return nil, err
+			}
+			usage.ReservationID = &reservation.ID
+		}
+		finishAttempt := beginRuntimeProviderAttempt(attempt.cfg.ID)
+		upstream, err = streamer.TextStream(ctx, attemptReq)
+		if err != nil {
+			finishAttempt(err)
+			lastErr = err
+			continue
+		}
+		attemptConfig = cfg
+		attemptDef = def
+		attemptFinish = finishAttempt
+		break
 	}
-	upstream, err := streamer.TextStream(ctx, req)
-	if err != nil {
-		_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), err.Error())
-		return nil, err
+	if upstream == nil {
+		if lastErr != nil {
+			_ = s.ReleaseReservation(ctx, derefUint(usage.ReservationID), lastErr.Error())
+			return nil, lastErr
+		}
+		return nil, fmt.Errorf("no available provider variant for model config id=%d and capability %s", modelConfigID, CapabilityText)
 	}
 
 	out := make(chan TextStreamEvent)
 	go func() {
 		defer close(out)
 		var tokenUsage TokenUsage
+		var streamErr error
 		for event := range upstream {
 			if event.Usage.InputTokens > 0 || event.Usage.OutputTokens > 0 {
 				tokenUsage = event.Usage
 			}
+			if event.Error != "" {
+				streamErr = fmt.Errorf("%s", event.Error)
+			}
 			out <- event
 		}
-		estimate := estimateUsageCost(cfg, def, "text", tokenUsage.InputTokens, tokenUsage.OutputTokens, 0, 1)
-		_ = s.settleUsage(context.Background(), userID, modelConfigID, estimate, usage)
+		attemptFinish(streamErr)
+		estimate := estimateUsageCost(attemptConfig, attemptDef, "text", tokenUsage.InputTokens, tokenUsage.OutputTokens, 0, 1)
+		_ = s.settleUsage(context.Background(), userID, attemptConfig.ID, estimate, usage)
 	}()
 	return out, nil
 }

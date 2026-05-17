@@ -124,6 +124,7 @@ func TestNewCommunityRegistersAdminRoutes(t *testing.T) {
 		"GET /api/v1/admin/debug/jobs",
 		"GET /api/v1/admin/debug/job-stats",
 		"GET /api/v1/admin/debug/health",
+		"GET /api/v1/admin/debug/model-runtime-health",
 		"GET /api/v1/admin/debug/health-settings",
 		"PUT /api/v1/admin/debug/health-settings",
 		"GET /api/v1/admin/debug/jobs/:id",

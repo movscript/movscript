@@ -55,9 +55,9 @@
         "title": "提示词",
         "description": "描述要生成的视频内容、运动、镜头与风格"
       },
-      "model_config_id": {
-        "type": "number",
-        "title": "模型配置",
+      "model_id": {
+        "type": "string",
+        "title": "模型",
         "description": "可选，不填时自动选择可用视频模型",
         "x-widget": "model-selector",
         "x-capability": "video"

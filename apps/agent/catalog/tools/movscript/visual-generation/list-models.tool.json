@@ -1,6 +1,6 @@
 {
   "name": "movscript_list_models",
-  "description": "列出某个 capability 或 feature 可用的图片/视频模型。结果包含 raw models，以及 contract_version 1 的 model_contracts，其中包括 capabilities、input_requirements、supported_param_keys、supported_params 和 params_schema 规则数量。模型按 contract 划分范围：相同 logical_model_id 的条目仍可能暴露不同 model_config_id 和不同 contracts，因此创建任务时必须使用所选 contract 的精确 model_config_id。生成前使用此工具选择有效模型，并且只询问该模型要求的字段。",
+  "description": "列出某个 capability 或 feature 可用的图片/视频模型。结果包含 public model_id，以及 contract_version 1 的 model_contracts，其中包括 capabilities、input_requirements、supported_param_keys、supported_params 和 params_schema 规则数量。创建任务时使用所选 contract 的 model_id。生成前使用此工具选择有效模型，并且只询问该模型要求的字段。",
   "inputSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -51,7 +51,7 @@
           "additionalProperties": true,
           "required": [
             "contract_version",
-            "model_config_id",
+            "model_id",
             "capabilities",
             "input_requirements",
             "supported_param_keys",
@@ -62,12 +62,9 @@
               "type": "number",
               "const": 1
             },
-            "id": {
-              "type": "number"
-            },
-            "model_config_id": {
-              "type": "number",
-              "description": "传给 movscript_create_generation_job 的精确 ID。"
+            "model_id": {
+              "type": "string",
+              "description": "传给 movscript_create_generation_job 的公开模型 ID。"
             },
             "display_name": {
               "type": "string"
@@ -77,7 +74,7 @@
             },
             "logical_model_id": {
               "type": "string",
-              "description": "仅用于分组 metadata。不要用它替代 model_config_id。"
+              "description": "model_id 的兼容别名。"
             },
             "capabilities": {
               "type": "array",

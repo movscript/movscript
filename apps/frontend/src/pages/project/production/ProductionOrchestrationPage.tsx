@@ -4355,7 +4355,7 @@ function getAnalysisText(target: AnalysisTarget, input: {
       slot.kind ? `类型：${slot.kind}` : '',
       slot.priority ? `优先级：${slot.priority}` : '',
       slot.description ? `说明：${slot.description}` : '',
-      slot.prompt_hint ? `生成提示：${slot.prompt_hint}` : '',
+      slot.prompt_hint ? `创作提示：${slot.prompt_hint}` : '',
       ownerLabel ? `归属：${ownerLabel}` : '',
       reference ? `关联设定资料：${titleOfRecord(reference)}` : '',
     ].filter(Boolean).join('\n\n')

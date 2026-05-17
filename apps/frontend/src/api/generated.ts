@@ -75,7 +75,8 @@ export interface components {
     }
     "JobCreate": {
       "job_type": string
-      "model_config_id": number
+      "model_id"?: string
+      "model_config_id"?: number
       "feature_key"?: string
       "prompt"?: string
       "input_resource_ids"?: Array<number>

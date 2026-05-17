@@ -218,53 +218,19 @@ export default function ProductionPage() {
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           <div className="space-y-4">
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_430px]">
-              <div className="rounded-lg border border-border bg-card p-4">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <Boxes size={16} className="text-muted-foreground" />
-                    <h2 className="text-sm font-semibold text-foreground">制作</h2>
-                  </div>
-                  <Badge variant="outline">{productions.length} 个制作</Badge>
+            <section className="rounded-lg border border-border bg-card p-4">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Boxes size={16} className="text-muted-foreground" />
+                  <h2 className="text-sm font-semibold text-foreground">制作</h2>
                 </div>
-                <div className="grid gap-3 md:grid-cols-4">
-                  <Metric label="进行中" value={aggregate.active} />
-                  <Metric label="已成片" value={aggregate.delivered} />
-                  <Metric label="阻塞制作" value={aggregate.blocked} />
-                  <Metric label="平均进度" value={`${aggregate.avg}%`} />
-                </div>
+                <Badge variant="outline">{productions.length} 个制作</Badge>
               </div>
-
-              <div className="rounded-lg border border-border bg-card p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <ListChecks size={16} className="text-muted-foreground" />
-                      <h2 className="text-sm font-semibold text-foreground">当前预览挂载</h2>
-                    </div>
-                    <p className="mt-2 truncate text-sm font-medium text-foreground">{selected?.name ?? '暂无制作'}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">{selected?.source ?? '直接创建或从创作编排生成制作后开始统计'}</p>
-                  </div>
-                  <Badge variant={!selected || selected.blockers.length > 0 ? 'warning' : 'success'}>
-                    {!selected ? '未创建' : selected.blockers.length > 0 ? '有阻塞' : '可推进'}
-                  </Badge>
-                </div>
-                <div className="mt-4 flex items-end gap-3">
-                  <p className="text-3xl font-semibold tabular-nums text-foreground">{selected?.progress ?? 0}%</p>
-                  <div className="min-w-0 flex-1 pb-2">
-                    <Progress value={selected?.progress ?? 0} className="h-2" />
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-md border border-border bg-background p-2">
-                    <p className="text-muted-foreground">预览</p>
-                    <p className="mt-1 font-medium text-foreground">{selected ? unitMeta[selected.preview.status].label : '待处理'}</p>
-                  </div>
-                  <div className="rounded-md border border-border bg-background p-2">
-                    <p className="text-muted-foreground">成片</p>
-                    <p className="mt-1 font-medium text-foreground">{selected?.stats.finals ?? 0} 版</p>
-                  </div>
-                </div>
+              <div className="grid gap-3 md:grid-cols-4">
+                <Metric label="进行中" value={aggregate.active} />
+                <Metric label="已成片" value={aggregate.delivered} />
+                <Metric label="阻塞制作" value={aggregate.blocked} />
+                <Metric label="平均进度" value={`${aggregate.avg}%`} />
               </div>
             </section>
 
@@ -383,7 +349,7 @@ export default function ProductionPage() {
                     <ScrollText size={15} className="text-muted-foreground" />
                     <h2 className="text-sm font-semibold text-foreground">制作项</h2>
                   </div>
-                  <p className="text-xs text-muted-foreground">可从预览生成，也可以直接维护制作下的制作项结构</p>
+                  <p className="text-xs text-muted-foreground">制作项结构由内容编排工作台统一拆解、检查和推进。</p>
                 </div>
                 <div className="divide-y divide-border">
                   {selected.units.map((unit) => (
@@ -939,7 +905,7 @@ function contentUnitStatus(status: unknown, blocked: boolean): UnitStatus {
 }
 
 function nextActionsForProduction(input: { blockedUnits: number; units: number; deliveryVersions: number; keyframes: number }) {
-  if (input.units === 0) return ['创建或导入制作项。', '为制作项补充素材需求。', '建立预览时间线或直接开始制作项生成。']
+  if (input.units === 0) return ['创建或导入制作项。', '为制作项补充素材需求。', '进入内容编排拆解制作项。']
   if (input.blockedUnits > 0) return ['先补齐阻塞制作项的素材需求。', '锁定关键设定资料和素材资源。', '再进入生成候选与选片。']
   if (input.deliveryVersions === 0) return ['生成正式候选。', '选择可进入成片时间线的版本。', '创建第一版成片并进入交付检查。']
   return ['复核成片版本。', '归档生成记录和审核意见。', '准备导出或交付。']
@@ -948,6 +914,7 @@ function nextActionsForProduction(input: { blockedUnits: number; units: number; 
 function productionNextActionHref(action: string, production: ProductionRecord) {
   const lower = action.toLowerCase()
   if (action.includes('素材') || action.includes('资料')) return withRouteParams(ROUTES.project.preProduction, { tab: 'assets', production_id: production.dbId })
+  if (action.includes('内容编排')) return productionContentWorkbenchHref(production)
   if (action.includes('预览') || action.includes('时间线')) return ROUTES.project.segments
   if (action.includes('内容') || action.includes('候选') || action.includes('选片')) return withRouteParams(ROUTES.project.contentUnits, { production_id: production.dbId })
   if (action.includes('成片') || action.includes('交付') || action.includes('导出') || action.includes('审核')) return deliveryHref(production)

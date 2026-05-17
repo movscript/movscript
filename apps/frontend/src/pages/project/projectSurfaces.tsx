@@ -115,8 +115,8 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
   },
   {
     key: 'production',
-    title: '内容制作',
-    shortTitle: '生产',
+    title: '制作执行',
+    shortTitle: '执行',
     href: ROUTES.project.production,
     icon: Wand2,
     purpose: '组织镜头关键帧、视频候选、返工意见和采用决策。',

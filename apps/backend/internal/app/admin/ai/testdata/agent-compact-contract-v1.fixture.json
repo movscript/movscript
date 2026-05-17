@@ -1,7 +1,6 @@
 {
   "contract_version": 1,
-  "id": 42,
-  "model_config_id": 42,
+  "model_id": "video.draft",
   "display_name": "Draft Video",
   "short_name": "draft-video",
   "logical_model_id": "video.draft",

@@ -66,7 +66,7 @@ function readText(filePath) {
 }
 
 function verifySchemaAnchor(value) {
-  const requiredTopFields = ['contract_version', 'input_requirements', 'supported_param_keys', 'supported_params']
+  const requiredTopFields = ['contract_version', 'model_id', 'input_requirements', 'supported_param_keys', 'supported_params']
   if (value?.title !== 'Agent compact model parameter contract v1') {
     errors.push('schema title must describe agent compact contract v1')
   }
@@ -78,7 +78,7 @@ function verifySchemaAnchor(value) {
   }
   const props = value?.properties
   for (const field of [
-    'id', 'model_config_id', 'display_name', 'short_name', 'logical_model_id', 'capabilities', 'accepts_image_input',
+    'model_id', 'display_name', 'short_name', 'logical_model_id', 'capabilities', 'accepts_image_input',
     'input_requirements', 'supported_param_keys', 'supported_params', 'params_schema_loaded', 'params_schema_rule_count',
   ]) {
     if (!props?.[field]) errors.push(`schema missing compact contract field "${field}"`)
@@ -319,7 +319,7 @@ function verifyListModelsToolOutputSchema(toolValue, pathLabel) {
     return
   }
   for (const field of [
-    'contract_version', 'id', 'model_config_id', 'display_name', 'short_name', 'logical_model_id', 'capabilities', 'accepts_image_input',
+    'contract_version', 'model_id', 'display_name', 'short_name', 'logical_model_id', 'capabilities', 'accepts_image_input',
     'input_requirements', 'supported_param_keys', 'supported_params', 'params_schema_loaded', 'params_schema_rule_count',
   ]) {
     if (!contractProps[field]) errors.push(`${pathLabel}.outputSchema.model_contracts missing field "${field}"`)
@@ -381,12 +381,11 @@ function verifyContract(contract, pathLabel) {
     return
   }
   assertAllowedKeys(contract, pathLabel, [
-    'contract_version', 'id', 'model_config_id', 'display_name', 'short_name', 'logical_model_id', 'capabilities', 'accepts_image_input',
+    'contract_version', 'model_id', 'display_name', 'short_name', 'logical_model_id', 'capabilities', 'accepts_image_input',
     'input_requirements', 'supported_param_keys', 'supported_params', 'params_schema_loaded', 'params_schema_rule_count',
   ])
   if (contract.contract_version !== 1) errors.push(`${pathLabel}.contract_version must be 1`)
-  if (contract.id !== undefined && (!Number.isInteger(contract.id) || contract.id < 1)) errors.push(`${pathLabel}.id must be an integer >= 1`)
-  if (contract.model_config_id !== undefined && (!Number.isInteger(contract.model_config_id) || contract.model_config_id < 1)) errors.push(`${pathLabel}.model_config_id must be an integer >= 1`)
+  if (!nonEmptyString(contract.model_id)) errors.push(`${pathLabel}.model_id must be a non-empty string`)
   for (const key of ['display_name', 'short_name', 'logical_model_id']) {
     if (contract[key] !== undefined && !nonEmptyString(contract[key])) errors.push(`${pathLabel}.${key} must be a non-empty string`)
   }
@@ -401,7 +400,7 @@ function verifyContract(contract, pathLabel) {
     errors.push(`${pathLabel}.params_schema_rule_count must be an integer >= 0`)
   }
   if (pathLabel === '$') {
-    for (const field of ['id', 'model_config_id', 'display_name', 'logical_model_id', 'capabilities', 'accepts_image_input', 'params_schema_loaded', 'params_schema_rule_count']) {
+    for (const field of ['model_id', 'display_name', 'logical_model_id', 'capabilities', 'accepts_image_input', 'params_schema_loaded', 'params_schema_rule_count']) {
       if (contract[field] === undefined) errors.push(`${pathLabel}.${field} must be present in the canonical fixture`)
     }
   }

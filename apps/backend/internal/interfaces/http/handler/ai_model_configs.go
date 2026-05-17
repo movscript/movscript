@@ -97,6 +97,8 @@ func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 		ModelIDOverride       *string  `json:"model_id_override"`
 		IsEnabled             *bool    `json:"is_enabled"`
 		Priority              *int     `json:"priority"`
+		CapacityWeight        *int     `json:"capacity_weight"`
+		MaxConcurrency        *int     `json:"max_concurrency"`
 		CreditsInputPer1M     *float64 `json:"credits_input_per_1m"`
 		CreditsOutputPer1M    *float64 `json:"credits_output_per_1m"`
 		CreditsPerImage       *float64 `json:"credits_per_image"`
@@ -121,6 +123,8 @@ func (h *AIHandler) PatchModelConfig(c *gin.Context) {
 		ModelIDOverride:       req.ModelIDOverride,
 		IsEnabled:             req.IsEnabled,
 		Priority:              req.Priority,
+		CapacityWeight:        req.CapacityWeight,
+		MaxConcurrency:        req.MaxConcurrency,
 		CreditsInputPer1M:     req.CreditsInputPer1M,
 		CreditsOutputPer1M:    req.CreditsOutputPer1M,
 		CreditsPerImage:       req.CreditsPerImage,
@@ -244,6 +248,8 @@ func modelConfigAuditMetadata(cfg domainai.ModelConfig) map[string]any {
 		"model_id_override":   cfg.ModelIDOverride,
 		"is_enabled":          cfg.IsEnabled,
 		"priority":            cfg.Priority,
+		"capacity_weight":     cfg.CapacityWeight,
+		"max_concurrency":     cfg.MaxConcurrency,
 		"custom_display_name": cfg.CustomDisplayName,
 		"short_name":          cfg.ShortName,
 		"custom_capabilities": cfg.CustomCapabilities,

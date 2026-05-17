@@ -1,7 +1,7 @@
 export type GenerationParamValue = string | number | boolean
 
 export interface BuildGenerationJobPayloadInput {
-  modelConfigId: number
+  modelId: string
   jobType: string
   title: string
   prompt: string
@@ -17,7 +17,7 @@ export function buildGenerationJobPayload(input: BuildGenerationJobPayloadInput)
     remainingParams.duration = duration
   }
   return {
-    model_config_id: input.modelConfigId,
+    model_id: input.modelId.trim(),
     job_type: input.jobType,
     title: input.title,
     prompt: input.prompt.trim(),

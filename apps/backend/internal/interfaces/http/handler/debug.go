@@ -169,6 +169,18 @@ func (h *DebugHandler) SystemHealth(c *gin.Context) {
 	c.JSON(http.StatusOK, buildSystemHealth(observability.DefaultHTTPMetrics().Snapshot(), stats, thresholds))
 }
 
+func (h *DebugHandler) ModelRuntimeHealth(c *gin.Context) {
+	items, err := ai.RuntimeProviderHealthSnapshot(h.db)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, api.Internal("读取模型运行时健康状态失败"))
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"items": items,
+		"total": len(items),
+	})
+}
+
 func (h *DebugHandler) GetHealthSettings(c *gin.Context) {
 	thresholds, err := h.settings.SystemHealthThresholds(c.Request.Context())
 	if err != nil {

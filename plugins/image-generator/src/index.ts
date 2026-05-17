@@ -3,7 +3,7 @@ import type { ExecutableSpec, MovRuntime, ToolResult } from '@movscript/plugin-s
 interface PluginArgs {
   prompt: string
   negative_prompt?: string
-  model_config_id?: number | string
+  model_id?: string
   reference_resource_ids?: string
   aspect_ratio?: string
   image_size?: string
@@ -40,12 +40,11 @@ function buildRequest(args: PluginArgs) {
 
 export function compile(args: PluginArgs): ExecutableSpec {
   const { prompt, refIds, isEdit, aspectRatio, extraParams } = buildRequest(args)
-  const modelConfigId = Number(args.model_config_id)
   return {
     executor: 'ai_model',
     capability: isEdit ? 'image_edit' : 'image',
     featureKey: 'plugin.image_generator',
-    modelDbId: Number.isFinite(modelConfigId) ? modelConfigId : undefined,
+    modelId: String(args.model_id ?? '').trim() || undefined,
     prompt,
     inputResourceIds: refIds,
     aspectRatio,
@@ -56,21 +55,22 @@ export function compile(args: PluginArgs): ExecutableSpec {
 export async function run(mov: MovRuntime, args: PluginArgs): Promise<ToolResult> {
   const { prompt, refIds, isEdit, aspectRatio, timeoutMs, extraParams } = buildRequest(args)
 
-  let modelConfigId = Number(args.model_config_id)
-  if (!modelConfigId || !Number.isFinite(modelConfigId)) {
+  let modelId = String(args.model_id ?? '').trim()
+  if (!modelId) {
     const capability = isEdit ? 'image_edit' : 'image'
     const models = await mov.models(capability)
     if (models.length === 0) {
       const fallback = await mov.models(isEdit ? 'image' : 'image_edit')
       if (fallback.length === 0) throw new Error('没有可用的图像模型配置，请在管理后台添加')
-      modelConfigId = fallback[0].id
+      modelId = fallback[0].model_id || fallback[0].logical_model_id || ''
     } else {
-      modelConfigId = models[0].id
+      modelId = models[0].model_id || models[0].logical_model_id || ''
     }
   }
+  if (!modelId) throw new Error('没有可用的图像模型 ID，请在管理后台检查模型配置')
 
   const job = await mov.generateMedia({
-    model_config_id: modelConfigId,
+    model_id: modelId,
     job_type: isEdit ? 'image_edit' : 'image',
     feature_key: 'plugin.image_generator',
     prompt,

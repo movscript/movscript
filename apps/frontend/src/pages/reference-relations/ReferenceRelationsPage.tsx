@@ -453,7 +453,7 @@ export default function ReferenceRelationsPage({ embedded = false, initialView =
               <GitBranch size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ArrowRight size={13} />
-              <span>内容区</span>
+              <span>生产对象</span>
               <ArrowRight size={13} />
               <span>引用关系</span>
             </div>

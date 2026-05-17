@@ -7,6 +7,8 @@ const WATCH_ROOTS = ['src', 'catalog']
 const WATCH_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.json'])
 const POLL_MS = Number(process.env.MOVSCRIPT_AGENT_DEV_POLL_MS || 700)
 const parentPid = Number(process.env.MOVSCRIPT_AGENT_PARENT_PID || 0)
+const HOT_RELOAD_ENABLED = process.env.MOVSCRIPT_AGENT_HOT_RELOAD === '1'
+console.info(`[agent:dev] hot reload ${HOT_RELOAD_ENABLED ? 'enabled' : 'disabled'} (set MOVSCRIPT_AGENT_HOT_RELOAD=1 to enable)`)
 
 let child = null
 let snapshot = new Map()
@@ -32,7 +34,8 @@ function startAgent() {
       console.info(`[agent:dev] child exited code=${code ?? 'null'} signal=${signal ?? 'null'} elapsedMs=${elapsedMs} (shutdown in progress)`)
       return
     }
-    console.info(`[agent:dev] child exited code=${code ?? 'null'} signal=${signal ?? 'null'} elapsedMs=${elapsedMs}; waiting for file changes`)
+    const restartMode = HOT_RELOAD_ENABLED ? 'waiting for file changes' : 'manual restart only'
+    console.info(`[agent:dev] child exited code=${code ?? 'null'} signal=${signal ?? 'null'} elapsedMs=${elapsedMs}; ${restartMode}`)
     child = null
     if (!restarting && code && elapsedMs < 3_000) {
       console.warn(`[agent:dev] child exited with code=${code} after only ${elapsedMs}ms; propagating exit (no restart). Inspect the agent stdout/stderr above for the real cause.`)
@@ -156,11 +159,13 @@ async function shutdown(signal) {
   process.exit(getSignalExitCode(signal))
 }
 
-snapshot = await collectSnapshot()
 startAgent()
-timer = setInterval(() => {
-  void tick()
-}, POLL_MS)
+if (HOT_RELOAD_ENABLED) {
+  snapshot = await collectSnapshot()
+  timer = setInterval(() => {
+    void tick()
+  }, POLL_MS)
+}
 
 if (parentPid) {
   parentTimer = setInterval(() => {

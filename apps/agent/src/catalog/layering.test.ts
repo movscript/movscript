@@ -308,7 +308,7 @@ test('asset candidate preparation is separated from generation execution', () =>
     ? listModelsOutputProperties.model_contracts.items
     : {}
   const listModelsContractProperties = schemaProperties(listModelsContract)
-  assert.ok(listModelsContractProperties.model_config_id)
+  assert.ok(listModelsContractProperties.model_id)
   assert.ok(listModelsContractProperties.logical_model_id)
   assert.ok(listModelsContractProperties.capabilities)
   assert.ok(listModelsContractProperties.input_requirements)

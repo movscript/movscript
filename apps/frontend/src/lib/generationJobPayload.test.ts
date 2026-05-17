@@ -5,7 +5,7 @@ import { buildGenerationJobPayload } from './generationJobPayload'
 
 test('buildGenerationJobPayload promotes numeric duration and aspect ratio', () => {
   assert.deepEqual(buildGenerationJobPayload({
-    modelConfigId: 42,
+    modelId: 'video.draft',
     jobType: 'video',
     title: 'Video job',
     prompt: ' make a shot ',
@@ -13,7 +13,7 @@ test('buildGenerationJobPayload promotes numeric duration and aspect ratio', () 
     inputResourceIds: [7],
     featureKey: 'tool.video',
   }), {
-    model_config_id: 42,
+    model_id: 'video.draft',
     job_type: 'video',
     title: 'Video job',
     prompt: 'make a shot',
@@ -27,7 +27,7 @@ test('buildGenerationJobPayload promotes numeric duration and aspect ratio', () 
 
 test('buildGenerationJobPayload keeps non numeric duration in extra params', () => {
   assert.deepEqual(buildGenerationJobPayload({
-    modelConfigId: 42,
+    modelId: 'video.draft',
     jobType: 'video',
     title: 'Video job',
     prompt: 'make a shot',
@@ -35,7 +35,7 @@ test('buildGenerationJobPayload keeps non numeric duration in extra params', () 
     inputResourceIds: [],
     featureKey: 'tool.video',
   }), {
-    model_config_id: 42,
+    model_id: 'video.draft',
     job_type: 'video',
     title: 'Video job',
     prompt: 'make a shot',

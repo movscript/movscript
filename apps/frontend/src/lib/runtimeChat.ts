@@ -13,14 +13,13 @@ export type RuntimeModelAPIKind =
   | 'anthropic_messages'
 
 export async function syncRuntimeModelConfig(
-  modelConfigId: number | null | undefined,
-  modelName?: string,
+  modelId?: string | null,
   options: { apiKind?: RuntimeModelAPIKind; baseURL?: string } = {},
 ): Promise<void> {
-  if (typeof modelConfigId !== 'number' || !Number.isInteger(modelConfigId) || modelConfigId <= 0) return
+  const model = modelId?.trim()
+  if (!model) return
   await localAgentClient.saveModelConfig({
-    modelConfigId,
-    model: modelName?.trim() || `model_config:${modelConfigId}`,
+    model,
     ...(options.apiKind ? { apiKind: options.apiKind } : {}),
     ...(options.baseURL?.trim() ? { baseURL: options.baseURL.trim() } : {}),
     useForChat: true,
@@ -32,8 +31,7 @@ export async function runRuntimeMessage(input: {
   message: string
   title: string
   clientInput?: AgentClientInput
-  modelConfigId?: number | null
-  modelName?: string
+  modelId?: string | null
   modelAPIKind?: RuntimeModelAPIKind
   modelBaseURL?: string
   threadId?: string
@@ -46,7 +44,7 @@ export async function runRuntimeMessage(input: {
   sessionTaskType?: string
 }): Promise<RunMessageResult> {
   await localAgentClient.ensureRunning()
-  await syncRuntimeModelConfig(input.modelConfigId, input.modelName, {
+  await syncRuntimeModelConfig(input.modelId, {
     ...(input.modelAPIKind ? { apiKind: input.modelAPIKind } : {}),
     ...(input.modelBaseURL ? { baseURL: input.modelBaseURL } : {}),
   })

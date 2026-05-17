@@ -1,6 +1,7 @@
 import { api } from '@/lib/api'
 import type { CanvasExecutableSpec, CanvasPortDef, PublicModel, RawResource } from '@/types'
 import { createMcpTools, type McpTools } from '@/lib/mcpTools'
+import { publicModelId } from '@/lib/modelDisplay'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ export interface ClientPluginResult {
 export type GenerateMediaJobType = 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
 
 export interface GenerateMediaRequest {
-  model_config_id: number
+  model_id?: string
   title?: string
   prompt: string
   job_type?: GenerateMediaJobType
@@ -407,11 +408,12 @@ export async function generateImageViaRuntime(req: GenerateImageRequest): Promis
 export async function generateMediaViaRuntime(req: GenerateMediaRequest): Promise<unknown> {
   const inputIDs = req.input_resource_ids ?? []
   const jobType = req.job_type ?? (inputIDs.length > 0 ? 'image_edit' : 'image')
+  const modelId = await resolveRuntimeModelId(req, jobType)
   const title = typeof req.title === 'string' && req.title.trim()
     ? req.title.trim()
     : defaultGenerationJobTitle(jobType)
   const created = await api.post('/jobs', {
-    model_config_id: req.model_config_id,
+    model_id: modelId,
     job_type: jobType,
     feature_key: req.feature_key ?? 'client_plugin',
     title,
@@ -433,6 +435,16 @@ export async function generateMediaViaRuntime(req: GenerateMediaRequest): Promis
     if (Date.now() - started > timeout) throw new Error('generation job timed out')
     await new Promise((resolve) => setTimeout(resolve, 2000))
   }
+}
+
+async function resolveRuntimeModelId(req: GenerateMediaRequest, jobType: GenerateMediaJobType): Promise<string | undefined> {
+  if (typeof req.model_id === 'string' && req.model_id.trim()) return req.model_id.trim()
+  const legacyID = Number((req as { model_config_id?: unknown }).model_config_id)
+  if (!Number.isInteger(legacyID) || legacyID <= 0) return undefined
+  const capability = jobType === 'image_edit' ? 'image_edit' : jobType.startsWith('video') ? 'video' : 'image'
+  const models = await api.get(`/models?capability=${encodeURIComponent(capability)}`).then((r) => r.data as PublicModel[])
+  const model = models.find((item) => item.id === legacyID)
+  return model ? publicModelId(model) : undefined
 }
 
 function defaultGenerationJobTitle(jobType: GenerateMediaJobType): string {
@@ -460,7 +472,7 @@ export const SAMPLE_REF_IMAGE_PLUGIN = JSON.stringify({
     required: ['prompt'],
     properties: {
       prompt: { type: 'string', title: '提示词', description: '描述要生成的画面' },
-      model_config_id: { type: 'number', title: '模型配置 ID', description: '可选。不填时自动选择可用图像模型' },
+      model_id: { type: 'string', title: '模型', description: '可选。不填时自动选择可用图像模型', 'x-widget': 'model-selector', 'x-capability': 'image' },
       reference_resource_ids: { type: 'string', title: '参考资源 ID', description: '可选。多个 ID 用英文逗号分隔' },
       aspect_ratio: { type: 'string', title: '画幅', enum: ['1:1', '16:9', '9:16', '4:3', '3:4'], default: '1:1' },
       image_size: { type: 'string', title: '尺寸', default: '1024x1024' },
@@ -472,10 +484,10 @@ export const SAMPLE_REF_IMAGE_PLUGIN = JSON.stringify({
     .split(',').map((s) => Number(s.trim())).filter((id) => Number.isFinite(id) && id > 0)
   const capability = refIds.length > 0 ? 'image_edit' : 'image'
   const models = await mov.models(capability)
-  const modelConfigId = Number(args.model_config_id || models[0]?.id)
-  if (!modelConfigId) throw new Error('没有可用的图像模型配置')
+  const modelId = String(args.model_id || models[0]?.model_id || models[0]?.logical_model_id || '')
+  if (!modelId) throw new Error('没有可用的图像模型配置')
   const job = await mov.generateImage({
-    model_config_id: modelConfigId,
+    model_id: modelId,
     title: '参考生图-' + Math.floor(1000 + Math.random() * 9000),
     job_type: refIds.length > 0 ? 'image_edit' : 'image',
     feature_key: 'client_plugin.ref_image',

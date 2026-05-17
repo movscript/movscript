@@ -75,6 +75,7 @@ type ExecutableSpec struct {
 	Executor         string         `json:"executor"`
 	Capability       string         `json:"capability"`
 	FeatureKey       string         `json:"featureKey,omitempty"`
+	ModelID          string         `json:"modelId,omitempty"`
 	ModelDbID        uint           `json:"modelDbId,omitempty"`
 	PluginToolKey    string         `json:"pluginToolKey,omitempty"`
 	Prompt           string         `json:"prompt,omitempty"`

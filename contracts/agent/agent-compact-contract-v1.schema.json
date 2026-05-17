@@ -5,14 +5,14 @@
   "additionalProperties": false,
   "required": [
     "contract_version",
+    "model_id",
     "input_requirements",
     "supported_param_keys",
     "supported_params"
   ],
   "properties": {
     "contract_version": { "const": 1 },
-    "id": { "type": "integer", "minimum": 1 },
-    "model_config_id": { "type": "integer", "minimum": 1 },
+    "model_id": { "type": "string", "minLength": 1 },
     "display_name": { "type": "string", "minLength": 1 },
     "short_name": { "type": "string", "minLength": 1 },
     "logical_model_id": { "type": "string", "minLength": 1 },

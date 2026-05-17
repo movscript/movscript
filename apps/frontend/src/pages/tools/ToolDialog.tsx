@@ -21,6 +21,7 @@ import {
   CardContent,
 } from '@movscript/ui'
 import { cn } from '@/lib/utils'
+import { publicModelId } from '@/lib/modelDisplay'
 import { buildGenerationJobPayload } from '@/lib/generationJobPayload'
 import { useTranslation } from 'react-i18next'
 
@@ -387,7 +388,7 @@ export function ToolDialog({
   }
 
   async function generate() {
-    if (!prompt.trim() || !selectedModelId) return
+    if (!prompt.trim() || !selectedModel) return
     // Derive the exact job_type from model capabilities and provided inputs.
     const caps = selectedModel?.capabilities ?? []
     let effectiveJobType: string = outputType
@@ -409,7 +410,7 @@ export function ToolDialog({
 
     try {
       const job = await api.post('/jobs', buildGenerationJobPayload({
-        modelConfigId: selectedModelId,
+        modelId: publicModelId(selectedModel),
         jobType: effectiveJobType,
         title: buildGenerationJobTitle(effectiveJobType),
         prompt,
@@ -434,7 +435,7 @@ export function ToolDialog({
   )
   // Fallback: if no model is selected yet but the tool demands media input, require at least one attachment.
   const fallbackInputRequired = selectedModel == null && (inputType === 'image' || inputType === 'image+video' || inputType === 'video')
-  const canGenerate = !isRunning && !!prompt.trim() && !!selectedModelId &&
+  const canGenerate = !isRunning && !!prompt.trim() && !!selectedModel &&
     (requiredSlots.length > 0 ? slotsAreFilled : (!fallbackInputRequired || attachments.length > 0))
   const supportedParams = selectedModel?.supported_params ?? []
 

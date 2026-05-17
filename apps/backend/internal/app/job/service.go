@@ -104,6 +104,7 @@ type CreateInput struct {
 type EnqueueInput struct {
 	UserID           uint
 	OrgID            *uint
+	ModelID          string
 	ModelConfigID    uint
 	JobType          string
 	FeatureKey       string
@@ -167,12 +168,12 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 		return domainjob.Job{}, wrapErr(ErrLoadInputResources, err)
 	}
 
-	runtimeModelConfigID, err := s.ai.ResolveRuntimeGenerationModel(input.ModelConfigID, input.JobType)
+	route, err := s.resolveGenerationModelRoute(input)
 	if err != nil {
 		return domainjob.Job{}, err
 	}
 	preflight, err := s.ai.PreflightGeneration(ai.GenerationPreflightRequest{
-		ModelConfigID: runtimeModelConfigID,
+		ModelConfigID: route.ModelConfigID,
 		OutputType:    input.JobType,
 		ExtraParams:   input.ExtraParams,
 		AspectRatio:   input.AspectRatio,
@@ -254,6 +255,17 @@ func (s *Service) EnqueueGeneration(ctx context.Context, input EnqueueInput) (do
 	}
 	_ = s.ai.SetReservationJob(ctx, reservation.ID, job.ID)
 	return job, nil
+}
+
+func (s *Service) resolveGenerationModelRoute(input EnqueueInput) (ai.ModelRoute, error) {
+	modelID := strings.TrimSpace(input.ModelID)
+	if modelID != "" {
+		return s.ai.ResolveGenerationModelRoute(modelID, input.JobType)
+	}
+	return s.ai.ResolveModelRoute(ai.ModelRouteRequest{
+		ModelConfigID: input.ModelConfigID,
+		Capability:    input.JobType,
+	})
 }
 
 func (s *Service) requireImageVerification(def *ai.ModelDef, resources []domainjob.InputResource) error {

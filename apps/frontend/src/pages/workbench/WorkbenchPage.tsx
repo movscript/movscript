@@ -839,7 +839,7 @@ function buildProductionMetrics(rows: ContentGenerationViewRow[], data?: Product
   const succeededJobs = data?.jobs.filter((job) => job.status === 'succeeded').length ?? 0
   return [
     { label: '制作项', value: String(rows.length), detail: 'content-units', icon: Boxes, status: rows.length > 0 ? 'review' : 'blocked' },
-    { label: '可生成', value: String(rows.filter((row) => row.missingSlots.length === 0 && firstText(row.unit.prompt, row.unit.description)).length), detail: '素材需求和提示已具备', icon: CheckCircle2, status: 'ready' },
+    { label: '可编排', value: String(rows.filter((row) => row.missingSlots.length === 0 && firstText(row.unit.prompt, row.unit.description)).length), detail: '素材需求和提示已具备', icon: CheckCircle2, status: 'ready' },
     { label: '阻塞制作项', value: String(rows.filter((row) => row.status === 'blocked').length), detail: '存在 missing 素材需求', icon: AlertTriangle, status: rows.some((row) => row.status === 'blocked') ? 'blocked' : 'ready' },
     { label: '视频任务', value: String(runningJobs || succeededJobs), detail: runningJobs > 0 ? '有任务运行中' : '已完成任务', icon: Film, status: runningJobs > 0 ? 'running' : succeededJobs > 0 ? 'ready' : 'review' },
   ]
@@ -850,10 +850,10 @@ function buildMomentMetrics(rows: ContentGenerationMomentRow[], data?: Productio
   const uncoveredMoments = rows.filter((row) => row.units.length === 0).length
   const totalUnits = rows.reduce((sum, row) => sum + row.units.length, 0)
   return [
-    { label: '情节', value: String(rows.length), detail: '生成工作台的入口层', icon: Route, status: rows.length > 0 ? 'review' : 'blocked' },
+    { label: '情节', value: String(rows.length), detail: '内容编排的入口层', icon: Route, status: rows.length > 0 ? 'review' : 'blocked' },
     { label: '已有制作项', value: String(totalUnits), detail: '情节下面的制作项', icon: Boxes, status: totalUnits > 0 ? 'ready' : 'blocked' },
-    { label: '可直接生成', value: String(readyMoments), detail: '情节、制作项和素材输入都已接上', icon: CheckCircle2, status: readyMoments > 0 ? 'ready' : 'review' },
-    { label: '待拆制作项', value: String(uncoveredMoments), detail: '还没有生成制作项的情节', icon: Wand2, status: uncoveredMoments > 0 ? 'blocked' : 'ready' },
+    { label: '可执行', value: String(readyMoments), detail: '情节、制作项和素材输入都已接上', icon: CheckCircle2, status: readyMoments > 0 ? 'ready' : 'review' },
+    { label: '待拆制作项', value: String(uncoveredMoments), detail: '还没有拆出制作项的情节', icon: Wand2, status: uncoveredMoments > 0 ? 'blocked' : 'ready' },
   ]
 }
 
@@ -1228,7 +1228,7 @@ function buildMomentContext(row: ContentGenerationMomentRow | null): WorkbenchLi
     { label: '动作与情绪', value: [moment.condition_text, moment.action_text, moment.mood].filter(Boolean).join(' / ') || '未填写条件、动作或情绪', icon: Film },
     { label: '设定资料', value: summarizeRecordNames(row.references, '尚未关联设定资料'), icon: Users },
     { label: '素材输入', value: summarizeAssetSlots(row.assetSlots, '尚未关联素材输入'), icon: PackageCheck },
-    { label: '制作项', value: row.units.length > 0 ? `${row.units.length} 个，${row.units.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未生成制作项', icon: Boxes },
+    { label: '制作项', value: row.units.length > 0 ? `${row.units.length} 个，${row.units.slice(0, 2).map(titleOfRecord).join('、')}` : '尚未拆出制作项', icon: Boxes },
   ]
 }
 
@@ -1239,7 +1239,7 @@ function buildProductionStandards(row: ContentGenerationViewRow | null, jobs: Jo
   const hasKeyframe = row.keyframes.length > 0
   const hasJob = jobs.length > 0 || row.unit.status === 'locked'
   return [
-    { label: '内容目标明确', detail: hasTarget ? '已有 description 或 prompt' : '需要补充内容目标或生成提示', done: hasTarget, tone: hasTarget ? 'success' : 'warning' },
+    { label: '创作目标明确', detail: hasTarget ? '已有描述或创作提示' : '需要补充创作目标或用途说明', done: hasTarget, tone: hasTarget ? 'success' : 'warning' },
     { label: '素材需求输入可用', detail: assetsReady ? '没有 missing 素材需求' : `${row.missingSlots.length} 个素材需求缺口阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
     { label: '画面锚点具备', detail: hasKeyframe ? `${row.keyframes.length} 个画面锚点可用` : '建议先生成或绑定开头、结尾等画面锚点', done: hasKeyframe, tone: hasKeyframe ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务或内容已锁定' : '还没有当前项目的视频生成任务', done: hasJob, tone: hasJob ? 'success' : 'warning' },
@@ -1256,7 +1256,7 @@ function buildMomentStandards(row: ContentGenerationMomentRow | null, jobs: Job[
   return [
     { label: '情节上下文明确', detail: hasStoryContext ? '已有情节描述、动作或时空条件' : '需要补齐情节描述、动作、时间或地点', done: hasStoryContext, tone: hasStoryContext ? 'success' : 'warning' },
     { label: '制作项存在', detail: hasUnits ? `${row.units.length} 个制作项可继续拆分` : '还没有制作项，先手动创建或让 AI 规划制作项', done: hasUnits, tone: hasUnits ? 'success' : 'warning' },
-    { label: '制作项提示可用', detail: hasUnitPrompt ? '已有 description 或 prompt，可直接驱动生成' : '需要为制作项补上生成提示或用途说明', done: hasUnitPrompt, tone: hasUnitPrompt ? 'success' : 'warning' },
+    { label: '制作项提示可用', detail: hasUnitPrompt ? '已有描述或创作提示，可驱动后续执行' : '需要为制作项补上创作提示或用途说明', done: hasUnitPrompt, tone: hasUnitPrompt ? 'success' : 'warning' },
     { label: '素材输入就绪', detail: assetsReady ? '没有未处理的素材缺口' : `${row.missingSlots.length} 个素材缺口仍在阻塞`, done: assetsReady, tone: assetsReady ? 'success' : 'warning' },
     { label: '生成记录可追溯', detail: hasJob ? '已有项目生成任务记录' : '当前项目还没有生成任务记录', done: hasJob, tone: hasJob ? 'success' : 'warning' },
   ]
@@ -2506,13 +2506,16 @@ function ReadinessSummaryCard({ rows }: { rows: WorkbenchGate[] }) {
   )
 }
 
-function UnitHealthCard({ health }: { health: ContentWorkbenchUnitHealth }) {
-  const badgeVariant = health.tone === 'done' || health.tone === 'ready'
+function unitHealthBadgeVariant(health: ContentWorkbenchUnitHealth) {
+  return health.tone === 'done' || health.tone === 'ready'
     ? 'success'
     : health.tone === 'blocked' || health.tone === 'warning'
       ? 'warning'
       : 'outline'
-  const statusLabel = health.tone === 'done'
+}
+
+function unitHealthStatusLabel(health: ContentWorkbenchUnitHealth) {
+  return health.tone === 'done'
     ? '已闭环'
     : health.tone === 'ready'
       ? '可执行'
@@ -2521,30 +2524,6 @@ function UnitHealthCard({ health }: { health: ContentWorkbenchUnitHealth }) {
         : health.tone === 'warning'
           ? '待推进'
           : '未选择'
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5',
-        health.tone === 'done' || health.tone === 'ready'
-          ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
-          : health.tone === 'blocked' || health.tone === 'warning'
-            ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
-            : 'border-border bg-background',
-      )}
-      data-testid="content-workbench-unit-health"
-    >
-      <div className="flex min-w-0 items-center gap-2">
-        {health.tone === 'done' || health.tone === 'ready'
-          ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
-          : <ShieldCheck size={15} className="shrink-0 text-muted-foreground" />}
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">{health.title}</p>
-          <p className="truncate text-xs text-muted-foreground">{health.detail}</p>
-        </div>
-      </div>
-      <Badge variant={badgeVariant} className="shrink-0" data-testid="content-workbench-unit-health-status">{statusLabel}</Badge>
-    </div>
-  )
 }
 
 function DeliveryBriefCard({
@@ -2573,18 +2552,15 @@ function DeliveryBriefCard({
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{brief.detail}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={brief.tone === 'ready' ? 'success' : brief.tone === 'blocked' ? 'warning' : 'outline'}>
-            {brief.progress}%
-          </Badge>
-        </div>
+        <Badge variant={brief.tone === 'ready' ? 'success' : brief.tone === 'blocked' ? 'warning' : 'outline'}>
+          {brief.progress === 100 ? '已闭环' : `${brief.progress}%`}
+        </Badge>
       </div>
-      <div className="mt-2 flex flex-wrap overflow-hidden rounded-md border border-border bg-card">
+      <div className="mt-1.5 flex flex-wrap gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
         {brief.metrics.map((metric) => (
-          <div key={metric.label} className="min-w-[72px] flex-1 border-b border-border/70 px-2 py-1.5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-            <p className="text-[10px] text-muted-foreground">{metric.label}</p>
-            <p className={cn('mt-0.5 truncate text-sm font-semibold', metric.done ? 'text-foreground' : 'text-amber-700 dark:text-amber-300')}>{metric.value}</p>
-          </div>
+          <span key={metric.label} className={cn('truncate', metric.done ? undefined : 'text-amber-700 dark:text-amber-300')}>
+            {metric.label} {metric.value}
+          </span>
         ))}
       </div>
       {primaryBlocker ? (
@@ -2596,7 +2572,6 @@ function DeliveryBriefCard({
           {brief.blockers.length > 1 ? <Badge variant="warning">另 {brief.blockers.length - 1}</Badge> : null}
         </div>
       ) : null}
-      {brief.progress > 0 ? <Progress value={brief.progress} className="mt-2 h-1.5" /> : null}
     </div>
   )
 }
@@ -3267,7 +3242,7 @@ function SettingPreparationWorkbench() {
                           value={draft.visualIntent}
                           onChange={(event) => setDraft({ ...draft, visualIntent: event.target.value })}
                           className="min-h-24 resize-none text-sm leading-6"
-                          placeholder="外观、材质、色彩、风格、禁止项和生成提示词要点。"
+                          placeholder="外观、材质、色彩、风格、禁止项和创作约束要点。"
                         />
                       </div>
 
@@ -4437,7 +4412,7 @@ function ContentGenerationWorkbench() {
                                     <Badge variant="outline" className="text-[10px]">{unit.kind || 'shot'}</Badge>
                                   </div>
                                   <p className="mt-1 truncate text-xs text-muted-foreground">
-                                    {firstText(unit.description, unit.prompt, '暂无描述或生成提示')}
+                                    {firstText(unit.description, unit.prompt, '暂无描述或创作提示')}
                                   </p>
                                   <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
                                     <span>时长 {formatDuration(unit.duration_sec)}</span>
@@ -4584,21 +4559,34 @@ function ContentGenerationWorkbench() {
                   ) : <Badge variant="warning">未选择制作项</Badge>}
                 >
                   {selectedUnit ? (
-                    <div className="mb-2.5 space-y-2" data-testid="content-workbench-current-unit-panel">
-                      <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 py-1.5" data-testid="content-workbench-generation-target">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <Target size={15} className="shrink-0 text-muted-foreground" />
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">{titleOfRecord(selectedUnit)}</p>
-                            <p className="truncate text-[11px] text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
+                    <div className="mb-2.5" data-testid="content-workbench-current-unit-panel">
+                      <div
+                        className={cn(
+                          'rounded-md border px-2.5 py-1.5',
+                          currentUnitHealth.tone === 'done' || currentUnitHealth.tone === 'ready'
+                            ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
+                            : currentUnitHealth.tone === 'blocked' || currentUnitHealth.tone === 'warning'
+                              ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20'
+                              : 'border-border bg-background',
+                        )}
+                        data-testid="content-workbench-generation-target"
+                      >
+                        <div className="flex items-center justify-between gap-2" data-testid="content-workbench-unit-health">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Target size={15} className="shrink-0 text-muted-foreground" />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-foreground">{titleOfRecord(selectedUnit)}</p>
+                              <p className="truncate text-[11px] text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或创作提示')}</p>
+                            </div>
                           </div>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
+                            <Badge variant="outline">{formatDuration(selectedUnit.duration_sec)}</Badge>
+                            <Badge variant={unitHealthBadgeVariant(currentUnitHealth)} data-testid="content-workbench-unit-health-status">{unitHealthStatusLabel(currentUnitHealth)}</Badge>
+                          </span>
                         </div>
-                        <span className="flex shrink-0 items-center gap-1.5">
-                          <Badge variant="outline">{selectedUnit.kind || 'shot'}</Badge>
-                          <Badge variant="outline">{formatDuration(selectedUnit.duration_sec)}</Badge>
-                        </span>
+                        <p className="mt-1 truncate text-[11px] text-muted-foreground">{currentUnitHealth.detail}</p>
                       </div>
-                      <UnitHealthCard health={currentUnitHealth} />
                     </div>
                   ) : (
                     <p className="mb-2.5 rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">从制作项轨道选择一个制作项后查看生成目标、健康度和检查状态。</p>
@@ -5320,7 +5308,7 @@ function useWorkbenchCanvasLauncher(kind?: CanvasWorkbenchKind) {
   return {
     disabled: !project?.ID || canvasesQuery.isLoading || createCanvas.isPending || !meta,
     loading: canvasesQuery.isLoading || createCanvas.isPending,
-    label: createCanvas.isPending ? '创建中' : existingCanvas ? '去生成' : '创建并去生成',
+    label: createCanvas.isPending ? '创建中' : existingCanvas ? '打开生成画布' : '创建生成画布',
     open: () => {
       if (!meta) return
       if (existingCanvas) {

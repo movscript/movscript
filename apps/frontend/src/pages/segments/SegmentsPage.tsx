@@ -409,7 +409,7 @@ export default function SegmentsPage() {
               <Database size={14} />
               <span>{project?.name ?? '当前项目'}</span>
               <ChevronRight size={13} />
-              <span>内容区</span>
+              <span>生产对象</span>
               <ChevronRight size={13} />
               <span>编排段</span>
             </div>
@@ -1063,7 +1063,7 @@ function ContentUnitDetail({ contentUnit, sceneMoment, scriptBlock }: { contentU
         <InfoBlock label="所属情景" value={sceneMoment ? titleOf(sceneMoment) : '未绑定情景'} />
         <InfoBlock label="来源剧本块" value={scriptBlock ? scriptBlockSourceLabel(scriptBlock) : contentUnit.script_block_id ? `剧本块 #${contentUnit.script_block_id}` : '未绑定剧本块'} />
         {scriptBlock ? <InfoBlock label="来源文本" value={String(scriptBlock.content ?? '').trim() || '暂无剧本块正文'} /> : null}
-        <InfoBlock label="生成提示" value={contentUnit.prompt || contentUnit.description || '暂无提示词'} />
+        <InfoBlock label="创作提示" value={contentUnit.prompt || contentUnit.description || '暂无提示词'} />
         <InfoBlock label="运镜" value={compactJoin([
           contentUnit.shot_size,
           contentUnit.camera_angle,

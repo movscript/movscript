@@ -140,7 +140,8 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok(listModels.outputSchema?.properties?.queries)
   assert.ok(listModels.outputSchema?.properties?.model_contracts)
   assert.ok(listModels.outputSchema?.properties?.models)
-  assert.ok((listModels.outputSchema?.properties?.model_contracts as any)?.items?.properties?.model_config_id)
+  assert.ok((listModels.outputSchema?.properties?.model_contracts as any)?.items?.properties?.model_id)
+  assert.equal((listModels.outputSchema?.properties?.model_contracts as any)?.items?.properties?.model_config_id, undefined)
   assert.ok((listModels.outputSchema?.properties?.model_contracts as any)?.items?.properties?.logical_model_id)
   assert.ok((listModels.outputSchema?.properties?.model_contracts as any)?.items?.properties?.capabilities)
   assert.ok((listModels.outputSchema?.properties?.model_contracts as any)?.items?.properties?.input_requirements)
@@ -156,6 +157,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
   assert.ok(createJob.inputSchema.properties?.reference_type)
   assert.ok(createJob.inputSchema.properties?.aspect_ratio)
   assert.ok(createJob.inputSchema.properties?.duration)
+  assert.equal(createJob.inputSchema.properties?.model_config_id, undefined)
   assert.ok(createJob.outputSchema?.properties?.status)
   assert.ok(createJob.outputSchema?.properties?.job)
   assert.ok(createJob.outputSchema?.properties?.jobId)
@@ -192,7 +194,7 @@ test('generation MCP tool descriptions expose versioned agent contracts', () => 
       `movscript_list_models ${field} output schema should match the static agent catalog`,
     )
   }
-  for (const field of ['title', 'job_type', 'model_config_id', 'input_resource_ids', 'reference_type', 'aspect_ratio', 'duration', 'feature_key', 'timeout_ms', 'poll_interval_ms']) {
+  for (const field of ['title', 'job_type', 'model_id', 'input_resource_ids', 'reference_type', 'aspect_ratio', 'duration', 'feature_key', 'timeout_ms', 'poll_interval_ms']) {
     assert.deepEqual(
       schemaShapeWithoutDescriptions(createJob.inputSchema.properties?.[field]),
       schemaShapeWithoutDescriptions(staticCreateJob.inputSchema.properties?.[field]),
@@ -586,7 +588,7 @@ test('listModels returns raw models plus compact agent contracts from backend mo
     assert.equal(result.models.length, 1)
     assert.equal(result.model_contracts.length, 1)
     assert.deepEqual(agentCompactContractFields(result.model_contracts[0]), loadAgentCompactContractFixture())
-    assert.equal(result.model_contracts[0].model_config_id, 42)
+    assert.equal(result.model_contracts[0].model_config_id, undefined)
     assert.equal(result.model_contracts[0].params_schema_loaded, true)
     assert.equal(result.model_contracts[0].params_schema_rule_count, 1)
   } finally {
@@ -606,15 +608,15 @@ test('listModels treats common generation feature aliases as capabilities', asyn
   try {
     const imageEdit = await listModels({ feature: 'image_to_image' }) as Record<string, any>
     assert.deepEqual(imageEdit.queries, ['capability:image_edit'])
-    assert.equal(imageEdit.model_contracts[0].model_config_id, 41)
+    assert.equal(imageEdit.model_contracts[0].model_id, 'model.41')
 
     const textToImage = await listModels({ feature_key: 'text_to_image' }) as Record<string, any>
     assert.deepEqual(textToImage.queries, ['capability:image'])
-    assert.equal(textToImage.model_contracts[0].model_config_id, 42)
+    assert.equal(textToImage.model_contracts[0].model_id, 'model.42')
 
     const imageCapability = await listModels({ feature: 'image' }) as Record<string, any>
     assert.deepEqual(imageCapability.queries, ['capability:image'])
-    assert.equal(imageCapability.model_contracts[0].model_config_id, 42)
+    assert.equal(imageCapability.model_contracts[0].model_id, 'model.42')
   } finally {
     setMCPAPIBaseURL(previousBaseURL)
     globalThis.fetch = previousFetch
@@ -627,6 +629,7 @@ test('listModels preserves distinct contracts for the same logical model', async
     '/models?capability=image': [
       {
         ...backendModelFixture(42),
+        model_id: 'gpt-image-1-fast',
         logical_model_id: 'gpt-image-1',
         supported_params: [{
           key: 'image_size',
@@ -644,6 +647,7 @@ test('listModels preserves distinct contracts for the same logical model', async
       },
       {
         ...backendModelFixture(43),
+        model_id: 'gpt-image-1-quality',
         logical_model_id: 'gpt-image-1',
         supported_params: [{
           key: 'image_size',
@@ -668,7 +672,7 @@ test('listModels preserves distinct contracts for the same logical model', async
     assert.equal(result.count, 2)
     assert.equal(result.models.length, 2)
     assert.equal(result.model_contracts.length, 2)
-    assert.deepEqual(result.model_contracts.map((contract: Record<string, unknown>) => contract.model_config_id), [42, 43])
+    assert.deepEqual(result.model_contracts.map((contract: Record<string, unknown>) => contract.model_id), ['gpt-image-1-fast', 'gpt-image-1-quality'])
     assert.deepEqual(result.model_contracts.map((contract: Record<string, any>) => contract.supported_params[0].options), [['1024x1024'], ['1536x1024']])
     assert.deepEqual(result.model_contracts.map((contract: Record<string, unknown>) => contract.logical_model_id), ['gpt-image-1', 'gpt-image-1'])
   } finally {
@@ -699,7 +703,7 @@ test('createGenerationJob returns queued monitor and param validation audit for 
     const result = await createGenerationJob({
       prompt: 'a production frame',
       job_type: 'image_edit',
-      model_config_id: 42,
+      model_id: 'video.draft',
       wait: false,
       input_resource_ids: [1, 2, 3, 4, 5],
       aspect_ratio: '21:9',
@@ -775,7 +779,7 @@ test('createGenerationJob returns queued monitor and param validation audit for 
     })
     assert.equal(postedBodies.length, 1)
     assert.deepEqual(postedBodies[0], {
-      model_config_id: 42,
+      model_id: 'video.draft',
       job_type: 'image_edit',
       feature_key: 'agent.chat_generation',
       title: postedBodies[0]?.title,
@@ -1244,8 +1248,7 @@ function paramSchemaFixture(param: Record<string, any>): Record<string, unknown>
 function agentCompactContractFields(contract: Record<string, unknown>): Record<string, unknown> {
   return {
     contract_version: contract.contract_version,
-    id: contract.id,
-    model_config_id: contract.model_config_id,
+    model_id: contract.model_id,
     display_name: contract.display_name,
     short_name: contract.short_name,
     logical_model_id: contract.logical_model_id,
@@ -1395,8 +1398,7 @@ test('summarizeModelContractForAgent falls back to params_schema property keys',
     }),
     {
       contract_version: 1,
-      id: 7,
-      model_config_id: 7,
+      model_id: 'backend.model.7',
       capabilities: ['image'],
       accepts_image_input: false,
       input_requirements: {

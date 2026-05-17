@@ -614,7 +614,7 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_list_models',
-      description: 'List enabled AI models for a capability or feature. The result includes raw models plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Models are contract-scoped: entries with the same logical_model_id can still expose different model_config_id values and different contracts.',
+      description: 'List enabled AI models for a capability or feature. The result includes public model_id values plus model_contracts with contract_version 1, capabilities, input_requirements, supported_param_keys, supported_params, and params_schema rule counts so the agent can choose a valid model before generation. Use model_id for generation calls.',
       inputSchema: objectSchema(
         {
           capability: { type: 'string', description: 'Optional capability filter such as text, image, image_edit, video, video_i2v, or video_v2v.' },
@@ -633,14 +633,13 @@ export function listTools(): MCPTool[] {
             items: {
               type: 'object',
               additionalProperties: true,
-              required: ['contract_version', 'model_config_id', 'capabilities', 'input_requirements', 'supported_param_keys', 'supported_params'],
+              required: ['contract_version', 'model_id', 'capabilities', 'input_requirements', 'supported_param_keys', 'supported_params'],
               properties: {
                 contract_version: { type: 'number', const: 1 },
-                id: { type: 'number' },
-                model_config_id: { type: 'number', description: 'Exact ID to pass to movscript_create_generation_job.' },
+                model_id: { type: 'string', description: 'Public logical model ID to pass to movscript_create_generation_job.' },
                 display_name: { type: 'string' },
                 short_name: { type: 'string' },
-                logical_model_id: { type: 'string', description: 'Grouping metadata only. Do not use this instead of model_config_id.' },
+                logical_model_id: { type: 'string', description: 'Legacy alias for model_id.' },
                 capabilities: { type: 'array', items: { type: 'string' } },
                 accepts_image_input: { type: 'boolean' },
                 input_requirements: {
@@ -696,14 +695,14 @@ export function listTools(): MCPTool[] {
     },
     {
       name: 'movscript_create_generation_job',
-      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Before choosing model_config_id, input_resource_ids, or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Returns the completed job, output_resource, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
+      description: 'Create and wait for an AI image or video generation job through the MovScript backend. Before choosing model_id, input_resource_ids, or extra_params, inspect movscript_list_models and obey the selected model capability contract: capabilities, input_requirements, supported_params, and params_schema. Returns the completed job, output_resource, and param_validation audit_version 1 data, including non-blocking preflight_errors and input_preflight_errors, for direct chat display. This is cost-bearing and should only run after explicit user approval.',
       inputSchema: objectSchema(
         {
           prompt: { type: 'string' },
           title: { type: 'string', description: 'Optional display title for the generation job.' },
           output_type: { type: 'string', enum: ['image', 'video'], description: 'High-level output type. Ignored when job_type is provided.' },
           job_type: { type: 'string', enum: ['image', 'image_edit', 'video', 'video_i2v', 'video_v2v'] },
-          model_config_id: { type: ['number', 'string'], description: 'Optional AIModelConfig ID. If omitted, MovScript chooses the first available model for the requested capability.' },
+          model_id: { type: 'string', description: 'Public logical model ID from movscript_list_models. If omitted, MovScript chooses the first available model for the requested capability.' },
           input_resource_ids: { type: 'array', items: { type: 'number' }, description: 'Optional reference image/video resource IDs. Count should satisfy the selected model contract input_requirements; mismatches are reported in param_validation.input_preflight_errors.' },
           reference_type: { type: 'string', enum: ['image', 'video'], description: 'Use video with output_type video when reference resources should create a video_v2v job.' },
           aspect_ratio: { type: 'string', description: 'Optional aspect ratio such as 1:1, 16:9, or 9:16.' },
@@ -1015,6 +1014,7 @@ export function summarizeModelContractForAgent(model: unknown): Record<string, u
   const source = isRecord(model) ? model : {}
   const schema = isRecord(source.params_schema) ? source.params_schema : undefined
   const supportedParams = Array.isArray(source.supported_params) ? source.supported_params : []
+  const numericID = numericModelField(source, 'id') ?? numericModelField(source, 'ID')
   const supportedParamKeys = supportedParams.flatMap((param) => {
     if (!isRecord(param) || typeof param.key !== 'string' || !param.key.trim()) return []
     return [param.key.trim()]
@@ -1022,8 +1022,7 @@ export function summarizeModelContractForAgent(model: unknown): Record<string, u
   const propertyKeys = Object.keys(isRecord(schema?.properties) ? schema.properties : {})
   return {
     contract_version: 1,
-    id: numericModelField(source, 'id') ?? numericModelField(source, 'ID'),
-    model_config_id: numericModelField(source, 'id') ?? numericModelField(source, 'ID'),
+    model_id: stringModelField(source, 'model_id') ?? stringModelField(source, 'logical_model_id') ?? stringModelField(source, 'model_def_id') ?? (numericID ? `backend.model.${numericID}` : 'default'),
     ...(typeof source.display_name === 'string' && source.display_name.trim() ? { display_name: source.display_name.trim() } : {}),
     ...(typeof source.short_name === 'string' && source.short_name.trim() ? { short_name: source.short_name.trim() } : {}),
     ...(typeof source.logical_model_id === 'string' && source.logical_model_id.trim() ? { logical_model_id: source.logical_model_id.trim() } : {}),
@@ -1924,9 +1923,11 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
 
   const inputResourceIds = getNumberArray(args.input_resource_ids ?? args.inputResourceIds ?? args.reference_resource_ids)
   const jobType = inferGenerationJobType(args, inputResourceIds)
-  const modelConfigId = getOptionalNumeric(args, 'model_config_id')
-    ?? getOptionalNumeric(args, 'modelConfigId')
-    ?? await pickGenerationModelConfigId(jobType)
+  const requestedModelId = getOptionalString(args, 'model_id') ?? getOptionalString(args, 'modelId')
+  const legacyModelConfigId = getOptionalNumeric(args, 'model_config_id') ?? getOptionalNumeric(args, 'modelConfigId')
+  const modelRoute = await resolveGenerationModelRouteForMcp(jobType, requestedModelId, legacyModelConfigId)
+  const modelConfigId = modelRoute.modelConfigId
+  if (!modelRoute.modelId) throw new Error(`没有可用的 ${jobType} model_id，请先在管理后台检查模型配置`)
   const projectId = getOptionalNumeric(args, 'projectId') ?? contextSnapshot.project?.id
   const wait = args.wait !== false
   let aspectRatio = getOptionalString(args, 'aspect_ratio')
@@ -1956,7 +1957,7 @@ export async function createGenerationJob(args: Record<string, unknown>): Promis
   const title = getOptionalString(args, 'title') ?? defaultGenerationJobTitle(jobType)
 
   const job = await backendPost('/jobs', {
-    model_config_id: modelConfigId,
+    model_id: modelRoute.modelId,
     job_type: jobType,
     feature_key: featureKey,
     title,
@@ -2368,6 +2369,11 @@ function numericModelField(source: Record<string, unknown>, key: string): number
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
+function stringModelField(source: Record<string, unknown>, key: string): string | undefined {
+  const value = source[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
 function integerModelField(source: Record<string, unknown>, key: string, min: number, fallback: number): number {
   const value = source[key]
   const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
@@ -2391,6 +2397,60 @@ async function pickGenerationModelConfigId(jobType: string): Promise<number> {
     if (Number.isFinite(id) && id > 0) return id
   }
   throw new Error(`没有可用的 ${jobType} 模型配置，请先在管理后台配置可用模型`)
+}
+
+async function resolveGenerationModelRouteForMcp(jobType: string, requestedModelId?: string, legacyModelConfigId?: number): Promise<{ modelId?: string, modelConfigId: number }> {
+  if (requestedModelId) {
+    return {
+      modelId: requestedModelId,
+      modelConfigId: await findGenerationModelConfigIdByModelId(jobType, requestedModelId) ?? legacyModelConfigId ?? 0,
+    }
+  }
+  if (legacyModelConfigId) {
+    return {
+      modelId: await findGenerationModelIdByConfigId(jobType, legacyModelConfigId),
+      modelConfigId: legacyModelConfigId,
+    }
+  }
+  return pickGenerationModelRoute(jobType)
+}
+
+async function pickGenerationModelRoute(jobType: string): Promise<{ modelId?: string, modelConfigId: number }> {
+  const capabilityCandidates = modelCapabilityCandidates(jobType)
+  for (const capability of capabilityCandidates) {
+    const models = await backendList(`/models?capability=${encodeURIComponent(capability)}`)
+    const model = models.find((item) => Number.isFinite(Number(item?.id ?? item?.ID)))
+    const id = Number(model?.id ?? model?.ID)
+    if (Number.isFinite(id) && id > 0) {
+      return { modelId: modelIDFromModel(model), modelConfigId: id }
+    }
+  }
+  throw new Error(`没有可用的 ${jobType} 模型配置，请先在管理后台配置可用模型`)
+}
+
+async function findGenerationModelConfigIdByModelId(jobType: string, modelId: string): Promise<number | undefined> {
+  for (const capability of modelCapabilityCandidates(jobType)) {
+    const models = await backendList(`/models?capability=${encodeURIComponent(capability)}`)
+    const model = models.find((item) => modelIDFromModel(item) === modelId || item?.logical_model_id === modelId || item?.model_def_id === modelId)
+    const id = Number(model?.id ?? model?.ID)
+    if (Number.isFinite(id) && id > 0) return id
+  }
+  return undefined
+}
+
+async function findGenerationModelIdByConfigId(jobType: string, modelConfigId: number): Promise<string | undefined> {
+  for (const capability of modelCapabilityCandidates(jobType)) {
+    const models = await backendList(`/models?capability=${encodeURIComponent(capability)}`)
+    const model = models.find((item) => Number(item?.id ?? item?.ID) === modelConfigId)
+    const modelId = modelIDFromModel(model)
+    if (modelId) return modelId
+  }
+  return undefined
+}
+
+function modelIDFromModel(model: unknown): string | undefined {
+  if (!isRecord(model)) return undefined
+  return stringModelField(model, 'model_id') ?? stringModelField(model, 'logical_model_id') ?? stringModelField(model, 'model_def_id')
 }
 
 function modelCapabilityCandidates(jobType: string): string[] {

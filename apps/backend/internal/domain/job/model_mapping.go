@@ -235,6 +235,8 @@ func AIModelConfigFromModel(config persistencemodel.AIModelConfig) AIModelConfig
 		ModelIDOverride:       config.ModelIDOverride,
 		IsEnabled:             config.IsEnabled,
 		Priority:              config.Priority,
+		CapacityWeight:        config.CapacityWeight,
+		MaxConcurrency:        config.MaxConcurrency,
 		CreditsInputPer1M:     config.CreditsInputPer1M,
 		CreditsOutputPer1M:    config.CreditsOutputPer1M,
 		CreditsPerImage:       config.CreditsPerImage,

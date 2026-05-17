@@ -34,6 +34,31 @@ test('runtime model config saves only backend model config routing fields', () =
   }
 })
 
+test('runtime model config can be saved with only public model_id', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const filePath = join(dir, 'model-config.json')
+    const store = new RuntimeModelConfigStore(filePath)
+
+    const publicConfig = store.save({
+      model: 'gpt-5.5',
+      useForChat: true,
+      useForPlanner: true,
+    })
+    const raw = JSON.parse(readFileSync(filePath, 'utf8')) as Record<string, unknown>
+    const effective = store.getEffectiveConfig()
+
+    assert.equal(publicConfig.configured, true)
+    assert.equal(publicConfig.modelConfigId, undefined)
+    assert.equal(publicConfig.model, 'gpt-5.5')
+    assert.equal(raw.modelConfigId, undefined)
+    assert.equal(raw.model, 'gpt-5.5')
+    assert.equal(effective?.model, 'gpt-5.5')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('runtime model config keeps an existing backend model config id when saving usage changes', () => {
   const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
   try {

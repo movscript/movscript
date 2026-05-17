@@ -1,5 +1,7 @@
 export interface PublicModel {
   id: number
+  model_id: string
+  logical_model_id?: string
   name: string
   capability: string
 }
@@ -7,7 +9,7 @@ export interface PublicModel {
 export type GenerateMediaJobType = 'image' | 'image_edit' | 'video' | 'video_i2v' | 'video_v2v'
 
 export interface GenerateMediaRequest {
-  model_config_id: number
+  model_id: string
   prompt: string
   job_type?: GenerateMediaJobType
   feature_key?: string
@@ -35,7 +37,7 @@ export interface ExecutableSpec {
   executor: 'ai_model'
   capability: ExecutableCapability
   featureKey?: string
-  modelDbId?: number
+  modelId?: string
   prompt?: string
   inputResourceIds?: number[]
   aspectRatio?: string

@@ -32,6 +32,8 @@ type AIModelConfigInput struct {
 	ModelIDOverride       string  `json:"model_id_override"`
 	IsEnabled             *bool   `json:"is_enabled"`
 	Priority              int     `json:"priority"`
+	CapacityWeight        int     `json:"capacity_weight"`
+	MaxConcurrency        int     `json:"max_concurrency"`
 	CreditsInputPer1M     float64 `json:"credits_input_per_1m"`
 	CreditsOutputPer1M    float64 `json:"credits_output_per_1m"`
 	CreditsPerImage       float64 `json:"credits_per_image"`

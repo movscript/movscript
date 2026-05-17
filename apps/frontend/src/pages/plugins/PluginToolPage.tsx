@@ -11,7 +11,7 @@ import {
 import { usePluginBridge } from '@/lib/usePluginBridge'
 import { ResourcePanel } from '@/components/shared/ResourcePanel'
 import { ModelSelector } from '@/components/shared/ModelSelector'
-import type { RawResource } from '@/types'
+import type { PublicModel, RawResource } from '@/types'
 import { Button } from '@movscript/ui'
 import { cn } from '@/lib/utils'
 import { ROUTES } from '@/routes/projectRoutes'
@@ -88,7 +88,7 @@ function ParamField({
   value: string
   onChange: (v: string) => void
   modelValues: Record<string, number>
-  onModelChange: (fieldName: string, id: number) => void
+  onModelChange: (fieldName: string, id: number, model: PublicModel | null) => void
 }) {
   const label = prop.title ?? name
 
@@ -103,7 +103,10 @@ function ParamField({
         <ModelSelector
           capability={capability}
           value={modelValues[name] ?? null}
-          onChange={(id) => onModelChange(name, id)}
+          onChange={(id) => onModelChange(name, id, null)}
+          onModelChange={(model) => {
+            if (model) onModelChange(name, model.id, model)
+          }}
         />
       </div>
     )
@@ -187,6 +190,7 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
   const [values, setValues] = useState<Record<string, string>>(initValues)
   // model-selector fields store their selected ID separately
   const [modelValues, setModelValues] = useState<Record<string, number>>({})
+  const [modelPublicIds, setModelPublicIds] = useState<Record<string, string>>({})
   const [selectedResources, setSelectedResources] = useState<RawResource[]>([])
   const [running, setRunning] = useState(false)
   const [result, setResult] = useState<{ text: string; isError?: boolean } | null>(null)
@@ -210,7 +214,8 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
       }
       // Inject model selector values
       for (const [k, id] of Object.entries(modelValues)) {
-        if (id) args[k] = id
+        if (!id) continue
+        args[k] = k === 'model_id' ? (modelPublicIds[k] || String(id)) : id
       }
       if (hasRefField && selectedResources.length > 0) {
         args.reference_resource_ids = selectedResources.map((r) => r.ID).join(',')
@@ -288,7 +293,18 @@ function NativePluginUI({ plugin }: { plugin: ClientPluginManifest }) {
                     value={isModelSelector ? '' : (values[name] ?? '')}
                     onChange={(v) => setValues((prev) => ({ ...prev, [name]: v }))}
                     modelValues={modelValues}
-                    onModelChange={(fieldName, id) => setModelValues((prev) => ({ ...prev, [fieldName]: id }))}
+                    onModelChange={(fieldName, id, model) => {
+                      setModelValues((prev) => ({ ...prev, [fieldName]: id }))
+                      if (model?.model_id) {
+                        setModelPublicIds((prev) => ({ ...prev, [fieldName]: model.model_id }))
+                      } else {
+                        setModelPublicIds((prev) => {
+                          const next = { ...prev }
+                          delete next[fieldName]
+                          return next
+                        })
+                      }
+                    }}
                   />
                 )
               })}

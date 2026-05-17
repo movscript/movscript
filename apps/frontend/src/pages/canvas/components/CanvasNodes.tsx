@@ -446,7 +446,7 @@ type NodeDataWithHandlers = CanvasNodeData & {
   onUpdateContent?: (content: string) => void
   onUpdatePrompt?: (prompt: string) => void
   onUpdateOutputType?: (type: 'image' | 'video' | 'text' | 'audio') => void
-  onUpdateModelId?: (id: number) => void
+  onUpdateModelId?: (modelId: string, modelDbId?: number) => void
   onUpdateAttachments?: (ids: number[]) => void
   onApprove?: () => void
   onReject?: () => void
@@ -652,7 +652,7 @@ export function ToolNode({ data, selected, type }: NodeProps & { data: NodeDataW
         selected={selected}
         inputs={toolInputSlots(type, data, t)}
         configs={[
-          { id: 'model', label: '模型', value: data.modelDbId ? `#${data.modelDbId}` : '默认' },
+          { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
           { id: 'mode', label: '类型', value: metaLabel },
           ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
         ]}
@@ -860,7 +860,7 @@ export function TextGenNode({ data, selected }: NodeProps & { data: NodeDataWith
         selected={selected}
         inputs={toolInputSlots('text_gen', data, t)}
         configs={[
-          { id: 'model', label: '模型', value: data.modelDbId ? `#${data.modelDbId}` : '默认' },
+          { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
           ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
         ]}
         outputs={toolOutputSlots('text_gen', { ...data, resource: data.resource, status }, t)}
@@ -905,7 +905,7 @@ export function AIGenNode({ data, selected }: NodeProps & { data: NodeDataWithHa
         inputs={toolInputSlots('ai_gen', data, t)}
         configs={[
           { id: 'outputType', label: '输出', value: t(OUTPUT_TYPES.find((item) => item.value === outputType)?.label ?? 'canvas.outputTypes.image') },
-          { id: 'model', label: '模型', value: data.modelDbId ? `#${data.modelDbId}` : '默认' },
+          { id: 'model', label: '模型', value: data.modelId || (data.modelDbId ? `#${data.modelDbId}` : '默认') },
           ...(data.prompt ? [{ id: 'prompt', label: '提示词', value: data.prompt }] : []),
         ]}
         outputs={outputSlots}

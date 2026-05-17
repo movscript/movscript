@@ -61,6 +61,8 @@ func ModelConfigFromModel(config persistencemodel.AIModelConfig) ModelConfig {
 		ModelIDOverride:       config.ModelIDOverride,
 		IsEnabled:             config.IsEnabled,
 		Priority:              config.Priority,
+		CapacityWeight:        config.CapacityWeight,
+		MaxConcurrency:        config.MaxConcurrency,
 		CreditsInputPer1M:     config.CreditsInputPer1M,
 		CreditsOutputPer1M:    config.CreditsOutputPer1M,
 		CreditsPerImage:       config.CreditsPerImage,
@@ -95,6 +97,8 @@ func (config ModelConfig) ApplyToModel(target *persistencemodel.AIModelConfig) {
 	target.ModelIDOverride = config.ModelIDOverride
 	target.IsEnabled = config.IsEnabled
 	target.Priority = config.Priority
+	target.CapacityWeight = config.CapacityWeight
+	target.MaxConcurrency = config.MaxConcurrency
 	target.CreditsInputPer1M = config.CreditsInputPer1M
 	target.CreditsOutputPer1M = config.CreditsOutputPer1M
 	target.CreditsPerImage = config.CreditsPerImage

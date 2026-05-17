@@ -70,6 +70,9 @@ func ResolveTextModel(models []ai.PublicModel, requestedModel string, defaultID 
 }
 
 func ModelID(m ai.PublicModel) string {
+	if m.ModelID != "" {
+		return m.ModelID
+	}
 	if m.ModelIDOverride != "" {
 		return m.ModelIDOverride
 	}

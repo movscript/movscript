@@ -44,6 +44,7 @@ interface SemanticEntityInlineEditorHero {
   subtitle?: ReactNode
   summary?: ReactNode
   accentClassName?: string
+  compact?: boolean
   status?: ReactNode
   stats?: Array<{ label: string; value: ReactNode }>
 }
@@ -197,26 +198,30 @@ export function SemanticEntityInlineEditor({
   }
 
   if (hero) {
+    const compactHero = Boolean(hero.compact)
     return (
       <section className={cn('overflow-hidden rounded-lg border border-border bg-card', className)}>
-        <div className={cn('border-b border-border bg-gradient-to-br p-5', hero.accentClassName ?? 'from-primary/15 via-primary/10 to-muted')}>
-          <div className="flex items-start justify-between gap-4">
+        <div className={cn('border-b border-border', compactHero ? 'p-3' : cn('bg-gradient-to-br p-5', hero.accentClassName ?? 'from-primary/15 via-primary/10 to-muted'))}>
+          <div className={cn('flex items-start justify-between', compactHero ? 'gap-3' : 'gap-4')}>
             <div className="min-w-0">
-              <div className="flex items-start gap-3">
+              <div className={cn('flex items-start', compactHero ? 'gap-2' : 'gap-3')}>
                 {hero.icon ? (
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-background/80 text-foreground shadow-sm">
+                  <span className={cn(
+                    'flex shrink-0 items-center justify-center rounded-md',
+                    compactHero ? 'h-8 w-8 bg-muted text-muted-foreground' : 'h-10 w-10 bg-background/80 text-foreground shadow-sm',
+                  )}>
                     {hero.icon}
                   </span>
                 ) : null}
                 <div className="min-w-0">
                   {hero.eyebrow ? <div className="text-xs text-muted-foreground">{hero.eyebrow}</div> : null}
-                  <h2 className="mt-1 truncate text-xl font-semibold text-foreground">
+                  <h2 className={cn('mt-1 truncate font-semibold text-foreground', compactHero ? 'text-base' : 'text-xl')}>
                     {hero.title ?? title ?? `${record ? '编辑' : '新建'}${config.label}`}
                   </h2>
                   {hero.subtitle ? <div className="mt-1 text-xs text-muted-foreground">{hero.subtitle}</div> : null}
                 </div>
               </div>
-              {hero.summary ? <div className="mt-4 max-w-4xl text-sm leading-6 text-muted-foreground">{hero.summary}</div> : null}
+              {hero.summary ? <div className={cn('max-w-4xl text-muted-foreground', compactHero ? 'mt-2 line-clamp-2 text-xs leading-5' : 'mt-4 text-sm leading-6')}>{hero.summary}</div> : null}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-2 text-right">
               {hero.status}
@@ -268,13 +273,13 @@ export function SemanticEntityInlineEditor({
               )}
             </div>
           </div>
-          {description ? <p className="mt-4 text-xs leading-5 text-muted-foreground">{description}</p> : null}
+          {description ? <p className={cn('text-xs leading-5 text-muted-foreground', compactHero ? 'mt-2' : 'mt-4')}>{description}</p> : null}
         </div>
 
         {hero.stats?.length ? (
-          <div className="grid grid-cols-2 gap-3 p-4 lg:grid-cols-4">
+          <div className={cn('grid grid-cols-2 lg:grid-cols-4', compactHero ? 'gap-2 p-3' : 'gap-3 p-4')}>
             {hero.stats.map((stat) => (
-              <div key={stat.label} className="rounded-md border border-border bg-background px-3 py-2.5">
+              <div key={stat.label} className={cn('rounded-md border border-border bg-background px-3', compactHero ? 'py-2' : 'py-2.5')}>
                 <p className="text-[10px] text-muted-foreground">{stat.label}</p>
                 <div className="mt-1 truncate text-sm font-semibold text-foreground">{stat.value}</div>
               </div>

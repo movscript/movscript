@@ -14,7 +14,7 @@ import {
 } from '@movscript/ui'
 import { api } from '@/lib/api'
 import { localAgentClient, type RuntimeModelConfigPublic, type RuntimeModelTestResult } from '@/lib/localAgentClient'
-import { publicModelLabel } from '@/lib/modelDisplay'
+import { publicModelId, publicModelLabel } from '@/lib/modelDisplay'
 import { cn } from '@/lib/utils'
 import { useAgentStore } from '@/store/agentStore'
 import type { PublicModel } from '@/types'
@@ -51,29 +51,34 @@ export default function AIAgentSettingsPage() {
 
   const textModels = modelsQuery.data ?? []
   const selectedModel = useMemo(() => {
-    const id = Number(selectedModelId)
-    return textModels.find((model) => model.id === id) ?? null
+    return textModels.find((model) => publicModelId(model) === selectedModelId) ?? null
   }, [selectedModelId, textModels])
   const effectiveConfig = savedConfig ?? runtimeQuery.data ?? null
+  const effectiveModelValue = useMemo(() => (
+    effectiveConfig?.configured ? runtimeModelValue(textModels, effectiveConfig) : NO_MODEL_VALUE
+  ), [effectiveConfig, textModels])
   const configuredModelLabel = effectiveConfig?.configured
-    ? modelDisplayName(textModels, effectiveConfig.modelConfigId, effectiveConfig.model)
+    ? modelDisplayName(textModels, effectiveConfig)
     : t('agents.settings.notConfigured')
   const hasUnsavedChanges = effectiveConfig?.configured
-    ? selectedModelId !== String(effectiveConfig.modelConfigId) ||
+    ? selectedModelId !== effectiveModelValue ||
       useForChat !== effectiveConfig.useForChat ||
       useForPlanner !== effectiveConfig.useForPlanner
     : selectedModelId !== NO_MODEL_VALUE
 
   useEffect(() => {
     if (!runtimeQuery.data) return
-    if (runtimeQuery.data.configured && runtimeQuery.data.modelConfigId) {
-      setSelectedModelId(String(runtimeQuery.data.modelConfigId))
+    if (runtimeQuery.data.configured) {
+      setSelectedModelId(runtimeModelValue(textModels, runtimeQuery.data))
       setUseForChat(runtimeQuery.data.useForChat)
       setUseForPlanner(runtimeQuery.data.useForPlanner)
       return
     }
-    if (agentSettings.modelId) setSelectedModelId(String(agentSettings.modelId))
-  }, [agentSettings.modelId, runtimeQuery.data])
+    if (agentSettings.modelId) {
+      const storedModel = textModels.find((model) => model.id === agentSettings.modelId)
+      if (storedModel) setSelectedModelId(publicModelId(storedModel))
+    }
+  }, [agentSettings.modelId, runtimeQuery.data, textModels])
 
   async function saveSettings() {
     if (!selectedModel) return
@@ -84,8 +89,7 @@ export default function AIAgentSettingsPage() {
     try {
       await localAgentClient.ensureRunning()
       const nextConfig = await localAgentClient.saveModelConfig({
-        modelConfigId: selectedModel.id,
-        model: publicModelLabel(selectedModel),
+        model: publicModelId(selectedModel),
         useForChat,
         useForPlanner,
       })
@@ -108,8 +112,7 @@ export default function AIAgentSettingsPage() {
     try {
       await localAgentClient.ensureRunning()
       await localAgentClient.saveModelConfig({
-        modelConfigId: selectedModel.id,
-        model: publicModelLabel(selectedModel),
+        model: publicModelId(selectedModel),
         useForChat,
         useForPlanner,
       })
@@ -168,7 +171,7 @@ export default function AIAgentSettingsPage() {
                         {textModels.length === 0 ? (
                           <SelectItem value="__empty_text_models" disabled>{t('agents.settings.noTextModels')}</SelectItem>
                         ) : textModels.map((model) => (
-                          <SelectItem key={model.id} value={String(model.id)}>
+                          <SelectItem key={model.id} value={publicModelId(model)}>
                             {publicModelLabel(model, true)}
                           </SelectItem>
                         ))}
@@ -184,7 +187,7 @@ export default function AIAgentSettingsPage() {
 
                   {selectedModel && (
                     <div className="grid gap-2 text-xs sm:grid-cols-2">
-                      <SummaryItem label={t('agents.settings.fields.modelId')} value={selectedModel.model_id_override || selectedModel.model_def_id || selectedModel.logical_model_id || `#${selectedModel.id}`} />
+                      <SummaryItem label={t('agents.settings.fields.modelId')} value={publicModelId(selectedModel)} />
                       <SummaryItem label={t('agents.settings.fields.capabilities')} value={selectedModel.capabilities.join(', ') || '-'} />
                       <SummaryItem label={t('agents.settings.fields.provider')} value={selectedModel.provider_name || '-'} />
                       <SummaryItem label={t('agents.settings.fields.configId')} value={`#${selectedModel.id}`} />
@@ -251,15 +254,15 @@ export default function AIAgentSettingsPage() {
                       <button
                         key={model.id}
                         type="button"
-                        onClick={() => setSelectedModelId(String(model.id))}
+                        onClick={() => setSelectedModelId(publicModelId(model))}
                         className={cn(
                           'w-full rounded-md border p-2 text-left transition-colors',
-                          selectedModelId === String(model.id) ? 'border-ring bg-muted/50' : 'border-border bg-background hover:bg-muted/30',
+                          selectedModelId === publicModelId(model) ? 'border-ring bg-muted/50' : 'border-border bg-background hover:bg-muted/30',
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <span className="min-w-0 truncate text-xs font-medium text-foreground">{publicModelLabel(model, true)}</span>
-                          {selectedModelId === String(model.id) && <CheckCircle2 size={13} className="shrink-0 text-primary" />}
+                          {selectedModelId === publicModelId(model) && <CheckCircle2 size={13} className="shrink-0 text-primary" />}
                         </div>
                         <p className="mt-0.5 truncate text-[10px] text-muted-foreground">{model.capabilities.join(', ')}</p>
                       </button>
@@ -275,9 +278,17 @@ export default function AIAgentSettingsPage() {
   )
 }
 
-function modelDisplayName(models: PublicModel[], modelConfigId: number | undefined, fallback: string) {
-  const model = models.find((item) => item.id === modelConfigId)
-  return model ? publicModelLabel(model, true) : fallback
+function runtimeModelValue(models: PublicModel[], config: RuntimeModelConfigPublic): string {
+  const byPublicID = models.find((model) => publicModelId(model) === config.model)
+  if (byPublicID) return publicModelId(byPublicID)
+  const byLegacyID = config.modelConfigId ? models.find((model) => model.id === config.modelConfigId) : undefined
+  return byLegacyID ? publicModelId(byLegacyID) : config.model
+}
+
+function modelDisplayName(models: PublicModel[], config: RuntimeModelConfigPublic) {
+  const value = runtimeModelValue(models, config)
+  const model = models.find((item) => publicModelId(item) === value)
+  return model ? publicModelLabel(model, true) : config.model
 }
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {

@@ -41,6 +41,8 @@ type NewModelConfigSpec struct {
 	ModelIDOverride       string
 	IsEnabled             *bool
 	Priority              int
+	CapacityWeight        int
+	MaxConcurrency        int
 	CreditsInputPer1M     float64
 	CreditsOutputPer1M    float64
 	CreditsPerImage       float64
@@ -64,6 +66,8 @@ type ModelConfig struct {
 	ModelIDOverride       string    `json:"model_id_override"`
 	IsEnabled             bool      `json:"is_enabled"`
 	Priority              int       `json:"priority"`
+	CapacityWeight        int       `json:"capacity_weight"`
+	MaxConcurrency        int       `json:"max_concurrency"`
 	CreditsInputPer1M     float64   `json:"credits_input_per_1m"`
 	CreditsOutputPer1M    float64   `json:"credits_output_per_1m"`
 	CreditsPerImage       float64   `json:"credits_per_image"`
@@ -117,6 +121,8 @@ func NewModelConfig(spec NewModelConfigSpec) ModelConfig {
 		ModelIDOverride:       spec.ModelIDOverride,
 		IsEnabled:             enabled,
 		Priority:              spec.Priority,
+		CapacityWeight:        normalizeCapacityWeight(spec.CapacityWeight),
+		MaxConcurrency:        spec.MaxConcurrency,
 		CreditsInputPer1M:     spec.CreditsInputPer1M,
 		CreditsOutputPer1M:    spec.CreditsOutputPer1M,
 		CreditsPerImage:       spec.CreditsPerImage,
@@ -132,4 +138,11 @@ func NewModelConfig(spec NewModelConfigSpec) ModelConfig {
 		CustomImageEditField:  spec.CustomImageEditField,
 		CustomSupportedParams: spec.CustomSupportedParams,
 	}
+}
+
+func normalizeCapacityWeight(value int) int {
+	if value <= 0 {
+		return 1
+	}
+	return value
 }

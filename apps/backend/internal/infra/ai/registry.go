@@ -16,8 +16,9 @@ import (
 
 // Registry builds Provider instances from AICredential + resolved ModelDef.
 type Registry struct {
-	db            *gorm.DB
-	encryptionKey []byte
+	db              *gorm.DB
+	encryptionKey   []byte
+	providerFactory func(persistencemodel.AICredential, *ModelDef) (Provider, error)
 }
 
 func NewRegistry(db *gorm.DB, encryptionKey []byte) *Registry {
@@ -50,6 +51,9 @@ func (r *Registry) BuildForCredential(cred persistencemodel.AICredential) (Provi
 }
 
 func (r *Registry) buildProvider(cred persistencemodel.AICredential, def *ModelDef) (Provider, error) {
+	if r.providerFactory != nil {
+		return r.providerFactory(cred, def)
+	}
 	apiKey := ""
 	if cred.EncryptedKey != "" && len(r.encryptionKey) > 0 {
 		var err error

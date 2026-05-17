@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
+import { publicModelId } from '@/lib/modelDisplay'
 import type { NodeType, PublicModel, RawResource } from '@/types'
 import { useTranslation } from 'react-i18next'
 
@@ -8,7 +9,7 @@ export type ToolStatus = 'idle' | 'pending' | 'running' | 'done' | 'failed'
 
 export interface ToolCanvasState {
   prompt: string
-  modelDbId: number   // AIModelConfig primary key
+  modelId: string
   inputResources: RawResource[]
   status: ToolStatus
   outputResource: RawResource | undefined
@@ -39,7 +40,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
 
   const [state, setState] = useState<ToolCanvasState>({
     prompt: '',
-    modelDbId: 0,
+    modelId: '',
     inputResources: [],
     status: 'idle',
     outputResource: undefined,
@@ -59,10 +60,10 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
   const resources = resourcesData ?? []
 
   useEffect(() => {
-    if (models.length > 0 && state.modelDbId === 0) {
-      setState((s) => ({ ...s, modelDbId: models[0].id }))
+    if (models.length > 0 && !state.modelId) {
+      setState((s) => ({ ...s, modelId: publicModelId(models[0]) }))
     }
-  }, [models, state.modelDbId])
+  }, [models, state.modelId])
 
   useEffect(() => {
     return () => {
@@ -98,7 +99,8 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
 
     try {
       const cid = await ensureCanvas()
-      const modelDbId = state.modelDbId || models[0]?.id || 0
+      const fallbackModel = models[0]
+      const modelId = state.modelId || (fallbackModel ? publicModelId(fallbackModel) : '')
 
       await api.put(`/canvases/${cid}`, {
         name: t('tools.canvasName', { type: nodeType }),
@@ -110,7 +112,7 @@ export function useToolCanvas(nodeType: NodeType, capability: 'image' | 'video',
           pos_y: 100,
           data: JSON.stringify({
             source: 'ai',
-            modelDbId,
+            modelId,
             prompt: state.prompt,
             ...(state.inputResources[0] ? { resourceId: state.inputResources[0].ID } : {}),
             ...(state.inputResources.length > 1 ? { resourceIds: state.inputResources.map((r) => r.ID) } : {}),

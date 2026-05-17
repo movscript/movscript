@@ -29,6 +29,8 @@ type AIModelConfig struct {
 	ModelIDOverride       string  `json:"model_id_override"`
 	IsEnabled             bool    `gorm:"default:true" json:"is_enabled"`
 	Priority              int     `gorm:"default:0" json:"priority"`
+	CapacityWeight        int     `gorm:"default:1" json:"capacity_weight"`
+	MaxConcurrency        int     `gorm:"default:0" json:"max_concurrency"`
 	CreditsInputPer1M     float64 `gorm:"default:0" json:"credits_input_per_1m"`
 	CreditsOutputPer1M    float64 `gorm:"default:0" json:"credits_output_per_1m"`
 	CreditsPerImage       float64 `gorm:"default:0" json:"credits_per_image"`

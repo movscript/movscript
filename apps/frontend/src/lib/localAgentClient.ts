@@ -552,7 +552,7 @@ export interface RuntimeModelTestResult {
   ok: boolean
   provider: string
   model: string
-  modelConfigId: number
+  modelConfigId?: number
   latencyMs: number
   content: string
   request: {
@@ -848,7 +848,7 @@ export class LocalAgentClient {
   }
 
   saveModelConfig(input: {
-    modelConfigId: number
+    modelConfigId?: number
     model: string
     apiKind?: 'backend_chat_completions' | 'openai_chat_completions' | 'openai_responses' | 'anthropic_messages'
     baseURL?: string

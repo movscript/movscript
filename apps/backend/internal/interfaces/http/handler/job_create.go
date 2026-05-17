@@ -20,8 +20,9 @@ func (h *JobHandler) Create(c *gin.Context) {
 	}
 
 	var req struct {
-		ModelConfigID    uint   `json:"model_config_id" binding:"required"`
-		JobType          string `json:"job_type"` // image | image_edit | video | video_i2v | video_v2v
+		ModelID          string `json:"model_id"`
+		ModelConfigID    uint   `json:"model_config_id"` // legacy fallback; new callers should send model_id
+		JobType          string `json:"job_type"`        // image | image_edit | video | video_i2v | video_v2v
 		FeatureKey       string `json:"feature_key"`
 		Title            string `json:"title"`
 		Prompt           string `json:"prompt"`
@@ -40,6 +41,7 @@ func (h *JobHandler) Create(c *gin.Context) {
 	job, err := h.service.EnqueueGeneration(c.Request.Context(), jobapp.EnqueueInput{
 		UserID:           user.ID,
 		OrgID:            currentOrgID(c),
+		ModelID:          req.ModelID,
 		ModelConfigID:    req.ModelConfigID,
 		JobType:          req.JobType,
 		FeatureKey:       req.FeatureKey,

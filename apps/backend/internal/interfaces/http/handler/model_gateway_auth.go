@@ -11,15 +11,24 @@ func (h *ModelGatewayHandler) gatewayPrincipal(c *gin.Context) (*gatewayPrincipa
 		return &gatewayPrincipal{UserID: user.ID}, true
 	}
 
-	bearer := strings.TrimSpace(c.GetHeader("Authorization"))
-	if !strings.HasPrefix(strings.ToLower(bearer), "bearer ") {
+	token := gatewayAPIKeyFromHeaders(c)
+	if token == "" {
 		return nil, false
 	}
-	token := strings.TrimSpace(bearer[len("Bearer "):])
 
 	principal, ok, err := h.service.PrincipalForAPIKey(c.Request.Context(), token)
 	if err != nil || !ok {
 		return nil, false
 	}
 	return &gatewayPrincipal{UserID: principal.UserID, Key: principal.Key}, true
+}
+
+func gatewayAPIKeyFromHeaders(c *gin.Context) string {
+	bearer := strings.TrimSpace(c.GetHeader("Authorization"))
+	if strings.HasPrefix(strings.ToLower(bearer), "bearer ") {
+		if token := strings.TrimSpace(bearer[len("Bearer "):]); token != "" {
+			return token
+		}
+	}
+	return strings.TrimSpace(c.GetHeader("X-API-Key"))
 }

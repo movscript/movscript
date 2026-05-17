@@ -98,6 +98,7 @@ func registerAdminRoutes(admin *gin.RouterGroup, h handlers) {
 	admin.GET("/debug/jobs", h.debug.ListJobs)
 	admin.GET("/debug/job-stats", h.debug.JobStats)
 	admin.GET("/debug/health", h.debug.SystemHealth)
+	admin.GET("/debug/model-runtime-health", h.debug.ModelRuntimeHealth)
 	admin.GET("/debug/health-settings", h.debug.GetHealthSettings)
 	admin.PUT("/debug/health-settings", h.debug.UpdateHealthSettings)
 	admin.GET("/debug/jobs/:id", h.debug.GetJob)

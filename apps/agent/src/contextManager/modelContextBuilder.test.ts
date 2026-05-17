@@ -245,7 +245,7 @@ test('buildContext summarizes declared tool output fields for model-readable res
                 items: {
                   type: 'object',
                   properties: {
-                    model_config_id: { type: 'number' },
+                    model_id: { type: 'string' },
                     logical_model_id: { type: 'string' },
                     capabilities: { type: 'array' },
                     input_requirements: { type: 'object' },
@@ -312,7 +312,7 @@ test('buildContext summarizes declared tool output fields for model-readable res
 
   assert.match(built.systemPrompt, /Declared tool output fields/)
   assert.match(built.systemPrompt, /movscript_list_models/)
-  assert.match(built.systemPrompt, /model_contracts\[\]\.model_config_id\|logical_model_id\|capabilities\|input_requirements\|supported_param_keys\|supported_params/)
+  assert.match(built.systemPrompt, /model_contracts\[\]\.model_id\|logical_model_id\|capabilities\|input_requirements\|supported_param_keys\|supported_params/)
   assert.match(built.systemPrompt, /movscript_create_generation_job/)
   assert.match(built.systemPrompt, /monitor\.\{tool\|args\|message\}/)
   assert.match(built.systemPrompt, /param_validation\.\{audit_version\|preflight_errors\|input_preflight_errors\}/)

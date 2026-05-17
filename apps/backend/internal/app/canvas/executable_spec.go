@@ -30,7 +30,18 @@ func (h *Service) executeExecutableSpec(ctx context.Context, user *persistencemo
 		return
 	}
 	modelDbID := spec.ModelDbID
-	if modelDbID == 0 && strings.TrimSpace(spec.FeatureKey) != "" {
+	if modelID := strings.TrimSpace(spec.ModelID); modelID != "" {
+		route, err := h.svc.ResolveModelRoute(ai.ModelRouteRequest{
+			ModelID:       modelID,
+			ModelConfigID: modelDbID,
+			Capability:    spec.Capability,
+		})
+		if err != nil {
+			h.failTask(task, node, nd, err.Error())
+			return
+		}
+		modelDbID = route.ModelConfigID
+	} else if modelDbID == 0 && strings.TrimSpace(spec.FeatureKey) != "" {
 		resolvedID, _, err := h.svc.GetForFeature(spec.FeatureKey)
 		if err != nil {
 			h.failTask(task, node, nd, err.Error())

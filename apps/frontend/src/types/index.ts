@@ -215,6 +215,8 @@ export interface AIModelConfig {
   model_id_override: string      // optional override for the API-level model ID (e.g. Volcengine ep-xxx)
   is_enabled: boolean
   priority: number
+  capacity_weight: number
+  max_concurrency: number
   credits_input_per_1m: number
   credits_output_per_1m: number
   credits_per_image: number
@@ -332,6 +334,7 @@ export interface ModelInputRequirements {
 export interface PublicModel {
   id: number
   credential_id: number        // parent AICredential ID (for admin inline edit)
+  model_id: string             // public logical model ID used by callers
   display_name: string
   short_name?: string
   provider_name?: string       // admin/debug only; product UI should not expose providers
@@ -342,6 +345,9 @@ export interface PublicModel {
   is_default?: boolean         // true when admin-pinned as default for a feature
   model_def_id?: string
   model_id_override?: string   // actual model ID sent to API if overridden
+  priority?: number
+  capacity_weight?: number
+  max_concurrency?: number
   supported_params?: ParamDef[]
   input_requirements?: ModelInputRequirements
   params_schema?: Record<string, unknown>
@@ -787,6 +793,7 @@ export interface CanvasExecutableSpec {
   executor: 'ai_model' | 'plugin_http'
   capability: CanvasExecutableCapability
   featureKey?: string
+  modelId?: string
   modelDbId?: number
   pluginToolKey?: string
   prompt?: string
@@ -801,7 +808,8 @@ export interface CanvasNodeData {
   resourceId?: number
   resource?: RawResource
   prompt?: string
-  modelDbId?: number   // AIModelConfig primary key (preferred routing)
+  modelId?: string      // public logical model ID preferred for routing
+  modelDbId?: number    // legacy AIModelConfig primary key kept for old canvases/audit
   referencedCanvasId?: number                            // workflow canvas used by a canvas reference node
   inputResourceIds?: number[]                             // selected resource inputs for full tool cards
   status?: CanvasTaskStatus

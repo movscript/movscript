@@ -5,7 +5,8 @@ import { api } from '@/lib/api'
 import { buildCommandFirstClientInput } from '@/lib/agentCommandInput'
 import { runRuntimeMessage } from '@/lib/runtimeChat'
 import { formatLocalAgentAssistantContent } from '@/components/agent/localRuntime'
-import type { RawResource } from '@/types'
+import { publicModelId } from '@/lib/modelDisplay'
+import type { PublicModel, RawResource } from '@/types'
 import {
   ArrowLeft, Wand2, Loader2, Bot,
   ChevronDown, ChevronUp, History, X,
@@ -126,6 +127,7 @@ export default function BrainstormPage() {
   const [prompt, setPrompt] = useState('')
   const [attachments, setAttachments] = useState<RawResource[]>([])
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null)
+  const [selectedModel, setSelectedModel] = useState<PublicModel | null>(null)
   const [history, setHistory] = useState<BrainstormEntry[]>(loadHistory)
   const [historyExpanded, setHistoryExpanded] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
@@ -185,7 +187,7 @@ export default function BrainstormPage() {
         message: `${AI_SYSTEM_PROMPT}\n\n${userPrompt}`,
         title: 'Brainstorm',
         clientInput,
-        modelConfigId: selectedModelId,
+        modelId: selectedModel ? publicModelId(selectedModel) : undefined,
         timeoutMs: 60_000,
         pollMs: 400,
         sessionId: `brainstorm_${entryId}`,
@@ -304,6 +306,7 @@ export default function BrainstormPage() {
                   capability="text"
                   value={selectedModelId}
                   onChange={setSelectedModelId}
+                  onModelChange={setSelectedModel}
                 />
               </div>
             </CardHeader>

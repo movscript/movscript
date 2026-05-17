@@ -2,7 +2,7 @@ import { isRecord } from '../jsonValue.js'
 import type { JSONValue } from '../types.js'
 import type { AgentDraft, AgentDraftStore } from '../drafts/draftStore.js'
 import { validateDraft } from '../drafts/draftStore.js'
-import { buildApplyDraftPreview, markDraftApplied, rejectDraft, type ApplyDraftInput } from '../drafts/draftApply.js'
+import { buildApplyDraftPreview, markDraftApplied, rejectDraft, type ApplyDraftInput, type ApplyDraftReview } from '../drafts/draftApply.js'
 import { BackendApplyHTTPError, type BackendApplyResult } from '../drafts/backendApplyClient.js'
 import {
   assetProposalContainsAssetSlots,
@@ -90,6 +90,7 @@ export async function simulateRuntimeDraftApply(input: {
   applyInput: ApplyDraftInput & { backendAuthToken?: unknown; backendAPIBaseURL?: unknown }
 }): Promise<JSONValue> {
   const preview = buildApplyDraftPreview(input.draftStore, input.applyInput)
+  const preparedReview = buildRuntimeProjectProposalReviewForBackend(preview.review, input.draftStore)
   const validation = validateDraft(preview.draft)
   if (!validation.ok) {
     return {
@@ -111,7 +112,7 @@ export async function simulateRuntimeDraftApply(input: {
   }
   try {
     const backendApply = await input.backendApplyClient.previewApplyReview(
-      preview.review,
+      preparedReview,
       buildRuntimeDraftBackendAuth(input.applyInput),
     )
     return {
@@ -141,15 +142,16 @@ export async function applyRuntimeDraftFromUI(input: {
   now: () => string
 }): Promise<JSONValue> {
   const preview = buildApplyDraftPreview(input.draftStore, input.applyInput)
+  const preparedReview = buildRuntimeProjectProposalReviewForBackend(preview.review, input.draftStore)
   if (isAssetPlanningDraft(preview.draft)) {
-    const finalDraft = markDraftApplied(input.draftStore, preview.draft, preview.review, input.applyInput, {
+    const finalDraft = markDraftApplied(input.draftStore, preview.draft, preparedReview, input.applyInput, {
       appliedBy: 'movscript-ui',
       backendWritePerformed: false,
       backendApplySkippedReason: 'asset proposal contains candidate plans only; project snapshot apply was skipped',
     })
     return {
       status: 'applied',
-      review: preview.review,
+      review: preparedReview,
       draft: finalDraft,
       message: 'Asset candidate planning draft marked applied locally. Backend project snapshot apply was skipped.',
       backendApply: { performed: false, skippedReason: 'asset proposal contains candidate plans only' },
@@ -158,7 +160,7 @@ export async function applyRuntimeDraftFromUI(input: {
 
   let backendApply: BackendApplyResult
   try {
-    backendApply = await input.backendApplyClient.applyReview(preview.review, buildRuntimeDraftBackendAuth(input.applyInput, {
+    backendApply = await input.backendApplyClient.applyReview(preparedReview, buildRuntimeDraftBackendAuth(input.applyInput, {
       includeAppliedByUserId: true,
     }))
   } catch (error) {
@@ -173,6 +175,11 @@ export async function applyRuntimeDraftFromUI(input: {
   }
 
   const rebasedContent = canonicalizeProjectProposalDraftContent(preview.draft, backendApply)
+  const nextCreativeReferenceClientIDMap = prepareProjectProposalClientIDMap(preparedReview, backendApply, preview.draft)
+  const mergedCreativeReferenceClientIDMap = mergeCreativeReferenceClientIDMap(
+    isRecord(preview.draft.metadata) ? normalizeClientIDMap(preview.draft.metadata.creativeReferenceClientIDMap) : {},
+    nextCreativeReferenceClientIDMap ?? {},
+  )
   const rebasedDraft = rebasedContent
     ? input.draftStore.updateDraft(preview.draft.id, {
         content: rebasedContent,
@@ -182,15 +189,18 @@ export async function applyRuntimeDraftFromUI(input: {
         },
       })
     : preview.draft
-  const finalDraft = markDraftApplied(input.draftStore, rebasedDraft, preview.review, input.applyInput, {
+  const finalDraft = markDraftApplied(input.draftStore, rebasedDraft, preparedReview, input.applyInput, {
     appliedBy: 'movscript-ui',
     backendWritePerformed: backendApply.performed,
     backendApply: backendApply as unknown as JSONValue,
+    ...(Object.keys(mergedCreativeReferenceClientIDMap).length > 0 ? {
+      creativeReferenceClientIDMap: mergedCreativeReferenceClientIDMap,
+    } : {}),
     ...(rebasedContent ? { canonicalizedAfterApply: true } : {}),
   })
   return {
     status: 'applied',
-    review: preview.review,
+    review: preparedReview,
     draft: finalDraft,
     message: backendApply.performed
       ? 'Draft applied by UI and backend business item patch completed.'
@@ -209,4 +219,230 @@ export function rejectRuntimeDraft(input: {
 
 function isAssetPlanningDraft(draft: AgentDraft): boolean {
   return draft.kind === 'asset_proposal' && !assetProposalContainsAssetSlots(draft.content)
+}
+
+function buildRuntimeProjectProposalReviewForBackend(review: ApplyDraftReview, draftStore: AgentDraftStore): ApplyDraftReview {
+  if (!isRecord(review) || review.draftKind !== 'asset_proposal' || !isRecord(review.target)) {
+    return review
+  }
+  const projectID = resolveDraftProjectId(review.target)
+  if (!projectID) return review
+  const ownerIDByClientID = getCreativeReferenceIDMapFromProjectDrafts(draftStore, projectID)
+  if (Object.keys(ownerIDByClientID).length === 0) return review
+  const reviewProposedValue = parseJSONTextAsRecord(review.proposedValue)
+  const proposal = isRecord(reviewProposedValue?.proposal) ? reviewProposedValue.proposal : undefined
+  if (!isRecord(proposal)) return review
+  const assetSlots = Array.isArray(proposal.asset_slots) ? proposal.asset_slots : []
+  if (assetSlots.length === 0) return review
+  let rewritten = false
+  const nextAssetSlots = assetSlots.map((slot) => {
+    if (!isRecord(slot)) return slot
+    const owner = isRecord(slot.owner) ? slot.owner : undefined
+    const hasCreativeOwnerType = readText(owner?.type) === 'creative_reference' || readText(slot.owner_type) === 'creative_reference'
+    const ownerID = readPositiveInt(owner?.id) ?? readPositiveInt(slot.owner_id)
+    if (ownerID !== undefined) return slot
+    const creativeReferenceClientID = firstMatchingClientID([
+      owner?.client_id,
+      owner?.id,
+      hasCreativeOwnerType ? slot.creative_reference_id : undefined,
+      hasCreativeOwnerType ? slot.owner_id : undefined,
+    ], ownerIDByClientID)
+    if (!creativeReferenceClientID) return slot
+    const resolved = ownerIDByClientID[creativeReferenceClientID]
+    if (!resolved) return slot
+    if (owner) {
+      rewritten = true
+      return {
+        ...slot,
+        owner: {
+          ...owner,
+          type: hasCreativeOwnerType ? readText(owner.type) : 'creative_reference',
+          id: resolved,
+        },
+      }
+    }
+    rewritten = true
+    return {
+      ...slot,
+      owner_type: 'creative_reference',
+      creative_reference_id: resolved,
+      owner_id: resolved,
+    }
+  })
+  if (!rewritten) return review
+  return {
+    ...review,
+    proposedValue: {
+      ...(reviewProposedValue ?? {}),
+      proposal: {
+        ...proposal,
+        asset_slots: nextAssetSlots,
+      },
+    },
+  } as typeof review
+}
+
+function getCreativeReferenceIDMapFromProjectDrafts(draftStore: AgentDraftStore, projectID: number): Record<string, number> {
+  const settings = draftStore.listDrafts({ projectId: projectID, kind: 'setting_proposal' })
+  if (settings.length === 0) return {}
+  const mergedByClientID: Record<string, { referenceID: number; updatedAt: string; createdAt: string; index: number }> = {}
+  for (const [index, draft] of settings.entries()) {
+    if (!isRecord(draft.metadata)) continue
+    const map = normalizeClientIDMap(draft.metadata.creativeReferenceClientIDMap)
+    for (const [clientID, referenceID] of Object.entries(map)) {
+      const current = mergedByClientID[clientID]
+      const candidateUpdatedAt = draft.updatedAt
+      const candidateCreatedAt = draft.createdAt
+      if (!current) {
+        mergedByClientID[clientID] = { referenceID, updatedAt: candidateUpdatedAt, createdAt: candidateCreatedAt, index }
+        continue
+      }
+      if (candidateUpdatedAt > current.updatedAt) {
+        mergedByClientID[clientID] = { referenceID, updatedAt: candidateUpdatedAt, createdAt: candidateCreatedAt, index }
+        continue
+      }
+      if (candidateUpdatedAt < current.updatedAt) continue
+      if (candidateCreatedAt > current.createdAt) {
+        mergedByClientID[clientID] = { referenceID, updatedAt: candidateUpdatedAt, createdAt: candidateCreatedAt, index }
+        continue
+      }
+      if (candidateCreatedAt < current.createdAt) continue
+      if (index > current.index) {
+        mergedByClientID[clientID] = { referenceID, updatedAt: candidateUpdatedAt, createdAt: candidateCreatedAt, index }
+      }
+    }
+  }
+  const merged: Record<string, number> = {}
+  for (const [clientID, value] of Object.entries(mergedByClientID)) {
+    merged[clientID] = value.referenceID
+  }
+  return merged
+}
+
+function firstMatchingClientID(values: unknown[], referenceMap: Record<string, number>): string {
+  for (const value of values) {
+    const candidate = readClientID(value)
+    if (!candidate) continue
+    if (Object.hasOwn(referenceMap, candidate)) return candidate
+  }
+  return ''
+}
+
+function normalizeClientIDMap(value: unknown): Record<string, number> {
+  if (!isRecord(value)) return {}
+  const out: Record<string, number> = {}
+  for (const [key, rawReferenceID] of Object.entries(value)) {
+    const clientID = readClientID(key)
+    const referenceID = readPositiveInt(rawReferenceID)
+    if (!clientID || referenceID === undefined) continue
+    out[clientID] = referenceID
+  }
+  return out
+}
+
+function mergeCreativeReferenceClientIDMap(left: Record<string, number>, right: Record<string, number>): Record<string, number> {
+  if (Object.keys(left).length === 0) return { ...right }
+  if (Object.keys(right).length === 0) return { ...left }
+  return { ...left, ...right }
+}
+
+function prepareProjectProposalClientIDMap(
+  review: ApplyDraftReview,
+  backendApply: BackendApplyResult,
+  draft: AgentDraft,
+): Record<string, number> | undefined {
+  if (review.draftKind !== 'setting_proposal') return undefined
+  if (!isRecord(review.target)) return undefined
+  const reviewProposedValue = parseJSONTextAsRecord(review.proposedValue)
+  const proposal = isRecord(reviewProposedValue?.proposal) ? reviewProposedValue.proposal : undefined
+  if (!isRecord(proposal)) return undefined
+  const requestedRefs = Array.isArray(proposal.creative_references) ? proposal.creative_references : []
+  if (!isRecord(backendApply.response)) return undefined
+  const snapshotRefs = normalizeCreativeReferenceSnapshot(backendApply.response)
+  if (requestedRefs.length === 0 || snapshotRefs.length === 0) return undefined
+  const sourceMap = isRecord(draft.metadata) ? normalizeClientIDMap(draft.metadata.creativeReferenceClientIDMap) : {}
+  const nextMap = buildClientIDToReferenceIDMap(requestedRefs, snapshotRefs)
+  return {
+    ...sourceMap,
+    ...nextMap,
+  }
+}
+
+function buildClientIDToReferenceIDMap(requestedRefs: unknown[], snapshotRefs: Record<string, unknown>[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  const usedRefIDs = new Set<number>()
+  for (const requestedRef of requestedRefs) {
+    if (!isRecord(requestedRef)) continue
+    const clientID = readClientID(requestedRef.client_id)
+    if (!clientID) continue
+    const directID = readPositiveInt(requestedRef.id)
+    if (directID !== undefined && directID > 0) {
+      out[clientID] = directID
+      usedRefIDs.add(directID)
+      continue
+    }
+    const targetName = readText(requestedRef.name)
+    const targetKind = readText(requestedRef.kind)
+    const targetAlias = readText(requestedRef.alias)
+    const matched = snapshotRefs.find((snapshotRef) => {
+      if (!isRecord(snapshotRef)) return false
+      const snapshotID = readPositiveInt(snapshotRef.id)
+      if (snapshotID === undefined || usedRefIDs.has(snapshotID)) return false
+      const snapshotName = readText(snapshotRef.name)
+      const snapshotKind = readText(snapshotRef.kind)
+      const snapshotAlias = readText(snapshotRef.alias)
+      return snapshotName === targetName && snapshotKind === targetKind && (targetAlias === '' || targetAlias === snapshotAlias)
+    })
+    if (!matched) continue
+    const snapshotID = readPositiveInt(matched.id)
+    if (snapshotID === undefined) continue
+    out[clientID] = snapshotID
+    usedRefIDs.add(snapshotID)
+  }
+  return out
+}
+
+function parseJSONTextAsRecord(value: unknown): Record<string, unknown> | undefined {
+  if (isRecord(value)) return value
+  if (typeof value !== 'string') return undefined
+  try {
+    const parsed = JSON.parse(value)
+    return isRecord(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function normalizeCreativeReferenceSnapshot(response: Record<string, unknown>): Record<string, unknown>[] {
+  const snapshot = response.canonical_snapshot
+  if (!isRecord(snapshot)) return []
+  const creativeReferences = snapshot.creative_references
+  return Array.isArray(creativeReferences) ? creativeReferences.filter((value): value is Record<string, unknown> => isRecord(value)) : []
+}
+
+function readText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function readClientID(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function readPositiveInt(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value) && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return undefined
+    const parsed = Number.parseInt(trimmed, 10)
+    if (!Number.isFinite(parsed) || parsed <= 0 || String(parsed) !== trimmed) return undefined
+    return parsed
+  }
+  return undefined
+}
+
+function resolveDraftProjectId(target: Record<string, unknown>): number | undefined {
+  const fromProject = readPositiveInt(target.projectId)
+  if (fromProject !== undefined) return fromProject
+  if (readText(target.entityType) !== 'project') return undefined
+  return readPositiveInt(target.entityId)
 }

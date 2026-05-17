@@ -111,6 +111,8 @@ type ModelEditForm = {
   short_name: string
   model_id_override: string
   priority: string
+  capacity_weight: string
+  max_concurrency: string
   capabilities: string[]
   pricing_mode: string
   accepts_image: boolean
@@ -706,6 +708,32 @@ interface PriceForm {
   credits_per_call: number
 }
 
+interface RuntimeProviderHealth {
+  model_config_id: number
+  model_id: string
+  model_def_id: string
+  provider_name: string
+  adapter_type: string
+  priority: number
+  capacity_weight: number
+  max_concurrency: number
+  is_enabled: boolean
+  in_flight: number
+  saturated: boolean
+  successes: number
+  failures: number
+  consecutive_failures: number
+  failure_rate: number
+  circuit_open: boolean
+  open_until?: string
+  cooldown_remaining_ms: number
+}
+
+interface RuntimeProviderHealthResponse {
+  items: RuntimeProviderHealth[]
+  total: number
+}
+
 function defaultPriceForm(): PriceForm {
   return { model_id_override: '', credits_input_per_1m: 0, credits_output_per_1m: 0, credits_per_image: 0, credits_per_second: 0, credits_per_call: 0 }
 }
@@ -1197,6 +1225,9 @@ export function ModelManagementPage() {
   const [addMaxInputVideos, setAddMaxInputVideos] = useState(0)
   const [addImageEditField, setAddImageEditField] = useState('')
   const [addSupportedParams, setAddSupportedParams] = useState('')
+  const [addPriority, setAddPriority] = useState('0')
+  const [addCapacityWeight, setAddCapacityWeight] = useState('1')
+  const [addMaxConcurrency, setAddMaxConcurrency] = useState('0')
   const [addPriceForm, setAddPriceForm] = useState<PriceForm>(defaultPriceForm())
   const [showPresets, setShowPresets] = useState(false)
   // Remote model fetch state (within add panel)
@@ -1206,7 +1237,7 @@ export function ModelManagementPage() {
   // Editing existing model config
   const [editingConfig, setEditingConfig] = useState<AIModelConfig | null>(null)
   const [editForm, setEditForm] = useState<ModelEditForm>({
-    display_name: '', short_name: '', model_id_override: '', priority: '0', capabilities: [], pricing_mode: 'per_token', accepts_image: false, max_input_images: 0, max_input_videos: 0, supported_params: '',
+    display_name: '', short_name: '', model_id_override: '', priority: '0', capacity_weight: '1', max_concurrency: '0', capabilities: [], pricing_mode: 'per_token', accepts_image: false, max_input_images: 0, max_input_videos: 0, supported_params: '',
   })
   // Files API editing state
   const [filesAPIEditFor, setFilesAPIEditFor] = useState<number | null>(null)
@@ -1235,6 +1266,13 @@ export function ModelManagementPage() {
   const { data: credentials = [], error: credentialsQueryError } = useQuery<AICredential[]>({
     queryKey: ['admin', 'credentials'],
     queryFn: () => api.get('/admin/credentials').then((r) => r.data),
+  })
+
+  const runtimeHealthQuery = useQuery<RuntimeProviderHealthResponse>({
+    queryKey: ['admin', 'model-runtime-health'],
+    queryFn: () => api.get('/admin/debug/model-runtime-health').then((r) => r.data),
+    enabled: viewMode === 'gateway',
+    refetchInterval: viewMode === 'gateway' ? 5000 : false,
   })
 
   const deleteCredential = useMutation({
@@ -1289,13 +1327,16 @@ export function ModelManagementPage() {
   })
 
   const addModel = useMutation({
-    mutationFn: ({ credId, modelId, displayName, shortName, capabilities, pricingMode, acceptsImage, maxInputImages, maxInputVideos, imageEditField, supportedParams, data }: {
+    mutationFn: ({ credId, modelId, displayName, shortName, capabilities, pricingMode, acceptsImage, maxInputImages, maxInputVideos, imageEditField, supportedParams, priority, capacityWeight, maxConcurrency, data }: {
       credId: number; modelId: string; displayName: string; shortName: string; capabilities: string[]
       pricingMode: string; acceptsImage: boolean; maxInputImages: number; maxInputVideos: number
-      imageEditField: string; supportedParams: string; data: PriceForm
+      imageEditField: string; supportedParams: string; priority: string; capacityWeight: string; maxConcurrency: string; data: PriceForm
     }) =>
       api.post(`/admin/credentials/${credId}/models`, {
         model_def_id: modelId,
+        priority: parseInt(priority, 10) || 0,
+        capacity_weight: Math.max(1, parseInt(capacityWeight, 10) || 1),
+        max_concurrency: Math.max(0, parseInt(maxConcurrency, 10) || 0),
         custom_display_name: displayName || modelId,
         short_name: shortName,
         custom_capabilities: capabilities.join(','),
@@ -1327,6 +1368,8 @@ export function ModelManagementPage() {
         short_name: data.short_name,
         model_id_override: data.model_id_override,
         priority: parseInt(data.priority, 10) || 0,
+        capacity_weight: Math.max(1, parseInt(data.capacity_weight, 10) || 1),
+        max_concurrency: Math.max(0, parseInt(data.max_concurrency, 10) || 0),
         custom_capabilities: data.capabilities.join(','),
         custom_pricing_mode: data.pricing_mode,
         custom_accepts_image: data.accepts_image,
@@ -1367,6 +1410,9 @@ export function ModelManagementPage() {
     setAddMaxInputVideos(0)
     setAddImageEditField('')
     setAddSupportedParams('')
+    setAddPriority('0')
+    setAddCapacityWeight('1')
+    setAddMaxConcurrency('0')
     setAddPriceForm(defaultPriceForm())
     setRemoteModels([])
     setRemoteError('')
@@ -1838,6 +1884,41 @@ export function ModelManagementPage() {
                           />
                         </div>
 
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.priority')}</Label>
+                            <Input
+                              type="number"
+                              step={1}
+                              className="text-xs h-8"
+                              value={addPriority}
+                              onChange={(e) => setAddPriority(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capacityWeight')}</Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              step={1}
+                              className="text-xs h-8"
+                              value={addCapacityWeight}
+                              onChange={(e) => setAddCapacityWeight(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.maxConcurrency')}</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              step={1}
+                              className="text-xs h-8"
+                              value={addMaxConcurrency}
+                              onChange={(e) => setAddMaxConcurrency(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
                         <div>
                           <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capabilitiesLabel')}</Label>
                           <div className="flex flex-wrap gap-1.5">
@@ -1972,6 +2053,9 @@ export function ModelManagementPage() {
                               maxInputVideos: addMaxInputVideos,
                               imageEditField: addImageEditField,
                               supportedParams: addSupportedParams,
+                              priority: addPriority,
+                              capacityWeight: addCapacityWeight,
+                              maxConcurrency: addMaxConcurrency,
                               data: addPriceForm,
                             })}
                             disabled={addModel.isPending || !addModelId.trim() || addCapabilities.length === 0 || !addInputLimitsValid || addParamAudit.errors.length > 0}
@@ -2047,6 +2131,8 @@ export function ModelManagementPage() {
                                 short_name: cfg.short_name,
                                 model_id_override: cfg.model_id_override,
                                 priority: String(cfg.priority ?? 0),
+                                capacity_weight: String(cfg.capacity_weight ?? 1),
+                                max_concurrency: String(cfg.max_concurrency ?? 0),
                                 capabilities: nextCaps,
                                 pricing_mode: cfg.custom_pricing_mode || 'per_token',
                                 accepts_image: cfg.custom_accepts_image,
@@ -2095,6 +2181,40 @@ export function ModelManagementPage() {
                                   value={editForm.model_id_override}
                                   onChange={(e) => setEditForm((f) => ({ ...f, model_id_override: e.target.value }))}
                                   placeholder={t('admin.features.modelIdOverrideShortPlaceholder')}
+                                />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.priority')}</Label>
+                                <Input
+                                  type="number"
+                                  step={1}
+                                  className="text-xs"
+                                  value={editForm.priority}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capacityWeight')}</Label>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  step={1}
+                                  className="text-xs"
+                                  value={editForm.capacity_weight}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, capacity_weight: e.target.value }))}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.maxConcurrency')}</Label>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  step={1}
+                                  className="text-xs"
+                                  value={editForm.max_concurrency}
+                                  onChange={(e) => setEditForm((f) => ({ ...f, max_concurrency: e.target.value }))}
                                 />
                               </div>
                             </div>
@@ -2363,11 +2483,149 @@ export function ModelManagementPage() {
             </div>
           </div>
 
+          <RuntimeModelHealthSection
+            items={runtimeHealthQuery.data?.items ?? []}
+            isLoading={runtimeHealthQuery.isLoading}
+            isFetching={runtimeHealthQuery.isFetching}
+            error={runtimeHealthQuery.error}
+            onRefresh={() => runtimeHealthQuery.refetch()}
+          />
+
           <GatewayAPIKeysSection credentials={credentials} />
         </div>
       )}
     </div>
   )
+}
+
+function RuntimeModelHealthSection({
+  items,
+  isLoading,
+  isFetching,
+  error,
+  onRefresh,
+}: {
+  items: RuntimeProviderHealth[]
+  isLoading: boolean
+  isFetching: boolean
+  error: unknown
+  onRefresh: () => void
+}) {
+  const { t } = useTranslation()
+  const sorted = [...items].sort((a, b) => runtimeHealthRank(b) - runtimeHealthRank(a) || b.priority - a.priority || a.model_config_id - b.model_config_id)
+
+  return (
+    <div className="rounded-lg border border-border bg-background">
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">{t('admin.models.runtimeHealthTitle')}</p>
+          <p className="text-xs text-muted-foreground">{t('admin.models.runtimeHealthSubtitle', { count: items.length })}</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onRefresh} disabled={isFetching}>
+          <RefreshCw size={13} className={cn('mr-1.5', isFetching && 'animate-spin')} />
+          {t('admin.models.runtimeHealthRefresh')}
+        </Button>
+      </div>
+
+      {error ? (
+        <div className="px-4 py-3 text-xs text-destructive">{translateAPIRequestError(error)}</div>
+      ) : isLoading ? (
+        <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t('admin.models.runtimeHealthLoading')}</div>
+      ) : sorted.length === 0 ? (
+        <div className="px-4 py-6 text-center text-xs text-muted-foreground">{t('admin.models.runtimeHealthEmpty')}</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="border-b border-border bg-muted/30 text-muted-foreground">
+              <tr>
+                <th className="px-4 py-2 font-medium">{t('admin.models.runtimeHealthProvider')}</th>
+                <th className="px-3 py-2 font-medium">{t('admin.models.runtimeHealthModel')}</th>
+                <th className="px-3 py-2 font-medium">{t('admin.models.runtimeHealthCapacity')}</th>
+                <th className="px-3 py-2 font-medium">{t('admin.models.runtimeHealthTraffic')}</th>
+                <th className="px-3 py-2 font-medium">{t('admin.models.runtimeHealthOutcome')}</th>
+                <th className="px-4 py-2 font-medium">{t('admin.models.runtimeHealthState')}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {sorted.map((item) => {
+                const state = runtimeHealthState(item, t)
+                return (
+                  <tr key={item.model_config_id} className="align-top">
+                    <td className="px-4 py-2">
+                      <p className="font-medium text-foreground">{item.provider_name || '-'}</p>
+                      <p className="font-mono text-[11px] text-muted-foreground">{item.adapter_type}</p>
+                    </td>
+                    <td className="px-3 py-2">
+                      <p className="font-mono text-foreground">{item.model_id || item.model_def_id || '-'}</p>
+                      <p className="text-[11px] text-muted-foreground">#{item.model_config_id}</p>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      <p>{t('admin.models.runtimeHealthPriorityValue', { value: item.priority })}</p>
+                      <p>{t('admin.models.runtimeHealthWeightValue', { value: item.capacity_weight || 1 })}</p>
+                      <p>{t('admin.models.runtimeHealthMaxConcurrencyValue', { value: item.max_concurrency > 0 ? item.max_concurrency : t('admin.models.runtimeHealthUnlimited') })}</p>
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      <p>{t('admin.models.runtimeHealthInFlightValue', { value: item.in_flight })}</p>
+                      {item.cooldown_remaining_ms > 0 && (
+                        <p>{t('admin.models.runtimeHealthCooldownValue', { value: formatRuntimeCooldown(item.cooldown_remaining_ms) })}</p>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      <p>{t('admin.models.runtimeHealthSuccessFailureValue', { success: item.successes, failure: item.failures })}</p>
+                      <p>{formatFailureRate(item.failure_rate)}</p>
+                    </td>
+                    <td className="px-4 py-2">
+                      <span className={cn('inline-flex rounded-full border px-2 py-0.5 text-[11px] font-medium', state.className)}>
+                        {state.label}
+                      </span>
+                      {item.consecutive_failures > 0 && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {t('admin.models.runtimeHealthConsecutiveFailures', { count: item.consecutive_failures })}
+                        </p>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function runtimeHealthRank(item: RuntimeProviderHealth) {
+  if (!item.is_enabled) return 4
+  if (item.circuit_open) return 3
+  if (item.saturated) return 2
+  if (item.failures > 0) return 1
+  return 0
+}
+
+function runtimeHealthState(item: RuntimeProviderHealth, t: (key: string, options?: Record<string, unknown>) => string) {
+  if (!item.is_enabled) {
+    return { label: t('admin.models.runtimeHealthDisabled'), className: 'border-border bg-muted text-muted-foreground' }
+  }
+  if (item.circuit_open) {
+    return { label: t('admin.models.runtimeHealthCircuitOpen'), className: 'border-destructive/30 bg-destructive/10 text-destructive' }
+  }
+  if (item.saturated) {
+    return { label: t('admin.models.runtimeHealthSaturated'), className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300' }
+  }
+  if (item.failures > 0) {
+    return { label: t('admin.models.runtimeHealthDegraded'), className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300' }
+  }
+  return { label: t('admin.models.runtimeHealthHealthy'), className: 'border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-300' }
+}
+
+function formatFailureRate(value: number) {
+  return `${Math.round((Number.isFinite(value) ? value : 0) * 1000) / 10}%`
+}
+
+function formatRuntimeCooldown(ms: number) {
+  if (ms <= 0) return '0s'
+  return `${Math.ceil(ms / 1000)}s`
 }
 
 // ── Tab 3: 项目 Owner 管理 ────────────────────────────────────────────────────
@@ -3156,8 +3414,8 @@ function FeatureRow({
   const [promptSaved, setPromptSaved] = useState(false)
   // Inline model editing state: modelId → edit form open
   const [editingModelId, setEditingModelId] = useState<number | null>(null)
-  const [editForm, setEditForm] = useState<{ custom_display_name: string; short_name: string; model_id_override: string; priority: string }>({
-    custom_display_name: '', short_name: '', model_id_override: '', priority: '0',
+  const [editForm, setEditForm] = useState<{ custom_display_name: string; short_name: string; model_id_override: string; priority: string; capacity_weight: string; max_concurrency: string }>({
+    custom_display_name: '', short_name: '', model_id_override: '', priority: '0', capacity_weight: '1', max_concurrency: '0',
   })
 
   // Query models for this specific feature — backend decides which capabilities are compatible.
@@ -3193,7 +3451,9 @@ function FeatureRow({
       custom_display_name: m.display_name,
       short_name: m.short_name ?? '',
       model_id_override: m.model_id_override ?? '',
-      priority: '0',
+      priority: String(m.priority ?? 0),
+      capacity_weight: String(m.capacity_weight ?? 1),
+      max_concurrency: String(m.max_concurrency ?? 0),
     })
   }
 
@@ -3205,6 +3465,8 @@ function FeatureRow({
         short_name: editForm.short_name,
         model_id_override: editForm.model_id_override,
         priority: Number(editForm.priority),
+        capacity_weight: Math.max(1, parseInt(editForm.capacity_weight, 10) || 1),
+        max_concurrency: Math.max(0, parseInt(editForm.max_concurrency, 10) || 0),
       },
     })
   }
@@ -3420,6 +3682,28 @@ function FeatureRow({
                           className="text-xs h-7"
                           value={editForm.priority}
                           onChange={(e) => setEditForm((f) => ({ ...f, priority: e.target.value }))}
+                        />
+                      </div>
+                      <div className="w-28">
+                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.capacityWeight')}</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          step={1}
+                          className="text-xs h-7"
+                          value={editForm.capacity_weight}
+                          onChange={(e) => setEditForm((f) => ({ ...f, capacity_weight: e.target.value }))}
+                        />
+                      </div>
+                      <div className="w-32">
+                        <Label className="text-xs text-muted-foreground block mb-0.5">{t('admin.models.maxConcurrency')}</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={1}
+                          className="text-xs h-7"
+                          value={editForm.max_concurrency}
+                          onChange={(e) => setEditForm((f) => ({ ...f, max_concurrency: e.target.value }))}
                         />
                       </div>
                       <div className="flex gap-2 mt-4">

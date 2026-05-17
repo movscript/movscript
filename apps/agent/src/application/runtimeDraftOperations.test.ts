@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { isRecord } from '../jsonValue.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { BackendApplyHTTPError, type BackendApplyResult } from '../drafts/backendApplyClient.js'
 import {
@@ -149,6 +150,209 @@ test('applyRuntimeDraftFromUI marks asset planning drafts applied without backen
   assert.equal(draftStore.getDraft(draft.id)?.status, 'applied')
 })
 
+test('applyRuntimeDraftFromUI stores setting proposal mapping from client_id to backend creative reference id', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const draft = draftStore.createDraft({
+    kind: 'setting_proposal',
+    title: 'Setting proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        creative_references: [{ client_id: 'hero_ref', name: 'Hero', kind: 'person' }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+  })
+  const backend = fakeBackendApplyClient({
+    applyResult: {
+      performed: true,
+      method: 'POST',
+      response: {
+        canonical_snapshot: {
+          creative_references: [{ id: 42, name: 'Hero', kind: 'person' }],
+        },
+      } as unknown as NonNullable<BackendApplyResult['response']>,
+    },
+  })
+
+  await applyRuntimeDraftFromUI({
+    draftStore,
+    backendApplyClient: backend,
+    applyInput: { draftId: draft.id },
+    now: () => '2026-01-01T00:00:00.000Z',
+  })
+
+  const applied = draftStore.getDraft(draft.id)
+  const metadata = applied?.metadata as { creativeReferenceClientIDMap?: Record<string, number> } | undefined
+  assert.equal(metadata?.creativeReferenceClientIDMap?.hero_ref, 42)
+})
+
+test('applyRuntimeDraftFromUI rewrites asset owner client_id using project setting map', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  draftStore.createDraft({
+    kind: 'setting_proposal',
+    title: 'Setting proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        creative_references: [{ client_id: 'hero_ref', name: 'Hero', kind: 'person' }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+    metadata: { creativeReferenceClientIDMap: { hero_ref: 42 } },
+  })
+  const assetDraft = draftStore.createDraft({
+    kind: 'asset_proposal',
+    title: 'Asset proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        asset_slots: [{
+          name: 'Hero portrait',
+          kind: 'image',
+          owner: {
+            type: 'creative_reference',
+            client_id: 'hero_ref',
+          },
+        }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+  })
+  const backend = fakeBackendApplyClient({
+    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/project-proposals/apply' },
+  })
+
+  await applyRuntimeDraftFromUI({
+    draftStore,
+    backendApplyClient: backend,
+    applyInput: { draftId: assetDraft.id },
+    now: () => '2026-01-01T00:00:00.000Z',
+  })
+
+  const proposed = backend.lastApplyReview?.proposedValue
+  const reviewProposal = isRecord(proposed) ? proposed.proposal : undefined
+  const assetSlots = isRecord(reviewProposal) && Array.isArray(reviewProposal.asset_slots) ? reviewProposal.asset_slots : []
+  const owner = isRecord(assetSlots[0]) && isRecord(assetSlots[0].owner) ? assetSlots[0].owner : undefined
+  assert.equal(owner?.id, 42)
+})
+
+test('applyRuntimeDraftFromUI prefers latest setting proposal mapping when multiple setting drafts exist', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  draftStore.createDraft({
+    kind: 'setting_proposal',
+    title: 'Old setting proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        creative_references: [{ client_id: 'hero_ref', name: 'Hero', kind: 'person' }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+    metadata: { creativeReferenceClientIDMap: { hero_ref: 11 } },
+  })
+  const secondSettingDraft = draftStore.createDraft({
+    kind: 'setting_proposal',
+    title: 'Latest setting proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        creative_references: [{ client_id: 'hero_ref', name: 'Hero', kind: 'person' }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+    metadata: { creativeReferenceClientIDMap: { hero_ref: 42 } },
+  })
+  draftStore.updateDraft(secondSettingDraft.id, { title: secondSettingDraft.title })
+
+  const assetDraft = draftStore.createDraft({
+    kind: 'asset_proposal',
+    title: 'Asset proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        asset_slots: [{
+          name: 'Hero portrait',
+          kind: 'image',
+          owner: {
+            type: 'creative_reference',
+            client_id: 'hero_ref',
+          },
+        }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+  })
+  const backend = fakeBackendApplyClient({
+    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/project-proposals/apply' },
+  })
+
+  await applyRuntimeDraftFromUI({
+    draftStore,
+    backendApplyClient: backend,
+    applyInput: { draftId: assetDraft.id },
+    now: () => '2026-01-01T00:00:00.000Z',
+  })
+
+  const proposed = backend.lastApplyReview?.proposedValue
+  const reviewProposal = isRecord(proposed) ? proposed.proposal : undefined
+  const assetSlots = isRecord(reviewProposal) && Array.isArray(reviewProposal.asset_slots) ? reviewProposal.asset_slots : []
+  const owner = isRecord(assetSlots[0]) && isRecord(assetSlots[0].owner) ? assetSlots[0].owner : undefined
+  assert.equal(owner?.id, 42)
+})
+
+test('applyRuntimeDraftFromUI rewrites creative_reference_id on top-level slot fields', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  draftStore.createDraft({
+    kind: 'setting_proposal',
+    title: 'Setting proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        creative_references: [{ client_id: 'hero_ref', name: 'Hero', kind: 'person' }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+    metadata: { creativeReferenceClientIDMap: { hero_ref: 42 } },
+  })
+  const assetDraft = draftStore.createDraft({
+    kind: 'asset_proposal',
+    title: 'Asset proposal',
+    projectId: 7,
+    content: JSON.stringify({
+      proposal: {
+        asset_slots: [{
+          name: 'Hero portrait',
+          kind: 'image',
+          owner_type: 'creative_reference',
+          owner_id: 'hero_ref',
+          creative_reference_id: 'hero_ref',
+        }],
+      },
+    }),
+    target: { entityType: 'project', entityId: 7 },
+  })
+  const backend = fakeBackendApplyClient({
+    applyResult: { performed: true, method: 'POST', url: 'http://backend/projects/7/entities/project-proposals/apply' },
+  })
+
+  await applyRuntimeDraftFromUI({
+    draftStore,
+    backendApplyClient: backend,
+    applyInput: { draftId: assetDraft.id },
+    now: () => '2026-01-01T00:00:00.000Z',
+  })
+
+  const proposed = backend.lastApplyReview?.proposedValue
+  const reviewProposal = isRecord(proposed) ? proposed.proposal : undefined
+  const assetSlots = isRecord(reviewProposal) && Array.isArray(reviewProposal.asset_slots) ? reviewProposal.asset_slots : []
+  const assetSlot = isRecord(assetSlots[0]) ? assetSlots[0] : undefined
+  const ownerID = typeof assetSlot?.owner_id === 'number' ? assetSlot.owner_id : Number(assetSlot?.owner_id)
+  const referenceID = typeof assetSlot?.creative_reference_id === 'number' ? assetSlot.creative_reference_id : Number(assetSlot?.creative_reference_id)
+  assert.equal(ownerID, 42)
+  assert.equal(referenceID, 42)
+})
+
 test('applyRuntimeDraftFromUI applies backend results and records backend failures', async () => {
   const draftStore = new InMemoryAgentDraftStore()
   const draft = draftStore.createDraft({
@@ -194,17 +398,24 @@ function fakeBackendApplyClient(options: {
   previewError?: Error
   applyResult?: BackendApplyResult
   applyError?: Error
-} = {}): RuntimeDraftBackendApplyClient & { previewCalls: number; applyCalls: number } {
+} = {}): RuntimeDraftBackendApplyClient & {
+  previewCalls: number
+  applyCalls: number
+  lastPreviewReview?: Parameters<RuntimeDraftBackendApplyClient['previewApplyReview']>[0]
+  lastApplyReview?: Parameters<RuntimeDraftBackendApplyClient['applyReview']>[0]
+} {
   return {
     previewCalls: 0,
     applyCalls: 0,
-    async previewApplyReview() {
+    async previewApplyReview(review) {
       this.previewCalls += 1
+      this.lastPreviewReview = review
       if (options.previewError) throw options.previewError
       return options.previewResult ?? { performed: false, skippedReason: 'preview disabled' }
     },
-    async applyReview() {
+    async applyReview(review) {
       this.applyCalls += 1
+      this.lastApplyReview = review
       if (options.applyError) throw options.applyError
       return options.applyResult ?? { performed: false, skippedReason: 'apply disabled' }
     },

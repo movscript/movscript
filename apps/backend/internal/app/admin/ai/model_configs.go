@@ -18,6 +18,8 @@ type PatchModelConfigInput struct {
 	ModelIDOverride       *string
 	IsEnabled             *bool
 	Priority              *int
+	CapacityWeight        *int
+	MaxConcurrency        *int
 	CreditsInputPer1M     *float64
 	CreditsOutputPer1M    *float64
 	CreditsPerImage       *float64
@@ -185,6 +187,12 @@ func (s *Service) PatchModelConfig(ctx context.Context, input PatchModelConfigIn
 	}
 	if input.Priority != nil {
 		cfg.Priority = *input.Priority
+	}
+	if input.CapacityWeight != nil {
+		cfg.CapacityWeight = normalizeCapacityWeight(*input.CapacityWeight)
+	}
+	if input.MaxConcurrency != nil {
+		cfg.MaxConcurrency = *input.MaxConcurrency
 	}
 	if input.CreditsInputPer1M != nil {
 		cfg.CreditsInputPer1M = *input.CreditsInputPer1M
@@ -510,6 +518,8 @@ func newModelConfig(credentialID uint, input dto.AIModelConfigInput) domainai.Mo
 		ModelIDOverride:       input.ModelIDOverride,
 		IsEnabled:             input.IsEnabled,
 		Priority:              input.Priority,
+		CapacityWeight:        input.CapacityWeight,
+		MaxConcurrency:        input.MaxConcurrency,
 		CreditsInputPer1M:     input.CreditsInputPer1M,
 		CreditsOutputPer1M:    input.CreditsOutputPer1M,
 		CreditsPerImage:       input.CreditsPerImage,
@@ -531,6 +541,8 @@ func applyModelConfigInput(cfg *domainai.ModelConfig, input dto.AIModelConfigInp
 	cfg.ModelDefID = input.ModelDefID
 	cfg.ModelIDOverride = input.ModelIDOverride
 	cfg.Priority = input.Priority
+	cfg.CapacityWeight = normalizeCapacityWeight(input.CapacityWeight)
+	cfg.MaxConcurrency = input.MaxConcurrency
 	cfg.CreditsInputPer1M = input.CreditsInputPer1M
 	cfg.CreditsOutputPer1M = input.CreditsOutputPer1M
 	cfg.CreditsPerImage = input.CreditsPerImage
@@ -559,6 +571,9 @@ func (s *Service) adapterTypeForCredential(ctx context.Context, credentialID uin
 }
 
 func validateModelConfigInput(adapterType string, existingSupportedParams string, input dto.AIModelConfigInput) error {
+	if err := validateCapacityConfig(input.CapacityWeight, input.MaxConcurrency); err != nil {
+		return err
+	}
 	supportedParams := input.CustomSupportedParams
 	if supportedParams == "" {
 		supportedParams = existingSupportedParams
@@ -580,6 +595,9 @@ func validateStoredModelConfig(adapterType string, cfg domainai.ModelConfig) err
 	if strings.TrimSpace(cfg.CustomCapabilities) == "" {
 		return fmt.Errorf("%w: custom_capabilities is required", ErrInvalidModelConfig)
 	}
+	if err := validateCapacityConfig(cfg.CapacityWeight, cfg.MaxConcurrency); err != nil {
+		return err
+	}
 	if err := validateInputLimit("custom_max_input_images", cfg.CustomMaxInputImages); err != nil {
 		return err
 	}
@@ -598,6 +616,23 @@ func validateInputLimit(field string, value int) error {
 		return fmt.Errorf("%w: %s must be -1 for unlimited or a non-negative integer", ErrInvalidModelConfig, field)
 	}
 	return nil
+}
+
+func validateCapacityConfig(capacityWeight int, maxConcurrency int) error {
+	if capacityWeight < 0 {
+		return fmt.Errorf("%w: capacity_weight must be a positive integer", ErrInvalidModelConfig)
+	}
+	if maxConcurrency < 0 {
+		return fmt.Errorf("%w: max_concurrency must be 0 for unlimited or a positive integer", ErrInvalidModelConfig)
+	}
+	return nil
+}
+
+func normalizeCapacityWeight(value int) int {
+	if value <= 0 {
+		return 1
+	}
+	return value
 }
 
 func schemaRuleCount(schema map[string]any) int {

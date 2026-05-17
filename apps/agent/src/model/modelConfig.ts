@@ -5,7 +5,7 @@ import { isRecord } from '../jsonValue.js'
 
 export interface RuntimeModelConfig {
   provider: 'backend-model-config'
-  modelConfigId: number
+  modelConfigId?: number
   model: string
   apiKind?: RuntimeModelAPIKind
   baseURL?: string
@@ -36,7 +36,7 @@ export interface RuntimeModelConfigInput {
   useForPlanner?: unknown
 }
 
-export type ConfiguredRuntimeModelConfig = RuntimeModelConfig & { modelConfigId: number }
+export type ConfiguredRuntimeModelConfig = RuntimeModelConfig & { model: string }
 
 export interface RuntimeModelAuthContext {
   backendAuthToken?: string
@@ -88,7 +88,7 @@ export interface RuntimeModelTestResult {
   ok: boolean
   provider: string
   model: string
-  modelConfigId: number
+  modelConfigId?: number
   latencyMs: number
   content: string
   request: RuntimeModelRequestSnapshot
@@ -197,7 +197,7 @@ export class RuntimeModelConfigStore {
     return {
       configured: true,
       provider: 'backend-model-config',
-      modelConfigId: fileConfig.modelConfigId,
+      ...(fileConfig.modelConfigId ? { modelConfigId: fileConfig.modelConfigId } : {}),
       model: fileConfig.model,
       apiKind: fileConfig.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND,
       baseURL: fileConfig.baseURL,
@@ -211,13 +211,13 @@ export class RuntimeModelConfigStore {
   save(input: RuntimeModelConfigInput): RuntimeModelConfigPublic {
     const existing = this.readFileConfig()
     const modelConfigId = normalizePositiveInteger(input.modelConfigId) ?? existing?.modelConfigId
-    if (!modelConfigId) throw new Error('backend model config id is required')
-    const model = normalizeNonEmptyString(input.model) ?? existing?.model ?? backendModelID(modelConfigId)
+    const model = normalizeNonEmptyString(input.model) ?? existing?.model ?? (modelConfigId ? backendModelID(modelConfigId) : undefined)
+    if (!model) throw new Error('backend model_id is required')
     const apiKind = normalizeRuntimeModelAPIKind(input.apiKind) ?? existing?.apiKind ?? DEFAULT_RUNTIME_MODEL_API_KIND
     const baseURL = normalizeNonEmptyString(input.baseURL) ?? existing?.baseURL
     const config: RuntimeModelConfig = {
       provider: 'backend-model-config',
-      modelConfigId,
+      ...(modelConfigId ? { modelConfigId } : {}),
       model,
       apiKind,
       ...(baseURL ? { baseURL } : {}),
@@ -231,7 +231,7 @@ export class RuntimeModelConfigStore {
 
   async test(input: { message?: unknown } = {}, auth: RuntimeModelAuthContext = {}): Promise<RuntimeModelTestResult> {
     const config = this.getEffectiveConfig()
-    if (!config?.modelConfigId) throw new Error('backend model config is not configured')
+    if (!config?.model?.trim()) throw new Error('backend model_id is not configured')
     const messages = buildTestMessages(normalizeNonEmptyString(input.message) ?? 'Reply with one short sentence confirming the MovScript runtime model connection works.')
     const request = buildBackendGatewayChatRequest(config, messages, auth)
     const started = Date.now()
@@ -240,7 +240,7 @@ export class RuntimeModelConfigStore {
       ok: true,
       provider: config.provider,
       model: config.model,
-      modelConfigId: config.modelConfigId,
+      ...(config.modelConfigId ? { modelConfigId: config.modelConfigId } : {}),
       latencyMs: Date.now() - started,
       content,
       request: publicRequestSnapshot(request),
@@ -257,11 +257,12 @@ export class RuntimeModelConfigStore {
     }
     if (!isRecord(parsed)) return undefined
     const modelConfigId = normalizePositiveInteger(parsed.modelConfigId)
-    if (!modelConfigId) return undefined
+    const model = normalizeNonEmptyString(parsed.model) ?? (modelConfigId ? backendModelID(modelConfigId) : undefined)
+    if (!model) return undefined
     return {
       provider: 'backend-model-config',
-      modelConfigId,
-      model: normalizeNonEmptyString(parsed.model) ?? backendModelID(modelConfigId),
+      ...(modelConfigId ? { modelConfigId } : {}),
+      model,
       apiKind: normalizeRuntimeModelAPIKind(parsed.apiKind) ?? DEFAULT_RUNTIME_MODEL_API_KIND,
       ...(normalizeNonEmptyString(parsed.baseURL) ? { baseURL: normalizeNonEmptyString(parsed.baseURL) } : {}),
       useForChat: parsed.useForChat !== false,
@@ -279,17 +280,17 @@ export function resolveRuntimeModelConfigPath(statePath = resolveAgentStatePath(
 
 export function resolveRuntimeChatModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
   const config = store.getEffectiveConfig()
-  return config?.modelConfigId && config.useForChat ? config : undefined
+  return config?.model?.trim() && config.useForChat ? config : undefined
 }
 
 export function resolveRuntimeChatFileModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
   const config = store.getFileConfig()
-  return config?.modelConfigId && config.useForChat ? config : undefined
+  return config?.model?.trim() && config.useForChat ? config : undefined
 }
 
 export function resolveRuntimePlannerModelConfig(store = new RuntimeModelConfigStore()): ConfiguredRuntimeModelConfig | undefined {
   const config = store.getEffectiveConfig()
-  return config?.modelConfigId && config.useForPlanner ? config : undefined
+  return config?.model?.trim() && config.useForPlanner ? config : undefined
 }
 
 export function buildBackendGatewayChatRequest(
@@ -311,7 +312,7 @@ export function buildBackendGatewayChatRequest(
     method: 'POST',
     headers,
     body: {
-      model: backendModelID(config.modelConfigId),
+      model: runtimeModelIdentifier(config),
       messages: requestMessages,
       stream: true,
       ...(typeof options.temperature === 'number' ? { temperature: options.temperature } : {}),
@@ -618,6 +619,10 @@ function resolveBackendAPIBaseURL(override?: string): string {
 
 function backendModelID(modelConfigId: number): string {
   return `model_config:${modelConfigId}`
+}
+
+function runtimeModelIdentifier(config: ConfiguredRuntimeModelConfig): string {
+  return config.model?.trim() || (config.modelConfigId ? backendModelID(config.modelConfigId) : DEFAULT_BACKEND_MODEL)
 }
 
 function normalizeBaseURL(value: string): string {
