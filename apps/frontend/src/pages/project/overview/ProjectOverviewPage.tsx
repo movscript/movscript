@@ -439,7 +439,7 @@ export default function ProjectOverviewPage() {
       {
         key: 'script',
         title: '剧本与情景',
-        description: '从剧本版本沉淀编排段和情景，形成制作编排的叙事来源。',
+        description: '从剧本版本沉淀编排段和情景，形成创作编排的叙事来源。',
         primaryLabel: '剧本/编排段/情景',
         primaryValue: scriptTotal,
         secondary: `${counts.confirmedSegments} 个编排段已确认，${counts.confirmedMoments} 个情景已确认`,
@@ -451,7 +451,7 @@ export default function ProjectOverviewPage() {
       },
       {
         key: 'production',
-        title: '制作编排',
+        title: '创作编排',
         description: '项目现在以“制作”为主轴，承载从剧本到成片的一次完整生产单元。',
         primaryLabel: '制作/分镜/预演',
         primaryValue: planTotal,
@@ -580,7 +580,7 @@ export default function ProjectOverviewPage() {
       {
         key: 'preview',
         title: '检查预演挂载',
-        area: '内容编排',
+        area: '画面编排',
         href: mergeSearch(ROUTES.project.contentUnitWorkbench, '', { focus: 'preview' }),
         priority: 'low',
         detail: '没有明显阻塞时，优先确认下一批可执行内容',
