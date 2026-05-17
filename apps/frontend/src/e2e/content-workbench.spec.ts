@@ -11,7 +11,7 @@ test('content workbench renders the production command center and inspector', as
 
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
   await expect(page.getByTestId('content-workbench-production-pipeline')).toContainText('生成上下文')
-  await expect(page.getByText('AI 画面创作指挥台', { exact: true })).toBeVisible()
+  await expect(page.getByText('AI 内容创作指挥台', { exact: true })).toBeVisible()
   await expect(page.getByText('旧伞纸条滑落', { exact: true })).toBeVisible()
   await expect(page.getByTestId('content-workbench-unit-track')).toBeVisible()
   await expect(page.getByText('制作轨道存在阻塞', { exact: true })).toBeVisible()
@@ -52,15 +52,15 @@ test('content workbench can reject an AI draft and clear the review queue', asyn
   await expect(page.getByTestId('content-workbench-command-center')).toBeVisible()
 })
 
-test('content workbench command brief opens the AI review queue action', async ({ page }, testInfo) => {
+test('content workbench command metrics opens the AI review queue action', async ({ page }, testInfo) => {
   await openContentWorkbenchPage(page, testInfo)
 
   await page.getByRole('button', { name: /收起审阅/ }).click()
   await expect(page.getByTestId('content-workbench-review-queue')).toHaveCount(0)
 
-  const brief = page.getByTestId('content-workbench-command-brief')
-  await expect(brief).toContainText('AI 草案待审')
-  await brief.locator('[data-action-key="review_ai_drafts"]').click()
+  const metrics = page.getByTestId('content-workbench-command-metrics')
+  await expect(metrics).toContainText('待审草案')
+  await metrics.locator('[data-action-key="review_ai_drafts"]').click()
 
   await expect(page.getByTestId('content-workbench-review-queue')).toBeVisible()
   await expect(page.getByText('旧伞纸条滑落 AI 制作项草案', { exact: true })).toBeVisible()
@@ -221,7 +221,7 @@ async function mockContentWorkbenchData(page: Page) {
     ID: 777,
     owner_id: PROJECT_ID,
     project_id: PROJECT_ID,
-    name: '纸条特写 · 画面编排',
+    name: '纸条特写 · 内容编排',
     canvas_type: 'workflow',
     stage: 'generation',
     ref_type: 'content_unit',

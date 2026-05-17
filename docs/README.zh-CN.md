@@ -126,7 +126,7 @@ pnpm run package:desktop:win:arm64
 - 管理后台能打开 `http://localhost:8766/admin`。
 - 桌面端视频剪辑使用 `apps/frontend/vendor/ffmpeg` 中已 staged 的可再分发 ffmpeg 二进制。
 
-如果 AgentRun 调试页或 Agent 运行链路有变更，还需要在能启动 Chromium 的环境中运行 `pnpm run test:agent-run-debugging:e2e`，并检查生成的验收摘要。
+如果 AgentRun 调试改动确实需要浏览器或截图覆盖，再在能启动 Chromium 的环境中手动运行 `pnpm run test:agent-run-debugging:e2e`。
 
 ## 故障排查
 

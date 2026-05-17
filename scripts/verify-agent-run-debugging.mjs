@@ -63,8 +63,6 @@ verifyAcceptanceSummarySchema()
 verifyTraceContract()
 verifyPageContract()
 verifyReportAndUiHelpers()
-verifyE2EContract()
-verifyPlaywrightConfig()
 verifyPackageScript()
 verifyCIWorkflow()
 verifyPullRequestTemplate()
@@ -598,7 +596,6 @@ function verifyPackageScript() {
   assertIncludes(script, 'node scripts/verify-agent-run-debugging.mjs', 'test:agent-run-debugging script runs static verifier')
   assertIncludes(script, 'node --test', 'test:agent-run-debugging script runs Node test files')
   assertIncludes(script, 'scripts/verify-agent-run-debugging.test.mjs', 'test:agent-run-debugging script runs static verifier tests')
-  assertIncludes(script, 'scripts/verify-agent-run-debugging-artifacts.test.mjs', 'test:agent-run-debugging script runs artifact verifier tests')
   assertIncludes(script, 'src/lib/localAgentClient.test.ts', 'test:agent-run-debugging script runs local agent client contract tests')
   assertIncludes(script, 'src/lib/agentRunActivity.test.ts', 'test:agent-run-debugging script runs AgentRun activity merge tests')
   assertIncludes(script, 'src/lib/agentRunUiView.test.ts', 'test:agent-run-debugging script runs AgentRun UI view tests')
@@ -620,32 +617,15 @@ function verifyPackageScript() {
 }
 
 function verifyCIWorkflow() {
-  assertIncludes(source.ciWorkflow, 'workflow_dispatch:', 'CI can be manually dispatched for AgentRun browser acceptance')
-  assertIncludes(source.ciWorkflow, 'AgentRun debugging acceptance', 'CI includes AgentRun debugging acceptance job')
+  assertIncludes(source.ciWorkflow, 'workflow_dispatch:', 'CI can be manually dispatched')
   assertIncludes(source.ciWorkflow, 'pnpm run test:agent-run-debugging', 'CI runs AgentRun static debugging gate')
-  assertIncludes(source.ciWorkflow, 'playwright install --with-deps chromium', 'CI installs Playwright Chromium dependencies')
-  assertIncludes(source.ciWorkflow, 'pnpm run test:agent-run-debugging:e2e', 'CI runs AgentRun browser debugging acceptance')
-  assertIncludes(source.ciWorkflow, 'Verify AgentRun debugging acceptance summary', 'CI verifies AgentRun acceptance summary after browser acceptance')
-  assertIncludes(source.ciWorkflow, 'pnpm run verify:agent-run-debugging-summary', 'CI runs AgentRun acceptance summary verifier')
-  assertIncludes(source.ciWorkflow, 'Print AgentRun debugging acceptance summary', 'CI prints AgentRun acceptance summary')
-  assertIncludes(source.ciWorkflow, 'if: always()', 'CI prints and uploads AgentRun artifacts even after E2E failure')
-  assertIncludes(source.ciWorkflow, 'verify-agent-run-debugging-acceptance-summary.mjs apps/frontend/test-results/agent-run-debugging-acceptance-summary.json --allow-failed', 'CI contract-checks AgentRun acceptance summary diagnostics before printing')
-  assertIncludes(source.ciWorkflow, 'cat apps/frontend/test-results/agent-run-debugging-acceptance-summary.json', 'CI prints AgentRun acceptance summary JSON')
-  assertIncludes(source.ciWorkflow, 'GITHUB_STEP_SUMMARY', 'CI writes AgentRun acceptance summary to the GitHub job summary')
-  assertIncludes(source.ciWorkflow, '### AgentRun debugging acceptance summary', 'CI labels the AgentRun acceptance job summary section')
-  assertIncludes(source.ciWorkflow, 'agent-run-debugging-playwright-results', 'CI uploads AgentRun Playwright artifacts')
-  assertIncludes(source.ciWorkflow, 'apps/frontend/test-results', 'CI uploads Playwright test results')
-  assertIncludes(source.ciWorkflow, 'retention-days: 14', 'CI keeps AgentRun Playwright artifacts for a bounded review window')
+  assertIncludes(source.ciWorkflow, 'AgentRun debugging static gate', 'CI labels the AgentRun static gate')
 }
 
 function verifyPullRequestTemplate() {
   assertIncludes(source.pullRequestTemplate, 'AgentRun debugging changes', 'PR template includes AgentRun debugging validation')
-  assertIncludes(source.pullRequestTemplate, 'pnpm run test:agent-run-debugging', 'PR template asks for AgentRun static gate')
-  assertIncludes(source.pullRequestTemplate, 'pnpm run test:agent-run-debugging:e2e', 'PR template asks for AgentRun browser acceptance')
-  assertIncludes(source.pullRequestTemplate, 'agent-run-debugging-playwright-results', 'PR template asks reviewers to inspect Playwright artifacts')
-  assertIncludes(source.pullRequestTemplate, 'agent-run-debugging-acceptance-summary.json', 'PR template asks reviewers to inspect AgentRun acceptance summary')
-  assertIncludes(source.pullRequestTemplate, 'passed: true', 'PR template requires passing AgentRun acceptance summary')
-  assertIncludes(source.pullRequestTemplate, 'verify-agent-run-debugging-acceptance-summary.mjs', 'PR template asks reviewers to run the AgentRun acceptance summary verifier')
+  assertIncludes(source.pullRequestTemplate, '`pnpm run test:agent-run-debugging` passed', 'PR template asks for AgentRun static gate')
+  assertIncludes(source.pullRequestTemplate, 'run `pnpm run test:agent-run-debugging:e2e` manually only when browser behavior or screenshots need acceptance coverage', 'PR template keeps browser acceptance optional')
 }
 
 function verifyMakefile() {

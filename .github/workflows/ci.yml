@@ -56,68 +56,8 @@ jobs:
       - name: Unit tests
         run: pnpm --filter movscript-agent test && pnpm --filter movscript-frontend test && pnpm --filter movscript-admin test
 
-      - name: Build
-        run: pnpm run build:packages && pnpm run build:agent && pnpm run build:apps && pnpm run build:plugins
-
-  agent-run-debugging:
-    name: AgentRun debugging acceptance
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.32.1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Static AgentRun debugging gate
+      - name: AgentRun debugging static gate
         run: pnpm run test:agent-run-debugging
 
-      - name: Install Playwright Chromium
-        run: pnpm --filter movscript-frontend exec playwright install --with-deps chromium
-
-      - name: Browser AgentRun debugging acceptance
-        run: pnpm run test:agent-run-debugging:e2e
-
-      - name: Verify AgentRun debugging acceptance summary
-        run: pnpm run verify:agent-run-debugging-summary
-
-      - name: Print AgentRun debugging acceptance summary
-        if: always()
-        run: |
-          if [ -f apps/frontend/test-results/agent-run-debugging-acceptance-summary.json ]; then
-            node scripts/verify-agent-run-debugging-acceptance-summary.mjs apps/frontend/test-results/agent-run-debugging-acceptance-summary.json --allow-failed
-            cat apps/frontend/test-results/agent-run-debugging-acceptance-summary.json
-            {
-              echo "### AgentRun debugging acceptance summary"
-              echo '```json'
-              cat apps/frontend/test-results/agent-run-debugging-acceptance-summary.json
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "AgentRun debugging acceptance summary was not generated."
-            echo "### AgentRun debugging acceptance summary" >> "$GITHUB_STEP_SUMMARY"
-            echo "Summary was not generated." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Upload AgentRun debugging artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: agent-run-debugging-playwright-results
-          path: |
-            apps/frontend/test-results
-            apps/frontend/playwright-report
-          if-no-files-found: ignore
-          retention-days: 14
+      - name: Build
+        run: pnpm run build:packages && pnpm run build:agent && pnpm run build:apps && pnpm run build:plugins

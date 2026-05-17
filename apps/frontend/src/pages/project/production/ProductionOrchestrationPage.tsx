@@ -2918,7 +2918,7 @@ function buildProposalSemanticDiff(segments: ProposalSegmentNode[]): ProposalSem
         children.push({
           key: keyframeKey,
           acceptKeys: [segmentKey, momentKey, keyframeKey],
-          title: keyframe.title || `情节预演画面 ${keyframeIndex + 1}`,
+          title: keyframe.title || `情节预览画面 ${keyframeIndex + 1}`,
           detail: compactParts([keyframe.description, keyframe.prompt]),
           action: proposalSnapshotAction(keyframe),
           kind: 'content',
@@ -3197,7 +3197,7 @@ function buildProposalApplyPreview(segments: ProposalSegmentNode[], decisions: P
         const keyframeBlocked = keyframeDecision === 'accepted' && (segmentDecision !== 'accepted' || momentDecision !== 'accepted')
         pushByDecision({
           key: keyframeKey,
-          title: keyframe.title || `情节预演画面 ${keyframeIndex + 1}`,
+          title: keyframe.title || `情节预览画面 ${keyframeIndex + 1}`,
           detail: compactParts([keyframe.description, keyframe.prompt]),
           kind: 'keyframe',
           action: proposalSnapshotAction(keyframe),
@@ -3308,7 +3308,7 @@ function BackendPreviewSemanticSummary({
               <div key={`${change.kind}-${change.client_id ?? change.id ?? index}`} className="flex items-center gap-1.5 rounded bg-background/70 px-2 py-1">
                 <ProposalDiffActionBadge action={change.action} compact />
                 <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-foreground">{change.title}</span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">{productionPreviewChangeKindLabel(change.kind)}</span>
+                <span className="shrink-0 text-[10px] text-muted-foreground">{contentOrchestrationChangeKindLabel(change.kind)}</span>
               </div>
             ))}
             {changes.length > 6 && <p className="text-[10px] text-muted-foreground">还有 {changes.length - 6} 项未显示</p>}
@@ -3490,7 +3490,7 @@ function ProposalDiffActionBadge({ action, compact = false }: { action: Proposal
   return <span className={cn('shrink-0 rounded font-mono font-medium text-emerald-600 dark:text-emerald-400', cls)}>+</span>
 }
 
-function productionPreviewChangeKindLabel(kind: string) {
+function contentOrchestrationChangeKindLabel(kind: string) {
   if (kind === 'segment') return '编排段'
   if (kind === 'scene_moment') return '情景'
   if (kind === 'content_unit') return '内容'

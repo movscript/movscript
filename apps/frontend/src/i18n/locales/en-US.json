@@ -1238,7 +1238,7 @@
           "asset_proposal": "Asset candidate proposal",
           "project_proposal": "Project proposal",
           "production_proposal": "Production proposal",
-          "content_unit_proposal": "Content unit proposal",
+          "content_unit_proposal": "Production item proposal",
           "script_split_proposal": "Script split proposal"
         }
       },
@@ -2825,7 +2825,6 @@
       "creation": "Home",
       "workbench": "One-click Production",
       "workbenchScript": "One-click Production",
-      "workbenchPreview": "Content Orchestration",
       "workbenchCreative": "Setting Prep",
       "workbenchAssets": "Asset Workbench",
       "workbenchProduction": "Content Orchestration",
@@ -2945,10 +2944,9 @@
       "contentProductionWorkbench": "Content Production Workbench",
       "workbench": "One-click Production",
       "workbenchScript": "One-click Production",
-      "workbenchPreview": "Content Orchestration",
       "workbenchCreative": "Setting Prep",
       "workbenchAssets": "Asset Workbench",
-      "workbenchProduction": "Production Decisions",
+      "workbenchProduction": "Content Orchestration",
       "workbenchDelivery": "Delivery Gate",
       "workbenchReferenceRelations": "Relation Correction",
       "workbenchAssetPreparation": "Asset Workbench",

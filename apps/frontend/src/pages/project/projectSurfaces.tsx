@@ -71,7 +71,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     icon: FileText,
     purpose: '管理原始剧本、结构化剧本、场景和情景对象。',
     owns: '剧本文本、剧本版本、场景/情景库',
-    output: '可被预演和生产引用的叙事结构',
+    output: '可被内容编排和生产引用的叙事结构',
   },
   {
     key: 'creative',
@@ -111,7 +111,7 @@ export const projectSurfaces: ProjectSurfaceItem[] = [
     icon: Clapperboard,
     purpose: '把作品想表达的情绪、关系和关键画面组织成可以继续推演的创作蓝图。',
     owns: '作品意图、情绪推进、情节节点、设定资料引用、素材需求缺口、画面线索',
-    output: '可进入画面编排工作台验证的创作方案',
+    output: '可进入内容编排工作台验证的创作方案',
   },
   {
     key: 'production',
@@ -168,12 +168,12 @@ export const workbenchSurfaces: WorkbenchSurfaceItem[] = [
   },
   {
     value: 'production',
-    title: '画面编排工作台',
-    shortTitle: '画面',
+    title: '内容编排工作台',
+    shortTitle: '编排',
     href: ROUTES.project.contentUnitWorkbench,
     icon: Wand2,
-    purpose: '围绕每个情节推敲画面表达，把设定资料和素材输入带进生成上下文。',
-    decision: '手动添加画面制作项、让 AI 规划镜头、打开生成画布或查看任务记录。',
+    purpose: '围绕每个情节拆解制作项，把设定资料、素材输入和画面锚点带进生成上下文。',
+    decision: '手动添加制作项、让 AI 规划镜头、打开生成画布或查看任务记录。',
     output: '可驱动画面、视频和返工处理的创作输入。',
   },
   {

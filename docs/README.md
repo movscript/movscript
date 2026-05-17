@@ -126,7 +126,7 @@ Before release, verify at minimum:
 - The admin console opens at `http://localhost:8766/admin`.
 - Desktop video clipping uses staged redistributable ffmpeg binaries from `apps/frontend/vendor/ffmpeg`.
 
-If AgentRun debugging pages or Agent run flows changed, also run `pnpm run test:agent-run-debugging:e2e` in an environment that can launch Chromium and verify the generated acceptance summary.
+For AgentRun debugging changes that specifically need browser or screenshot coverage, run `pnpm run test:agent-run-debugging:e2e` manually in an environment that can launch Chromium.
 
 ## Troubleshooting
 

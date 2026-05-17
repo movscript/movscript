@@ -32,8 +32,6 @@ const titleKeys: Record<string, string> = {
   [LEGACY_ROUTES.projectHome]: 'header.titles.projectHome',
   [LEGACY_ROUTES.projectWorkspace]: 'header.titles.projectWorkspace',
   [LEGACY_ROUTES.creation]: 'header.titles.creation',
-  [LEGACY_ROUTES.workbenchProductionPlan]: 'header.titles.workbenchPreview',
-  [LEGACY_ROUTES.workbenchPreview]: 'header.titles.workbenchPreview',
   [LEGACY_ROUTES.workbenchCreative]: 'header.titles.workbenchCreative',
   [LEGACY_ROUTES.workbenchAssets]: 'header.titles.assetProposalWorkbench',
   [LEGACY_ROUTES.preProduction]: 'header.titles.preProduction',

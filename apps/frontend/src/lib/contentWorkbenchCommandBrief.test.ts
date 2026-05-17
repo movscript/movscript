@@ -22,29 +22,14 @@ test('content workbench command brief summarizes active production focus', () =>
       detail: '当前制作项的提示、素材输入和画面锚点已经具备，可以进入生成计划。',
       tone: 'success',
     }],
-    reviewQueue: {
-      total: 0,
-      pending: 0,
-      applied: 0,
-      inactive: 0,
-      warningCount: 0,
-      diffCount: 0,
-      addedCount: 0,
-      changedCount: 0,
-      tone: 'default',
-      title: '暂无 AI 草案',
-      detail: '可以让 AI 先生成制作项快照，再进入人工审稿。',
-      actionLabel: '生成 AI 草案',
-    },
   })
 
-  assert.deepEqual(rows.map((row) => row.key), ['focus', 'blocker', 'next_action', 'review'])
+  assert.deepEqual(rows.map((row) => row.key), ['focus', 'blocker', 'next_action'])
   assert.equal(rows[0].value, '纸条特写')
   assert.equal(rows[0].tone, 'default')
   assert.equal(rows[1].value, '生成准备完成')
   assert.equal(rows[2].value, '打开生成画布')
   assert.equal('actionKey' in rows[2], false)
-  assert.equal('actionKey' in rows[3], false)
 })
 
 test('content workbench command brief surfaces missing selection and review blockers', () => {
@@ -66,27 +51,11 @@ test('content workbench command brief surfaces missing selection and review bloc
       detail: '从制作项轨道中选择一个目标，查看提示词、素材和关键帧状态。',
       tone: 'warning',
     }],
-    reviewQueue: {
-      total: 1,
-      pending: 1,
-      applied: 0,
-      inactive: 0,
-      warningCount: 0,
-      diffCount: 2,
-      addedCount: 1,
-      changedCount: 1,
-      tone: 'warning',
-      title: 'AI 草案待审',
-      detail: '1 个制作项草案仍在等待确认，当前草案包含 2 个快照差异。',
-      actionLabel: '审阅 AI 草案',
-    },
   })
 
   assert.equal(rows[0].value, '待选择制作项')
   assert.equal(rows[0].tone, 'warning')
   assert.equal(rows[1].value, '目标提示可读：制作项缺少 prompt')
   assert.equal(rows[2].tone, 'warning')
-  assert.equal(rows[3].value, 'AI 草案待审')
   assert.equal('actionKey' in rows[2], false)
-  assert.equal('actionKey' in rows[3], false)
 })

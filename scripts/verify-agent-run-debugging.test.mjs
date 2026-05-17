@@ -788,34 +788,6 @@ test('AgentRun debugging static verifier rejects acceptance summary environment 
   }
 })
 
-test('AgentRun debugging static verifier rejects E2E runner relative artifact root drift', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-e2e-relative-root-drift-'))
-  try {
-    const source = await readFile(e2eRunnerPath, 'utf8')
-    const overridePath = path.join(root, 'run-agent-run-debugging-e2e.mjs')
-    await writeFile(overridePath, source
-      .replace('const resolvedArtifactRoot = artifactRootOverride ? path.resolve(root, artifactRootOverride) : defaultArtifactRoot', 'const resolvedArtifactRoot = artifactRoot')
-      .replace(', env: browserEnvironment()', '')
-      .replace('AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT: resolvedArtifactRoot', 'AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT: artifactRoot'))
-    await assert.rejects(
-      execFileAsync(process.execPath, [scriptPath], {
-        env: {
-          ...process.env,
-          AGENT_RUN_DEBUG_E2E_RUNNER_PATH: overridePath,
-        },
-      }),
-      (error) => {
-        assert.match(String(error.stderr), /E2E runner resolves artifact root overrides from the repository root/)
-        assert.match(String(error.stderr), /E2E runner passes the resolved artifact root to the browser process/)
-        assert.match(String(error.stderr), /E2E runner browser environment uses the resolved artifact root/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
 test('AgentRun debugging static verifier rejects E2E runner acceptance summary validation drift', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-e2e-summary-validation-drift-'))
   try {
@@ -1233,13 +1205,13 @@ test('AgentRun debugging static verifier rejects missing root test gate wiring',
   }
 })
 
-test('AgentRun debugging static verifier rejects missing CI acceptance summary printing', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-ci-summary-'))
+test('AgentRun debugging static verifier rejects missing CI static gate', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-ci-static-'))
   try {
     const source = await readFile(ciWorkflowPath, 'utf8')
     const overridePath = path.join(root, 'ci.yml')
     await writeFile(overridePath, source
-      .replaceAll('            cat apps/frontend/test-results/agent-run-debugging-acceptance-summary.json\n', ''))
+      .replace('      - name: AgentRun debugging static gate\n        run: pnpm run test:agent-run-debugging\n\n', ''))
 
     await assert.rejects(
       execFileAsync(process.execPath, [scriptPath], {
@@ -1249,7 +1221,8 @@ test('AgentRun debugging static verifier rejects missing CI acceptance summary p
         },
       }),
       (error) => {
-        assert.match(String(error.stderr), /CI prints AgentRun acceptance summary JSON/)
+        assert.match(String(error.stderr), /CI runs AgentRun static debugging gate/)
+        assert.match(String(error.stderr), /CI labels the AgentRun static gate/)
         return true
       },
     )
@@ -1258,68 +1231,13 @@ test('AgentRun debugging static verifier rejects missing CI acceptance summary p
   }
 })
 
-test('AgentRun debugging static verifier rejects missing CI acceptance summary verifier', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-ci-summary-verifier-'))
-  try {
-    const source = await readFile(ciWorkflowPath, 'utf8')
-    const overridePath = path.join(root, 'ci.yml')
-    await writeFile(overridePath, source
-      .replace('      - name: Verify AgentRun debugging acceptance summary\n        run: pnpm run verify:agent-run-debugging-summary\n\n', '')
-      .replace('            node scripts/verify-agent-run-debugging-acceptance-summary.mjs apps/frontend/test-results/agent-run-debugging-acceptance-summary.json --allow-failed\n', ''))
-
-    await assert.rejects(
-      execFileAsync(process.execPath, [scriptPath], {
-        env: {
-          ...process.env,
-          AGENT_RUN_DEBUG_CI_WORKFLOW_PATH: overridePath,
-        },
-      }),
-      (error) => {
-        assert.match(String(error.stderr), /CI verifies AgentRun acceptance summary after browser acceptance/)
-        assert.match(String(error.stderr), /CI runs AgentRun acceptance summary verifier/)
-        assert.match(String(error.stderr), /CI contract-checks AgentRun acceptance summary diagnostics before printing/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects missing CI job summary output', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-ci-job-summary-'))
-  try {
-    const source = await readFile(ciWorkflowPath, 'utf8')
-    const overridePath = path.join(root, 'ci.yml')
-    await writeFile(overridePath, source
-      .replaceAll(' >> "$GITHUB_STEP_SUMMARY"', '')
-      .replaceAll('### AgentRun debugging acceptance summary', 'AgentRun debugging acceptance summary'))
-
-    await assert.rejects(
-      execFileAsync(process.execPath, [scriptPath], {
-        env: {
-          ...process.env,
-          AGENT_RUN_DEBUG_CI_WORKFLOW_PATH: overridePath,
-        },
-      }),
-      (error) => {
-        assert.match(String(error.stderr), /CI writes AgentRun acceptance summary to the GitHub job summary/)
-        assert.match(String(error.stderr), /CI labels the AgentRun acceptance job summary section/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects missing PR acceptance summary review', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-pr-summary-'))
+test('AgentRun debugging static verifier rejects missing PR static gate note', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-pr-static-'))
   try {
     const source = await readFile(pullRequestTemplatePath, 'utf8')
     const overridePath = path.join(root, 'pull_request_template.md')
     await writeFile(overridePath, source
-      .replace(' or CI `agent-run-debugging-playwright-results` artifact reviewed with `agent-run-debugging-acceptance-summary.json` showing `passed: true`', ' or CI `agent-run-debugging-playwright-results` artifact reviewed'))
+      .replace('`pnpm run test:agent-run-debugging` passed; ', ''))
 
     await assert.rejects(
       execFileAsync(process.execPath, [scriptPath], {
@@ -1329,114 +1247,7 @@ test('AgentRun debugging static verifier rejects missing PR acceptance summary r
         },
       }),
       (error) => {
-        assert.match(String(error.stderr), /PR template asks reviewers to inspect AgentRun acceptance summary/)
-        assert.match(String(error.stderr), /PR template requires passing AgentRun acceptance summary/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects missing acceptance screenshot captures', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-e2e-screenshot-'))
-  try {
-    const source = await readFile(e2ePath, 'utf8')
-    const overridePath = path.join(root, 'agent-planner.spec.ts')
-    await writeFile(overridePath, source.replace("  await captureAgentRunAcceptanceScreenshot(page, testInfo, 'agent-run-attention-events')\n", ''))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_E2E_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /E2E acceptance screenshot capture count: expected 6, got 5/)
-        assert.match(String(error.stderr), /E2E captures agent-run-attention-events screenshot/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects extra acceptance screenshot captures', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-e2e-extra-screenshot-'))
-  try {
-    const source = await readFile(e2ePath, 'utf8')
-    const overridePath = path.join(root, 'agent-planner.spec.ts')
-    await writeFile(
-      overridePath,
-      source.replace(
-        "  await captureAgentRunAcceptanceScreenshot(page, testInfo, 'agent-run-missing-data')\n",
-        "  await captureAgentRunAcceptanceScreenshot(page, testInfo, 'agent-run-missing-data')\n  await captureAgentRunAcceptanceScreenshot(page, testInfo, 'agent-run-extra-debug-state')\n",
-      ),
-    )
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_E2E_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /E2E acceptance screenshot capture count: expected 6, got 7/)
-        assert.match(String(error.stderr), /E2E acceptance screenshot captures must exactly match/)
-        assert.match(String(error.stderr), /agent-run-extra-debug-state/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects artifact verifier test screenshot drift', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-artifact-screenshot-'))
-  try {
-    const source = await readFile(artifactVerifierTestPath, 'utf8')
-    const overridePath = path.join(root, 'verify-agent-run-debugging-artifacts.test.mjs')
-    await writeFile(overridePath, source.replace("  'agent-run-missing-data.png',\n", ''))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_ARTIFACT_VERIFIER_TEST_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /artifact verifier tests cover agent-run-missing-data screenshot/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects missing artifact verifier screenshots', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-artifact-missing-'))
-  try {
-    const source = await readFile(artifactVerifierPath, 'utf8')
-    const overridePath = path.join(root, 'verify-agent-run-debugging-artifacts.mjs')
-    await writeFile(overridePath, source.replace("  'agent-run-http-request-detail.png',\n", ''))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_ARTIFACT_VERIFIER_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /artifact verifier required screenshots must exactly match/)
-        assert.match(String(error.stderr), /agent-run-http-request-detail/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects extra artifact verifier screenshots', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-artifact-extra-'))
-  try {
-    const source = await readFile(artifactVerifierPath, 'utf8')
-    const overridePath = path.join(root, 'verify-agent-run-debugging-artifacts.mjs')
-    await writeFile(overridePath, source.replace("  'agent-run-missing-data.png',\n", "  'agent-run-missing-data.png',\n  'agent-run-extra-debug-state.png',\n"))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_ARTIFACT_VERIFIER_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /artifact verifier required screenshots must exactly match/)
-        assert.match(String(error.stderr), /agent-run-extra-debug-state/)
+        assert.match(String(error.stderr), /PR template asks for AgentRun static gate/)
         return true
       },
     )

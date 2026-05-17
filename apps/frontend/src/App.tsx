@@ -271,11 +271,6 @@ function LegacyProductionOrchestrationRedirect() {
   return <Navigate to={withSearch(ROUTES.project.productionOrchestration, search)} replace />
 }
 
-function LegacyProductionPreviewRedirect() {
-  const { search } = useLocation()
-  return <Navigate to={mergeSearch(ROUTES.project.contentUnitWorkbench, search, { focus: 'preview' })} replace />
-}
-
 function LegacyRedirect({ to }: { to: string }) {
   const { search } = useLocation()
   return <Navigate to={withSearch(to, search)} replace />
@@ -426,9 +421,6 @@ export default function App() {
               <Route path={LEGACY_ROUTES.workbench} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.overview} /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.scriptSplitWorkbench} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.workbenchScript} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.scripts} /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.productionPreview} element={<ProjectGuard><LegacyProductionPreviewRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchProductionPlan} element={<ProjectGuard><LegacyProductionPreviewRedirect /></ProjectGuard>} />
-              <Route path={LEGACY_ROUTES.workbenchPreview} element={<ProjectGuard><LegacyProductionPreviewRedirect /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.workbenchCreative} element={<ProjectGuard><LegacyRedirect to={ROUTES.project.preProduction} /></ProjectGuard>} />
               <Route path={LEGACY_ROUTES.workbenchAssets} element={<ProjectGuard><LegacyPreProductionAssetsRedirect /></ProjectGuard>} />
               <Route path={ROUTES.project.contentUnitWorkbench} element={<ProjectGuard><WorkbenchPage mode="free" initialCategory="production" showCategoryTabs={false} /></ProjectGuard>} />
