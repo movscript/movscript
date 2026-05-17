@@ -1442,7 +1442,7 @@ function buildContentDraftReviewModel(
 
   return {
     draft,
-    summary: '当前草案类型暂不支持内容编排审阅。',
+    summary: '当前草案类型暂不支持画面编排审阅。',
     targetLabel: draft.title,
     diffs,
     warnings,
@@ -1709,7 +1709,7 @@ function ContentGenerationReviewPanel({
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2">
                   <p className="text-xs leading-5 text-muted-foreground">
-                    内容编排草案当前只做 snapshot 审阅；按差异创建、编辑或确认无需写入后，可标记为人工已处理，或退回草案清理待审队列。
+                    画面编排草案当前只做 snapshot 审阅；按差异创建、编辑或确认无需写入后，可标记为人工已处理，或退回草案清理待审队列。
                   </p>
                   <div className="flex flex-wrap items-center gap-2">
                     <Button
@@ -3069,7 +3069,7 @@ function SettingPreparationWorkbench() {
         ) : isError ? (
           <EmptyWorkbenchState title="设定准备数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : rows.length === 0 ? (
-          <EmptyWorkbenchState title="暂无设定资料" text="先从剧本拆解、制作编排或设定资料页创建人物、地点、道具、风格等设定。" />
+          <EmptyWorkbenchState title="暂无设定资料" text="先从剧本拆解、创作编排或设定资料页创建人物、地点、道具、风格等设定。" />
         ) : (
           <div className="setting-prep-workbench space-y-5">
             <section className="rounded-lg border border-border bg-card p-4">
@@ -3685,7 +3685,7 @@ function ContentGenerationWorkbench() {
         source_id: resource.ID,
         score: 0.75,
         status: 'candidate',
-        note: `内容编排主动上传：${resource.name}`,
+        note: `画面编排主动上传：${resource.name}`,
       })
     },
     onSuccess: async () => {
@@ -3921,7 +3921,7 @@ function ContentGenerationWorkbench() {
   }
 
   const rejectContentDraft = useMutation({
-    mutationFn: async (draft: AgentDraft) => localAgentClient.rejectDraft(draft.id, '用户在内容编排工作台退回该制作项草案'),
+    mutationFn: async (draft: AgentDraft) => localAgentClient.rejectDraft(draft.id, '用户在画面编排工作台退回该制作项草案'),
     onSuccess: async () => {
       toast.success('AI 草案已退回')
       await reviewDraftsQuery.refetch()
@@ -6133,7 +6133,7 @@ function ScriptSplitWorkbench() {
     { label: '生成制作方案', detail: hasPlan ? `${drafts.length} 个制作入口` : '自动拆解设定、段落和制作主体', done: hasPlan, active: hasSourceInput && !hasPlan, icon: Bot },
     { label: '轻确认', detail: selectedDraft ? selectedAction : '确认风格、素材缺口和制作决策', done: hasPlan && !validationErrors.length, active: hasPlan && !hasStartedProduction, icon: ClipboardCheck },
     { label: '开始生成', detail: hasStartedProduction ? '制作入口已写入' : '写入剧本与制作主体', done: hasStartedProduction, active: hasPlan && !hasStartedProduction, icon: Wand2 },
-    { label: '进入预演', detail: '从制作编排继续验证制作项和缺口', done: false, active: hasStartedProduction, icon: Play },
+    { label: '进入预演', detail: '从创作编排继续验证画面制作项和缺口', done: false, active: hasStartedProduction, icon: Play },
   ]
   const primaryActionLabel = !hasPlan
     ? splitWithAgent.isPending ? '生成方案中' : '一键制作'
@@ -6599,11 +6599,11 @@ function ScriptSplitWorkbench() {
                   <Play size={14} />
                   <span>下一步</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-foreground">进入制作编排或内容编排工作台，继续检查制作项、预演挂载、素材缺口和生成记录。</p>
+                <p className="mt-2 text-xs leading-5 text-foreground">进入创作编排或画面编排工作台，继续检查画面制作项、预演挂载、素材缺口和生成记录。</p>
               </div>
               <Button size="sm" className="mt-3 w-full gap-1.5" onClick={() => navigate(mergeSearch(ROUTES.project.contentUnitWorkbench, '', { focus: 'preview' }))}>
                 <Play size={13} />
-                进入内容编排
+                进入画面编排
               </Button>
             </section>
           </aside>
