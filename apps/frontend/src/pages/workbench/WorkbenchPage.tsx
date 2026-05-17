@@ -2501,7 +2501,6 @@ function ReadinessSummaryCard({ rows }: { rows: WorkbenchGate[] }) {
           {summary.primaryBlocker}
         </div>
       ) : null}
-      {summary.total > 0 ? <Progress value={summary.percent} className="mt-2 h-1.5" /> : null}
     </div>
   )
 }
@@ -2867,11 +2866,14 @@ function UnitProductionTrack({
           </div>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
         </div>
-        <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:grid-cols-4">
-          <QueueMiniMetric label="制作项" value={summary.total} />
-          <QueueMiniMetric label="总时长" value={formatTrackDuration(summary.durationSec)} />
-          <QueueMiniMetric label="阻塞" value={summary.blockedCount} tone={summary.blockedCount > 0 ? 'warning' : 'default'} />
-          <QueueMiniMetric label="关键帧" value={summary.keyframeCount} tone={summary.keyframeCount > 0 ? 'default' : 'warning'} />
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground" data-testid="content-workbench-unit-track-summary">
+          <span>{summary.total} 制作项</span>
+          <span className="text-border">/</span>
+          <span>{formatTrackDuration(summary.durationSec)}</span>
+          <span className="text-border">/</span>
+          <span className={summary.blockedCount > 0 ? 'text-amber-700 dark:text-amber-300' : undefined}>{summary.blockedCount} 阻塞</span>
+          <span className="text-border">/</span>
+          <span className={summary.keyframeCount > 0 ? undefined : 'text-amber-700 dark:text-amber-300'}>{summary.keyframeCount} 关键帧</span>
         </div>
       </div>
 
@@ -2900,7 +2902,6 @@ function UnitProductionTrack({
                   {item.readiness}%
                 </Badge>
               </div>
-              <Progress value={item.readiness} className="mt-2 h-1.5" />
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {item.labels.map((label) => (
                   <Badge key={label} variant="outline" className="text-[10px]">{label}</Badge>
@@ -4296,7 +4297,6 @@ function ContentGenerationWorkbench() {
                       { label: '可生成', value: readyMomentCount, tone: readyMomentCount > 0 ? 'default' : 'warning' },
                       { label: '待审草案', value: reviewQueueSummary.pending, tone: reviewQueueSummary.pending > 0 ? 'warning' : 'default', onClick: openReviewQueue },
                       { label: '运行任务', value: runningJobCount, tone: runningJobCount > 0 ? 'warning' : 'default' },
-                      { label: '完成任务', value: completedJobCount, tone: 'default' },
                     ].map((metric) => {
                       const content = (
                         <>
@@ -4424,8 +4424,8 @@ function ContentGenerationWorkbench() {
               />
             ) : null}
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]" data-testid="content-workbench-production-grid">
-              <div className="min-w-0 space-y-4">
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]" data-testid="content-workbench-production-grid">
+              <div className="min-w-0 space-y-3">
                 <WorkbenchPanel
                   title="制作项轨道"
                   icon={Play}
@@ -4439,24 +4439,27 @@ function ContentGenerationWorkbench() {
                       />
                     ) : null}
                     {unitCandidates.length > 0 ? (
-                      <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-candidate-queue">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                            <Sparkles size={15} className="text-muted-foreground" />
-                            待确认候选
+                      <details className="overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-candidate-queue">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <Sparkles size={15} className="shrink-0 text-muted-foreground" />
+                            <span className="truncate text-sm font-medium text-foreground">待确认候选</span>
+                            <span className="hidden truncate text-xs text-muted-foreground sm:inline">
+                              {titleOfRecord(unitCandidates[0])}
+                            </span>
                           </div>
                           <Badge variant="secondary">{unitCandidates.length}</Badge>
-                        </div>
-                        <div className="overflow-hidden rounded-md border border-border bg-card">
+                        </summary>
+                        <div className="border-t border-border">
                           {unitCandidates.map((unit) => {
                             const isDraft = String(unit.status ?? '').toLowerCase() === 'draft'
                             return (
-                              <div key={unit.ID} className="grid gap-2 border-b border-border/70 px-2.5 py-2 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                              <div key={unit.ID} className="grid gap-1.5 border-b border-border/70 px-2.5 py-2 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
                                 <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5">
                                     <p className="truncate text-sm font-medium text-foreground">{titleOfRecord(unit)}</p>
-                                    <Badge variant={isDraft ? 'outline' : 'secondary'}>{isDraft ? '草稿' : '候选'}</Badge>
-                                    <Badge variant="outline">{unit.kind || 'shot'}</Badge>
+                                    <Badge variant={isDraft ? 'outline' : 'secondary'} className="text-[10px]">{isDraft ? '草稿' : '候选'}</Badge>
+                                    <Badge variant="outline" className="text-[10px]">{unit.kind || 'shot'}</Badge>
                                   </div>
                                   <p className="mt-1 truncate text-xs text-muted-foreground">
                                     {firstText(unit.description, unit.prompt, '暂无描述或生成提示')}
@@ -4470,8 +4473,8 @@ function ContentGenerationWorkbench() {
                                 <div className="flex items-center gap-1.5 md:justify-end">
                                   <Button
                                     size="sm"
-                                    variant="outline"
-                                    className="h-8 gap-1"
+                                    variant="ghost"
+                                    className="h-7 px-2"
                                     onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'ignored' })}
                                     disabled={confirmCandidate.isPending}
                                   >
@@ -4479,7 +4482,7 @@ function ContentGenerationWorkbench() {
                                   </Button>
                                   <Button
                                     size="sm"
-                                    className="h-8 gap-1"
+                                    className="h-7 gap-1 px-2"
                                     onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'confirmed' })}
                                     disabled={confirmCandidate.isPending}
                                   >
@@ -4491,7 +4494,7 @@ function ContentGenerationWorkbench() {
                             )
                           })}
                         </div>
-                      </div>
+                      </details>
                     ) : null}
 
                     <div className="border-t border-border pt-3" data-testid="content-workbench-keyframe-track">
@@ -4594,7 +4597,7 @@ function ContentGenerationWorkbench() {
                 </WorkbenchPanel>
               </div>
 
-              <div className="min-w-0 space-y-4">
+              <div className="min-w-0 space-y-3">
                 <WorkbenchPanel
                   title="生成检查"
                   icon={ShieldCheck}

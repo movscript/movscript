@@ -303,6 +303,7 @@ test('stageFFmpegFromEnv requires a version before cross-platform staging', () =
     MOVSCRIPT_FFMPEG_LICENSE: 'LGPL-2.1-or-later',
   }, {
     currentPlatform: 'darwin',
+    currentArch: 'arm64',
     arch: 'x64',
     exit: (code) => { exitCode = code },
     logError: (message) => errors.push(message),
