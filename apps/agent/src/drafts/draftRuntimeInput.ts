@@ -1,4 +1,5 @@
 import { isJSONRecord } from '../jsonValue.js'
+import { isValidAgentProjectId, isValidAgentReferenceId } from '../context/runtimeContext.js'
 import {
   normalizeDraftStatus,
   type CreateAgentDraftInput,
@@ -42,7 +43,7 @@ export interface RuntimeDraftBackendAuthInput {
 
 export function buildRuntimeCreateDraftInput(input: RuntimeCreateDraftInput): CreateAgentDraftInput {
   return {
-    ...(typeof input.projectId === 'number' && Number.isFinite(input.projectId) ? { projectId: input.projectId } : {}),
+    ...(isValidAgentProjectId(input.projectId) ? { projectId: input.projectId } : {}),
     kind: input.kind,
     title: input.title,
     content: input.content,
@@ -87,7 +88,7 @@ export function buildRuntimeDraftBackendAuth(input: RuntimeDraftBackendAuthInput
   includeAppliedByUserId?: boolean
 } = {}): BackendApplyAuthContext {
   return {
-    ...(options.includeAppliedByUserId && (typeof input.appliedByUserId === 'number' || typeof input.appliedByUserId === 'string')
+    ...(options.includeAppliedByUserId && isValidAgentReferenceId(input.appliedByUserId)
       ? { userId: input.appliedByUserId }
       : {}),
     ...(typeof input.backendAuthToken === 'string' ? { backendAuthToken: input.backendAuthToken } : {}),

@@ -16,6 +16,7 @@ import {
 
 test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catalog metadata', () => {
   const thread = makeThread()
+  const metadata = { requestId: 'request_1', nested: { stable: true } }
   const run = buildRuntimeCreateRun({
     runInput: {
       threadId: thread.id,
@@ -32,7 +33,7 @@ test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catal
         title: 'Task title',
         instructions: 'Task instructions',
       },
-      metadata: { requestId: 'request_1' },
+      metadata,
     },
     thread,
     clientInput: { visibleMessage: 'client text', attachments: [] },
@@ -47,6 +48,7 @@ test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catal
     runId: 'run_1',
     now: '2026-01-01T00:00:00.000Z',
   })
+  metadata.nested.stable = false
 
   assert.equal(run.id, 'run_1')
   assert.equal(run.threadId, 'thread_1')
@@ -58,6 +60,7 @@ test('buildRuntimeCreateRun freezes creation input, policy, hierarchy, and catal
   assert.equal(run.policy.maxIterations, 3)
   assert.deepEqual(run.metadata?.approvedToolNames, ['tool_a', 'tool_b'])
   assert.equal(run.metadata?.requestId, 'request_1')
+  assert.deepEqual(run.metadata?.nested, { stable: true })
   assert.equal(run.metadata?.manifestSource, 'default')
   assert.deepEqual(run.metadata?.catalogSnapshot, { id: 'catalog_1', version: null })
   assert.equal(run.input?.userMessage, 'Explicit task')

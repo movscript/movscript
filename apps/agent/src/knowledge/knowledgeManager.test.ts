@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { AGENT_KNOWLEDGE_DIR_ENV, KnowledgeManager, loadAgentKnowledgeStore, loadBuiltinKnowledgeStore } from './index.js'
+import { AGENT_KNOWLEDGE_DIR_ENV, KnowledgeManager, loadAgentKnowledgeStore, loadBuiltinKnowledgeStore, loadKnowledgeStore } from './index.js'
 
 test('knowledge manager searches summaries and reads bounded chunk bodies', () => {
   const manager = new KnowledgeManager(loadBuiltinKnowledgeStore())
@@ -47,6 +47,37 @@ test('agent knowledge store includes local knowledge directory from environment'
   } finally {
     if (previousKnowledgeDir === undefined) delete process.env[AGENT_KNOWLEDGE_DIR_ENV]
     else process.env[AGENT_KNOWLEDGE_DIR_ENV] = previousKnowledgeDir
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('knowledge loader skips corrupt indexes and unreadable chunks', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-knowledge-'))
+
+  try {
+    writeFileSync(join(dir, 'index.knowledge.json'), '{not-json', 'utf8')
+    mkdirSync(join(dir, 'valid'), { recursive: true })
+    writeFileSync(join(dir, 'valid', 'index.knowledge.json'), `${JSON.stringify({
+      id: 'studio.knowledge.valid',
+      version: '1.0.0',
+      name: 'Valid Knowledge',
+      domain: 'storyboard',
+      resources: ['missing.md'],
+    }, null, 2)}\n`, 'utf8')
+
+    const store = loadKnowledgeStore(dir)
+
+    assert.deepEqual(store.listCollections(), [{
+      id: 'studio.knowledge.valid',
+      version: '1.0.0',
+      domain: 'storyboard',
+      name: 'Valid Knowledge',
+      tags: [],
+      chunkIds: [],
+      chunks: [],
+    }])
+    assert.deepEqual(store.listChunks(), [])
+  } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 })

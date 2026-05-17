@@ -4,6 +4,7 @@ import type { AgentCommandRuntime } from '../context/commandRouter.js'
 import {
   extractAgentContext,
   extractFocusTimings,
+  isValidAgentProjectId,
   type AgentContext,
 } from '../context/runtimeContext.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
@@ -75,15 +76,16 @@ export async function resolveRuntimeRunContextPackage(input: {
   })
   const context = extractAgentContext(focusContext.contextResult)
   const focusTimings = extractFocusTimings(focusContext.contextResult)
-  if (typeof context.currentProjectId === 'number') {
-    input.thread.projectId = context.currentProjectId
+  const currentProjectId = isValidAgentProjectId(context.currentProjectId) ? context.currentProjectId : undefined
+  if (currentProjectId !== undefined) {
+    input.thread.projectId = currentProjectId
     input.store.updateThread(input.thread)
   }
 
   const memoryContext = resolveRuntimeMemoryContext({
     run: input.run,
     memoryManager: input.memoryManager,
-    projectId: context.currentProjectId,
+    projectId: currentProjectId,
     query: input.userMessage,
     setupRound: input.setupRound,
     timestampMs: input.timestampMs,

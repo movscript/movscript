@@ -34,6 +34,15 @@ test('normalizeRunBackendAuth accepts record input and bare token fallback', () 
   assert.deepEqual(normalizeRunBackendAuth(' token '), { backendAuthToken: 'token' })
 })
 
+test('normalizeRunBackendAuth ignores non-plain auth records', () => {
+  class RuntimeAuth {
+    backendAuthToken = 'token'
+    backendAPIBaseURL = 'http://backend'
+  }
+
+  assert.deepEqual(normalizeRunBackendAuth(new RuntimeAuth()), {})
+})
+
 test('mergeRunBackendAuth preserves existing values unless next value is present', () => {
   assert.deepEqual(mergeRunBackendAuth(
     { backendAuthToken: 'old-token', backendAPIBaseURL: 'http://old' },

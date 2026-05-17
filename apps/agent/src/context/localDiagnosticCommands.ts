@@ -1,4 +1,5 @@
 import type { JSONValue } from '../types.js'
+import { isRecord } from '../jsonValue.js'
 import type { NormalizedClientInput } from './normalizeClientInput.js'
 import type { AgentCommandRuntime } from './commandRouter.js'
 import type {
@@ -14,7 +15,7 @@ import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { SkillDiscoverySummary } from '../contextManager/modelContextBuilder.js'
-import { parseToolResult } from './runtimeContext.js'
+import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId, parseToolResult } from './runtimeContext.js'
 import { renderDebugContextText, renderMemoryFilesText } from './contextText.js'
 import { appendFinalSourceSummary } from '../contextManager/finalSourceSummary.js'
 import { contextManager } from '../contextManager/contextManager.js'
@@ -33,17 +34,17 @@ export function buildLocalDiagnosticFallbackContextResult(clientInput: Normalize
     },
     ...(ui?.project ? {
       project: {
-        ...(typeof ui.project.id === 'number' ? { id: ui.project.id } : {}),
+        ...(isValidAgentProjectId(ui.project.id) ? { id: ui.project.id } : {}),
         ...(typeof ui.project.name === 'string' ? { name: ui.project.name } : {}),
         ...(typeof ui.project.status === 'string' ? { status: ui.project.status } : {}),
         ...(typeof ui.project.description === 'string' ? { description: ui.project.description } : {}),
       },
     } : {}),
-    ...(typeof ui?.productionId === 'number' ? { productionId: ui.productionId } : {}),
+    ...(isValidAgentEntityId(ui?.productionId) ? { productionId: ui.productionId } : {}),
     selection: ui?.selection
       ? {
         ...(typeof ui.selection.entityType === 'string' ? { entityType: ui.selection.entityType } : {}),
-        ...((typeof ui.selection.entityId === 'number' || typeof ui.selection.entityId === 'string') ? { entityId: ui.selection.entityId } : {}),
+        ...(isValidAgentReferenceId(ui.selection.entityId) ? { entityId: ui.selection.entityId } : {}),
         ...(typeof ui.selection.label === 'string' ? { label: ui.selection.label } : {}),
       }
       : null,
@@ -263,11 +264,11 @@ function renderLocalGenerationCommand(input: {
     ? parseToolResult(toolOutcome.result ?? null)
     : undefined
   const parsedRecord = isRecord(parsed) ? parsed : undefined
-  const jobId = typeof parsedRecord?.jobId === 'number' ? parsedRecord.jobId : undefined
+  const jobId = isValidAgentEntityId(parsedRecord?.jobId) ? parsedRecord.jobId : undefined
   const status = typeof parsedRecord?.status === 'string' ? parsedRecord.status : undefined
-  const outputResourceId = typeof parsedRecord?.output_resource_id === 'number'
+  const outputResourceId = isValidAgentEntityId(parsedRecord?.output_resource_id)
     ? parsedRecord.output_resource_id
-    : typeof parsedRecord?.outputResourceId === 'number'
+    : isValidAgentEntityId(parsedRecord?.outputResourceId)
       ? parsedRecord.outputResourceId
       : undefined
   const lines = [
@@ -345,10 +346,6 @@ function renderModelGatewayMessagesText(messages: Array<{ role: string; content?
 
 function isAgentDebugContextPanel(value: unknown): value is AgentDebugContextPanel {
   return isRecord(value) && isRecord(value.route) && Array.isArray(value.projects) && Array.isArray(value.recentResources) && Array.isArray(value.attachments) && Array.isArray(value.memories) && Array.isArray(value.labels)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function toJSONValue(value: unknown): JSONValue {

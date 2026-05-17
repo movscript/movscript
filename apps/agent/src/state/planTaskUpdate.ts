@@ -1,4 +1,5 @@
-import type { AgentTask, JSONValue, UpdatePlanTaskInput } from './types.js'
+import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
+import type { AgentTask, UpdatePlanTaskInput } from './types.js'
 import {
   normalizeProgress,
   normalizeStringList,
@@ -78,7 +79,7 @@ export function applyPlanTaskUpdate(input: ApplyPlanTaskUpdateInput): AgentTask 
   if (isJSONRecord(update.metadata)) {
     const nextSubagentName = normalizeNonEmptyString(update.metadata.subagentName)
     if (nextSubagentName) input.validateSubagentName?.(task.id, nextSubagentName)
-    task.metadata = { ...(task.metadata ?? {}), ...update.metadata }
+    task.metadata = { ...(task.metadata ?? {}), ...cloneJSONValue(update.metadata) }
   }
   task.updatedAt = now
   return task
@@ -97,20 +98,4 @@ function assertTaskReferenceInPlan(
 
 function normalizeNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  return isJSONRecord(value)
 }

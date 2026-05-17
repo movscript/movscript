@@ -21,6 +21,7 @@
 - [AgentRun 调试产品成熟度审计](agent-run-debugging-product-audit.md)
 - [AgentRun 调试产品验收清单](agent-run-debugging-acceptance.zh-CN.md)
 - [AgentRun 调试包 v1 契约](agent-run-debug-bundle-v1.zh-CN.md)
+- [AgentRun 调试验收摘要 v1 schema](agent-run-debugging-acceptance-summary-v1.schema.json)
 
 ## 设计草案
 

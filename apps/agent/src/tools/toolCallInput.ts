@@ -1,3 +1,4 @@
+import { isRecord } from '../jsonValue.js'
 import type { JSONValue, ToolCall } from '../state/types.js'
 
 export function normalizeStringArray(value: unknown): string[] {
@@ -14,8 +15,4 @@ export function normalizeToolCall(value: unknown): ToolCall | undefined {
   const name = typeof value.name === 'string' && value.name.trim() ? value.name.trim() : undefined
   if (!name) return undefined
   return { name, ...(isRecord(value.args) ? { args: value.args as Record<string, JSONValue> } : {}) }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

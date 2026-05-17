@@ -158,6 +158,38 @@ test('normalizeAndValidateReplanTaskUpdates runs task-name validation after upda
   }), /duplicate name/)
 })
 
+test('normalizeAndValidateReplanTaskUpdates isolates nested metadata from validation copies', () => {
+  const existingTasks = [
+    task({
+      id: 'task_1',
+      metadata: { existing: { value: 'stable' } },
+    }),
+  ]
+  const updateMetadata = {
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  }
+
+  normalizeAndValidateReplanTaskUpdates({
+    planId: 'plan_1',
+    existingTasks,
+    tasksToCreate: [],
+    updates: [{ id: 'task_1', metadata: updateMetadata }],
+    getTask: (taskId) => existingTasks.find((item) => item.id === taskId),
+    validateTaskNames: (tasksById) => {
+      const metadata = tasksById.get('task_1')?.metadata as any
+      metadata.existing.value = 'changed in validation'
+      metadata.nested.value = 'changed in validation'
+      metadata.list[0].id = 'changed in validation'
+    },
+  })
+
+  updateMetadata.nested.value = 'changed after validation'
+  updateMetadata.list[0]!.id = 'changed after validation'
+
+  assert.deepEqual(existingTasks[0]?.metadata, { existing: { value: 'stable' } })
+})
+
 function task(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',

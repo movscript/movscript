@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { JSONValue } from '../types.js'
+import { isJSONRecord, isRecord } from '../jsonValue.js'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
 
 export interface AgentCatalogState {
@@ -37,7 +38,12 @@ export class FileAgentCatalogStateStore implements AgentCatalogStateStore {
 
   load(): AgentCatalogState {
     if (!existsSync(this.filePath)) return defaultCatalogState()
-    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+    } catch {
+      return defaultCatalogState()
+    }
     return normalizeCatalogState(parsed)
   }
 
@@ -69,20 +75,4 @@ export function normalizeCatalogState(input: unknown): AgentCatalogState {
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  return isJSONRecord(value)
 }

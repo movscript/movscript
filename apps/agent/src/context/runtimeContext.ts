@@ -6,6 +6,18 @@ export interface AgentContext {
   currentProductionId?: number
 }
 
+export function isValidAgentEntityId(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
+export function isValidAgentProjectId(value: unknown): value is number {
+  return isValidAgentEntityId(value)
+}
+
+export function isValidAgentReferenceId(value: unknown): value is number | string {
+  return isValidAgentEntityId(value) || (typeof value === 'string' && value.trim().length > 0)
+}
+
 export function extractAgentContext(result: JSONValue): AgentContext {
   return {
     currentProjectId: extractCurrentProjectId(result),
@@ -20,7 +32,7 @@ export function extractCurrentProjectId(result: JSONValue): number | undefined {
   const snapshot = isRecord(parsed.focus) ? parsed.focus : isRecord(parsed.snapshot) ? parsed.snapshot : parsed
   const project = isRecord(snapshot.project) ? snapshot.project : undefined
   const projectId = project?.id ?? project?.ID ?? snapshot.projectId ?? snapshot.currentProjectId
-  return typeof projectId === 'number' && Number.isFinite(projectId) ? projectId : undefined
+  return isValidAgentProjectId(projectId) ? projectId : undefined
 }
 
 export function extractCurrentProductionId(result: JSONValue): number | undefined {
@@ -29,7 +41,7 @@ export function extractCurrentProductionId(result: JSONValue): number | undefine
 
   const snapshot = isRecord(parsed.focus) ? parsed.focus : isRecord(parsed.snapshot) ? parsed.snapshot : parsed
   const productionId = snapshot.productionId ?? snapshot.currentProductionId
-  return typeof productionId === 'number' && Number.isFinite(productionId) ? productionId : undefined
+  return isValidAgentEntityId(productionId) ? productionId : undefined
 }
 
 export function extractFocusTimings(result: JSONValue): { totalMs?: number; focusMs?: number } | undefined {

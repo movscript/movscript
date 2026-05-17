@@ -1,3 +1,4 @@
+import { isRecord } from '../jsonValue.js'
 import type { AgentPlan, AgentPlanSnapshot, AgentPlanSummary, AgentRun, AgentTask } from './types.js'
 import { isActiveRunStatus } from './runProjection.js'
 import { subagentNameConflicts, subagentNameFromTask } from './subagentIdentity.js'
@@ -92,8 +93,4 @@ export function agentPlanSummary(
     needsReviewTaskIds,
     failedTaskIds,
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

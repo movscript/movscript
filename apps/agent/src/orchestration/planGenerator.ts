@@ -1,5 +1,6 @@
 import { resolveRuntimePlannerModelConfig, type RuntimeModelAuthContext } from '../model/modelConfig.js'
 import { callModel, type ModelCallInput, type ModelCallResult } from '../model/modelClient.js'
+import { isRecord } from '../jsonValue.js'
 import type { CreatePlanTaskInput } from '../state/types.js'
 
 export interface GeneratePlanTasksInput {
@@ -156,8 +157,4 @@ function normalizePositiveInteger(value: unknown): number | undefined {
   const number = typeof value === 'number' ? value : Number(value)
   if (!Number.isFinite(number)) return undefined
   return Math.max(1, Math.floor(number))
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

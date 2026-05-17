@@ -4,6 +4,7 @@ import { extractAgentTaskArtifacts } from '@/lib/agentArtifacts'
 import { generationParamAuditsFromRun, generationValidationErrorsFromRun } from '@/lib/agentGenerationArtifacts'
 import { replayGenerationTrace, type GenerationTraceEventLike, type GenerationTraceReplay } from '@/lib/agentGenerationMedia'
 import { compactRunActivity, mergeRunActivityEvents } from '@/lib/agentRunActivity'
+import { isRecord } from '@/lib/jsonValue'
 import { localAgentClient, type AgentRun, type AgentTraceEvent } from '@/lib/localAgentClient'
 import type { AgentAttachment, ChatContextDiagnostic, ChatMessageMeta, ChatRunActivityEvent } from '@/store/agentStore'
 import type { RawResource } from '@/types'
@@ -206,8 +207,4 @@ function isChatContextDiagnostic(value: unknown): value is ChatContextDiagnostic
   if (!Array.isArray(value.messages) || !Array.isArray(value.debugParts)) return false
   if (!isRecord(value.tools) || !Array.isArray(value.tools.available) || !Array.isArray(value.tools.blocked) || !Array.isArray(value.tools.modelTools)) return false
   return true
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

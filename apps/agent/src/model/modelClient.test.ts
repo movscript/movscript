@@ -46,6 +46,43 @@ test('callModel retries empty assistant gateway responses with exponential backo
   }
 })
 
+test('callModel normalizes only object-shaped gateway tool calls', async () => {
+  const originalFetch = globalThis.fetch
+  try {
+    globalThis.fetch = (async () => {
+      return new Response(JSON.stringify({
+        choices: [{
+          message: {
+            role: 'assistant',
+            content: null,
+            tool_calls: [
+              ['not', 'a', 'record'],
+              { id: 'call_bad', type: 'function', function: ['also', 'bad'] },
+              { id: 'call_ok', type: 'function', function: { name: 'movscript_get_context', arguments: '{"ok":true}' } },
+            ],
+          },
+          finish_reason: 'tool_calls',
+        }],
+      }), { status: 200, headers: { 'content-type': 'application/json' } })
+    }) as typeof fetch
+
+    const result = await callModel({
+      config: CONFIG,
+      messages: [{ role: 'user', content: 'hello' }],
+      retry: { maxAttempts: 1, initialDelayMs: 0 },
+    })
+
+    assert.equal(result.finish_reason, 'tool_calls')
+    assert.deepEqual(result.tool_calls, [{
+      id: 'call_ok',
+      type: 'function',
+      function: { name: 'movscript_get_context', arguments: '{"ok":true}' },
+    }])
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 test('callModel stops retrying empty assistant responses after the configured attempts', async () => {
   const originalFetch = globalThis.fetch
   let calls = 0

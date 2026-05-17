@@ -1,4 +1,5 @@
 import type { AgentRun, AgentTraceEvent } from '@/lib/localAgentClient'
+import { isRecord } from '@/lib/jsonValue'
 import type { ChatRunActivity, ChatRunActivityEvent } from '@/store/agentStore'
 
 export function compactRunActivity(run: AgentRun): ChatRunActivity {
@@ -25,6 +26,7 @@ export function compactRunActivity(run: AgentRun): ChatRunActivity {
         ...(step.result !== undefined ? { result: step.result } : {}),
         ...(step.error ? { error: step.error } : {}),
         ...(step.sandboxed ? { sandboxed: step.sandboxed } : {}),
+        ...(typeof step.durationMs === 'number' ? { durationMs: step.durationMs } : {}),
         createdAt: step.createdAt,
         ...(step.completedAt ? { completedAt: step.completedAt } : {}),
       })),
@@ -52,6 +54,7 @@ export function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunAc
       ...(trace.toolName ? { toolName: trace.toolName } : {}),
       ...(trace.stepId ? { stepId: trace.stepId } : {}),
       ...(trace.data !== undefined ? { data: trace.data } : {}),
+      ...(typeof trace.durationMs === 'number' ? { durationMs: trace.durationMs } : {}),
       createdAt: trace.createdAt,
       ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
     }))
@@ -60,9 +63,9 @@ export function compactRunTraceEvents(events: AgentTraceEvent[] = []): ChatRunAc
 export function liveTraceEventKey(event: ChatRunActivityEvent): string {
   if (event.kind !== 'tool_call' || event.title !== 'Model tool call delta') return event.id
   if (event.id.startsWith('trace_live_')) return event.id
-  const data = event.data && typeof event.data === 'object' ? event.data as Record<string, unknown> : undefined
-  const stream = data?.stream && typeof data.stream === 'object' ? data.stream as Record<string, unknown> : undefined
-  const toolCall = stream?.toolCall && typeof stream.toolCall === 'object' ? stream.toolCall as Record<string, unknown> : undefined
+  const data = isRecord(event.data) ? event.data : undefined
+  const stream = isRecord(data?.stream) ? data.stream : undefined
+  const toolCall = isRecord(stream?.toolCall) ? stream.toolCall : undefined
   const index = typeof toolCall?.index === 'number' ? toolCall.index : 0
   return `model-tool-call-stream:${index}`
 }

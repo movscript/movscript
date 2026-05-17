@@ -1,4 +1,5 @@
 import type { JSONValue } from '../types.js'
+import { isJSONRecord } from '../jsonValue.js'
 import type { AgentDebugContextPanel, AgentMessage, AgentRun, AgentRunPolicy, CompiledPromptPreview, ResolvedAgentSkill, ResolvedToolCatalog, ToolCall } from '../state/types.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
@@ -241,8 +242,8 @@ export class ContextManager {
 
   buildKnowledgeTrace(input: BuildKnowledgeTraceInput): KnowledgeContextTrace | undefined {
     if (input.call.name === 'movscript_search_knowledge') {
-      const payload = isJSONRecordValue(input.result) ? input.result : undefined
-      const results = Array.isArray(payload?.results) ? payload.results.filter(isJSONRecordValue) : []
+      const payload = isJSONRecord(input.result) ? input.result : undefined
+      const results = Array.isArray(payload?.results) ? payload.results.filter(isJSONRecord) : []
       return {
         title: 'Knowledge searched',
         summary: `${results.length} knowledge result(s) for ${stringField(input.call.args?.query) ?? 'empty query'}.`,
@@ -268,7 +269,7 @@ export class ContextManager {
       }
     }
     if (input.call.name === 'movscript_get_knowledge') {
-      const payload = isJSONRecordValue(input.result) ? input.result : undefined
+      const payload = isJSONRecord(input.result) ? input.result : undefined
       const id = stringField(payload?.id) ?? stringField(input.call.args?.id) ?? 'unknown'
       const content = typeof payload?.content === 'string' ? payload.content : ''
       return {
@@ -328,8 +329,4 @@ function stringField(value: unknown): string | undefined {
 
 function numberField(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
-}
-
-function isJSONRecordValue(value: unknown): value is Record<string, JSONValue> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

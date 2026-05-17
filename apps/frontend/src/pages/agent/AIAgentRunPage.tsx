@@ -5,8 +5,9 @@ import { ArrowLeft, ChevronDown, ChevronRight, Copy, History, Loader2, RefreshCw
 import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@movscript/ui'
 import { AgentRunGenerationArtifacts } from '@/components/agent/AgentRunGenerationArtifacts'
 import { agentTaskStatusLabel, buildPlanTaskViews, buildTaskArtifactViews } from '@/lib/agentPlanUi'
-import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildTraceEventLink, canCancelWorkerRun, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
+import { AGENT_DEBUG_FIELD_GUIDE, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, buildTraceEventLink, canCancelWorkerRun, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runRoleLabel, runStatusLabel, traceCategoryLabel, traceDeepLinkMissing as isTraceDeepLinkMissing, traceEventDurationMs, traceEventIdFromHash, traceEventStatusLabel, traceKindLabel, type AgentDebugAttentionEvent, type AgentDebugCoverageSummary, type AgentDebugReadinessItem, type AgentModelCallSummary, type AgentTraceCategory } from '@/lib/agentRunUi'
 import { formatAgentTraceDebugData, redactAgentTraceDebugText } from '@/lib/agentTraceDebugData'
+import { isRecord } from '@/lib/jsonValue'
 import { localAgentClient, type AgentRun, type AgentTraceEvent, type AgentTraceEventKind } from '@/lib/localAgentClient'
 import { agentRunPath } from '@/routes/projectRoutes'
 
@@ -134,7 +135,7 @@ export default function AIAgentRunPage() {
       ? runPlanTaskView.subagentName
       : undefined
   const workerRunCanBeCancelled = canCancelWorkerRun(runQuery.data)
-  const traceHasUnloadedEvents = traceTotal !== undefined ? events.length < traceTotal : hasMore
+  const traceHasUnloadedEvents = hasUnloadedTraceEvents({ loaded: events.length, total: traceTotal, hasMore })
   const traceFiltersActive = eventSearch.trim() !== '' || eventKind !== 'all' || eventCategory !== 'all'
   const debugCoverageSummary = useMemo(() => buildDebugCoverageSummary({
     events,
@@ -973,6 +974,7 @@ export default function AIAgentRunPage() {
               const isLinkedEvent = event.id === traceDeepLinkEventId
               const isEventDataExpanded = expandedEventIds.has(event.id)
               const eventDataPanelId = `agent-trace-event-data-${event.id}`
+              const eventDuration = formatTraceEventDuration(event)
               return (
                 <div data-testid="agent-run-trace-event" id={`agent-trace-event-${event.id}`} key={event.id} className={`scroll-mt-4 rounded-md border px-3 py-2 text-xs ${isLinkedEvent ? 'border-primary bg-primary/5 ring-1 ring-primary/30' : 'border-border bg-background'}`}>
                   <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
@@ -1040,7 +1042,7 @@ export default function AIAgentRunPage() {
                       {event.stepId && <span>步骤 {event.stepId}</span>}
                       <span title={event.createdAt}>创建 {formatAgentRunTimestamp(event.createdAt)}</span>
                       {event.completedAt && <span title={event.completedAt}>完成 {formatAgentRunTimestamp(event.completedAt)}</span>}
-                      {formatAgentRunDuration(event.createdAt, event.completedAt) && <span>耗时 {formatAgentRunDuration(event.createdAt, event.completedAt)}</span>}
+                      {eventDuration && <span>耗时 {eventDuration}</span>}
                     </div>
                     {view.behavior && <TraceDetailLine label="行为" value={redactAgentTraceDebugText(view.behavior)} />}
                     {view.impact && <TraceDetailLine label="影响" value={redactAgentTraceDebugText(view.impact)} />}
@@ -1262,7 +1264,10 @@ function formatAgentRunDuration(start: string | undefined, end: string | undefin
   const startMs = new Date(start).getTime()
   const endMs = new Date(end).getTime()
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return undefined
-  const totalMs = endMs - startMs
+  return formatDurationMs(endMs - startMs)
+}
+
+function formatDurationMs(totalMs: number): string {
   if (totalMs < 1000) return `${totalMs}ms`
   const totalSeconds = Math.round(totalMs / 1000)
   if (totalSeconds < 60) return `${totalSeconds}s`
@@ -2124,10 +2129,8 @@ function debugBundleModelCallContexts(modelCalls: AgentModelCallSummary[], event
 function debugBundleToolCalls(events: AgentTraceEvent[]) {
   return events.flatMap((event) => {
     if (event.kind !== 'tool_call') return []
-    const data = event.data && typeof event.data === 'object' && !Array.isArray(event.data) ? event.data as Record<string, unknown> : {}
-    const durationMs = typeof data.durationMs === 'number' && Number.isFinite(data.durationMs)
-      ? data.durationMs
-      : event.completedAt ? Math.max(0, new Date(event.completedAt).getTime() - new Date(event.createdAt).getTime()) : undefined
+    const data = isRecord(event.data) ? event.data : {}
+    const durationMs = traceEventDurationMs(event, data)
     const summary = event.summary ? redactAgentTraceDebugText(event.summary) : undefined
     return [{
       eventId: event.id,

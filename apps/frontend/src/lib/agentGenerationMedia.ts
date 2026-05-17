@@ -1,4 +1,5 @@
 import type { RawResource } from '@/types'
+import { isRecord } from '@/lib/jsonValue'
 
 export interface GenerationProgressState {
   jobId?: number
@@ -218,8 +219,4 @@ function generationMetadataFromRecord(generation: Record<string, unknown>): Gene
     ...(typeof generation.status === 'string' ? { status: generation.status } : {}),
     ...(typeof generation.stage === 'string' ? { stage: generation.stage } : {}),
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

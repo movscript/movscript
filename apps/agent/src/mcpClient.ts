@@ -1,4 +1,5 @@
 import type { JSONRPCRequest, JSONRPCResponse, JSONValue, MCPClientOptions, MCPResource, MCPTool } from './types.js'
+import { isRecord } from './jsonValue.js'
 
 const TRANSIENT_ERROR_CODES = new Set([
   'ECONNRESET',
@@ -213,20 +214,22 @@ function summarizeCause(error: Error): string {
   return parts.join(' ')
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
 function isTransientFetchError(error: unknown): boolean {
   if (!(error instanceof Error)) return false
   const candidates: unknown[] = [error]
   const cause = (error as Error & { cause?: unknown }).cause
   if (cause !== undefined) candidates.push(cause)
   for (const candidate of candidates) {
-    if (!candidate || typeof candidate !== 'object') continue
-    const record = candidate as { code?: unknown; message?: unknown }
-    if (typeof record.code === 'string' && TRANSIENT_ERROR_CODES.has(record.code)) return true
-    if (typeof record.message === 'string' && /socket hang up/i.test(record.message)) return true
+    if (candidate instanceof Error) {
+      const code = (candidate as Error & { code?: unknown }).code
+      if (typeof code === 'string' && TRANSIENT_ERROR_CODES.has(code)) return true
+      if (/socket hang up/i.test(candidate.message)) return true
+      continue
+    }
+    if (isRecord(candidate)) {
+      if (typeof candidate.code === 'string' && TRANSIENT_ERROR_CODES.has(candidate.code)) return true
+      if (typeof candidate.message === 'string' && /socket hang up/i.test(candidate.message)) return true
+    }
   }
   return false
 }

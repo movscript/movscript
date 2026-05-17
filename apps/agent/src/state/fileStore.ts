@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path'
 import { homedir } from 'node:os'
 import type { AgentPlan, AgentRun, AgentTask, AgentThread, AgentTraceEvent } from './types.js'
 import { InMemoryAgentStore, type AgentStore } from './store.js'
+import { isRecord } from '../jsonValue.js'
+import { isValidAgentProjectId } from '../context/runtimeContext.js'
 
 interface AgentStateFile {
   version: 1 | 2 | 3
@@ -92,21 +94,32 @@ export class FileAgentStore extends InMemoryAgentStore implements AgentStore {
 
   private load(): void {
     if (!existsSync(this.filePath)) return
-    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<AgentStateFile>
-    for (const thread of parsed.threads ?? []) {
-      super.createThread(normalizeThread(thread))
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+    } catch {
+      return
     }
-    for (const run of parsed.runs ?? []) {
-      super.createRun(run)
+    if (!isRecord(parsed)) return
+    for (const thread of arrayValue(parsed.threads)) {
+      if (!isRecord(thread)) continue
+      super.createThread(normalizeThread(thread as unknown as AgentThread))
     }
-    for (const plan of parsed.plans ?? []) {
-      super.createPlan(plan)
+    for (const run of arrayValue(parsed.runs)) {
+      if (!isRecord(run)) continue
+      super.createRun(run as unknown as AgentRun)
     }
-    for (const task of parsed.tasks ?? []) {
-      super.createTask(task)
+    for (const plan of arrayValue(parsed.plans)) {
+      if (!isRecord(plan)) continue
+      super.createPlan(plan as unknown as AgentPlan)
     }
-    for (const event of parsed.traceEvents ?? []) {
-      super.appendTraceEvent(event)
+    for (const task of arrayValue(parsed.tasks)) {
+      if (!isRecord(task)) continue
+      super.createTask(task as unknown as AgentTask)
+    }
+    for (const event of arrayValue(parsed.traceEvents)) {
+      if (!isRecord(event)) continue
+      super.appendTraceEvent(event as unknown as AgentTraceEvent)
     }
   }
 
@@ -160,12 +173,18 @@ export function atomicWriteJSON(filePath: string, value: unknown): void {
 }
 
 function normalizeThread(thread: AgentThread): AgentThread {
+  const projectId = isValidAgentProjectId(thread.projectId) ? thread.projectId : undefined
   return {
     ...thread,
+    ...(projectId !== undefined ? { projectId } : { projectId: undefined }),
     archived: thread.archived === true,
     status: thread.status ?? threadStatusFromRunStatus(thread.lastRunStatus),
     messages: Array.isArray(thread.messages) ? thread.messages : [],
   }
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
 }
 
 function threadStatusFromRunStatus(status: AgentThread['lastRunStatus']): AgentThread['status'] {

@@ -53,6 +53,28 @@ test('projectRunOntoTask adds rollback policy artifacts once', () => {
   assert.equal(task.artifacts.find((artifact) => artifact.type === 'rollback-policy')?.metadata?.policy, 'manual_compensation')
 })
 
+test('projectRunOntoTask ignores non-plain rollback and subagent metadata records', () => {
+  class RunMetadata {
+    subagentName = 'Einstein'
+    rollbackRecords = [{
+      call: { name: 'movscript_create_script' },
+      rollback: { policy: 'manual_compensation', reason: 'External write completed.' },
+    }]
+  }
+
+  const task = buildTask()
+  const run = buildRun({
+    status: 'completed',
+    metadata: new RunMetadata() as never,
+  })
+
+  projectRunOntoTask(task, run, now)
+
+  assert.equal(task.artifacts.length, 1)
+  assert.equal(task.artifacts[0]?.metadata?.subagentName, undefined)
+  assert.equal(task.artifacts.some((artifact) => artifact.type === 'rollback-policy'), false)
+})
+
 test('projectRunOntoTask blocks tasks for pending user input or approval', () => {
   const needsInputTask = buildTask({ progress: 0.1 })
   const needsInputRun = buildRun({

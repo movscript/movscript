@@ -63,31 +63,66 @@
     }
   ],
   "coverage": {
-    "loadedLabel": "4 / 4",
+    "loadedLabel": "5 / 5",
     "hasUnloadedTrace": false,
-    "modelCallsLabel": "1 次",
-    "promptDetailsLabel": "1 条",
-    "messageWritesLabel": "1 条",
-    "toolDetailsLabel": "1 条",
-    "httpResponsesLabel": "1 条",
-    "requestPayloadsLabel": "1 / 1",
-    "httpResponseBodiesLabel": "1 / 1",
+    "modelCallsLabel": "1",
+    "promptDetailsLabel": "1",
+    "messageWritesLabel": "1",
+    "toolDetailsLabel": "1 / 1",
+    "httpResponsesLabel": "1",
+    "requestPayloadsLabel": "1",
+    "httpResponseBodiesLabel": "1",
     "issues": []
   },
   "readinessChecklist": [
     {
-      "id": "model-http",
+      "id": "trace_loaded",
+      "label": "事件完整性",
+      "status": "ok",
+      "detail": "已加载 5 / 5。",
+      "action": "可以基于当前事件继续判断。"
+    },
+    {
+      "id": "context_detail",
+      "label": "上下文可解释",
+      "status": "ok",
+      "detail": "已记录 1 条模型上下文详情。",
+      "action": "展开“上下文详情”查看来源层级和片段。"
+    },
+    {
+      "id": "model_http",
       "label": "模型 HTTP 链路",
       "status": "ok",
       "detail": "模型调用 1 次，HTTP 响应 1 次。",
       "action": "展开“大模型调用总览”核对请求、响应和结果。"
     },
     {
-      "id": "request-payload",
+      "id": "request_payload",
       "label": "请求负载可展开",
       "status": "ok",
       "detail": "已保存 1 / 1 个请求负载。",
       "action": "展开“完整请求负载”和“请求消息”核对发送给模型的上下文。"
+    },
+    {
+      "id": "response_body",
+      "label": "响应正文可展开",
+      "status": "ok",
+      "detail": "已保存 1 / 1 个响应正文。",
+      "action": "展开“HTTP 响应”核对原始 body 和模型结果。"
+    },
+    {
+      "id": "history_write",
+      "label": "历史写入可追踪",
+      "status": "ok",
+      "detail": "已记录 1 条历史写入。",
+      "action": "在同轮详情里对照模型回复和 assistant 历史写入。"
+    },
+    {
+      "id": "tool_detail",
+      "label": "工具结果可解释",
+      "status": "ok",
+      "detail": "结构化工具详情 1 / 1。",
+      "action": "展开工具详情查看输入、结果、耗时和沙箱信息。"
     }
   ],
   "modelCalls": [
@@ -105,7 +140,7 @@
       "requestEventId": "evt_model_request",
       "responseEventId": "evt_model_response",
       "model": "gpt-5.4",
-      "httpStatus": 200
+      "httpStatus": "200"
     }
   ],
   "modelCallContexts": [
@@ -146,27 +181,39 @@
     {
       "eventId": "evt_prompt",
       "title": "Prompt context assembled",
-      "totalChars": 120,
-      "messageCount": 3,
-      "systemMessageCount": 1,
-      "blockedToolCount": 0,
+      "totalChars": "120",
+      "messageCount": "3",
+      "systemMessageCount": "1",
+      "blockedToolCount": "0",
       "skills": [],
       "tools": [
         "read_context"
       ],
       "layers": [
-        "system",
-        "thread"
+        {
+          "label": "system",
+          "value": "78"
+        },
+        {
+          "label": "thread",
+          "value": "42"
+        }
       ],
       "contextLayers": [
-        "system",
-        "thread"
+        {
+          "label": "system",
+          "value": "78"
+        },
+        {
+          "label": "thread",
+          "value": "42"
+        }
       ],
       "partGroups": [
         {
           "contextLayer": "thread",
           "count": 1,
-          "chars": 42,
+          "chars": "42",
           "partIds": [
             "part_thread_latest"
           ]
@@ -177,7 +224,7 @@
           "id": "part_thread_latest",
           "contextLayer": "thread",
           "source": "message",
-          "chars": 42
+          "chars": "42"
         }
       ]
     }
@@ -210,6 +257,7 @@
   "events": [
     {
       "id": "evt_prompt",
+      "runId": "run_debug_fixture",
       "kind": "prompt",
       "status": "completed",
       "title": "Prompt context assembled",
@@ -217,8 +265,9 @@
     },
     {
       "id": "evt_model_request",
+      "runId": "run_debug_fixture",
       "kind": "model_call",
-      "status": "running",
+      "status": "started",
       "title": "Model HTTP request sent",
       "createdAt": "2026-05-16T08:00:02.000Z",
       "data": {
@@ -256,6 +305,7 @@
     },
     {
       "id": "evt_tool_call",
+      "runId": "run_debug_fixture",
       "kind": "tool_call",
       "status": "completed",
       "title": "Tool call completed",
@@ -265,6 +315,7 @@
     },
     {
       "id": "evt_model_response",
+      "runId": "run_debug_fixture",
       "kind": "model_call",
       "status": "completed",
       "title": "Model HTTP response received",
@@ -286,6 +337,7 @@
     },
     {
       "id": "evt_message_write",
+      "runId": "run_debug_fixture",
       "kind": "assistant",
       "status": "completed",
       "title": "Assistant message created",

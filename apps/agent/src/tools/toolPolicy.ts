@@ -8,6 +8,7 @@ import {
 import { DEFAULT_TOOL_REGISTRY, type RegisteredTool, type ToolRegistry } from './toolRegistry.js'
 import type { ResolvedToolCatalog } from '../state/types.js'
 import { isSandboxAutoAllowedTool, requiresToolApproval } from './toolApprovalPolicy.js'
+import { isValidAgentProjectId } from '../context/runtimeContext.js'
 
 export interface ToolPolicyResult {
   toolCalls: ToolCall[]
@@ -71,7 +72,7 @@ export function applyToolPolicy(
     }
 
     if (tool.projectScoped) {
-      if (options.currentProjectId === undefined) {
+      if (!isValidAgentProjectId(options.currentProjectId)) {
         block(call, 'missing_project', '当前没有选中项目')
         continue
       }

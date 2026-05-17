@@ -71,6 +71,19 @@ test('MCPBackendApplyClient creates scripts through the internal MCP backend wri
   })
 })
 
+test('MCPBackendApplyClient drops invalid auth user ids from MCP args', async () => {
+  const mcpClient = new FakeMCPClient()
+  const client = new MCPBackendApplyClient(mcpClient)
+
+  await client.createScript(42, { title: 'Test', raw_source: 'Body', source_type: 'raw' }, { userId: 3.5 })
+
+  assert.equal(mcpClient.calls[0]?.name, 'movscript_create_script_backend')
+  assert.deepEqual(mcpClient.calls[0]?.args, {
+    projectId: 42,
+    payload: { title: 'Test', raw_source: 'Body', source_type: 'raw' },
+  })
+})
+
 test('MCPBackendApplyClient previews project proposal apply through the internal MCP tool', async () => {
   const mcpClient = new FakeMCPClient()
   const client = new MCPBackendApplyClient(mcpClient)
@@ -88,4 +101,15 @@ test('MCPBackendApplyClient previews project proposal apply through the internal
   })
 
   assert.equal(mcpClient.calls[0]?.name, 'movscript_preview_apply_draft_review')
+})
+
+test('MCPBackendApplyClient rejects non-plain backend apply tool results', async () => {
+  class RuntimeResult {
+    performed = true
+  }
+  const mcpClient = new FakeMCPClient()
+  mcpClient.callTool = async () => new RuntimeResult() as never
+  const client = new MCPBackendApplyClient(mcpClient)
+
+  await assert.rejects(() => client.createScript(42, { title: 'Test' }), /invalid backend apply result/)
 })

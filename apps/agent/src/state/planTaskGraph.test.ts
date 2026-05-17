@@ -13,16 +13,26 @@ test('cloneTaskForValidation copies mutable arrays and metadata', () => {
     artifacts: [{
       id: 'artifact_1',
       type: 'file',
-      metadata: { sourceTaskId: 'task_1' },
+      metadata: { source: { taskId: 'task_1' } },
       createdAt: '2026-05-16T00:00:00.000Z',
     }],
-    metadata: { subagentName: 'Ada' },
+    metadata: { subagent: { name: 'Ada' } },
   })
   const clone = cloneTaskForValidation(task)
   assert.deepEqual(clone, task)
   assert.notEqual(clone.deps, task.deps)
   assert.notEqual(clone.artifacts, task.artifacts)
+  assert.notEqual(clone.artifacts[0], task.artifacts[0])
+  assert.notEqual(clone.artifacts[0]?.metadata, task.artifacts[0]?.metadata)
   assert.notEqual(clone.metadata, task.metadata)
+
+  const clonedArtifactMetadata = clone.artifacts[0]!.metadata as any
+  const clonedTaskMetadata = clone.metadata as any
+  clonedArtifactMetadata.source.taskId = 'changed'
+  clonedTaskMetadata.subagent.name = 'Changed'
+
+  assert.deepEqual(task.artifacts[0]?.metadata, { source: { taskId: 'task_1' } })
+  assert.deepEqual(task.metadata, { subagent: { name: 'Ada' } })
 })
 
 test('assertTaskDependencyGraphAcyclic accepts acyclic dependencies and overrides', () => {

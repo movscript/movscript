@@ -1,6 +1,7 @@
 import { DRAFT_SCHEMA_REGISTRY } from '@movscript/draft-schemas'
 import type { AgentManifest } from './agentManifest.js'
 import type { RegisteredTool } from '../tools/toolRegistry.js'
+import { isRecord } from '../jsonValue.js'
 import type {
   AgentProfile,
   CapabilityPack,
@@ -115,8 +116,4 @@ export function profileFromManifest(manifest: AgentManifest, id = manifest.id, n
 function normalizeProvider(provider: string): 'anthropic' | 'openai' | 'azure' | 'custom' {
   if (provider === 'anthropic' || provider === 'openai' || provider === 'azure') return provider
   return 'custom'
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

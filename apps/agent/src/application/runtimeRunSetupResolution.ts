@@ -2,7 +2,7 @@ import type { JSONValue } from '../types.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { NormalizedClientInput } from '../context/normalizeClientInput.js'
 import type { AgentCommandRuntime } from '../context/commandRouter.js'
-import type { AgentContext } from '../context/runtimeContext.js'
+import { isValidAgentEntityId, type AgentContext } from '../context/runtimeContext.js'
 import { buildDebugContext } from '../context/debugContext.js'
 import type { AgentRuntimeContract, AgentRuntimeContractResolver } from '../contracts/runtimeContract.js'
 import type { AgentMemory } from '../memory/types.js'
@@ -75,7 +75,7 @@ export async function resolveRuntimeRunSetup(input: {
   const agentManifest = input.run.agentManifest ?? input.catalogSnapshot.defaultAgentManifest
   const contextWarnings = input.contextError ? [`Focus unavailable: ${input.contextError}`] : []
   const baseDebugContext = buildDebugContext(input.contextResult, input.memories, input.clientInput)
-  if (typeof input.context.currentProductionId === 'number') {
+  if (isValidAgentEntityId(input.context.currentProductionId)) {
     baseDebugContext.productionId = input.context.currentProductionId
   }
 

@@ -1,4 +1,5 @@
 import type { AgentRun, AgentTask, AgentTaskArtifact, JSONValue } from './types.js'
+import { isRecord } from '../jsonValue.js'
 
 export function projectRunOntoTask(task: AgentTask, run: AgentRun, now: string): boolean {
   if (run.status === 'completed' || run.status === 'completed_with_warnings') {
@@ -94,8 +95,4 @@ function subagentNameFromRun(run: AgentRun): string | undefined {
 
 function normalizeNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

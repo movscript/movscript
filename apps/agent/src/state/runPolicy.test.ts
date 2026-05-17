@@ -38,3 +38,12 @@ test('normalizeRunPolicyOverride clamps positive numeric limits and ignores inva
   })
   assert.deepEqual(normalizeRunPolicyOverride(null), {})
 })
+
+test('normalizeRunPolicyOverride ignores non-plain policy override objects', () => {
+  class RuntimePolicy {
+    maxToolCalls = 99
+    maxIterations = 99
+  }
+
+  assert.deepEqual(normalizeRunPolicyOverride(new RuntimePolicy()), {})
+})

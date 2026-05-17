@@ -1,4 +1,5 @@
 import type { MCPTool } from '../types.js'
+import { isRecord } from '../jsonValue.js'
 import type { CapabilityPack, ToolDefinition } from './types.js'
 import type { JSONSchema7 } from '@movscript/draft-schemas'
 
@@ -62,7 +63,7 @@ function normalizeToolName(value: string): string {
 }
 
 function normalizeSchema(value: unknown): JSONSchema7 {
-  return value && typeof value === 'object' && !Array.isArray(value)
+  return isRecord(value)
     ? value as JSONSchema7
     : { type: 'object', additionalProperties: true, properties: {} }
 }

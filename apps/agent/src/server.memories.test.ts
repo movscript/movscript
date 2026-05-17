@@ -85,6 +85,13 @@ test('memories endpoints stay project-scoped', async () => {
   const missingRes = await dispatch(handler, 'GET', `/memories/${other.id}?projectId=42`)
   assert.equal(missingRes.statusCode, 404)
 
+  const invalidDetailRes = await dispatch(handler, 'GET', `/memories/${local.id}?projectId=42.5`)
+  assert.equal(invalidDetailRes.statusCode, 404)
+
+  const invalidDeleteRes = await dispatch(handler, 'DELETE', `/memories/${local.id}?projectId=42.5`)
+  assert.equal(invalidDeleteRes.statusCode, 404)
+  assert.ok(runtime.getMemory(42, local.id))
+
   const deleteRes = await dispatch(handler, 'DELETE', `/memories/${local.id}?projectId=42`)
   assert.equal(deleteRes.statusCode, 200)
   assert.equal(runtime.getMemory(42, local.id), undefined)
@@ -114,6 +121,18 @@ test('memory list accepts non-project scopes without server errors', async () =>
   const threadRes = await dispatch(handler, 'GET', '/memories?scope=thread&threadId=t1')
   assert.equal(threadRes.statusCode, 200)
   assert.deepEqual(JSON.parse(threadRes.body), { memories: [] })
+
+  const emptyProjectRes = await dispatch(handler, 'GET', '/memories?projectId=')
+  assert.equal(emptyProjectRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(emptyProjectRes.body), { memories: [] })
+
+  const zeroProjectRes = await dispatch(handler, 'GET', '/memories?projectId=0')
+  assert.equal(zeroProjectRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(zeroProjectRes.body), { memories: [] })
+
+  const fractionalProjectRes = await dispatch(handler, 'GET', '/memories?projectId=42.5')
+  assert.equal(fractionalProjectRes.statusCode, 200)
+  assert.deepEqual(JSON.parse(fractionalProjectRes.body), { memories: [] })
 })
 
 test('create memory requires projectId through the HTTP layer', async () => {
@@ -130,10 +149,38 @@ test('create memory requires projectId through the HTTP layer', async () => {
     updateState: buildUpdateState(),
   })
   const handler = createAgentRequestListener(buildServerContext(runtime))
-  const res = await dispatch(handler, 'POST', '/memories', { title: 'Missing project', kind: 'preference', content: 'x' })
-  assert.equal(res.statusCode, 500)
-  const json = JSON.parse(res.body) as { error: string }
-  assert.match(json.error, /projectId is required/i)
+  const cases = [
+    {
+      body: { title: 'Missing project', kind: 'preference', content: 'x' },
+      error: 'memory projectId is required',
+    },
+    {
+      body: { projectId: 0, title: 'Invalid project', kind: 'preference', content: 'x' },
+      error: 'memory projectId is required',
+    },
+    {
+      body: { projectId: 42.5, title: 'Invalid project', kind: 'preference', content: 'x' },
+      error: 'memory projectId is required',
+    },
+    {
+      body: { projectId: 42, kind: 'preference', content: 'x' },
+      error: 'memory title is required',
+    },
+    {
+      body: { projectId: 42, title: 'Missing kind', content: 'x' },
+      error: 'memory kind is required',
+    },
+    {
+      body: { projectId: 42, title: 'Missing content', kind: 'preference' },
+      error: 'memory content is required',
+    },
+  ]
+
+  for (const entry of cases) {
+    const res = await dispatch(handler, 'POST', '/memories', entry.body)
+    assert.equal(res.statusCode, 400)
+    assert.equal((JSON.parse(res.body) as { error: string }).error, entry.error)
+  }
 })
 
 test('draft apply endpoint is an application-layer action outside agent runs', async () => {

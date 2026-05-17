@@ -21,6 +21,7 @@ This is the documentation entry point for Movscript. The project is still early,
 - [AgentRun debugging product audit](agent-run-debugging-product-audit.md)
 - [AgentRun debugging acceptance checklist](agent-run-debugging-acceptance.zh-CN.md)
 - [AgentRun debug bundle v1 contract](agent-run-debug-bundle-v1.zh-CN.md)
+- [AgentRun debugging acceptance summary v1 schema](agent-run-debugging-acceptance-summary-v1.schema.json)
 
 ## Design Drafts
 

@@ -60,6 +60,26 @@ test('resolveRuntimeMemoryContext records an empty completed trace when no proje
   assert.deepEqual((traces[0]?.data as any)?.memoryIds, [])
 })
 
+test('resolveRuntimeMemoryContext ignores invalid project scopes', () => {
+  const loadedQueries: Array<{ projectId?: number; query?: string }> = []
+  resolveRuntimeMemoryContext({
+    run: makeRun(),
+    memoryManager: {
+      loadRelevantMemories: (query) => {
+        loadedQueries.push(query)
+        return []
+      },
+    },
+    projectId: 42.5,
+    query: 'write script',
+    setupRound,
+    timestampMs: makeClock(3000, 3001),
+    recordTrace: () => {},
+  })
+
+  assert.deepEqual(loadedQueries, [{ query: 'write script' }])
+})
+
 function makeRun(): AgentRun {
   return {
     id: 'run_1',

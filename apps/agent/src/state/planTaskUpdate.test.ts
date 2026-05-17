@@ -122,6 +122,30 @@ test('applyPlanTaskUpdate validates owner runs and subagent metadata via callbac
   assert.deepEqual(calls, ['owner:run_1:task_1', 'name:task_1:Ada'])
 })
 
+test('applyPlanTaskUpdate stores a deep copy of metadata updates', () => {
+  const task = taskFixture({ id: 'task_1', metadata: { keep: { value: 'stable' } } })
+  const updateMetadata = {
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  }
+  applyPlanTaskUpdate({
+    task,
+    update: { metadata: updateMetadata },
+    now: 'now',
+    planTasks: [task],
+    getTask: (taskId) => taskId === task.id ? task : undefined,
+  })
+
+  updateMetadata.nested.value = 'changed'
+  updateMetadata.list[0]!.id = 'changed'
+
+  assert.deepEqual(task.metadata, {
+    keep: { value: 'stable' },
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  })
+})
+
 function taskFixture(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
     id: 'task_1',

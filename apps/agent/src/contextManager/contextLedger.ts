@@ -1,10 +1,12 @@
 import { createHash } from 'node:crypto'
 import type { JSONValue } from '../types.js'
+import { isRecord } from '../jsonValue.js'
 import type { ToolCall } from '../state/types.js'
 import type { ToolSource } from '../orchestration/toolExecutor.js'
 import type { ContextLedger, ContextRef, RetrievedContextRecord } from './types.js'
 import { normalizeContextSource, normalizeEvidenceLevel, sourceBoundaryForContextRef } from './sourceBoundary.js'
 import { mergeRetrievedRecords, refKey } from './retrievedContextStore.js'
+import { isValidAgentEntityId } from '../context/runtimeContext.js'
 
 export interface CreateEmptyContextLedgerInput {
   runId: string
@@ -495,13 +497,9 @@ function stringField(value: unknown, key?: string): string | undefined {
 
 function numberField(value: unknown, key?: string): number | undefined {
   const candidate = key && isRecord(value) ? value[key] : value
-  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined
+  return isValidAgentEntityId(candidate) ? candidate : undefined
 }
 
 function isString(value: unknown): value is string {
   return typeof value === 'string'
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

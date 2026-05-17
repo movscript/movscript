@@ -1,5 +1,5 @@
 import type { MemoryManager } from '../memory/memoryManager.js'
-import type { AgentMemory, MemoryQuery } from '../memory/types.js'
+import { isValidMemoryProjectId, type AgentMemory, type MemoryQuery } from '../memory/types.js'
 import type { AgentMemoryStore } from '../memory/memoryStore.js'
 
 export function listRuntimeMemories(input: {
@@ -21,6 +21,7 @@ export function getRuntimeMemory(input: {
   projectId: number
   id: string
 }): AgentMemory | undefined {
+  if (!isValidMemoryProjectId(input.projectId)) return undefined
   return input.memoryManager.getMemory({ projectId: input.projectId, id: input.id })
 }
 
@@ -36,5 +37,6 @@ export function deleteRuntimeMemory(input: {
   projectId: number
   id: string
 }): boolean {
+  if (!isValidMemoryProjectId(input.projectId)) return false
   return input.memoryManager.deleteMemory({ projectId: input.projectId, id: input.id })
 }

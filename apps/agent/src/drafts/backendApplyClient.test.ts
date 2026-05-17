@@ -26,6 +26,18 @@ test('buildPatchRequest rejects unsupported fields', () => {
   })), /cannot write field project_id/)
 })
 
+test('buildPatchRequest rejects invalid target project ids', () => {
+  for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']) {
+    assert.throws(() => buildPatchRequest(review({
+      projectId,
+      entityType: 'content_unit',
+      entityId: 7,
+      field: 'description',
+      proposedValue: 'Updated',
+    })), /requires projectId/)
+  }
+})
+
 test('buildPatchRequest rejects unsupported entity types', () => {
   assert.throws(() => buildPatchRequest(review({
     entityType: 'legacy_entity',
@@ -33,6 +45,24 @@ test('buildPatchRequest rejects unsupported entity types', () => {
     field: 'description',
     proposedValue: 'Updated',
   })), /does not support target entity type/)
+})
+
+test('previewApplyReview rejects invalid proposal project ids', async () => {
+  const client = new BackendApplyClient({ baseURL: 'http://backend' })
+  await assert.rejects(
+    () => client.previewApplyReview({
+      draftId: 'draft_project',
+      draftTitle: 'Project proposal',
+      draftKind: 'setting_proposal',
+      target: { entityType: 'project', entityId: '42', field: 'proposal' },
+      currentValue: null,
+      proposedValue: { proposal: {} },
+      risk: 'write',
+      sideEffect: 'test',
+      requiresBackendApply: true,
+    }),
+    /requires projectId for proposal apply/,
+  )
 })
 
 test('applyProposal posts production proposal payload with auth headers', async () => {
@@ -73,6 +103,33 @@ test('applyProposal posts production proposal payload with auth headers', async 
     assert.equal((calls[0].init.headers as Record<string, string>)['X-User-ID'], '7')
     assert.deepEqual(JSON.parse(String(calls[0].init.body)), payload)
     assert.deepEqual(result.response, { counts: { segments_created: 1 } })
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('BackendApplyClient drops invalid auth user ids from backend headers', async () => {
+  const originalFetch = globalThis.fetch
+  const calls: Array<{ url: string; init: RequestInit }> = []
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} })
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 201,
+      headers: { 'content-type': 'application/json' },
+    })
+  }) as typeof fetch
+  try {
+    const client = new BackendApplyClient({ baseURL: 'http://backend' })
+    await client.applyProposal(42, {
+      mode: 'snapshot',
+      proposal: {},
+    }, {
+      userId: 7.5,
+      backendAuthToken: 'token_1',
+    })
+
+    assert.equal((calls[0].init.headers as Record<string, string>).Authorization, 'Bearer token_1')
+    assert.equal((calls[0].init.headers as Record<string, string>)['X-User-ID'], undefined)
   } finally {
     globalThis.fetch = originalFetch
   }
@@ -389,7 +446,7 @@ test('applyReview posts project proposal with only project style', async () => {
 })
 
 function review(input: {
-  projectId?: number | string
+  projectId?: unknown
   entityType: string
   entityId: number | string
   field: string
@@ -405,7 +462,7 @@ function review(input: {
       entityType: input.entityType,
       entityId: input.entityId,
       field: input.field,
-    },
+    } as ApplyDraftReview['target'],
     currentValue: null,
     proposedValue: input.proposedValue,
     risk: 'write',

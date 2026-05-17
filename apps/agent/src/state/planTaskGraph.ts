@@ -1,11 +1,15 @@
-import type { AgentTask } from './types.js'
+import { cloneJSONValue } from '../jsonValue.js'
+import type { AgentTask, JSONValue } from './types.js'
 
 export function cloneTaskForValidation(task: AgentTask): AgentTask {
   return {
     ...task,
     deps: [...task.deps],
-    artifacts: [...task.artifacts],
-    ...(task.metadata ? { metadata: { ...task.metadata } } : {}),
+    artifacts: task.artifacts.map((artifact) => ({
+      ...artifact,
+      ...(artifact.metadata ? { metadata: cloneJSONValue(artifact.metadata) } : {}),
+    })),
+    ...(task.metadata ? { metadata: cloneJSONValue(task.metadata as Record<string, JSONValue>) } : {}),
   }
 }
 

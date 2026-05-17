@@ -27,24 +27,27 @@ test('applyRuntimeRunExecutionMetadata persists user request while preserving ex
 
 test('applyRuntimeRunExecutionMetadata stores normalized client input when available', () => {
   const run = makeRun()
+  const clientInput = {
+    visibleMessage: 'hello',
+    attachments: [{ id: 'att_1', name: 'Original' }],
+    uiSnapshot: {
+      route: { pathname: '/agent' },
+    },
+  }
 
   applyRuntimeRunExecutionMetadata({
     store: { updateRun: () => {} },
     run,
     userRequest: 'hello',
-    clientInput: {
-      visibleMessage: 'hello',
-      attachments: [],
-      uiSnapshot: {
-        route: { pathname: '/agent' },
-      },
-    },
+    clientInput,
   })
+
+  clientInput.attachments[0]!.name = 'Changed'
 
   assert.equal(run.metadata?.userRequest, 'hello')
   assert.deepEqual(run.metadata?.clientInput, {
     visibleMessage: 'hello',
-    attachments: [],
+    attachments: [{ id: 'att_1', name: 'Original' }],
     uiSnapshot: {
       route: { pathname: '/agent' },
     },

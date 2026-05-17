@@ -1,4 +1,5 @@
 import { buildPromptMemoryIndex } from '../context/promptHygiene.js'
+import { isValidAgentProjectId } from '../context/runtimeContext.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentRun, AgentTraceEvent, AgentTraceEventKind } from '../state/types.js'
@@ -31,7 +32,7 @@ export function resolveRuntimeMemoryContext(input: {
 }): RuntimeMemoryContextResult {
   const memoryStartedAt = input.timestampMs()
   const relevantMemories = input.memoryManager.loadRelevantMemories({
-    ...(typeof input.projectId === 'number' ? { projectId: input.projectId } : {}),
+    ...(isValidAgentProjectId(input.projectId) ? { projectId: input.projectId } : {}),
     query: input.query,
   })
   const memories = buildPromptMemoryIndex(relevantMemories)

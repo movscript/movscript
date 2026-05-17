@@ -15,6 +15,7 @@ import {
   type ToolRegistry,
 } from '../tools/toolRegistry.js'
 import type { JSONValue } from '../types.js'
+import { isJSONRecord, isJSONValue, isRecord } from '../jsonValue.js'
 import { buildLayeredCatalogRegistry } from './registry.js'
 import { lintCatalog } from './linter.js'
 import type { AgentProfile, CapabilityPack, CatalogIssue, CatalogRegistry, ContextSelector, PolicyScope, SkillDefinition, ToolDefinition } from './types.js'
@@ -836,20 +837,4 @@ function dedupeLayeredTools(tools: ToolDefinition[]): ToolDefinition[] {
   const byName = new Map<string, ToolDefinition>()
   for (const tool of tools) byName.set(tool.name, tool)
   return Array.from(byName.values())
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  return isJSONRecord(value)
 }

@@ -12,22 +12,36 @@ import {
 import type { AgentThread } from '../state/types.js'
 
 test('buildAgentThread normalizes visible thread fields', () => {
+  const metadata = { source: 'test', nested: { stable: true } }
   const thread = buildAgentThread({
     id: 'thread_1',
     now: '2026-01-01T00:00:00.000Z',
     threadInput: {
       title: '  My thread  ',
       projectId: 7,
-      metadata: { source: 'test' },
+      metadata,
       archived: true,
     },
   })
 
+  metadata.nested.stable = false
+
   assert.equal(thread.title, 'My thread')
   assert.equal(thread.projectId, 7)
-  assert.deepEqual(thread.metadata, { source: 'test' })
+  assert.deepEqual(thread.metadata, { source: 'test', nested: { stable: true } })
   assert.equal(thread.archived, true)
   assert.equal(thread.status, 'idle')
+})
+
+test('buildAgentThread ignores invalid project ids', () => {
+  for (const projectId of [0, 7.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const thread = buildAgentThread({
+      id: 'thread_invalid_project',
+      now: '2026-01-01T00:00:00.000Z',
+      threadInput: { projectId },
+    })
+    assert.equal(thread.projectId, undefined)
+  }
 })
 
 test('validInitialThreadMessageInputs keeps only explicit visible messages', () => {
@@ -46,15 +60,18 @@ test('validInitialThreadMessageInputs keeps only explicit visible messages', () 
 
 test('applyThreadUpdate mutates title archived metadata and updatedAt', () => {
   const thread = makeThread()
+  const metadata = { b: 2, nested: { stable: true } }
   applyThreadUpdate({
     thread,
-    update: { title: '', archived: true, metadata: { b: 2 } },
+    update: { title: '', archived: true, metadata },
     now: '2026-01-01T00:00:01.000Z',
   })
 
+  metadata.nested.stable = false
+
   assert.equal(thread.title, undefined)
   assert.equal(thread.archived, true)
-  assert.deepEqual(thread.metadata, { a: 1, b: 2 })
+  assert.deepEqual(thread.metadata, { a: 1, b: 2, nested: { stable: true } })
   assert.equal(thread.updatedAt, '2026-01-01T00:00:01.000Z')
 })
 
@@ -101,6 +118,7 @@ test('buildThreadMessage creates runtime messages without changing content', () 
 
 test('appendThreadMessage appends message and records last client input when provided', () => {
   const thread = makeThread()
+  const clientInput = { visibleMessage: 'hello', attachments: [{ id: 'att_1', name: 'Original' }] }
   appendThreadMessage({
     thread,
     message: {
@@ -110,19 +128,30 @@ test('appendThreadMessage appends message and records last client input when pro
       content: 'hello',
       createdAt: '2026-01-01T00:00:01.000Z',
     },
-    clientInput: { visibleMessage: 'hello', attachments: [] },
+    clientInput,
   })
+
+  clientInput.attachments[0]!.name = 'Changed'
 
   assert.equal(thread.messages.length, 1)
   assert.equal(thread.updatedAt, '2026-01-01T00:00:01.000Z')
-  assert.deepEqual(thread.metadata, { a: 1, lastClientInput: { visibleMessage: 'hello', attachments: [] } })
+  assert.deepEqual(thread.metadata, {
+    a: 1,
+    lastClientInput: { visibleMessage: 'hello', attachments: [{ id: 'att_1', name: 'Original' }] },
+  })
 })
 
 test('recordThreadClientInput merges last client input into existing metadata', () => {
   const thread = makeThread()
-  recordThreadClientInput(thread, { visibleMessage: 'latest', attachments: [] })
+  const clientInput = { visibleMessage: 'latest', attachments: [{ id: 'att_1', name: 'Original' }] }
+  recordThreadClientInput(thread, clientInput)
 
-  assert.deepEqual(thread.metadata, { a: 1, lastClientInput: { visibleMessage: 'latest', attachments: [] } })
+  clientInput.attachments[0]!.name = 'Changed'
+
+  assert.deepEqual(thread.metadata, {
+    a: 1,
+    lastClientInput: { visibleMessage: 'latest', attachments: [{ id: 'att_1', name: 'Original' }] },
+  })
   assert.equal(thread.updatedAt, '2026-01-01T00:00:00.000Z')
 })
 

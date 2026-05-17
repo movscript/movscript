@@ -63,3 +63,23 @@ test('runtime memory delete is scoped and returns false for missing project matc
   assert.equal(deleteRuntimeMemory({ memoryManager, projectId: 7, id: memory.id }), false)
   assert.equal(getRuntimeMemory({ memoryManager, projectId: 42, id: memory.id })?.id, memory.id)
 })
+
+test('runtime memory operations reject invalid project scopes at the facade boundary', () => {
+  const memoryStore = new InMemoryAgentMemoryStore()
+  const memoryManager = new MemoryManager(memoryStore)
+  const memory = createRuntimeMemory({
+    memoryManager,
+    memoryInput: {
+      projectId: 42,
+      title: 'Fact',
+      kind: 'fact',
+      content: 'Project scoped fact',
+    },
+  })
+
+  for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(getRuntimeMemory({ memoryManager, projectId, id: memory.id }), undefined)
+    assert.equal(deleteRuntimeMemory({ memoryManager, projectId, id: memory.id }), false)
+  }
+  assert.equal(getRuntimeMemory({ memoryManager, projectId: 42, id: memory.id })?.id, memory.id)
+})

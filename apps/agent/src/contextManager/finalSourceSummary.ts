@@ -1,3 +1,4 @@
+import { isRecord } from '../jsonValue.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentRun, ToolCallOutcome } from '../state/types.js'
 import { buildRetrievedContextStore, uniqueRetrievedContextRefs } from './retrievedContextStore.js'
@@ -142,8 +143,4 @@ function loadedKnowledgeBodies(run: AgentRun): Array<{ id: string; title?: strin
 
 function stringField(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

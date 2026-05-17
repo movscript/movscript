@@ -95,6 +95,35 @@ test('final source summary omits large knowledge bodies from final content', () 
   assert.match(content, /通用知识建议：knowledge#storyboard\.rhythm\.basic《分镜节奏基础》（source=knowledge; evidence=advisory）/)
 })
 
+test('final source summary ignores non-plain tool result objects when omitting knowledge bodies', () => {
+  const body = '分镜节奏正文。'.repeat(80)
+  const run = testRun({
+    contextLedger: {
+      retrieved: [retrieved('knowledge', 'storyboard.rhythm.basic', 'knowledge', 'advisory', '分镜节奏基础')],
+    },
+  })
+  class RuntimeToolResult {
+    id = 'storyboard.rhythm.basic'
+    title = '分镜节奏基础'
+    content = body
+  }
+  run.steps = [{
+    id: 'step_1',
+    runId: run.id,
+    type: 'tool_call',
+    status: 'completed',
+    toolName: 'movscript_get_knowledge',
+    result: new RuntimeToolResult() as unknown as JSONValue,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    completedAt: '2026-01-01T00:00:00.000Z',
+  }]
+
+  const content = appendFinalSourceSummary(`建议如下：\n${body}`, { run })
+
+  assert.match(content, new RegExp(body))
+  assert.doesNotMatch(content, /已省略 knowledge 正文/)
+})
+
 function retrieved(type: string, id: string, source: string, evidence: string, title: string): Record<string, JSONValue> {
   return {
     ref: { type, id, title },

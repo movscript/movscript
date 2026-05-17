@@ -1,5 +1,6 @@
 import type { JSONValue } from '../types.js'
 import type { AgentRunRole } from '../state/types.js'
+import { isJSONValue, isRecord } from '../jsonValue.js'
 
 export type ToolRiskLevel = 'read' | 'draft' | 'write' | 'generate' | 'destructive' | 'ui'
 
@@ -213,16 +214,4 @@ function normalizeToolDefaults(value: unknown): ToolDefaults | undefined {
     approval,
     ...(typeof value.timeoutMs === 'number' && Number.isFinite(value.timeoutMs) ? { timeoutMs: value.timeoutMs } : {}),
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
 }

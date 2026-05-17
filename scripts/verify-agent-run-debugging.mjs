@@ -8,11 +8,15 @@ const errors = []
 const files = {
   page: 'apps/frontend/src/pages/agent/AIAgentRunPage.tsx',
   ui: 'apps/frontend/src/lib/agentRunUi.ts',
+  uiViewTest: 'apps/frontend/src/lib/agentRunUiView.test.ts',
   localAgentClient: 'apps/frontend/src/lib/localAgentClient.ts',
   agentStateTypes: 'apps/agent/src/state/types.ts',
   e2e: 'apps/frontend/src/e2e/agent-planner.spec.ts',
   playwrightConfig: 'apps/frontend/playwright.config.ts',
   artifactVerifier: 'scripts/verify-agent-run-debugging-artifacts.mjs',
+  artifactVerifierTest: 'scripts/verify-agent-run-debugging-artifacts.test.mjs',
+  acceptanceSummaryContract: 'scripts/agent-run-debugging-acceptance-summary-contract.mjs',
+  acceptanceSummaryVerifier: 'scripts/verify-agent-run-debugging-acceptance-summary.mjs',
   artifactCleaner: 'scripts/clean-agent-run-debugging-artifacts.mjs',
   e2eRunner: 'scripts/run-agent-run-debugging-e2e.mjs',
   ciWorkflow: '.github/workflows/ci.yml',
@@ -20,6 +24,8 @@ const files = {
   makefile: 'Makefile',
   schema: 'docs/agent-run-debug-bundle-v1.schema.json',
   fixture: 'docs/agent-run-debug-bundle-v1.fixture.json',
+  acceptanceSummarySchema: 'docs/agent-run-debugging-acceptance-summary-v1.schema.json',
+  acceptanceSummaryFixture: 'docs/agent-run-debugging-acceptance-summary-v1.fixture.json',
   bundleContract: 'docs/agent-run-debug-bundle-v1.zh-CN.md',
   acceptance: 'docs/agent-run-debugging-acceptance.zh-CN.md',
   audit: 'docs/agent-run-debugging-product-audit.md',
@@ -36,10 +42,31 @@ const source = Object.fromEntries(
 
 const schema = readJSON(files.schema)
 const fixture = readJSON(files.fixture)
+const acceptanceSummarySchema = readJSON(files.acceptanceSummarySchema)
+const acceptanceSummaryFixture = readJSON(files.acceptanceSummaryFixture)
 const packageJson = readJSON(files.packageJson)
+const requiredAcceptanceScreenshotNames = [
+  'agent-run-debug-overview',
+  'agent-run-model-call-expanded',
+  'agent-run-http-request-detail',
+  'agent-run-http-response-detail',
+  'agent-run-attention-events',
+  'agent-run-missing-data',
+]
+const requiredReadinessChecklistIds = [
+  'trace_loaded',
+  'context_detail',
+  'model_http',
+  'request_payload',
+  'response_body',
+  'history_write',
+  'tool_detail',
+]
+const requiredFieldGuideIds = extractObjectArrayPropertyValues(source.ui, 'AGENT_DEBUG_FIELD_GUIDE', 'id')
 
 verifyDebugBundleSchema()
 verifyFixture()
+verifyAcceptanceSummarySchema()
 verifyTraceContract()
 verifyPageContract()
 verifyReportAndUiHelpers()
@@ -89,6 +116,12 @@ function verifyDebugBundleSchema() {
     'result_only',
     'failed',
   ]
+  const backendTraceFields = extractInterfacePropertyNames(source.agentStateTypes, 'AgentTraceEvent')
+  const backendTraceKinds = extractStringArrayConstant(source.agentStateTypes, 'AGENT_TRACE_EVENT_KINDS')
+  const backendTraceStatuses = extractInterfaceStringUnionProperty(source.agentStateTypes, 'AgentTraceEvent', 'status')
+  const backendTraceRoundSources = extractInterfaceStringUnionProperty(source.agentStateTypes, 'AgentTraceEvent', 'roundSource')
+  const modelCallFields = extractInterfacePropertyNames(source.ui, 'AgentModelCallSummary')
+  const promptDetailFields = ['eventId', ...extractInterfacePropertyNames(source.ui, 'AgentTracePromptDetail')]
   assertEqual(schema?.$id, 'https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json', 'debug bundle schema id must be stable')
   assertEqual(schema?.title, 'AgentRun debug bundle v1', 'debug bundle schema title must be stable')
   assertArrayIncludes(schema?.required, [
@@ -114,7 +147,16 @@ function verifyDebugBundleSchema() {
   ], 'debug bundle schema required fields')
   assertEqual(schema?.properties?.schemaUrl?.const, 'https://movscript.dev/schemas/agent-run-debug-bundle-v1.schema.json', 'debug bundle schemaUrl must be stable')
   assertEqual(schema?.properties?.generatedAt?.format, 'date-time', 'debug bundle generatedAt must be a date-time')
+  assertEqual(schema?.properties?.events?.items?.$ref, '#/$defs/traceEvent', 'debug bundle schema events must use traceEvent definition')
+  assertEqual(schema?.properties?.promptDetails?.items?.$ref, '#/$defs/promptDetail', 'debug bundle schema promptDetails must use promptDetail definition')
   assertSameStringSet(schema?.$defs?.capability?.enum, expectedCapabilities, 'debug bundle schema capabilities')
+  assertArrayIncludes(schema?.$defs?.traceEvent?.required, ['id', 'runId', 'kind', 'status', 'title', 'createdAt'], 'debug bundle trace event required fields')
+  assertSameStringSet(schema?.$defs?.traceEvent?.properties?.kind?.enum, backendTraceKinds, 'debug bundle trace event kind enum')
+  assertSameStringSet(schema?.$defs?.traceEvent?.properties?.status?.enum, backendTraceStatuses, 'debug bundle trace event status enum')
+  assertSameStringSet(schema?.$defs?.traceEvent?.properties?.roundSource?.enum, backendTraceRoundSources, 'debug bundle trace event roundSource enum')
+  assertArrayIncludes(Object.keys(schema?.$defs?.traceEvent?.properties ?? {}), backendTraceFields, 'debug bundle trace event property definitions')
+  assertEqual(schema?.$defs?.traceEvent?.properties?.createdAt?.format, 'date-time', 'debug bundle trace event createdAt must be a date-time')
+  assertEqual(schema?.$defs?.traceEvent?.properties?.completedAt?.format, 'date-time', 'debug bundle trace event completedAt must be a date-time')
   assertSameStringSet(extractStringArrayConstant(source.page, 'DEBUG_BUNDLE_CAPABILITIES'), expectedCapabilities, 'run page debug bundle capabilities')
   assertArrayIncludes(schema?.$defs?.runSnapshot?.required, ['id', 'threadId', 'status', 'createdAt'], 'debug bundle run snapshot required fields')
   assertSameStringSet(schema?.$defs?.runSnapshot?.properties?.status?.enum, expectedRunStatuses, 'debug bundle run snapshot status enum')
@@ -125,12 +167,36 @@ function verifyDebugBundleSchema() {
   assertEqual(schema?.$defs?.runSummary?.properties?.startedAt?.format, 'date-time', 'debug bundle run summary startedAt must be a date-time')
   assertEqual(schema?.$defs?.runSummary?.properties?.terminalAt?.format, 'date-time', 'debug bundle run summary terminalAt must be a date-time')
   assertSameStringSet(schema?.$defs?.modelCall?.properties?.status?.enum, expectedModelCallStatuses, 'debug bundle model call status enum')
+  assertArrayIncludes(Object.keys(schema?.$defs?.modelCall?.properties ?? {}), modelCallFields, 'debug bundle model call property definitions')
   assertSameStringSet(schema?.$defs?.modelCallContext?.properties?.status?.enum, expectedModelCallStatuses, 'debug bundle model call context status enum')
+  assertSameStringSet(schema?.$defs?.toolCallRef?.properties?.status?.enum, backendTraceStatuses, 'debug bundle tool call ref status enum')
+  assertSameStringSet(schema?.$defs?.toolCall?.properties?.status?.enum, backendTraceStatuses, 'debug bundle tool call status enum')
+  assertArrayIncludes(Object.keys(schema?.$defs?.promptDetail?.properties ?? {}), promptDetailFields, 'debug bundle prompt detail property definitions')
+  assertArrayIncludes(schema?.$defs?.promptDetail?.required, ['eventId', 'title', 'skills', 'tools', 'layers', 'contextLayers', 'partGroups', 'parts'], 'debug bundle prompt detail required fields')
+  assertSameStringSet(schema?.$defs?.attentionEvent?.properties?.kind?.enum, backendTraceKinds, 'debug bundle attention event kind enum')
+  assertSameStringSet(schema?.$defs?.attentionEvent?.properties?.status?.enum, backendTraceStatuses, 'debug bundle attention event status enum')
   assertEqual(schema?.$defs?.attentionEvent?.properties?.createdAt?.format, 'date-time', 'debug bundle attention event createdAt must be a date-time')
   assertArrayIncludes(schema?.$defs?.pendingAction?.required, ['type', 'id', 'createdAt'], 'debug bundle pending action required fields')
   assertArrayIncludes(schema?.$defs?.pendingAction?.properties?.type?.enum, ['approval', 'input'], 'debug bundle pending action type enum')
+  assertEqual(schema?.$defs?.pendingAction?.oneOf?.length, 2, 'debug bundle pending action must define approval/input variants')
+  assertArrayIncludes(Object.keys(schema?.$defs?.pendingAction?.properties ?? {}), [
+    'toolName',
+    'risk',
+    'permission',
+    'reason',
+    'title',
+    'summary',
+    'question',
+    'inputType',
+    'choices',
+    'allowCustomAnswer',
+  ], 'debug bundle pending action property definitions')
+  assertSameStringSet(schema?.$defs?.pendingAction?.properties?.inputType?.enum, ['choice', 'text', 'confirmation'], 'debug bundle pending input type enum')
+  assertArrayIncludes(schema?.$defs?.pendingInputChoice?.required, ['id', 'label'], 'debug bundle pending input choice required fields')
   assertEqual(schema?.$defs?.pendingAction?.properties?.createdAt?.format, 'date-time', 'debug bundle pending action createdAt must be a date-time')
+  assertSameStringSet(schema?.$defs?.fieldGuideItem?.properties?.id?.enum, requiredFieldGuideIds, 'debug bundle field guide item id enum')
   assertArrayIncludes(schema?.$defs?.readinessItem?.required, ['id', 'label', 'status', 'detail', 'action'], 'readiness item required fields')
+  assertSameStringSet(schema?.$defs?.readinessItem?.properties?.id?.enum, requiredReadinessChecklistIds, 'debug bundle readiness item id enum')
 }
 
 function verifyFixture() {
@@ -148,31 +214,167 @@ function verifyFixture() {
   assertIncludes(JSON.stringify(fixture), '[REDACTED]', 'fixture should demonstrate redacted sensitive values')
 }
 
+function verifyAcceptanceSummarySchema() {
+  validateJSONSchemaFixture(acceptanceSummarySchema, acceptanceSummaryFixture, 'acceptanceSummaryFixture')
+  assertEqual(acceptanceSummarySchema?.$id, 'https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json', 'acceptance summary schema id must be stable')
+  assertEqual(acceptanceSummarySchema?.title, 'AgentRun debugging acceptance summary v1', 'acceptance summary schema title must be stable')
+  assertEqual(acceptanceSummarySchema?.additionalProperties, false, 'acceptance summary schema must reject extra top-level fields')
+  assertEqual(acceptanceSummarySchema?.$defs?.stepResult?.additionalProperties, false, 'acceptance summary step result schema must reject extra fields')
+  assertArrayIncludes(acceptanceSummarySchema?.required, [
+    'schema',
+    'schemaUrl',
+    'generatedAt',
+    'artifactRoot',
+    'environment',
+    'requiredScreenshots',
+    'screenshotDiagnostics',
+    'cleanArtifacts',
+    'browser',
+    'screenshotArtifacts',
+    'passed',
+  ], 'acceptance summary schema required fields')
+  assertEqual(acceptanceSummaryFixture?.schema, 'movscript.agent-run-debugging-acceptance-summary.v1', 'acceptance summary fixture schema id must match v1')
+  assertEqual(acceptanceSummaryFixture?.schemaUrl, 'https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json', 'acceptance summary fixture schemaUrl must point to v1 schema')
+  assertEqual(acceptanceSummarySchema?.properties?.artifactRoot?.type, 'string', 'acceptance summary artifactRoot must allow runner artifact root override')
+  assertEqual(acceptanceSummarySchema?.properties?.artifactRoot?.minLength, 1, 'acceptance summary artifactRoot must be non-empty')
+  assertEqual(acceptanceSummarySchema?.properties?.artifactRoot?.const, undefined, 'acceptance summary artifactRoot must not be fixed to the default path')
+  assertEqual(acceptanceSummaryFixture?.artifactRoot, 'apps/frontend/test-results', 'acceptance summary fixture artifactRoot must match runner output')
+  assertEqual(acceptanceSummarySchema?.properties?.environment?.$ref, '#/$defs/environment', 'acceptance summary environment must use a schema definition')
+  assertEqual(acceptanceSummarySchema?.$defs?.environment?.additionalProperties, false, 'acceptance summary environment must reject extra fields')
+  assertArrayIncludes(acceptanceSummarySchema?.$defs?.environment?.required, [
+    'usesExternalBaseURL',
+    'baseURLOrigin',
+    'preflightPort',
+    'artifactRootOverride',
+  ], 'acceptance summary environment required fields')
+  assertEqual(acceptanceSummarySchema?.$defs?.environment?.properties?.usesExternalBaseURL?.type, 'boolean', 'acceptance summary environment records external base URL usage')
+  assertSameStringSet(asArray(acceptanceSummarySchema?.$defs?.environment?.properties?.baseURLOrigin?.type), ['string', 'null'], 'acceptance summary environment baseURLOrigin type')
+  assertSameStringSet(asArray(acceptanceSummarySchema?.$defs?.environment?.properties?.preflightPort?.type), ['integer', 'null'], 'acceptance summary environment preflightPort type')
+  assertEqual(acceptanceSummarySchema?.$defs?.environment?.properties?.preflightPort?.minimum, 1, 'acceptance summary environment preflightPort minimum')
+  assertEqual(acceptanceSummarySchema?.$defs?.environment?.properties?.preflightPort?.maximum, 65535, 'acceptance summary environment preflightPort maximum')
+  assertEqual(acceptanceSummarySchema?.$defs?.environment?.properties?.artifactRootOverride?.type, 'boolean', 'acceptance summary environment records artifact root override usage')
+  assertEqual(acceptanceSummaryFixture?.environment?.usesExternalBaseURL, false, 'acceptance summary fixture environment uses default local server')
+  assertEqual(acceptanceSummaryFixture?.environment?.baseURLOrigin, null, 'acceptance summary fixture environment has no external base URL origin')
+  assertEqual(acceptanceSummaryFixture?.environment?.preflightPort, 4179, 'acceptance summary fixture environment records default preflight port')
+  assertEqual(acceptanceSummaryFixture?.environment?.artifactRootOverride, false, 'acceptance summary fixture environment records default artifact root')
+  assertEqual(acceptanceSummarySchema?.properties?.screenshotDiagnostics?.$ref, '#/$defs/screenshotDiagnostics', 'acceptance summary screenshot diagnostics must use a schema definition')
+  assertEqual(acceptanceSummarySchema?.$defs?.screenshotDiagnostics?.additionalProperties, false, 'acceptance summary screenshot diagnostics must reject extra fields')
+  assertArrayIncludes(acceptanceSummarySchema?.$defs?.screenshotDiagnostics?.required, [
+    'presentScreenshots',
+    'missingScreenshots',
+    'invalidScreenshots',
+  ], 'acceptance summary screenshot diagnostics required fields')
+  assertEqual(acceptanceSummarySchema?.$defs?.screenshotDiagnostics?.properties?.presentScreenshots?.$ref, '#/$defs/screenshotList', 'acceptance summary present screenshots must use shared list schema')
+  assertEqual(acceptanceSummarySchema?.$defs?.screenshotDiagnostics?.properties?.missingScreenshots?.$ref, '#/$defs/screenshotList', 'acceptance summary missing screenshots must use shared list schema')
+  assertSameStringSet(acceptanceSummarySchema?.$defs?.screenshotDiagnostics?.properties?.invalidScreenshots?.items?.properties?.name?.enum, requiredAcceptanceScreenshotNames.map((name) => `${name}.png`), 'acceptance summary invalid screenshots enum')
+  assertEqual(acceptanceSummarySchema?.$defs?.screenshotDiagnostics?.properties?.invalidScreenshots?.items?.properties?.reasons?.minItems, 1, 'acceptance summary invalid screenshot reasons must be non-empty')
+  assertSameStringSet(acceptanceSummarySchema?.$defs?.screenshotList?.items?.enum, requiredAcceptanceScreenshotNames.map((name) => `${name}.png`), 'acceptance summary screenshot diagnostics enum')
+  assertSameStringSet(acceptanceSummaryFixture?.screenshotDiagnostics?.presentScreenshots, requiredAcceptanceScreenshotNames.map((name) => `${name}.png`), 'acceptance summary fixture present screenshots')
+  assertSameStringSet(acceptanceSummaryFixture?.screenshotDiagnostics?.missingScreenshots, [], 'acceptance summary fixture missing screenshots')
+  assertSameStringSet(acceptanceSummaryFixture?.screenshotDiagnostics?.invalidScreenshots, [], 'acceptance summary fixture invalid screenshots')
+  assertSameStringSet(acceptanceSummarySchema?.properties?.requiredScreenshots?.items?.enum, requiredAcceptanceScreenshotNames.map((name) => `${name}.png`), 'acceptance summary schema required screenshots')
+  assertEqual(acceptanceSummarySchema?.properties?.requiredScreenshots?.minItems, requiredAcceptanceScreenshotNames.length, 'acceptance summary schema required screenshots minItems')
+  assertEqual(acceptanceSummarySchema?.properties?.requiredScreenshots?.maxItems, requiredAcceptanceScreenshotNames.length, 'acceptance summary schema required screenshots maxItems')
+  assertSameStringSet(acceptanceSummaryFixture?.requiredScreenshots, requiredAcceptanceScreenshotNames.map((name) => `${name}.png`), 'acceptance summary fixture required screenshots')
+  assertSameStringSet(extractSimpleStringArrayConstant(source.acceptanceSummaryContract, 'requiredAcceptanceScreenshots'), requiredAcceptanceScreenshotNames.map((name) => `${name}.png`), 'acceptance summary contract required screenshots')
+  assertIncludes(source.acceptanceSummaryContract, "acceptanceSummarySchema = 'movscript.agent-run-debugging-acceptance-summary.v1'", 'acceptance summary contract schema id is stable')
+  assertIncludes(source.acceptanceSummaryContract, "acceptanceSummarySchemaUrl = 'https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json'", 'acceptance summary contract schemaUrl is stable')
+  assertIncludes(source.e2eRunner, 'schema: acceptanceSummarySchema', 'E2E runner writes shared acceptance summary schema id')
+  assertIncludes(source.e2eRunner, 'schemaUrl: acceptanceSummarySchemaUrl', 'E2E runner writes shared acceptance summary schemaUrl')
+  assertIncludes(source.e2eRunner, 'artifactRoot: summaryArtifactRoot', 'E2E runner writes acceptance summary artifact root')
+  assertIncludes(source.e2eRunner, 'environment: acceptanceEnvironment()', 'E2E runner writes acceptance summary environment')
+  assertIncludes(source.e2eRunner, 'function acceptanceEnvironment()', 'E2E runner defines acceptance summary environment')
+  assertIncludes(source.e2eRunner, 'baseURLOrigin: externalBaseURLOrigin()', 'E2E runner records redacted base URL origin')
+  assertIncludes(source.e2eRunner, 'function externalBaseURLOrigin()', 'E2E runner redacts external base URL details')
+  assertIncludes(source.e2eRunner, 'requiredScreenshots,', 'E2E runner writes acceptance summary required screenshots')
+  assertIncludes(source.e2eRunner, 'screenshotDiagnostics: screenshotDiagnostics()', 'E2E runner writes screenshot diagnostics')
+  assertIncludes(source.e2eRunner, 'function screenshotDiagnostics()', 'E2E runner defines screenshot diagnostics')
+  assertIncludes(source.e2eRunner, 'missingScreenshots: requiredScreenshots.filter', 'E2E runner records missing required screenshots')
+  assertIncludes(source.e2eRunner, 'invalidScreenshots: report.invalidScreenshots.filter', 'E2E runner records invalid required screenshots')
+  assertIncludes(source.e2eRunner, 'cleanArtifacts: formatResultForSummary(cleanResult)', 'E2E runner writes artifact cleanup step result')
+  assertIncludes(source.e2eRunner, 'browser: formatResultForSummary(browserResult)', 'E2E runner writes browser step result')
+  assertIncludes(source.e2eRunner, 'screenshotArtifacts: formatResultForSummary(artifactResult)', 'E2E runner writes screenshot artifact step result')
+  assertIncludes(source.e2eRunner, 'passed: cleanResult.status === 0 && browserResult.status === 0 && artifactResult.status === 0', 'E2E runner computes acceptance summary pass state from all steps')
+  assertIncludes(source.e2eRunner, 'assertValidAcceptanceSummary(summary)', 'E2E runner validates acceptance summary before writing it')
+  assertIncludes(source.acceptanceSummaryContract, 'export function validateAcceptanceSummary(summary)', 'acceptance summary contract defines summary validation')
+  assertIncludes(source.acceptanceSummaryContract, '${field} is not allowed', 'acceptance summary contract rejects extra top-level fields')
+  assertIncludes(source.acceptanceSummaryContract, 'validateEnvironment(summary.environment, errors)', 'acceptance summary contract validates environment')
+  assertIncludes(source.acceptanceSummaryContract, "environment.${field} is not allowed", 'acceptance summary contract rejects extra environment fields')
+  assertIncludes(source.acceptanceSummaryContract, '${label}.${field} is not allowed', 'acceptance summary contract rejects extra step fields')
+  assertIncludes(source.acceptanceSummaryContract, "validateSummaryStep(summary.cleanArtifacts, 'cleanArtifacts', errors)", 'acceptance summary contract validates artifact cleanup summary step')
+  assertIncludes(source.acceptanceSummaryContract, 'validateScreenshotDiagnostics(summary.screenshotDiagnostics, errors)', 'acceptance summary contract validates screenshot diagnostics')
+  assertIncludes(source.acceptanceSummaryContract, 'screenshotDiagnostics.invalidScreenshots must contain required screenshot names and reasons', 'acceptance summary contract validates invalid screenshot diagnostics')
+  assertIncludes(source.acceptanceSummaryContract, 'screenshotDiagnostics.invalidScreenshots must not duplicate screenshot names', 'acceptance summary contract rejects duplicate invalid screenshot diagnostics')
+  assertIncludes(source.acceptanceSummaryContract, 'screenshotDiagnostics.invalidScreenshots must not include missing screenshots', 'acceptance summary contract rejects invalid diagnostics for missing screenshots')
+  assertIncludes(source.acceptanceSummaryContract, 'screenshotDiagnostics must partition the runner screenshot list', 'acceptance summary contract validates screenshot diagnostics partition')
+  assertIncludes(source.acceptanceSummaryContract, 'environment.preflightPort must be an integer port or null', 'acceptance summary contract validates preflight port')
+  assertIncludes(source.acceptanceSummaryContract, 'requiredScreenshots must match the runner screenshot list', 'acceptance summary contract validates screenshot list')
+  assertIncludes(source.acceptanceSummaryContract, 'passed must match cleanup, browser, and screenshot artifact step status', 'acceptance summary contract validates pass state')
+}
+
 function verifyFixtureConsistency() {
   if (!isRecord(fixture)) return
   const run = isRecord(fixture.run) ? fixture.run : undefined
   const runSummary = isRecord(fixture.runSummary) ? fixture.runSummary : undefined
   const trace = isRecord(fixture.trace) ? fixture.trace : undefined
+  const coverage = isRecord(fixture.coverage) ? fixture.coverage : undefined
   const events = Array.isArray(fixture.events) ? fixture.events.filter(isRecord) : []
   const eventIds = new Set(events.map((event) => event.id).filter(nonEmptyString))
+  const frontendKinds = extractStringArrayConstant(source.localAgentClient, 'AGENT_TRACE_EVENT_KINDS')
+  const frontendStatuses = extractInterfaceStringUnionProperty(source.localAgentClient, 'AgentTraceEvent', 'status')
 
   if (run?.id !== fixture.runId) errors.push('fixture.run.id must match fixture.runId')
   if (runSummary?.status !== run?.status) errors.push('fixture.runSummary.status must match fixture.run.status')
   if (run?.role !== undefined && runSummary?.role !== run.role) errors.push('fixture.runSummary.role must match fixture.run.role when run.role is present')
   if (trace?.loaded !== events.length) errors.push(`fixture.trace.loaded must equal fixture.events.length (${events.length})`)
   if (trace?.hasMore === false && trace?.total !== trace?.loaded) errors.push('fixture.trace.total must equal fixture.trace.loaded when hasMore is false')
+  for (const event of events) {
+    const label = `fixture.events[${nonEmptyString(event.id) ? event.id : 'unknown'}]`
+    if (event.runId !== fixture.runId) errors.push(`${label}.runId must match fixture.runId`)
+    if (!frontendKinds.includes(event.kind)) errors.push(`${label}.kind must be a known AgentTraceEvent kind`)
+    if (!frontendStatuses.includes(event.status)) errors.push(`${label}.status must be a known AgentTraceEvent status`)
+  }
 
   const modelCalls = Array.isArray(fixture.modelCalls) ? fixture.modelCalls.filter(isRecord) : []
   const modelCallContexts = Array.isArray(fixture.modelCallContexts) ? fixture.modelCallContexts.filter(isRecord) : []
   const promptDetails = Array.isArray(fixture.promptDetails) ? fixture.promptDetails.filter(isRecord) : []
   const messageWrites = Array.isArray(fixture.messageWrites) ? fixture.messageWrites.filter(isRecord) : []
   const toolCalls = Array.isArray(fixture.toolCalls) ? fixture.toolCalls.filter(isRecord) : []
+  const attentionEvents = Array.isArray(fixture.attentionEvents) ? fixture.attentionEvents.filter(isRecord) : []
   const pendingActions = Array.isArray(fixture.pendingActions) ? fixture.pendingActions.filter(isRecord) : []
+  const fieldGuide = Array.isArray(fixture.fieldGuide) ? fixture.fieldGuide.filter(isRecord) : []
+  const readinessChecklist = Array.isArray(fixture.readinessChecklist) ? fixture.readinessChecklist.filter(isRecord) : []
   const topLevelMessageWriteEventIds = new Set(messageWrites.map((item) => item.eventId).filter(nonEmptyString))
   const topLevelToolCallEventIds = new Set(toolCalls.map((item) => item.eventId).filter(nonEmptyString))
   const modelCallsById = new Map(modelCalls.map((call) => [call.id, call]))
   const pendingApprovalCount = pendingActions.filter((item) => item.type === 'approval').length
   const pendingInputCount = pendingActions.filter((item) => item.type === 'input').length
+  const eventById = new Map(events.map((event) => [event.id, event]))
+  const modelCallsWithResponse = modelCalls.filter((call) => nonEmptyString(call.responseEventId)).length
+  const modelCallsWithRequestPayload = modelCalls.filter((call) => call.hasRequestPayload === true).length
+  const responseBodyCount = modelCalls.filter((call) => {
+    const responseEvent = nonEmptyString(call.responseEventId) ? eventById.get(call.responseEventId) : undefined
+    return isRecord(responseEvent?.data) && isRecord(responseEvent.data.response) && nonEmptyString(responseEvent.data.response.bodyText)
+  }).length
+
+  if (coverage?.loadedLabel !== `${events.length} / ${trace?.total}`) {
+    errors.push(`fixture.coverage.loadedLabel must equal loaded events over trace total (${events.length} / ${trace?.total})`)
+  }
+  if (coverage?.hasUnloadedTrace !== (trace?.hasMore === true || typeof trace?.total === 'number' && events.length < trace.total)) {
+    errors.push('fixture.coverage.hasUnloadedTrace must match trace.hasMore and loaded event count')
+  }
+  if (coverage?.modelCallsLabel !== `${modelCalls.length}`) errors.push(`fixture.coverage.modelCallsLabel must equal modelCalls count (${modelCalls.length})`)
+  if (coverage?.promptDetailsLabel !== `${promptDetails.length}`) errors.push(`fixture.coverage.promptDetailsLabel must equal promptDetails count (${promptDetails.length})`)
+  if (coverage?.messageWritesLabel !== `${messageWrites.length}`) errors.push(`fixture.coverage.messageWritesLabel must equal messageWrites count (${messageWrites.length})`)
+  if (coverage?.toolDetailsLabel !== `${toolCalls.length} / ${toolCalls.length}`) errors.push(`fixture.coverage.toolDetailsLabel must equal tool details over tool calls (${toolCalls.length} / ${toolCalls.length})`)
+  if (coverage?.httpResponsesLabel !== `${modelCallsWithResponse}`) errors.push(`fixture.coverage.httpResponsesLabel must equal model calls with response events (${modelCallsWithResponse})`)
+  if (coverage?.requestPayloadsLabel !== `${modelCallsWithRequestPayload}`) errors.push(`fixture.coverage.requestPayloadsLabel must equal model calls with request payloads (${modelCallsWithRequestPayload})`)
+  if (coverage?.httpResponseBodiesLabel !== `${responseBodyCount}`) errors.push(`fixture.coverage.httpResponseBodiesLabel must equal response events with bodyText (${responseBodyCount})`)
+  assertSameStringSet(fieldGuide.map((item) => item.id).filter(nonEmptyString), requiredFieldGuideIds, 'fixture field guide ids')
+  assertSameStringSet(readinessChecklist.map((item) => item.id).filter(nonEmptyString), requiredReadinessChecklistIds, 'fixture readiness checklist ids')
+  if (readinessChecklist.some((item) => item.status !== 'ok')) {
+    errors.push('fixture readiness checklist statuses must all be ok for complete fixture coverage')
+  }
 
   if (runSummary?.pendingApprovals !== pendingApprovalCount) {
     errors.push(`fixture.runSummary.pendingApprovals must equal pendingActions approval count (${pendingApprovalCount})`)
@@ -203,6 +405,21 @@ function verifyFixtureConsistency() {
   }
   for (const item of [...promptDetails, ...messageWrites, ...toolCalls]) {
     assertFixtureEventId(item.eventId, `fixture item ${item.eventId}`)
+  }
+  for (const item of messageWrites) {
+    const event = eventById.get(item.eventId)
+    if (event && event.kind !== 'assistant') errors.push(`fixture.messageWrites[${item.eventId}].eventId must reference an assistant event`)
+  }
+  for (const item of toolCalls) {
+    const event = eventById.get(item.eventId)
+    if (event && event.kind !== 'tool_call') errors.push(`fixture.toolCalls[${item.eventId}].eventId must reference a tool_call event`)
+    if (event && item.status !== event.status) errors.push(`fixture.toolCalls[${item.eventId}].status must match its source event status`)
+  }
+  for (const item of attentionEvents) {
+    assertFixtureEventId(item.eventId, `fixture.attentionEvents item ${item.eventId}`)
+    const event = eventById.get(item.eventId)
+    if (event && item.kind !== event.kind) errors.push(`fixture.attentionEvents[${item.eventId}].kind must match its source event kind`)
+    if (event && item.status !== event.status) errors.push(`fixture.attentionEvents[${item.eventId}].status must match its source event status`)
   }
   for (const context of modelCallContexts) {
     const contextToolCalls = Array.isArray(context.toolCalls) ? context.toolCalls.filter(isRecord) : []
@@ -243,15 +460,60 @@ function verifyPageContract() {
   assertIncludes(source.page, 'data-testid="agent-run-debug-bundle-copy-disabled-reason"', 'debug bundle copy disabled reason is visible')
   assertIncludes(source.page, 'aria-describedby={bundleCopyDisabledReason ? bundleCopyDisabledReasonId : undefined}', 'debug bundle disabled reason is associated with the copy button')
   assertIncludes(source.page, 'fieldGuide: AGENT_DEBUG_FIELD_GUIDE', 'debug bundle copies field guide')
+  assertIncludes(source.page, 'function debugBundlePendingActions', 'debug bundle exports pending action data')
+  assertIncludes(source.page, "const approvals = (run.pendingApprovals ?? [])\n    .filter((approval) => approval.status === 'pending')", 'debug bundle pending approvals export only includes pending approvals')
+  assertIncludes(source.page, "const inputs = (run.pendingInputRequests ?? [])\n    .filter((request) => request.status === 'pending')", 'debug bundle pending inputs export only includes pending input requests')
+  for (const snippet of [
+    ".filter((approval) => approval.status === 'pending')",
+    "type: 'approval'",
+    'toolName: approval.toolName',
+    'risk: approval.risk',
+    'permission: approval.permission',
+    'reason: approval.reason',
+    ".filter((request) => request.status === 'pending')",
+    "type: 'input'",
+    'title: request.title',
+    'summary: request.summary',
+    'question: request.question',
+    'inputType: request.inputType',
+    'choices: request.choices.map',
+    'allowCustomAnswer: request.allowCustomAnswer',
+  ]) {
+    assertIncludes(source.page, snippet, `debug bundle pending action export includes ${snippet}`)
+  }
 }
 
 function verifyTraceContract() {
   const backendKinds = extractStringArrayConstant(source.agentStateTypes, 'AGENT_TRACE_EVENT_KINDS')
   const frontendKinds = extractStringArrayConstant(source.localAgentClient, 'AGENT_TRACE_EVENT_KINDS')
+  const backendFields = extractInterfacePropertyNames(source.agentStateTypes, 'AgentTraceEvent')
+  const frontendFields = extractInterfacePropertyNames(source.localAgentClient, 'AgentTraceEvent')
+  const backendStatuses = extractInterfaceStringUnionProperty(source.agentStateTypes, 'AgentTraceEvent', 'status')
+  const frontendStatuses = extractInterfaceStringUnionProperty(source.localAgentClient, 'AgentTraceEvent', 'status')
+  const backendRoundSources = extractInterfaceStringUnionProperty(source.agentStateTypes, 'AgentTraceEvent', 'roundSource')
+  const frontendRoundSources = extractInterfaceStringUnionProperty(source.localAgentClient, 'AgentTraceEvent', 'roundSource')
+  const traceCategories = extractTypeStringUnion(source.ui, 'AgentTraceCategory')
   assertSameStringSet(frontendKinds, backendKinds, 'frontend AGENT_TRACE_EVENT_KINDS must match backend AGENT_TRACE_EVENT_KINDS')
+  assertSameStringSet(frontendFields, backendFields, 'frontend AgentTraceEvent fields must match backend AgentTraceEvent fields')
+  assertSameStringSet(frontendStatuses, backendStatuses, 'frontend AgentTraceEvent status union must match backend AgentTraceEvent status union')
+  assertSameStringSet(frontendRoundSources, backendRoundSources, 'frontend AgentTraceEvent roundSource union must match backend AgentTraceEvent roundSource union')
+  assertSameStringSet(extractSwitchCases(source.ui, 'traceKindLabel'), frontendKinds, 'traceKindLabel cases must cover all trace kinds')
+  assertSameStringSet(extractSwitchCases(source.ui, 'traceEventStatusLabel'), frontendStatuses, 'traceEventStatusLabel cases must cover all trace statuses')
+  assertSameStringSet(extractSwitchCases(source.ui, 'traceCategoryLabel'), traceCategories, 'traceCategoryLabel cases must cover all trace categories')
   assertIncludes(source.localAgentClient, 'export type AgentTraceEventKind = typeof AGENT_TRACE_EVENT_KINDS[number]', 'frontend AgentTraceEventKind must derive from AGENT_TRACE_EVENT_KINDS')
   assertIncludes(source.localAgentClient, 'durationMs?: number', 'frontend trace client preserves top-level durationMs')
-  assertIncludes(source.ui, 'numberValue(event.durationMs)', 'trace UI consumes top-level event durationMs')
+  assertIncludes(source.ui, 'export function traceEventDurationMs', 'trace duration milliseconds helper must be shared between page rows and debug bundle')
+  assertIncludes(source.ui, 'export function formatTraceEventDuration', 'trace duration formatter must be shared between reports and page rows')
+  assertIncludes(source.ui, 'export function hasUnloadedTraceEvents', 'trace completeness helper must be shared between coverage and page actions')
+  assertIncludes(source.ui, 'nonNegativeNumberValue(event.durationMs)', 'trace UI consumes validated top-level event durationMs')
+  assertIncludes(source.ui, 'Math.round(number)', 'trace duration milliseconds must be rounded to schema-safe integers')
+  assertIncludes(source.page, 'formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel', 'run page imports shared trace duration formatter')
+  assertIncludes(source.page, 'const traceHasUnloadedEvents = hasUnloadedTraceEvents({ loaded: events.length, total: traceTotal, hasMore })', 'run page uses shared trace completeness helper')
+  assertIncludes(source.page, 'const eventDuration = formatTraceEventDuration(event)', 'run page trace event rows compute a duration label')
+  assertIncludes(source.page, '耗时 {eventDuration}', 'run page trace event rows render top-level durationMs fallback')
+  assertIncludes(source.page, 'const durationMs = traceEventDurationMs(event, data)', 'debug bundle tool calls preserve top-level durationMs fallback through the shared helper')
+  assertIncludes(source.uiViewTest, 'hasUnloadedTraceEvents trusts pagination hasMore even when summary total is stale', 'frontend tests cover stale summary trace completeness')
+  assertIncludes(source.uiViewTest, 'hasUnloadedTraceEvents({ loaded: 25, total: 25, hasMore: true })', 'frontend tests cover hasMore priority over stale total')
 }
 
 function verifyReportAndUiHelpers() {
@@ -261,6 +523,13 @@ function verifyReportAndUiHelpers() {
   assertIncludes(source.ui, '调试口径:', 'debug report must include field guide section')
   assertIncludes(source.ui, 'buildModelCallDebugContexts', 'model calls must have round correlation helper')
   assertIncludes(source.ui, 'buildDebugAttentionEvents', 'attention events helper must exist')
+  assertIncludes(source.uiViewTest, 'formatTraceEventDuration normalizes shared trace duration labels', 'frontend tests cover shared trace duration formatter')
+  assertIncludes(source.uiViewTest, 'formatTraceEventDuration(traceEvent({ durationMs: 1500 }))', 'frontend tests cover top-level durationMs formatting')
+  assertIncludes(source.uiViewTest, 'traceEventDurationMs(traceEvent({ durationMs: 42.6 }))', 'frontend tests cover fractional duration normalization')
+  assertIncludes(source.uiViewTest, 'traceEventDurationMs(traceEvent({ durationMs: 42, data: { durationMs: 2500 } }))', 'frontend tests cover trace data duration priority')
+  assertIncludes(source.uiViewTest, 'durationMs: -1', 'frontend tests cover negative trace duration rejection')
+  assertIncludes(source.uiViewTest, '})), 4000)', 'frontend tests cover numeric timestamp duration fallback')
+  assertIncludes(source.uiViewTest, "})), '4s')", 'frontend tests cover formatted timestamp duration fallback')
 }
 
 function verifyE2EContract() {
@@ -270,18 +539,17 @@ function verifyE2EContract() {
   assertIncludes(source.e2e, '"fieldGuide"', 'E2E covers fieldGuide in bundle')
   assertIncludes(source.e2e, 'not.toContain', 'E2E includes negative secret assertions')
   assertIncludes(source.e2e, 'captureAgentRunAcceptanceScreenshot', 'E2E captures acceptance screenshots')
-  assertIncludes(source.e2e, 'agent-run-debug-overview', 'E2E captures debug overview screenshot')
-  assertIncludes(source.e2e, 'agent-run-model-call-expanded', 'E2E captures model call expanded screenshot')
-  assertIncludes(source.e2e, 'agent-run-http-request-detail', 'E2E captures HTTP request detail screenshot')
-  assertIncludes(source.e2e, 'agent-run-http-response-detail', 'E2E captures HTTP response detail screenshot')
-  assertIncludes(source.e2e, 'agent-run-attention-events', 'E2E captures attention events screenshot')
-  assertIncludes(source.e2e, 'agent-run-missing-data', 'E2E captures missing data screenshot')
-  assertIncludes(source.artifactVerifier, 'agent-run-debug-overview.png', 'artifact verifier checks debug overview screenshot')
-  assertIncludes(source.artifactVerifier, 'agent-run-model-call-expanded.png', 'artifact verifier checks model call screenshot')
-  assertIncludes(source.artifactVerifier, 'agent-run-http-request-detail.png', 'artifact verifier checks HTTP request screenshot')
-  assertIncludes(source.artifactVerifier, 'agent-run-http-response-detail.png', 'artifact verifier checks HTTP response screenshot')
-  assertIncludes(source.artifactVerifier, 'agent-run-attention-events.png', 'artifact verifier checks attention events screenshot')
-  assertIncludes(source.artifactVerifier, 'agent-run-missing-data.png', 'artifact verifier checks missing data screenshot')
+  assertOccurrenceCount(source.e2e, 'await captureAgentRunAcceptanceScreenshot(', requiredAcceptanceScreenshotNames.length, 'E2E acceptance screenshot capture count')
+  assertSameStringSet(extractAcceptanceScreenshotCaptures(source.e2e), requiredAcceptanceScreenshotNames, 'E2E acceptance screenshot captures')
+  assertSameStringSet(extractSimpleStringArrayConstant(source.artifactVerifier, 'requiredScreenshots').map(stripPngExtension), requiredAcceptanceScreenshotNames, 'artifact verifier required screenshots')
+  assertSameStringSet(extractSimpleStringArrayConstant(source.artifactVerifierTest, 'screenshotNames').map(stripPngExtension), requiredAcceptanceScreenshotNames, 'artifact verifier test screenshots')
+  assertSameStringSet(extractAcceptanceDocScreenshotNames(source.acceptance), requiredAcceptanceScreenshotNames, 'acceptance doc screenshot table')
+  for (const screenshotName of requiredAcceptanceScreenshotNames) {
+    assertIncludes(source.e2e, `captureAgentRunAcceptanceScreenshot(page, testInfo, '${screenshotName}')`, `E2E captures ${screenshotName} screenshot`)
+    assertIncludes(source.artifactVerifier, `'${screenshotName}.png'`, `artifact verifier checks ${screenshotName} screenshot`)
+    assertIncludes(source.artifactVerifierTest, `'${screenshotName}.png'`, `artifact verifier tests cover ${screenshotName} screenshot`)
+    assertIncludes(source.acceptance, `| \`${screenshotName}\` |`, `acceptance doc lists ${screenshotName} screenshot`)
+  }
   assertIncludes(source.artifactVerifier, 'file does not have a PNG signature', 'artifact verifier rejects non-PNG screenshot placeholders')
   assertIncludes(source.artifactVerifier, 'PNG ${type} chunk CRC mismatch', 'artifact verifier checks PNG chunk CRC')
   assertIncludes(source.artifactVerifier, 'dimensions too small', 'artifact verifier checks screenshot dimensions')
@@ -291,12 +559,32 @@ function verifyE2EContract() {
   assertIncludes(source.e2eRunner, 'allowFailure: true', 'E2E runner records browser and artifact failures before exiting')
   assertIncludes(source.e2eRunner, 'AGENT_RUN_DEBUG_E2E_COMMAND_JSON', 'E2E runner supports command override for runner tests')
   assertIncludes(source.e2eRunner, 'agent-run-debugging-acceptance-summary.json', 'E2E runner writes a machine-readable acceptance summary')
-  assertIncludes(source.e2eRunner, 'movscript.agent-run-debugging-acceptance-summary.v1', 'E2E runner summary has a stable schema id')
+  assertIncludes(source.acceptanceSummaryContract, "acceptanceSummarySchema = 'movscript.agent-run-debugging-acceptance-summary.v1'", 'acceptance summary contract has a stable schema id')
+  assertIncludes(source.e2eRunner, 'requiredAcceptanceScreenshots as requiredScreenshots', 'E2E runner uses the shared acceptance screenshot list')
+  assertIncludes(source.acceptanceSummaryVerifier, "import { validateAcceptanceSummary } from './agent-run-debugging-acceptance-summary-contract.mjs'", 'acceptance summary verifier uses the shared summary contract')
+  assertIncludes(source.acceptanceSummaryVerifier, 'verify-agent-run-debugging-acceptance-summary.mjs [summary-path] [--allow-failed]', 'acceptance summary verifier documents CLI usage')
+  assertIncludes(source.acceptanceSummaryVerifier, 'acceptance summary passed must be true', 'acceptance summary verifier requires passing acceptance by default')
+  assertIncludes(source.acceptanceSummaryVerifier, 'const allowFailed = args.includes', 'acceptance summary verifier supports contract-only failed summary diagnostics')
+  assertIncludes(source.acceptanceSummaryContract, 'requiredAcceptanceScreenshots', 'acceptance summary contract locks the required screenshot list')
+  assertIncludes(source.acceptanceSummaryContract, 'passed must match cleanup, browser, and screenshot artifact step status', 'acceptance summary contract checks pass state consistency')
+  assertIncludes(source.e2eRunner, 'AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT', 'E2E runner supports artifact root override for isolated tests')
+  assertIncludes(source.e2eRunner, 'const resolvedArtifactRoot = artifactRootOverride ? path.resolve(root, artifactRootOverride) : defaultArtifactRoot', 'E2E runner resolves artifact root overrides from the repository root')
+  assertIncludes(source.e2eRunner, 'env: browserEnvironment()', 'E2E runner passes the resolved artifact root to the browser process')
+  assertIncludes(source.e2eRunner, 'AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT: resolvedArtifactRoot', 'E2E runner browser environment uses the resolved artifact root')
   assertIncludes(source.e2eRunner, 'AGENT_RUN_DEBUG_E2E_SUMMARY_PATH', 'E2E runner supports summary path override for tests')
+  assertIncludes(source.e2eRunner, 'AGENT_RUN_DEBUG_E2E_CLEAN_COMMAND_JSON', 'E2E runner supports clean command override for failure-path tests')
+  assertIncludes(source.e2eRunner, 'AGENT_RUN_DEBUG_ARTIFACT_REPORT_PATH', 'E2E runner asks artifact verifier for a machine-readable screenshot report')
+  assertIncludes(source.artifactVerifier, 'AGENT_RUN_DEBUG_ARTIFACT_REPORT_PATH', 'artifact verifier supports a machine-readable screenshot report')
+  assertIncludes(source.artifactVerifier, 'invalidScreenshots', 'artifact verifier reports invalid screenshots')
   assertIncludes(source.e2eRunner, 'failed to start:', 'E2E runner reports command startup failures')
   assertIncludes(source.e2eRunner, 'terminated by signal', 'E2E runner reports signal terminations')
   assertIncludes(source.acceptance, 'schema 和 fixture 的机器校验', 'acceptance doc includes debug bundle schema fixture validation')
   assertIncludes(source.acceptance, '静态 verifier 自测', 'acceptance doc includes static verifier self-tests')
+  assertIncludes(source.acceptance, 'E2E 截图采集清单缺失', 'acceptance doc includes screenshot capture list verifier coverage')
+  assertIncludes(source.acceptance, 'E2E 额外截图采集', 'acceptance doc includes extra screenshot capture verifier coverage')
+  assertIncludes(source.acceptance, 'artifact verifier 缺失/额外截图要求', 'acceptance doc includes artifact verifier required screenshot drift coverage')
+  assertIncludes(source.acceptance, 'artifact verifier 测试截图清单漂移', 'acceptance doc includes artifact verifier test screenshot drift coverage')
+  assertIncludes(source.acceptance, '验收文档截图清单漂移场景', 'acceptance doc includes acceptance screenshot drift coverage')
   assertIncludes(source.artifactCleaner, 'apps/frontend/test-results', 'artifact cleaner removes Playwright test results')
   assertIncludes(source.artifactCleaner, 'apps/frontend/playwright-report', 'artifact cleaner removes Playwright HTML report')
 }
@@ -304,6 +592,8 @@ function verifyE2EContract() {
 function verifyPlaywrightConfig() {
   assertIncludes(source.playwrightConfig, 'MOVSCRIPT_E2E_BASE_URL', 'Playwright config supports externally hosted E2E base URL')
   assertIncludes(source.playwrightConfig, 'MOVSCRIPT_E2E_BROWSER_CHANNEL', 'Playwright config supports explicit browser channel override')
+  assertIncludes(source.playwrightConfig, 'AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT', 'Playwright config supports AgentRun artifact root override')
+  assertIncludes(source.playwrightConfig, 'outputDir: e2eOutputDir', 'Playwright config writes test artifacts to the overridable E2E output directory')
   assertIncludes(source.playwrightConfig, "['github']", 'Playwright config emits GitHub reporter in CI')
   assertIncludes(source.playwrightConfig, "['html', { open: 'never', outputFolder: 'playwright-report' }]", 'Playwright config emits HTML report in CI')
   assertIncludes(source.playwrightConfig, 'const webServer = externalBaseURL', 'Playwright config derives webServer from external base URL')
@@ -317,22 +607,97 @@ function verifyDocs() {
   assertIncludes(source.bundleContract, '脱敏边界', 'debug bundle contract documents redaction boundary')
   assertIncludes(source.bundleContract, '旧运行限制', 'debug bundle contract documents old run limits')
   assertIncludes(source.bundleContract, '兼容策略', 'debug bundle contract documents compatibility')
+  assertIncludes(source.bundleContract, '调试包只导出仍处于 pending 状态的请求', 'debug bundle contract documents pending action filtering')
+  assertIncludes(source.bundleContract, '`pendingActions[*].type === "approval"`', 'debug bundle contract documents pending approval variant')
+  assertIncludes(source.bundleContract, '`toolName`: 等待审批的工具名', 'debug bundle contract documents pending approval tool name')
+  assertIncludes(source.bundleContract, '`reason`: 触发审批的原因', 'debug bundle contract documents pending approval reason')
+  assertIncludes(source.bundleContract, '`pendingActions[*].type === "input"`', 'debug bundle contract documents pending input variant')
+  assertIncludes(source.bundleContract, '`inputType`: 固定为 `choice`、`text` 或 `confirmation`', 'debug bundle contract documents pending input type enum')
+  assertIncludes(source.bundleContract, '`choices`: 输入选项列表，每项至少包含 `id` 和 `label`', 'debug bundle contract documents pending input choices')
+  assertIncludes(source.bundleContract, '`allowCustomAnswer`: 是否允许自定义回答', 'debug bundle contract documents pending custom answer flag')
   assertIncludes(source.acceptance, '# AgentRun 调试产品验收清单', 'acceptance doc title')
   assertIncludes(source.acceptance, 'pnpm run test:agent-run-debugging:e2e', 'acceptance doc includes browser command')
+  assertIncludes(source.acceptance, 'make test-agent-run-debugging-e2e', 'acceptance doc includes Makefile browser acceptance command')
   assertIncludes(source.acceptance, 'agent-run-http-request-detail', 'acceptance doc includes request screenshot')
   assertIncludes(source.acceptance, 'PNG 签名、关键 chunk、CRC、最小尺寸和最小文件大小', 'acceptance doc defines screenshot artifact validation strength')
+  assertIncludes(source.acceptance, 'AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT=<dir>', 'acceptance doc documents E2E artifact root override')
+  assertIncludes(source.acceptance, 'verify-agent-run-debugging-acceptance-summary.mjs', 'acceptance doc documents independent acceptance summary verifier')
+  assertIncludes(source.acceptance, '--allow-failed', 'acceptance doc documents failed summary contract-only verification')
+  assertIncludes(source.acceptance, 'make verify-agent-run-debugging-summary-contract', 'acceptance doc includes Makefile failed-summary contract verifier command')
+  assertIncludes(source.acceptance, 'Playwright `outputDir` 会使用同一个目录', 'acceptance doc explains artifact root override affects Playwright outputDir')
   assertIncludes(source.acceptance, '即使浏览器验收失败也会继续执行截图附件校验', 'acceptance doc documents E2E runner failure diagnostics')
+  assertIncludes(source.acceptance, '打印 `agent-run-debugging-acceptance-summary.json`', 'acceptance doc documents CI summary printing')
+  assertIncludes(source.acceptance, 'GitHub job summary 面板', 'acceptance doc documents CI job summary output')
   assertIncludes(source.acceptance, 'agent-run-debugging-acceptance-summary.json', 'acceptance doc documents machine-readable E2E summary')
+  assertIncludes(source.acceptance, '`environment`', 'acceptance doc documents E2E summary environment')
+  assertIncludes(source.acceptance, '脱敏后的 base URL origin', 'acceptance doc documents redacted E2E base URL origin')
   assertIncludes(source.audit, '浏览器验收标准明确', 'audit records acceptance criteria')
+  assertIncludes(source.audit, '更新日期：2026-05-17', 'audit records current update date')
   assertIncludes(source.audit, 'Prompt-to-artifact 检查表', 'audit records prompt-to-artifact checklist')
   assertIncludes(source.audit, 'contextManager 记录了什么信息', 'audit maps contextManager question')
   assertIncludes(source.audit, '行为和影响没区分开', 'audit maps behavior and impact question')
   assertIncludes(source.audit, 'HTTP 调用携带的上下文没有分类展开', 'audit maps HTTP context expansion question')
   assertIncludes(source.audit, '没有存储历史消息的 HTTP 回复', 'audit maps history write question')
   assertIncludes(source.audit, '大模型请求详情还没来得及做详情展开', 'audit maps model request detail question')
+  assertIncludes(source.audit, 'localAgentClient.test.ts', 'audit records local agent client trace contract regression coverage')
   assertIncludes(source.audit, '按 schema 机器校验 fixture', 'audit records debug bundle fixture schema validation')
-  assertIncludes(source.audit, 'static verifier tests 6 passed', 'audit records static verifier self-test results')
-  assertIncludes(source.audit, 'artifact cleanup/verifier/E2E runner tests 11 passed', 'audit records artifact verifier and runner test results')
+  assertIncludes(source.audit, 'static verifier tests 68 passed', 'audit records static verifier self-test results')
+  assertIncludes(source.audit, '最近一次 AgentRun 调试产品静态质量门（2026-05-17）', 'audit records latest static gate date')
+  assertIncludes(source.audit, '最近一次前端聚焦验证（2026-05-17）', 'audit records latest frontend focused test date')
+  assertIncludes(source.audit, '最近一次前端类型检查（2026-05-17）', 'audit records latest frontend typecheck date')
+  assertIncludes(source.audit, 'Makefile 入口复核（2026-05-17）', 'audit records latest Makefile static gate date')
+  assertIncludes(source.audit, 'make test-agent-run-debugging-e2e', 'audit records Makefile browser acceptance target')
+  assertIncludes(source.audit, 'Makefile 浏览器验收入口 dry-run（2026-05-17）', 'audit records Makefile browser acceptance dry-run date')
+  assertIncludes(source.audit, 'make -n test-agent-run-debugging-e2e', 'audit records Makefile browser acceptance dry-run command')
+  assertIncludes(source.audit, 'make verify-agent-run-debugging-summary-contract', 'audit records Makefile failed-summary contract verifier target')
+  assertIncludes(source.audit, 'Release 脚本回归验证（2026-05-17）', 'audit records latest release script regression date')
+  assertIncludes(source.audit, 'pnpm run test:release-scripts', 'audit records runnable release script regression command')
+  assertIncludes(source.audit, '结果：108 passed', 'audit records release script regression test count')
+  assertIncludes(source.audit, 'debug bundle schema raw event definition/status drift 场景', 'audit records debug bundle raw event schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle schema trace event field definition drift 场景', 'audit records debug bundle trace event field schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle schema modelCall field definition drift 场景', 'audit records debug bundle model call field schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle schema promptDetail field definition drift 场景', 'audit records debug bundle prompt detail field schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle schema toolCall status drift 场景', 'audit records debug bundle tool call schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle schema attentionEvent enum drift 场景', 'audit records debug bundle attention event schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle schema pendingAction variant drift 场景', 'audit records debug bundle pending action schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle pendingAction filter drift 场景', 'audit records debug bundle pending action filter drift coverage')
+  assertIncludes(source.audit, 'debug bundle pendingAction export field drift 场景', 'audit records debug bundle pending action export drift coverage')
+  assertIncludes(source.audit, 'debug bundle pendingAction contract doc drift 场景', 'audit records debug bundle pending action contract doc drift coverage')
+  assertIncludes(source.audit, 'debug bundle schema fieldGuide id drift 场景', 'audit records debug bundle field guide schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle schema readiness id drift 场景', 'audit records debug bundle readiness schema drift coverage')
+  assertIncludes(source.audit, 'debug bundle fixture coverage drift 场景', 'audit records debug bundle coverage drift coverage')
+  assertIncludes(source.audit, 'debug bundle fixture modelCall type drift 场景', 'audit records debug bundle model call type drift coverage')
+  assertIncludes(source.audit, 'debug bundle fixture promptDetail type drift 场景', 'audit records debug bundle prompt detail type drift coverage')
+  assertIncludes(source.audit, 'debug bundle fixture derived trace item drift 场景', 'audit records debug bundle derived trace drift coverage')
+  assertIncludes(source.audit, 'debug bundle fixture pendingAction variant drift 场景', 'audit records debug bundle pending action fixture drift coverage')
+  assertIncludes(source.audit, 'debug bundle fixture fieldGuide drift 场景', 'audit records debug bundle field guide fixture drift coverage')
+  assertIncludes(source.audit, 'debug bundle fixture readiness drift 场景', 'audit records debug bundle readiness drift coverage')
+  assertIncludes(source.audit, 'debug bundle fixture raw event runId/kind/status drift 场景', 'audit records debug bundle raw event drift coverage')
+  assertIncludes(source.audit, '旧 frontend workspace 命令回归场景', 'audit records stale frontend command regression coverage')
+  assertIncludes(source.audit, 'Makefile 浏览器验收入口缺失场景', 'audit records Makefile browser acceptance target regression coverage')
+  assertIncludes(source.audit, 'Makefile 浏览器验收 dry-run 证据缺失场景', 'audit records Makefile browser acceptance dry-run regression coverage')
+  assertIncludes(source.audit, 'Makefile 失败摘要契约复核入口缺失场景', 'audit records Makefile failed-summary contract verifier regression coverage')
+  assertIncludes(source.audit, 'trace status 漂移场景', 'audit records trace status drift coverage')
+  assertIncludes(source.audit, 'trace roundSource 漂移场景', 'audit records trace roundSource drift coverage')
+  assertIncludes(source.audit, 'trace field 漂移场景', 'audit records trace field drift coverage')
+  assertIncludes(source.audit, 'trace kind/status/category 中文标签缺失场景', 'audit records trace label drift coverage')
+  assertIncludes(source.audit, '根 `pnpm test` 门禁串联缺失场景', 'audit records root test gate wiring regression coverage')
+  assertIncludes(source.audit, 'acceptance summary fixture schema drift', 'audit records acceptance summary schema drift coverage')
+  assertIncludes(source.audit, 'acceptance summary screenshot list drift 场景', 'audit records acceptance summary screenshot list drift coverage')
+  assertIncludes(source.audit, 'acceptance summary screenshot list schema drift 场景', 'audit records acceptance summary screenshot list schema drift coverage')
+  assertIncludes(source.audit, 'acceptance summary artifactRoot override schema drift 场景', 'audit records acceptance summary artifact root schema drift coverage')
+  assertIncludes(source.audit, 'E2E runner acceptance summary validation drift 场景', 'audit records E2E runner summary validation drift coverage')
+  assertIncludes(source.audit, 'acceptance summary verifier', 'audit records independent acceptance summary verifier coverage')
+  assertIncludes(source.audit, 'artifact root override', 'audit records isolated E2E runner artifact root coverage')
+  assertIncludes(source.audit, 'relative artifact root override', 'audit records relative artifact root override coverage')
+  assertIncludes(source.audit, 'artifact cleanup/verifier/E2E runner tests 23 passed', 'audit records artifact verifier and runner test results')
+  assertIncludes(source.audit, '结果：71 passed。', 'audit records current frontend focused test count')
+  assertIncludes(source.audit, 'frontend focused tests 71 passed', 'audit records frontend focused test results')
+  assertNotIncludes(source.audit, ['结果：60', ' passed。'].join(''), 'audit must not keep stale frontend focused test count')
+  assertIncludes(source.audit, 'pnpm --filter movscript-frontend exec node --import tsx --test src/lib/localAgentClient.test.ts', 'audit records runnable frontend focused test command')
+  assertIncludes(source.audit, 'pnpm --filter movscript-frontend typecheck', 'audit records runnable frontend typecheck command')
+  assertIncludes(source.audit, 'scripts/verify-agent-run-debugging.test.mjs docs/README.md', 'audit whitespace check includes static verifier tests')
+  assertNotIncludes(source.audit, 'pnpm --dir movscript/apps/frontend', 'audit must not keep stale frontend workspace commands')
   assertIncludes(source.audit, 'agent-run-debugging-acceptance-summary.json', 'audit records E2E acceptance summary artifact')
   assertIncludes(source.audit, 'passed: true', 'audit records passing E2E summary coverage')
   assertIncludes(source.audit, 'listen EPERM', 'audit records current browser blocker')
@@ -343,17 +708,27 @@ function verifyDocs() {
   assertIncludes(source.audit, 'PNG 签名、关键 chunk、CRC、最小尺寸 `320x240` 和最小文件大小 `1024` bytes', 'audit records strengthened screenshot artifact validation')
   assertIncludes(source.docsIndex, 'AgentRun 调试产品验收清单', 'docs index links acceptance checklist')
   assertIncludes(source.docsIndex, 'AgentRun 调试包 v1 契约', 'docs index links bundle contract')
+  assertIncludes(source.docsIndex, 'AgentRun 调试验收摘要 v1 schema', 'docs index links acceptance summary schema')
   assertIncludes(source.docsIndexEn, 'AgentRun debugging acceptance checklist', 'English docs index links acceptance checklist')
   assertIncludes(source.docsIndexEn, 'AgentRun debug bundle v1 contract', 'English docs index links bundle contract')
+  assertIncludes(source.docsIndexEn, 'AgentRun debugging acceptance summary v1 schema', 'English docs index links acceptance summary schema')
   assertIncludes(source.releaseChecklistZh, 'pnpm run test:agent-run-debugging', 'Chinese release checklist includes AgentRun static gate')
   assertIncludes(source.releaseChecklistZh, 'agent-run-debugging-playwright-results', 'Chinese release checklist includes AgentRun artifact archive')
+  assertIncludes(source.releaseChecklistZh, 'agent-run-debugging-acceptance-summary.json', 'Chinese release checklist includes AgentRun acceptance summary review')
+  assertIncludes(source.releaseChecklistZh, '`passed` 为 `true`', 'Chinese release checklist requires passing AgentRun acceptance summary')
+  assertIncludes(source.releaseChecklistZh, 'verify-agent-run-debugging-acceptance-summary.mjs', 'Chinese release checklist includes AgentRun acceptance summary verifier')
   assertIncludes(source.releaseChecklistEn, 'pnpm run test:agent-run-debugging', 'English release checklist includes AgentRun static gate')
   assertIncludes(source.releaseChecklistEn, 'agent-run-debugging-playwright-results', 'English release checklist includes AgentRun artifact archive')
+  assertIncludes(source.releaseChecklistEn, 'agent-run-debugging-acceptance-summary.json', 'English release checklist includes AgentRun acceptance summary review')
+  assertIncludes(source.releaseChecklistEn, 'passed: true', 'English release checklist requires passing AgentRun acceptance summary')
+  assertIncludes(source.releaseChecklistEn, 'verify-agent-run-debugging-acceptance-summary.mjs', 'English release checklist includes AgentRun acceptance summary verifier')
 }
 
 function verifyPackageScript() {
   const script = packageJson?.scripts?.['test:agent-run-debugging']
   const e2eScript = packageJson?.scripts?.['test:agent-run-debugging:e2e']
+  const summaryScript = packageJson?.scripts?.['verify:agent-run-debugging-summary']
+  const rootTestScript = packageJson?.scripts?.test
   const releaseCheckScript = packageJson?.scripts?.['release:check']
   if (!nonEmptyString(script)) {
     errors.push('package.json must define scripts.test:agent-run-debugging')
@@ -363,16 +738,23 @@ function verifyPackageScript() {
   assertIncludes(script, 'node --test', 'test:agent-run-debugging script runs Node test files')
   assertIncludes(script, 'scripts/verify-agent-run-debugging.test.mjs', 'test:agent-run-debugging script runs static verifier tests')
   assertIncludes(script, 'scripts/verify-agent-run-debugging-artifacts.test.mjs', 'test:agent-run-debugging script runs artifact verifier tests')
+  assertIncludes(script, 'src/lib/localAgentClient.test.ts', 'test:agent-run-debugging script runs local agent client contract tests')
+  assertIncludes(script, 'src/lib/agentRunActivity.test.ts', 'test:agent-run-debugging script runs AgentRun activity merge tests')
   assertIncludes(script, 'src/lib/agentRunUiView.test.ts', 'test:agent-run-debugging script runs AgentRun UI view tests')
   assertIncludes(script, 'src/lib/agentGenerationUiContract.test.tsx', 'test:agent-run-debugging script runs generation UI contract tests')
   assertIncludes(script, 'src/lib/agentTraceDebugData.test.ts', 'test:agent-run-debugging script runs redaction tests')
   assertIncludes(script, 'src/lib/agentPlanUi.test.ts', 'test:agent-run-debugging script runs plan UI tests')
+  assertIncludes(script, 'src/lib/jsonValue.test.ts', 'test:agent-run-debugging script runs shared frontend JSON guard tests')
+  assertIncludes(script, 'src/lib/agentArtifacts.test.ts', 'test:agent-run-debugging script runs AgentRun artifact extraction tests')
+  assertIncludes(script, 'src/store/agentStore.test.ts', 'test:agent-run-debugging script runs AgentRun persisted store tests')
   assertIncludes(script, 'pnpm --filter movscript-frontend typecheck', 'test:agent-run-debugging script runs frontend typecheck')
   if (!nonEmptyString(e2eScript)) {
     errors.push('package.json must define scripts.test:agent-run-debugging:e2e')
     return
   }
   assertIncludes(e2eScript, 'node scripts/run-agent-run-debugging-e2e.mjs', 'test:agent-run-debugging:e2e script runs the AgentRun browser acceptance runner')
+  assertIncludes(summaryScript, 'node scripts/verify-agent-run-debugging-acceptance-summary.mjs', 'verify:agent-run-debugging-summary script runs the AgentRun acceptance summary verifier')
+  assertIncludes(rootTestScript, 'pnpm run test:agent-run-debugging', 'root test script runs AgentRun static debugging gate')
   assertIncludes(releaseCheckScript, 'pnpm run test:agent-run-debugging', 'release:check script runs AgentRun static debugging gate')
 }
 
@@ -382,6 +764,14 @@ function verifyCIWorkflow() {
   assertIncludes(source.ciWorkflow, 'pnpm run test:agent-run-debugging', 'CI runs AgentRun static debugging gate')
   assertIncludes(source.ciWorkflow, 'playwright install --with-deps chromium', 'CI installs Playwright Chromium dependencies')
   assertIncludes(source.ciWorkflow, 'pnpm run test:agent-run-debugging:e2e', 'CI runs AgentRun browser debugging acceptance')
+  assertIncludes(source.ciWorkflow, 'Verify AgentRun debugging acceptance summary', 'CI verifies AgentRun acceptance summary after browser acceptance')
+  assertIncludes(source.ciWorkflow, 'pnpm run verify:agent-run-debugging-summary', 'CI runs AgentRun acceptance summary verifier')
+  assertIncludes(source.ciWorkflow, 'Print AgentRun debugging acceptance summary', 'CI prints AgentRun acceptance summary')
+  assertIncludes(source.ciWorkflow, 'if: always()', 'CI prints and uploads AgentRun artifacts even after E2E failure')
+  assertIncludes(source.ciWorkflow, 'verify-agent-run-debugging-acceptance-summary.mjs apps/frontend/test-results/agent-run-debugging-acceptance-summary.json --allow-failed', 'CI contract-checks AgentRun acceptance summary diagnostics before printing')
+  assertIncludes(source.ciWorkflow, 'cat apps/frontend/test-results/agent-run-debugging-acceptance-summary.json', 'CI prints AgentRun acceptance summary JSON')
+  assertIncludes(source.ciWorkflow, 'GITHUB_STEP_SUMMARY', 'CI writes AgentRun acceptance summary to the GitHub job summary')
+  assertIncludes(source.ciWorkflow, '### AgentRun debugging acceptance summary', 'CI labels the AgentRun acceptance job summary section')
   assertIncludes(source.ciWorkflow, 'agent-run-debugging-playwright-results', 'CI uploads AgentRun Playwright artifacts')
   assertIncludes(source.ciWorkflow, 'apps/frontend/test-results', 'CI uploads Playwright test results')
   assertIncludes(source.ciWorkflow, 'retention-days: 14', 'CI keeps AgentRun Playwright artifacts for a bounded review window')
@@ -392,11 +782,21 @@ function verifyPullRequestTemplate() {
   assertIncludes(source.pullRequestTemplate, 'pnpm run test:agent-run-debugging', 'PR template asks for AgentRun static gate')
   assertIncludes(source.pullRequestTemplate, 'pnpm run test:agent-run-debugging:e2e', 'PR template asks for AgentRun browser acceptance')
   assertIncludes(source.pullRequestTemplate, 'agent-run-debugging-playwright-results', 'PR template asks reviewers to inspect Playwright artifacts')
+  assertIncludes(source.pullRequestTemplate, 'agent-run-debugging-acceptance-summary.json', 'PR template asks reviewers to inspect AgentRun acceptance summary')
+  assertIncludes(source.pullRequestTemplate, 'passed: true', 'PR template requires passing AgentRun acceptance summary')
+  assertIncludes(source.pullRequestTemplate, 'verify-agent-run-debugging-acceptance-summary.mjs', 'PR template asks reviewers to run the AgentRun acceptance summary verifier')
 }
 
 function verifyMakefile() {
   assertIncludes(source.makefile, 'test-agent-run-debugging', 'Makefile includes AgentRun debugging test target')
   assertIncludes(source.makefile, 'pnpm run test:agent-run-debugging', 'Makefile AgentRun debugging target runs static gate')
+  assertIncludes(source.makefile, 'test-agent-run-debugging-e2e', 'Makefile includes AgentRun browser acceptance target')
+  assertIncludes(source.makefile, 'pnpm run test:agent-run-debugging:e2e', 'Makefile AgentRun browser acceptance target runs E2E gate')
+  assertIncludes(source.makefile, 'verify-agent-run-debugging-summary', 'Makefile includes AgentRun acceptance summary verifier target')
+  assertIncludes(source.makefile, 'verify-agent-run-debugging-summary-contract', 'Makefile includes AgentRun failed-summary contract verifier target')
+  assertIncludes(source.makefile, 'AGENT_RUN_DEBUGGING_SUMMARY ?= apps/frontend/test-results/agent-run-debugging-acceptance-summary.json', 'Makefile AgentRun acceptance summary target has a default summary path')
+  assertIncludes(source.makefile, 'node scripts/verify-agent-run-debugging-acceptance-summary.mjs $(AGENT_RUN_DEBUGGING_SUMMARY)', 'Makefile AgentRun acceptance summary target runs the verifier against the configured path')
+  assertIncludes(source.makefile, 'node scripts/verify-agent-run-debugging-acceptance-summary.mjs $(AGENT_RUN_DEBUGGING_SUMMARY) --allow-failed', 'Makefile AgentRun failed-summary contract target allows failed summaries')
   assertIncludes(source.makefile, 'test: test-backend typecheck-packages test-agent-run-debugging', 'Makefile default test target includes AgentRun debugging gate')
 }
 
@@ -407,9 +807,32 @@ function readText(file) {
 }
 
 function sourceOverrideForFile(file) {
+  if (file === files.page) return process.env.AGENT_RUN_DEBUG_PAGE_PATH
+  if (file === files.schema) return process.env.AGENT_RUN_DEBUG_SCHEMA_PATH
   if (file === files.fixture) return process.env.AGENT_RUN_DEBUG_FIXTURE_PATH
+  if (file === files.acceptanceSummarySchema) return process.env.AGENT_RUN_DEBUG_ACCEPTANCE_SUMMARY_SCHEMA_PATH
+  if (file === files.acceptanceSummaryFixture) return process.env.AGENT_RUN_DEBUG_ACCEPTANCE_SUMMARY_FIXTURE_PATH
+  if (file === files.e2e) return process.env.AGENT_RUN_DEBUG_E2E_PATH
+  if (file === files.e2eRunner) return process.env.AGENT_RUN_DEBUG_E2E_RUNNER_PATH
+  if (file === files.artifactVerifier) return process.env.AGENT_RUN_DEBUG_ARTIFACT_VERIFIER_PATH
+  if (file === files.artifactVerifierTest) return process.env.AGENT_RUN_DEBUG_ARTIFACT_VERIFIER_TEST_PATH
+  if (file === files.acceptanceSummaryContract) return process.env.AGENT_RUN_DEBUG_ACCEPTANCE_SUMMARY_CONTRACT_PATH
+  if (file === files.acceptanceSummaryVerifier) return process.env.AGENT_RUN_DEBUG_ACCEPTANCE_SUMMARY_VERIFIER_PATH
+  if (file === files.bundleContract) return process.env.AGENT_RUN_DEBUG_BUNDLE_CONTRACT_PATH
+  if (file === files.acceptance) return process.env.AGENT_RUN_DEBUG_ACCEPTANCE_PATH
+  if (file === files.ui) return process.env.AGENT_RUN_DEBUG_UI_PATH
+  if (file === files.uiViewTest) return process.env.AGENT_RUN_DEBUG_UI_VIEW_TEST_PATH
   if (file === files.localAgentClient) return process.env.AGENT_RUN_DEBUG_LOCAL_AGENT_CLIENT_PATH
   if (file === files.agentStateTypes) return process.env.AGENT_RUN_DEBUG_AGENT_STATE_TYPES_PATH
+  if (file === files.audit) return process.env.AGENT_RUN_DEBUG_AUDIT_PATH
+  if (file === files.docsIndex) return process.env.AGENT_RUN_DEBUG_DOCS_INDEX_PATH
+  if (file === files.docsIndexEn) return process.env.AGENT_RUN_DEBUG_DOCS_INDEX_EN_PATH
+  if (file === files.ciWorkflow) return process.env.AGENT_RUN_DEBUG_CI_WORKFLOW_PATH
+  if (file === files.pullRequestTemplate) return process.env.AGENT_RUN_DEBUG_PULL_REQUEST_TEMPLATE_PATH
+  if (file === files.releaseChecklistZh) return process.env.AGENT_RUN_DEBUG_RELEASE_CHECKLIST_ZH_PATH
+  if (file === files.releaseChecklistEn) return process.env.AGENT_RUN_DEBUG_RELEASE_CHECKLIST_EN_PATH
+  if (file === files.makefile) return process.env.AGENT_RUN_DEBUG_MAKEFILE_PATH
+  if (file === files.packageJson) return process.env.AGENT_RUN_DEBUG_PACKAGE_JSON_PATH
   return undefined
 }
 
@@ -455,6 +878,10 @@ function validateSchemaNode(schemaNode, value, pathLabel, rootSchema) {
     errors.push(`${pathLabel} must match schema type ${JSON.stringify(schemaNode.type)}`)
     return
   }
+  if (Array.isArray(schemaNode.oneOf)) {
+    const matchingSchemas = schemaNode.oneOf.filter((item) => schemaNodeMatches(item, value, pathLabel, rootSchema)).length
+    if (matchingSchemas !== 1) errors.push(`${pathLabel} must match exactly one schema in oneOf`)
+  }
 
   if (typeof value === 'string') {
     if (Number.isInteger(schemaNode.minLength) && value.length < schemaNode.minLength) {
@@ -482,6 +909,9 @@ function validateSchemaNode(schemaNode, value, pathLabel, rootSchema) {
   if (Array.isArray(value)) {
     if (Number.isInteger(schemaNode.minItems) && value.length < schemaNode.minItems) {
       errors.push(`${pathLabel} must contain at least ${schemaNode.minItems} item(s)`)
+    }
+    if (Number.isInteger(schemaNode.maxItems) && value.length > schemaNode.maxItems) {
+      errors.push(`${pathLabel} must contain at most ${schemaNode.maxItems} item(s)`)
     }
     if (schemaNode.uniqueItems === true && new Set(value.map((item) => JSON.stringify(item))).size !== value.length) {
       errors.push(`${pathLabel} must contain unique items`)
@@ -567,6 +997,21 @@ function assertIncludes(value, expected, label) {
   }
 }
 
+function assertNotIncludes(value, unexpected, label) {
+  if (typeof value === 'string' && value.includes(unexpected)) {
+    errors.push(`${label} must not include ${unexpected}`)
+  }
+}
+
+function assertOccurrenceCount(value, expected, count, label) {
+  if (typeof value !== 'string') {
+    errors.push(`${label} must include ${count} occurrence(s) of ${expected}`)
+    return
+  }
+  const actual = value.split(expected).length - 1
+  if (actual !== count) errors.push(`${label}: expected ${count}, got ${actual}`)
+}
+
 function assertEqual(actual, expected, label) {
   if (actual !== expected) errors.push(`${label}: expected ${expected}, got ${String(actual)}`)
 }
@@ -609,8 +1054,122 @@ function extractStringArrayConstant(sourceText, constantName) {
   return [...sourceText.slice(bodyStart, end).matchAll(/'([^']+)'/g)].map((item) => item[1])
 }
 
+function extractTypeStringUnion(sourceText, typeName) {
+  const match = sourceText.match(new RegExp(`export type ${typeName} = ([^\\n]+)`))
+  if (!match) {
+    errors.push(`source must define export type ${typeName} as a string union`)
+    return []
+  }
+  return [...match[1].matchAll(/'([^']+)'/g)].map((item) => item[1])
+}
+
+function extractInterfaceStringUnionProperty(sourceText, interfaceName, propertyName) {
+  const startToken = `export interface ${interfaceName} {`
+  const start = sourceText.indexOf(startToken)
+  if (start === -1) {
+    errors.push(`source must define export interface ${interfaceName}`)
+    return []
+  }
+  const bodyStart = start + startToken.length
+  const end = sourceText.indexOf('\n}', bodyStart)
+  if (end === -1) {
+    errors.push(`source must close export interface ${interfaceName}`)
+    return []
+  }
+  const body = sourceText.slice(bodyStart, end)
+  const match = body.match(new RegExp(`\\b${propertyName}\\??: ([^\\n]+)`))
+  if (!match) {
+    errors.push(`source must define ${interfaceName}.${propertyName} as a string union`)
+    return []
+  }
+  return [...match[1].matchAll(/'([^']+)'/g)].map((item) => item[1])
+}
+
+function extractInterfacePropertyNames(sourceText, interfaceName) {
+  const startToken = `export interface ${interfaceName} {`
+  const start = sourceText.indexOf(startToken)
+  if (start === -1) {
+    errors.push(`source must define export interface ${interfaceName}`)
+    return []
+  }
+  const bodyStart = start + startToken.length
+  const end = sourceText.indexOf('\n}', bodyStart)
+  if (end === -1) {
+    errors.push(`source must close export interface ${interfaceName}`)
+    return []
+  }
+  return [...sourceText.slice(bodyStart, end).matchAll(/^\s{2}([A-Za-z_][A-Za-z0-9_]*)\??:/gm)].map((item) => item[1])
+}
+
+function extractSimpleStringArrayConstant(sourceText, constantName) {
+  const startToken = `const ${constantName} = [`
+  const start = sourceText.indexOf(startToken)
+  if (start === -1) {
+    errors.push(`source must define const ${constantName} as a string array`)
+    return []
+  }
+  const bodyStart = start + startToken.length
+  const end = sourceText.indexOf(']', bodyStart)
+  if (end === -1) {
+    errors.push(`source must close const ${constantName} with ]`)
+    return []
+  }
+  return [...sourceText.slice(bodyStart, end).matchAll(/'([^']+)'/g)].map((item) => item[1])
+}
+
+function extractObjectArrayPropertyValues(sourceText, constantName, propertyName) {
+  const start = sourceText.indexOf(`const ${constantName}`)
+  if (start === -1) {
+    errors.push(`source must define const ${constantName}`)
+    return []
+  }
+  const bodyStart = sourceText.indexOf('[', start)
+  if (bodyStart === -1) {
+    errors.push(`source must define const ${constantName} as an array`)
+    return []
+  }
+  const end = sourceText.indexOf('\n]\n', bodyStart)
+  if (end === -1) {
+    errors.push(`source must close const ${constantName} array`)
+    return []
+  }
+  return [...sourceText.slice(bodyStart, end).matchAll(new RegExp(`\\b${propertyName}: '([^']+)'`, 'g'))].map((item) => item[1])
+}
+
+function extractSwitchCases(sourceText, functionName) {
+  const functionStart = sourceText.indexOf(`function ${functionName}(`)
+  if (functionStart === -1) {
+    errors.push(`source must define function ${functionName}`)
+    return []
+  }
+  const switchStart = sourceText.indexOf('switch (', functionStart)
+  if (switchStart === -1) {
+    errors.push(`function ${functionName} must contain a switch`)
+    return []
+  }
+  const nextFunction = sourceText.indexOf('\nexport function ', functionStart + 1)
+  const end = nextFunction === -1 ? sourceText.length : nextFunction
+  return [...sourceText.slice(switchStart, end).matchAll(/case '([^']+)'/g)].map((item) => item[1])
+}
+
+function extractAcceptanceScreenshotCaptures(sourceText) {
+  return [...sourceText.matchAll(/captureAgentRunAcceptanceScreenshot\(page, testInfo, '([^']+)'\)/g)].map((item) => item[1])
+}
+
+function extractAcceptanceDocScreenshotNames(sourceText) {
+  return [...sourceText.matchAll(/\| `([^`]+)` \|/g)].map((item) => item[1]).filter((name) => name.startsWith('agent-run-'))
+}
+
+function stripPngExtension(value) {
+  return value.endsWith('.png') ? value.slice(0, -4) : value
+}
+
 function assertNonEmptyArray(value, label) {
   if (!Array.isArray(value) || value.length === 0) errors.push(`${label} must be a non-empty array`)
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [value]
 }
 
 function verifyLocalSchemaValidator() {
@@ -622,14 +1181,26 @@ function verifyLocalSchemaValidator() {
       errors.push(`local schema validator must reject invalid date-time value ${invalid}`)
     }
   }
-  if (!schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'approval', id: 'approval_1', createdAt: '2026-05-16T08:00:06.000Z' }, 'pendingActionFixture', schema)) {
+  if (!schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'approval', id: 'approval_1', toolName: 'write_file', reason: 'needs write access', createdAt: '2026-05-16T08:00:06.000Z' }, 'pendingActionFixture', schema)) {
     errors.push('local schema validator must accept a valid pending approval action')
+  }
+  if (!schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'input', id: 'input_1', title: 'Choose target', question: 'Which target?', inputType: 'choice', choices: [{ id: 'draft', label: 'Draft' }], allowCustomAnswer: false, createdAt: '2026-05-16T08:00:06.000Z' }, 'pendingActionFixture', schema)) {
+    errors.push('local schema validator must accept a valid pending input action')
   }
   if (schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'approval', id: 'approval_1' }, 'pendingActionFixture', schema)) {
     errors.push('local schema validator must reject pending actions without createdAt')
   }
+  if (schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'approval', id: 'approval_1', createdAt: '2026-05-16T08:00:06.000Z' }, 'pendingActionFixture', schema)) {
+    errors.push('local schema validator must reject pending approval actions without approval fields')
+  }
+  if (schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'input', id: 'input_1', title: 'Choose target', question: 'Which target?', inputType: 'unknown', choices: [], allowCustomAnswer: false, createdAt: '2026-05-16T08:00:06.000Z' }, 'pendingActionFixture', schema)) {
+    errors.push('local schema validator must reject unknown pending input types')
+  }
   if (schemaNodeMatches(schema?.$defs?.pendingAction, { type: 'unknown', id: 'approval_1', createdAt: '2026-05-16T08:00:06.000Z' }, 'pendingActionFixture', schema)) {
     errors.push('local schema validator must reject unknown pending action types')
+  }
+  if (schemaNodeMatches({ type: 'array', maxItems: 1, items: { type: 'string' } }, ['one', 'two'], 'maxItemsFixture', schema)) {
+    errors.push('local schema validator must reject arrays above maxItems')
   }
 }
 

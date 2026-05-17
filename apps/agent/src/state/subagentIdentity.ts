@@ -1,3 +1,4 @@
+import { isRecord } from '../jsonValue.js'
 import type { AgentRun, AgentTask, JSONValue } from './types.js'
 import { normalizeStringList } from './planTaskInput.js'
 
@@ -72,8 +73,4 @@ export function subagentNameConflicts(tasks: AgentTask[]): Array<{ subagentName:
 
 function normalizeNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

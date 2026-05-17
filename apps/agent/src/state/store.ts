@@ -1,5 +1,7 @@
 import type { AgentPlan, AgentRun, AgentTask, AgentThread, AgentThreadSummary, AgentTraceEvent } from './types.js'
 import type { AgentRunTraceSummary } from './runTrace.js'
+import { isJSONValue } from '../jsonValue.js'
+import { isValidAgentProjectId } from '../context/runtimeContext.js'
 
 export interface AgentTraceQuery {
   cursor?: string
@@ -73,7 +75,7 @@ export class InMemoryAgentStore implements AgentStore {
     const { run: normalizedRun, traceEvents } = detachTraceEvents(run)
     this.runs.set(run.id, clone(normalizedRun))
     if (traceEvents.length > 0) {
-      this.traceEventsByRun.set(run.id, traceEvents.map((event) => clone(event)))
+      this.traceEventsByRun.set(run.id, traceEvents.map(normalizeTraceEvent))
     }
   }
 
@@ -87,7 +89,7 @@ export class InMemoryAgentStore implements AgentStore {
       for (const event of traceEvents) {
         if (seen.has(event.id)) continue
         seen.add(event.id)
-        next.push(clone(event))
+        next.push(normalizeTraceEvent(event))
       }
       this.traceEventsByRun.set(run.id, next)
     }
@@ -154,9 +156,10 @@ export class InMemoryAgentStore implements AgentStore {
   appendTraceEvent(event: AgentTraceEvent): void {
     const events = this.traceEventsByRun.get(event.runId) ?? []
     const existingIndex = events.findIndex((item) => item.id === event.id)
+    const normalizedEvent = normalizeTraceEvent(event)
     const next = existingIndex >= 0
-      ? events.map((item, index) => index === existingIndex ? clone(event) : item)
-      : [...events, clone(event)]
+      ? events.map((item, index) => index === existingIndex ? normalizedEvent : item)
+      : [...events, normalizedEvent]
     this.traceEventsByRun.set(event.runId, next)
   }
 
@@ -182,7 +185,7 @@ export class InMemoryAgentStore implements AgentStore {
     let latestEvent: AgentTraceEvent | undefined
     for (const event of events) {
       byKind[event.kind] = (byKind[event.kind] ?? 0) + 1
-      if (!latestEvent || event.createdAt.localeCompare(latestEvent.createdAt) > 0) latestEvent = event
+      if (!latestEvent || event.createdAt.localeCompare(latestEvent.createdAt) >= 0) latestEvent = event
     }
     return {
       runId,
@@ -198,7 +201,7 @@ export function toThreadSummary(thread: AgentThread): AgentThreadSummary {
   return {
     id: thread.id,
     ...(thread.title ? { title: thread.title } : {}),
-    ...(typeof thread.projectId === 'number' ? { projectId: thread.projectId } : {}),
+    ...(isValidAgentProjectId(thread.projectId) ? { projectId: thread.projectId } : {}),
     ...(thread.metadata ? { metadata: clone(thread.metadata) } : {}),
     archived: thread.archived === true,
     ...(thread.status ? { status: thread.status } : {}),
@@ -230,4 +233,15 @@ function detachTraceEvents(run: AgentRun): { run: AgentRun; traceEvents: AgentTr
 function normalizeTraceLimit(value: number | undefined): number {
   if (value === undefined || !Number.isFinite(value)) return 200
   return Math.min(Number.MAX_SAFE_INTEGER, Math.max(1, Math.floor(value)))
+}
+
+function normalizeTraceEvent(event: AgentTraceEvent): AgentTraceEvent {
+  const next = clone(event)
+  if (event.data !== undefined && !isJSONValue(event.data)) {
+    delete next.data
+  }
+  if (typeof next.durationMs !== 'number' || !Number.isFinite(next.durationMs) || next.durationMs < 0) {
+    delete next.durationMs
+  }
+  return next
 }

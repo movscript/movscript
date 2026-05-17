@@ -1,3 +1,4 @@
+import { isRecord } from '../jsonValue.js'
 import type { AgentTask, AgentTraceEvent } from './types.js'
 
 export interface AgentTaskProtocolEvent {
@@ -30,8 +31,4 @@ export function snapshotTaskForProtocolEvent(task: AgentTask): AgentTask {
     deps: [...task.deps],
     artifacts: [...task.artifacts],
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

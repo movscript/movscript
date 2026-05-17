@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { atomicWriteJSON, resolveAgentMemoryPath } from '../state/fileStore.js'
-import type { AgentMemory, CreateMemoryInput } from './types.js'
+import { isRecord } from '../jsonValue.js'
+import { isValidMemoryProjectId, type AgentMemory, type CreateMemoryInput } from './types.js'
 import { InMemoryAgentMemoryStore, type AgentMemoryStore } from './memoryStore.js'
 
 interface MemoryStateFile {
@@ -31,8 +32,15 @@ export class FileAgentMemoryStore extends InMemoryAgentMemoryStore implements Ag
 
   private load(): void {
     if (!existsSync(this.filePath)) return
-    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<MemoryStateFile & { memories?: unknown[] }>
-    this.replaceMemories((parsed.memories ?? []).flatMap((memory) => normalizeMemory(memory)))
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+    } catch {
+      return
+    }
+    if (!isRecord(parsed)) return
+    const memories = Array.isArray(parsed.memories) ? parsed.memories : []
+    this.replaceMemories(memories.flatMap((memory) => normalizeMemory(memory)))
   }
 
   private persist(): void {
@@ -44,8 +52,8 @@ export class FileAgentMemoryStore extends InMemoryAgentMemoryStore implements Ag
 }
 
 function normalizeMemory(memory: unknown): AgentMemory[] {
-  if (!memory || typeof memory !== 'object' || Array.isArray(memory)) return []
-  const record = memory as Record<string, unknown>
+  if (!isRecord(memory)) return []
+  const record = memory
   const projectId = typeof record.projectId === 'number'
     ? record.projectId
     : typeof record.project_id === 'number'
@@ -58,7 +66,7 @@ function normalizeMemory(memory: unknown): AgentMemory[] {
       : undefined
   const content = typeof record.content === 'string' ? record.content.trim() : undefined
   const kind = normalizeKind(record.kind)
-  if (projectId === undefined || !title || !content || !kind) return []
+  if (!isValidMemoryProjectId(projectId) || !title || !content || !kind) return []
   return [{
     id: typeof record.id === 'string' && record.id.trim() ? record.id.trim() : makeFallbackMemoryId(projectId),
     projectId,

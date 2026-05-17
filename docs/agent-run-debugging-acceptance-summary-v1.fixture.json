@@ -3,6 +3,38 @@
   "schemaUrl": "https://movscript.dev/schemas/agent-run-debugging-acceptance-summary-v1.schema.json",
   "generatedAt": "2026-05-16T08:00:06.000Z",
   "artifactRoot": "apps/frontend/test-results",
+  "environment": {
+    "usesExternalBaseURL": false,
+    "baseURLOrigin": null,
+    "preflightPort": 4179,
+    "artifactRootOverride": false
+  },
+  "requiredScreenshots": [
+    "agent-run-debug-overview.png",
+    "agent-run-model-call-expanded.png",
+    "agent-run-http-request-detail.png",
+    "agent-run-http-response-detail.png",
+    "agent-run-attention-events.png",
+    "agent-run-missing-data.png"
+  ],
+  "screenshotDiagnostics": {
+    "presentScreenshots": [
+      "agent-run-debug-overview.png",
+      "agent-run-model-call-expanded.png",
+      "agent-run-http-request-detail.png",
+      "agent-run-http-response-detail.png",
+      "agent-run-attention-events.png",
+      "agent-run-missing-data.png"
+    ],
+    "missingScreenshots": [],
+    "invalidScreenshots": []
+  },
+  "cleanArtifacts": {
+    "status": 0,
+    "signal": null,
+    "error": null,
+    "failure": null
+  },
   "browser": {
     "status": 0,
     "signal": null,

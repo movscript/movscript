@@ -1,3 +1,5 @@
+import { isValidAgentProjectId } from '../context/runtimeContext.js'
+
 export type AgentMemoryKind = 'preference' | 'fact' | 'item_ref' | 'entity_ref' | 'draft' | 'decision' | 'warning'
 
 export interface AgentMemory {
@@ -28,4 +30,8 @@ export interface CreateMemoryInput {
   sourceThreadId?: string
   sourceRunId?: string
   sourceMessageId?: string
+}
+
+export function isValidMemoryProjectId(value: unknown): value is number {
+  return isValidAgentProjectId(value)
 }

@@ -1,5 +1,5 @@
 import type { JSONValue } from '../types.js'
-import { isRecord } from '../jsonValue.js'
+import { cloneJSONValue, isRecord } from '../jsonValue.js'
 import type { AgentRun, AgentThread } from '../state/types.js'
 import { buildThreadContextSummary, normalizeThreadContextSummary, type ThreadContextSummary } from './promptHygiene.js'
 
@@ -21,11 +21,11 @@ export function applyRuntimeThreadContextSummary(input: {
   })
   input.thread.metadata = {
     ...(input.thread.metadata ?? {}),
-    threadContextSummary: summary as unknown as JSONValue,
+    threadContextSummary: cloneThreadContextSummary(summary) as unknown as JSONValue,
   }
   input.run.metadata = {
     ...(input.run.metadata ?? {}),
-    threadContextSummary: summary as unknown as JSONValue,
+    threadContextSummary: cloneThreadContextSummary(summary) as unknown as JSONValue,
   }
   return summary
 }
@@ -38,9 +38,13 @@ export function attachRuntimeThreadContextSummaryToRun(input: {
   if (!summary) return undefined
   input.run.metadata = {
     ...(input.run.metadata ?? {}),
-    threadContextSummary: summary as unknown as JSONValue,
+    threadContextSummary: cloneThreadContextSummary(summary) as unknown as JSONValue,
   }
   return summary
+}
+
+function cloneThreadContextSummary(summary: ThreadContextSummary): ThreadContextSummary {
+  return cloneJSONValue(summary as unknown as JSONValue) as unknown as ThreadContextSummary
 }
 
 function numberField(value: unknown): number | undefined {

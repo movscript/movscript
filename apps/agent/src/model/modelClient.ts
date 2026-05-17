@@ -13,6 +13,7 @@ import type {
   ConfiguredRuntimeModelConfig,
 } from './modelConfig.js'
 import { buildBackendGatewayChatRequest } from './modelConfig.js'
+import { isJSONRecord } from '../jsonValue.js'
 
 export interface ModelCallInput {
   messages: RuntimeModelChatMessage[]
@@ -401,8 +402,8 @@ function readSSEDataFromBlock(block: string): string {
 }
 
 function extractReasoningDelta(chunk: unknown): string {
-  const record = asRecord(chunk)
-  const event = asRecord(record?.event)
+  const record = isJSONRecord(chunk) ? chunk : undefined
+  const event = isJSONRecord(record?.event) ? record.event : undefined
   const eventDelta = stringValue(event?.reasoning_delta)
     || stringValue(event?.reasoningContent)
     || stringValue(event?.reasoning)
@@ -416,8 +417,8 @@ function extractReasoningDelta(chunk: unknown): string {
 }
 
 function extractContentDelta(chunk: unknown): string {
-  const record = asRecord(chunk)
-  const event = asRecord(record?.event)
+  const record = isJSONRecord(chunk) ? chunk : undefined
+  const event = isJSONRecord(record?.event) ? record.event : undefined
   const eventDelta = stringValue(event?.content_delta)
     || stringValue(event?.contentDelta)
     || stringValue(event?.content)
@@ -441,8 +442,8 @@ interface RuntimeModelToolCallDelta {
 }
 
 function extractToolCallDeltas(chunk: unknown): RuntimeModelToolCallDelta[] {
-  const record = asRecord(chunk)
-  const event = asRecord(record?.event)
+  const record = isJSONRecord(chunk) ? chunk : undefined
+  const event = isJSONRecord(record?.event) ? record.event : undefined
   const eventToolCalls = event?.tool_call_deltas
   const deltaToolCalls = firstChoiceDelta(record)?.tool_calls
   return normalizeToolCallDeltas(
@@ -454,9 +455,9 @@ function extractToolCallDeltas(chunk: unknown): RuntimeModelToolCallDelta[] {
 
 function normalizeToolCallDeltas(value: unknown[]): RuntimeModelToolCallDelta[] {
   return value.flatMap((item): RuntimeModelToolCallDelta[] => {
-    const record = asRecord(item)
+    const record = isJSONRecord(item) ? item : undefined
     if (!record) return []
-    const fn = asRecord(record.function)
+    const fn = isJSONRecord(record.function) ? record.function : undefined
     return [{
       ...(typeof record.index === 'number' ? { index: record.index } : {}),
       ...(typeof record.id === 'string' ? { id: record.id } : {}),
@@ -499,19 +500,16 @@ function tryParseJSON(value: string): { ok: true; value: unknown } | { ok: false
 }
 
 function hasUsageDelta(chunk: unknown): boolean {
-  const record = asRecord(chunk)
-  const event = asRecord(record?.event)
+  const record = isJSONRecord(chunk) ? chunk : undefined
+  const event = isJSONRecord(record?.event) ? record.event : undefined
   return !!record?.usage || !!event?.usage
 }
 
 function firstChoiceDelta(record: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   const choices = record?.choices
   if (!Array.isArray(choices)) return undefined
-  return asRecord(asRecord(choices[0])?.delta)
-}
-
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' ? value as Record<string, unknown> : undefined
+  const choice = isJSONRecord(choices[0]) ? choices[0] : undefined
+  return isJSONRecord(choice?.delta) ? choice.delta : undefined
 }
 
 function stringValue(value: unknown): string {
@@ -645,9 +643,9 @@ function readSSEDataBlocks(responseText: string): string[] {
 function normalizeToolCalls(value: unknown): RuntimeModelChatToolCall[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item): RuntimeModelChatToolCall[] => {
-    if (!item || typeof item !== 'object') return []
-    const record = item as Record<string, unknown>
-    const fn = record.function && typeof record.function === 'object' ? record.function as Record<string, unknown> : undefined
+    if (!isJSONRecord(item)) return []
+    const record = item
+    const fn = isJSONRecord(record.function) ? record.function : undefined
     const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : undefined
     const name = typeof fn?.name === 'string' && fn.name.trim() ? fn.name.trim() : undefined
     const args = typeof fn?.arguments === 'string' ? fn.arguments : '{}'

@@ -100,3 +100,39 @@ test('thread context summary keeps refs and prompt compaction renders persisted 
   assert.match(compacted.summary ?? '', /knowledge#storyboard.rhythm.basic/)
   assert.equal((compacted.summary ?? '').includes('已参考分镜节奏基础，生成方案摘要。'.repeat(20)), false)
 })
+
+test('thread context summary ignores non-plain persisted and ledger records', () => {
+  class ThreadSummary {
+    schema = 'movscript.thread-context-summary.v1'
+    threadId = 't'
+    updatedAt = '2026-01-01T00:00:00.000Z'
+  }
+  class ContextLedger {
+    retrieved = [{
+      ref: { type: 'knowledge', id: 'storyboard.rhythm.basic', title: '分镜节奏基础' },
+    }]
+    artifactRefs = [{ type: 'knowledge', id: 'storyboard.rhythm.basic', title: '分镜节奏基础' }]
+  }
+
+  const createdAt = '2026-01-01T00:00:00.000Z'
+  const summary = buildThreadContextSummary({
+    threadId: 't',
+    messages: [{ id: 'u1', threadId: 't', role: 'user', content: '帮我做分镜方案', createdAt }],
+    run: {
+      id: 'run_1',
+      threadId: 't',
+      status: 'completed',
+      policy: { approvalMode: 'interactive', maxToolCalls: 20, maxIterations: 20, allowNetwork: false, allowFileBytes: false },
+      metadata: { contextLedger: new ContextLedger() as never },
+      createdAt,
+      updatedAt: createdAt,
+      completedAt: createdAt,
+      steps: [],
+    },
+    now: createdAt,
+  })
+
+  assert.equal(normalizeThreadContextSummary(new ThreadSummary()), undefined)
+  assert.deepEqual(summary.artifactRefs, [])
+  assert.deepEqual(summary.recentRunRefs[0]?.retrievedRefs, [])
+})

@@ -23,3 +23,15 @@ test('normalizeToolCall omits non-record args and rejects invalid calls', () => 
   assert.equal(normalizeToolCall({ name: '' }), undefined)
   assert.equal(normalizeToolCall(null), undefined)
 })
+
+test('normalizeToolCall rejects non-plain call and args records', () => {
+  class RuntimeToolCall {
+    name = 'tool'
+  }
+  class RuntimeArgs {
+    value = 1
+  }
+
+  assert.equal(normalizeToolCall(new RuntimeToolCall()), undefined)
+  assert.deepEqual(normalizeToolCall({ name: 'tool', args: new RuntimeArgs() }), { name: 'tool' })
+})

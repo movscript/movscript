@@ -1,4 +1,4 @@
-import type { AgentMemory, CreateMemoryInput, MemoryQuery } from './types.js'
+import { isValidMemoryProjectId, type AgentMemory, type CreateMemoryInput, type MemoryQuery } from './types.js'
 
 export interface AgentMemoryStore {
   listMemories(query?: MemoryQuery): AgentMemory[]
@@ -10,7 +10,8 @@ export interface AgentMemoryStore {
 export class InMemoryAgentMemoryStore implements AgentMemoryStore {
   private readonly memories = new Map<string, AgentMemory>()
 
-  listMemories(query: MemoryQuery): AgentMemory[] {
+  listMemories(query?: MemoryQuery): AgentMemory[] {
+    if (!hasProjectScope(query)) return []
     const limit = typeof query.limit === 'number' && Number.isFinite(query.limit)
       ? Math.max(1, Math.min(100, Math.floor(query.limit)))
       : undefined
@@ -27,6 +28,7 @@ export class InMemoryAgentMemoryStore implements AgentMemoryStore {
   }
 
   createMemory(input: CreateMemoryInput): AgentMemory {
+    if (!isValidMemoryProjectId(input.projectId)) throw new Error('memory projectId must be a positive safe integer')
     const now = new Date().toISOString()
     const memory: AgentMemory = {
       id: makeId('mem'),
@@ -67,7 +69,8 @@ export function memoryStorePath(store: AgentMemoryStore): string | undefined {
     : undefined
 }
 
-export function matchesQuery(memory: AgentMemory, query: MemoryQuery): boolean {
+export function matchesQuery(memory: AgentMemory, query?: MemoryQuery): boolean {
+  if (!hasProjectScope(query)) return false
   if (memory.projectId !== query.projectId) return false
   if (query.kind && memory.kind !== query.kind) return false
   if (query.query) {
@@ -78,6 +81,10 @@ export function matchesQuery(memory: AgentMemory, query: MemoryQuery): boolean {
     if (terms.length === 0 || !terms.some((term) => haystack.includes(term))) return false
   }
   return true
+}
+
+function hasProjectScope(query: MemoryQuery | undefined): query is MemoryQuery {
+  return isValidMemoryProjectId(query?.projectId)
 }
 
 function makeId(prefix: string): string {

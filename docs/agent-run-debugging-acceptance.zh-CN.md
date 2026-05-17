@@ -14,18 +14,24 @@ pnpm run test:agent-run-debugging
 
 - 调试页关键 UI hook。
 - 调试报告和调试包字段。
-- schema 和 fixture 的机器校验、capabilities 和文档入口。
-- 静态 verifier 自测，包括 fixture 覆盖入口、同轮工具/历史回溯和 pending 计数一致性失败场景。
+- 调试包 schema 和 fixture 的机器校验、验收摘要 schema/fixture 的机器校验、capabilities 和文档入口。
+- 静态 verifier 自测，包括 fixture 覆盖入口、同轮工具/历史回溯、pending 计数一致性、debug bundle schema raw event definition/status/roundSource/field definition drift、debug bundle schema modelCall/promptDetail field definition drift、debug bundle schema toolCall status drift、debug bundle schema attentionEvent enum drift、debug bundle schema pendingAction variant drift、debug bundle pendingAction filter/export field/contract doc drift、debug bundle schema fieldGuide/readiness id drift、debug bundle fixture coverage/modelCall type/promptDetail type/derived trace item/pendingAction variant/fieldGuide/readiness drift、debug bundle fixture raw event runId/kind/status drift、验收摘要 fixture schema 漂移、验收摘要截图清单漂移、验收摘要截图清单 schema 漂移、验收摘要 artifactRoot override schema 漂移、E2E runner 相对 artifact root 漂移、E2E runner 验收摘要写出前校验漂移、trace kind/status/roundSource/field 漂移、trace kind/status/category 中文标签缺失、旧 frontend 命令回归、中英文文档索引 schema 链接缺失、E2E 截图采集清单缺失、E2E 额外截图采集、artifact verifier 缺失/额外截图要求、artifact verifier 测试截图清单漂移和验收文档截图清单漂移场景。
 - 截图 artifact 校验器的通过/失败行为，包括 PNG 签名、关键 chunk、CRC、最小尺寸和最小文件大小。
 - 前端聚焦测试和类型检查。
 
-CI 会通过 `.github/workflows/ci.yml` 的 `AgentRun debugging acceptance` job 执行同一套静态门禁和浏览器验收，并上传 `agent-run-debugging-playwright-results` 附件用于查看截图、`test-results` 和 HTML report 失败上下文。
+CI 会通过 `.github/workflows/ci.yml` 的 `AgentRun debugging acceptance` job 执行同一套静态门禁和浏览器验收，失败或成功都会打印 `agent-run-debugging-acceptance-summary.json`，并同步写入 GitHub job summary 面板；同时上传 `agent-run-debugging-playwright-results` 附件用于查看截图、`test-results` 和 HTML report 失败上下文。
 PR 模板也包含 AgentRun debugging changes 检查项，相关改动必须记录静态门禁、浏览器验收或 CI artifact 检查结果。
 
 真实浏览器验收运行：
 
 ```bash
 pnpm run test:agent-run-debugging:e2e
+```
+
+也可以通过 Makefile 入口运行同一套浏览器验收：
+
+```bash
+make test-agent-run-debugging-e2e
 ```
 
 如果测试环境已经自行启动了前端服务，或当前进程不允许 Playwright 启动 Vite，可以改用外部地址：
@@ -42,7 +48,21 @@ MOVSCRIPT_E2E_BROWSER_CHANNEL=chrome pnpm run test:agent-run-debugging:e2e
 
 该命令会先清理旧的 `test-results` 和 `playwright-report`，通过后会把关键状态截图作为 Playwright 附件保存到测试结果目录，截图名称与下方清单一致。
 它由 `scripts/run-agent-run-debugging-e2e.mjs` 执行：即使浏览器验收失败也会继续执行截图附件校验，最终同时报告浏览器退出码、启动失败原因或终止信号，以及截图 artifact 校验退出码。
-runner 还会在 `apps/frontend/test-results/agent-run-debugging-acceptance-summary.json` 写入机器可读验收摘要，字段包含 `schema`、`generatedAt`、`artifactRoot`、`browser`、`screenshotArtifacts` 和 `passed`，便于 CI artifact 下载后快速判断浏览器步骤与截图校验步骤的状态。
+runner 还会在 `apps/frontend/test-results/agent-run-debugging-acceptance-summary.json` 写入机器可读验收摘要，字段包含 `schema`、`generatedAt`、`artifactRoot`、`environment`、`requiredScreenshots`、`screenshotDiagnostics`、`cleanArtifacts`、`browser`、`screenshotArtifacts` 和 `passed`，便于 CI artifact 下载后快速判断清理步骤、浏览器步骤与截图校验步骤的状态、运行环境、已生成/缺失/无效截图以及本次验收要求的截图清单。写出前 runner 会先校验摘要字段、运行环境、截图清单、截图诊断、步骤状态和 `passed` 逻辑；即使 artifact 清理失败，也会尽量写出摘要并标记后续步骤为 skipped。`artifactRoot` 会记录实际使用的 artifact 目录，支持 `AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT` 覆盖；`environment` 会记录是否使用外部 base URL、脱敏后的 base URL origin、预检端口和 artifact root 是否被覆盖，不写入用户名、密码、路径或查询参数。
+下载 CI artifact 或复核本地产物时，可直接机器校验摘要。默认要求 `passed: true`；如果只想确认失败摘要的契约字段仍完整，可追加 `--allow-failed`：
+
+```bash
+node scripts/verify-agent-run-debugging-acceptance-summary.mjs apps/frontend/test-results/agent-run-debugging-acceptance-summary.json
+node scripts/verify-agent-run-debugging-acceptance-summary.mjs apps/frontend/test-results/agent-run-debugging-acceptance-summary.json --allow-failed
+```
+
+也可以用 Makefile 入口复核本地或下载后的摘要；第一个目标要求 `passed: true`，第二个目标只检查失败摘要契约字段是否完整：
+
+```bash
+make verify-agent-run-debugging-summary AGENT_RUN_DEBUGGING_SUMMARY=apps/frontend/test-results/agent-run-debugging-acceptance-summary.json
+make verify-agent-run-debugging-summary-contract AGENT_RUN_DEBUGGING_SUMMARY=apps/frontend/test-results/agent-run-debugging-acceptance-summary.json
+```
+
 根级 E2E 命令会在 Playwright 通过后自动运行截图附件校验：
 
 ```bash
@@ -50,6 +70,7 @@ node scripts/verify-agent-run-debugging-artifacts.mjs apps/frontend/test-results
 ```
 
 截图校验默认要求文件不小于 `1024` bytes、尺寸不小于 `320x240`。如 CI 使用特殊截图尺寸，可通过 `AGENT_RUN_DEBUG_SCREENSHOT_MIN_BYTES`、`AGENT_RUN_DEBUG_SCREENSHOT_MIN_WIDTH`、`AGENT_RUN_DEBUG_SCREENSHOT_MIN_HEIGHT` 调整阈值。
+如需要在并行 CI job 或脚本自测中隔离 Playwright 产物，可设置 `AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT=<dir>`；相对路径会按仓库根目录解析，runner 会把解析后的绝对路径传给 Playwright，runner 和 Playwright `outputDir` 会使用同一个目录，截图校验也会检查该目录。
 
 通过标准：
 

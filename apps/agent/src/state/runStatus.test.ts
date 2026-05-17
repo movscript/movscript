@@ -109,6 +109,29 @@ test('applyRunCompletion records assistant message, metadata, and warning status
   assert.deepEqual(run.metadata, { existing: true, memoryIds: ['mem_1'] })
 })
 
+test('applyRunCompletion stores an independent metadata patch snapshot', () => {
+  const run = buildRun({ metadata: { existing: { value: 'stable' } } })
+  const metadataPatch = {
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  }
+
+  applyRunCompletion(run, {
+    now: '2026-05-16T00:00:01.000Z',
+    assistantMessageId: 'msg_1',
+    metadataPatch,
+  })
+
+  metadataPatch.nested.value = 'changed'
+  metadataPatch.list[0]!.id = 'changed'
+
+  assert.deepEqual(run.metadata, {
+    existing: { value: 'stable' },
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  })
+})
+
 test('applyRunFailure records terminal failure fields', () => {
   const run = buildRun()
 

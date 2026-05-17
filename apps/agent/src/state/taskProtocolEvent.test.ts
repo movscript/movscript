@@ -25,6 +25,18 @@ test('taskStatusProtocolEvent distinguishes regular blocked tasks from input-blo
   })
 })
 
+test('taskStatusProtocolEvent ignores non-plain metadata records', () => {
+  class RuntimeMetadata {
+    blockedKind = 'needs_input'
+  }
+
+  assert.deepEqual(taskStatusProtocolEvent(task({ status: 'blocked', metadata: new RuntimeMetadata() as any })), {
+    eventType: 'blocked',
+    title: 'Task blocked',
+    status: 'blocked',
+  })
+})
+
 test('snapshotTaskForProtocolEvent clones mutable task collections for before/after comparisons', () => {
   const original = task({
     deps: ['task_a'],

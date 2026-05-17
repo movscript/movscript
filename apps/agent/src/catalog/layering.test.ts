@@ -14,6 +14,7 @@ import { resolveRuntimeLayers } from '../skills/runtimeLayerResolver.js'
 import { selectActiveWorkflows } from '../skills/triggerEvaluator.js'
 import { resolveToolCatalog } from '../tools/capabilityResolver.js'
 import { resolveVisibleTools } from '../tools/toolCatalogResolver.js'
+import type { JSONValue } from '../types.js'
 
 const CATALOG_SKILLS_DIR = new URL('../../catalog/skills/', import.meta.url)
 const REPO_ROOT = resolve(fileURLToPath(new URL('../../../../', import.meta.url)))
@@ -1078,4 +1079,90 @@ test('MCP tools are modeled as namespaced tools inside a virtual MCP pack', () =
   assert.equal(tool.defaults.grant, 'deny')
   assert.equal(tool.defaults.approval, 'always')
   assert.deepEqual(lintCatalog(registry).filter((issue) => issue.level === 'error'), [])
+})
+
+test('MCP virtual pack ignores non-plain tool schemas', () => {
+  class RuntimeSchema {
+    type = 'object'
+    properties = { prompt: { type: 'string' } }
+  }
+
+  const virtualPack = buildMCPVirtualPack({
+    serverId: 'studio-tools',
+    tools: [{
+      name: 'render.image',
+      description: 'Render an image through the connected studio MCP server.',
+      inputSchema: new RuntimeSchema() as unknown as JSONValue,
+    }],
+  })
+
+  assert.deepEqual(virtualPack.tools[0]?.inputSchema, {
+    type: 'object',
+    additionalProperties: true,
+    properties: {},
+  })
+})
+
+test('prompt composer ignores non-plain action schema records', () => {
+  class RuntimeActionSchema {
+    action = { const: 'runtime_only' }
+  }
+
+  const registry = buildLayeredCatalogRegistry({
+    manifest: {
+      schema: 'movscript.agent.current',
+      id: 'test',
+      version: '1.0.0',
+      name: 'Test',
+      tools: [],
+    },
+    tools: [],
+    layeredTools: [{
+      name: 'studio_action',
+      description: 'Run studio action.',
+      permission: 'studio.action',
+      risk: 'read',
+      projectScoped: false,
+      defaults: { grant: 'allow', approval: 'never' },
+      source: 'runtime',
+      inputSchema: {
+        type: 'object',
+        anyOf: [
+          { properties: { action: { const: 'keep' } } },
+          new RuntimeActionSchema(),
+        ],
+      } as never,
+    }],
+  })
+
+  const prompt = composePrompt({
+    registry,
+    ctx: {
+      profile: { limits: {} } as never,
+      message: '',
+      intents: [],
+      uiContext: {},
+      conversation: {
+        turnCount: 0,
+        lastToolCalls: [],
+        recentErrors: [],
+      },
+      catalogVersion: 'test',
+    },
+    policies: [],
+    workflows: [],
+    persona: {
+      id: 'persona.action',
+      kind: 'persona',
+      version: '1.0.0',
+      name: 'Action Persona',
+      description: 'Action persona',
+      priority: 100,
+      enabled: true,
+      instructionTemplate: 'Actions: {{tool:studio_action.actions}}',
+    },
+  })
+
+  assert.match(prompt.systemPrompt, /Actions: keep/)
+  assert.doesNotMatch(prompt.systemPrompt, /runtime_only/)
 })

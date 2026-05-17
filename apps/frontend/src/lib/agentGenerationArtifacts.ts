@@ -1,4 +1,5 @@
 import type { AgentRun } from '@/lib/localAgentClient'
+import { isRecord } from '@/lib/jsonValue'
 import type { ChatGenerationParamAudit, ChatGenerationValidationError } from '@/store/agentStore'
 
 export interface AgentGeneratedResourceRef {
@@ -255,8 +256,4 @@ function integerField(source: Record<string, unknown> | undefined, key: string):
 
 function isJSONScalar(value: unknown): value is string | number | boolean {
   return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

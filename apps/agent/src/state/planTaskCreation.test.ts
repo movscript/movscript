@@ -26,6 +26,29 @@ test('buildAndValidatePlanTasksToCreate builds tasks and validates requested sub
   assert.deepEqual(requested, ['task_1:Ada:Ada'])
 })
 
+test('buildAndValidatePlanTasksToCreate ignores non-plain metadata subagent names', () => {
+  class RuntimeMetadata {
+    subagentName = 'Ada'
+  }
+  const requested: string[] = []
+
+  buildAndValidatePlanTasksToCreate({
+    planId: 'plan_1',
+    inputs: [{
+      id: 'task_1',
+      title: 'Task',
+      metadata: new RuntimeMetadata() as any,
+    }],
+    now: '2026-05-16T00:00:00.000Z',
+    getTask: () => undefined,
+    validateSubagentName: (taskId, name) => {
+      requested.push(`${taskId}:${name}`)
+    },
+  })
+
+  assert.deepEqual(requested, [])
+})
+
 test('buildAndValidatePlanTasksToCreate rejects existing and duplicate task ids', () => {
   assert.throws(() => buildAndValidatePlanTasksToCreate({
     planId: 'plan_1',

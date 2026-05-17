@@ -1,4 +1,6 @@
 import type { JSONValue } from '../types.js'
+import { isJSONValue, isRecord } from '../jsonValue.js'
+import { isValidAgentProjectId, isValidAgentReferenceId } from '../context/runtimeContext.js'
 import type { AgentDraft, AgentDraftStore, AgentDraftTarget } from './draftStore.js'
 
 export type ApplyDraftMode = 'preview' | 'apply'
@@ -115,11 +117,12 @@ function buildReview(draft: AgentDraft, input: ApplyDraftInput): ApplyDraftRevie
 }
 
 function inferTarget(draft: AgentDraft, input: ApplyDraftInput): AgentDraftTarget {
+  const draftTarget = normalizeTarget(draft.target) ?? {}
   return {
-    ...(draft.target ?? {}),
-    ...(typeof input.projectId === 'number' || typeof input.projectId === 'string' ? { projectId: input.projectId } : {}),
+    ...draftTarget,
+    ...(projectIdValue(input.projectId) !== undefined ? { projectId: projectIdValue(input.projectId) } : {}),
     ...(typeof input.targetEntityType === 'string' && input.targetEntityType.trim() ? { entityType: input.targetEntityType.trim() } : {}),
-    ...(typeof input.targetEntityId === 'number' || typeof input.targetEntityId === 'string' ? { entityId: input.targetEntityId } : {}),
+    ...(isValidAgentReferenceId(input.targetEntityId) ? { entityId: input.targetEntityId } : {}),
     ...(typeof input.targetField === 'string' && input.targetField.trim() ? { field: input.targetField.trim() } : {}),
   }
 }
@@ -128,11 +131,15 @@ function normalizeTarget(value: unknown): AgentDraftTarget | undefined {
   if (!isRecord(value)) return undefined
   const target: AgentDraftTarget = {
     ...(typeof value.entityType === 'string' && value.entityType.trim() ? { entityType: value.entityType.trim() } : {}),
-    ...(typeof value.entityId === 'number' || typeof value.entityId === 'string' ? { entityId: value.entityId } : {}),
-    ...(typeof value.projectId === 'number' || typeof value.projectId === 'string' ? { projectId: value.projectId } : {}),
+    ...(isValidAgentReferenceId(value.entityId) ? { entityId: value.entityId } : {}),
+    ...(projectIdValue(value.projectId) !== undefined ? { projectId: projectIdValue(value.projectId) } : {}),
     ...(typeof value.field === 'string' && value.field.trim() ? { field: value.field.trim() } : {}),
   }
   return Object.keys(target).length > 0 ? target : undefined
+}
+
+function projectIdValue(value: unknown): number | undefined {
+  return isValidAgentProjectId(value) ? value : undefined
 }
 
 function requireDraft(store: AgentDraftStore, draftId: unknown): AgentDraft {
@@ -146,16 +153,4 @@ function requireDraft(store: AgentDraftStore, draftId: unknown): AgentDraft {
 
 function normalizeJSONValue(value: unknown, fallback: JSONValue): JSONValue {
   return isJSONValue(value) ? value : fallback
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

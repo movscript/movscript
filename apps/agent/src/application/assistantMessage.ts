@@ -1,5 +1,6 @@
 import type { JSONValue } from '../types.js'
-import { parseToolResult } from '../context/runtimeContext.js'
+import { isJSONValue, isRecord } from '../jsonValue.js'
+import { isValidAgentEntityId, isValidAgentProjectId, parseToolResult } from '../context/runtimeContext.js'
 import { parseAgentCommand } from '../context/commandRouter.js'
 import { renderLocalFinalAssistantContent } from '../context/localDiagnosticCommands.js'
 import {
@@ -302,8 +303,8 @@ function assistantSkillMessages(run?: AgentRun): RuntimeModelChatMessage[] {
   const rawSkills = run?.metadata?.skills
   if (!Array.isArray(rawSkills)) return []
   return rawSkills.flatMap((item): RuntimeModelChatMessage[] => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) return []
-    const record = item as Record<string, unknown>
+    if (!isRecord(item)) return []
+    const record = item
     const title = typeof record.name === 'string' && record.name.trim()
       ? record.name.trim()
       : typeof record.id === 'string' && record.id.trim()
@@ -381,11 +382,28 @@ function normalizeAssistantToolCall(value: unknown): ToolCall[] {
 }
 
 function normalizeAssistantToolArgs(args: Record<string, unknown>): Record<string, JSONValue> {
-  return {
-    ...args,
-    ...(typeof args.projectId !== 'number' && typeof args.project_id === 'number' ? { projectId: args.project_id } : {}),
-    ...(typeof args.productionId !== 'number' && typeof args.production_id === 'number' ? { productionId: args.production_id } : {}),
-  } as Record<string, JSONValue>
+  const output: Record<string, JSONValue> = {}
+  for (const [key, value] of Object.entries(args)) {
+    if ((key === 'projectId' || key === 'project_id' || key === 'productionId' || key === 'production_id') && !isJSONValue(value)) continue
+    if (isJSONValue(value)) output[key] = value
+  }
+  const projectId = isValidAgentProjectId(args.projectId)
+    ? args.projectId
+    : isValidAgentProjectId(args.project_id)
+      ? args.project_id
+      : undefined
+  const productionId = isValidAgentEntityId(args.productionId)
+    ? args.productionId
+    : isValidAgentEntityId(args.production_id)
+      ? args.production_id
+      : undefined
+  if (projectId !== undefined) output.projectId = projectId
+  else delete output.projectId
+  if (!isValidAgentProjectId(output.project_id)) delete output.project_id
+  if (productionId !== undefined) output.productionId = productionId
+  else delete output.productionId
+  if (!isValidAgentEntityId(output.production_id)) delete output.production_id
+  return output
 }
 
 function parseArgumentsObject(value: string): unknown {
@@ -444,18 +462,18 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   }
   if (call.name === 'movscript_create_generation_job') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'completed'
-    const outputResourceId = isRecord(parsed) && typeof parsed.output_resource_id === 'number'
+    const outputResourceId = isRecord(parsed) && isValidAgentEntityId(parsed.output_resource_id)
       ? `，输出资源 #${parsed.output_resource_id}`
       : ''
-    const jobId = isRecord(parsed) && typeof parsed.jobId === 'number' ? `Job #${parsed.jobId}` : '生成任务'
+    const jobId = isRecord(parsed) && isValidAgentEntityId(parsed.jobId) ? `Job #${parsed.jobId}` : '生成任务'
     const terminal = isRecord(parsed) && parsed.terminal === true
     if (!terminal && !outputResourceId) return `${jobId} 已创建，当前状态：${status}。`
     return `${jobId} 已执行（${status}${outputResourceId}）。`
   }
   if (call.name === 'movscript_get_generation_job') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
-    const jobId = isRecord(parsed) && typeof parsed.jobId === 'number' ? `Job #${parsed.jobId}` : '生成任务'
-    const outputResourceId = isRecord(parsed) && typeof parsed.output_resource_id === 'number'
+    const jobId = isRecord(parsed) && isValidAgentEntityId(parsed.jobId) ? `Job #${parsed.jobId}` : '生成任务'
+    const outputResourceId = isRecord(parsed) && isValidAgentEntityId(parsed.output_resource_id)
       ? `，输出资源 #${parsed.output_resource_id}`
       : ''
     const progress = isRecord(parsed) && typeof parsed.progress === 'number' ? `，进度 ${parsed.progress}%` : ''
@@ -472,12 +490,8 @@ function describeToolResult(call: ToolCall, result: JSONValue): string {
   }
   if (call.name === 'movscript_cancel_generation_job') {
     const status = isRecord(parsed) && typeof parsed.status === 'string' ? parsed.status : 'unknown'
-    const jobId = isRecord(parsed) && typeof parsed.jobId === 'number' ? `Job #${parsed.jobId}` : '生成任务'
+    const jobId = isRecord(parsed) && isValidAgentEntityId(parsed.jobId) ? `Job #${parsed.jobId}` : '生成任务'
     return `${jobId} 已请求取消，当前状态：${status}。`
   }
   return `调用 ${call.name}。`
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

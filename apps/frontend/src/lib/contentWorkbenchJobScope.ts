@@ -1,3 +1,5 @@
+import { isRecord } from '@/lib/jsonValue'
+
 export interface ContentWorkbenchJobScopeLike {
   ID?: number
   id?: number | string
@@ -95,10 +97,6 @@ function firstRecordField(record: Record<string, unknown>, keys: string[]) {
     if (record[key] !== undefined && record[key] !== null) return record[key]
   }
   return undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
 
 function positiveInteger(value: unknown) {

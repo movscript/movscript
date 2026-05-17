@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, join, normalize, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isRecord } from '../jsonValue.js'
 import { InMemoryKnowledgeStore, type KnowledgeStore } from './knowledgeStore.js'
 import type { KnowledgeChunk, KnowledgeCollection } from './types.js'
 
@@ -27,13 +28,15 @@ export function loadKnowledgeStore(rootDir: string): InMemoryKnowledgeStore {
   const chunks: KnowledgeChunk[] = []
   if (!existsSync(rootDir)) return new InMemoryKnowledgeStore({ collections, chunks })
   for (const indexPath of listKnowledgeIndexFiles(rootDir)) {
-    const parsed = JSON.parse(readFileSync(indexPath, 'utf8')) as Record<string, unknown>
+    const parsed = readKnowledgeIndex(indexPath)
+    if (!isRecord(parsed)) continue
     const collection = normalizeCollection(parsed)
     if (!collection) continue
     const collectionDir = dirname(indexPath)
     const collectionChunks = collection.chunkIds.flatMap((resourcePath) => {
       const chunkPath = resolveInside(collectionDir, resourcePath)
-      return chunkPath ? normalizeChunk(readFileSync(chunkPath, 'utf8'), chunkPath, collection) : []
+      const chunkContent = chunkPath ? readKnowledgeChunk(chunkPath) : undefined
+      return chunkPath && chunkContent !== undefined ? normalizeChunk(chunkContent, chunkPath, collection) : []
     })
     collections.push({
       ...collection,
@@ -49,6 +52,22 @@ export function loadKnowledgeStore(rootDir: string): InMemoryKnowledgeStore {
     chunks.push(...collectionChunks)
   }
   return new InMemoryKnowledgeStore({ collections, chunks })
+}
+
+function readKnowledgeIndex(filePath: string): unknown {
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8')) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+function readKnowledgeChunk(filePath: string): string | undefined {
+  try {
+    return readFileSync(filePath, 'utf8')
+  } catch {
+    return undefined
+  }
 }
 
 export function resolveBuiltinKnowledgeDir(): string {

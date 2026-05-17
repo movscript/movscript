@@ -1,3 +1,5 @@
+import { cloneJSONValue, isJSONRecord, isJSONValue, isRecord } from '../jsonValue.js'
+import { isValidAgentEntityId, isValidAgentProjectId } from '../context/runtimeContext.js'
 import type { JSONValue, ToolCall } from '../state/types.js'
 
 export type GenerationEventStage = 'created' | 'observed' | 'completed' | 'failed' | 'cancelled' | 'timeout'
@@ -33,15 +35,15 @@ export function buildGenerationEvent(call: ToolCall, result: JSONValue | undefin
   const payload = unwrapToolPayload(result)
   if (!isRecord(payload)) return undefined
   const status = stringField(payload.status) ?? statusFromJob(payload.job) ?? 'unknown'
-  const jobId = numberField(payload.jobId) ?? numberField(payload.job_id) ?? numberField(payload.job, 'ID') ?? numberField(payload.job, 'id')
+  const jobId = idField(payload.jobId) ?? idField(payload.job_id) ?? idField(payload.job, 'ID') ?? idField(payload.job, 'id')
   const terminal = payload.terminal === true || isTerminalStatus(status)
-  const outputResourceId = numberField(payload.output_resource_id) ?? numberField(payload.outputResourceId)
+  const outputResourceId = idField(payload.output_resource_id) ?? idField(payload.outputResourceId)
   const progress = numberField(payload.progress)
   const jobType = stringField(payload.jobType) ?? stringField(payload.job_type) ?? stringField(payload.job, 'job_type')
   const providerName = stringField(payload.providerName) ?? stringField(payload.provider_name) ?? stringField(payload.job, 'provider_name')
   const modelDisplay = stringField(payload.modelDisplay) ?? stringField(payload.model_display) ?? stringField(payload.job, 'model_display')
   const modelIdentifier = stringField(payload.modelIdentifier) ?? stringField(payload.model_identifier) ?? stringField(payload.job, 'model_identifier')
-  const modelConfigId = numberField(payload.modelConfigId) ?? numberField(payload.model_config_id) ?? numberField(payload.job, 'model_config_id')
+  const modelConfigId = idField(payload.modelConfigId) ?? idField(payload.model_config_id) ?? idField(payload.job, 'model_config_id')
   return {
     kind: 'generation_job',
     stage: inferStage(call.name, status, terminal),
@@ -56,7 +58,7 @@ export function buildGenerationEvent(call: ToolCall, result: JSONValue | undefin
     terminal,
     ...(progress !== undefined ? { progress } : {}),
     ...(outputResourceId !== undefined ? { outputResourceId } : {}),
-    ...(isJSONValue(payload.media) ? { media: payload.media } : {}),
+    ...(isJSONValue(payload.media) ? { media: cloneJSONValue(payload.media) } : {}),
     message: stringField(payload.message) ?? defaultMessage(call.name, jobId, status, progress, outputResourceId),
   }
 }
@@ -78,12 +80,12 @@ export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValu
   const payload = unwrapToolPayload(result)
   const monitor = isRecord(payload) && isRecord(payload.monitor) ? payload.monitor : undefined
   const monitorArgs = isRecord(monitor?.args) ? monitor.args : undefined
-  const jobId = event.jobId ?? numberField(monitorArgs?.jobId) ?? numberField(monitorArgs?.job_id)
+  const jobId = event.jobId ?? idField(monitorArgs?.jobId) ?? idField(monitorArgs?.job_id)
   if (jobId === undefined) return undefined
   const args: Record<string, JSONValue> = {
-    ...(isJSONRecord(monitorArgs) ? monitorArgs : {}),
+    ...(isJSONRecord(monitorArgs) ? cloneJSONValue(monitorArgs) : {}),
     jobId,
-    ...(typeof call.args?.projectId === 'number' ? { projectId: call.args.projectId } : {}),
+    ...(isValidAgentProjectId(call.args?.projectId) ? { projectId: call.args.projectId } : {}),
   }
   return {
     toolName: 'movscript_get_generation_job',
@@ -96,7 +98,9 @@ export function extractGenerationMonitorRequest(call: ToolCall, result: JSONValu
 
 function unwrapToolPayload(result: JSONValue | undefined): JSONValue | undefined {
   if (!isRecord(result)) return result
+  const hasData = Object.hasOwn(result, 'data')
   if (isJSONValue(result.data)) return result.data
+  if (isRecord(result.data)) return result.data
   if (Array.isArray(result.content)) {
     const text = result.content
       .map((item) => isRecord(item) && typeof item.text === 'string' ? item.text : undefined)
@@ -104,12 +108,13 @@ function unwrapToolPayload(result: JSONValue | undefined): JSONValue | undefined
     if (text) {
       try {
         const parsed = JSON.parse(text) as unknown
-        return isJSONValue(parsed) ? parsed : result
+        return isJSONValue(parsed) ? parsed : hasData ? undefined : result
       } catch {
-        return result
+        return hasData ? undefined : result
       }
     }
   }
+  if (hasData) return undefined
   return result
 }
 
@@ -167,20 +172,9 @@ function numberField(value: unknown, key?: string): number | undefined {
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
-  return isRecord(value) && Object.values(value).every(isJSONValue)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
+function idField(value: unknown, key?: string): number | undefined {
+  const raw = key && isRecord(value) ? value[key] : value
+  return isValidAgentEntityId(raw) ? raw : undefined
 }
 
 function clampNumber(value: number, min: number, max: number): number {

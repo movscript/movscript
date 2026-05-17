@@ -4,8 +4,11 @@ import test from 'node:test'
 import { MCPError } from '../mcpClient.js'
 import type { AgentRun, JSONValue } from '../state/types.js'
 import { KnowledgeManager, loadBuiltinKnowledgeStore } from '../knowledge/index.js'
+import { MemoryManager } from '../memory/memoryManager.js'
+import { InMemoryAgentMemoryStore } from '../memory/memoryStore.js'
 import { InMemoryAgentDraftStore } from '../drafts/draftStore.js'
 import { executeTool } from './toolExecutor.js'
+import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 
 function testRun(): AgentRun {
   return {
@@ -153,6 +156,303 @@ test('executeTool creates content unit proposal drafts after media proposal depr
 
   assert.equal((result.result as any)?.status, 'created')
   assert.equal(draftStore.listDrafts()[0]?.kind, 'content_unit_proposal')
+})
+
+test('executeTool ignores non-plain runtime draft source and metadata records', async () => {
+  class RuntimeRecord {
+    injected = 'runtime'
+  }
+
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'movscript_create_draft',
+    args: {
+      kind: 'note',
+      title: 'Runtime draft',
+      content: 'Draft content',
+      source: new RuntimeRecord() as unknown as JSONValue,
+      metadata: new RuntimeRecord() as unknown as JSONValue,
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime draft creation')
+      },
+    }),
+    draftStore,
+  })
+
+  const draft = draftStore.listDrafts()[0]
+  assert.equal((result.result as any)?.id, draft?.id)
+  assert.deepEqual(draft?.source, {
+    runId: 'run-1',
+    threadId: 'thread-1',
+  })
+  assert.equal(draft?.metadata, undefined)
+})
+
+test('executeTool drops invalid numeric page entity ids from runtime draft source', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const run = testRun()
+  run.metadata = {
+    clientInput: {
+      uiSnapshot: {
+        pageContext: {
+          pageKey: 'production',
+          pageEntityType: 'production',
+          pageEntityId: 7.5,
+        },
+        selection: {
+          entityType: 'production',
+          entityId: Number.NaN,
+        },
+      },
+    },
+  }
+
+  await executeTool({
+    name: 'movscript_create_draft',
+    args: {
+      kind: 'note',
+      title: 'Runtime draft',
+      content: 'Draft content',
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime draft creation')
+      },
+    }),
+    run,
+    draftStore,
+  })
+
+  assert.deepEqual(draftStore.listDrafts()[0]?.source, {
+    runId: 'run-1',
+    threadId: 'thread-1',
+  })
+})
+
+test('executeTool rejects invalid project ids for project-scoped backend writes', async () => {
+  for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    await assert.rejects(
+      () => executeTool({
+        name: 'movscript_create_script',
+        args: { projectId, title: 'Invalid project script' },
+      }, {
+        ...testOptions({
+          async initialize(): Promise<JSONValue> {
+            return {}
+          },
+          async callTool(): Promise<JSONValue> {
+            throw new Error('MCP should not be called for runtime script creation')
+          },
+        }),
+        backendApplyClient: {
+          async createScript(): Promise<never> {
+            throw new Error('backend create should not be called for invalid project ids')
+          },
+        } as never,
+      }),
+      /create_script requires projectId/,
+    )
+  }
+})
+
+test('executeTool drops invalid user ids from create script backend auth', async () => {
+  const calls: Array<{ auth?: { userId?: number | string } }> = []
+  const result = await executeTool({
+    name: 'movscript_create_script',
+    args: {
+      projectId: 42,
+      createdByUserId: 7.5,
+      title: 'Script',
+      content: 'Body',
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime script creation')
+      },
+    }),
+    backendApplyClient: {
+      async createScript(_projectId: number, _payload: Record<string, JSONValue>, auth?: { userId?: number | string }): Promise<JSONValue> {
+        calls.push({ auth })
+        return { performed: true }
+      },
+    } as never,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  assert.deepEqual(calls[0]?.auth, {})
+})
+
+test('executeTool rejects invalid project ids for project proposals', async () => {
+  for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']) {
+    await assert.rejects(
+      () => executeTool({
+        name: 'movscript_create_draft',
+        args: {
+          kind: 'project_proposal',
+          proposal: true,
+          projectId,
+          content: JSON.stringify({
+            schema: DRAFT_CONTENT_SCHEMA_IDS.projectProposal,
+            scope: 'project_proposal',
+            proposal: {},
+          }),
+        },
+      }, {
+        ...testOptions({
+          async initialize(): Promise<JSONValue> {
+            return {}
+          },
+          async callTool(): Promise<JSONValue> {
+            throw new Error('MCP should not be called for runtime proposal creation')
+          },
+        }),
+        draftStore: new InMemoryAgentDraftStore(),
+      }),
+      /create_proposal requires projectId for project_proposal/,
+    )
+  }
+})
+
+test('executeTool ignores invalid production ids for inferred proposal targets', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'movscript_create_draft',
+    args: {
+      kind: 'production_proposal',
+      proposal: true,
+      projectId: 42,
+      productionId: '7',
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+        mode: 'snapshot',
+        productionId: 7,
+        proposalScope: 'production',
+        proposal: {
+          segments: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime proposal creation')
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  assert.deepEqual(draftStore.listDrafts()[0]?.target, {
+    projectId: 42,
+    entityType: 'production',
+    field: 'proposal',
+  })
+})
+
+test('executeTool drops invalid numeric entity ids from explicit proposal targets', async () => {
+  const draftStore = new InMemoryAgentDraftStore()
+  const result = await executeTool({
+    name: 'movscript_create_draft',
+    args: {
+      kind: 'production_proposal',
+      proposal: true,
+      projectId: 42,
+      target: {
+        entityType: 'production',
+        entityId: 7.5,
+        field: 'proposal',
+      },
+      content: JSON.stringify({
+        schema: DRAFT_CONTENT_SCHEMA_IDS.productionProposal,
+        mode: 'snapshot',
+        productionId: 7,
+        proposalScope: 'production',
+        proposal: {
+          segments: [],
+        },
+      }),
+    },
+  }, {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime proposal creation')
+      },
+    }),
+    draftStore,
+  })
+
+  assert.equal((result.result as any)?.status, 'created')
+  assert.deepEqual(draftStore.listDrafts()[0]?.target, {
+    entityType: 'production',
+    field: 'proposal',
+  })
+})
+
+test('executeTool rejects invalid project ids for memory tools', async () => {
+  const memoryManager = new MemoryManager(new InMemoryAgentMemoryStore())
+  const options = {
+    ...testOptions({
+      async initialize(): Promise<JSONValue> {
+        return {}
+      },
+      async callTool(): Promise<JSONValue> {
+        throw new Error('MCP should not be called for runtime memory tools')
+      },
+    }),
+    memoryManager,
+  }
+  const invalidProjectIds = [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']
+
+  for (const projectId of invalidProjectIds) {
+    await assert.rejects(
+      () => executeTool({
+        name: 'movscript_search_memories',
+        args: { projectId, query: 'preference' } as Record<string, JSONValue>,
+      }, options),
+      /search_memories requires projectId/,
+    )
+    await assert.rejects(
+      () => executeTool({
+        name: 'movscript_get_memory',
+        args: { projectId, id: 'mem_1' } as Record<string, JSONValue>,
+      }, options),
+      /get_memory requires projectId/,
+    )
+    await assert.rejects(
+      () => executeTool({
+        name: 'movscript_create_memory',
+        args: { projectId, title: 'Preference', kind: 'preference', content: 'Remember this.' } as Record<string, JSONValue>,
+      }, options),
+      /create_memory requires projectId/,
+    )
+    await assert.rejects(
+      () => executeTool({
+        name: 'movscript_delete_memory',
+        args: { projectId, id: 'mem_1' } as Record<string, JSONValue>,
+      }, options),
+      /delete_memory requires projectId/,
+    )
+  }
 })
 
 test('executeTool enforces per-run knowledge character budget', async () => {
@@ -463,6 +763,42 @@ test('executeTool does not repair generation input resource validation errors', 
         prompt: 'make a shot',
         job_type: 'image_edit',
         input_resource_ids: [1, 2, 3, 4, 5],
+      },
+    }, testOptions(mcpClient)),
+    MCPError,
+  )
+  assert.equal(calls.length, 1)
+})
+
+test('executeTool ignores non-plain backend suggested_fix records', async () => {
+  class RuntimeSuggestedFix {
+    duration = '5'
+  }
+
+  const calls: Array<{ name: string; args?: Record<string, JSONValue> }> = []
+  const mcpClient = {
+    async initialize(): Promise<JSONValue> {
+      return {}
+    },
+    async callTool(name: string, args: Record<string, JSONValue> = {}): Promise<JSONValue> {
+      calls.push({ name, args })
+      throw new MCPError('invalid duration', -32000, {
+        type: 'backend_http_error',
+        status: 400,
+        code: 'INVALID_PARAMETER_OPTION',
+        field: 'duration',
+        suggested_fix: new RuntimeSuggestedFix() as unknown as JSONValue,
+      })
+    },
+  }
+
+  await assert.rejects(
+    executeTool({
+      name: 'movscript_create_generation_job',
+      args: {
+        prompt: 'make a shot',
+        job_type: 'video',
+        duration: '6',
       },
     }, testOptions(mcpClient)),
     MCPError,

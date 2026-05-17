@@ -1,4 +1,4 @@
-import { isJSONRecord } from '../jsonValue.js'
+import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
 import type { AgentPlan, AgentTask, AgentThread, CreatePlanInput, CreateRunInput } from './types.js'
 
 export function normalizeCreatePlanThreadId(value: unknown): string | undefined {
@@ -27,10 +27,10 @@ export function buildAgentPlan(input: {
     status: input.taskCount > 0 ? 'pending' : 'blocked',
     progress: 0,
     metadata: {
-      ...(isJSONRecord(input.planInput.metadata) ? input.planInput.metadata : {}),
+      ...(isJSONRecord(input.planInput.metadata) ? cloneJSONValue(input.planInput.metadata) : {}),
       ...(input.goal ? { goal: input.goal } : {}),
       ...(input.plannerSource ? { plannerSource: input.plannerSource } : {}),
-      ...(warnings.length > 0 ? { plannerWarnings: warnings } : {}),
+      ...(warnings.length > 0 ? { plannerWarnings: [...warnings] } : {}),
     },
     createdAt: input.now,
     updatedAt: input.now,

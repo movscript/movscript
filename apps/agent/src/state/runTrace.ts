@@ -1,3 +1,4 @@
+import { isRecord } from '../jsonValue.js'
 import type { AgentRun, AgentRunStep, AgentTraceEvent, AgentTraceEventKind, JSONValue } from './types.js'
 import type { AgentRunRoundInfo } from './runRound.js'
 
@@ -56,7 +57,7 @@ export function completeRunStep(step: AgentRunStep, input: CompleteRunStepInput)
   if (input.errorData !== undefined) step.errorData = input.errorData
   if (input.sandboxed) step.sandboxed = input.sandboxed
   step.completedAt = input.completedAt
-  if (typeof input.durationMs === 'number' && Number.isFinite(input.durationMs)) step.durationMs = input.durationMs
+  if (isNonNegativeFiniteNumber(input.durationMs)) step.durationMs = input.durationMs
   return step
 }
 
@@ -98,7 +99,7 @@ export function appendTraceEvent(input: AppendTraceEventInput): AgentTraceEvent 
     ...(input.stepId ? { stepId: input.stepId } : {}),
     ...(input.toolName ? { toolName: input.toolName } : {}),
     ...(input.data !== undefined ? { data: toJSONValue(input.data) } : {}),
-    ...(typeof input.durationMs === 'number' && Number.isFinite(input.durationMs) ? { durationMs: input.durationMs } : {}),
+    ...(isNonNegativeFiniteNumber(input.durationMs) ? { durationMs: input.durationMs } : {}),
     ...(input.completedAt ? { completedAt: input.completedAt } : {}),
   }
   input.run.updatedAt = event.completedAt ?? event.createdAt
@@ -149,6 +150,10 @@ function toJSONValue(value: unknown): JSONValue {
   return toBoundedJSONValue(value, { depth: 0, ancestors: new WeakSet<object>() })
 }
 
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
 function toBoundedJSONValue(value: unknown, state: { depth: number; ancestors: WeakSet<object> }): JSONValue {
   if (value === undefined) return null
   if (value === null || typeof value === 'boolean') return value
@@ -179,8 +184,4 @@ function toBoundedJSONValue(value: unknown, state: { depth: number; ancestors: W
   if (entries.length > MAX_TRACE_OBJECT_KEYS) out.__truncatedKeys = entries.length - MAX_TRACE_OBJECT_KEYS
   state.ancestors.delete(value)
   return out
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

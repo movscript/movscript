@@ -1,4 +1,5 @@
 import type { JSONValue } from '../types.js'
+import { isJSONRecord, isRecord } from '../jsonValue.js'
 
 export type AgentManifestSchema = 'movscript.agent.current'
 export type AgentToolGrantMode = 'allow' | 'deny'
@@ -108,20 +109,4 @@ function normalizeModelBinding(value: Record<string, unknown>): AgentManifest['m
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  return isJSONRecord(value)
 }

@@ -1,5 +1,6 @@
 import type { CatalogRegistry, ExpertiseSkill, RuntimeContext, SkillDefinition, WorkflowSkill } from '../catalog/types.js'
 import { fitPromptPartsToBudget, renderPromptBudgetParts } from '../contextManager/contextBudgeter.js'
+import { isRecord } from '../jsonValue.js'
 
 const PLACEHOLDER_RE = /\{\{(tool|schema|ctx):([^}]+)\}\}/g
 
@@ -65,20 +66,20 @@ function renderSchemaRef(ref: string, registry: CatalogRegistry): string {
 }
 
 function enumActions(schema: unknown): string[] {
-  if (!schema || typeof schema !== 'object') return []
+  if (!isRecord(schema)) return []
   const actions = new Set<string>()
   visit(schema)
   return Array.from(actions)
 
   function visit(value: unknown): void {
-    if (!value || typeof value !== 'object') return
     if (Array.isArray(value)) {
       value.forEach(visit)
       return
     }
-    const record = value as Record<string, unknown>
-    if (record.action && typeof record.action === 'object' && 'const' in record.action && typeof (record.action as Record<string, unknown>).const === 'string') {
-      actions.add((record.action as Record<string, string>).const)
+    if (!isRecord(value)) return
+    const record = value
+    if (isRecord(record.action) && typeof record.action.const === 'string') {
+      actions.add(record.action.const)
     }
     Object.values(record).forEach(visit)
   }
@@ -86,8 +87,8 @@ function enumActions(schema: unknown): string[] {
 
 function getPath(value: Record<string, unknown>, path: string): unknown {
   return path.split('.').reduce<unknown>((current, key) => {
-    if (!current || typeof current !== 'object') return undefined
-    return (current as Record<string, unknown>)[key]
+    if (!isRecord(current)) return undefined
+    return current[key]
   }, value)
 }
 

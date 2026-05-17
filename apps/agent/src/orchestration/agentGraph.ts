@@ -23,6 +23,7 @@ import {
   type GenerationEvent,
 } from '../generation/generationEvents.js'
 import { contextManager } from '../contextManager/contextManager.js'
+import { isJSONRecord } from '../jsonValue.js'
 
 export interface AgentGraphTraceInput {
   kind: AgentTraceEventKind
@@ -620,10 +621,6 @@ function normalizeText(value: JSONValue | undefined): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
 }
 
-function isJSONRecord(value: JSONValue): value is Record<string, JSONValue> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
 async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): Promise<Partial<AgentGraphState>> {
   throwIfAborted(input.signal)
   const currentRoundIndex = state.roundIndex
@@ -877,8 +874,8 @@ async function runExecuteNode(state: AgentGraphState, input: AgentGraphInput): P
 
 function updateRunContextLedger(input: AgentGraphInput, call: ToolCall, result: JSONValue | undefined, source: 'runtime' | 'mcp' | 'sandbox'): ReturnType<typeof contextManager.recordToolResult> {
   const catalogSnapshotValue = input.run.metadata?.catalogSnapshot
-  const catalogSnapshot = catalogSnapshotValue && typeof catalogSnapshotValue === 'object' && !Array.isArray(catalogSnapshotValue)
-    ? catalogSnapshotValue as Record<string, JSONValue>
+  const catalogSnapshot = isJSONRecord(catalogSnapshotValue)
+    ? catalogSnapshotValue
     : undefined
   const catalogSnapshotId = typeof catalogSnapshot?.id === 'string' ? catalogSnapshot.id : 'unknown'
   const catalogSnapshotVersion = typeof catalogSnapshot?.version === 'string' ? catalogSnapshot.version : undefined
@@ -1014,8 +1011,8 @@ function toolCallStreamTraceKey(roundIndex: number, toolCall: { index?: number }
 function parseArgs(input: string): Record<string, JSONValue> {
   try {
     const parsed = JSON.parse(input)
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? parsed as Record<string, JSONValue>
+    return isJSONRecord(parsed)
+      ? parsed
       : {}
   } catch {
     return {}
@@ -1097,12 +1094,8 @@ function stringField(value: unknown): string | undefined {
 }
 
 function numberField(value: unknown, key?: string): number | undefined {
-  const candidate = key && isJSONRecordValue(value) ? value[key] : value
+  const candidate = key && isJSONRecord(value) ? value[key] : value
   return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : undefined
-}
-
-function isJSONRecordValue(value: unknown): value is Record<string, JSONValue> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function makeId(prefix: string): string {

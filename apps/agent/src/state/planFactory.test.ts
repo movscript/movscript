@@ -62,6 +62,35 @@ test('buildAgentPlan falls back to thread title and blocked status without tasks
   assert.deepEqual(plan.metadata, {})
 })
 
+test('buildAgentPlan stores independent metadata and planner warning snapshots', () => {
+  const metadata = {
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  }
+  const plannerWarnings = ['warning']
+  const plan = buildAgentPlan({
+    id: 'plan_1',
+    thread: makeThread(),
+    planInput: {
+      title: 'Plan',
+      metadata,
+    },
+    taskCount: 1,
+    now: '2026-01-01T00:00:00.000Z',
+    plannerWarnings,
+  })
+
+  metadata.nested.value = 'changed'
+  metadata.list[0]!.id = 'changed'
+  plannerWarnings[0] = 'changed'
+
+  assert.deepEqual(plan.metadata, {
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+    plannerWarnings: ['warning'],
+  })
+})
+
 test('buildCreatePlanPlannerRunInput forwards root planner run controls explicitly', () => {
   assert.deepEqual(buildCreatePlanPlannerRunInput({
     plan: makePlan(),

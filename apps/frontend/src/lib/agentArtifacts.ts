@@ -1,4 +1,5 @@
 import type { AgentDraftKind, AgentRun } from '@/lib/localAgentClient'
+import { isRecord } from '@/lib/jsonValue'
 
 export interface AgentTaskArtifactRef {
   type: 'draft'
@@ -13,10 +14,6 @@ export interface AgentTaskArtifactRef {
   sourceRunId?: string
   sourceThreadId?: string
   updatedAt?: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function stringValue(value: unknown): string | undefined {

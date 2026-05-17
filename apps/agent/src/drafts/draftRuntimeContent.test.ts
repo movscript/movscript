@@ -44,6 +44,15 @@ test('canonicalizeProjectProposalDraftContent rejects unsupported or malformed i
   assert.equal(canonicalizeProjectProposalDraftContent(draft(), backendApply({ other: true })), undefined)
 })
 
+test('canonicalizeProjectProposalDraftContent rejects non-finite canonical snapshots', () => {
+  const content = canonicalizeProjectProposalDraftContent(
+    draft({ kind: 'asset_proposal' }),
+    backendApply({ canonical_snapshot: { asset_slots: [{ score: Number.POSITIVE_INFINITY }] } }),
+  )
+
+  assert.equal(content, undefined)
+})
+
 test('normalizeRuntimeDraftSource keeps known JSON-safe draft source fields', () => {
   assert.deepEqual(normalizeRuntimeDraftSource({
     entityType: 'script',
@@ -61,6 +70,21 @@ test('normalizeRuntimeDraftSource keeps known JSON-safe draft source fields', ()
   })
   assert.equal(normalizeRuntimeDraftSource({ ignored: 'ignored' }), undefined)
   assert.equal(normalizeRuntimeDraftSource({ entityType: Symbol('bad') }), undefined)
+  assert.equal(normalizeRuntimeDraftSource({ entityId: Number.POSITIVE_INFINITY }), undefined)
+})
+
+test('normalizeRuntimeDraftSource drops invalid numeric business reference ids', () => {
+  assert.deepEqual(normalizeRuntimeDraftSource({
+    entityType: 'scene_moment',
+    entityId: 0,
+    pageEntityType: 'production',
+    pageEntityId: 7.5,
+    pageKey: 'production',
+  }), {
+    entityType: 'scene_moment',
+    pageEntityType: 'production',
+    pageKey: 'production',
+  })
 })
 
 function draft(overrides: Partial<AgentDraft> = {}): AgentDraft {

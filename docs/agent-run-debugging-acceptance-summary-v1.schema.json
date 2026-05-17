@@ -9,6 +9,10 @@
     "schemaUrl",
     "generatedAt",
     "artifactRoot",
+    "environment",
+    "requiredScreenshots",
+    "screenshotDiagnostics",
+    "cleanArtifacts",
     "browser",
     "screenshotArtifacts",
     "passed"
@@ -25,7 +29,34 @@
       "format": "date-time"
     },
     "artifactRoot": {
-      "const": "apps/frontend/test-results"
+      "type": "string",
+      "minLength": 1
+    },
+    "environment": {
+      "$ref": "#/$defs/environment"
+    },
+    "requiredScreenshots": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "agent-run-debug-overview.png",
+          "agent-run-model-call-expanded.png",
+          "agent-run-http-request-detail.png",
+          "agent-run-http-response-detail.png",
+          "agent-run-attention-events.png",
+          "agent-run-missing-data.png"
+        ]
+      }
+    },
+    "screenshotDiagnostics": {
+      "$ref": "#/$defs/screenshotDiagnostics"
+    },
+    "cleanArtifacts": {
+      "$ref": "#/$defs/stepResult"
     },
     "browser": {
       "$ref": "#/$defs/stepResult"
@@ -38,6 +69,104 @@
     }
   },
   "$defs": {
+    "screenshotDiagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "presentScreenshots",
+        "missingScreenshots",
+        "invalidScreenshots"
+      ],
+      "properties": {
+        "presentScreenshots": {
+          "$ref": "#/$defs/screenshotList"
+        },
+        "missingScreenshots": {
+          "$ref": "#/$defs/screenshotList"
+        },
+        "invalidScreenshots": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "reasons"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "enum": [
+                  "agent-run-debug-overview.png",
+                  "agent-run-model-call-expanded.png",
+                  "agent-run-http-request-detail.png",
+                  "agent-run-http-response-detail.png",
+                  "agent-run-attention-events.png",
+                  "agent-run-missing-data.png"
+                ]
+              },
+              "reasons": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "screenshotList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "agent-run-debug-overview.png",
+          "agent-run-model-call-expanded.png",
+          "agent-run-http-request-detail.png",
+          "agent-run-http-response-detail.png",
+          "agent-run-attention-events.png",
+          "agent-run-missing-data.png"
+        ]
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "usesExternalBaseURL",
+        "baseURLOrigin",
+        "preflightPort",
+        "artifactRootOverride"
+      ],
+      "properties": {
+        "usesExternalBaseURL": {
+          "type": "boolean"
+        },
+        "baseURLOrigin": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "preflightPort": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "artifactRootOverride": {
+          "type": "boolean"
+        }
+      }
+    },
     "stepResult": {
       "type": "object",
       "additionalProperties": false,

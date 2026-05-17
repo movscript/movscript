@@ -1,3 +1,4 @@
+import { cloneJSONValue, isJSONRecord, isRecord } from '../jsonValue.js'
 import type {
   AgentTask,
   AgentTaskArtifact,
@@ -68,7 +69,7 @@ export function buildAgentTask(planId: string, input: CreatePlanTaskInput, now: 
   const title = normalizeNonEmptyString(input.title)
   if (!title) throw new Error('task title is required')
   const metadata = {
-    ...(isJSONRecord(input.metadata) ? input.metadata : {}),
+    ...(isJSONRecord(input.metadata) ? cloneJSONValue(input.metadata) : {}),
     ...taskExecutionOverrideMetadata(input),
   }
   return {
@@ -107,7 +108,7 @@ export function normalizeTaskArtifacts(value: unknown, now: string): AgentTaskAr
       type,
       ...(normalizeNonEmptyString(item.title) ? { title: normalizeNonEmptyString(item.title) } : {}),
       ...(normalizeNonEmptyString(item.uri) ? { uri: normalizeNonEmptyString(item.uri) } : {}),
-      ...(isJSONRecord(item.metadata) ? { metadata: item.metadata } : {}),
+      ...(isJSONRecord(item.metadata) ? { metadata: cloneJSONValue(item.metadata) } : {}),
       createdAt: normalizeNonEmptyString(item.createdAt) ?? now,
     }]
   })
@@ -115,22 +116,6 @@ export function normalizeTaskArtifacts(value: unknown, now: string): AgentTaskAr
 
 function normalizeNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  return isJSONRecord(value)
 }
 
 function makeId(prefix: string): string {

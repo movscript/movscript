@@ -91,6 +91,23 @@ test('retrieved context store selects newest records first before applying budge
   assert.deepEqual(selected.map((record) => record.ref.id), ['newer.small'])
 })
 
+test('retrieved context store rejects non-plain ledger records', () => {
+  class RuntimeRecord {
+    ref = { type: 'knowledge', id: 'storyboard.rhythm.basic' }
+    source = 'knowledge'
+    evidence = 'advisory'
+    title = '分镜节奏基础'
+    retrievedAt = '2026-01-01T00:00:00.000Z'
+    usedInPrompt = true
+  }
+
+  const store = buildRetrievedContextStore({
+    retrieved: [new RuntimeRecord()],
+  })
+
+  assert.deepEqual(store.records, [])
+})
+
 function knowledgeRecord(id: string, charCount: number, retrievedAt = '2026-01-01T00:00:00.000Z'): Record<string, unknown> {
   return {
     ref: { type: 'knowledge', id },

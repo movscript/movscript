@@ -66,6 +66,22 @@ test('completeRunStep records terminal status, output, and timing', () => {
   assert.equal(step.durationMs, 2000)
 })
 
+test('completeRunStep drops invalid and negative durations', () => {
+  const step = buildRunStep({
+    id: 'step_1',
+    runId: 'run_1',
+    type: 'tool_call',
+    createdAt: '2026-05-06T00:00:00.000Z',
+  })
+
+  completeRunStep(step, {
+    completedAt: '2026-05-06T00:00:02.000Z',
+    durationMs: -1,
+  })
+
+  assert.equal(step.durationMs, undefined)
+})
+
 test('completeRunStep marks errors as failed and keeps error data', () => {
   const step = buildRunStep({
     id: 'step_1',
@@ -114,6 +130,32 @@ test('appendTraceEvent builds sanitized trace data and updates run timestamp wit
   })
 })
 
+test('appendTraceEvent records only non-negative trace durations', () => {
+  const run = buildRun()
+
+  const zeroDuration = appendTraceEvent({
+    id: 'trace_1',
+    run,
+    now: '2026-05-06T00:00:01.000Z',
+    kind: 'tool_call',
+    title: 'Tool',
+    status: 'completed',
+    durationMs: 0,
+  })
+  const negativeDuration = appendTraceEvent({
+    id: 'trace_2',
+    run,
+    now: '2026-05-06T00:00:02.000Z',
+    kind: 'tool_call',
+    title: 'Tool',
+    status: 'completed',
+    durationMs: -1,
+  })
+
+  assert.equal(zeroDuration.durationMs, 0)
+  assert.equal(negativeDuration.durationMs, undefined)
+})
+
 test('appendTraceEvent bounds recursive trace data without throwing', () => {
   const run = buildRun()
   const circular: Record<string, unknown> = { name: 'root' }
@@ -148,6 +190,27 @@ test('appendTraceEvent bounds recursive trace data without throwing', () => {
   assert.match(data.longText, /truncated 10 chars/)
   assert.equal(data.nonFinite, 'NaN')
   assert.equal(data.big, '123')
+})
+
+test('appendTraceEvent stringifies non-plain trace data objects instead of dropping their shape', () => {
+  const run = buildRun()
+
+  const event = appendTraceEvent({
+    id: 'trace_1',
+    run,
+    now: '2026-05-06T00:00:01.000Z',
+    kind: 'error',
+    title: 'Runtime object trace data',
+    status: 'failed',
+    data: {
+      at: new Date('2026-01-01T00:00:00.000Z'),
+      map: new Map([['status', 'queued']]),
+    },
+  })
+  const data = event.data as Record<string, unknown>
+
+  assert.match(String(data.at), /2026/)
+  assert.equal(data.map, '[object Map]')
 })
 
 test('normalizeTracePageLimit clamps invalid and oversized page sizes', () => {

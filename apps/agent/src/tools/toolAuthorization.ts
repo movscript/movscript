@@ -1,4 +1,5 @@
 import type { AgentToolGrant } from '../catalog/agentManifest.js'
+import { isValidAgentProjectId } from '../context/runtimeContext.js'
 import type { AgentRunRole, ToolUnavailableReason } from '../state/types.js'
 import type { RegisteredTool } from './toolRegistry.js'
 
@@ -18,6 +19,6 @@ export function getToolAuthorizationUnavailableReason(input: {
     && input.registeredTool.allowedRunRoles
     && !input.registeredTool.allowedRunRoles.includes(input.runRole)
   ) return 'wrong_run_role'
-  if (input.registeredTool.projectScoped && input.currentProjectId === undefined) return 'missing_project'
+  if (input.registeredTool.projectScoped && !isValidAgentProjectId(input.currentProjectId)) return 'missing_project'
   return undefined
 }

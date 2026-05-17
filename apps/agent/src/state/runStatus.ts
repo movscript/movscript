@@ -1,3 +1,4 @@
+import { cloneJSONValue } from '../jsonValue.js'
 import type { AgentRun, JSONValue } from './types.js'
 import { cancelPendingRunInteractions } from './runInteractionState.js'
 
@@ -48,7 +49,7 @@ export function applyRunCompletion(run: AgentRun, input: {
   if (input.metadataPatch) {
     run.metadata = {
       ...(run.metadata ?? {}),
-      ...input.metadataPatch,
+      ...cloneJSONValue(input.metadataPatch),
     }
   }
   run.status = warnings ? 'completed_with_warnings' : 'completed'

@@ -13,6 +13,79 @@ function countOccurrences(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1
 }
 
+function publicMethodNames(classSource: string): string[] {
+  return [...classSource.matchAll(/^  (?:async )?([a-zA-Z_][a-zA-Z0-9_]*)\(/gm)]
+    .map((match) => match[1])
+    .filter((name) => name !== 'constructor')
+    .sort()
+}
+
+const facadeDelegates = [
+  ['getCapabilities', 'this.catalogOperations.getCapabilities(input)'],
+  ['listRegisteredTools', 'this.catalogOperations.listRegisteredTools()'],
+  ['listSkillCatalog', 'this.catalogOperations.listSkillCatalog()'],
+  ['getDefaultAgentManifest', 'this.catalogOperations.getDefaultAgentManifest()'],
+  ['reloadAgentCatalog', 'this.catalogOperations.reloadAgentCatalog()'],
+  ['inspectAgentCatalog', 'this.catalogOperations.inspectAgentCatalog(run, input)'],
+  ['createAgentPlan', 'this.agentPlanTools.createAgentPlan(run, input)'],
+  ['getAgentPlan', 'this.agentPlanTools.getAgentPlan(run, input)'],
+  ['replanAgentPlan', 'this.agentPlanTools.replanAgentPlan(run, input)'],
+  ['spawnSubagent', 'this.subagentTools.spawnSubagent(run, input)'],
+  ['listSubagents', 'this.subagentTools.listSubagents(run, input)'],
+  ['waitSubagent', 'this.subagentTools.waitSubagent(run, input)'],
+  ['cancelSubagent', 'this.subagentTools.cancelSubagent(run, input)'],
+  ['createThread', 'this.threads.createThread(input)'],
+  ['listThreads', 'this.threads.listThreads()'],
+  ['listThreadSummaries', 'this.threads.listThreadSummaries()'],
+  ['getThread', 'this.threads.getThread(id)'],
+  ['updateThread', 'this.threads.updateThread(id, input)'],
+  ['addMessage', 'this.threads.addMessage(threadId, input)'],
+  ['createRun', 'this.runCreation.createRun(input)'],
+  ['createToolRun', 'this.runCreation.createToolRun(input)'],
+  ['previewRun', 'this.runPreview.previewRun(input)'],
+  ['listRuns', 'this.entityReads.listRuns()'],
+  ['listRunsByParent', 'this.entityReads.listRunsByParent(parentRunId)'],
+  ['getRun', 'this.entityReads.getRun(id)'],
+  ['getChildRuns', 'this.entityReads.getChildRuns(parentRunId)'],
+  ['createPlan', 'this.planCreation.createPlan(input)'],
+  ['listPlans', 'this.entityReads.listPlans()'],
+  ['getPlan', 'this.entityReads.getPlan(id)'],
+  ['getPlanSnapshot', 'this.entityReads.getPlanSnapshot(planId)'],
+  ['getTaskTree', 'this.entityReads.getTaskTree(planId)'],
+  ['updateTask', 'this.taskUpdate.updateTask(taskId, input)'],
+  ['cancelSubtree', 'this.treeCancellation.cancelSubtree(runId, input)'],
+  ['cancelPlanTree', 'this.treeCancellation.cancelPlanTree(runId, input)'],
+  ['dispatchPlan', 'this.planDispatch.dispatchPlan(input)'],
+  ['replanRun', 'this.replan.replanRun(runId, input)'],
+  ['getRunTraceEvents', 'this.traceReads.getRunTraceEvents(runId, query)'],
+  ['getRunTracePage', 'this.traceReads.getRunTracePage(runId, query)'],
+  ['getRunTraceSummary', 'this.traceReads.getRunTraceSummary(runId)'],
+  ['subscribeRunStream', 'this.streamSubscriptions.subscribeRunStream(runId, listener)'],
+  ['subscribePlanStream', 'this.streamSubscriptions.subscribePlanStream(planId, listener)'],
+  ['approveRun', 'this.runControl.approveRun(runId, input)'],
+  ['rejectRun', 'this.runControl.rejectRun(runId, input)'],
+  ['cancelRun', 'this.runControl.cancelRun(runId, input)'],
+  ['answerRunInputRequest', 'this.runControl.answerRunInputRequest(runId, input)'],
+  ['listMemories', 'this.memories.listMemories(query)'],
+  ['listMemorySummaries', 'this.memories.listMemorySummaries(query)'],
+  ['getMemory', 'this.memories.getMemory(projectId, id)'],
+  ['listDrafts', 'this.drafts.listDrafts(query)'],
+  ['createLocalDraft', 'this.drafts.createLocalDraft(input)'],
+  ['getDraft', 'this.drafts.getDraft(id)'],
+  ['updateDraft', 'this.drafts.updateDraft(input)'],
+  ['patchDraft', 'this.drafts.patchDraft(input)'],
+  ['validateDraft', 'this.drafts.validateDraft(input)'],
+  ['previewApplyDraft', 'this.drafts.previewApplyDraft(input)'],
+  ['simulateApplyDraft', 'this.drafts.simulateApplyDraft(input)'],
+  ['applyDraftFromUI', 'this.drafts.applyDraftFromUI(input)'],
+  ['rejectDraft', 'this.drafts.rejectDraft(input)'],
+  ['createMemory', 'this.memories.createMemory(input)'],
+  ['deleteMemory', 'this.memories.deleteMemory(projectId, id)'],
+  ['flushPostRunRecords', 'this.postRunRecords.flush()'],
+] as const
+
+const expectedPublicMethods = facadeDelegates.map(([methodName]) => methodName).sort()
+
 test('AgentRuntime remains a thin facade with a bounded source size', () => {
   const lineCount = source.split('\n').length
 
@@ -103,70 +176,6 @@ test('AgentRuntime composes the facade through explicit bridge modules', () => {
 })
 
 test('AgentRuntime public facade methods delegate through bridge fields', () => {
-  const facadeDelegates = [
-    ['getCapabilities', 'this.catalogOperations.getCapabilities(input)'],
-    ['listRegisteredTools', 'this.catalogOperations.listRegisteredTools()'],
-    ['listSkillCatalog', 'this.catalogOperations.listSkillCatalog()'],
-    ['getDefaultAgentManifest', 'this.catalogOperations.getDefaultAgentManifest()'],
-    ['reloadAgentCatalog', 'this.catalogOperations.reloadAgentCatalog()'],
-    ['inspectAgentCatalog', 'this.catalogOperations.inspectAgentCatalog(run, input)'],
-    ['createAgentPlan', 'this.agentPlanTools.createAgentPlan(run, input)'],
-    ['getAgentPlan', 'this.agentPlanTools.getAgentPlan(run, input)'],
-    ['replanAgentPlan', 'this.agentPlanTools.replanAgentPlan(run, input)'],
-    ['spawnSubagent', 'this.subagentTools.spawnSubagent(run, input)'],
-    ['listSubagents', 'this.subagentTools.listSubagents(run, input)'],
-    ['waitSubagent', 'this.subagentTools.waitSubagent(run, input)'],
-    ['cancelSubagent', 'this.subagentTools.cancelSubagent(run, input)'],
-    ['createThread', 'this.threads.createThread(input)'],
-    ['listThreads', 'this.threads.listThreads()'],
-    ['listThreadSummaries', 'this.threads.listThreadSummaries()'],
-    ['getThread', 'this.threads.getThread(id)'],
-    ['updateThread', 'this.threads.updateThread(id, input)'],
-    ['addMessage', 'this.threads.addMessage(threadId, input)'],
-    ['createRun', 'this.runCreation.createRun(input)'],
-    ['createToolRun', 'this.runCreation.createToolRun(input)'],
-    ['previewRun', 'this.runPreview.previewRun(input)'],
-    ['listRuns', 'this.entityReads.listRuns()'],
-    ['listRunsByParent', 'this.entityReads.listRunsByParent(parentRunId)'],
-    ['getRun', 'this.entityReads.getRun(id)'],
-    ['getChildRuns', 'this.entityReads.getChildRuns(parentRunId)'],
-    ['createPlan', 'this.planCreation.createPlan(input)'],
-    ['listPlans', 'this.entityReads.listPlans()'],
-    ['getPlan', 'this.entityReads.getPlan(id)'],
-    ['getPlanSnapshot', 'this.entityReads.getPlanSnapshot(planId)'],
-    ['getTaskTree', 'this.entityReads.getTaskTree(planId)'],
-    ['updateTask', 'this.taskUpdate.updateTask(taskId, input)'],
-    ['cancelSubtree', 'this.treeCancellation.cancelSubtree(runId, input)'],
-    ['cancelPlanTree', 'this.treeCancellation.cancelPlanTree(runId, input)'],
-    ['dispatchPlan', 'this.planDispatch.dispatchPlan(input)'],
-    ['replanRun', 'this.replan.replanRun(runId, input)'],
-    ['getRunTraceEvents', 'this.traceReads.getRunTraceEvents(runId, query)'],
-    ['getRunTracePage', 'this.traceReads.getRunTracePage(runId, query)'],
-    ['getRunTraceSummary', 'this.traceReads.getRunTraceSummary(runId)'],
-    ['subscribeRunStream', 'this.streamSubscriptions.subscribeRunStream(runId, listener)'],
-    ['subscribePlanStream', 'this.streamSubscriptions.subscribePlanStream(planId, listener)'],
-    ['approveRun', 'this.runControl.approveRun(runId, input)'],
-    ['rejectRun', 'this.runControl.rejectRun(runId, input)'],
-    ['cancelRun', 'this.runControl.cancelRun(runId, input)'],
-    ['answerRunInputRequest', 'this.runControl.answerRunInputRequest(runId, input)'],
-    ['listMemories', 'this.memories.listMemories(query)'],
-    ['listMemorySummaries', 'this.memories.listMemorySummaries(query)'],
-    ['getMemory', 'this.memories.getMemory(projectId, id)'],
-    ['listDrafts', 'this.drafts.listDrafts(query)'],
-    ['createLocalDraft', 'this.drafts.createLocalDraft(input)'],
-    ['getDraft', 'this.drafts.getDraft(id)'],
-    ['updateDraft', 'this.drafts.updateDraft(input)'],
-    ['patchDraft', 'this.drafts.patchDraft(input)'],
-    ['validateDraft', 'this.drafts.validateDraft(input)'],
-    ['previewApplyDraft', 'this.drafts.previewApplyDraft(input)'],
-    ['simulateApplyDraft', 'this.drafts.simulateApplyDraft(input)'],
-    ['applyDraftFromUI', 'this.drafts.applyDraftFromUI(input)'],
-    ['rejectDraft', 'this.drafts.rejectDraft(input)'],
-    ['createMemory', 'this.memories.createMemory(input)'],
-    ['deleteMemory', 'this.memories.deleteMemory(projectId, id)'],
-    ['flushPostRunRecords', 'this.postRunRecords.flush()'],
-  ] as const
-
   for (const [methodName, delegateCall] of facadeDelegates) {
     assert.equal(
       source.includes(delegateCall),
@@ -174,6 +183,10 @@ test('AgentRuntime public facade methods delegate through bridge fields', () => 
       `AgentRuntime.${methodName} should delegate through ${delegateCall}`,
     )
   }
+})
+
+test('AgentRuntime public facade surface stays explicit', () => {
+  assert.deepEqual(publicMethodNames(source), expectedPublicMethods)
 })
 
 test('AgentRuntime delegates trace reads without direct trace store access', () => {

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
+import { isRecord } from '../jsonValue.js'
 
 export interface RuntimeModelConfig {
   provider: 'backend-model-config'
@@ -224,7 +225,13 @@ export class RuntimeModelConfigStore {
 
   private readFileConfig(): RuntimeModelConfig | undefined {
     if (!existsSync(this.filePath)) return undefined
-    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as Partial<RuntimeModelConfig>
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+    } catch {
+      return undefined
+    }
+    if (!isRecord(parsed)) return undefined
     const modelConfigId = normalizePositiveInteger(parsed.modelConfigId)
     if (!modelConfigId) return undefined
     return {
@@ -540,9 +547,9 @@ function extractAssistantContent(parsed: { choices?: Array<{ message?: { content
 function normalizeRuntimeToolCalls(value: unknown): RuntimeModelChatToolCall[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item): RuntimeModelChatToolCall[] => {
-    if (!item || typeof item !== 'object') return []
-    const record = item as Record<string, unknown>
-    const fn = record.function && typeof record.function === 'object' ? record.function as Record<string, unknown> : undefined
+    if (!isRecord(item)) return []
+    const record = item
+    const fn = isRecord(record.function) ? record.function : undefined
     const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : undefined
     const name = typeof fn?.name === 'string' && fn.name.trim() ? fn.name.trim() : undefined
     const args = typeof fn?.arguments === 'string' ? fn.arguments : ''

@@ -49,6 +49,60 @@ test('MCPClient request error includes fetch cause details after retries are exh
   }
 })
 
+test('MCPClient error formatting does not trust non-plain fetch cause objects', async () => {
+  class RuntimeCause {
+    code = 'ECONNREFUSED'
+    address = '127.0.0.1'
+    port = 18765
+  }
+
+  const originalFetch = globalThis.fetch
+  try {
+    globalThis.fetch = (async () => {
+      const error = new Error('fetch failed') as Error & { cause?: unknown }
+      error.cause = new RuntimeCause()
+      throw error
+    }) as typeof fetch
+
+    const client = new MCPClient({ endpoint: 'http://127.0.0.1:18765/mcp' })
+    await assert.rejects(
+      client.initialize(),
+      (error: unknown) => {
+        assert.ok(error instanceof Error)
+        assert.match(error.message, /fetch failed/)
+        assert.doesNotMatch(error.message, /cause=code=ECONNREFUSED/)
+        assert.doesNotMatch(error.message, /address=127\.0\.0\.1/)
+        return true
+      },
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+test('MCPClient does not retry transient-looking non-plain fetch causes', async () => {
+  class RuntimeCause {
+    code = 'ECONNRESET'
+  }
+
+  const originalFetch = globalThis.fetch
+  let calls = 0
+  try {
+    globalThis.fetch = (async () => {
+      calls++
+      const error = new Error('fetch failed') as Error & { cause?: unknown }
+      error.cause = new RuntimeCause()
+      throw error
+    }) as typeof fetch
+
+    const client = new MCPClient({ endpoint: 'http://127.0.0.1:18765/mcp' })
+    await assert.rejects(client.initialize())
+    assert.equal(calls, 1, 'non-plain causes must not trigger transient retry handling')
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
 test('MCPClient retries transient ECONNRESET and returns the recovered response', async () => {
   const originalFetch = globalThis.fetch
   let calls = 0

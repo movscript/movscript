@@ -9,8 +9,10 @@ import type { ToolRegistry, ToolRiskLevel } from '../tools/toolRegistry.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
 import type { AgentMemoryKind } from '../memory/types.js'
 import { runtimeToolName } from '../tools/toolNames.js'
+import { isJSONRecord } from '../jsonValue.js'
 import type { KnowledgeManager } from '../knowledge/knowledgeManager.js'
 import { buildRetrievedContextStore, countRetrievedContextChars, selectRetrievedContext, uniqueRetrievedContextRefs } from '../contextManager/retrievedContextStore.js'
+import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId } from '../context/runtimeContext.js'
 
 export type ToolSource = 'runtime' | 'mcp' | 'sandbox'
 
@@ -103,10 +105,10 @@ async function callMCPToolWithGenerationRepair(
 function generationRepairArgs(toolName: string, args: Record<string, JSONValue>, error: unknown): Record<string, JSONValue> | undefined {
   if (toolName !== 'movscript_create_generation_job') return undefined
   if (!(error instanceof MCPError)) return undefined
-  const data = isRecord(error.data) ? error.data : undefined
+  const data = isJSONRecord(error.data) ? error.data : undefined
   if (!data || data.type !== 'backend_http_error' || data.status !== 400) return undefined
   if (!isRepairableGenerationValidationCode(data.code)) return undefined
-  const suggestedFix = isRecord(data.suggested_fix) ? data.suggested_fix : undefined
+  const suggestedFix = isJSONRecord(data.suggested_fix) ? data.suggested_fix : undefined
   if (!suggestedFix) return undefined
   const repaired = applyGenerationSuggestedFix(args, suggestedFix)
   if (!repaired) return undefined
@@ -127,7 +129,7 @@ function isRepairableGenerationValidationCode(code: unknown): boolean {
 function applyGenerationSuggestedFix(args: Record<string, JSONValue>, suggestedFix: Record<string, JSONValue>): Record<string, JSONValue> | undefined {
   let changed = false
   const next: Record<string, JSONValue> = { ...args }
-  const extraParams = isRecord(args.extra_params) ? { ...args.extra_params } : {}
+  const extraParams = isJSONRecord(args.extra_params) ? { ...args.extra_params } : {}
 
   for (const [key, value] of Object.entries(suggestedFix)) {
     if (!isGenerationRepairValue(value) && value !== null) continue
@@ -179,8 +181,8 @@ function applyGenerationSuggestedFix(args: Record<string, JSONValue>, suggestedF
 
 function appendGenerationRepairNote(result: JSONValue, repairNote: JSONValue | undefined): JSONValue {
   if (typeof repairNote !== 'string' || !repairNote.trim()) return result
-  if (!isRecord(result)) return result
-  if (isRecord(result.data)) {
+  if (!isJSONRecord(result)) return result
+  if (isJSONRecord(result.data)) {
     return {
       ...result,
       data: {
@@ -260,12 +262,12 @@ async function callRuntimeTool(
       return createProposalDraft(draftStore, run, args) as unknown as JSONValue
     }
     return draftStore.createDraft({
-      projectId: typeof args.projectId === 'number' ? args.projectId : undefined,
+      projectId: isValidAgentProjectId(args.projectId) ? args.projectId : undefined,
       kind: args.kind,
       title: args.title,
       content: args.content,
       source: {
-        ...(isRecord(args.source) ? args.source : {}),
+        ...(isJSONRecord(args.source) ? args.source : {}),
         runId: run.id,
         threadId: run.threadId,
         ...extractPageContext(run),
@@ -274,7 +276,7 @@ async function callRuntimeTool(
       seed: args.seed,
       createdByRunId: run.id,
       createdByThreadId: run.threadId,
-      metadata: isRecord(args.metadata) ? args.metadata : undefined,
+      metadata: isJSONRecord(args.metadata) ? args.metadata : undefined,
     }) as unknown as JSONValue
   }
 
@@ -314,13 +316,14 @@ async function callRuntimeTool(
   }
 
   if (toolName === 'movscript_create_script') {
-    const projectId = typeof args.projectId === 'number' && Number.isFinite(args.projectId) ? args.projectId : undefined
+    const projectId = isValidAgentProjectId(args.projectId) ? args.projectId : undefined
     if (projectId === undefined) throw new Error('create_script requires projectId')
-    const context = isRecord(run.metadata?.context) ? run.metadata.context as Record<string, unknown> : undefined
-    const userId = args.createdByUserId ?? (context?.user as Record<string, unknown> | undefined)?.id
+    const context = isJSONRecord(run.metadata?.context) ? run.metadata.context : undefined
+    const user = isJSONRecord(context?.user) ? context.user : undefined
+    const userId = args.createdByUserId ?? user?.id
     const payload = normalizeCreateScriptPayload(args)
     const backendCreate = await backendApplyClient.createScript(projectId, payload, {
-      ...(typeof userId === 'number' || typeof userId === 'string' ? { userId } : {}),
+      ...(isValidAgentReferenceId(userId) ? { userId } : {}),
       ...(typeof run.metadata?.backendAuthToken === 'string' ? { backendAuthToken: run.metadata.backendAuthToken } : {}),
       ...(typeof run.metadata?.backendAPIBaseURL === 'string' ? { backendAPIBaseURL: run.metadata.backendAPIBaseURL } : {}),
     })
@@ -337,7 +340,7 @@ async function callRuntimeTool(
 
   if (toolName === 'movscript_search_memories') {
     if (!memoryManager) return { memories: [], count: 0 } as unknown as JSONValue
-    const projectId = numberField(args.projectId)
+    const projectId = projectIdField(args.projectId)
     if (projectId === undefined) throw new Error('search_memories requires projectId')
     const memories = memoryManager.searchMemories({
       projectId,
@@ -377,7 +380,7 @@ async function callRuntimeTool(
 
   if (toolName === 'movscript_get_memory') {
     if (!memoryManager) return null as unknown as JSONValue
-    const projectId = numberField(args.projectId)
+    const projectId = projectIdField(args.projectId)
     const id = stringField(args.id) ?? stringField(args.memoryId)
     if (projectId === undefined) throw new Error('get_memory requires projectId')
     if (!id) throw new Error('get_memory requires id')
@@ -387,7 +390,7 @@ async function callRuntimeTool(
 
   if (toolName === 'movscript_create_memory') {
     if (!memoryManager) throw new Error('memory manager unavailable')
-    const projectId = numberField(args.projectId)
+    const projectId = projectIdField(args.projectId)
     const title = stringField(args.title)
     const content = stringField(args.content)
     const kind = normalizeMemoryKind(args.kind)
@@ -409,7 +412,7 @@ async function callRuntimeTool(
 
   if (toolName === 'movscript_delete_memory') {
     if (!memoryManager) throw new Error('memory manager unavailable')
-    const projectId = numberField(args.projectId)
+    const projectId = projectIdField(args.projectId)
     const id = stringField(args.id) ?? stringField(args.memoryId)
     if (projectId === undefined) throw new Error('delete_memory requires projectId')
     if (!id) throw new Error('delete_memory requires id')
@@ -506,14 +509,22 @@ function numberField(value: JSONValue | undefined): number | undefined {
   return undefined
 }
 
+function projectIdField(value: JSONValue | undefined): number | undefined {
+  return isValidAgentProjectId(value) ? value : undefined
+}
+
+function entityIdField(value: JSONValue | undefined): number | undefined {
+  return isValidAgentEntityId(value) ? value : undefined
+}
+
 function remainingKnowledgeBudget(run: AgentRun, requestedId?: string): {
   maxChars: number
   maxChunks: number
   remainingChars: number
   remainingChunks: number
 } {
-  const metadata = isRecord(run.metadata) ? run.metadata : undefined
-  const limits = isRecord(metadata?.limits) ? metadata.limits : {}
+  const metadata = isJSONRecord(run.metadata) ? run.metadata : undefined
+  const limits = isJSONRecord(metadata?.limits) ? metadata.limits : {}
   const maxChars = positiveInteger(limits.maxKnowledgeCharsPerRun) ?? 8000
   const maxChunks = positiveInteger(limits.maxKnowledgeChunksPerRun) ?? 3
   const loadedKnowledge = selectRetrievedContext({
@@ -560,7 +571,7 @@ function normalizeProposalDraftContent(value: JSONValue | undefined): string | u
   if (typeof value === 'string' && value.trim().length > 0) return value.trim()
   if (value === null) return 'null'
   if (typeof value === 'number' || typeof value === 'boolean') return JSON.stringify(value)
-  if (Array.isArray(value) || isRecord(value)) return JSON.stringify(value, null, 2)
+  if (Array.isArray(value) || isJSONRecord(value)) return JSON.stringify(value, null, 2)
   return undefined
 }
 
@@ -585,17 +596,17 @@ function validateStructuredProposalDraftContent(kind: AgentDraftKind, content: s
   } catch {
     throw new Error(`create_proposal ${kind} content must be canonical JSON with schema ${requiredSchema}`)
   }
-  if (!isRecord(parsed) || parsed.schema !== requiredSchema) {
+  if (!isJSONRecord(parsed) || parsed.schema !== requiredSchema) {
     throw new Error(`create_proposal ${kind} content must include schema ${requiredSchema}`)
   }
 }
 
 function normalizeProposalDraftTarget(value: unknown): AgentDraftTarget | undefined {
-  if (!isRecord(value)) return undefined
+  if (!isJSONRecord(value)) return undefined
   const target: AgentDraftTarget = {
     ...(typeof value.entityType === 'string' && value.entityType.trim() ? { entityType: value.entityType.trim() } : {}),
-    ...(typeof value.entityId === 'number' || typeof value.entityId === 'string' ? { entityId: value.entityId } : {}),
-    ...(typeof value.projectId === 'number' || typeof value.projectId === 'string' ? { projectId: value.projectId } : {}),
+    ...(isValidAgentReferenceId(value.entityId) ? { entityId: value.entityId } : {}),
+    ...(isValidAgentProjectId(value.projectId) ? { projectId: value.projectId } : {}),
     ...(typeof value.field === 'string' && value.field.trim() ? { field: value.field.trim() } : {}),
   }
   return Object.keys(target).length > 0 ? target : undefined
@@ -608,10 +619,10 @@ function inferProposalDraftTarget(
   pageContext: Record<string, JSONValue>,
   args: Record<string, JSONValue>,
 ): AgentDraftTarget | undefined {
-  const productionId = numberField(args.productionId)
-    ?? numberField(args.production_id)
-    ?? numberField(context?.productionId)
-    ?? numberField(pageContext.pageEntityType === 'production' ? pageContext.pageEntityId : undefined)
+  const productionId = entityIdField(args.productionId)
+    ?? entityIdField(args.production_id)
+    ?? entityIdField(context?.productionId)
+    ?? entityIdField(pageContext.pageEntityType === 'production' ? pageContext.pageEntityId : undefined)
   if (kind === 'project_proposal') {
     return {
       ...(projectId !== undefined ? { projectId } : {}),
@@ -644,10 +655,10 @@ function normalizeProposalDraftSource(
   context: Record<string, JSONValue> | undefined,
   pageContext: Record<string, JSONValue>,
 ): AgentDraftSource {
-  const source = isRecord(value) ? { ...value } : {}
-  const contextProject = isRecord(context?.project) ? context.project : undefined
-  const projectId = numberField(contextProject?.id)
-    ?? numberField(pageContext.pageEntityType === 'project' ? pageContext.pageEntityId : undefined)
+  const source = isJSONRecord(value) ? { ...value } : {}
+  const contextProject = isJSONRecord(context?.project) ? context.project : undefined
+  const projectId = projectIdField(contextProject?.id)
+    ?? projectIdField(pageContext.pageEntityType === 'project' ? pageContext.pageEntityId : undefined)
   return {
     ...source,
     runId: run.id,
@@ -681,19 +692,19 @@ function truncate(value: string, limit: number): string {
 
 
 function extractPageContext(run: AgentRun): Record<string, JSONValue> {
-  const clientInput = isRecord(run.metadata?.clientInput) ? run.metadata.clientInput as Record<string, JSONValue> : undefined
-  const uiSnapshot = isRecord(clientInput?.uiSnapshot) ? clientInput.uiSnapshot as Record<string, JSONValue> : undefined
-  const pageContext = isRecord(uiSnapshot?.pageContext) ? uiSnapshot.pageContext as Record<string, JSONValue> : undefined
-  const route = isRecord(uiSnapshot?.route) ? uiSnapshot.route as Record<string, JSONValue> : undefined
-  const selection = isRecord(uiSnapshot?.selection) ? uiSnapshot.selection as Record<string, JSONValue> : undefined
+  const clientInput = isJSONRecord(run.metadata?.clientInput) ? run.metadata.clientInput : undefined
+  const uiSnapshot = isJSONRecord(clientInput?.uiSnapshot) ? clientInput.uiSnapshot : undefined
+  const pageContext = isJSONRecord(uiSnapshot?.pageContext) ? uiSnapshot.pageContext : undefined
+  const route = isJSONRecord(uiSnapshot?.route) ? uiSnapshot.route : undefined
+  const selection = isJSONRecord(uiSnapshot?.selection) ? uiSnapshot.selection : undefined
   return {
     ...(typeof pageContext?.pageKey === 'string' ? { pageKey: pageContext.pageKey } : {}),
     ...(typeof pageContext?.pageType === 'string' ? { pageType: pageContext.pageType } : {}),
     ...(typeof pageContext?.pageRoute === 'string' ? { pageRoute: pageContext.pageRoute } : typeof route?.pathname === 'string' ? { pageRoute: route.pathname } : {}),
     ...(typeof pageContext?.pageEntityType === 'string' ? { pageEntityType: pageContext.pageEntityType } : typeof selection?.entityType === 'string' ? { pageEntityType: selection.entityType } : {}),
-    ...(typeof pageContext?.pageEntityId === 'number' || typeof pageContext?.pageEntityId === 'string'
+    ...(isValidAgentReferenceId(pageContext?.pageEntityId)
       ? { pageEntityId: pageContext.pageEntityId }
-      : typeof selection?.entityId === 'number' || typeof selection?.entityId === 'string'
+      : isValidAgentReferenceId(selection?.entityId)
         ? { pageEntityId: selection.entityId }
         : {}),
     ...(typeof pageContext?.draftId === 'string' ? { draftId: pageContext.draftId } : {}),
@@ -723,13 +734,13 @@ function createProposalDraft(
 ): JSONValue {
   const kind = normalizeProposalDraftKind(args.kind)
   if (!kind) throw new Error('create_proposal requires kind')
-  const context = isRecord(run.metadata?.context) ? run.metadata.context as Record<string, JSONValue> : undefined
+  const context = isJSONRecord(run.metadata?.context) ? run.metadata.context : undefined
   const pageContext = extractPageContext(run)
-  const contextProject = isRecord(context?.project) ? context.project : undefined
-  const projectId = numberField(args.projectId)
-    ?? numberField(args.project_id)
-    ?? numberField(contextProject?.id)
-    ?? numberField(pageContext.pageEntityType === 'project' ? pageContext.pageEntityId : undefined)
+  const contextProject = isJSONRecord(context?.project) ? context.project : undefined
+  const projectId = projectIdField(args.projectId)
+    ?? projectIdField(args.project_id)
+    ?? projectIdField(contextProject?.id)
+    ?? projectIdField(pageContext.pageEntityType === 'project' ? pageContext.pageEntityId : undefined)
   if (kind === 'project_proposal' && projectId === undefined) {
     throw new Error('create_proposal requires projectId for project_proposal')
   }
@@ -751,12 +762,12 @@ function createProposalDraft(
     createdByRunId: run.id,
     createdByThreadId: run.threadId,
     metadata: {
-      ...(isRecord(args.metadata) ? args.metadata : {}),
+      ...(isJSONRecord(args.metadata) ? args.metadata : {}),
       proposal: true,
       proposalKind: kind,
       producer: 'conversation',
       ...(projectId !== undefined ? { projectId } : {}),
-      ...(isRecord(target) ? { target } : {}),
+      ...(isJSONRecord(target) ? { target } : {}),
       ...(typeof source.pageKey === 'string' ? { pageKey: source.pageKey } : {}),
     },
   })
@@ -781,7 +792,7 @@ function normalizeDraftQuery(args: Record<string, JSONValue>): {
   limit?: number
 } {
   return {
-    ...(typeof args.projectId === 'number' && Number.isFinite(args.projectId) ? { projectId: args.projectId } : {}),
+    ...(isValidAgentProjectId(args.projectId) ? { projectId: args.projectId } : {}),
     ...(isDraftKind(args.kind) ? { kind: args.kind } : {}),
     ...(isDraftStatus(args.status) ? { status: args.status } : {}),
     ...(typeof args.limit === 'number' && Number.isFinite(args.limit) ? { limit: args.limit } : {}),
@@ -838,7 +849,7 @@ async function updateDraftByAction(
     const content = replaceAll ? current.content.split(oldString).join(newString) : current.content.replace(oldString, newString)
     const draft = draftStore.updateDraft(draftId, {
       content,
-      ...(isRecord(args.metadata) ? { metadata: args.metadata as Record<string, JSONValue> } : {}),
+      ...(isJSONRecord(args.metadata) ? { metadata: args.metadata } : {}),
     })
     return {
       status: 'updated',
@@ -853,8 +864,8 @@ async function updateDraftByAction(
     ...(status ? { status } : {}),
     ...(typeof args.title === 'string' ? { title: args.title } : {}),
     ...(typeof args.content === 'string' ? { content: args.content } : {}),
-    ...(isRecord(args.target) ? { target: args.target } : {}),
-    ...(isRecord(args.metadata) ? { metadata: args.metadata as Record<string, JSONValue> } : {}),
+    ...(isJSONRecord(args.target) ? { target: args.target } : {}),
+    ...(isJSONRecord(args.metadata) ? { metadata: args.metadata } : {}),
     ...(typeof args.rejectedReason === 'string' ? { rejectedReason: args.rejectedReason } : {}),
   })
   return {
@@ -912,7 +923,7 @@ async function previewDraftApply(
   try {
     const preview = buildApplyDraftPreview(draftStore, {
       draftId: draft.id,
-      target: isRecord(args.target) ? args.target : draft.target,
+      target: isJSONRecord(args.target) ? args.target : draft.target,
       targetEntityType: args.targetEntityType ?? args.target_entity_type,
       targetEntityId: args.targetEntityId ?? args.target_entity_id,
       targetField: args.targetField ?? args.target_field,
@@ -976,10 +987,6 @@ function normalizeMemoryKind(value: JSONValue | undefined): AgentMemoryKind | un
     || value === 'warning'
     ? value
     : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, JSONValue> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function throwIfAborted(signal?: AbortSignal): void {

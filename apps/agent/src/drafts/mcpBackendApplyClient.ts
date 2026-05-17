@@ -1,6 +1,7 @@
 import type { MCPClient } from '../mcpClient.js'
 import type { JSONValue } from '../types.js'
-import { BackendApplyClient, type BackendApplyAuthContext, type BackendApplyResult } from './backendApplyClient.js'
+import { isJSONRecord as isRecord } from '../jsonValue.js'
+import { BackendApplyClient, normalizeBackendApplyAuthUserId, type BackendApplyAuthContext, type BackendApplyResult } from './backendApplyClient.js'
 import type { ApplyDraftReview } from './draftApply.js'
 
 type BackendApplyMCPClient = Pick<MCPClient, 'initialize' | 'callTool'>
@@ -57,16 +58,13 @@ export class MCPBackendApplyClient extends BackendApplyClient {
 }
 
 function authArgs(auth?: BackendApplyAuthContext): Record<string, JSONValue> {
+  const userId = normalizeBackendApplyAuthUserId(auth?.userId)
   return {
-    ...(auth?.userId !== undefined ? { userId: auth.userId } : {}),
+    ...(userId !== undefined ? { userId } : {}),
   }
 }
 
 function unwrapToolData(value: JSONValue): JSONValue {
   if (isRecord(value) && value.data !== undefined) return value.data as JSONValue
   return value
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

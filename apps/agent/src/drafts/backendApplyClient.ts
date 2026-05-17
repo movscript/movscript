@@ -1,4 +1,6 @@
 import type { JSONValue } from '../types.js'
+import { isJSONRecord as isRecord } from '../jsonValue.js'
+import { isValidAgentProjectId, isValidAgentReferenceId } from '../context/runtimeContext.js'
 import type { ApplyDraftReview } from './draftApply.js'
 
 export interface BackendApplyClientOptions {
@@ -246,7 +248,7 @@ function buildApplyRequest(review: ApplyDraftReview): { method: 'PATCH' | 'POST'
   }
   const route = PATCH_ROUTES[entityType]
   const projectId = review.target.projectId
-  if (route.includes(':projectId') && (projectId === undefined || projectId === null || String(projectId).trim() === '')) {
+  if (route.includes(':projectId') && !isValidAgentProjectId(projectId)) {
     throw new Error(`apply_draft requires projectId for target entity type: ${entityType}`)
   }
   if (!field || !FIELD_ALLOWLIST[entityType].has(field)) {
@@ -293,9 +295,9 @@ function isProductionProposalTarget(review: ApplyDraftReview): boolean {
   return review.draftKind === 'production_proposal' || review.target.entityType === 'production'
 }
 
-function resolveProjectId(review: ApplyDraftReview): string | number {
+function resolveProjectId(review: ApplyDraftReview): number {
   const candidate = review.target.projectId ?? (isProjectProposalTarget(review) ? review.target.entityId : undefined)
-  if ((typeof candidate !== 'string' && typeof candidate !== 'number') || String(candidate).trim() === '') {
+  if (!isValidAgentProjectId(candidate)) {
     throw new Error('apply_draft requires projectId for proposal apply')
   }
   return candidate
@@ -407,8 +409,13 @@ function normalizeBaseURL(value: string | undefined): string | undefined {
 function buildHeaders(auth?: BackendApplyAuthContext): Record<string, string> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (auth?.backendAuthToken) headers.Authorization = `Bearer ${auth.backendAuthToken}`
-  if (auth?.userId !== undefined) headers['X-User-ID'] = String(auth.userId)
+  const userId = normalizeBackendApplyAuthUserId(auth?.userId)
+  if (userId !== undefined) headers['X-User-ID'] = String(userId)
   return headers
+}
+
+export function normalizeBackendApplyAuthUserId(value: unknown): number | string | undefined {
+  return isValidAgentReferenceId(value) ? value : undefined
 }
 
 function parseJSONText(text: string): JSONValue | undefined {
@@ -418,8 +425,4 @@ function parseJSONText(text: string): JSONValue | undefined {
   } catch {
     return text
   }
-}
-
-function isRecord(value: unknown): value is Record<string, JSONValue> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

@@ -26,6 +26,53 @@ test('listRunTraceEvents paginates stably and returns an empty page for stale cu
   assert.equal(summary.latestEvent?.id, 'trace_3')
 })
 
+test('summarizeRunTraceEvents treats same-timestamp later appends as latest', () => {
+  const store = new InMemoryAgentStore()
+  const run = buildRun()
+  store.createRun(run)
+  store.appendTraceEvent(buildTraceEvent('trace_1', '2026-05-06T00:00:01.000Z', 'context'))
+  store.appendTraceEvent(buildTraceEvent('trace_2', '2026-05-06T00:00:01.000Z', 'tool_call'))
+
+  const page = store.listRunTraceEvents(run.id)
+  const summary = store.summarizeRunTraceEvents(run.id)
+
+  assert.deepEqual(page.map((event) => event.id), ['trace_1', 'trace_2'])
+  assert.equal(summary.latestEvent?.id, 'trace_2')
+})
+
+test('trace storage normalizes invalid persisted event durations', () => {
+  const store = new InMemoryAgentStore()
+  const run = {
+    ...buildRun(),
+    traceEvents: [
+      buildTraceEvent('trace_1', '2026-05-06T00:00:01.000Z', 'context', -1),
+      buildTraceEvent('trace_2', '2026-05-06T00:00:02.000Z', 'tool_call', 0),
+    ],
+  }
+  store.createRun(run)
+  store.appendTraceEvent(buildTraceEvent('trace_3', '2026-05-06T00:00:03.000Z', 'tool_call', Number.NaN))
+
+  const events = store.listRunTraceEvents(run.id)
+
+  assert.equal(events[0].durationMs, undefined)
+  assert.equal(events[1].durationMs, 0)
+  assert.equal(events[2].durationMs, undefined)
+})
+
+test('trace storage drops invalid JSON data instead of coercing non-finite numbers to null', () => {
+  const store = new InMemoryAgentStore()
+  const run = buildRun()
+  store.createRun(run)
+  store.appendTraceEvent({
+    ...buildTraceEvent('trace_1', '2026-05-06T00:00:01.000Z', 'context'),
+    data: { score: Number.POSITIVE_INFINITY } as never,
+  })
+
+  const event = store.listRunTraceEvents(run.id)[0]
+
+  assert.equal(event.data, undefined)
+})
+
 function buildRun(): AgentRun {
   return {
     id: 'run_1',
@@ -47,7 +94,7 @@ function buildRun(): AgentRun {
   }
 }
 
-function buildTraceEvent(id: string, createdAt: string, kind: AgentTraceEvent['kind']): AgentTraceEvent {
+function buildTraceEvent(id: string, createdAt: string, kind: AgentTraceEvent['kind'], durationMs?: number): AgentTraceEvent {
   return {
     id,
     runId: 'run_1',
@@ -55,5 +102,6 @@ function buildTraceEvent(id: string, createdAt: string, kind: AgentTraceEvent['k
     title: id,
     status: 'completed',
     createdAt,
+    ...(durationMs !== undefined ? { durationMs } : {}),
   }
 }

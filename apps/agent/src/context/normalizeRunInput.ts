@@ -1,5 +1,6 @@
 import type { AgentDraftKind, AgentDraftStatus } from '../drafts/draftStore.js'
 import { normalizeDraftKind, normalizeDraftStatus } from '../drafts/draftStore.js'
+import { isValidAgentProjectId, isValidAgentReferenceId } from './runtimeContext.js'
 
 export { defaultRunPolicy, normalizeRunPolicyOverride } from '../state/runPolicy.js'
 export { buildRunRound, type AgentRunRoundInfo } from '../state/runRound.js'
@@ -47,19 +48,19 @@ export function normalizeDraftQuery(query: {
   const status = normalizeDraftStatus(query.status)
   const statuses = normalizeDraftStatuses(query.statuses ?? query.status)
   return {
-    ...(typeof query.projectId === 'number' && Number.isFinite(query.projectId) ? { projectId: query.projectId } : {}),
+    ...(isValidAgentProjectId(query.projectId) ? { projectId: query.projectId } : {}),
     ...(kind ? { kind } : {}),
     ...(status ? { status } : {}),
     ...(statuses.length > 0 ? { statuses } : {}),
     ...(typeof query.threadId === 'string' && query.threadId.trim() ? { threadId: query.threadId.trim() } : {}),
     ...(typeof query.runId === 'string' && query.runId.trim() ? { runId: query.runId.trim() } : {}),
     ...(typeof query.sourceEntityType === 'string' && query.sourceEntityType.trim() ? { sourceEntityType: query.sourceEntityType.trim() } : {}),
-    ...(typeof query.sourceEntityId === 'number' || typeof query.sourceEntityId === 'string' ? { sourceEntityId: query.sourceEntityId } : {}),
+    ...(isValidAgentReferenceId(query.sourceEntityId) ? { sourceEntityId: query.sourceEntityId } : {}),
     ...(typeof query.pageKey === 'string' && query.pageKey.trim() ? { pageKey: query.pageKey.trim() } : {}),
     ...(typeof query.pageType === 'string' && query.pageType.trim() ? { pageType: query.pageType.trim() } : {}),
     ...(typeof query.pageRoute === 'string' && query.pageRoute.trim() ? { pageRoute: query.pageRoute.trim() } : {}),
     ...(typeof query.pageEntityType === 'string' && query.pageEntityType.trim() ? { pageEntityType: query.pageEntityType.trim() } : {}),
-    ...(typeof query.pageEntityId === 'number' || typeof query.pageEntityId === 'string' ? { pageEntityId: query.pageEntityId } : {}),
+    ...(isValidAgentReferenceId(query.pageEntityId) ? { pageEntityId: query.pageEntityId } : {}),
     ...(typeof query.limit === 'number' && Number.isFinite(query.limit) ? { limit: query.limit } : {}),
   }
 }

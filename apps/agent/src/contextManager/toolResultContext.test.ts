@@ -56,3 +56,23 @@ test('buildModelToolResultContext leaves small tool results intact', () => {
     },
   })
 })
+
+test('buildModelToolResultContext does not parse embedded JSON with non-finite numbers', () => {
+  const result = buildModelToolResultContext({
+    run: {
+      ...testRun(),
+      metadata: { limits: { maxRetrievedContextChars: 2000 } },
+    },
+    call: { name: 'movscript_read_project_scripts', args: { projectId: 42 } },
+    result: {
+      text: '{"score":1e999,"body":"This body would otherwise be parsed."}',
+      filler: 'x'.repeat(3000),
+    },
+  })
+
+  assert.equal(result.dropped, true)
+  const payload = JSON.parse(result.content)
+  assert.equal(payload.result.text, '{"score":1e999,"body":"This body would otherwise be parsed."}')
+  assert.doesNotMatch(result.content, /"score":null/)
+  assert.equal(payload.result.filler.type, 'omitted_text_body')
+})

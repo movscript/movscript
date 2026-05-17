@@ -90,6 +90,27 @@ jobs:
       - name: Browser AgentRun debugging acceptance
         run: pnpm run test:agent-run-debugging:e2e
 
+      - name: Verify AgentRun debugging acceptance summary
+        run: pnpm run verify:agent-run-debugging-summary
+
+      - name: Print AgentRun debugging acceptance summary
+        if: always()
+        run: |
+          if [ -f apps/frontend/test-results/agent-run-debugging-acceptance-summary.json ]; then
+            node scripts/verify-agent-run-debugging-acceptance-summary.mjs apps/frontend/test-results/agent-run-debugging-acceptance-summary.json --allow-failed
+            cat apps/frontend/test-results/agent-run-debugging-acceptance-summary.json
+            {
+              echo "### AgentRun debugging acceptance summary"
+              echo '```json'
+              cat apps/frontend/test-results/agent-run-debugging-acceptance-summary.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "AgentRun debugging acceptance summary was not generated."
+            echo "### AgentRun debugging acceptance summary" >> "$GITHUB_STEP_SUMMARY"
+            echo "Summary was not generated." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload AgentRun debugging artifacts
         if: always()
         uses: actions/upload-artifact@v4

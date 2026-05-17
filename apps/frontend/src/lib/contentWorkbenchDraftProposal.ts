@@ -1,3 +1,5 @@
+import { isRecord } from '@/lib/jsonValue'
+
 export type ContentWorkbenchProposalPayload = Record<string, unknown>
 
 export type ContentWorkbenchProposalDefaults = Record<string, string | number | boolean | null> & {
@@ -76,8 +78,4 @@ function firstText(...values: Array<unknown>) {
 function numberOf(value: unknown) {
   const next = Number(value)
   return Number.isFinite(next) ? next : 0
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   buildAgentUpdateState,
   evaluateAgentUpdateCandidate,
+  normalizeAgentUpdateCandidate,
   normalizeAgentUpdatePolicy,
 } from './updatePolicy.js'
 
@@ -101,4 +102,18 @@ test('buildAgentUpdateState evaluates valid pending candidates and keeps applied
   assert.equal(state.applied.length, 1)
   assert.equal(state.pending.length, 1)
   assert.equal(state.pending[0].decision, 'auto_apply')
+})
+
+test('normalizeAgentUpdateCandidate drops metadata with non-finite JSON numbers', () => {
+  const candidate = normalizeAgentUpdateCandidate({
+    id: 'movscript.policy-pack',
+    version: '1.0.0',
+    kind: 'policy',
+    severity: 'normal',
+    source: 'local',
+    metadata: { score: Number.POSITIVE_INFINITY },
+  })
+
+  assert.equal(candidate?.id, 'movscript.policy-pack')
+  assert.equal(candidate?.metadata, undefined)
 })

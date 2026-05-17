@@ -11,12 +11,21 @@ import {
   logAgentServerStartup,
 } from './bootstrap/agentServerContext.js'
 import { describeRuntimeModelCapabilities } from './model/modelRouter.js'
+import { isRecord } from './jsonValue.js'
 import type { JSONValue } from './types.js'
 import type { AgentTraceQuery } from './state/store.js'
 import { AGENT_TRACE_EVENT_KINDS, type AgentTraceEventKind } from './state/types.js'
+import { isValidMemoryProjectId } from './memory/types.js'
+import { isValidAgentProjectId, isValidAgentReferenceId } from './context/runtimeContext.js'
 
 interface AgentRequestListenerOptions {
   onShutdownRequest?: () => void | Promise<void>
+}
+
+class AgentHTTPError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message)
+  }
 }
 
 export function createAgentRequestListener(context: AgentServerContext, options: AgentRequestListenerOptions = {}): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
@@ -83,17 +92,17 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'POST' && url.pathname === '/model-config') {
-        const body = await readJSON(req)
+        const body = await readOptionalJSONObject(req, 'model config body')
         const modelConfigStartedAt = Date.now()
-        writeJSON(res, 200, context.modelConfigStore.save(normalizeOptionalObject(body, 'model config body')))
+        writeJSON(res, 200, context.modelConfigStore.save(body))
         logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigStartedAt)
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/model-config/test') {
-        const body = await readJSON(req)
+        const body = await readOptionalJSONObject(req, 'model config test body')
         const modelConfigTestStartedAt = Date.now()
-        writeJSON(res, 200, await context.modelConfigStore.test(normalizeOptionalObject(body, 'model config test body'), requestAuth(req)))
+        writeJSON(res, 200, await context.modelConfigStore.test(body, requestAuth(req)))
         logSlowRequest(req.method, url.pathname, requestStartedAt, modelConfigTestStartedAt)
         return
       }
@@ -127,9 +136,10 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       if (req.method === 'GET' && url.pathname === '/capabilities') {
         const projectId = url.searchParams.get('projectId')
+        const parsedProjectId = parseOptionalProjectIdParam(projectId)
         const includeSchemas = url.searchParams.get('includeSchemas') !== 'false'
         writeJSON(res, 200, await context.agentRuntime.getCapabilities({
-          ...(projectId !== null && Number.isFinite(Number(projectId)) ? { currentProjectId: Number(projectId) } : {}),
+          ...(parsedProjectId !== undefined ? { currentProjectId: parsedProjectId } : {}),
           includeResources: includeSchemas,
         }))
         return
@@ -162,8 +172,8 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'POST' && url.pathname === '/draft') {
-        const body = await readJSON(req)
-        const result = context.agentRuntime.createLocalDraft(normalizeDraftBody(body))
+        const body = normalizeDraftBody(await readJSON(req))
+        const result = context.agentRuntime.createLocalDraft(body)
         writeJSON(res, 200, result)
         return
       }
@@ -184,7 +194,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
       if (draftMatch && req.method === 'PATCH') {
-        const body = normalizeOptionalObject(await readJSON(req), 'draft update body')
+        const body = await readOptionalJSONObject(req, 'draft update body')
         writeJSON(res, 200, context.agentRuntime.updateDraft({
           draftId: draftMatch[1],
           ...body,
@@ -194,7 +204,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const draftPatchMatch = url.pathname.match(/^\/drafts\/([^/]+)\/patch$/)
       if (draftPatchMatch && req.method === 'POST') {
-        const body = normalizeOptionalObject(await readJSON(req), 'draft patch body')
+        const body = await readOptionalJSONObject(req, 'draft patch body')
         writeJSON(res, 200, context.agentRuntime.patchDraft({
           draftId: draftPatchMatch[1],
           ...body,
@@ -210,7 +220,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const draftApplyPreviewMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-preview$/)
       if (draftApplyPreviewMatch && req.method === 'POST') {
-        const body = normalizeOptionalObject(await readJSON(req), 'apply preview body')
+        const body = await readOptionalJSONObject(req, 'apply preview body')
         writeJSON(res, 200, context.agentRuntime.previewApplyDraft({
           draftId: draftApplyPreviewMatch[1],
           ...body,
@@ -220,7 +230,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const draftApplySimulateMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply-simulate$/)
       if (draftApplySimulateMatch && req.method === 'POST') {
-        const body = normalizeOptionalObject(await readJSON(req), 'apply simulate body')
+        const body = await readOptionalJSONObject(req, 'apply simulate body')
         writeJSON(res, 200, await context.agentRuntime.simulateApplyDraft({
           draftId: draftApplySimulateMatch[1],
           ...withRequestAuth(body, req),
@@ -230,7 +240,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const draftApplyMatch = url.pathname.match(/^\/drafts\/([^/]+)\/apply$/)
       if (draftApplyMatch && req.method === 'POST') {
-        const body = normalizeOptionalObject(await readJSON(req), 'draft apply body')
+        const body = await readOptionalJSONObject(req, 'draft apply body')
         writeJSON(res, 200, await context.agentRuntime.applyDraftFromUI({
           draftId: draftApplyMatch[1],
           ...withRequestAuth(body, req),
@@ -240,7 +250,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const draftRejectMatch = url.pathname.match(/^\/drafts\/([^/]+)\/reject$/)
       if (draftRejectMatch && req.method === 'POST') {
-        const body = normalizeOptionalObject(await readJSON(req), 'draft rejection body')
+        const body = await readOptionalJSONObject(req, 'draft rejection body')
         writeJSON(res, 200, context.agentRuntime.rejectDraft({
           draftId: draftRejectMatch[1],
           reason: body.reason,
@@ -249,8 +259,8 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'POST' && url.pathname === '/threads') {
-        const body = await readJSON(req)
-        writeJSON(res, 201, context.agentRuntime.createThread(normalizeOptionalObject(body, 'thread body')))
+        const body = await readOptionalJSONObject(req, 'thread body')
+        writeJSON(res, 201, context.agentRuntime.createThread(body))
         return
       }
 
@@ -270,39 +280,39 @@ export function createAgentRequestListener(context: AgentServerContext, options:
         return
       }
       if (threadMatch && req.method === 'PATCH') {
-        const body = await readJSON(req)
-        writeJSON(res, 200, context.agentRuntime.updateThread(threadMatch[1], normalizeOptionalObject(body, 'thread update body')))
+        const body = await readOptionalJSONObject(req, 'thread update body')
+        writeJSON(res, 200, context.agentRuntime.updateThread(threadMatch[1], body))
         return
       }
 
       const messagesMatch = url.pathname.match(/^\/threads\/([^/]+)\/messages$/)
       if (messagesMatch && req.method === 'POST') {
-        const body = await readJSON(req)
-        writeJSON(res, 201, context.agentRuntime.addMessage(messagesMatch[1], normalizeOptionalObject(body, 'message body')))
+        const body = await readOptionalJSONObject(req, 'message body')
+        writeJSON(res, 201, context.agentRuntime.addMessage(messagesMatch[1], body))
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/runs') {
-        const body = await readJSON(req)
-        writeJSON(res, 201, context.agentRuntime.createRun(asPlannerUserRun(withRequestAuth(normalizeOptionalObject(body, 'run body'), req))))
+        const body = await readOptionalJSONObject(req, 'run body')
+        writeJSON(res, 201, context.agentRuntime.createRun(asPlannerUserRun(withRequestAuth(body, req))))
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/runs/tool') {
-        const body = await readJSON(req)
-        writeJSON(res, 201, context.agentRuntime.createToolRun(asDirectToolRun(withRequestAuth(normalizeOptionalObject(body, 'tool run body'), req))))
+        const body = await readOptionalJSONObject(req, 'tool run body')
+        writeJSON(res, 201, context.agentRuntime.createToolRun(asDirectToolRun(withRequestAuth(body, req))))
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/runs/preview') {
-        const body = await readJSON(req)
-        writeJSON(res, 200, await context.agentRuntime.previewRun(withRequestAuth(normalizeOptionalObject(body, 'run preview body'), req)))
+        const body = await readOptionalJSONObject(req, 'run preview body')
+        writeJSON(res, 200, await context.agentRuntime.previewRun(withRequestAuth(body, req)))
         return
       }
 
       if (req.method === 'POST' && url.pathname === '/plans') {
-        const body = await readJSON(req)
-        writeJSON(res, 201, await context.agentRuntime.createPlan(withRequestAuth(normalizeOptionalObject(body, 'plan body'), req)))
+        const body = await readOptionalJSONObject(req, 'plan body')
+        writeJSON(res, 201, await context.agentRuntime.createPlan(withRequestAuth(body, req)))
         return
       }
 
@@ -328,9 +338,9 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const planDispatchMatch = url.pathname.match(/^\/plans\/([^/]+)\/dispatch$/)
       if (planDispatchMatch && req.method === 'POST') {
-        const body = await readJSON(req)
+        const body = await readOptionalJSONObject(req, 'plan dispatch body')
         writeJSON(res, 202, context.agentRuntime.dispatchPlan({
-          ...withRequestAuth(normalizeOptionalObject(body, 'plan dispatch body'), req),
+          ...withRequestAuth(body, req),
           planId: planDispatchMatch[1],
         }))
         return
@@ -344,8 +354,8 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const taskMatch = url.pathname.match(/^\/tasks\/([^/]+)$/)
       if (taskMatch && req.method === 'PATCH') {
-        const body = await readJSON(req)
-        writeJSON(res, 200, context.agentRuntime.updateTask(taskMatch[1], normalizeOptionalObject(body, 'task update body')))
+        const body = await readOptionalJSONObject(req, 'task update body')
+        writeJSON(res, 200, context.agentRuntime.updateTask(taskMatch[1], body))
         return
       }
 
@@ -370,6 +380,10 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runTraceSummaryMatch = url.pathname.match(/^\/runs\/([^/]+)\/trace\/summary$/)
       if (runTraceSummaryMatch && req.method === 'GET') {
+        if (!context.agentRuntime.getRun(runTraceSummaryMatch[1])) {
+          writeJSON(res, 404, { error: 'run not found' })
+          return
+        }
         writeJSON(res, 200, context.agentRuntime.getRunTraceSummary(runTraceSummaryMatch[1]))
         return
       }
@@ -390,6 +404,10 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           writeJSON(res, 400, { error: traceQuery.error })
           return
         }
+        if (!context.agentRuntime.getRun(runTraceMatch[1])) {
+          writeJSON(res, 404, { error: 'run not found' })
+          return
+        }
         writeJSON(res, 200, context.agentRuntime.getRunTracePage(runTraceMatch[1], traceQuery.query))
         return
       }
@@ -402,22 +420,22 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runApproveMatch = url.pathname.match(/^\/runs\/([^/]+)\/approve$/)
       if (runApproveMatch && req.method === 'POST') {
-        const body = await readJSON(req)
-        writeJSON(res, 202, context.agentRuntime.approveRun(runApproveMatch[1], withRequestAuth(normalizeOptionalObject(body, 'approval body'), req)))
+        const body = await readOptionalJSONObject(req, 'approval body')
+        writeJSON(res, 202, context.agentRuntime.approveRun(runApproveMatch[1], withRequestAuth(body, req)))
         return
       }
 
       const runCancelMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel$/)
       if (runCancelMatch && req.method === 'POST') {
-        const body = await readJSON(req)
-        writeJSON(res, 200, context.agentRuntime.cancelRun(runCancelMatch[1], normalizeOptionalObject(body, 'cancel body')))
+        const body = await readOptionalJSONObject(req, 'cancel body')
+        writeJSON(res, 200, context.agentRuntime.cancelRun(runCancelMatch[1], body))
         return
       }
 
       const runCancelTreeMatch = url.pathname.match(/^\/runs\/([^/]+)\/cancel-tree$/)
       if (runCancelTreeMatch && req.method === 'POST') {
-        const body = await readJSON(req)
-        writeJSON(res, 200, context.agentRuntime.cancelPlanTree(runCancelTreeMatch[1], normalizeOptionalObject(body, 'cancel tree body')))
+        const body = await readOptionalJSONObject(req, 'cancel tree body')
+        writeJSON(res, 200, context.agentRuntime.cancelPlanTree(runCancelTreeMatch[1], body))
         return
       }
 
@@ -429,9 +447,9 @@ export function createAgentRequestListener(context: AgentServerContext, options:
           return
         }
         const plan = context.agentRuntime.getPlan(run.planId)
-        const body = await readJSON(req)
+        const body = await readOptionalJSONObject(req, 'replan body')
         writeJSON(res, 202, context.agentRuntime.replanRun(runReplanMatch[1], {
-          ...withRequestAuth(normalizeOptionalObject(body, 'replan body'), req),
+          ...withRequestAuth(body, req),
           planId: run.planId,
           plannerRunId: plan?.rootRunId ?? (run.role === 'planner' ? run.id : run.parentRunId),
         }))
@@ -440,15 +458,15 @@ export function createAgentRequestListener(context: AgentServerContext, options:
 
       const runRejectMatch = url.pathname.match(/^\/runs\/([^/]+)\/reject$/)
       if (runRejectMatch && req.method === 'POST') {
-        const body = await readJSON(req)
-        writeJSON(res, 200, context.agentRuntime.rejectRun(runRejectMatch[1], normalizeOptionalObject(body, 'rejection body')))
+        const body = await readOptionalJSONObject(req, 'rejection body')
+        writeJSON(res, 200, context.agentRuntime.rejectRun(runRejectMatch[1], body))
         return
       }
 
       const runInputMatch = url.pathname.match(/^\/runs\/([^/]+)\/input$/)
       if (runInputMatch && req.method === 'POST') {
-        const body = await readJSON(req)
-        writeJSON(res, 202, context.agentRuntime.answerRunInputRequest(runInputMatch[1], withRequestAuth(normalizeOptionalObject(body, 'input answer body'), req)))
+        const body = await readOptionalJSONObject(req, 'input answer body')
+        writeJSON(res, 202, context.agentRuntime.answerRunInputRequest(runInputMatch[1], withRequestAuth(body, req)))
         return
       }
 
@@ -459,7 +477,7 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       }
 
       if (req.method === 'POST' && url.pathname === '/memories') {
-        const body = normalizeOptionalObject(await readJSON(req), 'memory body')
+        const body = await readOptionalJSONObject(req, 'memory body')
         writeJSON(res, 201, context.agentRuntime.createMemory(normalizeMemoryBody(body)))
         return
       }
@@ -467,20 +485,24 @@ export function createAgentRequestListener(context: AgentServerContext, options:
       const memoryMatch = url.pathname.match(/^\/memories\/([^/]+)$/)
       if (memoryMatch && req.method === 'GET') {
         const projectId = normalizeMemoryProjectId(url)
-        const memory = typeof projectId === 'number' ? context.agentRuntime.getMemory(projectId, memoryMatch[1]) : undefined
+        const memory = isValidMemoryProjectId(projectId) ? context.agentRuntime.getMemory(projectId, memoryMatch[1]) : undefined
         writeJSON(res, memory ? 200 : 404, memory ? { memory } : { error: 'memory not found' })
         return
       }
 
       if (memoryMatch && req.method === 'DELETE') {
         const projectId = normalizeMemoryProjectId(url)
-        const deleted = typeof projectId === 'number' ? context.agentRuntime.deleteMemory(projectId, memoryMatch[1]) : false
+        const deleted = isValidMemoryProjectId(projectId) ? context.agentRuntime.deleteMemory(projectId, memoryMatch[1]) : false
         writeJSON(res, deleted ? 200 : 404, deleted ? { deleted: true } : { error: 'memory not found' })
         return
       }
 
       writeJSON(res, 404, { error: 'not found' })
     } catch (error) {
+      if (error instanceof AgentHTTPError) {
+        writeJSON(res, error.status, { error: error.message })
+        return
+      }
       writeJSON(res, 500, { error: error instanceof Error ? error.message : String(error) })
     }
   }
@@ -529,9 +551,10 @@ if (isMainModule()) {
 }
 
 function normalizeDraftBody(body: unknown): Record<string, JSONValue> {
-  if (!isRecord(body)) throw new Error('draft body must be an object')
+  if (!isRecord(body)) throw new AgentHTTPError(400, 'draft body must be an object')
+  const projectId = normalizeDraftBodyProjectId(body.projectId)
   return {
-    ...(typeof body.projectId === 'number' ? { projectId: body.projectId } : {}),
+    ...(projectId !== undefined ? { projectId } : {}),
     kind: normalizeDraftKind(body.kind),
     title: typeof body.title === 'string' ? body.title : 'Untitled draft',
     content: typeof body.content === 'string' ? body.content : '',
@@ -543,6 +566,7 @@ function normalizeDraftBody(body: unknown): Record<string, JSONValue> {
 
 function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0] {
   const projectId = url.searchParams.get('projectId')
+  const parsedProjectId = parseOptionalProjectIdParam(projectId)
   const kind = normalizeDraftKind(url.searchParams.get('kind'))
   const status = normalizeDraftStatus(url.searchParams.get('status'))
   const statuses = url.searchParams.getAll('status').flatMap((item) => {
@@ -559,8 +583,9 @@ function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0
   const pageEntityType = url.searchParams.get('pageEntityType')
   const pageEntityId = url.searchParams.get('pageEntityId')
   const limit = url.searchParams.get('limit')
+  const parsedLimit = parseLimitParam(limit, 100)
   return {
-    ...(projectId !== null && Number.isFinite(Number(projectId)) ? { projectId: Number(projectId) } : {}),
+    ...(parsedProjectId !== undefined ? { projectId: parsedProjectId } : {}),
     ...(url.searchParams.has('kind') ? { kind } : {}),
     ...(statuses.length > 1 ? { statuses: Array.from(new Set(statuses)) } : status ? { status } : {}),
     ...(threadId ? { threadId } : {}),
@@ -572,41 +597,59 @@ function normalizeDraftQuery(url: URL): Parameters<AgentRuntime['listDrafts']>[0
     ...(pageRoute ? { pageRoute } : {}),
     ...(pageEntityType ? { pageEntityType } : {}),
     ...(pageEntityId ? { pageEntityId } : {}),
-    ...(limit !== null && Number.isFinite(Number(limit)) ? { limit: Number(limit) } : {}),
+    ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
   }
+}
+
+function parseOptionalProjectIdParam(value: string | null): number | undefined {
+  if (value === null || value.trim() === '') return undefined
+  const parsed = Number(value)
+  if (isValidAgentProjectId(parsed)) return parsed
+  throw new AgentHTTPError(400, 'projectId must be a positive safe integer')
+}
+
+function normalizeDraftBodyProjectId(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined
+  if (isValidAgentProjectId(value)) return value
+  throw new AgentHTTPError(400, 'draft projectId must be a positive safe integer')
 }
 
 function normalizeOptionalObject(body: unknown, label: string): Record<string, unknown> {
   if (body === undefined || body === null) return {}
-  if (!isRecord(body)) throw new Error(`${label} must be an object`)
+  if (!isRecord(body)) throw new AgentHTTPError(400, `${label} must be an object`)
   return body
+}
+
+async function readOptionalJSONObject(req: IncomingMessage, label: string): Promise<Record<string, unknown>> {
+  return normalizeOptionalObject(await readJSON(req), label)
 }
 
 function normalizeMemoryQuery(url: URL): Parameters<AgentRuntime['listMemories']>[0] | undefined {
   const scope = url.searchParams.get('scope')
   if (scope === 'global' || scope === 'thread') return undefined
   const projectId = normalizeMemoryProjectId(url)
-  if (typeof projectId !== 'number') return undefined
+  if (!isValidMemoryProjectId(projectId)) return undefined
   const kind = url.searchParams.get('kind')
   const query = url.searchParams.get('query')
   const limit = url.searchParams.get('limit')
+  const parsedLimit = parseLimitParam(limit, 100)
   return {
     projectId,
     ...(kind === 'preference' || kind === 'fact' || kind === 'item_ref' || kind === 'entity_ref' || kind === 'draft' || kind === 'decision' || kind === 'warning' ? { kind } : {}),
     ...(query ? { query } : {}),
-    ...(limit !== null && Number.isFinite(Number(limit)) ? { limit: Number(limit) } : {}),
+    ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
   }
 }
 
 function normalizeMemoryBody(body: Record<string, unknown>): Parameters<AgentRuntime['createMemory']>[0] {
-  const projectId = typeof body.projectId === 'number' && Number.isFinite(body.projectId) ? body.projectId : undefined
+  const projectId = isValidMemoryProjectId(body.projectId) ? body.projectId : undefined
   const kind = body.kind === 'preference' || body.kind === 'fact' || body.kind === 'item_ref' || body.kind === 'entity_ref' || body.kind === 'draft' || body.kind === 'decision' || body.kind === 'warning'
     ? body.kind
     : undefined
-  if (projectId === undefined) throw new Error('memory projectId is required')
-  if (typeof body.title !== 'string' || body.title.trim().length === 0) throw new Error('memory title is required')
-  if (!kind) throw new Error('memory kind is required')
-  if (typeof body.content !== 'string' || body.content.trim().length === 0) throw new Error('memory content is required')
+  if (projectId === undefined) throw new AgentHTTPError(400, 'memory projectId is required')
+  if (typeof body.title !== 'string' || body.title.trim().length === 0) throw new AgentHTTPError(400, 'memory title is required')
+  if (!kind) throw new AgentHTTPError(400, 'memory kind is required')
+  if (typeof body.content !== 'string' || body.content.trim().length === 0) throw new AgentHTTPError(400, 'memory content is required')
   return {
     projectId,
     title: body.title,
@@ -620,14 +663,16 @@ function normalizeMemoryBody(body: Record<string, unknown>): Parameters<AgentRun
 
 function normalizeMemoryProjectId(url: URL): number | undefined {
   const projectId = url.searchParams.get('projectId')
-  if (projectId !== null && Number.isFinite(Number(projectId))) return Number(projectId)
+  if (projectId === null || projectId.trim() === '') return undefined
+  const parsed = Number(projectId)
+  if (isValidMemoryProjectId(parsed)) return parsed
   return undefined
 }
 
 function normalizeDraftSource(source: Record<string, unknown>): Record<string, JSONValue> {
   return {
     ...(typeof source.entityType === 'string' ? { entityType: source.entityType } : {}),
-    ...(typeof source.entityId === 'number' || typeof source.entityId === 'string' ? { entityId: source.entityId } : {}),
+    ...(isValidAgentReferenceId(source.entityId) ? { entityId: source.entityId } : {}),
     ...(typeof source.pipelineNodeId === 'number' || typeof source.pipelineNodeId === 'string' ? { pipelineNodeId: source.pipelineNodeId } : {}),
     ...(typeof source.runId === 'string' ? { runId: source.runId } : {}),
     ...(typeof source.threadId === 'string' ? { threadId: source.threadId } : {}),
@@ -636,7 +681,7 @@ function normalizeDraftSource(source: Record<string, unknown>): Record<string, J
     ...(typeof source.pageType === 'string' ? { pageType: source.pageType } : {}),
     ...(typeof source.pageRoute === 'string' ? { pageRoute: source.pageRoute } : {}),
     ...(typeof source.pageEntityType === 'string' ? { pageEntityType: source.pageEntityType } : {}),
-    ...(typeof source.pageEntityId === 'number' || typeof source.pageEntityId === 'string' ? { pageEntityId: source.pageEntityId } : {}),
+    ...(isValidAgentReferenceId(source.pageEntityId) ? { pageEntityId: source.pageEntityId } : {}),
   }
 }
 
@@ -647,7 +692,7 @@ function readJSON(req: IncomingMessage): Promise<unknown> {
     req.on('data', (chunk) => {
       body += chunk
       if (body.length > 1024 * 1024) {
-        reject(new Error('request body too large'))
+        reject(new AgentHTTPError(413, 'request body too large'))
         req.destroy()
       }
     })
@@ -655,7 +700,7 @@ function readJSON(req: IncomingMessage): Promise<unknown> {
       try {
         resolve(body ? JSON.parse(body) : {})
       } catch (error) {
-        reject(error)
+        reject(new AgentHTTPError(400, 'invalid JSON request body'))
       }
     })
     req.on('error', reject)
@@ -776,13 +821,20 @@ export function normalizeTraceQuery(url: URL): { ok: true; query: AgentTraceQuer
   const cursor = url.searchParams.get('cursor')
   const limitRaw = url.searchParams.get('limit')
   const kind = url.searchParams.get('kind')
-  const limit = limitRaw !== null ? Number(limitRaw) : undefined
+  const limit = parseLimitParam(limitRaw, Number.MAX_SAFE_INTEGER - 1)
   if (kind && !AGENT_TRACE_EVENT_KIND_SET.has(kind as AgentTraceEventKind)) return { ok: false, error: `invalid trace kind: ${kind}` }
   return { ok: true, query: {
     ...(cursor ? { cursor } : {}),
-    ...(Number.isFinite(limit) ? { limit } : {}),
+    ...(limit !== undefined ? { limit } : {}),
     ...(kind ? { kind: kind as AgentTraceEventKind } : {}),
   } }
+}
+
+function parseLimitParam(value: string | null, max: number): number | undefined {
+  if (value === null || value.trim() === '') return undefined
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return undefined
+  return Math.min(max, Math.max(1, Math.floor(parsed)))
 }
 
 function setHeaders(res: ServerResponse): void {
@@ -851,8 +903,4 @@ function headerValue(req: IncomingMessage, name: string): string | undefined {
   const raw = req.headers[name]
   const value = Array.isArray(raw) ? raw[0] : raw
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

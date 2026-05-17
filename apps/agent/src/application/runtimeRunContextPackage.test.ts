@@ -98,6 +98,40 @@ test('resolveRuntimeRunContextPackage keeps thread project unchanged when focus 
   assert.equal(loadedQueries[0]?.query, 'hello')
 })
 
+test('resolveRuntimeRunContextPackage ignores invalid focus project ids at the package boundary', async () => {
+  const run = makeRun()
+  const thread = makeThread()
+  const updatedThreads: AgentThread[] = []
+  const loadedQueries: Array<{ projectId?: number; query?: string }> = []
+
+  const result = await resolveRuntimeRunContextPackage({
+    store: {
+      updateRun: () => {},
+      updateThread: (targetThread) => updatedThreads.push({ ...targetThread }),
+    },
+    run,
+    thread,
+    command: parseAgentCommand('scope check'),
+    userMessage: 'scope check',
+    setupRound,
+    timestampMs: makeClock(3000, 3001, 3002, 3003),
+    now: () => '2026-01-01T00:00:03.001Z',
+    mcpClient: new FakeFocusClient({ data: { snapshot: { project: { id: 42.5 } } } }),
+    memoryManager: {
+      loadRelevantMemories: (query) => {
+        loadedQueries.push(query)
+        return []
+      },
+    },
+    recordTrace: () => {},
+  })
+
+  assert.equal(result.context.currentProjectId, undefined)
+  assert.equal(thread.projectId, undefined)
+  assert.deepEqual(updatedThreads, [])
+  assert.deepEqual(loadedQueries, [{ query: 'scope check' }])
+})
+
 function makeRun(): AgentRun {
   return {
     id: 'run_1',

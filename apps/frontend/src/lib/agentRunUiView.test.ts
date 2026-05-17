@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventStatusLabel, traceKindLabel } from './agentRunUi'
+import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalImpactLabel, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, buildDebugAttentionEvents, buildDebugCoverageSummary, buildDebugReadinessChecklist, buildDebugReportText, buildModelCallDebugContext, buildModelCallDebugContexts, buildModelCallSummaries, formatTraceEventDuration, hasUnloadedTraceEvents, inputTypeLabel, runApprovalModeLabel, runRoleLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceCategoryLabel, traceEventDurationMs, traceEventStatusLabel, traceKindLabel } from './agentRunUi'
 import type { AgentTraceEvent } from './localAgentClient'
 
 function traceEvent(overrides: Partial<AgentTraceEvent>): AgentTraceEvent {
@@ -340,6 +340,57 @@ test('agentTraceView keeps behavior and impact separated', () => {
   assert.equal(view.toolDetail?.sandboxed, '否')
 })
 
+test('agentTraceView formats trace duration without changing latency precision', () => {
+  const toolView = agentTraceView(traceEvent({
+    kind: 'tool_call',
+    title: 'Tool completed: movscript_get_focus',
+    toolName: 'movscript_get_focus',
+    durationMs: 1500,
+    data: {
+      source: 'runtime',
+    },
+  }))
+  assert.equal(toolView.toolDetail?.duration, '2s')
+
+  const modelView = agentTraceView(traceEvent({
+    kind: 'model_call',
+    title: 'Model HTTP request sent',
+    data: {
+      phase: 'request',
+      latencyMs: 1500,
+      request: {
+        body: { messages: [{ role: 'user', content: 'hello' }] },
+      },
+    },
+  }))
+  const httpGroup = modelView.contextGroups.find((group) => group.label === 'HTTP 调用')
+  assert.equal(httpGroup?.items.some((item) => item.label === '延迟' && item.value === '1500ms'), true)
+})
+
+test('formatTraceEventDuration normalizes shared trace duration labels', () => {
+  assert.equal(traceEventDurationMs(traceEvent({ durationMs: 42 })), 42)
+  assert.equal(traceEventDurationMs(traceEvent({ durationMs: 42.6 })), 43)
+  assert.equal(traceEventDurationMs(traceEvent({ durationMs: 42, data: { durationMs: 2500 } })), 2500)
+  assert.equal(traceEventDurationMs(traceEvent({ durationMs: -1, data: { durationMs: -2 } })), undefined)
+  assert.equal(traceEventDurationMs(traceEvent({
+    createdAt: '2026-05-15T00:00:00.000Z',
+    completedAt: '2026-05-15T00:00:04.000Z',
+  })), 4000)
+  assert.equal(formatTraceEventDuration(traceEvent({ durationMs: 42 })), '42ms')
+  assert.equal(formatTraceEventDuration(traceEvent({ durationMs: 1500 })), '2s')
+  assert.equal(formatTraceEventDuration(traceEvent({ durationMs: 61_000 })), '1m 1s')
+  assert.equal(formatTraceEventDuration(traceEvent({ durationMs: 42, data: { durationMs: 2500 } })), '3s')
+  assert.equal(formatTraceEventDuration(traceEvent({ durationMs: -1, data: { durationMs: -2 } })), undefined)
+  assert.equal(formatTraceEventDuration(traceEvent({
+    createdAt: '2026-05-15T00:00:00.000Z',
+    completedAt: '2026-05-15T00:00:04.000Z',
+  })), '4s')
+  assert.equal(formatTraceEventDuration(traceEvent({
+    createdAt: 'bad',
+    completedAt: '2026-05-15T00:00:04.000Z',
+  })), undefined)
+})
+
 test('agentTraceView exposes tool call result fields without requiring raw JSON', () => {
   const view = agentTraceView(traceEvent({
     kind: 'tool_call',
@@ -664,6 +715,13 @@ test('buildDebugCoverageSummary treats known total gaps as unloaded trace', () =
   assert.equal(summary.hasUnloadedTrace, true)
   assert.equal(summary.issues.some((issue) => issue.includes('未加载运行事件')), true)
   assert.equal(summary.issues.some((issue) => issue.includes('上下文组装事件')), true)
+})
+
+test('hasUnloadedTraceEvents trusts pagination hasMore even when summary total is stale', () => {
+  assert.equal(hasUnloadedTraceEvents({ loaded: 25, total: 25, hasMore: true }), true)
+  assert.equal(hasUnloadedTraceEvents({ loaded: 25, total: 30, hasMore: false }), true)
+  assert.equal(hasUnloadedTraceEvents({ loaded: 25, total: 25, hasMore: false }), false)
+  assert.equal(hasUnloadedTraceEvents({ loaded: 25, hasMore: true }), true)
 })
 
 test('buildDebugCoverageSummary reports model calls without request payloads', () => {

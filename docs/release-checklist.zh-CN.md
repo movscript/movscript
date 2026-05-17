@@ -7,7 +7,7 @@
 - `pnpm run test:agent-run-debugging`
 - `pnpm --filter movscript-frontend typecheck`
 - `pnpm --filter movscript-admin typecheck`
-- AgentRun 调试页或 Agent 运行链路有变更时，`pnpm run test:agent-run-debugging:e2e` 通过，并归档 `agent-run-debugging-playwright-results`。
+- AgentRun 调试页或 Agent 运行链路有变更时，`pnpm run test:agent-run-debugging:e2e` 通过，并归档 `agent-run-debugging-playwright-results`；确认 `agent-run-debugging-acceptance-summary.json` 中 `passed` 为 `true`，且 `node scripts/verify-agent-run-debugging-acceptance-summary.mjs <summary-path>` 通过。
 - 管理后台静态资源已构建并复制。
 - 本地桌面模式可启动 `http://localhost:8766`。
 - 管理后台 `http://localhost:8766/admin` 可打开。

@@ -29,11 +29,14 @@ test('applyRuntimeThreadContextSummary writes summary onto thread and run metada
     run,
     now: '2026-01-01T00:00:02.000Z',
   })
+  summary.recentRunRefs[0]!.summary = 'Changed after write'
 
   assert.equal(summary.threadId, thread.id)
   assert.equal(summary.recentRunRefs[0]?.runId, run.id)
   assert.equal((thread.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v1')
   assert.equal((run.metadata?.threadContextSummary as any)?.schema, 'movscript.thread-context-summary.v1')
+  assert.equal((thread.metadata?.threadContextSummary as any)?.recentRunRefs[0]?.summary, 'Assistant answer')
+  assert.equal((run.metadata?.threadContextSummary as any)?.recentRunRefs[0]?.summary, 'Assistant answer')
 })
 
 test('applyRuntimeThreadContextSummary respects run summary size limit', () => {
@@ -77,6 +80,7 @@ test('attachRuntimeThreadContextSummaryToRun copies normalized thread summary in
   const nextRun = makeRun({ id: 'run_2', metadata: { existing: true } })
 
   const attached = attachRuntimeThreadContextSummaryToRun({ thread, run: nextRun })
+  ;((thread.metadata?.threadContextSummary as any)?.recentRunRefs[0] ?? {}).summary = 'Changed after attach'
 
   assert.equal(attached?.schema, 'movscript.thread-context-summary.v1')
   assert.deepEqual(nextRun.metadata, {

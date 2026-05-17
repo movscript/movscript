@@ -1,4 +1,6 @@
 import type { JSONValue } from '../types.js'
+import { isJSONRecord, isRecord } from '../jsonValue.js'
+import { isValidAgentReferenceId } from '../context/runtimeContext.js'
 import type { BackendApplyResult } from './backendApplyClient.js'
 import type { AgentDraft, AgentDraftSource } from './draftStore.js'
 
@@ -16,7 +18,7 @@ export function assetProposalContainsAssetSlots(content: string): boolean {
 export function canonicalizeProjectProposalDraftContent(draft: AgentDraft, backendApply: BackendApplyResult): string | undefined {
   if (draft.kind !== 'setting_proposal' && draft.kind !== 'asset_proposal' && draft.kind !== 'project_proposal') return undefined
   const response = isRecord(backendApply.response) ? backendApply.response : undefined
-  const canonicalSnapshot = isRecord(response?.canonical_snapshot) ? response.canonical_snapshot : undefined
+  const canonicalSnapshot = isJSONRecord(response?.canonical_snapshot) ? response.canonical_snapshot : undefined
   if (!canonicalSnapshot) return undefined
   let parsed: unknown
   try {
@@ -50,7 +52,7 @@ export function normalizeRuntimeDraftSource(value: unknown): AgentDraftSource | 
   if (!isJSONRecord(value)) return undefined
   const source: AgentDraftSource = {
     ...(typeof value.entityType === 'string' ? { entityType: value.entityType } : {}),
-    ...(typeof value.entityId === 'number' || typeof value.entityId === 'string' ? { entityId: value.entityId } : {}),
+    ...(isValidAgentReferenceId(value.entityId) ? { entityId: value.entityId } : {}),
     ...(typeof value.pipelineNodeId === 'number' || typeof value.pipelineNodeId === 'string' ? { pipelineNodeId: value.pipelineNodeId } : {}),
     ...(typeof value.runId === 'string' ? { runId: value.runId } : {}),
     ...(typeof value.threadId === 'string' ? { threadId: value.threadId } : {}),
@@ -59,23 +61,7 @@ export function normalizeRuntimeDraftSource(value: unknown): AgentDraftSource | 
     ...(typeof value.pageType === 'string' ? { pageType: value.pageType } : {}),
     ...(typeof value.pageRoute === 'string' ? { pageRoute: value.pageRoute } : {}),
     ...(typeof value.pageEntityType === 'string' ? { pageEntityType: value.pageEntityType } : {}),
-    ...(typeof value.pageEntityId === 'number' || typeof value.pageEntityId === 'string' ? { pageEntityId: value.pageEntityId } : {}),
+    ...(isValidAgentReferenceId(value.pageEntityId) ? { pageEntityId: value.pageEntityId } : {}),
   }
   return Object.keys(source).length > 0 ? source : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  return isJSONRecord(value)
 }

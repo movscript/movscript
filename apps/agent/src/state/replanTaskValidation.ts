@@ -1,4 +1,5 @@
-import type { AgentTask, CreatePlanTaskInput, JSONValue, ReplanRunInput, UpdatePlanTaskInput } from './types.js'
+import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
+import type { AgentTask, CreatePlanTaskInput, ReplanRunInput, UpdatePlanTaskInput } from './types.js'
 import { normalizePlanTaskInputs, normalizePlanTaskUpdateInputs, normalizeStringList } from './planTaskInput.js'
 import {
   assertTaskDependencyGraphAcyclic,
@@ -89,7 +90,7 @@ export function normalizeAndValidateReplanTaskUpdates(
     }
 
     if (isJSONRecord(update.metadata)) {
-      task.metadata = { ...(task.metadata ?? {}), ...update.metadata }
+      task.metadata = { ...(task.metadata ?? {}), ...cloneJSONValue(update.metadata) }
     }
 
     normalized.push({ taskId, update })
@@ -117,20 +118,4 @@ function assertTaskReferenceInTaskMap(
 
 function normalizeNonEmptyString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONRecord(value: unknown): value is Record<string, JSONValue> {
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  return isJSONRecord(value)
 }

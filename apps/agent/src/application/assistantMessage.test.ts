@@ -53,6 +53,32 @@ test('assistant message extracts tool calls from model JSON content', () => {
   assert.equal(toolCalls.length, 1)
   assert.equal(toolCalls[0].name, 'movscript_read_project_scripts')
   assert.equal(toolCalls[0].args?.project_id, 1)
+  assert.equal(toolCalls[0].args?.projectId, 1)
+})
+
+test('assistant message ignores invalid model-emitted project and production ids', () => {
+  const toolCalls = extractRequestedToolCallsFromAssistantContent(JSON.stringify({
+    tool_calls: [
+      {
+        name: 'movscript_create_draft',
+        parameters: {
+          project_id: '42',
+          production_id: 7.5,
+          projectId: 0,
+          productionId: Number.NaN,
+          kind: 'note',
+        },
+      },
+    ],
+  }))
+
+  assert.equal(toolCalls.length, 1)
+  assert.equal(toolCalls[0].name, 'movscript_create_draft')
+  assert.equal(toolCalls[0].args?.project_id, undefined)
+  assert.equal(toolCalls[0].args?.projectId, undefined)
+  assert.equal(toolCalls[0].args?.production_id, undefined)
+  assert.equal(toolCalls[0].args?.productionId, undefined)
+  assert.equal(toolCalls[0].args?.kind, 'note')
 })
 
 test('configured assistant messages prefer resolved skill instructions from run metadata', () => {
@@ -73,6 +99,33 @@ test('configured assistant messages prefer resolved skill instructions from run 
   assert.match(systemText, /Core skill instruction from catalog/)
   assert.doesNotMatch(systemText, /You are MovScript Agent/)
   assert.doesNotMatch(systemText, /Final responses must leave durable handoff anchors/)
+})
+
+test('configured assistant messages ignore non-plain skill metadata records', () => {
+  class RuntimeSkill {
+    name = 'Runtime Skill'
+    instruction = 'Do not trust prototype skill records.'
+  }
+
+  const run = makeRun()
+  run.metadata = {
+    ...(run.metadata ?? {}),
+    skills: [
+      new RuntimeSkill(),
+      {
+        id: 'movscript.policy.agent-core',
+        instruction: 'Core skill instruction from catalog.',
+      },
+    ] as never,
+  }
+
+  const messages = buildAssistantMessages('总结结果', [], [], [], run)
+  const systemText = messages.filter((message) => message.role === 'system').map((message) => message.content).join('\n')
+
+  assert.doesNotMatch(systemText, /Runtime Skill/)
+  assert.doesNotMatch(systemText, /Do not trust prototype skill records/)
+  assert.match(systemText, /movscript\.policy\.agent-core/)
+  assert.match(systemText, /Core skill instruction from catalog/)
 })
 
 test('assistant message extracts a single tool call returned as JSON content', () => {

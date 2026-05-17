@@ -91,7 +91,7 @@
     "promptDetails": {
       "type": "array",
       "items": {
-        "type": "object"
+        "$ref": "#/$defs/promptDetail"
       }
     },
     "messageWrites": {
@@ -121,7 +121,7 @@
     "events": {
       "type": "array",
       "items": {
-        "type": "object"
+        "$ref": "#/$defs/traceEvent"
       }
     }
   },
@@ -140,6 +140,113 @@
         "fieldGuide",
         "redactedDebugData"
       ]
+    },
+    "traceEvent": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id",
+        "runId",
+        "kind",
+        "status",
+        "title",
+        "createdAt"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "run",
+            "thread",
+            "message",
+            "context",
+            "memory",
+            "manifest",
+            "skill",
+            "tool_catalog",
+            "prompt",
+            "policy",
+            "reasoning",
+            "tool_call",
+            "model_call",
+            "approval",
+            "input",
+            "assistant",
+            "task",
+            "plan",
+            "error"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "started",
+            "completed",
+            "blocked",
+            "failed",
+            "info"
+          ]
+        },
+        "roundId": {
+          "type": "string"
+        },
+        "roundIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "roundLabel": {
+          "type": "string"
+        },
+        "roundSource": {
+          "type": "string",
+          "enum": [
+            "setup",
+            "runtime_rule",
+            "model",
+            "approval",
+            "final"
+          ]
+        },
+        "agentId": {
+          "type": "string"
+        },
+        "parentAgentId": {
+          "type": "string"
+        },
+        "stepId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "data": {}
+      }
     },
     "runSnapshot": {
       "type": "object",
@@ -190,7 +297,13 @@
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "model_request",
+            "model_response",
+            "history_write",
+            "missing_data"
+          ]
         },
         "label": {
           "type": "string"
@@ -353,7 +466,16 @@
       ],
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "trace_loaded",
+            "context_detail",
+            "model_http",
+            "request_payload",
+            "response_body",
+            "history_write",
+            "tool_detail"
+          ]
         },
         "label": {
           "type": "string"
@@ -398,6 +520,16 @@
             "type": "string"
           }
         },
+        "roundId": {
+          "type": "string"
+        },
+        "roundIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "roundLabel": {
+          "type": "string"
+        },
         "status": {
           "type": "string",
           "enum": [
@@ -409,6 +541,48 @@
           ]
         },
         "statusLabel": {
+          "type": "string"
+        },
+        "requestEventId": {
+          "type": "string"
+        },
+        "responseEventId": {
+          "type": "string"
+        },
+        "resultEventId": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "messageCount": {
+          "type": "string"
+        },
+        "toolCount": {
+          "type": "string"
+        },
+        "httpStatus": {
+          "type": "string"
+        },
+        "latency": {
+          "type": "string"
+        },
+        "responseChars": {
+          "type": "string"
+        },
+        "inputTokens": {
+          "type": "string"
+        },
+        "outputTokens": {
+          "type": "string"
+        },
+        "retryCount": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "issue": {
           "type": "string"
         },
         "hasRequestPayload": {
@@ -484,6 +658,141 @@
         }
       }
     },
+    "promptDetail": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "eventId",
+        "title",
+        "skills",
+        "tools",
+        "layers",
+        "contextLayers",
+        "partGroups",
+        "parts"
+      ],
+      "properties": {
+        "eventId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "totalChars": {
+          "type": "string"
+        },
+        "messageCount": {
+          "type": "string"
+        },
+        "systemMessageCount": {
+          "type": "string"
+        },
+        "blockedToolCount": {
+          "type": "string"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/promptMetric"
+          }
+        },
+        "contextLayers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/promptMetric"
+          }
+        },
+        "partGroups": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/promptPartGroup"
+          }
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/promptPart"
+          }
+        }
+      }
+    },
+    "promptMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "value"
+      ],
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "promptPartGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contextLayer",
+        "count",
+        "chars",
+        "partIds"
+      ],
+      "properties": {
+        "contextLayer": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chars": {
+          "type": "string"
+        },
+        "partIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "promptPart": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "layer": {
+          "type": "string"
+        },
+        "contextLayer": {
+          "type": "string"
+        },
+        "chars": {
+          "type": "string"
+        }
+      }
+    },
     "toolCallRef": {
       "type": "object",
       "additionalProperties": true,
@@ -498,7 +807,14 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "started",
+            "completed",
+            "blocked",
+            "failed",
+            "info"
+          ]
         },
         "statusLabel": {
           "type": "string"
@@ -553,7 +869,14 @@
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "started",
+            "completed",
+            "blocked",
+            "failed",
+            "info"
+          ]
         },
         "source": {
           "type": "string"
@@ -594,13 +917,41 @@
           "format": "date-time"
         },
         "kind": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "run",
+            "thread",
+            "message",
+            "context",
+            "memory",
+            "manifest",
+            "skill",
+            "tool_catalog",
+            "prompt",
+            "policy",
+            "reasoning",
+            "tool_call",
+            "model_call",
+            "approval",
+            "input",
+            "assistant",
+            "task",
+            "plan",
+            "error"
+          ]
         },
         "kindLabel": {
           "type": "string"
         },
         "status": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "started",
+            "completed",
+            "blocked",
+            "failed",
+            "info"
+          ]
         },
         "statusLabel": {
           "type": "string"
@@ -630,6 +981,33 @@
         "id",
         "createdAt"
       ],
+      "oneOf": [
+        {
+          "required": [
+            "toolName",
+            "reason"
+          ],
+          "properties": {
+            "type": {
+              "const": "approval"
+            }
+          }
+        },
+        {
+          "required": [
+            "title",
+            "question",
+            "inputType",
+            "choices",
+            "allowCustomAnswer"
+          ],
+          "properties": {
+            "type": {
+              "const": "input"
+            }
+          }
+        }
+      ],
       "properties": {
         "type": {
           "type": "string",
@@ -645,6 +1023,64 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "toolName": {
+          "type": "string"
+        },
+        "risk": {
+          "type": "string"
+        },
+        "permission": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "inputType": {
+          "type": "string",
+          "enum": [
+            "choice",
+            "text",
+            "confirmation"
+          ]
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pendingInputChoice"
+          }
+        },
+        "allowCustomAnswer": {
+          "type": "boolean"
+        }
+      }
+    },
+    "pendingInputChoice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
         }
       }
     }

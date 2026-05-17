@@ -1,7 +1,8 @@
 import type { JSONValue } from '../types.js'
+import { isRecord } from '../jsonValue.js'
 import { parseToolResult } from '../context/runtimeContext.js'
 import type { AgentRun, AgentMessage, ToolCallOutcome } from '../state/types.js'
-import type { AgentMemory, AgentMemoryKind, CreateMemoryInput } from './types.js'
+import { isValidMemoryProjectId, type AgentMemory, type AgentMemoryKind, type CreateMemoryInput } from './types.js'
 import type { AgentMemoryStore } from './memoryStore.js'
 import { formatToolNameForDisplay, publicToolName } from '../tools/toolNames.js'
 import { isRuntimeFailureText } from '../context/promptHygiene.js'
@@ -42,7 +43,7 @@ export class MemoryManager {
   constructor(private readonly store: AgentMemoryStore) {}
 
   loadRelevantMemories(context: RelevantMemoryContext): AgentMemory[] {
-    if (typeof context.projectId !== 'number') return []
+    if (!hasProjectScope(context)) return []
     return this.searchMemories({
       projectId: context.projectId,
       query: context.query,
@@ -51,7 +52,7 @@ export class MemoryManager {
   }
 
   searchMemories(query: MemorySearchInput): AgentMemory[] {
-    if (typeof query.projectId !== 'number') return []
+    if (!hasProjectScope(query)) return []
     return rankMemories(this.store.listMemories({
       projectId: query.projectId,
       ...(query.kind ? { kind: query.kind } : {}),
@@ -61,7 +62,7 @@ export class MemoryManager {
   }
 
   listMemorySummaries(query: MemoryListInput): Array<Pick<AgentMemory, 'id' | 'projectId' | 'title' | 'kind' | 'updatedAt'>> {
-    if (typeof query.projectId !== 'number') return []
+    if (!hasProjectScope(query)) return []
     return this.store.listMemories({
       projectId: query.projectId,
       ...(query.kind ? { kind: query.kind } : {}),
@@ -76,7 +77,7 @@ export class MemoryManager {
   }
 
   getMemory(query: MemoryLookupInput): AgentMemory | undefined {
-    if (typeof query.projectId !== 'number') return undefined
+    if (!hasProjectScope(query)) return undefined
     const memory = this.store.getMemory(query.id)
     if (!memory || memory.projectId !== query.projectId) return undefined
     return memory
@@ -93,7 +94,7 @@ export class MemoryManager {
   }
 
   extractAndWriteMemories(input: MemoryExtractionInput): AgentMemory[] {
-    if (typeof input.projectId !== 'number') return []
+    if (!hasProjectScope(input)) return []
     const writes: CreateMemoryInput[] = []
     const preference = extractPreference(input.userMessage.content)
     if (preference) {
@@ -152,6 +153,10 @@ export class MemoryManager {
       .filter((memory) => memory.title.trim().length > 0 && memory.content.trim().length > 0)
       .map((memory) => this.store.createMemory(memory))
   }
+}
+
+function hasProjectScope<T extends { projectId?: number }>(input: T): input is T & { projectId: number } {
+  return isValidMemoryProjectId(input.projectId)
 }
 
 function rankMemories(memories: AgentMemory[], query: MemorySearchInput): AgentMemory[] {
@@ -233,8 +238,4 @@ function truncate(value: string, limit: number): string {
   const text = value.trim()
   if (text.length <= limit) return text
   return `${text.slice(0, limit - 1)}…`
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

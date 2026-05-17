@@ -1,5 +1,6 @@
 import type { JSONValue } from '../types.js'
 import type { AgentRun, ToolCall } from '../state/types.js'
+import { isJSONValue, isRecord } from '../jsonValue.js'
 import { formatToolNameForDisplay } from '../tools/toolNames.js'
 
 const DEFAULT_MAX_RETRIEVED_CONTEXT_CHARS = 12000
@@ -128,16 +129,4 @@ function parseEmbeddedJSON(value: string): JSONValue | undefined {
   } catch {
     return undefined
   }
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

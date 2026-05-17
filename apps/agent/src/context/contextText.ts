@@ -1,5 +1,6 @@
 import type { AgentDebugContextPanel, ResolvedToolCatalog } from '../state/types.js'
 import type { AgentMemory } from '../memory/types.js'
+import { isRecord } from '../jsonValue.js'
 
 export function renderDebugContextText(context: AgentDebugContextPanel): string {
   const lines: string[] = [
@@ -175,9 +176,9 @@ export function renderToolCatalogText(catalog: ResolvedToolCatalog): string {
 }
 
 function summarizeToolOutputSchema(schema: unknown): string | undefined {
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return undefined
-  const props = (schema as Record<string, unknown>).properties
-  if (!props || typeof props !== 'object' || Array.isArray(props)) return undefined
+  if (!isRecord(schema)) return undefined
+  const props = schema.properties
+  if (!isRecord(props)) return undefined
   const fields = Object.entries(props)
     .slice(0, 12)
     .map(([key, value]) => summarizeSchemaField(key, value))
@@ -185,17 +186,17 @@ function summarizeToolOutputSchema(schema: unknown): string | undefined {
 }
 
 function summarizeSchemaField(key: string, value: unknown): string {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return key
-  const record = value as Record<string, unknown>
-  if (record.type === 'array' && record.items && typeof record.items === 'object' && !Array.isArray(record.items)) {
-    const itemProps = (record.items as Record<string, unknown>).properties
-    if (itemProps && typeof itemProps === 'object' && !Array.isArray(itemProps)) {
+  if (!isRecord(value)) return key
+  const record = value
+  if (record.type === 'array' && isRecord(record.items)) {
+    const itemProps = record.items.properties
+    if (isRecord(itemProps)) {
       const nested = Object.keys(itemProps).slice(0, 8)
       return nested.length > 0 ? `${key}[].${nested.join('|')}` : `${key}[]`
     }
     return `${key}[]`
   }
-  if (record.type === 'object' && record.properties && typeof record.properties === 'object' && !Array.isArray(record.properties)) {
+  if (record.type === 'object' && isRecord(record.properties)) {
     const nested = Object.keys(record.properties).slice(0, 8)
     return nested.length > 0 ? `${key}.{${nested.join('|')}}` : key
   }

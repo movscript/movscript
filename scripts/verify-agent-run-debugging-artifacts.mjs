@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 const requiredScreenshots = [
@@ -22,26 +22,43 @@ const root = path.resolve(process.argv[2] ?? 'apps/frontend/test-results')
 const minBytes = Number(process.env.AGENT_RUN_DEBUG_SCREENSHOT_MIN_BYTES ?? 1024)
 const minWidth = Number(process.env.AGENT_RUN_DEBUG_SCREENSHOT_MIN_WIDTH ?? 320)
 const minHeight = Number(process.env.AGENT_RUN_DEBUG_SCREENSHOT_MIN_HEIGHT ?? 240)
+const reportPath = process.env.AGENT_RUN_DEBUG_ARTIFACT_REPORT_PATH?.trim()
 const errors = []
+const report = {
+  artifactRoot: root,
+  requiredScreenshots,
+  presentScreenshots: [],
+  missingScreenshots: [],
+  invalidScreenshots: [],
+}
 
 if (!existsSync(root)) {
   errors.push(`artifact root does not exist: ${root}`)
+  for (const screenshotName of requiredScreenshots) {
+    errors.push(`missing screenshot artifact: ${screenshotName}`)
+    report.missingScreenshots.push(screenshotName)
+  }
 } else {
   const files = listFiles(root)
   for (const screenshotName of requiredScreenshots) {
     const matches = files.filter((file) => path.basename(file) === screenshotName)
     if (matches.length === 0) {
       errors.push(`missing screenshot artifact: ${screenshotName}`)
+      report.missingScreenshots.push(screenshotName)
       continue
     }
+    report.presentScreenshots.push(screenshotName)
     const results = matches.map((file) => inspectScreenshot(file))
     const valid = results.some((result) => result.ok)
     if (!valid) {
       const reasons = results.map((result) => `${path.relative(root, result.file)}: ${result.reason}`).join('; ')
       errors.push(`invalid screenshot artifact: ${screenshotName} (${reasons})`)
+      report.invalidScreenshots.push({ name: screenshotName, reasons: results.map((result) => `${path.relative(root, result.file)}: ${result.reason}`) })
     }
   }
 }
+
+writeReport(report)
 
 if (errors.length > 0) {
   console.error('AgentRun debugging artifact verification failed:')
@@ -50,6 +67,13 @@ if (errors.length > 0) {
 }
 
 console.log('AgentRun debugging artifact verification passed.')
+
+function writeReport(value) {
+  if (!reportPath) return
+  const resolved = path.resolve(reportPath)
+  mkdirSync(path.dirname(resolved), { recursive: true })
+  writeFileSync(resolved, `${JSON.stringify(value, null, 2)}\n`)
+}
 
 function listFiles(directory) {
   const entries = readdirSync(directory, { withFileTypes: true })

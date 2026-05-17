@@ -86,6 +86,18 @@ test('tool policy blocks project scoped tools without a current project', () => 
   assert.deepEqual(result.warnings, ['当前没有选中项目'])
 })
 
+test('tool policy blocks project scoped tools with invalid current project ids', () => {
+  for (const currentProjectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const result = applyToolPolicy([
+      { name: 'movscript_read_project_scripts', args: { limit: 10 } },
+    ], { currentProjectId, registry })
+
+    assert.deepEqual(result.toolCalls, [])
+    assert.deepEqual(result.warnings, ['当前没有选中项目'])
+    assert.equal(result.blockedToolCalls[0]?.reason, 'missing_project')
+  }
+})
+
 test('tool policy allows approved project creation without a current project', () => {
   const manifest = {
     ...DEFAULT_AGENT_MANIFEST,

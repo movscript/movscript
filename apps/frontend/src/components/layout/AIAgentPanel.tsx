@@ -29,6 +29,7 @@ import {
 } from '@/lib/agentMessageViewModel'
 import { compactRunActivity, compactRunTraceEvents, liveTraceEventKey, mergeRunActivityEvents } from '@/lib/agentRunActivity'
 import { agentPermissionModeLabel, agentPlanStatusLabel, agentTraceView, approvalPermissionLabel, approvalRiskLabel, approvalStatusLabel, inputTypeLabel, runApprovalModeLabel, runStatusLabel, toolApprovalLabel, toolGrantModeLabel, traceEventStatusLabel, traceKindLabel } from '@/lib/agentRunUi'
+import { isRecord } from '@/lib/jsonValue'
 import { syncRuntimeModelConfig } from '@/lib/runtimeChat'
 import { toastMCPError, toastMCPStatus } from '@/lib/mcpStatus'
 import { needsModelSetupAction } from '@/lib/actionableErrors'
@@ -565,10 +566,6 @@ function AgentMentionEditor({
       }}
     />
   )
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function attachmentPromptBlock(attachments: AgentAttachment[]) {
@@ -4894,6 +4891,7 @@ function ChatView({
         ...(trace.toolName ? { toolName: trace.toolName } : {}),
         ...(trace.stepId ? { stepId: trace.stepId } : {}),
         ...(trace.data !== undefined ? { data: trace.data } : {}),
+        ...(typeof trace.durationMs === 'number' ? { durationMs: trace.durationMs } : {}),
         createdAt: trace.createdAt,
         ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
       })
@@ -4911,6 +4909,7 @@ function ChatView({
       ...(trace.toolName ? { toolName: trace.toolName } : {}),
       ...(trace.stepId ? { stepId: trace.stepId } : {}),
       ...(trace.data !== undefined ? { data: trace.data } : {}),
+      ...(typeof trace.durationMs === 'number' ? { durationMs: trace.durationMs } : {}),
       createdAt: trace.createdAt,
       ...(trace.completedAt ? { completedAt: trace.completedAt } : {}),
     }

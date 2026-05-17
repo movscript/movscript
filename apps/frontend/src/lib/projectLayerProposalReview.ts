@@ -1,4 +1,7 @@
 import type { AgentDraft } from './localAgentClient'
+import { isRecord } from '@/lib/jsonValue'
+
+export { isRecord } from '@/lib/jsonValue'
 
 export type ProjectLayerProposalEntryKind = 'creative_references' | 'asset_slots'
 export type ProjectLayerProposalEntryChangeType = 'added' | 'modified' | 'deleted' | 'unchanged'
@@ -479,10 +482,6 @@ function titleOf(record: ProjectLayerProposalRecord, fallback: string) {
 
 function bodyOf(record: ProjectLayerProposalRecord, fallback = '暂无说明') {
   return asString(record.description, asString(record.summary, asString(record.content, fallback)))
-}
-
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function asRecordArray(value: unknown): Record<string, unknown>[] {

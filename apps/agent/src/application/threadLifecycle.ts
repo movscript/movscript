@@ -1,5 +1,6 @@
-import { isRecord } from '../jsonValue.js'
+import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
 import { buildRuntimeUserMessage, normalizeClientInput, type NormalizedClientInput } from '../context/normalizeClientInput.js'
+import { isValidAgentProjectId } from '../context/runtimeContext.js'
 import type { AgentMessage, AgentThread, CreateMessageInput, CreateThreadInput, JSONValue, UpdateThreadInput } from '../state/types.js'
 import { isMessageRole } from './assistantMessage.js'
 
@@ -12,8 +13,8 @@ export function buildAgentThread(input: {
   return {
     id: input.id,
     ...(typeof threadInput.title === 'string' && threadInput.title.trim() ? { title: threadInput.title.trim() } : {}),
-    ...(typeof threadInput.projectId === 'number' && Number.isFinite(threadInput.projectId) ? { projectId: threadInput.projectId } : {}),
-    ...(isRecord(threadInput.metadata) ? { metadata: threadInput.metadata as Record<string, JSONValue> } : {}),
+    ...(isValidAgentProjectId(threadInput.projectId) ? { projectId: threadInput.projectId } : {}),
+    ...(isJSONRecord(threadInput.metadata) ? { metadata: cloneJSONValue(threadInput.metadata) } : {}),
     archived: threadInput.archived === true,
     status: 'idle',
     createdAt: input.now,
@@ -40,8 +41,8 @@ export function applyThreadUpdate(input: {
     else delete thread.title
   }
   if (typeof update.archived === 'boolean') thread.archived = update.archived
-  if (isRecord(update.metadata)) {
-    thread.metadata = { ...(thread.metadata ?? {}), ...(update.metadata as Record<string, JSONValue>) }
+  if (isJSONRecord(update.metadata)) {
+    thread.metadata = { ...(thread.metadata ?? {}), ...cloneJSONValue(update.metadata) }
   }
   thread.updatedAt = now
   return thread
@@ -96,6 +97,6 @@ export function appendThreadMessage(input: {
 }
 
 export function recordThreadClientInput(thread: AgentThread, clientInput: NormalizedClientInput): AgentThread {
-  thread.metadata = { ...(thread.metadata ?? {}), lastClientInput: clientInput as unknown as JSONValue }
+  thread.metadata = { ...(thread.metadata ?? {}), lastClientInput: cloneJSONValue(clientInput as unknown as JSONValue) }
   return thread
 }

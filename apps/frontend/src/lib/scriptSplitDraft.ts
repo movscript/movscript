@@ -1,4 +1,5 @@
 import { localAgentClient, type AgentDraft, type AgentDraftValidationResult } from '@/lib/localAgentClient'
+import { isRecord } from '@/lib/jsonValue'
 import { DRAFT_CONTENT_SCHEMA_IDS } from '@movscript/draft-schemas'
 import type { Script } from '@/types'
 
@@ -118,10 +119,6 @@ interface ParsedEpisodeHeading {
   order: number
   title: string
   seriesTitle?: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function stringValue(value: unknown): string {

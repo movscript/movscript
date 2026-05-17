@@ -1,7 +1,7 @@
 import type { AgentRuntimeContract } from '../contracts/runtimeContract.js'
 import { buildRuntimeContractMetadata } from '../contracts/runtimeContract.js'
 import type { AgentManifest } from '../catalog/agentManifest.js'
-import { isJSONRecord } from '../jsonValue.js'
+import { cloneJSONValue, isJSONRecord } from '../jsonValue.js'
 import type { AgentRun, AgentRunInput, AgentRunPolicy, AgentRunRole, JSONValue, ToolCall } from './types.js'
 
 export interface BuildAgentRunInput {
@@ -35,7 +35,7 @@ export function buildAgentRun(input: BuildAgentRunInput): AgentRun {
     ...(input.taskId ? { taskId: input.taskId } : {}),
     ...(typeof input.progress === 'number' ? { progress: input.progress } : {}),
     ...(input.blockedReason ? { blockedReason: input.blockedReason } : {}),
-    ...(input.runInput ? { input: input.runInput } : {}),
+    ...(input.runInput ? { input: cloneAgentRunInput(input.runInput) } : {}),
     agentManifest: input.agentManifest,
     policy: input.policy,
     createdAt: input.now,
@@ -52,8 +52,8 @@ export function buildRunCreationMetadata(input: {
   catalogSnapshot: { id: string; catalogVersion: string | null }
 }): Record<string, JSONValue> {
   return {
-    ...(input.existing ?? {}),
-    ...(isJSONRecord(input.inputMetadata) ? input.inputMetadata : {}),
+    ...(input.existing ? cloneJSONValue(input.existing) : {}),
+    ...(isJSONRecord(input.inputMetadata) ? cloneJSONValue(input.inputMetadata) : {}),
     ...(!input.hasExplicitAgentManifest ? { manifestSource: 'default' } : {}),
     catalogSnapshot: {
       id: input.catalogSnapshot.id,
@@ -63,10 +63,11 @@ export function buildRunCreationMetadata(input: {
 }
 
 function buildAgentRunMetadata(input: BuildAgentRunInput): Record<string, JSONValue> | undefined {
+  const approvedToolNames = input.approvedToolNames ?? []
   const metadata: Record<string, JSONValue> = {
-    ...(input.forcedToolCall ? { forcedToolCall: input.forcedToolCall as unknown as JSONValue } : {}),
-    ...((input.approvedToolNames?.length ?? 0) > 0 ? { approvedToolNames: input.approvedToolNames as JSONValue } : {}),
-    ...(input.clientInput !== undefined ? { clientInput: input.clientInput } : {}),
+    ...(input.forcedToolCall ? { forcedToolCall: cloneToolCall(input.forcedToolCall) as unknown as JSONValue } : {}),
+    ...(approvedToolNames.length > 0 ? { approvedToolNames: [...approvedToolNames] as JSONValue } : {}),
+    ...(input.clientInput !== undefined ? { clientInput: cloneJSONValue(input.clientInput) } : {}),
     ...(input.initialUserMessageId ? { initialUserMessageId: input.initialUserMessageId } : {}),
     ...(buildRuntimeContractMetadata(input.runtimeContract) ?? {}),
   }
@@ -75,4 +76,37 @@ function buildAgentRunMetadata(input: BuildAgentRunInput): Record<string, JSONVa
 
 function withMetadata(metadata: Record<string, JSONValue> | undefined): { metadata?: Record<string, JSONValue> } {
   return metadata ? { metadata } : {}
+}
+
+function cloneAgentRunInput(input: AgentRunInput): AgentRunInput {
+  return {
+    schema: input.schema,
+    userMessage: input.userMessage,
+    ...(input.clientInput !== undefined ? { clientInput: cloneJSONValue(input.clientInput) } : {}),
+    ...(input.sourceMessageId ? { sourceMessageId: input.sourceMessageId } : {}),
+    executionMode: input.executionMode,
+    ...(input.parent ? { parent: { ...input.parent } } : {}),
+    ...(input.task
+      ? {
+        task: {
+          id: input.task.id,
+          title: input.task.title,
+          ...(input.task.description ? { description: input.task.description } : {}),
+          instructions: input.task.instructions,
+          ...(input.task.expectedArtifacts ? { expectedArtifacts: [...input.task.expectedArtifacts] } : {}),
+        },
+      }
+      : {}),
+    ...(input.forcedToolCall ? { forcedToolCall: cloneToolCall(input.forcedToolCall) } : {}),
+    createdAt: input.createdAt,
+  }
+}
+
+function cloneToolCall(call: ToolCall): ToolCall {
+  return {
+    ...(call.id ? { id: call.id } : {}),
+    name: call.name,
+    ...(call.args ? { args: cloneJSONValue(call.args) } : {}),
+    ...(call.arguments ? { arguments: cloneJSONValue(call.arguments) } : {}),
+  }
 }

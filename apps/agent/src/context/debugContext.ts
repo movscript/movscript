@@ -1,4 +1,5 @@
 import type { JSONValue } from '../types.js'
+import { isRecord } from '../jsonValue.js'
 import type {
   AgentDebugContextPanel,
   AgentRunDebugTrace,
@@ -9,17 +10,17 @@ import type { AgentManifest } from '../catalog/agentManifest.js'
 import type { AgentMemory } from '../memory/types.js'
 import type { CompiledPromptPreview } from '../state/types.js'
 import type { AgentClientResourceRef } from '../state/types.js'
-import { parseToolResult } from './runtimeContext.js'
+import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId, parseToolResult } from './runtimeContext.js'
 import type { NormalizedClientInput } from './normalizeClientInput.js'
 
 export function buildDebugContext(contextResult: JSONValue, memories: AgentMemory[], clientInput?: NormalizedClientInput): AgentDebugContextPanel {
   const parsed = parseToolResult(contextResult)
   const snapshot = isRecord(parsed) && isRecord(parsed.focus) ? parsed.focus : isRecord(parsed) && isRecord(parsed.snapshot) ? parsed.snapshot : parsed
   const project = isRecord(snapshot) && isRecord(snapshot.project) ? snapshot.project : undefined
-  const projectId = typeof project?.id === 'number' ? project.id : typeof project?.ID === 'number' ? project.ID : undefined
-  const productionId = isRecord(snapshot) && typeof snapshot.productionId === 'number'
+  const projectId = isValidAgentProjectId(project?.id) ? project.id : isValidAgentProjectId(project?.ID) ? project.ID : undefined
+  const productionId = isRecord(snapshot) && isValidAgentEntityId(snapshot.productionId)
     ? snapshot.productionId
-    : isRecord(snapshot) && typeof snapshot.currentProductionId === 'number'
+    : isRecord(snapshot) && isValidAgentEntityId(snapshot.currentProductionId)
       ? snapshot.currentProductionId
       : undefined
   const route = isRecord(snapshot) && isRecord(snapshot.route) ? snapshot.route : undefined
@@ -33,9 +34,13 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
       : undefined
   const ui = clientInput?.uiSnapshot
   const uiProject = ui?.project
-  const uiProductionId = typeof ui?.productionId === 'number' ? ui.productionId : undefined
+  const uiProductionId = isValidAgentEntityId(ui?.productionId) ? ui.productionId : undefined
   const uiSelection = ui?.selection
-  const mergedProjectId = typeof projectId === 'number' ? projectId : uiProject?.id
+  const mergedProjectId = isValidAgentProjectId(projectId)
+    ? projectId
+    : isValidAgentProjectId(uiProject?.id)
+      ? uiProject.id
+      : undefined
   return {
     route: {
       pathname: typeof route?.pathname === 'string' ? route.pathname : ui?.route?.pathname ?? '/',
@@ -52,11 +57,11 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
         ...(typeof project?.description === 'string' ? { description: project.description } : typeof uiProject?.description === 'string' ? { description: uiProject.description } : {}),
       },
     } : {}),
-    ...(typeof productionId === 'number' ? { productionId } : typeof uiProductionId === 'number' ? { productionId: uiProductionId } : {}),
-    ...(user && typeof user.id === 'number' && typeof user.username === 'string' ? { user: { id: user.id, username: user.username, ...(typeof user.systemRole === 'string' ? { systemRole: user.systemRole } : {}) } } : {}),
-    ...(selection && typeof selection.entityType === 'string' && (typeof selection.entityId === 'number' || typeof selection.entityId === 'string') ? {
+    ...(isValidAgentEntityId(productionId) ? { productionId } : isValidAgentEntityId(uiProductionId) ? { productionId: uiProductionId } : {}),
+    ...(user && isValidAgentEntityId(user.id) && typeof user.username === 'string' ? { user: { id: user.id, username: user.username, ...(typeof user.systemRole === 'string' ? { systemRole: user.systemRole } : {}) } } : {}),
+    ...(selection && typeof selection.entityType === 'string' && isValidAgentReferenceId(selection.entityId) ? {
       selection: { entityType: selection.entityType, entityId: selection.entityId, ...(typeof selection.label === 'string' ? { label: selection.label } : {}) },
-    } : uiSelection && typeof uiSelection.entityType === 'string' && (typeof uiSelection.entityId === 'number' || typeof uiSelection.entityId === 'string') ? {
+    } : uiSelection && typeof uiSelection.entityType === 'string' && isValidAgentReferenceId(uiSelection.entityId) ? {
       selection: { entityType: uiSelection.entityType, entityId: uiSelection.entityId, ...(typeof uiSelection.label === 'string' ? { label: uiSelection.label } : {}) },
     } : { selection: null }),
     recentResources: mergeDebugResources(
@@ -64,10 +69,10 @@ export function buildDebugContext(contextResult: JSONValue, memories: AgentMemor
       ui?.recentResources ?? [],
     ),
     attachments: clientInput?.attachments.map((a) => ({
-      id: a.id ?? (a.resourceId !== undefined ? `resource-${a.resourceId}` : a.name ?? 'attachment'),
+      id: a.id ?? (isValidAgentEntityId(a.resourceId) ? `resource-${a.resourceId}` : a.name ?? 'attachment'),
       name: a.name ?? '未命名附件',
       type: a.type ?? 'file',
-      ...(a.resourceId !== undefined ? { resourceId: a.resourceId } : {}),
+      ...(isValidAgentEntityId(a.resourceId) ? { resourceId: a.resourceId } : {}),
     })) ?? [],
     memories: memories.map((m) => ({ id: m.id, projectId: m.projectId, title: m.title, kind: m.kind, content: m.content })),
     labels: ui?.labels ?? [],
@@ -80,7 +85,7 @@ export function normalizeDebugProjects(value: unknown): AgentDebugContextPanel['
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
     if (!isRecord(item)) return []
-    const id = typeof item.id === 'number' ? item.id : typeof item.ID === 'number' ? item.ID : undefined
+    const id = isValidAgentProjectId(item.id) ? item.id : isValidAgentProjectId(item.ID) ? item.ID : undefined
     const name = typeof item.name === 'string' && item.name.trim()
       ? item.name.trim()
       : typeof item.title === 'string' && item.title.trim()
@@ -146,7 +151,7 @@ export function normalizeDebugResources(value: unknown): AgentDebugContextPanel[
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
     if (!isRecord(item)) return []
-    const id = typeof item.id === 'number' ? item.id : typeof item.ID === 'number' ? item.ID : undefined
+    const id = isValidAgentEntityId(item.id) ? item.id : isValidAgentEntityId(item.ID) ? item.ID : undefined
     const name = typeof item.name === 'string' ? item.name : undefined
     const type = typeof item.type === 'string' ? item.type : undefined
     if (id === undefined || !name || !type) return []
@@ -158,14 +163,10 @@ export function mergeDebugResources(base: AgentDebugContextPanel['recentResource
   const byId = new Map<number, AgentDebugContextPanel['recentResources'][number]>()
   for (const r of base) byId.set(r.id, r)
   for (const r of extra) {
-    if (typeof r.id !== 'number' || !r.name || !r.type) continue
+    if (!isValidAgentEntityId(r.id) || !r.name || !r.type) continue
     byId.set(r.id, { id: r.id, name: r.name, type: r.type, ...(r.mimeType ? { mimeType: r.mimeType } : {}), ...(typeof r.size === 'number' ? { size: r.size } : {}) })
   }
   return Array.from(byId.values())
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 function buildStatusDigest(snapshot: unknown): string[] {

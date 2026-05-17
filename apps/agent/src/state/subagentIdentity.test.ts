@@ -59,6 +59,15 @@ test('subagentNameFromTask and subagentNameFromRun trim metadata names', () => {
   assert.equal(subagentNameFromRun(run({ metadata: { subagentName: ' Turing ' } })), 'Turing')
 })
 
+test('subagent identity ignores non-plain metadata records', () => {
+  class RuntimeMetadata {
+    subagentName = 'Ada'
+  }
+
+  assert.equal(subagentNameFromTask(task({ metadata: new RuntimeMetadata() as any })), undefined)
+  assert.equal(subagentNameFromRun(run({ metadata: new RuntimeMetadata() as any })), undefined)
+})
+
 test('subagentNameConflicts returns sorted duplicate-name groups', () => {
   assert.deepEqual(subagentNameConflicts([
     task({ id: 'task_1', metadata: { subagentName: 'Turing' } }),

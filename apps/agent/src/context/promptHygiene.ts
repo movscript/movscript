@@ -1,6 +1,7 @@
 import type { AgentMemory } from '../memory/types.js'
 import type { AgentMessage, AgentRun } from '../state/types.js'
 import type { ContextRef, FactRecord } from '../contextManager/types.js'
+import { isRecord } from '../jsonValue.js'
 
 const DEFAULT_MAX_PROMPT_HISTORY_MESSAGES = 6
 const MAX_SUMMARY_ITEM_CHARS = 180
@@ -249,8 +250,4 @@ function stringField(value: unknown): string | undefined {
 
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0) : []
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

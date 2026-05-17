@@ -1,4 +1,5 @@
 import type { AgentApprovalRequest, AgentRun, AgentTraceEvent } from './localAgentClient'
+import { isRecord } from './jsonValue'
 
 export type AgentTraceCategory = 'context' | 'action' | 'impact' | 'http' | 'decision' | 'attention'
 
@@ -509,7 +510,7 @@ export function buildDebugCoverageSummary(input: {
   const httpResponsesWithoutBody = Math.max(0, httpResponses - httpResponseBodies)
   const incompleteModelCalls = input.modelCalls.filter((call) => call.status !== 'complete')
   const modelCallsWithReply = input.modelCalls.filter((call) => Number(call.responseChars ?? 0) > 0)
-  const hasUnloadedTrace = input.hasMore || (typeof input.total === 'number' && input.events.length < input.total)
+  const hasUnloadedTrace = hasUnloadedTraceEvents({ loaded: input.events.length, total: input.total, hasMore: input.hasMore })
   const issues = [
     hasUnloadedTrace ? '还有未加载运行事件，当前统计只覆盖已加载事件。' : undefined,
     incompleteModelCalls.length > 0 ? `${incompleteModelCalls.length} 次模型调用缺少请求或响应事件；请先加载全部事件，如果仍缺失，多半是旧运行或异常中断时没有采集到完整 HTTP 详情。` : undefined,
@@ -531,6 +532,10 @@ export function buildDebugCoverageSummary(input: {
     httpResponseBodiesLabel: `${httpResponseBodies}`,
     issues,
   }
+}
+
+export function hasUnloadedTraceEvents(input: { loaded: number; total?: number; hasMore: boolean }): boolean {
+  return input.hasMore || (typeof input.total === 'number' && input.loaded < input.total)
 }
 
 export function buildDebugReadinessChecklist(summary: AgentDebugCoverageSummary): AgentDebugReadinessItem[] {
@@ -1397,7 +1402,7 @@ function item(label: string, value: unknown): { label: string; value?: string } 
 }
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
+  return isRecord(value) ? value : undefined
 }
 
 function arrayValue(value: unknown): unknown[] | undefined {
@@ -1435,8 +1440,8 @@ function toolFieldValue(value: unknown): string | undefined {
     const values = value.map((entry) => stringValue(entry) ?? (typeof entry === 'number' || typeof entry === 'boolean' ? String(entry) : undefined)).filter(Boolean)
     return values.length > 0 ? values.slice(0, 6).join(', ') : `${value.length} 项`
   }
-  if (typeof value === 'object') {
-    const keys = Object.keys(value as Record<string, unknown>)
+  if (isRecord(value)) {
+    const keys = Object.keys(value)
     return keys.length > 0 ? keys.slice(0, 8).join(', ') : undefined
   }
   return undefined
@@ -1462,6 +1467,7 @@ function formatReportTimestamp(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   const formatted = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -1486,9 +1492,24 @@ function formatReportDuration(start: string | undefined, end: string | undefined
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`
 }
 
-function formatTraceEventDuration(event: AgentTraceEvent, data: Record<string, unknown> | undefined): string | undefined {
-  const durationMs = numberValue(data?.durationMs) ?? numberValue(event.durationMs)
-  return durationMs !== undefined ? formatMs(durationMs) : formatReportDuration(event.createdAt, event.completedAt)
+export function traceEventDurationMs(event: AgentTraceEvent, data: Record<string, unknown> | undefined = recordValue(event.data)): number | undefined {
+  const durationMs = nonNegativeNumberValue(data?.durationMs) ?? nonNegativeNumberValue(event.durationMs)
+  if (durationMs !== undefined) return durationMs
+  if (!event.createdAt || !event.completedAt) return undefined
+  const startMs = new Date(event.createdAt).getTime()
+  const endMs = new Date(event.completedAt).getTime()
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return undefined
+  return endMs - startMs
+}
+
+export function formatTraceEventDuration(event: AgentTraceEvent, data: Record<string, unknown> | undefined = recordValue(event.data)): string | undefined {
+  const durationMs = traceEventDurationMs(event, data)
+  return durationMs !== undefined ? formatDurationMs(durationMs) : undefined
+}
+
+function nonNegativeNumberValue(value: unknown): number | undefined {
+  const number = numberValue(value)
+  return number !== undefined && number >= 0 ? Math.round(number) : undefined
 }
 
 function businessPermissionLabel(permission: string): string | undefined {
@@ -1609,6 +1630,15 @@ function messageSourceLabel(value: string | undefined): string | undefined {
 
 function formatMs(value: number | undefined): string | undefined {
   return value === undefined ? undefined : `${Math.round(value)}ms`
+}
+
+function formatDurationMs(value: number): string {
+  const ms = Math.round(value)
+  if (ms < 1000) return `${ms}ms`
+  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
+  const minutes = Math.floor(ms / 60_000)
+  const seconds = Math.round((ms % 60_000) / 1000)
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`
 }
 
 function firstNumber(value: string): number {

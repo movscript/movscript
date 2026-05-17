@@ -1,3 +1,5 @@
+import { isRecord } from '../jsonValue.js'
+
 export interface RunBackendAuth {
   backendAuthToken?: string
   backendAPIBaseURL?: string
@@ -50,8 +52,4 @@ export class RuntimeRunAuthRegistry {
   get(runId: string): RunBackendAuth {
     return this.authByRunId.get(runId) ?? {}
   }
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

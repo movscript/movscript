@@ -109,6 +109,51 @@ test('resolveRuntimeRunSetup resolves default manifest capabilities, metadata, c
   assert.equal((traces[4]?.data as any)?.warningCount, 4)
 })
 
+test('resolveRuntimeRunSetup ignores invalid production ids in debug context metadata', async () => {
+  const defaultManifest: AgentManifest = {
+    ...DEFAULT_AGENT_MANIFEST,
+    id: 'default_manifest',
+    name: 'Default Manifest',
+    tools: [{ name: 'tool_a', mode: 'allow', approval: 'never' }],
+  }
+  const run = makeRun({ metadata: { manifestSource: 'default' } })
+
+  await resolveRuntimeRunSetup({
+    run,
+    store: emptyStore(),
+    catalogSnapshot: buildRuntimeCatalogSnapshot({
+      id: 'snapshot_1',
+      defaultAgentManifest: defaultManifest,
+      toolRegistry: new StaticToolRegistry([tool('tool_a')]),
+      layeredRegistry: createEmptyCatalogRegistry('catalog_v1'),
+      pluginCatalogInfo: { skillsDir: '/skills', toolsDir: '/tools', skillCount: 0, toolCount: 1, metadata: { catalogVersion: 'catalog_v1' } },
+      pluginWarnings: [],
+    }),
+    contractResolver: { find: () => undefined },
+    mcpClient: new FakeCapabilityClient(),
+    contextResult: {
+      snapshot: {
+        project: { id: 42, name: 'Project' },
+        productionId: 7.5,
+      },
+    },
+    context: { currentProjectId: 42, currentProductionId: 7.5 },
+    contextDurationMs: 1,
+    contextStartedAt: 1000,
+    contextCompletedAt: 1001,
+    memories: [],
+    command,
+    userMessage: 'hello',
+    history: [],
+    setupRound,
+    timestampMs: monotonicClock(1100, 1101),
+    now: () => '2026-01-01T00:00:01.101Z',
+    recordTrace: () => {},
+  })
+
+  assert.equal((run.metadata?.context as any)?.productionId, undefined)
+})
+
 test('resolveRuntimeRunSetup applies layered default profile and stores profile limits', async () => {
   const layeredRegistry = buildLayeredCatalogRegistry({
     manifest: DEFAULT_AGENT_MANIFEST,

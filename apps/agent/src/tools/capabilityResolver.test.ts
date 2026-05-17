@@ -123,3 +123,33 @@ test('resolveToolCatalog preserves union workflow scope', () => {
 
   assert.equal(catalog.byName['studio.write_draft'].available, true)
 })
+
+test('resolveToolCatalog treats invalid project ids as missing project scope', () => {
+  const registry = new StaticToolRegistry([
+    {
+      name: 'studio.project_context',
+      description: 'Read project context.',
+      permission: 'project.read',
+      risk: 'read',
+      source: 'runtime',
+      projectScoped: true,
+      requiresApprovalByDefault: false,
+    },
+  ])
+  const manifest = {
+    ...DEFAULT_AGENT_MANIFEST,
+    tools: [{ name: 'studio.project_context', mode: 'allow' as const, approval: 'never' as const }],
+  }
+
+  for (const currentProjectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const catalog = resolveToolCatalog({
+      mcpTools: [],
+      registry,
+      manifest,
+      currentProjectId,
+    })
+
+    assert.equal(catalog.byName['studio.project_context'].available, false)
+    assert.equal(catalog.byName['studio.project_context'].unavailableReason, 'missing_project')
+  }
+})

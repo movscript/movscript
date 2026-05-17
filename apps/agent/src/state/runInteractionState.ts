@@ -40,7 +40,7 @@ export interface AppliedRequiredRunAction {
 
 export function applyApprovedRunInteraction(run: AgentRun, approval: ApprovedRunInteraction, now: string): AgentRun {
   run.pendingApprovals = approval.pendingApprovals
-  run.metadata = { ...(run.metadata ?? {}), approvedToolNames: approval.approvedToolNames }
+  run.metadata = { ...(run.metadata ?? {}), approvedToolNames: [...approval.approvedToolNames] }
   run.status = 'queued'
   run.updatedAt = now
   return run

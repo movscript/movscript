@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 const e2ePort = Number(process.env.MOVSCRIPT_E2E_PORT ?? 4179)
 const externalBaseURL = process.env.MOVSCRIPT_E2E_BASE_URL?.trim()
 const e2eBrowserChannel = process.env.MOVSCRIPT_E2E_BROWSER_CHANNEL?.trim()
+const e2eOutputDir = process.env.AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT?.trim() || 'test-results'
 const e2eBaseURL = externalBaseURL || `http://127.0.0.1:${e2ePort}`
 const reporter = process.env.CI
   ? [['github'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
@@ -18,6 +19,7 @@ const webServer = externalBaseURL
 
 export default defineConfig({
   testDir: './src/e2e',
+  outputDir: e2eOutputDir,
   timeout: 30_000,
   expect: {
     timeout: 5_000,

@@ -3,6 +3,8 @@ import type {
   AgentClientResourceRef,
   AgentClientUISnapshot,
 } from '../state/types.js'
+import { isRecord } from '../jsonValue.js'
+import { isValidAgentEntityId, isValidAgentProjectId, isValidAgentReferenceId } from './runtimeContext.js'
 
 export type NormalizedClientInput = {
   visibleMessage: string
@@ -51,9 +53,9 @@ function normalizeClientAttachments(value: unknown): AgentClientAttachmentRef[] 
         ? item.mime_type.trim()
         : undefined
     const size = typeof item.size === 'number' && Number.isFinite(item.size) ? item.size : undefined
-    const resourceId = typeof item.resourceId === 'number' && Number.isFinite(item.resourceId)
+    const resourceId = isValidAgentEntityId(item.resourceId)
       ? item.resourceId
-      : typeof item.resource_id === 'number' && Number.isFinite(item.resource_id)
+      : isValidAgentEntityId(item.resource_id)
         ? item.resource_id
         : undefined
     if (!id && !name && resourceId === undefined) return []
@@ -84,14 +86,14 @@ function normalizeClientUISnapshot(value: unknown): AgentClientUISnapshot | unde
         ...(typeof pageContext.pageType === 'string' ? { pageType: pageContext.pageType } : {}),
         ...(typeof pageContext.pageRoute === 'string' ? { pageRoute: pageContext.pageRoute } : {}),
         ...(typeof pageContext.pageEntityType === 'string' ? { pageEntityType: pageContext.pageEntityType } : {}),
-        ...(typeof pageContext.pageEntityId === 'number' || typeof pageContext.pageEntityId === 'string' ? { pageEntityId: pageContext.pageEntityId } : {}),
+        ...(isValidAgentReferenceId(pageContext.pageEntityId) ? { pageEntityId: pageContext.pageEntityId } : {}),
         ...(typeof pageContext.draftId === 'string' ? { draftId: pageContext.draftId } : {}),
       },
     } : {}),
-    ...(project ? { project: { ...(typeof project.id === 'number' && Number.isFinite(project.id) ? { id: project.id } : typeof project.ID === 'number' && Number.isFinite(project.ID) ? { id: project.ID } : {}), ...(typeof project.name === 'string' ? { name: project.name } : {}), ...(typeof project.status === 'string' ? { status: project.status } : {}), ...(typeof project.description === 'string' ? { description: project.description } : {}) } } : {}),
-    ...(typeof value.productionId === 'number' && Number.isFinite(value.productionId) ? { productionId: value.productionId } : {}),
+    ...(project ? { project: { ...(isValidAgentProjectId(project.id) ? { id: project.id } : isValidAgentProjectId(project.ID) ? { id: project.ID } : {}), ...(typeof project.name === 'string' ? { name: project.name } : {}), ...(typeof project.status === 'string' ? { status: project.status } : {}), ...(typeof project.description === 'string' ? { description: project.description } : {}) } } : {}),
+    ...(isValidAgentEntityId(value.productionId) ? { productionId: value.productionId } : {}),
     ...(typeof value.draftId === 'string' ? { draftId: value.draftId } : {}),
-    ...(selection === null ? { selection: null } : selection ? { selection: { ...(typeof selection.entityType === 'string' ? { entityType: selection.entityType } : {}), ...(typeof selection.entityId === 'number' || typeof selection.entityId === 'string' ? { entityId: selection.entityId } : {}), ...(typeof selection.label === 'string' ? { label: selection.label } : {}) } } : {}),
+    ...(selection === null ? { selection: null } : selection ? { selection: { ...(typeof selection.entityType === 'string' ? { entityType: selection.entityType } : {}), ...(isValidAgentReferenceId(selection.entityId) ? { entityId: selection.entityId } : {}), ...(typeof selection.label === 'string' ? { label: selection.label } : {}) } } : {}),
     ...(recentResources.length > 0 ? { recentResources } : {}),
     ...(labels.length > 0 ? { labels } : {}),
   }
@@ -102,7 +104,7 @@ function normalizeClientResources(value: unknown): AgentClientResourceRef[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
     if (!isRecord(item)) return []
-    const id = typeof item.id === 'number' && Number.isFinite(item.id) ? item.id : typeof item.ID === 'number' && Number.isFinite(item.ID) ? item.ID : undefined
+    const id = isValidAgentEntityId(item.id) ? item.id : isValidAgentEntityId(item.ID) ? item.ID : undefined
     const name = typeof item.name === 'string' && item.name.trim() ? item.name.trim() : undefined
     const type = typeof item.type === 'string' && item.type.trim() ? item.type.trim() : undefined
     if (id === undefined || !name || !type) return []
@@ -113,8 +115,4 @@ function normalizeClientResources(value: unknown): AgentClientResourceRef[] {
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)))
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }

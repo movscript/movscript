@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import type { JSONValue } from '../types.js'
+import { isJSONValue, isRecord } from '../jsonValue.js'
 import { atomicWriteJSON, resolveAgentStatePath } from '../state/fileStore.js'
 import { DRAFT_CONTENT_SCHEMA_IDS, DRAFT_KIND_VALUES, type DraftKindValue } from '@movscript/draft-schemas'
 
@@ -29,6 +30,7 @@ export interface AgentDraftSource {
 export interface AgentDraftTarget {
   entityType?: string
   entityId?: number | string
+  projectId?: number
   field?: string
   [key: string]: JSONValue | undefined
 }
@@ -167,7 +169,7 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
     const draft: AgentDraft = {
       id: draftId,
       filePath: this.getDraftFilePath(draftId),
-      ...(typeof input.projectId === 'number' && Number.isFinite(input.projectId) ? { projectId: input.projectId } : {}),
+      ...(isValidDraftProjectId(input.projectId) ? { projectId: input.projectId } : {}),
       kind: normalizeDraftKind(input.kind),
       title: normalizeTitle(input.title),
       content: typeof input.content === 'string' ? input.content : '',
@@ -187,17 +189,20 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
   updateDraft(id: string, input: UpdateAgentDraftInput): AgentDraft {
     const current = this.drafts.get(id)
     if (!current) throw new Error(`draft not found: ${id}`)
+    const target = normalizeDraftTarget(input.target)
+    const appliedByUserId = normalizeDraftIdValue(input.appliedByUserId)
+    const metadata = normalizeMetadata(input.metadata)
     const updated: AgentDraft = {
       ...current,
       filePath: current.filePath ?? this.getDraftFilePath(current.id),
       ...(input.status ? { status: input.status } : {}),
       ...(typeof input.title === 'string' ? { title: normalizeTitle(input.title) } : {}),
       ...(typeof input.content === 'string' ? { content: input.content } : {}),
-      ...(input.target ? { target: input.target } : {}),
-      ...(input.appliedByUserId !== undefined ? { appliedByUserId: input.appliedByUserId } : {}),
+      ...(target ? { target } : {}),
+      ...(appliedByUserId !== undefined ? { appliedByUserId } : {}),
       ...(input.appliedAt ? { appliedAt: input.appliedAt } : {}),
       ...(typeof input.rejectedReason === 'string' ? { rejectedReason: input.rejectedReason } : {}),
-      ...(input.metadata ? { metadata: { ...(current.metadata ?? {}), ...input.metadata } } : {}),
+      ...(metadata ? { metadata: { ...(current.metadata ?? {}), ...metadata } } : {}),
       updatedAt: new Date().toISOString(),
     }
     this.drafts.set(id, clone(updated))
@@ -283,6 +288,7 @@ export class InMemoryAgentDraftStore implements AgentDraftStore {
   }
 
   listDrafts(query: ListAgentDraftsQuery = {}): AgentDraft[] {
+    if (query.projectId !== undefined && !isValidDraftProjectId(query.projectId)) return []
     const limit = typeof query.limit === 'number' && Number.isFinite(query.limit)
       ? Math.max(1, Math.min(Math.floor(query.limit), 100))
       : 50
@@ -394,7 +400,13 @@ export class FileAgentDraftStore extends InMemoryAgentDraftStore {
 
   private load(): void {
     if (!existsSync(this.filePath)) return
-    const parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as { version?: number; drafts?: unknown[] }
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(readFileSync(this.filePath, 'utf8')) as unknown
+    } catch {
+      return
+    }
+    if (!isRecord(parsed)) return
     const drafts = Array.isArray(parsed.drafts) ? parsed.drafts.flatMap((draft) => normalizeStoredDraftRecord(draft)) : []
     this.loadDrafts(drafts.map((draft) => {
       const filePath = this.getDraftFilePath(draft.id)
@@ -521,23 +533,46 @@ function normalizeTitle(value: unknown): string {
 }
 
 function normalizeDraftSource(value: unknown): AgentDraftSource | undefined {
-  if (!isRecord(value)) return undefined
-  return clone(value) as AgentDraftSource
+  const source = normalizeJSONRecord(value)
+  if (!source) return undefined
+  for (const key of ['entityId', 'pageEntityId', 'pipelineNodeId', 'userId']) {
+    if (key in source && !isValidDraftReferenceId(source[key])) delete source[key]
+  }
+  return Object.keys(source).length > 0 ? source as AgentDraftSource : undefined
 }
 
 function normalizeDraftTarget(value: unknown): AgentDraftTarget | undefined {
-  if (!isRecord(value)) return undefined
-  return clone(value) as AgentDraftTarget
+  const target = normalizeJSONRecord(value)
+  if (!target) return undefined
+  if ('entityId' in target && !isValidDraftReferenceId(target.entityId)) delete target.entityId
+  if ('projectId' in target && !isValidDraftProjectId(target.projectId)) delete target.projectId
+  return Object.keys(target).length > 0 ? target as AgentDraftTarget : undefined
 }
 
 function normalizeMetadata(value: unknown): Record<string, JSONValue> | undefined {
-  if (!isRecord(value)) return undefined
-  return clone(value) as Record<string, JSONValue>
+  return normalizeJSONRecord(value)
 }
 
 function normalizeDraftSeed(value: unknown): JSONValue | undefined {
   if (!isJSONValue(value)) return undefined
   return clone(value)
+}
+
+function normalizeJSONRecord(value: unknown): Record<string, JSONValue> | undefined {
+  if (!isRecord(value)) return undefined
+  const output: Record<string, JSONValue> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (isJSONValue(item)) output[key] = clone(item)
+  }
+  return Object.keys(output).length > 0 ? output : undefined
+}
+
+function normalizeDraftIdValue(value: unknown): number | string | undefined {
+  return isValidDraftReferenceId(value) ? value : undefined
+}
+
+function isValidDraftReferenceId(value: unknown): value is number | string {
+  return isValidDraftProjectId(value) || (typeof value === 'string' && value.trim().length > 0)
 }
 
 function normalizePatchOps(value: unknown): AgentDraftPatchOp[] {
@@ -1198,20 +1233,30 @@ function hasScriptSplitBodyText(value: Record<string, unknown>): boolean {
 
 function normalizeStoredDraft(draft: AgentDraft): AgentDraft {
   const now = new Date().toISOString()
+  const source = normalizeDraftSource(draft.source)
+  const target = normalizeDraftTarget(draft.target)
+  const appliedByUserId = normalizeDraftIdValue(draft.appliedByUserId)
   return {
     ...draft,
     filePath: draft.filePath ?? resolve('/movscript-agent/drafts', `${draft.id}.draft`),
+    ...(isValidDraftProjectId(draft.projectId) ? { projectId: draft.projectId } : { projectId: undefined }),
     kind: normalizeDraftKind(draft.kind),
     title: normalizeTitle(draft.title),
     content: typeof draft.content === 'string' ? draft.content : '',
     status: normalizeDraftStatus(draft.status) ?? 'draft',
+    ...(source ? { source } : { source: undefined }),
+    ...(target ? { target } : { target: undefined }),
+    ...(appliedByUserId !== undefined ? { appliedByUserId } : { appliedByUserId: undefined }),
     createdAt: typeof draft.createdAt === 'string' ? draft.createdAt : now,
     updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : now,
   }
 }
 
 function matchesDraftQuery(draft: AgentDraft, query: ListAgentDraftsQuery): boolean {
-  if (typeof query.projectId === 'number' && draft.projectId !== query.projectId) return false
+  if (query.projectId !== undefined) {
+    if (!isValidDraftProjectId(query.projectId)) return false
+    if (draft.projectId !== query.projectId) return false
+  }
   if (query.kind && draft.kind !== query.kind) return false
   if (query.status && draft.status !== query.status) return false
   if (query.statuses && query.statuses.length > 0 && !query.statuses.includes(draft.status)) return false
@@ -1227,20 +1272,12 @@ function matchesDraftQuery(draft: AgentDraft, query: ListAgentDraftsQuery): bool
   return true
 }
 
+function isValidDraftProjectId(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
 function makeDraftId(): string {
   return `draft_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-function isJSONValue(value: unknown): value is JSONValue {
-  if (value === null) return true
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true
-  if (Array.isArray(value)) return value.every(isJSONValue)
-  if (!isRecord(value)) return false
-  return Object.values(value).every(isJSONValue)
 }
 
 function numberValue(value: unknown): number | undefined {

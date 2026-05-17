@@ -900,6 +900,7 @@ export interface ToolCall {
   id?: string
   name: string
   args?: Record<string, JSONValue>
+  arguments?: Record<string, JSONValue>
 }
 
 export interface ToolCallOutcome {

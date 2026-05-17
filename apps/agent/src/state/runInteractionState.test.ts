@@ -49,6 +49,16 @@ test('applyApprovedRunInteraction queues the run with approved tool metadata', (
   assert.deepEqual(run.metadata?.approvedToolNames, ['tool_a'])
 })
 
+test('applyApprovedRunInteraction stores an independent approved tool snapshot', () => {
+  const run = buildRun({ pendingApprovals: [approval('approval_1', 'tool_a')] })
+  const approved = approveRunInteraction(run, {}, now)
+
+  applyApprovedRunInteraction(run, approved, now)
+  approved.approvedToolNames[0] = 'changed'
+
+  assert.deepEqual(run.metadata?.approvedToolNames, ['tool_a'])
+})
+
 test('approveRunInteraction approves all pending approvals when no selector is provided', () => {
   const result = approveRunInteraction(buildRun({
     pendingApprovals: [

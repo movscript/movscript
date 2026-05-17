@@ -40,6 +40,43 @@ test('buildLocalDiagnosticFallbackContextResult preserves client UI context shap
   assert.equal(parsed.snapshot.contextError, 'mcp offline')
 })
 
+test('buildLocalDiagnosticFallbackContextResult drops invalid project and production ids', () => {
+  const result = buildLocalDiagnosticFallbackContextResult({
+    visibleMessage: 'context',
+    attachments: [],
+    uiSnapshot: {
+      route: { pathname: '/production/invalid' },
+      project: { id: 0, name: 'Invalid project' },
+      productionId: 42.5,
+    } as never,
+  }, 'mcp offline')
+
+  const text = (result as any).content?.[0]?.text
+  const parsed = JSON.parse(text)
+
+  assert.equal(parsed.snapshot.project.id, undefined)
+  assert.equal(parsed.snapshot.project.name, 'Invalid project')
+  assert.equal(parsed.snapshot.productionId, undefined)
+})
+
+test('buildLocalDiagnosticFallbackContextResult drops invalid numeric selection ids', () => {
+  const result = buildLocalDiagnosticFallbackContextResult({
+    visibleMessage: 'context',
+    attachments: [],
+    uiSnapshot: {
+      route: { pathname: '/selection' },
+      selection: { entityType: 'production', entityId: Number.POSITIVE_INFINITY, label: 'Invalid selection' },
+    } as never,
+  }, 'mcp offline')
+
+  const text = (result as any).content?.[0]?.text
+  const parsed = JSON.parse(text)
+
+  assert.equal(parsed.snapshot.selection.entityType, 'production')
+  assert.equal(parsed.snapshot.selection.entityId, undefined)
+  assert.equal(parsed.snapshot.selection.label, 'Invalid selection')
+})
+
 test('renderLocalDiagnosticCommand renders memory file references without memory content', () => {
   const content = renderLocalDiagnosticCommand({
     command: {
@@ -101,6 +138,37 @@ test('renderLocalFinalAssistantContent renders local context command output', ()
   assert.match(content, /Business reference: project#42/)
   assert.match(content, /Focus unavailable: mcp offline/)
   assert.doesNotMatch(content, /model output should not be used/)
+})
+
+test('renderLocalFinalAssistantContent rejects non-plain local context records', () => {
+  class RuntimeContext {
+    route = { pathname: '/project/42' }
+    projects = []
+    recentResources = []
+    attachments = []
+    memories = []
+    labels = []
+  }
+
+  const content = renderLocalFinalAssistantContent({
+    command: {
+      name: 'context',
+      rawName: '/context',
+      payload: '',
+      contextProfile: 'minimal',
+      outputMode: 'natural',
+      requiredTools: [],
+      systemContract: 'Context diagnostic.',
+    },
+    run: buildTestRun(),
+    context: new RuntimeContext() as never,
+    warnings: [],
+    memories: [],
+    modelContent: 'model output should not be used',
+  })
+
+  assert.match(content, /No runtime context was available\./)
+  assert.doesNotMatch(content, /Business reference: project#42/)
 })
 
 test('renderLocalFinalAssistantContent appends source summary for ordinary final replies', () => {

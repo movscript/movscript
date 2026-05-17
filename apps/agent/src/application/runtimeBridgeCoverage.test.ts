@@ -12,6 +12,13 @@ function listRuntimeBridgeModuleNames(): string[] {
     .sort()
 }
 
+function listRuntimeModuleNames(): string[] {
+  return files
+    .filter((file) => /^runtime.+\.ts$/.test(file) && !file.endsWith('.test.ts'))
+    .map((file) => file.replace(/\.ts$/, ''))
+    .sort()
+}
+
 test('every runtime bridge module has a focused bridge test', () => {
   const bridgeModules = listRuntimeBridgeModuleNames()
   const testModules = new Set(files.filter((file) => /^runtime.+Bridge\.test\.ts$/.test(file)))
@@ -20,6 +27,18 @@ test('every runtime bridge module has a focused bridge test', () => {
   assert.deepEqual(
     bridgeModules.filter((moduleName) => !testModules.has(`${moduleName}.test.ts`)),
     [],
+  )
+})
+
+test('every runtime application module has a focused same-name test', () => {
+  const testModules = new Set(files.filter((file) => /^runtime.+\.test\.ts$/.test(file)))
+  const missingFocusedTestModules = listRuntimeModuleNames()
+    .filter((moduleName) => !testModules.has(`${moduleName}.test.ts`))
+
+  assert.deepEqual(
+    missingFocusedTestModules,
+    [],
+    'runtime modules without same-name tests are not allowed',
   )
 })
 

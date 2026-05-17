@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
@@ -64,6 +64,21 @@ test('listDrafts filters by multiple statuses', () => {
   )
 })
 
+test('draft project scopes require positive safe integer ids', () => {
+  const store = new InMemoryAgentDraftStore()
+  const scopedDraft = store.createDraft({ projectId: 42, title: 'scoped', content: 'draft' })
+  const zeroDraft = store.createDraft({ projectId: 0, title: 'zero', content: 'draft' })
+  const fractionalDraft = store.createDraft({ projectId: 42.5, title: 'fractional', content: 'draft' })
+
+  assert.equal(scopedDraft.projectId, 42)
+  assert.equal(zeroDraft.projectId, undefined)
+  assert.equal(fractionalDraft.projectId, undefined)
+  assert.deepEqual(store.listDrafts({ projectId: 42 }).map((draft) => draft.id), [scopedDraft.id])
+  assert.deepEqual(store.listDrafts({ projectId: 0 }), [])
+  assert.deepEqual(store.listDrafts({ projectId: 42.5 }), [])
+  assert.deepEqual(store.listDrafts({ projectId: Number.POSITIVE_INFINITY }), [])
+})
+
 test('createDraft stores DraftDomainModel seed metadata', () => {
   const store = new InMemoryAgentDraftStore()
   const draft = store.createDraft({
@@ -89,6 +104,188 @@ test('createDraft stores DraftDomainModel seed metadata', () => {
     sourceVersions: { project: { id: 42, updatedAt: '2026-05-13T00:00:00.000Z' } },
   })
   assert.equal(draft.metadata?.proposal, true)
+})
+
+test('createDraft rejects non-finite seed values instead of coercing them', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    title: 'draft',
+    content: '{}',
+    seed: { score: Number.POSITIVE_INFINITY },
+  })
+
+  assert.equal(draft.metadata?.seed, undefined)
+})
+
+test('createDraft ignores non-plain source target and metadata records', () => {
+  class DraftShape {
+    entityType = 'project'
+    entityId = 42
+    proposal = true
+  }
+
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    title: 'draft',
+    content: '{}',
+    source: new DraftShape(),
+    target: new DraftShape(),
+    metadata: new DraftShape(),
+  })
+
+  assert.equal(draft.source, undefined)
+  assert.equal(draft.target, undefined)
+  assert.equal(draft.metadata, undefined)
+})
+
+test('createDraft drops non-json source target and metadata fields instead of coercing them', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    title: 'draft',
+    content: '{}',
+    source: {
+      entityType: 'project',
+      entityId: Number.POSITIVE_INFINITY,
+      pageEntityId: 42.5,
+      pipelineNodeId: 0,
+      userId: '',
+      pageKey: 'project|42',
+    },
+    target: {
+      entityType: 'project',
+      entityId: Number.NaN,
+      projectId: 42.5,
+      field: 'name',
+    },
+    metadata: {
+      ok: true,
+      score: Number.NEGATIVE_INFINITY,
+      nested: { value: Number.NaN },
+    },
+  })
+
+  assert.deepEqual(draft.source, {
+    entityType: 'project',
+    pageKey: 'project|42',
+  })
+  assert.deepEqual(draft.target, {
+    entityType: 'project',
+    field: 'name',
+  })
+  assert.deepEqual(draft.metadata, { ok: true })
+})
+
+test('updateDraft stores an independent metadata snapshot', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    title: 'draft',
+    content: '{}',
+    metadata: { existing: { value: 'stable' } },
+  })
+  const metadata = {
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  }
+
+  const updated = store.updateDraft(draft.id, { metadata })
+  metadata.nested.value = 'changed'
+  metadata.list[0]!.id = 'changed'
+
+  assert.deepEqual(updated.metadata, {
+    existing: { value: 'stable' },
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  })
+  assert.deepEqual(store.getDraft(draft.id)?.metadata, updated.metadata)
+})
+
+test('updateDraft stores an independent target snapshot', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    title: 'draft',
+    content: '{}',
+  })
+  const target = {
+    entityType: 'project',
+    entityId: 42,
+    nested: { value: 'original' },
+  }
+
+  const updated = store.updateDraft(draft.id, { target })
+  target.nested.value = 'changed'
+
+  assert.deepEqual(updated.target, {
+    entityType: 'project',
+    entityId: 42,
+    nested: { value: 'original' },
+  })
+  assert.deepEqual(store.getDraft(draft.id)?.target, updated.target)
+})
+
+test('updateDraft drops non-json target metadata and user id fields instead of coercing them', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    title: 'draft',
+    content: '{}',
+    metadata: { existing: 'stable' },
+  })
+
+  const updated = store.updateDraft(draft.id, {
+    target: {
+      entityType: 'project',
+      entityId: Number.NaN,
+      field: 'name',
+    },
+    appliedByUserId: Number.POSITIVE_INFINITY,
+    metadata: {
+      next: true,
+      score: Number.NEGATIVE_INFINITY,
+      nested: { value: Number.NaN },
+    },
+  })
+
+  assert.deepEqual(updated.target, {
+    entityType: 'project',
+    field: 'name',
+  })
+  assert.equal(updated.appliedByUserId, undefined)
+  assert.deepEqual(updated.metadata, {
+    existing: 'stable',
+    next: true,
+  })
+})
+
+test('draft store drops invalid numeric reference ids at the storage boundary', () => {
+  const store = new InMemoryAgentDraftStore()
+  const draft = store.createDraft({
+    title: 'draft',
+    content: '{}',
+    source: {
+      entityType: 'scene_moment',
+      entityId: 0,
+      pageEntityType: 'production',
+      pageEntityId: 7.5,
+      userId: 42.5,
+    },
+    target: {
+      entityType: 'production',
+      entityId: 0,
+      projectId: 1.5,
+    },
+  })
+
+  assert.deepEqual(draft.source, {
+    entityType: 'scene_moment',
+    pageEntityType: 'production',
+  })
+  assert.deepEqual(draft.target, {
+    entityType: 'production',
+  })
+
+  const updated = store.updateDraft(draft.id, {
+    appliedByUserId: 7.5,
+  })
+  assert.equal(updated.appliedByUserId, undefined)
 })
 
 test('read and edit draft files with unique text replacement', () => {
@@ -448,6 +645,70 @@ test('file draft store persists draft content files across rebuilds', () => {
     assert.equal(restored?.source?.entityType, 'scene_moment')
     assert.equal(read.content, 'Check storyboard-line gaps.')
     assert.equal(rebuilt.listDrafts({ projectId: 42 }).length, 1)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('file draft store normalizes invalid persisted reference ids on load', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-drafts-'))
+  try {
+    const draftPath = join(dir, 'drafts.json')
+    writeFileSync(draftPath, JSON.stringify({
+      version: 2,
+      drafts: [{
+        id: 'draft_1',
+        projectId: 42.5,
+        kind: 'note',
+        title: 'Persisted draft',
+        content: 'Persisted content',
+        status: 'draft',
+        source: {
+          entityType: 'scene_moment',
+          entityId: 0,
+          pageEntityType: 'production',
+          pageEntityId: 7.5,
+          userId: '',
+        },
+        target: {
+          entityType: 'production',
+          entityId: 0,
+          projectId: 7.5,
+        },
+        appliedByUserId: 7.5,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }],
+    }), 'utf8')
+
+    const store = new FileAgentDraftStore(draftPath)
+    const draft = store.getDraft('draft_1')
+
+    assert.equal(draft?.projectId, undefined)
+    assert.deepEqual(draft?.source, {
+      entityType: 'scene_moment',
+      pageEntityType: 'production',
+    })
+    assert.deepEqual(draft?.target, {
+      entityType: 'production',
+    })
+    assert.equal(draft?.appliedByUserId, undefined)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('file draft store ignores corrupt or non-object state files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-agent-drafts-'))
+  try {
+    const draftPath = join(dir, 'drafts.json')
+    writeFileSync(draftPath, '{not-json', 'utf8')
+    const corruptStore = new FileAgentDraftStore(draftPath)
+    assert.deepEqual(corruptStore.listDrafts(), [])
+
+    writeFileSync(draftPath, '["draft_1"]', 'utf8')
+    const nonObjectStore = new FileAgentDraftStore(draftPath)
+    assert.deepEqual(nonObjectStore.listDrafts(), [])
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

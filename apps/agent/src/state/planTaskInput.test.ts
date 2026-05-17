@@ -75,6 +75,26 @@ test('buildAgentTask rejects missing titles', () => {
   assert.throws(() => buildAgentTask('plan_1', {}, 'now'), /task title is required/)
 })
 
+test('buildAgentTask stores an independent metadata snapshot', () => {
+  const metadata = {
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  }
+  const task = buildAgentTask('plan_1', {
+    id: 'task_1',
+    title: 'Task',
+    metadata,
+  }, '2026-05-16T00:00:00.000Z')
+
+  metadata.nested.value = 'changed'
+  metadata.list[0]!.id = 'changed'
+
+  assert.deepEqual(task.metadata, {
+    nested: { value: 'original' },
+    list: [{ id: 'item_1' }],
+  })
+})
+
 test('normalizes task execution metadata and defaults', () => {
   assert.deepEqual(taskExecutionOverrideMetadata({
     title: 'Task',
@@ -116,6 +136,26 @@ test('normalizeTaskArtifacts trims valid artifacts and drops invalid metadata', 
     uri: 'file://report',
     createdAt: 'custom',
   }])
+})
+
+test('normalizeTaskArtifacts stores independent artifact metadata snapshots', () => {
+  const metadata = {
+    source: { taskId: 'task_1' },
+    tags: ['draft'],
+  }
+  const artifacts = normalizeTaskArtifacts([{
+    id: 'artifact_1',
+    type: 'file',
+    metadata,
+  }], '2026-05-16T00:00:00.000Z')
+
+  metadata.source.taskId = 'changed'
+  metadata.tags[0] = 'changed'
+
+  assert.deepEqual(artifacts[0]?.metadata, {
+    source: { taskId: 'task_1' },
+    tags: ['draft'],
+  })
 })
 
 function taskFixture(overrides: Partial<AgentTask> = {}): AgentTask {

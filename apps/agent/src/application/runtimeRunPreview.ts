@@ -2,7 +2,7 @@ import { buildDebugContext, buildDebugTrace } from '../context/debugContext.js'
 import { normalizeClientInput } from '../context/normalizeClientInput.js'
 import { parseAgentCommand } from '../context/commandRouter.js'
 import { buildPromptMemoryIndex } from '../context/promptHygiene.js'
-import { extractAgentContext } from '../context/runtimeContext.js'
+import { extractAgentContext, isValidAgentProjectId } from '../context/runtimeContext.js'
 import { contextManager } from '../contextManager/contextManager.js'
 import type { AgentDraftStore } from '../drafts/draftStore.js'
 import type { MemoryManager } from '../memory/memoryManager.js'
@@ -53,8 +53,9 @@ export async function buildRuntimeRunPreview(input: {
   await input.mcpClient.initialize()
   const contextResult = await input.mcpClient.callTool('movscript_get_focus', {})
   const context = extractAgentContext(contextResult)
+  const currentProjectId = isValidAgentProjectId(context.currentProjectId) ? context.currentProjectId : undefined
   const relevantMemories = input.memoryManager.loadRelevantMemories({
-    ...(typeof context.currentProjectId === 'number' ? { projectId: context.currentProjectId } : {}),
+    ...(currentProjectId !== undefined ? { projectId: currentProjectId } : {}),
     query: message,
   })
   const memories = buildPromptMemoryIndex(relevantMemories)
@@ -74,7 +75,7 @@ export async function buildRuntimeRunPreview(input: {
   const capabilities = await resolveAgentCapabilities({
     mcpClient: input.mcpClient,
     manifest: activeManifest,
-    currentProjectId: context.currentProjectId,
+    currentProjectId,
     registry: input.catalogSnapshot.toolRegistry,
     pluginCatalog: input.catalogSnapshot.pluginCatalogInfo,
     warnings: [...input.catalogSnapshot.pluginWarnings, ...(layers?.warnings ?? [])],
@@ -114,7 +115,7 @@ export async function buildRuntimeRunPreview(input: {
       history: thread?.messages ?? [],
       userMessage: message,
       command,
-      currentProjectId: context.currentProjectId,
+      currentProjectId,
       registry: input.catalogSnapshot.toolRegistry,
       draftStore: input.draftStore,
       contractResolver: input.contractResolver,
@@ -131,7 +132,7 @@ export async function buildRuntimeRunPreview(input: {
     message,
     status: 'preview',
     agentManifest: activeManifest,
-    ...(typeof context.currentProjectId === 'number' ? { currentProjectId: context.currentProjectId } : {}),
+    ...(currentProjectId !== undefined ? { currentProjectId } : {}),
     context: debugContext,
     skills,
     tools: capabilities.resolvedTools,

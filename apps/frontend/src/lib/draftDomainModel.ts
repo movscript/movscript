@@ -1,5 +1,6 @@
 import { getActiveSchemaForKind, getDraftSchemaEntry, type JSONSchema7 } from '@movscript/draft-schemas'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
+import { isRecord } from '@/lib/jsonValue'
 import type { AgentDraft, AgentDraftKind } from '@/lib/localAgentClient'
 import { ROUTES, withRouteParams } from '@/routes/projectRoutes'
 
@@ -309,10 +310,6 @@ export function buildDraftArtifactReviewPath(artifact: AgentTaskArtifactRef): st
     createdAt: artifact.updatedAt ?? '',
     updatedAt: artifact.updatedAt ?? '',
   })
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function stringValue(value: unknown): string | undefined {

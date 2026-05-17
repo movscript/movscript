@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import i18n from '@/i18n'
 import type { AgentTaskArtifactRef } from '@/lib/agentArtifacts'
+import { isRecord } from '@/lib/jsonValue'
 
 export interface ChatMessage {
   id: string
@@ -227,6 +228,7 @@ export interface ChatRunActivityStep {
   result?: unknown
   error?: string
   sandboxed?: boolean
+  durationMs?: number
   createdAt: string
   completedAt?: string
 }
@@ -240,6 +242,7 @@ export interface ChatRunActivityEvent {
   toolName?: string
   stepId?: string
   data?: unknown
+  durationMs?: number
   createdAt: string
   completedAt?: string
 }
@@ -649,10 +652,6 @@ function numberOrFallback(value: unknown, fallback: number): number {
 function numberOrUndefined(value: unknown): number | undefined {
   const numeric = Number(value)
   return Number.isInteger(numeric) && numeric > 0 ? numeric : undefined
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
 export function normalizeAgentSettings(settings?: Partial<AgentSettings> | null): AgentSettings {

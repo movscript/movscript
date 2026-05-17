@@ -44,6 +44,31 @@ test('taskArtifactReferences includes task and provenance metadata', () => {
   }])
 })
 
+test('taskArtifactReferences ignores non-plain artifact metadata records', () => {
+  class RuntimeArtifactMetadata {
+    sourceTaskId = 'source_task'
+    sourceRunId = 'run_1'
+    toolName = 'tool_a'
+    policy = 'manual'
+  }
+  const source = task({ id: 'source_task', title: 'Source task', status: 'done' })
+  const owner = task({
+    id: 'owner_task',
+    artifacts: [{
+      id: 'artifact_1',
+      type: 'file',
+      metadata: new RuntimeArtifactMetadata() as any,
+      createdAt: '2026-05-16T00:00:00.000Z',
+    }],
+  })
+
+  assert.deepEqual(taskArtifactReferences([source, owner]), [{
+    id: 'artifact_1',
+    type: 'file',
+    taskId: 'owner_task',
+  }])
+})
+
 test('agentPlanSummary counts statuses workers artifacts and conflicts', () => {
   const tasks = [
     task({ id: 'task_1', status: 'pending' }),

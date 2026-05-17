@@ -169,6 +169,37 @@ test('ContextManager builds knowledge observability traces from ledger refs', ()
   assert.deepEqual((trace?.data.refs as any[]).map((ref) => ref.id), ['storyboard.rhythm.basic'])
 })
 
+test('ContextManager ignores non-plain knowledge trace result records', () => {
+  class RuntimeKnowledgeResult {
+    id = 'runtime.object'
+    content = 'should not be trusted'
+  }
+
+  const ledger: ContextLedger = {
+    schema: 'movscript.context-ledger.v1',
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'snapshot_1',
+    activeSkillIds: [],
+    visibleToolNames: ['movscript_get_knowledge'],
+    retrieved: [],
+    facts: [],
+    artifactRefs: [],
+    unresolvedQuestions: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  }
+
+  const trace = contextManager.buildKnowledgeTrace({
+    ledger,
+    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    result: new RuntimeKnowledgeResult() as unknown as any,
+  })
+
+  assert.equal(trace?.data.id, 'storyboard.rhythm.basic')
+  assert.equal(trace?.data.contentChars, 0)
+})
+
 test('ContextManager builds ledger and dedupe context trace payloads', () => {
   const audit = contextManager.recordToolResult({
     runId: 'run_1',

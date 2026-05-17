@@ -3,6 +3,7 @@ import { ArrowRight, CheckCircle2, FileText, GitBranch, Trash2 } from 'lucide-re
 import { Badge, Button } from '@movscript/ui'
 
 import { localAgentClient, type AgentDraft, type AgentDraftKind } from '@/lib/localAgentClient'
+import { isRecord } from '@/lib/jsonValue'
 import {
   buildProjectLayerDraftContentForEntries,
   buildProjectLayerProposalEntryDiffRows,
@@ -364,10 +365,6 @@ export function ProjectLayerProposalReviewPanel({
 function isHelperDraft(draft: AgentDraft) {
   const metadata = isRecord(draft.metadata) ? draft.metadata : {}
   return typeof metadata.sourceDraftId === 'string' && metadata.sourceDraftId.trim().length > 0
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function formatDate(value?: string) {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
@@ -48,6 +48,30 @@ test('runtime model config keeps an existing backend model config id when saving
     assert.equal(updated.model, 'model_config:7')
     assert.equal(updated.useForPlanner, false)
     assert.equal(effective?.modelConfigId, 7)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('runtime model config ignores corrupt or non-object config files', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'movscript-model-config-'))
+  try {
+    const filePath = join(dir, 'model-config.json')
+    const store = new RuntimeModelConfigStore(filePath)
+
+    writeFileSync(filePath, '{not-json', 'utf8')
+    assert.equal(store.getEffectiveConfig(), undefined)
+    assert.deepEqual(store.getPublicConfig(), {
+      configured: false,
+      provider: 'backend-model-config',
+      model: 'movscript-default-chat',
+      useForChat: true,
+      useForPlanner: true,
+      source: 'none',
+    })
+
+    writeFileSync(filePath, '["model_config:7"]', 'utf8')
+    assert.equal(store.getEffectiveConfig(), undefined)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

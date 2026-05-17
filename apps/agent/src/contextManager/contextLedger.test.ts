@@ -152,6 +152,74 @@ test('context ledger extracts refs from data-wrapped tool payloads', () => {
   assert.equal(audit.ledger.retrieved[0]?.ref.id, '99')
 })
 
+test('context ledger ignores invalid numeric entity refs', () => {
+  for (const invalidId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    const audit = recordToolResultInContextLedgerWithAudit({
+      runId: 'run_1',
+      threadId: 'thread_1',
+      catalogSnapshotId: 'catalog_1',
+      call: {
+        name: 'movscript_read_project_productions',
+        args: {
+          projectId: invalidId,
+          productionId: invalidId,
+        },
+      },
+      result: {
+        projectId: invalidId,
+        productionId: invalidId,
+        jobId: invalidId,
+      },
+      source: 'runtime',
+    })
+
+    assert.equal(audit.ledger.retrieved.some((record) => record.ref.type === 'project'), false)
+    assert.equal(audit.ledger.retrieved.some((record) => record.ref.type === 'production'), false)
+    assert.equal(audit.ledger.retrieved.some((record) => record.ref.type === 'generation_job'), false)
+  }
+})
+
+test('context ledger ignores non-plain persisted ledger records', () => {
+  class PersistedLedger {
+    schema = 'movscript.context-ledger.v1'
+    runId = 'run_old'
+    threadId = 'thread_old'
+    catalogSnapshotId = 'catalog_old'
+    activeSkillIds = ['old_skill']
+    visibleToolNames = ['old_tool']
+    artifactRefs = [{ type: 'knowledge', id: 'old_knowledge' }]
+    retrieved = [{
+      ref: { type: 'knowledge', id: 'old_knowledge' },
+      source: 'knowledge',
+      evidence: 'advisory',
+      title: 'Old knowledge',
+      retrievedAt: '2026-01-01T00:00:00.000Z',
+    }]
+    createdAt = '2026-01-01T00:00:00.000Z'
+    updatedAt = '2026-01-01T00:00:00.000Z'
+  }
+
+  const audit = recordToolResultInContextLedgerWithAudit({
+    ledger: new PersistedLedger(),
+    runId: 'run_1',
+    threadId: 'thread_1',
+    catalogSnapshotId: 'catalog_1',
+    activeSkillIds: ['new_skill'],
+    visibleToolNames: ['new_tool'],
+    call: { name: 'movscript_get_knowledge', args: { id: 'storyboard.rhythm.basic' } },
+    result: knowledgeResult('分镜节奏基础'),
+    source: 'runtime',
+    now: '2026-01-02T00:00:00.000Z',
+  })
+
+  assert.equal(audit.ledger.runId, 'run_1')
+  assert.equal(audit.ledger.threadId, 'thread_1')
+  assert.equal(audit.ledger.catalogSnapshotId, 'catalog_1')
+  assert.deepEqual(audit.ledger.activeSkillIds, ['new_skill'])
+  assert.deepEqual(audit.ledger.visibleToolNames, ['new_tool'])
+  assert.equal(audit.ledger.retrieved.some((record) => record.ref.id === 'old_knowledge'), false)
+})
+
 function knowledgeResult(title: string) {
   return {
     id: 'storyboard.rhythm.basic',

@@ -35,7 +35,20 @@
 `runSummary.role` 固定为 `planner`、`worker` 或 `unknown`。旧 run 缺少角色字段时会写入 `unknown`，保证调试包仍满足 schema。
 `run.status` 和 `runSummary.status` 固定为 `queued`、`in_progress`、`requires_action`、`completed`、`completed_with_warnings`、`failed` 或 `cancelled`，消费方应把其他值视为不符合 v1 契约。
 `modelCalls[*].status` 和 `modelCallContexts[*].status` 固定为 `complete`、`request_only`、`response_only`、`result_only` 或 `failed`，两处含义一致。
-`pendingActions[*]` 至少包含 `type`、`id`、`createdAt`。其中 `type` 固定为 `approval` 或 `input`，`createdAt` 按 date-time 校验。
+`pendingActions[*]` 至少包含 `type`、`id`、`createdAt`。其中 `type` 固定为 `approval` 或 `input`，`createdAt` 按 date-time 校验。调试包只导出仍处于 pending 状态的请求。
+
+`pendingActions[*].type === "approval"` 时还必须包含：
+
+- `toolName`: 等待审批的工具名。
+- `reason`: 触发审批的原因。
+- `risk`、`permission`: 可选的风险和权限提示。
+
+`pendingActions[*].type === "input"` 时还必须包含：
+
+- `title`、`question`: 待输入请求的标题和问题。
+- `inputType`: 固定为 `choice`、`text` 或 `confirmation`。
+- `choices`: 输入选项列表，每项至少包含 `id` 和 `label`。
+- `allowCustomAnswer`: 是否允许自定义回答。
 
 1. 先看 `coverage.issues` 和 `readinessChecklist`，判断这份包是否完整。
 2. 再看 `modelCallContexts`，按轮次确认模型请求、模型响应、工具调用和历史写入是否能对上。

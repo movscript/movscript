@@ -92,3 +92,24 @@ test('normalizeConvsByUser preserves historical agent messages and rewrites pers
   assert.equal(draftAttachment.url, '/api/v1/resources/42/file')
   assert.equal(draftAttachment.previewUrl, undefined)
 })
+
+test('normalizeConvsByUser ignores non-plain persisted conversation records', () => {
+  class RuntimeConversation {
+    id = 'conv-runtime'
+    title = 'Runtime conversation'
+    messages = []
+    createdAt = 1000
+    updatedAt = 1000
+  }
+
+  const normalized = normalizeConvsByUser({
+    '7': {
+      activeConversationId: 'conv-runtime',
+      conversations: [new RuntimeConversation()] as unknown as UserConvState['conversations'],
+      draftsByConversation: {},
+    },
+  })
+
+  assert.deepEqual(normalized['7'].conversations, [])
+  assert.equal(normalized['7'].activeConversationId, null)
+})

@@ -1,4 +1,5 @@
 import type { AgentRunPolicy, AgentWorkflowConfig } from './types.js'
+import { isRecord } from '../jsonValue.js'
 
 export interface DefaultRunPolicyInput {
   approvalMode?: AgentRunPolicy['approvalMode']
@@ -21,8 +22,8 @@ export function defaultRunPolicy(input: DefaultRunPolicyInput = {}): AgentRunPol
 }
 
 export function normalizeRunPolicyOverride(value: unknown): Partial<Pick<AgentRunPolicy, 'maxToolCalls' | 'maxIterations'>> {
-  if (!value || typeof value !== 'object') return {}
-  const record = value as Record<string, unknown>
+  if (!isRecord(value)) return {}
+  const record = value
   return {
     ...(isPositiveFiniteNumber(record.maxToolCalls) ? { maxToolCalls: clampPolicyLimit(record.maxToolCalls) } : {}),
     ...(isPositiveFiniteNumber(record.maxIterations) ? { maxIterations: clampPolicyLimit(record.maxIterations) } : {}),

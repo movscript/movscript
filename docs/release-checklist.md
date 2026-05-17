@@ -7,7 +7,7 @@ Before release, at minimum verify:
 - `pnpm run test:agent-run-debugging`
 - `pnpm --filter movscript-frontend typecheck`
 - `pnpm --filter movscript-admin typecheck`
-- If AgentRun debugging pages or Agent run flows changed, `pnpm run test:agent-run-debugging:e2e` passes and `agent-run-debugging-playwright-results` is archived.
+- If AgentRun debugging pages or Agent run flows changed, `pnpm run test:agent-run-debugging:e2e` passes, `agent-run-debugging-playwright-results` is archived, `agent-run-debugging-acceptance-summary.json` shows `passed: true`, and `node scripts/verify-agent-run-debugging-acceptance-summary.mjs <summary-path>` passes.
 - Admin static assets are built and copied.
 - Local desktop mode starts `http://localhost:8766`.
 - The admin console opens at `http://localhost:8766/admin`.

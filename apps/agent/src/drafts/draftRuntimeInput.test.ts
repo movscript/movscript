@@ -28,6 +28,16 @@ test('buildRuntimeCreateDraftInput normalizes project id and runtime draft sourc
   })
 })
 
+test('buildRuntimeCreateDraftInput ignores invalid project ids', () => {
+  for (const projectId of [0, 42.5, Number.NaN, Number.POSITIVE_INFINITY, '42']) {
+    assert.equal(buildRuntimeCreateDraftInput({
+      projectId,
+      title: 'Draft',
+      content: 'Content',
+    }).projectId, undefined)
+  }
+})
+
 test('buildRuntimeUpdateDraftInput filters update fields to store-safe values', () => {
   assert.deepEqual(buildRuntimeUpdateDraftInput({
     draftId: ' draft_1 ',
@@ -95,6 +105,11 @@ test('buildRuntimeDraftBackendAuth preserves backend auth strings and conditiona
     backendAuthToken: 123,
     backendAPIBaseURL: false,
   }, { includeAppliedByUserId: true }), {})
+  for (const appliedByUserId of [0, 7.5, Number.NaN, Number.POSITIVE_INFINITY, '']) {
+    assert.deepEqual(buildRuntimeDraftBackendAuth({
+      appliedByUserId,
+    }, { includeAppliedByUserId: true }), {})
+  }
 })
 
 test('requireRuntimeDraftId rejects missing ids with action-specific messages', () => {

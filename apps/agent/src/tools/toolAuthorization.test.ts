@@ -38,6 +38,13 @@ test('getToolAuthorizationUnavailableReason enforces run role and project scope'
     registeredTool: buildTool({ projectScoped: true }),
     grant: allowGrant(),
   }), 'missing_project')
+  for (const currentProjectId of [0, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(getToolAuthorizationUnavailableReason({
+      registeredTool: buildTool({ projectScoped: true }),
+      grant: allowGrant(),
+      currentProjectId,
+    }), 'missing_project')
+  }
 })
 
 test('getToolAuthorizationUnavailableReason returns undefined when base authorization passes', () => {

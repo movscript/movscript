@@ -1,4 +1,5 @@
 import type { AgentMessage, AgentRunInput, AgentRunRole, AgentTask, JSONValue, ToolCall } from './types.js'
+import { cloneJSONValue, isRecord } from '../jsonValue.js'
 import { WORKER_TASK_INSTRUCTIONS } from './workerTaskPrompt.js'
 
 export interface BuildAgentRunInputSnapshotInput {
@@ -22,7 +23,7 @@ export function buildAgentRunInputSnapshot(input: BuildAgentRunInputSnapshotInpu
   return {
     schema: 'movscript.agent.run-input.v1',
     userMessage,
-    ...(input.clientInput !== undefined ? { clientInput: input.clientInput } : {}),
+    ...(input.clientInput !== undefined ? { clientInput: cloneJSONValue(input.clientInput) } : {}),
     ...(input.sourceMessage ? { sourceMessageId: input.sourceMessage.id } : {}),
     executionMode,
     ...(input.parentRunId || input.planId || input.taskId
@@ -34,8 +35,8 @@ export function buildAgentRunInputSnapshot(input: BuildAgentRunInputSnapshotInpu
         },
       }
       : {}),
-    ...(input.task ? { task: input.task } : {}),
-    ...(input.forcedToolCall ? { forcedToolCall: input.forcedToolCall } : {}),
+    ...(input.task ? { task: cloneRunInputTask(input.task) } : {}),
+    ...(input.forcedToolCall ? { forcedToolCall: cloneToolCall(input.forcedToolCall) } : {}),
     createdAt: input.now,
   }
 }
@@ -84,6 +85,21 @@ function normalizeStringList(value: unknown): string[] {
   return value.flatMap((item) => typeof item === 'string' && item.trim() ? [item.trim()] : [])
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
+function cloneRunInputTask(task: NonNullable<AgentRunInput['task']>): AgentRunInput['task'] {
+  return {
+    id: task.id,
+    title: task.title,
+    ...(task.description ? { description: task.description } : {}),
+    instructions: task.instructions,
+    ...(task.expectedArtifacts ? { expectedArtifacts: [...task.expectedArtifacts] } : {}),
+  }
+}
+
+function cloneToolCall(call: ToolCall): ToolCall {
+  return {
+    ...(call.id ? { id: call.id } : {}),
+    name: call.name,
+    ...(call.args ? { args: cloneJSONValue(call.args) } : {}),
+    ...(call.arguments ? { arguments: cloneJSONValue(call.arguments) } : {}),
+  }
 }
