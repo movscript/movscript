@@ -1,5 +1,5 @@
 /* eslint-disable */
-// Generated from docs/api/openapi.v1.json by scripts/generate-openapi-types.mjs.
+// Generated from contracts/api/openapi.v1.json by scripts/generate-openapi-types.mjs.
 // Do not edit by hand; update the OpenAPI contract instead.
 
 export interface components {

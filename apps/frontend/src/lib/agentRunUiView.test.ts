@@ -568,6 +568,55 @@ test('buildModelCallDebugContext relates same-round history writes and tool call
   assert.equal(contexts[0]?.call.id, call.id)
 })
 
+test('buildModelCallDebugContext keeps adjacent tool and history after a later response event', () => {
+  const events = [
+    traceEvent({
+      id: 'request_1',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      createdAt: '2026-05-15T00:00:03.000Z',
+      data: { phase: 'request', request: { body: { messages: [{ role: 'user', content: 'hello' }] } } },
+    }),
+    traceEvent({
+      id: 'response_1',
+      kind: 'model_call',
+      title: 'Model HTTP response received',
+      createdAt: '2026-05-15T00:00:04.000Z',
+      data: { phase: 'response', response: { status: 200, content: 'reply', bodyText: '{"ok":true}' }, content_chars: 5 },
+    }),
+    traceEvent({
+      id: 'tool_1',
+      kind: 'tool_call',
+      title: 'Tool completed: movscript_review_assets',
+      toolName: 'movscript_review_assets',
+      createdAt: '2026-05-15T00:00:08.000Z',
+    }),
+    traceEvent({
+      id: 'assistant_1',
+      kind: 'assistant',
+      title: 'Assistant message created',
+      createdAt: '2026-05-15T00:00:13.000Z',
+      data: { messageId: 'msg_1', source: 'model', content: 'reply', chars: 5 },
+    }),
+    traceEvent({
+      id: 'request_2',
+      kind: 'model_call',
+      title: 'Model HTTP request sent',
+      createdAt: '2026-05-15T00:01:00.000Z',
+      data: { phase: 'request', request: { body: { messages: [{ role: 'user', content: 'next' }] } } },
+    }),
+  ]
+  const [call] = buildModelCallSummaries(events)
+  assert.ok(call)
+  const context = buildModelCallDebugContext({ call, events })
+
+  assert.equal(context.correlationLabel, '相邻事件窗口')
+  assert.deepEqual(context.modelEvents.map((event) => event.id), ['request_1', 'response_1'])
+  assert.deepEqual(context.toolCalls.map((event) => event.id), ['tool_1'])
+  assert.deepEqual(context.messageWrites.map((event) => event.id), ['assistant_1'])
+  assert.equal(context.issue, undefined)
+})
+
 test('buildModelCallDebugContext warns when model reply has no history write', () => {
   const events = [
     traceEvent({

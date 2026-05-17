@@ -969,7 +969,7 @@ export default function ProductionOrchestrationPage() {
               <Boxes size={13} />
               <Link to={ROUTES.project.production} className="hover:underline">{project?.name ?? '项目'}</Link>
               <ChevronRight size={12} />
-              <span>制作编排</span>
+              <span>创作编排</span>
             </div>
             {productions.length > 0 && (
               <Select value={String(effectiveProductionId || '')} onValueChange={handleSelectProduction}>
@@ -1054,19 +1054,19 @@ export default function ProductionOrchestrationPage() {
                       </>
                     ) : (
                       <>
-                        <span>只编辑情绪段和情节树</span>
+                        <span>从作品意图、情绪推进和情节树开始</span>
                       </>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
                     {orchestrationStage !== 'idle' && (
                       <Badge variant="secondary" className="h-6 rounded-full px-2 text-[10px]">
-                        生成制作提案
+                        生成创作方案
                       </Badge>
                     )}
                     <Button size="sm" className="h-7 gap-1.5 text-xs" onClick={() => handleAnalyzeTarget({ scope: 'production' })} disabled={!projectId || !effectiveProductionId}>
                       <Wand2 size={13} />
-                      生成制作提案
+                      生成创作方案
                     </Button>
                   </div>
                 </div>
@@ -1240,6 +1240,56 @@ function ContextLine({ icon: Icon, label, value }: { icon: LucideIcon; label: st
   )
 }
 
+function CreativeIntentStrip({
+  productionLabel,
+  scriptTitle,
+  segmentCount,
+  sceneMomentCount,
+  hasResources,
+}: {
+  productionLabel: string
+  scriptTitle: string
+  segmentCount: number
+  sceneMomentCount: number
+  hasResources: boolean
+}) {
+  const prompts = [
+    {
+      icon: Target,
+      label: '作品意图',
+      value: productionLabel,
+      detail: '这一集/这一段想让观众记住什么情绪、关系或冲突。',
+    },
+    {
+      icon: Route,
+      label: '情绪推进',
+      value: segmentCount > 0 ? `${segmentCount} 段情绪变化` : '等待拆出情绪段',
+      detail: '每个段落先回答“为什么发生变化”，再决定要做哪些画面。',
+    },
+    {
+      icon: Sparkles,
+      label: '画面线索',
+      value: hasResources ? `${sceneMomentCount} 个情节可继续推演` : '先补设定或素材锚点',
+      detail: scriptTitle ? `从《${scriptTitle}》提取人物、道具、地点和氛围。` : '绑定剧本后，线索会更容易被拆成可执行画面。',
+    },
+  ]
+
+  return (
+    <div className="mt-4 grid gap-2 md:grid-cols-3">
+      {prompts.map(({ icon: Icon, label, value, detail }) => (
+        <div key={label} className="rounded-md border border-border bg-background p-3">
+          <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
+            <Icon size={13} />
+            {label}
+          </div>
+          <p className="mt-2 truncate text-sm font-semibold text-foreground">{value}</p>
+          <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-muted-foreground">{detail}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function ProductionOrchestrationWorkspace({
   projectName,
   selectedProduction,
@@ -1296,9 +1346,9 @@ function ProductionOrchestrationWorkspace({
               <GitBranch size={12} />
               制作边界
             </div>
-            <h1 className="mt-1 text-lg font-semibold text-foreground">制作编排树</h1>
+            <h1 className="mt-1 text-lg font-semibold text-foreground">创作蓝图</h1>
             <p className="mt-1 max-w-3xl text-xs leading-5 text-muted-foreground">
-              这里只确认情绪段、情节展开和上层预演画面；镜头级关键帧交给内容编排承接，设定资料和素材需求在这里只读引用。
+              先把作品想表达的情绪、关系和关键画面讲清楚，再把它们拆成情节、设定资料引用和素材缺口。
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1325,6 +1375,13 @@ function ProductionOrchestrationWorkspace({
           <ContextLine icon={ScrollText} label="剧本" value={selectedScriptVersion?.title || '未绑定'} />
           <ContextLine icon={Eye} label="文本" value={`${scriptText.length} 字`} />
         </div>
+        <CreativeIntentStrip
+          productionLabel={productionLabel}
+          scriptTitle={selectedScriptVersion?.title || ''}
+          segmentCount={segments.length}
+          sceneMomentCount={sceneMoments.length}
+          hasResources={projectReady}
+        />
         <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] text-muted-foreground">
           {overview.position.map((item, index) => (
             <span key={`${item}-${index}`} className="rounded-full border border-border bg-muted/40 px-2 py-0.5">{item}</span>
@@ -1341,7 +1398,7 @@ function ProductionOrchestrationWorkspace({
             </div>
             <h2 className="mt-1 text-sm font-semibold text-foreground">设定与素材资源池</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              这里展示设定工作台和素材需求工作台沉淀下来的资源；制作编排只能引用它们，不能在这里新增。
+              这里展示设定工作台和素材需求工作台沉淀下来的资源；创作编排只负责选择哪些线索会影响当前作品表达。
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
@@ -1429,11 +1486,11 @@ function ProductionOrchestrationWorkspace({
           <div>
             <div className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
               <Route size={12} />
-              制作编排
+              创作编排
             </div>
-            <h2 className="mt-1 text-sm font-semibold text-foreground">横向情绪流与情节</h2>
+            <h2 className="mt-1 text-sm font-semibold text-foreground">情绪流与关键情节</h2>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              按情绪段从左到右排列，下方承载每段的情节；展开后查看引用的设定资料和素材需求。
+              按情绪变化从左到右排列，每段下面承载它要表达的情节；展开后查看支撑它的设定资料和素材线索。
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1454,7 +1511,7 @@ function ProductionOrchestrationWorkspace({
         <div className="mt-4">
           {segments.length === 0 ? (
             <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-xs text-muted-foreground">
-              当前还没有制作树。先从剧本、设定资料和素材需求生成一版，再在这里继续收敛。
+              当前还没有创作蓝图。先从剧本、设定资料和素材需求生成一版，再在这里继续收敛作品表达。
             </div>
           ) : (
             <div className="overflow-x-auto pb-2">
@@ -1487,10 +1544,10 @@ function ProductionOrchestrationWorkspace({
         <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-amber-700 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-300">
           <div className="flex items-center gap-2">
             <AlertCircle size={13} />
-            <p className="text-xs font-semibold">制作编排还没接上上游资源</p>
+            <p className="text-xs font-semibold">创作编排还没接上上游线索</p>
           </div>
           <p className="mt-1 text-[11px] leading-4">
-            先去设定工作台补齐设定资料，或去素材需求工作台补齐素材需求，再回到这里继续展开情绪段和情节树。
+            先去设定工作台补齐人物、地点、道具或风格线索，或去素材需求工作台补齐视觉锚点，再回到这里继续展开情绪段和情节树。
           </p>
         </div>
       )}

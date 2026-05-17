@@ -221,8 +221,8 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release edit "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file docs/release-draft-notes.md
+            gh release edit "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file .github/release-draft-notes.md
           else
-            gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file docs/release-draft-notes.md
+            gh release create "$RELEASE_TAG" --draft --title "$RELEASE_TAG" --notes-file .github/release-draft-notes.md
           fi
           gh release upload "$RELEASE_TAG" downloaded-artifacts/* --clobber

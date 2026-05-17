@@ -27,7 +27,7 @@ movscript/
 ├── packages/tokens/       共享设计 token
 ├── packages/ui/           共享 React UI primitives
 ├── plugins/               第一方插件示例
-├── docs/                  用户、运维、开发、API、插件和 Agent 文档
+├── docs/                  公开文档入口
 ├── memory/                维护者记忆与设计历史记录
 └── docker-compose.yml     本地 PostgreSQL、MinIO 和 backend stack
 ```
@@ -133,20 +133,6 @@ pnpm run typecheck        # 可用包的 TypeScript 类型检查
 ## 文档
 
 文档入口：[docs/README.zh-CN.md](docs/README.zh-CN.md)。
-
-主要文档：
-
-- [快速开始](docs/getting-started.zh-CN.md)
-- [配置](docs/configuration.zh-CN.md)
-- [开发指南](docs/development.zh-CN.md)
-- [架构](docs/architecture.zh-CN.md)
-- [API 参考](docs/api.zh-CN.md)
-- [AI Providers](docs/ai-providers.zh-CN.md)
-- [数据与隐私](docs/data-and-privacy.zh-CN.md)
-- [插件](docs/plugins.zh-CN.md)
-- [部署](docs/deployment.zh-CN.md)
-- [故障排查](docs/troubleshooting.zh-CN.md)
-- [发布检查清单](docs/release-checklist.zh-CN.md)
 
 英文入口：[README.md](README.md)。
 

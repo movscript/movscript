@@ -3,21 +3,15 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
-const schemaPath = path.join(root, 'docs/agent-compact-contract-v1.schema.json')
-const fixturePath = path.join(root, 'docs/agent-compact-contract-v1.fixture.json')
-const auditSchemaPath = path.join(root, 'docs/agent-param-validation-audit-v1.schema.json')
-const auditFixturePath = path.join(root, 'docs/agent-param-validation-audit-v1.fixture.json')
-const validationErrorSchemaPath = path.join(root, 'docs/agent-generation-validation-error-v1.schema.json')
-const validationErrorFixturePath = path.join(root, 'docs/agent-generation-validation-error-v1.fixture.json')
-const createGenerationJobToolPath = path.join(root, 'apps/agent/catalog/tools/visual-generation/create-job.tool.json')
-const listModelsToolPath = path.join(root, 'apps/agent/catalog/tools/visual-generation/list-models.tool.json')
+const schemaPath = path.join(root, 'contracts/agent/agent-compact-contract-v1.schema.json')
+const fixturePath = path.join(root, 'contracts/agent/agent-compact-contract-v1.fixture.json')
+const auditSchemaPath = path.join(root, 'contracts/agent/agent-param-validation-audit-v1.schema.json')
+const auditFixturePath = path.join(root, 'contracts/agent/agent-param-validation-audit-v1.fixture.json')
+const validationErrorSchemaPath = path.join(root, 'contracts/agent/agent-generation-validation-error-v1.schema.json')
+const validationErrorFixturePath = path.join(root, 'contracts/agent/agent-generation-validation-error-v1.fixture.json')
+const createGenerationJobToolPath = path.join(root, 'apps/agent/catalog/tools/movscript/visual-generation/create-job.tool.json')
+const listModelsToolPath = path.join(root, 'apps/agent/catalog/tools/movscript/visual-generation/list-models.tool.json')
 const backendValidationErrorPath = path.join(root, 'apps/backend/internal/infra/ai/validation_error.go')
-const canonicalDocPaths = [
-  path.join(root, 'docs/agent-visual-generation.md'),
-  path.join(root, 'docs/ai-providers.md'),
-  path.join(root, 'docs/ai-providers.zh-CN.md'),
-]
-
 const schema = readJSON(schemaPath)
 const fixture = readJSON(fixturePath)
 const auditSchema = readJSON(auditSchemaPath)
@@ -27,10 +21,6 @@ const validationErrorFixture = readJSON(validationErrorFixturePath)
 const createGenerationJobTool = readJSON(createGenerationJobToolPath)
 const listModelsTool = readJSON(listModelsToolPath)
 const backendValidationErrorSource = readText(backendValidationErrorPath)
-const canonicalDocs = canonicalDocPaths.map((filePath) => ({
-  path: filePath,
-  text: readText(filePath),
-}))
 const errors = []
 
 verifySchemaAnchor(schema)
@@ -51,7 +41,6 @@ validateJSONSchemaFixture({
   $defs: validationErrorSchema.$defs,
 }, validationErrorFixture, '$validationErrorFixture')
 verifyGenerationValidationErrors(validationErrorFixture, '$validationError')
-verifyCanonicalDocs(canonicalDocs)
 
 if (errors.length > 0) {
   for (const error of errors) console.error(error)
@@ -304,7 +293,7 @@ function verifyGenerationToolErrorCodes(schemaValue, toolValue, pathLabel) {
   }
   assertStringArray(toolValue.errorCodes, `${pathLabel}.errorCodes`, { required: true, unique: true })
   if (!schemaValuesEqual(toolValue.errorCodes, errorCodes)) {
-    errors.push(`${pathLabel}.errorCodes must match docs/agent-generation-validation-error-v1.schema.json errorCode enum`)
+    errors.push(`${pathLabel}.errorCodes must match contracts/agent/agent-generation-validation-error-v1.schema.json errorCode enum`)
   }
 }
 
@@ -382,37 +371,7 @@ function verifyBackendValidationErrorCodes(schemaValue, source) {
   }
   assertStringArray(backendCodes, 'backend validation error codes', { required: true, unique: true })
   if (!schemaValuesEqual([...schemaErrorCodes].sort(), backendCodes)) {
-    errors.push('docs/agent-generation-validation-error-v1.schema.json errorCode enum must match backend validation_error.go codes')
-  }
-}
-
-function verifyCanonicalDocs(docs) {
-  const requiredArtifacts = [
-    'docs/agent-compact-contract-v1.schema.json',
-    'docs/agent-compact-contract-v1.fixture.json',
-    'docs/agent-param-validation-audit-v1.schema.json',
-    'docs/agent-param-validation-audit-v1.fixture.json',
-    'docs/agent-generation-validation-error-v1.schema.json',
-    'docs/agent-generation-validation-error-v1.fixture.json',
-  ]
-  for (const doc of docs) {
-    const docLabel = path.relative(root, doc.path)
-    for (const artifact of requiredArtifacts) {
-      if (!doc.text.includes(artifact)) {
-        errors.push(`${docLabel} must reference canonical artifact ${artifact}`)
-      }
-    }
-    for (const phrase of [
-      'movscript_list_models.outputSchema',
-      'movscript_create_generation_job.outputSchema',
-      'model_contracts[].model_config_id',
-      'output_resource_id',
-      'param_validation',
-    ]) {
-      if (!doc.text.includes(phrase)) {
-        errors.push(`${docLabel} must document stable tool output field phrase "${phrase}"`)
-      }
-    }
+    errors.push('contracts/agent/agent-generation-validation-error-v1.schema.json errorCode enum must match backend validation_error.go codes')
   }
 }
 

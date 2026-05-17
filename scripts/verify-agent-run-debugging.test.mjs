@@ -8,23 +8,16 @@ import assert from 'node:assert/strict'
 
 const execFileAsync = promisify(execFile)
 const scriptPath = path.resolve('scripts/verify-agent-run-debugging.mjs')
-const schemaPath = path.resolve('docs/agent-run-debug-bundle-v1.schema.json')
-const fixturePath = path.resolve('docs/agent-run-debug-bundle-v1.fixture.json')
-const acceptanceSummaryFixturePath = path.resolve('docs/agent-run-debugging-acceptance-summary-v1.fixture.json')
+const schemaPath = path.resolve('contracts/agent-run-debugging/agent-run-debug-bundle-v1.schema.json')
+const fixturePath = path.resolve('contracts/agent-run-debugging/agent-run-debug-bundle-v1.fixture.json')
+const acceptanceSummaryFixturePath = path.resolve('contracts/agent-run-debugging/agent-run-debugging-acceptance-summary-v1.fixture.json')
 const e2ePath = path.resolve('apps/frontend/src/e2e/agent-planner.spec.ts')
 const e2eRunnerPath = path.resolve('scripts/run-agent-run-debugging-e2e.mjs')
 const artifactVerifierPath = path.resolve('scripts/verify-agent-run-debugging-artifacts.mjs')
 const artifactVerifierTestPath = path.resolve('scripts/verify-agent-run-debugging-artifacts.test.mjs')
 const acceptanceSummaryContractPath = path.resolve('scripts/agent-run-debugging-acceptance-summary-contract.mjs')
-const bundleContractPath = path.resolve('docs/agent-run-debug-bundle-v1.zh-CN.md')
-const acceptancePath = path.resolve('docs/agent-run-debugging-acceptance.zh-CN.md')
-const auditPath = path.resolve('docs/agent-run-debugging-product-audit.md')
-const docsIndexPath = path.resolve('docs/README.zh-CN.md')
-const docsIndexEnPath = path.resolve('docs/README.md')
 const ciWorkflowPath = path.resolve('.github/workflows/ci.yml')
 const pullRequestTemplatePath = path.resolve('.github/pull_request_template.md')
-const releaseChecklistZhPath = path.resolve('docs/release-checklist.zh-CN.md')
-const releaseChecklistEnPath = path.resolve('docs/release-checklist.md')
 const makefilePath = path.resolve('Makefile')
 const packageJsonPath = path.resolve('package.json')
 const localAgentClientPath = path.resolve('apps/frontend/src/lib/localAgentClient.ts')
@@ -615,25 +608,6 @@ test('AgentRun debugging static verifier rejects pending action filter drift', a
   }
 })
 
-test('AgentRun debugging static verifier rejects pending action contract documentation drift', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-pending-doc-'))
-  try {
-    const source = await readFile(bundleContractPath, 'utf8')
-    const overridePath = path.join(root, 'agent-run-debug-bundle-v1.zh-CN.md')
-    await writeFile(overridePath, source.replace('`inputType`: 固定为 `choice`、`text` 或 `confirmation`。\n', ''))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_BUNDLE_CONTRACT_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /debug bundle contract documents pending input type enum/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
 test('AgentRun debugging static verifier rejects acceptance summary fixture schema drift', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-summary-fixture-'))
   try {
@@ -678,7 +652,7 @@ test('AgentRun debugging static verifier rejects acceptance summary screenshot l
 test('AgentRun debugging static verifier rejects acceptance summary loose object schemas', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-summary-loose-'))
   try {
-    const schema = JSON.parse(await readFile(path.resolve('docs/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
+    const schema = JSON.parse(await readFile(path.resolve('contracts/agent-run-debugging/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
     schema.additionalProperties = true
     schema.$defs.stepResult.additionalProperties = true
     const overridePath = path.join(root, 'acceptance-summary.schema.json')
@@ -701,7 +675,7 @@ test('AgentRun debugging static verifier rejects acceptance summary loose object
 test('AgentRun debugging static verifier rejects acceptance summary screenshot list schema drift', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-summary-screenshot-schema-'))
   try {
-    const schema = JSON.parse(await readFile(path.resolve('docs/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
+    const schema = JSON.parse(await readFile(path.resolve('contracts/agent-run-debugging/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
     schema.properties.requiredScreenshots.minItems = 5
     schema.properties.requiredScreenshots.maxItems = 7
     const overridePath = path.join(root, 'acceptance-summary.schema.json')
@@ -723,7 +697,7 @@ test('AgentRun debugging static verifier rejects acceptance summary screenshot l
 test('AgentRun debugging static verifier rejects acceptance summary screenshot diagnostics schema drift', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-summary-screenshot-diagnostics-'))
   try {
-    const schema = JSON.parse(await readFile(path.resolve('docs/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
+    const schema = JSON.parse(await readFile(path.resolve('contracts/agent-run-debugging/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
     const fixture = JSON.parse(await readFile(acceptanceSummaryFixturePath, 'utf8'))
     schema.properties.screenshotDiagnostics = { type: 'object' }
     schema.$defs.screenshotDiagnostics.additionalProperties = true
@@ -762,7 +736,7 @@ test('AgentRun debugging static verifier rejects acceptance summary screenshot d
 test('AgentRun debugging static verifier rejects acceptance summary artifact root schema drift', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-summary-artifact-root-'))
   try {
-    const schema = JSON.parse(await readFile(path.resolve('docs/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
+    const schema = JSON.parse(await readFile(path.resolve('contracts/agent-run-debugging/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
     schema.properties.artifactRoot = { const: 'apps/frontend/test-results' }
     const overridePath = path.join(root, 'acceptance-summary.schema.json')
     await writeJSON(overridePath, schema)
@@ -784,7 +758,7 @@ test('AgentRun debugging static verifier rejects acceptance summary artifact roo
 test('AgentRun debugging static verifier rejects acceptance summary environment schema drift', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-summary-environment-'))
   try {
-    const schema = JSON.parse(await readFile(path.resolve('docs/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
+    const schema = JSON.parse(await readFile(path.resolve('contracts/agent-run-debugging/agent-run-debugging-acceptance-summary-v1.schema.json'), 'utf8'))
     const fixture = JSON.parse(await readFile(acceptanceSummaryFixturePath, 'utf8'))
     schema.properties.environment = { type: 'object' }
     schema.$defs.environment.additionalProperties = true
@@ -1195,49 +1169,6 @@ test('AgentRun debugging static verifier rejects missing trace category labels',
   }
 })
 
-test('AgentRun debugging static verifier rejects stale frontend audit commands', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-audit-command-'))
-  try {
-    const source = await readFile(auditPath, 'utf8')
-    const overridePath = path.join(root, 'audit.md')
-    await writeFile(overridePath, `${source}\n\npnpm --dir movscript/apps/frontend exec tsc --noEmit --pretty false\n`)
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_AUDIT_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /audit must not keep stale frontend workspace commands must not include pnpm --dir movscript\/apps\/frontend/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects missing release script regression evidence', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-audit-release-scripts-'))
-  try {
-    const source = await readFile(auditPath, 'utf8')
-    const overridePath = path.join(root, 'audit.md')
-    await writeFile(overridePath, source
-      .replace('Release 脚本回归验证（2026-05-17）', 'Release 脚本回归验证')
-      .replace('pnpm run test:release-scripts', 'pnpm run test:release')
-      .replace('结果：108 passed', '结果：passed'))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_AUDIT_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /audit records latest release script regression date/)
-        assert.match(String(error.stderr), /audit records runnable release script regression command/)
-        assert.match(String(error.stderr), /audit records release script regression test count/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
 test('AgentRun debugging static verifier rejects missing Makefile browser acceptance target', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-makefile-e2e-'))
   try {
@@ -1252,28 +1183,6 @@ test('AgentRun debugging static verifier rejects missing Makefile browser accept
       (error) => {
         assert.match(String(error.stderr), /Makefile includes AgentRun browser acceptance target/)
         assert.match(String(error.stderr), /Makefile AgentRun browser acceptance target runs E2E gate/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects missing Makefile browser dry-run evidence', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-audit-makefile-dry-run-'))
-  try {
-    const source = await readFile(auditPath, 'utf8')
-    const overridePath = path.join(root, 'audit.md')
-    await writeFile(overridePath, source
-      .replace('Makefile 浏览器验收入口 dry-run（2026-05-17）', 'Makefile 浏览器验收入口')
-      .replace('make -n test-agent-run-debugging-e2e', 'make test-agent-run-debugging-e2e'))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_AUDIT_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /audit records Makefile browser acceptance dry-run date/)
-        assert.match(String(error.stderr), /audit records Makefile browser acceptance dry-run command/)
         return true
       },
     )
@@ -1430,74 +1339,6 @@ test('AgentRun debugging static verifier rejects missing PR acceptance summary r
   }
 })
 
-test('AgentRun debugging static verifier rejects missing release acceptance summary review', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-release-summary-'))
-  try {
-    const zhSource = await readFile(releaseChecklistZhPath, 'utf8')
-    const enSource = await readFile(releaseChecklistEnPath, 'utf8')
-    const zhOverridePath = path.join(root, 'release-checklist.zh-CN.md')
-    const enOverridePath = path.join(root, 'release-checklist.md')
-    await writeFile(zhOverridePath, zhSource.replace('；确认 `agent-run-debugging-acceptance-summary.json` 中 `passed` 为 `true`，且 `node scripts/verify-agent-run-debugging-acceptance-summary.mjs <summary-path>` 通过', ''))
-    await writeFile(enOverridePath, enSource.replace(', `agent-run-debugging-acceptance-summary.json` shows `passed: true`, and `node scripts/verify-agent-run-debugging-acceptance-summary.mjs <summary-path>` passes', ''))
-
-    await assert.rejects(
-      execFileAsync(process.execPath, [scriptPath], {
-        env: {
-          ...process.env,
-          AGENT_RUN_DEBUG_RELEASE_CHECKLIST_ZH_PATH: zhOverridePath,
-          AGENT_RUN_DEBUG_RELEASE_CHECKLIST_EN_PATH: enOverridePath,
-        },
-      }),
-      (error) => {
-        assert.match(String(error.stderr), /Chinese release checklist includes AgentRun acceptance summary review/)
-        assert.match(String(error.stderr), /English release checklist includes AgentRun acceptance summary review/)
-        assert.match(String(error.stderr), /English release checklist requires passing AgentRun acceptance summary/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects missing acceptance summary schema docs index link', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-docs-index-'))
-  try {
-    const source = await readFile(docsIndexPath, 'utf8')
-    const overridePath = path.join(root, 'README.zh-CN.md')
-    await writeFile(overridePath, source.replace('- [AgentRun 调试验收摘要 v1 schema](agent-run-debugging-acceptance-summary-v1.schema.json)\n', ''))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_DOCS_INDEX_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /docs index links acceptance summary schema must include AgentRun 调试验收摘要 v1 schema/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects missing acceptance summary schema English docs index link', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-docs-index-en-'))
-  try {
-    const source = await readFile(docsIndexEnPath, 'utf8')
-    const overridePath = path.join(root, 'README.md')
-    await writeFile(overridePath, source.replace('- [AgentRun debugging acceptance summary v1 schema](agent-run-debugging-acceptance-summary-v1.schema.json)\n', ''))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_DOCS_INDEX_EN_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /English docs index links acceptance summary schema must include AgentRun debugging acceptance summary v1 schema/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
 test('AgentRun debugging static verifier rejects missing acceptance screenshot captures', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-e2e-screenshot-'))
   try {
@@ -1556,25 +1397,6 @@ test('AgentRun debugging static verifier rejects artifact verifier test screensh
       runVerifier(undefined, { AGENT_RUN_DEBUG_ARTIFACT_VERIFIER_TEST_PATH: overridePath }),
       (error) => {
         assert.match(String(error.stderr), /artifact verifier tests cover agent-run-missing-data screenshot/)
-        return true
-      },
-    )
-  } finally {
-    await rm(root, { recursive: true, force: true })
-  }
-})
-
-test('AgentRun debugging static verifier rejects acceptance document screenshot drift', async () => {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-run-verifier-acceptance-screenshot-'))
-  try {
-    const source = await readFile(acceptancePath, 'utf8')
-    const overridePath = path.join(root, 'agent-run-debugging-acceptance.zh-CN.md')
-    await writeFile(overridePath, source.replace('| `agent-run-http-response-detail` | HTTP 响应、响应头、原始响应正文、模型结果。 |\n', ''))
-
-    await assert.rejects(
-      runVerifier(undefined, { AGENT_RUN_DEBUG_ACCEPTANCE_PATH: overridePath }),
-      (error) => {
-        assert.match(String(error.stderr), /acceptance doc lists agent-run-http-response-detail screenshot/)
         return true
       },
     )

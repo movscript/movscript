@@ -84,7 +84,7 @@ pnpm --filter movscript-frontend typecheck
 pnpm --filter movscript-agent test
 ```
 
-结果：1026 passed。
+结果：1028 passed。
 
 最近一次 Agent 类型检查（2026-05-17）：
 
@@ -148,7 +148,7 @@ node -e "const fs=require('fs'); const files=['package.json',...fs.readdirSync('
 pnpm run test
 ```
 
-结果：通过，覆盖 backend unit、backend architecture、AgentRun debugging gate，以及 `movscript-admin`、`movscript-agent`、`movscript-frontend` workspace tests；其中 agent workspace 为 1026 passed，frontend workspace 为 288 passed，admin workspace 为 69 passed。
+结果：通过，覆盖 backend unit、backend architecture、AgentRun debugging gate，以及 `movscript-admin`、`movscript-agent`、`movscript-frontend` workspace tests；其中 agent workspace 为 1028 passed，frontend workspace 为 288 passed，admin workspace 为 69 passed。
 
 最近一次 AgentRun 调试产品静态质量门（2026-05-17）：
 

@@ -2232,7 +2232,7 @@ function WorkbenchPanel({
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
-      <div className={cn('p-3', bodyClassName)}>{children}</div>
+      <div className={cn('p-2.5', bodyClassName)}>{children}</div>
     </section>
   )
 }
@@ -2321,8 +2321,8 @@ function ProductionPipeline({
   icons: Record<ContentWorkbenchPipelineStepKey, LucideIcon>
 }) {
   return (
-    <div className="rounded-md border border-border bg-background p-3" data-testid="content-workbench-production-pipeline">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-production-pipeline">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Route size={15} className="text-muted-foreground" />
@@ -2334,15 +2334,16 @@ function ProductionPipeline({
           {steps.filter((step) => step.tone === 'done').length}/{steps.length}
         </Badge>
       </div>
-      <div className="mt-3 overflow-x-auto pb-1">
+      <div className="mt-2 overflow-x-auto pb-1">
         <div className="flex min-w-max items-stretch gap-2">
           {steps.map((step, index) => {
             const Icon = icons[step.key]
             return (
               <div key={step.key} className="flex items-stretch gap-2">
                 <div
+                  title={step.detail}
                   className={cn(
-                    'w-[150px] rounded-md border px-3 py-2',
+                    'w-[126px] rounded-md border px-2.5 py-2',
                     step.tone === 'done'
                       ? 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/60 dark:bg-emerald-950/20'
                       : step.tone === 'current'
@@ -2357,16 +2358,17 @@ function ProductionPipeline({
                       <Icon size={13} className="shrink-0 text-muted-foreground" />
                       <span className="truncate text-[11px] font-medium text-muted-foreground">{step.label}</span>
                     </div>
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-semibold text-foreground">{step.value}</p>
                     <Badge variant={step.tone === 'done' ? 'success' : step.tone === 'current' || step.tone === 'blocked' ? 'warning' : 'outline'} className="shrink-0 text-[10px]">
                       {step.tone === 'done' ? '完成' : step.tone === 'current' ? '当前' : step.tone === 'blocked' ? '待补' : '等待'}
                     </Badge>
                   </div>
-                  <p className="mt-2 truncate text-sm font-semibold text-foreground">{step.value}</p>
-                  <p className="mt-1 line-clamp-2 min-h-8 text-[11px] leading-4 text-muted-foreground">{step.detail}</p>
                 </div>
                 {index < steps.length - 1 ? (
                   <div className="flex items-center text-muted-foreground">
-                    <ChevronRight size={16} />
+                    <ChevronRight size={14} />
                   </div>
                 ) : null}
               </div>
@@ -2438,45 +2440,39 @@ function KeyframeContinuityStrip({
           <Badge variant={sequence.length > 0 ? 'secondary' : 'warning'}>{sequence.length} 帧</Badge>
         </div>
       </div>
-      {sequence.length === 0 ? (
-        <p className="mt-2 rounded-md border border-dashed border-border px-3 py-3 text-xs leading-5 text-muted-foreground">
-          给当前制作项补开头帧、结尾帧后，这里会形成一条可扫读的连续性检查带。
-        </p>
-      ) : (
-        <div className="mt-2 overflow-x-auto pb-1">
-          <div className="flex min-w-max items-stretch gap-1.5">
-            {previewItems.map((item) => (
-              <div key={`${item.keyframe.ID}-${item.sequence}`} className="w-[104px] overflow-hidden rounded-md border border-border bg-card">
-                <div className="relative aspect-video bg-muted">
-                  {item.keyframe.resource_id ? (
-                    <AuthedImage
-                      src={resourceFileUrl(item.keyframe.resource_id)}
-                      alt={titleOfRecord(item.keyframe)}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-                      <Image size={15} />
-                    </div>
-                  )}
-                  <span className="absolute left-1 top-1 rounded bg-background/90 px-1 py-0.5 text-[10px] font-medium tabular-nums text-foreground shadow-sm">
-                    {String(item.sequence).padStart(2, '0')}
-                  </span>
-                </div>
-                <div className="px-1.5 py-1">
-                  <p className="truncate text-[11px] font-medium text-foreground">{item.role}</p>
-                  <p className="truncate text-[10px] text-muted-foreground">{item.unit ? titleOfRecord(item.unit) : '未绑定制作项'}</p>
-                </div>
+      <div className="mt-2 overflow-x-auto pb-1">
+        <div className="flex min-w-max items-stretch gap-1.5">
+          {previewItems.map((item) => (
+            <div key={`${item.keyframe.ID}-${item.sequence}`} className="w-[104px] overflow-hidden rounded-md border border-border bg-card">
+              <div className="relative aspect-video bg-muted">
+                {item.keyframe.resource_id ? (
+                  <AuthedImage
+                    src={resourceFileUrl(item.keyframe.resource_id)}
+                    alt={titleOfRecord(item.keyframe)}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                    <Image size={15} />
+                  </div>
+                )}
+                <span className="absolute left-1 top-1 rounded bg-background/90 px-1 py-0.5 text-[10px] font-medium tabular-nums text-foreground shadow-sm">
+                  {String(item.sequence).padStart(2, '0')}
+                </span>
               </div>
-            ))}
-            {sequence.length > previewItems.length ? (
-              <div className="flex w-[72px] items-center justify-center rounded-md border border-border bg-card px-2 text-center text-xs text-muted-foreground">
-                +{sequence.length - previewItems.length} 帧
+              <div className="px-1.5 py-1">
+                <p className="truncate text-[11px] font-medium text-foreground">{item.role}</p>
+                <p className="truncate text-[10px] text-muted-foreground">{item.unit ? titleOfRecord(item.unit) : '未绑定制作项'}</p>
               </div>
-            ) : null}
-          </div>
+            </div>
+          ))}
+          {sequence.length > previewItems.length ? (
+            <div className="flex w-[72px] items-center justify-center rounded-md border border-border bg-card px-2 text-center text-xs text-muted-foreground">
+              +{sequence.length - previewItems.length} 帧
+            </div>
+          ) : null}
         </div>
-      )}
+      </div>
     </div>
   )
 }
@@ -2527,7 +2523,7 @@ function UnitHealthCard({ health }: { health: ContentWorkbenchUnitHealth }) {
   return (
     <div
       className={cn(
-        'rounded-md border px-2.5 py-2',
+        'flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5',
         health.tone === 'done' || health.tone === 'ready'
           ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/20'
           : health.tone === 'blocked' || health.tone === 'warning'
@@ -2536,22 +2532,16 @@ function UnitHealthCard({ health }: { health: ContentWorkbenchUnitHealth }) {
       )}
       data-testid="content-workbench-unit-health"
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        {health.tone === 'done' || health.tone === 'ready'
+          ? <CheckCircle2 size={15} className="shrink-0 text-emerald-600" />
+          : <ShieldCheck size={15} className="shrink-0 text-muted-foreground" />}
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            {health.tone === 'done' || health.tone === 'ready'
-              ? <CheckCircle2 size={15} className="text-emerald-600" />
-              : <ShieldCheck size={15} className="text-muted-foreground" />}
-            {health.title}
-          </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">{health.detail}</p>
-        </div>
-        <div className="shrink-0 text-right">
-          <Badge variant={badgeVariant}>{health.score}%</Badge>
-          <p className="mt-1 text-[10px] text-muted-foreground">健康度</p>
+          <p className="truncate text-sm font-medium text-foreground">{health.title}</p>
+          <p className="truncate text-xs text-muted-foreground">{health.detail}</p>
         </div>
       </div>
-      {health.score > 0 ? <Progress value={health.score} className="mt-2 h-1.5" /> : null}
+      <Badge variant={badgeVariant} className="shrink-0">{health.score}%</Badge>
     </div>
   )
 }
@@ -2587,9 +2577,9 @@ function DeliveryBriefCard({
           </Badge>
         </div>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+      <div className="mt-2 flex flex-wrap overflow-hidden rounded-md border border-border bg-card">
         {brief.metrics.map((metric) => (
-          <div key={metric.label} className="rounded-md border border-border bg-card px-2 py-1.5">
+          <div key={metric.label} className="min-w-[72px] flex-1 border-b border-border/70 px-2 py-1.5 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
             <p className="text-[10px] text-muted-foreground">{metric.label}</p>
             <p className={cn('mt-0.5 truncate text-sm font-semibold', metric.done ? 'text-foreground' : 'text-amber-700 dark:text-amber-300')}>{metric.value}</p>
           </div>
@@ -2627,6 +2617,7 @@ function PreviewMountCard({
 }) {
   const blockedUnits = timelineUnits.filter((unit) => unit.status === 'blocked').length
   const readyUnits = timelineUnits.filter((unit) => unit.status === 'ready').length
+  const firstGap = gaps[0]
   return (
     <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-preview-mount">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -2649,17 +2640,12 @@ function PreviewMountCard({
         <PreviewMountMetric label="阻塞" value={blockedUnits + gaps.length} tone={blockedUnits + gaps.length > 0 ? 'warning' : 'default'} />
         <PreviewMountMetric label="时间线" value={previewTimelineCount} />
       </div>
-      {gaps.length > 0 ? (
-        <div className="mt-2 overflow-hidden rounded-md border border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/20">
-          {gaps.slice(0, 2).map((gap) => (
-            <div key={`${gap.owner}:${gap.name}`} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 border-b border-amber-200/70 px-2 py-1.5 last:border-b-0 dark:border-amber-900/60">
-              <div className="min-w-0">
-                <p className="truncate text-xs font-medium text-amber-900 dark:text-amber-100">{gap.name}</p>
-                <p className="truncate text-[11px] text-amber-800 dark:text-amber-200">{gap.owner}</p>
-              </div>
-              <Badge variant={gap.priority === '高' ? 'danger' : gap.priority === '中' ? 'warning' : 'outline'}>{gap.priority}</Badge>
-            </div>
-          ))}
+      {firstGap ? (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-md border border-amber-200 bg-amber-50/80 px-2 py-1.5 dark:border-amber-900/60 dark:bg-amber-950/20">
+          <p className="min-w-0 truncate text-xs text-amber-900 dark:text-amber-100">
+            优先缺口：{firstGap.name} · {firstGap.owner}{gaps.length > 1 ? ` · 另 ${gaps.length - 1} 项` : ''}
+          </p>
+          <Badge variant={firstGap.priority === '高' ? 'danger' : firstGap.priority === '中' ? 'warning' : 'outline'}>{firstGap.priority}</Badge>
         </div>
       ) : null}
     </div>
@@ -3816,6 +3802,10 @@ function ContentGenerationWorkbench() {
   const selectedUnitCompletedJobCount = selectedUnitJobs.filter((job) => job.status === 'succeeded').length
   const selectedUnitStatus = selectedUnit ? contentUnitWorkStatus(selectedUnit, selectedUnitMissingSlots) : 'blocked'
   const selectedKeyframeSequence = selected ? buildMomentKeyframeSequence(selected) : []
+  const showMomentKeyframeContinuity = selectedKeyframeSequence.length > 0 && (!selectedUnit || selectedKeyframeSequence.some((item) => {
+    const sequenceUnitId = item.unit?.ID ?? numberOf(item.keyframe.content_unit_id)
+    return sequenceUnitId !== selectedUnit.ID
+  }))
   const keyframeConfig = useMemo(() => semanticEntityConfig('keyframes'), [])
   const nextKeyframeRole = frameRoleLabel(selectedUnitKeyframes.length, selectedUnitKeyframes.length + 1)
   const keyframeDefaults = useMemo<Partial<SemanticEntityPayload> | undefined>(() => {
@@ -4278,29 +4268,29 @@ function ContentGenerationWorkbench() {
       <SpecializedWorkbenchHeader
         category="production"
         generationKind="production"
-        kicker="内容编排"
-        title="内容编排工作台"
-        description="先以情节承载上下文，再手动添加制作项或由 AI 规划拆镜，并把设定资料和素材一起带入生成流程。"
+        kicker="画面编排"
+        title="画面编排工作台"
+        description="围绕情节推敲画面表达，再手动添加制作项或由 AI 规划镜头，并把设定资料和素材一起带入生成流程。"
       />
       <main className="min-h-0 flex-1 overflow-auto p-4">
         {!projectId ? (
           <EmptyWorkbenchState title="请先选择项目" text="当前没有可用的项目信息，无法拉取情节、制作项、素材需求和生成任务。" />
         ) : isLoading ? (
-          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载内容编排数据...</Card>
+          <Card className="rounded-lg border-border bg-card p-8 text-center text-sm text-muted-foreground">正在加载画面编排数据...</Card>
         ) : isError ? (
-          <EmptyWorkbenchState title="内容编排数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
+          <EmptyWorkbenchState title="画面编排数据加载失败" text="后端语义实体接口未返回可用数据，稍后重试。" />
         ) : (
-          <div className="production-workbench space-y-4">
+          <div className="production-workbench space-y-3">
             <section className="overflow-hidden rounded-lg border border-border bg-card" data-testid="content-workbench-command-center">
-              <div className="border-b border-border bg-muted/25 px-4 py-3">
+              <div className="border-b border-border bg-muted/25 px-3 py-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                       <Wand2 size={14} />
-                      AI 内容生产指挥台
+                      AI 画面创作指挥台
                     </div>
                     <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{selected ? selected.title : '暂无情节'}</h2>
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected ? selected.scope : '选择制作和情节后，开始拆制作项、补画面锚点并检查生成上下文。'}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected ? selected.scope : '选择制作和情节后，开始推敲画面意图、补视觉锚点并检查生成上下文。'}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <QueueMiniMetric label="可生成" value={readyMomentCount} tone={readyMomentCount > 0 ? 'default' : 'warning'} />
@@ -4311,7 +4301,7 @@ function ContentGenerationWorkbench() {
                 </div>
               </div>
 
-              <div className="grid gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+              <div className="grid gap-3 p-2.5 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="min-w-0 space-y-3">
                   <ProductionPipeline
                     title={productionPipeline.title}
@@ -4320,67 +4310,24 @@ function ContentGenerationWorkbench() {
                     icons={productionPipelineIcons}
                   />
 
-                  <div className="grid gap-1.5 md:grid-cols-4" data-testid="content-workbench-command-brief">
+                  <div className="flex flex-wrap items-stretch overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-command-brief">
                     {commandBriefRows.map((item) => {
                       const Icon = commandBriefIcons[item.key]
                       const className = cn(
-                        'rounded-md border px-2.5 py-2 text-left',
-                        item.tone === 'warning'
-                          ? 'border-amber-200 bg-amber-50/60 dark:border-amber-900/60 dark:bg-amber-950/20'
-                          : 'border-border bg-background',
+                        'min-w-[160px] flex-1 border-b border-border/70 px-2.5 py-1.5 text-left last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0',
+                        item.tone === 'warning' ? 'bg-amber-50/60 dark:bg-amber-950/20' : 'bg-background',
                       )
                       return (
                         <div key={item.key} className={className}>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <Icon size={14} className="shrink-0 text-muted-foreground" />
                             <p className="truncate text-[11px] font-medium text-muted-foreground">{item.label}</p>
                           </div>
-                          <p className="mt-1 truncate text-sm font-semibold text-foreground">{item.value}</p>
+                          <p className="mt-0.5 truncate text-sm font-semibold text-foreground">{item.value}</p>
                           <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{item.detail}</p>
                         </div>
                       )
                     })}
-                  </div>
-
-                  <div className="rounded-md border border-border bg-background p-2.5">
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
-                        <ListChecks size={15} className="text-muted-foreground" />
-                        情节生产队列
-                      </div>
-                      <Badge variant="secondary">{filteredRows.length}</Badge>
-                    </div>
-                    {filteredRows.length === 0 ? (
-                      <div className="rounded-md border border-dashed border-border bg-card px-4 py-5">
-                        <p className="text-sm font-medium text-foreground">还没有可编排的情节入口</p>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">先到制作编排建立情绪段和情节，内容编排会在这里继续拆制作项、关键帧和生成上下文。</p>
-                        <Button size="sm" variant="outline" className="mt-4 gap-2" onClick={() => navigate(ROUTES.project.productionOrchestration)}>
-                          <Route size={14} />
-                          进入制作编排
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2 overflow-x-auto pb-1">
-                        {filteredRows.map((row) => (
-                          <button
-                            key={row.id}
-                            type="button"
-                            onClick={() => selectSceneMoment(row.id)}
-                            className={cn(
-                              'min-w-[240px] rounded-md border px-3 py-3 text-left transition-colors',
-                              selected?.id === row.id ? 'border-primary/60 bg-primary/5' : 'border-border bg-card hover:bg-muted/30',
-                            )}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="truncate text-sm font-medium text-foreground">{row.title}</span>
-                              <Badge variant={statusVariant(row.status)}>{statusLabel(row.status)}</Badge>
-                            </div>
-                            <p className="mt-1 truncate text-xs text-muted-foreground">{row.units.length === 0 ? '待拆制作项' : `${row.units.length} 制作项 / ${row.keyframes.length} 帧 / ${row.missingSlots.length} 缺口`}</p>
-                            <Progress value={row.progress} className="mt-3 h-1.5" />
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -4427,7 +4374,11 @@ function ContentGenerationWorkbench() {
                   </Select>
                   {filteredRows.length === 0 ? (
                     <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
-                      当前项目还没有情节入口，先完成制作编排后再进入制作项生成。
+                      <p>当前项目还没有情节入口，先完成创作编排后再进入画面生成。</p>
+                      <Button size="sm" variant="outline" className="mt-2 h-8 gap-1.5" onClick={() => navigate(ROUTES.project.productionOrchestration)}>
+                        <Route size={13} />
+                        进入创作编排
+                      </Button>
                     </div>
                   ) : null}
                 </div>
@@ -4458,13 +4409,15 @@ function ContentGenerationWorkbench() {
                 <WorkbenchPanel
                   title="制作项轨道"
                   icon={Play}
-                  action={<Badge variant={unitCandidates.length > 0 ? 'secondary' : 'outline'}>{unitCandidates.length} 条待确认</Badge>}
+                  action={unitCandidates.length > 0 ? <Badge variant="secondary">{unitCandidates.length} 条待确认</Badge> : undefined}
                 >
                   <div className="space-y-3">
                     <UnitProductionTrack row={selected} selectedUnitId={selectedUnit?.ID} onSelectUnit={selectContentUnit} />
-                    <KeyframeContinuityStrip
-                      sequence={selectedKeyframeSequence}
-                    />
+                    {showMomentKeyframeContinuity ? (
+                      <KeyframeContinuityStrip
+                        sequence={selectedKeyframeSequence}
+                      />
+                    ) : null}
                     {unitCandidates.length > 0 ? (
                       <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-candidate-queue">
                         <div className="mb-2 flex items-center justify-between gap-2">
@@ -4474,47 +4427,45 @@ function ContentGenerationWorkbench() {
                           </div>
                           <Badge variant="secondary">{unitCandidates.length}</Badge>
                         </div>
-                        <div className="space-y-2">
+                        <div className="overflow-hidden rounded-md border border-border bg-card">
                           {unitCandidates.map((unit) => {
                             const isDraft = String(unit.status ?? '').toLowerCase() === 'draft'
                             return (
-                              <div key={unit.ID} className="rounded-md border border-border bg-card p-3">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                      <p className="truncate text-sm font-medium text-foreground">{titleOfRecord(unit)}</p>
-                                      <Badge variant={isDraft ? 'outline' : 'secondary'}>{isDraft ? '草稿' : '候选'}</Badge>
-                                      <Badge variant="outline">{unit.kind || 'shot'}</Badge>
-                                    </div>
-                                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                                      {firstText(unit.description, unit.prompt, '暂无描述或生成提示')}
-                                    </p>
-                                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-                                      <span>时长 {formatDuration(unit.duration_sec)}</span>
-                                      {unit.shot_size ? <span>景别 {unit.shot_size}</span> : null}
-                                      {unit.camera_angle ? <span>机位 {unit.camera_angle}</span> : null}
-                                    </div>
-                                  </div>
+                              <div key={unit.ID} className="grid gap-2 border-b border-border/70 px-2.5 py-2 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                                <div className="min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      className="h-8 gap-1"
-                                      onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'ignored' })}
-                                      disabled={confirmCandidate.isPending}
-                                    >
-                                      忽略
-                                    </Button>
-                                    <Button
-                                      size="sm"
-                                      className="h-8 gap-1"
-                                      onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'confirmed' })}
-                                      disabled={confirmCandidate.isPending}
-                                    >
-                                      <CheckCircle2 size={13} />
-                                      确认
-                                    </Button>
+                                    <p className="truncate text-sm font-medium text-foreground">{titleOfRecord(unit)}</p>
+                                    <Badge variant={isDraft ? 'outline' : 'secondary'}>{isDraft ? '草稿' : '候选'}</Badge>
+                                    <Badge variant="outline">{unit.kind || 'shot'}</Badge>
                                   </div>
+                                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                                    {firstText(unit.description, unit.prompt, '暂无描述或生成提示')}
+                                  </p>
+                                  <div className="mt-1 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+                                    <span>时长 {formatDuration(unit.duration_sec)}</span>
+                                    {unit.shot_size ? <span>景别 {unit.shot_size}</span> : null}
+                                    {unit.camera_angle ? <span>机位 {unit.camera_angle}</span> : null}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1.5 md:justify-end">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-1"
+                                    onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'ignored' })}
+                                    disabled={confirmCandidate.isPending}
+                                  >
+                                    忽略
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    className="h-8 gap-1"
+                                    onClick={() => confirmCandidate.mutate({ unitId: unit.ID, next: 'confirmed' })}
+                                    disabled={confirmCandidate.isPending}
+                                  >
+                                    <CheckCircle2 size={13} />
+                                    确认
+                                  </Button>
                                 </div>
                               </div>
                             )
@@ -4622,21 +4573,6 @@ function ContentGenerationWorkbench() {
               </div>
 
               <div className="min-w-0 space-y-4">
-                <WorkbenchPanel title="上下文 Inspector" icon={Layers}>
-                  {selected ? (
-                    <ContextStack
-                      rows={[
-                        { label: '制作', value: selectedProduction ? titleOfRecord(selectedProduction) : '未绑定制作', icon: Clapperboard },
-                        { label: '情绪段', value: selected.segment ? titleOfRecord(selected.segment) : '未绑定情绪段', icon: GitBranch },
-                        ...contextRows,
-                      ]}
-                      className="production-context-stack"
-                    />
-                  ) : (
-                    <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">暂无情节</p>
-                  )}
-                </WorkbenchPanel>
-
                 <WorkbenchPanel
                   title="生成检查"
                   icon={ShieldCheck}
@@ -4650,9 +4586,30 @@ function ContentGenerationWorkbench() {
                     </div>
                   ) : <Badge variant="warning">未选择制作项</Badge>}
                 >
+                  {selected ? (
+                    <details className="mb-2.5 rounded-md border border-border bg-background">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-2.5 py-2 text-sm font-medium text-foreground marker:text-muted-foreground">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <Layers size={15} className="text-muted-foreground" />
+                          <span className="truncate">当前上下文</span>
+                        </span>
+                        <Badge variant="outline">{selected.units.length} 制作项</Badge>
+                      </summary>
+                      <div className="border-t border-border p-2.5">
+                        <ContextStack
+                          rows={[
+                            { label: '制作', value: selectedProduction ? titleOfRecord(selectedProduction) : '未绑定制作', icon: Clapperboard },
+                            { label: '情绪段', value: selected.segment ? titleOfRecord(selected.segment) : '未绑定情绪段', icon: GitBranch },
+                            ...contextRows,
+                          ]}
+                          className="production-context-stack"
+                        />
+                      </div>
+                    </details>
+                  ) : null}
                   {selectedUnit ? (
                     <div className="mb-2.5 space-y-2" data-testid="content-workbench-current-unit-panel">
-                      <div className="rounded-md border border-border bg-background p-2.5">
+                      <div className="border-b border-border pb-2">
                         <p className="text-xs text-muted-foreground">生成目标</p>
                         <h3 className="mt-1 line-clamp-2 text-sm font-semibold leading-5 text-foreground">{titleOfRecord(selectedUnit)}</h3>
                         <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{firstText(selectedUnit.prompt, selectedUnit.description, '暂无描述或生成提示')}</p>
@@ -5322,10 +5279,10 @@ const canvasWorkbenchMeta: Record<CanvasWorkbenchKind, {
     icon: PackageCheck,
   },
   production: {
-    title: '内容编排工作台',
+    title: '画面编排工作台',
     stage: 'generation',
-    description: '复用现有画布工作流来串联制作项、提示词、画面锚点、视频候选、返工和正式输出。',
-    canvasName: '内容编排画布',
+    description: '复用现有画布工作流来串联画面制作项、提示词、视觉锚点、视频候选、返工和正式输出。',
+    canvasName: '画面编排画布',
     icon: Wand2,
   },
 }

@@ -22,17 +22,10 @@ const files = {
   ciWorkflow: '.github/workflows/ci.yml',
   pullRequestTemplate: '.github/pull_request_template.md',
   makefile: 'Makefile',
-  schema: 'docs/agent-run-debug-bundle-v1.schema.json',
-  fixture: 'docs/agent-run-debug-bundle-v1.fixture.json',
-  acceptanceSummarySchema: 'docs/agent-run-debugging-acceptance-summary-v1.schema.json',
-  acceptanceSummaryFixture: 'docs/agent-run-debugging-acceptance-summary-v1.fixture.json',
-  bundleContract: 'docs/agent-run-debug-bundle-v1.zh-CN.md',
-  acceptance: 'docs/agent-run-debugging-acceptance.zh-CN.md',
-  audit: 'docs/agent-run-debugging-product-audit.md',
-  docsIndexEn: 'docs/README.md',
-  docsIndex: 'docs/README.zh-CN.md',
-  releaseChecklistEn: 'docs/release-checklist.md',
-  releaseChecklistZh: 'docs/release-checklist.zh-CN.md',
+  schema: 'contracts/agent-run-debugging/agent-run-debug-bundle-v1.schema.json',
+  fixture: 'contracts/agent-run-debugging/agent-run-debug-bundle-v1.fixture.json',
+  acceptanceSummarySchema: 'contracts/agent-run-debugging/agent-run-debugging-acceptance-summary-v1.schema.json',
+  acceptanceSummaryFixture: 'contracts/agent-run-debugging/agent-run-debugging-acceptance-summary-v1.fixture.json',
   packageJson: 'package.json',
 }
 
@@ -72,7 +65,6 @@ verifyPageContract()
 verifyReportAndUiHelpers()
 verifyE2EContract()
 verifyPlaywrightConfig()
-verifyDocs()
 verifyPackageScript()
 verifyCIWorkflow()
 verifyPullRequestTemplate()
@@ -543,12 +535,10 @@ function verifyE2EContract() {
   assertSameStringSet(extractAcceptanceScreenshotCaptures(source.e2e), requiredAcceptanceScreenshotNames, 'E2E acceptance screenshot captures')
   assertSameStringSet(extractSimpleStringArrayConstant(source.artifactVerifier, 'requiredScreenshots').map(stripPngExtension), requiredAcceptanceScreenshotNames, 'artifact verifier required screenshots')
   assertSameStringSet(extractSimpleStringArrayConstant(source.artifactVerifierTest, 'screenshotNames').map(stripPngExtension), requiredAcceptanceScreenshotNames, 'artifact verifier test screenshots')
-  assertSameStringSet(extractAcceptanceDocScreenshotNames(source.acceptance), requiredAcceptanceScreenshotNames, 'acceptance doc screenshot table')
   for (const screenshotName of requiredAcceptanceScreenshotNames) {
     assertIncludes(source.e2e, `captureAgentRunAcceptanceScreenshot(page, testInfo, '${screenshotName}')`, `E2E captures ${screenshotName} screenshot`)
     assertIncludes(source.artifactVerifier, `'${screenshotName}.png'`, `artifact verifier checks ${screenshotName} screenshot`)
     assertIncludes(source.artifactVerifierTest, `'${screenshotName}.png'`, `artifact verifier tests cover ${screenshotName} screenshot`)
-    assertIncludes(source.acceptance, `| \`${screenshotName}\` |`, `acceptance doc lists ${screenshotName} screenshot`)
   }
   assertIncludes(source.artifactVerifier, 'file does not have a PNG signature', 'artifact verifier rejects non-PNG screenshot placeholders')
   assertIncludes(source.artifactVerifier, 'PNG ${type} chunk CRC mismatch', 'artifact verifier checks PNG chunk CRC')
@@ -578,13 +568,6 @@ function verifyE2EContract() {
   assertIncludes(source.artifactVerifier, 'invalidScreenshots', 'artifact verifier reports invalid screenshots')
   assertIncludes(source.e2eRunner, 'failed to start:', 'E2E runner reports command startup failures')
   assertIncludes(source.e2eRunner, 'terminated by signal', 'E2E runner reports signal terminations')
-  assertIncludes(source.acceptance, 'schema 和 fixture 的机器校验', 'acceptance doc includes debug bundle schema fixture validation')
-  assertIncludes(source.acceptance, '静态 verifier 自测', 'acceptance doc includes static verifier self-tests')
-  assertIncludes(source.acceptance, 'E2E 截图采集清单缺失', 'acceptance doc includes screenshot capture list verifier coverage')
-  assertIncludes(source.acceptance, 'E2E 额外截图采集', 'acceptance doc includes extra screenshot capture verifier coverage')
-  assertIncludes(source.acceptance, 'artifact verifier 缺失/额外截图要求', 'acceptance doc includes artifact verifier required screenshot drift coverage')
-  assertIncludes(source.acceptance, 'artifact verifier 测试截图清单漂移', 'acceptance doc includes artifact verifier test screenshot drift coverage')
-  assertIncludes(source.acceptance, '验收文档截图清单漂移场景', 'acceptance doc includes acceptance screenshot drift coverage')
   assertIncludes(source.artifactCleaner, 'apps/frontend/test-results', 'artifact cleaner removes Playwright test results')
   assertIncludes(source.artifactCleaner, 'apps/frontend/playwright-report', 'artifact cleaner removes Playwright HTML report')
 }
@@ -600,128 +583,6 @@ function verifyPlaywrightConfig() {
   assertIncludes(source.playwrightConfig, '? undefined', 'Playwright config skips webServer when external base URL is provided')
   assertIncludes(source.playwrightConfig, 'e2eBrowserChannel ? { channel: e2eBrowserChannel } : {}', 'Playwright config defaults to bundled Chromium when no browser channel is provided')
   assertIncludes(source.playwrightConfig, 'MOVSCRIPT_E2E_PORT', 'Playwright config keeps local E2E port override')
-}
-
-function verifyDocs() {
-  assertIncludes(source.bundleContract, '# AgentRun 调试包 v1 契约', 'debug bundle contract doc title')
-  assertIncludes(source.bundleContract, '脱敏边界', 'debug bundle contract documents redaction boundary')
-  assertIncludes(source.bundleContract, '旧运行限制', 'debug bundle contract documents old run limits')
-  assertIncludes(source.bundleContract, '兼容策略', 'debug bundle contract documents compatibility')
-  assertIncludes(source.bundleContract, '调试包只导出仍处于 pending 状态的请求', 'debug bundle contract documents pending action filtering')
-  assertIncludes(source.bundleContract, '`pendingActions[*].type === "approval"`', 'debug bundle contract documents pending approval variant')
-  assertIncludes(source.bundleContract, '`toolName`: 等待审批的工具名', 'debug bundle contract documents pending approval tool name')
-  assertIncludes(source.bundleContract, '`reason`: 触发审批的原因', 'debug bundle contract documents pending approval reason')
-  assertIncludes(source.bundleContract, '`pendingActions[*].type === "input"`', 'debug bundle contract documents pending input variant')
-  assertIncludes(source.bundleContract, '`inputType`: 固定为 `choice`、`text` 或 `confirmation`', 'debug bundle contract documents pending input type enum')
-  assertIncludes(source.bundleContract, '`choices`: 输入选项列表，每项至少包含 `id` 和 `label`', 'debug bundle contract documents pending input choices')
-  assertIncludes(source.bundleContract, '`allowCustomAnswer`: 是否允许自定义回答', 'debug bundle contract documents pending custom answer flag')
-  assertIncludes(source.acceptance, '# AgentRun 调试产品验收清单', 'acceptance doc title')
-  assertIncludes(source.acceptance, 'pnpm run test:agent-run-debugging:e2e', 'acceptance doc includes browser command')
-  assertIncludes(source.acceptance, 'make test-agent-run-debugging-e2e', 'acceptance doc includes Makefile browser acceptance command')
-  assertIncludes(source.acceptance, 'agent-run-http-request-detail', 'acceptance doc includes request screenshot')
-  assertIncludes(source.acceptance, 'PNG 签名、关键 chunk、CRC、最小尺寸和最小文件大小', 'acceptance doc defines screenshot artifact validation strength')
-  assertIncludes(source.acceptance, 'AGENT_RUN_DEBUG_E2E_ARTIFACT_ROOT=<dir>', 'acceptance doc documents E2E artifact root override')
-  assertIncludes(source.acceptance, 'verify-agent-run-debugging-acceptance-summary.mjs', 'acceptance doc documents independent acceptance summary verifier')
-  assertIncludes(source.acceptance, '--allow-failed', 'acceptance doc documents failed summary contract-only verification')
-  assertIncludes(source.acceptance, 'make verify-agent-run-debugging-summary-contract', 'acceptance doc includes Makefile failed-summary contract verifier command')
-  assertIncludes(source.acceptance, 'Playwright `outputDir` 会使用同一个目录', 'acceptance doc explains artifact root override affects Playwright outputDir')
-  assertIncludes(source.acceptance, '即使浏览器验收失败也会继续执行截图附件校验', 'acceptance doc documents E2E runner failure diagnostics')
-  assertIncludes(source.acceptance, '打印 `agent-run-debugging-acceptance-summary.json`', 'acceptance doc documents CI summary printing')
-  assertIncludes(source.acceptance, 'GitHub job summary 面板', 'acceptance doc documents CI job summary output')
-  assertIncludes(source.acceptance, 'agent-run-debugging-acceptance-summary.json', 'acceptance doc documents machine-readable E2E summary')
-  assertIncludes(source.acceptance, '`environment`', 'acceptance doc documents E2E summary environment')
-  assertIncludes(source.acceptance, '脱敏后的 base URL origin', 'acceptance doc documents redacted E2E base URL origin')
-  assertIncludes(source.audit, '浏览器验收标准明确', 'audit records acceptance criteria')
-  assertIncludes(source.audit, '更新日期：2026-05-17', 'audit records current update date')
-  assertIncludes(source.audit, 'Prompt-to-artifact 检查表', 'audit records prompt-to-artifact checklist')
-  assertIncludes(source.audit, 'contextManager 记录了什么信息', 'audit maps contextManager question')
-  assertIncludes(source.audit, '行为和影响没区分开', 'audit maps behavior and impact question')
-  assertIncludes(source.audit, 'HTTP 调用携带的上下文没有分类展开', 'audit maps HTTP context expansion question')
-  assertIncludes(source.audit, '没有存储历史消息的 HTTP 回复', 'audit maps history write question')
-  assertIncludes(source.audit, '大模型请求详情还没来得及做详情展开', 'audit maps model request detail question')
-  assertIncludes(source.audit, 'localAgentClient.test.ts', 'audit records local agent client trace contract regression coverage')
-  assertIncludes(source.audit, '按 schema 机器校验 fixture', 'audit records debug bundle fixture schema validation')
-  assertIncludes(source.audit, 'static verifier tests 68 passed', 'audit records static verifier self-test results')
-  assertIncludes(source.audit, '最近一次 AgentRun 调试产品静态质量门（2026-05-17）', 'audit records latest static gate date')
-  assertIncludes(source.audit, '最近一次前端聚焦验证（2026-05-17）', 'audit records latest frontend focused test date')
-  assertIncludes(source.audit, '最近一次前端类型检查（2026-05-17）', 'audit records latest frontend typecheck date')
-  assertIncludes(source.audit, 'Makefile 入口复核（2026-05-17）', 'audit records latest Makefile static gate date')
-  assertIncludes(source.audit, 'make test-agent-run-debugging-e2e', 'audit records Makefile browser acceptance target')
-  assertIncludes(source.audit, 'Makefile 浏览器验收入口 dry-run（2026-05-17）', 'audit records Makefile browser acceptance dry-run date')
-  assertIncludes(source.audit, 'make -n test-agent-run-debugging-e2e', 'audit records Makefile browser acceptance dry-run command')
-  assertIncludes(source.audit, 'make verify-agent-run-debugging-summary-contract', 'audit records Makefile failed-summary contract verifier target')
-  assertIncludes(source.audit, 'Release 脚本回归验证（2026-05-17）', 'audit records latest release script regression date')
-  assertIncludes(source.audit, 'pnpm run test:release-scripts', 'audit records runnable release script regression command')
-  assertIncludes(source.audit, '结果：108 passed', 'audit records release script regression test count')
-  assertIncludes(source.audit, 'debug bundle schema raw event definition/status drift 场景', 'audit records debug bundle raw event schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle schema trace event field definition drift 场景', 'audit records debug bundle trace event field schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle schema modelCall field definition drift 场景', 'audit records debug bundle model call field schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle schema promptDetail field definition drift 场景', 'audit records debug bundle prompt detail field schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle schema toolCall status drift 场景', 'audit records debug bundle tool call schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle schema attentionEvent enum drift 场景', 'audit records debug bundle attention event schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle schema pendingAction variant drift 场景', 'audit records debug bundle pending action schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle pendingAction filter drift 场景', 'audit records debug bundle pending action filter drift coverage')
-  assertIncludes(source.audit, 'debug bundle pendingAction export field drift 场景', 'audit records debug bundle pending action export drift coverage')
-  assertIncludes(source.audit, 'debug bundle pendingAction contract doc drift 场景', 'audit records debug bundle pending action contract doc drift coverage')
-  assertIncludes(source.audit, 'debug bundle schema fieldGuide id drift 场景', 'audit records debug bundle field guide schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle schema readiness id drift 场景', 'audit records debug bundle readiness schema drift coverage')
-  assertIncludes(source.audit, 'debug bundle fixture coverage drift 场景', 'audit records debug bundle coverage drift coverage')
-  assertIncludes(source.audit, 'debug bundle fixture modelCall type drift 场景', 'audit records debug bundle model call type drift coverage')
-  assertIncludes(source.audit, 'debug bundle fixture promptDetail type drift 场景', 'audit records debug bundle prompt detail type drift coverage')
-  assertIncludes(source.audit, 'debug bundle fixture derived trace item drift 场景', 'audit records debug bundle derived trace drift coverage')
-  assertIncludes(source.audit, 'debug bundle fixture pendingAction variant drift 场景', 'audit records debug bundle pending action fixture drift coverage')
-  assertIncludes(source.audit, 'debug bundle fixture fieldGuide drift 场景', 'audit records debug bundle field guide fixture drift coverage')
-  assertIncludes(source.audit, 'debug bundle fixture readiness drift 场景', 'audit records debug bundle readiness drift coverage')
-  assertIncludes(source.audit, 'debug bundle fixture raw event runId/kind/status drift 场景', 'audit records debug bundle raw event drift coverage')
-  assertIncludes(source.audit, '旧 frontend workspace 命令回归场景', 'audit records stale frontend command regression coverage')
-  assertIncludes(source.audit, 'Makefile 浏览器验收入口缺失场景', 'audit records Makefile browser acceptance target regression coverage')
-  assertIncludes(source.audit, 'Makefile 浏览器验收 dry-run 证据缺失场景', 'audit records Makefile browser acceptance dry-run regression coverage')
-  assertIncludes(source.audit, 'Makefile 失败摘要契约复核入口缺失场景', 'audit records Makefile failed-summary contract verifier regression coverage')
-  assertIncludes(source.audit, 'trace status 漂移场景', 'audit records trace status drift coverage')
-  assertIncludes(source.audit, 'trace roundSource 漂移场景', 'audit records trace roundSource drift coverage')
-  assertIncludes(source.audit, 'trace field 漂移场景', 'audit records trace field drift coverage')
-  assertIncludes(source.audit, 'trace kind/status/category 中文标签缺失场景', 'audit records trace label drift coverage')
-  assertIncludes(source.audit, '根 `pnpm test` 门禁串联缺失场景', 'audit records root test gate wiring regression coverage')
-  assertIncludes(source.audit, 'acceptance summary fixture schema drift', 'audit records acceptance summary schema drift coverage')
-  assertIncludes(source.audit, 'acceptance summary screenshot list drift 场景', 'audit records acceptance summary screenshot list drift coverage')
-  assertIncludes(source.audit, 'acceptance summary screenshot list schema drift 场景', 'audit records acceptance summary screenshot list schema drift coverage')
-  assertIncludes(source.audit, 'acceptance summary artifactRoot override schema drift 场景', 'audit records acceptance summary artifact root schema drift coverage')
-  assertIncludes(source.audit, 'E2E runner acceptance summary validation drift 场景', 'audit records E2E runner summary validation drift coverage')
-  assertIncludes(source.audit, 'acceptance summary verifier', 'audit records independent acceptance summary verifier coverage')
-  assertIncludes(source.audit, 'artifact root override', 'audit records isolated E2E runner artifact root coverage')
-  assertIncludes(source.audit, 'relative artifact root override', 'audit records relative artifact root override coverage')
-  assertIncludes(source.audit, 'artifact cleanup/verifier/E2E runner tests 23 passed', 'audit records artifact verifier and runner test results')
-  assertIncludes(source.audit, '结果：71 passed。', 'audit records current frontend focused test count')
-  assertIncludes(source.audit, 'frontend focused tests 71 passed', 'audit records frontend focused test results')
-  assertNotIncludes(source.audit, ['结果：60', ' passed。'].join(''), 'audit must not keep stale frontend focused test count')
-  assertIncludes(source.audit, 'pnpm --filter movscript-frontend exec node --import tsx --test src/lib/localAgentClient.test.ts', 'audit records runnable frontend focused test command')
-  assertIncludes(source.audit, 'pnpm --filter movscript-frontend typecheck', 'audit records runnable frontend typecheck command')
-  assertIncludes(source.audit, 'scripts/verify-agent-run-debugging.test.mjs docs/README.md', 'audit whitespace check includes static verifier tests')
-  assertNotIncludes(source.audit, 'pnpm --dir movscript/apps/frontend', 'audit must not keep stale frontend workspace commands')
-  assertIncludes(source.audit, 'agent-run-debugging-acceptance-summary.json', 'audit records E2E acceptance summary artifact')
-  assertIncludes(source.audit, 'passed: true', 'audit records passing E2E summary coverage')
-  assertIncludes(source.audit, 'listen EPERM', 'audit records current browser blocker')
-  assertIncludes(source.audit, 'pnpm run test:agent-run-debugging:e2e', 'audit records browser acceptance command')
-  assertIncludes(source.audit, '## 完成判定', 'audit includes explicit completion decision')
-  assertIncludes(source.audit, '浏览器 E2E `pnpm run test:agent-run-debugging:e2e`', 'audit completion decision includes browser E2E status')
-  assertIncludes(source.audit, '截图 artifact 校验', 'audit completion decision includes screenshot artifact status')
-  assertIncludes(source.audit, 'PNG 签名、关键 chunk、CRC、最小尺寸 `320x240` 和最小文件大小 `1024` bytes', 'audit records strengthened screenshot artifact validation')
-  assertIncludes(source.docsIndex, 'AgentRun 调试产品验收清单', 'docs index links acceptance checklist')
-  assertIncludes(source.docsIndex, 'AgentRun 调试包 v1 契约', 'docs index links bundle contract')
-  assertIncludes(source.docsIndex, 'AgentRun 调试验收摘要 v1 schema', 'docs index links acceptance summary schema')
-  assertIncludes(source.docsIndexEn, 'AgentRun debugging acceptance checklist', 'English docs index links acceptance checklist')
-  assertIncludes(source.docsIndexEn, 'AgentRun debug bundle v1 contract', 'English docs index links bundle contract')
-  assertIncludes(source.docsIndexEn, 'AgentRun debugging acceptance summary v1 schema', 'English docs index links acceptance summary schema')
-  assertIncludes(source.releaseChecklistZh, 'pnpm run test:agent-run-debugging', 'Chinese release checklist includes AgentRun static gate')
-  assertIncludes(source.releaseChecklistZh, 'agent-run-debugging-playwright-results', 'Chinese release checklist includes AgentRun artifact archive')
-  assertIncludes(source.releaseChecklistZh, 'agent-run-debugging-acceptance-summary.json', 'Chinese release checklist includes AgentRun acceptance summary review')
-  assertIncludes(source.releaseChecklistZh, '`passed` 为 `true`', 'Chinese release checklist requires passing AgentRun acceptance summary')
-  assertIncludes(source.releaseChecklistZh, 'verify-agent-run-debugging-acceptance-summary.mjs', 'Chinese release checklist includes AgentRun acceptance summary verifier')
-  assertIncludes(source.releaseChecklistEn, 'pnpm run test:agent-run-debugging', 'English release checklist includes AgentRun static gate')
-  assertIncludes(source.releaseChecklistEn, 'agent-run-debugging-playwright-results', 'English release checklist includes AgentRun artifact archive')
-  assertIncludes(source.releaseChecklistEn, 'agent-run-debugging-acceptance-summary.json', 'English release checklist includes AgentRun acceptance summary review')
-  assertIncludes(source.releaseChecklistEn, 'passed: true', 'English release checklist requires passing AgentRun acceptance summary')
-  assertIncludes(source.releaseChecklistEn, 'verify-agent-run-debugging-acceptance-summary.mjs', 'English release checklist includes AgentRun acceptance summary verifier')
 }
 
 function verifyPackageScript() {
@@ -818,19 +679,12 @@ function sourceOverrideForFile(file) {
   if (file === files.artifactVerifierTest) return process.env.AGENT_RUN_DEBUG_ARTIFACT_VERIFIER_TEST_PATH
   if (file === files.acceptanceSummaryContract) return process.env.AGENT_RUN_DEBUG_ACCEPTANCE_SUMMARY_CONTRACT_PATH
   if (file === files.acceptanceSummaryVerifier) return process.env.AGENT_RUN_DEBUG_ACCEPTANCE_SUMMARY_VERIFIER_PATH
-  if (file === files.bundleContract) return process.env.AGENT_RUN_DEBUG_BUNDLE_CONTRACT_PATH
-  if (file === files.acceptance) return process.env.AGENT_RUN_DEBUG_ACCEPTANCE_PATH
   if (file === files.ui) return process.env.AGENT_RUN_DEBUG_UI_PATH
   if (file === files.uiViewTest) return process.env.AGENT_RUN_DEBUG_UI_VIEW_TEST_PATH
   if (file === files.localAgentClient) return process.env.AGENT_RUN_DEBUG_LOCAL_AGENT_CLIENT_PATH
   if (file === files.agentStateTypes) return process.env.AGENT_RUN_DEBUG_AGENT_STATE_TYPES_PATH
-  if (file === files.audit) return process.env.AGENT_RUN_DEBUG_AUDIT_PATH
-  if (file === files.docsIndex) return process.env.AGENT_RUN_DEBUG_DOCS_INDEX_PATH
-  if (file === files.docsIndexEn) return process.env.AGENT_RUN_DEBUG_DOCS_INDEX_EN_PATH
   if (file === files.ciWorkflow) return process.env.AGENT_RUN_DEBUG_CI_WORKFLOW_PATH
   if (file === files.pullRequestTemplate) return process.env.AGENT_RUN_DEBUG_PULL_REQUEST_TEMPLATE_PATH
-  if (file === files.releaseChecklistZh) return process.env.AGENT_RUN_DEBUG_RELEASE_CHECKLIST_ZH_PATH
-  if (file === files.releaseChecklistEn) return process.env.AGENT_RUN_DEBUG_RELEASE_CHECKLIST_EN_PATH
   if (file === files.makefile) return process.env.AGENT_RUN_DEBUG_MAKEFILE_PATH
   if (file === files.packageJson) return process.env.AGENT_RUN_DEBUG_PACKAGE_JSON_PATH
   return undefined
@@ -1154,10 +1008,6 @@ function extractSwitchCases(sourceText, functionName) {
 
 function extractAcceptanceScreenshotCaptures(sourceText) {
   return [...sourceText.matchAll(/captureAgentRunAcceptanceScreenshot\(page, testInfo, '([^']+)'\)/g)].map((item) => item[1])
-}
-
-function extractAcceptanceDocScreenshotNames(sourceText) {
-  return [...sourceText.matchAll(/\| `([^`]+)` \|/g)].map((item) => item[1]).filter((name) => name.startsWith('agent-run-'))
 }
 
 function stripPngExtension(value) {

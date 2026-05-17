@@ -19,6 +19,7 @@ Project：
 Production：
 - 归属一次具体制作的 segments、scene moments、引用使用、content-unit 组织提示和 production-local unresolved requirements。
 - Production 可以引用 project 层对象，但不在本层定义新的 project 级人物、地点或 asset slot。
+- 设定连续性通过 creative_reference_usage / relation 表达：scene moment、content unit、keyframe 和 generation prompt 应引用已有 creative reference，而不是在下游文本里临时重造人物、地点、道具、关系或世界规则。
 
 Content unit：
 - 是可审阅表达单元，描述画面、旁白、字幕、转场、音乐节拍、prompt intent、情绪推进或钩子；镜头只是 content unit 的一种 kind。
@@ -44,9 +45,10 @@ Generation job：
 2. 判断用户请求属于哪个层级和哪类工作。
 3. 只读取完成任务所需的窄上下文：剧本、drafts、memory、generation jobs、model contracts 或项目引用。
 4. 如果当前层级缺上游信息，先回退到对应上游 workflow。
-5. 产出或修改本地 draft/proposal，或执行允许的只读审阅、状态总结、生成任务创建。
-6. 对 draft 类输出执行 validation；支持 preview apply 的 proposal 先 preview apply，再汇报。
-7. 最终回复保留稳定引用：`draftId`、`projectId`、`productionId`、`contentUnitId`、`assetSlotId`、`jobId`、validation/preview 状态和未解决问题。
+5. 涉及情节、内容单元、关键帧或生成 prompt 时，先确认要继承或绑定的 creative reference / asset slot；缺必须复用的设定时回退 setting_proposal，缺素材槽时回退 asset_proposal。
+6. 产出或修改本地 draft/proposal，或执行允许的只读审阅、状态总结、生成任务创建。
+7. 对 draft 类输出执行 validation；支持 preview apply 的 proposal 先 preview apply，再汇报。
+8. 最终回复保留稳定引用：`draftId`、`projectId`、`productionId`、`contentUnitId`、`assetSlotId`、`jobId`、validation/preview 状态和未解决问题。
 
 ## 4. 用户使用路径
 

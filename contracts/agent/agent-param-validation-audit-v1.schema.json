@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent generation parameter validation audit v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "audit_version",
+    "model_config_id",
+    "model_contract_loaded",
+    "params_schema_loaded",
+    "submitted_extra_params"
+  ],
+  "properties": {
+    "audit_version": { "const": 1 },
+    "model_config_id": { "type": "integer", "minimum": 1 },
+    "model_contract_loaded": { "type": "boolean" },
+    "params_schema_loaded": { "type": "boolean" },
+    "params_schema_rule_count": { "type": "integer", "minimum": 0 },
+    "input_requirements": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/inputRequirement" }
+    },
+    "submitted_inputs": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "supported_params": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "provided_extra_params": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "submitted_extra_params": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "dropped_extra_params": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "dropped_top_level_params": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "drop_reasons": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "renamed_extra_params": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "minLength": 1 }
+    },
+    "extra_params_parse_error": { "type": "string" },
+    "preflight_errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/preflightError" }
+    },
+    "input_preflight_errors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/inputPreflightError" }
+    }
+  },
+  "$defs": {
+    "inputRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "preflightError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "field", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "field": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "allowed_values": {
+          "type": "array",
+          "items": { "type": ["string", "number", "boolean"] }
+        },
+        "suggested_fix": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+        }
+      }
+    },
+    "inputPreflightError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "field", "message"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "field": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "required_min": { "type": "integer", "minimum": 0 },
+        "allowed_max": { "type": "integer", "minimum": 0 },
+        "actual_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

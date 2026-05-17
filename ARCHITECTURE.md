@@ -1,6 +1,6 @@
 # Movscript Architecture Guide
 
-This is the short orientation document for contributors. The broader architecture index is in [docs/architecture.md](docs/architecture.md).
+This is the short orientation document for contributors. The broader public documentation index is in [docs/README.md](docs/README.md).
 
 ## Stack
 
@@ -124,7 +124,7 @@ Production Graph
   Storyboard scripts, content units, asset bindings, generation tasks, preview timelines, and delivery versions.
 ```
 
-The production graph should reference source and story-intent graph objects instead of duplicating upstream facts. The detailed boundary is recorded in [docs/script-production-graph-architecture.md](docs/script-production-graph-architecture.md).
+The production graph should reference source and story-intent graph objects instead of duplicating upstream facts.
 
 ## Key Patterns
 
@@ -202,5 +202,5 @@ The local agent owns thread/run lifecycle, policy checks, tool metadata, skill c
 | Change frontend API types | `apps/frontend/src/types/index.ts` |
 | Change i18n copy | `apps/frontend/src/i18n/locales/*.json` |
 | Change canvas behavior | `apps/frontend/src/pages/canvas/*`, `apps/backend/internal/interfaces/http/handler/canvas*.go` |
-| Change plugin manifest/runtime behavior | `apps/backend/internal/infra/pluginkit/*`, `apps/frontend/src/lib/*Plugin*`, `docs/plugins.md` |
+| Change plugin manifest/runtime behavior | `apps/backend/internal/infra/pluginkit/*`, `apps/frontend/src/lib/*Plugin*`, `docs/README.md` |
 | Change local agent behavior | `apps/agent/src/application/*`, `apps/agent/src/orchestration/*`, `apps/agent/src/state/*`, `apps/agent/src/context/*`, `apps/agent/src/drafts/*`, `apps/agent/src/memory/*`, `apps/agent/src/manifest/*`, `apps/agent/src/model/*`, `apps/agent/src/tools/*`, `apps/agent/src/contracts/*`, `apps/agent/src/updates/*`, `apps/agent/src/server.ts` |

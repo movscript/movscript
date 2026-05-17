@@ -21,29 +21,36 @@
   "supported_params": [
     "duration",
     "frames",
+    "prompt_strength",
     "resolution"
   ],
   "submitted_extra_params": [
     "duration",
+    "guidance_scale",
     "resolution"
   ],
   "provided_extra_params": [
     "duration",
+    "guidance_scale",
     "legacy_size",
     "resolution",
+    "style",
     "unsupported_flag"
   ],
   "dropped_extra_params": [
+    "style",
     "unsupported_flag"
   ],
   "dropped_top_level_params": [
     "aspect_ratio"
   ],
   "drop_reasons": {
-    "unsupported_flag": "unsupported_extra_param",
-    "aspect_ratio": "unsupported_top_level_param"
+    "aspect_ratio": "unsupported_top_level_param",
+    "style": "unsupported_extra_param",
+    "unsupported_flag": "unsupported_extra_param"
   },
   "renamed_extra_params": {
+    "guidance_scale": "prompt_strength",
     "legacy_size": "resolution"
   },
   "preflight_errors": [
@@ -58,6 +65,14 @@
       ],
       "suggested_fix": {
         "frames": 29
+      }
+    },
+    {
+      "code": "INVALID_PARAMETER_COMBINATION",
+      "field": "style",
+      "message": "parameter \"style\" is not supported by this model contract",
+      "suggested_fix": {
+        "style": null
       }
     }
   ],

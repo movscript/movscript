@@ -27,7 +27,7 @@ movscript/
 ├── packages/tokens/       Shared design tokens
 ├── packages/ui/           Shared React UI primitives
 ├── plugins/               First-party plugin examples
-├── docs/                  User, operator, developer, API, plugin, and agent docs
+├── docs/                  Public documentation index
 ├── memory/                Maintainer notes and design-history records
 └── docker-compose.yml     Local PostgreSQL, MinIO, and backend stack
 ```
@@ -266,22 +266,7 @@ pnpm run typecheck        # TypeScript typechecks where available
 
 ## Documentation
 
-Start with the documentation index: [docs/README.md](docs/README.md).
-
-Primary guides:
-
-- [Getting started](docs/getting-started.md)
-- [Configuration](docs/configuration.md)
-- [Development](docs/development.md)
-- [Architecture](docs/architecture.md)
-- [API reference](docs/api.md)
-- [AI providers](docs/ai-providers.md)
-- [Data and privacy](docs/data-and-privacy.md)
-- [Plugins](docs/plugins.md)
-- [Claude Code 集成规划](docs/claude-code-integration-plan.md)
-- [Deployment](docs/deployment.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Release checklist](docs/release-checklist.md)
+Start with the consolidated documentation index: [docs/README.md](docs/README.md).
 
 Chinese entry point: [README.zh-CN.md](README.zh-CN.md).
 

@@ -28,7 +28,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function generationValidationErrorCodes(): string[] {
-  const schema = JSON.parse(readFileSync(resolve(REPO_ROOT, 'docs/agent-generation-validation-error-v1.schema.json'), 'utf8')) as unknown
+  const schema = JSON.parse(readFileSync(resolve(REPO_ROOT, 'contracts/agent/agent-generation-validation-error-v1.schema.json'), 'utf8')) as unknown
   const codes = isRecord(schema)
     && isRecord(schema.$defs)
     && isRecord(schema.$defs.errorCode)

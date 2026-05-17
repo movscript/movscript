@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)))
-const contractPath = path.join(root, 'docs/api/openapi.v1.json')
+const contractPath = path.join(root, 'contracts/api/openapi.v1.json')
 const outputPath = path.join(root, 'apps/frontend/src/api/generated.ts')
 
 const spec = JSON.parse(fs.readFileSync(contractPath, 'utf8'))
@@ -11,7 +11,7 @@ const schemas = spec.components?.schemas ?? {}
 
 const lines = [
   '/* eslint-disable */',
-  '// Generated from docs/api/openapi.v1.json by scripts/generate-openapi-types.mjs.',
+  '// Generated from contracts/api/openapi.v1.json by scripts/generate-openapi-types.mjs.',
   '// Do not edit by hand; update the OpenAPI contract instead.',
   '',
   'export interface components {',

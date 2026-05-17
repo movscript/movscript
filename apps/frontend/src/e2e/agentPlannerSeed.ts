@@ -364,7 +364,7 @@ export function traceEventsFixture(runId: string): AgentTraceEvent[] {
           createdAt: '2026-05-12T09:00:03.000Z',
         },
         {
-          id: `trace_${runId}_model_response`,
+          id: `trace_${runId}_model_response_http`,
           runId,
           kind: 'model_call',
           title: 'Model HTTP response received',

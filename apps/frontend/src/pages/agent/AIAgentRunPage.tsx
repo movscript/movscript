@@ -1973,6 +1973,7 @@ function ModelMetaRow({ label, value }: { label: string; value: string }) {
 function MessageDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTraceView>['messageDetail']> }) {
   return (
     <div className="mt-1 rounded border border-border/60 bg-background/90 px-2 py-1">
+      <div className="text-[10px] font-medium text-foreground">{detail.title}</div>
       <div className="flex flex-wrap gap-2 text-[10px] text-muted-foreground">
         {detail.messageId && <span>ID {detail.messageId}</span>}
         {detail.sourceLabel && <span>来源 {detail.sourceLabel}</span>}
@@ -1989,6 +1990,7 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
   return (
     <div className="mt-1 space-y-1">
       <div className="grid gap-0.5 rounded border border-border/60 bg-background/90 px-2 py-1 text-[10px]">
+        <div className="font-medium text-foreground">{detail.title}</div>
         {detail.toolName && <ModelMetaRow label="工具" value={detail.toolName} />}
         <ModelMetaRow label="状态" value={detail.statusLabel} />
         {detail.source && <ModelMetaRow label="来源" value={detail.source} />}
@@ -2008,7 +2010,7 @@ function ToolDetail({ detail }: { detail: NonNullable<ReturnType<typeof agentTra
               <ModelMetaRow
                 key={field.label}
                 label={field.label}
-                value={redactAgentTraceDebugText(field.value)}
+                value={field.sensitive ? '[已脱敏]' : redactAgentTraceDebugText(field.value)}
               />
             ))}
           </div>

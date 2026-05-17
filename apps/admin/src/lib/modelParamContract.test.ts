@@ -192,11 +192,11 @@ test('model preset supported params serialize into custom supported params', () 
 })
 
 function loadModelParamAliasManifest(): Record<string, string> {
-  return JSON.parse(readFileSync(resolve(process.cwd(), '../../docs/model-param-aliases.json'), 'utf8')) as Record<string, string>
+  return JSON.parse(readFileSync(resolve(process.cwd(), '../../contracts/model-param-aliases.json'), 'utf8')) as Record<string, string>
 }
 
 function loadAgentCompactContractFixture(): Record<string, any> {
-  return JSON.parse(readFileSync(resolve(process.cwd(), '../../docs/agent-compact-contract-v1.fixture.json'), 'utf8')) as Record<string, any>
+  return JSON.parse(readFileSync(resolve(process.cwd(), '../../contracts/agent/agent-compact-contract-v1.fixture.json'), 'utf8')) as Record<string, any>
 }
 
 function compactFixtureSubsetForAdmin(fixture: Record<string, any>): Record<string, any> {

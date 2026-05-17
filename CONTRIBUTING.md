@@ -62,10 +62,10 @@ go test ./...
 
 ## Documentation Standards
 
-- Keep public docs in `docs/`; keep design-history and maintainer context in `memory/`.
-- Prefer linking to existing docs instead of duplicating long explanations.
-- Document current behavior first. If a section describes a proposal, label it as a proposal or plan.
-- When routes, environment variables, or commands change, update `docs/api.md`, `docs/configuration.md`, and `docs/development.md` as needed.
+- Keep public docs in `docs/`; keep design history and maintainer-only context in `memory/`.
+- Keep machine-readable contracts and fixtures in `contracts/`, not in `docs/`.
+- Prefer updating the consolidated docs index instead of adding narrow one-off guides.
+- Document current behavior first. If a section describes a proposal, move it to `memory/` or label it clearly.
 
 ## Internationalization
 

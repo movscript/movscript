@@ -22,6 +22,7 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 - 不创建正式 production 实体，不修改 project 层 creative reference 或 asset slot 定义。
 - 缺少可选素材或资源时，可以在 production draft 中记录 unresolved requirements / production-ready gaps；缺少“必须引用”的 project 层设定资料时先创建或更新 setting_proposal draft，缺少 project 层素材需求时先创建或更新 asset_proposal draft。
 - 每个 retained 或新增的 scene_moment 都必须在节点内写入可追溯上下文：优先用 `creative_references: [{ id, role }]` 绑定已有 project 设定；需要 production-local 素材需求时写入 `asset_slots`。只在最终回复里说“已检查到对象存在”不算绑定。
+- 生成或保留 scene_moment 前先判定上下文归属：已有可复用设定就绑定 `creative_references`；缺少必须复用的设定就停止 production draft 写入并交接 setting_proposal；只需要一次性 production-local 素材时写 `asset_slots`；两者都不需要时必须在 `impact_notes` 说明原因。
 
 上下文缺失回退：
 - 缺项目级制作标准时，先交接 project_proposal。
@@ -35,13 +36,14 @@ Draft schema：{{schema:movscript.production_proposal.v1.id}}
 - Focus：{{tool:movscript_get_focus}}
 - Draft 模型：{{tool:movscript_get_draft_model}}
 - Draft：{{tool:movscript_list_drafts}} {{tool:movscript_get_draft}} {{tool:movscript_create_draft}} {{tool:movscript_update_draft}}
+- Project 设定和素材槽查询：{{tool:movscript_query_creative_references}} {{tool:movscript_query_asset_slots}}
 - 缺少目标时询问：{{tool:movscript_request_user_input}}
 
 流程：
 1. 确认 focus，必要时询问 projectId 或 productionId。
 2. 获取 production_proposal 的 draft model 契约；若暂不可用，使用 schema fallback 并在输出中说明。
 3. 使用 draft model 返回的 snapshot seed；如需要剧本正文，再调用项目剧本读取工具，不要自行假设当前剧本/brief。
-4. 先检查 production proposal 需要引用的 project 层对象是否已存在或已有可用 setting_proposal / asset_proposal draft 可承接；如果不存在，停止 production draft 写入，按缺口类型转去创建/更新对应 project 层 draft，并在输出中说明 production 将在其通过 review 后继续。
+4. 先检查 production proposal 需要引用的 project 层对象是否已存在或已有可用 setting_proposal / asset_proposal draft 可承接；可通过 draft model seed 确认，也可调用 `movscript_query_creative_references` / `movscript_query_asset_slots` 查询。无法确认 id 存在时不得绑定；如果不存在，停止 production draft 写入，按缺口类型转去创建/更新对应 project 层 draft，并在输出中说明 production 将在其通过 review 后继续。
 5. 查找或创建 production_proposal draft，source/target 记录 production 锚点，并把 MCP 返回的 seed/modelRef 作为 movscript_create_draft.seed 传入。
 6. 修改现有 draft 前必须先读取内容；用 JSON Pointer operations patch segments、scene moments，以及每个 scene moment 下的 `creative_references`/`asset_slots`。Production draft 不创建 project 层设定；已有设定只用 `{ "id": number, "role"?: string }` 引用，不写 `action`。
 7. Validate draft，然后运行 preview apply。

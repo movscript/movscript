@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent compact model parameter contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "input_requirements",
+    "supported_param_keys",
+    "supported_params"
+  ],
+  "properties": {
+    "contract_version": { "const": 1 },
+    "id": { "type": "integer", "minimum": 1 },
+    "model_config_id": { "type": "integer", "minimum": 1 },
+    "display_name": { "type": "string", "minLength": 1 },
+    "short_name": { "type": "string", "minLength": 1 },
+    "logical_model_id": { "type": "string", "minLength": 1 },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "accepts_image_input": { "type": "boolean" },
+    "input_requirements": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/inputRequirement" }
+    },
+    "supported_param_keys": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "supported_params": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/param" }
+    },
+    "params_schema_loaded": { "type": "boolean" },
+    "params_schema_rule_count": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "inputRequirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "type": "integer", "minimum": 0 },
+        "max": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "param": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "type"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "options": {
+          "type": "array",
+          "items": { "type": ["string", "number", "boolean"] }
+        },
+        "enum": {
+          "type": "array",
+          "items": { "type": ["string", "number", "boolean"] }
+        },
+        "default": { "type": ["string", "number", "boolean", "null"] },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "step": { "type": "number" },
+        "description": { "type": "string" },
+        "conflicts_with": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "conditional_enum": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/conditionalEnum" }
+        },
+        "conditional_const": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/conditionalConst" }
+        },
+        "requires_value": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/requiresValue" }
+        }
+      }
+    },
+    "conditionalEnum": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["when_param", "when_value", "options"],
+      "properties": {
+        "when_param": { "type": "string", "minLength": 1 },
+        "when_value": { "type": ["string", "number", "boolean"] },
+        "options": {
+          "type": "array",
+          "items": { "type": ["string", "number", "boolean"] }
+        }
+      }
+    },
+    "conditionalConst": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["when_param", "when_value", "value"],
+      "properties": {
+        "when_param": { "type": "string", "minLength": 1 },
+        "when_value": { "type": ["string", "number", "boolean"] },
+        "value": { "type": ["string", "number", "boolean", "null"] }
+      }
+    },
+    "requiresValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["param", "value"],
+      "properties": {
+        "param": { "type": "string", "minLength": 1 },
+        "value": { "type": ["string", "number", "boolean"] }
+      }
+    }
+  }
+}

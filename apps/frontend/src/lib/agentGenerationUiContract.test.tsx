@@ -604,15 +604,12 @@ test('agent run page renders generation audit and validation cards from run step
 })
 
 test('agent run debug bundle schema and fixture document the copy contract', () => {
-  const schema = JSON.parse(readFileSync(resolve('../../docs/agent-run-debug-bundle-v1.schema.json'), 'utf8')) as {
+  const schema = JSON.parse(readFileSync(resolve('../../contracts/agent-run-debugging/agent-run-debug-bundle-v1.schema.json'), 'utf8')) as {
     required: string[]
     properties: Record<string, unknown>
     $defs: { capability: { enum: string[] } }
   }
-  const fixture = JSON.parse(readFileSync(resolve('../../docs/agent-run-debug-bundle-v1.fixture.json'), 'utf8')) as Record<string, unknown>
-  const contractDoc = readFileSync(resolve('../../docs/agent-run-debug-bundle-v1.zh-CN.md'), 'utf8')
-  const acceptanceDoc = readFileSync(resolve('../../docs/agent-run-debugging-acceptance.zh-CN.md'), 'utf8')
-  const docsIndex = readFileSync(resolve('../../docs/README.zh-CN.md'), 'utf8')
+  const fixture = JSON.parse(readFileSync(resolve('../../contracts/agent-run-debugging/agent-run-debug-bundle-v1.fixture.json'), 'utf8')) as Record<string, unknown>
   const pageSource = readFileSync(resolve('src/pages/agent/AIAgentRunPage.tsx'), 'utf8')
   const e2eSource = readFileSync(resolve('src/e2e/agent-planner.spec.ts'), 'utf8')
   const fixtureText = JSON.stringify(fixture)
@@ -640,17 +637,6 @@ test('agent run debug bundle schema and fixture document the copy contract', () 
   assertIncludes(fixtureText, '"action"')
   assertIncludes(fixtureText, '"fieldGuide"')
   assertIncludes(fixtureText, '"model_request"')
-  assertIncludes(contractDoc, '# AgentRun 调试包 v1 契约')
-  assertIncludes(contractDoc, '`capabilities`')
-  assertIncludes(contractDoc, '脱敏边界')
-  assertIncludes(contractDoc, '旧运行限制')
-  assertIncludes(contractDoc, '兼容策略')
-  assertIncludes(docsIndex, 'AgentRun 调试包 v1 契约')
-  assertIncludes(acceptanceDoc, '# AgentRun 调试产品验收清单')
-  assertIncludes(acceptanceDoc, 'pnpm run test:agent-run-debugging')
-  assertIncludes(acceptanceDoc, 'pnpm run test:agent-run-debugging:e2e')
-  assertIncludes(acceptanceDoc, 'agent-run-debug-overview')
-  assertIncludes(acceptanceDoc, 'agent-run-model-call-expanded')
   assertIncludes(e2eSource, 'captureAgentRunAcceptanceScreenshot')
   assertIncludes(e2eSource, 'agent-run-debug-overview')
   assertIncludes(e2eSource, 'agent-run-model-call-expanded')
@@ -658,8 +644,6 @@ test('agent run debug bundle schema and fixture document the copy contract', () 
   assertIncludes(e2eSource, 'agent-run-http-response-detail')
   assertIncludes(e2eSource, 'agent-run-attention-events')
   assertIncludes(e2eSource, 'agent-run-missing-data')
-  assertIncludes(acceptanceDoc, '调试包验收')
-  assertIncludes(docsIndex, 'AgentRun 调试产品验收清单')
 })
 
 function assertIncludes(value: string, expected: string) {

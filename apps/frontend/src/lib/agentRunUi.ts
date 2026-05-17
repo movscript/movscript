@@ -953,15 +953,25 @@ function modelCallSummaryFromGroup(group: InternalModelCallGroup, index: number)
 
 function eventFallsInsideModelCallWindow(event: AgentTraceEvent, call: AgentModelCallSummary, events: AgentTraceEvent[]): boolean {
   if (call.roundId || call.roundIndex !== undefined) return false
-  const startEvent = events.find((entry) => entry.id === call.requestEventId)
-    ?? events.find((entry) => entry.id === call.responseEventId)
-    ?? events.find((entry) => entry.id === call.resultEventId)
-  if (!startEvent) return false
-  const startTime = Date.parse(startEvent.createdAt)
+  const modelEvents = call.eventIds
+    .flatMap((eventId) => events.find((entry) => entry.id === eventId) ?? [])
+    .map((entry) => ({ event: entry, time: Date.parse(entry.createdAt) }))
+    .filter((entry) => Number.isFinite(entry.time))
+    .sort((left, right) => left.time - right.time)
+  const startTime = modelEvents[0]?.time
+  const lastModelTime = modelEvents.at(-1)?.time
   const eventTime = Date.parse(event.createdAt)
-  if (!Number.isFinite(startTime) || !Number.isFinite(eventTime) || eventTime < startTime) return false
+  if (
+    startTime === undefined ||
+    lastModelTime === undefined ||
+    !Number.isFinite(startTime) ||
+    !Number.isFinite(lastModelTime) ||
+    !Number.isFinite(eventTime) ||
+    eventTime < startTime
+  ) return false
+  const callEventIds = new Set(call.eventIds)
   const nextModelStart = events
-    .filter((entry) => entry.kind === 'model_call' && entry.id !== startEvent.id && Date.parse(entry.createdAt) > startTime)
+    .filter((entry) => entry.kind === 'model_call' && !callEventIds.has(entry.id) && Date.parse(entry.createdAt) > lastModelTime)
     .sort((left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt))[0]
   const endTime = nextModelStart ? Date.parse(nextModelStart.createdAt) : startTime + 10 * 60 * 1000
   return eventTime < endTime
