@@ -604,7 +604,7 @@ export default function ProductionOrchestrationPage() {
     ? proposalPreviewDraft
       ? `待审节点 ${proposalReviewNodeCount}`
       : '等待制作提案'
-    : `结构树 ${allSegments.length} 段 · ${allSceneMoments.length} 情景`
+    : `蓝图 ${allSegments.length} 段 · ${allSceneMoments.length} 情景`
   useEffect(() => {
     const draft = openedDraftQuery.data
     if (!draft || draft.kind !== 'production_proposal') {
@@ -1031,7 +1031,7 @@ export default function ProductionOrchestrationPage() {
                       onClick={() => setWorkspaceView('structure')}
                     >
                       <Route size={13} />
-                      结构
+                      蓝图
                     </Button>
                     <Button
                       size="sm"

@@ -28,7 +28,7 @@ test('content workbench canvas payload keeps generation reference traceable', ()
     contentUnitId: 801,
     title: '纸条特写',
   }), {
-    name: '纸条特写 · 内容编排',
+    name: '纸条特写 · 画面编排',
     project_id: 123,
     canvas_type: 'workflow',
     stage: 'generation',

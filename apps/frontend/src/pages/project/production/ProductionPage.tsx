@@ -243,7 +243,7 @@ export default function ProductionPage() {
                       <h2 className="text-sm font-semibold text-foreground">当前预演挂载</h2>
                     </div>
                     <p className="mt-2 truncate text-sm font-medium text-foreground">{selected?.name ?? '暂无制作'}</p>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">{selected?.source ?? '直接创建或从制作编排生成制作后开始统计'}</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{selected?.source ?? '直接创建或从创作编排生成制作后开始统计'}</p>
                   </div>
                   <Badge variant={!selected || selected.blockers.length > 0 ? 'warning' : 'success'}>
                     {!selected ? '未创建' : selected.blockers.length > 0 ? '有阻塞' : '可推进'}
@@ -287,12 +287,12 @@ export default function ProductionPage() {
                 )) : (
                   <div className="col-span-full rounded-md border border-dashed border-border bg-background p-8 text-center">
                     <p className="text-sm font-medium text-foreground">暂无制作</p>
-                    <p className="mt-1 text-xs text-muted-foreground">可以直接裸创建制作，也可以先完成制作编排后再从剧本创建。</p>
+                    <p className="mt-1 text-xs text-muted-foreground">可以直接创建制作，也可以先完成创作编排后再从剧本创建。</p>
                     <div className="mt-4 flex flex-wrap justify-center gap-2">
                       <Button variant="outline" className="gap-2" asChild>
                         <Link to={ROUTES.project.productionOrchestration}>
                           <Route size={15} />
-                          制作编排
+                          创作编排
                         </Link>
                       </Button>
                       <Button className="gap-2" onClick={() => setCreateOpen(true)}>
@@ -508,7 +508,7 @@ function ProductionListCard({ production, active, onSelect }: { production: Prod
         <Button size="sm" variant={active ? 'secondary' : 'outline'} className="h-8 w-full gap-2 text-xs" asChild>
           <Link to={withRouteParams(ROUTES.project.productionOrchestration, { productionId: production.dbId })}>
             <Route size={14} />
-            制作编排
+            创作编排
           </Link>
         </Button>
       </div>

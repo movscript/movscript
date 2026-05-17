@@ -2849,7 +2849,7 @@ function UnitProductionTrack({
 
   if (!row || summary.total === 0) {
     return (
-      <div className="rounded-md border border-dashed border-border bg-background px-3 py-6 text-sm text-muted-foreground" data-testid="content-workbench-unit-track">
+      <div className="rounded-md border border-dashed border-border bg-background px-3 py-4 text-sm text-muted-foreground" data-testid="content-workbench-unit-track">
         <p className="font-medium text-foreground">{summary.title}</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">{summary.detail}</p>
       </div>
@@ -2857,8 +2857,8 @@ function UnitProductionTrack({
   }
 
   return (
-    <div className="rounded-md border border-border bg-background p-3" data-testid="content-workbench-unit-track">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="rounded-md border border-border bg-background p-2.5" data-testid="content-workbench-unit-track">
+      <div className="flex flex-wrap items-start justify-between gap-2.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Route size={15} className="text-muted-foreground" />
@@ -2874,7 +2874,7 @@ function UnitProductionTrack({
         </div>
       </div>
 
-      <div className="mt-3 overflow-x-auto pb-1">
+      <div className="mt-2.5 overflow-x-auto pb-1">
         <div className="flex min-w-max gap-2">
           {summary.items.map((item, index) => (
             <button
@@ -2882,7 +2882,7 @@ function UnitProductionTrack({
               type="button"
               onClick={() => onSelectUnit(Number(item.id))}
               className={cn(
-                'w-[220px] shrink-0 rounded-md border px-3 py-3 text-left transition-colors',
+                'w-[188px] shrink-0 rounded-md border px-2.5 py-2 text-left transition-colors',
                 item.selected
                   ? 'border-primary/60 bg-primary/5'
                   : item.tone === 'blocked'
@@ -2899,16 +2899,16 @@ function UnitProductionTrack({
                   {item.readiness}%
                 </Badge>
               </div>
-              <Progress value={item.readiness} className="mt-3 h-1.5" />
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <Progress value={item.readiness} className="mt-2 h-1.5" />
+              <div className="mt-1.5 flex flex-wrap gap-1">
                 {item.labels.map((label) => (
                   <Badge key={label} variant="outline" className="text-[10px]">{label}</Badge>
                 ))}
               </div>
               {item.blockers.length > 0 ? (
-                <p className="mt-2 truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers.join(' / ')}</p>
+                <p className="mt-1.5 truncate text-[11px] text-amber-700 dark:text-amber-300">{item.blockers.join(' / ')}</p>
               ) : (
-                <p className="mt-2 truncate text-[11px] text-emerald-700 dark:text-emerald-300">基础输入可用</p>
+                <p className="mt-1.5 truncate text-[11px] text-emerald-700 dark:text-emerald-300">基础输入可用</p>
               )}
             </button>
           ))}
@@ -4292,11 +4292,32 @@ function ContentGenerationWorkbench() {
                     <h2 className="mt-1 truncate text-lg font-semibold text-foreground">{selected ? selected.title : '暂无情节'}</h2>
                     <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{selected ? selected.scope : '选择制作和情节后，开始推敲画面意图、补视觉锚点并检查生成上下文。'}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    <QueueMiniMetric label="可生成" value={readyMomentCount} tone={readyMomentCount > 0 ? 'default' : 'warning'} />
-                    <QueueMiniMetric label="待审草案" value={reviewQueueSummary.pending} tone={reviewQueueSummary.pending > 0 ? 'warning' : 'default'} onClick={openReviewQueue} />
-                    <QueueMiniMetric label="运行任务" value={runningJobCount} tone={runningJobCount > 0 ? 'warning' : 'default'} />
-                    <QueueMiniMetric label="完成任务" value={completedJobCount} />
+                  <div className="flex flex-wrap overflow-hidden rounded-md border border-border bg-background" data-testid="content-workbench-command-metrics">
+                    {[
+                      { label: '可生成', value: readyMomentCount, tone: readyMomentCount > 0 ? 'default' : 'warning' },
+                      { label: '待审草案', value: reviewQueueSummary.pending, tone: reviewQueueSummary.pending > 0 ? 'warning' : 'default', onClick: openReviewQueue },
+                      { label: '运行任务', value: runningJobCount, tone: runningJobCount > 0 ? 'warning' : 'default' },
+                      { label: '完成任务', value: completedJobCount, tone: 'default' },
+                    ].map((metric) => {
+                      const content = (
+                        <>
+                          <span className="text-[10px] text-muted-foreground">{metric.label}</span>
+                          <span className={cn('text-sm font-semibold tabular-nums', metric.tone === 'warning' ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>
+                            {metric.value}
+                          </span>
+                        </>
+                      )
+                      const className = 'flex min-w-[92px] flex-1 items-center justify-between gap-2 border-b border-border/70 px-2 py-1.5 text-left last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0'
+                      return metric.onClick ? (
+                        <button key={metric.label} type="button" className={cn(className, 'transition-colors hover:bg-primary/5')} onClick={metric.onClick}>
+                          {content}
+                        </button>
+                      ) : (
+                        <div key={metric.label} className={className}>
+                          {content}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
@@ -4474,8 +4495,8 @@ function ContentGenerationWorkbench() {
                       </div>
                     ) : null}
 
-                    <div className="rounded-md border border-border bg-background p-3">
-                      <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="rounded-md border border-border bg-background p-2.5">
+                      <div className="mb-2.5 flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                           <Image size={15} className="text-muted-foreground" />
                           画面锚点轨道
@@ -4487,15 +4508,17 @@ function ContentGenerationWorkbench() {
                         </div>
                       </div>
                       {selectedUnit ? (
-                        <p className="mb-3 text-xs text-muted-foreground">当前制作项：{titleOfRecord(selectedUnit)}</p>
+                        <p className="mb-2.5 text-xs text-muted-foreground">当前制作项：{titleOfRecord(selectedUnit)}</p>
                       ) : null}
                       {!selectedUnit ? (
-                        <p className="rounded-md border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">选择或创建制作项后查看画面锚点。</p>
+                        <p className="rounded-md border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">选择或创建制作项后查看画面锚点。</p>
                       ) : selectedUnitKeyframes.length === 0 ? (
-                        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-5">
-                          <p className="text-sm font-medium text-foreground">当前制作项还没有关键帧</p>
-                          <p className="mt-1 text-xs leading-5 text-muted-foreground">建议至少补开头帧和结尾帧；动作复杂时再补中间帧，用来约束视频生成的状态变化。</p>
-                          <Button size="sm" className="mt-4 gap-2" onClick={openCreateKeyframe}>
+                        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-border bg-muted/20 px-3 py-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground">当前制作项还没有关键帧</p>
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">建议至少补开头帧和结尾帧，用来约束视频生成的状态变化。</p>
+                          </div>
+                          <Button size="sm" className="shrink-0 gap-2" onClick={openCreateKeyframe}>
                             <Plus size={14} />
                             添加第一张关键帧
                           </Button>

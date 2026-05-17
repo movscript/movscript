@@ -221,7 +221,7 @@ async function mockContentWorkbenchData(page: Page) {
     ID: 777,
     owner_id: PROJECT_ID,
     project_id: PROJECT_ID,
-    name: '纸条特写 · 内容编排',
+    name: '纸条特写 · 画面编排',
     canvas_type: 'workflow',
     stage: 'generation',
     ref_type: 'content_unit',

@@ -30,7 +30,7 @@ export function buildContentWorkbenchCanvasPayload(input: {
   title: string
 }): ContentWorkbenchCanvasPayload {
   return {
-    name: `${input.title} · 内容编排`,
+    name: `${input.title} · 画面编排`,
     project_id: input.projectId,
     canvas_type: 'workflow',
     stage: 'generation',

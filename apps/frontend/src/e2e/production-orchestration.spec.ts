@@ -10,7 +10,7 @@ test('production orchestration separates structure and review', async ({ page },
   await openProductionOrchestrationPage(page, testInfo)
 
   await expect(page.getByRole('heading', { name: '创作蓝图' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '结构' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '蓝图' })).toBeVisible()
   await expect(page.getByRole('button', { name: '审阅' })).toBeVisible()
   await expect(page.getByText('设定与素材资源池', { exact: true })).toBeVisible()
   await expect(page.getByText('情绪段与情节树', { exact: true })).toBeVisible()
@@ -35,13 +35,13 @@ test('production orchestration keeps the separation readable on mobile width', a
   await page.setViewportSize({ width: 390, height: 844 })
   await openProductionOrchestrationPage(page, testInfo)
 
-  await expect(page.getByRole('button', { name: '结构' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '蓝图' })).toBeVisible()
   await expect(page.getByRole('button', { name: '审阅' })).toBeVisible()
   await expect(page.getByText('情绪段与情节树', { exact: true })).toBeVisible()
   await expect(page.getByText('项目级角色设定', { exact: false })).toHaveCount(0)
   await expect(page.getByText('设定 2', { exact: false })).toBeVisible()
   await expect(page.getByText('未关联 1', { exact: false })).toBeVisible()
-  await expect(page.getByText('结构树 1 段 · 1 情景', { exact: true })).toBeVisible()
+  await expect(page.getByText('蓝图 1 段 · 1 情景', { exact: true })).toBeVisible()
   await expect(page.getByText('从作品意图、情绪推进和情节树开始', { exact: true })).toBeVisible()
   await expect(page.getByText('默认收起。展开后查看项目编排结果里的设定和素材资源池。', { exact: false })).toBeVisible()
 })
@@ -74,7 +74,7 @@ async function mockProductionOrchestrationEntities(page: Page) {
         source_type: 'raw',
         content: '第一段：主角进入空间，第二段：氛围变化。',
         raw_source: '第一段：主角进入空间，第二段：氛围变化。',
-        summary: '用于制作编排页的最小剧本版本。',
+        summary: '用于创作编排页的最小剧本版本。',
         status: 'active',
         CreatedAt: '2026-05-11T12:00:00.000Z',
         UpdatedAt: '2026-05-11T12:00:00.000Z',

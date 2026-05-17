@@ -29,7 +29,7 @@ test('electron renderer smoke reaches production orchestration with project-leve
     await page.goto(`${baseURL}/project/production/orchestration?productionId=301`)
 
     await expect(page.getByRole('heading', { name: '创作蓝图' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '结构' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '蓝图' })).toBeVisible()
     await expect(page.getByRole('button', { name: '审阅' })).toBeVisible()
     await expect(page.getByText('设定与素材资源池', { exact: true })).toBeVisible()
     await expect(page.getByText('项目级角色设定', { exact: false })).toHaveCount(0)
@@ -65,7 +65,7 @@ async function mockProductionOrchestrationEntities(page: Parameters<typeof mockG
         source_type: 'raw',
         content: '第一段：主角进入空间，第二段：氛围变化。',
         raw_source: '第一段：主角进入空间，第二段：氛围变化。',
-        summary: '用于制作编排页的最小剧本版本。',
+        summary: '用于创作编排页的最小剧本版本。',
         status: 'active',
         CreatedAt: '2026-05-11T12:00:00.000Z',
         UpdatedAt: '2026-05-11T12:00:00.000Z',
